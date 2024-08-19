@@ -41,7 +41,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
 
   pTb = (TTB *)tdbOsCalloc(1, sizeof(*pTb));
   if (pTb == NULL) {
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   // pTb->pEnv
@@ -54,7 +54,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
     pPager = tdbEnvGetPager(pEnv, fFullName);
     if (!pPager) {
       tdbOsFree(pTb);
-      return -1;
+      return terrno;
     }
 
     ret = tdbTbGet(pPager->pEnv->pMainDb, tbname, strlen(tbname) + 1, &pData, &nData);
@@ -74,7 +74,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
       ret = tdbPagerOpen(pEnv->pCache, fFullName, &pPager);
       if (ret < 0) {
         tdbOsFree(pTb);
-        return -1;
+        return ret;
       }
 
       tdbEnvAddPager(pEnv, pPager);
@@ -109,17 +109,17 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
     ret = tdbPagerRestoreJournals(pPager);
     if (ret < 0) {
       tdbOsFree(pTb);
-      return -1;
+      return ret;
     }
   } else {
-    tdbPagerRollback(pPager);
+    (void)tdbPagerRollback(pPager);
   }
 
   // pTb->pBt
   ret = tdbBtreeOpen(keyLen, valLen, pPager, tbname, pgno, keyCmprFn, pEnv, &(pTb->pBt));
   if (ret < 0) {
     tdbOsFree(pTb);
-    return -1;
+    return ret;
   }
 
   *ppTb = pTb;
@@ -128,7 +128,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
 
 int tdbTbClose(TTB *pTb) {
   if (pTb) {
-    tdbBtreeClose(pTb->pBt);
+    (void)tdbBtreeClose(pTb->pBt);
     tdbOsFree(pTb);
   }
   return 0;
@@ -202,7 +202,7 @@ int tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, int va
 int tdbTbDelete(TTB *pTb, const void *pKey, int kLen, TXN *pTxn) { return tdbBtreeDelete(pTb->pBt, pKey, kLen, pTxn); }
 
 int tdbTbUpsert(TTB *pTb, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn) {
-  tdbTbDelete(pTb, pKey, kLen, pTxn);
+  (void)tdbTbDelete(pTb, pKey, kLen, pTxn);
   return tdbTbInsert(pTb, pKey, kLen, pVal, vLen, pTxn);
 }
 
@@ -221,10 +221,13 @@ int tdbTbcOpen(TTB *pTb, TBC **ppTbc, TXN *pTxn) {
   *ppTbc = NULL;
   pTbc = (TBC *)tdbOsMalloc(sizeof(*pTbc));
   if (pTbc == NULL) {
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  tdbBtcOpen(&pTbc->btc, pTb->pBt, pTxn);
+  if ((ret = tdbBtcOpen(&pTbc->btc, pTb->pBt, pTxn)) != 0) {
+    taosMemoryFree(pTbc);
+    return ret;
+  }
 
   *ppTbc = pTbc;
   return 0;
@@ -238,7 +241,7 @@ int32_t tdbTbTraversal(TTB *pTb, void *data,
     return ret;
   }
 
-  tdbTbcMoveToFirst(pCur);
+  (void)tdbTbcMoveToFirst(pCur);
 
   void *pKey = NULL;
   int   kLen = 0;
@@ -257,7 +260,7 @@ int32_t tdbTbTraversal(TTB *pTb, void *data,
   }
   tdbFree(pKey);
   tdbFree(pValue);
-  tdbTbcClose(pCur);
+  (void)tdbTbcClose(pCur);
 
   return 0;
 }
@@ -292,7 +295,7 @@ int tdbTbcUpsert(TBC *pTbc, const void *pKey, int nKey, const void *pData, int n
 
 int tdbTbcClose(TBC *pTbc) {
   if (pTbc) {
-    tdbBtcClose(&pTbc->btc);
+    (void)tdbBtcClose(&pTbc->btc);
     tdbOsFree(pTbc);
   }
 

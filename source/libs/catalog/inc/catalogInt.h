@@ -25,6 +25,7 @@ extern "C" {
 #include "tcommon.h"
 #include "ttimer.h"
 #include "tglobal.h"
+#include "os.h"
 
 #define CTG_DEFAULT_CACHE_CLUSTER_NUMBER 6
 #define CTG_DEFAULT_CACHE_VGROUP_NUMBER  100
@@ -107,6 +108,7 @@ enum {
   CTG_OP_UPDATE_TB_TSMA,
   CTG_OP_DROP_TB_TSMA,
   CTG_OP_CLEAR_CACHE,
+  CTG_OP_UPDATE_DB_TSMA_VERSION,
   CTG_OP_MAX
 };
 
@@ -363,7 +365,7 @@ typedef struct SCtgUserAuth {
 } SCtgUserAuth;
 
 typedef struct SCatalog {
-  uint64_t        clusterId;
+  int64_t        clusterId;
   bool            stopUpdate;
   SDynViewVersion dynViewVer;
   SHashObj*       userCache;  // key:user, value:SCtgUserAuth
@@ -602,6 +604,7 @@ typedef struct SCtgUpdateTbTSMAMsg {
   STableTSMAInfo* pTsma;
   int32_t         dbTsmaVersion;
   uint64_t        dbId;
+  char            dbFName[TSDB_DB_FNAME_LEN];
 } SCtgUpdateTbTSMAMsg;
 
 typedef struct SCtgDropTbTSMAMsg {
@@ -669,12 +672,12 @@ typedef struct SCtgCacheItemInfo {
 #define CTG_AUTH_READ(_t)  ((_t) == AUTH_TYPE_READ || (_t) == AUTH_TYPE_READ_OR_WRITE)
 #define CTG_AUTH_WRITE(_t) ((_t) == AUTH_TYPE_WRITE || (_t) == AUTH_TYPE_READ_OR_WRITE)
 
-#define CTG_QUEUE_INC() atomic_add_fetch_64(&gCtgMgmt.queue.qRemainNum, 1)
-#define CTG_QUEUE_DEC() atomic_sub_fetch_64(&gCtgMgmt.queue.qRemainNum, 1)
+#define CTG_QUEUE_INC() (void)atomic_add_fetch_64(&gCtgMgmt.queue.qRemainNum, 1)
+#define CTG_QUEUE_DEC() (void)atomic_sub_fetch_64(&gCtgMgmt.queue.qRemainNum, 1)
 
-#define CTG_STAT_INC(_item, _n) atomic_add_fetch_64(&(_item), _n)
-#define CTG_STAT_DEC(_item, _n) atomic_sub_fetch_64(&(_item), _n)
-#define CTG_STAT_GET(_item)     atomic_load_64(&(_item))
+#define CTG_STAT_INC(_item, _n) (void)atomic_add_fetch_64(&(_item), _n)
+#define CTG_STAT_DEC(_item, _n) (void)atomic_sub_fetch_64(&(_item), _n)
+#define CTG_STAT_GET(_item)     (void)atomic_load_64(&(_item))
 
 #define CTG_STAT_API_INC(item, n)  (CTG_STAT_INC(gCtgMgmt.statInfo.api.item, n))
 #define CTG_STAT_RT_INC(item, n)   (CTG_STAT_INC(gCtgMgmt.statInfo.runtime.item, n))
@@ -971,7 +974,7 @@ int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq
 int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgGetTbMetasFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetasCtx* ctx, int32_t dbIdx,
                                int32_t* fetchIdx, int32_t baseResIdx, SArray* pList);
-void*   ctgCloneDbCfgInfo(void* pSrc);
+int32_t ctgCloneDbCfgInfo(void* pSrc, SDbCfgInfo** ppDst);
 
 int32_t ctgOpUpdateVgroup(SCtgCacheOperation* action);
 int32_t ctgOpUpdateDbCfg(SCtgCacheOperation *operation);
@@ -1112,7 +1115,7 @@ int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName);
 int32_t ctgRemoveCacheUser(SCatalog* pCtg, SCtgUserAuth* pUser, const char* user);
 int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* pVgroup,
                            bool* exists);
-SName*  ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch);
+int32_t ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch, SName** ppName);
 int32_t ctgdGetOneHandle(SCatalog** pHandle);
 int     ctgVgInfoComp(const void* lp, const void* rp);
 int32_t ctgMakeVgArray(SDBVgInfo* dbInfo);
@@ -1140,6 +1143,7 @@ uint64_t ctgGetClusterCacheSize(SCatalog *pCtg);
 void     ctgClearHandleMeta(SCatalog* pCtg, int64_t *pClearedSize, int64_t *pCleardNum, bool *roundDone);
 void     ctgClearAllHandleMeta(int64_t *clearedSize, int64_t *clearedNum, bool *roundDone);
 void     ctgProcessTimerEvent(void *param, void *tmrId);
+int32_t  ctgBuildUseDbOutput(SUseDbOutput** ppOut, SDBVgInfo* vgInfo);
 
 int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid, char **stbName);
@@ -1165,6 +1169,9 @@ int32_t  ctgGetStreamProgressFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, 
                                        void* bInput);
 int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx, int32_t flag,
                         CTG_TSMA_FETCH_TYPE fetchType, const SName* sourceTbName);
+int32_t ctgOpUpdateDbTsmaVersion(SCtgCacheOperation* pOper);
+int32_t ctgUpdateDbTsmaVersionEnqueue(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId, bool syncOper);
+void    ctgFreeTask(SCtgTask* pTask, bool freeRes);
 
 extern SCatalogMgmt      gCtgMgmt;
 extern SCtgDebug         gCTGDebug;

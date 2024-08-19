@@ -78,6 +78,11 @@ class TDTestCase:
         tdSql.execute(f'create table stb (ts timestamp, c0 int) tags (t0 int, t1 int)')
         tdSql.execute(f'create table ctb1 using stb tags (1, 1)')
         tdSql.execute(f'create table ctb2 using stb tags (2, 2)')
+        tdSql.execute(f'create table ntb (ts timestamp, c0 int)')
+        tdSql.execute(f'create view vtb as select * from stb')
+        tdSql.execute(f'create view vtb1 as select * from ctb1')
+        tdSql.execute(f'create view vtb2 as select * from ctb2')
+        tdSql.execute(f'create view vtbn as select * from ntb')
         tdSql.execute(f'insert into ctb1 values (now, 1)')
         tdSql.execute(f'insert into ctb2 values (now, 2)')
 
@@ -113,6 +118,14 @@ class TDTestCase:
         tdSql.error(f'show tags from `db`.`stb` from db')
         tdSql.error(f'show tags from db.ctb1 from db')
         tdSql.error(f'show tags from `db`.`ctb1` from db')
+        tdSql.error(f'show tags from tb_undef from db', expectErrInfo='Fail to get table info, error: Table does not exist')
+        tdSql.error(f'show tags from db.tb_undef', expectErrInfo='Fail to get table info, error: Table does not exist')
+        tdSql.error(f'show tags from tb_undef', expectErrInfo='Fail to get table info, error: Table does not exist')
+        tdSql.error(f'show tags from ntb', expectErrInfo='Tags can only applied to super table and child table')
+        tdSql.error(f'show tags from vtb', expectErrInfo='Tags can only applied to super table and child table')
+        tdSql.error(f'show tags from vtb1', expectErrInfo='Tags can only applied to super table and child table')
+        tdSql.error(f'show tags from vtb2', expectErrInfo='Tags can only applied to super table and child table')
+        tdSql.error(f'show tags from vtbn', expectErrInfo='Tags can only applied to super table and child table')
 
         # show table tags
         tdSql.query(f'show table tags from stb')
@@ -145,6 +158,14 @@ class TDTestCase:
         tdSql.error(f'show table tags from `db`.`stb` from db')
         tdSql.error(f'show table tags from db.ctb1 from db')
         tdSql.error(f'show table tags from `db`.`ctb1` from db')
+        tdSql.error(f'show table tags from tb_undef from db', expectErrInfo='Fail to get table info, error: Table does not exist')
+        tdSql.error(f'show table tags from db.tb_undef', expectErrInfo='Fail to get table info, error: Table does not exist')
+        tdSql.error(f'show table tags from tb_undef', expectErrInfo='Fail to get table info, error: Table does not exist')
+        tdSql.error(f'show table tags from ntb', expectErrInfo='Tags can only applied to super table and child table')
+        tdSql.error(f'show table tags from vtb', expectErrInfo='Tags can only applied to super table and child table')
+        tdSql.error(f'show table tags from vtb1', expectErrInfo='Tags can only applied to super table and child table')
+        tdSql.error(f'show table tags from vtb2', expectErrInfo='Tags can only applied to super table and child table')
+        tdSql.error(f'show table tags from vtbn', expectErrInfo='Tags can only applied to super table and child table')
 
         # show indexes
         tdSql.execute(f'create index idx1 on stb (t1)')

@@ -4,7 +4,6 @@ import jenkins.model.CauseOfInterruption
 docs_only=0
 node {
 }
-
 def abortPreviousBuilds() {
     def currentJobName = env.JOB_NAME
     def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -71,6 +70,7 @@ def check_docs() {
         } else {
             echo file_changed
         }
+        env.FILE_CHANGED = file_changed
     }
 }
 def pre_test(){
@@ -137,7 +137,7 @@ def pre_test(){
         '''
     } else {
         sh '''
-            echo "unmatched reposiotry ${CHANGE_URL}"
+            echo "unmatched repository ${CHANGE_URL}"
         '''
     }
     sh '''
@@ -247,7 +247,7 @@ def pre_test_win(){
             '''
         } else {
             bat '''
-                echo "unmatched reposiotry %CHANGE_URL%"
+                echo "unmatched repository %CHANGE_URL%"
             '''
         }
     }
@@ -309,7 +309,7 @@ def pre_test_build_win() {
         python -m pip install taospy==2.7.13
         python -m pip uninstall taos-ws-py -y 
         python -m pip install taos-ws-py==0.3.1
-	xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
+        xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
     '''
     return 1
 }
@@ -350,7 +350,6 @@ pipeline {
             when {
                 allOf {
                     not { expression { env.CHANGE_BRANCH =~ /docs\// }}
-                    not { expression { env.CHANGE_URL =~ /\/TDinternal\// }}
                 }
             }
             parallel {
@@ -401,7 +400,7 @@ pipeline {
                     }
                 }
                 stage('linux test') {
-                    agent{label " slave1_47 || slave1_48 || slave1_49 || slave1_50 || slave1_52  || slave1_59 || slave1_63 ||  worker03 || slave215 || slave217 || slave219 "}
+                    agent{label "slave1_47 || slave1_48 || slave1_49 || slave1_50 || slave1_52 || slave1_59 || slave1_63 || worker03 || slave215 || slave217 || slave219 "}
                     options { skipDefaultCheckout() } 
                     when {
                         changeRequest()
@@ -416,9 +415,13 @@ pipeline {
                             echo "${WKDIR}/restore.sh -p ${BRANCH_NAME} -n ${BUILD_ID} -c {container name}"
                         }
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            timeout(time: 150, unit: 'MINUTES'){
+                            timeout(time: 200, unit: 'MINUTES'){
                                 pre_test()
                                 script {
+                                    sh '''
+                                    mkdir -p ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}
+                                    echo "''' + env.FILE_CHANGED + '''" > ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
+                                    '''
                                     sh '''
                                         date
                                         rm -rf ${WKC}/debug
@@ -451,10 +454,14 @@ pipeline {
                                         }
                                     }
                                     sh '''
+                                       cd ${WKC}/tests/parallel_test
+                                       ./run_scan_container.sh -d ${WKDIR} -b ${BRANCH_NAME}_${BUILD_ID}  -f ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt ''' + extra_param + '''
+                                    '''
+                                    sh '''
                                         cd ${WKC}/tests/parallel_test
                                         export DEFAULT_RETRY_TIME=2
                                         date
-                                        ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 900 ''' + extra_param + '''
+                                        ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 1200 ''' + extra_param + '''
                                     '''
                                 }
                             }

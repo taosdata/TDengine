@@ -43,6 +43,25 @@ extern "C" {
 #endif
 #define UDF_DNODE_ID_ENV_NAME "DNODE_ID"
 
+#define TAOS_UV_LIB_ERROR_RET(ret)                    \
+    do {                                              \
+        if (0 != ret) {                               \
+            terrno = TSDB_CODE_UDF_UV_EXEC_FAILURE;   \
+            return TSDB_CODE_UDF_UV_EXEC_FAILURE;     \
+        }                                             \
+    } while(0)
+
+
+#define TAOS_UV_CHECK_ERRNO(CODE)                   \
+  do {                                              \
+    if (0 != CODE) {                                \
+      terrln = __LINE__;                            \
+      terrno = (CODE);     \
+      goto _exit;                                   \
+    }                                               \
+  } while (0)
+
+
 // low level APIs
 /**
  * setup udf
@@ -77,7 +96,7 @@ void freeUdfInterBuf(SUdfInterBuf *buf);
 
 // high level APIs
 bool    udfAggGetEnv(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
-bool    udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo);
+int32_t udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo);
 int32_t udfAggProcess(struct SqlFunctionCtx *pCtx);
 int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock);
 
@@ -109,13 +128,13 @@ int32_t udfStartUdfd(int32_t startDnodeId);
  * stop udfd
  * @return
  */
-int32_t udfStopUdfd();
+void udfStopUdfd();
 
 /**
  * get udfd pid
  *
  */
- int32_t udfGetUdfdPid(int32_t* pUdfdPid);
+// int32_t udfGetUdfdPid(int32_t* pUdfdPid);
 
 #ifdef __cplusplus
 }

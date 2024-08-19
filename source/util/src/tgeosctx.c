@@ -13,14 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tdef.h"
 #include "tgeosctx.h"
+#include "tdef.h"
 
 static threadlocal SGeosContext tlGeosCtx = {0};
 
-SGeosContext* getThreadLocalGeosCtx() {
-  return &tlGeosCtx;
-}
+SGeosContext* getThreadLocalGeosCtx() { return &tlGeosCtx; }
 
 void destroyThreadLocalGeosCtx() {
   if (tlGeosCtx.WKTReader) {
@@ -43,7 +41,11 @@ void destroyThreadLocalGeosCtx() {
     tlGeosCtx.WKBWriter = NULL;
   }
 
-  if(tlGeosCtx.handle) {
+  if (tlGeosCtx.WKTRegex) {
+    destroyRegexes(tlGeosCtx.WKTRegex, tlGeosCtx.WKTMatchData);
+  }
+
+  if (tlGeosCtx.handle) {
     GEOS_finish_r(tlGeosCtx.handle);
     tlGeosCtx.handle = NULL;
   }

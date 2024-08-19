@@ -536,7 +536,7 @@ class TDCom:
         cur = self.newcur(host=host,port=port,user=user,password=password)
         newTdSql.init(cur, False)
         return newTdSql
-
+     
     ################################################################################################################
     # port from the common.py of new test frame
     ################################################################################################################

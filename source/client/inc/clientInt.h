@@ -44,6 +44,7 @@ enum {
   RES_TYPE__TMQ,
   RES_TYPE__TMQ_META,
   RES_TYPE__TMQ_METADATA,
+  RES_TYPE__TMQ_BATCH_META,
 };
 
 #define SHOW_VARIABLES_RESULT_COLS       3
@@ -51,10 +52,11 @@ enum {
 #define SHOW_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD3_LEN (TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE)
 
-#define TD_RES_QUERY(res)        (*(int8_t*)res == RES_TYPE__QUERY)
-#define TD_RES_TMQ(res)          (*(int8_t*)res == RES_TYPE__TMQ)
-#define TD_RES_TMQ_META(res)     (*(int8_t*)res == RES_TYPE__TMQ_META)
-#define TD_RES_TMQ_METADATA(res) (*(int8_t*)res == RES_TYPE__TMQ_METADATA)
+#define TD_RES_QUERY(res)          (*(int8_t*)res == RES_TYPE__QUERY)
+#define TD_RES_TMQ(res)            (*(int8_t*)res == RES_TYPE__TMQ)
+#define TD_RES_TMQ_META(res)       (*(int8_t*)res == RES_TYPE__TMQ_META)
+#define TD_RES_TMQ_METADATA(res)   (*(int8_t*)res == RES_TYPE__TMQ_METADATA)
+#define TD_RES_TMQ_BATCH_META(res) (*(int8_t*)res == RES_TYPE__TMQ_BATCH_META)
 
 typedef struct SAppInstInfo SAppInstInfo;
 
@@ -113,19 +115,20 @@ struct SAppInstInfo {
   SArray*            pQnodeList;
   SAppClusterSummary summary;
   SList*             pConnList;  // STscObj linked list
-  uint64_t           clusterId;
+  int64_t            clusterId;
   void*              pTransporter;
   SAppHbMgr*         pAppHbMgr;
   char*              instKey;
+  SMonitorParas      monitorParas;
 };
 
 typedef struct SAppInfo {
   int64_t       startTime;
   char          appName[TSDB_APP_NAME_LEN];
-  char*         ep;
   int32_t       pid;
   int32_t       numOfThreads;
   SHashObj*     pInstMap;
+  SHashObj*     pInstMapByClusterId;
   TdThreadMutex mutex;
 } SAppInfo;
 
@@ -195,8 +198,10 @@ typedef struct SReqResultInfo {
   uint64_t       current;
   bool           localResultFetched;
   bool           completed;
-  int32_t        precision;
   bool           convertUcs4;
+  char*          decompBuf;
+  int32_t        decompBufSize;
+  int32_t        precision;
   int32_t        payloadLen;
   char*          convertJson;
 } SReqResultInfo;
@@ -241,6 +246,11 @@ typedef struct {
   STaosxRsp       rsp;
 } SMqTaosxRspObj;
 
+typedef struct {
+  SMqRspObjCommon common;
+  SMqBatchMetaRsp rsp;
+} SMqBatchMetaRspObj;
+
 typedef struct SReqRelInfo {
   uint64_t userRefId;
   uint64_t prevRefId;
@@ -273,6 +283,7 @@ typedef struct SRequestObj {
   bool                 inRetry;
   bool                 isSubReq;
   bool                 inCallback;
+  bool                 isStmtBind;  // is statement bind parameter
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
   int64_t              allocatorRefId;
@@ -299,7 +310,7 @@ void    setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
 int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4);
 int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows,
                          bool convertUcs4);
-void    setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
+int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
 void    doFreeReqResultInfo(SReqResultInfo* pResInfo);
 int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq);
 void    syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
@@ -321,8 +332,7 @@ static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
   return (SReqResultInfo*)&msg->common.resInfo;
 }
 
-SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4);
-
+int32_t tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4, SReqResultInfo** pResInfo);
 static FORCE_INLINE SReqResultInfo* tscGetCurResInfo(TAOS_RES* res) {
   if (TD_RES_QUERY(res)) return &(((SRequestObj*)res)->body.resInfo);
   return tmqGetCurResInfo(res);
@@ -338,15 +348,16 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
 
 SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pReqObj);
 
-void*    createTscObj(const char* user, const char* auth, const char* db, int32_t connType, SAppInstInfo* pAppInfo);
+int32_t   createTscObj(const char *user, const char *auth, const char *db, int32_t connType, SAppInstInfo *pAppInfo,
+                      STscObj **p);
 void     destroyTscObj(void* pObj);
 STscObj* acquireTscObj(int64_t rid);
-int32_t  releaseTscObj(int64_t rid);
-void     destroyAppInst(SAppInstInfo* pAppInfo);
+void     releaseTscObj(int64_t rid);
+void     destroyAppInst(void* pAppInfo);
 
 uint64_t generateRequestId();
 
-void*        createRequest(uint64_t connId, int32_t type, int64_t reqid);
+int32_t      createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj **pRequest);
 void         destroyRequest(SRequestObj* pRequest);
 SRequestObj* acquireRequest(int64_t rid);
 int32_t      releaseRequest(int64_t rid);
@@ -360,8 +371,9 @@ void  resetConnectDB(STscObj* pTscObj);
 
 int taos_options_imp(TSDB_OPTION option, const char* str);
 
-void* openTransporter(const char* user, const char* auth, int32_t numOfThreads);
+int32_t openTransporter(const char* user, const char* auth, int32_t numOfThreads, void **pDnodeConn);
 void tscStopCrashReport();
+void cleanupAppInfo();
 
 typedef struct AsyncArg {
   SRpcMsg msg;
@@ -371,8 +383,8 @@ typedef struct AsyncArg {
 bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType);
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 
-STscObj* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
-                               uint16_t port, int connType);
+int32_t taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
+                              uint16_t port, int connType, STscObj** pObj);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
 
@@ -385,20 +397,20 @@ void taos_close_internal(void* taos);
 
 // --- heartbeat
 // global, called by mgmt
-int  hbMgrInit();
-void hbMgrCleanUp();
+int32_t hbMgrInit();
+void    hbMgrCleanUp();
 
 // cluster level
-SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char* key);
+int32_t    appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key, SAppHbMgr **pAppHbMgr);
 void       appHbMgrCleanup(void);
 void       hbRemoveAppHbMrg(SAppHbMgr** pAppHbMgr);
 void       destroyAllRequests(SHashObj* pRequests);
 void       stopAllRequests(SHashObj* pRequests);
 
-SAppInstInfo* getAppInstInfo(const char* clusterKey);
+//SAppInstInfo* getAppInstInfo(const char* clusterKey);
 
 // conn level
-int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
+int32_t hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
 void hbDeregisterConn(STscObj* pTscObj, SClientHbKey connKey);
 
 typedef struct SSqlCallbackWrapper {
@@ -417,7 +429,7 @@ void    doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
 int32_t removeMeta(STscObj* pTscObj, SArray* tbList, bool isView);
 int32_t handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
 int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog);
-bool    qnodeRequired(SRequestObj* pRequest);
+int32_t qnodeRequired(SRequestObj* pRequest, bool *required);
 void    continueInsertFromCsv(SSqlCallbackWrapper* pWrapper, SRequestObj* pRequest);
 void    destorySqlCallbackWrapper(SSqlCallbackWrapper* pWrapper);
 void    handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta, int32_t code);
@@ -433,10 +445,32 @@ void    freeQueryParam(SSyncQueryParam* param);
 int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effeciveUser, SParseSqlRes* pRes);
 #endif
 
-void clientSlowQueryMonitorInit(const char* clusterKey);
-void SlowQueryLog(int64_t rid, bool killed, int32_t code, int32_t cost);
+#define TSC_ERR_RET(c)                \
+  do {                                \
+    int32_t _code = c;                \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+      return _code;                   \
+    }                                 \
+  } while (0)
+#define TSC_RET(c)                    \
+  do {                                \
+    int32_t _code = c;                \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+    }                                 \
+    return _code;                     \
+  } while (0)
+#define TSC_ERR_JRET(c)              \
+  do {                               \
+    code = c;                        \
+    if (code != TSDB_CODE_SUCCESS) { \
+      terrno = code;                 \
+      goto _return;                  \
+    }                                \
+  } while (0)
 
-void clientSQLReqMonitorInit(const char* clusterKey);
+void slowQueryLog(int64_t rid, bool killed, int32_t code, int32_t cost);
 
 enum {
   MONITORSQLTYPESELECT = 0,
@@ -446,7 +480,7 @@ enum {
 
 void sqlReqLog(int64_t rid,  bool killed, int32_t code, int8_t type);
 
-void clientMonitorClose(const char* clusterKey);
+void tmqMgmtClose(void);
 
 #ifdef __cplusplus
 }

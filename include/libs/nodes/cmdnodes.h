@@ -214,6 +214,15 @@ typedef struct SCreateSubTableClause {
   STableOptions* pOptions;
 } SCreateSubTableClause;
 
+typedef struct SCreateSubTableFromFileClause {
+  ENodeType  type;
+  char       useDbName[TSDB_DB_NAME_LEN];
+  char       useTableName[TSDB_TABLE_NAME_LEN];
+  bool       ignoreExists;
+  SNodeList* pSpecificTags;
+  char       filePath[PATH_MAX];
+} SCreateSubTableFromFileClause;
+
 typedef struct SCreateMultiTablesStmt {
   ENodeType  type;
   SNodeList* pSubTables;
@@ -258,6 +267,8 @@ typedef struct SCreateUserStmt {
   char        userName[TSDB_USER_LEN];
   char        password[TSDB_USET_PASSWORD_LEN];
   int8_t      sysinfo;
+  int8_t      createDb;
+  int8_t      isImport;
   int32_t     numIpRanges;
   SIpV4Range* pIpRanges;
 
@@ -271,6 +282,7 @@ typedef struct SAlterUserStmt {
   char        password[TSDB_USET_PASSWORD_LEN];
   int8_t      enable;
   int8_t      sysinfo;
+  int8_t      createdb;
   int32_t     numIpRanges;
   SIpV4Range* pIpRanges;
 
@@ -310,6 +322,7 @@ typedef struct SShowStmt {
   SNode*        pTbName;  // SValueNode
   EOperatorType tableCondType;
   EShowKind     showKind;  // show databases: user/system, show tables: normal/child, others NULL
+  bool          withFull; // for show users full;
 } SShowStmt;
 
 typedef struct SShowCreateDatabaseStmt {
@@ -582,6 +595,7 @@ typedef struct SBalanceVgroupStmt {
 typedef struct SBalanceVgroupLeaderStmt {
   ENodeType type;
   int32_t   vgId;
+  char      dbName[TSDB_DB_NAME_LEN];
 } SBalanceVgroupLeaderStmt;
 
 typedef struct SMergeVgroupStmt {
@@ -623,6 +637,7 @@ typedef struct SCreateTSMAStmt {
   STSMAOptions*   pOptions;
   SNode*          pPrevQuery;
   SMCreateSmaReq* pReq;
+  uint8_t         precision;
 } SCreateTSMAStmt;
 
 typedef struct SDropTSMAStmt {

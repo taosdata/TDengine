@@ -13,15 +13,15 @@ TDengine greatly improves the efficiency of data ingestion, querying, and storag
 
 If you are a developer, please read the [Developer Guide](./develop) carefully. This section introduces the database connection, data modeling, data ingestion, query, continuous query, cache, data subscription, user-defined functions, and other functionality in detail. Sample code is provided for a variety of programming languages. In most cases, you can just copy and paste the sample code, and make a few changes to accommodate your application, and it will work.
 
-We live in the era of big data, and scale-up is unable to meet the growing needs of the business. Any modern data system must have the ability to scale out, and clustering has become an indispensable feature of big data systems. Not only did the TDengine team develop the cluster feature, but also decided to open source this important feature. To learn how to deploy, manage and maintain a TDengine cluster please refer to [Cluster Deployment](../deployment).
+We live in the era of big data, and scale-up is unable to meet the growing needs of the business. Any modern data system must have the ability to scale out, and clustering has become an indispensable feature of big data systems. Not only did the TDengine team develop the cluster feature, but also decided to open source this important feature. To learn how to deploy, manage and maintain a TDengine cluster please refer to [Cluster Deployment](./operation/deployment).
 
-TDengine uses ubiquitous SQL as its query language, which greatly reduces learning costs and migration costs. In addition to the standard SQL, TDengine has extensions to better support time series data analysis. These extensions include functions such as roll-up, interpolation, and time-weighted average, among many others. The [SQL Reference](./taos-sql) chapter describes the SQL syntax in detail and lists the various supported commands and functions.
+TDengine uses ubiquitous SQL as its query language, which greatly reduces learning costs and migration costs. In addition to the standard SQL, TDengine has extensions to better support time series data analysis. These extensions include functions such as roll-up, interpolation, and time-weighted average, among many others. The [SQL Reference](./reference/taos-sql) chapter describes the SQL syntax in detail and lists the various supported commands and functions.
 
 If you are a system administrator who cares about installation, upgrade, fault tolerance, disaster recovery, data import, data export, system configuration, how to monitor whether TDengine is running healthily, and how to improve system performance, please refer to, and thoroughly read the [Administration](./operation) section.
 
 If you want to know more about TDengine tools and the REST API, please see the [Reference](./reference) chapter.
 
-For information about connecting to TDengine with different programming languages, see [Client Libraries](./client-libraries/).
+For information about connecting to TDengine with different programming languages, see [Client Libraries](./reference/connectors).
 
 If you are very interested in the internal design of TDengine, please read the chapter [Inside TDengine](./tdinternal), which introduces the cluster design, data partitioning, sharding, writing, and reading processes in detail. If you want to study TDengine code or even contribute code, please read this chapter carefully.
 

@@ -15,6 +15,7 @@
 
 #include "taoserror.h"
 #include "tcoding.h"
+#include "tutil.h"
 
 struct SBuffer {
   uint32_t size;
@@ -28,27 +29,22 @@ struct SBufferReader {
 };
 
 // SBuffer
-static FORCE_INLINE int32_t tBufferInit(SBuffer *buffer) {
+static FORCE_INLINE void tBufferInit(SBuffer *buffer) {
   buffer->size = 0;
   buffer->capacity = 0;
   buffer->data = NULL;
-  return 0;
 }
 
-static FORCE_INLINE int32_t tBufferDestroy(SBuffer *buffer) {
+static FORCE_INLINE void tBufferDestroy(SBuffer *buffer) {
   buffer->size = 0;
   buffer->capacity = 0;
   if (buffer->data) {
     taosMemoryFree(buffer->data);
     buffer->data = NULL;
   }
-  return 0;
 }
 
-static FORCE_INLINE int32_t tBufferClear(SBuffer *buffer) {
-  buffer->size = 0;
-  return 0;
-}
+static FORCE_INLINE void tBufferClear(SBuffer *buffer) { buffer->size = 0; }
 
 static FORCE_INLINE int32_t tBufferEnsureCapacity(SBuffer *buffer, uint32_t capacity) {
   if (buffer->capacity < capacity) {
@@ -67,8 +63,7 @@ static FORCE_INLINE int32_t tBufferEnsureCapacity(SBuffer *buffer, uint32_t capa
 }
 
 static FORCE_INLINE int32_t tBufferPut(SBuffer *buffer, const void *data, uint32_t size) {
-  int32_t code = tBufferEnsureCapacity(buffer, buffer->size + size);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferEnsureCapacity(buffer, buffer->size + size));
   memcpy((char *)buffer->data + buffer->size, data, size);
   buffer->size += size;
   return 0;
@@ -119,10 +114,8 @@ static FORCE_INLINE int32_t tBufferPutU16v(SBuffer *buffer, uint16_t value) { re
 static FORCE_INLINE int32_t tBufferPutU32v(SBuffer *buffer, uint32_t value) { return tBufferPutU64v(buffer, value); }
 
 static FORCE_INLINE int32_t tBufferPutU64v(SBuffer *buffer, uint64_t value) {
-  int32_t code;
   while (value >= 0x80) {
-    code = tBufferPutU8(buffer, (value & 0x7F) | 0x80);
-    if (code) return code;
+    TAOS_CHECK_RETURN(tBufferPutU8(buffer, (value & 0x7F) | 0x80));
     value >>= 7;
   }
   return tBufferPutU8(buffer, value);
@@ -141,8 +134,7 @@ static FORCE_INLINE int32_t tBufferPutI64v(SBuffer *buffer, int64_t value) {
 }
 
 static FORCE_INLINE int32_t tBufferPutBinary(SBuffer *buffer, const void *data, uint32_t size) {
-  int32_t code = tBufferPutU32v(buffer, size);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferPutU32v(buffer, size));
   return tBufferPut(buffer, data, size);
 }
 
@@ -177,7 +169,7 @@ static int32_t tBufferReaderInit(SBufferReader *reader, uint32_t offset, SBuffer
 }
 
 static FORCE_INLINE int32_t tBufferGet(SBufferReader *reader, uint32_t size, void *data) {
-  if (reader->offset < 0 || reader->offset + size > reader->buffer->size) {
+  if (reader->offset + size > reader->buffer->size) {
     return TSDB_CODE_OUT_OF_RANGE;
   }
   if (data) {
@@ -324,8 +316,7 @@ static int32_t tBufferGetF32(SBufferReader *reader, float *value) {
     float    f;
     uint32_t u;
   } u;
-  int32_t code = tBufferGetU32(reader, &u.u);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetU32(reader, &u.u));
   if (value) {
     *value = u.f;
   }
@@ -337,8 +328,7 @@ static int32_t tBufferGetF64(SBufferReader *reader, double *value) {
     double   f;
     uint64_t u;
   } u;
-  int32_t code = tBufferGetU64(reader, &u.u);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetU64(reader, &u.u));
   if (value) {
     *value = u.f;
   }

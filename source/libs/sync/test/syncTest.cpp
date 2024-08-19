@@ -48,7 +48,7 @@ void test4() {
 }
 
 int main(int argc, char** argv) {
-  taosInitLog("/tmp/syncTest.log", 100);
+  taosInitLog("/tmp/syncTest.log", 100, false);
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_SCREEN + DEBUG_FILE + DEBUG_TRACE + DEBUG_INFO + DEBUG_ERROR;
 

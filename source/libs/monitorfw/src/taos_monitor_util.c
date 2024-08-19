@@ -1,16 +1,17 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+/**
+ * Copyright 2019-2020 DigitalOcean Inc.
  *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 
@@ -83,10 +84,10 @@ bool taos_monitor_is_match(const SJson* tags, char** pairs, int32_t count) {
     SJson* item = tjsonGetArrayItem(tags, i);
 
     char item_name[MONITOR_TAG_NAME_LEN] = {0};
-    tjsonGetStringValue(item, "name", item_name);
+    (void)tjsonGetStringValue(item, "name", item_name);
 
     char item_value[MONITOR_TAG_VALUE_LEN] = {0};
-    tjsonGetStringValue(item, "value", item_value);
+    (void)tjsonGetStringValue(item, "value", item_value);
 
     bool isfound = false;
     for(int32_t j = 0; j < count; j++){

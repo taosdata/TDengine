@@ -121,7 +121,7 @@ if (${BUILD_CONTRIB})
         cat("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
         add_definitions(-DUSE_ROCKSDB)
     endif()
-else() 
+else()
     if (NOT ${TD_LINUX})
         if(${BUILD_WITH_ROCKSDB})
             cat("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -181,6 +181,11 @@ endif(${BUILD_ADDR2LINE})
 # geos
 if(${BUILD_GEOS})
     cat("${TD_SUPPORT_DIR}/geos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
+
+#
+if(${BUILD_PCRE2})
+    cat("${TD_SUPPORT_DIR}/pcre2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
 # download dependencies
@@ -250,6 +255,10 @@ target_include_directories(
 
 # zlib
 set(CMAKE_PROJECT_INCLUDE_BEFORE "${TD_SUPPORT_DIR}/EnableCMP0048.txt.in")
+if(${TD_DARWIN})
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=deprecated-non-prototype")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=deprecated-non-prototype")
+endif(${TD_DARWIN})
 add_subdirectory(zlib EXCLUDE_FROM_ALL)
 target_include_directories(
     zlibstatic
@@ -266,8 +275,8 @@ unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 # add_subdirectory(xz EXCLUDE_FROM_ALL)
 # target_include_directories(
 #     xz
-#     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/xz 
-#     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/xz 
+#     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/xz
+#     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/xz
 # )
 
 # leveldb
@@ -347,7 +356,7 @@ if (${BUILD_WITH_ROCKSDB})
             rocksdb
             PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/include>
         )
-    else() 
+    else()
         if (NOT ${TD_LINUX})
             MESSAGE(STATUS "ROCKSDB CXX STATUS CONFIG: " ${CMAKE_CXX_FLAGS})
             MESSAGE(STATUS "ROCKSDB C STATUS CONFIG: " ${CMAKE_C_FLAGS})
@@ -396,8 +405,8 @@ if (${BUILD_WITH_ROCKSDB})
                 rocksdb
                 PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/include>
             )
-        endif() 
-      
+        endif()
+
     endif()
 endif()
 
@@ -600,6 +609,10 @@ if(${BUILD_GEOS})
         PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/geos/include>
     )
 endif(${BUILD_GEOS})
+
+if (${BUILD_PCRE2})
+    add_subdirectory(pcre2 EXCLUDE_FROM_ALL)
+endif(${BUILD_PCRE2})
 
 # ================================================================================================
 # Build test

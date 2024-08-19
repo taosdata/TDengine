@@ -165,7 +165,7 @@ class TDTestCase:
         sql = "select _wstart, count(*) from meters where ts >= '2018-09-20 00:00:00.000' and ts < '2018-09-20 01:00:00.000' interval(5m) fill(prev) order by _wstart desc;"
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(12)
-        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 1, 10)
         tdSql.checkData(1, 1, 10)
         tdSql.checkData(2, 1, 10)
         tdSql.checkData(3, 1, 10)
@@ -193,6 +193,49 @@ class TDTestCase:
         tdSql.checkData(9, 1, 10)
         tdSql.checkData(10, 1, 10)
         tdSql.checkData(11, 1, 10)
+
+        sql = "select _wstart, first(ts), last(ts) from meters where ts >= '2018-09-20 00:00:00.000' and ts < '2018-09-20 01:00:00.000' partition by t1 interval(5m) fill(NULL)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(60)
+
+        sql = "select _wstart, count(*) from meters where ts >= '2018-09-19 23:54:00.000' and ts < '2018-09-20 01:00:00.000' interval(5m) fill(next) order by _wstart asc;"
+        tdSql.query(sql, queryTimes=1)
+        for i in range(0, 13):
+            tdSql.checkData(i, 1, 10)
+        tdSql.checkData(13, 1, None)
+        sql = "select _wstart, count(*) from meters where ts >= '2018-09-19 23:54:00.000' and ts < '2018-09-20 01:00:00.000' interval(5m) fill(next) order by _wstart desc;"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkData(0, 1, None)
+        for i in range(1, 14):
+            tdSql.checkData(i, 1, 10)
+
+        sql = "select _wstart, count(*) from meters where ts >= '2018-09-19 23:54:00.000' and ts < '2018-09-20 01:00:00.000' interval(5m) fill(prev) order by _wstart asc;"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 1, None)
+        for i in range(2, 14):
+            tdSql.checkData(i, 1, 10)
+        sql = "select _wstart, count(*) from meters where ts >= '2018-09-19 23:54:00.000' and ts < '2018-09-20 01:00:00.000' interval(5m) fill(prev) order by _wstart desc;"
+        tdSql.query(sql, queryTimes=1)
+        for i in range(0, 12):
+            tdSql.checkData(i, 1, 10)
+        tdSql.checkData(12, 1, None)
+        tdSql.checkData(13, 1, None)
+
+        sql = "select _wstart, count(*) from meters where ts >= '2018-09-19 23:54:00.000' and ts < '2018-09-20 01:00:00.000' interval(5m) fill(linear) order by _wstart asc;"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 1, None)
+        for i in range(2, 13):
+            tdSql.checkData(i, 1, 10)
+        tdSql.checkData(13, 1, None)
+        sql = "select _wstart, count(*) from meters where ts >= '2018-09-19 23:54:00.000' and ts < '2018-09-20 01:00:00.000' interval(5m) fill(linear) order by _wstart desc;"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkData(0, 1, None)
+        for i in range(1, 12):
+            tdSql.checkData(i, 1, 10)
+        tdSql.checkData(12, 1, None)
+        tdSql.checkData(13, 1, None)
 
     def run(self):
         self.prepareTestEnv()

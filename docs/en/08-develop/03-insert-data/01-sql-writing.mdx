@@ -1,0 +1,144 @@
+---
+title: Insert Using SQL
+description: This document describes how to insert data into TDengine using SQL.
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import JavaSQL from "./_java_sql.mdx";
+import JavaStmt from "./_java_stmt.mdx";
+import PySQL from "./_py_sql.mdx";
+import PyStmt from "./_py_stmt.mdx";
+import GoSQL from "./_go_sql.mdx";
+import GoStmt from "./_go_stmt.mdx";
+import RustSQL from "./_rust_sql.mdx";
+import RustStmt from "./_rust_stmt.mdx";
+import NodeSQL from "./_js_sql.mdx";
+import NodeStmt from "./_js_stmt.mdx";
+import CsSQL from "./_cs_sql.mdx";
+import CsStmt from "./_cs_stmt.mdx";
+import CSQL from "./_c_sql.mdx";
+import CStmt from "./_c_stmt.mdx";
+import PhpSQL from "./_php_sql.mdx";
+import PhpStmt from "./_php_stmt.mdx";
+
+## Introduction
+
+Application programs can execute `INSERT` statement through client libraries to insert rows. The TDengine CLI can also be used to manually insert data.
+
+### Insert Single Row
+The below SQL statement is used to insert one row into table "d1001".
+
+```sql
+INSERT INTO d1001 VALUES (ts1, 10.3, 219, 0.31);
+```
+
+`ts1` is Unix timestamp, the timestamps which is larger than the difference between current time and KEEP in config is only allowed. For further detail, refer to [TDengine SQL insert timestamp section](../../../reference/taos-sql/insert).
+
+### Insert Multiple Rows
+
+Multiple rows can be inserted in a single SQL statement. The example below inserts 2 rows into table "d1001".
+
+```sql
+INSERT INTO d1001 VALUES (ts2, 10.2, 220, 0.23) (ts2, 10.3, 218, 0.25);
+```
+
+`ts1` and `ts2` is Unix timestamp, the timestamps which is larger than the difference between current time and KEEP in config is only allowed. For further detail, refer to [TDengine SQL insert timestamp section](../../../reference/taos-sql/insert).
+
+### Insert into Multiple Tables
+
+Data can be inserted into multiple tables in the same SQL statement. The example below inserts 2 rows into table "d1001" and 1 row into table "d1002".
+
+```sql
+INSERT INTO d1001 VALUES (ts1, 10.3, 219, 0.31) (ts2, 12.6, 218, 0.33) d1002 VALUES (ts3, 12.3, 221, 0.31);
+```
+
+`ts1`, `ts2` and `ts3` is Unix timestamp, the timestamps which is larger than the difference between current time and KEEP in config is only allowed. For further detail, refer to [TDengine SQL insert timestamp section](../../../reference/taos-sql/insert).
+
+For more details about `INSERT` please refer to [INSERT](../../../reference/taos-sql/insert).
+
+:::info
+
+- Inserting in batches can improve performance. The higher the batch size, the better the performance. Please note that a single row can't exceed 48K bytes and each SQL statement can't exceed 1MB.
+- Inserting with multiple threads can also improve performance. However, at a certain point, increasing the number of threads no longer offers any benefit and can even decrease performance due to the overhead involved in frequent thread switching. The optimal number of threads for a system depends on the processing capabilities and configuration of the server, the configuration of the database, the data schema, and the batch size for writing data. In general, more powerful clients and servers can support higher numbers of concurrently writing threads. Given a sufficiently powerful server, a higher number of vgroups for a database also increases the number of concurrent writes. Finally, a simpler data schema enables more concurrent writes as well.
+
+:::
+
+:::warning
+
+- If the timestamp of a new record already exists in a table, columns with new data for that timestamp replace old data with new data, while columns without new data are not affected.
+- The timestamp to be inserted must be newer than the timestamp of subtracting current time by the parameter `KEEP`. If `KEEP` is set to 3650 days, then the data older than 3650 days ago can't be inserted. The timestamp to be inserted cannot be newer than the timestamp of current time plus parameter `DURATION`. If `DURATION` is set to 2, the data newer than 2 days later can't be inserted.
+
+:::
+
+## Sample program
+
+### Insert Using SQL
+
+<Tabs defaultValue="java" groupId="lang">
+  <TabItem label="Java" value="java">
+    <JavaSQL />
+  </TabItem>
+  <TabItem label="Python" value="python">
+    <PySQL />
+  </TabItem>
+  <TabItem label="Go" value="go">
+    <GoSQL />
+  </TabItem>
+  <TabItem label="Rust" value="rust">
+    <RustSQL />
+  </TabItem>
+  <TabItem label="Node.js" value="node">
+    <NodeSQL />
+  </TabItem>
+  <TabItem label="C#" value="csharp">
+    <CsSQL />
+  </TabItem>
+  <TabItem label="C" value="c">
+    <CSQL />
+  </TabItem>
+  <TabItem label="PHP" value="php">
+    <PhpSQL />
+  </TabItem>
+</Tabs>
+
+:::note
+
+1. With either native connection or REST connection, the above samples can work well.
+2. Please note that `use db` can't be used with a REST connection because REST connections are stateless, so in the samples `dbName.tbName` is used to specify the table name.
+
+:::
+
+### Insert with Parameter Binding
+
+TDengine also provides API support for parameter binding. Similar to MySQL, only `?` can be used in these APIs to represent the parameters to bind. This avoids the resource consumption of SQL syntax parsing when writing data through the parameter binding interface, thus significantly improving write performance in most cases.
+
+Parameter binding is available only with native connection.
+
+<Tabs defaultValue="java" groupId="lang">
+  <TabItem label="Java" value="java">
+    <JavaStmt />
+  </TabItem>
+  <TabItem label="Python" value="python">
+    <PyStmt />
+  </TabItem>
+  <TabItem label="Go" value="go">
+    <GoStmt />
+  </TabItem>
+  <TabItem label="Rust" value="rust">
+    <RustStmt />
+  </TabItem>
+  <TabItem label="Node.js" value="node">
+    <NodeStmt />
+  </TabItem>
+  <TabItem label="C#" value="csharp">
+    <CsStmt />
+  </TabItem>
+  <TabItem label="C" value="c">
+    <CStmt />
+  </TabItem>
+  <TabItem label="PHP" value="php">
+    <PhpStmt />
+  </TabItem>
+</Tabs>
+

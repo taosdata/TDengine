@@ -412,7 +412,7 @@ void tRBTreeDrop(SRBTree *pTree, SRBTreeNode *z) {
     pTree->max = tRBTreePredecessor(pTree, pTree->max);
   }
 
-  rbtree_delete(pTree, z);
+  (void)rbtree_delete(pTree, z);
 
   pTree->n--;
 }

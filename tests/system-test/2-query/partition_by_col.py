@@ -22,7 +22,7 @@ class TDTestCase:
         self.vgroups    = 4
         self.ctbNum     = 10
         self.rowsPerTbl = 10000
-        self.duraion = '1h'
+        self.duraion = '1d'
 
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -33,7 +33,7 @@ class TDTestCase:
         if dropFlag == 1:
             tsql.execute("drop database if exists %s"%(dbName))
 
-        tsql.execute("create database if not exists %s vgroups %d replica %d duration %s"%(dbName, vgroups, replica, duration))
+        tsql.execute("create database if not exists %s vgroups %d replica %d duration %s stt_trigger 1"%(dbName, vgroups, replica, duration))
         tdLog.debug("complete to create database %s"%(dbName))
         return
 
@@ -266,11 +266,11 @@ class TDTestCase:
                 #'select _wstart as ts, count(*), t1 as a, %s from meters partition by t1, %s interval(30m)' % (col_name, col_name),
                 #'select _wstart as ts, count(*), t1 as a, %s from meters partition by t1, %s interval(1h)' %  (col_name, col_name),
 
-                'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(1s)' %  (col_name, col_name, col_name),
+                'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(30d)' %  (col_name, col_name, col_name),
                 #'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(30s)' % (col_name, col_name, col_name),
                 #'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(1m)' %  (col_name, col_name, col_name),
                 #'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(30m)' % (col_name, col_name, col_name),
-                #'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(1h)' %  (col_name, col_name, col_name),
+                'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(1h)' %  (col_name, col_name, col_name),
 
                 'select _wstart as ts, count(*), tbname as a, %s from meters partition by %s, tbname interval(1s)' %  (col_name, col_name),
                 'select _wstart as ts, count(*), t1 as a, %s from meters partition by %s, t1 interval(1s)' %  (col_name, col_name),
@@ -317,6 +317,7 @@ class TDTestCase:
 
     def run(self):
         self.prepareTestEnv()
+        tdSql.execute('flush database test')
         #time.sleep(99999999)
         self.test_sort_for_partition_hint()
         self.test_sort_for_partition_res()

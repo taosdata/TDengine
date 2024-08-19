@@ -78,7 +78,7 @@ int buildStable(TAOS* pConn) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "insert into ntba values(now,'hello')");
+  pRes = taos_query(pConn, "insert into ntba values(now + 1s,'hello')");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert table ntba, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -171,7 +171,7 @@ int32_t init_env() {
   }
 
   // pass NULL return last error code describe
-  const char* err = taos_errstr(NULL);
+  const char* err = tmq_err2str(error_code);
   printf("write_raw_block return code =0x%x err=%s\n", error_code, err);
   if(strcmp(err, "success") == 0) {
       printf("expect failed , but error string is success! err=%s\n", err);
@@ -185,7 +185,7 @@ int32_t init_env() {
       goto END;
   }
 
-  err = taos_errstr(NULL);
+  err = tmq_err2str(error_code);
   printf("write_raw_block no exist table return code =0x%x err=%s\n", error_code, err);
   if(strcmp(err, "success") == 0) {
       printf("expect failed write no exist table, but error string is success! err=%s\n", err);

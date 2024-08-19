@@ -1,16 +1,17 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+/**
+ * Copyright 2019-2020 DigitalOcean Inc.
  *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #include <pthread.h>
@@ -58,7 +59,7 @@ int taos_map_node_destroy(taos_map_node_t *self) {
 
 void taos_map_node_free(void *item) {
   taos_map_node_t *map_node = (taos_map_node_t *)item;
-  taos_map_node_destroy(map_node);
+  (void)taos_map_node_destroy(map_node);
 }
 
 taos_linked_list_compare_t taos_map_node_compare(void *item_a, void *item_b) {
@@ -86,23 +87,23 @@ taos_map_t *taos_map_new() {
   // we will only have to deallocate each key once. That will happen on taos_map_node_destroy.
   r = taos_linked_list_set_free_fn(self->keys, taos_linked_list_no_op_free);
   if (r) {
-    taos_map_destroy(self);
+    (void)taos_map_destroy(self);
     return NULL;
   }
 
-  self->addrs = taos_malloc(sizeof(taos_linked_list_t) * self->max_size);
+  self->addrs = taos_malloc(sizeof(taos_linked_list_t*) * self->max_size);
   self->free_value_fn = destroy_map_node_value_no_op;
 
   for (int i = 0; i < self->max_size; i++) {
     self->addrs[i] = taos_linked_list_new();
     r = taos_linked_list_set_free_fn(self->addrs[i], taos_map_node_free);
     if (r) {
-      taos_map_destroy(self);
+      (void)taos_map_destroy(self);
       return NULL;
     }
     r = taos_linked_list_set_compare_fn(self->addrs[i], taos_map_node_compare);
     if (r) {
-      taos_map_destroy(self);
+      (void)taos_map_destroy(self);
       return NULL;
     }
   }
@@ -111,7 +112,7 @@ taos_map_t *taos_map_new() {
   r = pthread_rwlock_init(self->rwlock, NULL);
   if (r) {
     TAOS_LOG(TAOS_PTHREAD_RWLOCK_INIT_ERROR);
-    taos_map_destroy(self);
+    (void)taos_map_destroy(self);
     return NULL;
   }
 
@@ -187,12 +188,12 @@ static void *taos_map_get_internal(const char *key, size_t *size, size_t *max_si
     taos_map_node_t *current_map_node = (taos_map_node_t *)current_node->item;
     taos_linked_list_compare_t result = taos_linked_list_compare(list, current_map_node, temp_map_node);
     if (result == TAOS_EQUAL) {
-      taos_map_node_destroy(temp_map_node);
+      (void)taos_map_node_destroy(temp_map_node);
       temp_map_node = NULL;
       return current_map_node->value;
     }
   }
-  taos_map_node_destroy(temp_map_node);
+  (void)taos_map_node_destroy(temp_map_node);
   temp_map_node = NULL;
   return NULL;
 }
@@ -247,8 +248,8 @@ static int taos_map_set_internal(const char *key, void *value, size_t *size, siz
       return 0;
     }
   }
-  taos_linked_list_append(list, map_node);
-  taos_linked_list_append(keys, (char *)map_node->key);
+  if (taos_linked_list_append(list, map_node) != 0) return 1;
+  if (taos_linked_list_append(keys, (char *)map_node->key) != 0) return 1;
   (*size)++;
   return 0;
 }
@@ -273,7 +274,7 @@ int taos_map_ensure_space(taos_map_t *self) {
   if (r) return r;
 
   // Create a new array of addrs
-  taos_linked_list_t **new_addrs = taos_malloc(sizeof(taos_linked_list_t) * new_max);
+  taos_linked_list_t **new_addrs = taos_malloc(sizeof(taos_linked_list_t*) * new_max);
 
   // Initialize the new array
   for (int i = 0; i < new_max; i++) {
@@ -310,7 +311,8 @@ int taos_map_ensure_space(taos_map_t *self) {
     self->addrs[i] = NULL;
   }
   // Destroy the collection of keys in the map
-  taos_linked_list_destroy(self->keys);
+  r = taos_linked_list_destroy(self->keys);
+  if (r) return r;
   self->keys = NULL;
 
   // Deallocate the backbone of the map

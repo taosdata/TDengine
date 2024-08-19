@@ -8,6 +8,7 @@ if command -v sudo > /dev/null; then
     csudo="sudo "
 fi
 
+${csudo}mkdir -p ${insmetaPath}
 ${csudo}chmod -R 744 ${insmetaPath}
 cd ${insmetaPath}
 ${csudo}./post.sh

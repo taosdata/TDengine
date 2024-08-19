@@ -54,7 +54,6 @@ extern "C" {
 #endif
 
 typedef struct SVnodeInfo         SVnodeInfo;
-typedef struct SMeta              SMeta;
 typedef struct SSma               SSma;
 typedef struct STsdb              STsdb;
 typedef struct STQ                STQ;
@@ -71,10 +70,6 @@ typedef struct STsdbSnapRAWReader STsdbSnapRAWReader;
 typedef struct STsdbSnapRAWWriter STsdbSnapRAWWriter;
 typedef struct STqSnapReader      STqSnapReader;
 typedef struct STqSnapWriter      STqSnapWriter;
-typedef struct STqOffsetReader    STqOffsetReader;
-typedef struct STqOffsetWriter    STqOffsetWriter;
-typedef struct STqCheckInfoReader STqCheckInfoReader;
-typedef struct STqCheckInfoWriter STqCheckInfoWriter;
 typedef struct SStreamTaskReader  SStreamTaskReader;
 typedef struct SStreamTaskWriter  SStreamTaskWriter;
 typedef struct SStreamStateReader SStreamStateReader;
@@ -136,7 +131,7 @@ typedef SVCreateTSmaReq SSmaCfg;
 SMTbCursor* metaOpenTbCursor(void* pVnode);
 void        metaCloseTbCursor(SMTbCursor* pTbCur);
 void        metaPauseTbCursor(SMTbCursor* pTbCur);
-void        metaResumeTbCursor(SMTbCursor* pTbCur, int8_t first, int8_t move);
+int32_t     metaResumeTbCursor(SMTbCursor* pTbCur, int8_t first, int8_t move);
 int32_t     metaTbCursorNext(SMTbCursor* pTbCur, ETableType jumpTableType);
 int32_t     metaTbCursorPrev(SMTbCursor* pTbCur, ETableType jumpTableType);
 
@@ -153,7 +148,6 @@ int32_t vnodeBufPoolRegisterQuery(SVBufPool* pPool, SQueryNode* pQNode);
 void    vnodeBufPoolDeregisterQuery(SVBufPool* pPool, SQueryNode* pQNode, bool proactive);
 
 // meta
-typedef struct SMCtbCursor SMCtbCursor;
 typedef struct SMStbCursor SMStbCursor;
 typedef struct STbUidStore STbUidStore;
 
@@ -224,8 +218,8 @@ typedef struct SMetaInfo {
 int32_t metaGetInfo(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo, SMetaReader* pReader);
 
 // tsdb
-int     tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg, int8_t rollback, bool force);
-int     tsdbClose(STsdb** pTsdb);
+int32_t tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg, int8_t rollback, bool force);
+int32_t tsdbClose(STsdb** pTsdb);
 int32_t tsdbBegin(STsdb* pTsdb);
 // int32_t tsdbPrepareCommit(STsdb* pTsdb);
 // int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
@@ -237,36 +231,37 @@ int32_t tsdbCacheNewSTableColumn(STsdb* pTsdb, SArray* uids, int16_t cid, int8_t
 int32_t tsdbCacheDropSTableColumn(STsdb* pTsdb, SArray* uids, int16_t cid, bool hasPrimayKey);
 int32_t tsdbCacheNewNTableColumn(STsdb* pTsdb, int64_t uid, int16_t cid, int8_t col_type);
 int32_t tsdbCacheDropNTableColumn(STsdb* pTsdb, int64_t uid, int16_t cid, bool hasPrimayKey);
-int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
-int32_t tsdbRetention(STsdb* tsdb, int64_t now, int32_t sync);
-int32_t tsdbS3Migrate(STsdb* tsdb, int64_t now, int32_t sync);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
 int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 int32_t tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
+int64_t tsdbGetEarliestTs(STsdb* pTsdb);
 
 // tq
-STQ*    tqOpen(const char* path, SVnode* pVnode);
+int32_t tqOpen(const char* path, SVnode* pVnode);
 void    tqNotifyClose(STQ*);
 void    tqClose(STQ*);
 int     tqPushMsg(STQ*, tmsg_t msgType);
 int     tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
-int     tqUnregisterPushHandle(STQ* pTq, void* pHandle);
+void    tqUnregisterPushHandle(STQ* pTq, void* pHandle);
 int     tqScanWalAsync(STQ* pTq, bool ckPause);
 int32_t tqStopStreamTasksAsync(STQ* pTq);
 int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp);
 int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskRetrieveTriggerReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskRetrieveTriggerRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessStreamHbRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessStreamReqCheckpointRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskChkptReportRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskConsensusChkptRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
 
-int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
+int32_t tqBuildStreamTask(void* pTq, SStreamTask* pTask, int64_t ver);
 int32_t tqScanWal(STQ* pTq);
 
-int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
 int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId);
 // tq-mq
@@ -295,6 +290,8 @@ int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqStreamProgressRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskUpdateCheckpointReq(STQ* pTq, char* msg, int32_t msgLen);
+int32_t tqProcessTaskConsenChkptIdReq(STQ* pTq, SRpcMsg* pMsg);
 
 // sma
 int32_t smaInit();
@@ -321,7 +318,7 @@ void*   tdUidStoreFree(STbUidStore* pStore);
 
 // SMetaSnapReader ========================================
 int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapReader** ppReader);
-int32_t metaSnapReaderClose(SMetaSnapReader** ppReader);
+void    metaSnapReaderClose(SMetaSnapReader** ppReader);
 int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData);
 // SMetaSnapWriter ========================================
 int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWriter** ppWriter);
@@ -347,29 +344,17 @@ int32_t tsdbSnapRAWWrite(STsdbSnapRAWWriter* pWriter, SSnapDataHdr* pHdr);
 int32_t tsdbSnapRAWWriterPrepareClose(STsdbSnapRAWWriter* pWriter);
 int32_t tsdbSnapRAWWriterClose(STsdbSnapRAWWriter** ppWriter, int8_t rollback);
 // STqSnapshotReader ==
-int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapReader** ppReader);
-int32_t tqSnapReaderClose(STqSnapReader** ppReader);
+int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, int8_t type, STqSnapReader** ppReader);
+void    tqSnapReaderClose(STqSnapReader** ppReader);
 int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData);
 // STqSnapshotWriter ======================================
 int32_t tqSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapWriter** ppWriter);
 int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback);
-int32_t tqSnapWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
-// STqCheckInfoshotReader ==
-int32_t tqCheckInfoReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqCheckInfoReader** ppReader);
-int32_t tqCheckInfoReaderClose(STqCheckInfoReader** ppReader);
-int32_t tqCheckInfoRead(STqCheckInfoReader* pReader, uint8_t** ppData);
-// STqCheckInfoshotWriter ======================================
-int32_t tqCheckInfoWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqCheckInfoWriter** ppWriter);
-int32_t tqCheckInfoWriterClose(STqCheckInfoWriter** ppWriter, int8_t rollback);
-int32_t tqCheckInfoWrite(STqCheckInfoWriter* pWriter, uint8_t* pData, uint32_t nData);
-// STqOffsetReader ========================================
-int32_t tqOffsetReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqOffsetReader** ppReader);
-int32_t tqOffsetReaderClose(STqOffsetReader** ppReader);
-int32_t tqOffsetSnapRead(STqOffsetReader* pReader, uint8_t** ppData);
-// STqOffsetWriter ========================================
-int32_t tqOffsetWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqOffsetWriter** ppWriter);
-int32_t tqOffsetWriterClose(STqOffsetWriter** ppWriter, int8_t rollback);
-int32_t tqOffsetSnapWrite(STqOffsetWriter* pWriter, uint8_t* pData, uint32_t nData);
+int32_t tqSnapHandleWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+
+int32_t tqSnapCheckInfoWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+int32_t tqSnapOffsetWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+
 // SStreamTaskWriter ======================================
 
 int32_t streamTaskSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTaskReader** ppReader);
@@ -377,7 +362,7 @@ int32_t streamTaskSnapReaderClose(SStreamTaskReader* pReader);
 int32_t streamTaskSnapRead(SStreamTaskReader* pReader, uint8_t** ppData);
 
 int32_t streamTaskSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTaskWriter** ppWriter);
-int32_t streamTaskSnapWriterClose(SStreamTaskWriter* ppWriter, int8_t rollback);
+int32_t streamTaskSnapWriterClose(SStreamTaskWriter* ppWriter, int8_t rollback, int8_t loadTask);
 int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t nData);
 
 int32_t streamStateSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamStateReader** ppReader);
@@ -470,6 +455,16 @@ typedef struct SVMonitorObj {
   taos_counter_t* insertCounter;
 } SVMonitorObj;
 
+typedef struct {
+  int64_t async;
+  int64_t id;
+} SVAChannelID;
+
+typedef struct {
+  int64_t async;
+  int64_t id;
+} SVATaskID;
+
 struct SVnode {
   char*     path;
   SVnodeCfg config;
@@ -478,6 +473,7 @@ struct SVnode {
   STfs*     pTfs;
   int32_t   diskPrimary;
   SMsgCb    msgCb;
+  bool      disableWrite;
 
   // Buffer Pool
   TdThreadMutex mutex;
@@ -491,8 +487,8 @@ struct SVnode {
   SVBufPool*    onRecycle;
 
   // commit variables
-  int64_t commitChannel;
-  int64_t commitTask;
+  SVAChannelID commitChannel;
+  SVATaskID    commitTask;
 
   SMeta*        pMeta;
   SSma*         pSma;
@@ -597,6 +593,24 @@ struct SCompactInfo {
 };
 
 void initStorageAPI(SStorageAPI* pAPI);
+
+// a simple hash table impl
+typedef struct SVHashTable SVHashTable;
+
+struct SVHashTable {
+  uint32_t (*hash)(const void*);
+  int32_t (*compare)(const void*, const void*);
+  int32_t              numEntries;
+  uint32_t             numBuckets;
+  struct SVHashEntry** buckets;
+};
+
+#define vHashNumEntries(ht) ((ht)->numEntries)
+int32_t vHashInit(SVHashTable** ht, uint32_t (*hash)(const void*), int32_t (*compare)(const void*, const void*));
+int32_t vHashDestroy(SVHashTable** ht);
+int32_t vHashPut(SVHashTable* ht, void* obj);
+int32_t vHashGet(SVHashTable* ht, const void* obj, void** retObj);
+int32_t vHashDrop(SVHashTable* ht, const void* obj);
 
 #ifdef __cplusplus
 }

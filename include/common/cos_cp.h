@@ -60,8 +60,8 @@ typedef struct {
 } SCheckpoint;
 
 int32_t cos_cp_open(char const* cp_path, SCheckpoint* checkpoint);
-void    cos_cp_close(TdFilePtr fd);
-void    cos_cp_remove(char const* filepath);
+int32_t cos_cp_close(TdFilePtr fd);
+int32_t cos_cp_remove(char const* filepath);
 
 int32_t cos_cp_load(char const* filepath, SCheckpoint* checkpoint);
 int32_t cos_cp_dump(SCheckpoint* checkpoint);

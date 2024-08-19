@@ -154,7 +154,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  taosInitLog("tref.log", 10);
+  taosInitLog("tref.log", 10, false);
 
   SRefSpace *pSpaceList = (SRefSpace *)taosMemoryCalloc(sizeof(SRefSpace), threads);
   TdThread  *pThreadList = (TdThread *)taosMemoryCalloc(sizeof(TdThread), threads);

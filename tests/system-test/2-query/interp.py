@@ -15,6 +15,264 @@ class TDTestCase:
         #tdSql.init(conn.cursor())
         tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
+    def interp_on_empty_table(self):
+        dbname = "db"
+        tbname = "t"        
+
+        tdSql.prepare()
+
+        tdLog.printNoPrefix("==========step1:create table")
+
+        tdSql.execute(f'''create table if not exists {dbname}.{tbname} (ts timestamp, k int)''')
+
+        tdLog.printNoPrefix("==========step2:interp query on empty table")
+
+        tdSql.query(f"select _irowts, interp(k),k from {dbname}.{tbname} partition by k range(now()-1h, now()) every(1m) fill(prev)")
+        tdSql.checkRows(0)
+        
+        tdSql.query(f"select _irowts, interp(k),k from {dbname}.{tbname} partition by k range(now()-1h, now()) every(1m) fill(next)")
+        tdSql.checkRows(0)
+        
+        tdSql.query(f"select _irowts, interp(k),k from {dbname}.{tbname} partition by k range(now()-1h, now()) every(1m) fill(linear)")
+        tdSql.checkRows(0)
+        
+        tdSql.query(f"select _irowts, interp(k),k from {dbname}.{tbname} partition by k range(now()-1h, now()) every(1m) fill(value, 2)")        
+        tdSql.checkRows(0)
+        
+    def ts5181(self):
+        tdSql.execute("create database db1 keep 36500")
+        tdSql.execute("use db1")
+
+        tdSql.execute("CREATE STABLE db1.`stb1` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `v1` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`t1` INT, t2 nchar(20))")
+
+        tdSql.execute("insert into  db1.ttt_10000     using db1.stb1   tags(44400, '_ttt_10000')  values('2024-02-19 16:05:17.649', 22300  );  ")   
+        tdSql.execute("insert into  db1.ttt_10000     using db1.stb1   tags(44400, '_ttt_10000')  values('2024-02-19 16:05:48.818',  22300 );  ")   
+        tdSql.execute("insert into  db1.ttt_10       using db1.stb1    tags( 40  , '_ttt_10')  values('2024-02-19 16:25:36.013',  20    );  ") 
+        tdSql.execute("insert into  db1.ttt_11       using db1.stb1    tags( 11  , '_ttt_11')   values('2024-02-19 16:39:50.385' , 20     ); ")  
+        tdSql.execute("insert into  db1.ttt_11       using db1.stb1    tags( 11  , '_ttt_11')   values('2024-02-19 16:43:51.742' , 20     ); ")  
+        tdSql.execute("insert into  db1.ttt_11       using db1.stb1    tags( 11  , '_ttt_11')   values('2024-02-20 08:35:13.518' , 20     ); ")  
+        tdSql.execute("insert into  db1.ttt_11       using db1.stb1    tags( 11  , '_ttt_11')   values('2024-02-20 08:58:42.255' , 20     ); ")  
+        tdSql.execute("insert into  db1.ttt_11       using db1.stb1    tags( 11  , '_ttt_11')   values('2024-02-21 09:57:49.477' , 20     ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-21` using db1.stb1 tags( 11  , '_ttt_2024-2-21') values('2024-02-21 09:58:21.882' , 20     ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-21` using db1.stb1 tags( 11  , '_ttt_2024-2-21') values('2024-02-26 16:08:31.675' , 20     ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-21` using db1.stb1 tags( 11  , '_ttt_2024-2-21') values('2024-02-26 16:11:43.445' , NULL   ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-33` using db1.stb1 tags( 11  , '_ttt_2024-2-33') values('2024-02-26 16:12:30.276' , NULL   ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-33` using db1.stb1 tags( 11  , '_ttt_2024-2-33') values('2024-02-26 16:25:07.188' , NULL   ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-33` using db1.stb1 tags( 11  , '_ttt_2024-2-33') values('2024-02-26 16:25:07.653' , NULL   ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-33` using db1.stb1 tags( 11  , '_ttt_2024-2-33') values('2024-02-26 16:25:07.879' , NULL   ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-33` using db1.stb1 tags( 11  , '_ttt_2024-2-33') values('2024-02-26 16:25:08.083' , NULL   ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-33` using db1.stb1 tags( 11  , '_ttt_2024-2-33') values('2024-02-26 16:25:08.273' , NULL   ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-33` using db1.stb1 tags( 11  , '_ttt_2024-2-33') values('2024-02-26 16:25:08.429' , NULL   ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-33` using db1.stb1 tags( 11  , '_ttt_2024-2-33') values('2024-02-26 16:25:08.599' , NULL   ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-33` using db1.stb1 tags( 11  , '_ttt_2024-2-33') values('2024-02-26 16:25:08.775' , NULL   ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-33` using db1.stb1 tags( 11  , '_ttt_2024-2-33') values('2024-02-26 16:25:08.940' , NULL   ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-33` using db1.stb1 tags( 11  , '_ttt_2024-2-33') values('2024-02-26 16:25:09.110' , NULL   ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-33` using db1.stb1 tags( 11  , '_ttt_2024-2-33') values('2024-02-26 16:25:09.254' , NULL   ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-33` using db1.stb1 tags( 11  , '_ttt_2024-2-33') values('2024-02-26 16:25:09.409' , NULL   ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-33` using db1.stb1 tags( 11  , '_ttt_2024-2-33') values('2024-02-26 16:25:34.750' , 12     ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-33` using db1.stb1 tags( 11  , '_ttt_2024-2-33') values('2024-02-26 16:25:49.820' , 12     ); ")  
+        tdSql.execute("insert into  db1.`ttt_2024-2-33` using db1.stb1 tags( 11  , '_ttt_2024-2-33') values('2024-02-26 16:25:59.551' , NULL   ); ")  
+        tdSql.execute("insert into  db1.ttt_2        using db1.stb1    tags( 2   , '_ttt_2')   values('2024-02-19 15:26:39.644' , 2      ); ") 
+        tdSql.execute("insert into  db1.ttt_2        using db1.stb1    tags( 2   , '_ttt_2')   values('2024-02-19 15:26:40.433' , 2      ); ") 
+        tdSql.execute("insert into  db1.ttt_3        using db1.stb1    tags( 3   , '_ttt_3')   values('2024-02-19 15:27:22.613' , 1      ); ") 
+        tdSql.execute("insert into  db1.ttt_13       using db1.stb1    tags( 3   , '_ttt_13')   values('2024-02-19 15:27:39.719' , 1      ); ")  
+        tdSql.execute("insert into  db1.ttt_14       using db1.stb1    tags( 3   , '_ttt_14')   values('2024-02-19 15:28:36.235' , 222    ); ")  
+        tdSql.execute("insert into  db1.ttt_14       using db1.stb1    tags( 3   , '_ttt_14')   values('2024-02-19 15:28:59.310' , 222    ); ")  
+        tdSql.execute("insert into  db1.ttt_14       using db1.stb1    tags( 3   , '_ttt_14')   values('2024-02-19 15:29:18.897' , 222    ); ")  
+        tdSql.execute("insert into  db1.ttt_14       using db1.stb1    tags( 3   , '_ttt_14')   values('2024-02-19 15:50:24.682' , 223    ); ")  
+        tdSql.execute("insert into  db1.ttt_4        using db1.stb1    tags( 3   , '_ttt_4')   values('2024-02-19 15:31:19.945' , 222    ); ") 
+        tdSql.execute("insert into  db1.ttt_a        using db1.stb1    tags( 3   , '_ttt_a')   values('2024-02-19 15:31:37.915' , 4      ); ") 
+        tdSql.execute("insert into  db1.ttt_axxxx    using db1.stb1    tags( NULL, '_ttt_axxxx')   values('2024-02-19 15:31:58.953' , 4      ); ") 
+        tdSql.execute("insert into  db1.ttt_axxx     using db1.stb1    tags( 56  , '_ttt_axxx')   values('2024-02-19 15:32:22.323' , NULL   ); ")  
+        tdSql.execute("insert into  db1.ttt_444      using db1.stb1    tags( 5633, '_ttt_444')   values('2024-02-19 15:36:44.625' , 5444   ); ") 
+        tdSql.execute("insert into  db1.ttt_444      using db1.stb1    tags( 5633, '_ttt_444')   values('2024-02-19 15:38:41.479' , 5444   ); ") 
+        tdSql.execute("insert into  db1.ttt_444      using db1.stb1    tags( 5633, '_ttt_444')   values('2024-02-19 15:57:23.249' , 5444   ); ") 
+        tdSql.execute("insert into  db1.ttt_444      using db1.stb1    tags( 5633, '_ttt_444')   values('2024-02-19 16:04:20.465' , 5444   ); ") 
+        tdSql.execute("insert into  db1.ttt_444      using db1.stb1    tags( 5633, '_ttt_444')   values('2024-02-26 16:11:29.364' , 5444   ); ") 
+        tdSql.execute("insert into  db1.ttt_123      using db1.stb1    tags( 0   , '_ttt_123')   values('2024-02-19 15:44:52.136' , 223    ); ") 
+        tdSql.execute("insert into  db1.ttt_145      using db1.stb1    tags( 0   , '_ttt_145')   values('2024-02-19 15:50:28.580' , 223    ); ") 
+        tdSql.execute("insert into  db1.ttt_1465     using db1.stb1    tags( 0   , '_ttt_1465')   values('2024-02-19 15:50:32.493' , 223    ); ")  
+        tdSql.execute("insert into  db1.ttt_1465     using db1.stb1    tags( 0   , '_ttt_1465')   values('2024-02-19 15:57:36.866' , 223    ); ")  
+        tdSql.execute("insert into  db1.ttt_1465     using db1.stb1    tags( 0   , '_ttt_1465')   values('2024-02-19 16:04:52.794' , 221113 ); ")  
+        tdSql.execute("insert into  db1.ttt_444      using db1.stb1    tags( 5633, '_ttt_444')   values('2024-02-27 08:47:11.366' , 5444   ); ") 
+        tdSql.execute("insert into  db1.ttt_444      using db1.stb1    tags( 5633, '_ttt_444')   values('2024-02-28 09:35:46.474' , 5444   ); ") 
+
+        tdSql.query("select *,tbname from db1.stb1 ;")
+        tdSql.checkRows(51)
+
+        tdSql.query("select _irowts as ts,interp(v1),t1,tbname from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) fill(prev)")
+        tdSql.checkRows(4)
+        
+        tdSql.query("select _irowts as ts,interp(v1),t1,tbname from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) fill(prev) order by tbname")
+        tdSql.checkData(0, 2, 3)
+        tdSql.checkData(1, 2, 3)
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(3, 2, 3)
+        tdSql.checkData(0, 3, "ttt_13")
+        tdSql.checkData(1, 3, "ttt_14")
+        tdSql.checkData(2, 3, "ttt_2")
+        tdSql.checkData(3, 3, "ttt_3")
+        
+        tdSql.query("select _irowts as ts,interp(v1),t1,tbname from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
+            fill(value, 0) order by tbname")
+        tdSql.checkRows(12)
+        tdSql.checkData(0, 2, 0)
+        tdSql.checkData(0, 3, "ttt_123")
+        tdSql.checkData(1, 2, 3)
+        tdSql.checkData(1, 3, "ttt_13")
+        
+        tdSql.query("select _irowts as ts,interp(v1),tbname from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
+            fill(value, 0) order by tbname")
+        tdSql.checkRows(12)
+        tdSql.checkData(0, 2, "ttt_123")
+        tdSql.checkData(1, 2, "ttt_13")
+        
+        tdSql.query("select _irowts as ts,interp(v1),t1,tbname from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
+            fill(NULL) order by tbname")
+        tdSql.checkRows(12)
+        tdSql.checkData(0, 2, 0)
+        tdSql.checkData(0, 3, "ttt_123")
+        tdSql.checkData(1, 2, 3)
+        tdSql.checkData(1, 3, "ttt_13")
+        
+        tdSql.query("select _irowts as ts,interp(v1),t1 from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
+            fill(NULL) order by tbname")
+        tdSql.checkRows(12)
+        tdSql.checkData(0, 2, 0)
+        tdSql.checkData(1, 2, 3)
+        
+        tdSql.query("select _irowts as ts,interp(v1), tbname from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
+            fill(NULL) order by tbname")
+        tdSql.checkRows(12)
+        tdSql.checkData(0, 2, "ttt_123")
+        tdSql.checkData(1, 2, "ttt_13")
+        
+        tdSql.query("select _irowts as ts,interp(v1),t1,tbname from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
+            fill(NULL) order by tbname")
+        tdSql.checkRows(12)
+        tdSql.checkData(0, 2, 0)
+        tdSql.checkData(0, 3, "ttt_123")
+        tdSql.checkData(1, 2, 3)
+        tdSql.checkData(1, 3, "ttt_13")
+        
+        tdSql.query("select _irowts as ts,interp(v1),t1,tbname from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
+            fill(LINEAR) order by tbname")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 2, 3)
+        tdSql.checkData(0, 3, "ttt_14")
+        
+        tdSql.query("select _irowts as ts,interp(v1), tbname from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
+            fill(LINEAR) order by tbname")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 2, "ttt_14")
+        
+        tdSql.query("select _irowts as ts,interp(v1),t1 from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
+            fill(LINEAR) order by tbname")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 2, 3)
+        
+        tdSql.query("select _irowts as ts,interp(v1),t1, tbname from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
+            fill(NEXT) order by tbname")
+        tdSql.checkRows(9)
+        tdSql.checkData(0, 2, 0)
+        tdSql.checkData(0, 3, "ttt_123")
+        
+        tdSql.query("select _irowts as ts,interp(v1),t1 from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
+            fill(NEXT) order by tbname")
+        tdSql.checkRows(9)
+        tdSql.checkData(0, 2, 0)
+        
+        tdSql.query("select _irowts as ts,interp(v1),tbname from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
+            fill(NEXT) order by tbname")
+        tdSql.checkRows(9)
+        tdSql.checkData(0, 2, "ttt_123")
+        
+        tdSql.query("select _irowts as ts,interp(v1),t1, tbname from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
+            fill(NULL_F) order by tbname")
+        tdSql.checkRows(12)
+        tdSql.checkData(0, 2, 0)
+        tdSql.checkData(0, 3, "ttt_123")
+        
+        tdSql.query("select _irowts as ts,interp(v1),t1, tbname from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
+            fill(VALUE_F, 5) order by tbname")
+        tdSql.checkRows(12)
+        tdSql.checkData(0, 1, 5)
+        tdSql.checkData(0, 2, 0)
+        tdSql.checkData(0, 3, "ttt_123")
+        
+        tdSql.query("select _irowts as ts,interp(v1),t1, t2, tbname from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
+            fill(VALUE_F, 5) order by tbname")
+        tdSql.checkRows(12)
+        tdSql.checkData(0, 1, 5)
+        tdSql.checkData(0, 2, 0)
+        tdSql.checkData(0, 3, "_ttt_123")
+        tdSql.checkData(0, 4, "ttt_123")
+        
+        tdSql.query("select _irowts as ts,interp(v1),t1,tbname, t2 from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) fill(prev)")
+        tdSql.checkRows(4)
+        
+        tdSql.query("select _irowts as ts,interp(v1),t1,tbname, t2 from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) fill(prev) order by tbname")
+        tdSql.checkData(0, 2, 3)
+        tdSql.checkData(1, 2, 3)
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(3, 2, 3)
+        tdSql.checkData(0, 3, "ttt_13")
+        tdSql.checkData(1, 3, "ttt_14")
+        tdSql.checkData(2, 3, "ttt_2")
+        tdSql.checkData(3, 3, "ttt_3")
+        tdSql.checkData(0, 4, "_ttt_13")
+        tdSql.checkData(1, 4, "_ttt_14")
+        tdSql.checkData(2, 4, "_ttt_2")
+        tdSql.checkData(3, 4, "_ttt_3")
+        
+        tdSql.query("select _irowts as ts,interp(v1),t1,t2 from db1.stb1 \
+            where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
+            fill(value, 0) order by tbname")
+        tdSql.checkRows(12)
+        tdSql.checkData(0, 2, 0)
+        tdSql.checkData(0, 3, "_ttt_123")
+        tdSql.checkData(1, 2, 3)
+        tdSql.checkData(1, 3, "_ttt_13")
+    
     def run(self):
         dbname = "db"
         tbname = "tb"
@@ -5658,6 +5916,8 @@ class TDTestCase:
         tdSql.checkData(0,  0, '2023-08-06 23:59:00')
         tdSql.checkData(0,  1, None)
 
+        self.interp_on_empty_table()
+        self.ts5181()
 
 
     def stop(self):

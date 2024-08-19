@@ -60,7 +60,7 @@ typedef struct STlvDecoder {
 
 typedef int32_t (*FToMsg)(const void* pObj, STlvEncoder* pEncoder);
 typedef int32_t (*FToObject)(STlvDecoder* pDecoder, void* pObj);
-typedef void* (*FMakeObject)(int16_t type);
+typedef int32_t (*FMakeObject)(int16_t type, SNode** ppNode);
 typedef int32_t (*FSetObject)(STlv* pTlv, void* pObj);
 
 static int32_t nodeToMsg(const void* pObj, STlvEncoder* pEncoder);
@@ -568,9 +568,9 @@ static int32_t tlvDecodeObjArrayFromTlv(STlv* pTlv, FToObject func, void* pArray
 }
 
 static int32_t tlvDecodeDynObjFromTlv(STlv* pTlv, FMakeObject makeFunc, FToObject toFunc, void** pObj) {
-  *pObj = makeFunc(pTlv->type);
+  int32_t code = makeFunc(pTlv->type, (SNode**)pObj);
   if (NULL == *pObj) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   return tlvDecodeObjFromTlv(pTlv, toFunc, *pObj);
 }
@@ -1112,6 +1112,7 @@ enum {
   FUNCTION_NODE_PK_BYTES,
   FUNCTION_CODE_IS_MERGE_FUNC,
   FUNCTION_CODE_MERGE_FUNC_OF,
+  FUNCTION_CODE_TRIM_TYPE,
 };
 
 static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1144,6 +1145,9 @@ static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, FUNCTION_CODE_MERGE_FUNC_OF, pNode->originalFuncId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeEnum(pEncoder, FUNCTION_CODE_TRIM_TYPE, pNode->trimType);
   }
 
   return code;
@@ -1185,6 +1189,9 @@ static int32_t msgToFunctionNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case FUNCTION_CODE_MERGE_FUNC_OF:
         code = tlvDecodeI32(pTlv, &pNode->originalFuncId);
+        break;
+      case FUNCTION_CODE_TRIM_TYPE:
+        code = tlvDecodeEnum(pTlv, &pNode->trimType, sizeof(pNode->trimType));
         break;
       default:
         break;
@@ -4786,9 +4793,10 @@ static int32_t SArrayToMsg(const void* pObj, STlvEncoder* pEncoder) {
 
 
 static int32_t msgToNodeList(STlvDecoder* pDecoder, void** pObj) {
-  SNodeList* pList = nodesMakeList();
-
+  SNodeList* pList = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
+  code = nodesMakeList(&pList);
+
   while (TSDB_CODE_SUCCESS == code && !tlvDecodeEnd(pDecoder)) {
     SNode* pNode = NULL;
     code = msgToNode(pDecoder, (void**)&pNode);

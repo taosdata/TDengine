@@ -14,8 +14,8 @@
  */
 
 #include "os.h"
-#include "ttypes.h"
 #include "tcompression.h"
+#include "ttypes.h"
 
 int32_t getWordLength(char type) {
   int32_t wordLength = 0;
@@ -34,7 +34,7 @@ int32_t getWordLength(char type) {
       break;
     default:
       uError("Invalid decompress integer type:%d", type);
-      return -1;
+      return TSDB_CODE_INVALID_PARA;
   }
 
   return wordLength;
@@ -52,9 +52,9 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
   int32_t     _pos = 0;
   int64_t     prevValue = 0;
 
-#if __AVX2__
+#if __AVX2__ || __AVX512F__
   while (_pos < nelements) {
-    uint64_t w = *(uint64_t*) ip;
+    uint64_t w = *(uint64_t *)ip;
 
     char    selector = (char)(w & INT64MASK(4));       // selector = 4
     char    bit = bit_per_integer[(int32_t)selector];  // bit = 3
@@ -67,15 +67,38 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
 
     switch (type) {
       case TSDB_DATA_TYPE_BIGINT: {
-        int64_t* p = (int64_t*) output;
+        int64_t *p = (int64_t *)output;
 
         int32_t gRemainder = (nelements - _pos);
-        int32_t num = (gRemainder > elems)? elems:gRemainder;
+        int32_t num = (gRemainder > elems) ? elems : gRemainder;
 
-        int32_t batch = num >> 2;
-        int32_t remain = num & 0x03;
+        int32_t batch = 0;
+        int32_t remain = 0;
+        if (tsSIMDEnable && tsAVX512Supported && tsAVX512Enable) {
+#if __AVX512F__
+          batch = num >> 3;
+          remain = num & 0x07;
+#endif
+        } else if (tsSIMDEnable && tsAVX2Supported) {
+#if __AVX2__
+          batch = num >> 2;
+          remain = num & 0x03;
+#endif
+        }
+
         if (selector == 0 || selector == 1) {
-          if (tsSIMDEnable && tsAVX2Enable) {
+          if (tsSIMDEnable && tsAVX512Supported && tsAVX512Enable) {
+#if __AVX512F__
+            for (int32_t i = 0; i < batch; ++i) {
+              __m512i prev = _mm512_set1_epi64(prevValue);
+              _mm512_storeu_si512((__m512i *)&p[_pos], prev);
+              _pos += 8;  // handle 64bit x 8 = 512bit
+            }
+            for (int32_t i = 0; i < remain; ++i) {
+              p[_pos++] = prevValue;
+            }
+#endif
+          } else if (tsSIMDEnable && tsAVX2Supported) {
             for (int32_t i = 0; i < batch; ++i) {
               __m256i prev = _mm256_set1_epi64x(prevValue);
               _mm256_storeu_si256((__m256i *)&p[_pos], prev);
@@ -85,18 +108,79 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
             for (int32_t i = 0; i < remain; ++i) {
               p[_pos++] = prevValue;
             }
-          } else if (tsSIMDEnable && tsAVX512Enable) {
-#if __AVX512F__
-            // todo add avx512 impl
-#endif
-          } else { // alternative implementation without SIMD instructions.
+
+          } else {  // alternative implementation without SIMD instructions.
             for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
               p[_pos++] = prevValue;
               v += bit;
             }
           }
         } else {
-          if (tsSIMDEnable && tsAVX2Enable) {
+          if (tsSIMDEnable && tsAVX512Supported && tsAVX512Enable) {
+#if __AVX512F__
+            __m512i sum_mask1 = _mm512_set_epi64(6, 6, 4, 4, 2, 2, 0, 0);
+            __m512i sum_mask2 = _mm512_set_epi64(5, 5, 5, 5, 1, 1, 1, 1);
+            __m512i sum_mask3 = _mm512_set_epi64(3, 3, 3, 3, 3, 3, 3, 3);
+            __m512i base = _mm512_set1_epi64(w);
+            __m512i maskVal = _mm512_set1_epi64(mask);
+            __m512i shiftBits = _mm512_set_epi64(bit * 7 + 4, bit * 6 + 4, bit * 5 + 4, bit * 4 + 4, bit * 3 + 4,
+                                                 bit * 2 + 4, bit + 4, 4);
+            __m512i inc = _mm512_set1_epi64(bit << 3);
+
+            for (int32_t i = 0; i < batch; ++i) {
+              __m512i after = _mm512_srlv_epi64(base, shiftBits);
+              __m512i zigzagVal = _mm512_and_si512(after, maskVal);
+
+              // ZIGZAG_DECODE(T, v) (((v) >> 1) ^ -((T)((v)&1)))
+              __m512i signmask = _mm512_and_si512(_mm512_set1_epi64(1), zigzagVal);
+              signmask = _mm512_sub_epi64(_mm512_setzero_si512(), signmask);
+              __m512i delta = _mm512_xor_si512(_mm512_srli_epi64(zigzagVal, 1), signmask);
+
+              // calculate the cumulative sum (prefix sum) for each number
+              // decode[0] =  prevValue + final[0]
+              // decode[1] = decode[0] + final[1]   -----> prevValue + final[0] + final[1]
+              // decode[2] = decode[1] + final[2]   -----> prevValue + final[0] + final[1] + final[2]
+              // decode[3] = decode[2] + final[3]   -----> prevValue + final[0] + final[1] + final[2] + final[3]
+
+              // 7		6		5		4		3		2		1
+              // 0 D7		D6		D5		D4		D3		D2		D1
+              // D0 D6		0		D4		0		D2		0		D0
+              // 0 D7+D6		D6		D5+D4		D4		D3+D2		D2
+              // D1+D0		D0 13		6		9		4		5		2
+              // 1		0
+              __m512i prev = _mm512_set1_epi64(prevValue);
+              __m512i cum_sum = _mm512_add_epi64(delta, _mm512_maskz_permutexvar_epi64(0xaa, sum_mask1, delta));
+              cum_sum = _mm512_add_epi64(cum_sum, _mm512_maskz_permutexvar_epi64(0xcc, sum_mask2, cum_sum));
+              cum_sum = _mm512_add_epi64(cum_sum, _mm512_maskz_permutexvar_epi64(0xf0, sum_mask3, cum_sum));
+
+              // 13		6		9		4		5		2		1
+              // 0 D7,D6		D6		D5,D4		D4		D3,D2		D2
+              // D1,D0		D0 +D5,D4	D5,D4,		0		0		D1,D0		D1,D0
+              // 0		0 D7~D4		D6~D4		D5~D4		D4		D3~D0		D2~D0
+              // D1~D0		D0 22		15		9		4		6		3
+              // 1		0
+              //
+              // D3~D0		D3~D0		D3~D0		D3~D0		0		0		0
+              // 0 28		21		15		10		6		3		1
+              // 0
+
+              cum_sum = _mm512_add_epi64(cum_sum, prev);
+              _mm512_storeu_si512((__m512i *)&p[_pos], cum_sum);
+
+              shiftBits = _mm512_add_epi64(shiftBits, inc);
+              prevValue = p[_pos + 7];
+              _pos += 8;
+            }
+            // handle the remain value
+            for (int32_t i = 0; i < remain; i++) {
+              zigzag_value = ((w >> (v + (batch * bit * 8))) & mask);
+              prevValue += ZIGZAG_DECODE(int64_t, zigzag_value);
+
+              p[_pos++] = prevValue;
+              v += bit;
+            }
+#endif
+          } else if (tsSIMDEnable && tsAVX2Supported) {
             __m256i base = _mm256_set1_epi64x(w);
             __m256i maskVal = _mm256_set1_epi64x(mask);
 
@@ -157,10 +241,6 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
               p[_pos++] = prevValue;
               v += bit;
             }
-          } else if (tsSIMDEnable && tsAVX512Enable) {
-#if __AVX512F__
-            // todo add avx512 impl
-#endif
           } else {  // alternative implementation without SIMD instructions.
             for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
               zigzag_value = ((w >> v) & mask);
@@ -173,7 +253,7 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
         }
       } break;
       case TSDB_DATA_TYPE_INT: {
-        int32_t* p = (int32_t*) output;
+        int32_t *p = (int32_t *)output;
 
         if (selector == 0 || selector == 1) {
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
@@ -190,7 +270,7 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
         }
       } break;
       case TSDB_DATA_TYPE_SMALLINT: {
-        int16_t* p = (int16_t*) output;
+        int16_t *p = (int16_t *)output;
 
         if (selector == 0 || selector == 1) {
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
@@ -235,7 +315,7 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
 
 int32_t tsDecompressFloatImplAvx512(const char *const input, const int32_t nelements, char *const output) {
 #if __AVX512F__
-    // todo add it
+  // todo add it
 #endif
   return 0;
 }
@@ -247,18 +327,19 @@ int32_t tsDecompressFloatImplAvx2(const char *const input, const int32_t nelemen
   return 0;
 }
 
+// decode two timestamps in one loop.
 int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output,
                                   bool bigEndian) {
-#if 0
   int64_t *ostream = (int64_t *)output;
   int32_t  ipos = 1, opos = 0;
-  __m128i  prevVal = _mm_setzero_si128();
-  __m128i  prevDelta = _mm_setzero_si128();
 
 #if __AVX2__
+  __m128i prevVal = _mm_setzero_si128();
+  __m128i prevDelta = _mm_setzero_si128();
+
   int32_t batch = nelements >> 1;
   int32_t remainder = nelements & 0x01;
-  __mmask16 mask2[16] = {0, 0x0001, 0x0003, 0x0007, 0x000f, 0x001f, 0x003f, 0x007f, 0x00ff};
+  //  __mmask16 mask2[16] = {0, 0x0001, 0x0003, 0x0007, 0x000f, 0x001f, 0x003f, 0x007f, 0x00ff};
 
   int32_t i = 0;
   if (batch > 1) {
@@ -268,18 +349,18 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
     int8_t nbytes1 = flags & INT8MASK(4);  // range of nbytes starts from 0 to 7
     int8_t nbytes2 = (flags >> 4) & INT8MASK(4);
 
-    __m128i data1;
-    if (nbytes1 == 0) {
-      data1 = _mm_setzero_si128();
-    } else {
-      memcpy(&data1, (const void*) (input + ipos), nbytes1);
+    __m128i data1 = _mm_setzero_si128();
+    if (nbytes1 > 0) {
+      int64_t tmp = 0;
+      memcpy(&tmp, (const void *)(input + ipos), nbytes1);
+      data1 = _mm_set1_epi64x(tmp);
     }
 
-    __m128i data2;
-    if (nbytes2 == 0) {
-      data2 = _mm_setzero_si128();
-    } else {
-      memcpy(&data2, (const void*) (input + ipos + nbytes1), nbytes2);
+    __m128i data2 = _mm_setzero_si128();
+    if (nbytes2 > 0) {
+      int64_t tmp = 0;
+      memcpy(&tmp, (const void *)(input + ipos + nbytes1), nbytes2);
+      data2 = _mm_set1_epi64x(tmp);
     }
 
     data2 = _mm_broadcastq_epi64(data2);
@@ -293,13 +374,13 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
     __m128i deltaOfDelta = _mm_xor_si128(_mm_srli_epi64(zzVal, 1), signmask);
 
     __m128i deltaCurrent = _mm_add_epi64(deltaOfDelta, prevDelta);
-    deltaCurrent = _mm_add_epi64(_mm_slli_si128(deltaCurrent, 8), deltaCurrent);
+    deltaCurrent = _mm_add_epi64(_mm_slli_si128(deltaOfDelta, 8), deltaCurrent);
 
-    __m128i val = _mm_add_epi64(deltaCurrent, prevVal);
-    _mm_storeu_si128((__m128i *)&ostream[opos], val);
+    __m128i finalVal = _mm_add_epi64(deltaCurrent, prevVal);
+    _mm_storeu_si128((__m128i *)&ostream[opos], finalVal);
 
     // keep the previous value
-    prevVal = _mm_shuffle_epi32 (val, 0xEE);
+    prevVal = _mm_shuffle_epi32(finalVal, 0xEE);
 
     // keep the previous delta of delta, for the first item
     prevDelta = _mm_shuffle_epi32(deltaOfDelta, 0xEE);
@@ -310,29 +391,23 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
   }
 
   // the remain
-  for(; i < batch; ++i) {
+  for (; i < batch; ++i) {
     uint8_t flags = input[ipos++];
 
     int8_t nbytes1 = flags & INT8MASK(4);  // range of nbytes starts from 0 to 7
     int8_t nbytes2 = (flags >> 4) & INT8MASK(4);
 
-//    __m128i data1 = _mm_maskz_loadu_epi8(mask2[nbytes1], (const void*)(input + ipos));
-//    __m128i data2 = _mm_maskz_loadu_epi8(mask2[nbytes2], (const void*)(input + ipos + nbytes1));
-    __m128i data1;
-    if (nbytes1 == 0) {
-      data1 = _mm_setzero_si128();
-    } else {
+    __m128i data1 = _mm_setzero_si128();
+    if (nbytes1 > 0) {
       int64_t dd = 0;
-      memcpy(&dd, (const void*) (input + ipos), nbytes1);
+      memcpy(&dd, (const void *)(input + ipos), nbytes1);
       data1 = _mm_loadu_si64(&dd);
     }
 
-    __m128i data2;
-    if (nbytes2 == 0) {
-      data2 = _mm_setzero_si128();
-    } else {
+    __m128i data2 = _mm_setzero_si128();
+    if (nbytes2 > 0) {
       int64_t dd = 0;
-      memcpy(&dd, (const void*) (input + ipos + nbytes1), nbytes2);
+      memcpy(&dd, (const void *)(input + ipos + nbytes1), nbytes2);
       data2 = _mm_loadu_si64(&dd);
     }
 
@@ -348,17 +423,18 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
     __m128i deltaOfDelta = _mm_xor_si128(_mm_srli_epi64(zzVal, 1), signmask);
 
     __m128i deltaCurrent = _mm_add_epi64(deltaOfDelta, prevDelta);
-    deltaCurrent = _mm_add_epi64(_mm_slli_si128(deltaCurrent, 8), deltaCurrent);
+    deltaCurrent = _mm_add_epi64(_mm_slli_si128(deltaOfDelta, 8), deltaCurrent);
 
-    __m128i val = _mm_add_epi64(deltaCurrent, prevVal);
-    _mm_storeu_si128((__m128i *)&ostream[opos], val);
+    __m128i finalVal = _mm_add_epi64(deltaCurrent, prevVal);
+    finalVal = _mm_add_epi64(_mm_slli_si128(deltaCurrent, 8), finalVal);
+
+    _mm_storeu_si128((__m128i *)&ostream[opos], finalVal);
 
     // keep the previous value
-    prevVal = _mm_shuffle_epi32 (val, 0xEE);
+    prevVal = _mm_shuffle_epi32(finalVal, 0xEE);
 
     // keep the previous delta of delta
-    __m128i delta = _mm_add_epi64(_mm_slli_si128(deltaOfDelta, 8), deltaOfDelta);
-    prevDelta = _mm_shuffle_epi32(_mm_add_epi64(delta, prevDelta), 0xEE);
+    prevDelta = _mm_shuffle_epi32(deltaCurrent, 0xEE);
 
     opos += 2;
     ipos += nbytes1 + nbytes2;
@@ -390,7 +466,6 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
     }
   }
 #endif
-#endif
   return 0;
 }
 
@@ -401,8 +476,8 @@ int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelem
 
 #if __AVX512VL__
 
-  __m128i  prevVal = _mm_setzero_si128();
-  __m128i  prevDelta = _mm_setzero_si128();
+  __m128i prevVal = _mm_setzero_si128();
+  __m128i prevDelta = _mm_setzero_si128();
 
   int32_t   numOfBatch = nelements >> 1;
   int32_t   remainder = nelements & 0x01;
@@ -416,8 +491,8 @@ int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelem
     int8_t nbytes1 = flags & INT8MASK(4);  // range of nbytes starts from 0 to 7
     int8_t nbytes2 = (flags >> 4) & INT8MASK(4);
 
-    __m128i data1 = _mm_maskz_loadu_epi8(mask2[nbytes1], (const void*)(input + ipos));
-    __m128i data2 = _mm_maskz_loadu_epi8(mask2[nbytes2], (const void*)(input + ipos + nbytes1));
+    __m128i data1 = _mm_maskz_loadu_epi8(mask2[nbytes1], (const void *)(input + ipos));
+    __m128i data2 = _mm_maskz_loadu_epi8(mask2[nbytes2], (const void *)(input + ipos + nbytes1));
     data2 = _mm_broadcastq_epi64(data2);
 
     __m128i zzVal = _mm_blend_epi32(data2, data1, 0x03);
@@ -436,7 +511,7 @@ int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelem
     _mm_storeu_si128((__m128i *)&ostream[opos], val);
 
     // keep the previous value
-    prevVal = _mm_shuffle_epi32 (val, 0xEE);
+    prevVal = _mm_shuffle_epi32(val, 0xEE);
 
     // keep the previous delta of delta, for the first item
     prevDelta = _mm_shuffle_epi32(deltaOfDelta, 0xEE);
@@ -447,14 +522,14 @@ int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelem
   }
 
   // the remain
-  for(; i < numOfBatch; ++i) {
+  for (; i < numOfBatch; ++i) {
     uint8_t flags = input[ipos++];
 
     int8_t nbytes1 = flags & INT8MASK(4);  // range of nbytes starts from 0 to 7
     int8_t nbytes2 = (flags >> 4) & INT8MASK(4);
 
-    __m128i data1 = _mm_maskz_loadu_epi8(mask2[nbytes1], (const void*)(input + ipos));
-    __m128i data2 = _mm_maskz_loadu_epi8(mask2[nbytes2], (const void*)(input + ipos + nbytes1));
+    __m128i data1 = _mm_maskz_loadu_epi8(mask2[nbytes1], (const void *)(input + ipos));
+    __m128i data2 = _mm_maskz_loadu_epi8(mask2[nbytes2], (const void *)(input + ipos + nbytes1));
     data2 = _mm_broadcastq_epi64(data2);
 
     __m128i zzVal = _mm_blend_epi32(data2, data1, 0x03);
@@ -473,7 +548,7 @@ int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelem
     _mm_storeu_si128((__m128i *)&ostream[opos], val);
 
     // keep the previous value
-    prevVal = _mm_shuffle_epi32 (val, 0xEE);
+    prevVal = _mm_shuffle_epi32(val, 0xEE);
 
     // keep the previous delta of delta
     __m128i delta = _mm_add_epi64(_mm_slli_si128(deltaOfDelta, 8), deltaOfDelta);

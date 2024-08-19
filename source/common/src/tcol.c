@@ -131,6 +131,7 @@ const char* columnEncodeStr(uint8_t type) {
       encode = TSDB_COLUMN_ENCODE_DISABLED;
       break;
     default:
+      encode = TSDB_COLUMN_ENCODE_UNKNOWN;
       break;
   }
   return encode;
@@ -157,8 +158,8 @@ const char* columnCompressStr(uint16_t type) {
     case TSDB_COLVAL_COMPRESS_DISABLED:
       compress = TSDB_COLUMN_COMPRESS_DISABLED;
       break;
-
     default:
+      compress = TSDB_COLUMN_COMPRESS_UNKNOWN;
       break;
   }
   return compress;
@@ -237,7 +238,7 @@ const char* columnLevelStr(uint8_t type) {
 
 bool checkColumnEncode(char encode[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(encode)) return true;
-  strtolower(encode, encode);
+  (void)strtolower(encode, encode);
   for (int i = 0; i < supportedEncodeNum; ++i) {
     if (0 == strcmp((const char*)encode, supportedEncode[i])) {
       return true;
@@ -250,11 +251,11 @@ bool checkColumnEncodeOrSetDefault(uint8_t type, char encode[TSDB_CL_COMPRESS_OP
     strncpy(encode, getDefaultEncodeStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
     return true;
   }
-  return checkColumnEncode(encode);
+  return checkColumnEncode(encode) && validColEncode(type, columnEncodeVal(encode));
 }
 bool checkColumnCompress(char compress[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(compress)) return true;
-  strtolower(compress, compress);
+  (void)strtolower(compress, compress);
   for (int i = 0; i < supportedCompressNum; ++i) {
     if (0 == strcmp((const char*)compress, supportedCompress[i])) {
       return true;
@@ -267,11 +268,12 @@ bool checkColumnCompressOrSetDefault(uint8_t type, char compress[TSDB_CL_COMPRES
     strncpy(compress, getDefaultCompressStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
     return true;
   }
-  return checkColumnCompress(compress);
+
+  return checkColumnCompress(compress) && validColCompress(type, columnCompressVal(compress));
 }
 bool checkColumnLevel(char level[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(level)) return true;
-  strtolower(level, level);
+  (void)strtolower(level, level);
   if (1 == strlen(level)) {
     if ('h' == level[0] || 'm' == level[0] || 'l' == level[0]) return true;
   } else {
@@ -288,7 +290,7 @@ bool checkColumnLevelOrSetDefault(uint8_t type, char level[TSDB_CL_COMPRESS_OPTI
     strncpy(level, getDefaultLevelStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
     return true;
   }
-  return checkColumnLevel(level);
+  return checkColumnLevel(level) && validColCompressLevel(type, columnLevelVal(level));
 }
 
 void setColEncode(uint32_t* compress, uint8_t l1) {
@@ -325,7 +327,9 @@ int32_t setColCompressByOption(uint8_t type, uint8_t encode, uint16_t compressTy
   return TSDB_CODE_SUCCESS;
 }
 
-bool useCompress(uint8_t tableType) { return TSDB_SUPER_TABLE == tableType || TSDB_NORMAL_TABLE == tableType; }
+bool useCompress(uint8_t tableType) {
+  return TSDB_SUPER_TABLE == tableType || TSDB_NORMAL_TABLE == tableType || TSDB_CHILD_TABLE == tableType;
+}
 
 int8_t validColCompressLevel(uint8_t type, uint8_t level) {
   if (level == TSDB_COLVAL_LEVEL_DISABLED) return 1;

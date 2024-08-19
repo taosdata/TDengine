@@ -59,7 +59,8 @@ static void splSetSubplanVgroups(SLogicSubplan* pSubplan, SLogicNode* pNode) {
 }
 
 static SLogicSubplan* splCreateScanSubplan(SSplitContext* pCxt, SLogicNode* pNode, int32_t flag) {
-  SLogicSubplan* pSubplan = (SLogicSubplan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
+  SLogicSubplan* pSubplan = NULL;
+  terrno = nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN, (SNode**)&pSubplan);
   if (NULL == pSubplan) {
     return NULL;
   }
@@ -93,37 +94,44 @@ static void splSetSubplanType(SLogicSubplan* pSubplan) {
   pSubplan->subplanType = splHasScan(pSubplan->pNode) ? SUBPLAN_TYPE_SCAN : SUBPLAN_TYPE_MERGE;
 }
 
-static SLogicSubplan* splCreateSubplan(SSplitContext* pCxt, SLogicNode* pNode) {
-  SLogicSubplan* pSubplan = (SLogicSubplan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
+static int32_t splCreateSubplan(SSplitContext* pCxt, SLogicNode* pNode, SLogicSubplan** ppSubplan) {
+  SLogicSubplan* pSubplan = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN, (SNode**)&pSubplan);
   if (NULL == pSubplan) {
-    return NULL;
+    return code;
   }
   pSubplan->id.queryId = pCxt->queryId;
   pSubplan->id.groupId = pCxt->groupId;
   pSubplan->pNode = pNode;
   pNode->pParent = NULL;
   splSetSubplanType(pSubplan);
-  return pSubplan;
+  *ppSubplan = pSubplan;
+  return code;
 }
 
 static int32_t splCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pChild, SExchangeLogicNode** pOutput) {
-  SExchangeLogicNode* pExchange = (SExchangeLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_EXCHANGE);
+  SExchangeLogicNode* pExchange = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_EXCHANGE, (SNode**)&pExchange);
   if (NULL == pExchange) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   pExchange->srcStartGroupId = pCxt->groupId;
   pExchange->srcEndGroupId = pCxt->groupId;
   pExchange->node.precision = pChild->precision;
   pExchange->node.dynamicOp = pChild->dynamicOp;
-  pExchange->node.pTargets = nodesCloneList(pChild->pTargets);
+  pExchange->node.pTargets = NULL;
+  code = nodesCloneList(pChild->pTargets, &pExchange->node.pTargets);
   if (NULL == pExchange->node.pTargets) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    nodesDestroyNode((SNode*)pExchange);
+    return code;
   }
   if (NULL != pChild->pLimit) {
-    pExchange->node.pLimit = nodesCloneNode(pChild->pLimit);
+    pExchange->node.pLimit = NULL; 
+    code = nodesCloneNode(pChild->pLimit, &pExchange->node.pLimit);
     if (NULL == pExchange->node.pLimit) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      nodesDestroyNode((SNode*)pExchange);
+      return code;
     }
     ((SLimitNode*)pChild->pLimit)->limit += ((SLimitNode*)pChild->pLimit)->offset;
     ((SLimitNode*)pChild->pLimit)->offset = 0;
@@ -368,18 +376,14 @@ static int32_t stbSplRewriteFuns(const SNodeList* pFuncs, SNodeList** pPartialFu
     SFunctionNode* pMergeFunc = NULL;
     int32_t        code = TSDB_CODE_SUCCESS;
     if (fmIsWindowPseudoColumnFunc(pFunc->funcId)) {
-      pPartFunc = (SFunctionNode*)nodesCloneNode(pNode);
-      pMergeFunc = (SFunctionNode*)nodesCloneNode(pNode);
-      if (NULL == pPartFunc || NULL == pMergeFunc) {
-        nodesDestroyNode((SNode*)pPartFunc);
-        nodesDestroyNode((SNode*)pMergeFunc);
-        code = TSDB_CODE_OUT_OF_MEMORY;
+      code = nodesCloneNode(pNode, (SNode**)&pPartFunc);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodesCloneNode(pNode, (SNode**)&pMergeFunc);
       }
-      if(pMidFuncs != NULL){
-        pMidFunc = (SFunctionNode*)nodesCloneNode(pNode);
+      if(TSDB_CODE_SUCCESS == code && pMidFuncs != NULL){
+        code = nodesCloneNode(pNode, (SNode**)&pMidFunc);
         if (NULL == pMidFunc) {
           nodesDestroyNode((SNode*)pMidFunc);
-          code = TSDB_CODE_OUT_OF_MEMORY;
         }
       }
     } else {
@@ -419,19 +423,20 @@ static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex, uint8_t pr
     ++index;
   }
 
-  SFunctionNode* pWStart = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  SFunctionNode* pWStart = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pWStart);
   if (NULL == pWStart) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   strcpy(pWStart->functionName, "_wstart");
   int64_t pointer = (int64_t)pWStart;
   char name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
   int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWStart->functionName, pointer);
-  taosCreateMD5Hash(name, len);
+  (void)taosHashBinary(name, len);
   strncpy(pWStart->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
   pWStart->node.resType.precision = precision;
 
-  int32_t code = fmGetFuncInfo(pWStart, NULL, 0);
+  code = fmGetFuncInfo(pWStart, NULL, 0);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListStrictAppend(pFuncs, (SNode*)pWStart);
   }
@@ -450,18 +455,19 @@ static int32_t stbSplAppendWEnd(SWindowLogicNode* pWin, int32_t* pIndex) {
     ++index;
   }
 
-  SFunctionNode* pWEnd = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  SFunctionNode* pWEnd = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pWEnd);
   if (NULL == pWEnd) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   strcpy(pWEnd->functionName, "_wend");
   int64_t pointer = (int64_t)pWEnd;
   char name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
   int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWEnd->functionName, pointer);
-  taosCreateMD5Hash(name, len);
+  (void)taosHashBinary(name, len);
   strncpy(pWEnd->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
 
-  int32_t code = fmGetFuncInfo(pWEnd, NULL, 0);
+  code = fmGetFuncInfo(pWEnd, NULL, 0);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListStrictAppend(pWin->pFuncs, (SNode*)pWEnd);
   }
@@ -482,9 +488,10 @@ static int32_t stbSplCreatePartWindowNode(SWindowLogicNode* pMergeWindow, SLogic
   SNode* pConditions = pMergeWindow->node.pConditions;
   pMergeWindow->node.pConditions = NULL;
 
-  SWindowLogicNode* pPartWin = (SWindowLogicNode*)nodesCloneNode((SNode*)pMergeWindow);
+  SWindowLogicNode* pPartWin = NULL;
+  int32_t code = nodesCloneNode((SNode*)pMergeWindow, (SNode**)&pPartWin);
   if (NULL == pPartWin) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   pPartWin->node.groupAction = GROUP_ACTION_KEEP;
@@ -494,7 +501,7 @@ static int32_t stbSplCreatePartWindowNode(SWindowLogicNode* pMergeWindow, SLogic
   splSetParent((SLogicNode*)pPartWin);
 
   int32_t index = 0;
-  int32_t code = stbSplRewriteFuns(pFunc, &pPartWin->pFuncs, NULL, &pMergeWindow->pFuncs);
+  code = stbSplRewriteFuns(pFunc, &pPartWin->pFuncs, NULL, &pMergeWindow->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
     code = stbSplAppendWStart(pPartWin->pFuncs, &index, ((SColumnNode*)pMergeWindow->pTspk)->node.resType.precision);
   }
@@ -503,10 +510,8 @@ static int32_t stbSplCreatePartWindowNode(SWindowLogicNode* pMergeWindow, SLogic
   }
   if (TSDB_CODE_SUCCESS == code) {
     nodesDestroyNode(pMergeWindow->pTspk);
-    pMergeWindow->pTspk = nodesCloneNode(nodesListGetNode(pPartWin->node.pTargets, index));
-    if (NULL == pMergeWindow->pTspk) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    }
+    pMergeWindow->pTspk = NULL;
+    code = nodesCloneNode(nodesListGetNode(pPartWin->node.pTargets, index), &pMergeWindow->pTspk);
   }
 
   nodesDestroyList(pFunc);
@@ -529,14 +534,17 @@ static int32_t stbSplCreatePartMidWindowNode(SWindowLogicNode* pMergeWindow, SLo
   SNode* pConditions = pMergeWindow->node.pConditions;
   pMergeWindow->node.pConditions = NULL;
 
-  SWindowLogicNode* pPartWin = (SWindowLogicNode*)nodesCloneNode((SNode*)pMergeWindow);
+  SWindowLogicNode* pPartWin = NULL;
+  int32_t code = nodesCloneNode((SNode*)pMergeWindow, (SNode**)&pPartWin);
   if (NULL == pPartWin) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
-  SWindowLogicNode* pMidWin = (SWindowLogicNode*)nodesCloneNode((SNode*)pMergeWindow);
+  SWindowLogicNode* pMidWin = NULL;
+  code = nodesCloneNode((SNode*)pMergeWindow, (SNode**)&pMidWin);
   if (NULL == pMidWin) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    nodesDestroyNode((SNode*)pPartWin);
+    return code;
   }
 
   pPartWin->node.groupAction = GROUP_ACTION_KEEP;
@@ -550,7 +558,7 @@ static int32_t stbSplCreatePartMidWindowNode(SWindowLogicNode* pMergeWindow, SLo
   SNodeList* pFuncPart = NULL;
   SNodeList* pFuncMid = NULL;
   SNodeList* pFuncMerge = NULL;
-  int32_t code = stbSplRewriteFuns(pFunc, &pFuncPart, &pFuncMid, &pFuncMerge);
+  code = stbSplRewriteFuns(pFunc, &pFuncPart, &pFuncMid, &pFuncMerge);
   pPartWin->pFuncs = pFuncPart;
   pMidWin->pFuncs = pFuncMid;
   pMergeWindow->pFuncs = pFuncMerge;
@@ -565,10 +573,8 @@ static int32_t stbSplCreatePartMidWindowNode(SWindowLogicNode* pMergeWindow, SLo
 
   if (TSDB_CODE_SUCCESS == code) {
     nodesDestroyNode(pMidWin->pTspk);
-    pMidWin->pTspk = nodesCloneNode(nodesListGetNode(pPartWin->node.pTargets, index));
-    if (NULL == pMidWin->pTspk) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    }
+    pMidWin->pTspk = NULL;
+    code = nodesCloneNode(nodesListGetNode(pPartWin->node.pTargets, index), &pMidWin->pTspk);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -580,10 +586,7 @@ static int32_t stbSplCreatePartMidWindowNode(SWindowLogicNode* pMergeWindow, SLo
 
   if (TSDB_CODE_SUCCESS == code) {
     nodesDestroyNode(pMergeWindow->pTspk);
-    pMergeWindow->pTspk = nodesCloneNode(nodesListGetNode(pMidWin->node.pTargets, index));
-    if (NULL == pMergeWindow->pTspk) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    }
+    code = nodesCloneNode(nodesListGetNode(pMidWin->node.pTargets, index), &pMergeWindow->pTspk);
   }
 
   nodesDestroyList(pFunc);
@@ -649,9 +652,10 @@ static int32_t stbSplRewriteFromMergeNode(SMergeLogicNode* pMerge, SLogicNode* p
 
 static int32_t stbSplCreateMergeNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pSplitNode,
                                      SNodeList* pMergeKeys, SLogicNode* pPartChild, bool groupSort, bool needSort) {
-  SMergeLogicNode* pMerge = (SMergeLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_MERGE);
+  SMergeLogicNode* pMerge = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_MERGE, (SNode**)&pMerge);
   if (NULL == pMerge) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   pMerge->needSort = needSort;
   pMerge->numOfChannels = stbSplGetNumOfVgroups(pPartChild);
@@ -662,22 +666,19 @@ static int32_t stbSplCreateMergeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
   pMerge->groupSort = groupSort;
   pMerge->numOfSubplans = 1;
 
-  int32_t code = TSDB_CODE_SUCCESS;
-  pMerge->pInputs = nodesCloneList(pPartChild->pTargets);
-  // NULL != pSubplan means 'merge node' replaces 'split node'.
-  if (NULL == pSubplan) {
-    pMerge->node.pTargets = nodesCloneList(pPartChild->pTargets);
-  } else {
-    pMerge->node.pTargets = nodesCloneList(pSplitNode->pTargets);
-  }
-  if (NULL == pMerge->node.pTargets || NULL == pMerge->pInputs) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+  pMerge->pInputs = NULL;
+  code = nodesCloneList(pPartChild->pTargets, &pMerge->pInputs);
+  if (TSDB_CODE_SUCCESS == code) {
+    // NULL != pSubplan means 'merge node' replaces 'split node'.
+    if (NULL == pSubplan) {
+      code = nodesCloneList(pPartChild->pTargets, &pMerge->node.pTargets);
+    } else {
+      code = nodesCloneList(pSplitNode->pTargets, &pMerge->node.pTargets);
+    }
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pSplitNode->pLimit) {
-    pMerge->node.pLimit = nodesCloneNode(pSplitNode->pLimit);
-    if (NULL == pMerge->node.pLimit) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    }
+    pMerge->node.pLimit = NULL;
+    code = nodesCloneNode(pSplitNode->pLimit, &pMerge->node.pLimit);
     ((SLimitNode*)pSplitNode->pLimit)->limit += ((SLimitNode*)pSplitNode->pLimit)->offset;
     ((SLimitNode*)pSplitNode->pLimit)->offset = 0;
   }
@@ -708,14 +709,16 @@ static int32_t stbSplCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pParent
 }
 
 static int32_t stbSplCreateMergeKeysByExpr(SNode* pExpr, EOrder order, SNodeList** pMergeKeys) {
-  SOrderByExprNode* pOrderByExpr = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
+  SOrderByExprNode* pOrderByExpr = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&pOrderByExpr);
   if (NULL == pOrderByExpr) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
-  pOrderByExpr->pExpr = nodesCloneNode(pExpr);
+  pOrderByExpr->pExpr = NULL;
+  code = nodesCloneNode(pExpr, &pOrderByExpr->pExpr);
   if (NULL == pOrderByExpr->pExpr) {
     nodesDestroyNode((SNode*)pOrderByExpr);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   pOrderByExpr->order = order;
   pOrderByExpr->nullOrder = (order == ORDER_ASC) ? NULL_ORDER_FIRST : NULL_ORDER_LAST;
@@ -745,7 +748,7 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
   SLogicSubplan* pSplitSubPlan = NULL;
   if (TSDB_CODE_SUCCESS == code) {
     pSplitSubPlan = splCreateScanSubplan(pCxt, pPartWindow, SPLIT_FLAG_STABLE_SPLIT);
-    if (!pSplitSubPlan) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (!pSplitSubPlan) code = terrno;
   }
   if (code == TSDB_CODE_SUCCESS) {
     SNode* pNode;
@@ -793,11 +796,14 @@ static int32_t stbSplSplitIntervalForStreamMultiAgg(SSplitContext* pCxt, SStable
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    SNode* subPlan = (SNode*)splCreateSubplan(pCxt, pMidWindow);
-    ((SLogicSubplan*)subPlan)->subplanType = SUBPLAN_TYPE_MERGE;
+    SNode* subPlan = NULL;
+    code = splCreateSubplan(pCxt, pMidWindow, (SLogicSubplan**)&subPlan);
+    if (TSDB_CODE_SUCCESS  == code) {
+      ((SLogicSubplan*)subPlan)->subplanType = SUBPLAN_TYPE_MERGE;
 
-    code = nodesListMakeStrictAppend(&((SLogicSubplan*)subPlan)->pChildren,
-                                     (SNode*)splCreateScanSubplan(pCxt, pPartWindow, SPLIT_FLAG_STABLE_SPLIT));
+      code = nodesListMakeStrictAppend(&((SLogicSubplan*)subPlan)->pChildren,
+          (SNode*)splCreateScanSubplan(pCxt, pPartWindow, SPLIT_FLAG_STABLE_SPLIT));
+    }
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren, subPlan);
     }
@@ -828,9 +834,10 @@ static int32_t stbSplSplitSessionForStream(SSplitContext* pCxt, SStableSplitInfo
     int32_t code = stbSplAppendWEnd(pPartWin, &index);
     if (TSDB_CODE_SUCCESS == code) {
       nodesDestroyNode(pMergeWin->pTsEnd);
-      pMergeWin->pTsEnd = nodesCloneNode(nodesListGetNode(pPartWin->node.pTargets, index));
+      pMergeWin->pTsEnd = NULL;
+      code = nodesCloneNode(nodesListGetNode(pPartWin->node.pTargets, index), &pMergeWin->pTsEnd);
       if (NULL == pMergeWin->pTsEnd) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = code;
       }
     }
     code = stbSplCreateExchangeNode(pCxt, pInfo->pSplitNode, pPartWindow);
@@ -1006,24 +1013,21 @@ static int32_t stbSplCreatePartAggNode(SAggLogicNode* pMergeAgg, SLogicNode** pO
   SNode* pConditions = pMergeAgg->node.pConditions;
   pMergeAgg->node.pConditions = NULL;
 
-  SAggLogicNode* pPartAgg = (SAggLogicNode*)nodesCloneNode((SNode*)pMergeAgg);
+  SAggLogicNode* pPartAgg = NULL;
+  int32_t code = nodesCloneNode((SNode*)pMergeAgg, (SNode**)&pPartAgg);
   if (NULL == pPartAgg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   pPartAgg->node.groupAction = GROUP_ACTION_KEEP;
-
-  int32_t code = TSDB_CODE_SUCCESS;
 
   if (NULL != pGroupKeys) {
     pPartAgg->pGroupKeys = pGroupKeys;
     code = createColumnByRewriteExprs(pPartAgg->pGroupKeys, &pPartAgg->node.pTargets);
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pGroupKeys) {
-    pMergeAgg->pGroupKeys = nodesCloneList(pPartAgg->node.pTargets);
-    if (NULL == pMergeAgg->pGroupKeys) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    }
+    pMergeAgg->pGroupKeys = NULL;
+    code = nodesCloneList(pPartAgg->node.pTargets, &pMergeAgg->pGroupKeys);
   }
   if (TSDB_CODE_SUCCESS == code) {
     pMergeAgg->node.pConditions = pConditions;
@@ -1090,7 +1094,7 @@ static int32_t stbSplAggNodeCreateMerge(SSplitContext* pCtx, SStableSplitInfo* p
         if (idx++ < originalLen) continue;
         SFunctionNode* pGroupKeyFunc = createGroupKeyAggFunc((SColumnNode*)node);
         if (!pGroupKeyFunc) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           break;
         }
         code = nodesListMakeStrictAppend(&extraAggFuncs, (SNode*)pGroupKeyFunc);
@@ -1104,7 +1108,7 @@ static int32_t stbSplAggNodeCreateMerge(SSplitContext* pCtx, SStableSplitInfo* p
         code = createColumnByRewriteExprs(extraAggFuncs, &pChildAgg->pTargets);
       }
       if (code == TSDB_CODE_SUCCESS) {
-        nodesListAppendList(((SAggLogicNode*)pChildAgg)->pAggFuncs, extraAggFuncs);
+        code = nodesListAppendList(((SAggLogicNode*)pChildAgg)->pAggFuncs, extraAggFuncs);
         extraAggFuncs = NULL;
       }
 
@@ -1132,7 +1136,9 @@ static int32_t stbSplAggNodeCreateMerge(SSplitContext* pCtx, SStableSplitInfo* p
       }
     }
   }
-  code = stbSplCreateMergeNode(pCtx, NULL, pInfo->pSplitNode, pMergeKeys, pChildAgg, groupSort, true);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = stbSplCreateMergeNode(pCtx, NULL, pInfo->pSplitNode, pMergeKeys, pChildAgg, groupSort, true);
+  }
   if (TSDB_CODE_SUCCESS == code && sortForGroup) {
     SMergeLogicNode* pMerge =
         (SMergeLogicNode*)nodesListGetNode(pInfo->pSplitNode->pChildren, LIST_LENGTH(pInfo->pSplitNode->pChildren) - 1);
@@ -1163,7 +1169,7 @@ static int32_t stbSplSplitAggNodeForCrossTableMulSubplan(SSplitContext* pCxt, SS
 
   if (code == TSDB_CODE_SUCCESS) {
     pFirstScanSubplan = splCreateScanSubplan(pCxt, pPartAgg, SPLIT_FLAG_STABLE_SPLIT);
-    if (!pFirstScanSubplan) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (!pFirstScanSubplan) code = terrno;
   }
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -1218,7 +1224,7 @@ static int32_t stbSplSplitAggNodeForCrossTable(SSplitContext* pCxt, SStableSplit
   SLogicSubplan* pScanSubplan = NULL;
   if (TSDB_CODE_SUCCESS == code) {
     pScanSubplan = splCreateScanSubplan(pCxt, pPartAgg, SPLIT_FLAG_STABLE_SPLIT);
-    if (!pScanSubplan) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (!pScanSubplan) code = terrno;
   }
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -1240,10 +1246,11 @@ static int32_t stbSplSplitAggNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) 
   return stbSplSplitAggNodeForCrossTable(pCxt, pInfo);
 }
 
-static SNode* stbSplCreateColumnNode(SExprNode* pExpr) {
-  SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+static int32_t stbSplCreateColumnNode(SExprNode* pExpr, SNode** ppNode) {
+  SColumnNode* pCol = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
   if (NULL == pCol) {
-    return NULL;
+    return code;
   }
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
     strcpy(pCol->dbName, ((SColumnNode*)pExpr)->dbName);
@@ -1256,22 +1263,26 @@ static SNode* stbSplCreateColumnNode(SExprNode* pExpr) {
   strcpy(pCol->node.aliasName, pExpr->aliasName);
   strcpy(pCol->node.userAlias, pExpr->userAlias);
   pCol->node.resType = pExpr->resType;
-  return (SNode*)pCol;
+  *ppNode = (SNode*)pCol;
+  return code;
 }
 
-static SNode* stbSplCreateOrderByExpr(SOrderByExprNode* pSortKey, SNode* pCol) {
-  SOrderByExprNode* pOutput = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
+static int32_t stbSplCreateOrderByExpr(SOrderByExprNode* pSortKey, SNode* pCol, SNode** ppNode) {
+  SOrderByExprNode* pOutput = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&pOutput);
   if (NULL == pOutput) {
-    return NULL;
+    return code;
   }
-  pOutput->pExpr = nodesCloneNode(pCol);
+  pOutput->pExpr = NULL;
+  code = nodesCloneNode(pCol, &pOutput->pExpr);
   if (NULL == pOutput->pExpr) {
     nodesDestroyNode((SNode*)pOutput);
-    return NULL;
+    return code;
   }
   pOutput->order = pSortKey->order;
   pOutput->nullOrder = pSortKey->nullOrder;
-  return (SNode*)pOutput;
+  *ppNode = (SNode*)pOutput;
+  return code;
 }
 
 static int32_t stbSplCreateMergeKeys(SNodeList* pSortKeys, SNodeList* pTargets, SNodeList** pOutput) {
@@ -1286,7 +1297,11 @@ static int32_t stbSplCreateMergeKeys(SNodeList* pSortKeys, SNodeList* pTargets, 
     FOREACH(pTarget, pTargets) {
       if ((QUERY_NODE_COLUMN == nodeType(pSortExpr) && nodesEqualNode((SNode*)pSortExpr, pTarget)) || 
           (0 == strcmp(pSortExpr->aliasName, ((SColumnNode*)pTarget)->colName))) {
-        code = nodesListMakeStrictAppend(&pMergeKeys, stbSplCreateOrderByExpr(pSortKey, pTarget));
+        SNode* pNew = NULL;
+        code = stbSplCreateOrderByExpr(pSortKey, pTarget, &pNew);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = nodesListMakeStrictAppend(&pMergeKeys, pNew);
+        }
         if (TSDB_CODE_SUCCESS != code) {
           break;
         }
@@ -1294,8 +1309,15 @@ static int32_t stbSplCreateMergeKeys(SNodeList* pSortKeys, SNodeList* pTargets, 
       }
     }
     if (TSDB_CODE_SUCCESS == code && !found) {
-      SNode* pCol = stbSplCreateColumnNode(pSortExpr);
-      code = nodesListMakeStrictAppend(&pMergeKeys, stbSplCreateOrderByExpr(pSortKey, pCol));
+      SNode* pCol = NULL;
+      code = stbSplCreateColumnNode(pSortExpr, &pCol);
+      if (TSDB_CODE_SUCCESS == code) {
+        SNode* pNew = NULL;
+        code = stbSplCreateOrderByExpr(pSortKey, pCol, &pNew);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = nodesListMakeStrictAppend(&pMergeKeys, pNew);
+        }
+      }
       if (TSDB_CODE_SUCCESS == code) {
         code = nodesListStrictAppend(pTargets, pCol);
       } else {
@@ -1322,9 +1344,10 @@ static int32_t stbSplCreatePartSortNode(SSortLogicNode* pSort, SLogicNode** pOut
   pSort->node.pChildren = NULL;
 
   int32_t         code = TSDB_CODE_SUCCESS;
-  SSortLogicNode* pPartSort = (SSortLogicNode*)nodesCloneNode((SNode*)pSort);
+  SSortLogicNode* pPartSort = NULL;
+  code = nodesCloneNode((SNode*)pSort, (SNode**)&pPartSort);
   if (NULL == pPartSort) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = code;
   }
 
   SNodeList* pMergeKeys = NULL;
@@ -1390,9 +1413,10 @@ static int32_t stbSplGetSplitNodeForScan(SStableSplitInfo* pInfo, SLogicNode** p
       !((SProjectLogicNode*)pInfo->pSplitNode->pParent)->inputIgnoreGroup) {
     *pSplitNode = pInfo->pSplitNode->pParent;
     if (NULL != pInfo->pSplitNode->pLimit) {
-      (*pSplitNode)->pLimit = nodesCloneNode(pInfo->pSplitNode->pLimit);
+      (*pSplitNode)->pLimit = NULL;
+      int32_t code = nodesCloneNode(pInfo->pSplitNode->pLimit, &(*pSplitNode)->pLimit);
       if (NULL == (*pSplitNode)->pLimit) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return code;
       }
       ((SLimitNode*)pInfo->pSplitNode->pLimit)->limit += ((SLimitNode*)pInfo->pSplitNode->pLimit)->offset;
       ((SLimitNode*)pInfo->pSplitNode->pLimit)->offset = 0;
@@ -1434,7 +1458,7 @@ static int32_t stbSplSplitScanNodeWithPartTags(SSplitContext* pCxt, SStableSplit
   return code;
 }
 
-static SNode* stbSplFindPrimaryKeyFromScan(SScanLogicNode* pScan) {
+static int32_t stbSplFindPrimaryKeyFromScan(SScanLogicNode* pScan, SNode** ppNode) {
   bool   find = false;
   SNode* pCol = NULL;
   FOREACH(pCol, pScan->pScanCols) {
@@ -1444,19 +1468,29 @@ static SNode* stbSplFindPrimaryKeyFromScan(SScanLogicNode* pScan) {
     }
   }
   if (!find) {
-    return NULL;
+    *ppNode = NULL;
+    return TSDB_CODE_SUCCESS;
   }
   SNode* pTarget = NULL;
   FOREACH(pTarget, pScan->node.pTargets) {
     if (nodesEqualNode(pTarget, pCol)) {
-      return pCol;
+      *ppNode = pCol;
+      return TSDB_CODE_SUCCESS;
     }
   }
-  nodesListStrictAppend(pScan->node.pTargets, nodesCloneNode(pCol));
-  return pCol;
+  SNode* pNew = NULL;
+  int32_t code = nodesCloneNode(pCol, &pNew);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListStrictAppend(pScan->node.pTargets, pNew);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    *ppNode = pCol;
+  }
+  return code;
 }
 
-static SNode* stbSplFindPkFromScan(SScanLogicNode* pScan) {
+static int32_t stbSplFindPkFromScan(SScanLogicNode* pScan, SNode** ppNode) {
+  int32_t code = 0;
   bool   find = false;
   SNode* pCol = NULL;
   FOREACH(pCol, pScan->pScanCols) {
@@ -1466,16 +1500,25 @@ static SNode* stbSplFindPkFromScan(SScanLogicNode* pScan) {
     }
   }
   if (!find) {
-    return NULL;
+    *ppNode = NULL;
+    return code;
   }
   SNode* pTarget = NULL;
   FOREACH(pTarget, pScan->node.pTargets) {
     if (nodesEqualNode(pTarget, pCol)) {
-      return pCol;
+      *ppNode = pCol;
+      return code;
     }
   }
-  nodesListStrictAppend(pScan->node.pTargets, nodesCloneNode(pCol));
-  return pCol;
+  SNode* pNew = NULL;
+  code = nodesCloneNode(pCol, &pNew);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListStrictAppend(pScan->node.pTargets, pNew);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    *ppNode = pCol;
+  }
+  return code;
 }
 
 static int32_t stbSplCreateMergeScanNode(SScanLogicNode* pScan, SLogicNode** pOutputMergeScan,
@@ -1484,9 +1527,10 @@ static int32_t stbSplCreateMergeScanNode(SScanLogicNode* pScan, SLogicNode** pOu
   pScan->node.pChildren = NULL;
 
   int32_t         code = TSDB_CODE_SUCCESS;
-  SScanLogicNode* pMergeScan = (SScanLogicNode*)nodesCloneNode((SNode*)pScan);
+  SScanLogicNode* pMergeScan = NULL;
+  code = nodesCloneNode((SNode*)pScan, (SNode**)&pMergeScan);
   if (NULL == pMergeScan) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = code;
   }
 
   SNodeList* pMergeKeys = NULL;
@@ -1496,9 +1540,15 @@ static int32_t stbSplCreateMergeScanNode(SScanLogicNode* pScan, SLogicNode** pOu
     pMergeScan->node.pChildren = pChildren;
     splSetParent((SLogicNode*)pMergeScan);
 
-    SNode* pTs = stbSplFindPrimaryKeyFromScan(pMergeScan);
-    code = stbSplCreateMergeKeysByPrimaryKey(pTs, pMergeScan->scanSeq[0] > 0 ? ORDER_ASC : ORDER_DESC, &pMergeKeys);
-    SNode* pPk = stbSplFindPkFromScan(pMergeScan);
+    SNode* pTs = NULL;
+    code = stbSplFindPrimaryKeyFromScan(pMergeScan, &pTs);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = stbSplCreateMergeKeysByPrimaryKey(pTs, pMergeScan->scanSeq[0] > 0 ? ORDER_ASC : ORDER_DESC, &pMergeKeys);
+    }
+    SNode* pPk = NULL;
+    if (TSDB_CODE_SUCCESS == code) {
+      code = stbSplFindPkFromScan(pMergeScan, &pPk);
+    }
     if (TSDB_CODE_SUCCESS == code && NULL != pPk) {
       code = stbSplCreateMergeKeysByExpr(pPk, pMergeScan->scanSeq[0] > 0 ? ORDER_ASC : ORDER_DESC, &pMergeKeys);
     }
@@ -1587,11 +1637,16 @@ static int32_t stbSplSplitJoinNode(SSplitContext* pCxt, SStableSplitInfo* pInfo)
 
 static int32_t stbSplCreateMergeKeysForPartitionNode(SLogicNode* pPart, SNodeList** pMergeKeys) {
   SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pPart->pChildren, 0);
-  SNode*          pPrimaryKey = nodesCloneNode(stbSplFindPrimaryKeyFromScan(pScan));
-  if (NULL == pPrimaryKey) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  SNode*          pPK = NULL;
+  SNode*          pPrimaryKey = NULL;
+  int32_t code = stbSplFindPrimaryKeyFromScan(pScan, &pPK);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCloneNode(pPK, &pPrimaryKey);
   }
-  int32_t code = nodesListAppend(pPart->pTargets, pPrimaryKey);
+  if (NULL == pPrimaryKey) {
+    return code;
+  }
+  code = nodesListStrictAppend(pPart->pTargets, pPrimaryKey);
   if (TSDB_CODE_SUCCESS == code) {
     code = stbSplCreateMergeKeysByPrimaryKey(pPrimaryKey, pScan->scanSeq[0] > 0 ? ORDER_ASC : ORDER_DESC, pMergeKeys);
   }
@@ -1709,8 +1764,11 @@ static int32_t unionSplitSubplan(SSplitContext* pCxt, SLogicSubplan* pUnionSubpl
 
   SNode* pChild = NULL;
   FOREACH(pChild, pSplitNode->pChildren) {
-    SLogicSubplan* pNewSubplan = splCreateSubplan(pCxt, (SLogicNode*)pChild);
-    code = nodesListMakeStrictAppend(&pUnionSubplan->pChildren, (SNode*)pNewSubplan);
+    SLogicSubplan* pNewSubplan = NULL;
+    code = splCreateSubplan(pCxt, (SLogicNode*)pChild, &pNewSubplan);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListMakeStrictAppend(&pUnionSubplan->pChildren, (SNode*)pNewSubplan);
+    }
     if (TSDB_CODE_SUCCESS == code) {
       REPLACE_NODE(NULL);
       code = splMountSubplan(pNewSubplan, pSubplanChildren);
@@ -1723,7 +1781,7 @@ static int32_t unionSplitSubplan(SSplitContext* pCxt, SLogicSubplan* pUnionSubpl
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL != pSubplanChildren) {
       if (pSubplanChildren->length > 0) {
-        nodesListMakeStrictAppendList(&pUnionSubplan->pChildren, pSubplanChildren);
+        code = nodesListMakeStrictAppendList(&pUnionSubplan->pChildren, pSubplanChildren);
       } else {
         nodesDestroyList(pSubplanChildren);
       }
@@ -1750,17 +1808,25 @@ static bool unAllSplFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, 
 
 static int32_t unAllSplCreateExchangeNode(SSplitContext* pCxt, int32_t startGroupId, SLogicSubplan* pSubplan,
                                           SProjectLogicNode* pProject) {
-  SExchangeLogicNode* pExchange = (SExchangeLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_EXCHANGE);
+  SExchangeLogicNode* pExchange = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_EXCHANGE, (SNode**)&pExchange);
   if (NULL == pExchange) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   pExchange->srcStartGroupId = startGroupId;
   pExchange->srcEndGroupId = pCxt->groupId - 1;
   pExchange->node.precision = pProject->node.precision;
-  pExchange->node.pTargets = nodesCloneList(pProject->node.pTargets);
-  pExchange->node.pConditions = nodesCloneNode(pProject->node.pConditions);
-  if (NULL == pExchange->node.pTargets || (NULL != pProject->node.pConditions && NULL == pExchange->node.pConditions)) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  pExchange->node.pTargets = NULL;
+  code = nodesCloneList(pProject->node.pTargets, &pExchange->node.pTargets);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pExchange);
+    return code;
+  }
+  pExchange->node.pConditions = NULL;
+  code = nodesCloneNode(pProject->node.pConditions, &pExchange->node.pConditions);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pExchange);
+    return code;
   }
   TSWAP(pExchange->node.pLimit, pProject->node.pLimit);
 
@@ -1806,21 +1872,24 @@ typedef struct SUnionDistinctSplitInfo {
 
 static int32_t unDistSplCreateExchangeNode(SSplitContext* pCxt, int32_t startGroupId, SLogicSubplan* pSubplan,
                                            SAggLogicNode* pAgg) {
-  SExchangeLogicNode* pExchange = (SExchangeLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_EXCHANGE);
+  SExchangeLogicNode* pExchange = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_EXCHANGE, (SNode**)&pExchange);
   if (NULL == pExchange) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   pExchange->srcStartGroupId = startGroupId;
   pExchange->srcEndGroupId = pCxt->groupId - 1;
   pExchange->node.precision = pAgg->node.precision;
-  pExchange->node.pTargets = nodesCloneList(pAgg->pGroupKeys);
+  pExchange->node.pTargets = NULL;
+  code = nodesCloneList(pAgg->pGroupKeys, &pExchange->node.pTargets);
   if (NULL == pExchange->node.pTargets) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    nodesDestroyNode((SNode*)pExchange);
+    return code;
   }
 
   pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
 
-  return nodesListMakeAppend(&pAgg->node.pChildren, (SNode*)pExchange);
+  return nodesListMakeStrictAppend(&pAgg->node.pChildren, (SNode*)pExchange);
 }
 
 static bool unDistSplFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode,
@@ -1908,10 +1977,7 @@ static int32_t insertSelectSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   SNodeList*     pSubplanChildren = info.pSubplan->pChildren;
   int32_t        code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pQueryRoot, SUBPLAN_TYPE_MODIFY);
   if (TSDB_CODE_SUCCESS == code) {
-    pNewSubplan = splCreateSubplan(pCxt, info.pQueryRoot);
-    if (NULL == pNewSubplan) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    }
+    code = splCreateSubplan(pCxt, info.pQueryRoot, &pNewSubplan);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)pNewSubplan);
@@ -1965,7 +2031,7 @@ static int32_t qnodeSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
       }
       code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)pScanSubplan);
     } else {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     }
   }
   info.pSubplan->subplanType = SUBPLAN_TYPE_COMPUTE;
@@ -1987,25 +2053,32 @@ static const SSplitRule splitRuleSet[] = {
 
 static const int32_t splitRuleNum = (sizeof(splitRuleSet) / sizeof(SSplitRule));
 
-static void dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
+static int32_t dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
+  int32_t code = 0;
   if (!tsQueryPlannerTrace) {
-    return;
+    return code;
   }
   char* pStr = NULL;
-  nodesNodeToString((SNode*)pSubplan, false, &pStr, NULL);
-  if (NULL == pRuleName) {
-    qDebugL("before split, JsonPlan: %s", pStr);
-  } else {
-    qDebugL("apply split %s rule, JsonPlan: %s", pRuleName, pStr);
+  code = nodesNodeToString((SNode*)pSubplan, false, &pStr, NULL);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL == pRuleName) {
+      qDebugL("before split, JsonPlan: %s", pStr);
+    } else {
+      qDebugL("apply split %s rule, JsonPlan: %s", pRuleName, pStr);
+    }
+    taosMemoryFree(pStr);
   }
-  taosMemoryFree(pStr);
+  return code;
 }
 
 static int32_t applySplitRule(SPlanContext* pCxt, SLogicSubplan* pSubplan) {
   SSplitContext cxt = {
       .pPlanCxt = pCxt, .queryId = pSubplan->id.queryId, .groupId = pSubplan->id.groupId + 1, .split = false};
   bool split = false;
-  dumpLogicSubplan(NULL, pSubplan);
+  int32_t code = dumpLogicSubplan(NULL, pSubplan);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   do {
     split = false;
     for (int32_t i = 0; i < splitRuleNum; ++i) {
@@ -2016,7 +2089,10 @@ static int32_t applySplitRule(SPlanContext* pCxt, SLogicSubplan* pSubplan) {
       }
       if (cxt.split) {
         split = true;
-        dumpLogicSubplan(splitRuleSet[i].pName, pSubplan);
+        code = dumpLogicSubplan(splitRuleSet[i].pName, pSubplan);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
       }
     }
   } while (split);
