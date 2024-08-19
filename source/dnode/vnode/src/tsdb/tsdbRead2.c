@@ -1413,7 +1413,8 @@ static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockI
   if (pReader->info.pSchema == NULL) {
     pSchema = getTableSchemaImpl(pReader, uid);
     if (pSchema == NULL) {
-      tsdbDebug("%p table uid:%" PRIu64 " has been dropped, no data existed, %s", pReader, uid, pReader->idStr);
+      code = terrno;
+      tsdbError("%p table uid:%" PRIu64 " has been dropped, no data existed, %s", pReader, uid, pReader->idStr);
       return code;
     }
   }
@@ -1448,7 +1449,7 @@ static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockI
   pReader->cost.blockLoadTime += elapsedTime;
   pDumpInfo->allDumped = false;
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 /**
@@ -2137,7 +2138,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
   if (piRow->type == TSDBROW_ROW_FMT) {
     piSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(piRow), pReader, pBlockScanInfo->uid);
     if (piSchema == NULL) {
-      return code;
+      return terrno;
     }
   }
 
