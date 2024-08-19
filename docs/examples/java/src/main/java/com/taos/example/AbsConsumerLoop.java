@@ -1,4 +1,4 @@
-package com.taosdata.example;
+package com.taos.example;
 
 import com.taosdata.jdbc.tmq.ConsumerRecord;
 import com.taosdata.jdbc.tmq.ConsumerRecords;
@@ -33,7 +33,7 @@ public abstract class AbsConsumerLoop {
         config.setProperty("auto.commit.interval.ms", "1000");
         config.setProperty("group.id", "group1");
         config.setProperty("client.id", "client1");
-        config.setProperty("value.deserializer", "com.taosdata.example.AbsConsumerLoop$ResultDeserializer");
+        config.setProperty("value.deserializer", "com.taos.example.AbsConsumerLoop$ResultDeserializer");
         config.setProperty("value.deserializer.encoding", "UTF-8");
         try {
             this.consumer = new TaosConsumer<>(config);
