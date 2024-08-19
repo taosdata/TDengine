@@ -10,7 +10,7 @@ async fn main() -> anyhow::Result<()> {
             Ok(())
         }
         Err(err) => {
-            eprintln!("Failed to connect to {}; ErrMessage: {}", dsn, err);
+            eprintln!("Failed to connect to {}, ErrMessage: {}", dsn, err);
             return Err(err.into());
         }
     }
