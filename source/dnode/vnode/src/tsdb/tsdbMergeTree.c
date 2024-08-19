@@ -115,16 +115,14 @@ void destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoad
     SArray *pList = taosArrayGetP(pLDataIterArray, i);
     for (int32_t j = 0; j < taosArrayGetSize(pList); ++j) {
       SLDataIter *pIter = taosArrayGetP(pList, j);
-      if (pIter->pBlockLoadInfo == NULL) {
-        continue;
-      }
-
-      SSttBlockLoadCostInfo *pCost = &pIter->pBlockLoadInfo->cost;
-      if (pLoadCost != NULL) {
-        pLoadCost->loadBlocks += pCost->loadBlocks;
-        pLoadCost->loadStatisBlocks += pCost->loadStatisBlocks;
-        pLoadCost->blockElapsedTime += pCost->blockElapsedTime;
-        pLoadCost->statisElapsedTime += pCost->statisElapsedTime;
+      if (pIter->pBlockLoadInfo != NULL) {
+        SSttBlockLoadCostInfo *pCost = &pIter->pBlockLoadInfo->cost;
+        if (pLoadCost != NULL) {
+          pLoadCost->loadBlocks += pCost->loadBlocks;
+          pLoadCost->loadStatisBlocks += pCost->loadStatisBlocks;
+          pLoadCost->blockElapsedTime += pCost->blockElapsedTime;
+          pLoadCost->statisElapsedTime += pCost->statisElapsedTime;
+        }
       }
 
       destroyLDataIter(pIter);
