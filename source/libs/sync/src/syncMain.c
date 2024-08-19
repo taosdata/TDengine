@@ -788,9 +788,11 @@ int32_t syncCheckMember(int64_t rid) {
   }
 
   if (pSyncNode->myNodeInfo.nodeRole == TAOS_SYNC_ROLE_LEARNER) {
+    syncNodeRelease(pSyncNode);
     return TSDB_CODE_SYN_WRONG_ROLE;
   }
 
+  syncNodeRelease(pSyncNode);
   return 0;
 }
 
@@ -2446,6 +2448,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     (void)taosTmrReset(syncNodeEqPingTimer, pNode->pingTimerMS, (void*)pNode->rid, syncEnv()->pTimerManager,
                        &pNode->pPingTimer);
   }
+  syncNodeRelease(pNode);
 }
 
 static void syncNodeEqElectTimer(void* param, void* tmrId) {

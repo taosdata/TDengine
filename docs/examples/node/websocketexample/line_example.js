@@ -28,7 +28,7 @@ async function test() {
         console.log("Inserted data with schemaless successfully.")
     }
     catch (err) {
-        console.error("Failed to insert data with schemaless, url:"+ dsn +", ErrCode:" + err.code + "; ErrMessage: " + err.message);
+        console.error(`Failed to insert data with schemaless, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
     }
     finally {
         if (wsRows) {

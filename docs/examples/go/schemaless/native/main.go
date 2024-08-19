@@ -20,26 +20,26 @@ func main() {
 	defer conn.Close()
 	_, err = conn.Exec("CREATE DATABASE IF NOT EXISTS power")
 	if err != nil {
-		log.Fatalln("Failed to create db host: " + host + "; ErrMessage: " + err.Error())
+		log.Fatalln("Failed to create database power, ErrMessage: " + err.Error())
 	}
 	_, err = conn.Exec("USE power")
 	if err != nil {
-		log.Fatalln("Failed to use db host: " + host + "; ErrMessage: " + err.Error())
+		log.Fatalln("Failed to use database power, ErrMessage: " + err.Error())
 	}
 	// insert influxdb line protocol
 	err = conn.InfluxDBInsertLines([]string{lineDemo}, "ms")
 	if err != nil {
-		log.Fatalln("Failed to insert data with schemaless, host: " + host + "; ErrMessage: " + err.Error())
+		log.Fatalln("Failed to insert data with schemaless, data:" + lineDemo + ", ErrMessage: " + err.Error())
 	}
 	// insert opentsdb telnet protocol
 	err = conn.OpenTSDBInsertTelnetLines([]string{telnetDemo})
 	if err != nil {
-		log.Fatalln("Failed to insert data with schemaless, host: " + host + "; ErrMessage: " + err.Error())
+		log.Fatalln("Failed to insert data with schemaless, data:" + telnetDemo + ", ErrMessage: " + err.Error())
 	}
 	// insert opentsdb json protocol
 	err = conn.OpenTSDBInsertJsonPayload(jsonDemo)
 	if err != nil {
-		log.Fatalln("Failed to insert data with schemaless, host: " + host + "; ErrMessage: " + err.Error())
+		log.Fatalln("Failed to insert data with schemaless, data:" + jsonDemo + ", ErrMessage: " + err.Error())
 	}
 	fmt.Println("Inserted data with schemaless successfully.")
 }

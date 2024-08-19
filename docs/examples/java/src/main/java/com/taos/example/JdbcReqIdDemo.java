@@ -1,4 +1,4 @@
-package com.taosdata.example;
+package com.taos.example;
 
 import com.taosdata.jdbc.AbstractStatement;
 
@@ -45,12 +45,13 @@ public class JdbcReqIdDemo {
 
                 }
             }
-        } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to execute sql with reqId: " + reqId + ", url:" + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-            throw ex;
-        } catch (Exception ex){
-            System.out.println("Failed to execute sql with reqId: " + reqId + ", url:" + jdbcUrl + "; ErrMessage: " + ex.getMessage());
+        } catch (Exception ex) {
+            // please refer to the JDBC specifications for detailed exceptions info
+            System.out.printf("Failed to execute sql with reqId: %s, %sErrMessage: %s%n", reqId,
+                    ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+                    ex.getMessage());
+            // Print stack trace for context in examples. Use logging in production.
+            ex.printStackTrace();
             throw ex;
         }
 // ANCHOR_END: with_reqid

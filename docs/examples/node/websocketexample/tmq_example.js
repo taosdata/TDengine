@@ -3,12 +3,16 @@ const taos = require("@tdengine/websocket");
 // ANCHOR: create_consumer
 const db = 'power';
 const stable = 'meters';
-const topics = ['power_meters_topic'];
 const url = 'ws://localhost:6041';
+const topic = 'topic_meters'
+const topics = [topic];
+const groupId = "group1";
+const clientId = "client1";
+
 async function createConsumer() {
 
     let groupId = "group1";
-    let clientId = "1";
+    let clientId = "client1";
     let configMap = new Map([
         [taos.TMQConstants.GROUP_ID, groupId],
         [taos.TMQConstants.CLIENT_ID, clientId],
@@ -23,11 +27,11 @@ async function createConsumer() {
         conn = await taos.tmqConnect(configMap);
         console.log(`Create consumer successfully, host: ${url}, groupId: ${groupId}, clientId: ${clientId}`)
         return conn;
-    }catch (err) {
-        console.log("Failed to create websocket consumer, ErrCode:" + err.code + "; ErrMessage: " + err.message);
+    } catch (err) {
+        console.error(`Failed to create websocket consumer, topic: ${topic}, groupId: ${groupId}, clientId: ${clientId}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
         throw err;
     }
-    
+
 }
 // ANCHOR_END: create_consumer 
 
@@ -38,7 +42,7 @@ async function prepare() {
     conf.setDb('power');
     const createDB = `CREATE DATABASE IF NOT EXISTS ${db}`;
     const createStable = `CREATE STABLE IF NOT EXISTS ${db}.${stable} (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);`;
-    
+
     let wsSql = await taos.sqlConnect(conf);
     await wsSql.exec(createDB);
     await wsSql.exec(createStable);
@@ -60,13 +64,14 @@ async function subscribe(consumer) {
         for (let i = 0; i < 50; i++) {
             let res = await consumer.poll(100);
             for (let [key, value] of res) {
+                // Add your data processing logic here
                 console.log(`data: ${key} ${value}`);
             }
-            consumer.commit();
+            await consumer.commit();
             console.log("Commit offset manually successfully.");
-        }        
+        }
     } catch (err) {
-        console.error("Failed to poll data; ErrCode:" + err.code + "; ErrMessage: " + err.message);
+        console.error(`Failed to poll data, topic: ${topic}, groupId: ${groupId}, clientId: ${clientId}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
         throw err;
     }
     // ANCHOR_END: commit
@@ -77,17 +82,18 @@ async function test() {
     let consumer = null;
     try {
         await prepare();
-        let consumer = await createConsumer()
-        await subscribe(consumer)      
+        consumer = await createConsumer()
+        await subscribe(consumer)
         await consumer.unsubscribe();
         console.log("Consumer unsubscribed successfully.");
     }
     catch (err) {
-        console.error("Failed to unsubscribe consume, ErrCode:" + err.code + "; ErrMessage: " + err.message);
+        console.error(`Failed to unsubscribe consumer, topic: ${topic}, groupId: ${groupId}, clientId: ${clientId}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
     }
     finally {
         if (consumer) {
             await consumer.close();
+            console.log("Consumer closed successfully.");
         }
         taos.destroy();
     }
