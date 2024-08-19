@@ -281,7 +281,6 @@ pub async fn kafka_to_taos(
                         }
                         Err(err) => {
                             tracing::error!("Kafka worker exit with error: {:#}", err);
-                            join_set.abort_all();
                             anyhow::bail!("Kafka worker exit with error: {:#}", err);
                         }
                     }
@@ -292,9 +291,10 @@ pub async fn kafka_to_taos(
                 match status {
                     Ok(status) => {
                         if status.is_timeout() {
+                            cancel.cancel();
                             // wait for completion
                             tokio::time::sleep(Duration::from_millis(100)).await;
-                            cancel.cancel();
+                            join_set.abort_all();
                             // stop the connector
                             tracing::info!("Kafka task timeout");
                             ipc.close().await?;
@@ -308,11 +308,11 @@ pub async fn kafka_to_taos(
                             }
                             Err(_) => {
                                 tracing::info!("Kafka worker done successfully");
-                                let _ = ipc.send(()).await;
                             }
                         }
                     }
                     Err(err) => {
+                        join_set.abort_all();
                         let _ = ipc.send(());
                         anyhow::bail!("Kafka exit with error: {:#}", err);
                     }
@@ -587,6 +587,8 @@ struct MessagesSender<'a> {
     last_polling: i64,
     last_sent: i64,
 
+    offsets_cache: HashMap<String, HashMap<i32, i64>>,
+
     // Builders
     timestamp: TimestampNanosecondBuilder,
     topic: StringBuilder,
@@ -607,23 +609,24 @@ impl<'a> MessagesSender<'a> {
             return Ok(ExitStatus::None);
         }
 
+        let now = std::time::Instant::now();
         for msg in chunk {
-            match msg.payload_view::<str>() {
-                None => {}
-                Some(Ok(s)) => {
-                    self.timestamp
-                        .append_value(Utc::now().timestamp_nanos_opt().unwrap());
-                    self.topic.append_value(msg.topic());
-                    self.partition.append_value(msg.partition());
-                    self.offset.append_value(msg.offset());
-                    self.key.append_value(msg.key().unwrap_or(&[]));
-                    self.value.append_value(s);
-                }
-                Some(Err(e)) => {
-                    tracing::warn!("Error while deserializing message payload: {:?}", e);
-                }
+            if let Some(s) = msg.payload() {
+                self.timestamp
+                    .append_value(Utc::now().timestamp_nanos_opt().unwrap());
+                self.topic.append_value(msg.topic());
+                self.partition.append_value(msg.partition());
+                self.offset.append_value(msg.offset());
+                self.key.append_value(msg.key().unwrap_or(&[]));
+                self.value.append_value(s);
             };
         }
+        tracing::debug!(
+            elapsed = ?now.elapsed(),
+            cache.len = self.value.len(),
+            chunk.len = chunk.len(),
+            "Push to batch"
+        );
 
         self.last_polling = chrono::Utc::now().timestamp_millis();
 
@@ -639,7 +642,11 @@ impl<'a> MessagesSender<'a> {
                 "Batch size reached, send directly"
             );
             // Reaches batch size, send directly.
-            return unsafe { self.send_unchecked().in_current_span().await };
+            return unsafe {
+                self.send_unchecked_with_messages(chunk)
+                    .in_current_span()
+                    .await
+            };
         }
 
         let now = chrono::Utc::now().timestamp_millis();
@@ -649,17 +656,95 @@ impl<'a> MessagesSender<'a> {
                 "Batch timeout reached, send directly"
             );
             // Reaches batch timeout, send directly.
-            return unsafe { self.send_unchecked().in_current_span().await };
+            return unsafe {
+                self.send_unchecked_with_messages(chunk)
+                    .in_current_span()
+                    .await
+            };
         }
 
         tracing::trace!(
             cache.len = self.value.len(),
             "Stay in cache, go next polling"
         );
+
+        for msg in chunk {
+            let topic = msg.topic().to_string();
+            if let Some(map) = self.offsets_cache.get_mut(&topic) {
+                map.insert(msg.partition(), msg.offset());
+            } else {
+                let mut map = HashMap::with_capacity(1);
+                map.insert(msg.partition(), msg.offset());
+                self.offsets_cache.insert(topic, map);
+            }
+        }
         // Partially in cache, go next polling.
         anyhow::Ok(ExitStatus::None)
     }
 
+    async unsafe fn send_unchecked_with_messages(
+        &mut self,
+        chunk: &[BorrowedMessage<'a>],
+    ) -> anyhow::Result<ExitStatus> {
+        debug_assert!(
+            self.value.len() > 0,
+            "value length should be greater than 0"
+        );
+        let batch = RecordBatch::try_new(
+            self.schema.clone(),
+            vec![
+                Arc::new(self.timestamp.finish()),
+                Arc::new(self.topic.finish()),
+                Arc::new(self.partition.finish()),
+                Arc::new(self.offset.finish()),
+                Arc::new(self.key.finish()),
+                Arc::new(self.value.finish()),
+            ],
+        )?;
+
+        let batch_size = batch.num_rows();
+        let now = std::time::Instant::now();
+        self.tx.send_async(batch).await?;
+        let sending_elapsed = now.elapsed();
+        if sending_elapsed > Duration::from_secs(2) {
+            tracing::warn!(elapsed = ?now.elapsed(), batch.size = batch_size, "Sending batch to IPC may be slow");
+        } else {
+            tracing::warn!(elapsed = ?now.elapsed(), batch.size = batch_size, "Sending batch to IPC");
+        }
+        self.last_sent = chrono::Utc::now().timestamp_millis();
+
+        tracing::debug!(
+            "Kafka consumer send batch to IPC Writer, batch size: {}",
+            batch_size
+        );
+        for msg in chunk {
+            self.consumer
+                .store_offset_from_message(msg)
+                .with_context(|| {
+                    format!(
+                        "Store offset error in partition {} of `{}`",
+                        msg.partition(),
+                        msg.topic()
+                    )
+                })?;
+        }
+        let now = std::time::Instant::now();
+        if let Err(err) = self.consumer.commit_consumer_state(CommitMode::Sync) {
+            let err_str = format!("{:#}", err);
+            tracing::warn!("failed to commit consumer state, cause: {}", err_str);
+            if err_str.contains("NoOffset") {
+                return Ok(ExitStatus::Finished);
+            }
+            bail!("failed to commit consumer state, cause: {}", err_str);
+        }
+        if now.elapsed() > Duration::from_secs(2) {
+            tracing::warn!(elapsed = ?now.elapsed(), batch.size = batch_size, "committing may be slow");
+        } else {
+            tracing::warn!(elapsed = ?now.elapsed(), batch.size = batch_size, "committing done");
+        }
+
+        anyhow::Ok(ExitStatus::Finished)
+    }
     async unsafe fn send_unchecked(&mut self) -> anyhow::Result<ExitStatus> {
         debug_assert!(
             self.value.len() > 0,
@@ -685,6 +770,19 @@ impl<'a> MessagesSender<'a> {
             "Kafka consumer send batch to IPC Writer, batch size: {}",
             batch_size
         );
+
+        for (topic, map) in self.offsets_cache.iter() {
+            for (partition, offset) in map.iter() {
+                self.consumer
+                    .store_offset(&topic, *partition, *offset)
+                    .with_context(|| {
+                        format!(
+                            "Store offset error in partition {} of `{}`",
+                            partition, offset
+                        )
+                    })?;
+            }
+        }
 
         if let Err(err) = self.consumer.commit_consumer_state(CommitMode::Sync) {
             let err_str = format!("{:#}", err);
@@ -741,7 +839,8 @@ async fn poll_message<'a>(
 
     let timestamp = TimestampNanosecondBuilder::new();
     let topic = StringBuilder::new();
-    let partition = Int32Builder::new();
+    let partition: arrow::array::PrimitiveBuilder<arrow::datatypes::Int32Type> =
+        Int32Builder::new();
     let offset = Int64Builder::new();
     let key = BinaryBuilder::new();
     let value = BinaryBuilder::new();
@@ -755,6 +854,7 @@ async fn poll_message<'a>(
         polling_timeout_ms: timeout,
         last_polling: chrono::Utc::now().timestamp_millis(),
         last_sent: chrono::Utc::now().timestamp_millis(),
+        offsets_cache: HashMap::with_capacity(1),
         timestamp,
         topic,
         partition,
@@ -807,7 +907,7 @@ async fn poll_message<'a>(
                         tracing::trace!("Kafka polling return None, continue");
                         match sender.send().in_current_span().await? {
                             ExitStatus::None => {
-                                tokio::time::sleep(Duration::from_millis(100)).await;
+                                tokio::time::sleep(Duration::from_millis(200)).await;
                             }
                             ExitStatus::Timeout => {
                                 tracing::info!("None messages received, exit with consumer polling timeout");
@@ -877,6 +977,10 @@ impl ConsumerContext for CustomContext {
         }
         tracing::info!("Committing offsets: {:?}", result);
     }
+
+    fn main_queue_min_poll_interval(&self) -> rdkafka::util::Timeout {
+        rdkafka::util::Timeout::After(Duration::from_millis(200))
+    }
 }
 
 fn is_rebalance_empty(r: &Rebalance) -> bool {
@@ -906,23 +1010,29 @@ fn consumer_builder(config: KafkaTaskConfig) -> anyhow::Result<LoggingConsumer> 
     // smallest, earliest, beginning, largest, latest, end, error
     client.set("auto.offset.reset", config.fallback_offset);
 
-    // Maximum time the broker may wait to fill the Fetch response with fetch.min.bytes of messages, default 5 seconds.
+    // Refer to [rdkafka configuration](https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md).
+    // > Note: It is recommended to set `enable.auto.offset.store=false`
+    // >  for long-time processing applications and then explicitly store offsets
+    // >  (using offsets_store()) after message processing, to make sure
+    // >  offsets are not auto-committed prior to processing has finished.
+    client.set("enable.auto.offset.store", "false");
+
+    // Maximum time the broker may wait to fill the Fetch response with fetch.min.bytes of messages, default 500ms.
     client.set(
         "fetch.wait.max.ms",
         config
             .fetch_max_wait_time
             .map(|v| v.as_millis())
-            .unwrap_or(5000)
+            .unwrap_or(500)
             .to_string(),
     );
 
-    // Minimum number of bytes the broker responds with.
-    if config.fetch_min_bytes.is_some() {
-        client.set(
-            "fetch.min.bytes",
-            config.fetch_min_bytes.unwrap().to_string(),
-        );
-    }
+    // Minimum number of bytes the broker responds with, default is 1.
+    client.set(
+        "fetch.min.bytes",
+        config.fetch_min_bytes.unwrap_or(1).to_string(),
+    );
+
     // Initial maximum number of bytes per topic+partition to request when fetching messages from the broker.
     if config.fetch_max_bytes_per_partition.is_some() {
         client.set(

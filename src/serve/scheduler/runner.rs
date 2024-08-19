@@ -1631,7 +1631,7 @@ impl TaskJob {
     }
 }
 
-#[instrument(skip_all, fields(task.id = task.task.id, job.id = %jid))]
+#[instrument(skip_all, fields(task.id = task.task.id))]
 pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalState>) {
     if task.operator.is_suspended() || task.operator.is_stopped() {
         tracing::info!("task suspended");
