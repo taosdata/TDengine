@@ -681,6 +681,7 @@ static void monitorSendAllSlowLogFromTempDir(int64_t clusterId) {
     }
     char* tmp = taosStrdup(filename);
     monitorSendSlowLogAtBeginning(clusterId, &tmp, pFile, 0);
+    (void)taosCloseFile(&pFile);
     taosMemoryFree(tmp);
   }
 
