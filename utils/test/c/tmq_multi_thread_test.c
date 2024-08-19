@@ -26,7 +26,7 @@ void* consumeThreadFunc(void* param) {
   tmq_conf_t* conf = tmq_conf_new();
   char groupId[64] = {0};
   int64_t t = taosGetTimestampMs();
-  sprintf(groupId, "group_%ld_%d", t, *index);
+  sprintf(groupId, "group_%"PRId64"_%d", t, *index);
   tmq_conf_set(conf, "enable.auto.commit", "false");
   tmq_conf_set(conf, "auto.commit.interval.ms", "2000");
   tmq_conf_set(conf, "group.id", groupId);
