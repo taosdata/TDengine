@@ -9,7 +9,7 @@ import java.util.Properties;
 
 public class WSConnectExample {
     // ANCHOR: main
-    public static void main(String[] args) throws SQLException {
+    public static void main(String[] args) throws Exception {
         // use
         // String jdbcUrl =
         // "jdbc:TAOS-RS://localhost:6041/dbName?user=root&password=taosdata&batchfetch=true";
@@ -25,14 +25,14 @@ public class WSConnectExample {
 
             // you can use the connection for execute SQL here
 
-        } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed
-            // exceptions info
-            System.out.println("Failed to connect to " + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: "
-                    + ex.getMessage());
-            throw ex;
         } catch (Exception ex) {
-            System.out.println("Failed to connect to " + jdbcUrl + "; ErrMessage: " + ex.getMessage());
+            // please refer to the JDBC specifications for detailed exceptions info
+            System.out.printf("Failed to connect to %s, %sErrMessage: %s%n",
+                    jdbcUrl,
+                    ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+                    ex.getMessage());
+            // Print stack trace for context in examples. Use logging in production.
+            ex.printStackTrace();
             throw ex;
         }
     }

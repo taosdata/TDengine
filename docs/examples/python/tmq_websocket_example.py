@@ -1,18 +1,26 @@
 #!/usr/bin/python3
 import taosws
 
-topic = "topic_meters"
+db              = "power"
+topic           = "topic_meters"
+user            = "root"
+password        = "taosdata"
+host            = "localhost"
+port            = 6041
+groupId         = "group1"
+clientId        = "1"  
+tdConnWsScheme  = "ws"
+autoOffsetReset = "latest"
+autoCommitState = "true"
+autoCommitIntv  = "1000"
+
 
 def prepareMeta():
     conn = None
 
     try:
-        conn = taosws.connect(user="root",
-                              password="taosdata",
-                              host="localhost",
-                              port=6041)
+        conn = taosws.connect(user=user, password=password, host=host, port=port)
 
-        db = "power"
         # create database
         rowsAffected = conn.execute(f"CREATE DATABASE IF NOT EXISTS {db}")
         assert rowsAffected == 0
@@ -51,7 +59,7 @@ def prepareMeta():
         print(f"Inserted into {affectedRows} rows to power.meters successfully.")
 
     except Exception as err:
-        print(f"Failed to prepareMeta ErrMessage:{err}")
+        print(f"Failed to prepareMeta, host: {host}:{port}, db: {db}, topic: {topic}, ErrMessage:{err}.")
         raise err
     finally:
         if conn:
@@ -59,26 +67,22 @@ def prepareMeta():
 
 
 # ANCHOR: create_consumer
-def create_consumer():
-    host = "localhost"
-    port = 6041
-    groupId = "group1"
-    clientId = "1"  
+def create_consumer():  
     try:
         consumer = taosws.Consumer(conf={
-            "td.connect.websocket.scheme": "ws",
+            "td.connect.websocket.scheme": tdConnWsScheme,
             "group.id": groupId,
             "client.id": clientId,
-            "auto.offset.reset": "latest",
+            "auto.offset.reset": autoOffsetReset,
             "td.connect.ip": host,
             "td.connect.port": port,
-            "enable.auto.commit": "true",
-            "auto.commit.interval.ms": "1000",
+            "enable.auto.commit": autoCommitState,
+            "auto.commit.interval.ms": autoCommitIntv,
         })
-        print(f"Create consumer successfully, host: {host}:{port}, groupId: {groupId}, clientId: {clientId}");
+        print(f"Create consumer successfully, host: {host}:{port}, groupId: {groupId}, clientId: {clientId}.");
         return consumer;
     except Exception as err:
-        print(f"Failed to create websocket consumer, host: {host}:{port} ; ErrMessage:{err}");
+        print(f"Failed to create websocket consumer, host: {host}:{port}, groupId: {groupId}, clientId: {clientId}, ErrMessage:{err}.");
         raise err
 
 
@@ -95,10 +99,10 @@ def seek_offset(consumer):
                 print(
                     f"vg_id: {assign.vg_id()}, offset: {assign.offset()}, begin: {assign.begin()}, end: {assign.end()}")
                 consumer.seek(topic, assign.vg_id(), assign.begin())
-                print("Assignment seek to beginning successfully");
+                print("Assignment seek to beginning successfully.")
 
     except Exception as err:
-        print(f"Seek example failed; ErrMessage:{err}")
+        print(f"Failed to seek offset, topic: {topic}, groupId: {groupId}, clientId: {clientId}, ErrMessage:{err}.")
         raise err
     # ANCHOR_END: assignment
 
@@ -116,7 +120,7 @@ def subscribe(consumer):
                         print(f"data: {row}")
 
     except Exception as err:
-        print(f"Failed to poll data, ErrMessage:{err}")
+        print(f"Failed to poll data, topic: {topic}, groupId: {groupId}, clientId: {clientId}, ErrMessage:{err}.")
         raise err
 
 
@@ -134,10 +138,10 @@ def commit_offset(consumer):
                         
                 #  after processing the data, commit the offset manually        
                 consumer.commit(records)
-                print("Commit offset manually successfully.");
+                print("Commit offset manually successfully.")
 
     except Exception as err:
-        print(f"Failed to poll data, ErrMessage:{err}")
+        print(f"Failed to commit offset, topic: {topic}, groupId: {groupId}, clientId: {clientId}, ErrMessage:{err}.")
         raise err
 
 
@@ -150,10 +154,11 @@ def unsubscribe(consumer):
         consumer.unsubscribe()
         print("Consumer unsubscribed successfully.");
     except Exception as err:
-        print(f"Failed to unsubscribe consumer. ErrMessage:{err}")
+        print(f"Failed to unsubscribe consumer. topic: {topic}, groupId: {groupId}, clientId: {clientId}, ErrMessage:{err}.")
     finally:
         if consumer:
-            consumer.close()    
+            consumer.close()
+            print("Consumer closed successfully."); 
 
 # ANCHOR_END: unsubscribe
 
@@ -166,6 +171,6 @@ if __name__ == "__main__":
         seek_offset(consumer)
         commit_offset(consumer)      
     except Exception as err:
-        print(f"Failed to stmt consumer. ErrorMessage:{err}")
+        print(f"Failed to execute consumer example, topic: {topic}, groupId: {groupId}, clientId: {clientId}, ErrMessage:{err}.")
     finally:
-        unsubscribe(consumer);
+        unsubscribe(consumer)

@@ -1,4 +1,4 @@
-package com.taosdata.example;
+package com.taos.example;
 
 import com.taosdata.jdbc.TSDBPreparedStatement;
 
@@ -68,12 +68,13 @@ public class ParameterBindingBasicDemo {
                 // you can check exeResult here
                 System.out.println("Successfully inserted " + (numOfSubTable * numOfRow) + " rows to power.meters.");
             }
-        } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to insert to table meters using stmt, url: " + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-            throw ex;
-        } catch (Exception ex){
-            System.out.println("Failed to insert to table meters using stmt, url: " + jdbcUrl + "; ErrMessage: " + ex.getMessage());
+        } catch (Exception ex) {
+            // please refer to the JDBC specifications for detailed exceptions info
+            System.out.printf("Failed to insert to table meters using stmt, %sErrMessage: %s%n",
+                    ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+                    ex.getMessage());
+            // Print stack trace for context in examples. Use logging in production.
+            ex.printStackTrace();
             throw ex;
         }
     }
