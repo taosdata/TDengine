@@ -2245,7 +2245,9 @@ static int32_t lastIterClose(SFSLastIter **iter) {
 }
 
 static int32_t lastIterNext(SFSLastIter *iter, TSDBROW **ppRow) {
-  bool    hasVal = false;
+  bool hasVal = false;
+  *ppRow = NULL;
+
   int32_t code = tMergeTreeNext(iter->pMergeTree, &hasVal);
   if (code != 0) {
     return code;

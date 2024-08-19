@@ -4105,9 +4105,10 @@ int32_t doMergeRowsInSttBlock(SSttBlockReader* pSttBlockReader, STableBlockScanI
 
   while (1) {
     code = nextRowFromSttBlocks(pSttBlockReader, pScanInfo, pkSrcSlot, pVerRange);
-    if (code) {
-
+    if (code || (!hasDataInSttBlock(pScanInfo))) {
+      return code;
     }
+
     SRowKey* pNextKey = getCurrentKeyInSttBlock(pSttBlockReader);
 
     int32_t ret = pkCompEx(pRowKey, pNextKey);

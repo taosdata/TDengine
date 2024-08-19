@@ -1108,6 +1108,7 @@ int32_t tMergeTreeNext(SMergeTree *pMTree, bool *pHasNext) {
     return TSDB_CODE_INVALID_PARA;
   }
 
+  *pHasNext = false;
   if (pMTree->pIter) {
     SLDataIter *pIter = pMTree->pIter;
     bool        hasVal = false;
