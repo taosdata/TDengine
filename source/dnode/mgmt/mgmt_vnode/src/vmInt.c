@@ -624,8 +624,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     goto _OVER;
   }
   tmsgReportStartup("vnode-tfs", "initialized");
-
-  if ((code = walInit()) != 0) {
+  if ((code = walInit(pInput->stopDnodeFp)) != 0) {
     dError("failed to init wal since %s", tstrerror(code));
     goto _OVER;
   }
@@ -638,7 +637,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
   tmsgReportStartup("vnode-sync", "initialized");
 
-  if ((code = vnodeInit(tsNumOfCommitThreads)) != 0) {
+  if ((code = vnodeInit(tsNumOfCommitThreads, pInput->stopDnodeFp)) != 0) {
     dError("failed to init vnode since %s", tstrerror(code));
     goto _OVER;
   }

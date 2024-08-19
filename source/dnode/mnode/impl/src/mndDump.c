@@ -581,7 +581,7 @@ void mndDumpSdb() {
   msgCb.mgmt = (SMgmtWrapper *)(&msgCb);  // hack
   tmsgSetDefault(&msgCb);
 
-  (void)walInit();
+  (void)walInit(NULL);
   (void)syncInit();
 
   SMnodeOpt opt = {.msgCb = msgCb};

@@ -146,10 +146,14 @@ static void updateBlockLoadSlot(SSttBlockLoadInfo *pLoadInfo) {
   pLoadInfo->currentLoadBlockIndex = nextSlotIndex;
 }
 
-static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
-  int32_t code = 0;
+static int32_t loadLastBlock(SLDataIter *pIter, const char *idStr, SBlockData **pResBlock) {
+  if (pResBlock != NULL) {
+    *pResBlock = NULL;
+  }
 
+  int32_t            code = 0;
   SSttBlockLoadInfo *pInfo = pIter->pBlockLoadInfo;
+
   if (pInfo->blockData[0].sttBlockIndex == pIter->iSttBlk) {
     if (pInfo->currentLoadBlockIndex != 0) {
       tsdbDebug("current load index is set to 0, block index:%d, fileVer:%" PRId64 ", due to uid:%" PRIu64
@@ -157,7 +161,9 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
                 pIter->iSttBlk, pIter->cid, pIter->uid, idStr);
       pInfo->currentLoadBlockIndex = 0;
     }
-    return &pInfo->blockData[0].data;
+
+    *pResBlock = &pInfo->blockData[0].data;
+    return code;
   }
 
   if (pInfo->blockData[1].sttBlockIndex == pIter->iSttBlk) {
@@ -167,11 +173,13 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
                 pIter->iSttBlk, pIter->cid, pIter->uid, idStr);
       pInfo->currentLoadBlockIndex = 1;
     }
-    return &pInfo->blockData[1].data;
+
+    *pResBlock = &pInfo->blockData[1].data;
+    return code;
   }
 
   if (pIter->pSttBlk == NULL || pInfo->pSchema == NULL) {
-    return NULL;
+    return code;
   }
 
   updateBlockLoadSlot(pInfo);
@@ -181,7 +189,7 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
   code = tsdbSttFileReadBlockDataByColumn(pIter->pReader, pIter->pSttBlk, pBlock, pInfo->pSchema, &pInfo->colIds[1],
                                           pInfo->numOfCols - 1);
   if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
+    return code;
   }
 
   double el = (taosGetTimestampUs() - st) / 1000.0;
@@ -200,14 +208,9 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
 
   tsdbDebug("last block index list:%d, %d, rowIndex:%d %s", pInfo->blockData[0].sttBlockIndex,
             pInfo->blockData[1].sttBlockIndex, pIter->iRow, idStr);
-  return &pInfo->blockData[pInfo->currentLoadBlockIndex].data;
 
-_exit:
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-  }
-
-  return NULL;
+  *pResBlock = &pInfo->blockData[pInfo->currentLoadBlockIndex].data;
+  return code;
 }
 
 // find the earliest block that contains the required records
@@ -735,12 +738,17 @@ void tLDataIterNextBlock(SLDataIter *pIter, const char *idStr) {
   }
 }
 
-static void findNextValidRow(SLDataIter *pIter, const char *idStr) {
-  bool    hasVal = false;
-  int32_t step = pIter->backward ? -1 : 1;
-  int32_t i = pIter->iRow;
+static int32_t findNextValidRow(SLDataIter *pIter, const char *idStr) {
+  bool        hasVal = false;
+  int32_t     step = pIter->backward ? -1 : 1;
+  int32_t     i = pIter->iRow;
+  SBlockData *pData = NULL;
 
-  SBlockData *pData = loadLastBlock(pIter, idStr);
+  int32_t code = loadLastBlock(pIter, idStr, &pData);
+  if (code) {
+    tsdbError("failed to load stt block, code:%s, %s", tstrerror(code), idStr);
+    return code;
+  }
 
   // mostly we only need to find the start position for a given table
   if ((((i == 0) && (!pIter->backward)) || (i == pData->nRow - 1 && pIter->backward)) && pData->aUid != NULL) {
@@ -748,7 +756,7 @@ static void findNextValidRow(SLDataIter *pIter, const char *idStr) {
     if (i == -1) {
       tsdbDebug("failed to find the data in pBlockData, uid:%" PRIu64 " , %s", pIter->uid, idStr);
       pIter->iRow = -1;
-      return;
+      return code;
     }
   }
 
@@ -817,20 +825,26 @@ static void findNextValidRow(SLDataIter *pIter, const char *idStr) {
   }
 
   pIter->iRow = (hasVal) ? i : -1;
+  return code;
 }
 
-bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
-  int32_t step = pIter->backward ? -1 : 1;
-  terrno = TSDB_CODE_SUCCESS;
+int32_t tLDataIterNextRow(SLDataIter *pIter, const char *idStr, bool* hasNext) {
+  int32_t     step = pIter->backward ? -1 : 1;
+  int32_t     code = 0;
+  int32_t     iBlockL = pIter->iSttBlk;
+  SBlockData *pBlockData = NULL;
+  int32_t     lino = 0;
 
+  *hasNext = false;
+  terrno = 0;
+  
   // no qualified last file block in current file, no need to fetch row
   if (pIter->pSttBlk == NULL) {
-    return false;
+    return code;
   }
 
-  int32_t     iBlockL = pIter->iSttBlk;
-  SBlockData *pBlockData = loadLastBlock(pIter, idStr);
-  if (pBlockData == NULL || terrno != TSDB_CODE_SUCCESS) {
+  code = loadLastBlock(pIter, idStr, &pBlockData);
+  if (pBlockData == NULL || code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
 
@@ -838,7 +852,8 @@ bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
 
   while (1) {
     bool skipBlock = false;
-    findNextValidRow(pIter, idStr);
+    code = findNextValidRow(pIter, idStr);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     if (pIter->pBlockLoadInfo->checkRemainingRow) {
       skipBlock = true;
@@ -873,8 +888,8 @@ bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
     }
 
     if (iBlockL != pIter->iSttBlk) {
-      pBlockData = loadLastBlock(pIter, idStr);
-      if (pBlockData == NULL) {
+      code = loadLastBlock(pIter, idStr, &pBlockData);
+      if ((pBlockData == NULL) || (code != 0)) {
         goto _exit;
       }
 
@@ -888,7 +903,8 @@ bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
   pIter->rInfo.row = tsdbRowFromBlockData(pBlockData, pIter->iRow);
 
 _exit:
-  return (terrno == TSDB_CODE_SUCCESS) && (pIter->pSttBlk != NULL) && (pBlockData != NULL);
+  *hasNext = (code == TSDB_CODE_SUCCESS) && (pIter->pSttBlk != NULL) && (pBlockData != NULL);
+  return code;
 }
 
 // SMergeTree =================================================
@@ -991,7 +1007,12 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
         goto _end;
       }
 
-      bool hasVal = tLDataIterNextRow(pIter, pMTree->idStr);
+      bool hasVal = NULL;
+      code = tLDataIterNextRow(pIter, pMTree->idStr, &hasVal);
+      if (code) {
+        goto _end;
+      }
+
       if (hasVal) {
         tMergeTreeAddIter(pMTree, pIter);
 
@@ -1004,7 +1025,6 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
           pSttDataInfo->numOfRows += numOfRows;
         }
       } else {
-        TAOS_CHECK_GOTO(terrno, NULL, _end);
         if (!pMTree->ignoreEarlierTs) {
           pMTree->ignoreEarlierTs = pIter->ignoreEarlierTs;
         }
@@ -1086,8 +1106,9 @@ bool tMergeTreeNext(SMergeTree *pMTree) {
   if (pMTree->pIter) {
     SLDataIter *pIter = pMTree->pIter;
 
-    bool hasVal = tLDataIterNextRow(pIter, pMTree->idStr);
-    if (!hasVal) {
+    bool hasVal = false;
+    int32_t code = tLDataIterNextRow(pIter, pMTree->idStr, &hasVal);
+    if (!hasVal || (code != 0)) {
       pMTree->pIter = NULL;
     }
 
