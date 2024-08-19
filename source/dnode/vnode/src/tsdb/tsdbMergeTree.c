@@ -1102,13 +1102,21 @@ void tMergeTreeUnpinSttBlock(SMergeTree *pMTree) {
   tLDataIterUnpinSttBlock(pIter, pMTree->idStr);
 }
 
-bool tMergeTreeNext(SMergeTree *pMTree) {
+int32_t tMergeTreeNext(SMergeTree *pMTree, bool *pHasNext) {
+  int32_t code = 0;
+  if (pHasNext == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   if (pMTree->pIter) {
     SLDataIter *pIter = pMTree->pIter;
-
-    bool hasVal = false;
-    int32_t code = tLDataIterNextRow(pIter, pMTree->idStr, &hasVal);
+    bool        hasVal = false;
+    code = tLDataIterNextRow(pIter, pMTree->idStr, &hasVal);
     if (!hasVal || (code != 0)) {
+      if (code == TSDB_CODE_FILE_CORRUPTED) {
+        code = 0;   // suppress the file corrupt error to enable all queries within this cluster can run without failed.
+      }
+
       pMTree->pIter = NULL;
     }
 
@@ -1117,7 +1125,7 @@ bool tMergeTreeNext(SMergeTree *pMTree) {
     if (pMTree->pIter && pIter) {
       int32_t c = pMTree->rbt.cmprFn(&pMTree->pIter->node, &pIter->node);
       if (c > 0) {
-        (void) tRBTreePut(&pMTree->rbt, (SRBTreeNode *)pMTree->pIter);
+        (void)tRBTreePut(&pMTree->rbt, (SRBTreeNode *)pMTree->pIter);
         pMTree->pIter = NULL;
       } else {
         ASSERT(c);
@@ -1132,7 +1140,8 @@ bool tMergeTreeNext(SMergeTree *pMTree) {
     }
   }
 
-  return pMTree->pIter != NULL;
+  *pHasNext = (pMTree->pIter != NULL);
+  return code;
 }
 
 void tMergeTreeClose(SMergeTree *pMTree) {
