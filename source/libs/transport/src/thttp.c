@@ -685,6 +685,7 @@ static int32_t taosSendHttpReportImplByChan(const char* server, const char* uri,
     code = TSDB_CODE_HTTP_MODULE_QUIT;
     goto _ERROR;
   }
+  tDebug("http-report start to report,chanId:%" PRId64 ", seq:%" PRId64 "", chanId, msg->seq);
 
   code = transAsyncSend(load->asyncPool, &(msg->q));
   if (code != 0) {
