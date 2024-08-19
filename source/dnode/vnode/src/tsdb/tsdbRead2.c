@@ -2412,7 +2412,7 @@ static void initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
     // only allowed to retrieve clean stt blocks for count once
     if (pScanInfo->sttBlockReturned) {
       pScanInfo->sttKeyInfo.status = STT_FILE_NO_DATA;
-      tsdbDebug("uid:%" PRIu64 " set no stt-file data after stt-block retrieved", pScanInfo->uid, pReader->idStr);
+      tsdbDebug("uid:%" PRIu64 " set no stt-file data after stt-block retrieved, %s", pScanInfo->uid, pReader->idStr);
     }
     return;
   }
