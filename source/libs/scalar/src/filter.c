@@ -2372,6 +2372,7 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t
     }
     gRes[gResIdx]->colInfo = taosMemoryCalloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(SFilterColInfo));
     if (gRes[gResIdx]->colInfo == NULL) {
+      filterFreeGroupCtx(gRes[gResIdx]);
       FLT_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
     colIdxi = 0;
@@ -2384,6 +2385,7 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t
       if (gRes[gResIdx]->colInfo[cidx].info == NULL) {
         gRes[gResIdx]->colInfo[cidx].info = (SArray *)taosArrayInit(4, POINTER_BYTES);
         if (gRes[gResIdx]->colInfo[cidx].info == NULL) {
+          filterFreeGroupCtx(gRes[gResIdx]);
           FLT_ERR_JRET(terrno);
         }
         colIdx[colIdxi++] = cidx;
@@ -2408,7 +2410,11 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t
         continue;
       }
 
-      FLT_ERR_JRET(filterMergeUnits(info, gRes[gResIdx], colIdx[l], &empty));
+      code = filterMergeUnits(info, gRes[gResIdx], colIdx[l], &empty);
+      if (TSDB_CODE_SUCCESS != code) {
+        filterFreeGroupCtx(gRes[gResIdx]);
+        SCL_ERR_JRET(code);
+      }
 
       if (empty) {
         break;
@@ -2426,9 +2432,8 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t
     gRes[gResIdx]->colNum = colIdxi;
     FILTER_COPY_IDX(&gRes[gResIdx]->colIdx, colIdx, colIdxi);
     ++gResIdx;
+    *gResNum = gResIdx;
   }
-
-  *gResNum = gResIdx;
 
   if (gResIdx == 0) {
     FILTER_SET_FLAG(info->status, FI_STATUS_EMPTY);
