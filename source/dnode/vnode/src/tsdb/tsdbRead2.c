@@ -1383,7 +1383,6 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, SRowKey* pLastPro
 
 static FORCE_INLINE STSchema* getTableSchemaImpl(STsdbReader* pReader, uint64_t uid) {
   ASSERT(pReader->info.pSchema == NULL);
-
   int32_t code = metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->info.suid, uid, -1, &pReader->info.pSchema);
   if (code != TSDB_CODE_SUCCESS || pReader->info.pSchema == NULL) {
     terrno = code;
@@ -1787,6 +1786,7 @@ static int32_t nextRowFromSttBlocks(SSttBlockReader* pSttBlockReader, STableBloc
           memset(pNextProc->pks[0].pData, 0, pNextProc->pks[0].nData);
         }
       }
+      return code;
     }
 
     TSDBROW* pRow = tMergeTreeGetRow(&pSttBlockReader->mergeTree);
