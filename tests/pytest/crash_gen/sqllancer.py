@@ -75,9 +75,9 @@ class FunctionMap(Enum):
         'strFuncs': [],
         'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMEZONE', 'TODAY'],
         'aggFuncs': ['APERCENTILE', 'AVG', 'COUNT', 'LEASTSQUARES', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG', 'HISTOGRAM', 'PERCENTILE'],
-        'selectFuncs': ['BOTTOM', 'FIRST', 'INTERP', 'LAST', 'LAST_ROW', 'MAX', 'MIN', 'MODE', 'SAMPLE', 'TAIL', 'TOP', 'UNIQUE'],
+        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MAX', 'MIN', 'MODE'],
         'specialFuncs': ['CSUM', 'DERIVATIVE', 'DIFF', 'IRATE', 'MAVG', 'STATECOUNT', 'STATEDURATION', 'TWA'],
-        'removeFuncs': ['UNIQUE', 'TIMEDIFF', 'TAIL', 'SAMPLE'],
+        'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TOP', 'TAIL', 'SAMPLE'],
         'castFuncs': ['CAST', 'TO_ISO8601'],
         'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
     }
@@ -87,9 +87,9 @@ class FunctionMap(Enum):
         'strFuncs': ['CHAR_LENGTH', 'CONCAT', 'CONCAT_WS', 'LENGTH', 'LOWER', 'LTRIM', 'RTRIM', 'SUBSTR', 'UPPER'],
         'timeFuncs': ['NOW', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
         'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
-        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'TAIL', 'UNIQUE'],
+        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE'],
         'specialFuncs': [],
-        'removeFuncs': ['UNIQUE', 'TIMEDIFF', 'TAIL', 'SAMPLE'],
+        'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TOP', 'TAIL', 'SAMPLE'],
         'castFuncs': ['CAST', 'TO_UNIXTIMESTAMP'],
         'castTypes': DataBoundary.ALL_TYPE_UNIT.value
     }
@@ -99,9 +99,9 @@ class FunctionMap(Enum):
         'strFuncs': ['LENGTH'],
         'timeFuncs': ['NOW', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
         'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
-        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'TAIL', 'UNIQUE'],
+        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE'],
         'specialFuncs': [],
-        'removeFuncs': ['UNIQUE', 'TIMEDIFF', 'TAIL', 'SAMPLE'],
+        'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TOP', 'TAIL', 'SAMPLE'],
         'castFuncs': [],
         'castTypes': []
     }
@@ -111,9 +111,9 @@ class FunctionMap(Enum):
         'strFuncs': [],
         'timeFuncs': ['NOW'],
         'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
-        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'TAIL', 'UNIQUE'],
+        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE'],
         'specialFuncs': [],
-        'removeFuncs': ['UNIQUE', 'TIMEDIFF', 'TAIL', 'SAMPLE'],
+        'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TOP', 'TAIL', 'SAMPLE'],
         'castFuncs': ['CAST'],
         'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
     }
@@ -123,9 +123,9 @@ class FunctionMap(Enum):
         'strFuncs': [],
         'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
         'aggFuncs': ['ELAPSED', 'SPREAD'],
-        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'UNIQUE'],
+        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE'],
         'specialFuncs': [],
-        'removeFuncs': ['UNIQUE', 'TIMEDIFF', 'TAIL', 'SAMPLE'],
+        'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TOP', 'TAIL', 'SAMPLE'],
         'castFuncs': ['CAST', 'TO_ISO8601', 'TO_CHAR'],
         'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
     }
@@ -203,7 +203,7 @@ class SQLLancer:
         elif func in ['TIMETRUNCATE']:
             return self.formatTimeTruncate(colname)
         elif func in ['APERCENTILE']:
-            return f'{func}({colname}, {random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1])}), {random.choice(["default", "t-digest"])}'
+            return f'{func}({colname}, {random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1], random.choice(["default", "t-digest"]))})'
         elif func in ['LEASTSQUARES']:
             return f"{func}({colname}, {random.randint(1, DataBoundary.LEASTSQUARES_BOUNDARY.value[1])}, {random.randint(1, DataBoundary.LEASTSQUARES_BOUNDARY.value[1])})"
         elif func in ['HISTOGRAM']:
