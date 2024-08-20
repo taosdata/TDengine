@@ -4014,7 +4014,6 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
         if (TSDB_CODE_SUCCESS == code)
           code = catalogGetCachedTableHashVgroup(pCxt->pParseCxt->pCatalog, &tsmaTargetTbName, &vgInfo, &exists);
         if (TSDB_CODE_SUCCESS == code) {
-          ASSERT(exists);
           if (!pRealTable->tsmaTargetTbVgInfo) {
             pRealTable->tsmaTargetTbVgInfo = taosArrayInit(pRealTable->pTsmas->size, POINTER_BYTES);
             if (!pRealTable->tsmaTargetTbVgInfo) {
@@ -7320,7 +7319,10 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
     SValueNode* pFreq = (SValueNode*)nodesListGetNode(((SNodeListNode*)pRetention)->pNodeList, 0);
     SValueNode* pKeep = (SValueNode*)nodesListGetNode(((SNodeListNode*)pRetention)->pNodeList, 1);
 
-    ASSERTS(IS_DURATION_VAL(pFreq->flag) && IS_DURATION_VAL(pKeep->flag), "Retentions freq/keep should have unit");
+    if (!IS_DURATION_VAL(pFreq->flag) || !IS_DURATION_VAL(pKeep->flag)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Retentions freq/keep should have unit");
+    }
 
     // check unit
     if (IS_DURATION_VAL(pFreq->flag) && TIME_UNIT_SECOND != pFreq->unit && TIME_UNIT_MINUTE != pFreq->unit &&
@@ -9427,7 +9429,9 @@ static int32_t buildCreateTagIndexReq(STranslateContext* pCxt, SCreateIndexStmt*
   (void)tNameGetFullDbName(&name, pReq->dbFName);
 
   SNode* pNode = NULL;
-  ASSERT(LIST_LENGTH(pStmt->pCols) == 1);
+  if (LIST_LENGTH(pStmt->pCols) != 1) {
+    return TSDB_CODE_PAR_INVALID_TAGS_NUM;
+  }
   FOREACH(pNode, pStmt->pCols) {
     SColumnNode* p = (SColumnNode*)pNode;
     memcpy(pReq->colName, p->colName, sizeof(p->colName));
