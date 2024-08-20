@@ -724,6 +724,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL,      "Function time unit c
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_INVALID_VALUE_RANGE,      "Function got invalid value range")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_SETUP_ERROR,              "Function set up failed")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_INVALID_RES_LENGTH,       "Function result exceed max length")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_HISTOGRAM_ERROR,          "Function failed to calculate histogram")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_PERCENTILE_ERROR,         "Function failed to calculate percentile")
 
 //udf
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_STOPPING,                   "udf is stopping")
