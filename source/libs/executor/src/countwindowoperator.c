@@ -66,14 +66,17 @@ static void clearWinStateBuff(SCountWindowResult* pBuff) { pBuff->winRows = 0; }
 static SCountWindowResult* getCountWinStateInfo(SCountWindowSupp* pCountSup) {
   SCountWindowResult* pBuffInfo = taosArrayGet(pCountSup->pWinStates, pCountSup->stateIndex);
   if (!pBuffInfo) {
+    terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
     return NULL;
   }
-  int32_t             size = taosArrayGetSize(pCountSup->pWinStates);
-  // coverity scan
-  ASSERTS(size > 0, "WinStates is empty");
-  if (size > 0) {
-    pCountSup->stateIndex = (pCountSup->stateIndex + 1) % size;
+  int32_t size = taosArrayGetSize(pCountSup->pWinStates);
+  if (size == 0) {
+    terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    return NULL;
   }
+  pCountSup->stateIndex = (pCountSup->stateIndex + 1) % size;
   return pBuffInfo;
 }
 

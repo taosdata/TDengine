@@ -1720,6 +1720,8 @@ static uint64_t getGroupIdByData(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts,
 }
 
 static void prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t* pRowIndex, bool* pRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (pBlock->info.rows == 0) {
     if (pRes) {
       (*pRes) = false;
@@ -1769,16 +1771,19 @@ static void prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
 
   STableScanInfo* pTScanInfo = pInfo->pTableScanOp->info;
   // coverity scan
-  if (pInfo->pUpdateInfo == NULL){
-    qError("Failed to set data version, since pInfo->pUpdateInfo is NULL");
-    return;
-  }
+  QUERY_CHECK_NULL(pInfo->pUpdateInfo, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+
   qDebug("prepare range scan start:%" PRId64 ",end:%" PRId64 ",maxVer:%" PRIu64, win.skey, win.ekey,
           pInfo->pUpdateInfo->maxDataVersion);
   resetTableScanInfo(pInfo->pTableScanOp->info, &win, pInfo->pUpdateInfo->maxDataVersion);
   pInfo->pTableScanOp->status = OP_OPENED;
   if (pRes) {
     (*pRes) = true;
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 }
 

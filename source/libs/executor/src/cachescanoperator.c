@@ -298,7 +298,11 @@ int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       int32_t resultRows = pBufRes->info.rows;
 
       // the results may be null, if last values are all null
-      ASSERT(resultRows == 0 || resultRows == taosArrayGetSize(pInfo->pUidList));
+      if (resultRows != 0 && resultRows != taosArrayGetSize(pInfo->pUidList)) {
+        pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(pTaskInfo->code));
+        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+      }
       pInfo->indexOfBufferedRes = 0;
     }
 
