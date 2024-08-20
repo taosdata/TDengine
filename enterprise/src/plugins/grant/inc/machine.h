@@ -141,7 +141,7 @@
 #define GRANT_UNIQ_DFT_REPLICA_EXPIRE      GRANT_EXPIRE_DAY
 #define GRANT_UNIQ_DFT_DATAIN_EXPIRE       GRANT_EXPIRE_DAY
 #define GRANT_UNIQ_DFT_DATAIN_SPEED        GRANT_UNIQ_UNLIMITED
-#define GRANT_UNIQ_DFT_DATAIN_NUM          1
+#define GRANT_UNIQ_DFT_DATAIN_NUM          100
 #else
 #define GRANT_UNIQ_DFT_BASIC_EXPIRE        GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_BASIC_TIMESERIES    GRANT_UNIQ_UNLIMITED
@@ -265,7 +265,8 @@ typedef enum {
   GRANT_OPT_ACTIVE_ACTIVE = 10,
   GRANT_OPT_DUAL_REPLICA_HA = 11,
   GRANT_OPT_DB_ENCRYPTION = 12,
-  GRANT_OPT_DYN_MAX = 13,
+  GRANT_OPT_DATA_SYNC = 13,
+  GRANT_OPT_DYN_MAX = 14,
 } SGrantOpt;
 
 typedef struct {
@@ -383,7 +384,8 @@ typedef struct {
       int64_t objectStorageExpired : 1;
       int64_t dualReplicaHAExpired : 1;
       int64_t dbEncryptionExpired : 1;
-      int64_t reserve2 : 5;
+      int64_t dataSyncExpired : 1;
+      int64_t reserve2 : 4;
     };
   };
   union {
@@ -449,6 +451,13 @@ typedef struct {
     struct {
       int64_t dbEncryptionExpireSec : 40;
       int64_t reserve10 : 24;
+    };
+  };
+  union {
+    int64_t p14;  // since 3.3.0.0
+    struct {
+      int64_t dataSyncExpireSec : 40;
+      int64_t reserve11 : 24;
     };
   };
   int64_t limitTimeSeries;

@@ -203,8 +203,8 @@ static const char *gConnDisplay[CONN_TYPE_DYN_MAX] = {
     "TDengine2.6", "TDengine3.0", "MySQL", "PostgreSQL", "Oracle",   "SqlServer", "MongoDB"};
 
 static const char gGrantName[GRANT_OPT_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
-    "basic",   "service",        "stream",         "subscription",  "audit",        "csv",          "view",
-    "storage", "backup_restore", "object_storage", "active_active", "dual_replica", "db_encryption"};
+    "basic",   "service",        "stream",         "subscription",  "audit",        "csv",           "view",
+    "storage", "backup_restore", "object_storage", "active_active", "dual_replica", "db_encryption", "sync"};
 
 static const char *gGrantDisplay[GRANT_OPT_DYN_MAX] = {"Basic",
                                                        "Service Time",
@@ -218,7 +218,8 @@ static const char *gGrantDisplay[GRANT_OPT_DYN_MAX] = {"Basic",
                                                        "Object Storage",
                                                        "Active-Active",
                                                        "Dual-Replica HA",
-                                                       "Database Encryption"};
+                                                       "Database Encryption",
+                                                       "Data Synchronization"};
 
 static const char *gGrantState[GRANT_STATE_MAX] = {"ungranted", "ungranted", "granted", "expired",
                                                    "revoked"};  // keep 0/1 ungranted
@@ -422,6 +423,9 @@ static void grantInitShowFlags() {
 #if !defined(TD_INDUSTRY) || defined(TD_FUNC_DB_ENCRYPTION)
   grantHandle.showOpts[GRANT_OPT_DB_ENCRYPTION] = 1;
 #endif
+#if !defined(TD_INDUSTRY) || defined(TD_FUNC_DATA_SYNC)
+  grantHandle.showOpts[GRANT_OPT_DATA_SYNC] = 1;
+#endif
 
 // DataIns
 #if !defined(TD_INDUSTRY) || defined(TD_DATAIN_OPC_DA)
@@ -491,6 +495,7 @@ static void grantStatusInit(SGrantStatus *pStatus) {
   GRANT_OPT_EXPIRE_INIT(pStatus->activeActiveExpireSec, pStatus->placeHolder, GRANT_OPT_ACTIVE_ACTIVE);
   GRANT_OPT_EXPIRE_INIT(pStatus->dualReplicaHAExpireSec, pStatus->dualReplicaHAExpired, GRANT_OPT_DUAL_REPLICA_HA);
   GRANT_OPT_EXPIRE_INIT(pStatus->dbEncryptionExpireSec, pStatus->dbEncryptionExpired, GRANT_OPT_DB_ENCRYPTION);
+  GRANT_OPT_EXPIRE_INIT(pStatus->dataSyncExpireSec, pStatus->dataSyncExpired, GRANT_OPT_DATA_SYNC);
 
   grantDataInsSetDefault(pStatus->dataIns, CONN_TYPE_DYN_MAX, GRANT_UNIQ_UNLIMITED);
 }
@@ -850,6 +855,10 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
           GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dbEncryptionExpireSec, 86400, dftExpireSec,
                                grantHandle.showOpts[GRANT_OPT_DB_ENCRYPTION]);
 #endif
+        } break;
+        case GRANT_OPT_DATA_SYNC: {
+          GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dataSyncExpireSec, 86400, dftExpireSec,
+                               grantHandle.showOpts[GRANT_OPT_DATA_SYNC]);
         } break;
         default:
           break;
@@ -1690,6 +1699,7 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.dbEncryptionExpireSec, optExpireEpoch, gStatus.dbEncryptionExpired, true,
                             GRANT_OPT_DB_ENCRYPTION);
 #endif
+    GRANT_OPT_EXPIRE_ASSIGN(gStatus.dataSyncExpireSec, optExpireSec, gStatus.placeHolder, 0, GRANT_OPT_DATA_SYNC);
 
     // fixed dataIns
     grantDataInsSetDefault(gStatus.dataIns, CONN_TYPE_DYN_MAX, optExpireSec);
@@ -2434,6 +2444,9 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_DB_ENCRYPTION],
                                              gGrantDisplay[GRANT_OPT_DB_ENCRYPTION], pStatus->dbEncryptionExpireSec, 0,
                                              GRANT_UNIQ_UNUTILIZED, false, true));
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_DATA_SYNC],
+                                             gGrantDisplay[GRANT_OPT_DATA_SYNC], pStatus->dataSyncExpireSec, 0,
+                                             GRANT_UNIQ_UNUTILIZED, false, true));
 
     taosRLockLatch(&grantHandle.rwLock);
 
@@ -2662,6 +2675,13 @@ static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
+    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+
+    ++cols;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+    snprintf(qBuf, TSDB_VERSION_LEN, "%s", version);
     varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
     COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
 
