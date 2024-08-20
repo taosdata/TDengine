@@ -122,7 +122,7 @@ static int32_t monitorReportAsyncCB(void* param, SDataBuf* pMsg, int32_t code) {
       p->fileName = NULL;
     }
   }
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t sendReport(void* pTransporter, SEpSet* epSet, char* pCont, MONITOR_TYPE type, void* param) {
@@ -165,6 +165,7 @@ static int32_t sendReport(void* pTransporter, SEpSet* epSet, char* pCont, MONITO
   return asyncSendMsgToServer(pTransporter, epSet, &transporterId, pInfo);
 
   FAILED:
+  taosCloseFile(&(((MonitorSlowLogData*)param)->pFile));
   monitorFreeSlowLogDataEx(param);
   return TAOS_GET_TERRNO(TSDB_CODE_TSC_INTERNAL_ERROR);
 }
@@ -462,11 +463,13 @@ static int64_t getFileSize(char* path) {
 static int32_t sendSlowLog(int64_t clusterId, char* data, TdFilePtr pFile, int64_t offset, SLOW_LOG_QUEUE_TYPE type,
                            char* fileName, void* pTransporter, SEpSet* epSet) {
   if (data == NULL) {
+    taosCloseFile(&pFile);
     taosMemoryFree(fileName);
     return TSDB_CODE_INVALID_PARA;
   }
   MonitorSlowLogData* pParam = taosMemoryMalloc(sizeof(MonitorSlowLogData));
   if (pParam == NULL) {
+    taosCloseFile(&pFile);
     taosMemoryFree(data);
     taosMemoryFree(fileName);
     return terrno;
@@ -485,6 +488,7 @@ static int32_t monitorReadSend(int64_t clusterId, TdFilePtr pFile, int64_t* offs
   SAppInstInfo* pInst = getAppInstByClusterId(clusterId);
   if (pInst == NULL) {
     tscError("failed to get app instance by clusterId:%" PRId64, clusterId);
+    taosCloseFile(&pFile);
     taosMemoryFree(fileName);
     return terrno;
   }
@@ -681,7 +685,6 @@ static void monitorSendAllSlowLogFromTempDir(int64_t clusterId) {
     }
     char* tmp = taosStrdup(filename);
     monitorSendSlowLogAtBeginning(clusterId, &tmp, pFile, 0);
-    (void)taosCloseFile(&pFile);
     taosMemoryFree(tmp);
   }
 
@@ -730,9 +733,9 @@ static void* monitorThreadFunc(void* param) {
           break;
         }
       }
+      monitorFreeSlowLogData(slowLogData);
+      taosFreeQitem(slowLogData);
     }
-    monitorFreeSlowLogData(slowLogData);
-    taosFreeQitem(slowLogData);
 
     if (quitCnt == 0) {
       monitorSendAllSlowLog();
