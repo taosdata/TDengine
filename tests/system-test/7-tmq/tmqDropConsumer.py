@@ -243,7 +243,7 @@ class TDTestCase:
             tdSql.query('show consumers;')
             consumerNUm = tdSql.queryRows 
             for i in range(consumerNUm): 
-                status = tdSql.getData(i,3)
+                status = tdSql.getData(i,5)
                 if (status != "lost"):
                     exitFlag = 0
                     time.sleep(2)
