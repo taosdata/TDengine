@@ -343,27 +343,45 @@ int optSysDoCompare(__compar_fn_t func, int8_t comparType, void* a, void* b) {
 
 static int optSysFilterFuncImpl__LowerThan(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_LOWER_THAN, a, b);
 }
 static int optSysFilterFuncImpl__LowerEqual(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_LOWER_EQUAL, a, b);
 }
 static int optSysFilterFuncImpl__GreaterThan(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_GREATER_THAN, a, b);
 }
 static int optSysFilterFuncImpl__GreaterEqual(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_GREATER_EQUAL, a, b);
 }
 static int optSysFilterFuncImpl__Equal(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_EQUAL, a, b);
 }
 
 static int optSysFilterFuncImpl__NoEqual(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_NOT_EQUAL, a, b);
 }
 

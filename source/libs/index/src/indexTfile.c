@@ -315,7 +315,7 @@ static int32_t tfSearchRegex(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
 }
 
 static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTRslt* tr, RangeType type) {
-  int                  ret = 0;
+  int32_t              code = TSDB_CODE_SUCCESS;
   char*                p = tem->colVal;
   int                  skip = 0;
   _cache_range_compare cmpFn = idxGetCompare(type);
@@ -335,7 +335,13 @@ static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTRslt* tr,
     FstSlice* s = &rt->data;
     char*     ch = (char*)fstSliceData(s, NULL);
 
+    terrno = TSDB_CODE_SUCCESS;
     TExeCond cond = cmpFn(ch, p, tem->colType);
+    if (TSDB_CODE_SUCCESS != terrno) {
+      swsResultDestroy(rt);
+      code = terrno;
+      goto _return;
+    }
     if (MATCH == cond) {
       (void)tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total);
     } else if (CONTINUE == cond) {
@@ -345,10 +351,11 @@ static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTRslt* tr,
     }
     swsResultDestroy(rt);
   }
+_return:
   stmStDestroy(st);
   stmBuilderDestroy(sb);
   taosArrayDestroy(offsets);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 static int32_t tfSearchLessThan(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
   return tfSearchCompareFunc(reader, tem, tr, LT);
@@ -427,8 +434,8 @@ static int32_t tfSearchRange_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr) 
 }
 
 static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr, RangeType ctype) {
-  int ret = 0;
-  int skip = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int     skip = 0;
 
   char* p = NULL;
   if (ctype == CONTAINS) {
@@ -469,9 +476,20 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
         continue;
       }
       char* tBuf = taosMemoryCalloc(1, sz + 1);
+      if (NULL == tBuf) {
+        swsResultDestroy(rt);
+        code = terrno;
+        goto _return;
+      }
       memcpy(tBuf, ch, sz);
+      terrno = TSDB_CODE_SUCCESS;
       cond = cmpFn(tBuf + skip, tem->colVal, IDX_TYPE_GET_TYPE(tem->colType));
       taosMemoryFree(tBuf);
+      if (TSDB_CODE_SUCCESS != terrno) {
+        swsResultDestroy(rt);
+        code = terrno;
+        goto _return;
+      }
     }
     if (MATCH == cond) {
       (void)tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total);
@@ -482,12 +500,14 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
     }
     swsResultDestroy(rt);
   }
+
+_return:
   stmStDestroy(st);
   stmBuilderDestroy(sb);
   taosArrayDestroy(offsets);
   taosMemoryFree(p);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTRslt* tr) {
   int             ret = 0;
@@ -558,7 +578,7 @@ int32_t tfileWriterCreate(IFileCtx* ctx, TFileHeader* header, TFileWriter** pWri
   return code;
 }
 
-int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
+int32_t tfileWriterPut(TFileWriter* tw, void* data, bool order) {
   // sort by coltype and write to tindex
   if (order == false) {
     __compar_fn_t fn;
@@ -570,6 +590,9 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
       fn = tfileStrCompare;
     } else {
       fn = getComparFunc(colType, 0);
+    }
+    if (fn == NULL) {
+      return terrno;
     }
     (void)taosArraySortPWithExt((SArray*)(data), tfileValueCompare, &fn);
   }
