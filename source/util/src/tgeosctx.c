@@ -14,14 +14,16 @@
  */
 
 #include "tgeosctx.h"
+#include "tarray.h"
 #include "tdef.h"
 #include "tlockfree.h"
 #include "tlog.h"
 
+#define GEOS_POOL_CAPACITY 64
 typedef struct {
-  SGeosContext *pool;
-  int32_t       capacity;
-  int32_t       size;
+  SArray       *poolArray;  // totalSize: (GEOS_POOL_CAPACITY *  (taosArrayGetSize(poolArray) - 1)) + size
+  SGeosContext *pool;       // current SGeosContext pool
+  int32_t       size;       // size of current SGeosContext pool, size <= GEOS_POOL_CAPACITY
   SRWLatch      lock;
 } SGeosContextPool;
 
@@ -34,16 +36,26 @@ SGeosContext *getThreadLocalGeosCtx() {
   if (tlGeosCtx) return tlGeosCtx;
 
   taosWLockLatch(&sGeosPool.lock);
-  if (sGeosPool.size >= sGeosPool.capacity) {
-    sGeosPool.capacity += 128;
-    void *tmp = taosMemoryRealloc(sGeosPool.pool, sGeosPool.capacity * sizeof(SGeosContext));
-    if (!tmp) {
+  if (!sGeosPool.pool || sGeosPool.size >= GEOS_POOL_CAPACITY) {
+    if (!(sGeosPool.pool = (SGeosContext *)taosMemoryCalloc(GEOS_POOL_CAPACITY, sizeof(SGeosContext)))) {
       taosWUnLockLatch(&sGeosPool.lock);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
-    sGeosPool.pool = tmp;
-    TAOS_MEMSET(sGeosPool.pool + sGeosPool.size, 0, (sGeosPool.capacity - sGeosPool.size) * sizeof(SGeosContext));
+    if (!sGeosPool.poolArray) {
+      if (!(sGeosPool.poolArray = taosArrayInit(16, POINTER_BYTES))) {
+        taosMemoryFree(sGeosPool.pool);
+        sGeosPool.pool = NULL;
+        taosWUnLockLatch(&sGeosPool.lock);
+        return NULL;
+      }
+    }
+    if (!taosArrayPush(sGeosPool.poolArray, &sGeosPool.pool)) {
+      taosMemoryFree(sGeosPool.pool);
+      sGeosPool.pool = NULL;
+      taosWUnLockLatch(&sGeosPool.lock);
+      return NULL;
+    }
+    sGeosPool.size = 0;
   }
   tlGeosCtx = sGeosPool.pool + sGeosPool.size;
   ++sGeosPool.size;
@@ -91,9 +103,14 @@ static void destroyGeosCtx(SGeosContext *pCtx) {
 
 void taosGeosDestroy() {
   uInfo("geos is cleaned up");
-  if (!sGeosPool.pool) return;
-  for (int32_t i = 0; i < sGeosPool.size; ++i) {
-    destroyGeosCtx(sGeosPool.pool + i);
+  int32_t size = taosArrayGetSize(sGeosPool.poolArray);
+  for (int32_t i = 0; i < size; ++i) {
+    SGeosContext *pool = *(SGeosContext **)TARRAY_GET_ELEM(sGeosPool.poolArray, i);
+    for (int32_t j = 0; j < GEOS_POOL_CAPACITY; ++j) {
+      destroyGeosCtx(pool + j);
+    }
+    taosMemoryFree(pool);
   }
-  taosMemoryFreeClear(sGeosPool.pool);
+  taosArrayDestroy(sGeosPool.poolArray);
+  sGeosPool.poolArray = NULL;
 }
