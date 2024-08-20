@@ -663,7 +663,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   if (isTaskKilled(pTaskInfo)) {
     atomic_store_64(&pTaskInfo->owner, 0);
     qDebug("%s already killed, abort", GET_TASKID(pTaskInfo));
-    return TSDB_CODE_SUCCESS;
+    return pTaskInfo->code;
   }
 
   // error occurs, record the error code and return to client
@@ -785,7 +785,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
     qDebug("%s already killed, abort", GET_TASKID(pTaskInfo));
 
     taosRUnLockLatch(&pTaskInfo->lock);
-    return TSDB_CODE_SUCCESS;
+    return pTaskInfo->code;
   }
 
   if (pTaskInfo->owner != 0) {
