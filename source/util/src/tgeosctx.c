@@ -31,9 +31,7 @@ static threadlocal SGeosContext *tlGeosCtx = NULL;
 SGeosContext *acquireThreadLocalGeosCtx() { return tlGeosCtx; }
 
 SGeosContext *getThreadLocalGeosCtx() {
-  if (tlGeosCtx) {
-    return tlGeosCtx;
-  }
+  if (tlGeosCtx) return tlGeosCtx;
 
   taosWLockLatch(&sGeosPool.lock);
   if (sGeosPool.size >= sGeosPool.capacity) {
