@@ -43,15 +43,13 @@ SGeosContext *getThreadLocalGeosCtx() {
     }
     if (!sGeosPool.poolArray) {
       if (!(sGeosPool.poolArray = taosArrayInit(16, POINTER_BYTES))) {
-        taosMemoryFree(sGeosPool.pool);
-        sGeosPool.pool = NULL;
+        taosMemoryFreeClear(sGeosPool.pool);
         taosWUnLockLatch(&sGeosPool.lock);
         return NULL;
       }
     }
     if (!taosArrayPush(sGeosPool.poolArray, &sGeosPool.pool)) {
-      taosMemoryFree(sGeosPool.pool);
-      sGeosPool.pool = NULL;
+      taosMemoryFreeClear(sGeosPool.pool);
       taosWUnLockLatch(&sGeosPool.lock);
       return NULL;
     }
