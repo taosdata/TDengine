@@ -2140,7 +2140,7 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
 
       step5: "添加Dashboard",
       desc51: `1. 数据源工作后，单击数据源配置页面上的 <code>Dashboards</code> 选项卡。`,
-      desc52: `2. 选择 <code>TDengine for 3.x</code> 点击导入。`,
+      desc52: `2. 选择 <code>TDinsight for 3.x</code> 点击导入。`,
       desc53: `3. 单击三个水平条图标，然后单击 <code>Dashboards</code>，搜索 <code>TDinsight</code>，然后单击它。`,
       desc54: `4. 现在你可以看到完整的仪表盘。`,
     },

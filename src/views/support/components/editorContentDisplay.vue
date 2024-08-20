@@ -5,7 +5,7 @@
 <script>
   import "github-markdown-css/github-markdown-light.css";
   import hljs from "highlight.js";
-  import "highlight.js/styles/monokai-sublime.css";
+  import "highlight.js/styles/atom-one-light.css";
   import { marked } from "marked";
   // 配置 marked
   const renderer = new marked.Renderer();
