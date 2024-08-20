@@ -210,9 +210,13 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
   pRpc->info.wrapper = pWrapper;
 
-  EQItype itype = IsReq(pRpc) ? RPC_QITEM : DEF_QITEM;  // rsp msg is not restricted by tsRpcQueueMemoryUsed
+  tmsg_t  msgType = pRpc->msgType;
+  EQItype itype = IsReq(pRpc) ? RPC_QITEM : DEF_QITEM;  // rsp msg is not restricted by tsQueueMemoryUsed
   pMsg = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen);
-  if (pMsg == NULL) goto _OVER;
+  if (pMsg == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
 
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
   dGTrace("msg:%p, is created, type:%s handle:%p len:%d", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle,
@@ -225,9 +229,9 @@ _OVER:
     dmConvertErrCode(pRpc->msgType);
     if (terrno != 0) code = terrno;
     if (pMsg) {
-      dGTrace("msg:%p, failed to process %s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr());
+      dGTrace("msg:%p, failed to process %s since %s", pMsg, TMSG_INFO(msgType), terrstr());
     } else {
-      dGTrace("msg:%p, failed to process empty msg since %s", pMsg, terrstr());
+      dGTrace("msg:%p, failed to process %s since %s", pMsg, TMSG_INFO(msgType), terrstr());
     }
 
     if (IsReq(pRpc)) {
