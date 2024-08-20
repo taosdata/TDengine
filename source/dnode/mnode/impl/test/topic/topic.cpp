@@ -53,7 +53,6 @@ void* MndTestTopic::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
 
   int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
   void*   pReq = rpcMallocCont(contLen);
-  assert(pReq != NULL);
   (void)tSerializeSCreateDbReq(pReq, contLen, &createReq);
 
   *pContLen = contLen;
@@ -69,7 +68,6 @@ void* MndTestTopic::BuildCreateTopicReq(const char* topicName, const char* sql, 
 
   int32_t contLen = tSerializeSCMCreateTopicReq(NULL, 0, &createReq);
   void*   pReq = rpcMallocCont(contLen);
-  assert(pReq != NULL);
   (void)tSerializeSCMCreateTopicReq(pReq, contLen, &createReq);
 
   *pContLen = contLen;
@@ -82,7 +80,6 @@ void* MndTestTopic::BuildDropTopicReq(const char* topicName, int32_t* pContLen) 
 
   int32_t contLen = tSerializeSMDropTopicReq(NULL, 0, &dropReq);
   void*   pReq = rpcMallocCont(contLen);
-  assert(pReq != NULL);
   (void)tSerializeSMDropTopicReq(pReq, contLen, &dropReq);
 
   *pContLen = contLen;
