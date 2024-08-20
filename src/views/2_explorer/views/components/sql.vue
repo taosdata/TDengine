@@ -1,5 +1,5 @@
 <template>
-  <div id="sql" :style="isCondition?{height: '26vh'}: {height: '20vh'}">
+  <div id="sql">
     <el-alert
       :title="$t('console.sqlWaringTip')"
       type="warning"
