@@ -37,7 +37,7 @@ jobs:
       - name: Print Env
         run: |
           pwd
-          rustup component add llvm-tools-preview
+          # rustup component add llvm-tools-preview
           command -v cargo-llvm-cov || cargo install cargo-llvm-cov
           command -v cargo-nextest || cargo install cargo-nextest
           rustc --version
@@ -47,9 +47,10 @@ jobs:
         run: |
           # build taosx and taosx-agent
           # export RUSTFLAGS="-C instrument-coverage --cfg tokio_unstable"
-          rm -rf ./target/debug/taosx-profraw/
+          # rm -rf ./target/debug/taosx-profraw/
           # export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
-          cargo build --target-dir ./target/debug/taosx-build/
+          # cargo build --target-dir ./target/debug/taosx-build/
+          cargo build
       - name: taosx unit test
         continue-on-error: true
         run: |
@@ -65,15 +66,17 @@ jobs:
       - name: Build agent
         run: |
           # build agent
-          rm -rf ./target/debug/taosx-agent-profraw/
+          # rm -rf ./target/debug/taosx-agent-profraw/
           # export RUSTFLAGS="-C instrument-coverage --cfg tokio_unstable"
           # export LLVM_PROFILE_FILE="./target/debug/taosx-agent-profraw/taosx-agent-%p-%m.profraw"
-          cargo build --package taosx-agent --target-dir ./target/debug/taosx-agent-build/
+          # cargo build --package taosx-agent --target-dir ./target/debug/taosx-agent-build/
+          cargo build --package taosx-agent
 
       - name: Copy files
         run: |
           ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
-          cp ./target/debug/taosx-build/debug/taosx ./target/debug/taosx-agent-build/debug/taosx-agent $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
+          cp ./target/debug/taosx ./target/debug/taosx-agent $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
+          # cp ./target/debug/taosx-build/debug/taosx ./target/debug/taosx-agent-build/debug/taosx-agent $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
           # cp -r ./target/debug/taosx-profraw/ $ARTIFACT_BASE_DIR/$DIR_PATH/
           # cp -r ./target/debug/taosx-agent-profraw/ $ARTIFACT_BASE_DIR/$DIR_PATH/
           # cd ..
