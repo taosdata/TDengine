@@ -446,7 +446,7 @@ static FORCE_INLINE int32_t varToGeometry(char *buf, SScalarParam *pOut, int32_t
     SCL_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
   if ((code = doGeomFromText(buf, &t, &len)) != 0) {
-    sclInfo("failed to convert text to geometry, %s", getGeosErrMsg(code));
+    sclError("failed to convert text to geometry, %s", getGeosErrMsg(code));
     SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
   }
 
