@@ -796,8 +796,13 @@ void *decodeUdfResponse(const void *buf, SUdfResponse *rsp) {
       buf = decodeUdfTeardownResponse(buf, &rsp->teardownRsp);
       break;
     default:
+      rsp->code =  TSDB_CODE_UDF_INTERNAL_ERROR;
       fnError("decode udf response, invalid udf response type %d", rsp->type);
       break;
+  }
+  if(buf == NULL) {
+    rsp->code =  terrno;
+    fnError("decode udf response failed, code:0x%x", rsp->code);
   }
   return (void *)buf;
 }
