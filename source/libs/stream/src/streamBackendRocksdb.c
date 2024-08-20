@@ -420,7 +420,10 @@ int32_t remoteChkpGetDelFile(char* path, SArray* toDel) {
 }
 
 void cleanDir(const char* pPath, const char* id) {
-  ASSERT(pPath != NULL);
+  if (pPath == NULL) {
+    stError("%s try to clean dir, but path is NULL", id);
+    return;
+  }
 
   if (taosIsDir(pPath)) {
     taosRemoveDir(pPath);
@@ -2603,7 +2606,7 @@ void taskDbDestroy(void* pDb, bool flush) {
   stDebug("succ to destroy stream backend:%p", wrapper);
 
   int8_t nCf = tListLen(ginitDict);
-  if (flush &&  wrapper->removeAllFiles == 0) {
+  if (flush && wrapper->removeAllFiles == 0) {
     if (wrapper->db && wrapper->pCf) {
       rocksdb_flushoptions_t* flushOpt = rocksdb_flushoptions_create();
       rocksdb_flushoptions_set_wait(flushOpt, 1);

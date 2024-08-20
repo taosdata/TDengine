@@ -104,7 +104,10 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
 
   do {
     char key[1024] = {0};
-    ASSERT(strlen(ctx->file.buf) + 1 + 64 < sizeof(key));
+    if (strlen(ctx->file.buf) + 1 + 64 >= sizeof(key)) {
+      return TSDB_CODE_INDEX_INVALID_FILE;
+    }
+
     idxGenLRUKey(key, ctx->file.buf, blkId);
     LRUHandle* h = taosLRUCacheLookup(ctx->lru, key, strlen(key));
 
@@ -118,8 +121,10 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
       if (left < kBlockSize) {
         nread = TMIN(left, len);
         int32_t bytes = taosPReadFile(ctx->file.pFile, buf + total, nread, offset);
-        ASSERTS(bytes == nread, "index read incomplete data");
-        if (bytes != nread) break;
+        if (bytes != nread) {
+          total = TSDB_CODE_INDEX_INVALID_FILE;
+          break;
+        }
 
         total += bytes;
         return total;
@@ -129,7 +134,6 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
         SDataBlock* blk = taosMemoryCalloc(1, cacheMemSize);
         blk->blockId = blkId;
         blk->nread = taosPReadFile(ctx->file.pFile, blk->buf, kBlockSize, blkId * kBlockSize);
-        ASSERTS(blk->nread <= kBlockSize, "index read incomplete data");
         if (blk->nread < kBlockSize && blk->nread < len) {
           taosMemoryFree(blk);
           break;
@@ -288,7 +292,6 @@ int32_t idxFileWrite(IdxFstFile* write, uint8_t* buf, uint32_t len) {
   // update checksum
   IFileCtx* ctx = write->wrt;
   int       nWrite = ctx->write(ctx, buf, len);
-  ASSERTS(nWrite == len, "index write incomplete data");
   if (nWrite != len) {
     code = TAOS_SYSTEM_ERROR(errno);
     return code;

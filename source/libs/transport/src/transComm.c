@@ -183,7 +183,6 @@ int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf) {
       }
     }
   } else {
-    ASSERTS(0, "invalid read from sock buf");
     return TSDB_CODE_INVALID_MSG;
   }
   return 0;
