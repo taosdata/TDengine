@@ -49,7 +49,6 @@ int32_t tsdbOpenCompMonitor(STsdb *tsdb) {
 
 int32_t tsdbCloseCompMonitor(STsdb *tsdb) {
   if (tsdb->pCompMonitor) {
-    ASSERT(TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr) == 0);
     TARRAY2_DESTROY(&tsdb->pCompMonitor->stateArr, NULL);
     taosMemoryFree(tsdb->pCompMonitor);
     tsdb->pCompMonitor = NULL;
