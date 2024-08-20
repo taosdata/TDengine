@@ -439,6 +439,11 @@ void destroyFlusedPos(void* pRes) {
   }
 }
 
+void destroyFlusedppPos(void* ppRes) {
+  void *pRes = *(void **)ppRes;
+  destroyFlusedPos(pRes);
+}
+
 void clearGroupResInfo(SGroupResInfo* pGroupResInfo) {
   if (pGroupResInfo->freeItem) {
     int32_t size = taosArrayGetSize(pGroupResInfo->pRows);
@@ -1920,6 +1925,7 @@ int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiN
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str,
                     pInfo->pState, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
+  tSimpleHashSetFreeFp(pInfo->aggSup.pResultRowHashTable, destroyFlusedppPos);
 
   code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -5283,6 +5289,7 @@ int32_t createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   code = initAggSup(pSup, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str, pInfo->pState,
                     &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
+  tSimpleHashSetFreeFp(pInfo->aggSup.pResultRowHashTable, destroyFlusedppPos);
 
   if (pIntervalPhyNode->window.pExprs != NULL) {
     int32_t    numOfScalar = 0;
