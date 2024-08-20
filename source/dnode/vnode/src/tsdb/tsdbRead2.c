@@ -1807,9 +1807,11 @@ static int32_t nextRowFromSttBlocks(SSttBlockReader* pSttBlockReader, STableBloc
       if (!hasBeenDropped(pScanInfo->delSkyline, &pScanInfo->sttBlockDelIndex, key, ver, order, pVerRange,
                           pSttBlockReader->numOfPks > 0)) {
         pScanInfo->sttKeyInfo.status = STT_FILE_HAS_DATA;
+        return code;
       }
     } else {
       pScanInfo->sttKeyInfo.status = STT_FILE_HAS_DATA;
+      return code;
     }
   }
 
