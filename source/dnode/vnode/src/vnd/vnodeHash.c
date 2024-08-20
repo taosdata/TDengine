@@ -77,7 +77,6 @@ int32_t vHashDestroy(SVHashTable** ht) {
   }
 
   if (*ht) {
-    ASSERT((*ht)->numEntries == 0);
     taosMemoryFree((*ht)->buckets);
     taosMemoryFree(*ht);
     (*ht) = NULL;

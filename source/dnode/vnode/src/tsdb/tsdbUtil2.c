@@ -171,7 +171,7 @@ static int32_t tStatisBlockUpdate(STbStatisBlock *block, SRowInfo *row) {
     TAOS_CHECK_RETURN(tBufferPutAt(&block->counts, (block->numOfRecords - 1) * sizeof(record.count), &record.count,
                                    sizeof(record.count)));
   } else {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_PARA;
   }
 
   return 0;

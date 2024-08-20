@@ -736,7 +736,7 @@ int32_t transOpenRefMgt(int size, void (*func)(void*)) {
 }
 void transCloseRefMgt(int32_t mgt) {
   // close ref
-  (void)taosCloseRef(mgt);
+  taosCloseRef(mgt);
 }
 int64_t transAddExHandle(int32_t refMgt, void* p) {
   // acquire extern handle

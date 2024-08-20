@@ -464,13 +464,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
 
   SSDataBlock* p = NULL;
   code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pTableScanInfo->dataReader, &p, NULL);
-  if (p == NULL || code != TSDB_CODE_SUCCESS) {
+  if (p == NULL || code != TSDB_CODE_SUCCESS || p != pBlock) {
     return code;
-  }
-
-  if(p != pBlock) {
-    qError("[loadDataBlock] p != pBlock");
-    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
   code = doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
