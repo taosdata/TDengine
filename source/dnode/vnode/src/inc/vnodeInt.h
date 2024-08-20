@@ -102,18 +102,6 @@ typedef struct SQueryNode         SQueryNode;
 #define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
-#define VNODE_METRIC_SQL_COUNT "taosd_sql_req:count"
-
-#define VNODE_METRIC_TAG_NAME_SQL_TYPE   "sql_type"
-#define VNODE_METRIC_TAG_NAME_CLUSTER_ID "cluster_id"
-#define VNODE_METRIC_TAG_NAME_DNODE_ID   "dnode_id"
-#define VNODE_METRIC_TAG_NAME_DNODE_EP   "dnode_ep"
-#define VNODE_METRIC_TAG_NAME_VGROUP_ID  "vgroup_id"
-#define VNODE_METRIC_TAG_NAME_USERNAME   "username"
-#define VNODE_METRIC_TAG_NAME_RESULT     "result"
-
-#define VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS "inserted_rows"
-
 // vnd.h
 typedef int32_t (*_query_reseek_func_t)(void* pQHandle);
 struct SQueryNode {
@@ -434,10 +422,9 @@ typedef struct SVCommitSched {
 } SVCommitSched;
 
 typedef struct SVMonitorObj {
-  char            strClusterId[TSDB_CLUSTER_ID_LEN];
-  char            strDnodeId[TSDB_NODE_ID_LEN];
-  char            strVgId[TSDB_VGROUP_ID_LEN];
-  taos_counter_t* insertCounter;
+  char strClusterId[TSDB_CLUSTER_ID_LEN];
+  char strDnodeId[TSDB_NODE_ID_LEN];
+  char strVgId[TSDB_VGROUP_ID_LEN];
 } SVMonitorObj;
 
 typedef struct {
