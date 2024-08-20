@@ -1113,37 +1113,6 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
     goto _error;
   }
 
-  // init internal
-  pSyncNode->myNodeInfo = pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex];
-  if (!syncUtilNodeInfo2RaftId(&pSyncNode->myNodeInfo, pSyncNode->vgId, &pSyncNode->myRaftId)) {
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-    sError("vgId:%d, failed to determine my raft member id", pSyncNode->vgId);
-    goto _error;
-  }
-
-  pSyncNode->arbTerm = -1;
-  (void)taosThreadMutexInit(&pSyncNode->arbTokenMutex, NULL);
-  syncUtilGenerateArbToken(pSyncNode->myNodeInfo.nodeId, pSyncInfo->vgId, pSyncNode->arbToken);
-  sInfo("vgId:%d, arb token:%s", pSyncNode->vgId, pSyncNode->arbToken);
-
-  // init peersNum, peers, peersId
-  pSyncNode->peersNum = pSyncNode->raftCfg.cfg.totalReplicaNum - 1;
-  int32_t j = 0;
-  for (int32_t i = 0; i < pSyncNode->raftCfg.cfg.totalReplicaNum; ++i) {
-    if (i != pSyncNode->raftCfg.cfg.myIndex) {
-      pSyncNode->peersNodeInfo[j] = pSyncNode->raftCfg.cfg.nodeInfo[i];
-      syncUtilNodeInfo2EpSet(&pSyncNode->peersNodeInfo[j], &pSyncNode->peersEpset[j]);
-      j++;
-    }
-  }
-  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
-    if (!syncUtilNodeInfo2RaftId(&pSyncNode->peersNodeInfo[i], pSyncNode->vgId, &pSyncNode->peersId[i])) {
-      terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-      sError("vgId:%d, failed to determine raft member id, peer:%d", pSyncNode->vgId, i);
-      goto _error;
-    }
-  }
-
   // init replicaNum, replicasId
   pSyncNode->replicaNum = pSyncNode->raftCfg.cfg.replicaNum;
   pSyncNode->totalReplicaNum = pSyncNode->raftCfg.cfg.totalReplicaNum;
@@ -1154,6 +1123,27 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
       goto _error;
     }
   }
+
+  // init internal
+  pSyncNode->myNodeInfo = pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex];
+  pSyncNode->myRaftId = pSyncNode->replicasId[pSyncNode->raftCfg.cfg.myIndex];
+
+  // init peersNum, peers, peersId
+  pSyncNode->peersNum = pSyncNode->raftCfg.cfg.totalReplicaNum - 1;
+  int32_t j = 0;
+  for (int32_t i = 0; i < pSyncNode->raftCfg.cfg.totalReplicaNum; ++i) {
+    if (i != pSyncNode->raftCfg.cfg.myIndex) {
+      pSyncNode->peersNodeInfo[j] = pSyncNode->raftCfg.cfg.nodeInfo[i];
+      pSyncNode->peersId[j] = pSyncNode->replicasId[i];
+      syncUtilNodeInfo2EpSet(&pSyncNode->peersNodeInfo[j], &pSyncNode->peersEpset[j]);
+      j++;
+    }
+  }
+
+  pSyncNode->arbTerm = -1;
+  (void)taosThreadMutexInit(&pSyncNode->arbTokenMutex, NULL);
+  syncUtilGenerateArbToken(pSyncNode->myNodeInfo.nodeId, pSyncInfo->vgId, pSyncNode->arbToken);
+  sInfo("vgId:%d, generate arb token:%s", pSyncNode->vgId, pSyncNode->arbToken);
 
   // init raft algorithm
   pSyncNode->pFsm = pSyncInfo->pFsm;
