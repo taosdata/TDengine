@@ -50,7 +50,7 @@ static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer);
 static int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer);
 static int32_t syncNodeUpdateNewConfigIndex(SSyncNode* ths, SSyncCfg* pNewCfg);
 static bool    syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config);
-static void    syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex);
+static int32_t syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex);
 static bool    syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg);
 
 static bool    syncNodeCanChange(SSyncNode* pSyncNode);
@@ -182,7 +182,12 @@ int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
   }
 
   TAOS_CHECK_RETURN(syncNodeUpdateNewConfigIndex(pSyncNode, pNewCfg));
-  syncNodeDoConfigChange(pSyncNode, pNewCfg, pNewCfg->lastIndex);
+
+  if (syncNodeDoConfigChange(pSyncNode, pNewCfg, pNewCfg->lastIndex) != 0) {
+    code = TSDB_CODE_SYN_NEW_CONFIG_ERROR;
+    sError("vgId:%d, failed to reconfig since do change error", pSyncNode->vgId);
+    TAOS_RETURN(code);
+  }
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER || pSyncNode->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     // TODO check return value
@@ -1015,7 +1020,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   if (!taosDirExist((char*)(pSyncInfo->path))) {
     if (taosMkDir(pSyncInfo->path) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
-      sError("failed to create dir:%s since %s", pSyncInfo->path, terrstr());
+      sError("vgId:%d, failed to create dir:%s since %s", pSyncInfo->vgId, pSyncInfo->path, terrstr());
       goto _error;
     }
   }
@@ -1766,11 +1771,11 @@ static bool syncIsConfigChanged(const SSyncCfg* pOldCfg, const SSyncCfg* pNewCfg
   return false;
 }
 
-void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex lastConfigChangeIndex) {
+int32_t syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex lastConfigChangeIndex) {
   SSyncCfg oldConfig = pSyncNode->raftCfg.cfg;
   if (!syncIsConfigChanged(&oldConfig, pNewConfig)) {
     sInfo("vgId:1, sync not reconfig since not changed");
-    return;
+    return 0;
   }
 
   pSyncNode->raftCfg.cfg = *pNewConfig;
@@ -1809,7 +1814,15 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
   }
 
   // add last config index
-  (void)syncAddCfgIndex(pSyncNode, lastConfigChangeIndex);
+  SRaftCfg* pCfg = &pSyncNode->raftCfg;
+  if (pCfg->configIndexCount >= MAX_CONFIG_INDEX_COUNT) {
+    sNError(pSyncNode, "failed to add cfg index:%d since out of range", pCfg->configIndexCount);
+    terrno = TSDB_CODE_OUT_OF_RANGE;
+    return -1;
+  }
+
+  pCfg->configIndexArr[pCfg->configIndexCount] = lastConfigChangeIndex;
+  pCfg->configIndexCount++;
 
   if (IamInNew) {
     //-----------------------------------------
@@ -1924,6 +1937,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
 _END:
   // log end config change
   sNInfo(pSyncNode, "end do config change, from %d to %d", oldConfig.totalReplicaNum, pNewConfig->totalReplicaNum);
+  return 0;
 }
 
 // raft state change --------------
