@@ -30,6 +30,8 @@ extern "C" {
 #define MON_VER_LEN    12
 #define MON_LOG_LEN    1024
 
+#define VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS "inserted_rows"
+
 typedef struct {
   int64_t   ts;
   ELogLevel level;
