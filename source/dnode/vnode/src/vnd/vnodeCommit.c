@@ -302,7 +302,6 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   (void)taosThreadMutexLock(&pVnode->mutex);
-  ASSERT(pVnode->onCommit == NULL);
   pVnode->onCommit = pVnode->inUse;
   pVnode->inUse = NULL;
   (void)taosThreadMutexUnlock(&pVnode->mutex);
@@ -339,7 +338,7 @@ static void vnodeReturnBufPool(SVnode *pVnode) {
       pVnode->recycleTail = pPool;
     }
   } else {
-    ASSERT(0);
+    vError("vgId:%d, buffer pool %p of id %d nRef:%d", TD_VID(pVnode), pPool, pPool->id, nRef);
   }
 
   (void)taosThreadMutexUnlock(&pVnode->mutex);

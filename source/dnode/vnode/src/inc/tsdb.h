@@ -898,7 +898,7 @@ typedef struct SSttDataInfoForTable {
 
 int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoForTable *pTableInfo);
 void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
-bool    tMergeTreeNext(SMergeTree *pMTree);
+int32_t tMergeTreeNext(SMergeTree *pMTree, bool* pHasNext);
 void    tMergeTreePinSttBlock(SMergeTree *pMTree);
 void    tMergeTreeUnpinSttBlock(SMergeTree *pMTree);
 bool    tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
