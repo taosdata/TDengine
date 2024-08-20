@@ -78,40 +78,41 @@ static FORCE_INLINE int32_t getVectorDoubleValue_BOOL(void *src, int32_t index, 
 
 int32_t getVectorDoubleValue_JSON(void *src, int32_t index, double *out);
 
-static FORCE_INLINE _getDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType) {
-  _getDoubleValue_fn_t p = NULL;
+static FORCE_INLINE int32_t getVectorDoubleValueFn(int32_t srcType, _getDoubleValue_fn_t *p) {
+  *p = NULL;
   if (srcType == TSDB_DATA_TYPE_TINYINT) {
-    p = getVectorDoubleValue_TINYINT;
+    *p = getVectorDoubleValue_TINYINT;
   } else if (srcType == TSDB_DATA_TYPE_UTINYINT) {
-    p = getVectorDoubleValue_UTINYINT;
+    *p = getVectorDoubleValue_UTINYINT;
   } else if (srcType == TSDB_DATA_TYPE_SMALLINT) {
-    p = getVectorDoubleValue_SMALLINT;
+    *p = getVectorDoubleValue_SMALLINT;
   } else if (srcType == TSDB_DATA_TYPE_USMALLINT) {
-    p = getVectorDoubleValue_USMALLINT;
+    *p = getVectorDoubleValue_USMALLINT;
   } else if (srcType == TSDB_DATA_TYPE_INT) {
-    p = getVectorDoubleValue_INT;
+    *p = getVectorDoubleValue_INT;
   } else if (srcType == TSDB_DATA_TYPE_UINT) {
-    p = getVectorDoubleValue_UINT;
+    *p = getVectorDoubleValue_UINT;
   } else if (srcType == TSDB_DATA_TYPE_BIGINT) {
-    p = getVectorDoubleValue_BIGINT;
+    *p = getVectorDoubleValue_BIGINT;
   } else if (srcType == TSDB_DATA_TYPE_UBIGINT) {
-    p = getVectorDoubleValue_UBIGINT;
+    *p = getVectorDoubleValue_UBIGINT;
   } else if (srcType == TSDB_DATA_TYPE_FLOAT) {
-    p = getVectorDoubleValue_FLOAT;
+    *p = getVectorDoubleValue_FLOAT;
   } else if (srcType == TSDB_DATA_TYPE_DOUBLE) {
-    p = getVectorDoubleValue_DOUBLE;
+    *p = getVectorDoubleValue_DOUBLE;
   } else if (srcType == TSDB_DATA_TYPE_TIMESTAMP) {
-    p = getVectorDoubleValue_BIGINT;
+    *p = getVectorDoubleValue_BIGINT;
   } else if (srcType == TSDB_DATA_TYPE_JSON) {
-    p = getVectorDoubleValue_JSON;
+    *p = getVectorDoubleValue_JSON;
   } else if (srcType == TSDB_DATA_TYPE_BOOL) {
-    p = getVectorDoubleValue_BOOL;
+    *p = getVectorDoubleValue_BOOL;
   } else if (srcType == TSDB_DATA_TYPE_NULL) {
-    p = NULL;
+    *p = NULL;
   } else {
-    ASSERT(0);
+    *p = NULL;
+    return TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
-  return p;
+  return TSDB_CODE_SUCCESS;
 }
 
 typedef int32_t (*_bufConverteFunc)(char *buf, SScalarParam *pOut, int32_t outType, int32_t *overflow);

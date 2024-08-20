@@ -297,7 +297,8 @@ static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SS
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  _getDoubleValue_fn_t getValueFn = getVectorDoubleValueFn(type);
+  _getDoubleValue_fn_t getValueFn;
+  SCL_ERR_RET(getVectorDoubleValueFn(type, &getValueFn));
 
   double *out = (double *)pOutputData->pData;
 
@@ -328,7 +329,7 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
 
   for (int32_t i = 0; i < inputNum; ++i) {
     pInputData[i] = pInput[i].columnData;
-    getValueFn[i] = getVectorDoubleValueFn(GET_PARAM_TYPE(&pInput[i]));
+    SCL_ERR_RET(getVectorDoubleValueFn(GET_PARAM_TYPE(&pInput[i]), &getValueFn[i]));
   }
 
   double *out = (double *)pOutputData->pData;
@@ -2918,7 +2919,7 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
 
   for (int32_t i = 0; i < inputNum; ++i) {
     pInputData[i] = pInput[i].columnData;
-    getValueFn[i] = getVectorDoubleValueFn(GET_PARAM_TYPE(&pInput[i]));
+    SCL_ERR_RET(getVectorDoubleValueFn(GET_PARAM_TYPE(&pInput[i]), &getValueFn[i]));
   }
 
   bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
