@@ -104,7 +104,8 @@ void taosGeosDestroy() {
   int32_t size = taosArrayGetSize(sGeosPool.poolArray);
   for (int32_t i = 0; i < size; ++i) {
     SGeosContext *pool = *(SGeosContext **)TARRAY_GET_ELEM(sGeosPool.poolArray, i);
-    for (int32_t j = 0; j < GEOS_POOL_CAPACITY; ++j) {
+    int32_t       poolSize = i == size - 1 ? sGeosPool.size : GEOS_POOL_CAPACITY;
+    for (int32_t j = 0; j < poolSize; ++j) {
       destroyGeosCtx(pool + j);
     }
     taosMemoryFree(pool);
