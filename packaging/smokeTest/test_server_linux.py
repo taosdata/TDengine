@@ -42,12 +42,12 @@ def setup_module(get_config):
     # setup before module tests
     config = get_config
     # bash getAndRunInstaller.sh -m ${verMode} -f server -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
-    t = "tar"
-    if config["system"] == "Darwin":
-        t = "pkg"
-    cmd = "bash getAndRunInstaller.sh -m %s -f server -l false -c x64 -v %s -o %s -s %s -t %s" % (
-        config["verMode"], config["taosVersion"], config["baseVersion"], config["sourcePath"], t)
-    run_cmd(cmd)
+    # t = "tar"
+    # if config["system"] == "Darwin":
+    #     t = "pkg"
+    # cmd = "bash getAndRunInstaller.sh -m %s -f server -l false -c x64 -v %s -o %s -s %s -t %s" % (
+    #     config["verMode"], config["taosVersion"], config["baseVersion"], config["sourcePath"], t)
+    # run_cmd(cmd)
     cmd = "mkdir -p ../../debug/build/bin/"
     run_cmd(cmd)
     if config["system"] == "Darwin":
