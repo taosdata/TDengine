@@ -1135,8 +1135,6 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
         (void)atomic_add_fetch_64((int64_t*)&pActivity->numOfInsertRows, pResult->numOfRows);
       }
     }
-
-    schedulerFreeJob(&pRequest->body.queryJob, 0);
   }
 
   taosMemoryFree(pResult);

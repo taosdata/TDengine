@@ -1746,6 +1746,9 @@ void destroyGrpArray(void* ppArray) {
 }
 
 void destroyMergeJoinTableCtx(SMJoinTableCtx* pTable) {
+  if (NULL == pTable) {
+    return;
+  }
   mJoinDestroyCreatedBlks(pTable->createdBlks);
   taosArrayDestroy(pTable->createdBlks);
   tSimpleHashCleanup(pTable->pGrpHash);
