@@ -1915,25 +1915,23 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
   int32_t code = 0;
   for (int i = 0; i < bindv->count; ++i) {
-    char            *tbname = bindv->tbnames[i];
-    TAOS_STMT2_BIND *tags = bindv->tags[i];
-    TAOS_STMT2_BIND *bind = bindv->bind_cols[i];
-
-    if (tbname) {
-      code = stmtSetTbName2(stmt, tbname);
+    if (bindv->tbnames && bindv->tbnames[i]) {
+      code = stmtSetTbName2(stmt, bindv->tbnames[i]);
       if (code) {
         return code;
       }
     }
 
-    if (tags) {
-      code = stmtSetTbTags2(stmt, tags);
+    if (bindv->tags && bindv->tags[i]) {
+      code = stmtSetTbTags2(stmt, bindv->tags[i]);
       if (code) {
         return code;
       }
     }
 
-    if (bind) {
+    if (bindv->bind_cols && bindv->bind_cols[i]) {
+      TAOS_STMT2_BIND *bind = bindv->bind_cols[i];
+
       if (bind->num <= 0 || bind->num > INT16_MAX) {
         tscError("invalid bind num %d", bind->num);
         terrno = TSDB_CODE_INVALID_PARA;
