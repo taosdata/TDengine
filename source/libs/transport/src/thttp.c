@@ -29,6 +29,7 @@
 static int32_t httpRefMgt = 0;
 static int64_t httpRef = -1;
 static int32_t FAST_FAILURE_LIMIT = 1;
+static int64_t httpSeq = 0;
 typedef struct SHttpModule {
   uv_loop_t*  loop;
   SAsyncPool* asyncPool;
@@ -46,7 +47,7 @@ typedef struct SHttpMsg {
   int32_t       len;
   EHttpCompFlag flag;
   int8_t        quit;
-
+  int64_t       seq;
 } SHttpMsg;
 
 typedef struct SHttpClient {
@@ -58,6 +59,7 @@ typedef struct SHttpClient {
   char*              addr;
   uint16_t           port;
   struct sockaddr_in dest;
+  int64_t            seq;
 } SHttpClient;
 
 static TdThreadOnce transHttpInit = PTHREAD_ONCE_INIT;
@@ -221,6 +223,23 @@ static void httpMayDiscardMsg(SHttpModule* http, SAsyncItem* item) {
     QUEUE_PUSH(&item->qmsg, &quitMsg->q);
   }
 }
+
+static void httpTrace(queue* q) {
+  SHttpMsg* msg = NULL;
+
+  if (!QUEUE_IS_EMPTY(q)) {
+    int64_t sSeq, eSeq;
+    queue*  h = QUEUE_HEAD(q);
+    msg = QUEUE_DATA(h, SHttpMsg, q);
+    sSeq = msg->seq;
+
+    h = QUEUE_TAIL(q);
+    msg = QUEUE_DATA(h, SHttpMsg, q);
+    eSeq = msg->seq;
+
+    tDebug("http-report start to process msg, seq:%ld-%ld, max-seq:%ld", sSeq, eSeq, atomic_load_64(&httpSeq));
+  }
+}
 static void httpAsyncCb(uv_async_t* handle) {
   SAsyncItem*  item = handle->data;
   SHttpModule* http = item->pThrd;
@@ -241,6 +260,8 @@ static void httpAsyncCb(uv_async_t* handle) {
     QUEUE_PUSH(&wq, h);
   }
   taosThreadMutexUnlock(&item->mtx);
+
+  httpTrace(&wq);
 
   while (!QUEUE_IS_EMPTY(&wq)) {
     queue* h = QUEUE_HEAD(&wq);
@@ -280,7 +301,7 @@ static FORCE_INLINE void clientRecvCb(uv_stream_t* handle, ssize_t nread, const 
   if (nread < 0) {
     tError("http-report recv error:%s", uv_err_name(nread));
   } else {
-    tTrace("http-report succ to recv %d bytes", (int32_t)nread);
+    tDebug("http-report succ to recv %d bytes, seq:%ld", (int32_t)nread, cli->seq);
   }
   if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
     uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
@@ -295,7 +316,7 @@ static void clientSentCb(uv_write_t* req, int32_t status) {
     }
     return;
   } else {
-    tTrace("http-report succ to send data");
+    tDebug("http-report succ to send data seq:%ld", cli->seq);
   }
   status = uv_read_start((uv_stream_t*)&cli->tcp, clientAllocBuffCb, clientRecvCb);
   if (status != 0) {
@@ -311,7 +332,8 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
   if (status != 0) {
     httpFailFastMayUpdate(http->connStatusTable, cli->addr, cli->port, 0);
 
-    tError("http-report failed to conn to server, reason:%s, dst:%s:%d", uv_strerror(status), cli->addr, cli->port);
+    tError("http-report failed to conn to server, reason:%s, dst:%s:%d, seq:%ld", uv_strerror(status), cli->addr,
+           cli->port, cli->seq);
     if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
       uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
     }
@@ -322,7 +344,8 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
 
   status = uv_write(&cli->req, (uv_stream_t*)&cli->tcp, cli->wbuf, 2, clientSentCb);
   if (0 != status) {
-    tError("http-report failed to send data,reason:%s, dst:%s:%d", uv_strerror(status), cli->addr, cli->port);
+    tError("http-report failed to send data,reason:%s, dst:%s:%d, seq:%ld", uv_strerror(status), cli->addr, cli->port,
+           cli->seq);
     if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
       uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
     }
@@ -344,18 +367,19 @@ int32_t httpSendQuit() {
 
 static int32_t taosSendHttpReportImpl(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
                                       EHttpCompFlag flag) {
+  int64_t seq = atomic_fetch_add_64(&httpSeq, 1);
   if (server == NULL || uri == NULL) {
-    tError("http-report failed to report to invalid addr");
+    tError("http-report failed to report to invalid addr, seq:%ld", seq);
     return -1;
   }
 
   if (pCont == NULL || contLen == 0) {
-    tError("http-report failed to report empty packet");
+    tError("http-report failed to report empty packet, seq:%ld", seq);
     return -1;
   }
   SHttpModule* load = taosAcquireRef(httpRefMgt, httpRef);
   if (load == NULL) {
-    tError("http-report already released");
+    tError("http-report already released, seq:%ld", seq);
     return -1;
   }
 
@@ -369,8 +393,11 @@ static int32_t taosSendHttpReportImpl(const char* server, const char* uri, uint1
   msg->len = contLen;
   msg->flag = flag;
   msg->quit = 0;
+  msg->seq = seq;
 
+  tDebug("http-report start to send report, dst:%s:%d, seq:%ld", server, port, msg->seq);
   int ret = transAsyncSend(load->asyncPool, &(msg->q));
+
   taosReleaseRef(httpRefMgt, httpRef);
   return ret;
 }
@@ -478,6 +505,7 @@ static void httpHandleReq(SHttpMsg* msg) {
   cli->addr = msg->server;
   cli->port = msg->port;
   cli->dest = dest;
+  cli->seq = msg->seq;
 
   taosMemoryFree(msg->uri);
   taosMemoryFree(msg);
@@ -487,14 +515,15 @@ static void httpHandleReq(SHttpMsg* msg) {
   // set up timeout to avoid stuck;
   int32_t fd = taosCreateSocketWithTimeout(5000);
   if (fd < 0) {
-    tError("http-report failed to open socket, dst:%s:%d", cli->addr, cli->port);
+    tError("http-report failed to open socket, dst:%s:%d, seq:%ld", cli->addr, cli->port, cli->seq);
     destroyHttpClient(cli);
     taosReleaseRef(httpRefMgt, httpRef);
     return;
   }
   int ret = uv_tcp_open((uv_tcp_t*)&cli->tcp, fd);
   if (ret != 0) {
-    tError("http-report failed to open socket, reason:%s, dst:%s:%d", uv_strerror(ret), cli->addr, cli->port);
+    tError("http-report failed to open socket, reason:%s, dst:%s:%d, seq:%ld", uv_strerror(ret), cli->addr, cli->port,
+           cli->seq);
     taosReleaseRef(httpRefMgt, httpRef);
     destroyHttpClient(cli);
     return;
@@ -502,8 +531,8 @@ static void httpHandleReq(SHttpMsg* msg) {
 
   ret = uv_tcp_connect(&cli->conn, &cli->tcp, (const struct sockaddr*)&cli->dest, clientConnCb);
   if (ret != 0) {
-    tError("http-report failed to connect to http-server, reason:%s, dst:%s:%d", uv_strerror(ret), cli->addr,
-           cli->port);
+    tError("http-report failed to connect to http-server, reason:%s, dst:%s:%d, seq:%ld", uv_strerror(ret), cli->addr,
+           cli->port, cli->seq);
     httpFailFastMayUpdate(http->connStatusTable, cli->addr, cli->port, 0);
     destroyHttpClient(cli);
   }
@@ -511,9 +540,11 @@ static void httpHandleReq(SHttpMsg* msg) {
   return;
 
 END:
-  if (ignore == false) {
-    tError("http-report failed to report, reason: %s, addr: %s:%d", terrstr(), msg->server, msg->port);
+  if (msg) {
+    tError("http-report failed to report, reason: %s, addr: %s:%d, seq:%ld", terrstr(), msg->server, msg->port,
+           msg->seq);
   }
+
   httpDestroyMsg(msg);
   taosReleaseRef(httpRefMgt, httpRef);
 }
