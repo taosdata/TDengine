@@ -11883,6 +11883,25 @@ static int32_t createOperatorNode(EOperatorType opType, const char* pColName, SN
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t createIsOperatorNode(EOperatorType opType, const char* pColName, SNode** pOp) {
+  SOperatorNode* pOper = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
+  if (NULL == pOper) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pOper->opType = opType;
+  pOper->pLeft = nodesMakeNode(QUERY_NODE_COLUMN);
+  pOper->pRight = NULL;
+  if (NULL == pOper->pLeft) {
+    nodesDestroyNode((SNode*)pOper);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  snprintf(((SColumnNode*)pOper->pLeft)->colName, sizeof(((SColumnNode*)pOper->pLeft)->colName), "%s", pColName);
+
+  *pOp = (SNode*)pOper;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createParOperatorNode(EOperatorType opType, const char* pLeftCol, const char* pRightCol,
                                      SNode** ppResOp) {
   SOperatorNode* pOper = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
@@ -14093,10 +14112,16 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
   pTemp1 = NULL;
   CHECK_RES_OUT_OF_MEM(createLogicCondNode(pCond1, pCond2, &pTemp1, LOGIC_COND_TYPE_AND));
 
+  SNode* pCondIsNULL = NULL;
+  CHECK_RES_OUT_OF_MEM(createIsOperatorNode(OP_TYPE_IS_NULL, pSumColAlias, &pCondIsNULL));
+
+  SNode* pCondFull1 = NULL;
+  CHECK_RES_OUT_OF_MEM(createLogicCondNode(pTemp1, pCondIsNULL, &pCondFull1, LOGIC_COND_TYPE_OR));
+
   pThen = nodesMakeValueNodeFromInt32(1);
   CHECK_POINTER_OUT_OF_MEM(pThen);
   pWhenThen = NULL;
-  CHECK_RES_OUT_OF_MEM(createParWhenThenNode(pTemp1, pThen, &pWhenThen));
+  CHECK_RES_OUT_OF_MEM(createParWhenThenNode(pCondFull1, pThen, &pWhenThen));
   pWhenThenlist = NULL;
   CHECK_RES_OUT_OF_MEM(createParListNode(pWhenThen, &pWhenThenlist));
 
@@ -14115,7 +14140,7 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
   CHECK_RES_OUT_OF_MEM(createParWhenThenNode(pTemp2, pThen, &pWhenThen));
   CHECK_RES_OUT_OF_MEM(nodesListStrictAppend(pWhenThenlist, pWhenThen));
 
-  // case when leader_col = count_col and count_col > 0 then 1 when leader_col < count_col and count_col > 0 then 2 else
+  // case when leader_col = count_col and leader_col > 0 then 1 when leader_col < count_col and leader_col > 0 then 2 else
   // 0 end as status
   pCaseWhen = NULL;
   pElse = nodesMakeValueNodeFromInt32(0);
