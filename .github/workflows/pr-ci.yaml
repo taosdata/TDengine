@@ -51,9 +51,7 @@ jobs:
         run: |
           if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
               echo "run taosx unit test"
-              # cargo llvm-cov nextest --workspace --slow-timeout 60 
               cargo llvm-cov nextest --workspace
-              # cargo llvm-cov report --lcov --output-path $ARTIFACT_BASE_DIR/$DIR_PATH/taosx-unit-test-lcov.info
               ls $ARTIFACT_BASE_DIR/$DIR_PATH/
           fi
       - name: Build agent
@@ -241,8 +239,6 @@ jobs:
           echo "container_id: ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}"
           ls $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
           # docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && poetry add pytest-xdist && poetry add pytest-rerunfailures && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile --reruns 3 --reruns-delay 2"
-
-          # docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && poetry add pytest-xdist && poetry add pytest-rerunfailures && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity --reruns 3 --reruns-delay 2"
 
           docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX && source ./setenv.sh && poetry config virtualenvs.in-project true && poetry install && poetry add pytest-xdist && poetry add pytest-rerunfailures && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file \" && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file ; done"
 
