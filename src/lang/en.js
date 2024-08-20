@@ -2349,7 +2349,7 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
 
       step5: "Add Dashboard",
       desc51: `1. Once the data source works, click the <code>Dashboards</code> tab on the data source configuration page.`,
-      desc52: `2. Choose <code>TDengine for 3.x</code> and click import.`,
+      desc52: `2. Choose <code>TDinsight for 3.x</code> and click import.`,
       desc53: `3. Click the three horizontal bar icon, then <code>Dashboards</code>, search <code>TDinsight</code>, and click it.`,
       desc54: `4. Now, you can see the nice dashboard.`,
       tab2: "Install Grafana on CentOS / RHEL",
