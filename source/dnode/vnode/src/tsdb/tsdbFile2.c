@@ -242,18 +242,18 @@ int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
 
 int32_t tsdbTFileObjRef(STFileObj *fobj) {
   int32_t nRef;
-  (void)(void)taosThreadMutexLock(&fobj->mutex);
+  (void)taosThreadMutexLock(&fobj->mutex);
   ASSERT(fobj->ref > 0 && fobj->state == TSDB_FSTATE_LIVE);
   nRef = ++fobj->ref;
-  (void)(void)taosThreadMutexUnlock(&fobj->mutex);
+  (void)taosThreadMutexUnlock(&fobj->mutex);
   tsdbTrace("ref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   return 0;
 }
 
 int32_t tsdbTFileObjUnref(STFileObj *fobj) {
-  (void)(void)taosThreadMutexLock(&fobj->mutex);
+  (void)taosThreadMutexLock(&fobj->mutex);
   int32_t nRef = --fobj->ref;
-  (void)(void)taosThreadMutexUnlock(&fobj->mutex);
+  (void)taosThreadMutexUnlock(&fobj->mutex);
   ASSERT(nRef >= 0);
   tsdbTrace("unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   if (nRef == 0) {

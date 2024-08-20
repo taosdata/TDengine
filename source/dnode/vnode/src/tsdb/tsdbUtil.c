@@ -106,7 +106,6 @@ _exit:
 #endif
 
 void tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *)) {
-  ASSERT(idx >= 0 && idx < pMapData->nItem);
   (void)tGetItemFn(pMapData->pData + pMapData->aOffset[idx], pItem);
 }
 
@@ -628,8 +627,6 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
         *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
       }
     }
-  } else {
-    ASSERT(0);
   }
 }
 
@@ -697,8 +694,6 @@ int32_t tsdbRowIterOpen(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) 
     if (code) return code;
   } else if (pRow->type == TSDBROW_COL_FMT) {
     pIter->iColData = 0;
-  } else {
-    ASSERT(0);
   }
 
   return 0;
@@ -730,8 +725,8 @@ SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
       return NULL;
     }
   } else {
-    ASSERT(0);
-    return NULL;  // suppress error report by compiler
+    tsdbError("invalid row type:%d", pIter->pRow->type);
+    return NULL;
   }
 }
 
@@ -1744,8 +1739,6 @@ int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *bl
 
   code = tBlockDataAddColData(blockData, blockCol->cid, blockCol->type, blockCol->cflag, &colData);
   TSDB_CHECK_CODE(code, lino, _exit);
-
-  // ASSERT(blockCol->flag != HAS_NONE);
 
   SColDataCompressInfo info = {
       .cmprAlg = blockCol->alg,
