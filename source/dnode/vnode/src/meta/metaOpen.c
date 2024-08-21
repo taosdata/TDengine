@@ -332,6 +332,10 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
   } else if (!pTagIdxKey1->isNull && !pTagIdxKey2->isNull) {
     // all not NULL, compr tag vals
     __compar_fn_t func = getComparFunc(pTagIdxKey1->type, 0);
+    if (func == NULL) {
+      metaError("meta/open: %s", terrstr());
+      return TSDB_CODE_FAILED;
+    }
     c = func(pTagIdxKey1->data, pTagIdxKey2->data);
     if (c) return c;
   }
