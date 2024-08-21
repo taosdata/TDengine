@@ -208,8 +208,6 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
   pRpc->info.wrapper = pWrapper;
-
-  tmsg_t  msgType = pRpc->msgType;
   EQItype itype = IsReq(pRpc) ? RPC_QITEM : DEF_QITEM;  // rsp msg is not restricted by tsQueueMemoryUsed
   pMsg = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen);
   if (pMsg == NULL) {
@@ -228,9 +226,9 @@ _OVER:
     dmConvertErrCode(pRpc->msgType);
     if (terrno != 0) code = terrno;
     if (pMsg) {
-      dGTrace("msg:%p, failed to process %s since %s", pMsg, TMSG_INFO(msgType), terrstr());
+      dGTrace("msg:%p, failed to process %s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr());
     } else {
-      dGTrace("msg:%p, failed to process %s since %s", pMsg, TMSG_INFO(msgType), terrstr());
+      dGTrace("msg:%p, failed to process empty msg since %s", pMsg, terrstr());
     }
 
     if (IsReq(pRpc)) {
