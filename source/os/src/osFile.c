@@ -904,7 +904,7 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
   int32_t         code = _fstat64(pFile->fd, &fileStat);
 #else
   struct stat fileStat;
-  int32_t     code = fstat(pFile->fd, &fileStat);
+  int32_t code = fstat(pFile->fd, &fileStat);
 #endif
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1611,7 +1611,7 @@ int taosSeekCFile(FILE *file, int64_t offset, int whence) {
 #ifdef WINDOWS
   return _fseeki64(file, offset, whence);
 #else
-  int code = fseeko(file, offset, whence);
+  int     code = fseeko(file, offset, whence);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
   }
