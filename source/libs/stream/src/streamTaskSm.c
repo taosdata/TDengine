@@ -168,7 +168,7 @@ static STaskStateTrans* streamTaskFindTransform(ETaskStatus state, const EStream
   }
 
   if (isInvalidStateTransfer(state, event)) {
-    stError("invalid state transfer %d, handle event:%d", state, GET_EVT_NAME(event));
+    stError("invalid state transfer %d, handle event:%s", state, GET_EVT_NAME(event));
   }
 
   return NULL;
