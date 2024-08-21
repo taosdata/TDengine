@@ -437,7 +437,11 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
       }
       (void)memcpy(tmp, kv.value, kv.length);
       PROCESS_SLASH_IN_FIELD_VALUE(tmp, kv.length);
-      ASSERT(kv.type != TSDB_DATA_TYPE_GEOMETRY);
+      if(kv.type == TSDB_DATA_TYPE_GEOMETRY) {
+        uError("SML:0x%" PRIx64 " smlParseColLine error, invalid GEOMETRY type.", info->id);
+        taosMemoryFree((void*)kv.value);
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
       if(kv.type == TSDB_DATA_TYPE_VARBINARY){
         taosMemoryFree((void*)kv.value);
       }

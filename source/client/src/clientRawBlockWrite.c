@@ -1656,7 +1656,6 @@ static void* getRawDataFromRes(void* pRetrieve) {
   } else if (*(int64_t*)pRetrieve == 1) {
     rawData = ((SRetrieveTableRspForTmq*)pRetrieve)->data;
   }
-  ASSERT(rawData != NULL);
   return rawData;
 }
 

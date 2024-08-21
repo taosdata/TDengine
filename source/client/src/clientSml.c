@@ -360,7 +360,10 @@ int32_t smlProcessSuperTable(SSmlHandle *info, SSmlLineInfo *elements) {
   } else {
     sMeta = *tmp;
   }
-  ASSERT(sMeta != NULL);
+  if (sMeta == NULL) {
+    uError("smlProcessSuperTable failed to get super table meta");
+    return TSDB_CODE_SML_INTERNAL_ERROR;
+  }
   info->currSTableMeta = sMeta->tableMeta;
   info->maxTagKVs = sMeta->tags;
   info->maxColKVs = sMeta->cols;
@@ -424,7 +427,10 @@ int32_t smlProcessChildTable(SSmlHandle *info, SSmlLineInfo *elements) {
   } else {
     tinfo = *oneTable;
   }
-  ASSERT(tinfo != NULL);
+  if (tinfo == NULL) {
+    uError("smlProcessChildTable failed to get child table info");
+    return TSDB_CODE_SML_INTERNAL_ERROR;
+  }
   if (info->dataFormat) info->currTableDataCtx = tinfo->tableDataCtx;
   return TSDB_CODE_SUCCESS;
 }
@@ -556,7 +562,11 @@ int32_t smlSetCTableName(SSmlTableInfo *oneTable, char *tbnameKey) {
     if (dst == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    ASSERT(oneTable->sTableNameLen < TSDB_TABLE_NAME_LEN);
+    if(oneTable->sTableNameLen >= TSDB_TABLE_NAME_LEN){
+      uError("SML:smlSetCTableName super table name is too long");
+      taosArrayDestroy(dst);
+      return TSDB_CODE_SML_INTERNAL_ERROR;
+    }
     char          superName[TSDB_TABLE_NAME_LEN] = {0};
     RandTableName rName = {dst, NULL, (uint8_t)oneTable->sTableNameLen, oneTable->childTableName};
     if (tsSmlDot2Underline) {
