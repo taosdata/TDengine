@@ -121,7 +121,9 @@ static int32_t monitorReportAsyncCB(void* param, SDataBuf* pMsg, int32_t code) {
     if (monitorPutData2MonitorQueue(tmp) == 0) {
       p->fileName = NULL;
     } else {
-      taosCloseFile(&(p->pFile));
+      if(taosCloseFile(&(p->pFile))  != 0) {
+        tscError("failed to close file:%p", p->pFile);
+      }
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -166,8 +168,10 @@ static int32_t sendReport(void* pTransporter, SEpSet* epSet, char* pCont, MONITO
   int64_t transporterId = 0;
   return asyncSendMsgToServer(pTransporter, epSet, &transporterId, pInfo);
 
-  FAILED:
-  taosCloseFile(&(((MonitorSlowLogData*)param)->pFile));
+FAILED:
+  if (taosCloseFile(&(((MonitorSlowLogData*)param)->pFile)) != 0) {
+    tscError("failed to close file:%p", ((MonitorSlowLogData*)param)->pFile);
+  }
   monitorFreeSlowLogDataEx(param);
   return TAOS_GET_TERRNO(TSDB_CODE_TSC_INTERNAL_ERROR);
 }
@@ -465,13 +469,17 @@ static int64_t getFileSize(char* path) {
 static int32_t sendSlowLog(int64_t clusterId, char* data, TdFilePtr pFile, int64_t offset, SLOW_LOG_QUEUE_TYPE type,
                            char* fileName, void* pTransporter, SEpSet* epSet) {
   if (data == NULL) {
-    taosCloseFile(&pFile);
+    if (taosCloseFile(&pFile) != 0) {
+      tscError("failed to close file:%p", pFile);
+    }
     taosMemoryFree(fileName);
     return TSDB_CODE_INVALID_PARA;
   }
   MonitorSlowLogData* pParam = taosMemoryMalloc(sizeof(MonitorSlowLogData));
   if (pParam == NULL) {
-    taosCloseFile(&pFile);
+    if (taosCloseFile(&pFile) != 0) {
+      tscError("failed to close file:%p", pFile);
+    }
     taosMemoryFree(data);
     taosMemoryFree(fileName);
     return terrno;
@@ -490,7 +498,9 @@ static int32_t monitorReadSend(int64_t clusterId, TdFilePtr pFile, int64_t* offs
   SAppInstInfo* pInst = getAppInstByClusterId(clusterId);
   if (pInst == NULL) {
     tscError("failed to get app instance by clusterId:%" PRId64, clusterId);
-    taosCloseFile(&pFile);
+    if (taosCloseFile(&pFile) != 0) {
+      tscError("failed to close file:%p", pFile);
+    }
     taosMemoryFree(fileName);
     return terrno;
   }
@@ -859,7 +869,9 @@ int32_t monitorPutData2MonitorQueue(MonitorSlowLogData data) {
   if (taosWriteQitem(monitorQueue, slowLogData) == 0) {
     (void)tsem2_post(&monitorSem);
   } else {
-    taosCloseFile(&(slowLogData->pFile));
+    if (taosCloseFile(&(slowLogData->pFile)) != 0) {
+      tscError("failed to close file:%p", slowLogData->pFile);
+    }
     monitorFreeSlowLogData(slowLogData);
     taosFreeQitem(slowLogData);
   }
