@@ -221,7 +221,7 @@ jobs:
         run: |
           echo "RPC_PORT: ${{ steps.run_container.outputs.rpc_port }}"
           # 调用 windows 远程服务拉起 windows-agent
-          cd /data/github/TestNG_taosX && source setenv.sh && poetry install && cd tests && poetry run python3 ci_util.py ${{ steps.run_container.outputs.rpc_port }} eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
+          cd /data/github/TestNG_taosX && source setenv.sh && poetry install && poetry run python3 testng_taosx/ci_util.py ${{ steps.run_container.outputs.rpc_port }} eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
 
   run_test:
     runs-on: [self-hosted, linux, x64, qa, test]
@@ -253,6 +253,14 @@ jobs:
         run: |
           allure generate $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile -o $COVERAGE_BASE_DIR/$DIR_PATH/allure_report/ --clean
           echo "see report at $REPORT_BASE_URL/$DIR_PATH/allure_report/"
+          # 若通过率则返回失败
+          pass_rate=$(cd /data/github/TestNG_taosX && poetry run python3 testng_taosx/ci_calculate_pass_rate.py $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile)
+          echo $pass_rate
+          if [ $pass_rate -lt 100 ]; then
+            echo "pass rate is $pass_rate, less than 100"
+            echo "see report at $REPORT_BASE_URL/$DIR_PATH/allure_report/"
+            exit 1
+          fi
       
   clean_up:
     runs-on: [self-hosted, linux, x64, qa, test]
