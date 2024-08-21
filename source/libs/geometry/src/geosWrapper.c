@@ -23,7 +23,8 @@ typedef char (*_geosPreparedRelationFunc_t)(GEOSContextHandle_t handle, const GE
 
 void geosFreeBuffer(void *buffer) {
   if (buffer) {
-    GEOSFree_r(getThreadLocalGeosCtx()->handle, buffer);
+    SGeosContext *pCtx = acquireThreadLocalGeosCtx();
+    if (pCtx) GEOSFree_r(pCtx->handle, buffer);
   }
 }
 
@@ -418,7 +419,8 @@ int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom,
 }
 
 void destroyGeometry(GEOSGeometry **geom, const GEOSPreparedGeometry **preparedGeom) {
-  SGeosContext *geosCtx = getThreadLocalGeosCtx();
+  SGeosContext *geosCtx = acquireThreadLocalGeosCtx();
+  if (!geosCtx) return;
 
   if (preparedGeom && *preparedGeom) {
     GEOSPreparedGeom_destroy_r(geosCtx->handle, *preparedGeom);
