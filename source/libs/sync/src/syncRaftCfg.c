@@ -18,7 +18,7 @@
 #include "syncUtil.h"
 #include "tjson.h"
 
-const char *syncRoleToStr(ESyncRole role) {
+static const char *syncRoleToStr(ESyncRole role) {
   switch (role) {
     case TAOS_SYNC_ROLE_VOTER:
       return "true";
@@ -29,15 +29,14 @@ const char *syncRoleToStr(ESyncRole role) {
   }
 }
 
-const ESyncRole syncStrToRole(char *str) {
+static const ESyncRole syncStrToRole(char *str) {
   if (strcmp(str, "true") == 0) {
     return TAOS_SYNC_ROLE_VOTER;
-  }
-  if (strcmp(str, "false") == 0) {
+  } else if (strcmp(str, "false") == 0) {
     return TAOS_SYNC_ROLE_LEARNER;
+  } else {
+    return TAOS_SYNC_ROLE_ERROR;
   }
-
-  return TAOS_SYNC_ROLE_ERROR;
 }
 
 static int32_t syncEncodeSyncCfg(const void *pObj, SJson *pJson) {
@@ -52,10 +51,12 @@ static int32_t syncEncodeSyncCfg(const void *pObj, SJson *pJson) {
   if (nodeInfo == NULL) {
     TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
+
   if ((code = tjsonAddItemToObject(pJson, "nodeInfo", nodeInfo)) < 0) {
     tjsonDelete(nodeInfo);
     TAOS_CHECK_EXIT(code);
   }
+
   for (int32_t i = 0; i < pCfg->totalReplicaNum; ++i) {
     SJson *info = tjsonCreateObject();
     if (info == NULL) {
@@ -68,20 +69,25 @@ static int32_t syncEncodeSyncCfg(const void *pObj, SJson *pJson) {
     TAOS_CHECK_GOTO(tjsonAddStringToObject(info, "isReplica", syncRoleToStr(pCfg->nodeInfo[i].nodeRole)), NULL, _err);
     TAOS_CHECK_GOTO(tjsonAddItemToArray(nodeInfo, info), NULL, _err);
     continue;
+
   _err:
     tjsonDelete(info);
     break;
   }
+
 _exit:
   if (code < 0) {
     sError("failed to encode sync cfg at line %d since %s", lino, tstrerror(code));
   }
+
   TAOS_RETURN(code);
 }
 
 static int32_t syncEncodeRaftCfg(const void *pObj, SJson *pJson) {
   SRaftCfg *pCfg = (SRaftCfg *)pObj;
-  int32_t   code = 0, lino = 0;
+  int32_t   code = 0;
+  int32_t   lino = 0;
+
   TAOS_CHECK_EXIT(tjsonAddObject(pJson, "SSyncCfg", syncEncodeSyncCfg, (void *)&pCfg->cfg));
   TAOS_CHECK_EXIT(tjsonAddDoubleToObject(pJson, "isStandBy", pCfg->isStandBy));
   TAOS_CHECK_EXIT(tjsonAddDoubleToObject(pJson, "snapshotStrategy", pCfg->snapshotStrategy));
@@ -93,10 +99,12 @@ static int32_t syncEncodeRaftCfg(const void *pObj, SJson *pJson) {
   if (configIndexArr == NULL) {
     TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
+
   if ((code = tjsonAddItemToObject(pJson, "configIndexArr", configIndexArr)) < 0) {
     tjsonDelete(configIndexArr);
     TAOS_CHECK_EXIT(code);
   }
+
   for (int32_t i = 0; i < pCfg->configIndexCount; ++i) {
     SJson *configIndex = tjsonCreateObject();
     if (configIndex == NULL) {
@@ -105,14 +113,17 @@ static int32_t syncEncodeRaftCfg(const void *pObj, SJson *pJson) {
     TAOS_CHECK_EXIT(tjsonAddIntegerToObject(configIndex, "index", pCfg->configIndexArr[i]));
     TAOS_CHECK_EXIT(tjsonAddItemToArray(configIndexArr, configIndex));
     continue;
+
   _err:
     tjsonDelete(configIndex);
     break;
   }
+
 _exit:
   if (code < 0) {
     sError("failed to encode raft cfg at line %d since %s", lino, tstrerror(code));
   }
+
   TAOS_RETURN(code);
 }
 
@@ -124,11 +135,13 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
   const char *realfile = pNode->configPath;
   SRaftCfg   *pCfg = &pNode->raftCfg;
   char        file[PATH_MAX] = {0};
+
   (void)snprintf(file, sizeof(file), "%s.bak", realfile);
 
   if ((pJson = tjsonCreateObject()) == NULL) {
     TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
+
   TAOS_CHECK_EXIT(tjsonAddObject(pJson, "RaftCfg", syncEncodeRaftCfg, pCfg));
   buffer = tjsonToString(pJson);
   if (buffer == NULL) {
@@ -145,6 +158,7 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
   if (taosWriteFile(pFile, buffer, len) <= 0) {
     TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
   }
+
   if (taosFsyncFile(pFile) < 0) {
     TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
   }
@@ -165,6 +179,7 @@ _exit:
   if (code != 0) {
     sError("vgId:%d, failed to write sync cfg file:%s since %s", pNode->vgId, realfile, tstrerror(code));
   }
+
   TAOS_RETURN(code);
 }
 
@@ -232,6 +247,7 @@ static int32_t syncDecodeRaftCfg(const SJson *pJson, void *pObj) {
     tjsonGetNumberValue(configIndex, "index", pCfg->configIndexArr[i], code);
     if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
   }
+
   return 0;
 }
 
@@ -292,16 +308,6 @@ _OVER:
   if (code != 0) {
     sError("vgId:%d, failed to read sync cfg file:%s since %s", pNode->vgId, file, tstrerror(code));
   }
+
   TAOS_RETURN(code);
-}
-
-int32_t syncAddCfgIndex(SSyncNode *pNode, SyncIndex cfgIndex) {
-  SRaftCfg *pCfg = &pNode->raftCfg;
-  if (pCfg->configIndexCount >= MAX_CONFIG_INDEX_COUNT) {
-    return TSDB_CODE_OUT_OF_RANGE;
-  }
-
-  pCfg->configIndexArr[pCfg->configIndexCount] = cfgIndex;
-  pCfg->configIndexCount++;
-  return 0;
 }

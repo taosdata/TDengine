@@ -65,9 +65,9 @@ static void streamMetaEnvInit() {
 void streamMetaInit() { (void)taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit); }
 
 void streamMetaCleanup() {
-  (void)taosCloseRef(streamBackendId);
-  (void)taosCloseRef(streamBackendCfWrapperId);
-  (void)taosCloseRef(streamMetaId);
+  taosCloseRef(streamBackendId);
+  taosCloseRef(streamBackendCfWrapperId);
+  taosCloseRef(streamMetaId);
 
   metaRefMgtCleanup();
   streamTimerCleanUp();
@@ -1260,7 +1260,9 @@ void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader)
   pMeta->stage = stage;
 
   // mark the sign to send msg before close all tasks
-  if ((!isLeader) && (pMeta->role == NODE_ROLE_LEADER)) {
+  // 1. for leader vnode, always send msg before closing
+  // 2. for follower vnode, if it's is changed from leader, also sending msg before closing.
+  if (pMeta->role == NODE_ROLE_LEADER) {
     pMeta->sendMsgBeforeClosing = true;
   }
 

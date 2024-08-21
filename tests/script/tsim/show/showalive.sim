@@ -21,6 +21,30 @@ sql create dnode $hostname4 port 7500
 
 sleep 1000
 
+$loop_count = 0
+
+loop00:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+print 0 show cluster alive;
+sql show cluster alive;
+
+print res------------------------
+print $data00 $data01
+print $data10 $data11
+
+if $data00 != 1 then
+  print =====data00=$data00
+  goto loop00
+endi
+
+
 print =============== create database, stable, table
 sql create database test  vgroups 6;
 sql use test;
@@ -46,6 +70,15 @@ endi
 print show cluster alive;
 sql show cluster alive;
 
+print res------------------------
+print $data00 $data01
+print $data10 $data11
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop0
+endi
+
 if $data00 != 1 then
   print =====data00=$data00
   goto loop0
@@ -53,6 +86,15 @@ endi
 
 print show test.alive;
 sql show test.alive;
+
+print res------------------------
+print $data00 $data01
+print $data10 $data11
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop0
+endi
 
 if $data00 != 1 then
   print =====data00=$data00

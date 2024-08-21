@@ -134,3 +134,4 @@ tags
 .clangd
 *CMakeCache*
 *CMakeFiles*
+.history/
