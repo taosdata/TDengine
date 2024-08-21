@@ -1768,7 +1768,7 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
           continue;
         }
         int32_t count = 0;
-        GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i));
+        GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, 0));
         if (count <= 0) {
           varDataSetLen(output, 0);
           SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
