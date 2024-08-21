@@ -742,6 +742,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_OUTPUT_TYPE,        "udf invalid output 
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_SCRIPT_NOT_SUPPORTED,       "udf program language not supported")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_FUNC_EXEC_FAILURE,          "udf function execution failure")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_UV_EXEC_FAILURE,            "udf uvlib function execution failure")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INTERNAL_ERROR,             "udf internal error")
 
 //schemaless
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PROTOCOL_TYPE,      "Invalid line protocol type")
