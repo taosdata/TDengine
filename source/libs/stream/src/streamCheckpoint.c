@@ -38,7 +38,7 @@ int32_t createChkptTriggerBlock(SStreamTask* pTask, int32_t checkpointType, int6
   }
 
   if (srcTaskId <= 0) {
-    stDebug("s-task:0x%x invalid src task id:%d for creating checkpoint trigger block", pTask->id.idStr, srcTaskId);
+    stDebug("s-task:%s invalid src task id:%d for creating checkpoint trigger block", pTask->id.idStr, srcTaskId);
     return TSDB_CODE_INVALID_PARA;
   }
 
