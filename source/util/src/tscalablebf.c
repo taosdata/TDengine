@@ -87,6 +87,7 @@ int32_t tScalableBfPutNoCheck(SScalableBf* pSBf, const void* keyBuf, uint32_t le
       pSBf->status = SBF_INVALID;
       if (code == TSDB_CODE_OUT_OF_BUFFER) {
         code = TSDB_CODE_SUCCESS;
+        return code;
       }
       QUERY_CHECK_CODE(code, lino, _error);
     }
@@ -126,6 +127,8 @@ int32_t tScalableBfPut(SScalableBf* pSBf, const void* keyBuf, uint32_t len, int3
       pSBf->status = SBF_INVALID;
       if (code == TSDB_CODE_OUT_OF_BUFFER) {
         code = TSDB_CODE_SUCCESS;
+        (*winRes) = TSDB_CODE_FAILED;
+        goto _end;
       }
       QUERY_CHECK_CODE(code, lino, _end);
     }

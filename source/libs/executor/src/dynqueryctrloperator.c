@@ -320,7 +320,7 @@ static int32_t buildMergeJoinOperatorParam(SOperatorParam** ppRes, bool initPara
     return code;
   }
   (*ppRes)->pChildren = taosArrayInit(2, POINTER_BYTES);
-  if (NULL == *ppRes) {
+  if (NULL == (*ppRes)->pChildren) {
     code = terrno;
     freeOperatorParam(pChild0, OP_GET_PARAM);
     freeOperatorParam(pChild1, OP_GET_PARAM);

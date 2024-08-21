@@ -2245,17 +2245,20 @@ static int32_t lastIterClose(SFSLastIter **iter) {
 }
 
 static int32_t lastIterNext(SFSLastIter *iter, TSDBROW **ppRow) {
-  int32_t code = 0;
+  bool hasVal = false;
+  *ppRow = NULL;
 
-  bool hasVal = tMergeTreeNext(iter->pMergeTree);
+  int32_t code = tMergeTreeNext(iter->pMergeTree, &hasVal);
+  if (code != 0) {
+    return code;
+  }
+
   if (!hasVal) {
     *ppRow = NULL;
-
     TAOS_RETURN(code);
   }
 
   *ppRow = tMergeTreeGetRow(iter->pMergeTree);
-
   TAOS_RETURN(code);
 }
 

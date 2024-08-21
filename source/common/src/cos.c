@@ -56,10 +56,8 @@ int32_t s3Begin() {
   }
 
   for (int i = 0; i < tsS3EpNum; i++) {
-    protocolG[i] = !tsS3Https[i];
-    if (tsS3Oss[i]) {
-      uriStyleG[i] = S3UriStyleVirtualHost;
-    }
+    protocolG[i] = tsS3Https[i] ? S3ProtocolHTTPS : S3ProtocolHTTP;
+    uriStyleG[i] = tsS3Oss[i] ? S3UriStyleVirtualHost : S3UriStylePath;
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
