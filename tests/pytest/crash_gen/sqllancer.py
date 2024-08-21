@@ -51,6 +51,7 @@ class DataBoundary(Enum):
     TIMEZONE_BOUNDARY = [0, 1]
     HISTOGRAM_BOUNDARY = [0, 1]
     IGNORE_NEGATIVE_BOUNDARY = [0, 1]
+    DIFF_IGNORE_BOUNDARY = [0, 1, 2, 3]
     PERCENTILE_BOUNDARY = [1, 10]
     LEASTSQUARES_BOUNDARY = [1, 10]
     SUBSTR_BOUNDARY = [1, 10]
@@ -73,11 +74,11 @@ class FunctionMap(Enum):
         'types': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE'],
         'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
         'strFuncs': [],
-        'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMEZONE', 'TODAY'],
-        'aggFuncs': ['APERCENTILE', 'AVG', 'COUNT', 'LEASTSQUARES', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG', 'HISTOGRAM', 'PERCENTILE'],
+        'timeFuncs': ['NOW', 'TIMEZONE', 'TODAY'],
+        'aggFuncs': ['APERCENTILE', 'AVG', 'COUNT', 'LEASTSQUARES', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG', 'PERCENTILE'],
         'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MAX', 'MIN', 'MODE'],
-        'specialFuncs': ['CSUM', 'DERIVATIVE', 'DIFF', 'IRATE', 'MAVG', 'STATECOUNT', 'STATEDURATION', 'TWA'],
-        'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TOP', 'TAIL', 'SAMPLE'],
+        'specialFuncs': ['IRATE', 'TWA'],
+        'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TOP', 'TAIL', 'SAMPLE', 'DIFF', 'CSUM', 'MAVG', 'DERIVATIVE', 'STATECOUNT', 'STATEDURATION', 'HISTOGRAM'],
         'castFuncs': ['CAST', 'TO_ISO8601'],
         'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
     }
@@ -101,7 +102,7 @@ class FunctionMap(Enum):
         'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
         'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE'],
         'specialFuncs': [],
-        'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TOP', 'TAIL', 'SAMPLE'],
+        'VariableFuncs': ['UNIQUE', 'TAIL', 'SAMPLE'],
         'castFuncs': [],
         'castTypes': []
     }
@@ -113,7 +114,7 @@ class FunctionMap(Enum):
         'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
         'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE'],
         'specialFuncs': [],
-        'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TOP', 'TAIL', 'SAMPLE'],
+        'VariableFuncs': ['UNIQUE', 'TAIL', 'SAMPLE'],
         'castFuncs': ['CAST'],
         'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
     }
@@ -125,7 +126,7 @@ class FunctionMap(Enum):
         'aggFuncs': ['ELAPSED', 'SPREAD'],
         'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE'],
         'specialFuncs': [],
-        'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TOP', 'TAIL', 'SAMPLE'],
+        'VariableFuncs': ['UNIQUE', 'SAMPLE'],
         'castFuncs': ['CAST', 'TO_ISO8601', 'TO_CHAR'],
         'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
     }
@@ -138,8 +139,15 @@ class SQLLancer:
         expr2 = f'{expr1}+{time_unit}'
         return f"TIMEDIFF({expr1}, {expr2})"
 
+    def formatDiff(self, expr1):
+        ignore_val = random.choice(DataBoundary.DIFF_IGNORE_BOUNDARY.value)
+        if ignore_val == 0:
+            return f"DIFF({expr1})"
+        else:
+            return f"DIFF({expr1}, {ignore_val})"
+
     def formatTimeTruncate(self, expr):
-        time_unit = random.choice(DataBoundary.TIME_UNIT.value)
+        time_unit = random.choice(DataBoundary.TIME_UNIT.value[2:])
         use_current_timezone = random.choice(DataBoundary.TIMEZONE_BOUNDARY.value)
         return f'TIMETRUNCATE({expr}, {time_unit}, {use_current_timezone})'
 
@@ -167,19 +175,30 @@ class SQLLancer:
         return f'STATECOUNT({expr}, "{oper}", {val}, {unit})'
 
     def formatConcat(self, expr, *args):
+        print("---1args:", *args)
+        print("---2args:", args)
         base = f'CONCAT("pre_", cast({expr} as nchar({DataBoundary.CONCAT_BOUNDARY.value[1]})))'
         argsVals = list()
         for i in range(len(args[:DataBoundary.CONCAT_BOUNDARY.value[1]-1])):
+            print("---args[i]:", args[i])
             argsVals.append(f'cast({args[i]} as nchar({DataBoundary.CONCAT_BOUNDARY.value[1]}))')
-        return f'CONCAT({base}, {", ".join(argsVals)})'
+        if len(argsVals) == 0:
+            return base
+        else:
+            return f'CONCAT({base}, {", ".join(argsVals)})'
 
     def formatConcatWs(self, expr, *args):
         separator_expr = random.choice([",", ":", ";", "_", "-"])
-        base = f'CONCAT({separator_expr}, "pre_", cast({expr} as nchar({DataBoundary.CONCAT_BOUNDARY.value[1]})))'
+        base = f'CONCAT_WS("{separator_expr}", "pre_", cast({expr} as nchar({DataBoundary.CONCAT_BOUNDARY.value[1]})))'
+        print("----base", base)
         argsVals = list()
         for i in range(len(args[:DataBoundary.CONCAT_BOUNDARY.value[1]-1])):
             argsVals.append(f'cast({args[i]} as nchar({DataBoundary.CONCAT_BOUNDARY.value[1]}))')
-        return f'CONCAT({separator_expr}, {base}, {", ".join(argsVals)})'
+            print("----argsVals", argsVals)
+        if len(argsVals) == 0:
+            return base
+        else:
+            return f'CONCAT_WS("{separator_expr}", {base}, {", ".join(argsVals)})'
 
     def formatSubstr(self, expr):
         pos = random.choice(DataBoundary.SUBSTR_BOUNDARY.value)
@@ -190,7 +209,7 @@ class SQLLancer:
         return f'CAST({expr} AS {random.choice(castTypeList)})'
 
     def formatFunc(self, func, colname, castTypeList="nchar", *args, **kwarg):
-        if func in ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'] + \
+        if func in ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'ROUND', 'SIN', 'SQRT', 'TAN'] + \
                     ['AVG', 'COUNT', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG'] + \
                     ['FIRST', 'LAST', 'LAST_ROW', 'MAX', 'MIN', 'MODE', 'UNIQUE'] + \
                     ['CSUM', 'IRATE', 'TWA'] + \
@@ -200,10 +219,12 @@ class SQLLancer:
             return f"{func}()"
         elif func in ['TIMEDIFF']:
             return self.formatTimediff(colname)
+        elif func in ['TIMEDIFF']:
+            return self.formatDiff(colname)
         elif func in ['TIMETRUNCATE']:
             return self.formatTimeTruncate(colname)
         elif func in ['APERCENTILE']:
-            return f'{func}({colname}, {random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1], random.choice(["default", "t-digest"]))})'
+            return f'{func}({colname}, {random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1])}, "{random.choice(["default", "t-digest"])}")'
         elif func in ['LEASTSQUARES']:
             return f"{func}({colname}, {random.randint(1, DataBoundary.LEASTSQUARES_BOUNDARY.value[1])}, {random.randint(1, DataBoundary.LEASTSQUARES_BOUNDARY.value[1])})"
         elif func in ['HISTOGRAM']:
@@ -212,6 +233,8 @@ class SQLLancer:
             return self.formatPercentile(colname)
         elif func in ['ELAPSED']:
             return f"{func}({colname}, {random.choice(DataBoundary.TIME_UNIT.value)})"
+        elif func in ['POW']:
+            return f"{func}({colname}, {random.choice(DataBoundary.SAMPLE_BOUNDARY.value)})"
         elif func in ['INTERP', 'DIFF', 'TO_UNIXTIMESTAMP']:
             return f"{func}({colname}, {random.choice(DataBoundary.IGNORE_NEGATIVE_BOUNDARY.value)})"
         elif func in ['SAMPLE']:
@@ -229,6 +252,7 @@ class SQLLancer:
         elif func in ['STATEDURATION']:
             return self.formatStateduration(colname)
         elif func in ['CONCAT']:
+            print("----args", args)
             return self.formatConcat(colname, *args)
         elif func in ['CONCAT_WS']:
             return self.formatConcatWs(colname, *args)
@@ -238,22 +262,47 @@ class SQLLancer:
             return self.formatCast(colname, castTypeList)
         elif func in ['TO_ISO8601']:
             timezone = random.choice(["+00:00", "-00:00", "+08:00", "-08:00", "+12:00", "-12:00"])
-            return f"{func}({colname}, {timezone})"
+            return f'{func}({colname}, "{timezone}")'
         elif func in ['TO_CHAR', 'TO_TIMESTAMP']:
-            return f"{func}({colname}, {random.choice(DataBoundary.TO_CHAR_UNIT.value)})"
+            return f'{func}({colname}, "{random.choice(DataBoundary.TO_CHAR_UNIT.value)}")'
         else:
             pass
+
+    def setGroupTag(self, fm, funcList):
+        """
+        Check if there are common elements between `funcList` and `selectFuncs` in `fm`.
+
+        Args:
+            fm (dict): The dictionary containing the 'selectFuncs' key.
+            funcList (list): The list of functions to compare with 'selectFuncs'.
+
+        Returns:
+            bool: True if there are common elements, False otherwise.
+        """
+        selectFuncs = fm['selectFuncs']
+        s1 = set(funcList)
+        s2 = set(selectFuncs)
+        common_elements = s1 & s2
+        if len(common_elements) > 1:
+            return True
+        else:
+            return False
 
     def selectFuncsFromType(self, fm, colname, doAggr):
         if doAggr == 0:
             categoryList = ['aggFuncs']
         elif doAggr == 1:
             categoryList = ['mathFuncs', 'strFuncs', 'timeFuncs', 'selectFuncs', 'castFuncs']
-        else:
+        elif doAggr == 2:
+            categoryList = ['VariableFuncs']
+        elif doAggr == 3:
             categoryList = ['specialFuncs']
+        else:
+            pass
         funcList = list()
         print("----categoryList", categoryList)
         print("----fm", fm)
+
         for category in categoryList:
             funcList += fm[category]
         print("----funcList", funcList)
@@ -267,6 +316,10 @@ class SQLLancer:
         print("-------funcStrList:", funcStrList)
         print("-------funcStr:", ",".join(funcStrList))
         print("----selectItems", selectItems)
+        groupKey = colname if self.setGroupTag(fm, funcList) else ""
+        if doAggr == 2:
+            return ",".join([random.choice(funcStrList)]), groupKey
+        return ",".join(funcStrList), groupKey
 
 
         # # colTypes = ['NUMERIC', 'TEXT', 'BINARY', 'BOOLEAN', 'TIMESTAMP'...]
@@ -281,7 +334,7 @@ class SQLLancer:
         #         func = random.choice()
         #         pass
         '''
-        fm:
+    fm:
         {
             'types': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE'],
             'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
@@ -312,11 +365,12 @@ class SQLLancer:
             return "spFuncs"
 
     def generateRandomSql(self, colDict, tbname):
-        select_parts = []
+        selectPartList = []
+        groupKeyList = []
         # colTypes = ['NUMERIC', 'TEXT', 'BINARY', 'BOOLEAN', 'TIMESTAMP'...]
         colTypes = [member.name for member in FunctionMap]
         print("-----colTypes", colTypes)
-        doAggr = random.choice([0, 1, 2])
+        doAggr = random.choice([0, 1, 2, 3])
 
         for column_name, column_type in colDict.items():
             print(f"-----column_name, column_type: {column_name}, {column_type}")
@@ -331,8 +385,13 @@ class SQLLancer:
                     # / selectCate = 'mathFuncs'
                     # selectCate = random.choice(categories)
                     # print("-----selectCate", selectCate)
-                    selectStrs = self.selectFuncsFromType(fm.value, column_name, doAggr)
+                    selectStrs, groupKey = self.selectFuncsFromType(fm.value, column_name, doAggr)
                     print("-----selectStrs", selectStrs)
+                    if len(selectStrs) > 0:
+                        selectPartList.append(selectStrs)
+                    print("-----selectPartList", selectPartList)
+                    if len(groupKey) > 0:
+                        groupKeyList.append(groupKey)
                     
                     # / funcs = ['ABS', 'ACOS', 'ASIN'....]
                     # funcs = random.sample(fm.value[selectFunc], random.randint(1, len(fm.value[selectFunc])))
@@ -348,14 +407,19 @@ class SQLLancer:
                     # pass
                     # func_expression = self.selectFuncsFromType(fm.value, column_name)
                     # select_parts.append(func_expression)
-        return f"SELECT {', '.join(select_parts)} FROM {tbname};"
+        if doAggr == 2:
+            selectPartList = [random.choice(selectPartList)]
+        if len(groupKeyList) > 0:
+            groupKeyStr = ",".join(groupKeyList)
+            return f"SELECT {', '.join(selectPartList)} FROM {tbname} GROUP BY {groupKeyStr};"
+        return f"SELECT {', '.join(selectPartList)} FROM {tbname};"
 
 sqllancer = SQLLancer()
 colDict = {"ts": "TIMESTAMP", "c1": "INT", "c2": "NCHAR", "c3": "BOOL"}
-tbname = "stb"
-sqllancer.generateRandomSql(colDict, tbname)
-
-
+tbname = "tb"
+# print(sqllancer.formatConcat("c1", "c2", "c3"))
+randomSql = sqllancer.generateRandomSql(colDict, tbname)
+print(randomSql)
 
 
     # def generateQueries_n(self, dbc: DbConn, selectItems) -> List[SqlQuery]:
