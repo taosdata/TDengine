@@ -3,7 +3,7 @@ use actix_web::{get, HttpResponse, Responder};
 #[cfg(not(target_env = "msvc"))]
 #[get("/debug/pprof/heap")]
 pub(super) async fn handle_get_heap() -> impl Responder {
-    #[cfg(feature = "jemalloc")]
+    #[cfg(feature = "jemallocator")]
     {
         let ctl = jemalloc_pprof::PROF_CTL.as_ref();
         if ctl.is_none() {
@@ -24,7 +24,7 @@ pub(super) async fn handle_get_heap() -> impl Responder {
             Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
         }
     }
-    #[cfg(not(feature = "jemalloc"))]
+    #[cfg(not(feature = "jemallocator"))]
     {
         HttpResponse::Forbidden().finish()
     }
