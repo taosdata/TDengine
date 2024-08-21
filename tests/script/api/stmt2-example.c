@@ -44,7 +44,7 @@ void do_stmt(TAOS* taos) {
   int         code = taos_stmt2_prepare(stmt, sql, 0);
   if (code != 0) {
     printf("failed to execute taos_stmt2_prepare. error:%s\n", taos_stmt2_error(stmt));
-    taos_stmt_close(stmt);
+    taos_stmt2_close(stmt);
     return;
   }
 
