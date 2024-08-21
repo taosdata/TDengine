@@ -318,7 +318,7 @@ static int32_t tsdbReadFileImp(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int6
   int32_t szPgCont = PAGE_CONTENT_SIZE(pFD->szPage);
   int64_t bOffset = fOffset % pFD->szPage;
 
-  if (bOffset < szPgCont) {
+  if (bOffset >= szPgCont) {
     TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_PARA, lino, _exit);
   }
 
