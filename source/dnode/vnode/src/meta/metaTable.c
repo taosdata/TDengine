@@ -148,11 +148,11 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
       if (pTagVal->nData > 0) {
         char *val = taosMemoryCalloc(1, pTagVal->nData + VARSTR_HEADER_SIZE);
         if (val == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _except);
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
         }
         int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE);
         if (len < 0) {
-          TAOS_CHECK_GOTO(len, NULL, _except);
+          TAOS_CHECK_GOTO(len, NULL, _exception);
         }
         memcpy(val, (uint16_t *)&len, VARSTR_HEADER_SIZE);
         type = TSDB_DATA_TYPE_VARCHAR;
@@ -175,15 +175,16 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
       (void)indexMultiTermAdd(terms, term);
     } else {
       code = terrno;
+      goto _exception;
     }
   }
-  (void)indexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
+  code = indexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
   indexMultiTermDestroy(terms);
 
   taosArrayDestroy(pTagVals);
 #endif
-  return 0;
-_except:
+  return code;
+_exception:
   indexMultiTermDestroy(terms);
   taosArrayDestroy(pTagVals);
   return code;
@@ -227,11 +228,11 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
       if (pTagVal->nData > 0) {
         char *val = taosMemoryCalloc(1, pTagVal->nData + VARSTR_HEADER_SIZE);
         if (val == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _except);
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
         }
         int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE);
         if (len < 0) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _except);
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
         }
         memcpy(val, (uint16_t *)&len, VARSTR_HEADER_SIZE);
         type = TSDB_DATA_TYPE_VARCHAR;
@@ -253,14 +254,15 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
       (void)indexMultiTermAdd(terms, term);
     } else {
       code = terrno;
+      goto _exception;
     }
   }
-  (void)indexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
+  code = indexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
   indexMultiTermDestroy(terms);
   taosArrayDestroy(pTagVals);
 #endif
-  return 0;
-_except:
+  return code;
+_exception:
   indexMultiTermDestroy(terms);
   taosArrayDestroy(pTagVals);
   return code;
