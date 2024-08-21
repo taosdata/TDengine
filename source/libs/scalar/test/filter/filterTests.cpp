@@ -113,8 +113,7 @@ int32_t flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
 
   if (NULL == *block) {
     SSDataBlock *res = NULL;
-    int32_t code = createDataBlock(&res);
-    ASSERT(code == 0);
+    FLT_ERR_RET(createDataBlock(&res));
 
     for (int32_t i = 0; i < 2; ++i) {
       SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_NULL, 10, 1 + i);

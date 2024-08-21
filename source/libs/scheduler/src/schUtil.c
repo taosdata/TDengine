@@ -273,7 +273,7 @@ void schCloseJobRef(void) {
   }
 
   if (schMgmt.jobRef >= 0) {
-    (void)taosCloseRef(schMgmt.jobRef);
+    taosCloseRef(schMgmt.jobRef);
     schMgmt.jobRef = -1;
   }
 }

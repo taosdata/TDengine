@@ -486,7 +486,7 @@ int32_t mndInitSync(SMnode *pMnode) {
 
   int32_t code = 0;
   (void)tsem_init(&pMgmt->syncSem, 0, 0);
-  pMgmt->sync = syncOpen(&syncInfo, true);
+  pMgmt->sync = syncOpen(&syncInfo, 1); // always check
   if (pMgmt->sync <= 0) {
     if (terrno != 0) code = terrno;
     mError("failed to open sync since %s", tstrerror(code));

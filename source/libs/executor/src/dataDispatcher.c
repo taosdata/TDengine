@@ -318,6 +318,7 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   dispatcher->sink.fGetCacheSize = getCacheSize;
 
   dispatcher->pManager = pManager;
+  pManager = NULL;
   dispatcher->pSchema = pDataSink->pInputDataBlockDesc;
   dispatcher->status = DS_BUF_EMPTY;
   dispatcher->queryEnd = false;
@@ -336,6 +337,9 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   return TSDB_CODE_SUCCESS;
 
 _return:
+
+  taosMemoryFree(pManager);
+  
   if (dispatcher) {
     dsDestroyDataSinker(dispatcher);
   }
