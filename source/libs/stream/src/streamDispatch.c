@@ -254,7 +254,11 @@ static SStreamDispatchReq* createDispatchDataReq(SStreamTask* pTask, const SStre
   int32_t type = pTask->outputInfo.type;
   int32_t num = streamTaskGetNumOfDownstream(pTask);
 
-  ASSERT(type == TASK_OUTPUT__SHUFFLE_DISPATCH || type == TASK_OUTPUT__FIXED_DISPATCH);
+  if(type != TASK_OUTPUT__SHUFFLE_DISPATCH && type != TASK_OUTPUT__FIXED_DISPATCH) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    stError("s-task:%s invalid dispatch type:%d not dispatch data", pTask->id.idStr, type);
+    return NULL;
+  }
 
   SStreamDispatchReq* pReqs = taosMemoryCalloc(num, sizeof(SStreamDispatchReq));
   if (pReqs == NULL) {
@@ -279,7 +283,7 @@ static SStreamDispatchReq* createDispatchDataReq(SStreamTask* pTask, const SStre
         return NULL;
       }
     }
-  } else {
+  } else {   // shuffle dispatch
     int32_t numOfBlocks = taosArrayGetSize(pData->blocks);
     int32_t downstreamTaskId = pTask->outputInfo.fixedDispatcher.taskId;
 

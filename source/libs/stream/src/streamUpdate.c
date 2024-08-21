@@ -573,7 +573,7 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
   if (tDecodeI32(&decoder, &size) < 0) return -1;
   pInfo->pTsBuckets = taosArrayInit(size, sizeof(TSKEY));
   QUERY_CHECK_NULL(pInfo->pTsBuckets, code, lino, _error, terrno);
-  
+
   TSKEY ts = INT64_MIN;
   for (int32_t i = 0; i < size; i++) {
     if (tDecodeI64(&decoder, &ts) < 0) return -1;

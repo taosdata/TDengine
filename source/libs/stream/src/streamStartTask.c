@@ -50,8 +50,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
   SArray* pTaskList = NULL;
   code = prepareBeforeStartTasks(pMeta, &pTaskList, now);
   if (code != TSDB_CODE_SUCCESS) {
-    ASSERT(pTaskList == NULL);
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_SUCCESS;  // ignore the error and return directly
   }
 
   // broadcast the check downstream tasks msg only for tasks with related fill-history tasks.
@@ -364,7 +363,10 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
     return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
   }
 
-  ASSERT(pTask->status.downstreamReady == 0);
+  if(pTask->status.downstreamReady != 0) {
+    stFatal("s-task:0x%x downstream should be not ready, but it ready here, internal error happens", taskId);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
 
   // avoid initialization and destroy running concurrently.
   streamMutexLock(&pTask->lock);
