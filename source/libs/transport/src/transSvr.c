@@ -1191,6 +1191,7 @@ void* transWorkerThread(void* arg) {
 static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   int32_t    code = 0;
   SWorkThrd* pThrd = hThrd;
+  STrans*    pTransInst = pThrd->pTransInst;
 
   SSvrConn* pConn = (SSvrConn*)taosMemoryCalloc(1, sizeof(SSvrConn));
   if (pConn == NULL) {
@@ -1232,7 +1233,6 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _end);
   }
 
-  STrans* pTransInst = pThrd->pTransInst;
   pConn->refId = exh->refId;
   QUEUE_INIT(&exh->q);
   transRefSrvHandle(pConn);
