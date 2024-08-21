@@ -1101,6 +1101,8 @@ export function handleHintType(config, hint) {
       if (hint?.choices) {
         config.options = hint.choices;
       }
+      config.min = hint?.min ?? -Infinity;
+      config.max = hint?.max ?? Infinity;
       break;
 
     default:
@@ -1163,7 +1165,7 @@ export function generateFormInitData(paramsConfig) {
       }
       if (item.type === 'composeAppend') {
         data[item.field + '_type'] = item.type_value || "";
-        data[item.field] = value ? value?.match(/\d+/)[0] : "";
+        data[item.field] = value ? value?.match(/\d+/)[0] : undefined;
       }
     }
     return data;

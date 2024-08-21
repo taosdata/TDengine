@@ -95,13 +95,15 @@ export function getDataSources(lang) {
                       "value": "ms",
                       "label": "Millisecond"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "A timeout for polling data from the topic.",
                 "description": "A timeout for polling data from the topic.\n\nThe input value should be one of:\n- `0`: means waiting for valid message without timeout.\n- A duration string like `5s`, `1m` etc.\n",
-                "placeholder": "5",
+                "placeholder": "The value is an integer ranging [0,60000]",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               },
               {
@@ -289,14 +291,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "Second"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "Polling interval to query schema.",
                 "description": "Polling interval to query schema.",
-                "placeholder": "5",
+                "placeholder": "The value is an integer ranging [0,60000]",
                 "value": "5",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
@@ -379,14 +383,16 @@ export function getDataSources(lang) {
                       "value": "m",
                       "label": "Minute"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "Time duration unit for query.",
                 "description": "Time duration unit for query.<br>\nSupports abbreviations of numbers and units, such as \"1ms\" for 1 millisecond, \"1s\" for 1 seconds, \"1m\" for 1 minute, \"1h\" for 1 hour, \"1d\" for 1 day, and \"1w\" for 1 week.<br>\nOnly numbers default to seconds as unit.<br>",
-                "placeholder": "1",
+                "placeholder": "The value is an integer ranging [0,60000]",
                 "value": "1d",
                 "type_value": "d",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
@@ -422,13 +428,16 @@ export function getDataSources(lang) {
                       "value": "ms",
                       "label": "millisecond"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "Retrospect data from some time ago into target before realtime data migrating.",
                 "description": "Retrospect data from some time ago into target before realtime data migrating.<br>\nSupports abbreviations of numbers and units, such as \"1ms\" for 1 millisecond, \"1s\" for 1 seconds, \"1m\" for 1 minute, \"1h\" for 1 hour, \"1d\" for 1 day, and \"1w\" for 1 week.<br>\nOnly numbers default to seconds as unit.<br>",
+                "placeholder": "The value is an integer ranging [0,60000]",
                 "value": "0",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               },
               {
@@ -445,14 +454,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "Second"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "Polling interval to query realtime data.",
                 "description": "Polling interval to query realtime data.<br>\nSupports abbreviations of numbers and units, such as \"1ms\" for 1 millisecond, \"1s\" for 1 seconds, \"1m\" for 1 minute, \"1h\" for 1 hour, \"1d\" for 1 day, and \"1w\" for 1 week.<br>\nOnly numbers default to seconds as unit.<br>",
-                "placeholder": "1",
+                "placeholder": "The value is an integer ranging [0,60000]",
                 "value": "1",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               },
               {
@@ -469,14 +480,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "Second"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "Wait for some period to querying random-order data.",
                 "description": "Wait for some period to querying random-order data.<br>\nSupports abbreviations of numbers and units, such as \"1ms\" for 1 millisecond, \"1s\" for 1 seconds, \"1m\" for 1 minute, \"1h\" for 1 hour, \"1d\" for 1 day, and \"1w\" for 1 week.<br>\nOnly numbers default to seconds as unit.<br>",
-                "placeholder": "5",
+                "placeholder": "The value is an integer ranging [0,60000]",
                 "value": "500ms",
                 "type_value": "ms",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
@@ -583,14 +596,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "Second"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 600
                 },
                 "short_description": "The maximum time for automatic backfilling upon connection loss or first startup: `2d`, `3h`, `4m`, etc.",
                 "description": "The maximum time for automatic backfilling upon connection loss or first startup: `2d`, `3h`, `4m`, etc.\n",
-                "placeholder": "30",
+                "placeholder": "The value is an integer ranging [0,600]",
                 "value": "0",
                 "type_value": "m",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
@@ -2605,14 +2620,16 @@ export function getDataSources(lang) {
                       "value": "ms",
                       "label": "Millisecond"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "Specifies the timeout of the Kafka Source. When no data is consumed from Kafka, the data migration task will exit after timeout. The default value is 0 ms.",
                 "description": "Specifies the timeout of the Kafka Source. When no data is consumed from Kafka, the data migration task will exit after timeout. The default value is 0 ms.\nWhen use `timeout=0`, it will wait for an usable message forever and never stop the subscription until any error caused.\n",
                 "required": false,
-                "placeholder": "0",
+                "placeholder": "The value is an integer ranging [0,60000]",
                 "type_value": "ms",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               },
               {
@@ -2665,20 +2682,20 @@ export function getDataSources(lang) {
                 "placeholder": "Earliest",
                 "value": "Earliest"
               },
-              {
-                "name": "fetch_max_wait_time",
-                "display": "Waiting Timeout",
-                "hint": {
-                  "type": "integer",
-                  "min": 0,
-                  "max": 300
-                },
-                "short_description": "A timeout for polling data from the topic.",
-                "description": "A timeout for polling data from the topic.\n\nThe default value `0`: means waiting for valid message without timeout,the unit is s.\n",
-                "required": false,
-                "placeholder": "",
-                "value": 0
-              }
+              // {
+              //   "name": "fetch_max_wait_time",
+              //   "display": "Waiting Timeout",
+              //   "hint": {
+              //     "type": "integer",
+              //     "min": 0,
+              //     "max": 300
+              //   },
+              //   "short_description": "A timeout for polling data from the topic.",
+              //   "description": "A timeout for polling data from the topic.\n\nThe default value `0`: means waiting for valid message without timeout,the unit is s.\n",
+              //   "required": false,
+              //   "placeholder": "",
+              //   "value": 0
+              // }
             ]
           }
         ],
@@ -3051,15 +3068,17 @@ export function getDataSources(lang) {
                       "value": "ns",
                       "label": "Nanoseconds"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "Time window for historical data migration.",
                 "description": "Time window for historical data migration.",
                 "required": false,
-                "placeholder": "1",
+                "placeholder": "The value is an integer ranging [0,60000]",
                 "value": "1",
                 "type_value": "d",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               },
               {
@@ -3088,15 +3107,17 @@ export function getDataSources(lang) {
                       "value": "ms",
                       "label": "millisecond"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "Pull interval for real-time data synchronization.",
                 "description": "Pull interval for real-time data synchronization.",
                 "required": false,
-                "placeholder": "10",
+                "placeholder": "The value is an integer ranging [0,60000]",
                 "value": "10",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               },
               {
@@ -3125,15 +3146,17 @@ export function getDataSources(lang) {
                       "value": "ms",
                       "label": "millisecond"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "The maximum time limit for tolerating out-of-order data delay.",
                 "description": "The maximum time limit for tolerating out-of-order data delay.",
                 "required": false,
-                "placeholder": "0",
+                "placeholder": "The value is an integer ranging [0,60000]",
                 "value": "0",
                 "type_value": "ms",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
@@ -3420,14 +3443,16 @@ export function getDataSources(lang) {
                       "value": "h",
                       "label": "Hours"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 600
                 },
                 "short_description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.",
                 "description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.\n",
                 "required": false,
-                "placeholder": "1",
+                "placeholder": "The value is an integer ranging [0,600]",
                 "type_value": "d",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               },
               {
@@ -3444,14 +3469,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "Second"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.",
                 "description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.\n",
                 "required": false,
-                "placeholder": "10",
+                "placeholder": "The value is an integer ranging [0,60000]",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
@@ -3643,14 +3670,16 @@ export function getDataSources(lang) {
                       "value": "h",
                       "label": "Hours"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 600
                 },
                 "short_description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.",
                 "description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.\n",
                 "required": false,
-                "placeholder": "1",
+                "placeholder": "The value is an integer ranging [0,600]",
                 "type_value": "d",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               },
               {
@@ -3667,14 +3696,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "Second"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.",
                 "description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.\n",
                 "required": false,
-                "placeholder": "10",
+                "placeholder": "The value is an integer ranging [0,60000]",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
@@ -3829,14 +3860,16 @@ export function getDataSources(lang) {
                       "value": "h",
                       "label": "Hours"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 600
                 },
                 "short_description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.",
                 "description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.\n",
                 "required": false,
-                "placeholder": "1",
+                "placeholder": "The value is an integer ranging [0,600]",
                 "type_value": "d",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               },
               {
@@ -3853,14 +3886,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "Second"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.",
                 "description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.\n",
                 "required": false,
-                "placeholder": "10",
+                "placeholder": "The value is an integer ranging [0,60000]",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
@@ -4083,14 +4118,16 @@ export function getDataSources(lang) {
                       "value": "h",
                       "label": "Hours"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 600
                 },
                 "short_description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.",
                 "description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.\n",
                 "required": false,
-                "placeholder": "1",
+                "placeholder": "The value is an integer ranging [0,600]",
                 "type_value": "d",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               },
               {
@@ -4107,14 +4144,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "Second"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.",
                 "description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.\n",
                 "required": false,
-                "placeholder": "10",
+                "placeholder": "The value is an integer ranging [0,60000]",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
@@ -4227,7 +4266,7 @@ export function getDataSources(lang) {
           //   "placeholder": "15",
           //   "value": "15",
           //   "type_value": "s",
-          //   "pattern": "^[0-9]+$",
+          //   "pattern": null,
           //   "patternMsg": "The value can only be a positive integer or 0",
           // }
         },
@@ -4429,14 +4468,16 @@ export function getDataSources(lang) {
                       "value": "h",
                       "label": "Hours"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 600
                 },
                 "short_description": "Interval for querying data in segments. The default value is 1 day. To avoid a large amount of query data, a data synchronization task queries data in time intervals.",
                 "description": "Interval for querying data in segments. The default value is 1 day. To avoid a large amount of query data, a data synchronization task queries data in time intervals.\n",
                 "required": false,
-                "placeholder": "1",
+                "placeholder": "The value is an integer ranging [0,600]",
                 "type_value": "d",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               },
               {
@@ -4453,14 +4494,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "Second"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "In the real-time data synchronization scenario, each synchronization task reads data before the delay to prevent data loss.",
                 "description": "In the real-time data synchronization scenario, each synchronization task reads data before the delay to prevent data loss.\n",
                 "required": false,
-                "placeholder": "10",
+                "placeholder": "The value is an integer ranging [0,60000]",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
@@ -4584,13 +4627,15 @@ export function getDataSources(lang) {
                   "value": "ms",
                   "label": "毫秒"
                 },
-              ]
+              ],
+              "min": 0,
+              "max": 60000
             },
             "short_description": "超时时间范围内没有新增数据，同步任务将自动结束。",
             "description": "超时时间范围内没有新增数据，同步任务将自动结束。\n可配置为：\n- `0`: 表示无超时时间，持续进行订阅。\n- 指定超时时间：`5s`, `1m` 等。\n",
-            "placeholder": "5",
+            "placeholder": "输入范围为[0,60000]整数",
             "type_value": "s",
-            "pattern": "^[0-9]+$",
+            "pattern": null,
             "patternMsg": "只能输入正整数或者0",
           }, {
             "name": "experimental.snapshot.enable",
@@ -4774,14 +4819,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "秒"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "元数据轮询间隔，用于同步过程中的元数据变更检测。",
                 "description": "元数据轮询间隔，用于同步过程中的元数据变更检测。",
-                "placeholder": "5",
+                "placeholder": "输入范围为[0,60000]整数",
                 "value": "5",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               }
             ]
@@ -4864,14 +4911,16 @@ export function getDataSources(lang) {
                       "value": "m",
                       "label": "分钟"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "查询数据的基本单元，长时间范围的查询会以此为依据切割为多次查询。",
                 "description": "查询数据的基本单元，长时间范围的查询会以此为依据切割为多次查询。<br>\n支持使用数字加单位缩写，如\"1ms\"表示1毫秒，\"1s\"表示1秒，\"1m\"表示1分钟，\"1h\"表示1小时，\"1d\"表示1天，\"1w\"表示1周。<br>\n单独使用数字则默认认为是秒。<br>",
-                "placeholder": "1",
+                "placeholder": "输入范围为[0,60000]整数",
                 "value": "1",
                 "type_value": "d",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               }
             ]
@@ -4907,14 +4956,16 @@ export function getDataSources(lang) {
                       "value": "ms",
                       "label": "毫秒"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "在实时同步前回溯一段时间内的数据写入目标库。",
                 "description": "在实时同步前回溯一段时间内的数据写入目标库。<br>\n支持使用数字加单位缩写，如\"1ms\"表示1毫秒，\"1s\"表示1秒，\"1m\"表示1分钟，\"1h\"表示1小时，\"1d\"表示1天，\"1w\"表示1周。<br>\n单独使用数字则默认认为是秒。<br>",
-                "placeholder": "1",
+                "placeholder": "输入范围为[0,60000]整数",
                 "value": "0",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               },
               {
@@ -4931,14 +4982,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "秒"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "轮询查询的时间间隔。",
                 "description": "轮询查询的时间间隔。<br>\n支持使用数字加单位缩写，如\"1ms\"表示1毫秒，\"1s\"表示1秒，\"1m\"表示1分钟，\"1h\"表示1小时，\"1d\"表示1天，\"1w\"表示1周。<br>\n单独使用数字则默认认为是秒。<br>",
-                "placeholder": "1",
+                "placeholder": "输入范围为[0,60000]整数",
                 "value": "1",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               },
               {
@@ -4955,14 +5008,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "秒"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "等待一段时间的乱序数据入库后再进行查询。",
                 "description": "等待一段时间的乱序数据入库后再进行查询。<br>\n支持使用数字加单位缩写，如\"1ms\"表示1毫秒，\"1s\"表示1秒，\"1m\"表示1分钟，\"1h\"表示1小时，\"1d\"表示1天，\"1w\"表示1周。<br>\n单独使用数字则默认认为是秒。<br>",
-                "placeholder": "5",
+                "placeholder": "输入范围为[0,60000]整数",
                 "value": "500",
                 "type_value": "ms",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               }
             ]
@@ -5069,14 +5124,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "秒"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 600
                 },
                 "short_description": "连接丢失或首次启动时自动回填的最长时间：`2d`、`3h`、`4m` 等。",
                 "description": "连接丢失或首次启动时自动回填的最长时间：`2d`、`3h`、`4m` 等。",
-                "placeholder": "30",
+                "placeholder": "输入范围为[0,600]整数",
                 "value": "0",
                 "type_value": "m",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               }
             ]
@@ -7097,14 +7154,16 @@ export function getDataSources(lang) {
                       "value": "ms",
                       "label": "毫秒"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "指定 Kafka Source 的超时时间，当从 Kafka 消费不到任何数据，超过 timeout 后，数据采集任务会退出。 默认值是 0 ms。 当 timeout 设置为 0 时，Kafka Source 会一直等待，直到有数据可用，或者发生错误。",
                 "description": "指定 Kafka Source 的超时时间，当从 Kafka 消费不到任何数据，超过 timeout 后，数据采集任务会退出。 默认值是 0 ms。 当 timeout 设置为 `0` 时，Kafka Source 会一直等待，直到有数据可用，或者发生错误。\n",
                 "required": false,
-                "placeholder": "0",
+                "placeholder": "输入范围为[0,60000]整数",
                 "type_value": "ms",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               },
               {
@@ -7157,20 +7216,20 @@ export function getDataSources(lang) {
                 "placeholder": "Earliest",
                 "value": "Earliest"
               },
-              {
-                "name": "fetch_max_wait_time",
-                "display": "等待超时时间",
-                "hint": {
-                  "type": "integer",
-                  "min": 0,
-                  "max": 300
-                },
-                "short_description": "超时时间范围内没有新增数据，Kafka 任务将自动结束。。",
-                "description": "超时时间范围内没有新增数据，Kafka 任务将自动结束。\n\n默认为 `0`: 表示无超时时间，持续进行订阅，单位为 s。\n",
-                "required": false,
-                "placeholder": "",
-                "value": 0,
-              }
+              // {
+              //   "name": "fetch_max_wait_time",
+              //   "display": "等待超时时间",
+              //   "hint": {
+              //     "type": "integer",
+              //     "min": 0,
+              //     "max": 300
+              //   },
+              //   "short_description": "超时时间范围内没有新增数据，Kafka 任务将自动结束。。",
+              //   "description": "超时时间范围内没有新增数据，Kafka 任务将自动结束。\n\n默认为 `0`: 表示无超时时间，持续进行订阅，单位为 s。\n",
+              //   "required": false,
+              //   "placeholder": "",
+              //   "value": 0,
+              // }
             ]
           }
         ],
@@ -7541,15 +7600,17 @@ export function getDataSources(lang) {
                       "value": "ns",
                       "label": "纳秒"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "历史数据迁移时，每次查询的时间窗口。",
                 "description": "历史数据迁移时，每次查询的时间窗口。\n",
                 "required": false,
-                "placeholder": "1",
+                "placeholder": "输入范围为[0,60000]整数",
                 "value": "1",
                 "type_value": "d",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               },
               {
@@ -7578,15 +7639,17 @@ export function getDataSources(lang) {
                       "value": "ms",
                       "label": "毫秒"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "实时数据同步时，每次查询的时间间隔。",
                 "description": "实时数据同步时，每次查询的时间间隔。\n",
                 "required": false,
-                "placeholder": "10",
+                "placeholder": "输入范围为[0,60000]整数",
                 "value": "10",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               },
               {
@@ -7615,15 +7678,17 @@ export function getDataSources(lang) {
                       "value": "ms",
                       "label": "毫秒"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "容忍乱序数据延迟到达的时间上限。",
                 "description": "容忍乱序数据延迟到达的时间上限。\n",
                 "required": false,
-                "placeholder": "0",
+                "placeholder": "输入范围为[0,60000]整数",
                 "value": "0",
                 "type_value": "ms",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               }
             ]
@@ -7910,14 +7975,16 @@ export function getDataSources(lang) {
                       "value": "h",
                       "label": "小时"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 600
                 },
                 "short_description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。",
                 "description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。\n",
                 "required": false,
-                "placeholder": "1",
+                "placeholder": "输入范围为[0,600]整数",
                 "type_value": "d",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               },
               {
@@ -7934,14 +8001,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "秒"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。",
                 "description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。\n",
                 "required": false,
-                "placeholder": "10",
+                "placeholder": "输入范围为[0,60000]整数",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               }
             ]
@@ -8133,14 +8202,16 @@ export function getDataSources(lang) {
                       "value": "h",
                       "label": "小时"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 600
                 },
                 "short_description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。",
                 "description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。\n",
                 "required": false,
-                "placeholder": "1",
+                "placeholder": "输入范围为[0,600]整数",
                 "type_value": "d",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               },
               {
@@ -8157,14 +8228,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "秒"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。",
                 "description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。\n",
                 "required": false,
-                "placeholder": "10",
+                "placeholder": "输入范围为[0,60000]整数",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               }
             ]
@@ -8319,14 +8392,16 @@ export function getDataSources(lang) {
                       "value": "h",
                       "label": "小时"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 600
                 },
                 "short_description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。",
                 "description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。\n",
                 "required": false,
-                "placeholder": "1",
+                "placeholder": "输入范围为[0,600]整数",
                 "type_value": "d",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               },
               {
@@ -8343,14 +8418,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "秒"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。",
                 "description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。\n",
                 "required": false,
-                "placeholder": "10",
+                "placeholder": "输入范围为[0,60000]整数",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               }
             ]
@@ -8573,14 +8650,16 @@ export function getDataSources(lang) {
                       "value": "h",
                       "label": "小时"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 600
                 },
                 "short_description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。",
                 "description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。\n",
                 "required": false,
-                "placeholder": "1",
+                "placeholder": "输入范围为[0,600]整数",
                 "type_value": "d",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               },
               {
@@ -8597,14 +8676,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "秒"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。",
                 "description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。\n",
                 "required": false,
-                "placeholder": "10",
+                "placeholder": "输入范围为[0,60000]整数",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               }
             ]
@@ -8717,7 +8798,7 @@ export function getDataSources(lang) {
           //   "placeholder": "15",
           //   "value": "15",
           //   "type_value": "s",
-          //   "pattern": "^[0-9]+$",
+          //   "pattern": null,
           //   "patternMsg": "只能输入正整数或者0",
           // }
         },
@@ -8919,14 +9000,16 @@ export function getDataSources(lang) {
                       "value": "h",
                       "label": "小时"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 600
                 },
                 "short_description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。",
                 "description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。\n",
                 "required": false,
-                "placeholder": "1",
+                "placeholder": "输入范围为[0,600]整数",
                 "type_value": "d",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               },
               {
@@ -8943,14 +9026,16 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "秒"
                     },
-                  ]
+                  ],
+                  "min": 0,
+                  "max": 60000
                 },
                 "short_description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。",
                 "description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。\n",
                 "required": false,
-                "placeholder": "10",
+                "placeholder": "输入范围为[0,60000]整数",
                 "type_value": "s",
-                "pattern": "^[0-9]+$",
+                "pattern": null,
                 "patternMsg": "只能输入正整数或者0",
               }
             ]

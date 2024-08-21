@@ -114,16 +114,22 @@
           {{ config.action_text }}
         </el-button>
       </div>
-      <div v-if="config.type == 'composeAppend'">
-        <el-input :placeholder="config.placeholder" v-model="data[field]" class="input-with-select">
-          <el-select style="width: 120px;" v-model="data[field + '_type']" slot="append" :placeholder="$t('timeUnit')">
-            <el-option v-for="item in getOptions()"
-              :key="item.value"
-              v-bind="item"
-              :title="item.label"
-            ></el-option>
-          </el-select>
-        </el-input>
+      <div v-if="config.type == 'composeAppend'" class="input-number-with-select">
+        <el-input-number 
+          style="width: 80%" 
+          :placeholder="config.placeholder" 
+          v-model="data[field]"
+          :max="config.max"
+          :min="config.min"
+          :controls="false">
+        </el-input-number>
+        <el-select style="width: 20%;" v-model="data[field + '_type']" :placeholder="$t('timeUnit')">
+          <el-option v-for="item in getOptions()"
+            :key="item.value"
+            v-bind="item"
+            :title="item.label"
+          ></el-option>
+        </el-select>
       </div>
 
       <UploadCsv
@@ -564,5 +570,20 @@ export default {
       box-shadow: none;
     }
   }
+}
+.input-number-with-select ::v-deep .el-input-number .el-input__inner {
+  text-align: left;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  box-shadow: none;
+  box-shadow: inset 1px 0 0 0 #bebcbc, /* 左边 */
+              inset 0 -1px 0 0 #bebcbc, /* 上边 */
+              inset 0 1px 0 0 #bebcbc; /* 下边 */
+
+}
+.input-number-with-select ::v-deep .el-select .el-input__inner {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: none;
 }
 </style>
