@@ -93,6 +93,11 @@ class TDTestCase:
     @property
     def __err_cfg(self):
         cfg_list = []
+        err_case0 = [
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE0}0 {L0} {NON_PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE1}1 {L1} {NON_PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE1}1 {L2} {NON_PRIMARY_DIR}"
+        ]
         err_case1 = [
             f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE0}0 {L0} {NON_PRIMARY_DIR}",
             f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE1}1 {L1} {PRIMARY_DIR}",
@@ -131,6 +136,7 @@ class TDTestCase:
             f"dataDir {self.taos_data_dir}{os.sep}data33 -1 {NON_PRIMARY_DIR}"
         ]
 
+        cfg_list.append(err_case0)
         cfg_list.append(err_case1)
         cfg_list.append(err_case2)
         cfg_list.append(err_case3)
