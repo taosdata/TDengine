@@ -140,7 +140,7 @@ size_t taos_string_builder_len(taos_string_builder_t *self) {
 }
 
 char *taos_string_builder_dump(taos_string_builder_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_ASSERT_NULL(self != NULL);
   // +1 to accommodate \0
   char *out = (char *)taos_malloc((self->len + 1) * sizeof(char));
   memcpy(out, self->str, self->len + 1);
@@ -148,6 +148,6 @@ char *taos_string_builder_dump(taos_string_builder_t *self) {
 }
 
 char *taos_string_builder_str(taos_string_builder_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_ASSERT_NULL(self != NULL);
   return self->str;
 }

@@ -193,7 +193,7 @@ int taos_metric_formatter_clear(taos_metric_formatter_t *self) {
 }
 
 char *taos_metric_formatter_dump(taos_metric_formatter_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_ASSERT_NULL(self != NULL);
   int r = 0;
   if (self == NULL) return NULL;
   char *data = taos_string_builder_dump(self->string_builder);

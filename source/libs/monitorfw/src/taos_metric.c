@@ -144,7 +144,7 @@ void taos_metric_free_generic(void *item) {
 }
 
 taos_metric_sample_t *taos_metric_sample_from_labels(taos_metric_t *self, const char **label_values) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_ASSERT_NULL(self != NULL);
   int r = 0;
   r = pthread_rwlock_wrlock(self->rwlock);
   if (r) {

@@ -120,7 +120,7 @@ int taos_collector_remove_metric(taos_collector_t *self, const char* key){
 }
 
 taos_metric_t* taos_collector_get_metric(taos_collector_t *self, char *metric_name){
-  TAOS_ASSERT(self != NULL);
+  TAOS_ASSERT_NULL(self != NULL);
   if (self == NULL) return NULL;
   return taos_map_get(self->metrics, metric_name);
 }

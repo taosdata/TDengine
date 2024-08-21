@@ -126,7 +126,7 @@ int taos_collector_registry_register_metric(taos_metric_t *metric) {
 }
 
 int taos_collector_registry_deregister_metric(const char *key) {
-  TAOS_ASSERT(metric != NULL);
+  TAOS_ASSERT(key != NULL);
 
   taos_collector_t *default_collector =
       (taos_collector_t *)taos_map_get(TAOS_COLLECTOR_REGISTRY_DEFAULT->collectors, "default");
@@ -139,7 +139,7 @@ int taos_collector_registry_deregister_metric(const char *key) {
 }
 
 taos_metric_t *taos_collector_registry_get_metric(char* metric_name){
-  TAOS_ASSERT(metric != NULL);
+  TAOS_ASSERT_NULL(metric_name != NULL);
 
   taos_collector_t *default_collector =
       (taos_collector_t *)taos_map_get(TAOS_COLLECTOR_REGISTRY_DEFAULT->collectors, "default");

@@ -199,7 +199,7 @@ static void *taos_map_get_internal(const char *key, size_t *size, size_t *max_si
 }
 
 void *taos_map_get(taos_map_t *self, const char *key) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_ASSERT_NULL(self != NULL);
   int r = 0;
   r = pthread_rwlock_wrlock(self->rwlock);
   if (r) {
@@ -217,7 +217,7 @@ void *taos_map_get(taos_map_t *self, const char *key) {
 }
 
 void *taos_map_get_withoutlock(taos_map_t *self, const char *key) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_ASSERT_NULL(self != NULL);
   int r = 0;
   void *payload =
     taos_map_get_internal(key, &self->size, &self->max_size, self->keys, self->addrs, self->free_value_fn);

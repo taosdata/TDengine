@@ -69,7 +69,7 @@ int taos_linked_list_destroy(taos_linked_list_t *self) {
 }
 
 void *taos_linked_list_first(taos_linked_list_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_ASSERT_NULL(self != NULL);
   if (self->head) {
     return self->head->item;
   } else {
@@ -78,7 +78,7 @@ void *taos_linked_list_first(taos_linked_list_t *self) {
 }
 
 void *taos_linked_list_last(taos_linked_list_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_ASSERT_NULL(self != NULL);
   if (self->tail) {
     return self->tail->item;
   } else {
