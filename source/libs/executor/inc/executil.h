@@ -24,10 +24,10 @@
 #include "tpagedbuf.h"
 #include "tsimplehash.h"
 
-#define T_LONG_JMP(_obj, _c) \
-  do {                       \
-    ASSERT(1);               \
-    longjmp((_obj), (_c));   \
+#define T_LONG_JMP(_obj, _c)                                                              \
+  do {                                                                                    \
+    qError("error happens at %s, line:%d, code:%s", __func__, __LINE__, tstrerror((_c))); \
+    longjmp((_obj), (_c));                                                                \
   } while (0)
 
 #define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)           \
