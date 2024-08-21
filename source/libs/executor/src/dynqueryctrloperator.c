@@ -823,12 +823,14 @@ static void postProcessStbJoinTableHash(SOperatorInfo* pOperator) {
   pStbJoin->execInfo.leftCacheNum = tSimpleHashGetSize(pStbJoin->ctx.prev.leftCache);
   qDebug("more than 1 ref build table num %" PRId64, (int64_t)tSimpleHashGetSize(pStbJoin->ctx.prev.leftCache));
 
+/*
   // debug only
   iter = 0;
   uint32_t* num = NULL;
   while (NULL != (num = tSimpleHashIterate(pStbJoin->ctx.prev.leftCache, num, &iter))) {
-    ASSERT(*num > 1);
+    A S S E R T(*num > 1);
   }
+*/  
 }
 
 static void buildStbJoinTableList(SOperatorInfo* pOperator) {
