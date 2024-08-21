@@ -141,7 +141,7 @@
 #define GRANT_UNIQ_DFT_REPLICA_EXPIRE      GRANT_EXPIRE_DAY
 #define GRANT_UNIQ_DFT_DATAIN_EXPIRE       GRANT_EXPIRE_DAY
 #define GRANT_UNIQ_DFT_DATAIN_SPEED        GRANT_UNIQ_UNLIMITED
-#define GRANT_UNIQ_DFT_DATAIN_NUM          100
+#define GRANT_UNIQ_DFT_DATAIN_NUM          10
 #else
 #define GRANT_UNIQ_DFT_BASIC_EXPIRE        GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_BASIC_TIMESERIES    GRANT_UNIQ_UNLIMITED
@@ -190,9 +190,10 @@ typedef enum {
   CONN_TYPE_ORACLE = 12,
   CONN_TYPE_MSSQL = 13,
   CONN_TYPE_MONGODB = 14,
+  CONN_TYPE_CSV = 15,
   // add future data ins here
   // CONN_TYPE_FUTURE_DATA_IN = XX,
-  CONN_TYPE_DYN_MAX = 15,
+  CONN_TYPE_DYN_MAX = 16,
 } EGrantConnType;
 
 #define CONN_TYPE_MAX_V1 6
@@ -288,12 +289,21 @@ typedef struct {
   int32_t number;
 } SGrantItem32;
 
+/**
+ * @brief SGrantItem64 is used to store grant items used by other applications (such as taosx). SGrantItem64 can be
+ * released independently of taosd. Therefore, the grant name is unknown in the old version of taosd, and the grant name
+ * must be stored in SGrantItem64.
+ */
 typedef struct {
   char    name[GRANT_ITEM_NAME_LEN];
   int32_t expire;
   int64_t number;
 } SGrantItem64;
 
+/**
+ * @brief SGrantItemI64 is used to store grant items used by taosd itself. SGrantItem64 must be released together with
+ * taosd, so the grant name is known in taosd, thus only the grant index should be stored in SGRantItemI64.
+ */
 typedef struct {
   int16_t index;
   int32_t expire;
@@ -334,6 +344,7 @@ typedef struct {
   SArray *pDataIns;  // SGrantDataIns
   SArray *pItem64;   // SGrantItem64
   SArray *pItemI64;  // SGrantItemI64
+  SArray *pItemN64;  // SGrantItem64
 
   // extension
   char *encrypt;
@@ -454,7 +465,7 @@ typedef struct {
     };
   };
   union {
-    int64_t p14;  // since 3.3.0.0
+    int64_t p14;  // since 3.3.2.9
     struct {
       int64_t dataSyncExpireSec : 40;
       int64_t reserve11 : 24;
@@ -471,7 +482,7 @@ typedef struct {
   SGrantDataIn dataIns[CONN_TYPE_DYN_MAX];
   // variants
   SArray *pDataIns;  // SGrantDataIns
-  SArray *pItem64;   // SGrantItem64, deprecated
+  SArray *pItemN64;  // SGrantItem64
 } SGrantStatus;
 
 typedef struct {
