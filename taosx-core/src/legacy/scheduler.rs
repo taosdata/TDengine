@@ -306,8 +306,12 @@ async fn worker(
                             });
                         match breakpoint {
                             Ok(Some(breakpoint)) => {
-                                time_range.start = Some(breakpoint);
-                                tracing::debug!("load breakpoint success set time_range: {time_range} table: {table}");
+                                if time_range.start.is_none()
+                                    || time_range.start.unwrap() < breakpoint
+                                {
+                                    time_range.start = Some(breakpoint);
+                                    tracing::debug!("load breakpoint success set time_range: {time_range} table: {table}");
+                                }
                                 break;
                             }
                             Ok(None) => {
@@ -356,12 +360,9 @@ async fn worker(
                 let _entered = span.enter();
                 match chunks {
                     Ok(chunks) => {
-                        let chunks_len = chunks.len();
-                        span.record("chunks", &chunks_len);
-                        tracing::debug!("Syncing table {table} with {} chunks", chunks_len);
                         let mut chunk_err: Option<String> = None;
                         // chunks
-                        'chunks: for (idx, chunk) in chunks.into_iter().enumerate() {
+                        'chunks: for (idx, chunk) in chunks.enumerate() {
                             let mut query = query.clone();
                             query.time_range = chunk;
                             let table_inner = table.clone();

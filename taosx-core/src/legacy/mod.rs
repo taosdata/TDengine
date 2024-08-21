@@ -29,8 +29,10 @@ use crate::{
     Action,
 };
 
+use self::chunks::TimeChunks;
 use self::scheduler::Scheduler;
 
+mod chunks;
 pub mod legacy_metric;
 mod scheduler;
 mod verify;
@@ -158,6 +160,14 @@ impl TimeRange {
         }
     }
 
+    pub fn get_start(&self) -> Option<DateTime<Utc>> {
+        self.start
+    }
+
+    pub fn get_end(&self) -> Option<DateTime<Utc>> {
+        self.end
+    }
+
     pub const fn start(mut self, start: DateTime<Utc>) -> Self {
         self.start = Some(start);
         self
@@ -209,6 +219,15 @@ impl TimeRange {
             }
             _ => vec![*self],
         }
+    }
+
+    pub fn to_chunks_iter(&self, duration: Duration) -> TimeChunks {
+        let duration = if duration.is_zero() {
+            chrono::Duration::days(1)
+        } else {
+            chrono::Duration::from_std(duration).unwrap()
+        };
+        TimeChunks::new(*self, duration)
     }
 
     pub fn till_now() -> Self {
@@ -296,8 +315,8 @@ async fn split_table_into_time_range_chunks(
     from: &Taos,
     table: &str,
     opts: &QueryOpts,
-) -> anyhow::Result<Vec<TimeRange>> {
-    tracing::debug!("Migrate data from table `{table}`");
+) -> anyhow::Result<TimeChunks> {
+    tracing::debug!("Split table `{table}` into chunks");
 
     let mut time_range = opts.time_range;
     async fn query_ts_with(
@@ -318,24 +337,27 @@ async fn split_table_into_time_range_chunks(
         (true, false) => {
             if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from `{table}`")).await {
                 time_range.end.replace(ts + chrono::Duration::seconds(1));
+                tracing::debug!("Replace end: {:?}", time_range.end);
             }
         }
         (false, true) => {
             if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from `{table}`")).await {
                 time_range.start.replace(ts);
+                tracing::debug!("Replace start: {:?}", time_range.start);
             }
         }
         (false, false) => {
             if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from `{table}`")).await {
                 time_range.start.replace(ts);
+                tracing::debug!("Replace start: {:?}", time_range.start);
             }
             if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from `{table}`")).await {
                 time_range.end.replace(ts + chrono::Duration::seconds(1));
+                tracing::debug!("Replace end: {:?}", time_range.end);
             }
         }
     }
-
-    Ok(time_range.to_chunks(opts.unit))
+    Ok(time_range.to_chunks_iter(opts.unit))
 }
 
 struct WriteContext {
@@ -4077,5 +4099,22 @@ mod tests {
             .await?;
         crate::core_metrics::clear_metrics(tid).await;
         Ok(())
+    }
+
+    // start: 2024-07-31T01:04:39.316816912Z, end: 2024-07-31T01:04:39.437430018Z
+    // start: 2024-07-31T01:04:39.437430018Z, end: 2024-07-31T01:04:39.560152320Z
+    // start: 2024-07-31T01:04:39.560152320Z, end: 2024-07-31T01:04:40.560887126Z
+
+    #[test]
+    fn test_to_chunks() {
+        let start = "2024-07-31T01:04:39.560152320Z";
+        let end = "2024-07-31T01:04:40.560887126Z";
+        let start: DateTime<Utc> = start.parse().unwrap();
+        let end: DateTime<Utc> = end.parse().unwrap();
+        let range = TimeRange::new().start(start).end(end);
+        let unit = Duration::from_secs(1);
+        let chunks = range.to_chunks(unit);
+
+        dbg!(&chunks);
     }
 }
