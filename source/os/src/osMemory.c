@@ -24,7 +24,7 @@
 
 int32_t          tsRandErrChance = 1;
 int64_t          tsRandErrDivisor = 10001;
-int64_t          tsRandErrScope = (RAND_ERR_MEMORY | RAND_ERR_FILE);
+int64_t          tsRandErrScope = (RAND_ERR_MEMORY | RAND_ERR_FILE | RAND_ERR_NETWORK);
 threadlocal bool tsEnableRandErr = 0;
 
 #if defined(USE_TD_MEMORY) || defined(USE_ADDR2LINE)
@@ -388,7 +388,7 @@ char *taosStrdup(const char *ptr) {
   }
 #endif
 
-  return tstrdup(ptr);  
+  return tstrdup(ptr);
 #endif
 }
 

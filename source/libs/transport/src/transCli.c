@@ -923,10 +923,12 @@ static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_
   }
 }
 static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
-  // impl later
+  STUB_RAND_NETWORK_ERR(nread);
+
   if (handle->data == NULL) {
     return;
   }
+
   SCliConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {
@@ -1117,6 +1119,8 @@ static bool cliHandleNoResp(SCliConn* conn) {
   return res;
 }
 static void cliSendCb(uv_write_t* req, int status) {
+  STUB_RAND_NETWORK_ERR(status);
+
   SCliConn* pConn = transReqQueueRemove(req);
   if (pConn == NULL) return;
 
@@ -1434,6 +1438,7 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
   cliSendBatch(conn);
 }
 static void cliSendBatchCb(uv_write_t* req, int status) {
+  STUB_RAND_NETWORK_ERR(status);
   SCliConn*  conn = req->data;
   SCliThrd*  thrd = conn->hostThrd;
   SCliBatch* p = conn->pBatch;
@@ -1522,6 +1527,8 @@ void cliConnCb(uv_connect_t* req, int status) {
     (void)taosArrayPush(pThrd->timerList, &pConn->timer);
     pConn->timer = NULL;
   }
+
+  STUB_RAND_NETWORK_ERR(status);
 
   if (status != 0) {
     cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, pConn->dstAddr);
