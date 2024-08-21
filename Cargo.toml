@@ -197,9 +197,9 @@ tikv-jemalloc-sys = { version = "0.5.4", features = [
     "unprefixed_malloc_on_supported_platforms",
     "stats",
     "profiling",
-] }
-tikv-jemalloc-ctl = "0.5.4"
-jemalloc_pprof = "0.4.2"
+], optional = true }
+tikv-jemalloc-ctl = { version = "0.5.4", optional = true }
+jemalloc_pprof = { version = "0.4.2", optional = true }
 
 [build-dependencies]
 sqlx = { version = "0.7", features = ["sqlite", "chrono", "mysql"] }
@@ -213,7 +213,12 @@ tower = "0.4"
 [features]
 default = ["optin", "native-tls", "mimalloc"]
 optin = ["taos/optin", "taosx-core/optin"]
-jemallocator = ["tikv-jemallocator"]
+jemallocator = [
+    "tikv-jemallocator",
+    "tikv-jemalloc-sys",
+    "tikv-jemalloc-ctl",
+    "jemalloc_pprof",
+]
 rustls = ["sqlx/runtime-tokio-rustls", "taos/ws-rustls", "taosx-core/rustls"]
 native-tls = [
     "sqlx/runtime-tokio-native-tls",
