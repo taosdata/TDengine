@@ -81,9 +81,6 @@ static int32_t tsdbCompactFSetOpenReader(SCompactor2 *compactor) {
   int32_t    lino = 0;
   STFileObj *fobj;
 
-  ASSERT(compactor->ctx->dataReader == NULL);
-  ASSERT(TARRAY2_SIZE(compactor->ctx->sttReaderArr) == 0);
-
   // data
   SDataFileReaderConfig dataFileReaderConfig = {
       .tsdb = compactor->tsdb,
@@ -154,11 +151,6 @@ static int32_t tsdbCompactFSetOpenIter(SCompactor2 *compactor) {
 
   STsdbIter      *iter;
   STsdbIterConfig iterConfig = {0};
-
-  ASSERT(compactor->ctx->dataIterMerger == NULL);
-  ASSERT(compactor->ctx->tombIterMerger == NULL);
-  ASSERT(TARRAY2_SIZE(compactor->ctx->dataIterArr) == 0);
-  ASSERT(TARRAY2_SIZE(compactor->ctx->tombIterArr) == 0);
 
   // data
   if (compactor->ctx->dataReader != NULL) {
@@ -240,7 +232,6 @@ static int32_t tsdbCompactFSetOpenWriter(SCompactor2 *compactor) {
     lcn = fobj->f->lcn;
   }
 
-  ASSERT(compactor->ctx->writer == NULL);
   SFSetWriterConfig config = {
       .tsdb = compactor->tsdb,
       .toSttOnly = false,
@@ -422,7 +413,6 @@ static bool tsdbRowIsDeleted(SCompactor2 *compactor, TSDBROW *row) {
       return true;
     }
   } else if (tKey.ts == compactor->ctx->pDKey->ts) {
-    ASSERT(compactor->ctx->iSkyLine < nKey);
     if (tKey.version > TMAX(compactor->ctx->pDKey->version, aKey[compactor->ctx->iSkyLine].version)) {
       return false;
     } else {
