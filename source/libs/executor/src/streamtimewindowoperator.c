@@ -370,6 +370,19 @@ static void doBuildDeleteResult(SStreamIntervalOperatorInfo* pInfo, SArray* pWin
   }
 }
 
+void destroyFlusedPos(void* pRes) {
+  SRowBuffPos* pPos = (SRowBuffPos*) pRes;
+  if (!pPos->pRowBuff) {
+    taosMemoryFreeClear(pPos->pKey);
+    taosMemoryFree(pPos);
+  }
+}
+
+void destroyFlusedppPos(void* ppRes) {
+  void *pRes = *(void **)ppRes;
+  destroyFlusedPos(pRes);
+}
+
 void destroyStreamFinalIntervalOperatorInfo(void* param) {
   SStreamIntervalOperatorInfo* pInfo = (SStreamIntervalOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
@@ -1454,6 +1467,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
+  tSimpleHashSetFreeFp(pInfo->aggSup.pResultRowHashTable, destroyFlusedppPos);
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
@@ -3710,6 +3724,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
+  tSimpleHashSetFreeFp(pInfo->aggSup.pResultRowHashTable, destroyFlusedppPos);
 
   if (pIntervalPhyNode->window.pExprs != NULL) {
     int32_t    numOfScalar = 0;
