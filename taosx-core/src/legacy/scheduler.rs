@@ -306,8 +306,12 @@ async fn worker(
                             });
                         match breakpoint {
                             Ok(Some(breakpoint)) => {
-                                time_range.start = Some(breakpoint);
-                                tracing::debug!("load breakpoint success set time_range: {time_range} table: {table}");
+                                if time_range.start.is_none()
+                                    || time_range.start.unwrap() < breakpoint
+                                {
+                                    time_range.start = Some(breakpoint);
+                                    tracing::debug!("load breakpoint success set time_range: {time_range} table: {table}");
+                                }
                                 break;
                             }
                             Ok(None) => {
