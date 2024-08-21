@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "monitor.h"
 #include "vnd.h"
 #include "vndCos.h"
 
@@ -39,6 +40,8 @@ int vnodeInit(int nthreads) {
   if (s3Init() < 0) {
     return -1;
   }
+
+  monInitVnode();
 
   return 0;
 }
