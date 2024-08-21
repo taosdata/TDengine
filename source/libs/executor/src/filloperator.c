@@ -405,8 +405,12 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
   //  STimeWindow w = {0};
   //  getInitialStartTimeWindow(pInterval, startKey, &w, order == TSDB_ORDER_ASC);
   pInfo->pFillInfo = NULL;
-  taosCreateFillInfo(startKey, numOfCols, numOfNotFillCols, capacity, pInterval, fillType, pColInfo,
-                     pInfo->primaryTsCol, order, id, pTaskInfo, &pInfo->pFillInfo);
+  int32_t code = taosCreateFillInfo(startKey, numOfCols, numOfNotFillCols, capacity, pInterval, fillType, pColInfo,
+                                    pInfo->primaryTsCol, order, id, pTaskInfo, &pInfo->pFillInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    return code;
+  }
 
   if (order == TSDB_ORDER_ASC) {
     pInfo->win.skey = win.skey;
@@ -575,6 +579,9 @@ _error:
   pTaskInfo->code = code;
   if (pOperator != NULL) {
     pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
     destroyOperator(pOperator);
   }
   return code;

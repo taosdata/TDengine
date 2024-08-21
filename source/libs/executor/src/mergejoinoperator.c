@@ -1746,6 +1746,9 @@ void destroyGrpArray(void* ppArray) {
 }
 
 void destroyMergeJoinTableCtx(SMJoinTableCtx* pTable) {
+  if (NULL == pTable) {
+    return;
+  }
   mJoinDestroyCreatedBlks(pTable->createdBlks);
   taosArrayDestroy(pTable->createdBlks);
   tSimpleHashCleanup(pTable->pGrpHash);
@@ -1863,13 +1866,14 @@ int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDo
 
   bool newDownstreams = false;
   int32_t code = TSDB_CODE_SUCCESS;
+  SOperatorInfo* pOperator = NULL;
   SMJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SMJoinOperatorInfo));
   if (pInfo == NULL) {
     code = terrno;
     goto _return;
   }
 
-  SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL) {
     code = terrno;
     goto _return;

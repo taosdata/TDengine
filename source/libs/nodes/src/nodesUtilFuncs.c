@@ -238,7 +238,7 @@ void nodesDestroyAllocatorSet() {
       (void)taosRemoveRef(g_allocatorReqRefPool, refId);
       pAllocator = taosIterateRef(g_allocatorReqRefPool, refId);
     }
-    (void)taosCloseRef(g_allocatorReqRefPool);
+    taosCloseRef(g_allocatorReqRefPool);
   }
 }
 

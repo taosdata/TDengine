@@ -131,27 +131,6 @@ int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t stream
   return streamTaskSchedTask(cb, vgId, streamId, taskId, STREAM_EXEC_T_START_ONE_TASK);
 }
 
-int32_t tqStreamTaskRestoreCheckpoint(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
-  int32_t vgId = pMeta->vgId;
-  int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
-  if (numOfTasks == 0) {
-    tqDebug("vgId:%d no stream tasks existed to run", vgId);
-    return 0;
-  }
-
-  tqDebug("vgId:%d restore task:0x%" PRIx64 "-0x%x checkpointId", vgId, streamId, taskId);
-  SStreamTask* pTask = NULL;
-  int32_t code = streamMetaAcquireTask(pMeta, streamId, taskId, &pTask);
-  if (pTask == NULL) {
-    tqError("failed to acquire task:0x%x when trying to restore checkpointId", taskId);
-    return TSDB_CODE_STREAM_TASK_NOT_EXIST;
-  }
-
-  code = streamTaskSendRestoreChkptMsg(pTask);
-  streamMetaReleaseTask(pMeta, pTask);
-  return code;
-}
-
 // this is to process request from transaction, always return true.
 int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored) {
   int32_t vgId = pMeta->vgId;
@@ -193,28 +172,23 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   SStreamTask* pTask = *ppTask;
   const char*  idstr = pTask->id.idStr;
 
-  if (pMeta->updateInfo.transId == -1) { // info needs to be kept till the new trans to update the nodeEp arrived.
-    streamMetaInitUpdateTaskList(pMeta, req.transId);
+  if (req.transId <= 0) {
+    tqError("vgId:%d invalid update nodeEp task, transId:%d, discard", vgId, req.taskId);
+    rsp.code = TSDB_CODE_SUCCESS;
+    streamMetaWUnLock(pMeta);
+
+    taosArrayDestroy(req.pNodeList);
+    return rsp.code;
   }
 
-  if (pMeta->updateInfo.transId != req.transId) {
-    if (req.transId < pMeta->updateInfo.transId) {
-      tqError("s-task:%s vgId:%d disorder update nodeEp msg recv, discarded, newest transId:%d, recv:%d", idstr, vgId,
-              pMeta->updateInfo.transId, req.transId);
-      rsp.code = TSDB_CODE_SUCCESS;
-      streamMetaWUnLock(pMeta);
+  // info needs to be kept till the new trans to update the nodeEp arrived.
+  bool update = streamMetaInitUpdateTaskList(pMeta, req.transId);
+  if (!update) {
+    rsp.code = TSDB_CODE_SUCCESS;
+    streamMetaWUnLock(pMeta);
 
-      taosArrayDestroy(req.pNodeList);
-      return rsp.code;
-    } else {
-      tqInfo("s-task:%s vgId:%d receive new trans to update nodeEp msg from mnode, transId:%d, prev transId:%d", idstr,
-             vgId, req.transId, pMeta->updateInfo.transId);
-      // info needs to be kept till the new trans to update the nodeEp arrived.
-      streamMetaInitUpdateTaskList(pMeta, req.transId);
-    }
-  } else {
-    tqDebug("s-task:%s vgId:%d recv trans to update nodeEp from mnode, transId:%d, recorded update transId:%d", idstr,
-            vgId, req.transId, pMeta->updateInfo.transId);
+    taosArrayDestroy(req.pNodeList);
+    return rsp.code;
   }
 
   // duplicate update epset msg received, discard this redundant message
@@ -311,7 +285,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
       //     persist to disk
     }
 
-    streamMetaClearUpdateTaskList(pMeta);
+    streamMetaClearSetUpdateTaskListComplete(pMeta);
 
     if (!restored) {
       tqDebug("vgId:%d vnode restore not completed, not start all tasks", vgId);
@@ -775,8 +749,8 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   streamMetaWUnLock(pMeta);
 
   terrno = 0;
-  tqInfo("vgId:%d tasks are all updated and stopped, restart all tasks, triggered by transId:%d", vgId,
-         pMeta->updateInfo.transId);
+  tqInfo("vgId:%d tasks are all updated and stopped, restart all tasks, triggered by transId:%d, ts:%" PRId64, vgId,
+         pMeta->updateInfo.completeTransId, pMeta->updateInfo.completeTs);
 
   while (streamMetaTaskInTimer(pMeta)) {
     tqDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
@@ -902,7 +876,7 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
       return restartStreamTasks(pMeta, (pMeta->role == NODE_ROLE_LEADER));
     } else {
       if (pStartInfo->restartCount == 0) {
-        tqDebug("vgId:%d start all tasks completed in callbackFn, restartCount is 0", pMeta->vgId);
+        tqDebug("vgId:%d start all tasks completed in callbackFn, restartCounter is 0", pMeta->vgId);
       } else if (allReady) {
         pStartInfo->restartCount = 0;
         tqDebug("vgId:%d all tasks are ready, reset restartCounter 0, not restart tasks", vgId);

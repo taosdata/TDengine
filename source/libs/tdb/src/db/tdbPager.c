@@ -1180,7 +1180,7 @@ int tdbPagerRestoreJournals(SPager *pPager) {
     if (code) {
       taosArrayDestroy(pTxnList);
       (void)tdbCloseDir(&pDir);
-      tdbError("failed to restore file due to %s. jFileName:%s", strerror(code), jname);
+      tdbError("failed to restore file due to %s. jFileName:%s", tstrerror(code), jname);
       return code;
     }
   }

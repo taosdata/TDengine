@@ -85,6 +85,10 @@ int32_t tScalableBfPutNoCheck(SScalableBf* pSBf, const void* keyBuf, uint32_t le
                                 pNormalBf->errorRate * DEFAULT_TIGHTENING_RATIO, &pNormalBf);
     if (code != TSDB_CODE_SUCCESS) {
       pSBf->status = SBF_INVALID;
+      if (code == TSDB_CODE_OUT_OF_BUFFER) {
+        code = TSDB_CODE_SUCCESS;
+        return code;
+      }
       QUERY_CHECK_CODE(code, lino, _error);
     }
   }
@@ -121,6 +125,11 @@ int32_t tScalableBfPut(SScalableBf* pSBf, const void* keyBuf, uint32_t len, int3
                                 pNormalBf->errorRate * DEFAULT_TIGHTENING_RATIO, &pNormalBf);
     if (code != TSDB_CODE_SUCCESS) {
       pSBf->status = SBF_INVALID;
+      if (code == TSDB_CODE_OUT_OF_BUFFER) {
+        code = TSDB_CODE_SUCCESS;
+        (*winRes) = TSDB_CODE_FAILED;
+        goto _end;
+      }
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -188,19 +197,19 @@ void tScalableBfDestroy(SScalableBf* pSBf) {
 
 int32_t tScalableBfEncode(const SScalableBf* pSBf, SEncoder* pEncoder) {
   if (!pSBf) {
-    if (tEncodeI32(pEncoder, 0) < 0) return -1;
+    TAOS_CHECK_RETURN(tEncodeI32(pEncoder, 0));
     return 0;
   }
   int32_t size = taosArrayGetSize(pSBf->bfArray);
-  if (tEncodeI32(pEncoder, size) < 0) return -1;
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, size));
   for (int32_t i = 0; i < size; i++) {
     SBloomFilter* pBF = taosArrayGetP(pSBf->bfArray, i);
-    if (tBloomFilterEncode(pBF, pEncoder) < 0) return -1;
+    TAOS_CHECK_RETURN(tBloomFilterEncode(pBF, pEncoder));
   }
-  if (tEncodeU32(pEncoder, pSBf->growth) < 0) return -1;
-  if (tEncodeU64(pEncoder, pSBf->numBits) < 0) return -1;
-  if (tEncodeU32(pEncoder, pSBf->maxBloomFilters) < 0) return -1;
-  if (tEncodeI8(pEncoder, pSBf->status) < 0) return -1;
+  TAOS_CHECK_RETURN(tEncodeU32(pEncoder, pSBf->growth));
+  TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pSBf->numBits));
+  TAOS_CHECK_RETURN(tEncodeU32(pEncoder, pSBf->maxBloomFilters));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pSBf->status));
   return 0;
 }
 

@@ -1814,6 +1814,10 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
       QUERY_CHECK_CODE(code, lino, _end);
       res->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};
       code = nodesListAppend(pFuncNode->pParameterList, (SNode*)res);
+      if (code != TSDB_CODE_SUCCESS) {
+        nodesDestroyNode((SNode*)res);
+        res = NULL;
+      }
       QUERY_CHECK_CODE(code, lino, _end);
     }
 #endif
@@ -1938,6 +1942,8 @@ int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** 
       pTargetNode = (STargetNode*)nodesListGetNode(pGroupKeys, i - numOfFuncs);
     }
     if (!pTargetNode) {
+      destroyExprInfo(pExprs, *numOfExprs);
+      taosMemoryFreeClear(pExprs);
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       return terrno;
     }
@@ -1945,6 +1951,7 @@ int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** 
     SExprInfo* pExp = &pExprs[i];
     code = createExprFromTargetNode(pExp, pTargetNode);
     if (code != TSDB_CODE_SUCCESS) {
+      destroyExprInfo(pExprs, *numOfExprs);
       taosMemoryFreeClear(pExprs);
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       return code;

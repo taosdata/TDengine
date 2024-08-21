@@ -1980,7 +1980,7 @@ _err:
   tDecoderClear(&coder);
   vError("vgId:%d, failed to create tsma %s:%" PRIi64 " version %" PRIi64 "for table %" PRIi64 " since %s",
          TD_VID(pVnode), req.indexName, req.indexUid, ver, req.tableUid, terrstr());
-  return -1;
+  return terrno;
 }
 
 /**

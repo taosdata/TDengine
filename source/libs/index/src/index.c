@@ -74,7 +74,7 @@ void indexCleanup() {
   // refacto later
   taosCleanUpScheduler(indexQhandle);
   taosMemoryFreeClear(indexQhandle);
-  (void)taosCloseRef(indexRefMgt);
+  taosCloseRef(indexRefMgt);
 }
 
 typedef struct SIdxColInfo {

@@ -1,19 +1,21 @@
 import taosws
 
+host = "localhost"
+port = 6041
 def prepare():
     conn = None
     try:
         conn = taosws.connect(user="root",
                             password="taosdata",
-                            host="localhost",
-                            port=6041)
+                            host=host,
+                            port=port)
 
         # create database
         rowsAffected = conn.execute(f"CREATE DATABASE IF NOT EXISTS power")
         assert rowsAffected == 0
 
     except Exception as err:
-        print(f"Failed to create db and table, err:{err}")
+        print(f"Failed to create db and table, db addrr:{host}:{port} ; ErrMessage:{err}")
         raise err
     finally:
         if conn:
@@ -32,8 +34,7 @@ def schemaless_insert():
     jsonDemo = [
         '{"metric": "metric_json","timestamp": 1626846400,"value": 10.3, "tags": {"groupid": 2, "location": "California.SanFrancisco", "id": "d1001"}}'
     ]
-    host = "localhost"
-    port = 6041
+
     try:
         conn = taosws.connect(user="root",
                               password="taosdata",
@@ -66,7 +67,7 @@ def schemaless_insert():
         )
         print("Inserted data with schemaless successfully.");
     except Exception as err:
-        print(f"Failed to insert data with schemaless, addr: {host}:{port}  ErrMessage:{err}")
+        print(f"Failed to insert data with schemaless, ErrMessage:{err}")
         raise err
     
     finally:
@@ -76,6 +77,6 @@ def schemaless_insert():
 if __name__ == "__main__":
     try:
         prepare()
-        schemaless_insert
+        schemaless_insert()
     except Exception as err:
           print(f"Failed to insert data with schemaless, err:{err}")   

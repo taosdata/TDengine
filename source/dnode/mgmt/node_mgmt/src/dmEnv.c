@@ -414,6 +414,7 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .getVnodeLoadsLiteFp = dmGetVnodeLoadsLite,
       .getMnodeLoadsFp = dmGetMnodeLoads,
       .getQnodeLoadsFp = dmGetQnodeLoads,
+      .stopDnodeFp = dmStop,
   };
 
   opt.msgCb = dmGetMsgcb(pWrapper->pDnode);

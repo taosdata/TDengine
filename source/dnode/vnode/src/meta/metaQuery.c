@@ -275,12 +275,14 @@ void metaPauseTbCursor(SMTbCursor *pTbCur) {
 int32_t metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
   int32_t code = 0;
   int32_t lino;
-
+  int8_t locked = 0;
   if (pTbCur->paused) {
     metaReaderDoInit(&pTbCur->mr, pTbCur->pMeta, META_READER_LOCK);
-
+    locked = 1; 
     code = tdbTbcOpen(((SMeta *)pTbCur->pMeta)->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    if (code != 0) {
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
 
     if (first) {
       code = tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
@@ -304,6 +306,9 @@ int32_t metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
   }
 
 _exit:
+  if (code != 0 && locked) {
+    metaReaderReleaseLock(&pTbCur->mr);
+  }
   return code;
 }
 
@@ -689,9 +694,13 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
   SSchemaWrapper *pSchemaWrapper = &schema;
 
   tDecoderInit(&dc, pData, nData);
-  (void)tDecodeSSchemaWrapper(&dc, pSchemaWrapper);
+  code = tDecodeSSchemaWrapper(&dc, pSchemaWrapper);
   tDecoderClear(&dc);
   tdbFree(pData);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosMemoryFree(pSchemaWrapper->pSchema);
+    goto _exit;
+  }
 
   // convert
   STSchema *pTSchema = tBuildTSchema(pSchemaWrapper->pSchema, pSchemaWrapper->nCols, pSchemaWrapper->version);
@@ -791,6 +800,7 @@ void metaCloseSmaCursor(SMSmaCursor *pSmaCur) {
     if (pSmaCur->pMeta) metaULock(pSmaCur->pMeta);
     if (pSmaCur->pCur) {
       (void)tdbTbcClose(pSmaCur->pCur);
+      pSmaCur->pCur = NULL;
 
       tdbFree(pSmaCur->pKey);
       tdbFree(pSmaCur->pVal);
@@ -1307,7 +1317,8 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
   }
 
   TAOS_CHECK_GOTO(metaCreateTagIdxKey(pCursor->suid, pCursor->cid, tagData, nTagData, pCursor->type,
-                             param->reverse ? INT64_MAX : INT64_MIN, &pKey, &nKey), NULL, END);
+                                      param->reverse ? INT64_MAX : INT64_MIN, &pKey, &nKey),
+                  NULL, END);
 
   int cmp = 0;
   TAOS_CHECK_GOTO(tdbTbcMoveTo(pCursor->pCur, pKey, nKey, &cmp), 0, END);

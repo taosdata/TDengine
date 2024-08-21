@@ -320,7 +320,7 @@ static int32_t buildMergeJoinOperatorParam(SOperatorParam** ppRes, bool initPara
     return code;
   }
   (*ppRes)->pChildren = taosArrayInit(2, POINTER_BYTES);
-  if (NULL == *ppRes) {
+  if (NULL == (*ppRes)->pChildren) {
     code = terrno;
     freeOperatorParam(pChild0, OP_GET_PARAM);
     freeOperatorParam(pChild1, OP_GET_PARAM);
@@ -966,13 +966,14 @@ int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numO
 
   int32_t                    code = TSDB_CODE_SUCCESS;
   __optr_fn_t                nextFp = NULL;
+  SOperatorInfo*             pOperator = NULL;
   SDynQueryCtrlOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SDynQueryCtrlOperatorInfo));
   if (pInfo == NULL) {
     code = terrno;
     goto _error;
   }
 
-  SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL) {
     code = terrno;
     goto _error;

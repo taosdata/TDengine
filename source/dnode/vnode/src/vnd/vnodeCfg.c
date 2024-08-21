@@ -301,8 +301,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
 #if defined(TD_ENTERPRISE)
   if (pCfg->tdbEncryptAlgorithm == DND_CA_SM4) {
     if (tsEncryptKey[0] == 0) {
-      terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
-      return -1;
+      return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
       strncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
     }
@@ -376,11 +375,11 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   }
 
   tjsonGetNumberValue(pJson, "s3ChunkSize", pCfg->s3ChunkSize, code);
-  if (code < 0) {
+  if (code < 0 || pCfg->s3ChunkSize < TSDB_MIN_S3_CHUNK_SIZE) {
     pCfg->s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
   }
   tjsonGetNumberValue(pJson, "s3KeepLocal", pCfg->s3KeepLocal, code);
-  if (code < 0) {
+  if (code < 0 || pCfg->s3KeepLocal < TSDB_MIN_S3_KEEP_LOCAL) {
     pCfg->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
   }
   tjsonGetNumberValue(pJson, "s3Compact", pCfg->s3Compact, code);

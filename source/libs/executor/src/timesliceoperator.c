@@ -1212,6 +1212,9 @@ _error:
   if (pInfo != NULL) destroyTimeSliceOperatorInfo(pInfo);
   if (pOperator != NULL) {
     pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
     destroyOperator(pOperator);
   }
   pTaskInfo->code = code;
@@ -1249,10 +1252,11 @@ void destroyTimeSliceOperatorInfo(void* param) {
   }
 
   cleanupExprSupp(&pInfo->scalarSup);
-
-  for (int32_t i = 0; i < pInfo->pFillColInfo->numOfFillExpr; ++i) {
-    taosVariantDestroy(&pInfo->pFillColInfo[i].fillVal);
+  if (pInfo->pFillColInfo != NULL) {
+    for (int32_t i = 0; i < pInfo->pFillColInfo->numOfFillExpr; ++i) {
+      taosVariantDestroy(&pInfo->pFillColInfo[i].fillVal);
+    }
+    taosMemoryFree(pInfo->pFillColInfo);
   }
-  taosMemoryFree(pInfo->pFillColInfo);
   taosMemoryFreeClear(param);
 }

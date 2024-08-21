@@ -166,7 +166,10 @@ int32_t taos_connect_internal(const char* ip, const char* user, const char* pass
 
     pInst = &p;
   } else {
-    ASSERTS((*pInst) && (*pInst)->pAppHbMgr, "*pInst:%p, pAppHgMgr:%p", *pInst, (*pInst) ? (*pInst)->pAppHbMgr : NULL);
+    if (NULL == *pInst || NULL == (*pInst)->pAppHbMgr) {
+      tscError("*pInst:%p, pAppHgMgr:%p", *pInst, (*pInst) ? (*pInst)->pAppHbMgr : NULL);
+      TSC_ERR_JRET(TSDB_CODE_TSC_INTERNAL_ERROR);
+    }
     // reset to 0 in case of conn with duplicated user key but its user has ever been dropped.
     atomic_store_8(&(*pInst)->pAppHbMgr->connHbFlag, 0);
   }
@@ -1135,8 +1138,6 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
         (void)atomic_add_fetch_64((int64_t*)&pActivity->numOfInsertRows, pResult->numOfRows);
       }
     }
-
-    schedulerFreeJob(&pRequest->body.queryJob, 0);
   }
 
   taosMemoryFree(pResult);
@@ -2038,9 +2039,9 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, i
   // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
   // length |
   int32_t cols = *(int32_t*)(p + sizeof(int32_t) * 3);
-  if (ASSERT(numOfCols == cols)) {
+  if (numOfCols != cols) {
     tscError("estimateJsonLen error: numOfCols:%d != cols:%d", numOfCols, cols);
-    return -1;
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
   int32_t  len = getVersion1BlockMetaSize(p, numOfCols);
@@ -2125,7 +2126,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
 
   int32_t totalLen = 0;
   int32_t cols = *(int32_t*)(p + sizeof(int32_t) * 3);
-  if (ASSERT(numOfCols == cols)) {
+  if (numOfCols != cols) {
     tscError("doConvertJson error: numOfCols:%d != cols:%d", numOfCols, cols);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
@@ -2150,7 +2151,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
   for (int32_t i = 0; i < numOfCols; ++i) {
     int32_t colLen = (blockVersion == BLOCK_VERSION_1) ? htonl(colLength[i]) : colLength[i];
     int32_t colLen1 = (blockVersion == BLOCK_VERSION_1) ? htonl(colLength1[i]) : colLength1[i];
-    if (ASSERT(colLen < dataLen)) {
+    if (colLen >= dataLen) {
       tscError("doConvertJson error: colLen:%d >= dataLen:%d", colLen, dataLen);
       return TSDB_CODE_TSC_INTERNAL_ERROR;
     }
@@ -2238,7 +2239,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
 
 int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows,
                          bool convertUcs4) {
-  if (ASSERT(numOfCols > 0 && pFields != NULL && pResultInfo != NULL)) {
+  if (numOfCols <= 0 || pFields == NULL || pResultInfo == NULL) {
     tscError("setResultDataPtr paras error");
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
@@ -2271,7 +2272,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   int32_t cols = *(int32_t*)p;
   p += sizeof(int32_t);
 
-  if (ASSERT(rows == numOfRows && cols == numOfCols)) {
+  if (rows != numOfRows || cols != numOfCols) {
     tscError("setResultDataPtr paras error:rows;%d numOfRows:%d cols:%d numOfCols:%d", rows, numOfRows, cols,
              numOfCols);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
@@ -2290,8 +2291,6 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
 
     int32_t bytes = *(int32_t*)p;
     p += sizeof(int32_t);
-
-    /*ASSERT(type == pFields[i].type && bytes == pFields[i].bytes);*/
   }
 
   int32_t* colLength = (int32_t*)p;
@@ -2413,18 +2412,23 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
 
     if (pRsp->compressed && compLen < rawLen) {
       int32_t len = tsDecompressString(pStart, compLen, 1, pResultInfo->decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
-      ASSERT(len == rawLen);
       if (len < 0) {
         tscError("tsDecompressString failed");
         return terrno ? terrno : TSDB_CODE_FAILED;
       }
-
+      if (len != rawLen) {
+        tscError("tsDecompressString failed, len:%d != rawLen:%d", len, rawLen);
+        return TSDB_CODE_TSC_INTERNAL_ERROR;
+      }
       pResultInfo->pData = pResultInfo->decompBuf;
       pResultInfo->payloadLen = rawLen;
     } else {
       pResultInfo->pData = pStart;
       pResultInfo->payloadLen = htonl(pRsp->compLen);
-      ASSERT(pRsp->compLen == pRsp->payloadLen);
+      if (pRsp->compLen != pRsp->payloadLen) {
+        tscError("pRsp->compLen:%d != pRsp->payloadLen:%d", pRsp->compLen, pRsp->payloadLen);
+        return TSDB_CODE_TSC_INTERNAL_ERROR;
+      }
     }
   }
 

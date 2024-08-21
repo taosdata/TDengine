@@ -570,7 +570,12 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
   } else {
-    (void)pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
+    code = pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
+    if (code != 0) {
+      pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+      pInfo->pCur = NULL;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
   }
 
   if (pInfo->pSchema == NULL) {
@@ -786,7 +791,8 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
     QUERY_CHECK_NULL(pInfo->pCur, code, lino, _end, terrno);
   } else {
-    (void)pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
+    code = pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   while ((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_SUPER_TABLE)) == 0) {
@@ -1589,7 +1595,12 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
     firstMetaCursor = 1;
   }
   if (!firstMetaCursor) {
-    (void)pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 1);
+    code = pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 1);
+    if (code != 0) {
+      pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+      pInfo->pCur = NULL;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
   }
 
   blockDataCleanup(pInfo->pRes);
@@ -1659,6 +1670,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
         pAPI->metaReaderFn.clearReader(&mr);
         pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
         pInfo->pCur = NULL;
+        blockDataDestroy(p);
         T_LONG_JMP(pTaskInfo->env, terrno);
       }
 
@@ -1818,6 +1830,8 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     blockDataDestroy(p);
     pTaskInfo->code = code;
+    pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+    pInfo->pCur = NULL;
     T_LONG_JMP(pTaskInfo->env, code);
   }
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;

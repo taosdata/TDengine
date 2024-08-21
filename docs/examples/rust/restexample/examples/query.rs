@@ -11,7 +11,8 @@ async fn main() -> anyhow::Result<()> {
 
     // ANCHOR: query_data
     // query data, make sure the database and table are created before
-    match taos.query("SELECT ts, current, location FROM power.meters limit 100").await{
+    let sql = "SELECT ts, current, location FROM power.meters limit 100";
+    match taos.query(sql).await{
         Ok(mut result) => {
             for field in result.fields() {
                 println!("got field: {}", field.name());
@@ -30,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Err(err) => {
-            eprintln!("Failed to query data from power.meters, dsn: {}; ErrMessage: {}", dsn, err);
+            eprintln!("Failed to query data from power.meters, sql: {}, ErrMessage: {}", sql, err);
             return Err(err.into());
         }
     }
@@ -51,6 +52,7 @@ async fn main() -> anyhow::Result<()> {
         location: String,
     }
 
+    let sql = "SELECT ts, current, location FROM power.meters limit 100";
     match taos.query("SELECT ts, current, location FROM power.meters limit 100").await {
         Ok(mut query) => {
             match query.deserialize::<Record>().try_collect::<Vec<_>>().await {
@@ -64,7 +66,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Err(err) => {
-            eprintln!("Failed to query data from power.meters, url: {}; ErrMessage: {}", dsn, err);
+            eprintln!("Failed to query data from power.meters, sql: {}, ErrMessage: {}", sql, err);
             return Err(err.into());
         }
     }
@@ -92,7 +94,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Err(err) => {
-            eprintln!("Failed to execute sql with reqId: {}, dsn: {}; ErrMessage: {}", req_id, dsn, err);
+            eprintln!("Failed to execute sql with reqId: {}, ErrMessage: {}", req_id, err);
             return Err(err.into());
         }
     }

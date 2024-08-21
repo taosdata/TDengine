@@ -79,6 +79,7 @@ scan_scripts="$CONTAINER_TESTDIR/tests/ci/scan_file_path.py"
 ulimit -c unlimited
 cat << EOF
 docker run \
+    -v /root/.cos-local.1:/root/.cos-local.2 \
     -v $REP_MOUNT_PARAM \
     -v $REP_MOUNT_DEBUG \
     -v $scan_changefile_temp_path:$docker_can_changefile_temp_path \
@@ -86,6 +87,7 @@ docker run \
     --rm --ulimit core=-1 taos_test:v1.0 python3  $scan_scripts -b "${branch_name_id}"  -f "${scan_file_name}" -w ${web_server}
 EOF
 docker run \
+    -v /root/.cos-local.1:/root/.cos-local.2 \
     -v $REP_MOUNT_PARAM \
     -v $REP_MOUNT_DEBUG \
     -v $scan_changefile_temp_path:$docker_can_changefile_temp_path \

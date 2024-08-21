@@ -43,7 +43,7 @@ async fn main() -> anyhow::Result<()> {
     match client.put(&sml_data).await{
         Ok(_) => {},
         Err(err) => {
-            eprintln!("Failed to insert data with schemaless, host: {}; ErrMessage: {}", host, err);
+            eprintln!("Failed to insert data with schemaless, data:{:?}, ErrMessage: {}", data, err);
             return Err(err.into());
         }
     }
@@ -65,7 +65,7 @@ async fn main() -> anyhow::Result<()> {
     match client.put(&sml_data).await{
         Ok(_) => {},
         Err(err) => {
-            eprintln!("Failed to insert data with schemaless, host: {}; ErrMessage: {}", host, err);
+            eprintln!("Failed to insert data with schemaless, data:{:?}, ErrMessage: {}", data, err);
             return Err(err.into());
         }
     }
@@ -96,7 +96,7 @@ async fn main() -> anyhow::Result<()> {
     match client.put(&sml_data).await{
         Ok(_) => {},
         Err(err) => {
-            eprintln!("Failed to insert data with schemaless, host: {}; ErrMessage: {}", host, err);
+            eprintln!("Failed to insert data with schemaless, data:{:?}, ErrMessage: {}", data, err);
             return Err(err.into());
         }
     }

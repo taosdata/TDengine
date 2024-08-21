@@ -279,21 +279,20 @@ static int32_t doLoadBlockSMA(STableScanBase* pTableScanInfo, SSDataBlock* pBloc
   return code;
 }
 
-static void doSetTagColumnData(STableScanBase* pTableScanInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo,
-                               int32_t rows) {
-  if (pTableScanInfo->pseudoSup.numOfExprs > 0) {
-    SExprSupp* pSup = &pTableScanInfo->pseudoSup;
-
-    int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock, rows,
-                                          pTaskInfo, &pTableScanInfo->metaCache);
+static int32_t doSetTagColumnData(STableScanBase* pTableScanInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo,
+                                  int32_t rows) {
+  int32_t    code = 0;
+  SExprSupp* pSup = &pTableScanInfo->pseudoSup;
+  if (pSup->numOfExprs > 0) {
+    code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock, rows,
+                                  pTaskInfo, &pTableScanInfo->metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
-    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-      T_LONG_JMP(pTaskInfo->env, code);
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      code = 0;
     }
-
-    // reset the error code.
-    terrno = 0;
   }
+
+  return code;
 }
 
 bool applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
@@ -373,10 +372,10 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64 ", uid:%" PRIu64,
            GET_TASKID(pTaskInfo), pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows,
            pBlockInfo->id.uid);
-    doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
+    code = doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
     pCost->skipBlocks += 1;
     pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
-    return TSDB_CODE_SUCCESS;
+    return code;
   } else if (*status == FUNC_DATA_REQUIRED_SMA_LOAD) {
     pCost->loadBlockStatis += 1;
     loadSMA = true;  // mark the operation of load sma;
@@ -391,9 +390,9 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     if (success) {  // failed to load the block sma data, data block statistics does not exist, load data block instead
       qDebug("%s data block SMA loaded, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64, GET_TASKID(pTaskInfo),
              pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
-      doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
+      code = doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
-      return TSDB_CODE_SUCCESS;
+      return code;
     } else {
       qDebug("%s failed to load SMA, since not all columns have SMA", GET_TASKID(pTaskInfo));
       *status = FUNC_DATA_REQUIRED_DATA_LOAD;
@@ -440,7 +439,10 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
 
   // try to filter data block according to current results
   code = doDynamicPruneDataBlock(pOperator, pBlockInfo, status);
-  QUERY_CHECK_CODE(code, lino, _end);
+  if (code) {
+    pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
 
   if (*status == FUNC_DATA_REQUIRED_NOT_LOAD) {
     qDebug("%s data block skipped due to dynamic prune, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64,
@@ -462,15 +464,14 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
 
   SSDataBlock* p = NULL;
   code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pTableScanInfo->dataReader, &p, NULL);
-  if (p == NULL || code != TSDB_CODE_SUCCESS) {
+  if (p == NULL || code != TSDB_CODE_SUCCESS || p != pBlock) {
     return code;
   }
 
-  if(p != pBlock) {
-    qError("[loadDataBlock] p != pBlock");
-    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  code = doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
+  if (code) {
+    return code;
   }
-  doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
 
   // restore the previous value
   pCost->totalRows -= pBlock->info.rows;
@@ -536,9 +537,10 @@ static int32_t createTableCacheVal(const SMetaReader* pMetaReader, STableCachedV
   int32_t          lino = 0;
   STableCachedVal* pVal = taosMemoryMalloc(sizeof(STableCachedVal));
   QUERY_CHECK_NULL(pVal, code, lino, _end, terrno);
+
+  pVal->pTags = NULL;
   pVal->pName = taosStrdup(pMetaReader->me.name);
   QUERY_CHECK_NULL(pVal->pName, code, lino, _end, terrno);
-  pVal->pTags = NULL;
 
   // only child table has tag value
   if (pMetaReader->me.type == TSDB_CHILD_TABLE) {
@@ -908,7 +910,8 @@ static SSDataBlock* getOneRowResultBlock(SExecTaskInfo* pTaskInfo, STableScanBas
   }
 
   // set tag/tbname
-  doSetTagColumnData(pBase, pBlock, pTaskInfo, 1);
+  terrno = doSetTagColumnData(pBase, pBlock, pTaskInfo, 1);
+
   return pBlock;
 }
 
@@ -1629,7 +1632,9 @@ static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbU
     code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pReader, &p, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    doSetTagColumnData(&pTableScanInfo->base, pBlock, pTaskInfo, pBlock->info.rows);
+    code = doSetTagColumnData(&pTableScanInfo->base, pBlock, pTaskInfo, pBlock->info.rows);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     pBlock->info.id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
   }
 
@@ -2758,12 +2763,16 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
 
   // currently only the tbname pseudo column
   if (pInfo->numOfPseudoExpr > 0) {
-    int32_t tmpCode = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr,
+    code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr,
                                              pInfo->pRes, pBlockInfo->rows, pTaskInfo, &pTableScanInfo->base.metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
-    if (tmpCode != TSDB_CODE_SUCCESS && tmpCode != TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      code = 0;
+    }
+
+    if (code) {
       blockDataFreeRes((SSDataBlock*)pBlock);
-      T_LONG_JMP(pTaskInfo->env, code);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     // reset the error code.

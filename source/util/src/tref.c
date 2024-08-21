@@ -110,13 +110,13 @@ int32_t taosOpenRef(int32_t max, RefFp fp) {
   return rsetId;
 }
 
-int32_t taosCloseRef(int32_t rsetId) {
+void taosCloseRef(int32_t rsetId) {
   SRefSet *pSet;
   int32_t  deleted = 0;
 
   if (rsetId < 0 || rsetId >= TSDB_REF_OBJECTS) {
     uTrace("rsetId:%d is invalid, out of range", rsetId);
-    return terrno = TSDB_CODE_REF_INVALID_ID;
+    return;
   }
 
   pSet = tsRefSetList + rsetId;
@@ -134,8 +134,6 @@ int32_t taosCloseRef(int32_t rsetId) {
   (void)taosThreadMutexUnlock(&tsRefMutex);
 
   if (deleted) taosDecRsetCount(pSet);
-
-  return 0;
 }
 
 int64_t taosAddRef(int32_t rsetId, void *p) {

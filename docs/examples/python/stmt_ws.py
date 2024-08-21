@@ -13,8 +13,8 @@ port=6041
 try:
     conn = taosws.connect(user="root",
                           password="taosdata",
-                          host="localhost",
-                          port=6041)
+                          host=host,
+                          port=port)
 
     conn.execute("CREATE DATABASE IF NOT EXISTS power")
     conn.execute("USE power")
@@ -61,7 +61,7 @@ try:
         print(f"Successfully inserted to power.meters.")
         
 except Exception as err:
-    print(f"Failed to insert to table meters using stmt, addr:{host}:{port} ; ErrMessage:{err}") 
+    print(f"Failed to insert to table meters using stmt, ErrMessage:{err}") 
 finally:
     if stmt:
         stmt.close()

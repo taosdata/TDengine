@@ -1,23 +1,29 @@
-package com.taosdata.example;
+package com.taos.example;
 
 import com.alibaba.fastjson.JSON;
 import com.taosdata.jdbc.TSDBDriver;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Properties;
 import java.util.Scanner;
 
-public abstract class WsConsumerLoopImp {
-    public static void main(String[] args) throws SQLException, InterruptedException {
 
+public class ConsumerLoopImp {
+
+    public static void main(String[] args) throws SQLException, InterruptedException {
         String url = "jdbc:TAOS://localhost:6030/power?user=root&password=taosdata";
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "C");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
 
+// ANCHOR: create_topic
         Connection connection = DriverManager.getConnection(url, properties);
         Statement statement = connection.createStatement();
         statement.executeUpdate("CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters");
+// ANCHOR_END: create_topic
 
         statement.close();
         connection.close();

@@ -108,6 +108,7 @@ enum {
   CTG_OP_UPDATE_TB_TSMA,
   CTG_OP_DROP_TB_TSMA,
   CTG_OP_CLEAR_CACHE,
+  CTG_OP_UPDATE_DB_TSMA_VERSION,
   CTG_OP_MAX
 };
 
@@ -603,6 +604,7 @@ typedef struct SCtgUpdateTbTSMAMsg {
   STableTSMAInfo* pTsma;
   int32_t         dbTsmaVersion;
   uint64_t        dbId;
+  char            dbFName[TSDB_DB_FNAME_LEN];
 } SCtgUpdateTbTSMAMsg;
 
 typedef struct SCtgDropTbTSMAMsg {
@@ -1167,6 +1169,8 @@ int32_t  ctgGetStreamProgressFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, 
                                        void* bInput);
 int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx, int32_t flag,
                         CTG_TSMA_FETCH_TYPE fetchType, const SName* sourceTbName);
+int32_t ctgOpUpdateDbTsmaVersion(SCtgCacheOperation* pOper);
+int32_t ctgUpdateDbTsmaVersionEnqueue(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId, bool syncOper);
 void    ctgFreeTask(SCtgTask* pTask, bool freeRes);
 
 extern SCatalogMgmt      gCtgMgmt;
