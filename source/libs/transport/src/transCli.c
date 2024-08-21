@@ -1315,6 +1315,12 @@ void cliSend(SCliConn* pConn) {
 
   uv_buf_t    wb = uv_buf_init((char*)pHead, msgLen);
   uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
+  if (req == NULL) {
+    tGError("%s conn %p failed to send msg:%s, errmsg:%s", CONN_GET_INST_LABEL(pConn), pConn, TMSG_INFO(pMsg->msgType),
+            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    cliHandleExcept(pConn, -1);
+    return;
+  }
 
   int status = uv_write(req, (uv_stream_t*)pConn->stream, &wb, 1, cliSendCb);
   if (status != 0) {
@@ -2224,13 +2230,13 @@ static void* cliWorkThread(void* arg) {
 
   SCliThrd* pThrd = (SCliThrd*)arg;
   pThrd->pid = taosGetSelfPthreadId();
-
+  tsEnableRandErr = true;
   (void)strtolower(threadName, pThrd->pTransInst->label);
   setThreadName(threadName);
 
   (void)uv_run(pThrd->loop, UV_RUN_DEFAULT);
 
-  tDebug("thread quit-thread:%08" PRId64, pThrd->pid);
+  tDebug("thread quit-thread:%08 " PRId64, pThrd->pid);
   return NULL;
 }
 

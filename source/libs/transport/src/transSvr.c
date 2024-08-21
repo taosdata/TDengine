@@ -696,6 +696,14 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
 
   transRefSrvHandle(pConn);
   uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
+  if (req == NULL) {
+    if (!uv_is_closing((uv_handle_t*)(pConn->pTcp))) {
+      tError("conn %p failed to write data, reason:%s", pConn, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      pConn->broken = true;
+      transUnrefSrvHandle(pConn);
+      return;
+    }
+  }
   (void)uv_write(req, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
 }
 static void uvStartSendResp(SSvrMsg* smsg) {
@@ -1174,6 +1182,7 @@ static int32_t addHandleToAcceptloop(void* arg) {
 void* transWorkerThread(void* arg) {
   setThreadName("trans-svr-work");
   SWorkThrd* pThrd = (SWorkThrd*)arg;
+  tsEnableRandErr = true;
   (void)uv_run(pThrd->loop, UV_RUN_DEFAULT);
 
   return NULL;
