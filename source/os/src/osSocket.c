@@ -312,8 +312,7 @@ int32_t taosGetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
     return -1;
   }
 #ifdef WINDOWS
-  ASSERT(0);
-  return 0;
+  return -1;
 #else
   return getsockopt(pSocket->fd, level, optname, optval, (int *)optlen);
 #endif
@@ -681,8 +680,7 @@ int32_t taosKeepTcpAlive(TdSocketPtr pSocket) {
 int taosGetLocalIp(const char *eth, char *ip) {
 #if defined(WINDOWS)
   // DO NOTHAING
-  ASSERT(0);
-  return 0;
+  return -1;
 #else
   int                fd;
   struct ifreq       ifr;
@@ -708,8 +706,7 @@ int taosGetLocalIp(const char *eth, char *ip) {
 int taosValidIp(uint32_t ip) {
 #if defined(WINDOWS)
   // DO NOTHAING
-  ASSERT(0);
-  return 0;
+  return -1;
 #else
   int ret = -1;
   int fd;
@@ -1111,7 +1108,7 @@ int32_t taosIgnSIGPIPE() {
 
 int32_t taosSetMaskSIGPIPE() {
 #ifdef WINDOWS
-  // ASSERT(0);
+  return -1;
 #else
   sigset_t signal_mask;
   (void)sigemptyset(&signal_mask);
