@@ -105,6 +105,7 @@ static void *tQWorkerThreadFp(SQueueWorker *worker) {
     taosUpdateItemSize(qinfo.queue, 1);
   }
 
+  destroyThreadLocalGeosCtx();
   DestoryThreadLocalRegComp();
 
   return NULL;
@@ -664,6 +665,7 @@ static void *tQueryAutoQWorkerThreadFp(SQueryAutoQWorker *worker) {
     }
   }
 
+  destroyThreadLocalGeosCtx();
   DestoryThreadLocalRegComp();
 
   return NULL;

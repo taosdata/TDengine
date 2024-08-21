@@ -23,8 +23,7 @@ typedef char (*_geosPreparedRelationFunc_t)(GEOSContextHandle_t handle, const GE
 
 void geosFreeBuffer(void *buffer) {
   if (buffer) {
-    SGeosContext *pCtx = acquireThreadLocalGeosCtx();
-    if (pCtx) GEOSFree_r(pCtx->handle, buffer);
+    GEOSFree_r(getThreadLocalGeosCtx()->handle, buffer);
   }
 }
 
@@ -36,8 +35,6 @@ void geosErrMsgeHandler(const char *errMsg, void *userData) {
 int32_t initCtxMakePoint() {
   int32_t       code = TSDB_CODE_FAILED;
   SGeosContext *geosCtx = getThreadLocalGeosCtx();
-
-  if (!geosCtx) return TSDB_CODE_OUT_OF_MEMORY;
 
   if (geosCtx->handle == NULL) {
     geosCtx->handle = GEOS_init_r();
@@ -63,8 +60,6 @@ int32_t initCtxMakePoint() {
 int32_t doMakePoint(double x, double y, unsigned char **outputGeom, size_t *size) {
   int32_t       code = TSDB_CODE_FAILED;
   SGeosContext *geosCtx = getThreadLocalGeosCtx();
-
-  if (!geosCtx) return TSDB_CODE_OUT_OF_MEMORY;
 
   GEOSGeometry  *geom = NULL;
   unsigned char *wkb = NULL;
@@ -171,8 +166,6 @@ int32_t initCtxGeomFromText() {
   int32_t       code = TSDB_CODE_FAILED;
   SGeosContext *geosCtx = getThreadLocalGeosCtx();
 
-  if (!geosCtx) return TSDB_CODE_OUT_OF_MEMORY;
-
   if (geosCtx->handle == NULL) {
     geosCtx->handle = GEOS_init_r();
     if (geosCtx->handle == NULL) {
@@ -209,8 +202,6 @@ int32_t doGeomFromText(const char *inputWKT, unsigned char **outputGeom, size_t 
   int32_t       code = TSDB_CODE_FAILED;
   SGeosContext *geosCtx = getThreadLocalGeosCtx();
 
-  if (!geosCtx) return TSDB_CODE_OUT_OF_MEMORY;
-
   GEOSGeometry  *geom = NULL;
   unsigned char *wkb = NULL;
 
@@ -245,8 +236,6 @@ _exit:
 int32_t initCtxAsText() {
   int32_t       code = TSDB_CODE_FAILED;
   SGeosContext *geosCtx = getThreadLocalGeosCtx();
-
-  if (!geosCtx) return TSDB_CODE_OUT_OF_MEMORY;
 
   if (geosCtx->handle == NULL) {
     geosCtx->handle = GEOS_init_r();
@@ -284,8 +273,6 @@ int32_t doAsText(const unsigned char *inputGeom, size_t size, char **outputWKT) 
   int32_t       code = TSDB_CODE_FAILED;
   SGeosContext *geosCtx = getThreadLocalGeosCtx();
 
-  if (!geosCtx) return TSDB_CODE_OUT_OF_MEMORY;
-
   GEOSGeometry  *geom = NULL;
   char *wkt = NULL;
 
@@ -317,8 +304,6 @@ int32_t initCtxRelationFunc() {
   int32_t       code = TSDB_CODE_FAILED;
   SGeosContext *geosCtx = getThreadLocalGeosCtx();
 
-  if (!geosCtx) return TSDB_CODE_OUT_OF_MEMORY;
-
   if (geosCtx->handle == NULL) {
     geosCtx->handle = GEOS_init_r();
     if (geosCtx->handle == NULL) {
@@ -343,8 +328,6 @@ int32_t doGeosRelation(const GEOSGeometry *geom1, const GEOSPreparedGeometry *pr
                        _geosPreparedRelationFunc_t preparedRelationFn,
                        _geosPreparedRelationFunc_t swappedPreparedRelationFn) {
   SGeosContext *geosCtx = getThreadLocalGeosCtx();
-
-  if (!geosCtx) return TSDB_CODE_OUT_OF_MEMORY;
 
   if (!preparedGeom1) {
     if (!swapped) {
@@ -406,6 +389,8 @@ int32_t doContainsProperly(const GEOSGeometry *geom1, const GEOSPreparedGeometry
 // need to call destroyGeometry(outputGeom, outputPreparedGeom) later
 int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom,
                      const GEOSPreparedGeometry **outputPreparedGeom) {
+  SGeosContext *geosCtx = getThreadLocalGeosCtx();
+
   ASSERT(outputGeom);  // it is not allowed if outputGeom is NULL
   *outputGeom = NULL;
 
@@ -416,10 +401,6 @@ int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom,
   if (varDataLen(input) == 0) {  // empty value
     return TSDB_CODE_SUCCESS;
   }
-
-  SGeosContext *geosCtx = getThreadLocalGeosCtx();
-
-  if (!geosCtx) return TSDB_CODE_OUT_OF_MEMORY;
 
   *outputGeom = GEOSWKBReader_read_r(geosCtx->handle, geosCtx->WKBReader, varDataVal(input), varDataLen(input));
   if (*outputGeom == NULL) {
@@ -437,8 +418,7 @@ int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom,
 }
 
 void destroyGeometry(GEOSGeometry **geom, const GEOSPreparedGeometry **preparedGeom) {
-  SGeosContext *geosCtx = acquireThreadLocalGeosCtx();
-  if (!geosCtx) return;
+  SGeosContext *geosCtx = getThreadLocalGeosCtx();
 
   if (preparedGeom && *preparedGeom) {
     GEOSPreparedGeom_destroy_r(geosCtx->handle, *preparedGeom);
