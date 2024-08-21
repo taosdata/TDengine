@@ -564,7 +564,7 @@ _end:
 int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  ASSERT(pInfo);
+  QUERY_CHECK_NULL(pInfo, code, lino, _error, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
   if (tStartDecode(&decoder) < 0) return -1;
@@ -572,6 +572,8 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
   int32_t size = 0;
   if (tDecodeI32(&decoder, &size) < 0) return -1;
   pInfo->pTsBuckets = taosArrayInit(size, sizeof(TSKEY));
+  QUERY_CHECK_NULL(pInfo->pTsBuckets, code, lino, _error, terrno);
+  
   TSKEY ts = INT64_MIN;
   for (int32_t i = 0; i < size; i++) {
     if (tDecodeI64(&decoder, &ts) < 0) return -1;
@@ -623,7 +625,8 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
     code = taosHashPut(pInfo->pMap, &uid, sizeof(uint64_t), pVal, valSize);
     QUERY_CHECK_CODE(code, lino, _error);
   }
-  ASSERT(mapSize == taosHashGetSize(pInfo->pMap));
+  QUERY_CHECK_CONDITION((mapSize == taosHashGetSize(pInfo->pMap)), code, lino, _error,
+                        TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   if (tDecodeU64(&decoder, &pInfo->maxDataVersion) < 0) return -1;
 
   if (tDecodeI32(&decoder, &pInfo->pkColLen) < 0) return -1;
@@ -634,7 +637,6 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
   if (pInfo->pkColLen != 0) {
     pInfo->comparePkRowFn = compareKeyTsAndPk;
     pInfo->comparePkCol = getKeyComparFunc(pInfo->pkColType, TSDB_ORDER_ASC);
-    ;
   } else {
     pInfo->comparePkRowFn = compareKeyTs;
     pInfo->comparePkCol = NULL;
