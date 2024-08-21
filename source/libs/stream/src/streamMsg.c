@@ -16,6 +16,7 @@
 #include "streamMsg.h"
 #include "os.h"
 #include "tstream.h"
+#include "streamInt.h"
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamUpstreamEpInfo* pInfo) {
   if (tEncodeI32(pEncoder, pInfo->taskId) < 0) return -1;
@@ -230,7 +231,8 @@ int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* p
   if (tEncodeI32(pEncoder, pReq->blockNum) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->totalLen) < 0) return -1;
 
-  if (taosArrayGetSize(pReq->data) != pReq->blockNum || taosArrayGetSize(pReq->dataLen) == pReq->blockNum) {
+  if (taosArrayGetSize(pReq->data) != pReq->blockNum || taosArrayGetSize(pReq->dataLen) != pReq->blockNum) {
+    stError("invalid dispatch req msg");
     return TSDB_CODE_INVALID_MSG;
   }
 
