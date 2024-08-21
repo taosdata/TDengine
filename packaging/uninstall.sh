@@ -127,6 +127,11 @@ remove_taosx() {
     stop_taosx_service
     stop_explore_service
 
+    hasAgent=0
+    if [ -f ${INSTALL_DIR}/${agentname} ]; then
+        hasAgent=1
+    fi
+
     ${csudo}rm -rf ${INSTALL_DIR}/${xName}
     ${csudo}rm -rf ${INSTALL_DIR}/${explorerName}
     ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
@@ -137,6 +142,11 @@ remove_taosx() {
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
 
     if ! need_remove_data $COMMAND_ARGS; then 
+        echo "${xName} is removed successfully!"
+        echo "${explorerName} is removed successfully!"
+        if [ $hasAgent -eq 1 ]; then
+            echo "${agentname} is removed successfully!"
+        fi
         return
     fi
 
@@ -155,7 +165,9 @@ remove_taosx() {
 
     ${csudo}rm -rf ${LOG_DIR}/${AGENT_CONFIG_NAME}.log*
     ${csudo}rm -rf ${CONFIG_DIR}/${AGENT_CONFIG_NAME}.toml*
-    echo "${agentname} is removed successfully!"
+    if [ $hasAgent -eq 1 ]; then
+        echo "${agentname} is removed successfully!"
+    fi
 }
 
 remove_custom_data_dir() {
@@ -185,19 +197,29 @@ remove_plugin_logs() {
 remove_taos_agent() {
     stop_taosx_agent_service
 
+    hasAgent=0
+    if [ -f ${INSTALL_DIR}/${agentname} ]; then
+        hasAgent=1
+    fi
+
     ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/bin/${agentname}
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
 
     if ! need_remove_data $COMMAND_ARGS; then 
+        if [ $hasAgent -eq 1 ]; then
+            echo "${agentname} is removed successfully!"
+        fi
         return
     fi
 
     ${csudo}rm -rf ${LOG_DIR}/${AGENT_CONFIG_NAME}.log*
     remove_plugin_logs
     ${csudo}rm -rf ${CONFIG_DIR}/${AGENT_CONFIG_NAME}.toml
-    echo "${agentname} is removed successfully!"
+    if [ $hasAgent -eq 1 ]; then
+        echo "${agentname} is removed successfully!"
+    fi
 }
 
 remove_target() {

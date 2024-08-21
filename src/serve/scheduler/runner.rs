@@ -927,7 +927,7 @@ impl TaskJob {
                 license_tracker_state.task.to.parse().unwrap(),
             );
             let validator = LicenseValidator::new(&from, &to);
-            loop {
+            'track: loop {
                 tokio::select! {
                     _ = license_tracker_cancellation_token.cancelled() => {
                         tracing::info!("License tracker cancelled");
@@ -938,7 +938,36 @@ impl TaskJob {
                         // match anyhow::Ok(LicenseKind::Edition(anyhow::anyhow!("Community"))) {
                             Ok(kind) => {
                                 if let Err(err) = kind.ok() {
-                                    tracing::error!(error = %err, "License error, suspend task");
+                                    tracing::warn!(error = %err, "License error, wait for validation in next 5m");
+                                    let mut err = err;
+                                    let mut cross_validate_times = 0;
+                                    loop {
+                                        if license_tracker_cancellation_token.is_cancelled() {
+                                            tracing::info!("License tracker cancelled");
+                                            return false;
+                                        }
+                                        tokio::time::sleep(Duration::from_secs(60)).await;
+                                        match validator.validate_connector().in_current_span().await.map(|kind| kind.ok()) {
+                                            Ok(Ok(_)) => {
+                                                tracing::info!("License validation passed, continue tracking");
+                                                continue 'track;
+                                            },
+                                            Ok(Err(e)) => {
+                                                cross_validate_times += 1;
+                                                err = e;
+                                                if cross_validate_times >= 5 {
+                                                    // Trust the error, then suspend.
+                                                    tracing::info!("License validation confirmed finally suspend task");
+                                                    break;
+                                                }
+                                                tracing::info!("License validation confirmed, continue next validate loop");
+                                                continue;
+                                            }
+                                            Err(e) => {
+                                                tracing::warn!(error = format!("{err:#}"), "License validation tracking error");
+                                            }
+                                        }
+                                    }
                                     license_tracker_global.send_task_activity(TaskActivity::suspending_with(task_id, format!("License error: {:#}", err)));
                                     license_tracker_state.operator.suspend();
                                     license_tracker_cancellation_token.cancel();
@@ -948,7 +977,7 @@ impl TaskJob {
                                 }
                             }
                             Err(err) => {
-                                tracing::error!(error = format!("{err:#}"), "License validation tracking error");
+                                tracing::warn!(error = format!("{err:#}"), "License validation tracking error");
                             }
                         }
                     }
@@ -1602,7 +1631,7 @@ impl TaskJob {
     }
 }
 
-#[instrument(skip_all, fields(task.id = task.task.id, job.id = %jid))]
+#[instrument(skip_all, fields(task.id = task.task.id))]
 pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalState>) {
     if task.operator.is_suspended() || task.operator.is_stopped() {
         tracing::info!("task suspended");
