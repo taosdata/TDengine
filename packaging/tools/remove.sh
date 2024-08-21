@@ -226,12 +226,6 @@ function remove_data_and_config() {
   [ -d "${log_dir}" ] && ${csudo}rm -rf ${log_dir}
 }
 
-function remove_taosx() {
-  if [ -e /usr/local/taos/taosx/uninstall.sh ]; then
-    bash /usr/local/taos/taosx/uninstall.sh
-  fi
-}
-
 echo 
 echo "Do you want to remove all the data, log and configuration files? [y/n]"
 read answer
@@ -241,13 +235,13 @@ if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
   read answer
   if [ X"$answer" == X"${confirmMsg}" ]; then
     remove_data_and_config
-    if [ -e /usr/bin/uninstall_${PREFIX}x.sh ]; then
-      bash /usr/bin/uninstall_${PREFIX}x.sh --clean-all true
+    if [ -e ${install_main_dir}/uninstall_${PREFIX}x.sh ]; then
+      bash ${install_main_dir}/uninstall_${PREFIX}x.sh --clean-all true
     fi
   else    
     echo "answer doesn't match, skip this step"
-    if [ -e /usr/bin/uninstall_${PREFIX}x.sh ]; then
-      bash /usr/bin/uninstall_${PREFIX}x.sh --clean-all false
+    if [ -e ${install_main_dir}/uninstall_${PREFIX}x.sh ]; then
+      bash ${install_main_dir}/uninstall_${PREFIX}x.sh --clean-all false
     fi
   fi
 fi
