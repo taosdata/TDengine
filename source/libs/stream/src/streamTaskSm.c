@@ -168,9 +168,7 @@ static STaskStateTrans* streamTaskFindTransform(ETaskStatus state, const EStream
   }
 
   if (isInvalidStateTransfer(state, event)) {
-    return NULL;
-  } else {
-    ASSERT(0);
+    stError("invalid state transfer %d, handle event:%d", state, GET_EVT_NAME(event));
   }
 
   return NULL;
@@ -181,8 +179,6 @@ static int32_t doHandleWaitingEvent(SStreamTaskSM* pSM, const char* pEventName, 
   int64_t el = (taosGetTimestampMs() - pSM->startTs);
   stDebug("s-task:%s handle event:%s completed, elapsed time:%" PRId64 "ms state:%s -> %s", pTask->id.idStr,
           pEventName, el, pSM->prev.state.name, pSM->current.name);
-
-  ASSERT(taosArrayGetSize(pSM->pWaitingEventList) == 1);
 
   SFutureHandleEventInfo* pEvtInfo = taosArrayGet(pSM->pWaitingEventList, 0);
   if (pEvtInfo == NULL) {

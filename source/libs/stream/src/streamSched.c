@@ -22,9 +22,8 @@ static void streamTaskSchedHelper(void* param, void* tmrId);
 int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
   if (pTask->info.delaySchedParam != 0 && pTask->info.fillHistory == 0) {
     int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
-    ASSERT(ref == 2 && pTask->schedInfo.pDelayTimer == NULL);
-
-    stDebug("s-task:%s setup scheduler trigger, delay:%" PRId64 " ms", pTask->id.idStr, pTask->info.delaySchedParam);
+    stDebug("s-task:%s setup scheduler trigger, ref:%d delay:%" PRId64 " ms", pTask->id.idStr, ref,
+            pTask->info.delaySchedParam);
 
     pTask->schedInfo.pDelayTimer =
         taosTmrStart(streamTaskSchedHelper, (int32_t)pTask->info.delaySchedParam, pTask, streamTimer);

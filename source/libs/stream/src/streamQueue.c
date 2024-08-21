@@ -452,7 +452,9 @@ static void fillTokenBucket(STokenBucket* pBucket, const char* id) {
   int64_t now = taosGetTimestampMs();
 
   int64_t deltaToken = now - pBucket->tokenFillTimestamp;
-  ASSERT(pBucket->numOfToken >= 0);
+  if (pBucket->numOfToken < 0) {
+    return;
+  }
 
   int32_t incNum = (deltaToken / 1000.0) * pBucket->numRate;
   if (incNum > 0) {

@@ -564,7 +564,10 @@ _end:
 int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  ASSERT(pInfo);
+  if (pInfo == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
   if (tStartDecode(&decoder) < 0) return -1;
@@ -623,7 +626,11 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
     code = taosHashPut(pInfo->pMap, &uid, sizeof(uint64_t), pVal, valSize);
     QUERY_CHECK_CODE(code, lino, _error);
   }
-  ASSERT(mapSize == taosHashGetSize(pInfo->pMap));
+
+  if (mapSize != taosHashGetSize(pInfo->pMap)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   if (tDecodeU64(&decoder, &pInfo->maxDataVersion) < 0) return -1;
 
   if (tDecodeI32(&decoder, &pInfo->pkColLen) < 0) return -1;
