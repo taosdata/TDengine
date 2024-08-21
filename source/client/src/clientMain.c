@@ -74,15 +74,11 @@ void taos_cleanup(void) {
 
   int32_t id = clientReqRefPool;
   clientReqRefPool = -1;
-  if (TSDB_CODE_SUCCESS != taosCloseRef(id)) {
-    tscWarn("failed to close clientReqRefPool");
-  }
+  taosCloseRef(id);
 
   id = clientConnRefPool;
   clientConnRefPool = -1;
-  if (TSDB_CODE_SUCCESS != taosCloseRef(id)) {
-    tscWarn("failed to close clientReqRefPool");
-  }
+  taosCloseRef(id);
 
   nodesDestroyAllocatorSet();
   cleanupAppInfo();
@@ -481,7 +477,6 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   } else if (TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return NULL;
   } else {
-    // assert to avoid un-initialization error
     tscError("invalid result passed to taos_fetch_row");
     terrno = TSDB_CODE_TSC_INTERNAL_ERROR;
     return NULL;
@@ -561,12 +556,14 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
       case TSDB_DATA_TYPE_GEOMETRY: {
         int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
         if (fields[i].type == TSDB_DATA_TYPE_BINARY || fields[i].type == TSDB_DATA_TYPE_VARBINARY || fields[i].type == TSDB_DATA_TYPE_GEOMETRY) {
-          if (ASSERT(charLen <= fields[i].bytes && charLen >= 0)) {
+          if (charLen > fields[i].bytes || charLen < 0) {
             tscError("taos_print_row error binary. charLen:%d, fields[i].bytes:%d", charLen, fields[i].bytes);
+            break;
           }
         } else {
-          if (ASSERT(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0)) {
+          if (charLen > fields[i].bytes * TSDB_NCHAR_SIZE || charLen < 0) {
             tscError("taos_print_row error. charLen:%d, fields[i].bytes:%d", charLen, fields[i].bytes);
+            break;
           }
         }
 
@@ -1319,11 +1316,11 @@ void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
 }
 
 void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
-  if (ASSERT(res != NULL && fp != NULL)) {
+  if (res == NULL || fp == NULL) {
     tscError("taos_fetch_rows_a invalid paras");
     return;
   }
-  if (ASSERT(TD_RES_QUERY(res))) {
+  if (!TD_RES_QUERY(res)) {
     tscError("taos_fetch_rows_a res is NULL");
     return;
   }
@@ -1338,12 +1335,12 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
 }
 
 void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
-  if (ASSERT(res != NULL && fp != NULL)) {
-    tscError("taos_fetch_rows_a invalid paras");
+  if (res == NULL || fp == NULL) {
+    tscError("taos_fetch_raw_block_a invalid paras");
     return;
   }
-  if (ASSERT(TD_RES_QUERY(res))) {
-    tscError("taos_fetch_rows_a res is NULL");
+  if (!TD_RES_QUERY(res)) {
+    tscError("taos_fetch_raw_block_a res is NULL");
     return;
   }
   SRequestObj    *pRequest = res;
@@ -1357,12 +1354,12 @@ void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
 }
 
 const void *taos_get_raw_block(TAOS_RES *res) {
-  if (ASSERT(res != NULL)) {
-    tscError("taos_fetch_rows_a invalid paras");
+  if (res == NULL) {
+    tscError("taos_get_raw_block invalid paras");
     return NULL;
   }
-  if (ASSERT(TD_RES_QUERY(res))) {
-    tscError("taos_fetch_rows_a res is NULL");
+  if (!TD_RES_QUERY(res)) {
+    tscError("taos_get_raw_block res is NULL");
     return NULL;
   }
   SRequestObj *pRequest = res;

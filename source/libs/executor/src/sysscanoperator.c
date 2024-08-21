@@ -1670,6 +1670,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
         pAPI->metaReaderFn.clearReader(&mr);
         pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
         pInfo->pCur = NULL;
+        blockDataDestroy(p);
         T_LONG_JMP(pTaskInfo->env, terrno);
       }
 
@@ -1829,6 +1830,8 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     blockDataDestroy(p);
     pTaskInfo->code = code;
+    pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+    pInfo->pCur = NULL;
     T_LONG_JMP(pTaskInfo->env, code);
   }
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;

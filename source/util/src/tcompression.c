@@ -252,7 +252,7 @@ int32_t l2ComressInitImpl_xz(char *lossyColumns, float fPrecision, double dPreci
 }
 int32_t l2CompressImpl_xz(const char *const input, const int32_t inputSize, char *const output, int32_t outputSize,
                           const char type, int8_t lvl) {
-  size_t len = 0;//FL2_compress(output + 1, outputSize - 1, input, inputSize, lvl);
+  size_t len = FL2_compress(output + 1, outputSize - 1, input, inputSize, lvl);
   if (len > inputSize) {
     output[0] = 0;
     memcpy(output + 1, input, inputSize);
@@ -264,7 +264,7 @@ int32_t l2CompressImpl_xz(const char *const input, const int32_t inputSize, char
 int32_t l2DecompressImpl_xz(const char *const input, const int32_t compressedSize, char *const output,
                             int32_t outputSize, const char type) {
   if (input[0] == 1) {
-    return 0;//FL2_decompress(output, outputSize, input + 1, compressedSize - 1);
+    return FL2_decompress(output, outputSize, input + 1, compressedSize - 1);
   } else if (input[0] == 0) {
     memcpy(output, input + 1, compressedSize - 1);
     return compressedSize - 1;

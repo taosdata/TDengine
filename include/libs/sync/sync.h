@@ -156,11 +156,11 @@ typedef struct SSnapshotParam {
 
 typedef struct SSnapshot {
   int32_t       type;
-  SSyncTLV* data;
+  SSyncTLV*     data;
   ESyncFsmState state;
-  SyncIndex lastApplyIndex;
-  SyncTerm  lastApplyTerm;
-  SyncIndex lastConfigIndex;
+  SyncIndex     lastApplyIndex;
+  SyncTerm      lastApplyTerm;
+  SyncIndex     lastConfigIndex;
 } SSnapshot;
 
 typedef struct SSnapshotMeta {
@@ -263,16 +263,16 @@ typedef struct SSyncState {
   int64_t    startTimeMs;
 } SSyncState;
 
-int32_t syncInit();
-void    syncCleanUp();
-int64_t syncOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion);
-int32_t syncStart(int64_t rid);
-void    syncStop(int64_t rid);
-void    syncPreStop(int64_t rid);
-void    syncPostStop(int64_t rid);
-int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak, int64_t* seq);
-int32_t syncCheckMember(int64_t rid);
-int32_t syncIsCatchUp(int64_t rid);
+int32_t   syncInit();
+void      syncCleanUp();
+int64_t   syncOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion);
+int32_t   syncStart(int64_t rid);
+void      syncStop(int64_t rid);
+void      syncPreStop(int64_t rid);
+void      syncPostStop(int64_t rid);
+int32_t   syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak, int64_t* seq);
+int32_t   syncCheckMember(int64_t rid);
+int32_t   syncIsCatchUp(int64_t rid);
 ESyncRole syncGetRole(int64_t rid);
 int64_t   syncGetTerm(int64_t rid);
 int32_t   syncProcessMsg(int64_t rid, SRpcMsg* pMsg);
@@ -296,7 +296,7 @@ int32_t     syncGetAssignedLogSynced(int64_t rid);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
 const char* syncStr(ESyncState state);
 
-int32_t    syncNodeGetConfig(int64_t rid, SSyncCfg *cfg);
+int32_t syncNodeGetConfig(int64_t rid, SSyncCfg* cfg);
 
 // util
 int32_t syncSnapInfoDataRealloc(SSnapshot* pSnap, int32_t size);

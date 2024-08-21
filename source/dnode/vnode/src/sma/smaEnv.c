@@ -69,7 +69,7 @@ int32_t smaInit() {
 
     if (!smaMgmt.refHash || !smaMgmt.tmrHandle) {
       code = terrno;
-      (void)taosCloseRef(smaMgmt.rsetId);
+      taosCloseRef(smaMgmt.rsetId);
       if (smaMgmt.refHash) {
         taosHashCleanup(smaMgmt.refHash);
         smaMgmt.refHash = NULL;
@@ -103,7 +103,7 @@ void smaCleanUp() {
   }
 
   if (old == 1) {
-    (void)taosCloseRef(smaMgmt.rsetId);
+    taosCloseRef(smaMgmt.rsetId);
     taosHashCleanup(smaMgmt.refHash);
     smaMgmt.refHash = NULL;
     taosTmrCleanUp(smaMgmt.tmrHandle);

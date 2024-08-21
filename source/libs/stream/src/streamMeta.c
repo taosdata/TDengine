@@ -65,9 +65,9 @@ static void streamMetaEnvInit() {
 void streamMetaInit() { (void)taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit); }
 
 void streamMetaCleanup() {
-  (void)taosCloseRef(streamBackendId);
-  (void)taosCloseRef(streamBackendCfWrapperId);
-  (void)taosCloseRef(streamMetaId);
+  taosCloseRef(streamBackendId);
+  taosCloseRef(streamBackendCfWrapperId);
+  taosCloseRef(streamMetaId);
 
   metaRefMgtCleanup();
   streamTimerCleanUp();

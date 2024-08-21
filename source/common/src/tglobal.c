@@ -303,10 +303,10 @@ char   tsS3BucketName[TSDB_FQDN_LEN] = "<bucketname>";
 char   tsS3AppId[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<appid>"};
 int8_t tsS3Enabled = false;
 int8_t tsS3EnabledCfg = false;
-int8_t tsS3Oss = false;
+int8_t tsS3Oss[TSDB_MAX_EP_NUM] = {false};
 int8_t tsS3StreamEnabled = false;
 
-int8_t tsS3Https = true;
+int8_t tsS3Https[TSDB_MAX_EP_NUM] = {true};
 char   tsS3Hostname[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<hostname>"};
 
 int32_t tsS3BlockSize = -1;        // number of tsdb pages (4096)
@@ -431,10 +431,9 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
         tstrncpy(tsS3AppId[i], appid + 1, TSDB_FQDN_LEN);
       }
     }
+    tsS3Https[i] = (strstr(tsS3Endpoint[i], "https://") != NULL);
+    tsS3Oss[i] = (strstr(tsS3Endpoint[i], "aliyuncs.") != NULL);
   }
-
-  tsS3Https = (strstr(tsS3Endpoint[0], "https://") != NULL);
-  tsS3Oss = (strstr(tsS3Endpoint[0], "aliyuncs.") != NULL);
 
   if (tsS3BucketName[0] != '<') {
 #if defined(USE_COS) || defined(USE_S3)
