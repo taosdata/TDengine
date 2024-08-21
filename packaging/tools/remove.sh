@@ -226,29 +226,27 @@ function remove_data_and_config() {
   [ -d "${log_dir}" ] && ${csudo}rm -rf ${log_dir}
 }
 
-function remove_taosx() {
-  if [ -e /usr/local/taos/taosx/uninstall.sh ]; then
-    bash /usr/local/taos/taosx/uninstall.sh
-  fi
-}
-
 echo 
 echo "Do you want to remove all the data, log and configuration files? [y/n]"
 read answer
+remove_flag=false
 if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
   confirmMsg="I confirm that I would like to delete all data, log and configuration files"
   echo "Please enter '${confirmMsg}' to continue"
   read answer
-  if [ X"$answer" == X"${confirmMsg}" ]; then
-    remove_data_and_config
-    if [ -e /usr/bin/uninstall_${PREFIX}x.sh ]; then
-      bash /usr/bin/uninstall_${PREFIX}x.sh --clean-all true
-    fi
+  if [ X"$answer" == X"${confirmMsg}" ]; then    
+    remove_flag=true    
   else    
-    echo "answer doesn't match, skip this step"
-    if [ -e /usr/bin/uninstall_${PREFIX}x.sh ]; then
-      bash /usr/bin/uninstall_${PREFIX}x.sh --clean-all false
-    fi
+    echo "answer doesn't match, skip this step"    
+  fi
+fi
+echo 
+
+if [ -e ${install_main_dir}/uninstall_${PREFIX}x.sh ]; then
+  if [ X$remove_flag == X"true" ]; then  
+    bash ${install_main_dir}/uninstall_${PREFIX}x.sh --clean-all true
+  else
+    bash ${install_main_dir}/uninstall_${PREFIX}x.sh --clean-all false
   fi
 fi
 
@@ -262,6 +260,11 @@ clean_log
 clean_config
 # Remove data link directory
 ${csudo}rm -rf ${data_link_dir} || :
+
+if [ X$remove_flag == X"true" ]; then
+  remove_data_and_config
+fi
+
 ${csudo}rm -rf ${install_main_dir} || :
 if [[ -e /etc/os-release ]]; then
   osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
