@@ -602,8 +602,12 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
   bool valid = (pInfo->checkpointId <= pReq->checkpointId && pInfo->checkpointVer <= pReq->checkpointVer &&
          pInfo->processedVer <= pReq->checkpointVer);
+
   if (!valid) {
-    stFatal("");
+    stFatal("invalid checkpoint id check, current checkpointId:%" PRId64 " checkpointVer:%" PRId64
+            " processedVer:%" PRId64 " req checkpointId:%" PRId64 " checkpointVer:%" PRId64,
+            pInfo->checkpointId, pInfo->checkpointVer, pInfo->processedVer, pReq->checkpointId, pReq->checkpointVer);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
   // update only it is in checkpoint status, or during restore procedure.
