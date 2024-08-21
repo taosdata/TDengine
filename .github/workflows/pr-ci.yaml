@@ -47,7 +47,7 @@ jobs:
         run: |
           cargo build
       - name: taosx unit test
-        continue-on-error: true
+        # continue-on-error: true
         run: |
           if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
               echo "run taosx unit test"
