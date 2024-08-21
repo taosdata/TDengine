@@ -178,6 +178,8 @@ void *taosProcessSchedQueue(void *scheduler) {
       (*(msg.tfp))(msg.ahandle, msg.thandle);
   }
 
+  destroyThreadLocalGeosCtx();
+
   return NULL;
 }
 

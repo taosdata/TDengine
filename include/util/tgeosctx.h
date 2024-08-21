@@ -32,16 +32,14 @@ typedef struct SGeosContext {
   GEOSWKBReader *WKBReader;
   GEOSWKBWriter *WKBWriter;
 
-  pcre2_code       *WKTRegex;
+  pcre2_code *WKTRegex;
   pcre2_match_data *WKTMatchData;
 
   char errMsg[512];
 } SGeosContext;
 
-SGeosContext *acquireThreadLocalGeosCtx();
-SGeosContext *getThreadLocalGeosCtx();
-const char   *getGeosErrMsg(int32_t code);
-void          taosGeosDestroy();
+SGeosContext* getThreadLocalGeosCtx();
+void destroyThreadLocalGeosCtx();
 
 #ifdef __cplusplus
 }
