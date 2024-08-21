@@ -71,8 +71,7 @@ int32_t tScalableBfPutNoCheck(SScalableBf* pSBf, const void* keyBuf, uint32_t le
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pSBf->status == SBF_INVALID) {
-    code = TSDB_CODE_OUT_OF_BUFFER;
-    QUERY_CHECK_CODE(code, lino, _error);
+    return code;
   }
   int32_t       size = taosArrayGetSize(pSBf->bfArray);
   SBloomFilter* pNormalBf = taosArrayGetP(pSBf->bfArray, size - 1);
@@ -105,8 +104,8 @@ int32_t tScalableBfPut(SScalableBf* pSBf, const void* keyBuf, uint32_t len, int3
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pSBf->status == SBF_INVALID) {
-    code = TSDB_CODE_OUT_OF_BUFFER;
-    QUERY_CHECK_CODE(code, lino, _end);
+    (*winRes) = TSDB_CODE_FAILED;
+    return code;
   }
   uint64_t h1 = (uint64_t)pSBf->hashFn1(keyBuf, len);
   uint64_t h2 = (uint64_t)pSBf->hashFn2(keyBuf, len);
