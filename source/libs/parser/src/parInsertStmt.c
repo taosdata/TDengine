@@ -588,8 +588,8 @@ end:
 }
 
 static int32_t convertStmtStbNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STMT2_BIND* src, TAOS_STMT2_BIND* dst) {
-  int32_t output = 0;
-  int32_t max_buf_len = pSchema->bytes - VARSTR_HEADER_SIZE;
+  int32_t       output = 0;
+  const int32_t max_buf_len = pSchema->bytes - VARSTR_HEADER_SIZE;
 
   dst->buffer = taosMemoryCalloc(src->num, max_buf_len);
   if (NULL == dst->buffer) {
@@ -710,14 +710,16 @@ _return:
 }
 
 static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STMT2_BIND* src, TAOS_STMT2_BIND* dst) {
-  int32_t output = 0;
+  int32_t       output = 0;
+  const int32_t max_buf_len = pSchema->bytes - VARSTR_HEADER_SIZE;
+
   int32_t newBuflen = (pSchema->bytes - VARSTR_HEADER_SIZE) * src->num;
-  if (dst->buffer_length < newBuflen) {
-    dst->buffer = taosMemoryRealloc(dst->buffer, newBuflen);
-    if (NULL == dst->buffer) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
+  // if (dst->buffer_length < newBuflen) {
+  dst->buffer = taosMemoryRealloc(dst->buffer, newBuflen);
+  if (NULL == dst->buffer) {
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
+  //}
 
   if (NULL == dst->length) {
     dst->length = taosMemoryRealloc(dst->length, sizeof(int32_t) * src->num);
@@ -727,15 +729,17 @@ static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STM
     }
   }
 
-  dst->buffer_length = pSchema->bytes - VARSTR_HEADER_SIZE;
-
+  // dst->buffer_length = pSchema->bytes - VARSTR_HEADER_SIZE;
+  char* src_buf = src->buffer;
+  char* dst_buf = dst->buffer;
   for (int32_t i = 0; i < src->num; ++i) {
     if (src->is_null && src->is_null[i]) {
       continue;
     }
 
-    if (!taosMbsToUcs4(((char*)src->buffer) + src->buffer_length * i, src->length[i],
-                       (TdUcs4*)(((char*)dst->buffer) + dst->buffer_length * i), dst->buffer_length, &output)) {
+    /*if (!taosMbsToUcs4(((char*)src->buffer) + src->buffer_length * i, src->length[i],
+      (TdUcs4*)(((char*)dst->buffer) + dst->buffer_length * i), dst->buffer_length, &output)) {*/
+    if (!taosMbsToUcs4(src_buf, src->length[i], (TdUcs4*)dst_buf, max_buf_len, &output)) {
       if (errno == E2BIG) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
@@ -745,6 +749,8 @@ static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STM
     }
 
     dst->length[i] = output;
+    src_buf += src->length[i];
+    dst_buf += output;
   }
 
   dst->buffer_type = src->buffer_type;

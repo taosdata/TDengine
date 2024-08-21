@@ -210,12 +210,11 @@ typedef struct {
 } TAOS_STMT2_OPTION;
 
 typedef struct {
-  int       buffer_type;
-  void     *buffer;
-  uintptr_t buffer_length;
-  int32_t  *length;
-  char     *is_null;
-  int       num;
+  int      buffer_type;
+  void    *buffer;
+  int32_t *length;
+  char    *is_null;
+  int      num;
 } TAOS_STMT2_BIND;
 
 typedef struct {

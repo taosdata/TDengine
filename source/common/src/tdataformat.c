@@ -3127,6 +3127,7 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
   }
 
   if (IS_VAR_DATA_TYPE(pColData->type)) {  // var-length data type
+    uint8_t *buf = pBind->buffer;
     for (int32_t i = 0; i < pBind->num; ++i) {
       if (pBind->is_null && pBind->is_null[i]) {
         if (pColData->cflag & COL_IS_KEY) {
@@ -3139,8 +3140,8 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
         uError("var data length too big, len:%d, max:%d", pBind->length[i], buffMaxLen);
         return TSDB_CODE_INVALID_PARA;
       } else {
-        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
-            pColData, (uint8_t *)pBind->buffer + pBind->buffer_length * i, pBind->length[i]);
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, buf, pBind->length[i]);
+        buf += pBind->length[i];
       }
     }
   } else {  // fixed-length data type
@@ -3164,7 +3165,7 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
       // optimize (todo)
       for (int32_t i = 0; i < pBind->num; ++i) {
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
-            pColData, (uint8_t *)pBind->buffer + TYPE_BYTES[pColData->type] * i, pBind->buffer_length);
+            pColData, (uint8_t *)pBind->buffer + TYPE_BYTES[pColData->type] * i, TYPE_BYTES[pColData->type]);
       }
     } else if (allNull) {
       // optimize (todo)
@@ -3179,7 +3180,7 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
           if (code) goto _exit;
         } else {
           code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
-              pColData, (uint8_t *)pBind->buffer + TYPE_BYTES[pColData->type] * i, pBind->buffer_length);
+              pColData, (uint8_t *)pBind->buffer + TYPE_BYTES[pColData->type] * i, TYPE_BYTES[pColData->type]);
         }
       }
     }
@@ -3244,8 +3245,10 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
           *data += length;
           // value.pData = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow;
         } else {
-          (void)memcpy(&value.val, (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow,
-                       infos[iInfo].bytes /*bind->buffer_length*/);
+          (void)memcpy(
+              &value.val,
+              (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bytes /*infos[iInfo].bind->buffer_length*/ * iRow,
+              infos[iInfo].bytes /*bind->buffer_length*/);
         }
         colVal = COL_VAL_VALUE(infos[iInfo].columnId, value);
       }

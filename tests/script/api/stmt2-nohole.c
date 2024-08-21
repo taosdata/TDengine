@@ -99,7 +99,7 @@ void veriry_stmt(TAOS* taos) {
 
 #include "time.h"
   clock_t           start, end;
-  TAOS_STMT2_OPTION option = {0, true, true, stmtAsyncQueryCb, NULL};
+  TAOS_STMT2_OPTION option = {0, true, false, stmtAsyncQueryCb, NULL};
 
   start = clock();
   TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
@@ -110,63 +110,63 @@ void veriry_stmt(TAOS* taos) {
   char            is_null[10] = {0};
 
   params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-  params[0].buffer_length = sizeof(v.ts[0]);
+  // params[0].buffer_length = sizeof(v.ts[0]);
   params[0].buffer = v.ts;
   params[0].length = t64_len;
   params[0].is_null = is_null;
   params[0].num = 10;
 
   params[1].buffer_type = TSDB_DATA_TYPE_BOOL;
-  params[1].buffer_length = sizeof(v.b[0]);
+  // params[1].buffer_length = sizeof(v.b[0]);
   params[1].buffer = v.b;
   params[1].length = t8_len;
   params[1].is_null = is_null;
   params[1].num = 10;
 
   params[2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-  params[2].buffer_length = sizeof(v.v1[0]);
+  // params[2].buffer_length = sizeof(v.v1[0]);
   params[2].buffer = v.v1;
   params[2].length = t8_len;
   params[2].is_null = is_null;
   params[2].num = 10;
 
   params[3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-  params[3].buffer_length = sizeof(v.v2[0]);
+  // params[3].buffer_length = sizeof(v.v2[0]);
   params[3].buffer = v.v2;
   params[3].length = t16_len;
   params[3].is_null = is_null;
   params[3].num = 10;
 
   params[4].buffer_type = TSDB_DATA_TYPE_INT;
-  params[4].buffer_length = sizeof(v.v4[0]);
+  // params[4].buffer_length = sizeof(v.v4[0]);
   params[4].buffer = v.v4;
   params[4].length = t32_len;
   params[4].is_null = is_null;
   params[4].num = 10;
 
   params[5].buffer_type = TSDB_DATA_TYPE_BIGINT;
-  params[5].buffer_length = sizeof(v.v8[0]);
+  // params[5].buffer_length = sizeof(v.v8[0]);
   params[5].buffer = v.v8;
   params[5].length = t64_len;
   params[5].is_null = is_null;
   params[5].num = 10;
 
   params[6].buffer_type = TSDB_DATA_TYPE_FLOAT;
-  params[6].buffer_length = sizeof(v.f4[0]);
+  // params[6].buffer_length = sizeof(v.f4[0]);
   params[6].buffer = v.f4;
   params[6].length = float_len;
   params[6].is_null = is_null;
   params[6].num = 10;
 
   params[7].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-  params[7].buffer_length = sizeof(v.f8[0]);
+  // params[7].buffer_length = sizeof(v.f8[0]);
   params[7].buffer = v.f8;
   params[7].length = double_len;
   params[7].is_null = is_null;
   params[7].num = 10;
   /*
   params[8].buffer_type = TSDB_DATA_TYPE_BINARY;
-  params[8].buffer_length = sizeof(v.bin[0]);
+  //params[8].buffer_length = sizeof(v.bin[0]);
   params[8].buffer = v.bin;
   params[8].length = bin_len;
   params[8].is_null = is_null;
@@ -180,7 +180,7 @@ void veriry_stmt(TAOS* taos) {
   params[8].num = 10;
 
   params[9].buffer_type = TSDB_DATA_TYPE_NCHAR;
-  params[9].buffer_length = sizeof(v.blob[0]);
+  // params[9].buffer_length = sizeof(v.blob[0]);
   params[9].buffer = v.blob;
   params[9].length = blob_len;
   params[9].is_null = is_null;
@@ -205,9 +205,17 @@ void veriry_stmt(TAOS* taos) {
   }
   */
 
-  int64_t ts = 1591060628000;
-  char*   blob2_buffer = v.blob2;
-  char*   blob_buffer = v.blob;
+  int64_t     ts = 1591060628000;
+  char*       blob2_buffer = v.blob2;
+  char*       blob_buffer = v.blob;
+  const char* blob2_str[] = {
+      "一二三四五六七十九八", "一二三四五六七十九", "一二三四五六七十", "一二三四五六七", "一二三四五六",
+      "一二三四五",           "一二三四",           "一二三",           "一二",           "一",
+  };
+  const char* blob_str[] = {
+      "一",           "一二",           "一二三",           "一二三四",           "一二三四五",
+      "一二三四五六", "一二三四五六七", "一二三四五六七八", "一二三四五六七八九", "一二三四五六七八九十",
+  };
   for (int i = 0; i < 10; ++i) {
     is_null[i] = 0;
 
@@ -224,10 +232,10 @@ void veriry_stmt(TAOS* taos) {
     }
     // strcpy(v.blob2[i], "一二三四五六七十九八");
     // strcpy(v.blob[i], "一二三四五六七八九十");
-    const char* blob2_str = "一二三四五六七十九八";
-    const char* blob_str = "一二三四五六七八九十";
-    strcpy(blob2_buffer, blob2_str);
-    strcpy(blob_buffer, blob_str);
+    // const char* blob2_str = "一二三四五六七十九八";
+    // const char* blob_str = "一二三四五六七八九十";
+    strcpy(blob2_buffer, blob2_str[i]);
+    strcpy(blob_buffer, blob_str[i]);
 
     t8_len[i] = sizeof(int8_t);
     t16_len[i] = sizeof(int16_t);
@@ -238,8 +246,8 @@ void veriry_stmt(TAOS* taos) {
     bin_len[i] = sizeof(v.bin[0]);
     // blob_len[i] = (int32_t)strlen(v.blob[i]);
     // blob_len2[i] = (int32_t)strlen(v.blob2[i]);
-    blob_len[i] = (int32_t)strlen(blob_str);
-    blob_len2[i] = (int32_t)strlen(blob2_str);
+    blob_len[i] = (int32_t)strlen(blob_str[i]);
+    blob_len2[i] = (int32_t)strlen(blob2_str[i]);
     blob_buffer += blob_len[i];
     blob2_buffer += blob_len2[i];
   }
