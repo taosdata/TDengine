@@ -120,6 +120,8 @@ static int32_t monitorReportAsyncCB(void* param, SDataBuf* pMsg, int32_t code) {
         .data = NULL};
     if (monitorPutData2MonitorQueue(tmp) == 0) {
       p->fileName = NULL;
+    } else {
+      taosCloseFile(&(p->pFile));
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -714,7 +716,7 @@ static void* monitorThreadFunc(void* param) {
     MonitorSlowLogData* slowLogData = NULL;
     (void)taosReadQitem(monitorQueue, (void**)&slowLogData);
     if (slowLogData != NULL) {
-      if (slowLogData->type == SLOW_LOG_READ_BEGINNIG) {
+      if (slowLogData->type == SLOW_LOG_READ_BEGINNIG && quitCnt == 0) {
         if (slowLogData->pFile != NULL) {
           monitorSendSlowLogAtBeginning(slowLogData->clusterId, &(slowLogData->fileName), slowLogData->pFile,
                                         slowLogData->offset);
@@ -857,6 +859,7 @@ int32_t monitorPutData2MonitorQueue(MonitorSlowLogData data) {
   if (taosWriteQitem(monitorQueue, slowLogData) == 0) {
     (void)tsem2_post(&monitorSem);
   } else {
+    taosCloseFile(&(slowLogData->pFile));
     monitorFreeSlowLogData(slowLogData);
     taosFreeQitem(slowLogData);
   }
