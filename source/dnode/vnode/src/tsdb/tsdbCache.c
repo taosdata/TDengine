@@ -533,12 +533,12 @@ int32_t tsdbCacheCommit(STsdb *pTsdb) {
 
 static int32_t reallocVarDataVal(SValue *pValue) {
   if (IS_VAR_DATA_TYPE(pValue->type)) {
-    uint8_t *pVal = pValue->pData;
     if (pValue->nData > 0) {
       uint8_t *p = taosMemoryMalloc(pValue->nData);
       if (!p) {
         TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
       }
+      uint8_t *pVal = pValue->pData;
       pValue->pData = p;
       memcpy(pValue->pData, pVal, pValue->nData);
     } else {
@@ -3103,25 +3103,23 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
         if (slotIds[iCol] == 0) {
           STColumn *pTColumn = &pTSchema->columns[0];
 
+          SRowKey key = rowKey.key;
+          for (int8_t i = 0; i < rowKey.key.numOfPKs; ++i) {
+            TAOS_CHECK_GOTO(reallocVarDataVal(&key.pks[i]), &lino, _err);
+          }
+
           *pColVal = COL_VAL_VALUE(pTColumn->colId, ((SValue){.type = pTColumn->type, .val = rowKey.key.ts}));
           taosArraySet(pColArray, 0,
-                       &(SLastCol){.rowKey = rowKey.key, .colVal = *pColVal, .cacheStatus = TSDB_LAST_CACHE_VALID});
+                       &(SLastCol){.rowKey = key, .colVal = *pColVal, .cacheStatus = TSDB_LAST_CACHE_VALID});
           continue;
         }
         tsdbRowGetColVal(pRow, pTSchema, slotIds[iCol], pColVal);
 
         *pCol = (SLastCol){.rowKey = rowKey.key, .colVal = *pColVal, .cacheStatus = TSDB_LAST_CACHE_VALID};
-        if (IS_VAR_DATA_TYPE(pColVal->value.type) /*&& pColVal->value.nData > 0*/) {
-          if (pColVal->value.nData > 0) {
-            pCol->colVal.value.pData = taosMemoryMalloc(pCol->colVal.value.nData);
-            if (pCol->colVal.value.pData == NULL) {
-              TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
-            }
-            memcpy(pCol->colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
-          } else {
-            pCol->colVal.value.pData = NULL;
-          }
+        for (int8_t i = 0; i < rowKey.key.numOfPKs; ++i) {
+          TAOS_CHECK_GOTO(reallocVarDataVal(&pCol->rowKey.pks[i]), &lino, _err);
         }
+        TAOS_CHECK_GOTO(reallocVarData(&pCol->colVal), &lino, _err);
 
         if (!COL_VAL_IS_VALUE(pColVal)) {
           if (!setNoneCol) {
@@ -3160,19 +3158,15 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
       tsdbRowGetColVal(pRow, pTSchema, slotIds[iCol], pColVal);
       if (COL_VAL_IS_VALUE(pColVal)) {
         SLastCol lastCol = {.rowKey = rowKey.key, .colVal = *pColVal, .cacheStatus = TSDB_LAST_CACHE_VALID};
+        for (int8_t i = 0; i < rowKey.key.numOfPKs; ++i) {
+          TAOS_CHECK_GOTO(reallocVarDataVal(&lastCol.rowKey.pks[i]), &lino, _err);
+        }
+
         if (IS_VAR_DATA_TYPE(pColVal->value.type) /* && pColVal->value.nData > 0 */) {
           SLastCol *pLastCol = (SLastCol *)taosArrayGet(pColArray, iCol);
           taosMemoryFree(pLastCol->colVal.value.pData);
 
-          if (pColVal->value.nData > 0) {
-            lastCol.colVal.value.pData = taosMemoryMalloc(lastCol.colVal.value.nData);
-            if (lastCol.colVal.value.pData == NULL) {
-              TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
-            }
-            memcpy(lastCol.colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
-          } else {
-            lastCol.colVal.value.pData = NULL;
-          }
+          TAOS_CHECK_GOTO(reallocVarData(&lastCol.colVal), &lino, _err);
         }
 
         taosArraySet(pColArray, iCol, &lastCol);
@@ -3283,27 +3277,23 @@ static int32_t mergeLastRowCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray,
       if (slotIds[iCol] == 0) {
         STColumn *pTColumn = &pTSchema->columns[0];
 
+        SRowKey key = rowKey.key;
+        for (int8_t i = 0; i < rowKey.key.numOfPKs; ++i) {
+          TAOS_CHECK_GOTO(reallocVarDataVal(&key.pks[i]), &lino, _err);
+        }
+
         *pColVal = COL_VAL_VALUE(pTColumn->colId, ((SValue){.type = pTColumn->type, .val = rowKey.key.ts}));
         taosArraySet(pColArray, 0,
-                     &(SLastCol){.rowKey = rowKey.key, .colVal = *pColVal, .cacheStatus = TSDB_LAST_CACHE_VALID});
+                     &(SLastCol){.rowKey = key, .colVal = *pColVal, .cacheStatus = TSDB_LAST_CACHE_VALID});
         continue;
       }
       tsdbRowGetColVal(pRow, pTSchema, slotIds[iCol], pColVal);
 
       *pCol = (SLastCol){.rowKey = rowKey.key, .colVal = *pColVal, .cacheStatus = TSDB_LAST_CACHE_VALID};
-      if (IS_VAR_DATA_TYPE(pColVal->value.type) /*&& pColVal->value.nData > 0*/) {
-        if (pColVal->value.nData > 0) {
-          pCol->colVal.value.pData = taosMemoryMalloc(pCol->colVal.value.nData);
-          if (pCol->colVal.value.pData == NULL) {
-            TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
-          }
-          if (pColVal->value.nData > 0) {
-            memcpy(pCol->colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
-          }
-        } else {
-          pCol->colVal.value.pData = NULL;
-        }
+      for (int8_t i = 0; i < rowKey.key.numOfPKs; ++i) {
+        TAOS_CHECK_GOTO(reallocVarDataVal(&pCol->rowKey.pks[i]), &lino, _err);
       }
+      TAOS_CHECK_GOTO(reallocVarData(&pCol->colVal), &lino, _err);
 
       int32_t aColIndex = taosArraySearchIdx(aColArray, &pColVal->cid, compareInt16Val, TD_EQ);
       if (aColIndex >= 0) {
