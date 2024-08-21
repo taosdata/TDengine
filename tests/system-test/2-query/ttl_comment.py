@@ -36,12 +36,12 @@ class TDTestCase:
         tdSql.error(f"create table {dbname}.ttl_table1(ts timestamp, i int) ttl 1.1")
         tdSql.error(f"create table {dbname}.ttl_table2(ts timestamp, i int) ttl 1e1")
         tdSql.error(f"create table {dbname}.ttl_table3(ts timestamp, i int) ttl -1")
+        tdSql.error(f"create table {dbname}.ttl_table4(ts timestamp, i int) ttl 2147483648")
 
         print("============== STEP 1 ===== test normal table")
 
         tdSql.execute(f"create table {dbname}.normal_table1(ts timestamp, i int)")
         tdSql.execute(f"create table {dbname}.normal_table2(ts timestamp, i int) comment '' ttl 3")
-        tdSql.execute(f"create table {dbname}.normal_table3(ts timestamp, i int) ttl 2100000000020 comment 'hello'")
 
         tdSql.query("select * from information_schema.ins_tables where table_name like 'normal_table1'")
         tdSql.checkData(0, 0, 'normal_table1')
@@ -53,12 +53,6 @@ class TDTestCase:
         tdSql.checkData(0, 0, 'normal_table2')
         tdSql.checkData(0, 7, 3)
         tdSql.checkData(0, 8, '')
-
-
-        tdSql.query("select * from information_schema.ins_tables where table_name like 'normal_table3'")
-        tdSql.checkData(0, 0, 'normal_table3')
-        tdSql.checkData(0, 7, 2147483647)
-        tdSql.checkData(0, 8, 'hello')
 
         tdSql.execute(f"alter table {dbname}.normal_table1 comment 'nihao'")
         tdSql.query("select * from information_schema.ins_tables where table_name like 'normal_table1'")
@@ -75,19 +69,14 @@ class TDTestCase:
         tdSql.checkData(0, 0, 'normal_table2')
         tdSql.checkData(0, 8, 'fly')
 
-        tdSql.execute(f"alter table {dbname}.normal_table3 comment 'fly'")
-        tdSql.query("select * from information_schema.ins_tables where table_name like 'normal_table3'")
-        tdSql.checkData(0, 0, 'normal_table3')
-        tdSql.checkData(0, 8, 'fly')
-
         tdSql.execute(f"alter table {dbname}.normal_table1 ttl 1")
         tdSql.query("select * from information_schema.ins_tables where table_name like 'normal_table1'")
         tdSql.checkData(0, 0, 'normal_table1')
         tdSql.checkData(0, 7, 1)
 
-        tdSql.execute(f"alter table {dbname}.normal_table3 ttl 0")
-        tdSql.query("select * from information_schema.ins_tables where table_name like 'normal_table3'")
-        tdSql.checkData(0, 0, 'normal_table3')
+        tdSql.execute(f"alter table {dbname}.normal_table2 ttl 0")
+        tdSql.query("select * from information_schema.ins_tables where table_name like 'normal_table2'")
+        tdSql.checkData(0, 0, 'normal_table2')
         tdSql.checkData(0, 7, 0)
 
 
