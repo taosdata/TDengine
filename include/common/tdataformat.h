@@ -384,6 +384,7 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
 typedef struct {
   int32_t          columnId;
   int32_t          type;
+  int32_t          bytes;
   TAOS_STMT2_BIND *bind;
 } SBindInfo2;
 

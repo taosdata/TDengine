@@ -3208,11 +3208,22 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
 
   int32_t code = 0;
   int32_t numOfRows = infos[0].bind->num;
-  SArray *colValArray;
+  SArray *colValArray, *bufArray;
   SColVal colVal;
 
   if ((colValArray = taosArrayInit(numOfInfos, sizeof(SColVal))) == NULL) {
     return terrno;
+  }
+  if ((bufArray = taosArrayInit(numOfInfos, sizeof(uint8_t *))) == NULL) {
+    taosArrayDestroy(colValArray);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  for (int i = 0; i < numOfInfos; ++i) {
+    if (!taosArrayPush(bufArray, &infos[i].bind->buffer)) {
+      taosArrayDestroy(colValArray);
+      taosArrayDestroy(bufArray);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
   for (int32_t iRow = 0; iRow < numOfRows; iRow++) {
@@ -3226,11 +3237,15 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
             .type = infos[iInfo].type,
         };
         if (IS_VAR_DATA_TYPE(infos[iInfo].type)) {
-          value.nData = infos[iInfo].bind->length[iRow];
-          value.pData = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow;
+          int32_t   length = infos[iInfo].bind->length[iRow];
+          uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo];
+          value.nData = length;
+          value.pData = *data;
+          *data += length;
+          // value.pData = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow;
         } else {
           (void)memcpy(&value.val, (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow,
-                       infos[iInfo].bind->buffer_length);
+                       infos[iInfo].bytes /*bind->buffer_length*/);
         }
         colVal = COL_VAL_VALUE(infos[iInfo].columnId, value);
       }
@@ -3253,6 +3268,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
 
 _exit:
   taosArrayDestroy(colValArray);
+  taosArrayDestroy(bufArray);
   return code;
 }
 

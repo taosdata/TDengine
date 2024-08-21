@@ -7,6 +7,7 @@ LFLAGS = '-Wl,-rpath,/usr/local/taos/driver/' -ltaos -lpthread -lm -lrt
 CFLAGS = -O0 -g -Wno-deprecated -fPIC -Wno-unused-result -Wconversion \
 	-Wno-char-subscripts -D_REENTRANT -Wno-format -D_REENTRANT -DLINUX \
 	-Wno-unused-function -D_M_X64 -I/usr/local/taos/include -std=gnu99 -Wno-sign-conversion
+CFLAGS +=  -fsanitize=address -fsanitize=undefined -fsanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=shift-base -fno-sanitize=alignment
 
 all: $(TARGET)
 
@@ -20,6 +21,11 @@ exe:
 	gcc $(CFLAGS) ./insert_stb.c  -o $(ROOT)insert_stb $(LFLAGS)
 	gcc $(CFLAGS) ./tmqViewTest.c  -o $(ROOT)tmqViewTest $(LFLAGS)
 	gcc $(CFLAGS) ./stmtQuery.c  -o $(ROOT)stmtQuery $(LFLAGS)
+	gcc $(CFLAGS) ./stmt.c  -o $(ROOT)stmt $(LFLAGS)
+	gcc $(CFLAGS) ./stmt2.c  -o $(ROOT)stmt2 $(LFLAGS)
+	gcc $(CFLAGS) ./stmt2-example.c  -o $(ROOT)stmt2-example $(LFLAGS)
+	gcc $(CFLAGS) ./stmt2-nohole.c  -o $(ROOT)stmt2-nohole $(LFLAGS)
+	gcc $(CFLAGS) ./stmt-crash.c  -o $(ROOT)stmt-crash $(LFLAGS)
 
 clean:
 	rm $(ROOT)batchprepare
@@ -31,3 +37,8 @@ clean:
 	rm $(ROOT)insert_stb
 	rm $(ROOT)tmqViewTest
 	rm $(ROOT)stmtQuery
+	rm $(ROOT)stmt
+	rm $(ROOT)stmt2
+	rm $(ROOT)stmt2-example
+	rm $(ROOT)stmt2-nohole
+	rm $(ROOT)stmt-crash
