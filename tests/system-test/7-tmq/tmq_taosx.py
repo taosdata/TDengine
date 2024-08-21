@@ -598,12 +598,12 @@ class TDTestCase:
         tdSql.query(f'show consumers')
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 'g1')
-        tdSql.checkData(0, 4, 't2')
+        tdSql.checkData(0, 6, 't2')
         tdSql.execute(f'drop consumer group g1 on t1')
         tdSql.query(f'show consumers')
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 'g1')
-        tdSql.checkData(0, 4, 't2')
+        tdSql.checkData(0, 6, 't2')
 
         tdSql.query(f'show subscriptions')
         tdSql.checkRows(1)
@@ -641,7 +641,7 @@ class TDTestCase:
         tdSql.query(f'show consumers')
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 'g1')
-        tdSql.checkData(0, 4, 't2')
+        tdSql.checkData(0, 6, 't2')
 
         tdSql.execute(f'insert into t4 using st tags(3) values(now, 1)')
         try:

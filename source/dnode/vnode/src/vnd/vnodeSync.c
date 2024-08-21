@@ -381,7 +381,7 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
 static int32_t vnodeSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   if (pMsg == NULL || pMsg->pCont == NULL) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   if (msgcb == NULL || msgcb->putToQueueFp == NULL) {

@@ -59,7 +59,7 @@ int32_t tHistogramCreate(int32_t numOfEntries, SHistogramInfo** pHisto);
 SHistogramInfo* tHistogramCreateFrom(void* pBuf, int32_t numOfBins);
 
 int32_t tHistogramAdd(SHistogramInfo** pHisto, double val);
-int64_t tHistogramSum(SHistogramInfo* pHisto, double v);
+int32_t tHistogramSum(SHistogramInfo* pHisto, double v, int64_t *res);
 
 int32_t         tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num, double** pVal);
 int32_t         tHistogramMerge(SHistogramInfo* pHisto1, SHistogramInfo* pHisto2, int32_t numOfEntries,

@@ -200,7 +200,7 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
     if ((*pTask)->status.requireConsensusChkptId) {
       entry.checkpointInfo.consensusChkptId = 1;
       (*pTask)->status.requireConsensusChkptId = false;
-      stDebug("s-task:%s vgId:%d set the require consensus-checkpointId in hbMsg", (*pTask)->id.idStr, pMeta->vgId);
+      stDebug("s-task:%s vgId:%d set requiring consensus-checkpointId in hbMsg", (*pTask)->id.idStr, pMeta->vgId);
     }
 
     if ((*pTask)->exec.pWalReader != NULL) {

@@ -19,6 +19,10 @@
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
+#else
+#ifndef CUS_PROMPT
+#define CUS_PROMPT "taos"
+#endif
 #endif
 
 #define PROCESS_ITEM 12
@@ -987,7 +991,7 @@ void taosKillSystem() {
   exit(0);
 #else
   // SIGINT
-  (void)printf("taosd will shut down soon");
+  (void)printf("%sd will shut down soon", CUS_PROMPT);
   (void)kill(tsProcId, 2);
 #endif
 }

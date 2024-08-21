@@ -27,7 +27,7 @@ REST API：直接调用 `taosadapter` 提供的 REST API 接口，进行数据�
 <TabItem value="java" label="Java">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/JdbcCreatDBDemo.java:create_db_and_table}}
+{{#include docs/examples/java/src/main/java/com/taos/example/JdbcCreatDBDemo.java:create_db_and_table}}
 ```
 
 </TabItem>
@@ -98,7 +98,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql/power' \
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/JdbcInsertDataDemo.java:insert_data}}
+{{#include docs/examples/java/src/main/java/com/taos/example/JdbcInsertDataDemo.java:insert_data}}
 ```
 
 **Note**
@@ -170,7 +170,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 <TabItem label="Java" value="java">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/JdbcQueryDemo.java:query_data}}
+{{#include docs/examples/java/src/main/java/com/taos/example/JdbcQueryDemo.java:query_data}}
 ```
 
 **Note** 查询和操作关系型数据库一致，使用下标获取返回字段内容时从 1 开始，建议使用字段名称获取。
@@ -251,7 +251,7 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 <TabItem label="Java" value="java">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/JdbcReqIdDemo.java:with_reqid}}
+{{#include docs/examples/java/src/main/java/com/taos/example/JdbcReqIdDemo.java:with_reqid}}
 ```
 
 </TabItem>

@@ -561,12 +561,14 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
         stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped in update checkpointInfo, remain tasks:%d",
                 id, vgId, pReq->taskId, numOfTasks);
       }
+
       streamMetaWLock(pMeta);
-      if (streamMetaCommit(pMeta) < 0) {
-        // persist to disk
+      if (pReq->dropRelHTask) {
+        code = streamMetaCommit(pMeta);
       }
     }
 
+    // always return true
     return TSDB_CODE_SUCCESS;
   }
 
@@ -594,13 +596,15 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
   ASSERT(pInfo->checkpointId <= pReq->checkpointId && pInfo->checkpointVer <= pReq->checkpointVer &&
          pInfo->processedVer <= pReq->checkpointVer);
 
-  // update only it is in checkpoint status.
-  if (pStatus.state == TASK_STATUS__CK) {
+  // update only it is in checkpoint status, or during restore procedure.
+  if (pStatus.state == TASK_STATUS__CK || (!restored)) {
     pInfo->checkpointId = pReq->checkpointId;
     pInfo->checkpointVer = pReq->checkpointVer;
     pInfo->checkpointTime = pReq->checkpointTs;
 
-    code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
+    if (restored) {
+      code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
+    }
   }
 
   streamTaskClearCheckInfo(pTask, true);
@@ -1350,7 +1354,7 @@ int32_t deleteCheckpointFile(const char* id, const char* name) {
   return code;
 }
 
-int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
+int32_t streamTaskSendNegotiateChkptIdMsg(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
 
   streamMutexLock(&pTask->lock);

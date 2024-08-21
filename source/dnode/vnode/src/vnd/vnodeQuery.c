@@ -545,7 +545,7 @@ int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
   SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, uid, 1);
   if (NULL == pCur) {
     qError("vnode get all table list failed");
-    return TSDB_CODE_FAILED;
+    return terrno;
   }
 
   while (1) {
@@ -576,7 +576,7 @@ int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list) {
   SMCtbCursor *pCur = metaOpenCtbCursor(pVnodeObj, suid, 1);
   if (NULL == pCur) {
     qError("vnode get all table list failed");
-    return TSDB_CODE_FAILED;
+    return terrno;
   }
 
   while (1) {
@@ -627,7 +627,7 @@ int32_t vnodeGetStbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bo
   int32_t code = TSDB_CODE_SUCCESS;
   SMStbCursor *pCur = metaOpenStbCursor(pVnode->pMeta, suid);
   if (!pCur) {
-    return TSDB_CODE_FAILED;
+    return terrno;
   }
 
   while (1) {
@@ -655,7 +655,7 @@ _exit:
 int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
   SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, suid, 0);
   if (!pCur) {
-    return TSDB_CODE_FAILED;
+    return terrno;
   }
 
   *num = 0;
@@ -757,8 +757,7 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
   SArray *suidList = NULL;
 
   if (!(suidList = taosArrayInit(1, sizeof(tb_uid_t)))) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_FAILED;
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
 
   int32_t tbFilterSize = 0;
@@ -774,7 +773,7 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
       (tbFilterSize && vnodeGetStbIdListByFilter(pVnode, 0, suidList, vnodeTimeSeriesFilter, pVnode) < 0)) {
     qError("vgId:%d, failed to get stb id list error: %s", TD_VID(pVnode), terrstr());
     taosArrayDestroy(suidList);
-    return TSDB_CODE_FAILED;
+    return terrno;
   }
 
   *num = 0;
@@ -799,7 +798,7 @@ _exit:
 int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num) {
   SMStbCursor *pCur = metaOpenStbCursor(pVnode->pMeta, 0);
   if (!pCur) {
-    return TSDB_CODE_FAILED;
+    return terrno;
   }
 
   *num = 0;

@@ -62,13 +62,13 @@ namespace TDengineExample
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to insert to table meters using stmt, url: " + connectionString + "; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to insert to table meters using stmt, ErrCode: " + e.Code + ", ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to insert to table meters using stmt, url: " + connectionString + "; ErrMessage: " + e.Message);
+                Console.WriteLine("Failed to insert to table meters using stmt, ErrMessage: " + e.Message);
                 throw;
             }
         }

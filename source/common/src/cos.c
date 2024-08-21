@@ -9,10 +9,10 @@ extern int8_t tsS3EpNum;
 extern char   tsS3Endpoint[][TSDB_FQDN_LEN];
 extern char   tsS3AccessKeyId[][TSDB_FQDN_LEN];
 extern char   tsS3AccessKeySecret[][TSDB_FQDN_LEN];
-extern char   tsS3BucketName[][TSDB_FQDN_LEN];
+extern char   tsS3BucketName[TSDB_FQDN_LEN];
 extern char   tsS3AppId[][TSDB_FQDN_LEN];
 extern char   tsS3Hostname[][TSDB_FQDN_LEN];
-extern int8_t tsS3Https;
+extern int8_t tsS3Https[];
 
 static int32_t s3ListBucketByEp(char const *bucketname, int8_t epIndex);
 static int32_t s3PutObjectFromFileOffsetByEp(const char *file, const char *object_name, int64_t offset, int64_t size,
@@ -33,13 +33,13 @@ static int         verifyPeerG = 0;
 static const char *awsRegionG = NULL;
 static int         forceG = 0;
 static int         showResponsePropertiesG = 0;
-static S3Protocol  protocolG = S3ProtocolHTTPS;
+static S3Protocol  protocolG[TSDB_MAX_EP_NUM] = {S3ProtocolHTTPS};
 //  static S3Protocol protocolG = S3ProtocolHTTP;
-static S3UriStyle uriStyleG = S3UriStylePath;
+static S3UriStyle uriStyleG[TSDB_MAX_EP_NUM] = {S3UriStylePath};
 static int        retriesG = 5;
 static int        timeoutMsG = 0;
 
-extern int8_t tsS3Oss;
+extern int8_t tsS3Oss[];
 
 int32_t s3Begin() {
   S3Status    status;
@@ -55,9 +55,9 @@ int32_t s3Begin() {
     TAOS_RETURN(TSDB_CODE_FAILED);
   }
 
-  protocolG = !tsS3Https;
-  if (tsS3Oss) {
-    uriStyleG = S3UriStyleVirtualHost;
+  for (int i = 0; i < tsS3EpNum; i++) {
+    protocolG[i] = tsS3Https[i] ? S3ProtocolHTTPS : S3ProtocolHTTP;
+    uriStyleG[i] = tsS3Oss[i] ? S3UriStyleVirtualHost : S3UriStylePath;
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -130,13 +130,13 @@ int32_t s3CheckCfg() {
     (void)fprintf(stderr, "put object %s: success.\n\n", objectname[0]);
 
     // list buckets
-    (void)fprintf(stderr, "start to list bucket %s by prefix s3.\n", tsS3BucketName[i]);
-    code = s3ListBucketByEp(tsS3BucketName[i], i);
+    (void)fprintf(stderr, "start to list bucket %s by prefix s3.\n", tsS3BucketName);
+    code = s3ListBucketByEp(tsS3BucketName, i);
     if (code != 0) {
-      (void)fprintf(stderr, "listing bucket %s : failed.\n", tsS3BucketName[i]);
+      (void)fprintf(stderr, "listing bucket %s : failed.\n", tsS3BucketName);
       TAOS_CHECK_GOTO(code, &lino, _exit);
     }
-    (void)fprintf(stderr, "listing bucket %s: success.\n\n", tsS3BucketName[i]);
+    (void)fprintf(stderr, "listing bucket %s: success.\n\n", tsS3BucketName);
 
     // test range get
     uint8_t *pBlock = NULL;
@@ -974,10 +974,10 @@ int32_t s3PutObjectFromFile2ByEp(const char *file, const char *object_name, int8
   data.totalContentLength = data.totalOriginalContentLength = data.contentLength = data.originalContentLength =
       contentLength;
 
-  S3BucketContext bucketContext = {0,
-                                   tsS3BucketName[epIndex],
-                                   protocolG,
-                                   uriStyleG,
+  S3BucketContext bucketContext = {tsS3Hostname[epIndex],
+                                   tsS3BucketName,
+                                   protocolG[epIndex],
+                                   uriStyleG[epIndex],
                                    tsS3AccessKeyId[epIndex],
                                    tsS3AccessKeySecret[epIndex],
                                    0,
@@ -1057,10 +1057,10 @@ static int32_t s3PutObjectFromFileOffsetByEp(const char *file, const char *objec
   data.totalContentLength = data.totalOriginalContentLength = data.contentLength = data.originalContentLength =
       contentLength;
 
-  S3BucketContext bucketContext = {0,
-                                   tsS3BucketName[epIndex],
-                                   protocolG,
-                                   uriStyleG,
+  S3BucketContext bucketContext = {tsS3Hostname[epIndex],
+                                   tsS3BucketName,
+                                   protocolG[epIndex],
+                                   uriStyleG[epIndex],
                                    tsS3AccessKeyId[epIndex],
                                    tsS3AccessKeySecret[epIndex],
                                    0,
@@ -1153,10 +1153,10 @@ static void s3FreeObjectKey(void *pItem) {
 }
 
 static SArray *getListByPrefixByEp(const char *prefix, int8_t epIndex) {
-  S3BucketContext     bucketContext = {0,
-                                       tsS3BucketName[epIndex],
-                                       protocolG,
-                                       uriStyleG,
+  S3BucketContext     bucketContext = {tsS3Hostname[epIndex],
+                                       tsS3BucketName,
+                                       protocolG[epIndex],
+                                       uriStyleG[epIndex],
                                        tsS3AccessKeyId[epIndex],
                                        tsS3AccessKeySecret[epIndex],
                                        0,
@@ -1221,10 +1221,10 @@ static SArray *getListByPrefix(const char *prefix) {
 static int32_t s3DeleteObjectsByEp(const char *object_name[], int nobject, int8_t epIndex) {
   int32_t code = 0;
 
-  S3BucketContext   bucketContext = {0,
-                                     tsS3BucketName[epIndex],
-                                     protocolG,
-                                     uriStyleG,
+  S3BucketContext   bucketContext = {tsS3Hostname[epIndex],
+                                     tsS3BucketName,
+                                     protocolG[epIndex],
+                                     uriStyleG[epIndex],
                                      tsS3AccessKeyId[epIndex],
                                      tsS3AccessKeySecret[epIndex],
                                      0,
@@ -1297,10 +1297,10 @@ static int32_t s3GetObjectBlockByEp(const char *object_name, int64_t offset, int
   int64_t     ifModifiedSince = -1, ifNotModifiedSince = -1;
   const char *ifMatch = 0, *ifNotMatch = 0;
 
-  S3BucketContext    bucketContext = {0,
-                                      tsS3BucketName[epIndex],
-                                      protocolG,
-                                      uriStyleG,
+  S3BucketContext    bucketContext = {tsS3Hostname[epIndex],
+                                      tsS3BucketName,
+                                      protocolG[epIndex],
+                                      uriStyleG[epIndex],
                                       tsS3AccessKeyId[epIndex],
                                       tsS3AccessKeySecret[epIndex],
                                       0,
@@ -1370,10 +1370,10 @@ static int32_t s3GetObjectToFileByEp(const char *object_name, const char *fileNa
   int64_t     ifModifiedSince = -1, ifNotModifiedSince = -1;
   const char *ifMatch = 0, *ifNotMatch = 0;
 
-  S3BucketContext    bucketContext = {0,
-                                      tsS3BucketName[epIndex],
-                                      protocolG,
-                                      uriStyleG,
+  S3BucketContext    bucketContext = {tsS3Hostname[epIndex],
+                                      tsS3BucketName,
+                                      protocolG[epIndex],
+                                      uriStyleG[epIndex],
                                       tsS3AccessKeyId[epIndex],
                                       tsS3AccessKeySecret[epIndex],
                                       0,
@@ -1447,10 +1447,10 @@ static long s3SizeByEp(const char *object_name, int8_t epIndex) {
   long size = 0;
   int  status = 0;
 
-  S3BucketContext bucketContext = {0,
-                                   tsS3BucketName[epIndex],
-                                   protocolG,
-                                   uriStyleG,
+  S3BucketContext bucketContext = {tsS3Hostname[epIndex],
+                                   tsS3BucketName,
+                                   protocolG[epIndex],
+                                   uriStyleG[epIndex],
                                    tsS3AccessKeyId[epIndex],
                                    tsS3AccessKeySecret[epIndex],
                                    0,

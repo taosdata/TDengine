@@ -1406,7 +1406,7 @@ static int32_t mergeLastRowCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray,
 
 static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SArray *remainCols,
                                     SCacheRowsReader *pr, int8_t ltype) {
-  int32_t               code = 0;
+  int32_t               code = 0, lino = 0;
   rocksdb_writebatch_t *wb = NULL;
   SArray               *pTmpColArray = NULL;
 
@@ -1440,11 +1440,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   int lastrowIndex = 0;
 
   if (!slotIds || !lastColIds || !lastSlotIds || !lastrowColIds || !lastrowSlotIds) {
-    taosMemoryFree(slotIds);
-    taosMemoryFree(lastColIds);
-    taosMemoryFree(lastSlotIds);
-    taosMemoryFree(lastrowColIds);
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   for (int i = 0; i < num_keys; ++i) {
@@ -1454,9 +1450,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
       if (NULL == lastTmpIndexArray) {
         lastTmpIndexArray = taosArrayInit(num_keys, sizeof(int32_t));
         if (!lastTmpIndexArray) {
-          taosArrayDestroy(lastrowTmpIndexArray);
-
-          TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+          TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
         }
       }
       (void)taosArrayPush(lastTmpIndexArray, &(i));
@@ -1467,9 +1461,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
       if (NULL == lastrowTmpIndexArray) {
         lastrowTmpIndexArray = taosArrayInit(num_keys, sizeof(int32_t));
         if (!lastrowTmpIndexArray) {
-          taosArrayDestroy(lastTmpIndexArray);
-
-          TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+          TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
         }
       }
       (void)taosArrayPush(lastrowTmpIndexArray, &(i));
@@ -1481,13 +1473,11 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
 
   pTmpColArray = taosArrayInit(lastIndex + lastrowIndex, sizeof(SLastCol));
   if (!pTmpColArray) {
-    taosArrayDestroy(lastrowTmpIndexArray);
-    taosArrayDestroy(lastTmpIndexArray);
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   if (lastTmpIndexArray != NULL) {
-    (void)mergeLastCid(uid, pTsdb, &lastTmpColArray, pr, lastColIds, lastIndex, lastSlotIds);
+    TAOS_CHECK_EXIT(mergeLastCid(uid, pTsdb, &lastTmpColArray, pr, lastColIds, lastIndex, lastSlotIds));
     for (int i = 0; i < taosArrayGetSize(lastTmpColArray); i++) {
       (void)taosArrayInsert(pTmpColArray, *(int32_t *)taosArrayGet(lastTmpIndexArray, i),
                             taosArrayGet(lastTmpColArray, i));
@@ -1495,7 +1485,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   }
 
   if (lastrowTmpIndexArray != NULL) {
-    (void)mergeLastRowCid(uid, pTsdb, &lastrowTmpColArray, pr, lastrowColIds, lastrowIndex, lastrowSlotIds);
+    TAOS_CHECK_EXIT(mergeLastRowCid(uid, pTsdb, &lastrowTmpColArray, pr, lastrowColIds, lastrowIndex, lastrowSlotIds));
     for (int i = 0; i < taosArrayGetSize(lastrowTmpColArray); i++) {
       (void)taosArrayInsert(pTmpColArray, *(int32_t *)taosArrayGet(lastrowTmpIndexArray, i),
                             taosArrayGet(lastrowTmpColArray, i));
@@ -1517,7 +1507,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
                         .cacheStatus = TSDB_LAST_CACHE_VALID};
     if (!pLastCol) {
       pLastCol = &noneCol;
-      TAOS_CHECK_RETURN(reallocVarData(&pLastCol->colVal));
+      TAOS_CHECK_EXIT(reallocVarData(&pLastCol->colVal));
     }
 
     taosArraySet(pLastArray, idxKey->idx, pLastCol);
@@ -1532,12 +1522,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
 
     SLastCol *pTmpLastCol = taosMemoryCalloc(1, sizeof(SLastCol));
     if (!pTmpLastCol) {
-      taosMemoryFree(slotIds);
-      taosMemoryFree(lastColIds);
-      taosMemoryFree(lastSlotIds);
-      taosMemoryFree(lastrowColIds);
-      taosMemoryFree(lastrowSlotIds);
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
     }
     *pTmpLastCol = *pLastCol;
     pLastCol = pTmpLastCol;
@@ -1546,12 +1531,12 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     for (int8_t i = 0; i < pLastCol->rowKey.numOfPKs; i++) {
       SValue *pValue = &pLastCol->rowKey.pks[i];
       if (IS_VAR_DATA_TYPE(pValue->type)) {
-        TAOS_CHECK_RETURN(reallocVarDataVal(pValue));
+        TAOS_CHECK_EXIT(reallocVarDataVal(pValue));
         charge += pValue->nData;
       }
     }
     if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type)) {
-      TAOS_CHECK_RETURN(reallocVarData(&pLastCol->colVal));
+      TAOS_CHECK_EXIT(reallocVarData(&pLastCol->colVal));
       charge += pLastCol->colVal.value.nData;
     }
 
@@ -1580,6 +1565,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     rocksMayWrite(pTsdb, false, true);
   }
 
+_exit:
   taosArrayDestroy(lastrowTmpIndexArray);
   taosArrayDestroy(lastrowTmpColArray);
   taosArrayDestroy(lastTmpIndexArray);
@@ -2259,17 +2245,20 @@ static int32_t lastIterClose(SFSLastIter **iter) {
 }
 
 static int32_t lastIterNext(SFSLastIter *iter, TSDBROW **ppRow) {
-  int32_t code = 0;
+  bool hasVal = false;
+  *ppRow = NULL;
 
-  bool hasVal = tMergeTreeNext(iter->pMergeTree);
+  int32_t code = tMergeTreeNext(iter->pMergeTree, &hasVal);
+  if (code != 0) {
+    return code;
+  }
+
   if (!hasVal) {
     *ppRow = NULL;
-
     TAOS_RETURN(code);
   }
 
   *ppRow = tMergeTreeGetRow(iter->pMergeTree);
-
   TAOS_RETURN(code);
 }
 
@@ -2951,11 +2940,13 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
 
       if (!pIter->pSkyline) {
         pIter->pSkyline = taosArrayInit(32, sizeof(TSDBKEY));
+        TSDB_CHECK_NULL(pIter->pSkyline, code, lino, _err, TSDB_CODE_OUT_OF_MEMORY);
 
         uint64_t        uid = pIter->idx.uid;
         STableLoadInfo *pInfo = getTableLoadInfo(pIter->pr, uid);
         if (pInfo->pTombData == NULL) {
           pInfo->pTombData = taosArrayInit(4, sizeof(SDelData));
+          TSDB_CHECK_NULL(pInfo->pTombData, code, lino, _err, TSDB_CODE_OUT_OF_MEMORY);
         }
 
         (void)taosArrayAddAll(pInfo->pTombData, pIter->pMemDelData);
@@ -2963,6 +2954,7 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
         size_t delSize = TARRAY_SIZE(pInfo->pTombData);
         if (delSize > 0) {
           code = tsdbBuildDeleteSkyline(pInfo->pTombData, 0, (int32_t)(delSize - 1), pIter->pSkyline);
+          TAOS_CHECK_GOTO(code, &lino, _err);
         }
         pIter->iSkyline = taosArrayGetSize(pIter->pSkyline) - 1;
       }
@@ -3065,11 +3057,13 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
 
   // inverse iterator
   CacheNextRowIter iter = {0};
-  (void)nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->info.suid, pr->pLDataIterArray, pr->pReadSnap, pr->lastTs, pr);
+  code =
+      nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->info.suid, pr->pLDataIterArray, pr->pReadSnap, pr->lastTs, pr);
+  TAOS_CHECK_GOTO(code, &lino, _err);
 
   do {
     TSDBROW *pRow = NULL;
-    (void)nextRowIterGet(&iter, &pRow, &ignoreEarlierTs, true, TARRAY_DATA(aColArray), TARRAY_SIZE(aColArray));
+    code = nextRowIterGet(&iter, &pRow, &ignoreEarlierTs, true, TARRAY_DATA(aColArray), TARRAY_SIZE(aColArray));
 
     if (!pRow) {
       break;
@@ -3250,11 +3244,13 @@ static int32_t mergeLastRowCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray,
 
   // inverse iterator
   CacheNextRowIter iter = {0};
-  (void)nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->info.suid, pr->pLDataIterArray, pr->pReadSnap, pr->lastTs, pr);
+  code =
+      nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->info.suid, pr->pLDataIterArray, pr->pReadSnap, pr->lastTs, pr);
+  TAOS_CHECK_GOTO(code, &lino, _err);
 
   do {
     TSDBROW *pRow = NULL;
-    (void)nextRowIterGet(&iter, &pRow, &ignoreEarlierTs, false, TARRAY_DATA(aColArray), TARRAY_SIZE(aColArray));
+    code = nextRowIterGet(&iter, &pRow, &ignoreEarlierTs, false, TARRAY_DATA(aColArray), TARRAY_SIZE(aColArray));
 
     if (!pRow) {
       break;

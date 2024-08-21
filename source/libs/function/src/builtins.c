@@ -2327,13 +2327,24 @@ static int32_t translateReplace(SFunctionNode* pFunc, char* pErrBuf, int32_t len
     }
   }
 
-  uint8_t type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  uint8_t orgType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  uint8_t fromType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+  uint8_t toType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 2))->type;
   int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
   int32_t fromLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->bytes;
   int32_t toLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 2))->bytes;
 
-  int32_t resLen = orgLen + orgLen / fromLen * (toLen - fromLen);
-  pFunc->node.resType = (SDataType){.bytes = resLen, .type = type};
+  int32_t resLen;
+  // Since we don't know the accurate length of result, estimate the maximum length here.
+  // To make the resLen bigger, we should make fromLen smaller and toLen bigger.
+  if (orgType == TSDB_DATA_TYPE_VARBINARY && fromType != orgType) {
+    fromLen = fromLen / TSDB_NCHAR_SIZE;
+  }
+  if (orgType == TSDB_DATA_TYPE_NCHAR && toType != orgType) {
+    toLen = toLen * TSDB_NCHAR_SIZE;
+  }
+  resLen = TMAX(orgLen, orgLen + orgLen / fromLen * (toLen - fromLen));
+  pFunc->node.resType = (SDataType){.bytes = resLen, .type = orgType};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2562,13 +2573,14 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 
   for (int32_t i = 0; i < 2; ++i) {
     uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i))->type;
-    if (!IS_STR_DATA_TYPE(paraType) && !IS_INTEGER_TYPE(paraType) && !IS_TIMESTAMP_TYPE(paraType)) {
+    if (!IS_STR_DATA_TYPE(paraType) && !IS_INTEGER_TYPE(paraType) && !IS_TIMESTAMP_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
   }
-
+  uint8_t para2Type;
   if (3 == numOfParams) {
-    if (!IS_INTEGER_TYPE(getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 2))->type)) {
+    para2Type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 2))->type;
+    if (!IS_INTEGER_TYPE(para2Type) && !IS_NULL_TYPE(para2Type)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
   }
@@ -2576,7 +2588,7 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
 
-  if (3 == numOfParams) {
+  if (3 == numOfParams && !IS_NULL_TYPE(para2Type)) {
     int32_t code = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2));
     if (code == TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL) {
       return buildFuncErrMsg(pErrBuf, len, code,

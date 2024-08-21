@@ -1,20 +1,14 @@
-package com.taosdata.example;
+package com.taos.example;
 
-import com.alibaba.fastjson.JSON;
-import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.jdbc.tmq.ConsumerRecords;
 import com.taosdata.jdbc.tmq.TaosConsumer;
 import com.taosdata.jdbc.tmq.TopicPartition;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Scanner;
 
 
 public class ConsumerOffsetSeek {
@@ -31,7 +25,7 @@ public class ConsumerOffsetSeek {
         config.setProperty("auto.commit.interval.ms", "1000");
         config.setProperty("group.id", "group1");
         config.setProperty("client.id", "1");
-        config.setProperty("value.deserializer", "com.taosdata.example.AbsConsumerLoop$ResultDeserializer");
+        config.setProperty("value.deserializer", "com.taos.example.AbsConsumerLoop$ResultDeserializer");
         config.setProperty("value.deserializer.encoding", "UTF-8");
 
 // ANCHOR: consumer_seek

@@ -1909,6 +1909,8 @@ class TDCom:
             if latency < self.stream_timeout:
                 latency += 1
                 time.sleep(1)
+            else:
+                return False
         return tbname
 
     def get_group_id_from_stb(self, stbname):

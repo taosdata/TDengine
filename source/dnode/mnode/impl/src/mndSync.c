@@ -184,7 +184,7 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   code = mndTransValidate(pMnode, pRaw);
   if (code != 0) {
     mError("trans:%d, failed to validate requested trans since %s", transId, terrstr());
-    code = 0;
+    // code = 0;
     pMeta->code = code;
     goto _OUT;
   }
@@ -192,7 +192,7 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   code = sdbWriteWithoutFree(pMnode->pSdb, pRaw);
   if (code != 0) {
     mError("trans:%d, failed to write to sdb since %s", transId, terrstr());
-    code = 0;
+    // code = 0;
     pMeta->code = code;
     goto _OUT;
   }
@@ -207,7 +207,10 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
 
   if (pTrans->stage == TRN_STAGE_PREPARE) {
     bool continueExec = mndTransPerformPrepareStage(pMnode, pTrans, false);
-    if (!continueExec) goto _OUT;
+    if (!continueExec) {
+      if (terrno != 0) code = terrno;
+      goto _OUT;
+    }
   }
 
   mndTransRefresh(pMnode, pTrans);
@@ -360,6 +363,8 @@ static void mndBecomeFollower(const SSyncFSM *pFsm) {
     (void)tsem_post(&pMgmt->syncSem);
   }
   (void)taosThreadMutexUnlock(&pMgmt->lock);
+
+  mndUpdateStreamExecInfoRole(pMnode, NODE_ROLE_FOLLOWER);
 }
 
 static void mndBecomeLearner(const SSyncFSM *pFsm) {
@@ -382,7 +387,9 @@ static void mndBecomeLearner(const SSyncFSM *pFsm) {
 static void mndBecomeLeader(const SSyncFSM *pFsm) {
   mInfo("vgId:1, become leader");
   SMnode *pMnode = pFsm->data;
-  mndInitStreamExecInfoForLeader(pMnode);
+
+  mndUpdateStreamExecInfoRole(pMnode, NODE_ROLE_LEADER);
+  mndStreamResetInitTaskListLoadFlag();
 }
 
 static bool mndApplyQueueEmpty(const SSyncFSM *pFsm) {
@@ -479,7 +486,7 @@ int32_t mndInitSync(SMnode *pMnode) {
 
   int32_t code = 0;
   (void)tsem_init(&pMgmt->syncSem, 0, 0);
-  pMgmt->sync = syncOpen(&syncInfo, true);
+  pMgmt->sync = syncOpen(&syncInfo, 1); // always check
   if (pMgmt->sync <= 0) {
     if (terrno != 0) code = terrno;
     mError("failed to open sync since %s", tstrerror(code));
