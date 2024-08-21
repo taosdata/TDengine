@@ -52,6 +52,8 @@ static void sdbResetData(SSdb *pSdb) {
     SHashObj *hash = pSdb->hashObjs[i];
     if (hash == NULL) continue;
 
+    sdbWriteLock(pSdb, i);
+
     SSdbRow **ppRow = taosHashIterate(hash, NULL);
     while (ppRow != NULL) {
       SSdbRow *pRow = *ppRow;
@@ -60,15 +62,13 @@ static void sdbResetData(SSdb *pSdb) {
       sdbFreeRow(pSdb, pRow, true);
       ppRow = taosHashIterate(hash, ppRow);
     }
-  }
-
-  for (ESdbType i = 0; i < SDB_MAX; ++i) {
-    SHashObj *hash = pSdb->hashObjs[i];
-    if (hash == NULL) continue;
 
     taosHashClear(pSdb->hashObjs[i]);
     pSdb->tableVer[i] = 0;
     pSdb->maxId[i] = 0;
+
+    sdbUnLock(pSdb, i);
+
     mInfo("sdb:%s is reset", sdbTableName(i));
   }
 
