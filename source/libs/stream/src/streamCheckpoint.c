@@ -37,14 +37,13 @@ int32_t createChkptTriggerBlock(SStreamTask* pTask, int32_t checkpointType, int6
     return code;
   }
 
-  if (srcTaskId <= 0) {
-    stDebug("s-task:%s invalid src task id:%d for creating checkpoint trigger block", pTask->id.idStr, srcTaskId);
-    return TSDB_CODE_INVALID_PARA;
-  }
-
   pChkpoint->type = checkpointType;
   if (checkpointType == STREAM_INPUT__CHECKPOINT_TRIGGER && (pTask->info.taskLevel != TASK_LEVEL__SOURCE)) {
     pChkpoint->srcTaskId = srcTaskId;
+    if (srcTaskId <= 0) {
+      stDebug("s-task:%s invalid src task id:%d for creating checkpoint trigger block", pTask->id.idStr, srcTaskId);
+      return TSDB_CODE_INVALID_PARA;
+    }
   }
 
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
