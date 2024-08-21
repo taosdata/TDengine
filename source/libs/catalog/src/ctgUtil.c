@@ -2631,7 +2631,7 @@ bool hasOutOfDateTSMACache(SArray* pTsmas) {
   for (int32_t i = 0; i < pTsmas->size; ++i) {
     STSMACache* pTsmaInfo = taosArrayGetP(pTsmas, i);
     if (NULL == pTsmaInfo) {
-      ASSERT(0);
+      continue;
     }
     if (isCtgTSMACacheOutOfDate(pTsmaInfo)) {
       return true;

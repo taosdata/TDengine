@@ -161,7 +161,7 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
   if (pgno == 0) {
     tdbError("tdb/btree-open: pgno cannot be zero.");
     tdbOsFree(pBt);
-    ASSERT(0);
+    return TSDB_CODE_INTERNAL_ERROR;
   }
   pBt->root = pgno;
   /*
@@ -418,10 +418,6 @@ static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2
   int mlen;
   int cret;
 
-  if (ASSERT(keyLen1 > 0 && keyLen2 > 0 && pKey1 != NULL && pKey2 != NULL)) {
-    // -1 is less than
-  }
-
   mlen = keyLen1 < keyLen2 ? keyLen1 : keyLen2;
   cret = memcmp(pKey1, pKey2, mlen);
   if (cret == 0) {
@@ -571,14 +567,14 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
       nOlds = 3;
     }
     for (int i = 0; i < nOlds; i++) {
-      if (ASSERT(sIdx + i <= nCells)) {
+      if (!(sIdx + i <= nCells)) {
         return TSDB_CODE_FAILED;
       }
 
       SPgno pgno;
       if (sIdx + i == nCells) {
-        if (ASSERT(!TDB_BTREE_PAGE_IS_LEAF(pParent))) {
-          return TSDB_CODE_FAILED;
+        if (TDB_BTREE_PAGE_IS_LEAF(pParent)) {
+          return TSDB_CODE_INTERNAL_ERROR;
         }
         pgno = ((SIntHdr *)(pParent->pData))->pgno;
       } else {
@@ -685,8 +681,6 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           // page is full, use a new page
           nNews++;
 
-          ASSERT(infoNews[nNews].size + cellBytes <= TDB_PAGE_USABLE_SIZE(pPage));
-
           if (childNotLeaf) {
             // for non-child page, this cell is used as the right-most child,
             // the divider cell to parent as well
@@ -732,7 +726,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           szRCell = tdbBtreeCellSize(pPage, pCell, 0, NULL, NULL);
         }
 
-        if (ASSERT(infoNews[iNew - 1].cnt > 0)) {
+        if (!(infoNews[iNew - 1].cnt > 0)) {
           return TSDB_CODE_FAILED;
         }
 
@@ -822,10 +816,10 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
         pCell = tdbPageGetCell(pPage, oIdx);
         szCell = tdbBtreeCellSize(pPage, pCell, 0, NULL, NULL);
 
-        if (ASSERT(nNewCells <= infoNews[iNew].cnt)) {
+        if (!(nNewCells <= infoNews[iNew].cnt)) {
           return TSDB_CODE_FAILED;
         }
-        if (ASSERT(iNew < nNews)) {
+        if (!(iNew < nNews)) {
           return TSDB_CODE_FAILED;
         }
 
@@ -866,10 +860,10 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
             }
           }
         } else {
-          if (ASSERT(childNotLeaf)) {
+          if (!(childNotLeaf)) {
             return TSDB_CODE_FAILED;
           }
-          if (ASSERT(iNew < nNews - 1)) {
+          if (!(iNew < nNews - 1)) {
             return TSDB_CODE_FAILED;
           }
 
@@ -877,7 +871,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           ((SIntHdr *)pNews[iNew]->pData)->pgno = ((SPgno *)pCell)[0];
 
           // insert to parent as divider cell
-          if (ASSERT(iNew < nNews - 1)) {
+          if (!(iNew < nNews - 1)) {
             return TSDB_CODE_FAILED;
           }
           ((SPgno *)pCell)[0] = TDB_PAGE_PGNO(pNews[iNew]);
@@ -894,7 +888,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     }
 
     if (childNotLeaf) {
-      if (ASSERT(TDB_PAGE_TOTAL_CELLS(pNews[nNews - 1]) == infoNews[nNews - 1].cnt)) {
+      if (!(TDB_PAGE_TOTAL_CELLS(pNews[nNews - 1]) == infoNews[nNews - 1].cnt)) {
         return TSDB_CODE_FAILED;
       }
       ((SIntHdr *)(pNews[nNews - 1]->pData))->pgno = rPgno;
@@ -1091,7 +1085,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
       nLeft -= kLen;
       // pack partial val to local if any space left
       if (nLocal > nHeader + kLen + sizeof(SPgno)) {
-        if (ASSERT(pVal != NULL && vLen != 0)) {
+        if (!(pVal != NULL && vLen != 0)) {
           tdbFree(pBuf);
           return TSDB_CODE_FAILED;
         }
@@ -1259,14 +1253,14 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
   int nPayload;
   int ret;
 
-  if (ASSERT(pPage->kLen == TDB_VARIANT_LEN || pPage->kLen == kLen)) {
-    return TSDB_CODE_FAILED;
+  if (!(pPage->kLen == TDB_VARIANT_LEN || pPage->kLen == kLen)) {
+    return TSDB_CODE_INVALID_PARA;
   }
-  if (ASSERT(pPage->vLen == TDB_VARIANT_LEN || pPage->vLen == vLen)) {
-    return TSDB_CODE_FAILED;
+  if (!(pPage->vLen == TDB_VARIANT_LEN || pPage->vLen == vLen)) {
+    return TSDB_CODE_INVALID_PARA;
   }
-  if (ASSERT(pKey != NULL && kLen > 0)) {
-    return TSDB_CODE_FAILED;
+  if (!(pKey != NULL && kLen > 0)) {
+    return TSDB_CODE_INVALID_PARA;
   }
 
   nPayload = 0;
@@ -1645,7 +1639,6 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *
         SArray *ofps = pPage->pPager->ofps;
         if (ofps) {
           if (taosArrayPush(ofps, &ofp) == NULL) {
-            ASSERT(0);
             return terrno;
           }
         }
@@ -2438,7 +2431,10 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
     lidx = 0;
     ridx = nCells - 1;
 
-    ASSERT(nCells > 0);
+    if (nCells <= 0) {
+      tdbError("tdb/btc-move-to: empty page.");
+      return TSDB_CODE_FAILED;
+    }
 
     // compare first cell
     pBtc->idx = lidx;
