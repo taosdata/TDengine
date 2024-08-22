@@ -1792,6 +1792,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   AsyncArg* arg = taosMemoryCalloc(1, sizeof(AsyncArg));
   if (NULL == arg) {
     pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(tEpSet);
     rpcFreeCont(pMsg->pCont);
     destroySendMsgInfo(pMsg->info.ahandle);
     return;
