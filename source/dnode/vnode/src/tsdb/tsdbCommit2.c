@@ -626,8 +626,8 @@ static int32_t tsdbCloseCommitter(SCommitter2 *committer, int32_t eno) {
   if (eno == 0) {
     TAOS_CHECK_GOTO(tsdbFSEditBegin(committer->tsdb->pFS, committer->fopArray, TSDB_FEDIT_COMMIT), &lino, _exit);
   } else {
-    // TODO
-    ASSERT(0);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(committer->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(eno));
   }
 
   TARRAY2_DESTROY(committer->dataIterArray, NULL);
