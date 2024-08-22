@@ -74,7 +74,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
         pCreateReq = req.pReqs + iReq;
         if (pCreateReq->type == TSDB_CHILD_TABLE && pCreateReq->ctb.suid == tbSuid) {
           reqNew.nReqs++;
-          if (taosArrayPush(reqNew.pArray, pCreateReq) == NULL){
+          if (taosArrayPush(reqNew.pArray, pCreateReq) == NULL) {
             taosArrayDestroy(reqNew.pArray);
             tDeleteSVCreateTbBatchReq(&req);
             goto end;
@@ -155,7 +155,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
         pDropReq = req.pReqs + iReq;
         if (pDropReq->suid == tbSuid) {
           reqNew.nReqs++;
-          if (taosArrayPush(reqNew.pArray, pDropReq) == NULL){
+          if (taosArrayPush(reqNew.pArray, pDropReq) == NULL) {
             taosArrayDestroy(reqNew.pArray);
             goto end;
           }
@@ -214,12 +214,12 @@ int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t 
   while (offset <= appliedVer) {
     if (walFetchHead(pHandle->pWalReader, offset) < 0) {
       tqDebug("tmq poll: consumer:0x%" PRIx64 ", (epoch %d) vgId:%d offset %" PRId64
-              ", no more log to return, reqId:0x%" PRIx64 " 0x%" PRIx64,
+              ", no more log to return, QID:0x%" PRIx64 " 0x%" PRIx64,
               pHandle->consumerId, pHandle->epoch, vgId, offset, reqId, id);
       goto END;
     }
 
-    tqDebug("vgId:%d, consumer:0x%" PRIx64 " taosx get msg ver %" PRId64 ", type: %s, reqId:0x%" PRIx64 " 0x%" PRIx64,
+    tqDebug("vgId:%d, consumer:0x%" PRIx64 " taosx get msg ver %" PRId64 ", type: %s, QID:0x%" PRIx64 " 0x%" PRIx64,
             vgId, pHandle->consumerId, offset, TMSG_INFO(pHandle->pWalReader->pHead->head.msgType), reqId, id);
 
     if (pHandle->pWalReader->pHead->head.msgType == TDMT_VND_SUBMIT) {
@@ -261,10 +261,10 @@ END:
 
 bool tqGetTablePrimaryKey(STqReader* pReader) { return pReader->hasPrimaryKey; }
 
-void tqSetTablePrimaryKey(STqReader* pReader, int64_t uid){
-  bool ret = false;
-  SSchemaWrapper *schema = metaGetTableSchema(pReader->pVnodeMeta, uid, -1, 1);
-  if (schema && schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY){
+void tqSetTablePrimaryKey(STqReader* pReader, int64_t uid) {
+  bool            ret = false;
+  SSchemaWrapper* schema = metaGetTableSchema(pReader->pVnodeMeta, uid, -1, 1);
+  if (schema && schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY) {
     ret = true;
   }
   tDeleteSchemaWrapper(schema);
@@ -486,7 +486,7 @@ bool tqNextBlockImpl(STqReader* pReader, const char* idstr) {
             (pReader->nextBlk + 1), numOfBlocks, idstr);
 
     SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
-    if (pSubmitTbData == NULL){
+    if (pSubmitTbData == NULL) {
       return false;
     }
     if (pReader->tbIdHash == NULL) {
@@ -639,9 +639,9 @@ static int32_t doSetVal(SColumnInfoData* pColumnInfoData, int32_t rowIndex, SCol
 
 int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* id) {
   tqTrace("tq reader retrieve data block %p, index:%d", pReader->msg.msgStr, pReader->nextBlk);
-  int32_t code = 0;
-  int32_t line = 0;
-  STSchema*       pTSchema = NULL;
+  int32_t        code = 0;
+  int32_t        line = 0;
+  STSchema*      pTSchema = NULL;
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk++);
   TSDB_CHECK_NULL(pSubmitTbData, code, line, END, terrno);
   SSDataBlock* pBlock = pReader->pResBlock;
@@ -712,10 +712,11 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
         continue;
       }
 
-      SColData*        pCol = taosArrayGet(pCols, sourceIdx);
+      SColData* pCol = taosArrayGet(pCols, sourceIdx);
       TSDB_CHECK_NULL(pCol, code, line, END, terrno);
-      SColVal          colVal = {0};
-      tqTrace("lostdata colActual:%d, sourceIdx:%d, targetIdx:%d, numOfCols:%d, source cid:%d, dst cid:%d", colActual, sourceIdx, targetIdx, numOfCols, pCol->cid, pColData->info.colId);
+      SColVal colVal = {0};
+      tqTrace("lostdata colActual:%d, sourceIdx:%d, targetIdx:%d, numOfCols:%d, source cid:%d, dst cid:%d", colActual,
+              sourceIdx, targetIdx, numOfCols, pCol->cid, pColData->info.colId);
       if (pCol->cid < pColData->info.colId) {
         sourceIdx++;
       } else if (pCol->cid == pColData->info.colId) {
@@ -738,7 +739,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
     TSDB_CHECK_NULL(pTSchema, code, line, END, terrno);
 
     for (int32_t i = 0; i < numOfRows; i++) {
-      SRow*   pRow = taosArrayGetP(pRows, i);
+      SRow* pRow = taosArrayGetP(pRows, i);
       TSDB_CHECK_NULL(pRow, code, line, END, terrno);
       int32_t sourceIdx = 0;
       for (int32_t j = 0; j < colActual; j++) {
@@ -765,44 +766,43 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
         }
       }
     }
-
   }
 
 END:
-  if (code != 0){
+  if (code != 0) {
     tqError("tqRetrieveDataBlock failed, line:%d, code:%d", line, code);
   }
   taosMemoryFreeClear(pTSchema);
   return code;
 }
 
-#define PROCESS_VAL \
-  if (curRow == 0) {\
-    assigned[j] = !COL_VAL_IS_NONE(&colVal);\
-    buildNew = true;\
-  } else {\
-    bool currentRowAssigned = !COL_VAL_IS_NONE(&colVal);\
-    if (currentRowAssigned != assigned[j]) {\
-      assigned[j] = currentRowAssigned;\
-      buildNew = true;\
-    }\
+#define PROCESS_VAL                                      \
+  if (curRow == 0) {                                     \
+    assigned[j] = !COL_VAL_IS_NONE(&colVal);             \
+    buildNew = true;                                     \
+  } else {                                               \
+    bool currentRowAssigned = !COL_VAL_IS_NONE(&colVal); \
+    if (currentRowAssigned != assigned[j]) {             \
+      assigned[j] = currentRowAssigned;                  \
+      buildNew = true;                                   \
+    }                                                    \
   }
 
-#define SET_DATA \
-  if (colVal.cid < pColData->info.colId) {\
-    sourceIdx++;\
-  } else if (colVal.cid == pColData->info.colId) {\
-    TQ_ERR_GO_TO_END(doSetVal(pColData, curRow - lastRow, &colVal));\
-    sourceIdx++;\
-    targetIdx++;\
+#define SET_DATA                                                     \
+  if (colVal.cid < pColData->info.colId) {                           \
+    sourceIdx++;                                                     \
+  } else if (colVal.cid == pColData->info.colId) {                   \
+    TQ_ERR_GO_TO_END(doSetVal(pColData, curRow - lastRow, &colVal)); \
+    sourceIdx++;                                                     \
+    targetIdx++;                                                     \
   }
 
-static int32_t processBuildNew(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArray* blocks,
-                            SArray* schemas, SSchemaWrapper* pSchemaWrapper, char* assigned,
-                            int32_t numOfRows, int32_t curRow, int32_t* lastRow){
-  int32_t          code  = 0;
-  SSchemaWrapper*  pSW   = NULL;
-  SSDataBlock*     block = NULL;
+static int32_t processBuildNew(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArray* blocks, SArray* schemas,
+                               SSchemaWrapper* pSchemaWrapper, char* assigned, int32_t numOfRows, int32_t curRow,
+                               int32_t* lastRow) {
+  int32_t         code = 0;
+  SSchemaWrapper* pSW = NULL;
+  SSDataBlock*    block = NULL;
   if (taosArrayGetSize(blocks) > 0) {
     SSDataBlock* pLastBlock = taosArrayGetLast(blocks);
     TQ_NULL_GO_TO_END(pLastBlock);
@@ -834,33 +834,34 @@ END:
   taosMemoryFree(block);
   return code;
 }
-static int32_t tqProcessColData(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArray* blocks, SArray* schemas){
-  int32_t         code      = 0;
-  int32_t         curRow    = 0;
-  int32_t         lastRow   = 0;
+static int32_t tqProcessColData(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArray* blocks, SArray* schemas) {
+  int32_t code = 0;
+  int32_t curRow = 0;
+  int32_t lastRow = 0;
 
   SSchemaWrapper* pSchemaWrapper = pReader->pSchemaWrapper;
-  char*           assigned       = taosMemoryCalloc(1, pSchemaWrapper->nCols);
+  char*           assigned = taosMemoryCalloc(1, pSchemaWrapper->nCols);
   TQ_NULL_GO_TO_END(assigned);
 
-  SArray*         pCols     = pSubmitTbData->aCol;
-  SColData*       pCol      = taosArrayGet(pCols, 0);
+  SArray*   pCols = pSubmitTbData->aCol;
+  SColData* pCol = taosArrayGet(pCols, 0);
   TQ_NULL_GO_TO_END(pCol);
-  int32_t         numOfRows = pCol->nVal;
-  int32_t         numOfCols = taosArrayGetSize(pCols);
+  int32_t numOfRows = pCol->nVal;
+  int32_t numOfCols = taosArrayGetSize(pCols);
   for (int32_t i = 0; i < numOfRows; i++) {
     bool buildNew = false;
 
     for (int32_t j = 0; j < numOfCols; j++) {
       pCol = taosArrayGet(pCols, j);
       TQ_NULL_GO_TO_END(pCol);
-      SColVal   colVal = {0};
+      SColVal colVal = {0};
       tColDataGetValue(pCol, i, &colVal);
       PROCESS_VAL
     }
 
     if (buildNew) {
-      TQ_ERR_GO_TO_END(processBuildNew(pReader, pSubmitTbData, blocks, schemas, pSchemaWrapper, assigned, numOfRows, curRow, &lastRow));
+      TQ_ERR_GO_TO_END(processBuildNew(pReader, pSubmitTbData, blocks, schemas, pSchemaWrapper, assigned, numOfRows,
+                                       curRow, &lastRow));
     }
 
     SSDataBlock* pBlock = taosArrayGetLast(blocks);
@@ -877,7 +878,7 @@ static int32_t tqProcessColData(STqReader* pReader, SSubmitTbData* pSubmitTbData
       TQ_NULL_GO_TO_END(pCol);
       SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, targetIdx);
       TQ_NULL_GO_TO_END(pColData);
-      SColVal          colVal = {0};
+      SColVal colVal = {0};
       tColDataGetValue(pCol, i, &colVal);
       SET_DATA
     }
@@ -885,30 +886,30 @@ static int32_t tqProcessColData(STqReader* pReader, SSubmitTbData* pSubmitTbData
     curRow++;
   }
   SSDataBlock* pLastBlock = taosArrayGetLast(blocks);
-  pLastBlock->info.rows   = curRow - lastRow;
+  pLastBlock->info.rows = curRow - lastRow;
 
 END:
   taosMemoryFree(assigned);
   return code;
 }
 
-int32_t tqProcessRowData(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArray* blocks, SArray* schemas){
-  int32_t         code = 0;
-  STSchema*       pTSchema = NULL;
+int32_t tqProcessRowData(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArray* blocks, SArray* schemas) {
+  int32_t   code = 0;
+  STSchema* pTSchema = NULL;
 
   SSchemaWrapper* pSchemaWrapper = pReader->pSchemaWrapper;
-  char*           assigned       = taosMemoryCalloc(1, pSchemaWrapper->nCols);
+  char*           assigned = taosMemoryCalloc(1, pSchemaWrapper->nCols);
   TQ_NULL_GO_TO_END(assigned);
 
-  int32_t         curRow    = 0;
-  int32_t         lastRow   = 0;
-  SArray*         pRows     = pSubmitTbData->aRowP;
-  int32_t         numOfRows = taosArrayGetSize(pRows);
-  pTSchema                  = tBuildTSchema(pSchemaWrapper->pSchema, pSchemaWrapper->nCols, pSchemaWrapper->version);
+  int32_t curRow = 0;
+  int32_t lastRow = 0;
+  SArray* pRows = pSubmitTbData->aRowP;
+  int32_t numOfRows = taosArrayGetSize(pRows);
+  pTSchema = tBuildTSchema(pSchemaWrapper->pSchema, pSchemaWrapper->nCols, pSchemaWrapper->version);
 
   for (int32_t i = 0; i < numOfRows; i++) {
     bool  buildNew = false;
-    SRow* pRow     = taosArrayGetP(pRows, i);
+    SRow* pRow = taosArrayGetP(pRows, i);
     TQ_NULL_GO_TO_END(pRow);
 
     for (int32_t j = 0; j < pTSchema->numOfCols; j++) {
@@ -918,7 +919,8 @@ int32_t tqProcessRowData(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArra
     }
 
     if (buildNew) {
-      TQ_ERR_GO_TO_END(processBuildNew(pReader, pSubmitTbData, blocks, schemas, pSchemaWrapper, assigned, numOfRows, curRow, &lastRow));
+      TQ_ERR_GO_TO_END(processBuildNew(pReader, pSubmitTbData, blocks, schemas, pSchemaWrapper, assigned, numOfRows,
+                                       curRow, &lastRow));
     }
 
     SSDataBlock* pBlock = taosArrayGetLast(blocks);
@@ -932,7 +934,7 @@ int32_t tqProcessRowData(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArra
     int32_t colActual = blockDataGetNumOfCols(pBlock);
     while (targetIdx < colActual) {
       SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, targetIdx);
-      SColVal          colVal   = {0};
+      SColVal          colVal = {0};
       TQ_ERR_GO_TO_END(tRowGet(pRow, pTSchema, sourceIdx, &colVal));
       SET_DATA
     }
@@ -940,7 +942,7 @@ int32_t tqProcessRowData(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArra
     curRow++;
   }
   SSDataBlock* pLastBlock = taosArrayGetLast(blocks);
-  pLastBlock->info.rows   = curRow - lastRow;
+  pLastBlock->info.rows = curRow - lastRow;
 
 END:
   taosMemoryFreeClear(pTSchema);
@@ -950,10 +952,10 @@ END:
 
 int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas, SSubmitTbData** pSubmitTbDataRet) {
   tqDebug("tq reader retrieve data block %p, %d", pReader->msg.msgStr, pReader->nextBlk);
-  SSDataBlock*     block = NULL;
+  SSDataBlock* block = NULL;
 
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
-  if(pSubmitTbData == NULL){
+  if (pSubmitTbData == NULL) {
     return terrno;
   }
   pReader->nextBlk++;
@@ -1034,7 +1036,7 @@ bool tqCurrentBlockConsumed(const STqReader* pReader) { return pReader->msg.msgS
 void tqReaderRemoveTbUidList(STqReader* pReader, const SArray* tbUidList) {
   for (int32_t i = 0; i < taosArrayGetSize(tbUidList); i++) {
     int64_t* pKey = (int64_t*)taosArrayGet(tbUidList, i);
-    if (pKey && taosHashRemove(pReader->tbIdHash, pKey, sizeof(int64_t)) != 0){
+    if (pKey && taosHashRemove(pReader->tbIdHash, pKey, sizeof(int64_t)) != 0) {
       tqError("failed to remove table uid:%" PRId64 " from hash", *pKey);
     }
   }
@@ -1064,7 +1066,8 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
         int32_t sz = taosArrayGetSize(tbUidList);
         for (int32_t i = 0; i < sz; i++) {
           int64_t* tbUid = (int64_t*)taosArrayGet(tbUidList, i);
-          if (tbUid && taosHashPut(pTqHandle->execHandle.execDb.pFilterOutTbUid, tbUid, sizeof(int64_t), NULL, 0) != 0){
+          if (tbUid &&
+              taosHashPut(pTqHandle->execHandle.execDb.pFilterOutTbUid, tbUid, sizeof(int64_t), NULL, 0) != 0) {
             tqError("failed to add table uid:%" PRId64 " to hash", *tbUid);
             continue;
           }

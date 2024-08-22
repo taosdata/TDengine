@@ -15,8 +15,8 @@
 
 #include "cJSON.h"
 #include "clientInt.h"
-#include "clientMonitor.h"
 #include "clientLog.h"
+#include "clientMonitor.h"
 #include "command.h"
 #include "scheduler.h"
 #include "tdatablock.h"
@@ -28,7 +28,7 @@
 #include "tref.h"
 #include "tsched.h"
 #include "tversion.h"
-static int32_t       initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
+static int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo);
 
 static bool stringLengthCheck(const char* str, size_t maxsize) {
@@ -68,15 +68,13 @@ bool chkRequestKilled(void* param) {
   return killed;
 }
 
-void cleanupAppInfo() {
-  taosHashCleanup(appInfo.pInstMap);
-}
+void cleanupAppInfo() { taosHashCleanup(appInfo.pInstMap); }
 
 static int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
                                SAppInstInfo* pAppInfo, int connType, STscObj** pTscObj);
 
 int32_t taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
-                               uint16_t port, int connType, STscObj** pObj) {
+                              uint16_t port, int connType, STscObj** pObj) {
   TSC_ERR_RET(taos_init());
   if (!validateUserName(user)) {
     TSC_ERR_RET(TSDB_CODE_TSC_INVALID_USER_LENGTH);
@@ -126,7 +124,7 @@ int32_t taos_connect_internal(const char* ip, const char* user, const char* pass
   }
 
   SAppInstInfo** pInst = NULL;
-  int32_t code = taosThreadMutexLock(&appInfo.mutex);
+  int32_t        code = taosThreadMutexLock(&appInfo.mutex);
   if (TSDB_CODE_SUCCESS != code) {
     tscError("failed to lock app info, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
     TSC_ERR_RET(code);
@@ -187,14 +185,14 @@ _return:
   return taosConnectImpl(user, &secretEncrypt[0], localDb, NULL, NULL, *pInst, connType, pObj);
 }
 
-//SAppInstInfo* getAppInstInfo(const char* clusterKey) {
-//  SAppInstInfo** ppAppInstInfo = taosHashGet(appInfo.pInstMap, clusterKey, strlen(clusterKey));
-//  if (ppAppInstInfo != NULL && *ppAppInstInfo != NULL) {
-//    return *ppAppInstInfo;
-//  } else {
-//    return NULL;
-//  }
-//}
+// SAppInstInfo* getAppInstInfo(const char* clusterKey) {
+//   SAppInstInfo** ppAppInstInfo = taosHashGet(appInfo.pInstMap, clusterKey, strlen(clusterKey));
+//   if (ppAppInstInfo != NULL && *ppAppInstInfo != NULL) {
+//     return *ppAppInstInfo;
+//   } else {
+//     return NULL;
+//   }
+// }
 
 void freeQueryParam(SSyncQueryParam* param) {
   if (param == NULL) return;
@@ -230,7 +228,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   int32_t  err = taosHashPut(pTscObj->pRequests, &(*pRequest)->self, sizeof((*pRequest)->self), &(*pRequest)->self,
                              sizeof((*pRequest)->self));
   if (err) {
-    tscError("%" PRId64 " failed to add to request container, reqId:0x%" PRIx64 ", conn:%" PRId64 ", %s",
+    tscError("%" PRId64 " failed to add to request container, QID:0x%" PRIx64 ", conn:%" PRId64 ", %s",
              (*pRequest)->self, (*pRequest)->requestId, pTscObj->id, sql);
     destroyRequest(*pRequest);
     *pRequest = NULL;
@@ -241,7 +239,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   if (tsQueryUseNodeAllocator && !qIsInsertValuesSql((*pRequest)->sqlstr, (*pRequest)->sqlLen)) {
     if (TSDB_CODE_SUCCESS !=
         nodesCreateAllocator((*pRequest)->requestId, tsQueryNodeChunkSize, &((*pRequest)->allocatorRefId))) {
-      tscError("%" PRId64 " failed to create node allocator, reqId:0x%" PRIx64 ", conn:%" PRId64 ", %s",
+      tscError("%" PRId64 " failed to create node allocator, QID:0x%" PRIx64 ", conn:%" PRId64 ", %s",
                (*pRequest)->self, (*pRequest)->requestId, pTscObj->id, sql);
       destroyRequest(*pRequest);
       *pRequest = NULL;
@@ -249,7 +247,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
     }
   }
 
-  tscDebugL("0x%" PRIx64 " SQL: %s, reqId:0x%" PRIx64, (*pRequest)->self, (*pRequest)->sqlstr, (*pRequest)->requestId);
+  tscDebugL("0x%" PRIx64 " SQL: %s, QID:0x%" PRIx64, (*pRequest)->self, (*pRequest)->sqlstr, (*pRequest)->requestId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -363,10 +361,10 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
 
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
-    tscError("0x%" PRIx64 " fetch results failed, code:%s, reqId:0x%" PRIx64, pRequest->self, tstrerror(code),
+    tscError("0x%" PRIx64 " fetch results failed, code:%s, QID:0x%" PRIx64, pRequest->self, tstrerror(code),
              pRequest->requestId);
   } else {
-    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%" PRId64 " total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
+    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%" PRId64 " total Rows:%" PRId64 ", complete:%d, QID:0x%" PRIx64,
              pRequest->self, pResultInfo->numOfRows, pResultInfo->totalRows, pResultInfo->completed,
              pRequest->requestId);
   }
@@ -432,7 +430,7 @@ int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qnodeRequired(SRequestObj* pRequest, bool *required) {
+int32_t qnodeRequired(SRequestObj* pRequest, bool* required) {
   if (QUERY_POLICY_VNODE == tsQueryPolicy || QUERY_POLICY_CLIENT == tsQueryPolicy) {
     *required = false;
     return TSDB_CODE_SUCCESS;
@@ -554,7 +552,7 @@ int32_t buildVnodePolicyNodeList(SRequestObj* pRequest, SArray** pNodeList, SArr
   if (NULL == nodeList) {
     return terrno;
   }
-  char*   policy = (tsQueryPolicy == QUERY_POLICY_VNODE) ? "vnode" : "client";
+  char* policy = (tsQueryPolicy == QUERY_POLICY_VNODE) ? "vnode" : "client";
 
   int32_t dbNum = taosArrayGetSize(pDbVgList);
   for (int32_t i = 0; i < dbNum; ++i) {
@@ -568,7 +566,7 @@ int32_t buildVnodePolicyNodeList(SRequestObj* pRequest, SArray** pNodeList, SArr
     }
 
     for (int32_t j = 0; j < vgNum; ++j) {
-      SVgroupInfo*   pInfo = taosArrayGet(pVg, j);
+      SVgroupInfo* pInfo = taosArrayGet(pVg, j);
       if (NULL == pInfo) {
         taosArrayDestroy(nodeList);
         return TSDB_CODE_OUT_OF_RANGE;
@@ -972,8 +970,8 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
       break;
     }
     default:
-      tscError("0x%" PRIx64 ", invalid exec result for request type %d, reqId:0x%" PRIx64, pRequest->self,
-               pRequest->type, pRequest->requestId);
+      tscError("0x%" PRIx64 ", invalid exec result for request type %d, QID:0x%" PRIx64, pRequest->self, pRequest->type,
+               pRequest->requestId);
       code = TSDB_CODE_APP_ERROR;
   }
 
@@ -1017,12 +1015,12 @@ void returnToUser(SRequestObj* pRequest) {
     (void)releaseRequest(pRequest->relation.userRefId);
     return;
   } else {
-    tscError("0x%" PRIx64 ", user ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pRequest->self,
+    tscError("0x%" PRIx64 ", user ref 0x%" PRIx64 " is not there, QID:0x%" PRIx64, pRequest->self,
              pRequest->relation.userRefId, pRequest->requestId);
   }
 }
 
-static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock**pBlock) {
+static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock** pBlock) {
   int64_t     lastTs = 0;
   TAOS_FIELD* pResFields = taos_fetch_fields(pRes);
   int32_t     numOfFields = taos_num_fields(pRes);
@@ -1032,7 +1030,7 @@ static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock*
     return code;
   }
 
-  for(int32_t i = 0; i < numOfFields; ++i) {
+  for (int32_t i = 0; i < numOfFields; ++i) {
     SColumnInfoData colInfoData = createColumnInfoData(pResFields[i].type, pResFields[i].bytes, i + 1);
     code = blockDataAppendColInfo(*pBlock, &colInfoData);
     if (TSDB_CODE_SUCCESS != code) {
@@ -1054,7 +1052,7 @@ static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock*
       lastTs = ts;
     }
 
-    for(int32_t j = 0; j < numOfFields; ++j) {
+    for (int32_t j = 0; j < numOfFields; ++j) {
       SColumnInfoData* pColInfoData = taosArrayGet((*pBlock)->pDataBlock, j);
       code = colDataSetVal(pColInfoData, i, pRow[j], false);
       if (TSDB_CODE_SUCCESS != code) {
@@ -1069,7 +1067,7 @@ static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock*
   (*pBlock)->info.window.ekey = lastTs;
   (*pBlock)->info.rows = numOfRows;
 
-  tscDebug("lastKey:%"PRId64" numOfRows:%d from all vgroups", lastTs, numOfRows);
+  tscDebug("lastKey:%" PRId64 " numOfRows:%d from all vgroups", lastTs, numOfRows);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1082,7 +1080,7 @@ void postSubQueryFetchCb(void* param, TAOS_RES* res, int32_t rowNum) {
 
   SSDataBlock* pBlock = NULL;
   if (TSDB_CODE_SUCCESS != createResultBlock(res, rowNum, &pBlock)) {
-    tscError("0x%" PRIx64 ", create result block failed, reqId:0x%" PRIx64, pRequest->self, pRequest->requestId);
+    tscError("0x%" PRIx64 ", create result block failed, QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
     return;
   }
 
@@ -1091,7 +1089,7 @@ void postSubQueryFetchCb(void* param, TAOS_RES* res, int32_t rowNum) {
     continuePostSubQuery(pNextReq, pBlock);
     (void)releaseRequest(pRequest->relation.nextRefId);
   } else {
-    tscError("0x%" PRIx64 ", next req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pRequest->self,
+    tscError("0x%" PRIx64 ", next req ref 0x%" PRIx64 " is not there, QID:0x%" PRIx64, pRequest->self,
              pRequest->relation.nextRefId, pRequest->requestId);
   }
 
@@ -1110,7 +1108,7 @@ void handlePostSubQuery(SSqlCallbackWrapper* pWrapper) {
     continuePostSubQuery(pNextReq, NULL);
     (void)releaseRequest(pRequest->relation.nextRefId);
   } else {
-    tscError("0x%" PRIx64 ", next req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pRequest->self,
+    tscError("0x%" PRIx64 ", next req ref 0x%" PRIx64 " is not there, QID:0x%" PRIx64, pRequest->self,
              pRequest->relation.nextRefId, pRequest->requestId);
   }
 }
@@ -1141,11 +1139,11 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   }
 
   taosMemoryFree(pResult);
-  tscDebug("0x%" PRIx64 " enter scheduler exec cb, code:%s, reqId:0x%" PRIx64, pRequest->self, tstrerror(code),
+  tscDebug("0x%" PRIx64 " enter scheduler exec cb, code:%s, QID:0x%" PRIx64, pRequest->self, tstrerror(code),
            pRequest->requestId);
 
   if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pRequest->sqlstr != NULL) {
-    tscDebug("0x%" PRIx64 " client retry to handle the error, code:%s, tryCount:%d, reqId:0x%" PRIx64, pRequest->self,
+    tscDebug("0x%" PRIx64 " client retry to handle the error, code:%s, tryCount:%d, QID:0x%" PRIx64, pRequest->self,
              tstrerror(code), pRequest->retry, pRequest->requestId);
     (void)removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
     restartAsyncQuery(pRequest, code);
@@ -1215,7 +1213,7 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
       }
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
-      SArray*     pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
+      SArray* pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
       if (NULL == pMnodeList) {
         code = terrno;
         break;
@@ -1533,7 +1531,7 @@ int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* p
 }
 
 int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
-                         SAppInstInfo* pAppInfo, int connType, STscObj** pTscObj) {
+                        SAppInstInfo* pAppInfo, int connType, STscObj** pTscObj) {
   *pTscObj = NULL;
   int32_t code = createTscObj(user, auth, db, connType, pAppInfo, pTscObj);
   if (TSDB_CODE_SUCCESS != code) {
@@ -1560,7 +1558,8 @@ int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __ta
   }
 
   int64_t transporterId = 0;
-  code = asyncSendMsgToServer((*pTscObj)->pAppInfo->pTransporter, &(*pTscObj)->pAppInfo->mgmtEp.epSet, &transporterId, body);
+  code = asyncSendMsgToServer((*pTscObj)->pAppInfo->pTransporter, &(*pTscObj)->pAppInfo->mgmtEp.epSet, &transporterId,
+                              body);
   if (TSDB_CODE_SUCCESS != code) {
     destroyTscObj(*pTscObj);
     tscError("failed to send connect msg to server, code:%s", tstrerror(code));
@@ -1577,7 +1576,7 @@ int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __ta
     *pTscObj = NULL;
     return terrno;
   } else {
-    tscDebug("0x%" PRIx64 " connection is opening, connId:%u, dnodeConn:%p, reqId:0x%" PRIx64, (*pTscObj)->id,
+    tscDebug("0x%" PRIx64 " connection is opening, connId:%u, dnodeConn:%p, QID:0x%" PRIx64, (*pTscObj)->id,
              (*pTscObj)->connId, (*pTscObj)->pAppInfo->pTransporter, pRequest->requestId);
     destroyRequest(pRequest);
   }
@@ -1708,7 +1707,7 @@ int32_t doProcessMsgFromServer(void* param) {
   char      tbuf[40] = {0};
   TRACE_TO_STR(trace, tbuf);
 
-  tscDebug("processMsgFromServer handle %p, message: %s, size:%d, code: %s, gtid: %s", pMsg->info.handle,
+  tscDebug("processMsgFromServer handle %p, message: %s, size:%d, code: %s, QID: %s", pMsg->info.handle,
            TMSG_INFO(pMsg->msgType), pMsg->contLen, tstrerror(pMsg->code), tbuf);
 
   if (pSendInfo->requestObjRefId != 0) {
@@ -1820,7 +1819,7 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
   }
 
   STscObj* pObj = NULL;
-  int32_t code = taos_connect_internal(ip, user, NULL, auth, db, port, CONN_TYPE__QUERY, &pObj);
+  int32_t  code = taos_connect_internal(ip, user, NULL, auth, db, port, CONN_TYPE__QUERY, &pObj);
   if (TSDB_CODE_SUCCESS == code) {
     int64_t* rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
@@ -1890,7 +1889,7 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
     }
 
     SReqResultInfo* pResInfo = &pRequest->body.resInfo;
-    SSchedulerReq   req = { .syncReq = true, .pFetchRes = (void**)&pResInfo->pData };
+    SSchedulerReq   req = {.syncReq = true, .pFetchRes = (void**)&pResInfo->pData};
 
     pRequest->code = schedulerFetchRows(pRequest->body.queryJob, &req);
     if (pRequest->code != TSDB_CODE_SUCCESS) {
@@ -1905,7 +1904,7 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
       return NULL;
     }
 
-    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%" PRId64 " total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
+    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%" PRId64 " total Rows:%" PRId64 ", complete:%d, QID:0x%" PRIx64,
              pRequest->self, pResInfo->numOfRows, pResInfo->totalRows, pResInfo->completed, pRequest->requestId);
 
     STscObj*            pTscObj = pRequest->pTscObj;
@@ -2033,7 +2032,7 @@ int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols) {
 }
 
 static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, int32_t numOfRows) {
-  char* p = (char*)pResultInfo->pData;
+  char*   p = (char*)pResultInfo->pData;
   int32_t blockVersion = *(int32_t*)p;
 
   // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
@@ -2298,7 +2297,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
 
   char* pStart = p;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    if(blockVersion == BLOCK_VERSION_1){
+    if (blockVersion == BLOCK_VERSION_1) {
       colLength[i] = htonl(colLength[i]);
     }
     if (colLength[i] >= dataLen) {
@@ -2733,7 +2732,8 @@ void syncQueryFn(void* param, void* res, int32_t code) {
   (void)tsem_post(&pParam->sem);
 }
 
-void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly, int8_t source) {
+void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
+                        int8_t source) {
   if (sql == NULL || NULL == fp) {
     terrno = TSDB_CODE_INVALID_PARA;
     if (fp) {
@@ -2854,7 +2854,7 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
 
-  tscDebug("0x%" PRIx64 " enter scheduler fetch cb, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code,
+  tscDebug("0x%" PRIx64 " enter scheduler fetch cb, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code,
            tstrerror(code), pRequest->requestId);
 
   pResultInfo->pData = pResult;
@@ -2877,10 +2877,10 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
       setQueryResultFromRsp(pResultInfo, (const SRetrieveTableRsp*)pResultInfo->pData, pResultInfo->convertUcs4);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
-    tscError("0x%" PRIx64 " fetch results failed, code:%s, reqId:0x%" PRIx64, pRequest->self, tstrerror(pRequest->code),
+    tscError("0x%" PRIx64 " fetch results failed, code:%s, QID:0x%" PRIx64, pRequest->self, tstrerror(pRequest->code),
              pRequest->requestId);
   } else {
-    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%" PRId64 " total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
+    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%" PRId64 " total Rows:%" PRId64 ", complete:%d, QID:0x%" PRIx64,
              pRequest->self, pResultInfo->numOfRows, pResultInfo->totalRows, pResultInfo->completed,
              pRequest->requestId);
 
@@ -2932,7 +2932,7 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
   int32_t code = schedulerFetchRows(pRequest->body.queryJob, &req);
   if (TSDB_CODE_SUCCESS != code) {
     tscError("0x%" PRIx64 " failed to schedule fetch rows", pRequest->requestId);
-    pRequest->body.fetchFp(param, pRequest, code);    
+    pRequest->body.fetchFp(param, pRequest, code);
   }
 }
 
