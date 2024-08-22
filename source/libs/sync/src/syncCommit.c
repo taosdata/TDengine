@@ -57,7 +57,10 @@ int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode) { return pSyncNode->qu
 bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index) {
   int            count = 0;
   SSyncIndexMgr* pMatches = pNode->pMatchIndex;
-  ASSERT(pNode->replicaNum == pMatches->replicaNum);
+  if (pNode->replicaNum != pMatches->replicaNum) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return false;
+  };
 
   for (int i = 0; i < pNode->totalReplicaNum; i++) {
     if(pNode->raftCfg.cfg.nodeInfo[i].nodeRole == TAOS_SYNC_ROLE_VOTER){

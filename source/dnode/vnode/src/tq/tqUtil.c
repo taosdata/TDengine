@@ -92,7 +92,7 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
     char formatBuf[TSDB_OFFSET_LEN] = {0};
     tFormatOffset(formatBuf, TSDB_OFFSET_LEN, pOffsetVal);
     tqDebug("tmq poll: consumer:0x%" PRIx64
-            ", subkey %s, vgId:%d, existed offset found, offset reset to %s and continue. reqId:0x%" PRIx64,
+            ", subkey %s, vgId:%d, existed offset found, offset reset to %s and continue. QID:0x%" PRIx64,
             consumerId, pHandle->subKey, vgId, formatBuf, pRequest->reqId);
     return 0;
   } else {
@@ -117,7 +117,7 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
       tqOffsetResetToLog(pOffsetVal, pHandle->pRef->refVer + 1);
 
       code = tqInitDataRsp(&dataRsp.common, *pOffsetVal);
-      if (code != 0){
+      if (code != 0) {
         return code;
       }
       tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, (latest) offset reset to %" PRId64, consumerId,
@@ -145,7 +145,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   terrno = 0;
 
   SMqDataRsp dataRsp = {0};
-  int code = tqInitDataRsp(&dataRsp.common, *pOffset);
+  int        code = tqInitDataRsp(&dataRsp.common, *pOffset);
   if (code != 0) {
     goto end;
   }
@@ -176,7 +176,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
 end : {
   char buf[TSDB_OFFSET_LEN] = {0};
   tFormatOffset(buf, TSDB_OFFSET_LEN, &dataRsp.common.rspOffset);
-  tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, rsp offset type:%s, reqId:0x%" PRIx64
+  tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, rsp offset type:%s, QID:0x%" PRIx64
           " code:%d",
           consumerId, pHandle->subKey, vgId, dataRsp.common.blockNum, buf, pRequest->reqId, code);
   tDeleteMqDataRsp(&dataRsp);
@@ -206,10 +206,10 @@ static void tDeleteCommon(void* parm) {}
 
 static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                                   SRpcMsg* pMsg, STqOffsetVal* offset) {
-  int32_t         vgId       = TD_VID(pTq->pVnode);
-  STaosxRsp       taosxRsp   = {0};
-  SMqBatchMetaRsp btMetaRsp  = {0};
-  int32_t         code       = 0;
+  int32_t         vgId = TD_VID(pTq->pVnode);
+  STaosxRsp       taosxRsp = {0};
+  SMqBatchMetaRsp btMetaRsp = {0};
+  int32_t         code = 0;
 
   TQ_ERR_GO_TO_END(tqInitTaosxRsp(&taosxRsp.common, *offset));
   if (offset->type != TMQ_OFFSET__LOG) {
@@ -610,7 +610,7 @@ int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void*
     SColumnInfoData* pUidCol = taosArrayGet(pDelBlock->pDataBlock, UID_COLUMN_INDEX);
     TSDB_CHECK_NULL(pUidCol, code, line, END, terrno)
 
-    int64_t*         pUid = taosArrayGet(pRes->uidList, i);
+    int64_t* pUid = taosArrayGet(pRes->uidList, i);
     code = colDataSetVal(pUidCol, i, (const char*)pUid, false);
     TSDB_CHECK_CODE(code, line, END);
     void* tmp = taosArrayGet(pDelBlock->pDataBlock, GROUPID_COLUMN_INDEX);
@@ -642,7 +642,7 @@ int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void*
   }
 
 END:
-  if (code != 0){
+  if (code != 0) {
     tqError("failed to extract delete data block, line:%d code:%d", line, code);
   }
   tDecoderClear(pCoder);
@@ -672,7 +672,7 @@ int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, b
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
-    if (pId == NULL){
+    if (pId == NULL) {
       continue;
     }
     if (pId->streamId != streamId) {

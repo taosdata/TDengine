@@ -14,6 +14,7 @@
  */
 
 #include "cos.h"
+#include "monitor.h"
 #include "vnd.h"
 
 static volatile int32_t VINIT = 0;
@@ -25,6 +26,8 @@ int vnodeInit(int nthreads, StopDnodeFp stopDnodeFp) {
 
   TAOS_CHECK_RETURN(vnodeAsyncOpen(nthreads));
   TAOS_CHECK_RETURN(walInit(stopDnodeFp));
+
+  monInitVnode();
 
   return 0;
 }
