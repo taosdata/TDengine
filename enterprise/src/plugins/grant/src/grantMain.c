@@ -2686,10 +2686,12 @@ static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
-    snprintf(qBuf, TSDB_VERSION_LEN, "%s", version);
-    varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
-    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+    if (pColInfo) { // for compatibility of old version
+      qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+      snprintf(qBuf, TSDB_VERSION_LEN, "%s", version);
+      varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
+      COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+    }
 
     ++numOfRows;
   }
