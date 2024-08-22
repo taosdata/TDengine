@@ -295,6 +295,9 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
       break;
     }
   }
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
 
   if (p->info.rows > 0) {
     code = blockDataEnsureCapacity(pDataBlock, capacity);
