@@ -162,7 +162,7 @@ typedef struct {
 
   void* task;
   int   hThrdIdx;
-} STransConnCtx;
+} SReqCtx;
 
 #pragma pack(push, 1)
 
@@ -318,9 +318,9 @@ void transUnrefCliHandle(void* handle);
 int32_t transReleaseCliHandle(void* handle);
 int32_t transReleaseSrvHandle(void* handle);
 
-int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
-int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
-int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp, int8_t* epUpdated,
+int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
+int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);
+int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
                                  int32_t timeoutMs);
 int32_t transSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId);
 int32_t transFreeConnById(void* shandle, int64_t transpointId);
