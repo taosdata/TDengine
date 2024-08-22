@@ -64,7 +64,7 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   syncLogRecvRequestVoteReply(ths, pMsg, "");
-  ASSERT(pMsg->term == currentTerm);
+  if (pMsg->term != currentTerm) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   // This tallies votes even when the current state is not Candidate,
   // but they won't be looked at, so it doesn't matter.

@@ -119,7 +119,7 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   }
 
   ret = syncNodeRequestVotePeers(pSyncNode);
-  ASSERT(ret == 0);
+  if (ret != 0) return ret;
 
   syncNodeResetElectTimer(pSyncNode);
   return ret;

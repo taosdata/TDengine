@@ -275,10 +275,10 @@ void metaPauseTbCursor(SMTbCursor *pTbCur) {
 int32_t metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
   int32_t code = 0;
   int32_t lino;
-  int8_t locked = 0;
+  int8_t  locked = 0;
   if (pTbCur->paused) {
     metaReaderDoInit(&pTbCur->mr, pTbCur->pMeta, META_READER_LOCK);
-    locked = 1; 
+    locked = 1;
     code = tdbTbcOpen(((SMeta *)pTbCur->pMeta)->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
     if (code != 0) {
       TSDB_CHECK_CODE(code, lino, _exit);
@@ -673,7 +673,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
     }
   }
 
-  if (ASSERTS(sver > 0, "failed to get table schema version: %d", sver)) {
+  if (!(sver > 0)) {
     code = TSDB_CODE_NOT_FOUND;
     goto _exit;
   }
@@ -1608,8 +1608,6 @@ int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t
     metaULock(pVnodeObj->pMeta);
     if (numOfTables) *numOfTables = state.ctbNum;
     if (numOfCols) *numOfCols = state.colNum;
-    ASSERTS(state.colNum > 0, "vgId:%d, suid:%" PRIi64 " nCols:%d <= 0 in metaCache", TD_VID(pVnodeObj), uid,
-            state.colNum);
     goto _exit;
   }
 

@@ -104,7 +104,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     syncNodeStepDown(ths, pMsg->term);
   }
   SyncTerm currentTerm = raftStoreGetTerm(ths);
-  ASSERT(pMsg->term <= currentTerm);
+  if (!(pMsg->term <= currentTerm)) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   bool grant = (pMsg->term == currentTerm) && logOK &&
                ((!raftStoreHasVoted(ths)) || (syncUtilSameId(&ths->raftStore.voteFor, &pMsg->srcId)));
@@ -130,7 +130,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pReply->destId = pMsg->srcId;
   pReply->term = currentTerm;
   pReply->voteGranted = grant;
-  ASSERT(!grant || pMsg->term == pReply->term);
+  if (!(!grant || pMsg->term == pReply->term)) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   // trace log
   syncLogRecvRequestVote(ths, pMsg, pReply->voteGranted, "");

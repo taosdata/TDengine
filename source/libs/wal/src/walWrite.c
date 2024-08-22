@@ -371,8 +371,11 @@ static FORCE_INLINE int32_t walCheckAndRoll(SWal *pWal) {
 int32_t walBeginSnapshot(SWal *pWal, int64_t ver, int64_t logRetention) {
   int32_t code = 0;
 
+  if (logRetention < 0) {
+    TAOS_RETURN(TSDB_CODE_FAILED);
+  }
+
   TAOS_UNUSED(taosThreadMutexLock(&pWal->mutex));
-  ASSERT(logRetention >= 0);
   pWal->vers.verInSnapshotting = ver;
   pWal->vers.logRetention = logRetention;
 
@@ -438,7 +441,10 @@ int32_t walEndSnapshot(SWal *pWal) {
   if (pInfo) {
     wDebug("vgId:%d, wal search found file info. ver:%" PRId64 ", first:%" PRId64 " last:%" PRId64, pWal->cfg.vgId, ver,
            pInfo->firstVer, pInfo->lastVer);
-    ASSERT(ver <= pInfo->lastVer);
+    if (ver > pInfo->lastVer) {
+      TAOS_CHECK_GOTO(TSDB_CODE_FAILED, &lino, _exit);
+    }
+
     if (ver == pInfo->lastVer) {
       pInfo++;
     }
