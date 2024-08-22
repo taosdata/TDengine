@@ -1428,10 +1428,11 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
     case TABLE_OPTION_TTL: {
       int64_t ttl = taosStr2Int64(((SToken*)pVal)->z, NULL, 10);
       if (ttl > INT32_MAX) {
-        ttl = INT32_MAX;
+        pCxt->errCode = TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+      } else {
+        // ttl can not be smaller than 0, because there is a limitation in sql.y (TTL NK_INTEGER)
+        ((STableOptions*)pOptions)->ttl = ttl;
       }
-      // ttl can not be smaller than 0, because there is a limitation in sql.y (TTL NK_INTEGER)
-      ((STableOptions*)pOptions)->ttl = ttl;
       break;
     }
     case TABLE_OPTION_SMA:
@@ -1862,7 +1863,7 @@ SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pCreateUserStm
   return pCreateUserStmt;
 }
 
-SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo, 
+SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo,
                             int8_t createDb, int8_t is_import) {
   CHECK_PARSER_STATUS(pCxt);
   char password[TSDB_USET_PASSWORD_LEN + 3] = {0};
