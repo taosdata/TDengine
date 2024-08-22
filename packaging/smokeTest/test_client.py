@@ -87,7 +87,7 @@ class TestClient:
         if data[0][0] != 10000:
             raise " taosBenchmark work not as expected "
         # drop database of test
-        cmd = "taos -s 'drop database %s;'  -h %s  -P %d" % (
+        cmd = 'taos -s "drop database %s;"  -h %s  -P %d' % (
             config["databaseName"], config["serverHost"], config["serverPort"])
         result = run_cmd(cmd)
         assert "Drop OK" in result.stdout
