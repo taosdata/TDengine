@@ -208,7 +208,9 @@ static int32_t load_fs(STsdb *pTsdb, const char *fname, TFileSetArray *arr) {
   /* fmtv */
   item1 = cJSON_GetObjectItem(json, "fmtv");
   if (cJSON_IsNumber(item1)) {
-    ASSERT(item1->valuedouble == 1);
+    if (item1->valuedouble != 1) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+    }
   } else {
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
@@ -892,7 +894,6 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
 
   // commit
   code = commit_edit(fs);
-  ASSERT(code == 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // schedule merge
@@ -1050,7 +1051,6 @@ static SHashObj *tsdbFSetRangeArrayToHash(TFileSetRangeArray *pRanges) {
     STFileSetRange *u = TARRAY2_GET(pRanges, i);
     int32_t         fid = u->fid;
     int32_t         code = taosHashPut(pHash, &fid, sizeof(fid), u, sizeof(*u));
-    ASSERT(code == 0);
     tsdbDebug("range diff hash fid:%d, sver:%" PRId64 ", ever:%" PRId64, u->fid, u->sver, u->ever);
   }
   return pHash;
@@ -1190,10 +1190,8 @@ int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset) {
         (void)taosThreadCondWait(&(*fset)->beginTask, &tsdb->mutex);
 
         (void)tsdbFSGetFSet(tsdb->pFS, fid, fset);
-        ASSERT(fset != NULL);
 
         (*fset)->numWaitTask--;
-        ASSERT((*fset)->numWaitTask >= 0);
       } else {
         (*fset)->taskRunning = true;
         break;

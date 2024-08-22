@@ -558,7 +558,9 @@ void vnodeClose(SVnode *pVnode) {
 
 // start the sync timer after the queue is ready
 int32_t vnodeStart(SVnode *pVnode) {
-  ASSERT(pVnode);
+  if (pVnode == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   return vnodeSyncStart(pVnode);
 }
 

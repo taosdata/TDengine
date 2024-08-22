@@ -67,9 +67,6 @@ static int32_t tsdbSnapReadFileSetOpenReader(STsdbSnapReader* reader) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  ASSERT(reader->dataReader == NULL);
-  ASSERT(TARRAY2_SIZE(reader->sttReaderArr) == 0);
-
   // data
   SDataFileReaderConfig config = {
       .tsdb = reader->tsdb,
@@ -124,11 +121,6 @@ _exit:
 static int32_t tsdbSnapReadFileSetOpenIter(STsdbSnapReader* reader) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  ASSERT(reader->dataIterMerger == NULL);
-  ASSERT(reader->tombIterMerger == NULL);
-  ASSERT(TARRAY2_SIZE(reader->dataIterArr) == 0);
-  ASSERT(TARRAY2_SIZE(reader->tombIterArr) == 0);
 
   STsdbIter*      iter;
   STsdbIterConfig config = {
@@ -209,8 +201,6 @@ static int32_t tsdbSnapReadFileSetCloseIter(STsdbSnapReader* reader) {
 static int32_t tsdbSnapReadRangeBegin(STsdbSnapReader* reader) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  ASSERT(reader->ctx->fsr == NULL);
 
   if (reader->ctx->fsrArrIdx < TARRAY2_SIZE(reader->fsrArr)) {
     reader->ctx->fsr = TARRAY2_GET(reader->fsrArr, reader->ctx->fsrArrIdx++);
@@ -335,7 +325,6 @@ static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* reader, uint8_t** dat
   }
 
   if (reader->blockData->nRow > 0) {
-    ASSERT(reader->blockData->suid || reader->blockData->uid);
     code = tsdbSnapCmprData(reader, data);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -616,7 +605,6 @@ static int32_t tsdbSnapWriteTimeSeriesRow(STsdbSnapWriter* writer, SRowInfo* row
   }
 
   if (row->suid == INT64_MAX) {
-    ASSERT(writer->ctx->hasData == false);
     goto _exit;
   }
 
@@ -633,9 +621,6 @@ _exit:
 static int32_t tsdbSnapWriteFileSetOpenReader(STsdbSnapWriter* writer) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  ASSERT(writer->ctx->dataReader == NULL);
-  ASSERT(TARRAY2_SIZE(writer->ctx->sttReaderArr) == 0);
 
   if (writer->ctx->fset) {
     // open data reader
@@ -825,8 +810,6 @@ static int32_t tsdbSnapWriteFileSetBegin(STsdbSnapWriter* writer, int32_t fid) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  ASSERT(writer->ctx->fsetWriteBegin == false);
-
   STFileSet* fset = &(STFileSet){.fid = fid};
 
   writer->ctx->fid = fid;
@@ -885,7 +868,6 @@ static int32_t tsdbSnapWriteTombRecord(STsdbSnapWriter* writer, const STombRecor
   }
 
   if (record->suid == INT64_MAX) {
-    ASSERT(writer->ctx->hasTomb == false);
     goto _exit;
   }
 
@@ -996,7 +978,6 @@ static int32_t tsdbSnapWriteDecmprTombBlock(SSnapDataHdr* hdr, STombBlock* tombB
   TAOS_UNUSED(tTombBlockClear(tombBlock));
 
   int64_t size = hdr->size;
-  ASSERT(size % TOMB_RECORD_ELEM_NUM == 0);
   size = size / TOMB_RECORD_ELEM_NUM;
   tombBlock->numOfRecords = size / sizeof(int64_t);
 
@@ -1042,8 +1023,6 @@ static int32_t tsdbSnapWriteTombData(STsdbSnapWriter* writer, SSnapDataHdr* hdr)
     code = tsdbSnapWriteTimeSeriesRow(writer, &row);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-
-  ASSERT(writer->ctx->hasData == false);
 
   for (int32_t i = 0; i < TOMB_BLOCK_SIZE(tombBlock); ++i) {
     code = tTombBlockGet(tombBlock, i, &record);
@@ -1177,7 +1156,7 @@ int32_t tsdbSnapWrite(STsdbSnapWriter* writer, SSnapDataHdr* hdr) {
     code = tsdbSnapWriteTombData(writer, hdr);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    ASSERT(0);
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_PARA, lino, _exit);
   }
 
 _exit:

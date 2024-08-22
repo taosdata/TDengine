@@ -694,9 +694,13 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
   SSchemaWrapper *pSchemaWrapper = &schema;
 
   tDecoderInit(&dc, pData, nData);
-  (void)tDecodeSSchemaWrapper(&dc, pSchemaWrapper);
+  code = tDecodeSSchemaWrapper(&dc, pSchemaWrapper);
   tDecoderClear(&dc);
   tdbFree(pData);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosMemoryFree(pSchemaWrapper->pSchema);
+    goto _exit;
+  }
 
   // convert
   STSchema *pTSchema = tBuildTSchema(pSchemaWrapper->pSchema, pSchemaWrapper->nCols, pSchemaWrapper->version);
@@ -1099,7 +1103,12 @@ int32_t metaFilterCreateTime(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
     SBtimeIdxKey *p = entryKey;
     if (count > TRY_ERROR_LIMIT) break;
 
+    terrno = TSDB_CODE_SUCCESS;
     int32_t cmp = (*param->filterFunc)((void *)&p->btime, (void *)&pBtimeKey->btime, param->type);
+    if (terrno != TSDB_CODE_SUCCESS) {
+      ret = terrno;
+      break;
+    }
     if (cmp == 0) {
       if (taosArrayPush(pUids, &p->uid) == NULL) {
         ret = terrno;
@@ -1163,7 +1172,12 @@ int32_t metaFilterTableName(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
     if (count > TRY_ERROR_LIMIT) break;
 
     char *pTableKey = (char *)pEntryKey;
+    terrno = TSDB_CODE_SUCCESS;
     cmp = (*param->filterFunc)(pTableKey, pName, pCursor->type);
+    if (terrno != TSDB_CODE_SUCCESS) {
+      ret = terrno;
+      goto END;
+    }
     if (cmp == 0) {
       tb_uid_t tuid = *(tb_uid_t *)pEntryVal;
       if (taosArrayPush(pUids, &tuid) == NULL) {
@@ -1357,7 +1371,12 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
       }
     }
 
+    terrno = TSDB_CODE_SUCCESS;
     int32_t cmp = (*param->filterFunc)(p->data, pKey->data, pKey->type);
+    if (terrno != TSDB_CODE_SUCCESS) {
+      TAOS_CHECK_GOTO(terrno, NULL, END);
+      break;
+    }
     if (cmp == 0) {
       // match
       tb_uid_t tuid = 0;

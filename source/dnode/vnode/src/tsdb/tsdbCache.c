@@ -1413,7 +1413,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   SIdxKey *idxKey = taosArrayGet(remainCols, 0);
   if (idxKey->key.cid != PRIMARYKEY_TIMESTAMP_COL_ID) {
     // ignore 'ts' loaded from cache and load it from tsdb
-    SLastCol* pLastCol = taosArrayGet(pLastArray, 0);
+    SLastCol *pLastCol = taosArrayGet(pLastArray, 0);
     tsdbCacheUpdateLastColToNone(pLastCol, TSDB_LAST_CACHE_NO_CACHE);
 
     SLastKey *key = &(SLastKey){.lflag = ltype, .uid = uid, .cid = PRIMARYKEY_TIMESTAMP_COL_ID};
@@ -1745,12 +1745,12 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
           goto _exit;
         }
       }
-      if (taosArrayPush(remainCols, &(SIdxKey){i, key}) ==NULL) {
+      if (taosArrayPush(remainCols, &(SIdxKey){i, key}) == NULL) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         goto _exit;
       }
       bool ignoreRocks = pLastCol ? (pLastCol->cacheStatus == TSDB_LAST_CACHE_NO_CACHE) : false;
-      if (taosArrayPush(ignoreFromRocks, &ignoreRocks) ==NULL) {
+      if (taosArrayPush(ignoreFromRocks, &ignoreRocks) == NULL) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         goto _exit;
       }
@@ -1802,12 +1802,12 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
   }
 
 _exit:
-    if (remainCols) {
-      taosArrayDestroy(remainCols);
-    }
-    if (ignoreFromRocks) {
-      taosArrayDestroy(ignoreFromRocks);
-    }
+  if (remainCols) {
+    taosArrayDestroy(remainCols);
+  }
+  if (ignoreFromRocks) {
+    taosArrayDestroy(ignoreFromRocks);
+  }
 
   TAOS_RETURN(code);
 }
@@ -2245,17 +2245,20 @@ static int32_t lastIterClose(SFSLastIter **iter) {
 }
 
 static int32_t lastIterNext(SFSLastIter *iter, TSDBROW **ppRow) {
-  int32_t code = 0;
+  bool hasVal = false;
+  *ppRow = NULL;
 
-  bool hasVal = tMergeTreeNext(iter->pMergeTree);
+  int32_t code = tMergeTreeNext(iter->pMergeTree, &hasVal);
+  if (code != 0) {
+    return code;
+  }
+
   if (!hasVal) {
     *ppRow = NULL;
-
     TAOS_RETURN(code);
   }
 
   *ppRow = tMergeTreeGetRow(iter->pMergeTree);
-
   TAOS_RETURN(code);
 }
 
@@ -2365,6 +2368,9 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
 
       if (!state->pIndexList) {
         state->pIndexList = taosArrayInit(1, sizeof(SBrinBlk));
+        if (!state->pIndexList) {
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
+        }
       } else {
         taosArrayClear(state->pIndexList);
       }
@@ -2650,7 +2656,6 @@ static int32_t getNextRowFromMem(void *iter, TSDBROW **ppRow, bool *pIgnoreEarli
         TAOS_RETURN(code);
       }
     default:
-      ASSERT(0);
       break;
   }
 

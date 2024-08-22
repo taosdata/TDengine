@@ -111,6 +111,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_IP_NOT_IN_WHITE_LIST,         "Not allowed to connec
 TAOS_DEFINE_ERROR(TSDB_CODE_FAILED_TO_CONNECT_S3,         "Failed to connect to s3 server")
 TAOS_DEFINE_ERROR(TSDB_CODE_MSG_PREPROCESSED,             "Message has been processed in preprocess")
 TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_BUFFER,                "Out of buffer")
+TAOS_DEFINE_ERROR(TSDB_CODE_INTERNAL_ERROR,               "Internal error")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
@@ -478,6 +479,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_WINDOW_CONDITION, "The time pseudo colum
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR,  "Executor internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_JOIN_CONDITION,   "Not supported join on condition")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_FILTER_NOT_SUPPORT_TYPE,  "Not supported range type")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_FILTER_WRONG_OPTR_TYPE,   "Wrong operator type")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_FILTER_RANGE_ERROR,       "Wrong filter range")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_FILTER_INVALID_TYPE,      "Invalid filter type")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
@@ -724,6 +728,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL,      "Function time unit c
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_INVALID_VALUE_RANGE,      "Function got invalid value range")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_SETUP_ERROR,              "Function set up failed")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_INVALID_RES_LENGTH,       "Function result exceed max length")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_HISTOGRAM_ERROR,          "Function failed to calculate histogram")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_PERCENTILE_ERROR,         "Function failed to calculate percentile")
 
 //udf
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_STOPPING,                   "udf is stopping")
@@ -737,6 +743,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_OUTPUT_TYPE,        "udf invalid output 
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_SCRIPT_NOT_SUPPORTED,       "udf program language not supported")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_FUNC_EXEC_FAILURE,          "udf function execution failure")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_UV_EXEC_FAILURE,            "udf uvlib function execution failure")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INTERNAL_ERROR,             "udf internal error")
 
 //schemaless
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PROTOCOL_TYPE,      "Invalid line protocol type")
@@ -802,6 +809,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_NOT_EXIST,          "Stream task not exi
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXEC_CANCELLED,          "Stream task exec cancelled")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_STATETRANS,      "Invalid task state to handle event")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_IVLD_STATUS,        "Invalid task status to proceed")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INTERNAL_ERROR,         "Stream internal error")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NOT_LEADER,              "Stream task not on leader vnode")
 
 // TDLite
 TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_FLAGS,         "Invalid TDLite open flags")
