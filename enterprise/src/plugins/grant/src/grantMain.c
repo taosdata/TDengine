@@ -548,6 +548,7 @@ static void grantObjInit(SGrantUniqObj *pObj, bool official) {
   taosArrayClear(pObj->pDataIns);
   taosArrayClear(pObj->pItem64);
   taosArrayClear(pObj->pItemI64);
+  taosArrayClear(pObj->pItemN64);
   taosArrayClear(pObj->pMachines);
 }
 
