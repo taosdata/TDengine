@@ -156,20 +156,6 @@ static void resetPrevAndNextWindow(SStreamFillSupporter* pFillSup) {
   resetFillWindow(&pFillSup->nextNext);
 }
 
-void getCurWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, SStreamFillSupporter* pFillSup) {
-  SStorageAPI* pAPI = &pOperator->pTaskInfo->storageAPI;
-
-  void* pState = pOperator->pTaskInfo->streamInfo.pState;
-  resetPrevAndNextWindow(pFillSup);
-
-  SWinKey key = {.ts = ts, .groupId = groupId};
-  int32_t curVLen = 0;
-
-  int32_t code = pAPI->stateStore.streamStateFillGet(pState, &key, (void**)&pFillSup->cur.pRowVal, &curVLen, NULL);
-  ASSERT(code == TSDB_CODE_SUCCESS);
-  pFillSup->cur.key = key.ts;
-}
-
 void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, SStreamFillSupporter* pFillSup) {
   SStorageAPI* pAPI = &pOperator->pTaskInfo->storageAPI;
   void*        pState = pOperator->pTaskInfo->streamInfo.pState;

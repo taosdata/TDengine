@@ -20,7 +20,8 @@
 #include "tcommon.h"
 #include "tsimplehash.h"
 
-#define NUM_OF_FLUSED_WIN 64
+#define NUM_OF_CACHE_WIN 64
+#define MAX_NUM_OF_CACHE_WIN 128
 
 int fillStateKeyCompare(const void* pWin1, const void* pDatas, int pos) {
   SWinKey* pWin2 = taosArrayGet(pDatas, pos);
@@ -54,7 +55,7 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
     SWinKey          start = {.groupId = pKey->groupId, .ts = INT64_MAX};
     void*            pState = getStateFileStore(pFileState);
     SStreamStateCur* pCur = streamStateFillSeekKeyPrev_rocksdb(pState, &start);
-    for (int32_t i = 0; i < NUM_OF_FLUSED_WIN; i++) {
+    for (int32_t i = 0; i < NUM_OF_CACHE_WIN; i++) {
       SWinKey tmpKey = {.groupId = pKey->groupId};
       int32_t tmpRes = streamStateGetGroupKVByCur_rocksdb(pCur, &tmpKey, NULL, 0);
       if (tmpRes != TSDB_CODE_SUCCESS) {
@@ -81,6 +82,11 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
     index++;
     void* tmp = taosArrayInsert(pWinStates, index, pKey);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+  }
+
+  if (size >= MAX_NUM_OF_CACHE_WIN) {
+    int32_t num = size - NUM_OF_CACHE_WIN;
+    taosArrayRemoveBatch(pWinStates, 0, num, NULL);
   }
 
 _end:
@@ -115,8 +121,8 @@ void clearSearchBuff(SStreamFileState* pFileState) {
       int64_t gpId = *(int64_t*)tSimpleHashGetKey(pIte, NULL);
       SWinKey key = {.ts = flushMark, .groupId = gpId};
       int32_t num = binarySearch(pWinStates, size, &key, fillStateKeyCompare);
-      if (size > NUM_OF_FLUSED_WIN) {
-        num = TMIN(num, size - NUM_OF_FLUSED_WIN);
+      if (size > NUM_OF_CACHE_WIN) {
+        num = TMIN(num, size - NUM_OF_CACHE_WIN);
         taosArrayRemoveBatch(pWinStates, 0, num, NULL);
       }
     }
