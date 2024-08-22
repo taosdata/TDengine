@@ -674,7 +674,7 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
 
     if (!(pBrinBlk->minTbid.suid <= pReader->info.suid && pBrinBlk->maxTbid.suid >= pReader->info.suid)) {
       tsdbError("tsdb failed at: %s %d", __func__, __LINE__);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_INTERNAL_ERROR;
     }
     if (pBrinBlk->maxTbid.suid == pReader->info.suid && pBrinBlk->maxTbid.uid < pList->tableUidList[0]) {
       i += 1;
@@ -757,7 +757,7 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
 
     if (!(pRecord->suid == pReader->info.suid && uid == pRecord->uid)) {
       tsdbError("tsdb failed at: %s:%d", __func__, __LINE__);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_INTERNAL_ERROR;
     }
 
     STableBlockScanInfo* pScanInfo = NULL;
@@ -930,7 +930,7 @@ static int32_t getCurrentBlockInfo(SDataBlockIter* pBlockIter, SFileDataBlockInf
   size_t num = TARRAY_SIZE(pBlockIter->blockList);
   if (num == 0) {
     tsdbError("tsdb read failed at: %s:%d", __func__, __LINE__);
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_INTERNAL_ERROR;
   }
 
   *pInfo = taosArrayGet(pBlockIter->blockList, pBlockIter->index);
@@ -1937,7 +1937,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
   if (pMerger->pArray == NULL) {
     if (pReader->info.pSchema != NULL) {
       tsdbError("tsdb failed at %s:%d", __func__, __LINE__);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_INTERNAL_ERROR;
     }
     STSchema* ps = getTableSchemaImpl(pReader, pBlockScanInfo->uid);
     if (ps == NULL) {
@@ -2033,7 +2033,7 @@ static int32_t mergeFileBlockAndSttBlock(STsdbReader* pReader, SSttBlockReader* 
   if (pMerger->pArray == NULL) {
     if (pReader->info.pSchema) {
       tsdbError("tsdb failed at %s %d", __func__, __LINE__);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_INTERNAL_ERROR;
     }
     STSchema* ps = getTableSchemaImpl(pReader, pBlockScanInfo->uid);
     if (ps == NULL) {
@@ -2169,7 +2169,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
   if (pMerger->pArray == NULL) {
     if (pReader->info.pSchema != NULL) {
       tsdbError("tsdb read failed at: %s:%d", __func__, __LINE__);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_INTERNAL_ERROR;
     }
     STSchema* ps = getTableSchemaImpl(pReader, pBlockScanInfo->uid);
     if (ps == NULL) {
@@ -2573,7 +2573,7 @@ int32_t mergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pBloc
   if (pMerger->pArray == NULL) {
     if (pReader->info.pSchema != NULL) {
       tsdbError("tsdb reader failed at: %s:%d", __func__, __LINE__);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_INTERNAL_ERROR;
     }
     STSchema* ps = getTableSchemaImpl(pReader, pBlockScanInfo->uid);
     if (ps == NULL) {
@@ -3362,7 +3362,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
       } else {  // clean stt block
         if (!(pReader->info.execMode == READER_EXEC_ROWS && pSttBlockReader->mergeTree.pIter == NULL)) {
           tsdbError("tsdb reader failed at: %s:%d", __func__, __LINE__);
-          return TSDB_CODE_FAILED;
+          return TSDB_CODE_INTERNAL_ERROR;
         }
         code = buildCleanBlockFromSttFiles(pReader, pScanInfo);
         return code;
@@ -3386,7 +3386,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
       while (hasDataInSttBlock(pScanInfo)) {
         if (pScanInfo->sttKeyInfo.status != STT_FILE_HAS_DATA) {
           tsdbError("tsdb reader failed at: %s:%d", __func__, __LINE__);
-          return TSDB_CODE_FAILED;
+          return TSDB_CODE_INTERNAL_ERROR;
         }
 
         code = buildComposedDataBlockImpl(pReader, pScanInfo, &pReader->status.fileBlockData, pSttBlockReader);
@@ -3611,7 +3611,7 @@ static ERetrieveType doReadDataFromSttFiles(STsdbReader* pReader) {
 
     // all data blocks are checked in this stt file, now let's try the next file set
     if (pReader->status.pTableIter != NULL) {
-      terrno = TSDB_CODE_FAILED;
+      terrno = TSDB_CODE_INTERNAL_ERROR;
       tsdbError("tsdb reader failed at: %s:%d", __func__, __LINE__);
       return TSDB_READ_RETURN;
     }

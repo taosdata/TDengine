@@ -62,7 +62,7 @@ static int32_t doGetAlternativeBucketId(int32_t bucketId, int32_t bits, int32_t 
   int32_t v = bucketId - (1ul << (bits - 1));
   if (v >= numOfBuckets) {
     qError("tlinearhash failed at: %s:%d", __func__, __LINE__);
-    terrno = TSDB_CODE_FAILED;
+    terrno = TSDB_CODE_INTERNAL_ERROR;
     return -1;
   }
   return v;
@@ -357,7 +357,7 @@ int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data
       //      printf("extend the bits from %d to %d, new bucket:%d\n", pHashObj->bits, numOfBits, newBucketId);
       if (numOfBits != pHashObj->bits + 1) {
         qError("linear hash faield at: %s:%d", __func__, __LINE__);
-        return TSDB_CODE_FAILED;
+        return TSDB_CODE_INTERNAL_ERROR;
       }
       pHashObj->bits = numOfBits;
     }
@@ -377,7 +377,7 @@ int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data
         SLHashNode* pNode = (SLHashNode*)pStart;
         if (pNode->keyLen <= 0) {
           qError("linear hash faield at: %s:%d", __func__, __LINE__);
-          return TSDB_CODE_FAILED;
+          return TSDB_CODE_INTERNAL_ERROR;
         }
 
         char*   k = GET_LHASH_NODE_KEY(pNode);
@@ -387,7 +387,7 @@ int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data
         if (v1 != splitBucketId) {  // place it into the new bucket
           if (v1 != newBucketId) {
             qError("linear hash failed at: %s:%d", __func__, __LINE__);
-            return TSDB_CODE_FAILED;
+            return TSDB_CODE_INTERNAL_ERROR;
           }
           //          printf("move key:%d to 0x%x bucket, remain items:%d\n", *(int32_t*)k, v1, pBucket->size - 1);
           SLHashBucket* pNewBucket = pHashObj->pBucket[newBucketId];

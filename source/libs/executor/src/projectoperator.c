@@ -823,7 +823,7 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
         int32_t startOffset = pRes->info.rows;
         if (pRes->info.capacity <= 0) {
           qError("project failed at: %s:%d", __func__, __LINE__);
-          return TSDB_CODE_FAILED;
+          return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         }
         code = colDataAssign(pResColData, &idata, dest.numOfRows, &pRes->info);
         if (code) {

@@ -848,7 +848,7 @@ static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_
 
     if (!(record.suid == pReader->info.suid && uid == record.uid)) {
       tsdbError("tsdb reader failed at: %s:%d", __func__, __LINE__);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_INTERNAL_ERROR;
     }
 
     if (record.version <= pReader->info.verRange.maxVer) {
@@ -885,7 +885,7 @@ static int32_t doLoadTombDataFromTombBlk(const TTombBlkArray* pTombBlkArray, STs
 
     if (!(pTombBlk->minTbid.suid <= pReader->info.suid && pTombBlk->maxTbid.suid >= pReader->info.suid)) {
       tsdbError("tsdb reader failed at: %s:%d", __func__, __LINE__);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_INTERNAL_ERROR;
     }
     if (pTombBlk->maxTbid.suid == pReader->info.suid && pTombBlk->maxTbid.uid < pList->tableUidList[0]) {
       i += 1;

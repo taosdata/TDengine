@@ -471,7 +471,7 @@ static int32_t doAddNewExternalMemSource(SDiskbasedBuf* pBuf, SArray* pAllSource
   if (numOfRows <= 0) {
     qError("sort failed at: %s:%d", __func__, __LINE__);
     taosArrayDestroy(pPageIdList);
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
   return blockDataEnsureCapacity(pSource->src.pBlock, numOfRows);
@@ -534,7 +534,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     int32_t size = blockDataGetSize(p) + sizeof(int32_t) + taosArrayGetSize(p->pDataBlock) * sizeof(int32_t);
     if (size > getBufPageSize(pHandle->pBuf)) {
       qError("sort failed at: %s:%d", __func__, __LINE__);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
 
     code = blockDataToBuf(pPage, p);
@@ -1052,7 +1052,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
             blockDataGetSize(pDataBlock) + sizeof(int32_t) + taosArrayGetSize(pDataBlock->pDataBlock) * sizeof(int32_t);
         if (size > getBufPageSize(pHandle->pBuf)) {
           qError("sort failed at: %s:%d", __func__, __LINE__);
-          return TSDB_CODE_FAILED;
+          return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         }
 
         code= blockDataToBuf(pPage, pDataBlock);
@@ -1325,7 +1325,7 @@ static int32_t getRowBufFromExtMemFile(SSortHandle* pHandle, int32_t regionId, i
   }
   if (pRegion->bufRegOffset > tupleOffset) {
     qError("sort failed at: %s:%d", __func__, __LINE__);
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
   if (pRegion->bufRegOffset + pRegion->bufLen >= tupleOffset + rowLen) {
     *pFreeRow = false;
@@ -1505,7 +1505,7 @@ static int32_t tsortFinalizeRegions(SSortHandle* pHandle) {
   size_t numRegions = taosArrayGetSize(pMemFile->aFileRegions);
   if (numRegions != (pMemFile->currRegionId + 1)) {
     qError("sort failed at: %s:%d", __func__, __LINE__);
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
   if (numRegions == 0) {
     return TSDB_CODE_SUCCESS;
@@ -1833,7 +1833,7 @@ static int32_t appendDataBlockToPageBuf(SSortHandle* pHandle, SSDataBlock* blk, 
   int32_t size = blockDataGetSize(blk) + sizeof(int32_t) + taosArrayGetSize(blk->pDataBlock) * sizeof(int32_t);
   if (size > getBufPageSize(pHandle->pBuf)) {
     qError("sort failed at: %s:%d", __func__, __LINE__);
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
   
   int32_t code = blockDataToBuf(pPage, blk);
@@ -1887,7 +1887,7 @@ static int32_t getPageBufIncForRowIdSort(SSDataBlock* pDstBlock, int32_t srcRowI
   if (pPkCol == NULL) { // no var column
     if (!((numOfCols == 4) && (!pDstBlock->info.hasVarCol))) {
       qError("sort failed at: %s:%d", __func__, __LINE__);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
 
     size += numOfCols * ((dstRowIndex & 0x7) == 0 ? 1: 0);
@@ -1895,7 +1895,7 @@ static int32_t getPageBufIncForRowIdSort(SSDataBlock* pDstBlock, int32_t srcRowI
   } else {
     if (numOfCols != 5) {
       qError("sort failed at: %s:%d", __func__, __LINE__);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
 
     size += (numOfCols - 1) * (((dstRowIndex & 0x7) == 0)? 1:0);
@@ -2534,7 +2534,7 @@ static int32_t tsortOpenForBufMergeSort(SSortHandle* pHandle) {
   if (pHandle->pBuf != NULL) {
     if (numOfSources > getNumOfInMemBufPages(pHandle->pBuf)) {
       qError("sort failed at: %s:%d", __func__, __LINE__);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
   }
 
@@ -2631,7 +2631,7 @@ static int32_t tsortBufMergeSortNextTuple(SSortHandle* pHandle, STupleHandle** p
 
   if (pSource->src.pBlock == NULL) {
     qError("sort failed at: %s:%d", __func__, __LINE__);
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
   pHandle->tupleHandle.rowIndex = pSource->src.rowIndex;
