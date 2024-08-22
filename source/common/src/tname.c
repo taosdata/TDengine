@@ -105,7 +105,6 @@ int32_t tNameExtractFullName(const SName* name, char* dst) {
 
   size_t tnameLen = strlen(name->tname);
   if (tnameLen > 0) {
-    /*ASSERT(name->type == TSDB_TABLE_NAME_T);*/
     dst[len] = TS_PATH_DELIMITER[0];
 
     memcpy(dst + len + 1, name->tname, tnameLen);
@@ -160,7 +159,10 @@ int32_t tNameGetFullDbName(const SName* name, char* dst) {
 bool tNameIsEmpty(const SName* name) { return name->type == 0 || name->acctId == 0; }
 
 const char* tNameGetTableName(const SName* name) {
-  ASSERT(name != NULL && name->type == TSDB_TABLE_NAME_T);
+  if (!(name != NULL && name->type == TSDB_TABLE_NAME_T)) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
   return &name->tname[0];
 }
 

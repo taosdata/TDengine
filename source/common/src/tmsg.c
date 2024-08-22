@@ -103,7 +103,9 @@ int32_t tInitSubmitMsgIter(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
 
   pIter->totalLen = htonl(pMsg->length);
   pIter->numOfBlocks = htonl(pMsg->numOfBlocks);
-  ASSERT(pIter->totalLen > 0);
+  if (!(pIter->totalLen > 0)) {
+    return terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
+  }
   pIter->len = 0;
   pIter->pMsg = pMsg;
   if (pIter->totalLen <= sizeof(SSubmitReq)) {
@@ -114,17 +116,21 @@ int32_t tInitSubmitMsgIter(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
 }
 
 int32_t tGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
-  ASSERT(pIter->len >= 0);
+  if (!(pIter->len >= 0)) {
+    return terrno = TSDB_CODE_INVALID_MSG_LEN;
+  }
 
   if (pIter->len == 0) {
     pIter->len += sizeof(SSubmitReq);
   } else {
     if (pIter->len >= pIter->totalLen) {
-      ASSERT(0);
+      return terrno = TSDB_CODE_INVALID_MSG_LEN;
     }
 
     pIter->len += (sizeof(SSubmitBlk) + pIter->dataLen + pIter->schemaLen);
-    ASSERT(pIter->len > 0);
+    if (!(pIter->len > 0)) {
+      return terrno = TSDB_CODE_INVALID_MSG_LEN;
+    }
   }
 
   if (pIter->len > pIter->totalLen) {
@@ -377,7 +383,9 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
             }
           }
 
-          ASSERT(desc.subPlanNum == taosArrayGetSize(desc.subDesc));
+          if (!(desc.subPlanNum == taosArrayGetSize(desc.subDesc))) {
+            return TSDB_CODE_INVALID_MSG;
+          }
 
           if (!taosArrayPush(pReq->query->queryDesc, &desc)) {
             return terrno;
@@ -8476,7 +8484,7 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   } else if (pReq->type == TSDB_NORMAL_TABLE) {
     if (tEncodeSSchemaWrapper(pCoder, &pReq->ntb.schemaRow) < 0) return -1;
   } else {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_MSG;
   }
   // ENCODESQL
 
@@ -8528,7 +8536,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
   } else if (pReq->type == TSDB_NORMAL_TABLE) {
     if (tDecodeSSchemaWrapperEx(pCoder, &pReq->ntb.schemaRow) < 0) return -1;
   } else {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_MSG;
   }
 
   // DECODESQL
@@ -9311,7 +9319,6 @@ bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
       return pLeft->uid == pRight->uid;
     } else {
       uError("offset type:%d", pLeft->type);
-      ASSERT(0);
     }
   }
   return false;
@@ -9727,7 +9734,9 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
 
   // auto create table
   if (pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
-    ASSERT(pSubmitTbData->pCreateTbReq);
+    if (!(pSubmitTbData->pCreateTbReq)) {
+      return TSDB_CODE_INVALID_MSG;
+    }
     if (tEncodeSVCreateTbReq(pCoder, pSubmitTbData->pCreateTbReq) < 0) return -1;
   }
 
