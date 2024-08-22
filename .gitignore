@@ -100,6 +100,9 @@ tests/examples/JDBC/JDBCDemo/.project
 tests/examples/JDBC/JDBCDemo/.settings/
 source/libs/parser/inc/sql.*
 tests/script/tmqResult.txt
+tests/system-test/case_to_run.txt
+tests/develop-test/case_to_run.txt
+tests/scripts/case_to_run.txt
 tests/tmqResult.txt
 tests/script/jenkins/basic.txt
 
