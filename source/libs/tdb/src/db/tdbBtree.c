@@ -1130,7 +1130,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
 
       memcpy(pCell + nLocal - sizeof(pgno), &pgno, sizeof(pgno));
 
-      int lastKeyPageSpace = 0;
+      size_t lastKeyPageSpace = 0;
       // pack left key & val to ovpages
       do {
         // cal key to cpy
