@@ -208,7 +208,9 @@ static int32_t load_fs(STsdb *pTsdb, const char *fname, TFileSetArray *arr) {
   /* fmtv */
   item1 = cJSON_GetObjectItem(json, "fmtv");
   if (cJSON_IsNumber(item1)) {
-    ASSERT(item1->valuedouble == 1);
+    if (item1->valuedouble != 1) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+    }
   } else {
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
@@ -1193,7 +1195,6 @@ int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset) {
         ASSERT(fset != NULL);
 
         (*fset)->numWaitTask--;
-        ASSERT((*fset)->numWaitTask >= 0);
       } else {
         (*fset)->taskRunning = true;
         break;
