@@ -512,7 +512,6 @@ static void initCacheKey(uint64_t* buf, const SHashObj* pHashMap, uint64_t suid,
   buf[0] = (uint64_t)pHashMap;
   buf[1] = suid;
   setMD5DigestInKey(buf, key, keyLen);
-  ASSERT(keyLen == sizeof(uint64_t) * 2);
 }
 
 int32_t metaGetCachedTableUidList(void* pVnode, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray* pList1,
