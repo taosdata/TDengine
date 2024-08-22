@@ -42,10 +42,6 @@ struct SBTree {
 #define TDB_BTREE_PAGE_IS_ROOT(PAGE)          (TDB_BTREE_PAGE_GET_FLAGS(PAGE) & TDB_BTREE_ROOT)
 #define TDB_BTREE_PAGE_IS_LEAF(PAGE)          (TDB_BTREE_PAGE_GET_FLAGS(PAGE) & TDB_BTREE_LEAF)
 #define TDB_BTREE_PAGE_IS_OVFL(PAGE)          (TDB_BTREE_PAGE_GET_FLAGS(PAGE) & TDB_BTREE_OVFL)
-#define TDB_BTREE_ASSERT_FLAG(flags)                                                     \
-  ASSERT(TDB_FLAG_IS(flags, TDB_BTREE_ROOT) || TDB_FLAG_IS(flags, TDB_BTREE_LEAF) ||     \
-         TDB_FLAG_IS(flags, TDB_BTREE_ROOT | TDB_BTREE_LEAF) || TDB_FLAG_IS(flags, 0) || \
-         TDB_FLAG_IS(flags, TDB_BTREE_OVFL))
 
 #pragma pack(push, 1)
 typedef struct {
@@ -443,14 +439,12 @@ int tdbBtreeInitPage(SPage *pPage, void *arg, int init) {
     // init page
     flags = TDB_BTREE_PAGE_GET_FLAGS(pPage);
     leaf = TDB_BTREE_PAGE_IS_LEAF(pPage);
-    TDB_BTREE_ASSERT_FLAG(flags);
 
     tdbPageInit(pPage, leaf ? sizeof(SLeafHdr) : sizeof(SIntHdr), tdbBtreeCellSize);
   } else {
     // zero page
     flags = ((SBtreeInitPageArg *)arg)->flags;
     leaf = flags & TDB_BTREE_LEAF;
-    TDB_BTREE_ASSERT_FLAG(flags);
 
     tdbPageZero(pPage, leaf ? sizeof(SLeafHdr) : sizeof(SIntHdr), tdbBtreeCellSize);
 
