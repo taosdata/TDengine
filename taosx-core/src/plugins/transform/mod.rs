@@ -16,12 +16,16 @@ use std::{
 };
 
 use arrow::{
-    array::{Array, BinaryArray, StringArray, TimestampMillisecondArray},
+    array::{
+        Array, BinaryArray, BooleanArray, StringArray, TimestampMicrosecondArray,
+        TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray,
+    },
     datatypes::{DataType, Field, Schema},
     error::ArrowError,
     record_batch::RecordBatch,
 };
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
 use either::Either;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -1390,6 +1394,92 @@ impl MessageArrowRecords {
             .column(0)
             .as_any()
             .downcast_ref::<TimestampMillisecondArray>()
+    }
+
+    pub fn filter_by_primary_timestamp(mut self, min: &DateTime<Utc>) -> Option<Self> {
+        let col = self.records.column(0);
+        if let DataType::Timestamp(unit, _) = col.data_type() {
+            match unit {
+                arrow_schema::TimeUnit::Second => {
+                    let array = col.as_any().downcast_ref::<TimestampSecondArray>()?;
+                    let min = min.timestamp();
+                    let filter = BooleanArray::from_iter((0..array.len()).map(|index| {
+                        if array.is_null(index) {
+                            Some(false)
+                        } else {
+                            Some(array.value(index) > min)
+                        }
+                    }));
+                    let records =
+                        arrow::compute::filter_record_batch(&self.records, &filter).ok()?;
+                    if records.num_rows() > 0 {
+                        self.records = records;
+                        Some(self)
+                    } else {
+                        None
+                    }
+                }
+                arrow_schema::TimeUnit::Millisecond => {
+                    let array = col.as_any().downcast_ref::<TimestampMillisecondArray>()?;
+                    let min = min.timestamp_millis();
+                    let filter = BooleanArray::from_iter((0..array.len()).map(|index| {
+                        if array.is_null(index) {
+                            Some(false)
+                        } else {
+                            Some(array.value(index) > min)
+                        }
+                    }));
+                    let records =
+                        arrow::compute::filter_record_batch(&self.records, &filter).ok()?;
+                    if records.num_rows() > 0 {
+                        self.records = records;
+                        Some(self)
+                    } else {
+                        None
+                    }
+                }
+                arrow_schema::TimeUnit::Microsecond => {
+                    let array = col.as_any().downcast_ref::<TimestampMicrosecondArray>()?;
+                    let min = min.timestamp_micros();
+                    let filter = BooleanArray::from_iter((0..array.len()).map(|index| {
+                        if array.is_null(index) {
+                            Some(false)
+                        } else {
+                            Some(array.value(index) > min)
+                        }
+                    }));
+                    let records =
+                        arrow::compute::filter_record_batch(&self.records, &filter).ok()?;
+                    if records.num_rows() > 0 {
+                        self.records = records;
+                        Some(self)
+                    } else {
+                        None
+                    }
+                }
+                arrow_schema::TimeUnit::Nanosecond => {
+                    let array = col.as_any().downcast_ref::<TimestampNanosecondArray>()?;
+                    let min = min.timestamp_nanos_opt()?;
+                    let filter = BooleanArray::from_iter((0..array.len()).map(|index| {
+                        if array.is_null(index) {
+                            Some(false)
+                        } else {
+                            Some(array.value(index) > min)
+                        }
+                    }));
+                    let records =
+                        arrow::compute::filter_record_batch(&self.records, &filter).ok()?;
+                    if records.num_rows() > 0 {
+                        self.records = records;
+                        Some(self)
+                    } else {
+                        None
+                    }
+                }
+            }
+        } else {
+            None
+        }
     }
 }
 

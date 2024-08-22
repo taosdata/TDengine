@@ -17,6 +17,7 @@ use crate::plugins::runners::opc::config::model::OpcModelConfig;
 use crate::runners::opc::config::model::TableConfig;
 use crate::runners::opc::config::model::TagConfig;
 use crate::utils::breakpoints::BreakpointDb;
+use crate::utils::sql::get_minimum_timestamp;
 use crate::utils::trace::TraceDataId;
 use crate::{core_metrics::get_metrics_arc_from_i64, utils::trace::TraceStreamId};
 use crate::{
@@ -2697,7 +2698,7 @@ async fn consume_flat_record(
             crate::plugins::transform::Message::Raw(_) => todo!(),
             crate::plugins::transform::Message::Tables(_) => todo!(),
             crate::plugins::transform::Message::ChildTables(_) => todo!(),
-            crate::plugins::transform::Message::Records(message) => {
+            crate::plugins::transform::Message::Records(mut message) => {
                 if message.len() == 0 {
                     continue;
                 }
@@ -2711,32 +2712,112 @@ async fn consume_flat_record(
                     .map(|message| message.records.num_rows())
                     .sum::<usize>()
                     / message.len();
-                if factor < 200 {
-                    *count += flat_write_with_sql(
+                let res = if factor < 200 {
+                    flat_write_with_sql(
                         pool,
                         taos,
                         target_precision,
                         &req_id,
-                        message,
+                        &message,
                         metrics,
                         cancel,
                     )
                     .in_current_span()
-                    .await?;
+                    .await
                 } else {
-                    *count += flat_write_with_raw_block(
+                    flat_write_with_raw_block(
                         pool,
                         taos,
                         &mut max_lengths,
                         parser,
                         target_precision,
                         &req_id,
-                        message,
+                        &message,
                         metrics,
                         cancel,
                     )
                     .in_current_span()
-                    .await?;
+                    .await
+                };
+                match res {
+                    Ok(n) => {
+                        *count += n;
+                        metrics.add_processed_rows(num_rows as u64);
+                    }
+                    Err(err) => {
+                        let errstr = format!("{:#}", err);
+                        if errstr.contains("Timestamp data out of range") {
+                            tracing::warn!("Contains invalid timestamp, filter out them");
+                            // filter timestamp.
+                            let min = get_minimum_timestamp(
+                                pool,
+                                taos,
+                                req_id.next(),
+                                DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                cancel,
+                            )
+                            .in_current_span()
+                            .await?;
+                            tracing::debug!("Minimus timestamp: {}", min.to_rfc3339());
+                            let rows: usize = message.iter().map(|m| m.records.num_rows()).sum();
+                            message = message
+                                .into_iter()
+                                .flat_map(|item| item.filter_by_primary_timestamp(&min))
+                                .collect();
+
+                            let rows_after: usize =
+                                message.iter().map(|m| m.records.num_rows()).sum();
+
+                            let filtered = rows - rows_after;
+                            tracing::info!(
+                                rows,
+                                filtered,
+                                after = rows_after,
+                                "Filter out records"
+                            );
+                            metrics.add_drained_rows(filtered as _);
+
+                            if message.len() == 0 {
+                                continue;
+                            }
+                            let factor = message
+                                .iter()
+                                .map(|message| message.records.num_rows())
+                                .sum::<usize>()
+                                / message.len();
+                            let n = if factor < 200 {
+                                flat_write_with_sql(
+                                    pool,
+                                    taos,
+                                    target_precision,
+                                    &req_id,
+                                    &message,
+                                    metrics,
+                                    cancel,
+                                )
+                                .in_current_span()
+                                .await
+                            } else {
+                                flat_write_with_raw_block(
+                                    pool,
+                                    taos,
+                                    &mut max_lengths,
+                                    parser,
+                                    target_precision,
+                                    &req_id,
+                                    &message,
+                                    metrics,
+                                    cancel,
+                                )
+                                .in_current_span()
+                                .await
+                            }?;
+                            *count += n;
+                            metrics.add_processed_rows(num_rows as u64);
+                        } else {
+                            return Err(err);
+                        }
+                    }
                 }
                 metrics.add_processed_rows(num_rows as u64);
             }

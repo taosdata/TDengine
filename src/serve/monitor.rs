@@ -748,6 +748,10 @@ impl IntoMetrics for IpcMetrics {
             self.total_failed_rows.load(SeqCst)
         ));
         vec.push(value2metric!(
+            "total_drained_rows",
+            self.total_drained_rows.load(SeqCst)
+        ));
+        vec.push(value2metric!(
             "total_failed_points",
             self.total_failed_points.load(SeqCst)
         ));

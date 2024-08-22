@@ -1,7 +1,8 @@
-use std::time::Duration;
+use std::{fmt::Write, io::Write as _, time::Duration};
 
 use arrow::{array::Array, record_batch::RecordBatch};
 use arrow_schema::ArrowError;
+use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use taos::{
     taos_query::{common::Describe, Manager},
@@ -9,7 +10,116 @@ use taos::{
 };
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
+
 type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>;
+
+#[tracing::instrument(skip_all)]
+pub async fn get_minimum_timestamp(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    _req_id: u64,
+    max_retries: u32,
+    cancel: &CancellationToken,
+) -> Result<DateTime<Utc>, TaosError> {
+    const SQL_KEEP: &str =
+        "select `precision`, `keep` from information_schema.ins_databases where name = database()";
+    if taos.is_none() {
+        taos.replace(
+            reconnect_with_max_retries(pool, max_retries, cancel)
+                .in_current_span()
+                .await?,
+        );
+    }
+
+    let mut reconnected = false;
+    loop {
+        match taos
+            .as_ref()
+            .unwrap()
+            .query_one::<_, (String, String)>(SQL_KEEP)
+            .in_current_span()
+            .await
+        {
+            Ok(n) => {
+                let keep = n
+                    .as_ref()
+                    .map(|(precision, keep)| {
+                        keep.split_once(',')
+                            .map(|(keep1, _)| (precision, keep1))
+                            .unwrap_or((precision, keep.as_str()))
+                    })
+                    .and_then(|(precision, keep1)| {
+                        parse_duration::parse(keep1).ok().map(|d| (precision, d))
+                    })
+                    .map(|(_precision, d)| {
+                        chrono::Utc::now() - d
+                        // let t = chrono::Utc::now() - d;
+
+                        // match precision.as_str() {
+                        //     "ms" => t.timestamp_millis(),
+                        //     "us" => t.timestamp_micros(),
+                        //     "ns" => t
+                        //         .timestamp_nanos_opt()
+                        //         .expect("timestamp_nano should always success"),
+                        //     _ => t.timestamp_millis(),
+                        // }
+                    })
+                    .unwrap_or(DateTime::from_timestamp(0, 0).unwrap());
+                return Ok(keep);
+            }
+            Err(err) => {
+                if max_retries == 0 {
+                    return Err(err.context("Can't get minimum timestamp"));
+                }
+                let code = err.code();
+                let errno: i32 = code.into();
+                match errno {
+                    0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                        if reconnected {
+                            return Err(err.context("Can't get minimum timestamp"));
+                        }
+                        taos.replace(
+                            reconnect_with_max_retries(pool, max_retries, cancel)
+                                .in_current_span()
+                                .await?,
+                        );
+                        reconnected = true;
+                        continue;
+                    }
+                    _ => return Err(err.context("Can't get minimum timestamp")),
+                }
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_min_timestamp() {
+    use taos::AsyncTBuilder;
+    let dsn = "taos://";
+    let pool = taos::TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
+    let taos = pool.get().await.unwrap();
+    taos.exec_many([
+        "drop database if exists test_min_timestamp",
+        "create database if not exists test_min_timestamp keep 365d",
+        "use test_min_timestamp",
+        "create table if not exists test (ts timestamp, v int)",
+        "insert into test values (now(), 1)",
+    ])
+    .await
+    .unwrap();
+    let mut taos = Some(taos);
+
+    let min = chrono::Utc::now();
+    let t = get_minimum_timestamp(&pool, &mut taos, 0, 0, &CancellationToken::new())
+        .await
+        .unwrap();
+    assert!(t >= min);
+    taos.unwrap()
+        .exec_many(["drop database if exists test_min_timestamp"])
+        .await
+        .unwrap();
+}
 
 async fn reconnect_with_max_retries(
     pool: &TaosPool,
@@ -260,6 +370,49 @@ impl RetriableTaos {
 }
 
 /// Escape a string value for SQL.
+pub struct SingleQuoteSqlValueEscaped<'a>(&'a str);
+
+impl std::fmt::Display for SingleQuoteSqlValueEscaped<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let value = self.0;
+        f.write_char('\'')?;
+
+        for c in value.chars() {
+            match c {
+                '\'' => {
+                    f.write_char('\'')?;
+                    f.write_char('\'')?;
+                }
+
+                '\t' => {
+                    f.write_char('\\')?;
+                    f.write_char('t')?;
+                }
+                '\r' => {
+                    f.write_char('\\')?;
+                    f.write_char('r')?;
+                }
+                '\n' => {
+                    f.write_char('\\')?;
+                    f.write_char('n')?;
+                }
+                '\\' | '"' => {
+                    f.write_char('\\')?;
+                    f.write_char(c)?;
+                }
+                _ => {
+                    f.write_char(c)?;
+                }
+            }
+        }
+        f.write_char('\'')
+    }
+}
+
+pub fn sql_value_escaped_fmt(value: &str) -> SingleQuoteSqlValueEscaped {
+    SingleQuoteSqlValueEscaped(value)
+}
+/// Escape a string value for SQL.
 pub fn sql_value_escape(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len() + 2);
     escaped.push('\'');
@@ -360,274 +513,281 @@ pub fn sql_values_from_record_batch(
         .iter()
         .map(|f| format!("`{}`", f.name()))
         .join(",");
-    let mut vec = Vec::with_capacity(1);
+    let vec = Vec::with_capacity(1);
     let mut rows = 0;
-    let mut values = String::with_capacity(256);
-    if with_field_names {
-        values.push('(');
-        values.push_str(&names);
-        values.push_str(") values");
-    } else {
-        values.push_str("values");
-    }
     let columns = batch.columns();
 
-    for row in 0..batch.num_rows() {
-        if columns[0].is_null(row) {
-            continue;
-        }
-        values.push('(');
-        for col in 0..batch.num_columns() {
-            let array = &columns[col];
-            if col > 0 {
-                values.push(',');
+    let (mut vec, cursor) =
+        (0..batch.num_rows()).try_fold((vec, None), |(mut vec, cursor), row| {
+            if columns[0].is_null(row) {
+                return Ok((vec, cursor));
             }
-            if array.is_null(row) {
-                values.push_str("NULL");
-                continue;
+            let mut cursor = cursor.unwrap_or_else(|| {
+                let mut cursor = std::io::Cursor::new(Vec::<u8>::with_capacity(256));
+                if with_field_names {
+                    let _ = write!(cursor, "({}) values", names).inspect_err(|e| {
+                        tracing::error!("Cursor io should never error: {}", e);
+                    });
+                } else {
+                    let _ = cursor.write(b"values").inspect_err(|e| {
+                        tracing::error!("Cursor io should never error: {}", e);
+                    });
+                }
+                cursor
+            });
+            cursor.write(&[b'('])?;
+            for col in 0..batch.num_columns() {
+                let array = &columns[col];
+                if col > 0 {
+                    cursor.write(&[b','])?;
+                }
+                if array.is_null(row) {
+                    cursor.write(b"NULL")?;
+                    continue;
+                }
+                match columns[col].data_type() {
+                    arrow_schema::DataType::Null => {
+                        cursor.write(b"NULL")?;
+                    }
+                    arrow_schema::DataType::Boolean => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::BooleanArray>()
+                            .unwrap();
+                        cursor.write(if array.value(row) { b"true" } else { b"false" })?;
+                    }
+                    arrow_schema::DataType::Int8 => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::Int8Array>()
+                            .unwrap();
+                        write!(cursor, "{}", array.value(row))?;
+                    }
+                    arrow_schema::DataType::Int16 => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::Int16Array>()
+                            .unwrap();
+                        write!(cursor, "{}", array.value(row))?;
+                    }
+                    arrow_schema::DataType::Int32 => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::Int32Array>()
+                            .unwrap();
+                        write!(cursor, "{}", array.value(row))?;
+                    }
+                    arrow_schema::DataType::Int64 => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::Int64Array>()
+                            .unwrap();
+                        write!(cursor, "{}", array.value(row))?;
+                    }
+                    arrow_schema::DataType::UInt8 => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::UInt8Array>()
+                            .unwrap();
+                        write!(cursor, "{}", array.value(row))?;
+                    }
+                    arrow_schema::DataType::UInt16 => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::UInt16Array>()
+                            .unwrap();
+                        write!(cursor, "{}", array.value(row))?;
+                    }
+                    arrow_schema::DataType::UInt32 => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::UInt32Array>()
+                            .unwrap();
+                        write!(cursor, "{}", array.value(row))?;
+                    }
+                    arrow_schema::DataType::UInt64 => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::UInt64Array>()
+                            .unwrap();
+                        write!(cursor, "{}", array.value(row))?;
+                    }
+                    arrow_schema::DataType::Float16 => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::Float16Array>()
+                            .unwrap();
+                        let v = array.value(row);
+                        if v.is_nan() {
+                            cursor.write(b"NULL")?;
+                        } else {
+                            write!(cursor, "{}", v)?;
+                        }
+                    }
+                    arrow_schema::DataType::Float32 => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::Float32Array>()
+                            .unwrap();
+                        let v = array.value(row);
+                        if v.is_nan() {
+                            cursor.write(b"NULL")?;
+                        } else {
+                            write!(cursor, "{}", v)?;
+                        }
+                    }
+                    arrow_schema::DataType::Float64 => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::Float64Array>()
+                            .unwrap();
+                        let v = array.value(row);
+                        if v.is_nan() {
+                            cursor.write(b"NULL")?;
+                        } else {
+                            write!(cursor, "{}", v)?;
+                        }
+                    }
+                    arrow_schema::DataType::Timestamp(unit, _) => match unit {
+                        arrow_schema::TimeUnit::Second => {
+                            let array = array
+                                .as_any()
+                                .downcast_ref::<arrow::array::TimestampSecondArray>()
+                                .unwrap();
+                            match precision {
+                                taos::Precision::Millisecond => {
+                                    write!(cursor, "{}", array.value(row) * 1000)?;
+                                }
+                                taos::Precision::Microsecond => {
+                                    write!(cursor, "{}", array.value(row) * 1000_000)?;
+                                }
+                                taos::Precision::Nanosecond => {
+                                    write!(cursor, "{}", array.value(row) * 1000_000_000)?;
+                                }
+                            }
+                        }
+                        arrow_schema::TimeUnit::Millisecond => {
+                            let array = array
+                                .as_any()
+                                .downcast_ref::<arrow::array::TimestampMillisecondArray>()
+                                .unwrap();
+
+                            match precision {
+                                taos::Precision::Millisecond => {
+                                    write!(cursor, "{}", array.value(row))?;
+                                }
+                                taos::Precision::Microsecond => {
+                                    write!(cursor, "{}", array.value(row) * 1000)?;
+                                }
+                                taos::Precision::Nanosecond => {
+                                    write!(cursor, "{}", array.value(row) * 1000_000)?;
+                                }
+                            }
+                        }
+                        arrow_schema::TimeUnit::Microsecond => {
+                            let array = array
+                                .as_any()
+                                .downcast_ref::<arrow::array::TimestampMicrosecondArray>()
+                                .unwrap();
+
+                            match precision {
+                                taos::Precision::Millisecond => {
+                                    write!(cursor, "{}", array.value(row) / 1000)?;
+                                }
+                                taos::Precision::Microsecond => {
+                                    write!(cursor, "{}", array.value(row))?;
+                                }
+                                taos::Precision::Nanosecond => {
+                                    write!(cursor, "{}", array.value(row) * 1000)?;
+                                }
+                            }
+                        }
+                        arrow_schema::TimeUnit::Nanosecond => {
+                            let array = array
+                                .as_any()
+                                .downcast_ref::<arrow::array::TimestampNanosecondArray>()
+                                .unwrap();
+
+                            match precision {
+                                taos::Precision::Millisecond => {
+                                    write!(cursor, "{}", array.value(row) / 1000_000)?;
+                                }
+                                taos::Precision::Microsecond => {
+                                    write!(cursor, "{}", array.value(row) / 1000)?;
+                                }
+                                taos::Precision::Nanosecond => {
+                                    write!(cursor, "{}", array.value(row))?;
+                                }
+                            }
+                        }
+                    },
+                    arrow_schema::DataType::Binary => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::BinaryArray>()
+                            .unwrap();
+                        write!(
+                            cursor,
+                            "{}",
+                            sql_value_escaped_fmt(&String::from_utf8_lossy(array.value(row),))
+                        )?;
+                    }
+                    arrow_schema::DataType::FixedSizeBinary(_) => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::FixedSizeBinaryArray>()
+                            .unwrap();
+                        write!(
+                            cursor,
+                            "{}",
+                            sql_value_escaped_fmt(&String::from_utf8_lossy(array.value(row),))
+                        )?;
+                    }
+                    arrow_schema::DataType::LargeBinary => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::LargeBinaryArray>()
+                            .unwrap();
+                        write!(
+                            cursor,
+                            "{}",
+                            sql_value_escaped_fmt(&String::from_utf8_lossy(array.value(row),))
+                        )?;
+                    }
+                    arrow_schema::DataType::Utf8 => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::StringArray>()
+                            .unwrap();
+                        write!(cursor, "{}", sql_value_escaped_fmt(&array.value(row)))?;
+                    }
+                    arrow_schema::DataType::LargeUtf8 => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::LargeStringArray>()
+                            .unwrap();
+                        write!(cursor, "{}", sql_value_escaped_fmt(&array.value(row)))?;
+                    }
+                    dt => {
+                        return Err(ArrowError::NotYetImplemented(format!(
+                            "Convert `{dt:?}` to sql value"
+                        )));
+                    }
+                }
             }
-            match columns[col].data_type() {
-                arrow_schema::DataType::Null => {
-                    values.push_str("NULL");
-                }
-                arrow_schema::DataType::Boolean => {
-                    let array = array
-                        .as_any()
-                        .downcast_ref::<arrow::array::BooleanArray>()
-                        .unwrap();
-                    values.push_str(if array.value(row) { "true" } else { "false" });
-                }
-                arrow_schema::DataType::Int8 => {
-                    let array = array
-                        .as_any()
-                        .downcast_ref::<arrow::array::Int8Array>()
-                        .unwrap();
-                    values.push_str(&array.value(row).to_string());
-                }
-                arrow_schema::DataType::Int16 => {
-                    let array = array
-                        .as_any()
-                        .downcast_ref::<arrow::array::Int16Array>()
-                        .unwrap();
-                    values.push_str(&array.value(row).to_string());
-                }
-                arrow_schema::DataType::Int32 => {
-                    let array = array
-                        .as_any()
-                        .downcast_ref::<arrow::array::Int32Array>()
-                        .unwrap();
-                    values.push_str(&array.value(row).to_string());
-                }
-                arrow_schema::DataType::Int64 => {
-                    let array = array
-                        .as_any()
-                        .downcast_ref::<arrow::array::Int64Array>()
-                        .unwrap();
-                    values.push_str(&array.value(row).to_string());
-                }
-                arrow_schema::DataType::UInt8 => {
-                    let array = array
-                        .as_any()
-                        .downcast_ref::<arrow::array::UInt8Array>()
-                        .unwrap();
-                    values.push_str(&array.value(row).to_string());
-                }
-                arrow_schema::DataType::UInt16 => {
-                    let array = array
-                        .as_any()
-                        .downcast_ref::<arrow::array::UInt16Array>()
-                        .unwrap();
-                    values.push_str(&array.value(row).to_string());
-                }
-                arrow_schema::DataType::UInt32 => {
-                    let array = array
-                        .as_any()
-                        .downcast_ref::<arrow::array::UInt32Array>()
-                        .unwrap();
-                    values.push_str(&array.value(row).to_string());
-                }
-                arrow_schema::DataType::UInt64 => {
-                    let array = array
-                        .as_any()
-                        .downcast_ref::<arrow::array::UInt64Array>()
-                        .unwrap();
-                    values.push_str(&array.value(row).to_string());
-                }
-                arrow_schema::DataType::Float16 => {
-                    let array = array
-                        .as_any()
-                        .downcast_ref::<arrow::array::Float16Array>()
-                        .unwrap();
-                    let v = array.value(row);
-                    if v.is_nan() {
-                        values.push_str("NULL");
-                    } else {
-                        values.push_str(&v.to_string());
-                    }
-                }
-                arrow_schema::DataType::Float32 => {
-                    let array = array
-                        .as_any()
-                        .downcast_ref::<arrow::array::Float32Array>()
-                        .unwrap();
-                    let v = array.value(row);
-                    if v.is_nan() {
-                        values.push_str("NULL");
-                    } else {
-                        values.push_str(&v.to_string());
-                    }
-                }
-                arrow_schema::DataType::Float64 => {
-                    let array = array
-                        .as_any()
-                        .downcast_ref::<arrow::array::Float64Array>()
-                        .unwrap();
-                    let v = array.value(row);
-                    if v.is_nan() {
-                        values.push_str("NULL");
-                    } else {
-                        values.push_str(&v.to_string());
-                    }
-                }
-                arrow_schema::DataType::Timestamp(unit, _) => match unit {
-                    arrow_schema::TimeUnit::Second => {
-                        let array = array
-                            .as_any()
-                            .downcast_ref::<arrow::array::TimestampSecondArray>()
-                            .unwrap();
-                        match precision {
-                            taos::Precision::Millisecond => {
-                                values.push_str(&(array.value(row) * 1000).to_string());
-                            }
-                            taos::Precision::Microsecond => {
-                                values.push_str(&(array.value(row) * 1000_000).to_string());
-                            }
-                            taos::Precision::Nanosecond => {
-                                values.push_str(&(array.value(row) * 1000_000_000).to_string());
-                            }
-                        }
-                    }
-                    arrow_schema::TimeUnit::Millisecond => {
-                        let array = array
-                            .as_any()
-                            .downcast_ref::<arrow::array::TimestampMillisecondArray>()
-                            .unwrap();
-
-                        match precision {
-                            taos::Precision::Millisecond => {
-                                values.push_str(&(array.value(row)).to_string());
-                            }
-                            taos::Precision::Microsecond => {
-                                values.push_str(&(array.value(row) * 1000).to_string());
-                            }
-                            taos::Precision::Nanosecond => {
-                                values.push_str(&(array.value(row) * 1000_000).to_string());
-                            }
-                        }
-                    }
-                    arrow_schema::TimeUnit::Microsecond => {
-                        let array = array
-                            .as_any()
-                            .downcast_ref::<arrow::array::TimestampMicrosecondArray>()
-                            .unwrap();
-
-                        match precision {
-                            taos::Precision::Millisecond => {
-                                values.push_str(&(array.value(row) / 1000).to_string());
-                            }
-                            taos::Precision::Microsecond => {
-                                values.push_str(&(array.value(row)).to_string());
-                            }
-                            taos::Precision::Nanosecond => {
-                                values.push_str(&(array.value(row) * 1000).to_string());
-                            }
-                        }
-                    }
-                    arrow_schema::TimeUnit::Nanosecond => {
-                        let array = array
-                            .as_any()
-                            .downcast_ref::<arrow::array::TimestampNanosecondArray>()
-                            .unwrap();
-
-                        match precision {
-                            taos::Precision::Millisecond => {
-                                values.push_str(&(array.value(row) / 1000_000).to_string());
-                            }
-                            taos::Precision::Microsecond => {
-                                values.push_str(&(array.value(row) / 1000).to_string());
-                            }
-                            taos::Precision::Nanosecond => {
-                                values.push_str(&(array.value(row)).to_string());
-                            }
-                        }
-                    }
-                },
-                arrow_schema::DataType::Binary => {
-                    let array = array
-                        .as_any()
-                        .downcast_ref::<arrow::array::BinaryArray>()
-                        .unwrap();
-                    values.push_str(&sql_value_escape(&String::from_utf8_lossy(
-                        array.value(row),
-                    )));
-                }
-                arrow_schema::DataType::FixedSizeBinary(_) => {
-                    let array = array
-                        .as_any()
-                        .downcast_ref::<arrow::array::FixedSizeBinaryArray>()
-                        .unwrap();
-                    values.push_str(&sql_value_escape(&String::from_utf8_lossy(
-                        array.value(row),
-                    )));
-                }
-                arrow_schema::DataType::LargeBinary => {
-                    let array = array
-                        .as_any()
-                        .downcast_ref::<arrow::array::LargeBinaryArray>()
-                        .unwrap();
-                    values.push_str(&sql_value_escape(&String::from_utf8_lossy(
-                        array.value(row),
-                    )));
-                }
-                arrow_schema::DataType::Utf8 => {
-                    let array = array
-                        .as_any()
-                        .downcast_ref::<arrow::array::StringArray>()
-                        .unwrap();
-                    values.push_str(&sql_value_escape(&array.value(row)));
-                }
-                arrow_schema::DataType::LargeUtf8 => {
-                    let array = array
-                        .as_any()
-                        .downcast_ref::<arrow::array::LargeStringArray>()
-                        .unwrap();
-                    values.push_str(&sql_value_escape(&array.value(row)));
-                }
-                dt => {
-                    return Err(ArrowError::NotYetImplemented(format!(
-                        "Convert `{dt:?}` to sql value"
-                    )));
-                }
-            }
-        }
-        values.push(')');
-        rows += 1;
-
-        if values.len() > 900_000 {
-            vec.push((values, rows));
-            rows = 0;
-            values = String::with_capacity(256);
-            if with_field_names {
-                values.push('(');
-                values.push_str(&names);
-                values.push_str(") values");
+            cursor.write(b")")?;
+            rows += 1;
+            cursor.flush()?;
+            if cursor.position() > 900_000 {
+                let values = unsafe { String::from_utf8_unchecked(cursor.into_inner()) };
+                vec.push((values, rows));
+                return Ok((vec, None));
             } else {
-                values.push_str("values");
+                Ok((vec, Some(cursor)))
             }
-        }
-    }
-
-    if rows > 0 {
+        })?;
+    if let Some(cursor) = cursor {
+        let values = unsafe { String::from_utf8_unchecked(cursor.into_inner()) };
         vec.push((values, rows));
     }
 
