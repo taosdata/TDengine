@@ -176,15 +176,19 @@ int32_t taos_connect_internal(const char* ip, const char* user, const char* pass
 
 _return:
 
-  code = taosThreadMutexUnlock(&appInfo.mutex);
   if (TSDB_CODE_SUCCESS != code) {
-    tscError("failed to unlock app info, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
+    (void)taosThreadMutexUnlock(&appInfo.mutex);
+    taosMemoryFreeClear(key);
     return code;
+  } else {
+    code = taosThreadMutexUnlock(&appInfo.mutex);
+    taosMemoryFreeClear(key);
+    if (TSDB_CODE_SUCCESS != code) {
+      tscError("failed to unlock app info, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
+      return code;
+    }
+    return taosConnectImpl(user, &secretEncrypt[0], localDb, NULL, NULL, *pInst, connType, pObj);
   }
-
-  taosMemoryFreeClear(key);
-
-  return taosConnectImpl(user, &secretEncrypt[0], localDb, NULL, NULL, *pInst, connType, pObj);
 }
 
 //SAppInstInfo* getAppInstInfo(const char* clusterKey) {
