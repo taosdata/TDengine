@@ -71,9 +71,7 @@ This section shows sample code for standard access methods to TDengine clusters 
 <details>
 <summary>Synchronous query</summary>
 
-```c
-{{#include examples/c/demo.c}}
-```
+[C example] (https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/demo.c)
 
 </details>
 
@@ -82,9 +80,7 @@ This section shows sample code for standard access methods to TDengine clusters 
 <details>
 <summary>Asynchronous queries</summary>
 
-```c
-{{#include examples/c/asyncdemo.c}}
-```
+[C example] (https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/asyncdemo.c)
 
 </details>
 
@@ -93,9 +89,7 @@ This section shows sample code for standard access methods to TDengine clusters 
 <details>
 <summary>Parameter Binding</summary>
 
-```c
-{{#include examples/c/prepare.c}}
-```
+[C example] (https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/prepare.c)
 
 </details>
 
@@ -104,9 +98,7 @@ This section shows sample code for standard access methods to TDengine clusters 
 <details>
 <summary>Mode free write</summary>
 
-```c
-{{#include examples/c/schemaless.c}}
-```
+[C example] (https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/schemaless.c)
 
 </details>
 
@@ -121,7 +113,7 @@ This section shows sample code for standard access methods to TDengine clusters 
 </details>
 
 :::info
-More example code and downloads are available at [GitHub](https://github.com/taosdata/TDengine/tree/develop/examples/c).
+More example code and downloads are available at [GitHub](https://github.com/taosdata/TDengine/tree/develop/docs/examples/c).
 You can find it in the installation directory under the `examples/c` path. This directory has a makefile and can be compiled under Linux/macOS by executing `make` directly.
 **Hint:** When compiling in an ARM environment, please remove `-msse4.2` from the makefile. This option is only supported on the x64/x86 hardware platforms.
 
@@ -311,7 +303,7 @@ Starting with versions 2.1.1.0 and 2.1.2.0, TDengine has significantly improved 
 
 Note: If `taos_stmt_execute()` succeeds, you can reuse the parsed result of `taos_stmt_prepare()` to bind new data in steps 3 to 6 if you don't need to change the SQL command. However, if there is an execution error, it is not recommended to continue working in the current context but release the resources and start again with `taos_stmt_init()` steps.
 
-The specific functions related to the interface are as follows (see also the [prepare.c](https://github.com/taosdata/TDengine/blob/develop/examples/c/prepare.c) file for the way to use the corresponding functions)
+The specific functions related to the interface are as follows (see also the [prepare.c](https://github.com/taosdata/TDengine/blob/develop/docs/examples/c/prepare.c) file for the way to use the corresponding functions)
 
 - `TAOS_STMT* taos_stmt_init(TAOS *taos)`
 
