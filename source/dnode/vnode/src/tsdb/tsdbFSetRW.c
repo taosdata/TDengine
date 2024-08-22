@@ -73,8 +73,6 @@ static int32_t tsdbFSetWriteTableDataEnd(SFSetWriter *writer) {
   int32_t numRow = ((writer->blockData[pidx].nRow + writer->blockData[cidx].nRow) >> 1);
 
   if (writer->blockData[pidx].nRow > 0 && numRow >= writer->config->minRow) {
-    ASSERT(writer->blockData[pidx].nRow == writer->config->maxRow);
-
     SRowInfo row = {
         .suid = writer->ctx->tbid->suid,
         .uid = writer->ctx->tbid->uid,

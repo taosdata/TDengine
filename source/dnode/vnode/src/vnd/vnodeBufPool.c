@@ -103,16 +103,17 @@ int vnodeCloseBufPool(SVnode *pVnode) {
 }
 
 void vnodeBufPoolReset(SVBufPool *pPool) {
-  ASSERT(pPool->nQuery == 0);
+  if (pPool->nQuery != 0) {
+    vError("vgId:%d, buffer pool %p of id %d has %d queries, reset it may cause problem", TD_VID(pPool->pVnode), pPool,
+           pPool->id, pPool->nQuery);
+  }
+
   for (SVBufPoolNode *pNode = pPool->pTail; pNode->prev; pNode = pPool->pTail) {
-    ASSERT(pNode->pnext == &pPool->pTail);
     pNode->prev->pnext = &pPool->pTail;
     pPool->pTail = pNode->prev;
     pPool->size = pPool->size - sizeof(*pNode) - pNode->size;
     taosMemoryFree(pNode);
   }
-
-  ASSERT(pPool->size == pPool->ptr - pPool->node.data);
 
   pPool->size = 0;
   pPool->ptr = pPool->node.data;
@@ -123,7 +124,11 @@ void *vnodeBufPoolMallocAligned(SVBufPool *pPool, int size) {
   void          *p = NULL;
   uint8_t       *ptr = NULL;
   int            paddingLen = 0;
-  ASSERT(pPool != NULL);
+
+  if (pPool == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
 
   if (pPool->lock) taosThreadSpinLock(pPool->lock);
 
@@ -162,7 +167,11 @@ void *vnodeBufPoolMallocAligned(SVBufPool *pPool, int size) {
 void *vnodeBufPoolMalloc(SVBufPool *pPool, int size) {
   SVBufPoolNode *pNode;
   void          *p = NULL;
-  ASSERT(pPool != NULL);
+
+  if (pPool == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
 
   if (pPool->lock) taosThreadSpinLock(pPool->lock);
   if (pPool->node.size >= pPool->ptr - pPool->node.data + size) {
@@ -207,7 +216,9 @@ void vnodeBufPoolFree(SVBufPool *pPool, void *p) {
 
 void vnodeBufPoolRef(SVBufPool *pPool) {
   int32_t nRef = atomic_fetch_add_32(&pPool->nRef, 1);
-  ASSERT(nRef > 0);
+  if (nRef <= 0) {
+    vError("vgId:%d, buffer pool %p of id %d is referenced by %d", TD_VID(pPool->pVnode), pPool, pPool->id, nRef);
+  }
 }
 
 void vnodeBufPoolAddToFreeList(SVBufPool *pPool) {

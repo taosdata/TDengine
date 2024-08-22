@@ -503,7 +503,6 @@ static int checkAllEntriesInCache(const STagFilterResEntry* pEntry, SArray* pInv
 }
 
 static FORCE_INLINE void setMD5DigestInKey(uint64_t* pBuf, const char* key, int32_t keyLen) {
-  //  ASSERT(keyLen == sizeof(int64_t) * 2);
   memcpy(&pBuf[2], key, keyLen);
 }
 

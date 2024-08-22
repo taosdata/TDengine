@@ -1599,6 +1599,12 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minDiskFreeSize");
   tsMinDiskFreeSize = pItem->i64;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3MigrateIntervalSec");
+  tsS3MigrateIntervalSec = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3MigrateEnabled");
+  tsS3MigrateEnabled = (bool)pItem->bval;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3PageCacheSize");
   tsS3PageCacheSize = pItem->i32;
 

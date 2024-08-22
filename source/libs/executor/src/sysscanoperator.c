@@ -343,27 +343,45 @@ int optSysDoCompare(__compar_fn_t func, int8_t comparType, void* a, void* b) {
 
 static int optSysFilterFuncImpl__LowerThan(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_LOWER_THAN, a, b);
 }
 static int optSysFilterFuncImpl__LowerEqual(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_LOWER_EQUAL, a, b);
 }
 static int optSysFilterFuncImpl__GreaterThan(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_GREATER_THAN, a, b);
 }
 static int optSysFilterFuncImpl__GreaterEqual(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_GREATER_EQUAL, a, b);
 }
 static int optSysFilterFuncImpl__Equal(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_EQUAL, a, b);
 }
 
 static int optSysFilterFuncImpl__NoEqual(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_NOT_EQUAL, a, b);
 }
 
@@ -1418,7 +1436,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
       int64_t suid = mr.me.ctbEntry.suid;
       code = pAPI->metaReaderFn.getTableEntryByUid(&mr1, suid);
       if (code != TSDB_CODE_SUCCESS) {
-        qError("failed to get super table meta, cname:%s, suid:0x%" PRIx64 ", code:%s, %s", pInfo->pCur->mr.me.name,
+        qError("failed to get super table meta, cname:%s, suid:0x%" PRIx64 ", code:%s, %s", mr.me.name,
                suid, tstrerror(terrno), GET_TASKID(pTaskInfo));
         pAPI->metaReaderFn.clearReader(&mr1);
         pAPI->metaReaderFn.clearReader(&mr);
