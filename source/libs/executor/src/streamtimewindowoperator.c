@@ -397,6 +397,11 @@ void destroyFlusedPos(void* pRes) {
   }
 }
 
+void destroyFlusedppPos(void* ppRes) {
+  void *pRes = *(void **)ppRes;
+  destroyFlusedPos(pRes);
+}
+
 void clearGroupResInfo(SGroupResInfo* pGroupResInfo) {
   if (pGroupResInfo->freeItem) {
     int32_t size = taosArrayGetSize(pGroupResInfo->pRows);
@@ -1596,6 +1601,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
+  tSimpleHashSetFreeFp(pInfo->aggSup.pResultRowHashTable, destroyFlusedppPos);
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
@@ -4228,6 +4234,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
+  tSimpleHashSetFreeFp(pInfo->aggSup.pResultRowHashTable, destroyFlusedppPos);
 
   if (pIntervalPhyNode->window.pExprs != NULL) {
     int32_t    numOfScalar = 0;
