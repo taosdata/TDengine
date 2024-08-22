@@ -109,7 +109,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:create_consumer}}
+{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:create_consumer}}
 ```
 </TabItem>
 
@@ -168,7 +168,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem value="java" label="Java">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/ConsumerLoopFull.java:create_consumer}}
+{{#include docs/examples/java/src/main/java/com/taos/example/ConsumerLoopFull.java:create_consumer}}
 ```
 
 </TabItem>
@@ -229,7 +229,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem value="java" label="Java">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:poll_data_code_piece}}
+{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:poll_data_code_piece}}
 ```
 
 - `subscribe` 方法的参数含义为：订阅的主题列表（即名称），支持同时订阅多个主题。 
@@ -293,7 +293,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem value="java" label="Java">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:poll_data_code_piece}}
+{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:poll_data_code_piece}}
 ```
 
 - `subscribe` 方法的参数含义为：订阅的主题列表（即名称），支持同时订阅多个主题。 
@@ -376,7 +376,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem value="java" label="Java">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:consumer_seek}}
+{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:consumer_seek}}
 ```
 1. 使用 consumer.poll 方法轮询数据，直到获取到数据为止。
 2. 对于轮询到的第一批数据，打印第一条数据的内容，并获取当前消费者的分区分配信息。
@@ -438,7 +438,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem value="java" label="Java">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:consumer_seek}}
+{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:consumer_seek}}
 ```
 1. 使用 consumer.poll 方法轮询数据，直到获取到数据为止。
 2. 对于轮询到的第一批数据，打印第一条数据的内容，并获取当前消费者的分区分配信息。
@@ -513,7 +513,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:commit_code_piece}}
+{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:commit_code_piece}}
 ```
 
 </TabItem>
@@ -565,7 +565,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem value="java" label="Java">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:commit_code_piece}}
+{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:commit_code_piece}}
 ```
 
 </TabItem>
@@ -621,7 +621,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem value="java" label="Java">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:unsubscribe_data_code_piece}}
+{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:unsubscribe_data_code_piece}}
 ```
 
 </TabItem>
@@ -644,7 +644,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 {{#include docs/examples/rust/restexample/examples/tmq.rs:unsubscribe}}
 ```
 
-**注意**：消费者取消订阅后无法重用，如果想订阅新的 `topic`， 请重新创建消费者。
+**注意**：消费者取消订阅后已经关闭，无法重用，如果想订阅新的 `topic`， 请重新创建消费者。
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -672,7 +672,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem value="java" label="Java">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:unsubscribe_data_code_piece}}
+{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:unsubscribe_data_code_piece}}
 ```
 </TabItem>
 
@@ -694,7 +694,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 {{#include docs/examples/rust/restexample/examples/tmq.rs:unsubscribe}}
 ```
 
-**注意**：消费者取消订阅后无法重用，如果想订阅新的 `topic`， 请重新创建消费者。
+**注意**：消费者取消订阅后已经关闭，无法重用，如果想订阅新的 `topic`， 请重新创建消费者。
 </TabItem>
 <TabItem label="Node.js" value="node">
 不支持
@@ -723,7 +723,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <details>
 <summary>完整代码示例</summary> 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:consumer_demo}}
+{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:consumer_demo}}
 ```
 
 **注意**：这里的 value.deserializer 配置参数值应该根据测试环境的包路径做相应的调整。  
@@ -788,7 +788,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <details>
 <summary>完整代码示例</summary> 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/ConsumerLoopFull.java:consumer_demo}}
+{{#include docs/examples/java/src/main/java/com/taos/example/ConsumerLoopFull.java:consumer_demo}}
 ```
 
 **注意**：这里的 value.deserializer 配置参数值应该根据测试环境的包路径做相应的调整。  

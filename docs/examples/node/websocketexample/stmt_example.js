@@ -3,7 +3,7 @@ const taos = require("@tdengine/websocket");
 let db = 'power';
 let stable = 'meters';
 let numOfSubTable = 10;
-let numOfRow = 10;    
+let numOfRow = 10;
 let dsn = 'ws://localhost:6041'
 function getRandomInt(min, max) {
     min = Math.ceil(min);
@@ -59,7 +59,7 @@ async function prepare() {
         }
     }
     catch (err) {
-        console.error("Failed to insert to table meters using stmt, url:" + dsn + "ErrCode:" + err.code + "; ErrMessage: " + err.message);
+        console.error(`Failed to insert to table meters using stmt, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
     }
     finally {
         if (stmt) {

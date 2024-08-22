@@ -254,6 +254,16 @@ static int32_t ttlMgrFindExpiredOneEntry(const void *pKey, int keyLen, const voi
   return c;
 }
 
+// static int32_t ttlMgrDumpOneEntry(const void *pKey, int keyLen, const void *pVal, int valLen, void *pDumpCtx) {
+//   STtlIdxKeyV1 *ttlKey = (STtlIdxKeyV1 *)pKey;
+//   int64_t      *ttlDays = (int64_t *)pVal;
+
+//   metaInfo("ttlMgr dump, ttl: %" PRId64 ", ctime: %" PRId64 ", uid: %" PRId64, *ttlDays, ttlKey->deleteTimeMs,
+//            ttlKey->uid);
+
+//   TAOS_RETURN(TSDB_CODE_SUCCESS);
+// }
+
 static int ttlMgrConvert(TTB *pOldTtlIdx, TTB *pNewTtlIdx, void *pMeta) {
   SMeta *meta = pMeta;
 
@@ -402,15 +412,20 @@ int32_t ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
 
   int32_t code = TSDB_CODE_SUCCESS;
 
-  void *pIter = taosHashIterate(pTtlMgr->pDirtyUids, NULL);
-  while (pIter != NULL) {
+  void *pIter = NULL;
+  while ((pIter = taosHashIterate(pTtlMgr->pDirtyUids, pIter)) != NULL) {
     STtlDirtyEntry *pEntry = (STtlDirtyEntry *)pIter;
     tb_uid_t       *pUid = taosHashGetKey(pIter, NULL);
 
     STtlCacheEntry *cacheEntry = taosHashGet(pTtlMgr->pTtlCache, pUid, sizeof(*pUid));
     if (cacheEntry == NULL) {
-      metaError("%s, ttlMgr flush failed to get ttl cache, uid: %" PRId64 ", type: %d", pTtlMgr->logPrefix, *pUid,
-                pEntry->type);
+      metaInfo("%s, ttlMgr flush failed to get ttl cache, uid: %" PRId64 ", type: %d", pTtlMgr->logPrefix, *pUid,
+               pEntry->type);
+      code = taosHashRemove(pTtlMgr->pDirtyUids, pUid, sizeof(*pUid));
+      if (TSDB_CODE_SUCCESS != code) {
+        metaError("%s, ttlMgr flush failed to remove dirty uid since %s", pTtlMgr->logPrefix, tstrerror(code));
+        goto _out;
+      }
       continue;
     }
 
@@ -422,9 +437,9 @@ int32_t ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
 
     if (pEntry->type == ENTRY_TYPE_UPSERT) {
       // delete old key & upsert new key
-      (void)tdbTbDelete(pTtlMgr->pTtlIdx, &ttlKey, sizeof(ttlKey), pTxn); // maybe first insert, ignore error
+      (void)tdbTbDelete(pTtlMgr->pTtlIdx, &ttlKey, sizeof(ttlKey), pTxn);  // maybe first insert, ignore error
       code = tdbTbUpsert(pTtlMgr->pTtlIdx, &ttlKeyDirty, sizeof(ttlKeyDirty), &cacheEntry->ttlDaysDirty,
-                        sizeof(cacheEntry->ttlDaysDirty), pTxn);
+                         sizeof(cacheEntry->ttlDaysDirty), pTxn);
       if (TSDB_CODE_SUCCESS != code) {
         metaError("%s, ttlMgr flush failed to upsert since %s", pTtlMgr->logPrefix, tstrerror(code));
         goto _out;
@@ -449,9 +464,15 @@ int32_t ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
       goto _out;
     }
 
-    void *pIterTmp = pIter;
-    pIter = taosHashIterate(pTtlMgr->pDirtyUids, pIterTmp);
-    (void)taosHashRemove(pTtlMgr->pDirtyUids, pUid, sizeof(tb_uid_t));
+    metaDebug("isdel:%d", pEntry->type == ENTRY_TYPE_DELETE);
+    metaDebug("ttlkey:%" PRId64 ", uid:%" PRId64, ttlKey.deleteTimeMs, ttlKey.uid);
+    metaDebug("ttlkeyDirty:%" PRId64 ", uid:%" PRId64, ttlKeyDirty.deleteTimeMs, ttlKeyDirty.uid);
+
+    code = taosHashRemove(pTtlMgr->pDirtyUids, pUid, sizeof(*pUid));
+    if (TSDB_CODE_SUCCESS != code) {
+      metaError("%s, ttlMgr flush failed to remove dirty uid since %s", pTtlMgr->logPrefix, tstrerror(code));
+      goto _out;
+    }
   }
 
   taosHashClear(pTtlMgr->pDirtyUids);
@@ -459,6 +480,8 @@ int32_t ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
   code = TSDB_CODE_SUCCESS;
 
 _out:
+  taosHashCancelIterate(pTtlMgr->pDirtyUids, pIter);
+
   endNs = taosGetTimestampNs();
   metaTrace("%s, ttl mgr flush end, time consumed: %" PRId64 " ns", pTtlMgr->logPrefix, endNs - startNs);
 

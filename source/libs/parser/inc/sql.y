@@ -1197,6 +1197,8 @@ function_expression(A) ::=
 function_expression(A) ::=
   TRIM(B) NK_LP trim_specification_type(C) FROM expr_or_subquery(D) NK_RP(E).                         { A = createRawExprNodeExt(pCxt, &B, &E, createTrimFunctionNode(pCxt, releaseRawExprNode(pCxt, D), C)); }
 function_expression(A) ::=
+  TRIM(B) NK_LP expr_or_subquery(C) FROM expr_or_subquery(D) NK_RP(E).                                { A = createRawExprNodeExt(pCxt, &B, &E, createTrimFunctionNodeExt(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D), TRIM_TYPE_BOTH)); }
+function_expression(A) ::=
   TRIM(B) NK_LP trim_specification_type(C) expr_or_subquery(D) FROM expr_or_subquery(E) NK_RP(F).     { A = createRawExprNodeExt(pCxt, &B, &F, createTrimFunctionNodeExt(pCxt, releaseRawExprNode(pCxt, D), releaseRawExprNode(pCxt, E), C)); }
 function_expression(A) ::=
   substr_func(B) NK_LP expression_list(C) NK_RP(D).                                                   { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
@@ -1218,7 +1220,6 @@ substr_func(A) ::= SUBSTRING(B).                                                
 
 %type trim_specification_type ETrimType
 %destructor trim_specification_type                                                { }
-trim_specification_type(A) ::= .                                                   { A = TRIM_TYPE_BOTH; }
 trim_specification_type(A) ::= BOTH.                                               { A = TRIM_TYPE_BOTH; }
 trim_specification_type(A) ::= TRAILING.                                           { A = TRIM_TYPE_TRAILING; }
 trim_specification_type(A) ::= LEADING.                                            { A = TRIM_TYPE_LEADING; }

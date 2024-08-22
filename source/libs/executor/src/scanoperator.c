@@ -279,21 +279,20 @@ static int32_t doLoadBlockSMA(STableScanBase* pTableScanInfo, SSDataBlock* pBloc
   return code;
 }
 
-static void doSetTagColumnData(STableScanBase* pTableScanInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo,
-                               int32_t rows) {
-  if (pTableScanInfo->pseudoSup.numOfExprs > 0) {
-    SExprSupp* pSup = &pTableScanInfo->pseudoSup;
-
-    int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock, rows,
-                                          pTaskInfo, &pTableScanInfo->metaCache);
+static int32_t doSetTagColumnData(STableScanBase* pTableScanInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo,
+                                  int32_t rows) {
+  int32_t    code = 0;
+  SExprSupp* pSup = &pTableScanInfo->pseudoSup;
+  if (pSup->numOfExprs > 0) {
+    code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock, rows,
+                                  pTaskInfo, &pTableScanInfo->metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
-    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-      T_LONG_JMP(pTaskInfo->env, code);
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      code = 0;
     }
-
-    // reset the error code.
-    terrno = 0;
   }
+
+  return code;
 }
 
 bool applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
@@ -373,10 +372,10 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64 ", uid:%" PRIu64,
            GET_TASKID(pTaskInfo), pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows,
            pBlockInfo->id.uid);
-    doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
+    code = doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
     pCost->skipBlocks += 1;
     pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
-    return TSDB_CODE_SUCCESS;
+    return code;
   } else if (*status == FUNC_DATA_REQUIRED_SMA_LOAD) {
     pCost->loadBlockStatis += 1;
     loadSMA = true;  // mark the operation of load sma;
@@ -391,9 +390,9 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     if (success) {  // failed to load the block sma data, data block statistics does not exist, load data block instead
       qDebug("%s data block SMA loaded, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64, GET_TASKID(pTaskInfo),
              pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
-      doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
+      code = doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
-      return TSDB_CODE_SUCCESS;
+      return code;
     } else {
       qDebug("%s failed to load SMA, since not all columns have SMA", GET_TASKID(pTaskInfo));
       *status = FUNC_DATA_REQUIRED_DATA_LOAD;
@@ -440,7 +439,10 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
 
   // try to filter data block according to current results
   code = doDynamicPruneDataBlock(pOperator, pBlockInfo, status);
-  QUERY_CHECK_CODE(code, lino, _end);
+  if (code) {
+    pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
 
   if (*status == FUNC_DATA_REQUIRED_NOT_LOAD) {
     qDebug("%s data block skipped due to dynamic prune, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64,
@@ -462,15 +464,14 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
 
   SSDataBlock* p = NULL;
   code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pTableScanInfo->dataReader, &p, NULL);
-  if (p == NULL || code != TSDB_CODE_SUCCESS) {
+  if (p == NULL || code != TSDB_CODE_SUCCESS || p != pBlock) {
     return code;
   }
 
-  if(p != pBlock) {
-    qError("[loadDataBlock] p != pBlock");
-    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  code = doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
+  if (code) {
+    return code;
   }
-  doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
 
   // restore the previous value
   pCost->totalRows -= pBlock->info.rows;
@@ -909,7 +910,8 @@ static SSDataBlock* getOneRowResultBlock(SExecTaskInfo* pTaskInfo, STableScanBas
   }
 
   // set tag/tbname
-  doSetTagColumnData(pBase, pBlock, pTaskInfo, 1);
+  terrno = doSetTagColumnData(pBase, pBlock, pTaskInfo, 1);
+
   return pBlock;
 }
 
@@ -1234,14 +1236,11 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
     taosRUnLockLatch(&pTaskInfo->lock);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    ASSERT(pInfo->base.dataReader == NULL);
+    QUERY_CHECK_CONDITION((pInfo->base.dataReader == NULL), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
     code = pAPI->tsdReader.tsdReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, pList, num, pInfo->pResBlock,
                                          (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->pIgnoreTables);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
 
     if (pInfo->filesetDelimited) {
       pAPI->tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
@@ -1587,7 +1586,6 @@ static bool isTimeSlice(SStreamScanInfo* pInfo) {
 static void setGroupId(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t groupColIndex, int32_t rowIndex) {
   SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, groupColIndex);
   uint64_t*        groupCol = (uint64_t*)pColInfo->pData;
-  ASSERT(rowIndex < pBlock->info.rows);
   if (colDataIsNull_s(pColInfo, rowIndex)) {
     pInfo->igCheckGroupId = true;
   } else {
@@ -1638,7 +1636,9 @@ static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbU
     code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pReader, &p, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    doSetTagColumnData(&pTableScanInfo->base, pBlock, pTaskInfo, pBlock->info.rows);
+    code = doSetTagColumnData(&pTableScanInfo->base, pBlock, pTaskInfo, pBlock->info.rows);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     pBlock->info.id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
   }
 
@@ -1658,9 +1658,8 @@ _end:
 
 bool comparePrimaryKey(SColumnInfoData* pCol, int32_t rowId, void* pVal) {
   // coverity scan
-  ASSERTS(pVal != NULL, "pVal should not be NULL");
-  if (!pVal) {
-    qError("failed to compare primary key, since primary key is null");
+  if (!pVal || !pCol) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_INVALID_PARA));
     return false;
   }
   void* pData = colDataGetData(pCol, rowId);
@@ -1724,6 +1723,8 @@ static uint64_t getGroupIdByData(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts,
 }
 
 static void prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t* pRowIndex, bool* pRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (pBlock->info.rows == 0) {
     if (pRes) {
       (*pRes) = false;
@@ -1737,7 +1738,6 @@ static void prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
     goto _end;
   }
 
-  ASSERT(taosArrayGetSize(pBlock->pDataBlock) >= 3);
   SColumnInfoData* pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
   TSKEY*           startData = (TSKEY*)pStartTsCol->pData;
   SColumnInfoData* pEndTsCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
@@ -1769,27 +1769,25 @@ static void prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
       win.skey = TMIN(win.skey, startData[*pRowIndex]);
       continue;
     }
-
-    ASSERT(!(win.skey > startData[*pRowIndex] && win.ekey < endData[*pRowIndex]) ||
-           !(isInTimeWindow(&win, startData[*pRowIndex], 0) || isInTimeWindow(&win, endData[*pRowIndex], 0)));
     break;
   }
 
   STableScanInfo* pTScanInfo = pInfo->pTableScanOp->info;
   // coverity scan
-  ASSERTS(pInfo->pUpdateInfo != NULL, "Failed to set data version, since pInfo->pUpdateInfo is NULL");
-  if (pInfo->pUpdateInfo) {
-    qDebug("prepare range scan start:%" PRId64 ",end:%" PRId64 ",maxVer:%" PRIu64, win.skey, win.ekey,
-           pInfo->pUpdateInfo->maxDataVersion);
-    resetTableScanInfo(pInfo->pTableScanOp->info, &win, pInfo->pUpdateInfo->maxDataVersion);
-  }
+  QUERY_CHECK_NULL(pInfo->pUpdateInfo, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+
+  qDebug("prepare range scan start:%" PRId64 ",end:%" PRId64 ",maxVer:%" PRIu64, win.skey, win.ekey,
+          pInfo->pUpdateInfo->maxDataVersion);
+  resetTableScanInfo(pInfo->pTableScanOp->info, &win, pInfo->pUpdateInfo->maxDataVersion);
   pInfo->pTableScanOp->status = OP_OPENED;
   if (pRes) {
     (*pRes) = true;
   }
 
 _end:
-  qTrace("%s success", __func__);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
 }
 
 static STimeWindow getSlidingWindow(TSKEY* startTsCol, TSKEY* endTsCol, uint64_t* gpIdCol, SInterval* pInterval,
@@ -2365,7 +2363,6 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
   }
 
   uint64_t* srcUidData = (uint64_t*)pSrcUidCol->pData;
-  ASSERT(pSrcStartTsCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
   TSKEY*  srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
   TSKEY*  srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
   int64_t ver = pSrcBlock->info.version - 1;
@@ -2463,7 +2460,6 @@ static int32_t generatePartitionDelResBlock(SStreamScanInfo* pInfo, SSDataBlock*
   SColumnInfoData* pSrcGpCol = taosArrayGet(pSrcBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   uint64_t*        srcGp = (uint64_t*)pSrcGpCol->pData;
 
-  ASSERT(pSrcStartTsCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
   TSKEY*  srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
   TSKEY*  srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
   int64_t ver = pSrcBlock->info.version - 1;
@@ -2524,7 +2520,6 @@ static int32_t generateDeleteResultBlockImpl(SStreamScanInfo* pInfo, SSDataBlock
     pSrcPkCol = taosArrayGet(pSrcBlock->pDataBlock, PRIMARY_KEY_COLUMN_INDEX);
   }
 
-  ASSERT(pSrcStartTsCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
   TSKEY*  srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
   TSKEY*  srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
   int64_t ver = pSrcBlock->info.version - 1;
@@ -2647,7 +2642,6 @@ static int32_t checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBl
     QUERY_CHECK_CODE(code, lino, _end);
   }
   SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
-  ASSERT(pColDataInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP);
   TSKEY*           tsCol = (TSKEY*)pColDataInfo->pData;
   SColumnInfoData* pPkColDataInfo = NULL;
   if (hasPrimaryKeyCol(pInfo)) {
@@ -2724,7 +2718,7 @@ static int32_t doBlockDataWindowFilter(SSDataBlock* pBlock, int32_t tsIndex, STi
     if (pWindow->skey != INT64_MIN) {
       qDebug("%s filter for additional history window, skey:%" PRId64, id, pWindow->skey);
 
-      ASSERT(pCol->pData != NULL);
+      QUERY_CHECK_NULL(pCol->pData, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       for (int32_t i = 0; i < pBlock->info.rows; ++i) {
         int64_t* ts = (int64_t*)colDataGetData(pCol, i);
         p[i] = (*ts >= pWindow->skey);
@@ -2773,9 +2767,11 @@ static int32_t doBlockDataPrimaryKeyFilter(SSDataBlock* pBlock, STqOffsetVal* of
   SColumnInfoData* pColPk = taosArrayGet(pBlock->pDataBlock, 1);
 
   qDebug("doBlockDataWindowFilter primary key, ts:%" PRId64 " %" PRId64, offset->ts, offset->primaryKey.val);
-  ASSERT(pColPk->info.type == offset->primaryKey.type);
+  QUERY_CHECK_CONDITION((pColPk->info.type == offset->primaryKey.type), code, lino, _end,
+                        TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
   __compar_fn_t func = getComparFunc(pColPk->info.type, 0);
+  QUERY_CHECK_NULL(func, code, lino, _end, terrno);
   for (int32_t i = 0; i < pBlock->info.rows; ++i) {
     int64_t* ts = (int64_t*)colDataGetData(pColTs, i);
     void*    data = colDataGetData(pColPk, i);
@@ -2938,12 +2934,16 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
 
   // currently only the tbname pseudo column
   if (pInfo->numOfPseudoExpr > 0) {
-    int32_t tmpCode = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr,
+    code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr,
                                              pInfo->pRes, pBlockInfo->rows, pTaskInfo, &pTableScanInfo->base.metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
-    if (tmpCode != TSDB_CODE_SUCCESS && tmpCode != TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      code = 0;
+    }
+
+    if (code) {
       blockDataFreeRes((SSDataBlock*)pBlock);
-      T_LONG_JMP(pTaskInfo->env, code);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     // reset the error code.
@@ -4127,7 +4127,9 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
       pInfo->stateStore.windowSBfDelete(pInfo->pUpdateInfo, 1);
       code = pInfo->stateStore.windowSBfAdd(pInfo->pUpdateInfo, 1);
       QUERY_CHECK_CODE(code, lino, _end);
-      ASSERT(pInfo->pUpdateInfo->minTS > pUpInfo->minTS);
+
+      QUERY_CHECK_CONDITION((pInfo->pUpdateInfo->minTS > pUpInfo->minTS), code, lino, _end,
+                            TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pUpInfo->maxDataVersion);
       SHashObj* curMap = pInfo->pUpdateInfo->pMap;
       void*     pIte = taosHashIterate(curMap, NULL);
@@ -4287,12 +4289,11 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
     }
 
     if (pHandle->initTqReader) {
-      ASSERT(pHandle->tqReader == NULL);
       pInfo->tqReader = pAPI->tqReaderFn.tqReaderOpen(pHandle->vnode);
-      ASSERT(pInfo->tqReader);
+      QUERY_CHECK_NULL(pInfo->tqReader, code, lino, _error, terrno);
     } else {
-      ASSERT(pHandle->tqReader);
       pInfo->tqReader = pHandle->tqReader;
+      QUERY_CHECK_NULL(pInfo->tqReader, code, lino, _error, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     }
 
     pInfo->pUpdateInfo = NULL;
@@ -6071,7 +6072,10 @@ void destroyTableMergeScanOperatorInfo(void* param) {
 }
 
 int32_t getTableMergeScanExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
-  ASSERT(pOptr != NULL);
+  if (pOptr == NULL) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_INVALID_PARA));
+    return TSDB_CODE_INVALID_PARA;
+  }
   // TODO: merge these two info into one struct
   STableMergeScanExecInfo* execInfo = taosMemoryCalloc(1, sizeof(STableMergeScanExecInfo));
   if (!execInfo) {
@@ -6384,7 +6388,7 @@ int32_t fillTableCountScanDataBlock(STableCountScanSupp* pSupp, char* dbName, ch
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pSupp->dbNameSlotId != -1) {
-    ASSERT(strlen(dbName));
+    QUERY_CHECK_CONDITION((strlen(dbName) > 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     SColumnInfoData* colInfoData = taosArrayGet(pRes->pDataBlock, pSupp->dbNameSlotId);
     QUERY_CHECK_NULL(colInfoData, code, lino, _end, terrno);
 

@@ -1,6 +1,4 @@
-package com.taosdata.example;
-
-import com.taosdata.jdbc.AbstractStatement;
+package com.taos.example;
 
 import java.sql.*;
 import java.util.Properties;
@@ -35,13 +33,13 @@ public class JdbcCreatDBDemo {
             rowsAffected = stmt.executeUpdate("CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))");
             // you can check rowsAffected here
             System.out.println("Create stable power.meters successfully, rowsAffected: " + rowsAffected);
-
-        } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to create db and table, url:" + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-            throw ex;
-        } catch (Exception ex){
-            System.out.println("Failed to create db and table, url:" + jdbcUrl + "; ErrMessage: " + ex.getMessage());
+        } catch (Exception ex) {
+            // please refer to the JDBC specifications for detailed exceptions info
+            System.out.printf("Failed to create database power or stable meters, %sErrMessage: %s%n",
+                    ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+                    ex.getMessage());
+            // Print stack trace for context in examples. Use logging in production.
+            ex.printStackTrace();
             throw ex;
         }
 // ANCHOR_END: create_db_and_table

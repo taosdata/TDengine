@@ -570,8 +570,8 @@ int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFi
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    taosArrayDestroy(pFillInfo->next.pRowVal);
-    taosArrayDestroy(pFillInfo->prev.pRowVal);
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pFillInfo = taosDestroyFillInfo(pFillInfo);
   }
   (*ppFillInfo) = pFillInfo;
   return code;
@@ -764,6 +764,7 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
       SValueNode* pv = (SValueNode*)nodesListGetNode(pValNode->pNodeList, index);
       QUERY_CHECK_NULL(pv, code, lino, _end, terrno);
       code = nodesValueNodeToVariant(pv, &pFillCol[i].fillVal);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
     if (TSDB_CODE_SUCCESS != code) {
       goto _end;

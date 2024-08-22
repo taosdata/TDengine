@@ -15,6 +15,7 @@
 #define ALLOW_FORBID_FUNC
 #include "os.h"
 #include "osSemaphore.h"
+#include "tdef.h"
 #include "zlib.h"
 
 #ifdef WINDOWS
@@ -65,14 +66,14 @@ typedef struct TdFile {
 #define FILE_WITH_LOCK 1
 
 #ifdef BUILD_WITH_RAND_ERR
-#define STUB_RAND_IO_ERR(ret)                   \
-  if (tsEnableRandErr) {                        \
-    uint32_t r = taosRand() % tsRandErrDivisor; \
-    if ((r + 1) <= tsRandErrChance) {           \
-      errno = EIO;                              \
-      terrno = TAOS_SYSTEM_ERROR(errno);        \
-      return (ret);                             \
-    }                                           \
+#define STUB_RAND_IO_ERR(ret)                                \
+  if (tsEnableRandErr && (tsRandErrScope & RAND_ERR_FILE)) { \
+    uint32_t r = taosRand() % tsRandErrDivisor;              \
+    if ((r + 1) <= tsRandErrChance) {                        \
+      errno = EIO;                                           \
+      terrno = TAOS_SYSTEM_ERROR(errno);                     \
+      return (ret);                                          \
+    }                                                        \
   }
 #else
 #define STUB_RAND_IO_ERR(ret)
@@ -453,7 +454,6 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
 #if FILE_WITH_LOCK
   taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
-  ASSERT(pFile->hFile != NULL);  // Please check if you have closed the file.
   if (pFile->hFile == NULL) {
 #if FILE_WITH_LOCK
     taosThreadRwlockUnlock(&(pFile->rwlock));
@@ -866,7 +866,6 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
 #endif
 
   int32_t code = 0;
-  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
 
 #ifdef WINDOWS
   int64_t ret = _lseeki64(pFile->fd, offset, whence);
@@ -1478,7 +1477,6 @@ int32_t taosEOFFile(TdFilePtr pFile) {
     terrno = TSDB_CODE_INVALID_PARA;
     return -1;
   }
-  ASSERT(pFile->fp != NULL);
   if (pFile->fp == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return -1;

@@ -24,6 +24,7 @@
 #include "mndVgroup.h"
 #include "osMemory.h"
 #include "parser.h"
+#include "taoserror.h"
 #include "tmisce.h"
 #include "tname.h"
 
@@ -144,7 +145,7 @@ int32_t mndInitStream(SMnode *pMnode) {
 
   code = sdbSetTable(pMnode->pSdb, table);
   if (code) {
-    return terrno;
+    return code;
   }
 
   code = sdbSetTable(pMnode->pSdb, tableSeq);
@@ -878,6 +879,10 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   mndTransDrop(pTrans);
+
+  if (code == 0) {
+    code = TSDB_CODE_ACTION_IN_PROGRESS;
+   }
 
   SName dbname = {0};
   code = tNameFromString(&dbname, createReq.sourceDB, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
@@ -2024,7 +2029,7 @@ static SVgroupChangeInfo mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pP
   return info;
 }
 
-static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo) {
+static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo, bool includeAllNodes) {
   SSdb       *pSdb = pMnode->pSdb;
   SStreamObj *pStream = NULL;
   void       *pIter = NULL;
@@ -2069,12 +2074,14 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
       }
     }
 
-    void *p = taosHashGet(pChangeInfo->pDBMap, pStream->targetDb, strlen(pStream->targetDb));
-    void *p1 = taosHashGet(pChangeInfo->pDBMap, pStream->sourceDb, strlen(pStream->sourceDb));
-    if (p == NULL && p1 == NULL) {
-      mDebug("stream:0x%" PRIx64 " %s not involved nodeUpdate, ignore", pStream->uid, pStream->name);
-      sdbRelease(pSdb, pStream);
-      continue;
+    if (!includeAllNodes) {
+      void *p1 = taosHashGet(pChangeInfo->pDBMap, pStream->targetDb, strlen(pStream->targetDb));
+      void *p2 = taosHashGet(pChangeInfo->pDBMap, pStream->sourceDb, strlen(pStream->sourceDb));
+      if (p1 == NULL && p2 == NULL) {
+        mDebug("stream:0x%" PRIx64 " %s not involved nodeUpdate, ignore", pStream->uid, pStream->name);
+        sdbRelease(pSdb, pStream);
+        continue;
+      }
     }
 
     mDebug("stream:0x%" PRIx64 " %s involved node changed, create update trans, transId:%d", pStream->uid,
@@ -2192,11 +2199,36 @@ static int32_t refreshNodeListFromExistedStreams(SMnode *pMnode, SArray *pNodeLi
   return code;
 }
 
+static int32_t addAllDbsIntoHashmap(SHashObj *pDBMap, SSdb *pSdb) {
+  void   *pIter = NULL;
+  int32_t code = 0;
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) {
+      break;
+    }
+
+    code = taosHashPut(pDBMap, pVgroup->dbName, strlen(pVgroup->dbName), NULL, 0);
+    sdbRelease(pSdb, pVgroup);
+
+    if (code == 0) {
+      int32_t size = taosHashGetSize(pDBMap);
+      mDebug("add Db:%s into Dbs list (total:%d) for kill checkpoint trans", pVgroup->dbName, size);
+    }
+  }
+
+  return code;
+}
+
 // this function runs by only one thread, so it is not multi-thread safe
 static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
   int32_t code = 0;
   bool    allReady = true;
   SArray *pNodeSnapshot = NULL;
+  SMnode *pMnode = pMsg->info.node;
+  int64_t ts = taosGetTimestampSec();
+  bool    updateAllVgroups = false;
 
   int32_t old = atomic_val_compare_exchange_32(&mndNodeCheckSentinel, 0, 1);
   if (old != 0) {
@@ -2204,10 +2236,7 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
     return 0;
   }
 
-  mDebug("start to do node change checking");
-  int64_t ts = taosGetTimestampSec();
-
-  SMnode *pMnode = pMsg->info.node;
+  mDebug("start to do node changing check");
 
   streamMutexLock(&execInfo.lock);
   int32_t numOfNodes = extractStreamNodeList(pMnode);
@@ -2240,10 +2269,20 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
   }
 
   SVgroupChangeInfo changeInfo = mndFindChangedNodeInfo(pMnode, execInfo.pNodeList, pNodeSnapshot);
-  if (taosArrayGetSize(changeInfo.pUpdateNodeList) > 0) {
+
+  {
+    if (execInfo.role == NODE_ROLE_LEADER && execInfo.switchFromFollower) {
+      mInfo("rollback all stream due to mnode leader/follower switch by using nodeUpdate trans");
+      updateAllVgroups = true;
+      execInfo.switchFromFollower = false;  // reset the flag
+      (void) addAllDbsIntoHashmap(changeInfo.pDBMap, pMnode->pSdb);
+    }
+  }
+
+  if (taosArrayGetSize(changeInfo.pUpdateNodeList) > 0 || updateAllVgroups) {
     // kill current active checkpoint transaction, since the transaction is vnode wide.
     killAllCheckpointTrans(pMnode, &changeInfo);
-    code = mndProcessVgroupChange(pMnode, &changeInfo);
+    code = mndProcessVgroupChange(pMnode, &changeInfo, updateAllVgroups);
 
     // keep the new vnode snapshot if success
     if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -2284,6 +2323,9 @@ static int32_t mndProcessNodeCheck(SRpcMsg *pReq) {
 
   int32_t               size = sizeof(SMStreamNodeCheckMsg);
   SMStreamNodeCheckMsg *pMsg = rpcMallocCont(size);
+  if (pMsg == NULL) {
+    return terrno;
+  }
 
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_NODECHANGE_CHECK, .pCont = pMsg, .contLen = size};
   return tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
@@ -2459,6 +2501,10 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
   {
     SRpcMsg rsp = {.code = 0, .info = pReq->info, .contLen = sizeof(SMStreamReqCheckpointRsp)};
     rsp.pCont = rpcMallocCont(rsp.contLen);
+    if (rsp.pCont == NULL) {
+      return terrno;
+    }
+
     SMsgHead *pHead = rsp.pCont;
     pHead->vgId = htonl(req.nodeId);
 
@@ -2667,11 +2713,13 @@ static int64_t getConsensusId(int64_t streamId, int32_t numOfTasks, int32_t* pEx
 static void doSendQuickRsp(SRpcHandleInfo *pInfo, int32_t msgSize, int32_t vgId, int32_t code) {
   SRpcMsg rsp = {.code = code, .info = *pInfo, .contLen = msgSize};
   rsp.pCont = rpcMallocCont(rsp.contLen);
-  SMsgHead *pHead = rsp.pCont;
-  pHead->vgId = htonl(vgId);
+  if (rsp.pCont != NULL) {
+    SMsgHead *pHead = rsp.pCont;
+    pHead->vgId = htonl(vgId);
 
-  tmsgSendRsp(&rsp);
-  pInfo->handle = NULL;  // disable auto rsp
+    tmsgSendRsp(&rsp);
+    pInfo->handle = NULL;  // disable auto rsp
+  }
 }
 
 int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
@@ -2808,6 +2856,10 @@ static int32_t mndProcessCreateStreamReqFromMNode(SRpcMsg *pReq) {
   int32_t code = mndProcessCreateStreamReq(pReq);
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     pReq->info.rsp = rpcMallocCont(1);
+    if (pReq->info.rsp == NULL) {
+      return terrno;
+    }
+
     pReq->info.rspLen = 1;
     pReq->info.noResp = false;
     pReq->code = code;
@@ -2819,6 +2871,10 @@ static int32_t mndProcessDropStreamReqFromMNode(SRpcMsg *pReq) {
   int32_t code = mndProcessDropStreamReq(pReq);
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     pReq->info.rsp = rpcMallocCont(1);
+    if (pReq->info.rsp == NULL) {
+      return terrno;
+    }
+
     pReq->info.rspLen = 1;
     pReq->info.noResp = false;
     pReq->code = code;
@@ -2835,10 +2891,39 @@ void mndInitStreamExecInfo(SMnode *pMnode, SStreamExecInfo *pExecInfo) {
   pExecInfo->initTaskList = true;
 }
 
-void mndInitStreamExecInfoForLeader(SMnode* pMnode) {
+void mndStreamResetInitTaskListLoadFlag() {
+  mInfo("reset task list buffer init flag for leader");
   execInfo.initTaskList = false;
-  mInfo("init stream execInfo for leader");
-  mndInitStreamExecInfo(pMnode, &execInfo);
+}
+
+void mndUpdateStreamExecInfoRole(SMnode* pMnode, int32_t role) {
+  execInfo.switchFromFollower = false;
+
+  if (execInfo.role == NODE_ROLE_UNINIT) {
+    execInfo.role = role;
+    if (role == NODE_ROLE_LEADER) {
+      mInfo("init mnode is set to leader");
+    } else {
+      mInfo("init mnode is set to follower");
+    }
+  } else {
+    if (role == NODE_ROLE_LEADER) {
+      if (execInfo.role == NODE_ROLE_FOLLOWER) {
+        execInfo.role = role;
+        execInfo.switchFromFollower = true;
+        mInfo("mnode switch to be leader from follower");
+      } else {
+        mInfo("mnode remain to be leader, do nothing");
+      }
+    } else {  // follower's
+      if (execInfo.role == NODE_ROLE_LEADER) {
+        execInfo.role = role;
+        mInfo("mnode switch to be follower from leader");
+      } else {
+        mInfo("mnode remain to be follower, do nothing");
+      }
+    }
+  }
 }
 
 void addAllStreamTasksIntoBuf(SMnode *pMnode, SStreamExecInfo *pExecInfo) {
@@ -2936,7 +3021,8 @@ static int32_t mndProcessDropOrphanTaskReq(SRpcMsg *pReq) {
   // check if it is conflict with other trans in both sourceDb and targetDb.
   bool conflict = mndStreamTransConflictCheck(pMnode, pTask->streamId, MND_STREAM_DROP_NAME, false);
   if (conflict) {
-    TAOS_RETURN(TSDB_CODE_MND_TRANS_CONFLICT);
+    code = TSDB_CODE_MND_TRANS_CONFLICT;
+    goto _err;
   }
 
   SStreamObj dummyObj = {.uid = pTask->streamId, .sourceDb = "", .targetSTbName = ""};
@@ -2949,8 +3035,7 @@ static int32_t mndProcessDropOrphanTaskReq(SRpcMsg *pReq) {
 
   code = mndStreamRegisterTrans(pTrans, MND_STREAM_DROP_NAME, pTask->streamId);
   if (code) {
-    mndTransDrop(pTrans);
-    return code;
+    goto _err;
   }
 
   // drop all tasks
@@ -2974,7 +3059,7 @@ _err:
   tDestroyDropOrphanTaskMsg(&msg);
   mndTransDrop(pTrans);
 
-  if (code == TSDB_CODE_SUCCESS) {
+  if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS) {
     mDebug("create drop %d orphan tasks trans succ", numOfTasks);
   }
   return code;

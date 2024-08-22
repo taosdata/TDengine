@@ -1,4 +1,4 @@
-package com.taosdata.example;
+package com.taos.example;
 
 import com.taosdata.jdbc.AbstractConnection;
 import com.taosdata.jdbc.enums.SchemalessProtocolType;
@@ -26,12 +26,13 @@ public class SchemalessWsTest {
             conn.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
             conn.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.SECONDS);
             System.out.println("Inserted data with schemaless successfully.");
-        } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to insert data with schemaless, host:" + host + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-            throw ex;
-        } catch (Exception ex){
-            System.out.println("Failed to insert data with schemaless, host:" + host + "; ErrMessage: " + ex.getMessage());
+        } catch (Exception ex) {
+            // please refer to the JDBC specifications for detailed exceptions info
+            System.out.printf("Failed to insert data with schemaless, %sErrMessage: %s%n",
+                    ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+                    ex.getMessage());
+            // Print stack trace for context in examples. Use logging in production.
+            ex.printStackTrace();
             throw ex;
         }
     }

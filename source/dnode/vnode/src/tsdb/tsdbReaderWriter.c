@@ -77,7 +77,9 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
     }
   }
 
-  ASSERT(pFD->szFile % szPage == 0);
+  if (pFD->szFile % szPage != 0) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_PARA, lino, _exit);
+  }
   pFD->szFile = pFD->szFile / szPage;
 
 _exit:
@@ -149,7 +151,6 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
 
       offset -= chunkoffset;
     }
-    ASSERT(offset >= 0);
 
     int64_t n = taosLSeekFile(pFD->pFD, offset, SEEK_SET);
     if (n < 0) {
@@ -202,7 +203,6 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
   int32_t code = 0;
   int32_t lino;
 
-  // ASSERT(pgno <= pFD->szFile);
   if (!pFD->pFD) {
     code = tsdbOpenFileImpl(pFD);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -216,7 +216,6 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
 
     offset -= chunkoffset;
   }
-  ASSERT(offset >= 0);
 
   // seek
   int64_t n = taosLSeekFile(pFD->pFD, offset, SEEK_SET);
@@ -317,8 +316,9 @@ static int32_t tsdbReadFileImp(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int6
   int32_t szPgCont = PAGE_CONTENT_SIZE(pFD->szPage);
   int64_t bOffset = fOffset % pFD->szPage;
 
-  // ASSERT(pgno && pgno <= pFD->szFile);
-  ASSERT(bOffset < szPgCont);
+  if (bOffset >= szPgCont) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_PARA, lino, _exit);
+  }
 
   while (n < size) {
     if (pFD->pgno != pgno) {
@@ -417,7 +417,9 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
   int64_t pgno = OFFSET_PGNO(fOffset, pFD->szPage);
   int64_t bOffset = fOffset % pFD->szPage;
 
-  ASSERT(bOffset < szPgCont);
+  if (bOffset >= szPgCont) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_PARA, lino, _exit);
+  }
 
   // 1, find pgnoStart & pgnoEnd to fetch from s3, if all pgs are local, no need to fetch
   // 2, fetch pgnoStart ~ pgnoEnd from s3
@@ -690,7 +692,9 @@ int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx) {
       TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
     }
   }
-  ASSERT(n == size);
+  if (n != size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
 _exit:
   if (code) {
@@ -731,7 +735,9 @@ int32_t tsdbReadSttBlk(SDataFReader *pReader, int32_t iStt, SArray *aSttBlk) {
       TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
     }
   }
-  ASSERT(n == size);
+  if (n != size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
 _exit:
   if (code) {
@@ -760,7 +766,9 @@ int32_t tsdbReadDataBlk(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *m
   int32_t n;
   code = tGetMapData(pReader->aBuf[0], mDataBlk, &n);
   if (code) goto _exit;
-  ASSERT(n == size);
+  if (n != size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
 _exit:
   if (code) {
@@ -861,7 +869,9 @@ int32_t tsdbReadDelDatav1(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelDa
     }
   }
 
-  ASSERT(n == size);
+  if (n != size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
 _exit:
   if (code) {
@@ -901,7 +911,9 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx) {
     }
   }
 
-  ASSERT(n == size);
+  if (n != size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
 _exit:
   if (code) {

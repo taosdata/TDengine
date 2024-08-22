@@ -334,5 +334,5 @@ void killAllCheckpointTrans(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo) {
     taosMemoryFree(p);
   }
 
-  mDebug("complete clear checkpoints in Dbs");
+  mDebug("complete clear checkpoints in all Dbs");
 }

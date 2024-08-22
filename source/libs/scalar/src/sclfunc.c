@@ -297,7 +297,8 @@ static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SS
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  _getDoubleValue_fn_t getValueFn = getVectorDoubleValueFn(type);
+  _getDoubleValue_fn_t getValueFn;
+  SCL_ERR_RET(getVectorDoubleValueFn(type, &getValueFn));
 
   double *out = (double *)pOutputData->pData;
 
@@ -328,7 +329,7 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
 
   for (int32_t i = 0; i < inputNum; ++i) {
     pInputData[i] = pInput[i].columnData;
-    getValueFn[i] = getVectorDoubleValueFn(GET_PARAM_TYPE(&pInput[i]));
+    SCL_ERR_RET(getVectorDoubleValueFn(GET_PARAM_TYPE(&pInput[i]), &getValueFn[i]));
   }
 
   double *out = (double *)pOutputData->pData;
@@ -859,31 +860,27 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   int32_t numOfRows = 0;
   bool    hasNchar = (GET_PARAM_TYPE(pOutput) == TSDB_DATA_TYPE_NCHAR) ? true : false;
   for (int32_t i = 0; i < inputNum; ++i) {
-    if (pInput[i].numOfRows > numOfRows) {
-      numOfRows = pInput[i].numOfRows;
-    }
+    numOfRows = TMAX(pInput[i].numOfRows, numOfRows);
   }
+  int32_t outputLen = VARSTR_HEADER_SIZE;
   for (int32_t i = 0; i < inputNum; ++i) {
+    if (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]))) {
+      colDataSetNNULL(pOutputData, 0, numOfRows);
+      pOutput->numOfRows = numOfRows;
+      goto _return;
+    }
     pInputData[i] = pInput[i].columnData;
     int32_t factor = 1;
     if (hasNchar && (GET_PARAM_TYPE(&pInput[i]) == TSDB_DATA_TYPE_VARCHAR)) {
       factor = TSDB_NCHAR_SIZE;
     }
-
-    int32_t numOfNulls = getNumOfNullEntries(pInputData[i], pInput[i].numOfRows);
-    if (pInput[i].numOfRows == 1) {
-      inputLen += (pInputData[i]->varmeta.length - VARSTR_HEADER_SIZE) * factor * (numOfRows - numOfNulls);
-    } else {
-      inputLen += (pInputData[i]->varmeta.length - (numOfRows - numOfNulls) * VARSTR_HEADER_SIZE) * factor;
-    }
+    outputLen += pInputData[i]->info.bytes * factor;
   }
 
-  int32_t outputLen = inputLen + numOfRows * VARSTR_HEADER_SIZE;
   outputBuf = taosMemoryCalloc(outputLen, 1);
   if (NULL == outputBuf) {
     SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
-  char *output = outputBuf;
 
   for (int32_t k = 0; k < numOfRows; ++k) {
     bool hasNull = false;
@@ -900,6 +897,7 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     }
 
     VarDataLenT dataLen = 0;
+    char       *output = outputBuf;
     for (int32_t i = 0; i < inputNum; ++i) {
       int32_t rowIdx = (pInput[i].numOfRows == 1) ? 0 : k;
       input[i] = colDataGetData(pInputData[i], rowIdx);
@@ -907,8 +905,7 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
       SCL_ERR_JRET(concatCopyHelper(input[i], output, hasNchar, GET_PARAM_TYPE(&pInput[i]), &dataLen));
     }
     varDataSetLen(output, dataLen);
-    SCL_ERR_JRET(colDataSetVal(pOutputData, k, output, false));
-    output += varDataTLen(output);
+    SCL_ERR_JRET(colDataSetVal(pOutputData, k, outputBuf, false));
   }
 
   pOutput->numOfRows = numOfRows;
@@ -925,50 +922,43 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   int32_t           code = TSDB_CODE_SUCCESS;
   SColumnInfoData **pInputData = taosMemoryCalloc(inputNum, sizeof(SColumnInfoData *));
   SColumnInfoData  *pOutputData = pOutput->columnData;
-  char            **input = taosMemoryCalloc(inputNum, POINTER_BYTES);
   char             *outputBuf = NULL;
 
   if (NULL == pInputData) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
-  }
-  if (NULL == input) {
     SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   int32_t inputLen = 0;
   int32_t numOfRows = 0;
   bool    hasNchar = (GET_PARAM_TYPE(pOutput) == TSDB_DATA_TYPE_NCHAR) ? true : false;
-  for (int32_t i = 1; i < inputNum; ++i) {
-    if (pInput[i].numOfRows > numOfRows) {
-      numOfRows = pInput[i].numOfRows;
-    }
-  }
   for (int32_t i = 0; i < inputNum; ++i) {
+    numOfRows = TMAX(pInput[i].numOfRows, numOfRows);
+  }
+  int32_t outputLen = VARSTR_HEADER_SIZE;
+  for (int32_t i = 0; i < inputNum; ++i) {
+    if (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]))) {
+      colDataSetNNULL(pOutputData, 0, numOfRows);
+      pOutput->numOfRows = numOfRows;
+      goto _return;
+    }
     pInputData[i] = pInput[i].columnData;
     int32_t factor = 1;
     if (hasNchar && (GET_PARAM_TYPE(&pInput[i]) == TSDB_DATA_TYPE_VARCHAR)) {
       factor = TSDB_NCHAR_SIZE;
     }
 
-    int32_t numOfNulls = getNumOfNullEntries(pInputData[i], pInput[i].numOfRows);
     if (i == 0) {
       // calculate required separator space
-      inputLen +=
-          (pInputData[0]->varmeta.length - VARSTR_HEADER_SIZE) * (numOfRows - numOfNulls) * (inputNum - 2) * factor;
-    } else if (pInput[i].numOfRows == 1) {
-      inputLen += (pInputData[i]->varmeta.length - VARSTR_HEADER_SIZE) * (numOfRows - numOfNulls) * factor;
+      outputLen += pInputData[i]->info.bytes * factor * (inputNum - 2);
     } else {
-      inputLen += (pInputData[i]->varmeta.length - (numOfRows - numOfNulls) * VARSTR_HEADER_SIZE) * factor;
+      outputLen += pInputData[i]->info.bytes * factor;
     }
   }
 
-  int32_t outputLen = inputLen + numOfRows * VARSTR_HEADER_SIZE;
   outputBuf = taosMemoryCalloc(outputLen, 1);
   if (NULL == outputBuf) {
     SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
-
-  char *output = outputBuf;
 
   for (int32_t k = 0; k < numOfRows; ++k) {
     if (colDataIsNull_s(pInputData[0], k) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0]))) {
@@ -978,6 +968,7 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
     VarDataLenT dataLen = 0;
     bool        hasNull = false;
+    char       *output = outputBuf;
     for (int32_t i = 1; i < inputNum; ++i) {
       if (colDataIsNull_s(pInputData[i], k) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]))) {
         hasNull = true;
@@ -985,9 +976,8 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
       }
 
       int32_t rowIdx = (pInput[i].numOfRows == 1) ? 0 : k;
-      input[i] = colDataGetData(pInputData[i], rowIdx);
 
-      SCL_ERR_JRET(concatCopyHelper(input[i], output, hasNchar, GET_PARAM_TYPE(&pInput[i]), &dataLen));
+      SCL_ERR_JRET(concatCopyHelper(colDataGetData(pInputData[i], rowIdx), output, hasNchar, GET_PARAM_TYPE(&pInput[i]), &dataLen));
 
       if (i < inputNum - 1) {
         // insert the separator
@@ -1002,14 +992,12 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     } else {
       varDataSetLen(output, dataLen);
       SCL_ERR_JRET(colDataSetVal(pOutputData, k, output, false));
-      output += varDataTLen(output);
     }
   }
 
   pOutput->numOfRows = numOfRows;
 
 _return:
-  taosMemoryFree(input);
   taosMemoryFree(outputBuf);
   taosMemoryFree(pInputData);
 
@@ -1173,49 +1161,79 @@ static int32_t findPosBytes(char *orgStr, char *delimStr, int32_t orgLen, int32_
 
 int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t code = TSDB_CODE_SUCCESS;
-  int32_t subPos = 0;
-  GET_TYPED_DATA(subPos, int32_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
-
-  int32_t subLen = INT16_MAX;
-  if (inputNum == 3) {
-    GET_TYPED_DATA(subLen, int32_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
-  }
-
-  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pInputData[3];
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  int32_t outputLen = pInputData->info.bytes;
+  for (int32_t i = 0; i < inputNum; ++i) {
+    pInputData[i] = pInput[i].columnData;
+  }
+
+  int32_t outputLen = pInputData[0]->info.bytes;
   char *outputBuf = taosMemoryMalloc(outputLen);
   if (outputBuf == NULL) {
     qError("substr function memory allocation failure. size: %d", outputLen);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
-    if (colDataIsNull_s(pInputData, i)) {
+  int32_t numOfRows = 0;
+  for (int32_t i = 0; i < inputNum; ++i) {
+    numOfRows = TMAX(pInput[i].numOfRows, numOfRows);
+  }
+
+  bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])) ||
+                      (inputNum == 3 && IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[2]))));
+
+  if (hasNullType ||
+      (pInput[0].numOfRows == 1 && colDataIsNull_s(pInputData[0], 0)) ||
+      (pInput[1].numOfRows == 1 && colDataIsNull_s(pInputData[1], 0)) ||
+      (inputNum == 3 && (pInput[2].numOfRows == 1 && colDataIsNull_s(pInputData[2], 0)))) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    goto _return;
+  }
+
+  int32_t colIdx[3];
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    colIdx[0] = (pInput[0].numOfRows == 1) ? 0 : i;
+    colIdx[1] = (pInput[1].numOfRows == 1) ? 0 : i;
+    if (inputNum == 3) {
+      colIdx[2] = (pInput[2].numOfRows == 1) ? 0 : i;
+    }
+
+    if (colDataIsNull_s(pInputData[0], colIdx[0]) || colDataIsNull_s(pInputData[1], colIdx[1]) ||
+        (inputNum == 3 && colDataIsNull_s(pInputData[2], colIdx[2]))) {
       colDataSetNULL(pOutputData, i);
       continue;
     }
+
+    int32_t subPos = 0;
+    int32_t subLen = INT16_MAX;
+    GET_TYPED_DATA(subPos, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInputData[1], colIdx[1]));
+    if (inputNum == 3) {
+      GET_TYPED_DATA(subLen, int32_t, GET_PARAM_TYPE(&pInput[2]), colDataGetData(pInputData[2], colIdx[2]));
+    }
+
     if (subPos == 0 || subLen < 1) {
       varDataSetLen(outputBuf, 0);
       SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
       continue;
     }
-    char   *input = colDataGetData(pInput[0].columnData, i);
+
+    char   *input = colDataGetData(pInputData[0], colIdx[0]);
     int32_t len = varDataLen(input);
     int32_t startPosBytes;
     int32_t endPosBytes = len;
     if (subPos > 0) {
-      startPosBytes = (GET_PARAM_TYPE(pInput) == TSDB_DATA_TYPE_VARCHAR) ? findPosBytes(varDataVal(input), NULL, varDataLen(input), -1, subPos) : (subPos - 1) * TSDB_NCHAR_SIZE;
+      startPosBytes = (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_VARCHAR) ? findPosBytes(varDataVal(input), NULL, varDataLen(input), -1, subPos) : (subPos - 1) * TSDB_NCHAR_SIZE;
       startPosBytes = TMIN(startPosBytes, len);
     } else {
       startPosBytes =
-          (GET_PARAM_TYPE(pInput) == TSDB_DATA_TYPE_VARCHAR) ? findPosBytes(varDataVal(input), NULL, varDataLen(input), -1, subPos) : len + subPos * TSDB_NCHAR_SIZE;
+          (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_VARCHAR) ? findPosBytes(varDataVal(input), NULL, varDataLen(input), -1, subPos) : len + subPos * TSDB_NCHAR_SIZE;
       startPosBytes = TMAX(startPosBytes, 0);
     }
     if (inputNum == 3) {
       endPosBytes =
-          (GET_PARAM_TYPE(pInput) == TSDB_DATA_TYPE_VARCHAR)
+          (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_VARCHAR)
               ? startPosBytes + findPosBytes(varDataVal(input) + startPosBytes, NULL, varDataLen(input) - startPosBytes, -1, subLen + 1)
               : startPosBytes + subLen * TSDB_NCHAR_SIZE;
       endPosBytes = TMIN(endPosBytes, len);
@@ -1230,10 +1248,10 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
       varDataSetLen(output, 0);
     }
 
-    SCL_ERR_JRET(colDataSetVal(pOutputData, i, output, false));
+    SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
   }
 
-  pOutput->numOfRows = pInput->numOfRows;
+  pOutput->numOfRows = numOfRows;
 _return:
   taosMemoryFree(outputBuf);
 
@@ -1295,30 +1313,40 @@ int32_t charFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   int32_t outputLen = inputNum * 4 + 2;
   char   *outputBuf = taosMemoryCalloc(outputLen, 1);
   if (outputBuf == NULL) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
-  for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
+  int32_t numOfRows = 0;
+  for (int32_t i = 0; i < inputNum; ++i) {
+    numOfRows = TMAX(numOfRows, pInput[i].numOfRows);
+  }
+  for (int32_t i = 0; i < numOfRows; ++i) {
     char   *output = varDataVal(outputBuf);
     for (int32_t j = 0; j < inputNum; ++j) {
+      int32_t colIdx = (pInput[j].numOfRows == 1) ? 0 : i;
       int32_t num;
       if (colDataIsNull_s(pInput[j].columnData, i)) {
         continue;
       } else if (IS_NUMERIC_TYPE(GET_PARAM_TYPE(&pInput[j]))) {
-        GET_TYPED_DATA(num, int32_t, GET_PARAM_TYPE(&pInput[j]), pInput[j].columnData->pData);
+        GET_TYPED_DATA(num, int32_t, GET_PARAM_TYPE(&pInput[j]), colDataGetData(pInput[j].columnData, colIdx));
         getAsciiChar(num, &output);
       } else if (TSDB_DATA_TYPE_BINARY == GET_PARAM_TYPE(&pInput[j])) {
-        num = taosStr2Int32(varDataVal(pInput[j].columnData->pData), NULL, 10);
+        num = taosStr2Int32(varDataVal(colDataGetData(pInput[j].columnData, colIdx)), NULL, 10);
         getAsciiChar(num, &output);
       } else if (TSDB_DATA_TYPE_NCHAR == GET_PARAM_TYPE(&pInput[j])) {
         char   *convBuf = taosMemoryMalloc(GET_PARAM_BYTES(&pInput[j]));
-        int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(pInput[j].columnData->pData), varDataLen(pInput[j].columnData->pData), convBuf);
+        if (convBuf == NULL) {
+          SCL_ERR_RET(terrno);
+        }
+        int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(colDataGetData(pInput[j].columnData, colIdx)), varDataLen(colDataGetData(pInput[j].columnData, colIdx)), convBuf);
         if (len < 0) {
+          taosMemoryFree(convBuf);
           code = TSDB_CODE_SCALAR_CONVERT_ERROR;
           goto _return;
         }
         convBuf[len] = 0;
         num = taosStr2Int32(convBuf, NULL, 10);
         getAsciiChar(num, &output);
+        taosMemoryFree(convBuf);
       } else {
         code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
         goto _return;
@@ -1458,7 +1486,21 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
     numOfRows = TMAX(numOfRows, pInput[i].numOfRows);
   }
 
-  outputLen = pInputData[0]->info.bytes + pInputData[0]->info.bytes / pInputData[1]->info.bytes * (pInputData[2]->info.bytes - pInputData[1]->info.bytes);
+  int8_t  orgType = pInputData[0]->info.type;
+  int8_t  fromType = pInputData[1]->info.type;
+  int8_t  toType = pInputData[2]->info.type;
+  int32_t orgLength = pInputData[0]->info.bytes;
+  int32_t fromLength = pInputData[1]->info.bytes;
+  int32_t toLength = pInputData[2]->info.bytes;
+
+  if (orgType == TSDB_DATA_TYPE_VARBINARY && fromType != orgType) {
+    fromLength = fromLength / TSDB_NCHAR_SIZE;
+  }
+  if (orgType == TSDB_DATA_TYPE_NCHAR && toType != orgType) {
+    toLength = toLength * TSDB_NCHAR_SIZE;
+  }
+  outputLen = TMAX(orgLength, orgLength + orgLength / fromLength * (toLength - fromLength));
+
   if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL ||
       GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NULL ||
       GET_PARAM_TYPE(&pInput[2]) == TSDB_DATA_TYPE_NULL ||
@@ -1496,13 +1538,13 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
     bool    needFreeTo = false;
 
     if (GET_PARAM_TYPE(&pInput[1]) != GET_PARAM_TYPE(&pInput[0])) {
-      SCL_ERR_RET(convBetweenNcharAndVarchar(varDataVal(colDataGetData(pInputData[1], colIdx2)), &fromStr,
+      SCL_ERR_JRET(convBetweenNcharAndVarchar(varDataVal(colDataGetData(pInputData[1], colIdx2)), &fromStr,
                                              varDataLen(colDataGetData(pInputData[1], colIdx2)), &fromLen,
                                              GET_PARAM_TYPE(&pInput[0])));
       needFreeFrom = true;
     }
     if (GET_PARAM_TYPE(&pInput[2]) != GET_PARAM_TYPE(&pInput[0])) {
-      SCL_ERR_RET(convBetweenNcharAndVarchar(varDataVal(colDataGetData(pInputData[2], colIdx3)), &toStr,
+      SCL_ERR_JRET(convBetweenNcharAndVarchar(varDataVal(colDataGetData(pInputData[2], colIdx3)), &toStr,
                                              varDataLen(colDataGetData(pInputData[2], colIdx3)), &toLen,
                                              GET_PARAM_TYPE(&pInput[0])));
       needFreeTo = true;
@@ -1530,9 +1572,11 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
       taosMemoryFree(fromStr);
     }
     varDataSetLen(outputBuf, totalLen);
-    SCL_ERR_RET(colDataSetVal(pOutputData, i, outputBuf, false));
+    SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
   }
   pOutput->numOfRows = numOfRows;
+_return:
+  taosMemoryFree(outputBuf);
   return code;
 }
 
@@ -1547,21 +1591,21 @@ int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
   pInputData[1] = pInput[1].columnData;
   pInputData[2] = pInput[2].columnData;
 
+  for (int32_t i = 0; i < inputNum; ++i) {
+    if (pInput[i].numOfRows > numOfRows) {
+      numOfRows = pInput[i].numOfRows;
+    }
+  }
+
   outputLen = pInputData[0]->info.bytes;
   if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL || GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NULL || GET_PARAM_TYPE(&pInput[2]) == TSDB_DATA_TYPE_NULL) {
-    colDataSetNNULL(pOutputData, 0, pInput[0].numOfRows);
-    pOutput->numOfRows = pInput[0].numOfRows;
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
     return TSDB_CODE_SUCCESS;
   }
   char *outputBuf = taosMemoryCalloc(outputLen + VARSTR_HEADER_SIZE, 1);
   if (NULL == outputBuf) {
     SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
-  }
-
-  for (int32_t i = 0; i < inputNum; ++i) {
-    if (pInput[i].numOfRows > numOfRows) {
-      numOfRows = pInput[i].numOfRows;
-    }
   }
 
   for (int32_t k = 0; k < numOfRows; ++k) {
@@ -1586,9 +1630,9 @@ int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     int32_t startPosBytes;
     int32_t endPosBytes;
     if (GET_PARAM_TYPE(&pInput[0]) != GET_PARAM_TYPE(&pInput[1])) {
-      SCL_ERR_RET(convBetweenNcharAndVarchar(varDataVal(colDataGetData(pInputData[1], colIdx2)), &delimStr,
-                                             varDataLen(colDataGetData(pInputData[1], colIdx2)), &delimLen,
-                                             GET_PARAM_TYPE(&pInput[0])));
+      SCL_ERR_JRET(convBetweenNcharAndVarchar(varDataVal(colDataGetData(pInputData[1], colIdx2)), &delimStr,
+                                              varDataLen(colDataGetData(pInputData[1], colIdx2)), &delimLen,
+                                              GET_PARAM_TYPE(&pInput[0])));
       needFreeDelim = true;
     }
 
@@ -1639,7 +1683,9 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   int32_t          maxCount = 0;
 
   for (int32_t i = 0; i < pInput[1].numOfRows; i++) {
-    maxCount = TMAX(maxCount, *(int32_t *)colDataGetData(pInput[1].columnData, i));
+    int32_t tmpCount = 0;
+    GET_TYPED_DATA(tmpCount, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i));
+    maxCount = TMAX(maxCount, tmpCount);
   }
   pInputData[0] = pInput[0].columnData;
   pInputData[1] = pInput[1].columnData;
@@ -1663,7 +1709,8 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
         colDataSetNULL(pOutputData, i);
         continue;
       }
-      int32_t count = *(int32_t *)colDataGetData(pInputData[1], i);
+      int32_t count = 0;
+      GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i));
       if (count <= 0) {
         varDataSetLen(output, 0);
         SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
@@ -1684,7 +1731,8 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
           colDataSetNULL(pOutputData, i);
           continue;
         }
-        int32_t count = *(int32_t *)colDataGetData(pInputData[1], i);
+        int32_t count = 0;
+        GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i));
         if (count <= 0) {
           varDataSetLen(output, 0);
           SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
@@ -1706,7 +1754,8 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
           colDataSetNULL(pOutputData, i);
           continue;
         }
-        int32_t count = *(int32_t *)colDataGetData(pInputData[1], 0);
+        int32_t count = 0;
+        GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, 0));
         if (count <= 0) {
           varDataSetLen(output, 0);
           SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
@@ -2607,8 +2656,8 @@ int32_t weekdayFunctionImpl(SScalarParam *pInput, int32_t inputNum, SScalarParam
     }
     struct STm tm;
     TAOS_CHECK_RETURN(taosTs2Tm(timeVal, timePrec, &tm));
-    int32_t ret = startFromZero ?  (tm.tm.tm_wday + 6) % 7 : tm.tm.tm_wday + 1;
-    SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (const char*)&ret, false));
+    int64_t ret = startFromZero ?  (tm.tm.tm_wday + 6) % 7 : tm.tm.tm_wday + 1;
+    colDataSetInt64(pOutput->columnData, i, &ret);
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -2717,8 +2766,8 @@ int32_t weekFunctionImpl(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     }
     struct STm tm;
     SCL_ERR_RET(taosTs2Tm(timeVal, prec, &tm));
-    int32_t ret = calculateWeekNum(tm.tm, weekMode(mode));
-    SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (const char*)&ret, false));
+    int64_t ret = calculateWeekNum(tm.tm, weekMode(mode));
+    colDataSetInt64(pOutput->columnData, i, &ret);
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -2857,7 +2906,7 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
 
   for (int32_t i = 0; i < inputNum; ++i) {
     pInputData[i] = pInput[i].columnData;
-    getValueFn[i] = getVectorDoubleValueFn(GET_PARAM_TYPE(&pInput[i]));
+    SCL_ERR_RET(getVectorDoubleValueFn(GET_PARAM_TYPE(&pInput[i]), &getValueFn[i]));
   }
 
   bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));

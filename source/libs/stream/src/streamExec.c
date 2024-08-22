@@ -631,7 +631,13 @@ void flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointB
       (void) streamTaskReloadState(pTask);
       stDebug("s-task:%s transfer state from fill-history task:%s, status:%s completed", id, pHTask->id.idStr,
               streamTaskGetStatus(pHTask).name);
-
+      // todo execute qExecTask to fetch the reload-generated result, if this is stream is for session window query.
+      /*
+       * while(1) {
+       * qExecTask()
+       * }
+       * // put into the output queue.
+       */
       streamMetaReleaseTask(pTask->pMeta, pHTask);
     } else {
       stError("s-task:%s related fill-history task:0x%x failed to acquire, transfer state failed", id,

@@ -194,7 +194,7 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
             break;
           }
           default:
-            ASSERT(0);
+            return TSDB_CODE_INVALID_PARA;
         }
       } else {
         switch (type) {
@@ -223,7 +223,7 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
             pKey->pks[0].val = UINT8_MAX;
             break;
           default:
-            ASSERT(0);
+            return TSDB_CODE_INVALID_PARA;
         }
       }
     } else {
@@ -337,13 +337,14 @@ int32_t createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, c
   int64_t st = taosGetTimestampUs();
   code = initBlockScanInfoBuf(pBuf, numOfTables);
   if (code != TSDB_CODE_SUCCESS) {
+    tSimpleHashCleanup(pTableMap);
     return code;
   }
 
   pUidList->tableUidList = taosMemoryMalloc(numOfTables * sizeof(uint64_t));
   if (pUidList->tableUidList == NULL) {
     tSimpleHashCleanup(pTableMap);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pUidList->currentIndex = 0;

@@ -55,7 +55,6 @@ typedef struct SFillOperatorInfo {
   SExprSupp         noFillExprSupp;
 } SFillOperatorInfo;
 
-static void revisedFillStartKey(SFillOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t order);
 static void destroyFillOperatorInfo(void* param);
 static void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_t order, int32_t scanFlag);
 static int32_t fillResetPrevForNewGroup(SFillInfo* pFillInfo);
@@ -166,56 +165,6 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
-}
-
-// todo refactor: decide the start key according to the query time range.
-static void revisedFillStartKey(SFillOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t order) {
-  if (order == TSDB_ORDER_ASC) {
-    int64_t skey = pBlock->info.window.skey;
-    if (skey < pInfo->pFillInfo->start) {  // the start key may be smaller than the
-      ASSERT(taosFillNotStarted(pInfo->pFillInfo));
-      taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, skey);
-    } else if (pInfo->pFillInfo->start < skey) {
-      int64_t    t = skey;
-      SInterval* pInterval = &pInfo->pFillInfo->interval;
-
-      while (1) {
-        int64_t prev = taosTimeAdd(t, -pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
-        if (prev <= pInfo->pFillInfo->start) {
-          t = prev;
-          break;
-        }
-        t = prev;
-      }
-
-      // todo time window chosen problem: t or prev value?
-      taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, t);
-    }
-  } else {
-    int64_t ekey = pBlock->info.window.ekey;
-    if (ekey > pInfo->pFillInfo->start) {
-      ASSERT(taosFillNotStarted(pInfo->pFillInfo));
-      taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, ekey);
-    } else if (ekey < pInfo->pFillInfo->start) {
-      int64_t    t = ekey;
-      SInterval* pInterval = &pInfo->pFillInfo->interval;
-      int64_t    prev = t;
-      while (1) {
-        int64_t next = taosTimeAdd(t, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
-        if (next >= pInfo->pFillInfo->start) {
-          prev = t;
-          t = next;
-          break;
-        }
-        prev = t;
-        t = next;
-      }
-
-      // todo time window chosen problem: t or next value?
-      if (t > pInfo->pFillInfo->start) t = prev;
-      taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, t);
-    }
-  }
 }
 
 static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
@@ -579,6 +528,9 @@ _error:
   pTaskInfo->code = code;
   if (pOperator != NULL) {
     pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
     destroyOperator(pOperator);
   }
   return code;
@@ -599,7 +551,6 @@ static void reviseFillStartAndEndKey(SFillOperatorInfo* pInfo, int32_t order) {
     }
     pInfo->win.ekey = ekey;
   } else {
-    assert(order == TSDB_ORDER_DESC);
     skey = taosTimeTruncate(pInfo->win.skey, &pInfo->pFillInfo->interval);
     next = skey;
     while (next < pInfo->win.skey) {

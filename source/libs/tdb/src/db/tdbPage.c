@@ -522,7 +522,9 @@ static int tdbPageDefragment(SPage *pPage) {
     SCell  *pCell = TDB_PAGE_CELL_AT(pPage, aCellIdx[iCell].iCell);
     int32_t szCell = pPage->xCellSize(pPage, pCell, 0, NULL, NULL);
 
-    ASSERT(pNextCell - szCell >= pCell);
+    if (pNextCell - szCell < pCell) {
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
 
     pNextCell -= szCell;
     if (pNextCell > pCell) {
@@ -535,7 +537,11 @@ static int tdbPageDefragment(SPage *pPage) {
   TDB_PAGE_FCELL_SET(pPage, 0);
   tdbOsFree(aCellIdx);
 
-  ASSERT(pPage->pFreeEnd - pPage->pFreeStart == nFree);
+  if (pPage->pFreeEnd - pPage->pFreeStart != nFree) {
+    tdbError("tdb/page-defragment: nFree: %d, pFreeStart: %p, pFreeEnd: %p.", nFree, pPage->pFreeStart,
+             pPage->pFreeEnd);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
 
   return 0;
 }

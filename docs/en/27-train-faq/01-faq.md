@@ -69,7 +69,7 @@ This error indicates that the client could not connect to the server. Perform th
 
 11. You can also use the TDengine CLI to diagnose network issues. For more information, see [Problem Diagnostics](https://docs.tdengine.com/operation/diagnose/).
 
-### 3. How can I resolve the "Unable to resolve FQDN" error?
+### <a id='FQDN'>3. How can I resolve the "Unable to resolve FQDN" error? </a>
 
 Clients and dnodes must be able to resolve the FQDN of each required node. You can confirm your configuration as follows:
 
@@ -164,3 +164,7 @@ For more information, see [taosAdapter](https://docs.tdengine.com/reference/taos
 OOM errors are thrown by the operating system when its memory, including swap, becomes insufficient and it needs to terminate processes to remain operational. Most OOM errors in TDengine occur for one of the following reasons: free memory is less than the value of `vm.min_free_kbytes` or free memory is less than the size of the request. If TDengine occupies reserved memory, an OOM error can occur even when free memory is sufficient.
 
 TDengine preallocates memory to each vnode. The number of vnodes per database is determined by the `vgroups` parameter, and the amount of memory per vnode is determined by the `buffer` parameter. To prevent OOM errors from occurring, ensure that you prepare sufficient memory on your hosts to support the number of vnodes that your deployment requires. Configure an appropriately sized swap space. If you continue to receive OOM errors, your SQL statements may be querying too much data for your system. TDengine Enterprise Edition includes optimized memory management that increases stability for enterprise customers.
+
+### 14. How can I resolve the "some vnode/qnode/mnode(s) out of service" error?
+
+The client has not configured FQDN for all servers. For example, the server has 3 nodes, while the client has only configured FQDN for 1 node. FQDN configuration refer to [How can I resolve the "Unable to resolve FQDN" error?](#FQDN)

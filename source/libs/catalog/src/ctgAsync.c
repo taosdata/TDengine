@@ -2448,30 +2448,33 @@ int32_t ctgHandleGetTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* 
 
       STableTSMAInfoRsp* pOut = pMsgCtx->out;
       pRes->code = 0;
-      if (pOut->pTsmas->size > 0) {
-        ASSERT(pOut->pTsmas->size == 1);
-        pRes->pRes = pOut;
-        pMsgCtx->out = NULL;
-        TSWAP(pTask->res, pCtx->pResList);
+      if (1 != pOut->pTsmas->size) {
+        ctgError("invalid tsma num:%d", (int32_t)pOut->pTsmas->size);
+        CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+      }
 
-        STableTSMAInfo* pTsma = taosArrayGetP(pOut->pTsmas, 0);
-        if (NULL == pTsma) {
-          ctgError("fail to get the 0th STableTSMAInfo, totalNum:%d", (int32_t)taosArrayGetSize(pOut->pTsmas));
-          CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
-        }
-        
-        int32_t         exists = false;
-        CTG_ERR_JRET(ctgTbMetaExistInCache(pCtg, pTsma->targetDbFName, pTsma->targetTb, &exists));
-        if (!exists) {
-          TSWAP(pMsgCtx->lastOut, pMsgCtx->out);
-          CTG_RET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, pTsma->targetDbFName, pTsma->targetTb, NULL, tReq));
-        }
+      pRes->pRes = pOut;
+      pMsgCtx->out = NULL;
+      TSWAP(pTask->res, pCtx->pResList);
+
+      STableTSMAInfo* pTsma = taosArrayGetP(pOut->pTsmas, 0);
+      if (NULL == pTsma) {
+        ctgError("fail to get the 0th STableTSMAInfo, totalNum:%d", (int32_t)taosArrayGetSize(pOut->pTsmas));
+        CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
       }
       
+      int32_t         exists = false;
+      CTG_ERR_JRET(ctgTbMetaExistInCache(pCtg, pTsma->targetDbFName, pTsma->targetTb, &exists));
+      if (!exists) {
+        TSWAP(pMsgCtx->lastOut, pMsgCtx->out);
+        CTG_RET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, pTsma->targetDbFName, pTsma->targetTb, NULL, tReq));
+      }
+     
       break;
     } 
     default:
-      ASSERT(0);
+      ctgError("invalid reqType:%d while getting tsma rsp", reqType);
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
 _return:
@@ -2635,14 +2638,14 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
           break;
         } 
         default:
-          ASSERT(0);
+          ctgError("invalid fetchType:%d while getting tb tsma rsp", pFetch->fetchType);
+          CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
       }
 
       break;
     } 
     case TDMT_VND_TABLE_META: {
       // handle source tb meta
-      ASSERT(pFetch->fetchType == FETCH_TSMA_SOURCE_TB_META);
       STableMetaOutput* pOut = (STableMetaOutput*)pMsgCtx->out;
       pFetch->fetchType = FETCH_TB_TSMA;
       pFetch->tsmaSourceTbName = *pTbName;
@@ -2663,7 +2666,8 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       break;
     } 
     default:
-      ASSERT(0);
+      ctgError("invalid reqType:%d while getting tsma rsp", reqType);
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
 _return:
@@ -3628,7 +3632,8 @@ int32_t ctgLaunchGetTbTSMATask(SCtgTask* pTask) {
         break;
       }
       default:
-        ASSERT(0);
+        ctgError("invalid fetchType:%d in getting tb tsma task", pFetch->fetchType);
+        CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
         break;
     }
   }
@@ -3644,14 +3649,12 @@ int32_t ctgLaunchGetTSMATask(SCtgTask* pTask) {
   SCtgJob*          pJob = pTask->pJob;
   
   // currently, only support fetching one tsma
-  ASSERT(pCtx->pNames->size == 1);
   STablesReq* pReq = taosArrayGet(pCtx->pNames, 0);
   if (NULL == pReq) {
     ctgError("fail to get the 0th STablesReq, totalNum:%d", (int32_t)taosArrayGetSize(pCtx->pNames));
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
   
-  ASSERT(pReq->pTables->size == 1);
   SName* pTsmaName = taosArrayGet(pReq->pTables, 0);
   if (NULL == pReq) {
     ctgError("fail to get the 0th SName, totalNum:%d", (int32_t)taosArrayGetSize(pReq->pTables));
@@ -3686,7 +3689,6 @@ int32_t ctgLaunchGetTSMATask(SCtgTask* pTask) {
     }
 
     STableTSMAInfoRsp* pRsp = (STableTSMAInfoRsp*)pRes->pRes;
-    ASSERT(pRsp->pTsmas->size == 1);
     
     const STSMACache* pTsma = taosArrayGetP(pRsp->pTsmas, 0);
     if (NULL == pTsma) {

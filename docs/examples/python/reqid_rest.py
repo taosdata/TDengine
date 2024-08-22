@@ -15,4 +15,4 @@ try:
             print(f"ts: {row[0]}, current: {row[1]}, location:  {row[2]}")
 
 except Exception as err:
-    print(f"Failed to execute sql with reqId:{reqId}, url:{url} ; ErrMessage:{err}")
+    print(f"Failed to execute sql with reqId:{reqId}, ErrMessage:{err}")

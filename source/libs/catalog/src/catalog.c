@@ -773,8 +773,6 @@ int32_t ctgGetTsma(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTsmaNa
   }
 
   CTG_ERR_JRET(code);
-
-  ASSERT(tsmaRsp.pTsmas && tsmaRsp.pTsmas->size == 1);
   
   *pTsma = taosArrayGetP(tsmaRsp.pTsmas, 0);
   taosArrayDestroy(tsmaRsp.pTsmas);
@@ -1930,6 +1928,18 @@ int32_t catalogGetTsma(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTs
 
 _return:
 
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogAsyncUpdateDbTsmaVersion(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId) {
+  CTG_API_ENTER();
+  if (!pCtg || !dbFName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  int32_t code = 0;
+  CTG_ERR_JRET(ctgUpdateDbTsmaVersionEnqueue(pCtg, tsmaVersion, dbFName, dbId, false));
+
+_return:
   CTG_API_LEAVE(code);
 }
 

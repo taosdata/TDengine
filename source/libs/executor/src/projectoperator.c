@@ -107,10 +107,6 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   pOperator->pTaskInfo = pTaskInfo;
 
   int32_t    lino = 0;
-  int32_t    numOfCols = 0;
-  SExprInfo* pExprInfo = NULL;
-  code = createExprInfo(pProjPhyNode->pProjections, NULL, &pExprInfo, &numOfCols);
-  TSDB_CHECK_CODE(code, lino, _error);
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pProjPhyNode->node.pOutputDataBlockDesc);
   TSDB_CHECK_NULL(pResBlock, code, lino, _error, terrno);
@@ -148,6 +144,11 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   }
 
   initResultSizeInfo(&pOperator->resultInfo, numOfRows);
+  
+  int32_t    numOfCols = 0;
+  SExprInfo* pExprInfo = NULL;
+  code = createExprInfo(pProjPhyNode->pProjections, NULL, &pExprInfo, &numOfCols);
+  TSDB_CHECK_CODE(code, lino, _error);
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str,
                     pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -182,6 +183,9 @@ _error:
   if (pInfo != NULL) destroyProjectOperatorInfo(pInfo);
   if (pOperator != NULL) {
     pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
     destroyOperator(pOperator);
   }
   pTaskInfo->code = code;
@@ -470,11 +474,6 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
 
   SIndefRowsFuncPhysiNode* pPhyNode = (SIndefRowsFuncPhysiNode*)pNode;
 
-  int32_t    numOfExpr = 0;
-  SExprInfo* pExprInfo = NULL;
-  code = createExprInfo(pPhyNode->pFuncs, NULL, &pExprInfo, &numOfExpr);
-  TSDB_CHECK_CODE(code, lino, _error);
-
   if (pPhyNode->pExprs != NULL) {
     int32_t    num = 0;
     SExprInfo* pSExpr = NULL;
@@ -499,6 +498,11 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   initBasicInfo(&pInfo->binfo, pResBlock);
   initResultSizeInfo(&pOperator->resultInfo, numOfRows);
   code = blockDataEnsureCapacity(pResBlock, numOfRows);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  int32_t    numOfExpr = 0;
+  SExprInfo* pExprInfo = NULL;
+  code = createExprInfo(pPhyNode->pFuncs, NULL, &pExprInfo, &numOfExpr);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = initAggSup(pSup, &pInfo->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str,
@@ -534,6 +538,9 @@ _error:
   if (pInfo != NULL) destroyIndefinitOperatorInfo(pInfo);
   if (pOperator != NULL) {
     pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
     destroyOperator(pOperator);
   }
   pTaskInfo->code = code;
@@ -674,6 +681,7 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
 }
 
 int32_t initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size) {
+  int32_t code = TSDB_CODE_SUCCESS;
   for (int32_t j = 0; j < size; ++j) {
     struct SResultRowEntryInfo* pResInfo = GET_RES_INFO(&pCtx[j]);
     if (isRowEntryInitialized(pResInfo) || fmIsPseudoColumnFunc(pCtx[j].functionId) || pCtx[j].functionId == -1 ||
@@ -681,7 +689,10 @@ int32_t initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size) {
       continue;
     }
 
-    (void)pCtx[j].fpSet.init(&pCtx[j], pCtx[j].resultInfo);
+    code = pCtx[j].fpSet.init(&pCtx[j], pCtx[j].resultInfo);
+    if (code) {
+      return code;
+    }
   }
 
   return 0;
@@ -1026,8 +1037,8 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         // do nothing
       } else if (fmIsIndefiniteRowsFunc(pfCtx->functionId)) {
         SResultRowEntryInfo* pResInfo = GET_RES_INFO(pfCtx);
-        (void) pfCtx->fpSet.init(pfCtx, pResInfo);
-
+        code = pfCtx->fpSet.init(pfCtx, pResInfo);
+        TSDB_CHECK_CODE(code, lino, _exit);
         pfCtx->pOutput = taosArrayGet(pResult->pDataBlock, outputSlotId);
         if (pfCtx->pOutput == NULL) {
           code = terrno;

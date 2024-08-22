@@ -17,6 +17,15 @@ async fn main() -> anyhow::Result<()> {
 
     let client = TaosBuilder::from_dsn(dsn)?.build().await?;
 
+    let db = "power";
+
+    client
+        .exec(format!("create database if not exists {db}"))
+        .await?;
+
+    // should specify database before insert
+    client.exec(format!("use {db}")).await?;
+
     // SchemalessProtocol::Line
     let data = [
         "meters,groupid=2,location=California.SanFrancisco current=10.3000002f64,voltage=219i32,phase=0.31f64 1626006833639",
@@ -34,7 +43,7 @@ async fn main() -> anyhow::Result<()> {
     match client.put(&sml_data).await{
         Ok(_) => {},
         Err(err) => {
-            eprintln!("Failed to insert data with schemaless, host: {}; ErrMessage: {}", host, err);
+            eprintln!("Failed to insert data with schemaless, data:{:?}, ErrMessage: {}", data, err);
             return Err(err.into());
         }
     }
@@ -56,7 +65,7 @@ async fn main() -> anyhow::Result<()> {
     match client.put(&sml_data).await{
         Ok(_) => {},
         Err(err) => {
-            eprintln!("Failed to insert data with schemaless, host: {}; ErrMessage: {}", host, err);
+            eprintln!("Failed to insert data with schemaless, data:{:?}, ErrMessage: {}", data, err);
             return Err(err.into());
         }
     }
@@ -87,7 +96,7 @@ async fn main() -> anyhow::Result<()> {
     match client.put(&sml_data).await{
         Ok(_) => {},
         Err(err) => {
-            eprintln!("Failed to insert data with schemaless, host: {}; ErrMessage: {}", host, err);
+            eprintln!("Failed to insert data with schemaless, data:{:?}, ErrMessage: {}", data, err);
             return Err(err.into());
         }
     }

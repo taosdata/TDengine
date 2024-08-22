@@ -784,8 +784,7 @@ int32_t taosThreadSpinDestroy(TdThreadSpinlock *lock) {
 
 int32_t taosThreadSpinInit(TdThreadSpinlock *lock, int32_t pshared) {
 #ifdef TD_USE_SPINLOCK_AS_MUTEX
-  ASSERT(pshared == 0);
-  if (pshared != 0) return -1;
+  if (pshared != 0) return TSDB_CODE_INVALID_PARA;
   return pthread_mutex_init((pthread_mutex_t *)lock, NULL);
 #else
   int32_t code = pthread_spin_init((pthread_spinlock_t *)lock, pshared);
