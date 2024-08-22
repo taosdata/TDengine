@@ -1436,7 +1436,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
       int64_t suid = mr.me.ctbEntry.suid;
       code = pAPI->metaReaderFn.getTableEntryByUid(&mr1, suid);
       if (code != TSDB_CODE_SUCCESS) {
-        qError("failed to get super table meta, cname:%s, suid:0x%" PRIx64 ", code:%s, %s", pInfo->pCur->mr.me.name,
+        qError("failed to get super table meta, cname:%s, suid:0x%" PRIx64 ", code:%s, %s", mr.me.name,
                suid, tstrerror(terrno), GET_TASKID(pTaskInfo));
         pAPI->metaReaderFn.clearReader(&mr1);
         pAPI->metaReaderFn.clearReader(&mr);
