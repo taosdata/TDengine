@@ -330,6 +330,7 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   (void)taosThreadMutexLock(&item->mtx);
   QUEUE_PUSH(&item->qmsg, q);
   (void)taosThreadMutexUnlock(&item->mtx);
+
   int ret = uv_async_send(async);
   if (ret != 0) {
     tError("failed to send async,reason:%s", uv_err_name(ret));

@@ -71,11 +71,13 @@ typedef struct {
   int8_t        connLimitLock;  // 0: no lock. 1. lock
   int8_t        supportBatch;   // 0: no batch, 1: support batch
   int32_t       batchSize;
+  int8_t        optBatchFetch;
   int32_t       timeToGetConn;
   int           index;
   void*         parent;
   void*         tcphandle;  // returned handle from TCP initialization
   int64_t       refId;
+  int8_t        shareConn;
   TdThreadMutex mutex;
 } SRpcInfo;
 

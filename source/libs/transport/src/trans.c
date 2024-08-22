@@ -115,6 +115,8 @@ void* rpcOpen(const SRpcInit* pInit) {
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
   (void)transAcquireExHandle(transGetInstMgt(), refId);
   pRpc->refId = refId;
+
+  pRpc->shareConn = pInit->shareConn;
   return (void*)refId;
 _end:
   taosMemoryFree(pRpc);

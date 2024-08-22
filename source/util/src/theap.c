@@ -21,6 +21,7 @@ size_t heapSize(Heap* heap) { return heap->nelts; }
 Heap* heapCreate(HeapCompareFn fn) {
   Heap* heap = taosMemoryCalloc(1, sizeof(Heap));
   if (heap == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -226,9 +227,9 @@ static size_t pqParent(size_t i) { return (--i) >> 1; /* (i - 1) / 2 */ }
 static size_t pqLeft(size_t i) { return (i << 1) | 1; /* i * 2 + 1 */ }
 static size_t pqRight(size_t i) { return (++i) << 1; /* (i + 1) * 2 */ }
 static void   pqSwapPQNode(PriorityQueueNode* a, PriorityQueueNode* b) {
-  void* tmp = a->data;
-  a->data = b->data;
-  b->data = tmp;
+    void* tmp = a->data;
+    a->data = b->data;
+    b->data = tmp;
 }
 
 #define pqContainerGetEle(pq, i) ((PriorityQueueNode*)taosArrayGet((pq)->container, (i)))
