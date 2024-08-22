@@ -499,7 +499,7 @@ static void grantStatusInit(SGrantStatus *pStatus) {
   GRANT_OPT_EXPIRE_INIT(pStatus->activeActiveExpireSec, pStatus->placeHolder, GRANT_OPT_ACTIVE_ACTIVE);
   GRANT_OPT_EXPIRE_INIT(pStatus->dualReplicaHAExpireSec, pStatus->dualReplicaHAExpired, GRANT_OPT_DUAL_REPLICA_HA);
   GRANT_OPT_EXPIRE_INIT(pStatus->dbEncryptionExpireSec, pStatus->dbEncryptionExpired, GRANT_OPT_DB_ENCRYPTION);
-  GRANT_OPT_EXPIRE_INIT(pStatus->dataSyncExpireSec, pStatus->dataSyncExpired, GRANT_OPT_DATA_SYNC);
+  GRANT_OPT_EXPIRE_INIT(pStatus->dataSyncExpireSec, pStatus->placeHolder, GRANT_OPT_DATA_SYNC);
 
   grantDataInsSetDefault(pStatus->dataIns, CONN_TYPE_DYN_MAX, GRANT_UNIQ_UNLIMITED);
 }

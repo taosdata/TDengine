@@ -395,8 +395,7 @@ typedef struct {
       int64_t objectStorageExpired : 1;
       int64_t dualReplicaHAExpired : 1;
       int64_t dbEncryptionExpired : 1;
-      int64_t dataSyncExpired : 1;
-      int64_t reserve2 : 4;
+      int64_t reserve2 : 5;
     };
   };
   union {
