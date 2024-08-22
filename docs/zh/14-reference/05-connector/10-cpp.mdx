@@ -41,137 +41,23 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
 
 ### 同步查询示例
 
-<details>
-<summary>同步查询</summary>
-
-请参考：[C example](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/demo.c)
-
-格式化输出不同类型字段函数 taos_print_row
-```c
-int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
-  int32_t len = 0;
-  for (int i = 0; i < num_fields; ++i) {
-    if (i > 0) {
-      str[len++] = ' ';
-    }
-
-    if (row[i] == NULL) {
-      len += sprintf(str + len, "%s", TSDB_DATA_NULL_STR);
-      continue;
-    }
-
-    switch (fields[i].type) {
-      case TSDB_DATA_TYPE_TINYINT:
-        len += sprintf(str + len, "%d", *((int8_t *)row[i]));
-        break;
-
-      case TSDB_DATA_TYPE_UTINYINT:
-        len += sprintf(str + len, "%u", *((uint8_t *)row[i]));
-        break;
-
-      case TSDB_DATA_TYPE_SMALLINT:
-        len += sprintf(str + len, "%d", *((int16_t *)row[i]));
-        break;
-
-      case TSDB_DATA_TYPE_USMALLINT:
-        len += sprintf(str + len, "%u", *((uint16_t *)row[i]));
-        break;
-
-      case TSDB_DATA_TYPE_INT:
-        len += sprintf(str + len, "%d", *((int32_t *)row[i]));
-        break;
-
-      case TSDB_DATA_TYPE_UINT:
-        len += sprintf(str + len, "%u", *((uint32_t *)row[i]));
-        break;
-
-      case TSDB_DATA_TYPE_BIGINT:
-        len += sprintf(str + len, "%" PRId64, *((int64_t *)row[i]));
-        break;
-
-      case TSDB_DATA_TYPE_UBIGINT:
-        len += sprintf(str + len, "%" PRIu64, *((uint64_t *)row[i]));
-        break;
-
-      case TSDB_DATA_TYPE_FLOAT: {
-        float fv = 0;
-        fv = GET_FLOAT_VAL(row[i]);
-        len += sprintf(str + len, "%f", fv);
-      } break;
-
-      case TSDB_DATA_TYPE_DOUBLE: {
-        double dv = 0;
-        dv = GET_DOUBLE_VAL(row[i]);
-        len += sprintf(str + len, "%lf", dv);
-      } break;
-
-      case TSDB_DATA_TYPE_BINARY:
-      case TSDB_DATA_TYPE_NCHAR: {
-        int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
-        if (fields[i].type == TSDB_DATA_TYPE_BINARY) {
-          assert(charLen <= fields[i].bytes && charLen >= 0);
-        } else {
-          assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0);
-        }
-
-        memcpy(str + len, row[i], charLen);
-        len += charLen;
-      } break;
-
-      case TSDB_DATA_TYPE_TIMESTAMP:
-        len += sprintf(str + len, "%" PRId64, *((int64_t *)row[i]));
-        break;
-
-      case TSDB_DATA_TYPE_BOOL:
-        len += sprintf(str + len, "%d", *((int8_t *)row[i]));
-      default:
-        break;
-    }
-  }
-  str[len] = 0;
-
-  return len;
-}
-  
-```  
-  
-</details>
+- 请参考：[C example](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/demo.c)
 
 ### 异步查询示例
 
-<details>
-<summary>异步查询</summary>
-
-请参考：[C example](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/asyncdemo.c)
-
-</details>
+- 请参考：[C example](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/asyncdemo.c)
 
 ### 参数绑定示例
 
-<details>
-<summary>参数绑定</summary>
-
-请参考：[C example](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/prepare.c)
-
-</details>
+- 请参考：[C example](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/prepare.c)
 
 ### 无模式写入示例
 
-<details>
-<summary>无模式写入</summary>
-
-请参考：[C example](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/schemaless.c)
-
-</details>
+- 请参考：[C example](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/schemaless.c)
 
 ### 订阅和消费示例
 
-<details>
-<summary>订阅和消费</summary>
-
-请参考：[C example](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/tmq.c)
-
-</details>
+- 请参考：[C example](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/tmq.c)
 
 :::info
 更多示例代码及下载请见 [GitHub](https://github.com/taosdata/TDengine/tree/develop/docs/examples/c)。
