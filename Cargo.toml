@@ -97,7 +97,7 @@ serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9.19"
 sha2 = "0.10"
 thiserror = "1"
-tokio = { version = "1", features = [
+tokio = { version = "1.39.3", features = [
     "rt",
     "rt-multi-thread",
     "io-util",

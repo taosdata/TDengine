@@ -226,7 +226,7 @@ impl TaskOpts {
         self.cancel.cancel();
     }
 
-    #[instrument(skip_all, fields(task.id=self.task_id.as_deref().unwrap_or(&"0")))]
+    #[instrument(skip_all)]
     pub async fn run(&self, port_pool: &PortPool) -> Result<(), anyhow::Error> {
         let Self {
             from,

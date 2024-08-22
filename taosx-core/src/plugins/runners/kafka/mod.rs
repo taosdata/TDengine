@@ -226,14 +226,14 @@ pub async fn kafka_to_taos(
     to: Dsn,
     _jobs: usize,
     port_pool: &PortPool,
-    cancel: CancellationToken,
+    upstream_cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
-    let cancel = cancel.child_token();
+    let cancel = upstream_cancel.child_token();
     let _drop_guard = cancel.clone().drop_guard();
     tracing::info!(
         "Kafka task: {} start, from: {}, parser: {}, to: {}",
@@ -294,8 +294,8 @@ pub async fn kafka_to_taos(
             } => {
                 match status {
                     Ok(status) => {
+                        cancel.cancel();
                         if status.is_timeout() {
-                            cancel.cancel();
                             // wait for completion
                             tokio::time::sleep(Duration::from_millis(100)).await;
                             join_set.abort_all();
@@ -305,6 +305,7 @@ pub async fn kafka_to_taos(
                             return Ok(());
                         }
                         tokio::time::sleep(Duration::from_millis(100)).await;
+                        join_set.abort_all();
                         match ipc.try_recv_error() {
                             Ok(res) => {
                                 tracing::error!("IPC Error: {res}");
@@ -316,6 +317,7 @@ pub async fn kafka_to_taos(
                         }
                     }
                     Err(err) => {
+                        cancel.cancel();
                         join_set.abort_all();
                         let _ = ipc.send(());
                         anyhow::bail!("Kafka exit with error: {:#}", err);
@@ -333,7 +335,7 @@ pub async fn kafka_to_taos(
                     anyhow::bail!("Kafka writer error: {err:#}");
                 }
             },
-            _ = cancel.cancelled() => {
+            _ = upstream_cancel.cancelled() => {
                 tracing::info!("Kafka task cancelled");
                 join_set.abort_all();
             }
@@ -390,7 +392,7 @@ async fn execute(
         Ok(ExitStatus::Finished)
     });
 
-    let schema = build_schema();
+    let schema = Arc::new(build_schema());
     // multi producer(KafkaConsumer) and single consumer(IPC Writer)
     let (tx, rx) = flume::bounded(0);
 
@@ -439,31 +441,75 @@ async fn execute(
 
     // split into sub tasks
     let sub_tasks: Vec<SubTask> = SubTask::build_tasks(config, notify.clone())?;
+
     for (idx, task) in sub_tasks.into_iter().enumerate() {
         let tx = tx.clone();
         let aborted = aborted.clone();
         let schema = schema.clone();
-        let consumer = task.consumer;
-        let timeout = task.timeout;
         let notify = notify.clone();
 
         consumers.spawn(
             async move {
-                poll_message(
-                    idx,
-                    &consumer,
-                    tx,
+                let SubTask {
+                    topics,
+                    config,
+                    instance,
+                    mut consumer,
                     timeout,
-                    aborted,
-                    schema,
-                    batch_size,
-                    batch_timeout_ms,
-                    notify,
-                )
-                .in_current_span()
-                .await
+                } = task;
+                let mut errors = 0;
+                let mut last_errors = std::time::Instant::now();
+                const MAX_RETRY_INTERVAL: Duration = Duration::from_secs(300);
+                const MAX_RETRY_TIMES: usize = 5;
+                loop {
+                    match poll_message(
+                        idx,
+                        &mut consumer,
+                        &tx,
+                        timeout,
+                        &aborted,
+                        &schema,
+                        batch_size,
+                        batch_timeout_ms,
+                        &notify,
+                    )
+                    .in_current_span()
+                    .await
+                    {
+                        Ok(status) => return Ok(status),
+                        Err(err) => {
+                            if aborted.is_cancelled() {
+                                return Ok(ExitStatus::Aborted);
+                            }
+                            if last_errors.elapsed() >= MAX_RETRY_INTERVAL {
+                                errors = 0;
+                            }
+                            if errors < MAX_RETRY_TIMES {
+                                warn!(error = format!("{err:#}"), "Try to rebuild consumer {idx}");
+                                consumer = config.build_consumer(&instance).with_context(|| {
+                                    format!("Try to rebuild consumer {idx} error")
+                                })?;
+                                consumer
+                                    .subscribe(
+                                        &topics.iter().map(|s| s.as_str()).collect::<Vec<&str>>(),
+                                    )
+                                    .context("Kafka subscribe consumer error")?;
+                                notify
+                                    .send(crate::TaskNotify::info(format!(
+                                        "Rebuild consumer {idx} with instance id {instance}"
+                                    )))
+                                    .context("Task logging listener seems closed")?;
+                                continue;
+                            }
+                            last_errors = std::time::Instant::now();
+                            errors += 1;
+                            warn!(error = format!("{err:#}"), "Kafka consuming error");
+                            Err(err)?;
+                        }
+                    }
+                }
             }
-            .instrument(tracing::info_span!("consumer", id = idx)),
+            .instrument(tracing::info_span!("consumer", kafka.consumer.id = idx)),
         );
     }
 
@@ -473,7 +519,15 @@ async fn execute(
 }
 
 struct SubTask {
+    /// Kafka task config for rebuilding consumer.
+    config: Arc<KafkaTaskConfig>,
+    /// Topics to consume.
+    topics: Arc<Vec<String>>,
+    /// Unique id in the group, for rdkafka `group.instance.id` configuration.
+    instance: String,
+    /// Initial consumer.
     consumer: LoggingConsumer,
+    /// Timeout for polling messages in milliseconds.
     timeout: i64,
 }
 
@@ -542,18 +596,29 @@ impl SubTask {
             _ => topic_partitions.values().sum(),
         };
 
+        let config = Arc::new(config);
+        use rand::distributions::{Alphanumeric, DistString};
+        let mut rng = rand::thread_rng();
+
+        let topics = topic_partitions
+            .keys()
+            .into_iter()
+            .map(|k| k.to_string())
+            .collect_vec();
+        let topics = Arc::new(topics);
+
         for _ in 0..concurrency {
-            let consumer = consumer_builder(&config)?;
-            let topics = topic_partitions
-                .keys()
-                .into_iter()
-                .map(|k| *k)
-                .collect_vec();
+            let instance = Alphanumeric.sample_string(&mut rng, 12);
+            let consumer = config.build_consumer(&instance)?;
             consumer
-                .subscribe(&topics)
+                .subscribe(&topics.iter().map(|s| s.as_str()).collect::<Vec<&str>>())
                 .context("Kafka subscribe consumer error")?;
+            let topics = topics.clone();
 
             let sub_task = SubTask {
+                config: config.clone(),
+                topics,
+                instance,
                 consumer,
                 timeout: config.timeout,
             };
@@ -583,7 +648,7 @@ impl ExitStatus {
 
 struct MessagesSender<'a> {
     consumer: &'a LoggingConsumer,
-    tx: flume::Sender<RecordBatch>,
+    tx: &'a flume::Sender<RecordBatch>,
     // Send options
     batch_size: usize,
     batch_timeout_ms: i64,
@@ -598,7 +663,7 @@ struct MessagesSender<'a> {
     offset: Int64Builder,
     key: BinaryBuilder,
     value: BinaryBuilder,
-    schema: SchemaRef,
+    schema: &'a SchemaRef,
 }
 
 impl<'a> MessagesSender<'a> {
@@ -615,6 +680,7 @@ impl<'a> MessagesSender<'a> {
         let context = self.consumer.context();
         let chunks = chunk.iter().chunk_by(|msg| (msg.topic(), msg.partition()));
 
+        let permit = context.sem.acquire().await;
         for ((topic, partition), iter) in &chunks {
             let mut offset = None;
             for msg in iter {
@@ -657,6 +723,7 @@ impl<'a> MessagesSender<'a> {
                     });
             }
         }
+        drop(permit);
 
         tracing::debug!(
             elapsed = ?now.elapsed(),
@@ -727,10 +794,12 @@ impl<'a> MessagesSender<'a> {
         );
 
         let context = self.consumer.context();
+        let permit = context.sem.acquire().await;
         let guard = scc::ebr::Guard::new();
 
         let mut assignment = None;
         let mut no_offsets = true;
+        let mut error_offsets = Vec::new();
         for (topic, map) in context.offsets_cache.iter(&guard) {
             for (partition, offset) in map.iter(&guard) {
                 if let Err(err) = self.consumer.store_offset(&topic, *partition, *offset) {
@@ -742,13 +811,19 @@ impl<'a> MessagesSender<'a> {
                         "Store offset error in partition {}",
                         partition,
                     );
+                    error_offsets.push((topic.to_string(), *partition));
+                    if self.consumer.assignment_lost() {
+                        warn!("Consumer assignment lost, skip");
+                        continue;
+                    }
                     if assignment.is_none() {
                         assignment = self.consumer.assignment().inspect_err(|err| {
                             tracing::error!(cause  = %err, "Get consumer assignment error")
                         }).ok();
                     }
                     if assignment.is_none() {
-                        bail!("Store offset error in partition {partition} of topic `{topic}`, seems assignment lost");
+                        warn!("Store offset error in partition {partition} of topic `{topic}`, seems assignment lost");
+                        continue;
                     }
                     if assignment
                         .as_ref()
@@ -771,20 +846,38 @@ impl<'a> MessagesSender<'a> {
             }
         }
         drop(guard);
+        for (topic, partition) in error_offsets {
+            if let Some(index) = context.offsets_cache.get(&topic) {
+                index.remove(&partition);
+                if index.is_empty() {
+                    index.remove_entry();
+                }
+            }
+        }
 
         if no_offsets {
             tracing::warn!(batch.size = batch_size, "No offsets stored, skip commit");
             return anyhow::Ok(ExitStatus::Finished);
         }
 
+        if self.consumer.assignment_lost() {
+            warn!("Consumer assignment lost, continue");
+            return anyhow::Ok(ExitStatus::Finished);
+        }
+
         if let Err(err) = self.consumer.commit_consumer_state(CommitMode::Sync) {
             let err_str = format!("{:#}", err);
             tracing::warn!("failed to commit consumer state, cause: {}", err_str);
-            if err_str.contains("NoOffset") {
+            if err_str.contains("NoOffset")
+                || err_str.contains("AssignmentLost")
+                || err_str.contains("UnknownMemberId")
+            {
+                // Maybe the consumer has been rebalanced, so we continue to see next.
                 return Ok(ExitStatus::Finished);
             }
             bail!("failed to commit consumer state, cause: {}", err_str);
         }
+        drop(permit);
 
         anyhow::Ok(ExitStatus::Finished)
     }
@@ -808,20 +901,19 @@ impl<'a> MessagesSender<'a> {
 
 async fn poll_message<'a>(
     index: usize,
-    consumer: &'a LoggingConsumer,
-    tx: flume::Sender<RecordBatch>,
+    consumer: &'a mut LoggingConsumer,
+    tx: &flume::Sender<RecordBatch>,
     timeout: i64,
-    aborted: CancellationToken,
-    schema: Schema,
+    aborted: &CancellationToken,
+    schema: &SchemaRef,
     batch_size: usize,
     batch_timeout_ms: i64,
-    notify: crate::TaskNotifySender,
+    notify: &crate::TaskNotifySender,
 ) -> anyhow::Result<ExitStatus> {
     const MAX_READY_CHUNK_SIZE: usize = 100;
 
-    let ready_chunks =
+    let mut ready_chunks =
         futures_ext::TryReadyChunks::new(consumer.stream(), batch_size.max(MAX_READY_CHUNK_SIZE));
-    tokio::pin!(ready_chunks);
 
     let timeout_duration = if timeout > 0 {
         Duration::from_millis(timeout as u64)
@@ -837,7 +929,6 @@ async fn poll_message<'a>(
     let offset = Int64Builder::new();
     let key = BinaryBuilder::new();
     let value = BinaryBuilder::new();
-    let schema = Arc::new(schema);
 
     let mut sender = MessagesSender {
         consumer,
@@ -889,20 +980,22 @@ async fn poll_message<'a>(
                         }
                     }
                     Some(Err(TryReadyChunksError(_, e))) => {
+                        if aborted.is_cancelled() {
+                            tracing::debug!(error = %e, "Consumer aborted even error occur");
+                            return Ok(ExitStatus::Aborted);
+                        }
                         if e == KafkaError::MessageConsumption(RDKafkaErrorCode::OperationTimedOut) {
                             tracing::warn!("Kafka polling timeout, continue");
                             tokio::time::sleep(Duration::from_millis(500)).await;
                             continue;
                         }
                         if e == KafkaError::MessageConsumption(RDKafkaErrorCode::PollExceeded) {
-                            tracing::warn!("Maximum application poll interval (max.poll.interval.ms) exceeded, try continue");
-                            tokio::time::sleep(Duration::from_millis(500)).await;
-                            continue;
+                            tracing::warn!("Maximum application poll interval (max.poll.interval.ms) exceeded");
                         }
 
                         // Ready chunks may still contains some messages, but we just skip them.
                         // It will be handled by next consuming.
-                        let _ = notify.send(crate::TaskNotify::error(format!("failed to polling from kafka, cause: {:#}", e)));
+                        let _ = notify.send(crate::TaskNotify::warn(format!("failed to polling from kafka, cause: {:#}", e)));
                         tracing::error!("failed to polling from kafka, cause: {:#}", e);
                         bail!("failed to polling from kafka, cause: {:#}", e);
                     }
@@ -957,12 +1050,14 @@ fn build_schema() -> Schema {
 /// we use a temporary workaround for now
 struct CustomContext {
     offsets_cache: scc::HashIndex<String, scc::HashIndex<i32, i64>>,
+    sem: tokio::sync::Semaphore,
 }
 
 impl Default for CustomContext {
     fn default() -> Self {
         Self {
             offsets_cache: scc::HashIndex::with_capacity(1),
+            sem: tokio::sync::Semaphore::new(1),
         }
     }
 }
@@ -974,15 +1069,19 @@ impl ConsumerContext for CustomContext {
         if is_rebalance_empty(rebalance) {
             return;
         }
+        self.sem.forget_permits(1);
         tracing::info!("Pre rebalance {:?}", rebalance);
+        if !self.offsets_cache.is_empty() {
+            self.offsets_cache.clear();
+        }
     }
 
     fn post_rebalance(&self, rebalance: &Rebalance) {
         if is_rebalance_empty(rebalance) {
             return;
         }
-        tracing::info!("Post rebalance {:?}, clear offsets", rebalance);
-        self.offsets_cache.clear();
+        tracing::info!("Post rebalance {:?}", rebalance);
+        self.sem.add_permits(1);
     }
 
     fn commit_callback(&self, result: KafkaResult<()>, tpl: &TopicPartitionList) {
@@ -1012,74 +1111,84 @@ fn is_tplist_empty(tpl: &TopicPartitionList) -> bool {
 // A type alias with your custom consumer can be created for convenience.
 type LoggingConsumer = StreamConsumer<CustomContext>;
 
-fn consumer_builder(config: &KafkaTaskConfig) -> anyhow::Result<LoggingConsumer> {
-    let mut client = build_client_config(config.connect.clone()).unwrap();
-    // Client identifier, default "rdkafka".
-    if let Some(client_id) = &config.client_id {
-        client.set("client.id", client_id);
-    }
-    // All clients sharing the same group.id belong to the same group.
-    client.set("group.id", &config.group);
-    // Action to take when there is no initial offset in offset store or the desired offset is out of range.
-    // smallest, earliest, beginning, largest, latest, end, error
-    client.set("auto.offset.reset", &config.fallback_offset);
+impl KafkaTaskConfig {
+    fn build_consumer(&self, instance: &str) -> anyhow::Result<LoggingConsumer> {
+        let mut client = build_client_config(self.connect.clone()).unwrap();
+        // Client identifier, default "rdkafka".
+        if let Some(client_id) = &self.client_id {
+            client.set("client.id", client_id);
+        }
+        // All clients sharing the same group.id belong to the same group.
+        client.set("group.id", &self.group);
+        // Action to take when there is no initial offset in offset store or the desired offset is out of range.
+        // smallest, earliest, beginning, largest, latest, end, error
+        client.set("auto.offset.reset", &self.fallback_offset);
 
-    // Refer to [rdkafka configuration](https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md).
-    // > Note: It is recommended to set `enable.auto.offset.store=false`
-    // >  for long-time processing applications and then explicitly store offsets
-    // >  (using offsets_store()) after message processing, to make sure
-    // >  offsets are not auto-committed prior to processing has finished.
-    client.set("enable.auto.offset.store", "false");
+        // Refer to [rdkafka configuration](https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md).
+        // > Note: It is recommended to set `enable.auto.offset.store=false`
+        // >  for long-time processing applications and then explicitly store offsets
+        // >  (using offsets_store()) after message processing, to make sure
+        // >  offsets are not auto-committed prior to processing has finished.
+        client.set("enable.auto.offset.store", "false");
 
-    // Maximum time the broker may wait to fill the Fetch response with fetch.min.bytes of messages, default 500ms.
-    client.set(
-        "fetch.wait.max.ms",
-        config
-            .fetch_max_wait_time
-            .map(|v| v.as_millis())
-            .unwrap_or(500)
-            .to_string(),
-    );
-
-    // Minimum number of bytes the broker responds with, default is 1.
-    client.set(
-        "fetch.min.bytes",
-        config.fetch_min_bytes.unwrap_or(1).to_string(),
-    );
-
-    // Initial maximum number of bytes per topic+partition to request when fetching messages from the broker.
-    if config.fetch_max_bytes_per_partition.is_some() {
+        // Maximum time the broker may wait to fill the Fetch response with fetch.min.bytes of messages, default 500ms.
         client.set(
-            "fetch.message.max.bytes",
-            config.fetch_max_bytes_per_partition.unwrap().to_string(),
-        );
-    }
-    // Verify CRC32 of consumed messages, ensuring no on-the-wire or on-disk corruption to the messages occurred
-    if config.fetch_crc_validation.is_some() {
-        client.set(
-            "check.crcs",
-            config.fetch_crc_validation.unwrap().to_string(),
-        );
-    }
-    // Close broker connections after the specified time of inactivity.
-    if config.connection_idle_timeout.is_some() {
-        client.set(
-            "connections.max.idle.ms",
-            config
-                .connection_idle_timeout
-                .unwrap()
-                .as_millis()
+            "fetch.wait.max.ms",
+            self.fetch_max_wait_time
+                .map(|v| v.as_millis())
+                .unwrap_or(500)
                 .to_string(),
         );
-    }
-    // Set log level and create consumer
-    let consumer = client
-        .set_log_level(RDKafkaLogLevel::Info)
-        .create_with_context(CustomContext::default())
-        .context("Consumer creation failed")?;
-    Ok(consumer)
-}
 
+        // Maximum allowed time between calls to consume messages (e.g., rd_kafka_consumer_poll())
+        // for high-level consumers. If this interval is exceeded the consumer is considered failed
+        // and the group will rebalance in order to reassign the partitions to another consumer group member.
+        // Warning: Offset commits may be not possible at this point.
+        client.set("max.poll.interval.ms", "600000");
+
+        if !instance.is_empty() {
+            client.set("enable.idempotence", "true");
+            client.set("group.instance.id", instance);
+        }
+
+        // A larger value allows the consumer to fetch more messages in one request.
+        client.set("queued.min.messages", "1000000");
+
+        // Minimum number of bytes the broker responds with, default is 1.
+        client.set(
+            "fetch.min.bytes",
+            self.fetch_min_bytes.unwrap_or(1).to_string(),
+        );
+
+        // Initial maximum number of bytes per topic+partition to request when fetching messages from the broker.
+        if self.fetch_max_bytes_per_partition.is_some() {
+            client.set(
+                "fetch.message.max.bytes",
+                self.fetch_max_bytes_per_partition.unwrap().to_string(),
+            );
+        }
+        // Verify CRC32 of consumed messages, ensuring no on-the-wire or on-disk corruption to the messages occurred
+        if self.fetch_crc_validation.is_some() {
+            client.set("check.crcs", self.fetch_crc_validation.unwrap().to_string());
+        }
+        // Close broker connections after the specified time of inactivity.
+        if self.connection_idle_timeout.is_some() {
+            client.set(
+                "connections.max.idle.ms",
+                self.connection_idle_timeout
+                    .unwrap()
+                    .as_millis()
+                    .to_string(),
+            );
+        }
+        // Set log level and create consumer
+        let consumer = client
+            .set_log_level(RDKafkaLogLevel::Info)
+            .create_with_context(CustomContext::default())
+            .context("Consumer creation failed")?;
+        Ok(consumer)
+    }
+}
 fn build_client_config(config: KafkaConnectConfig) -> anyhow::Result<ClientConfig> {
     let mut client_config = ClientConfig::new();
 
