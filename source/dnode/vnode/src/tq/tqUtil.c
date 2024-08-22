@@ -248,7 +248,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
       if(savedEpoch > pRequest->epoch) {
         tqError("tmq poll: consumer:0x%" PRIx64 " (epoch %d) iter log, savedEpoch error, vgId:%d offset %" PRId64,
                 pRequest->consumerId, pRequest->epoch, vgId, fetchVer);
-        code = TSDB_CODE_TMQ_CONSUMER_ERROR;
+        code = TSDB_CODE_TQ_INTERNAL_ERROR;
         goto END;
       }
 
@@ -259,7 +259,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           if(totalRows != 0) {
             tqError("tmq poll: consumer:0x%" PRIx64 " (epoch %d) iter log, totalRows error, vgId:%d offset %" PRId64,
                     pRequest->consumerId, pRequest->epoch, vgId, fetchVer);
-            code = code == 0 ? TSDB_CODE_TMQ_CONSUMER_ERROR : code;
+            code = code == 0 ? TSDB_CODE_TQ_INTERNAL_ERROR : code;
           }
           goto END;
         }

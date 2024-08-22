@@ -679,7 +679,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
     if(pReader->cachedSchemaVer != pReader->pSchemaWrapper->version) {
       tqError("vgId:%d, schema version mismatch, suid:%" PRId64 ", uid:%" PRId64 ", version:%d, cached version:%d",
               vgId, suid, uid, sversion, pReader->pSchemaWrapper->version);
-      return TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
+      return TSDB_CODE_TQ_INTERNAL_ERROR;
     }
     if (blockDataGetNumOfCols(pBlock) == 0) {
       code = buildResSDataBlock(pReader->pResBlock, pReader->pSchemaWrapper, pReader->pColIdList);
