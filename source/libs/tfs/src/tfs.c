@@ -554,7 +554,7 @@ static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
   }
 
   STfsDisk *pDisk = NULL;
-  if ((code = tfsGetDiskByName(pTfs, dirName, NULL)) != 0) {
+  if ((code = tfsGetDiskByName(pTfs, dirName, &pDisk)) != 0) {
     fError("failed to mount %s to FS since %s", pCfg->dir, tstrerror(code));
     TAOS_RETURN(code);
   }

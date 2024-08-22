@@ -4018,7 +4018,9 @@ int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock*
     if (NULL == pColInfo) {
       return TSDB_CODE_OUT_OF_RANGE;
     }
-    ASSERT(pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP);
+    if (pColInfo->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    }
     key.groupId = pSrcBlock->info.id.groupId;
     key.ts = *(int64_t*)colDataGetData(pColInfo, rowIndex);
   }

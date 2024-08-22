@@ -171,7 +171,7 @@ static int32_t tStatisBlockUpdate(STbStatisBlock *block, SRowInfo *row) {
     TAOS_CHECK_RETURN(tBufferPutAt(&block->counts, (block->numOfRecords - 1) * sizeof(record.count), &record.count,
                                    sizeof(record.count)));
   } else {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_PARA;
   }
 
   return 0;
@@ -276,7 +276,9 @@ int32_t tBrinBlockClear(SBrinBlock *brinBlock) {
 }
 
 int32_t tBrinBlockPut(SBrinBlock *brinBlock, const SBrinRecord *record) {
-  ASSERT(record->firstKey.key.numOfPKs == record->lastKey.key.numOfPKs);
+  if (record->firstKey.key.numOfPKs != record->lastKey.key.numOfPKs) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   if (brinBlock->numOfRecords == 0) {  // the first row
     brinBlock->numOfPKs = record->firstKey.key.numOfPKs;

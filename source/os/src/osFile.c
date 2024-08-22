@@ -454,7 +454,6 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
 #if FILE_WITH_LOCK
   taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
-  ASSERT(pFile->hFile != NULL);  // Please check if you have closed the file.
   if (pFile->hFile == NULL) {
 #if FILE_WITH_LOCK
     taosThreadRwlockUnlock(&(pFile->rwlock));
@@ -867,7 +866,6 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
 #endif
 
   int32_t code = 0;
-  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
 
 #ifdef WINDOWS
   int64_t ret = _lseeki64(pFile->fd, offset, whence);
@@ -1479,7 +1477,6 @@ int32_t taosEOFFile(TdFilePtr pFile) {
     terrno = TSDB_CODE_INVALID_PARA;
     return -1;
   }
-  ASSERT(pFile->fp != NULL);
   if (pFile->fp == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return -1;
@@ -1636,7 +1633,14 @@ int taosCloseCFile(FILE *f) { return fclose(f); }
 
 int taosSetAutoDelFile(char *path) {
 #ifdef WINDOWS
-  return SetFileAttributes(path, FILE_ATTRIBUTE_TEMPORARY);
+  bool succ = SetFileAttributes(path, FILE_ATTRIBUTE_TEMPORARY);
+  if (succ) {
+    return 0;
+  } else {
+    DWORD error = GetLastError();
+    terrno = TAOS_SYSTEM_ERROR(error);
+    return terrno;
+  }
 #else
   if (-1 == unlink(path)) {
     terrno = TAOS_SYSTEM_ERROR(errno);

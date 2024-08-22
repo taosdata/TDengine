@@ -403,8 +403,6 @@ static int32_t tsdbS3FidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int32_t s3Kee
     nowSec = nowSec * 1000000l;
   } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_NANO) {
     nowSec = nowSec * 1000000000l;
-  } else {
-    ASSERT(0);
   }
 
   nowSec = nowSec - pKeepCfg->keepTimeOffset * tsTickPerHour[pKeepCfg->precision];

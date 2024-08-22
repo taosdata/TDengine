@@ -47,7 +47,7 @@ typedef struct tMemBucketSlot {
 } tMemBucketSlot;
 
 struct tMemBucket;
-typedef int32_t (*__perc_hash_func_t)(struct tMemBucket *pBucket, const void *value);
+typedef int32_t (*__perc_hash_func_t)(struct tMemBucket *pBucket, const void *value, int32_t *index);
 
 typedef struct tMemBucket {
   int16_t            numOfSlots;

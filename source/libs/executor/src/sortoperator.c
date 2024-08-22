@@ -337,10 +337,10 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
   return code;
 }
 
-SSDataBlock* loadNextDataBlock(void* param) {
+int32_t loadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
-  SSDataBlock*   pBlock = pOperator->fpSet.getNextFn(pOperator);
-  return pBlock;
+  *ppBlock = pOperator->fpSet.getNextFn(pOperator);
+  return TSDB_CODE_SUCCESS;
 }
 
 // todo refactor: merged with fetch fp
@@ -609,30 +609,32 @@ typedef struct SGroupSortSourceParam {
   SGroupSortOperatorInfo* grpSortOpInfo;
 } SGroupSortSourceParam;
 
-SSDataBlock* fetchNextGroupSortDataBlock(void* param) {
+int32_t fetchNextGroupSortDataBlock(void* param, SSDataBlock** ppBlock) {
+  *ppBlock = NULL;
+  
   SGroupSortSourceParam*  source = param;
   SGroupSortOperatorInfo* grpSortOpInfo = source->grpSortOpInfo;
   if (grpSortOpInfo->prefetchedSortInput) {
     SSDataBlock* block = grpSortOpInfo->prefetchedSortInput;
     grpSortOpInfo->prefetchedSortInput = NULL;
-    return block;
+    *ppBlock = block;
   } else {
     SOperatorInfo* childOp = source->childOpInfo;
     SSDataBlock*   block = childOp->fpSet.getNextFn(childOp);
     if (block != NULL) {
       if (block->info.id.groupId == grpSortOpInfo->currGroupId) {
         grpSortOpInfo->childOpStatus = CHILD_OP_SAME_GROUP;
-        return block;
+        *ppBlock = block;
       } else {
         grpSortOpInfo->childOpStatus = CHILD_OP_NEW_GROUP;
         grpSortOpInfo->prefetchedSortInput = block;
-        return NULL;
       }
     } else {
       grpSortOpInfo->childOpStatus = CHILD_OP_FINISHED;
-      return NULL;
     }
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t beginSortGroup(SOperatorInfo* pOperator) {
@@ -735,7 +737,12 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     }
 
     // beginSortGroup would fetch all child blocks of pInfo->currGroupId;
-    ASSERT(pInfo->childOpStatus != CHILD_OP_SAME_GROUP);
+    if (pInfo->childOpStatus == CHILD_OP_SAME_GROUP) {
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      pOperator->pTaskInfo->code = code;
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      T_LONG_JMP(pOperator->pTaskInfo->env, code);
+    }
     code = getGroupSortedBlockData(pInfo->pCurrSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
                                      pInfo->matchInfo.pList, pInfo, &pBlock);
     if (pBlock != NULL && (code == 0)) {
