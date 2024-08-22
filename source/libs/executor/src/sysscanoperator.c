@@ -1490,13 +1490,13 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      code = colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.btime, false);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&mr.me.ntbEntry.btime, false);
       QUERY_CHECK_CODE(code, lino, _end);
 
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      code = colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.schemaRow.nCols, false);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&mr.me.ntbEntry.schemaRow.nCols, false);
       QUERY_CHECK_CODE(code, lino, _end);
 
       // super table name
