@@ -2368,6 +2368,9 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
 
       if (!state->pIndexList) {
         state->pIndexList = taosArrayInit(1, sizeof(SBrinBlk));
+        if (!state->pIndexList) {
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
+        }
       } else {
         taosArrayClear(state->pIndexList);
       }
