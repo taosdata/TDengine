@@ -7,7 +7,7 @@ import re
 import time
 
 current_path = os.path.abspath(os.path.dirname(__file__))
-with open("%s/test_server_linux.txt" % current_path) as f:
+with open("%s/test_server.txt" % current_path) as f:
     cases = f.read().splitlines()
 
 
@@ -79,7 +79,7 @@ def run_command(request):
     }
 
 
-class TestServerLinux:
+class TestServer:
     @pytest.mark.all
     def test_execute_cases(self, setup_module, run_command):
         # assert the result
@@ -101,6 +101,7 @@ class TestServerLinux:
                    'returncode'] == 0, f"Command '{run_command['command']}' failed with return code {run_command['returncode']}"
 
     @pytest.mark.all
+    @pytest.mark.check_version
     def test_check_version(self, get_config, setup_module):
         config = get_config
         databaseName = re.sub(r'[^a-zA-Z0-9]', '', subprocess.getoutput("hostname")).lower()
