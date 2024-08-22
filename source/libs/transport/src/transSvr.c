@@ -1182,22 +1182,22 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   int32_t    code = 0;
   SWorkThrd* pThrd = hThrd;
   STrans*    pTransInst = pThrd->pTransInst;
+  int32_t    lino;
 
   SSvrConn* pConn = (SSvrConn*)taosMemoryCalloc(1, sizeof(SSvrConn));
   if (pConn == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
   }
 
   transReqQueueInit(&pConn->wreqQueue);
   QUEUE_INIT(&pConn->queue);
-  QUEUE_PUSH(&pThrd->conn, &pConn->queue);
 
   if ((code = transQueueInit(&pConn->srvMsgs, NULL)) != 0) {
-    TAOS_CHECK_GOTO(code, NULL, _end);
+    TAOS_CHECK_GOTO(code, &lino, _end);
   }
 
   if ((code = transInitBuffer(&pConn->readBuf)) != 0) {
-    TAOS_CHECK_GOTO(code, NULL, _end);
+    TAOS_CHECK_GOTO(code, &lino, _end);
   }
 
   memset(&pConn->regArg, 0, sizeof(pConn->regArg));
@@ -1206,14 +1206,14 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
 
   SExHandle* exh = taosMemoryMalloc(sizeof(SExHandle));
   if (exh == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
   }
 
   exh->handle = pConn;
   exh->pThrd = pThrd;
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
   if (exh->refId < 0) {
-    TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _end);
+    TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, &lino, _end);
   }
 
   QUEUE_INIT(&exh->q);
@@ -1233,15 +1233,16 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   // init client handle
   pConn->pTcp = (uv_tcp_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
   if (pConn->pTcp == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
   }
 
   code = uv_tcp_init(pThrd->loop, pConn->pTcp);
   if (code != 0) {
     tError("%s failed to create conn since %s" PRId64, transLabel(pTransInst), uv_strerror(code));
-    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _end);
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _end);
   }
   pConn->pTcp->data = pConn;
+  QUEUE_PUSH(&pThrd->conn, &pConn->queue);
 
   return pConn;
 _end:
@@ -1252,7 +1253,7 @@ _end:
     taosMemoryFree(pConn);
     pConn = NULL;
   }
-  tError("%s failed to create conn since %s" PRId64, transLabel(pTransInst), tstrerror(code));
+  tError("%s failed to create conn since %s, lino:%d" PRId64, transLabel(pTransInst), tstrerror(code), lino);
   return NULL;
 }
 
@@ -1895,5 +1896,3 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
   }
   return code;
 }
-
-int32_t transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }
