@@ -357,7 +357,10 @@ static int32_t walLogEntriesComplete(const SWal* pWal) {
 
 static int32_t walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
   SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
-  ASSERT(pFileInfo != NULL);
+  if (!pFileInfo) {
+    TAOS_RETURN(TSDB_CODE_FAILED);
+  }
+
   char fnameStr[WAL_FILE_LEN];
   walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
 
