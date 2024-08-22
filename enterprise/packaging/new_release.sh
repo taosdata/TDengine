@@ -107,7 +107,6 @@ connectorDir="${baseDir}/${branch}/connector"
 exampleDir="${communityDir}/examples"
 taosxDir="${baseDir}/${branch}/taosx"
 explorerDir="${baseDir}/${branch}/explorer"
-cfg_dir="${communityDir}/packaging/cfg"
 install_dir="${baseDir}/${branch}/install_dir"
 
 if [ "$versionType" == "community" ]; then
@@ -116,6 +115,7 @@ if [ "$versionType" == "community" ]; then
     debugDir="${communityDir}/debug"
     keeperDir="${baseDir}/${branch}/taoskeeper"
     archiveDir="/nas/TDengine/v${version}/community"
+    cfg_dir="${communityDir}/packaging/cfg"
 else
     if [ "$versionType" == "enterprise" ]; then 
         serverPackageName="${productName}-enterprise-${version}"
@@ -127,6 +127,7 @@ else
     debugDir="${internalDir}/debug"    
     keeperDir="${baseDir}/${branch}/taoskeeperinternal"
     archiveDir="/nas/TDengine/v${version}/enterprise"
+    cfg_dir="${internalDir}/enterprise/packaging/cfg"
 fi
 
 ostype=`uname`
