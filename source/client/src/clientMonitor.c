@@ -12,7 +12,7 @@ tmr_h     tmrStartHandle;
 SHashObj* clusterMonitorInfoTable;
 
 static int sendBathchSize = 1;
-static bool clientMonitorExit = false;
+static bool clientMonitorStopping = false;
 static tsem_t  waitExitSem;
 
 int32_t sendReport(ClientMonitor* pMonitor, char* pCont, void* param);
@@ -32,10 +32,12 @@ void    generateClusterReport(ClientMonitor* pMonitor, bool send, void* param) {
   taosMemoryFreeClear(pCont);
 }
 
-void reportSendProcess(void* pSem, void* tmrId) {
-  if (pSem != NULL) {
+void reportSendProcess(void* pExitSem, void* tmrId) {
+  if (!clientMonitorStopping) {
     taosTmrReset(reportSendProcess, tsMonitorInterval * 1000, NULL, tmrClientMonitor, &tmrStartHandle);
-  } else if (clientMonitorExit) {
+  } else if (pExitSem != NULL) {
+    uInfo("[monitor] reportSendProcess, send last report before exit.");
+  } else {
     return;
   }
   taosRLockLatch(&monitorLock);
@@ -45,7 +47,7 @@ void reportSendProcess(void* pSem, void* tmrId) {
   ClientMonitor** ppMonitor = (ClientMonitor**)taosHashIterate(clusterMonitorInfoTable, NULL);
   while (ppMonitor != NULL && *ppMonitor != NULL) {
     ClientMonitor* pMonitor = *ppMonitor;
-    generateClusterReport(*ppMonitor, index == sendBathchSize, pSem);
+    generateClusterReport(*ppMonitor, index == sendBathchSize, pExitSem);
     ppMonitor = taosHashIterate(clusterMonitorInfoTable, ppMonitor);
   }
 
@@ -194,7 +196,7 @@ int taosClusterCounterInc(const char* clusterKey, const char* counterName, const
 }
 
 void closeAllClientMonitor() {
-  taosRLockLatch(&monitorLock);
+  taosWLockLatch(&monitorLock);
 
   ClientMonitor** ppMonitor = (ClientMonitor**)taosHashIterate(clusterMonitorInfoTable, NULL);
   while (ppMonitor != NULL && *ppMonitor != NULL) {
@@ -208,7 +210,7 @@ void closeAllClientMonitor() {
   }
   taosHashCleanup(clusterMonitorInfoTable);
 
-  taosRUnLockLatch(&monitorLock);
+  taosWUnLockLatch(&monitorLock);
 }
 
 const char* resultStr(SQL_RESULT_CODE code) {
@@ -218,7 +220,7 @@ const char* resultStr(SQL_RESULT_CODE code) {
 
 void cluster_monitor_stop() {
   uInfo("[monitor] tscMonitor close");
-  clientMonitorExit = true;
+  clientMonitorStopping = true;
   reportSendProcess(&waitExitSem, NULL);
   tsem_timewait(&waitExitSem, 2000);
   closeAllClientMonitor();
