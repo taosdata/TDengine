@@ -969,7 +969,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     // TODO(log other failure reason)
     tWarn("failed to create connect:%p, reason: %s", q, uv_err_name(nread));
     taosMemoryFree(buf->base);
-    uv_close((uv_handle_t*)q, NULL);
+    // uv_close((uv_handle_t*)q, NULL);
     return;
   }
   // free memory allocated by
@@ -982,31 +982,21 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   uv_pipe_t* pipe = (uv_pipe_t*)q;
   if (!uv_pipe_pending_count(pipe)) {
     tError("No pending count");
-    uv_close((uv_handle_t*)q, NULL);
+    // uv_close((uv_handle_t*)q, NULL);
     return;
   }
   if (pThrd->quit) {
     tWarn("thread already received quit msg, ignore incoming conn");
 
-    uv_close((uv_handle_t*)q, NULL);
+    // uv_close((uv_handle_t*)q, NULL);
     return;
   }
 
   SSvrConn* pConn = createConn(pThrd);
   if (pConn == NULL) {
-    uv_close((uv_handle_t*)q, NULL);
+    // uv_close((uv_handle_t*)q, NULL);
     return;
   }
-
-  // pConn->pTransInst = pThrd->pTransInst;
-  // /* init conn timer*/
-  // // uv_timer_init(pThrd->loop, &pConn->pTimer);
-  // // pConn->pTimer.data = pConn;
-  // pConn->hostThrd = pThrd;
-  // // init client handle
-  // pConn->pTcp = (uv_tcp_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
-  // uv_tcp_init(pThrd->loop, pConn->pTcp);
-  // pConn->pTcp->data = pConn;
 
   if (uv_accept(q, (uv_stream_t*)(pConn->pTcp)) == 0) {
     uv_os_fd_t fd;
@@ -1239,9 +1229,6 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   tTrace("%s handle %p, conn %p created, refId:%" PRId64, transLabel(pTransInst), exh, pConn, pConn->refId);
 
   pConn->pTransInst = pThrd->pTransInst;
-  /* init conn timer*/
-  // uv_timer_init(pThrd->loop, &pConn->pTimer);
-  // pConn->pTimer.data = pConn;
   pConn->hostThrd = pThrd;
   // init client handle
   pConn->pTcp = (uv_tcp_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
