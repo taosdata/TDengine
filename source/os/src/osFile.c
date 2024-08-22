@@ -1633,7 +1633,14 @@ int taosCloseCFile(FILE *f) { return fclose(f); }
 
 int taosSetAutoDelFile(char *path) {
 #ifdef WINDOWS
-  return SetFileAttributes(path, FILE_ATTRIBUTE_TEMPORARY);
+  bool succ = SetFileAttributes(path, FILE_ATTRIBUTE_TEMPORARY);
+  if (succ) {
+    return 0;
+  } else {
+    DWORD error = GetLastError();
+    terrno = TAOS_SYSTEM_ERROR(error);
+    return terrno;
+  }
 #else
   if (-1 == unlink(path)) {
     terrno = TAOS_SYSTEM_ERROR(errno);

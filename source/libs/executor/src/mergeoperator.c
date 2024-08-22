@@ -65,10 +65,10 @@ static SSDataBlock* doNonSortMerge1(SOperatorInfo* pOperator);
 static SSDataBlock* doColsMerge1(SOperatorInfo* pOperator);
 static int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 
-SSDataBlock* sortMergeloadNextDataBlock(void* param) {
+int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
-  SSDataBlock*   pBlock = pOperator->fpSet.getNextFn(pOperator);
-  return pBlock;
+  *ppBlock = pOperator->fpSet.getNextFn(pOperator);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t openSortMergeOperator(SOperatorInfo* pOperator) {
