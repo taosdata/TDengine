@@ -1242,6 +1242,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   // tsS3BlockSize = cfgGetItem(pCfg, "s3BlockSize")->i32;
   // tsS3BlockCacheSize = cfgGetItem(pCfg, "s3BlockCacheSize")->i32;
+  tsS3MigrateIntervalSec = cfgGetItem(pCfg, "s3MigrateIntervalSec")->i32;
+  tsS3MigrateEnabled = (bool)cfgGetItem(pCfg, "s3MigrateEnabled")->bval;
   tsS3PageCacheSize = cfgGetItem(pCfg, "s3PageCacheSize")->i32;
   tsS3UploadDelaySec = cfgGetItem(pCfg, "s3UploadDelaySec")->i32;
 
