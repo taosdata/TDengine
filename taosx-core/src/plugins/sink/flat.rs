@@ -33,7 +33,7 @@ use crate::{
     utils::{
         sql::{
             describe_table_with_connection_retries, exec_sql_with_connection_retries,
-            values_to_sqls,
+            get_minimum_timestamp, values_to_sqls,
         },
         trace::{RequestID, TraceDataId, TraceStreamId},
     },
@@ -43,23 +43,14 @@ use crate::{
 use super::{ipc_metric::IpcMetrics, IpcErrorStrategy};
 
 /// All the messages should be in the same stable.
-pub(crate) fn message_to_sql(
-    messages: &[MessageArrowRecords],
+pub(crate) fn message_to_sql<'a>(
+    messages: impl IntoIterator<Item = &'a MessageArrowRecords>,
     precision: taos::Precision,
     with_meta: bool,
     with_field_names: bool,
 ) -> Vec<Records> {
-    debug_assert!(
-        messages
-            .iter()
-            .chunk_by(|m| m.stable_name())
-            .into_iter()
-            .count()
-            == 1,
-        "all messages should be in the same stable"
-    );
     messages
-        .iter()
+        .into_iter()
         .chunk_by(|m| m.stable_name())
         .into_iter()
         .map(|(key, group)| {
@@ -227,9 +218,9 @@ pub async fn flat_write_with_sql(
     taos: &mut Option<TaosConnection>,
     target_precision: taos::Precision,
     req_id: &RequestID,
-    messages: Vec<MessageArrowRecords>,
+    messages: &[MessageArrowRecords],
     metrics: &IpcMetrics,
-    notifier: Option<crate::TaskNotifySender>,
+    notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
 ) -> anyhow::Result<usize> {
     let mut count = 0;
@@ -270,7 +261,7 @@ pub async fn flat_write_with_sql(
                 }
             }
         }
-        let sqls = message_to_sql(&messages, target_precision, true, true);
+        let sqls = message_to_sql(messages.iter().map(|v| *v), target_precision, true, true);
         for records in sqls {
             loop {
                 match write_stable_with_sql(pool, taos, req_id, &records, cancel).await {
@@ -373,9 +364,9 @@ pub async fn flat_write_with_raw_block(
     parser: &Parser,
     target_precision: taos::Precision,
     req_id: &RequestID,
-    messages: Vec<MessageArrowRecords>,
+    messages: &[MessageArrowRecords],
     metrics: &IpcMetrics,
-    notifier: Option<crate::TaskNotifySender>,
+    notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
 ) -> anyhow::Result<usize> {
     let mut count = 0;
@@ -858,9 +849,9 @@ pub async fn flat_write_with_raw_block(
                         taos,
                         target_precision,
                         &req_id,
-                        retry_messages,
+                        &retry_messages,
                         metrics,
-                        notifier.clone(),
+                        notifier,
                         cancel,
                     )
                     .await?;
@@ -943,7 +934,7 @@ impl FlatSink {
                         let mut max_lengths = HashMap::new();
                         let mut total = 0;
                         loop {
-                            let (messages, req_id, sender): FlatItem = rx.recv_async().await?;
+                            let (mut messages, req_id, sender): FlatItem = rx.recv_async().await?;
                             if messages.len() == 0 {
                                 continue;
                             }
@@ -952,43 +943,137 @@ impl FlatSink {
                                 .map(|message| message.records.num_rows())
                                 .sum::<usize>();
                             let factor = num_of_rows / messages.len();
-                            let written = if factor < 200 {
-                                let written = flat_write_with_sql(
+
+                            let res = if factor < 200 {
+                                flat_write_with_sql(
                                     &pool,
                                     &mut taos,
                                     target_precision,
                                     &req_id,
-                                    messages,
+                                    &messages,
                                     metrics,
-                                    Some(notifier.clone()),
+                                    Some(&notifier),
                                     &cancel,
                                 )
                                 .in_current_span()
-                                .await?;
-                                metrics.add_processed_rows(num_of_rows as u64);
-                                written
+                                .await
                             } else {
-                                let written = flat_write_with_raw_block(
+                                flat_write_with_raw_block(
                                     &pool,
                                     &mut taos,
                                     &mut max_lengths,
                                     &parser,
                                     target_precision,
                                     &req_id,
-                                    messages,
+                                    &messages,
                                     metrics,
-                                    Some(notifier.clone()),
+                                    Some(&notifier),
                                     &cancel,
                                 )
                                 .in_current_span()
-                                .await?;
-                                metrics.add_processed_rows(num_of_rows as u64);
-                                written
+                                .await
                             };
-                            total += written;
-                            tracing::debug!(count = total, written, "flat write in sink worker");
-                            if let Err(_) = sender.send(written) {
-                                // tracing::warn!("send written failed");
+                            match res {
+                                Ok(written) => {
+                                    total += written;
+                                    metrics.add_processed_rows(num_of_rows as u64);
+
+                                    tracing::debug!(
+                                        count = total,
+                                        written,
+                                        "flat write in sink worker"
+                                    );
+                                    if let Err(_) = sender.send(written) {
+                                        // tracing::warn!("send written failed");
+                                    }
+                                }
+                                Err(err) => {
+                                    let errstr = format!("{:#}", err);
+                                    if errstr.contains("Timestamp data out of range") {
+                                        tracing::warn!(
+                                            "Contains invalid timestamp, filter out them"
+                                        );
+                                        // filter timestamp.
+                                        let min = get_minimum_timestamp(
+                                            &pool,
+                                            &mut taos,
+                                            req_id.next(),
+                                            DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                            &cancel,
+                                        )
+                                        .in_current_span()
+                                        .await?;
+                                        tracing::debug!("Minimus timestamp: {}", min.to_rfc3339());
+                                        let rows: usize =
+                                            messages.iter().map(|m| m.records.num_rows()).sum();
+                                        messages = messages
+                                            .into_iter()
+                                            .flat_map(|item| item.filter_by_primary_timestamp(&min))
+                                            .collect();
+
+                                        let rows_after: usize =
+                                            messages.iter().map(|m| m.records.num_rows()).sum();
+
+                                        let filtered = rows - rows_after;
+                                        tracing::info!(
+                                            rows,
+                                            filtered,
+                                            after = rows_after,
+                                            "Filter out records"
+                                        );
+                                        metrics.add_drained_rows(filtered as _);
+                                        if messages.len() == 0 {
+                                            continue;
+                                        }
+                                        let factor = messages
+                                            .iter()
+                                            .map(|message| message.records.num_rows())
+                                            .sum::<usize>()
+                                            / messages.len();
+                                        let written = if factor < 200 {
+                                            flat_write_with_sql(
+                                                &pool,
+                                                &mut taos,
+                                                target_precision,
+                                                &req_id,
+                                                &messages,
+                                                metrics,
+                                                Some(&notifier),
+                                                &cancel,
+                                            )
+                                            .in_current_span()
+                                            .await
+                                        } else {
+                                            flat_write_with_raw_block(
+                                                &pool,
+                                                &mut taos,
+                                                &mut max_lengths,
+                                                &parser,
+                                                target_precision,
+                                                &req_id,
+                                                &messages,
+                                                metrics,
+                                                Some(&notifier),
+                                                &cancel,
+                                            )
+                                            .in_current_span()
+                                            .await
+                                        }?;
+                                        total += written;
+                                        metrics.add_processed_rows(num_of_rows as u64);
+
+                                        tracing::debug!(
+                                            count = total,
+                                            written,
+                                            "flat write in sink worker"
+                                        );
+                                        if let Err(_) = sender.send(written) {
+                                            // tracing::warn!("send written failed");
+                                        }
+                                    } else {
+                                        return Err(err);
+                                    }
+                                }
                             }
                         }
                     }
@@ -1499,7 +1584,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                         context.target_precision,
                         data_trace_id,
                         metrics,
-                        Some(notifier.clone()),
+                        Some(&notifier),
                     )
                     .await;
                     worker_written += written;
@@ -1941,7 +2026,7 @@ mod tests {
             &mut taos,
             taos::Precision::Millisecond,
             &req_id,
-            messages,
+            &messages,
             &metrics,
             None,
             &CancellationToken::new(),

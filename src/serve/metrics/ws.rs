@@ -164,7 +164,7 @@ async fn send_task_metrics_ws(task_id: i64, req: HttpRequest, mut session: Sessi
         }
         let task = task.unwrap();
         let status = task.status();
-        tracing::debug!("task status: {:?}", status);
+        tracing::trace!("task status: {:?}", status);
         let metrics_string = get_task_metrics_string(status, metrics.clone());
         if let Err(Closed) = session.text(metrics_string).await {
             tracing::info!("ws session closed");
