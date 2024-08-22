@@ -1350,7 +1350,7 @@ static int32_t createSortMemFile(SSortHandle* pHandle) {
   }
   if (code == TSDB_CODE_SUCCESS) {
     taosGetTmpfilePath(tsTempDir, "sort-ext-mem", pMemFile->memFilePath);
-    pMemFile->pTdFile = taosOpenCFile(pMemFile->memFilePath, "w+");
+    pMemFile->pTdFile = taosOpenCFile(pMemFile->memFilePath, "w+b");
     if (pMemFile->pTdFile == NULL) {
       code = terrno = TAOS_SYSTEM_ERROR(errno);
     }
