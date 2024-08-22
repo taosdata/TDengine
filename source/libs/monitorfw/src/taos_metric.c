@@ -89,7 +89,7 @@ taos_metric_t *taos_metric_new(taos_metric_type_t metric_type, const char *name,
 }
 
 int taos_metric_destroy(taos_metric_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 0;
 
   int r = 0;
@@ -144,7 +144,7 @@ void taos_metric_free_generic(void *item) {
 }
 
 taos_metric_sample_t *taos_metric_sample_from_labels(taos_metric_t *self, const char **label_values) {
-  TAOS_ASSERT_NULL(self != NULL);
+  TAOS_TEST_PARA_NULL(self != NULL);
   int r = 0;
   r = pthread_rwlock_wrlock(self->rwlock);
   if (r) {
