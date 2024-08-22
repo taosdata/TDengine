@@ -44,9 +44,8 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
 <details>
 <summary>同步查询</summary>
 
-```c
-{{#include examples/c/demo.c}}
-```
+请参考：[C example](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/demo.c)
+
 格式化输出不同类型字段函数 taos_print_row
 ```c
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
@@ -143,9 +142,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 <details>
 <summary>异步查询</summary>
 
-```c
-{{#include examples/c/asyncdemo.c}}
-```
+请参考：[C example](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/asyncdemo.c)
 
 </details>
 
@@ -154,9 +151,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 <details>
 <summary>参数绑定</summary>
 
-```c
-{{#include examples/c/prepare.c}}
-```
+请参考：[C example](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/prepare.c)
 
 </details>
 
@@ -165,9 +160,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 <details>
 <summary>无模式写入</summary>
 
-```c
-{{#include examples/c/schemaless.c}}
-```
+请参考：[C example](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/schemaless.c)
 
 </details>
 
@@ -176,14 +169,12 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 <details>
 <summary>订阅和消费</summary>
 
-```c
-  {{#include examples/c/tmq.c}}
-```
+请参考：[C example](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/c/tmq.c)
 
 </details>
 
 :::info
-更多示例代码及下载请见 [GitHub](https://github.com/taosdata/TDengine/tree/develop/examples/c)。
+更多示例代码及下载请见 [GitHub](https://github.com/taosdata/TDengine/tree/develop/docs/examples/c)。
 也可以在安装目录下的 `examples/c` 路径下找到。 该目录下有 makefile，在 Linux/macOS 环境下，直接执行 make 就可以编译得到执行文件。
 **提示：**在 ARM 环境下编译时，请将 makefile 中的 `-msse4.2` 去掉，这个选项只有在 x64/x86 硬件平台上才能支持。
 
@@ -402,7 +393,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 
 说明：如果 `taos_stmt_execute()` 执行成功，假如不需要改变 SQL 语句的话，那么是可以复用 `taos_stmt_prepare()` 的解析结果，直接进行第 3 ～ 6 步绑定新数据的。但如果执行出错，那么并不建议继续在当前的环境上下文下继续工作，而是建议释放资源，然后从 `taos_stmt_init()` 步骤重新开始。
 
-接口相关的具体函数如下（也可以参考 [prepare.c](https://github.com/taosdata/TDengine/blob/develop/examples/c/prepare.c) 文件中使用对应函数的方式）：
+接口相关的具体函数如下（也可以参考 [prepare.c](https://github.com/taosdata/TDengine/blob/develop/docs/examples/c/prepare.c) 文件中使用对应函数的方式）：
 
 - `TAOS_STMT* taos_stmt_init(TAOS *taos)`
   - **接口说明**：初始化一个预编译的 SQL 语句对象。
