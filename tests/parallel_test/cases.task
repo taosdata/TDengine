@@ -14,6 +14,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f db-encrypt/basic.py
 ,,n,army,python3 ./test.py -f s3/s3Basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/snapshot.py -N 3 -L 3 -D 2
+,,y,army,./pytest.sh python3 ./test.py -f cluster/clusterBasic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_elapsed.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_join.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_compare.py
