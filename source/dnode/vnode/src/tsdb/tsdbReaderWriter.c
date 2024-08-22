@@ -151,7 +151,6 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
 
       offset -= chunkoffset;
     }
-    ASSERT(offset >= 0);
 
     int64_t n = taosLSeekFile(pFD->pFD, offset, SEEK_SET);
     if (n < 0) {
@@ -217,7 +216,6 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
 
     offset -= chunkoffset;
   }
-  ASSERT(offset >= 0);
 
   // seek
   int64_t n = taosLSeekFile(pFD->pFD, offset, SEEK_SET);

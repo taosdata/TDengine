@@ -583,7 +583,8 @@ int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t nowSec) {
   } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_NANO) {
     nowSec = nowSec * 1000000000l;
   } else {
-    ASSERT(0);
+    tsdbError("invalid time precision:%d", pKeepCfg->precision);
+    return 0;
   }
 
   nowSec = nowSec - pKeepCfg->keepTimeOffset * tsTickPerHour[pKeepCfg->precision];
@@ -897,76 +898,6 @@ int32_t tsdbRowMergerGetRow(SRowMerger *pMerger, SRow **ppRow) {
   return tRowBuild(pMerger->pArray, pMerger->pTSchema, ppRow);
 }
 
-/*
-// delete skyline ======================================================
-static int32_t tsdbMergeSkyline2(SArray *aSkyline1, SArray *aSkyline2, SArray *aSkyline) {
-  int32_t  code = 0;
-  int32_t  i1 = 0;
-  int32_t  n1 = taosArrayGetSize(aSkyline1);
-  int32_t  i2 = 0;
-  int32_t  n2 = taosArrayGetSize(aSkyline2);
-  TSDBKEY *pSkyline1;
-  TSDBKEY *pSkyline2;
-  TSDBKEY  item;
-  int64_t  version1 = 0;
-  int64_t  version2 = 0;
-
-  ASSERT(n1 > 0 && n2 > 0);
-
-  taosArrayClear(aSkyline);
-
-  while (i1 < n1 && i2 < n2) {
-    pSkyline1 = (TSDBKEY *)taosArrayGet(aSkyline1, i1);
-    pSkyline2 = (TSDBKEY *)taosArrayGet(aSkyline2, i2);
-
-    if (pSkyline1->ts < pSkyline2->ts) {
-      version1 = pSkyline1->version;
-      i1++;
-    } else if (pSkyline1->ts > pSkyline2->ts) {
-      version2 = pSkyline2->version;
-      i2++;
-    } else {
-      version1 = pSkyline1->version;
-      version2 = pSkyline2->version;
-      i1++;
-      i2++;
-    }
-
-    item.ts = TMIN(pSkyline1->ts, pSkyline2->ts);
-    item.version = TMAX(version1, version2);
-    if (taosArrayPush(aSkyline, &item) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
-    }
-  }
-
-  while (i1 < n1) {
-    pSkyline1 = (TSDBKEY *)taosArrayGet(aSkyline1, i1);
-    item.ts = pSkyline1->ts;
-    item.version = pSkyline1->version;
-    if (taosArrayPush(aSkyline, &item) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
-    }
-    i1++;
-  }
-
-  while (i2 < n2) {
-    pSkyline2 = (TSDBKEY *)taosArrayGet(aSkyline2, i2);
-    item.ts = pSkyline2->ts;
-    item.version = pSkyline2->version;
-    if (taosArrayPush(aSkyline, &item) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
-    }
-    i2++;
-  }
-
-_exit:
-  return code;
-}
-*/
-
 // delete skyline ======================================================
 static void tsdbMergeSkyline(SArray *pSkyline1, SArray *pSkyline2, SArray *pSkyline) {
   int32_t  i1 = 0;
@@ -977,8 +908,6 @@ static void tsdbMergeSkyline(SArray *pSkyline1, SArray *pSkyline2, SArray *pSkyl
   TSDBKEY *pKey2;
   int64_t  version1 = 0;
   int64_t  version2 = 0;
-
-  ASSERT(n1 > 0 && n2 > 0);
 
   taosArrayClear(pSkyline);
   TSDBKEY **pItem = TARRAY_GET_ELEM(pSkyline, 0);
@@ -1212,7 +1141,9 @@ _exit:
 int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema, int16_t *aCid, int32_t nCid) {
   int32_t code = 0;
 
-  ASSERT(pId->suid || pId->uid);
+  if (!pId->suid && !pId->uid) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   pBlockData->suid = pId->suid;
   pBlockData->uid = pId->uid;
@@ -1272,8 +1203,6 @@ void tBlockDataReset(SBlockData *pBlockData) {
 }
 
 void tBlockDataClear(SBlockData *pBlockData) {
-  ASSERT(pBlockData->suid || pBlockData->uid);
-
   pBlockData->nRow = 0;
   for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
     tColDataClear(tBlockDataGetColDataByIdx(pBlockData, iColData));
@@ -1281,7 +1210,9 @@ void tBlockDataClear(SBlockData *pBlockData) {
 }
 
 int32_t tBlockDataAddColData(SBlockData *pBlockData, int16_t cid, int8_t type, int8_t cflag, SColData **ppColData) {
-  ASSERT(pBlockData->nColData == 0 || pBlockData->aColData[pBlockData->nColData - 1].cid < cid);
+  if (pBlockData->nColData != 0 && pBlockData->aColData[pBlockData->nColData - 1].cid >= cid) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   SColData *newColData = taosMemoryRealloc(pBlockData->aColData, sizeof(SColData) * (pBlockData->nColData + 1));
   if (newColData == NULL) {
@@ -1345,7 +1276,9 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
 
   // uid
   if (pBlockData->uid == 0) {
-    ASSERT(uid);
+    if (!uid) {
+      return TSDB_CODE_INVALID_PARA;
+    }
     code = tRealloc((uint8_t **)&pBlockData->aUid, sizeof(int64_t) * (pBlockData->nRow + 1));
     if (code) goto _exit;
     pBlockData->aUid[pBlockData->nRow] = uid;
@@ -1379,7 +1312,9 @@ int32_t tBlockDataUpdateRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   // version
   int64_t lversion = pBlockData->aVersion[pBlockData->nRow - 1];
   int64_t rversion = TSDBROW_VERSION(pRow);
-  ASSERT(lversion != rversion);
+  if (lversion == rversion) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   if (rversion > lversion) {
     pBlockData->aVersion[pBlockData->nRow - 1] = rversion;
   }
@@ -1393,7 +1328,8 @@ int32_t tBlockDataUpdateRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
     code = tBlockDataUpsertBlockRow(pBlockData, pRow->pBlockData, pRow->iRow, (rversion > lversion) ? 1 : -1);
     if (code) goto _exit;
   } else {
-    ASSERT(0);
+    code = TSDB_CODE_INVALID_PARA;
+    goto _exit;
   }
 
 _exit:

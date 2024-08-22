@@ -934,20 +934,23 @@ _exit:
 }
 
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  int               ret = 0;
   SVDropTtlTableReq ttlReq = {0};
   if (tDeserializeSVDropTtlTableReq(pReq, len, &ttlReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
+    ret = TSDB_CODE_INVALID_MSG;
     goto end;
   }
 
-  ASSERT(ttlReq.nUids == taosArrayGetSize(ttlReq.pTbUids));
+  if (ttlReq.nUids != taosArrayGetSize(ttlReq.pTbUids)) {
+    ret = TSDB_CODE_INVALID_MSG;
+    goto end;
+  }
 
   if (ttlReq.nUids != 0) {
     vInfo("vgId:%d, drop ttl table req will be processed, time:%d, ntbUids:%d", pVnode->config.vgId,
           ttlReq.timestampSec, ttlReq.nUids);
   }
 
-  int ret = 0;
   if (ttlReq.nUids > 0) {
     metaDropTables(pVnode->pMeta, ttlReq.pTbUids);
     (void)tqUpdateTbUidList(pVnode->pTq, ttlReq.pTbUids, false);
@@ -1787,8 +1790,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
       }
 
       if (info.suid) {
-        code = metaGetInfo(pVnode->pMeta, info.suid, &info, NULL);
-        ASSERT(code == 0);
+        (void)metaGetInfo(pVnode->pMeta, info.suid, &info, NULL);
       }
 
       if (pSubmitTbData->sver != info.skmVer) {

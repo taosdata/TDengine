@@ -243,7 +243,13 @@ int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
 int32_t tsdbTFileObjRef(STFileObj *fobj) {
   int32_t nRef;
   (void)taosThreadMutexLock(&fobj->mutex);
-  ASSERT(fobj->ref > 0 && fobj->state == TSDB_FSTATE_LIVE);
+
+  if (fobj->ref <= 0 || fobj->state != TSDB_FSTATE_LIVE) {
+    (void)taosThreadMutexUnlock(&fobj->mutex);
+    tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, fobj->ref);
+    return TSDB_CODE_FAILED;
+  }
+
   nRef = ++fobj->ref;
   (void)taosThreadMutexUnlock(&fobj->mutex);
   tsdbTrace("ref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
@@ -254,7 +260,12 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
   (void)taosThreadMutexLock(&fobj->mutex);
   int32_t nRef = --fobj->ref;
   (void)taosThreadMutexUnlock(&fobj->mutex);
-  ASSERT(nRef >= 0);
+
+  if (nRef < 0) {
+    tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
+    return TSDB_CODE_FAILED;
+  }
+
   tsdbTrace("unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     if (fobj->state == TSDB_FSTATE_DEAD) {
@@ -319,7 +330,11 @@ static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
 
 int32_t tsdbTFileObjRemove(STFileObj *fobj) {
   (void)taosThreadMutexLock(&fobj->mutex);
-  ASSERT(fobj->state == TSDB_FSTATE_LIVE && fobj->ref > 0);
+  if (fobj->state != TSDB_FSTATE_LIVE || fobj->ref <= 0) {
+    (void)taosThreadMutexUnlock(&fobj->mutex);
+    tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, fobj->ref);
+    return TSDB_CODE_FAILED;
+  }
   fobj->state = TSDB_FSTATE_DEAD;
   int32_t nRef = --fobj->ref;
   (void)taosThreadMutexUnlock(&fobj->mutex);
@@ -333,7 +348,13 @@ int32_t tsdbTFileObjRemove(STFileObj *fobj) {
 
 int32_t tsdbTFileObjRemoveUpdateLC(STFileObj *fobj) {
   (void)taosThreadMutexLock(&fobj->mutex);
-  ASSERT(fobj->state == TSDB_FSTATE_LIVE && fobj->ref > 0);
+
+  if (fobj->state != TSDB_FSTATE_LIVE || fobj->ref <= 0) {
+    (void)taosThreadMutexUnlock(&fobj->mutex);
+    tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, fobj->ref);
+    return TSDB_CODE_FAILED;
+  }
+
   fobj->state = TSDB_FSTATE_DEAD;
   int32_t nRef = --fobj->ref;
   (void)taosThreadMutexUnlock(&fobj->mutex);
