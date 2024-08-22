@@ -2236,7 +2236,7 @@ static void* cliWorkThread(void* arg) {
 
   (void)uv_run(pThrd->loop, UV_RUN_DEFAULT);
 
-  tDebug("thread quit-thread:%08 " PRId64, pThrd->pid);
+  tDebug("thread quit-thread:%08" PRId64 "", pThrd->pid);
   return NULL;
 }
 
