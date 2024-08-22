@@ -533,7 +533,8 @@ function preparepkg() {
     if [ "${versionType}" != "community" ]; then
         # copy taosx         
         cp -r ${taosxDir}/release/taosx ${install_dir} || :        
-        cp ${taosxDir}/packaging/uninstall.sh ${install_dir}/taosx || :        
+        cp ${taosxDir}/packaging/uninstall.sh ${install_dir}/taosx/uninstall_taosx.sh || :
+        sed -i "s/uninstall.sh/uninstall_taosx.sh/g" ${install_dir}/taosx/uninstall_taosx.sh
     else
         # copy explorer
         cp ${explorerDir}/target/release/${prefix}-explorer ${install_dir}/bin || :
