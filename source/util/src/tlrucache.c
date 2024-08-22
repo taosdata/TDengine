@@ -701,9 +701,10 @@ SLRUCache *taosLRUCacheInit(size_t capacity, int numShardBits, double highPriPoo
   size_t perShard = (capacity + (numShards - 1)) / numShards;
   for (int i = 0; i < numShards; ++i) {
     if (TSDB_CODE_SUCCESS !=
-        taosLRUCacheShardInit(&cache->shards[i], perShard, strictCapacity, highPriPoolRatio, 32 - numShardBits))
+        taosLRUCacheShardInit(&cache->shards[i], perShard, strictCapacity, highPriPoolRatio, 32 - numShardBits)) {
       taosMemoryFree(cache);
-    return NULL;
+      return NULL;
+    }
   }
 
   cache->numShards = numShards;
