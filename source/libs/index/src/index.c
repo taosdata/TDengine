@@ -677,6 +677,7 @@ static int32_t idxGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   code = tfileWriterOpen(sIdx->path, cache->suid, version, cache->colName, cache->type, &tw);
   if (code != 0) {
     indexError("failed to open file to write since %s", tstrerror(code));
+    return code;
   }
 
   code = tfileWriterPut(tw, batch, true);
