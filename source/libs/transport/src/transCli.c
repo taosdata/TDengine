@@ -961,7 +961,8 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
 }
 
 static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn) {
-  int32_t   code = 0;
+  int32_t code = 0;
+
   SCliConn* conn = taosMemoryCalloc(1, sizeof(SCliConn));
   if (conn == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -1017,7 +1018,6 @@ static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn) {
 _failed:
   if (conn) {
     taosMemoryFree(conn->stream);
-    transReqQueueClear(&conn->wreqQueue);
     (void)transDestroyBuffer(&conn->readBuf);
     transQueueDestroy(&conn->cliMsgs);
   }
