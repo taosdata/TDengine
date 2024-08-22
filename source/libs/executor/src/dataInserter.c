@@ -234,7 +234,11 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         case TSDB_DATA_TYPE_NCHAR:
         case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
-          ASSERT(pColInfoData->info.type == pCol->type);
+          if (pColInfoData->info.type != pCol->type) {
+            qError("column:%d type:%d in block dismatch with schema col:%d type:%d", colIdx, pColInfoData->info.type, k, pCol->type);
+            terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+            goto _end;
+          }
           if (colDataIsNull_s(pColInfoData, j)) {
             SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
             if (NULL == taosArrayPush(pVals, &cv)) {

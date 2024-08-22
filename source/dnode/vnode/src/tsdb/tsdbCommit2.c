@@ -208,8 +208,6 @@ static int32_t tsdbCommitOpenReader(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  ASSERT(TARRAY2_SIZE(committer->sttReaderArray) == 0);
-
   if (committer->ctx->info->fset == NULL                        //
       || committer->sttTrigger > 1                              //
       || TARRAY2_SIZE(committer->ctx->info->fset->lvlArr) == 0  //
@@ -263,11 +261,6 @@ static int32_t tsdbCommitCloseIter(SCommitter2 *committer) {
 static int32_t tsdbCommitOpenIter(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  ASSERT(TARRAY2_SIZE(committer->dataIterArray) == 0);
-  ASSERT(committer->dataIterMerger == NULL);
-  ASSERT(TARRAY2_SIZE(committer->tombIterArray) == 0);
-  ASSERT(committer->tombIterMerger == NULL);
 
   STsdbIter      *iter;
   STsdbIterConfig config = {0};
@@ -341,10 +334,6 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
   TAOS_UNUSED(tfsMkdirRecurAt(committer->tsdb->pVnode->pTfs, committer->tsdb->path, committer->ctx->did));
   committer->ctx->tbid->suid = 0;
   committer->ctx->tbid->uid = 0;
-
-  ASSERT(TARRAY2_SIZE(committer->dataIterArray) == 0);
-  ASSERT(committer->dataIterMerger == NULL);
-  ASSERT(committer->writer == NULL);
 
   TAOS_CHECK_GOTO(tsdbCommitOpenReader(committer), &lino, _exit);
   TAOS_CHECK_GOTO(tsdbCommitOpenIter(committer), &lino, _exit);
@@ -637,13 +626,10 @@ static int32_t tsdbCloseCommitter(SCommitter2 *committer, int32_t eno) {
   if (eno == 0) {
     TAOS_CHECK_GOTO(tsdbFSEditBegin(committer->tsdb->pFS, committer->fopArray, TSDB_FEDIT_COMMIT), &lino, _exit);
   } else {
-    // TODO
-    ASSERT(0);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(committer->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(eno));
   }
 
-  ASSERT(committer->writer == NULL);
-  ASSERT(committer->dataIterMerger == NULL);
-  ASSERT(committer->tombIterMerger == NULL);
   TARRAY2_DESTROY(committer->dataIterArray, NULL);
   TARRAY2_DESTROY(committer->tombIterArray, NULL);
   TARRAY2_DESTROY(committer->sttReaderArray, NULL);

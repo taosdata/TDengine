@@ -42,7 +42,8 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
     msgNum = taosArrayGetSize(batchRsp.pRsps);
   }
 
-  if (ASSERTS(taskNum == msgNum || 0 == msgNum, "taskNum %d mis-match msgNum %d", taskNum, msgNum)) {
+  if (taskNum != msgNum && 0 != msgNum) {
+    ctgError("taskNum %d mis-match msgNum %d", taskNum, msgNum);
     msgNum = 0;
   }
 
@@ -77,7 +78,9 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
     if (msgNum > 0) {
       pRsp = taosArrayGet(batchRsp.pRsps, i);
 
-      if (ASSERTS(pRsp->msgIdx == *msgIdx, "rsp msgIdx %d mis-match msgIdx %d", pRsp->msgIdx, *msgIdx)) {
+      if (pRsp->msgIdx != *msgIdx) {
+        ctgError("rsp msgIdx %d mis-match msgIdx %d", pRsp->msgIdx, *msgIdx);
+        
         pRsp = &rsp;
         pRsp->msgIdx = *msgIdx;
         pRsp->reqType = -1;

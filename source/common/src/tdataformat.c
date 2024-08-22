@@ -119,7 +119,6 @@ static FORCE_INLINE void tRowBuildScanAddValue(SRowBuildScanInfo *sinfo, SColVal
   bool isPK = ((pTColumn->flags & COL_IS_KEY) != 0);
 
   if (isPK) {
-    ASSERTS(sinfo->numOfPKs < TD_MAX_PK_COLS, "too many primary keys");
     sinfo->tupleIndices[sinfo->numOfPKs].type = colVal->value.type;
     sinfo->tupleIndices[sinfo->numOfPKs].offset =
         IS_VAR_DATA_TYPE(pTColumn->type) ? sinfo->tupleVarSize + sinfo->tupleFixedSize : pTColumn->offset;
@@ -149,9 +148,15 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
   int32_t  numOfColVals = TARRAY_SIZE(colVals);
   SColVal *colValArray = (SColVal *)TARRAY_DATA(colVals);
 
-  ASSERT(numOfColVals > 0);
-  ASSERT(colValArray[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID);
-  ASSERT(colValArray[0].value.type == TSDB_DATA_TYPE_TIMESTAMP);
+  if (!(numOfColVals > 0)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (!(colValArray[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (!(colValArray[0].value.type == TSDB_DATA_TYPE_TIMESTAMP)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   *sinfo = (SRowBuildScanInfo){
       .tupleFixedSize = schema->flen,
@@ -166,7 +171,10 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
       }
 
       if (colValArray[colValIndex].cid == schema->columns[i].colId) {
-        ASSERT(colValArray[colValIndex].value.type == schema->columns[i].type);
+        if (!(colValArray[colValIndex].value.type == schema->columns[i].type)) {
+          code = TSDB_CODE_INVALID_PARA;
+          goto _exit;
+        }
 
         if (COL_VAL_IS_VALUE(&colValArray[colValIndex])) {
           tRowBuildScanAddValue(sinfo, &colValArray[colValIndex], schema->columns + i);
@@ -272,7 +280,6 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
   (*ppRow)->ts = colValArray[0].value.val;
 
   if (sinfo->tupleFlag == HAS_NONE || sinfo->tupleFlag == HAS_NULL) {
-    ASSERT(sinfo->tupleRowSize == sizeof(SRow));
     return 0;
   }
 
@@ -285,7 +292,6 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
   for (int32_t i = 0; i < sinfo->numOfPKs; i++) {
     primaryKeys += tPutPrimaryKeyIndex(primaryKeys, sinfo->tupleIndices + i);
   }
-  ASSERT(primaryKeys == bitmap);
 
   // bitmap + fixed + varlen
   int32_t numOfColVals = TARRAY_SIZE(aColVal);
@@ -356,7 +362,9 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
   (*ppRow)->len = sinfo->kvRowSize;
   (*ppRow)->ts = colValArray[0].value.val;
 
-  ASSERT(sinfo->flag != HAS_NONE && sinfo->flag != HAS_NULL);
+  if (!(sinfo->flag != HAS_NONE && sinfo->flag != HAS_NULL)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   uint8_t *primaryKeys = (*ppRow)->data;
   SKVIdx  *indices = (SKVIdx *)(primaryKeys + sinfo->kvPKSize);
@@ -367,7 +375,6 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
   for (int32_t i = 0; i < sinfo->numOfPKs; i++) {
     primaryKeys += tPutPrimaryKeyIndex(primaryKeys, sinfo->kvIndices + i);
   }
-  ASSERT(primaryKeys == (uint8_t *)indices);
 
   int32_t numOfColVals = TARRAY_SIZE(aColVal);
   int32_t colValIndex = 1;
@@ -504,8 +511,8 @@ _exit:
 }
 
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
-  ASSERT(iCol < pTSchema->numOfCols);
-  ASSERT(pRow->sver == pTSchema->version);
+  if (!(iCol < pTSchema->numOfCols)) return TSDB_CODE_INVALID_PARA;
+  if (!(pRow->sver == pTSchema->version)) return TSDB_CODE_INVALID_PARA;
 
   STColumn *pTColumn = pTSchema->columns + iCol;
 
@@ -786,7 +793,7 @@ struct SRowIter {
 };
 
 int32_t tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter) {
-  ASSERT(pRow->sver == pTSchema->version);
+  if (!(pRow->sver == pTSchema->version)) return TSDB_CODE_INVALID_PARA;
 
   int32_t code = 0;
 
@@ -839,7 +846,6 @@ int32_t tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter) {
         pIter->pv = pIter->pf + pTSchema->flen;
         break;
       default:
-        ASSERT(0);
         break;
     }
   }
@@ -952,7 +958,6 @@ SColVal *tRowIterNext(SRowIter *pIter) {
           bv = GET_BIT2(pIter->pb, pIter->iTColumn - 1);
           break;
         default:
-          ASSERT(0);
           break;
       }
 
@@ -1070,14 +1075,15 @@ static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *
       pv = pf + pTSchema->flen;
       break;
     default:
-      ASSERTS(0, "Invalid row flag");
       return TSDB_CODE_INVALID_DATA_FMT;
   }
 
   while (pColData) {
     if (pTColumn) {
       if (pTColumn->colId == pColData->cid) {
-        ASSERT(pTColumn->type == pColData->type);
+        if (!(pTColumn->type == pColData->type)) {
+          return TSDB_CODE_INVALID_PARA;
+        }
         if (pb) {
           uint8_t bv;
           switch (pRow->flag) {
@@ -1095,7 +1101,6 @@ static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *
               bv = GET_BIT2(pb, iTColumn - 1);
               break;
             default:
-              ASSERTS(0, "Invalid row flag");
               return TSDB_CODE_INVALID_DATA_FMT;
           }
 
@@ -1178,7 +1183,7 @@ static int32_t tRowKVUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aCo
   } else if (pRow->flag & KV_FLG_BIG) {
     pv = pKVIdx->idx + (pKVIdx->nCol << 2);
   } else {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_PARA;
   }
 
   while (pColData) {
@@ -1193,7 +1198,6 @@ static int32_t tRowKVUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aCo
           } else if (pRow->flag & KV_FLG_BIG) {
             pData = pv + ((uint32_t *)pKVIdx->idx)[iCol];
           } else {
-            ASSERTS(0, "Invalid KV row format");
             return TSDB_CODE_INVALID_DATA_FMT;
           }
 
@@ -1256,8 +1260,8 @@ _exit:
  * flag < 0: backward update
  */
 int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag) {
-  ASSERT(pRow->sver == pTSchema->version);
-  ASSERT(nColData > 0);
+  if (!(pRow->sver == pTSchema->version)) return TSDB_CODE_INVALID_PARA;
+  if (!(nColData > 0)) return TSDB_CODE_INVALID_PARA;
 
   if (pRow->flag == HAS_NONE) {
     return tRowNoneUpsertColData(aColData, nColData, flag);
@@ -1276,8 +1280,6 @@ void tRowGetPrimaryKey(SRow *row, SRowKey *key) {
   if (key->numOfPKs == 0) {
     return;
   }
-
-  ASSERT(row->numOfPKs <= TD_MAX_PK_COLS);
 
   SPrimaryKeyIndex indices[TD_MAX_PK_COLS];
 
@@ -1317,8 +1319,6 @@ void tRowGetPrimaryKey(SRow *row, SRowKey *key) {
   } while (0)
 
 int32_t tValueCompare(const SValue *tv1, const SValue *tv2) {
-  ASSERT(tv1->type == tv2->type);
-
   switch (tv1->type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
@@ -1476,7 +1476,6 @@ static void debugPrintTagVal(int8_t type, const void *val, int32_t vlen, const c
       printf("%s:%d type:%d vlen:%d, val:%" PRIi8 "\n", tag, ln, (int32_t)type, vlen, *(int8_t *)val);
       break;
     default:
-      ASSERT(0);
       break;
   }
 }
@@ -1526,7 +1525,6 @@ static int32_t tPutTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
     n += tPutCStr(p ? p + n : p, pTagVal->pKey);
   } else {
     n += tPutI16v(p ? p + n : p, pTagVal->cid);
-    ASSERTS(pTagVal->cid > 0, "Invalid tag cid:%" PRIi16, pTagVal->cid);
   }
 
   // type
@@ -1601,8 +1599,6 @@ int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
     szTag = szTag + sizeof(STag) + sizeof(int16_t) * nTag;
     isLarge = 1;
   }
-
-  ASSERT(szTag <= INT16_MAX);
 
   // build tag
   (*ppTag) = (STag *)taosMemoryCalloc(szTag, 1);
@@ -1806,8 +1802,14 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
   pTSchema->version = version;
 
   // timestamp column
-  ASSERT(aSchema[0].type == TSDB_DATA_TYPE_TIMESTAMP);
-  ASSERT(aSchema[0].colId == PRIMARYKEY_TIMESTAMP_COL_ID);
+  if (!(aSchema[0].type == TSDB_DATA_TYPE_TIMESTAMP)) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  if (!(aSchema[0].colId == PRIMARYKEY_TIMESTAMP_COL_ID)) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
   pTSchema->columns[0].colId = aSchema[0].colId;
   pTSchema->columns[0].type = aSchema[0].type;
   pTSchema->columns[0].flags = aSchema[0].flags;
@@ -1910,7 +1912,9 @@ static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, uint8_t *pData,
       pColData->nData += nData;
     }
   } else {
-    ASSERT(pColData->nData == tDataTypes[pColData->type].bytes * pColData->nVal);
+    if (!(pColData->nData == tDataTypes[pColData->type].bytes * pColData->nVal)) {
+      return TSDB_CODE_INVALID_PARA;
+    }
     code = tRealloc(&pColData->pData, pColData->nData + tDataTypes[pColData->type].bytes);
     if (code) goto _exit;
     if (pData) {
@@ -2259,7 +2263,9 @@ static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pDa
     //       VALUE                  NONE                     NULL
 };
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
-  ASSERT(pColData->cid == pColVal->cid && pColData->type == pColVal->value.type);
+  if (!(pColData->cid == pColVal->cid && pColData->type == pColVal->value.type)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   return tColDataAppendValueImpl[pColData->flag][pColVal->flag](
       pColData, IS_VAR_DATA_TYPE(pColData->type) ? pColVal->value.pData : (uint8_t *)&pColVal->value.val,
       pColVal->value.nData);
@@ -2569,8 +2575,8 @@ static int32_t (*tColDataUpdateValueImpl[8][3])(SColData *pColData, uint8_t *pDa
     //    VALUE             NONE        NULL
 };
 int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward) {
-  ASSERT(pColData->cid == pColVal->cid && pColData->type == pColVal->value.type);
-  ASSERT(pColData->nVal > 0);
+  if (!(pColData->cid == pColVal->cid && pColData->type == pColVal->value.type)) return TSDB_CODE_INVALID_PARA;
+  if (!(pColData->nVal > 0)) return TSDB_CODE_INVALID_PARA;
 
   if (tColDataUpdateValueImpl[pColData->flag][pColVal->flag] == NULL) return 0;
 
@@ -2687,7 +2693,6 @@ uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal) {
     case (HAS_VALUE | HAS_NULL | HAS_NONE):
       return GET_BIT2(pColData->pBitMap, iVal);
     default:
-      ASSERTS(0, "not possible");
       return 0;
   }
 }
@@ -3053,7 +3058,9 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32
   int32_t code = 0;
 
   if (!(pBind->num == 1 && pBind->is_null && *pBind->is_null)) {
-    ASSERT(pColData->type == pBind->buffer_type);
+    if (!(pColData->type == pBind->buffer_type)) {
+      return TSDB_CODE_INVALID_PARA;
+    }
   }
 
   if (IS_VAR_DATA_TYPE(pColData->type)) {  // var-length data type
@@ -3677,15 +3684,21 @@ static void tColDataMerge(SColData *aColData, int32_t nColData) {
   }
 }
 
-void tColDataSortMerge(SArray *colDataArr) {
+int32_t tColDataSortMerge(SArray *colDataArr) {
   int32_t   nColData = TARRAY_SIZE(colDataArr);
   SColData *aColData = (SColData *)TARRAY_DATA(colDataArr);
 
-  if (aColData[0].nVal <= 1) goto _exit;
+  if (!(aColData[0].type == TSDB_DATA_TYPE_TIMESTAMP)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (!(aColData[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (!(aColData[0].flag == HAS_VALUE)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
-  ASSERT(aColData[0].type == TSDB_DATA_TYPE_TIMESTAMP);
-  ASSERT(aColData[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID);
-  ASSERT(aColData[0].flag == HAS_VALUE);
+  if (aColData[0].nVal <= 1) goto _exit;
 
   int8_t doSort = 0;
   int8_t doMerge = 0;
@@ -3734,7 +3747,7 @@ void tColDataSortMerge(SArray *colDataArr) {
   }
 
 _exit:
-  return;
+  return 0;
 }
 
 static int32_t tPutColDataVersion0(uint8_t *pBuf, SColData *pColData) {
@@ -3841,8 +3854,7 @@ int32_t tPutColData(uint8_t version, uint8_t *pBuf, SColData *pColData) {
   } else if (version == 1) {
     return tPutColDataVersion1(pBuf, pColData);
   } else {
-    ASSERT(0);
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 }
 
@@ -3852,8 +3864,7 @@ int32_t tGetColData(uint8_t version, uint8_t *pBuf, SColData *pColData) {
   } else if (version == 1) {
     return tGetColDataVersion1(pBuf, pColData);
   } else {
-    ASSERT(0);
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 }
 
@@ -3889,7 +3900,6 @@ static FORCE_INLINE void tColDataCalcSMABool(SColData *pColData, int64_t *sum, i
           CALC_SUM_MAX_MIN(*sum, *max, *min, val);
           break;
         default:
-          ASSERT(0);
           break;
       }
     }
@@ -3921,7 +3931,6 @@ static FORCE_INLINE void tColDataCalcSMATinyInt(SColData *pColData, int64_t *sum
           CALC_SUM_MAX_MIN(*sum, *max, *min, val);
           break;
         default:
-          ASSERT(0);
           break;
       }
     }
@@ -3953,7 +3962,6 @@ static FORCE_INLINE void tColDataCalcSMATinySmallInt(SColData *pColData, int64_t
           CALC_SUM_MAX_MIN(*sum, *max, *min, val);
           break;
         default:
-          ASSERT(0);
           break;
       }
     }
@@ -3985,7 +3993,6 @@ static FORCE_INLINE void tColDataCalcSMAInt(SColData *pColData, int64_t *sum, in
           CALC_SUM_MAX_MIN(*sum, *max, *min, val);
           break;
         default:
-          ASSERT(0);
           break;
       }
     }
@@ -4017,7 +4024,6 @@ static FORCE_INLINE void tColDataCalcSMABigInt(SColData *pColData, int64_t *sum,
           CALC_SUM_MAX_MIN(*sum, *max, *min, val);
           break;
         default:
-          ASSERT(0);
           break;
       }
     }
@@ -4049,7 +4055,6 @@ static FORCE_INLINE void tColDataCalcSMAFloat(SColData *pColData, int64_t *sum, 
           CALC_SUM_MAX_MIN(*(double *)sum, *(double *)max, *(double *)min, val);
           break;
         default:
-          ASSERT(0);
           break;
       }
     }
@@ -4081,7 +4086,6 @@ static FORCE_INLINE void tColDataCalcSMADouble(SColData *pColData, int64_t *sum,
           CALC_SUM_MAX_MIN(*(double *)sum, *(double *)max, *(double *)min, val);
           break;
         default:
-          ASSERT(0);
           break;
       }
     }
@@ -4113,7 +4117,6 @@ static FORCE_INLINE void tColDataCalcSMAUTinyInt(SColData *pColData, int64_t *su
           CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
           break;
         default:
-          ASSERT(0);
           break;
       }
     }
@@ -4145,7 +4148,6 @@ static FORCE_INLINE void tColDataCalcSMATinyUSmallInt(SColData *pColData, int64_
           CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
           break;
         default:
-          ASSERT(0);
           break;
       }
     }
@@ -4177,7 +4179,6 @@ static FORCE_INLINE void tColDataCalcSMAUInt(SColData *pColData, int64_t *sum, i
           CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
           break;
         default:
-          ASSERT(0);
           break;
       }
     }
@@ -4209,7 +4210,6 @@ static FORCE_INLINE void tColDataCalcSMAUBigInt(SColData *pColData, int64_t *sum
           CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
           break;
         default:
-          ASSERT(0);
           break;
       }
     }
@@ -4248,7 +4248,6 @@ static FORCE_INLINE void tColDataCalcSMAVarType(SColData *pColData, int64_t *sum
       }
       break;
     default:
-      ASSERT(0);
       break;
   }
 }
@@ -4309,7 +4308,9 @@ int32_t tValueColumnAppend(SValueColumn *valCol, const SValue *value) {
     valCol->type = value->type;
   }
 
-  ASSERT(value->type == valCol->type);
+  if (!(value->type == valCol->type)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   if (IS_VAR_DATA_TYPE(value->type)) {
     if ((code = tBufferPutI32(&valCol->offsets, tBufferGetSize(&valCol->data)))) {
@@ -4386,7 +4387,9 @@ int32_t tValueColumnGet(SValueColumn *valCol, int32_t idx, SValue *value) {
 int32_t tValueColumnCompress(SValueColumn *valCol, SValueColumnCompressInfo *info, SBuffer *output, SBuffer *assist) {
   int32_t code;
 
-  ASSERT(valCol->numOfValues > 0);
+  if (!(valCol->numOfValues > 0)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   (*info) = (SValueColumnCompressInfo){
       .cmprAlg = info->cmprAlg,
@@ -4500,7 +4503,7 @@ int32_t tValueColumnCompressInfoDecode(SBufferReader *reader, SValueColumnCompre
     if ((code = tBufferGetI32v(reader, &info->dataOriginalSize))) return code;
     if ((code = tBufferGetI32v(reader, &info->dataCompressedSize))) return code;
   } else {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_PARA;
   }
 
   return 0;
@@ -4516,7 +4519,9 @@ int32_t tCompressData(void          *input,       // input
   int32_t code;
 
   extraSizeNeeded = (info->cmprAlg == NO_COMPRESSION) ? info->originalSize : info->originalSize + COMP_OVERFLOW_BYTES;
-  ASSERT(outputSize >= extraSizeNeeded);
+  if (!(outputSize >= extraSizeNeeded)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   if (info->cmprAlg == NO_COMPRESSION) {
     (void)memcpy(output, input, info->originalSize);
@@ -4598,10 +4603,14 @@ int32_t tDecompressData(void                *input,       // input
 ) {
   int32_t code;
 
-  ASSERT(outputSize >= info->originalSize);
+  if (!(outputSize >= info->originalSize)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   if (info->cmprAlg == NO_COMPRESSION) {
-    ASSERT(info->compressedSize == info->originalSize);
+    if (!(info->compressedSize == info->originalSize)) {
+      return TSDB_CODE_INVALID_PARA;
+    }
     (void)memcpy(output, input, info->compressedSize);
   } else if (info->cmprAlg == ONE_STAGE_COMP || info->cmprAlg == TWO_STAGE_COMP) {
     SBuffer local;
@@ -4634,7 +4643,9 @@ int32_t tDecompressData(void                *input,       // input
       return TSDB_CODE_COMPRESS_ERROR;
     }
 
-    ASSERT(decompressedSize == info->originalSize);
+    if (!(decompressedSize == info->originalSize)) {
+      return TSDB_CODE_COMPRESS_ERROR;
+    }
     tBufferDestroy(&local);
   } else {
     DEFINE_VAR(info->cmprAlg);
@@ -4668,7 +4679,9 @@ int32_t tDecompressData(void                *input,       // input
       return TSDB_CODE_COMPRESS_ERROR;
     }
 
-    ASSERT(decompressedSize == info->originalSize);
+    if (!(decompressedSize == info->originalSize)) {
+      return TSDB_CODE_COMPRESS_ERROR;
+    }
     tBufferDestroy(&local);
   }
 

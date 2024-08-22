@@ -154,12 +154,10 @@ _exit:
   return code;
 }
 
-int32_t tsdbFSetRAWWriteBlockData(SFSetRAWWriter *writer, STsdbDataRAWBlockHeader *bHdr, int32_t encryptAlgorithm, 
-                                  char* encryptKey) {
+int32_t tsdbFSetRAWWriteBlockData(SFSetRAWWriter *writer, STsdbDataRAWBlockHeader *bHdr, int32_t encryptAlgorithm,
+                                  char *encryptKey) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  ASSERT(writer->ctx->offset >= 0 && writer->ctx->offset <= writer->ctx->file.size);
 
   if (writer->ctx->offset == writer->ctx->file.size) {
     code = tsdbFSetRAWWriteFileDataEnd(writer);
@@ -173,7 +171,6 @@ int32_t tsdbFSetRAWWriteBlockData(SFSetRAWWriter *writer, STsdbDataRAWBlockHeade
   TSDB_CHECK_CODE(code, lino, _exit);
 
   writer->ctx->offset += bHdr->dataLength;
-  ASSERT(writer->ctx->offset == writer->dataWriter->ctx->offset);
 
 _exit:
   if (code) {

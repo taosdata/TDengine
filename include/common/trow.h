@@ -213,7 +213,6 @@ static FORCE_INLINE SKvRowIdx *tdKvRowColIdxAt(STSRow *pRow, col_id_t idx) {
 }
 
 static FORCE_INLINE int16_t tdKvRowColIdAt(STSRow *pRow, col_id_t idx) {
-  ASSERT(idx >= 0);
   if (idx == 0) {
     return PRIMARYKEY_TIMESTAMP_COL_ID;
   }
@@ -288,9 +287,7 @@ int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValT
  *
  */
 
-static FORCE_INLINE void tdSRowInit(SRowBuilder *pBuilder, int16_t sver) {
-  pBuilder->sver = sver;
-}
+static FORCE_INLINE void tdSRowInit(SRowBuilder *pBuilder, int16_t sver) { pBuilder->sver = sver; }
 int32_t                  tdSRowSetInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen);
 int32_t                  tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t flen);
 int32_t                  tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen,

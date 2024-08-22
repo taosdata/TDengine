@@ -170,7 +170,6 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
     goto _err;
   }
 
-  ASSERT(pPool != NULL);
   // do delete
   SDelData *pDelData = (SDelData *)vnodeBufPoolMalloc(pPool, sizeof(*pDelData));
   if (pDelData == NULL) {
@@ -183,7 +182,6 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   pDelData->pNext = NULL;
   taosWLockLatch(&pTbData->lock);
   if (pTbData->pHead == NULL) {
-    ASSERT(pTbData->pTail == NULL);
     pTbData->pHead = pTbData->pTail = pDelData;
   } else {
     pTbData->pTail->pNext = pDelData;
@@ -263,8 +261,6 @@ void tsdbTbDataIterOpen(STbData *pTbData, STsdbRowKey *pFrom, int8_t backward, S
 bool tsdbTbDataIterNext(STbDataIter *pIter) {
   pIter->pRow = NULL;
   if (pIter->backward) {
-    ASSERT(pIter->pNode != pIter->pTbData->sl.pTail);
-
     if (pIter->pNode == pIter->pTbData->sl.pHead) {
       return false;
     }
@@ -274,8 +270,6 @@ bool tsdbTbDataIterNext(STbDataIter *pIter) {
       return false;
     }
   } else {
-    ASSERT(pIter->pNode != pIter->pTbData->sl.pHead);
-
     if (pIter->pNode == pIter->pTbData->sl.pTail) {
       return false;
     }
@@ -366,7 +360,6 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   SVBufPool *pPool = pMemTable->pTsdb->pVnode->inUse;
   int8_t     maxLevel = pMemTable->pTsdb->pVnode->config.tsdbCfg.slLevel;
 
-  ASSERT(pPool != NULL);
   pTbData = vnodeBufPoolMallocAligned(pPool, sizeof(*pTbData) + SL_NODE_SIZE(maxLevel) * 2);
   if (pTbData == NULL) {
     code = terrno;
@@ -516,8 +509,6 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
     pNode = (SMemSkipListNode *)vnodeBufPoolMallocAligned(pPool, nSize + pRow->pTSRow->len);
   } else if (pRow->type == TSDBROW_COL_FMT) {
     pNode = (SMemSkipListNode *)vnodeBufPoolMallocAligned(pPool, nSize);
-  } else {
-    ASSERT(0);
   }
   if (pNode == NULL) {
     code = terrno;
@@ -581,10 +572,6 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   SVBufPool *pPool = pMemTable->pTsdb->pVnode->inUse;
   int32_t    nColData = TARRAY_SIZE(pSubmitTbData->aCol);
   SColData  *aColData = (SColData *)TARRAY_DATA(pSubmitTbData->aCol);
-
-  ASSERT(aColData[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID);
-  ASSERT(aColData[0].type == TSDB_DATA_TYPE_TIMESTAMP);
-  ASSERT(aColData[0].flag == HAS_VALUE);
 
   // copy and construct block data
   SBlockData *pBlockData = vnodeBufPoolMalloc(pPool, sizeof(*pBlockData));
@@ -740,7 +727,9 @@ int32_t tsdbRefMemTable(SMemTable *pMemTable, SQueryNode *pQNode) {
   int32_t code = 0;
 
   int32_t nRef = atomic_fetch_add_32(&pMemTable->nRef, 1);
-  ASSERT(nRef > 0);
+  if (nRef <= 0) {
+    tsdbError("vgId:%d, memtable ref count is invalid, ref:%d", TD_VID(pMemTable->pTsdb->pVnode), nRef);
+  }
 
   (void)vnodeBufPoolRegisterQuery(pMemTable->pPool, pQNode);
 

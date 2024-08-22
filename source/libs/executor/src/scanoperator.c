@@ -2592,6 +2592,7 @@ static int32_t doBlockDataPrimaryKeyFilter(SSDataBlock* pBlock, STqOffsetVal* of
                         TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
   __compar_fn_t func = getComparFunc(pColPk->info.type, 0);
+  QUERY_CHECK_NULL(func, code, lino, _end, terrno);
   for (int32_t i = 0; i < pBlock->info.rows; ++i) {
     int64_t* ts = (int64_t*)colDataGetData(pColTs, i);
     void*    data = colDataGetData(pColPk, i);
