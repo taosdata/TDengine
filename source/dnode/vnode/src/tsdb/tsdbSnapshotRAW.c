@@ -170,11 +170,8 @@ static int64_t tsdbSnapRAWReadPeek(SDataFileRAWReader* reader) {
 }
 
 static SDataFileRAWReader* tsdbSnapRAWReaderIterNext(STsdbSnapRAWReader* reader) {
-  ASSERT(reader->dataIter->idx <= reader->dataIter->count);
-
   while (reader->dataIter->idx < reader->dataIter->count) {
     SDataFileRAWReader* dataReader = TARRAY2_GET(reader->dataReaderArr, reader->dataIter->idx);
-    ASSERT(dataReader);
     if (dataReader->ctx->offset < dataReader->config->file.size) {
       return dataReader;
     }
@@ -196,7 +193,6 @@ static int32_t tsdbSnapRAWReadNext(STsdbSnapRAWReader* reader, SSnapDataHdr** pp
 
   // prepare
   int64_t dataLength = tsdbSnapRAWReadPeek(dataReader);
-  ASSERT(dataLength > 0);
 
   void* pBuf = taosMemoryCalloc(1, sizeof(SSnapDataHdr) + sizeof(STsdbDataRAWBlockHeader) + dataLength);
   if (pBuf == NULL) {
@@ -217,7 +213,6 @@ static int32_t tsdbSnapRAWReadNext(STsdbSnapRAWReader* reader, SSnapDataHdr** pp
 
   // finish
   dataReader->ctx->offset += pBlock->dataLength;
-  ASSERT(dataReader->ctx->offset <= dataReader->config->file.size);
   ppData[0] = pBuf;
 
 _exit:
@@ -246,8 +241,6 @@ _exit:
 static int32_t tsdbSnapRAWReadBegin(STsdbSnapRAWReader* reader) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  ASSERT(reader->ctx->fset == NULL);
 
   if (reader->ctx->fsetArrIdx < TARRAY2_SIZE(reader->fsetArr)) {
     reader->ctx->fset = TARRAY2_GET(reader->fsetArr, reader->ctx->fsetArrIdx++);
@@ -409,8 +402,6 @@ static int32_t tsdbSnapRAWWriteFileSetBegin(STsdbSnapRAWWriter* writer, int32_t 
   int32_t code = 0;
   int32_t lino = 0;
 
-  ASSERT(writer->ctx->fsetWriteBegin == false);
-
   STFileSet* fset = &(STFileSet){.fid = fid};
 
   writer->ctx->fid = fid;
@@ -555,8 +546,6 @@ _exit:
 }
 
 int32_t tsdbSnapRAWWrite(STsdbSnapRAWWriter* writer, SSnapDataHdr* hdr) {
-  ASSERT(hdr->type == SNAP_DATA_RAW);
-
   int32_t code = 0;
   int32_t lino = 0;
 
