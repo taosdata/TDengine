@@ -23,9 +23,9 @@
 #define TAOS_ASSERT(i) assert(i);
 #else
 #define TAOS_ASSERT(i) \
-  if (i) return 1;
+  if (!(i)) return 1;
 #define TAOS_ASSERT_NULL(i) \
-  if (i) return NULL;
+  if (!(i)) return NULL;
 #endif  // TAOS_TEST
 
 #endif  // TAOS_ASSERT_H
