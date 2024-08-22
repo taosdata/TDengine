@@ -306,7 +306,7 @@ void monitorCreateClientCounter(int64_t clusterId, const char* name, const char*
 void monitorCounterInc(int64_t clusterId, const char* counterName, const char** label_values) {
   taosWLockLatch(&monitorLock);
   if (atomic_load_32(&monitorFlag) == 1) {
-    taosRUnLockLatch(&monitorLock);
+    taosWUnLockLatch(&monitorLock);
     return;
   }
 
