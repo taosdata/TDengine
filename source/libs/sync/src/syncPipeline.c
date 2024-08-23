@@ -969,6 +969,12 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
     }
   }
 
+  sInfo("vgId:%d, sync log repl recovering. peer: dnode:%d (%" PRIx64 "), repl-mgr:[%" PRId64 " %" PRId64 ", %" PRId64
+        "), buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 "), index:%" PRId64 ", firstVer:%" PRId64
+        ", term:%" PRId64 ", lastMatchTerm:%" PRId64,
+        pNode->vgId, DID(&destId), destId.addr, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex, pBuf->startIndex,
+        pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex, index, firstVer, term, pMsg->lastMatchTerm);
+
   // attempt to replicate the raft log at index
   (void)syncLogReplReset(pMgr);
   return syncLogReplProbe(pMgr, pNode, index);
