@@ -476,3 +476,49 @@ export function validOpcFile(dsn) {
         methods: 'get'
     })
 }
+
+// 批量启动任务
+export function batchStartTask(data) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/tasks/start`,
+        method: "post",
+        data
+    });
+}
+// 批量停止任务
+export function batchStopTask(data) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/tasks/stop`,
+        method: "post",
+        data
+    });
+}
+// 批量删除任务
+export function batchDelTask(data) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/tasks/delete`,
+        method: "post",
+        data
+    });
+}
+// 增加点位
+export function addOpcPoint(data) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/ds/in/opc/csv/points`,
+        method: "post",
+        data
+    });
+}
+
+// 查看点位配置csv Header 
+export function getOpcCsvHeader(taskId) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/ds/in/opc/csv/points/header?task_id=${taskId}`,
+        method: "get",
+    });
+}

@@ -107,7 +107,9 @@ const state = {
   showSystemMes: false, // 辅助判断是否展示联系团队的弹框
   validOpcFileRes: { valid: true },
   stbDefaultColumns: [],// transfrom 创建超级表时默认的列
-  configData: []
+  configData: [],
+  activeName: 'datasource',
+  viaId: null, // 点击数据源列表中的agent
 };
 const saveKey = encodeURIComponent("appId");
 const waitTime = 15 * 60 * 1000;

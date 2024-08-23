@@ -3,14 +3,15 @@
     <div class="title">
       <span>{{ $t("topic.agent") }}</span>
       <div class="flexEnd">
-        <!-- <el-button
+        <el-button
         plain
+        type="primary"
         @click="refresh"
         size="small"
         icon="el-icon-refresh"
-        :disabled="requestIng"
+        :disabled="requestIng || $COMMUNITY"
         >{{ $t("refresh") }}</el-button
-      > -->
+      >
       <el-tooltip
         placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
       >
@@ -25,7 +26,6 @@
     </div>
 
     <el-table
-      v-if="agentList?.length > 0"
       style="margin-top: 20px"
       :data="agentList"
       size="mini"
@@ -33,6 +33,8 @@
       :max-height="maxHeight"
       :expand-row-keys="expandRowKeys"
       @expand-change="expandChange"
+      highlight-current-row
+      ref="singleTable"
     >
       <el-table-column type="expand">
         <template>
@@ -284,6 +286,15 @@
     >
       <AddAgent :agent="currentRow" :key="showAgent"></AddAgent>
     </el-dialog>
+    <el-alert
+      v-if="$COMMUNITY"
+      class="my-alert"
+      style="margin-top: 8px"
+      type="warning"
+      :description="$t('communityDemoDataTip')"
+      :closable="true"
+      center
+    />
   </div>
 </template>
 <script>
@@ -345,7 +356,7 @@ export default {
       parsinginZone,
       agentActivities: [],
       expandRowKeys: [],
-      maxHeight: 250
+      maxHeight: 500,
     };
   },
   computed: {
@@ -568,8 +579,6 @@ export default {
     },
     async expandChange(row, expandedRows) {
       if (!this.$COMMUNITY) {
-        console.log('expandedRows',expandedRows);
-        this.maxHeight = expandedRows.length == 0 ? 250 : 570;
         if (row.id == this.expandRowKeys[0]) {
           this.expandRowKeys = [];
           return;
@@ -615,6 +624,13 @@ export default {
     handleDSStatus(value) {
       return this.$t('statuses.' + value);
     },
+    setCurrent(row) {
+      this.$refs.singleTable.setCurrentRow(row);
+    },
+    handleResize() {
+      const windowHeight = window.innerHeight;
+      this.maxHeight = windowHeight - 300;
+    }
   },
   created() {
     if (this.$COMMUNITY) {
@@ -624,6 +640,15 @@ export default {
       this.getAgents();
       this.getConnectorTypes();
     }
+  },
+  mounted() {
+    this.$nextTick(() => {
+      this.handleResize();
+    })
+    window.addEventListener('resize', this.handleResize) 
+  },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.handleResize);
   },
   watch: {
     "$store.state.app.agentLists": {
@@ -637,6 +662,19 @@ export default {
         this.showAgent = val;
       },
     },
+    "$store.state.app.viaId": {
+      handler(via) {
+        const row = this.agentList.filter(item => item.id == via)[0]
+        this.setCurrent(row)
+      }
+    },
+    "$store.state.app.activeName": {
+      handler(active) {
+        if (active != 'agent') {
+          this.setCurrent({})
+        }
+      }
+    }
   },
 };
 </script>

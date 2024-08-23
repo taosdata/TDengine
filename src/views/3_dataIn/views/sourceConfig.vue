@@ -193,6 +193,7 @@ import {
 import BlockHeader from "../components/blockHeader.vue";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
 import ConfigForm from "../components/configForm.vue";
+import _ from 'lodash';
 
 export default {
   name: "DbSourceUI",
@@ -247,6 +248,7 @@ export default {
       parent: "data.",
       level: "1",
       editSourceConfig: null,
+      oldParams: {},
     };
   },
   created() {
@@ -446,6 +448,16 @@ export default {
             [data.from_detail],
             data.parser
           );
+          this.oldParams.from = data.from;
+          this.oldParams.labels = data.labels;
+          this.oldParams.name = data.name;
+          this.oldParams.to = data.to;
+          if (data.via) {
+            this.oldParams.via = data.via;
+          }
+          if (data.parser) {
+            this.oldParams.parser = data.parser
+          }
         })
         .finally(() => {
           this.requestIng = false;
@@ -494,6 +506,13 @@ export default {
           return false
         }
       })
+    },
+    isEqualParams(obj1, obj2) {
+      return _.isEqualWith(obj1, obj2, (item1, item2) => {
+        if (_.isArray(item1) && _.isArray(item2)) {
+          return _.isEqual(item1.sort(), item2.sort());
+        }
+      });
     },
     async submit() {
       this.$refs.form.validate(async (valid) => {
@@ -574,11 +593,13 @@ export default {
           }
           
           if (this.isEditable && this.editId && !this.isCopyable) {
-            let result = await EditSource(params, this.editId);
-            this.loading = false;
-            if (result.message) {
-              this.$error(result.message);
-              return;
+            if (!this.isEqualParams(this.oldParams,params)) {
+              let result = await EditSource(params, this.editId);
+              this.loading = false;
+              if (result.message) {
+                this.$error(result.message);
+                return;
+              }
             }
             this.$parent.changeEditable(false);
             this.$parent.currentName = "dbsource";

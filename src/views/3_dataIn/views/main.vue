@@ -1,12 +1,18 @@
 <template>
   <div class="page-wrapper">
     <div class="content">
-      <el-tabs v-model="active" @tab-click="clickTab">
+      <el-tabs v-model="$store.state.app.activeName" @tab-click="clickTab">
         <el-tab-pane
           name="datasource"
           :label="$t('topic.datasource')"
         >
           <DbSource ref="dbsource"></DbSource>
+        </el-tab-pane>
+        <el-tab-pane
+          name="agent"
+          :label="$t('topic.agent')"
+        >
+          <Agents ref="agents"></Agents>
         </el-tab-pane>
         <el-tab-pane
           name="datacollection"
@@ -28,11 +34,13 @@
 import DataCollection from "./dataCollection.vue";
 import DbSource from "./dbSource.vue";
 import DataCSV from "./dataCSV.vue";
+import Agents from "../components/agents.vue";
 export default {
   components: {
     DataCollection,
     DbSource,
     DataCSV,
+    Agents
   },
   data() {
     return {
@@ -55,6 +63,10 @@ export default {
         await this.$refs.dbsource.reloadTable();
       }
     },
+    setActive(val) {
+      this.$store.app.state.
+      this.active = val;
+    }
   },
 };
 </script>

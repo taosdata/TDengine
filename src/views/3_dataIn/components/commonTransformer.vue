@@ -1679,10 +1679,12 @@ export default {
               this.$error(this.$t("data.fields") + "[" + item.Name + "]," +  item.defaultValueError);
             }
             if (item.exprname == "mapping" && this.params_columns.includes(item["Name"])) {
-              if (item.dataType === "TIMESTAMP" && item.default) {
-                expreitem["default"] = item.default + "";
-              } else {
-                expreitem["default"] = item.default;
+              if (item.default) {
+                if (item.dataType === "TIMESTAMP") {
+                  expreitem["default"] = item.default + "";
+                } else {
+                  expreitem["default"] = item.default;
+                }
               }
             }
             mutates.push({

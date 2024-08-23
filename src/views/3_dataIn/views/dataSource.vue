@@ -1,8 +1,59 @@
 <template>
-  <div v-loading="requestIng">
+  <div v-loading="requestIng" style="height: 100%">
     <div class="title">
       <span>{{ $t("dataIn.dataSources") }}</span>
       <div class="flexEnd">
+        <el-tooltip
+          :content="$t('dataIn.batchOperateTip',[`${$t('dataIn.start')}`])"
+          :disabled="!isDisabled"
+          placement="top-start"
+          effect="light"
+          :open-delay="0"
+        >
+          <el-button
+            @click="handleBatchTask('start')"
+            plain
+            type="primary"
+            size="small"
+            icon="el-icon-qidong"
+            :disabled="isDisabled || $COMMUNITY"
+            >{{startCase( $t('dataIn.start')+$t('dataIn.task'))}}</el-button
+          >
+        </el-tooltip>
+        <el-tooltip
+          :content="$t('dataIn.batchOperateTip',[`${$t('dataIn.stop')}`])"
+          :disabled="!isDisabled"
+          placement="top-start"
+          effect="light"
+          :open-delay="0"
+        >
+          <el-button
+            @click="handleBatchTask('stop')"
+            plain
+            type="primary"
+            size="small"
+            icon="el-icon-tingzhi"
+            :disabled="isDisabled || $COMMUNITY"
+            >{{startCase($t('dataIn.stop')+$t('dataIn.task'))}}</el-button
+          >
+        </el-tooltip>
+        <el-tooltip
+          :content="$t('dataIn.batchOperateTip',[`${$t('dataIn.delete')}`])"
+          :disabled="!isDisabled"
+          placement="top-start"
+          effect="light"
+          :open-delay="0"
+        >
+          <el-button
+            @click="handleBatchTask('delete')"
+            plain
+            type="primary"
+            size="small"
+            icon="el-icon-delete"
+            :disabled="isDisabled || $COMMUNITY"
+            >{{startCase($t('dataIn.delete')+$t('dataIn.task'))}}</el-button
+          >
+        </el-tooltip>
         <el-button
           @click="refresh"
           plain
@@ -12,13 +63,19 @@
           :disabled="requestIng || $COMMUNITY"
           >{{ $t("refresh") }}</el-button
         >
-        <el-button @click="addDbSource" size="small" icon="el-icon-plus" plain  type="primary">{{
-          $t("datasource.addsource")
-        }}</el-button>
+        <el-button
+          @click="addDbSource"
+          size="small"
+          icon="el-icon-plus"
+          plain
+          type="primary"
+          >{{ $t("datasource.addsource") }}</el-button
+        >
       </div>
     </div>
     <div class="data-source">
       <el-table
+        ref="dataSourceTable"
         style="margin-top: 20px"
         :data="topicList"
         size="mini"
@@ -26,7 +83,10 @@
         row-key="id"
         :expand-row-keys="expandRowKeys"
         @expand-change="expandChange"
+        @selection-change="handleSelectionChange"
+        @cell-click="clickAgent"
       >
+        <el-table-column type="selection" :reserve-selection="true" width="50"> </el-table-column>
         <el-table-column type="expand">
           <template slot-scope="props">
             <div>
@@ -65,15 +125,15 @@
                     parsinginZone(scope.row.at)
                   }}</span>
                 </el-table-column>
-                <el-table-column
-                  prop="activity"
-                  :label="$t('dataIn.activity')"
-                >
-                <template slot-scope="scope">
-                  <el-tooltip :content="scope.row.activity" placement="top-start">
-                    <span class="nowrap">{{ scope.row.activity }}</span>
-                  </el-tooltip>
-                </template> 
+                <el-table-column prop="activity" :label="$t('dataIn.activity')">
+                  <template slot-scope="scope">
+                    <el-tooltip
+                      :content="scope.row.activity"
+                      placement="top-start"
+                    >
+                      <span class="nowrap">{{ scope.row.activity }}</span>
+                    </el-tooltip>
+                  </template>
                 </el-table-column>
                 <el-table-column
                   prop="context"
@@ -88,26 +148,28 @@
           prop="taskid"
           width="80"
         >
-        <template slot-scope="scope">
-          <span>
-            <i
-              class="el-circle"
-              style="background-color: #e6a23c"
-              v-if="scope.row.taskActivities && scope.row.taskActivities[0]?.level == 'warn'"
-            ></i>
-            <i
-              :class="['el-circle','err-circle']"
-              style="background-color: #fe6c6c"
-              v-else-if="scope.row.taskActivities && scope.row.taskActivities[0]?.level == 'error'"
-            ></i>
-            <i
-              class="el-circle"
-              style="background-color: #67c23a"
-              v-else
-            ></i>
-          </span>
-          <span style="padding-left:5px">{{ scope.row.taskid }}</span>
-        </template>
+          <template slot-scope="scope">
+            <span>
+              <i
+                class="el-circle"
+                style="background-color: #e6a23c"
+                v-if="
+                  scope.row.taskActivities &&
+                  scope.row.taskActivities[0]?.level == 'warn'
+                "
+              ></i>
+              <i
+                :class="['el-circle', 'err-circle']"
+                style="background-color: #fe6c6c"
+                v-else-if="
+                  scope.row.taskActivities &&
+                  scope.row.taskActivities[0]?.level == 'error'
+                "
+              ></i>
+              <i class="el-circle" style="background-color: #67c23a" v-else></i>
+            </span>
+            <span style="padding-left: 5px">{{ scope.row.taskid }}</span>
+          </template>
         </el-table-column>
         <el-table-column
           :label="$t('datasource.name2')"
@@ -127,11 +189,11 @@
           :filters="filterMap.type"
           :filter-method="filterHandler"
         >
-        <template slot-scope="scope">
-          <el-tooltip :content="scope.row.localtype" placement="top-start">
-            <span class="nowrap">{{ scope.row.localtype }}</span>
-          </el-tooltip>
-        </template> 
+          <template slot-scope="scope">
+            <el-tooltip :content="scope.row.localtype" placement="top-start">
+              <span class="nowrap">{{ scope.row.localtype }}</span>
+            </el-tooltip>
+          </template>
         </el-table-column>
         <el-table-column
           :label="$t('datasource.target')"
@@ -142,7 +204,7 @@
             <el-tooltip :content="scope.row.target" placement="top-start">
               <span class="nowrap">{{ scope.row.target }}</span>
             </el-tooltip>
-          </template> 
+          </template>
         </el-table-column>
         <el-table-column
           :label="$t('datasource.createat')"
@@ -160,9 +222,11 @@
         >
           <template slot-scope="{ row }">
             <el-tooltip :content="agentMap[row.via]" placement="top-start">
-              <span class="nowrap">{{ agentMap[row.via] }}</span>
+              <span class="nowrap" style="cursor: pointer">{{
+                agentMap[row.via]
+              }}</span>
             </el-tooltip>
-          </template> 
+          </template>
         </el-table-column>
 
         <el-table-column
@@ -176,8 +240,7 @@
               size="mini"
               style="font-size: 12px; color: #4d6992"
               :disabled="
-                scope.row.status.toLowerCase() == 'cancelled' ||
-                $COMMUNITY
+                scope.row.status.toLowerCase() == 'cancelled' || $COMMUNITY
               "
               >{{ $t("view") }}</el-button
             >
@@ -195,11 +258,7 @@
               style="display: flex; white-space: nowrap"
             >
               <el-tooltip
-                v-if="
-                  showErrStatus.includes(
-                    scope.row.status.toLowerCase()
-                  )
-                "
+                v-if="showErrStatus.includes(scope.row.status.toLowerCase())"
                 placement="bottom"
                 effect="light"
                 popper-class="datain"
@@ -217,7 +276,11 @@
               <span style="width: 80px; display: inline-block" v-else>{{
                 handleDSStatus(scope.row.status)
               }}</span>
-              <template v-if="permitStartStatus.includes(scope.row.status.toLowerCase())">
+              <template
+                v-if="
+                  permitStartStatus.includes(scope.row.status.toLowerCase())
+                "
+              >
                 <el-tooltip
                   placement="bottom"
                   effect="light"
@@ -237,7 +300,9 @@
                   ></el-button>
                 </el-tooltip>
               </template>
-              <template v-if="permitStopStatus.includes(scope.row.status.toLowerCase())">
+              <template
+                v-if="permitStopStatus.includes(scope.row.status.toLowerCase())"
+              >
                 <el-tooltip
                   placement="bottom"
                   effect="light"
@@ -297,9 +362,10 @@
                 type="primay"
                 size="mini"
                 :disabled="
-                  $COMMUNITY ? $COMMUNITY :
-                  scope.row.from_detail === undefined ||
-                  !getEditStatus(scope.row.labels)
+                  $COMMUNITY
+                    ? $COMMUNITY
+                    : scope.row.from_detail === undefined ||
+                      !getEditStatus(scope.row.labels)
                 "
                 @click="view(scope.row, scope.row.status.toLowerCase())"
                 icon="el-icon-view"
@@ -308,17 +374,16 @@
             <el-tooltip
               placement="bottom"
               effect="light"
-              :content="
-                $t('datasource.editconfig')
-              "
+              :content="$t('datasource.editconfig')"
             >
               <el-button
                 type="primay"
                 size="mini"
                 :disabled="
-                  $COMMUNITY ? $COMMUNITY :
-                  scope.row.from_detail === undefined ||
-                  !getEditStatus(scope.row.labels)
+                  $COMMUNITY
+                    ? $COMMUNITY
+                    : scope.row.from_detail === undefined ||
+                      !getEditStatus(scope.row.labels)
                 "
                 @click="edit(scope.row, scope.row.status.toLowerCase())"
                 icon="el-icon-edit"
@@ -353,14 +418,6 @@
           </template>
         </el-table-column>
       </el-table>
-      <div v-if="dialog">
-        <AddDialog
-          :typeList="typeList"
-          @closeDialog="closeDialog"
-          @addAgent="addAgent"
-          ref="agentdialog"
-        ></AddDialog>
-      </div>
       <el-pagination
         class="pagination"
         layout="total, prev, pager, next"
@@ -370,9 +427,6 @@
         :total="total"
         @current-change="handlePageChange"
       ></el-pagination>
-    </div>
-    <div class="agent" style="margin-top: 20px">
-      <Agents ref="agents" />
     </div>
     <el-alert
       v-if="$COMMUNITY"
@@ -392,17 +446,19 @@ import {
   refreshTask,
   getTaskActivities,
   getMetrics,
-  getMetricsDesc
+  getMetricsDesc,
+  batchStartTask,
+  batchStopTask,
+  batchDelTask,
 } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
-import AddDialog from "../components/addDialog.vue";
-import Agents from "../components/agents.vue";
 import Metrics from "../components/metrics.vue";
 import { deepClone, parsinginZone } from "@/utils";
 import { dataInMockData } from "@/const";
+import _ from 'lodash';
 export default {
   name: "DataSource",
-  components: { AddDialog, Agents },
+  components: {},
   props: {
     sourceList: {
       type: Array,
@@ -418,6 +474,7 @@ export default {
 
   data() {
     return {
+      startCase: _.startCase,
       disable: true,
       typeList: [],
       mqttdialog: false,
@@ -425,18 +482,19 @@ export default {
       pageSize: 10,
       currentPage: 1,
       total: 10,
-      dialog: false,
       topicList: [],
       requestIng: false,
       parsinginZone,
       taskActivities: [],
       expandRowKeys: [],
       metricDisable: false,
-      maxHeight: 250,
+      maxHeight: 500,
       // 不允许 start/stop 的状态 sopping, suspending
       permitStartStatus: ['created','failed','stopped','suspended','completed'],
       permitStopStatus: ['queued','running','interrupted','waiting','resumed'],
-      showErrStatus: ['waiting','suspending','suspended','failed','interrupted']
+      showErrStatus: ['waiting','suspending','suspended','failed','interrupted'],
+      permitDeleteStatus: ['completed','stopped',' failed', 'interrupted', 'ticked'],
+      multipleSelection: [],
     };
   },
   computed: {
@@ -453,6 +511,9 @@ export default {
         pre[cur.id] = cur.name;
         return pre;
       }, {});
+    },
+    isDisabled() {
+      return this.multipleSelection.length < 1;
     },
   },
   methods: {
@@ -483,10 +544,10 @@ export default {
           type: "warning",
         }
       ).then(async () => {
-        await this.handleClearInterval()
+        await this.handleClearInterval();
         let result = await excuteDel(data.id);
         if (result?.message) {
-          this.handleSetInterval()
+          this.handleSetInterval();
           Message.warning(result.message);
           return;
         }
@@ -496,8 +557,8 @@ export default {
         });
         await this.refresh();
         await this.$nextTick(() => {
-          this.handleSetInterval()
-        })
+          this.handleSetInterval();
+        });
       });
     },
     view(data, status) {
@@ -513,8 +574,13 @@ export default {
         this.$store.commit("app/SET_CURRENT_AGENT", data?.via);
         this.$store.commit("app/SET_CURRENT_DSNAME", data.name);
         let editDdata = deepClone([].concat(data.from_detail));
-        if(data.from_detail.id=='mqtt'||data.from_expand.id == "kafka"||data.from_expand.id == "csv"||data.from_expand.id == "mongodb"){
-          this.$store.commit('app/SET_TRANSFORM_PARSERDATA',data.parser)
+        if (
+          data.from_detail.id == "mqtt" ||
+          data.from_expand.id == "kafka" ||
+          data.from_expand.id == "csv" ||
+          data.from_expand.id == "mongodb"
+        ) {
+          this.$store.commit("app/SET_TRANSFORM_PARSERDATA", data.parser);
         }
         if (data.from_expand && data.from_expand.id == "mqtt") {
           let dnsarr = data.from.split("?")[1].split("&");
@@ -538,9 +604,12 @@ export default {
           this.$store.commit("app/SET_MQTT_PARSER", data.parser);
           this.$parent.parserobj = deepClone(data.parser);
         }
-        if(this.$store.state.app.supportSQL){
-          this.$store.commit('app/SET_HISTORIAN_ECHODATA',data.parser)
-          this.$store.commit('app/SET_HISTORIAN_DSN','://'+data.from.split('://')[1])
+        if (this.$store.state.app.supportSQL) {
+          this.$store.commit("app/SET_HISTORIAN_ECHODATA", data.parser);
+          this.$store.commit(
+            "app/SET_HISTORIAN_DSN",
+            "://" + data.from.split("://")[1]
+          );
         }
         // if (data.from_expand && data.from_expand.id == "kafka") {
         //   let payload = deepClone(data.parser.parse.value);
@@ -590,13 +659,16 @@ export default {
 
         if (data.from_expand && data.from_expand.id == "csv") {
           this.$store.commit("app/SET_CSV_PARSER", data.parser);
-          
+
           this.$parent.echoData = deepClone([].concat(data.parser));
           let filelist = data.from.match(/(?<=csv:).*?(?=\?)/)[0];
           let hasheader = data.from.match(/has_header=([^&]*)/)[1];
-          let localCols=data.from.match(/(?<=header=).*/)[0]
-          if(localCols&&localCols.includes('=')){
-            this.$store.commit("app/SET_CSV_LOCAL_COLS", localCols.split("=")[1].split(','));
+          let localCols = data.from.match(/(?<=header=).*/)[0];
+          if (localCols && localCols.includes("=")) {
+            this.$store.commit(
+              "app/SET_CSV_LOCAL_COLS",
+              localCols.split("=")[1].split(",")
+            );
           }
           this.$store.commit("app/SET_CSV_HASHEADER", hasheader);
           this.$store.commit("app/SET_CSV_FILES", filelist);
@@ -609,12 +681,7 @@ export default {
         // this.$set(this.$parent.uidata,0,editDdata)
         // this.$parent.uidata = editDdata;
         localStorage.setItem("datainName", data.name);
-        this.$parent.toggleComponent(
-          "",
-          data.from_detail.id,
-          data.id,
-          dbname,
-        );
+        this.$parent.toggleComponent("", data.from_detail.id, data.id, dbname);
       }
     },
     edit(data, status, iscopy) {
@@ -632,8 +699,13 @@ export default {
         this.$store.commit("app/SET_CURRENT_AGENT", data?.via);
         this.$store.commit("app/SET_CURRENT_DSNAME", data.name);
         let editDdata = deepClone([].concat(data.from_detail));
-        if(data.from_detail.id=='mqtt'||data.from_expand.id == "kafka"||data.from_expand.id == "csv"||data.from_expand.id == "mongodb"){
-          this.$store.commit('app/SET_TRANSFORM_PARSERDATA',data.parser)
+        if (
+          data.from_detail.id == "mqtt" ||
+          data.from_expand.id == "kafka" ||
+          data.from_expand.id == "csv" ||
+          data.from_expand.id == "mongodb"
+        ) {
+          this.$store.commit("app/SET_TRANSFORM_PARSERDATA", data.parser);
         }
         if (data.from_expand && data.from_expand.id == "mqtt") {
           let dnsarr = data.from.split("?")[1].split("&");
@@ -657,9 +729,12 @@ export default {
           this.$store.commit("app/SET_MQTT_PARSER", data.parser);
           this.$parent.parserobj = deepClone(data.parser);
         }
-        if(this.$store.state.app.supportSQL){
-          this.$store.commit('app/SET_HISTORIAN_ECHODATA',data.parser)
-          this.$store.commit('app/SET_HISTORIAN_DSN','://'+data.from.split('://')[1])
+        if (this.$store.state.app.supportSQL) {
+          this.$store.commit("app/SET_HISTORIAN_ECHODATA", data.parser);
+          this.$store.commit(
+            "app/SET_HISTORIAN_DSN",
+            "://" + data.from.split("://")[1]
+          );
         }
         // if (data.from_expand && data.from_expand.id == "kafka") {
         //   let payload = deepClone(data.parser.parse.value);
@@ -709,13 +784,16 @@ export default {
 
         if (data.from_expand && data.from_expand.id == "csv") {
           this.$store.commit("app/SET_CSV_PARSER", data.parser);
-          
+
           this.$parent.echoData = deepClone([].concat(data.parser));
           let filelist = data.from.match(/(?<=csv:).*?(?=\?)/)[0];
           let hasheader = data.from.match(/has_header=([^&]*)/)[1];
-          let localCols=data.from.match(/(?<=header=).*/)[0]
-          if(localCols&&localCols.includes('=')){
-            this.$store.commit("app/SET_CSV_LOCAL_COLS", localCols.split("=")[1].split(','));
+          let localCols = data.from.match(/(?<=header=).*/)[0];
+          if (localCols && localCols.includes("=")) {
+            this.$store.commit(
+              "app/SET_CSV_LOCAL_COLS",
+              localCols.split("=")[1].split(",")
+            );
           }
           this.$store.commit("app/SET_CSV_HASHEADER", hasheader);
           this.$store.commit("app/SET_CSV_FILES", filelist);
@@ -757,7 +835,6 @@ export default {
       try {
         this.requestIng = true;
         this.topicList = [];
-        this.$refs.agents.agentList = [];
         let id = localStorage.getItem("local_clusterID");
         let result = await getTask(id, "datain");
         if (result.desc || result.message) {
@@ -790,7 +867,7 @@ export default {
           this.$error(result.message);
           return;
         }
-        
+
         if (Object.keys(result).length === 0) {
           switch (status) {
             case "running":
@@ -804,14 +881,14 @@ export default {
               return;
           }
         }
-        let metricsDesc = await getMetricsDesc()
+        let metricsDesc = await getMetricsDesc();
         this.$store.commit("SET_DIALOG", {
           component: Metrics,
           params: {
             data: result,
             metricsDesc,
             taskId: data.id,
-            type: data.from_detail.id
+            type: data.from_detail.id,
           },
           config: {
             title: this.$t("dataIn.metrics"),
@@ -842,18 +919,21 @@ export default {
           await this.handleClearInterval();
           let result = await excuteStart(data.id);
           if (result && result.message) {
-            this.handleSetInterval()
+            this.handleSetInterval();
             this.$message({
-              dangerouslyUseHTMLString:true,
-              message:`<strong>${result.message.replaceAll('\n','<br/>')}</strong>`,
-              type:'warning'
+              dangerouslyUseHTMLString: true,
+              message: `<strong>${result.message.replaceAll(
+                "\n",
+                "<br/>"
+              )}</strong>`,
+              type: "warning",
             });
             return;
           }
           await this.refresh();
           await this.$nextTick(() => {
-            this.handleSetInterval()
-          })
+            this.handleSetInterval();
+          });
         });
       } catch (err) {
         return Promise.reject(err);
@@ -870,21 +950,24 @@ export default {
             type: "warning",
           }
         ).then(async () => {
-          await this.handleClearInterval()
+          await this.handleClearInterval();
           let result = await excuteStop(data.id);
           if (result?.message) {
-            this.handleSetInterval()
+            this.handleSetInterval();
             this.$message({
               dangerouslyUseHTMLString: true,
-              message: `<strong>${result.message.replaceAll('\n','<br/>')}</strong>`,
+              message: `<strong>${result.message.replaceAll(
+                "\n",
+                "<br/>"
+              )}</strong>`,
               type: "warning",
             });
             return;
           }
           await this.refresh();
           await this.$nextTick(() => {
-            this.handleSetInterval()
-          })
+            this.handleSetInterval();
+          });
         });
       } catch (err) {
         return Promise.reject(err);
@@ -893,8 +976,7 @@ export default {
 
     async refresh() {
       await this.getList();
-      await this.handleTaskActivities()
-      await this.$refs.agents?.refresh()
+      await this.handleTaskActivities();
     },
     async refreshCurrentTask(data) {
       try {
@@ -903,7 +985,7 @@ export default {
           this.$error(result.message || result.desc);
           return;
         }
-        let activitList = await this.getCurrentActivities(data.taskid)
+        let activitList = await this.getCurrentActivities(data.taskid);
         let index = this.topicList.findIndex(
           (item) => item.taskid == data.taskid
         );
@@ -929,23 +1011,15 @@ export default {
     },
     //显示添加数据源弹窗
     showAddDialog() {},
-    closeDialog() {
-      this.dialog = false;
-    },
-    // 显示添加代理弹框
-    addAgent() {
-      this.$refs.agents.add();
-    },
-    async expandChange(row, expandedRows) { 
+    async expandChange(row, expandedRows) {
       if (!this.$COMMUNITY) {
-        this.maxHeight = expandedRows.length == 0 ? 250 : 570;
-        let activitList = await this.getCurrentActivities(row.taskid)
-        this.topicList = this.topicList.map(item => {
+        let activitList = await this.getCurrentActivities(row.taskid);
+        this.topicList = this.topicList.map((item) => {
           if (item.id == row.taskid) {
-            item.taskActivities = deepClone(activitList) 
+            item.taskActivities = deepClone(activitList);
           }
-          return item
-        })
+          return item;
+        });
       }
     },
     getLevelStyle(level) {
@@ -985,49 +1059,134 @@ export default {
         }
         return item;
       });
-      return activitList
+      return activitList;
     },
     handleTaskActivities() {
-      this.topicList.map(async (task,index) => {
-          let res = await getTaskActivities(task.id)
-          let activitList = res.map((item) => {
-            if (item.status == "failed") {
-              item.context = item.context?.message;
-            }
-            if (typeof item.context == "object") {
-              item.context = null;
-            }
-            return item;
-          });
-          this.$set(this.topicList,index,{...task, taskActivities: activitList}) 
-      })
+      this.topicList.map(async (task, index) => {
+        let res = await getTaskActivities(task.id);
+        let activitList = res.map((item) => {
+          if (item.status == "failed") {
+            item.context = item.context?.message;
+          }
+          if (typeof item.context == "object") {
+            item.context = null;
+          }
+          return item;
+        });
+        this.$set(this.topicList, index, {
+          ...task,
+          taskActivities: activitList,
+        });
+      });
     },
     handleDSStatus(value) {
-      return this.$t('statuses.' + value);
+      return this.$t("statuses." + value);
     },
     handleClearInterval() {
-      this.timer && clearInterval(this.timer)
+      this.timer && clearInterval(this.timer);
     },
     handleSetInterval() {
       this.timer = setInterval(() => {
-        this.handleTaskActivities()
+        this.handleTaskActivities();
       }, 10000);
     },
-    //清除transformer相关的存储数据
-    clearTransformerStore(){
-      this.$store.commit('app/SET_FILTER_PARSE_DATA',null)
-        this.$store.commit('app/SET_EXTRACT_PARSE_DATA',null)
-        this.$store.commit('app/SET_ECHO_MAP_DATA',null)
-        this.$store.commit('app/SET_TRANSFORM_COL_IDENTIFIED',[])
-        this.$store.commit('app/SET_TRANSFORM_PARSERDATA',null)
-        this.$store.commit('app/SET_TRANSFORMER_MAPCOLUMNS',null)
-        this.$store.commit('app/SET_CSV_LOCAL_COLS',[])
-        this.$store.commit('app/SET_CSV_TRANSFORMER_PARSER',null)
-        this.$store.commit('app/SET_CSV_PARSER',null)
+    clickAgent(row, column, cell, event) {
+      if (column.property === "via" && row.via) {
+        this.$store.state.app.activeName = "agent";
+        this.$store.state.app.viaId = row.via;
+      }
     },
+    handleSelectionChange(val) {
+      this.multipleSelection = val;
+      console.log("val", val);
+    },
+    filterBatchIds(permitStatus) {
+      let result = [];
+      this.multipleSelection.filter((item) => {
+        if (permitStatus.includes(item.status)) {
+          result.push(item.id);
+        }
+      });
+      return result;
+    },
+    handlerConfirm(content, excuteFn, ids, showConfirmButton) {
+      this.$confirm(
+        content,
+        this.$t("datasource.warning"),
+        {
+          confirmButtonText: this.$t("datasource.ok"),
+          cancelButtonText: this.$t("datasource.cancel"),
+          type: "warning",
+          confirmButtonClass: showConfirmButton ? '' : "not-show"
+        }
+      ).then(async () => {
+        await this.handleClearInterval();
+        let result = await excuteFn({ids});
+        if (result?.message) {
+          this.handleSetInterval();
+          Message.warning(result.message);
+          return;
+        }
+        this.$refs.dataSourceTable.clearSelection();
+        await this.refresh();
+        await this.$nextTick(() => {
+          this.handleSetInterval();
+        });
+      });
+    },
+    async handleBatchTask(type) {
+      let ids = [];
+      let content, excuteFn = null
+      let showConfirmButton = true
+      // this.requestIng = true;
+      switch (type) {
+        case "start":
+          ids = this.filterBatchIds(this.permitStartStatus);
+          excuteFn = batchStartTask
+          content = this.$t('replication.taskStart').replace('{id}',ids)
+          break;
+
+        case "stop":
+          ids = this.filterBatchIds(this.permitStopStatus);
+          excuteFn = batchStopTask;
+          content = this.$t('replication.taskStop').replace('{id}',ids)
+          break;
+
+        case "delete":
+          ids = this.filterBatchIds(this.permitDeleteStatus);
+          excuteFn = batchDelTask;
+          content = this.$t('replication.backupDel').replace('{id}',ids)
+          break;
+      }
+      if (ids.length < 1) {
+        showConfirmButton = false
+        content = this.$t('dataIn.noTaskOperateTip',[`${this.$t(`dataIn.${type}`)}`])
+      } 
+      this.handlerConfirm(content, excuteFn, ids, showConfirmButton)
+    },
+    //清除transformer相关的存储数据
+    clearTransformerStore() {
+      this.$store.commit("app/SET_FILTER_PARSE_DATA", null);
+      this.$store.commit("app/SET_EXTRACT_PARSE_DATA", null);
+      this.$store.commit("app/SET_ECHO_MAP_DATA", null);
+      this.$store.commit("app/SET_TRANSFORM_COL_IDENTIFIED", []);
+      this.$store.commit("app/SET_TRANSFORM_PARSERDATA", null);
+      this.$store.commit("app/SET_TRANSFORMER_MAPCOLUMNS", null);
+      this.$store.commit("app/SET_CSV_LOCAL_COLS", []);
+      this.$store.commit("app/SET_CSV_TRANSFORMER_PARSER", null);
+      this.$store.commit("app/SET_CSV_PARSER", null);
+    },
+    handleResize() {
+      const windowHeight = window.innerHeight;
+      this.maxHeight = windowHeight - 300;
+    }
   },
   mounted() {
-    this.clearTransformerStore()
+    this.clearTransformerStore();
+    this.$nextTick(() => {
+      this.handleResize();
+    })
+    window.addEventListener('resize', this.handleResize); 
     if (this.$COMMUNITY) {
       this.topicList = dataInMockData;
     } else {
@@ -1036,19 +1195,23 @@ export default {
           this.typeList = this.sourceList;
         });
         this.$nextTick(() => {
-          this.handleSetInterval()
-        })
+          this.handleSetInterval();
+        });
       }
     }
   },
   beforeDestroy() {
-    this.handleClearInterval()
-  }
+    this.handleClearInterval();
+    window.removeEventListener('resize', this.handleResize);
+  },
 };
 </script>
 <style lang="scss">
 .el-tooltip__popper {
   max-width: 450px !important;
+}
+.not-show {
+  display: none;
 }
 </style>
 <style lang="scss" scoped>
@@ -1096,6 +1259,9 @@ export default {
       color: #4259ce;
       border: 1px solid #4259ce;
     }
+    &:focus {
+      color: #4259ce;
+    }
   }
 }
 
@@ -1111,6 +1277,17 @@ export default {
   }
 }
 
+// 配合将 max-height 设置为百分比
+// .data-source {
+//   &:deep(.el-table) {
+//     display: flex;
+//     flex-direction: column;
+//   }
+//   &:deep(.el-table__header-wrapper) {
+//     min-height: 30px;
+//   }
+// }
+
 ::v-deep.el-table td.el-table__cell div {
   word-wrap: break-word;
   word-break: break-word;
@@ -1124,7 +1301,7 @@ export default {
 .err-circle {
   animation: circle 1s infinite;
 }
-.my-alert ::v-deep.el-alert .el-alert__description  {
+.my-alert ::v-deep.el-alert .el-alert__description {
   font-size: 14px;
 }
 @keyframes circle {

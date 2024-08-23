@@ -101,6 +101,16 @@
           </el-tooltip>
         </div>
       </section>
+      <section>
+        <el-button
+          v-if="isShowAddOpcPoint"
+          type="primary"
+          size="mini"
+          class="ml15"
+          @click="handleOpcPoint"
+          >{{ $t('dataIn.addOpcPoint') }}</el-button
+        >
+      </section>
       <el-button
         v-if="value"
         :loading="loading"
@@ -162,17 +172,80 @@
         <el-button type="primary" @click="submit" :loading="requestIng">{{ $t('confirm')}}</el-button>
       </span>
     </el-dialog>
+    <el-dialog
+      :title="$t('dataIn.addOpcPoint')"
+      :visible.sync="dialogPointVisible"
+      :close-on-click-modal="false"
+      width="600px">
+      <div slot="title">
+        <div class="el-dialog_cus_itle">{{ $t('dataIn.addOpcPoint') }}</div>
+        <DocsContent
+          :content="$t('dataIn.addPointDesc')"
+        />
+      </div>
+      <div>
+        <el-form 
+          size="small" 
+          ref="addPointForm"
+          :model="opcPointForm"
+          label-width="220px"
+          label-position="left">
+        <template v-for="(config,index) in opcPointForm.opcCsvHeaders">
+          <el-form-item
+            :label="config.is_tag ? `tag::${config.type}::${config.name}`  : config.name"
+            :prop="'opcCsvHeaders.'+ index + '.value'"
+            :key="config.name"
+            :class="[{'hidden-required': !config.required}]"
+            :rules="[
+              { required: config.required, message: $t('required', [config.name])}
+            ]"
+          >
+          <template slot="label">
+            <el-tooltip placement="top" effect="light" :open-delay="0" v-if="config.description">
+              <template slot="content">
+                <DocsContent
+                  v-if="config.description"
+                  :content="lang == 'zh' ? config.description_cn : config.description"
+                />
+              </template>
+              <span>
+                <span>{{ config.is_tag ? `tag::${config.type}::${config.name}`  : config.name }}</span>
+                <span v-if="config.description" style="margin-left: 1px">
+                  <Icon name="label_info" class="info_icon_custom"></Icon>
+                </span>
+              </span>
+            </el-tooltip>
+          </template>
+            <el-input v-if="!config.choices" style="width: 300px" v-model="config.value"></el-input>
+            <el-select v-else style="width: 300px" v-model="config.value" :placeholder="$t('dataIn.namespacePlaceholder')">
+              <el-option
+                v-for="item in config.choices"
+                :key="item"
+                :value="item"
+                :label="item"
+              ></el-option>
+            </el-select>
+          </el-form-item>
+        </template>
+        </el-form>
+      </div>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="dialogPointVisible = false">{{ $t('cancel')}}</el-button>
+        <el-button type="primary" @click="submitAddPoint" :loading="requestIng">{{ $t('confirm')}}</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
 <script>
 import uploadCsv from './uploadCsv.vue';
-import { downlaodAllNodes as downloadAllPointFile, downlaodOpcPointFile, getTicket, checkReadyFile, getCsvEmptyTemplate } from '@/api/explorer/datain';
+import { downlaodAllNodes as downloadAllPointFile, downlaodOpcPointFile, getTicket, checkReadyFile, getCsvEmptyTemplate, addOpcPoint, getOpcCsvHeader } from '@/api/explorer/datain';
 import { getDsnData } from '../utils';
 import { downloadFileBlob } from '@/utils/file';
 import { handleDownload } from '../utils';
 import DocsContent from '@/views/support/components/editorContentDisplay.vue';
 import mixinItem from '../mixins/opcPreviewPoint.js';
+import { Message } from "element-ui";
 
 export default {
   props: {
@@ -202,6 +275,27 @@ export default {
       ticket: '',
       percentage: 5,
       completed: false,
+      dialogPointVisible: false,
+      oldValue: '',
+      opcPointForm: {
+        opcCsvHeaders: [
+          {
+            field: 'point_id',
+            defaultValue: '',
+            type: 'str',
+            required: true,
+            description: '数据点位在 OPC UA 服务器上的 id'
+          },
+          {
+            field: 'enable',
+            defaultValue: '1',
+            type: 'select',
+            choices: ['1','0'],
+            required: false,
+            description: '指定是否采集该点位数据。0-不采集并且删除对应子表，1-采集点位数据，没有子表时创建子表'
+          },
+      ]
+      }
     };
   },
   computed: {
@@ -295,6 +389,16 @@ export default {
         }
       })
       return list
+    },
+    taskId() {
+      return this.sourceParent.editId;
+    },
+    isShowAddOpcPoint() {
+      // 重新上传了一个 csv,此时的任务还没有提交，因此csv没有生效，所有也不应该显示增加点位按钮
+      return this.value != '*' && this.value === this.oldValue && this.isEdit
+    },
+    lang() {
+     return localStorage.getItem('local_language');
     }
   },
   watch: {
@@ -311,6 +415,7 @@ export default {
   mounted() {
     if (this.value != '*' && this.value && this.isEdit) {
       this.oldFiles = this.getFileList(this.value);
+      this.oldValue = this.value
     }
   },
   methods: {
@@ -403,9 +508,44 @@ export default {
     },
     // 下载 CSV 空模版
     async handleDownEmptyTemplate() {
-      console.log('hshshshhs-empty');
       let res = await getCsvEmptyTemplate(this.sourceParent.sourceForm.type)
       downloadFileBlob(res, this.$t('downloadTemplate') + '.csv');
+    },
+    async handleOpcPoint() {
+      // 获取csv header 
+      const result = await getOpcCsvHeader(this.taskId)
+      if (result && Object.hasOwnProperty.call(result,'code')) {
+        this.$error(result?.message);
+        return
+      }
+      this.dialogPointVisible = true;
+      this.opcPointForm.opcCsvHeaders = result.map(item => {
+        item.value = item.defaultValue
+        return item;
+      })
+    },
+    submitAddPoint() {
+      if (this.requestIng) return;
+      this.$refs.addPointForm.validate(async (valid) => {
+        if (!valid) return;
+        const params = {
+          point: this.opcPointForm.opcCsvHeaders,
+          task_id: this.taskId
+        }
+        const result = await addOpcPoint(params)
+        if (result && Object.hasOwnProperty.call(result,'code')) {
+          this.requestIng = false;
+          this.$error(result?.message);
+          return
+        }
+        Message.success(this.$t("dataIn.addPointSucc"));
+        this.requestIng = false;
+        this.opcPointForm.opcCsvHeaders.map(item => {
+          if (item.name == 'point_id') {
+            item.value = ""
+          }
+        })
+      })
     }
 
   },
