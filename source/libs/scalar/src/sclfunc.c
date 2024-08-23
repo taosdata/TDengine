@@ -1544,9 +1544,15 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
       needFreeFrom = true;
     }
     if (GET_PARAM_TYPE(&pInput[2]) != GET_PARAM_TYPE(&pInput[0])) {
-      SCL_ERR_JRET(convBetweenNcharAndVarchar(varDataVal(colDataGetData(pInputData[2], colIdx3)), &toStr,
-                                             varDataLen(colDataGetData(pInputData[2], colIdx3)), &toLen,
-                                             GET_PARAM_TYPE(&pInput[0])));
+      code = convBetweenNcharAndVarchar(varDataVal(colDataGetData(pInputData[2], colIdx3)), &toStr,
+                                        varDataLen(colDataGetData(pInputData[2], colIdx3)), &toLen,
+                                        GET_PARAM_TYPE(&pInput[0]));
+      if (TSDB_CODE_SUCCESS != code) {
+        if (needFreeFrom) {
+          taosMemoryFree(fromStr);
+        }
+        goto _return;
+      }
       needFreeTo = true;
     }
 
@@ -1660,9 +1666,9 @@ int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 
     SCL_ERR_JRET(colDataSetVal(pOutputData, k, output, false));
   }
-
-_return:
   pOutput->numOfRows = numOfRows;
+_return:
+  taosMemoryFree(outputBuf);
   return code;
 }
 
