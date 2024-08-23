@@ -220,7 +220,8 @@ void veriry_stmt(TAOS* taos) {
     is_null[i] = 0;
 
     v.ts[i] = ts++;
-    v.b[i] = (int8_t)i % 2;
+    // v.b[i] = (int8_t)i % 2;
+    v.b[i] = (int8_t)i % 10;
     v.v1[i] = (int8_t)i;
     v.v2[i] = (int16_t)(i * 2);
     v.v4[i] = (int32_t)(i * 4);

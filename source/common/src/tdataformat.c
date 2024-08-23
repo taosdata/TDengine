@@ -3171,8 +3171,12 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
     if (allValue) {
       // optimize (todo)
       for (int32_t i = 0; i < pBind->num; ++i) {
-        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
-            pColData, (uint8_t *)pBind->buffer + TYPE_BYTES[pColData->type] * i, TYPE_BYTES[pColData->type]);
+        uint8_t *val = (uint8_t *)pBind->buffer + TYPE_BYTES[pColData->type] * i;
+        if (TSDB_DATA_TYPE_BOOL == pColData->type && *val > 1) {
+          *val = 1;
+        }
+
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, val, TYPE_BYTES[pColData->type]);
       }
     } else if (allNull) {
       // optimize (todo)
@@ -3186,8 +3190,12 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
           code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
           if (code) goto _exit;
         } else {
-          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
-              pColData, (uint8_t *)pBind->buffer + TYPE_BYTES[pColData->type] * i, TYPE_BYTES[pColData->type]);
+          uint8_t *val = (uint8_t *)pBind->buffer + TYPE_BYTES[pColData->type] * i;
+          if (TSDB_DATA_TYPE_BOOL == pColData->type && *val > 1) {
+            *val = 1;
+          }
+
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, val, TYPE_BYTES[pColData->type]);
         }
       }
     }
@@ -3252,10 +3260,13 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
           *data += length;
           // value.pData = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow;
         } else {
-          (void)memcpy(
-              &value.val,
-              (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bytes /*infos[iInfo].bind->buffer_length*/ * iRow,
-              infos[iInfo].bytes /*bind->buffer_length*/);
+          uint8_t *val = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bytes * iRow;
+          if (TSDB_DATA_TYPE_BOOL == value.type && *val > 1) {
+            *val = 1;
+          }
+          (void)memcpy(&value.val, val,
+                       /*(uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow,*/
+                       infos[iInfo].bytes /*bind->buffer_length*/);
         }
         colVal = COL_VAL_VALUE(infos[iInfo].columnId, value);
       }
