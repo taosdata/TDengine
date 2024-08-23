@@ -248,7 +248,6 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   }
   for (int32_t i = 0; i < nRetention; ++i) {
     SJson *pNodeRetention = tjsonGetArrayItem(pNodeRetentions, i);
-    ASSERT(pNodeRetention != NULL);
     tjsonGetNumberValue(pNodeRetention, "freq", (pCfg->tsdbCfg.retentions)[i].freq, code);
     if (code) return code;
     tjsonGetNumberValue(pNodeRetention, "freqUnit", (pCfg->tsdbCfg.retentions)[i].freqUnit, code);

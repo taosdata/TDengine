@@ -403,8 +403,6 @@ static const int32_t BLOCK_WITH_ALG_VER = 2;
 int32_t tPutBlockCol(SBuffer *buffer, const SBlockCol *pBlockCol, int32_t ver, uint32_t defaultCmprAlg) {
   int32_t code;
 
-  ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
-
   if ((code = tBufferPutI16v(buffer, pBlockCol->cid))) return code;
   if ((code = tBufferPutI8(buffer, pBlockCol->type))) return code;
   if ((code = tBufferPutI8(buffer, pBlockCol->cflag))) return code;
@@ -442,8 +440,6 @@ int32_t tGetBlockCol(SBufferReader *br, SBlockCol *pBlockCol, int32_t ver, uint3
   if ((code = tBufferGetI8(br, &pBlockCol->cflag))) return code;
   if ((code = tBufferGetI8(br, &pBlockCol->flag))) return code;
   if ((code = tBufferGetI32v(br, &pBlockCol->szOrigin))) return code;
-
-  ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
 
   pBlockCol->szBitmap = 0;
   pBlockCol->szOffset = 0;
@@ -647,7 +643,6 @@ void tColRowGetPrimaryKey(SBlockData *pBlock, int32_t irow, SRowKey *key) {
     if (pColData->cflag & COL_IS_KEY) {
       SColVal cv;
       tColDataGetValue(pColData, irow, &cv);
-      ASSERT(COL_VAL_IS_VALUE(&cv));
       key->pks[key->numOfPKs] = cv.value;
       key->numOfPKs++;
     } else {
@@ -748,8 +743,6 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
     jCol = 0;
     pTColumn = &pTSchema->columns[jCol++];
 
-    ASSERT(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
-
     *pColVal = COL_VAL_VALUE(pTColumn->colId, ((SValue){.type = pTColumn->type, .val = key.ts}));
     if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
       code = terrno;
@@ -800,8 +793,6 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
     pMerger->version = key.version;
     return 0;
   } else {
-    ASSERT(((SColVal *)pMerger->pArray->pData)->value.val == key.ts);
-
     for (iCol = 1; iCol < pMerger->pTSchema->numOfCols && jCol < pTSchema->numOfCols; ++iCol) {
       pTColumn = &pMerger->pTSchema->columns[iCol];
       if (pTSchema->columns[jCol].colId < pTColumn->colId) {
@@ -852,7 +843,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
           }
         }
       } else {
-        ASSERT(0 && "dup versions not allowed");
+        return TSDB_CODE_INVALID_PARA;
       }
     }
 
@@ -1164,7 +1155,9 @@ int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema,
 
       while (pTColumn->colId < aCid[iCid]) {
         iColumn++;
-        ASSERT(iColumn < pTSchema->numOfCols);
+        if (!(iColumn < pTSchema->numOfCols)) {
+          return TSDB_CODE_INVALID_PARA;
+        }
         pTColumn = &pTSchema->columns[iColumn];
       }
 
@@ -1272,7 +1265,9 @@ _exit:
 int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid) {
   int32_t code = 0;
 
-  ASSERT(pBlockData->suid || pBlockData->uid);
+  if (!(pBlockData->suid || pBlockData->uid)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   // uid
   if (pBlockData->uid == 0) {
@@ -1299,7 +1294,7 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
     code = tBlockDataUpsertBlockRow(pBlockData, pRow->pBlockData, pRow->iRow, 0 /* append */);
     if (code) goto _exit;
   } else {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_PARA;
   }
   pBlockData->nRow++;
 
@@ -1357,7 +1352,6 @@ int32_t tBlockDataUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
 #endif
 
 SColData *tBlockDataGetColData(SBlockData *pBlockData, int16_t cid) {
-  ASSERT(cid != PRIMARYKEY_TIMESTAMP_COL_ID);
   int32_t lidx = 0;
   int32_t ridx = pBlockData->nColData - 1;
 
@@ -1627,7 +1621,9 @@ static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, S
 
   // primary keys
   for (hdr->numOfPKs = 0; hdr->numOfPKs < bData->nColData; hdr->numOfPKs++) {
-    ASSERT(hdr->numOfPKs <= TD_MAX_PK_COLS);
+    if (!(hdr->numOfPKs <= TD_MAX_PK_COLS)) {
+      return TSDB_CODE_INVALID_PARA;
+    }
 
     SBlockCol *blockCol = &hdr->primaryBlockCols[hdr->numOfPKs];
     SColData  *colData = tBlockDataGetColDataByIdx(bData, hdr->numOfPKs);
@@ -1762,8 +1758,12 @@ int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, 
   for (int i = 0; i < hdr->numOfPKs; i++) {
     const SBlockCol *blockCol = &hdr->primaryBlockCols[i];
 
-    ASSERT(blockCol->flag == HAS_VALUE);
-    ASSERT(blockCol->cflag & COL_IS_KEY);
+    if (!(blockCol->flag == HAS_VALUE)) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+    }
+    if (!(blockCol->cflag & COL_IS_KEY)) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+    }
 
     code = tBlockDataDecompressColData(hdr, blockCol, br, blockData, assist);
     TSDB_CHECK_CODE(code, lino, _exit);
