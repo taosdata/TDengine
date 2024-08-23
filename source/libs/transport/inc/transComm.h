@@ -142,7 +142,7 @@ typedef struct {
   tmsg_t msgType;   // message type
   int8_t connType;  // connection type cli/srv
 
-  STransCtx      appCtx;    //
+  STransCtx      userCtx;   //
   STransMsg*     pRsp;      // for synchronous API
   tsem_t*        pSem;      // for synchronous API
   STransSyncMsg* pSyncMsg;  // for syncchronous with timeout API
@@ -318,24 +318,24 @@ void transUnrefCliHandle(void* handle);
 int32_t transReleaseCliHandle(void* handle);
 int32_t transReleaseSrvHandle(void* handle);
 
-int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
-int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);
-int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
+int32_t transSendRequest(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
+int32_t transSendRecv(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);
+int32_t transSendRecvWithTimeout(void* pInit, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
                                  int32_t timeoutMs);
-int32_t transSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId);
-int32_t transFreeConnById(void* shandle, int64_t transpointId);
+int32_t transSendRequestWithId(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId);
+int32_t transFreeConnById(void* pInit, int64_t transpointId);
 
 int32_t transSendResponse(const STransMsg* msg);
 int32_t transRegisterMsg(const STransMsg* msg);
-int32_t transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
-int32_t transSetIpWhiteList(void* shandle, void* arg, FilteFunc* func);
+int32_t transSetDefaultAddr(void* pInit, const char* ip, const char* fqdn);
+int32_t transSetIpWhiteList(void* pInit, void* arg, FilteFunc* func);
 
 int32_t transSockInfo2Str(struct sockaddr* sockname, char* dst);
 
 int32_t transAllocHandle(int64_t* refId);
 
-void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
-void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
+void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
+void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
 
 void transCloseClient(void* arg);
 void transCloseServer(void* arg);

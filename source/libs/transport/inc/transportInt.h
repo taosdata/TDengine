@@ -32,8 +32,8 @@
 extern "C" {
 #endif
 
-void* taosInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
-void* taosInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
+void* taosInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
+void* taosInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
 
 void taosCloseServer(void* arg);
 void taosCloseClient(void* arg);

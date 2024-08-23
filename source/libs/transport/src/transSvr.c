@@ -1399,7 +1399,7 @@ static void uvPipeListenCb(uv_stream_t* handle, int status) {
   srv->numOfWorkerReady++;
 }
 
-void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) {
+void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit) {
   int32_t code = 0;
 
   SServerObj* srv = taosMemoryCalloc(1, sizeof(SServerObj));
@@ -1463,9 +1463,9 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrd* thrd = (SWorkThrd*)taosMemoryCalloc(1, sizeof(SWorkThrd));
-    thrd->pInst = shandle;
+    thrd->pInst = pInit;
     thrd->quit = false;
-    thrd->pInst = shandle;
+    thrd->pInst = pInit;
     thrd->pWhiteList = uvWhiteListCreate();
 
     srv->pThreadObj[i] = thrd;
@@ -1494,9 +1494,9 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
       goto End;
     }
 
-    thrd->pInst = shandle;
+    thrd->pInst = pInit;
     thrd->quit = false;
-    thrd->pInst = shandle;
+    thrd->pInst = pInit;
     thrd->pWhiteList = uvWhiteListCreate();
     if (thrd->pWhiteList == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
