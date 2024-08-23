@@ -344,6 +344,26 @@ static const char* encryptAlgorithmStr(int8_t encryptAlgorithm) {
   return TSDB_CACHE_MODEL_NONE_STR;
 }
 
+static int formatDurationOrKeep(char** buffer, int32_t timeInMinutes) {
+    int len = 0;
+    if (timeInMinutes % 1440 == 0) {
+        int days = timeInMinutes / 1440;
+        len = snprintf(NULL, 0, "%dd", days);
+        *buffer = (char*)taosMemoryCalloc(len + 1, sizeof(char));
+        sprintf(*buffer, "%dd", days);
+    } else if (timeInMinutes % 60 == 0) {
+        int hours = timeInMinutes / 60;
+        len = snprintf(NULL, 0, "%dh", hours);
+        *buffer = (char*)taosMemoryCalloc(len + 1, sizeof(char));
+        sprintf(*buffer, "%dh", hours);
+    } else {
+        len = snprintf(NULL, 0, "%dm", timeInMinutes);
+        *buffer = (char*)taosMemoryCalloc(len + 1, sizeof(char));
+        sprintf(*buffer, "%dm", timeInMinutes);
+    }
+    return len;
+}
+
 static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName, char* dbFName, SDbCfgInfo* pCfg) {
   QRY_ERR_RET(blockDataEnsureCapacity(pBlock, 1));
   pBlock->info.rows = 1;
@@ -381,20 +401,29 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
   } else if (pCfg->hashPrefix < 0) {
     hashPrefix = pCfg->hashPrefix + dbFNameLen + 1;
   }
-
+  char* durationStr = NULL;
+  formatDurationOrKeep(&durationStr, pCfg->daysPerFile);
+  char* keep0Str = NULL;
+  formatDurationOrKeep(&keep0Str, pCfg->daysToKeep0);
+  char* keep1Str = NULL;
+  formatDurationOrKeep(&keep1Str, pCfg->daysToKeep1);
+  char* keep2Str = NULL;
+  formatDurationOrKeep(&keep2Str, pCfg->daysToKeep2);
   if (IS_SYS_DBNAME(dbName)) {
     len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE DATABASE `%s`", dbName);
   } else {
     len += sprintf(buf2 + VARSTR_HEADER_SIZE,
-                   "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %dm "
-                   "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d "
+                   "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %s "
+                   "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %s,%s,%s PAGES %d PAGESIZE %d "
                    "PRECISION '%s' REPLICA %d "
                    "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
                    "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64
                    " KEEP_TIME_OFFSET %d ENCRYPT_ALGORITHM '%s' S3_CHUNKSIZE %d S3_KEEPLOCAL %dm S3_COMPACT %d",
                    dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression,
-                   pCfg->daysPerFile, pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->sstTrigger,
-                   pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2, pCfg->pages, pCfg->pageSize, prec,
+                   durationStr,
+                   pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->sstTrigger,
+                   keep0Str, keep1Str, keep2Str,
+                   pCfg->pages, pCfg->pageSize, prec,
                    pCfg->replications, pCfg->walLevel, pCfg->numOfVgroups, 1 == pCfg->numOfStables, hashPrefix,
                    pCfg->hashSuffix, pCfg->tsdbPageSize, pCfg->walRetentionPeriod, pCfg->walRetentionSize,
                    pCfg->keepTimeOffset, encryptAlgorithmStr(pCfg->encryptAlgorithm), pCfg->s3ChunkSize,
