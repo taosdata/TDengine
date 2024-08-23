@@ -350,7 +350,7 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
     }
   }
 
-  if (pTsmaStat->pTSma->indexUid == indexUid) {
+  if (pTsmaStat->pTSma->indexUid != indexUid) {
     code = TSDB_CODE_APP_ERROR;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
