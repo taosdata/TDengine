@@ -45,22 +45,19 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
     syncLogRecvRequestVoteReply(ths, pMsg, "not in my config");
-
-    TAOS_RETURN(TSDB_CODE_FAILED);
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
   SyncTerm currentTerm = raftStoreGetTerm(ths);
   // drop stale response
   if (pMsg->term < currentTerm) {
     syncLogRecvRequestVoteReply(ths, pMsg, "drop stale response");
-
-    TAOS_RETURN(TSDB_CODE_FAILED);
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
   if (pMsg->term > currentTerm) {
     syncLogRecvRequestVoteReply(ths, pMsg, "error term");
     syncNodeStepDown(ths, pMsg->term);
-
-    TAOS_RETURN(TSDB_CODE_FAILED);
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
   syncLogRecvRequestVoteReply(ths, pMsg, "");
