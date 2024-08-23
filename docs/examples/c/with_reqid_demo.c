@@ -33,7 +33,8 @@ static int DemoWithReqId() {
   // connect
   TAOS *taos = taos_connect(host, user, password, NULL, port);
   if (taos == NULL) {
-    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
+    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
+            taos_errstr(NULL));
     taos_cleanup();
     return -1;
   }
@@ -44,7 +45,8 @@ static int DemoWithReqId() {
   TAOS_RES *result = taos_query_with_reqid(taos, sql, reqid);
   code = taos_errno(result);
   if (code != 0) {
-    fprintf(stderr, "Failed to execute sql with reqId: %ld, ErrCode: 0x%x, ErrMessage: %s\n.", reqid, code, taos_errstr(result));
+    fprintf(stderr, "Failed to execute sql with QID: %ld, ErrCode: 0x%x, ErrMessage: %s\n.", reqid, code,
+            taos_errstr(result));
     taos_close(taos);
     taos_cleanup();
     return -1;
@@ -73,6 +75,4 @@ static int DemoWithReqId() {
   // ANCHOR_END: with_reqid
 }
 
-int main(int argc, char *argv[]) {
-  return DemoWithReqId();
-}
+int main(int argc, char *argv[]) { return DemoWithReqId(); }

@@ -413,7 +413,11 @@ static char* readFile(TdFilePtr pFile, int64_t* offset, int64_t size) {
     return NULL;
   }
 
-  ASSERT(size > *offset);
+  if((size <= *offset)){
+    tscError("invalid size:%" PRId64 ", offset:%" PRId64, size, *offset);
+    terrno = TSDB_CODE_TSC_INTERNAL_ERROR;
+    return NULL;
+  }
   char*   pCont = NULL;
   int64_t totalSize = 0;
   if (size - *offset >= SLOW_LOG_SEND_SIZE_MAX) {
@@ -506,6 +510,7 @@ static int32_t monitorReadSend(int64_t clusterId, TdFilePtr pFile, int64_t* offs
   }
   SEpSet ep = getEpSet_s(&pInst->mgmtEp);
   char*  data = readFile(pFile, offset, size);
+  if(data  == NULL) return terrno;
   return sendSlowLog(clusterId, data, (type == SLOW_LOG_READ_BEGINNIG ? pFile : NULL), *offset, type, fileName,
                      pInst->pTransporter, &ep);
 }

@@ -543,8 +543,13 @@ int32_t tfileWriterOpen(char* path, uint64_t suid, int64_t version, const char* 
     memcpy(tfh.colName, colName, strlen(colName));
   }
 
-  return tfileWriterCreate(wcx, &tfh, pWriter);
+  code = tfileWriterCreate(wcx, &tfh, pWriter);
+  if (code != 0) {
+    idxFileCtxDestroy(wcx, true);
+  }
+  return code;
 }
+
 int32_t tfileReaderOpen(SIndex* idx, uint64_t suid, int64_t version, const char* colName, TFileReader** pReader) {
   int32_t code = 0;
   char    fullname[256] = {0};
@@ -572,7 +577,11 @@ int32_t tfileWriterCreate(IFileCtx* ctx, TFileHeader* header, TFileWriter** pWri
   }
   tw->ctx = ctx;
   tw->header = *header;
-  (void)tfileWriteHeader(tw);
+  code = tfileWriteHeader(tw);
+  if (code != 0) {
+    taosMemoryFree(tw);
+    return code;
+  }
 
   *pWriter = tw;
   return code;
@@ -890,7 +899,8 @@ static int tfileWriteFstOffset(TFileWriter* tw, int32_t offset) {
   return 0;
 }
 static int tfileWriteHeader(TFileWriter* writer) {
-  char buf[TFILE_HEADER_NO_FST] = {0};
+  int32_t code = 0;
+  char    buf[TFILE_HEADER_NO_FST] = {0};
 
   TFileHeader* header = &writer->header;
   memcpy(buf, (char*)header, sizeof(buf));
@@ -898,7 +908,9 @@ static int tfileWriteHeader(TFileWriter* writer) {
   indexInfo("tfile pre write header size: %d", writer->ctx->size(writer->ctx));
   int nwrite = writer->ctx->write(writer->ctx, buf, sizeof(buf));
   if (sizeof(buf) != nwrite) {
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    indexError("failed to write header, code:0x%x, filename: %s", code, writer->ctx->file.buf);
+    return code;
   }
 
   indexInfo("tfile after write header size: %d", writer->ctx->size(writer->ctx));
@@ -1095,12 +1107,12 @@ static int tfileParseFileName(const char* filename, uint64_t* suid, char* col, i
 }
 // tfile name suid-colId-version.tindex
 static void tfileGenFileName(char* filename, uint64_t suid, const char* col, int64_t version) {
-  sprintf(filename, "%" PRIu64 "-%s-%" PRId64 ".tindex", suid, col, version);
+  (void)sprintf(filename, "%" PRIu64 "-%s-%" PRId64 ".tindex", suid, col, version);
   return;
 }
 static void FORCE_INLINE tfileGenFileFullName(char* fullname, const char* path, uint64_t suid, const char* col,
                                               int64_t version) {
   char filename[128] = {0};
   tfileGenFileName(filename, suid, col, version);
-  sprintf(fullname, "%s/%s", path, filename);
+  (void)sprintf(fullname, "%s/%s", path, filename);
 }

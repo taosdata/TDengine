@@ -592,6 +592,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   SMetaReader     mr = {0};
   const char*     idStr = pTask->id.str;
   int32_t         insertRet = TAOS_LRU_STATUS_OK;
+  STableCachedVal* pVal = NULL;
 
   // currently only the tbname pseudo column
   if (numOfExpr <= 0) {
@@ -656,19 +657,11 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
       pHandle->api.metaReaderFn.readerReleaseLock(&mr);
 
-      STableCachedVal* pVal = NULL;
       code = createTableCacheVal(&mr, &pVal);
       QUERY_CHECK_CODE(code, lino, _end);
 
       val = *pVal;
       freeReader = true;
-
-      insertRet = taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(uint64_t), pVal,
-                                       sizeof(STableCachedVal), freeCachedMetaItem, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
-      if (insertRet != TAOS_LRU_STATUS_OK) {
-        qError("failed to put meta into lru cache, code:%d, %s", insertRet, idStr);
-        taosMemoryFreeClear(pVal);
-      }
     } else {
       pCache->cacheHit += 1;
       STableCachedVal* pVal = taosLRUCacheValue(pCache->pTableMetaEntryCache, h);
@@ -742,9 +735,17 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   pBlock->info.rows = backupRows;
 
 _end:
-  if (insertRet != TAOS_LRU_STATUS_OK) {
-    freeTableCachedValObj(&val);
+
+  if (NULL != pVal) {
+    insertRet = taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(uint64_t), pVal,
+                                     sizeof(STableCachedVal), freeCachedMetaItem, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
+    if (insertRet != TAOS_LRU_STATUS_OK) {
+      qError("failed to put meta into lru cache, code:%d, %s", insertRet, idStr);
+      taosMemoryFreeClear(pVal);
+      freeTableCachedValObj(&val);
+    }
   }
+  
   if (freeReader) {
     pHandle->api.metaReaderFn.clearReader(&mr);
   }
@@ -5611,7 +5612,7 @@ static void doGetBlockForTableMergeScan(SOperatorInfo* pOperator, bool* pFinishe
   return;
 }
 
-static SSDataBlock* getBlockForTableMergeScan(void* param) {
+static int32_t getBlockForTableMergeScan(void* param, SSDataBlock** ppBlock) {
   STableMergeScanSortSourceParam* source = param;
 
   SOperatorInfo*       pOperator = source->pOperator;
@@ -5619,6 +5620,7 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
   SSDataBlock*         pBlock = NULL;
   int64_t              st = taosGetTimestampUs();
+  int32_t code = TSDB_CODE_SUCCESS;
 
   while (true) {
     if (pInfo->rtnNextDurationBlocks) {
@@ -5653,10 +5655,11 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
 
       if (pInfo->bNextDurationBlockEvent || pInfo->bNewFilesetEvent) {
         if (!bSkipped) {
-          int32_t code = createOneDataBlock(pBlock, true, &pInfo->nextDurationBlocks[pInfo->numNextDurationBlocks]);
+          code = createOneDataBlock(pBlock, true, &pInfo->nextDurationBlocks[pInfo->numNextDurationBlocks]);
           if (code) {
             terrno = code;
-            return NULL;
+            *ppBlock = NULL;
+            return code;
           }
 
           ++pInfo->numNextDurationBlocks;
@@ -5670,7 +5673,8 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
 
         if (pInfo->bNewFilesetEvent) {
           pInfo->rtnNextDurationBlocks = true;
-          return NULL;
+          *ppBlock = NULL;
+          return code;
         }
 
         if (pInfo->bNextDurationBlockEvent) {
@@ -5685,11 +5689,13 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
 
     pOperator->resultInfo.totalRows += pBlock->info.rows;
     pInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
-
-    return pBlock;
+    *ppBlock = pBlock;
+    
+    return code;
   }
 
-  return NULL;
+  *ppBlock = NULL;
+  return code;
 }
 
 int32_t generateSortByTsPkInfo(SArray* colMatchInfo, int32_t order, SArray** ppSortArray) {
