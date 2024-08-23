@@ -3143,8 +3143,13 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
           code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
           goto _exit;
         }
-        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
-        if (code) goto _exit;
+        if (pBind->is_null[i] == 1) {
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+          if (code) goto _exit;
+        } else {
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+          if (code) goto _exit;
+        }
       } else if (pBind->length[i] > buffMaxLen) {
         uError("var data length too big, len:%d, max:%d", pBind->length[i], buffMaxLen);
         return TSDB_CODE_INVALID_PARA;
@@ -3156,12 +3161,15 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
   } else {  // fixed-length data type
     bool allValue;
     bool allNull;
+    bool allNone;
     if (pBind->is_null) {
       bool same = (memcmp(pBind->is_null, pBind->is_null + 1, pBind->num - 1) == 0);
-      allNull = (same && pBind->is_null[0] != 0);
+      allNull = (same && pBind->is_null[0] == 1);
+      allNone = (same && pBind->is_null[0] > 1);
       allValue = (same && pBind->is_null[0] == 0);
     } else {
       allNull = false;
+      allNone = false;
       allValue = true;
     }
 
@@ -3186,11 +3194,22 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
         if (code) goto _exit;
       }
+    } else if (allNone) {
+      // optimize (todo)
+      for (int32_t i = 0; i < pBind->num; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+        if (code) goto _exit;
+      }
     } else {
       for (int32_t i = 0; i < pBind->num; ++i) {
         if (pBind->is_null[i]) {
-          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
-          if (code) goto _exit;
+          if (pBind->is_null[i] == 1) {
+            code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+            if (code) goto _exit;
+          } else {
+            code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+            if (code) goto _exit;
+          }
         } else {
           uint8_t *val = (uint8_t *)pBind->buffer + TYPE_BYTES[pColData->type] * i;
           if (TSDB_DATA_TYPE_BOOL == pColData->type && *val > 1) {
@@ -3249,7 +3268,11 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
 
     for (int32_t iInfo = 0; iInfo < numOfInfos; iInfo++) {
       if (infos[iInfo].bind->is_null && infos[iInfo].bind->is_null[iRow]) {
-        colVal = COL_VAL_NULL(infos[iInfo].columnId, infos[iInfo].type);
+        if (infos[iInfo].bind->is_null[iRow] == 1) {
+          colVal = COL_VAL_NULL(infos[iInfo].columnId, infos[iInfo].type);
+        } else {
+          colVal = COL_VAL_NONE(infos[iInfo].columnId, infos[iInfo].type);
+        }
       } else {
         SValue value = {
             .type = infos[iInfo].type,
