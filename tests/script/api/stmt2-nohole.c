@@ -107,13 +107,14 @@ void veriry_stmt(TAOS* taos) {
   printf("init time:%f\n", (double)(end - start) / CLOCKS_PER_SEC);
   // TAOS_MULTI_BIND params[10];
   TAOS_STMT2_BIND params[10];
-  char            is_null[10] = {0};
+  char            is_null2[10] = {0};
+  char            is_null[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
 
   params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
   // params[0].buffer_length = sizeof(v.ts[0]);
   params[0].buffer = v.ts;
   params[0].length = NULL;  // t64_len;
-  params[0].is_null = is_null;
+  params[0].is_null = is_null2;
   params[0].num = 10;
 
   params[1].buffer_type = TSDB_DATA_TYPE_BOOL;
@@ -217,7 +218,7 @@ void veriry_stmt(TAOS* taos) {
       "一二三四五六", "一二三四五六七", "一二三四五六七八", "一二三四五六七八九", "一二三四五六七八九十",
   };
   for (int i = 0; i < 10; ++i) {
-    is_null[i] = 0;
+    // is_null[i] = 0;
 
     v.ts[i] = ts++;
     // v.b[i] = (int8_t)i % 2;
