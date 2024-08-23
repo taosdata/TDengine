@@ -11068,7 +11068,10 @@ static int32_t createStreamReqVersionInfo(SSDataBlock* pBlock, SArray** pArray, 
 
     for (int32_t i = 0; i < pBlock->info.rows; ++i) {
       SVgroupVer v = {.vgId = *(int32_t*)colDataGetData(pCol1, i), .ver = *(int64_t*)colDataGetData(pCol2, i)};
-      (void)taosArrayPush(*pArray, &v);
+      if((taosArrayPush(*pArray, &v)) == NULL) {
+        taosArrayDestroy(*pArray);
+        return terrno;
+      }
     }
   } else {
     int32_t precision = (pInterval->interval > 0) ? pInterval->precision : TSDB_TIME_PRECISION_MILLI;
