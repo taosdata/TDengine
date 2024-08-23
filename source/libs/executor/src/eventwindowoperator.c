@@ -36,6 +36,7 @@ typedef struct SEventWindowOperatorInfo {
   SFilterInfo*       pEndCondInfo;
   bool               inWindow;
   SResultRow*        pRow;
+  SSDataBlock*       pPreDataBlock;
 } SEventWindowOperatorInfo;
 
 static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator);
@@ -121,6 +122,7 @@ SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
 
   pInfo->tsSlotId = tsSlotId;
+  pInfo->pPreDataBlock = NULL;
 
   setOperatorInfo(pOperator, "EventWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
@@ -185,7 +187,14 @@ static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   while (1) {
-    SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
+    SSDataBlock* pBlock = NULL;
+    if (pInfo->pPreDataBlock == NULL) {
+      pBlock = getNextBlockFromDownstream(pOperator, 0);
+    } else {
+      pBlock = pInfo->pPreDataBlock;
+      pInfo->pPreDataBlock = NULL;
+    }
+
     if (pBlock == NULL) {
       break;
     }
@@ -205,7 +214,8 @@ static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
 
     eventWindowAggImpl(pOperator, pInfo, pBlock);
     doFilter(pRes, pSup->pFilterInfo, NULL);
-    if (pRes->info.rows >= pOperator->resultInfo.threshold) {
+    if (pRes->info.rows >= pOperator->resultInfo.threshold ||
+        (pRes->info.id.groupId != pInfo->groupId && pRes->info.rows > 0)) {
       return pRes;
     }
   }
@@ -264,7 +274,10 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
     // this is a new group, reset the info
     pInfo->inWindow = false;
     pInfo->groupId = gid;
+    pInfo->pPreDataBlock = pBlock;
+    goto _return;
   }
+  pRes->info.id.groupId = pInfo->groupId;
 
   SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
 
