@@ -2888,6 +2888,7 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, cha
   return code;
 }
 
+// return length of encoded data, return -1 if failed
 int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
   int32_t dataLen = 0;
 
@@ -2921,7 +2922,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
     if (pColInfoData == NULL) {
-      return terrno;
+      return -1;
     }
 
     *((int8_t*)data) = pColInfoData->info.type;
@@ -2940,7 +2941,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
   for (int32_t col = 0; col < numOfCols; ++col) {
     SColumnInfoData* pColRes = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, col);
     if (pColRes == NULL) {
-      return terrno;
+      return -1;
     }
 
     // copy the null bitmap
@@ -2991,7 +2992,6 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
 
   *actualLen = dataLen;
   *groupId = pBlock->info.id.groupId;
-  ASSERT(dataLen > 0);
   return dataLen;
 }
 
