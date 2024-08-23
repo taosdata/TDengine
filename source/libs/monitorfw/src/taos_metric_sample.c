@@ -43,7 +43,7 @@ taos_metric_sample_t *taos_metric_sample_new(taos_metric_type_t type, const char
 }
 
 int taos_metric_sample_destroy(taos_metric_sample_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 0;
   taos_free((void *)self->l_value);
   self->l_value = NULL;
@@ -67,7 +67,7 @@ void taos_metric_sample_free_generic(void *gen) {
 }
 
 int taos_metric_sample_add(taos_metric_sample_t *self, double r_value) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (r_value < 0) {
     return 1;
   }
@@ -94,14 +94,14 @@ int taos_metric_sample_add(taos_metric_sample_t *self, double r_value) {
 
 /*
 int taos_metric_sample_sub(taos_metric_sample_t *self, double r_value) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self->type != TAOS_GAUGE) {
     TAOS_LOG(TAOS_METRIC_INCORRECT_TYPE);
     return 1;
   }
 
 #ifdef C11_ATOMIC
-  ///_Atomic/ 
+  ///_Atomic/
   double old = atomic_load(&self->r_value);
   for (;;) {
     _Atomic double new = ATOMIC_VAR_INIT(old - r_value);
