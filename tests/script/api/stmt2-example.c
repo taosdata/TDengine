@@ -33,8 +33,8 @@ void do_stmt(TAOS* taos) {
   TAOS_STMT2_BIND   tags[2][2] = {{{0, &t1_val[0], NULL, NULL, 0}, {0, "a1", &t2_len[0], NULL, 0}},
                                   {{0, &t1_val[1], NULL, NULL, 0}, {0, "a2", &t2_len[1], NULL, 0}}};
   TAOS_STMT2_BIND   params[2][2] = {
-        {{TSDB_DATA_TYPE_TIMESTAMP, v.ts, t64_len, is_null, 2}, {TSDB_DATA_TYPE_BINARY, v.b, b_len, is_null, 2}},
-        {{TSDB_DATA_TYPE_TIMESTAMP, v.ts, t64_len, is_null, 2}, {TSDB_DATA_TYPE_BINARY, v.b, b_len, is_null, 2}}};
+        {{TSDB_DATA_TYPE_TIMESTAMP, v.ts, NULL, is_null, 2}, {TSDB_DATA_TYPE_BINARY, v.b, b_len, is_null, 2}},
+        {{TSDB_DATA_TYPE_TIMESTAMP, v.ts, NULL, is_null, 2}, {TSDB_DATA_TYPE_BINARY, v.b, b_len, is_null, 2}}};
   TAOS_STMT2_BIND* tagv[2] = {&tags[0][0], &tags[1][0]};
   TAOS_STMT2_BIND* paramv[2] = {&params[0][0], &params[1][0]};
   TAOS_STMT2_BINDV bindv = {2, &tbs[0], &tagv[0], &paramv[0]};

@@ -99,7 +99,7 @@ void veriry_stmt(TAOS* taos) {
 
 #include "time.h"
   clock_t           start, end;
-  TAOS_STMT2_OPTION option = {0, true, false, stmtAsyncQueryCb, NULL};
+  TAOS_STMT2_OPTION option = {0, true, true, stmtAsyncQueryCb, NULL};
 
   start = clock();
   TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
@@ -112,56 +112,56 @@ void veriry_stmt(TAOS* taos) {
   params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
   // params[0].buffer_length = sizeof(v.ts[0]);
   params[0].buffer = v.ts;
-  params[0].length = t64_len;
+  params[0].length = NULL;  // t64_len;
   params[0].is_null = is_null;
   params[0].num = 10;
 
   params[1].buffer_type = TSDB_DATA_TYPE_BOOL;
   // params[1].buffer_length = sizeof(v.b[0]);
   params[1].buffer = v.b;
-  params[1].length = t8_len;
+  params[1].length = NULL;  // t8_len;
   params[1].is_null = is_null;
   params[1].num = 10;
 
   params[2].buffer_type = TSDB_DATA_TYPE_TINYINT;
   // params[2].buffer_length = sizeof(v.v1[0]);
   params[2].buffer = v.v1;
-  params[2].length = t8_len;
+  params[2].length = NULL;  // t8_len;
   params[2].is_null = is_null;
   params[2].num = 10;
 
   params[3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
   // params[3].buffer_length = sizeof(v.v2[0]);
   params[3].buffer = v.v2;
-  params[3].length = t16_len;
+  params[3].length = NULL;  // t16_len;
   params[3].is_null = is_null;
   params[3].num = 10;
 
   params[4].buffer_type = TSDB_DATA_TYPE_INT;
   // params[4].buffer_length = sizeof(v.v4[0]);
   params[4].buffer = v.v4;
-  params[4].length = t32_len;
+  params[4].length = NULL;  // t32_len;
   params[4].is_null = is_null;
   params[4].num = 10;
 
   params[5].buffer_type = TSDB_DATA_TYPE_BIGINT;
   // params[5].buffer_length = sizeof(v.v8[0]);
   params[5].buffer = v.v8;
-  params[5].length = t64_len;
+  params[5].length = NULL;  // t64_len;
   params[5].is_null = is_null;
   params[5].num = 10;
 
   params[6].buffer_type = TSDB_DATA_TYPE_FLOAT;
   // params[6].buffer_length = sizeof(v.f4[0]);
   params[6].buffer = v.f4;
-  params[6].length = float_len;
+  params[6].length = NULL;  // float_len;
   params[6].is_null = is_null;
   params[6].num = 10;
 
   params[7].buffer_type = TSDB_DATA_TYPE_DOUBLE;
   // params[7].buffer_length = sizeof(v.f8[0]);
   params[7].buffer = v.f8;
-  params[7].length = double_len;
+  params[7].length = NULL;  // double_len;
   params[7].is_null = is_null;
   params[7].num = 10;
   /*
