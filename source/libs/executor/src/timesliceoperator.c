@@ -114,7 +114,6 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
         pLinearInfo->start.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
         char* p = colDataGetData(pColInfoData, rowIndex);
         if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
           memcpy(pLinearInfo->start.val, p, varDataTLen(p));
         } else {
           memcpy(pLinearInfo->start.val, p, pLinearInfo->bytes);
@@ -127,7 +126,6 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
 
         char* p = colDataGetData(pColInfoData, rowIndex);
         if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
           memcpy(pLinearInfo->end.val, p, varDataTLen(p));
         } else {
           memcpy(pLinearInfo->end.val, p, pLinearInfo->bytes);
@@ -143,7 +141,6 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
 
         char* p = colDataGetData(pColInfoData, rowIndex);
         if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
           memcpy(pLinearInfo->end.val, p, varDataTLen(p));
         } else {
           memcpy(pLinearInfo->end.val, p, pLinearInfo->bytes);
@@ -1249,6 +1246,9 @@ void destroyTimeSliceOperatorInfo(void* param) {
   if (pInfo->pPrevGroupKey) {
     taosMemoryFree(pInfo->pPrevGroupKey->pData);
     taosMemoryFree(pInfo->pPrevGroupKey);
+  }
+  if (pInfo->hasPk && IS_VAR_DATA_TYPE(pInfo->pkCol.type)) {
+    taosMemoryFreeClear(pInfo->prevKey.pks[0].pData);
   }
 
   cleanupExprSupp(&pInfo->scalarSup);

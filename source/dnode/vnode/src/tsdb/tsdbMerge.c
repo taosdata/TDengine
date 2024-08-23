@@ -69,13 +69,6 @@ static int32_t tsdbMergerClose(SMerger *merger) {
   int32_t lino = 0;
   SVnode *pVnode = merger->tsdb->pVnode;
 
-  ASSERT(merger->writer == NULL);
-  ASSERT(merger->dataIterMerger == NULL);
-  ASSERT(merger->tombIterMerger == NULL);
-  ASSERT(TARRAY2_SIZE(merger->dataIterArr) == 0);
-  ASSERT(TARRAY2_SIZE(merger->tombIterArr) == 0);
-  ASSERT(TARRAY2_SIZE(merger->sttReaderArr) == 0);
-
   // clear the merge
   TARRAY2_DESTROY(merger->tombIterArr, NULL);
   TARRAY2_DESTROY(merger->dataIterArr, NULL);
@@ -156,8 +149,6 @@ static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
       }
     }
 
-    ASSERT(merger->ctx->level > 0);
-
     if (merger->ctx->level <= TSDB_MAX_LEVEL) {
       TARRAY2_FOREACH_REVERSE(merger->ctx->fset->lvlArr, lvl) {
         if (TARRAY2_SIZE(lvl->fobjArr) == 0) {
@@ -179,8 +170,6 @@ static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
 
       numFile = numFile - TARRAY2_SIZE(lvl->fobjArr) * pow(merger->sttTrigger, lvl->level);
     }
-
-    ASSERT(numFile >= 0);
 
     // get file system operations
     TARRAY2_FOREACH(merger->ctx->fset->lvlArr, lvl) {
@@ -322,11 +311,6 @@ _exit:
 static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  ASSERT(TARRAY2_SIZE(merger->sttReaderArr) == 0);
-  ASSERT(TARRAY2_SIZE(merger->dataIterArr) == 0);
-  ASSERT(merger->dataIterMerger == NULL);
-  ASSERT(merger->writer == NULL);
 
   TARRAY2_CLEAR(merger->fopArr, NULL);
 

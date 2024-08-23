@@ -124,7 +124,6 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
       if (split == NULL) {
         return NULL;
       }
-      ASSERTS(NULL != split, "realloc memory failed. size=%d", (int32_t)POINTER_BYTES * size);
     }
   }
 

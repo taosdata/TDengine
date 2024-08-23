@@ -269,8 +269,8 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
 
   syncNodeRelease(pSyncNode);
   if (code != 0) {
-    sDebug("vgId:%d, failed to process sync msg:%p type:%s since 0x%x", pSyncNode->vgId, pMsg, TMSG_INFO(pMsg->msgType),
-           code);
+    sDebug("vgId:%d, failed to process sync msg:%p type:%s since %s", pSyncNode->vgId, pMsg, TMSG_INFO(pMsg->msgType),
+           tstrerror(code));
   }
   TAOS_RETURN(code);
 }
@@ -988,9 +988,18 @@ static int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
 
 int32_t syncNodeLogStoreRestoreOnNeed(SSyncNode* pNode) {
   int32_t code = 0;
-  ASSERTS(pNode->pLogStore != NULL, "log store not created");
-  ASSERTS(pNode->pFsm != NULL, "pFsm not registered");
-  ASSERTS(pNode->pFsm->FpGetSnapshotInfo != NULL, "FpGetSnapshotInfo not registered");
+  if (pNode->pLogStore == NULL) {
+    sError("vgId:%d, log store not created", pNode->vgId);
+    return TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
+  if (pNode->pFsm == NULL) {
+    sError("vgId:%d, pFsm not registered", pNode->vgId);
+    return TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
+  if (pNode->pFsm->FpGetSnapshotInfo == NULL) {
+    sError("vgId:%d, FpGetSnapshotInfo not registered", pNode->vgId);
+    return TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
   SSnapshot snapshot = {0};
   // TODO check return value
   (void)pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot);
@@ -1384,8 +1393,14 @@ void syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode) {
 
 int32_t syncNodeRestore(SSyncNode* pSyncNode) {
   int32_t code = 0;
-  ASSERTS(pSyncNode->pLogStore != NULL, "log store not created");
-  ASSERTS(pSyncNode->pLogBuf != NULL, "ring log buffer not created");
+  if (pSyncNode->pLogStore == NULL) {
+    sError("vgId:%d, log store not created", pSyncNode->vgId);
+    return TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
+  if (pSyncNode->pLogBuf == NULL) {
+    sError("vgId:%d, ring log buffer not created", pSyncNode->vgId);
+    return TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
 
   (void)taosThreadMutexLock(&pSyncNode->pLogBuf->mutex);
   SyncIndex lastVer = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
@@ -1400,7 +1415,7 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
     TAOS_RETURN(code);
   }
 
-  ASSERT(endIndex == lastVer + 1);
+  if (endIndex != lastVer + 1) return TSDB_CODE_SYN_INTERNAL_ERROR;
   pSyncNode->commitIndex = TMAX(pSyncNode->commitIndex, commitIndex);
   sInfo("vgId:%d, restore sync until commitIndex:%" PRId64, pSyncNode->vgId, pSyncNode->commitIndex);
 
@@ -1743,7 +1758,10 @@ inline bool syncNodeInConfig(SSyncNode* pNode, const SSyncCfg* pCfg) {
     }
   }
 
-  ASSERT(b1 == b2);
+  if (b1 != b2) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return false;
+  }
   return b1;
 }
 
@@ -2194,7 +2212,7 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   }
 
   SyncIndex lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
-  // ASSERT(lastIndex >= 0);
+
   sInfo("vgId:%d, become leader. term:%" PRId64 ", commit index:%" PRId64 ", last index:%" PRId64 "", pSyncNode->vgId,
         raftStoreGetTerm(pSyncNode), pSyncNode->commitIndex, lastIndex);
 }
@@ -2222,7 +2240,7 @@ void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
 }
 
 int32_t syncNodeAssignedLeader2Leader(SSyncNode* pSyncNode) {
-  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_ASSIGNED_LEADER);
+  if (pSyncNode->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) return TSDB_CODE_SYN_INTERNAL_ERROR;
   syncNodeBecomeLeader(pSyncNode, "assigned leader to leader");
 
   sNTrace(pSyncNode, "assigned leader to leader");

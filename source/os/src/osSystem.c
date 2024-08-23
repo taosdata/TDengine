@@ -91,7 +91,6 @@ typedef struct FILE TdCmd;
 #ifdef BUILD_NO_CALL
 void* taosLoadDll(const char* filename) {
 #if defined(WINDOWS)
-  ASSERT(0);
   return NULL;
 #elif defined(_TD_DARWIN_64)
   return NULL;
@@ -110,7 +109,6 @@ void* taosLoadDll(const char* filename) {
 
 void* taosLoadSym(void* handle, char* name) {
 #if defined(WINDOWS)
-  ASSERT(0);
   return NULL;
 #elif defined(_TD_DARWIN_64)
   return NULL;
@@ -131,7 +129,6 @@ void* taosLoadSym(void* handle, char* name) {
 
 void taosCloseDll(void* handle) {
 #if defined(WINDOWS)
-  ASSERT(0);
   return;
 #elif defined(_TD_DARWIN_64)
   return;

@@ -267,7 +267,7 @@ int32_t compareJsonVal(const void *pLeft, const void *pRight) {
   } else if (leftType == TSDB_DATA_TYPE_NULL) {
     return 0;
   } else {
-    ASSERTS(0, "data type unexpected");
+    uError("data type unexpected leftType:%d rightType:%d", leftType, rightType);
     return 0;
   }
 }
@@ -1497,7 +1497,9 @@ int32_t taosArrayCompareString(const void *a, const void *b) {
 int32_t comparestrPatternMatch(const void *pLeft, const void *pRight) {
   SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
 
-  ASSERT(varDataTLen(pRight) <= TSDB_MAX_FIELD_LEN);
+  if (varDataTLen(pRight) > TSDB_MAX_FIELD_LEN) {
+    return 1;
+  }
   size_t pLen = varDataLen(pRight);
   size_t sz = varDataLen(pLeft);
 
@@ -1546,7 +1548,9 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       case TSDB_DATA_TYPE_TIMESTAMP:
         return setChkInBytes8;
       default:
-        ASSERTS(0, "data type unexpected");
+        uError("getComparFunc data type unexpected type:%d, optr:%d", type, optr);
+        terrno = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+        return NULL;
     }
   }
 
@@ -1570,7 +1574,9 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       case TSDB_DATA_TYPE_TIMESTAMP:
         return setChkNotInBytes8;
       default:
-        ASSERTS(0, "data type unexpected");
+        uError("getComparFunc data type unexpected type:%d, optr:%d", type, optr);
+        terrno = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+        return NULL;
     }
   }
 

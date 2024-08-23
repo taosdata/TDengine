@@ -140,7 +140,6 @@ void* rpcMallocCont(int64_t contLen) {
   char*   start = taosMemoryCalloc(1, size);
   if (start == NULL) {
     tError("failed to malloc msg, size:%" PRId64, size);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   } else {
     tTrace("malloc mem:%p size:%" PRId64, start, size);

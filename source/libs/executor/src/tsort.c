@@ -619,7 +619,7 @@ static int32_t sortComparInit(SMsortComparParam* pParam, SArray* pSources, int32
 
     for (int32_t i = 0; i < pParam->numOfSources; ++i) {
       SSortSource* pSource = pParam->pSources[i];
-      pSource->src.pBlock = pHandle->fetchfp(pSource->param);
+      TAOS_CHECK_RETURN(pHandle->fetchfp(pSource->param, &pSource->src.pBlock));
 
       // set current source is done
       if (pSource->src.pBlock == NULL) {
@@ -711,7 +711,7 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
       }
     } else {
       int64_t st = taosGetTimestampUs();      
-      pSource->src.pBlock = pHandle->fetchfp(((SSortSource*)pSource)->param);
+      TAOS_CHECK_RETURN(pHandle->fetchfp(((SSortSource*)pSource)->param, &pSource->src.pBlock));
       pSource->fetchUs += taosGetTimestampUs() - st;
       pSource->fetchNum++;
       if (pSource->src.pBlock == NULL) {
@@ -1350,7 +1350,7 @@ static int32_t createSortMemFile(SSortHandle* pHandle) {
   }
   if (code == TSDB_CODE_SUCCESS) {
     taosGetTmpfilePath(tsTempDir, "sort-ext-mem", pMemFile->memFilePath);
-    pMemFile->pTdFile = taosOpenCFile(pMemFile->memFilePath, "w+");
+    pMemFile->pTdFile = taosOpenCFile(pMemFile->memFilePath, "w+b");
     if (pMemFile->pTdFile == NULL) {
       code = terrno = TAOS_SYSTEM_ERROR(errno);
     }
@@ -2236,8 +2236,9 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
   while (1) {
     bool bExtractedBlock = false;
     bool bSkipBlock = false;
-
-    SSDataBlock* pBlk = pHandle->fetchfp(pSrc->param);
+    SSDataBlock* pBlk = NULL;
+    
+    TAOS_CHECK_RETURN(pHandle->fetchfp(pSrc->param, &pBlk));
     if (pBlk != NULL && pHandle->mergeLimit > 0) {
       SSDataBlock* p = NULL;
       code = getRowsBlockWithinMergeLimit(pHandle, mTableNumRows, pBlk, &bExtractedBlock, &bSkipBlock, &p);
@@ -2390,7 +2391,8 @@ static int32_t createBlocksQuickSortInitialSources(SSortHandle* pHandle) {
   tsortClearOrderdSource(pHandle->pOrderedSource, NULL, NULL);
 
   while (1) {
-    SSDataBlock* pBlock = pHandle->fetchfp(source->param);
+    SSDataBlock* pBlock = NULL;
+    TAOS_CHECK_RETURN(pHandle->fetchfp(source->param, &pBlock));
     if (pBlock == NULL) {
       break;
     }
@@ -2701,7 +2703,8 @@ static int32_t tsortOpenForPQSort(SSortHandle* pHandle) {
 
   while (1) {
     // fetch data
-    SSDataBlock* pBlock = pHandle->fetchfp(source->param);
+    SSDataBlock* pBlock = NULL;
+    TAOS_CHECK_RETURN(pHandle->fetchfp(source->param, &pBlock));
     if (NULL == pBlock) {
       break;
     }
@@ -2828,7 +2831,9 @@ static int32_t tsortSingleTableMergeNextTuple(SSortHandle* pHandle, STupleHandle
     }
 
     SSortSource*  source = *pSource;
-    SSDataBlock*  pBlock = pHandle->fetchfp(source->param);
+    SSDataBlock*  pBlock = NULL;
+    TAOS_CHECK_RETURN(pHandle->fetchfp(source->param, &pBlock));
+    
     if (!pBlock || pBlock->info.rows == 0) {
       setCurrentSourceDone(source, pHandle);
       pHandle->tupleHandle.pBlock = NULL;

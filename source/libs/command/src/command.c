@@ -740,11 +740,14 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
   SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
   char*            buf2 = taosMemoryMalloc(SHOW_CREATE_VIEW_RESULT_FIELD2_LEN);
   if (NULL == buf2) {
-    QRY_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    return terrno;
   }
 
   SViewMeta* pMeta = pStmt->pViewMeta;
-  ASSERT(pMeta);
+  if(NULL == pMeta) {
+    qError("exception: view meta is null");
+    return TSDB_CODE_APP_ERROR;
+  }
   snprintf(varDataVal(buf2), SHOW_CREATE_VIEW_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE, "CREATE VIEW `%s`.`%s` AS %s",
            pStmt->dbName, pStmt->viewName, pMeta->querySql);
   int32_t len = strlen(varDataVal(buf2));

@@ -38,8 +38,6 @@ bool hJoinBlkReachThreshold(SHJoinOperatorInfo* pInfo, int64_t blkRows) {
 }
 
 int32_t hJoinHandleMidRemains(SHJoinOperatorInfo* pJoin, SHJoinCtx* pCtx) {
-  ASSERT(0 < pJoin->midBlk->info.rows);
-
   TSWAP(pJoin->midBlk, pJoin->finBlk);
 
   pCtx->midRemains = false;
@@ -1153,7 +1151,6 @@ int32_t hJoinInitResBlocks(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinN
   if (NULL == pJoin->finBlk) {
     QRY_ERR_RET(terrno);
   }
-  ASSERT(pJoinNode->node.pOutputDataBlockDesc->totalRowSize > 0);
 
   int32_t code = blockDataEnsureCapacity(pJoin->finBlk, hJoinGetFinBlkCapacity(pJoin, pJoinNode));
   if (TSDB_CODE_SUCCESS != code) {

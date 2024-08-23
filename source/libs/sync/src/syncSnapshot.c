@@ -57,7 +57,7 @@ static int32_t syncSnapBufferCreate(SSyncSnapBuffer **ppBuf) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
   pBuf->size = sizeof(pBuf->entries) / sizeof(void *);
-  ASSERT(pBuf->size == TSDB_SYNC_SNAP_BUFFER_SIZE);
+  if (pBuf->size != TSDB_SYNC_SNAP_BUFFER_SIZE) return TSDB_CODE_SYN_INTERNAL_ERROR;
   (void)taosThreadMutexInit(&pBuf->mutex, NULL);
   *ppBuf = pBuf;
   TAOS_RETURN(0);
@@ -311,7 +311,10 @@ static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
     }
   }
 
-  ASSERT(pSender->seq >= SYNC_SNAPSHOT_SEQ_BEGIN && pSender->seq <= SYNC_SNAPSHOT_SEQ_END);
+  if (!(pSender->seq >= SYNC_SNAPSHOT_SEQ_BEGIN && pSender->seq <= SYNC_SNAPSHOT_SEQ_END)) {
+    code = TSDB_CODE_SYN_INTERNAL_ERROR;
+    goto _OUT;
+  }
 
   // send msg
   int32_t blockLen = (pBlk) ? pBlk->blockLen : 0;
@@ -323,7 +326,10 @@ static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   // put in buffer
   int64_t nowMs = taosGetTimestampMs();
   if (pBlk) {
-    ASSERT(pBlk->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pBlk->seq < SYNC_SNAPSHOT_SEQ_END);
+    if (!(pBlk->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pBlk->seq < SYNC_SNAPSHOT_SEQ_END)) {
+      code = TSDB_CODE_SYN_INTERNAL_ERROR;
+      goto _OUT;
+    }
     pBlk->sendTimeMs = nowMs;
     pSender->pSndBuf->entries[pSender->seq % pSender->pSndBuf->size] = pBlk;
     pBlk = NULL;
@@ -351,7 +357,10 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
 
   for (int32_t seq = pSndBuf->cursor + 1; seq < pSndBuf->end; ++seq) {
     SyncSnapBlock *pBlk = pSndBuf->entries[seq % pSndBuf->size];
-    ASSERT(pBlk);
+    if (!pBlk) {
+      code = TSDB_CODE_SYN_INTERNAL_ERROR;
+      goto _out;
+    }
     int64_t nowMs = taosGetTimestampMs();
     if (pBlk->acked || nowMs < pBlk->sendTimeMs + SYNC_SNAP_RESEND_MS) {
       continue;
@@ -682,7 +691,7 @@ SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths) {
 
 static int32_t syncSnapReceiverExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshotReceiver *pReceiver,
                                              SyncSnapshotSend *pMsg, SSnapshot *pInfo) {
-  ASSERT(pMsg->payloadType == TDMT_SYNC_PREP_SNAPSHOT);
+  if (pMsg->payloadType != TDMT_SYNC_PREP_SNAPSHOT) return TSDB_CODE_SYN_INTERNAL_ERROR;
   int32_t code = 0, lino = 0;
 
   // copy snap info from leader
@@ -878,7 +887,7 @@ static int32_t syncSnapBufferRecv(SSyncSnapshotReceiver *pReceiver, SyncSnapshot
     goto _out;
   }
 
-  ASSERT(pRcvBuf->start <= pRcvBuf->cursor + 1 && pRcvBuf->cursor < pRcvBuf->end);
+  if (!(pRcvBuf->start <= pRcvBuf->cursor + 1 && pRcvBuf->cursor < pRcvBuf->end)) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   if (pMsg->seq > pRcvBuf->cursor) {
     if (pRcvBuf->entries[pMsg->seq % pRcvBuf->size]) {
@@ -922,7 +931,7 @@ static int32_t syncNodeOnSnapshotReceive(SSyncNode *pSyncNode, SyncSnapshotSend 
   // condition 4
   // transfering
   SyncSnapshotSend *pMsg = ppMsg[0];
-  ASSERT(pMsg);
+  if (!pMsg) return TSDB_CODE_SYN_INTERNAL_ERROR;
   SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
   int64_t                timeNow = taosGetTimestampMs();
   int32_t                code = 0;
@@ -1071,7 +1080,7 @@ _out:;
 }
 
 static int32_t syncSnapSenderExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshotSender *pSender, SyncSnapshotRsp *pMsg) {
-  ASSERT(pMsg->payloadType == TDMT_SYNC_PREP_SNAPSHOT_REPLY);
+  if (pMsg->payloadType != TDMT_SYNC_PREP_SNAPSHOT_REPLY) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   SSyncTLV *datHead = (void *)pMsg->data;
   if (datHead->typ != pMsg->payloadType) {
@@ -1168,11 +1177,17 @@ static int32_t syncSnapBufferSend(SSyncSnapshotSender *pSender, SyncSnapshotRsp 
     goto _out;
   }
 
-  ASSERT(pSndBuf->start <= pSndBuf->cursor + 1 && pSndBuf->cursor < pSndBuf->end);
+  if (!(pSndBuf->start <= pSndBuf->cursor + 1 && pSndBuf->cursor < pSndBuf->end)) {
+    code = TSDB_CODE_SYN_INTERNAL_ERROR;
+    goto _out;
+  }
 
   if (pMsg->ack > pSndBuf->cursor && pMsg->ack < pSndBuf->end) {
     SyncSnapBlock *pBlk = pSndBuf->entries[pMsg->ack % pSndBuf->size];
-    ASSERT(pBlk);
+    if (!pBlk) {
+      code = TSDB_CODE_SYN_INTERNAL_ERROR;
+      goto _out;
+    }
     pBlk->acked = 1;
   }
 
