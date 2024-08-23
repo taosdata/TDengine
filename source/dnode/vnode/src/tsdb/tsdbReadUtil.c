@@ -194,7 +194,7 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
             break;
           }
           default:
-            ASSERT(0);
+            return TSDB_CODE_INVALID_PARA;
         }
       } else {
         switch (type) {
@@ -223,7 +223,7 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
             pKey->pks[0].val = UINT8_MAX;
             break;
           default:
-            ASSERT(0);
+            return TSDB_CODE_INVALID_PARA;
         }
       }
     } else {

@@ -53,10 +53,9 @@ static int32_t streamTaskSetReady(SStreamTask* pTask) {
             pTask->id.idStr, pTask->info.taskLevel, numOfUps, p.name);
   }
 
-  ASSERT(pTask->status.downstreamReady == 0);
   pTask->status.downstreamReady = 1;
-
   pTask->execInfo.readyTs = taosGetTimestampMs();
+
   int64_t el = (pTask->execInfo.readyTs - pTask->execInfo.checkTs);
   stDebug("s-task:%s all %d downstream ready, init completed, elapsed time:%" PRId64 "ms, task status:%s",
           pTask->id.idStr, numOfDowns, el, p.name);
@@ -211,8 +210,6 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
   int32_t              hTaskId = pTask->hTaskInfo.id.taskId;
   int64_t              now = taosGetTimestampMs();
   int32_t              code = 0;
-
-  ASSERT(hTaskId != 0);
 
   // check stream task status in the first place.
   SStreamTaskState pStatus = streamTaskGetStatus(pTask);

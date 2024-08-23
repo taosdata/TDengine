@@ -84,27 +84,45 @@ __compar_fn_t idxGetCompar(int8_t type) {
 }
 static FORCE_INLINE TExeCond tCompareLessThan(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
+  if (func == NULL) {
+    return BREAK;
+  }
   return tCompare(func, QUERY_LESS_THAN, a, b, type);
 }
 static FORCE_INLINE TExeCond tCompareLessEqual(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
+  if (func == NULL) {
+    return BREAK;
+  }
   return tCompare(func, QUERY_LESS_EQUAL, a, b, type);
 }
 static FORCE_INLINE TExeCond tCompareGreaterThan(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
+  if (func == NULL) {
+    return BREAK;
+  }
   return tCompare(func, QUERY_GREATER_THAN, a, b, type);
 }
 static FORCE_INLINE TExeCond tCompareGreaterEqual(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
+  if (func == NULL) {
+    return BREAK;
+  }
   return tCompare(func, QUERY_GREATER_EQUAL, a, b, type);
 }
 
 static FORCE_INLINE TExeCond tCompareContains(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
+  if (func == NULL) {
+    return BREAK;
+  }
   return tCompare(func, QUERY_TERM, a, b, type);
 }
 static FORCE_INLINE TExeCond tCompareEqual(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
+  if (func == NULL) {
+    return BREAK;
+  }
   return tCompare(func, QUERY_TERM, a, b, type);
 }
 TExeCond tCompare(__compar_fn_t func, int8_t cmptype, void* a, void* b, int8_t dtype) {

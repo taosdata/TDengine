@@ -459,8 +459,8 @@ void taosVariantDestroy(SVariant *pVar) {
   }
 }
 
-void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
-  if (pSrc == NULL || pDst == NULL) return;
+int32_t taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
+  if (pSrc == NULL || pDst == NULL) return 0;
 
   pDst->nType = pSrc->nType;
   if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_VARBINARY ||
@@ -468,19 +468,20 @@ void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
       pSrc->nType == TSDB_DATA_TYPE_GEOMETRY) {
     int32_t len = pSrc->nLen + TSDB_NCHAR_SIZE;
     char   *p = taosMemoryRealloc(pDst->pz, len);
-    ASSERT(p);
+    if (!p) return terrno;
 
     (void)memset(p, 0, len);
     pDst->pz = p;
 
     (void)memcpy(pDst->pz, pSrc->pz, pSrc->nLen);
     pDst->nLen = pSrc->nLen;
-    return;
+    return 0;
   }
 
   if (IS_NUMERIC_TYPE(pSrc->nType) || (pSrc->nType == TSDB_DATA_TYPE_BOOL)) {
     pDst->i = pSrc->i;
   }
+  return 0;
 }
 
 int32_t taosVariantCompare(const SVariant *p1, const SVariant *p2) {

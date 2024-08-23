@@ -113,7 +113,7 @@ _exit:
 }
 
 static int32_t tsdbDataFileRAWWriterCloseAbort(SDataFileRAWWriter *writer) {
-  ASSERT(0);
+  tsdbError("vgId:%d %s failed since not implemented", TD_VID(writer->config->tsdb->pVnode), __func__);
   return 0;
 }
 
@@ -122,8 +122,6 @@ static int32_t tsdbDataFileRAWWriterDoClose(SDataFileRAWWriter *writer) { return
 static int32_t tsdbDataFileRAWWriterCloseCommit(SDataFileRAWWriter *writer, TFileOpArray *opArr) {
   int32_t code = 0;
   int32_t lino = 0;
-  ASSERT(writer->ctx->offset <= writer->file.size);
-  ASSERT(writer->config->fid == writer->file.fid);
 
   STFileOp op = (STFileOp){
       .optype = TSDB_FOP_CREATE,

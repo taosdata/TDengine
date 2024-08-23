@@ -121,7 +121,9 @@ int32_t cfgGetSize(SConfig *pCfg) { return taosArrayGetSize(pCfg->array); }
 
 static int32_t cfgCheckAndSetConf(SConfigItem *pItem, const char *conf) {
   cfgItemFreeVal(pItem);
-  ASSERT(pItem->str == NULL);
+  if (!(pItem->str == NULL)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   pItem->str = taosStrdup(conf);
   if (pItem->str == NULL) {
