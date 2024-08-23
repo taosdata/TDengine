@@ -6,9 +6,14 @@ import platform
 import re
 import time
 
+system = platform.system()
 current_path = os.path.abspath(os.path.dirname(__file__))
-with open("%s/test_server.txt" % current_path) as f:
-    cases = f.read().splitlines()
+if system == 'Windows':
+    with open(r"%s\test_server_windows.txt" % current_path) as f:
+        cases = f.read().splitlines()
+else:
+    with open("%s/test_server.txt" % current_path) as f:
+        cases = f.read().splitlines()
 
 
 @pytest.fixture(scope="module")
@@ -48,10 +53,15 @@ def setup_module(get_config):
     # cmd = "bash getAndRunInstaller.sh -m %s -f server -l false -c x64 -v %s -o %s -s %s -t %s" % (
     #     config["verMode"], config["taosVersion"], config["baseVersion"], config["sourcePath"], t)
     # run_cmd(cmd)
-    cmd = "mkdir -p ../../debug/build/bin/"
+    if config["system"] == "Windows":
+        cmd = r"mkdir ..\..\debug\build\bin"
+    else:
+        cmd = "mkdir -p ../../debug/build/bin/"
     run_cmd(cmd)
     if config["system"] == "Darwin":
         cmd = "sudo cp /usr/local/bin/taos*  ../../debug/build/bin/"
+    elif config["system"] == "Windows":
+        cmd = r"xcopy C:\TDengine\taos*.exe ..\..\debug\build\bin"
     else:
         cmd = "sudo cp /usr/bin/taos*  ../../debug/build/bin/"
     run_cmd(cmd)
@@ -68,9 +78,12 @@ def run_command(request):
     if commands.strip().startswith("#"):
         pytest.skip("This case has been marked as skipped")
     d, command = commands.strip().split(",")
-    print("cd %s/../../tests/%s&&sudo %s" % (current_path, d, command))
-    result = subprocess.run("cd %s/../../tests/%s&&sudo %s" % (current_path, d, command), capture_output=True,
-                            text=True, shell=True)
+    if system == "Windows":
+        cmd = r"cd %s\..\..\tests\%s && %s" % (current_path, d, command)
+    else:
+        cmd = "cd %s/../../tests/%s&&sudo %s" % (current_path, d, command)
+    print(cmd)
+    result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
     return {
         "command": command,
         "stdout": result.stdout,
