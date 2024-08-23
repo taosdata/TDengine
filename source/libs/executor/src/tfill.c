@@ -324,8 +324,11 @@ _end:
 
 static void saveColData(SArray* rowBuf, int32_t columnIndex, const char* src, bool isNull);
 
-static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SRowVal* pRowVal, bool reset) {
+static int32_t copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SRowVal* pRowVal, bool reset) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
   SColumnInfoData* pTsCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, pFillInfo->srcTsSlotId);
+  QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
   pRowVal->key = ((int64_t*)pTsCol->pData)[rowIndex];
 
   for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
@@ -342,15 +345,24 @@ static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SRowVa
       }
 
       SColumnInfoData* pSrcCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, srcSlotId);
+      QUERY_CHECK_NULL(pSrcCol, code, lino, _end, terrno);
 
       bool  isNull = colDataIsNull_s(pSrcCol, rowIndex);
       char* p = colDataGetData(pSrcCol, rowIndex);
 
       saveColData(pRowVal->pRowVal, i, p, reset ? true : isNull);
     } else {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR));
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      QUERY_CHECK_CODE(code, lino, _end);
     }
   }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t outputRows) {
@@ -368,10 +380,12 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
     // set the next value for interpolation
     if (pFillInfo->currentKey < ts && ascFill) {
       SRowVal* pRVal = pFillInfo->type == TSDB_FILL_NEXT ? &pFillInfo->next : &pFillInfo->prev;
-      copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, pRVal, false);
+      code = copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, pRVal, false);
+      QUERY_CHECK_CODE(code, lino, _end);
     } else if (pFillInfo->currentKey > ts && !ascFill) {
       SRowVal* pRVal = pFillInfo->type == TSDB_FILL_NEXT ? &pFillInfo->prev : &pFillInfo->next;
-      copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, pRVal, false);
+      code = copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, pRVal, false);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     if (((pFillInfo->currentKey < ts && ascFill) || (pFillInfo->currentKey > ts && !ascFill)) &&
@@ -394,15 +408,18 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
       int32_t nextRowIndex = pFillInfo->index + 1;
       if (pFillInfo->type == TSDB_FILL_NEXT) {
         if ((pFillInfo->index + 1) < pFillInfo->numOfRows) {
-          copyCurrentRowIntoBuf(pFillInfo, nextRowIndex, &pFillInfo->next, false);
+          code = copyCurrentRowIntoBuf(pFillInfo, nextRowIndex, &pFillInfo->next, false);
+          QUERY_CHECK_CODE(code, lino, _end);
         } else {
           // reset to null after last row
-          copyCurrentRowIntoBuf(pFillInfo, nextRowIndex, &pFillInfo->next, true);
+          code = copyCurrentRowIntoBuf(pFillInfo, nextRowIndex, &pFillInfo->next, true);
+          QUERY_CHECK_CODE(code, lino, _end);
         }
       }
       if (pFillInfo->type == TSDB_FILL_PREV) {
         if (nextRowIndex + 1 >= pFillInfo->numOfRows && !FILL_IS_ASC_FILL(pFillInfo)) {
-          copyCurrentRowIntoBuf(pFillInfo, nextRowIndex, &pFillInfo->next, true);
+          code = copyCurrentRowIntoBuf(pFillInfo, nextRowIndex, &pFillInfo->next, true);
+          QUERY_CHECK_CODE(code, lino, _end);
         }
       }
 

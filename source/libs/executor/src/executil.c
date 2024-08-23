@@ -1562,6 +1562,7 @@ int32_t getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode,
     if (nodeType(pNew) != QUERY_NODE_VALUE) {
       nodesDestroyList(groupNew);
       pAPI->metaReaderFn.clearReader(&mr);
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR));
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
     SValueNode* pValue = (SValueNode*)pNew;
@@ -2153,6 +2154,7 @@ int32_t relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SAr
     } else if (p->info.colId < pmInfo->colId) {
       i++;
     } else {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR));
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
   }
