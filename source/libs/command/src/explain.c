@@ -1978,6 +1978,10 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   rsp->numOfRows = htobe64((int64_t)rowNum);
 
   int32_t len = blockEncode(pBlock, rsp->data + PAYLOAD_PREFIX_LEN, taosArrayGetSize(pBlock->pDataBlock));
+  if(len < 0) {
+    qError("qExplainGetRspFromCtx: blockEncode failed");
+    QRY_ERR_JRET(terrno);
+  }
 
   rsp->compLen = htonl(len);
   rsp->payloadLen = htonl(len);
