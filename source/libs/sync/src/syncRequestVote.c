@@ -95,7 +95,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   if (!syncNodeInRaftGroup(ths, &pMsg->srcId)) {
     syncLogRecvRequestVote(ths, pMsg, -1, "not in my config");
 
-    TAOS_RETURN(TSDB_CODE_FAILED);
+    TAOS_RETURN(TSDB_CODE_SYN_MISMATCHED_SIGNATURE);
   }
 
   bool logOK = syncNodeOnRequestVoteLogOK(ths, pMsg);

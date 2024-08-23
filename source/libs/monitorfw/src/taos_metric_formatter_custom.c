@@ -29,7 +29,7 @@
 int taos_metric_formatter_load_sample_new(taos_metric_formatter_t *self, taos_metric_sample_t *sample, 
                                       char *ts, char *format, char *metricName, int32_t metric_type,
                                       SJson *arrayMetricGroups) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
 
   int r = 0;
@@ -129,7 +129,7 @@ int taos_metric_formatter_load_sample_new(taos_metric_formatter_t *self, taos_me
 
 int taos_metric_formatter_load_metric_new(taos_metric_formatter_t *self, taos_metric_t *metric, char *ts, char *format, 
                                           SJson* tableArray) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
 
   int r = 0;
@@ -195,7 +195,7 @@ int taos_metric_formatter_load_metric_new(taos_metric_formatter_t *self, taos_me
 
 int taos_metric_formatter_load_metrics_new(taos_metric_formatter_t *self, taos_map_t *collectors, char *ts, 
                                             char *format, SJson* tableArray) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   int r = 0;
 
   for (taos_linked_list_node_t *current_node = collectors->keys->head; current_node != NULL;

@@ -1247,6 +1247,9 @@ void destroyTimeSliceOperatorInfo(void* param) {
     taosMemoryFree(pInfo->pPrevGroupKey->pData);
     taosMemoryFree(pInfo->pPrevGroupKey);
   }
+  if (pInfo->hasPk && IS_VAR_DATA_TYPE(pInfo->pkCol.type)) {
+    taosMemoryFreeClear(pInfo->prevKey.pks[0].pData);
+  }
 
   cleanupExprSupp(&pInfo->scalarSup);
   if (pInfo->pFillColInfo != NULL) {

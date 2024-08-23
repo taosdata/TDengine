@@ -540,8 +540,13 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
          TD_VID(pVnode), TMSG_INFO(pMsg->msgType), ver, pVnode->state.applied, pVnode->state.applyTerm,
          pMsg->info.conn.applyTerm);
 
-  ASSERT(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
-  ASSERTS(pVnode->state.applied + 1 == ver, "applied:%" PRId64 ", ver:%" PRId64, pVnode->state.applied, ver);
+  if (!(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm)) {
+    return terrno = TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  if (!(pVnode->state.applied + 1 == ver)) {
+    return terrno = TSDB_CODE_INTERNAL_ERROR;
+  }
 
   atomic_store_64(&pVnode->state.applied, ver);
   atomic_store_64(&pVnode->state.applyTerm, pMsg->info.conn.applyTerm);
@@ -981,7 +986,10 @@ static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode *pVnode, int64_t ver, void 
     goto _end;
   }
 
-  ASSERT(ttlReq.nUids == taosArrayGetSize(ttlReq.pTbUids));
+  if (!(ttlReq.nUids == taosArrayGetSize(ttlReq.pTbUids))) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _end;
+  }
 
   tb_uid_t    suid;
   char        ctbName[TSDB_TABLE_NAME_LEN];
