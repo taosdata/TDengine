@@ -894,12 +894,12 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
 
     int32_t rawLen = *(int32_t*)pStart;
     pStart += sizeof(int32_t);
-    ASSERT(compLen <= rawLen && compLen != 0);
+    QUERY_CHECK_CONDITION((compLen <= rawLen && compLen != 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
     pNextStart = pStart + compLen;
     if (pRetrieveRsp->compressed && (compLen < rawLen)) {
       int32_t t = tsDecompressString(pStart, compLen, 1, pDataInfo->decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
-      ASSERT(t == rawLen);
+      QUERY_CHECK_CONDITION((t == rawLen), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       pStart = pDataInfo->decompBuf;
     }
 

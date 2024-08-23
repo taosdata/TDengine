@@ -348,7 +348,7 @@ static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SRowVa
 
       saveColData(pRowVal->pRowVal, i, p, reset ? true : isNull);
     } else {
-      ASSERT(0);
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR));
     }
   }
 }
@@ -361,10 +361,6 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
 
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order);
   bool    ascFill = FILL_IS_ASC_FILL(pFillInfo);
-
-#if 0
-  ASSERT(ascFill && (pFillInfo->currentKey >= pFillInfo->start) || (!ascFill && (pFillInfo->currentKey <= pFillInfo->start)));
-#endif
 
   while (pFillInfo->numOfCurrent < outputRows) {
     int64_t ts = ((int64_t*)pTsCol->pData)[pFillInfo->index];
@@ -392,7 +388,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
         goto _end;
       }
     } else {
-      ASSERT(pFillInfo->currentKey == ts);
+      QUERY_CHECK_CONDITION((pFillInfo->currentKey == ts), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       int32_t index = pBlock->info.rows;
 
       int32_t nextRowIndex = pFillInfo->index + 1;
@@ -500,7 +496,9 @@ static void saveColData(SArray* rowBuf, int32_t columnIndex, const char* src, bo
   }
 }
 
-static void appendFilledResult(SFillInfo* pFillInfo, SSDataBlock* pBlock, int64_t resultCapacity) {
+static int32_t appendFilledResult(SFillInfo* pFillInfo, SSDataBlock* pBlock, int64_t resultCapacity) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   /*
    * These data are generated according to fill strategy, since the current timestamp is out of the time window of
    * real result set. Note that we need to keep the direct previous result rows, to generated the filled data.
@@ -512,7 +510,14 @@ static void appendFilledResult(SFillInfo* pFillInfo, SSDataBlock* pBlock, int64_
 
   pFillInfo->numOfTotal += pFillInfo->numOfCurrent;
 
-  ASSERT(pFillInfo->numOfCurrent == resultCapacity);
+  QUERY_CHECK_CONDITION((pFillInfo->numOfCurrent == resultCapacity), code, lino, _end,
+                        TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t taosNumOfRemainRows(SFillInfo* pFillInfo) {
@@ -635,15 +640,6 @@ void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey)
 
   // the endKey is now the aligned time window value. truncate time window isn't correct.
   pFillInfo->end = endKey;
-
-#if 0
-  if (pFillInfo->order == TSDB_ORDER_ASC) {
-    ASSERT(pFillInfo->start <= pFillInfo->end);
-  } else {
-    ASSERT(pFillInfo->start >= pFillInfo->end);
-  }
-#endif
-
   pFillInfo->index = 0;
   pFillInfo->numOfRows = numOfRows;
 }
@@ -687,7 +683,6 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
     numOfRes =
         taosTimeCountIntervalForFill(lastKey, pFillInfo->currentKey, pFillInfo->interval.sliding,
                                      pFillInfo->interval.slidingUnit, pFillInfo->interval.precision, pFillInfo->order);
-    ASSERT(numOfRes >= numOfRows);
   } else {  // reach the end of data
     if ((ekey1 < pFillInfo->currentKey && FILL_IS_ASC_FILL(pFillInfo)) ||
         (ekey1 > pFillInfo->currentKey && !FILL_IS_ASC_FILL(pFillInfo))) {
@@ -719,23 +714,30 @@ void taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* po
 
 int32_t taosFillResultDataBlock(SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity) {
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   int32_t remain = taosNumOfRemainRows(pFillInfo);
 
   int64_t numOfRes = getNumOfResultsAfterFillGap(pFillInfo, pFillInfo->end, capacity);
-  ASSERT(numOfRes <= capacity);
+  QUERY_CHECK_CONDITION((numOfRes <= capacity), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
   // no data existed for fill operation now, append result according to the fill strategy
   if (remain == 0) {
-    appendFilledResult(pFillInfo, p, numOfRes);
+    code = appendFilledResult(pFillInfo, p, numOfRes);
+    QUERY_CHECK_CODE(code, lino, _end);
   } else {
     code = fillResultImpl(pFillInfo, p, (int32_t)numOfRes);
-    ASSERT(numOfRes == pFillInfo->numOfCurrent);
+    QUERY_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CONDITION((numOfRes == pFillInfo->numOfCurrent), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   }
 
   qDebug("fill:%p, generated fill result, src block:%d, index:%d, brange:%" PRId64 "-%" PRId64 ", currentKey:%" PRId64
          ", current : % d, total : % d, %s",
          pFillInfo, pFillInfo->numOfRows, pFillInfo->index, pFillInfo->start, pFillInfo->end, pFillInfo->currentKey,
          pFillInfo->numOfCurrent, pFillInfo->numOfTotal, pFillInfo->id);
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
