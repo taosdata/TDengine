@@ -344,7 +344,7 @@ static const char* encryptAlgorithmStr(int8_t encryptAlgorithm) {
   return TSDB_CACHE_MODEL_NONE_STR;
 }
 
-static int formatDurationOrKeep(char** buffer, int32_t timeInMinutes) {
+static void formatDurationOrKeep(char** buffer, int32_t timeInMinutes) {
     int len = 0;
     if (timeInMinutes % 1440 == 0) {
         int days = timeInMinutes / 1440;
@@ -361,7 +361,6 @@ static int formatDurationOrKeep(char** buffer, int32_t timeInMinutes) {
         *buffer = (char*)taosMemoryCalloc(len + 1, sizeof(char));
         sprintf(*buffer, "%dm", timeInMinutes);
     }
-    return len;
 }
 
 static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName, char* dbFName, SDbCfgInfo* pCfg) {
@@ -402,13 +401,13 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
     hashPrefix = pCfg->hashPrefix + dbFNameLen + 1;
   }
   char* durationStr = NULL;
-  formatDurationOrKeep(&durationStr, pCfg->daysPerFile);
+  (void)formatDurationOrKeep(&durationStr, pCfg->daysPerFile);
   char* keep0Str = NULL;
-  formatDurationOrKeep(&keep0Str, pCfg->daysToKeep0);
+  (void)formatDurationOrKeep(&keep0Str, pCfg->daysToKeep0);
   char* keep1Str = NULL;
-  formatDurationOrKeep(&keep1Str, pCfg->daysToKeep1);
+  (void)formatDurationOrKeep(&keep1Str, pCfg->daysToKeep1);
   char* keep2Str = NULL;
-  formatDurationOrKeep(&keep2Str, pCfg->daysToKeep2);
+  (void)formatDurationOrKeep(&keep2Str, pCfg->daysToKeep2);
   if (IS_SYS_DBNAME(dbName)) {
     len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE DATABASE `%s`", dbName);
   } else {
@@ -435,6 +434,10 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
   }
 
   taosMemoryFree(pRetentions);
+  taosMemoryFree(durationStr);
+  taosMemoryFree(keep0Str);
+  taosMemoryFree(keep1Str);
+  taosMemoryFree(keep2Str);
 
   (varDataLen(buf2)) = len;
 
