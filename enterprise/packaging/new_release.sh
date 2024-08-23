@@ -215,8 +215,7 @@ function industry_options() {
             -DTD_PRODUCT_NAME=\"${TD_INDUSTRY_NAME}\" \
             -DTD_FUNC_STREAM=false \
             -DTD_FUNC_SUBSCRIPTION=false \
-            -DTD_FUNC_AUDIT=false \
-            -DTD_FUNC_CSV=false \
+            -DTD_FUNC_AUDIT=false \            
             -DTD_FUNC_VIEW=false \
             -DTD_FUNC_MULTI_TIER_STORAGE=false \
             -DTD_FUNC_DATA_BAK_RESTORE=false \
@@ -224,6 +223,7 @@ function industry_options() {
             -DTD_FUNC_ACTIVE_ACTIVE=false \
             -DTD_FUNC_DUAL_REPLICA_HA=false \
             -DTD_FUNC_DB_ENCRYPTION=false \
+            -DTD_FUNC_DATA_SYNC=false \
             -DTD_DATAIN_OPC_DA=false \
             -DTD_DATAIN_OPC_UA=false \
             -DTD_DATAIN_PI=false \
@@ -238,7 +238,8 @@ function industry_options() {
             -DTD_DATAIN_POSTGRES=false \
             -DTD_DATAIN_ORACLE=false \
             -DTD_DATAIN_MSSQL=false \
-            -DTD_DATAIN_MONGODB=false"
+            -DTD_DATAIN_MONGODB=false \
+            -DTD_DATAIN_CSV=false"
     fi
     echo $options
 }
@@ -470,8 +471,8 @@ function preparepkg() {
 
     # copy cfg files
     cp ${cfg_dir}/${prefix}.cfg ${install_dir}/cfg/ || :
-    if [ -f "${cfg_dir}/${prefix}d.service" ]; then
-        cp ${cfg_dir}/${prefix}d.service ${install_dir}/cfg || :
+    if [ -f "${communityDir}/packaging/cfg/${prefix}d.service" ]; then
+        cp ${communityDir}/packaging/cfg/${prefix}d.service ${install_dir}/cfg || :
     fi
 
     if [ -f "${debugDir}/test/cfg/${prefix}adapter.toml" ]; then
