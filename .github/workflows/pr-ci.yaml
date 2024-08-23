@@ -221,6 +221,7 @@ jobs:
         run: |
           echo "RPC_PORT: ${{ steps.run_container.outputs.rpc_port }}"
           # 调用 windows 远程服务拉起 windows-agent
+          echo $PATH
           cd /data/github/TestNG_taosX && source setenv.sh && poetry run python3 testng_taosx/ci_util.py ${{ steps.run_container.outputs.rpc_port }} eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
 
   run_test:
