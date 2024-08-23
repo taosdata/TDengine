@@ -148,11 +148,13 @@ static int32_t sdbGetkeySize(SSdb *pSdb, ESdbType type, const void *pKey) {
 
 static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_t keySize) {
   int32_t type = pRow->type;
+  (void)taosThreadMutexLock(&pSdb->filelock);
   sdbWriteLock(pSdb, type);
 
   SSdbRow *pOldRow = taosHashGet(hash, pRow->pObj, keySize);
   if (pOldRow != NULL) {
     sdbUnLock(pSdb, type);
+    (void)taosThreadMutexUnlock(&pSdb->filelock);
     sdbFreeRow(pSdb, pRow, false);
     terrno = TSDB_CODE_SDB_OBJ_ALREADY_THERE;
     return terrno;
@@ -164,6 +166,7 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
 
   if (taosHashPut(hash, pRow->pObj, keySize, &pRow, sizeof(void *)) != 0) {
     sdbUnLock(pSdb, type);
+    (void)taosThreadMutexUnlock(&pSdb->filelock);
     sdbFreeRow(pSdb, pRow, false);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
@@ -180,11 +183,13 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
       sdbFreeRow(pSdb, pRow, false);
       terrno = code;
       sdbUnLock(pSdb, type);
+      (void)taosThreadMutexUnlock(&pSdb->filelock);
       return terrno;
     }
   }
 
   sdbUnLock(pSdb, type);
+  (void)taosThreadMutexUnlock(&pSdb->filelock);
 
   if (pSdb->keyTypes[pRow->type] == SDB_KEY_INT32) {
     pSdb->maxId[pRow->type] = TMAX(pSdb->maxId[pRow->type], *((int32_t *)pRow->pObj));
