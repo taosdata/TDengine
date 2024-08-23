@@ -146,7 +146,7 @@ class TDTestCase:
         ]
         tdSql.query("select concat(null,null)")  # TD-31571
         tdSql.checkRows(1)
-        assert tdSql.getData(0, 0) == None
+        tdSql.checkData(0, 0, None)
         for tb in tbname:
             for i in range(2,8):
                 self.__concat_check(tb,i)

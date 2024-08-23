@@ -158,7 +158,7 @@ class TDTestCase:
         ]
         tdSql.query("select concat_ws(null,null,null);")  # TD-31572
         tdSql.checkRows(1)
-        assert tdSql.getData(0, 0) == None
+        tdSql.checkData(0, 0, None)
         for tb in tbname:
             for errsql in self.__concat_ws_err_check(tb):
                 tdSql.error(sql=errsql)
