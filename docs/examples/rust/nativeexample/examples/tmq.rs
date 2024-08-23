@@ -1,9 +1,9 @@
-use std::time::Duration;
-use std::str::FromStr;
-use chrono::Local;
 use chrono::DateTime;
-use taos::*;
+use chrono::Local;
+use std::str::FromStr;
 use std::thread;
+use std::time::Duration;
+use taos::*;
 use tokio::runtime::Runtime;
 
 #[tokio::main]
@@ -12,7 +12,7 @@ async fn main() -> anyhow::Result<()> {
         .filter_level(log::LevelFilter::Info)
         .init();
     use taos_query::prelude::*;
-    // ANCHOR: create_consumer_dsn    
+    // ANCHOR: create_consumer_dsn
     let dsn = "taos://localhost:6030".to_string();
     println!("dsn: {}", dsn);
     let mut dsn = Dsn::from_str(&dsn)?;
@@ -41,17 +41,25 @@ async fn main() -> anyhow::Result<()> {
     // ANCHOR: create_consumer_ac
     let group_id = "group1".to_string();
     let client_id = "client1".to_string();
-    dsn.params.insert("auto.offset.reset".to_string(), "latest".to_string());
-    dsn.params.insert("msg.with.table.name".to_string(), "true".to_string());
-    dsn.params.insert("enable.auto.commit".to_string(), "true".to_string());
-    dsn.params.insert("auto.commit.interval.ms".to_string(), "1000".to_string());
+    dsn.params
+        .insert("auto.offset.reset".to_string(), "latest".to_string());
+    dsn.params
+        .insert("msg.with.table.name".to_string(), "true".to_string());
+    dsn.params
+        .insert("enable.auto.commit".to_string(), "true".to_string());
+    dsn.params
+        .insert("auto.commit.interval.ms".to_string(), "1000".to_string());
     dsn.params.insert("group.id".to_string(), group_id.clone());
-    dsn.params.insert("client.id".to_string(), client_id.clone());
+    dsn.params
+        .insert("client.id".to_string(), client_id.clone());
 
     let builder = TmqBuilder::from_dsn(&dsn)?;
-    let mut consumer = match builder.build().await{
+    let mut consumer = match builder.build().await {
         Ok(consumer) => {
-            println!("Create consumer successfully, dsn: {}, groupId: {}, clientId: {}.", dsn, group_id, client_id);
+            println!(
+                "Create consumer successfully, dsn: {}, groupId: {}, clientId: {}.",
+                dsn, group_id, client_id
+            );
             consumer
         }
         Err(err) => {
@@ -61,10 +69,10 @@ async fn main() -> anyhow::Result<()> {
     };
     // ANCHOR_END: create_consumer_ac
 
-    thread::spawn(move || {
+    let handle = thread::spawn(move || {
         let rt = Runtime::new().unwrap();
-
         rt.block_on(async {
+            tokio::time::sleep(Duration::from_secs(1)).await;
             let taos_insert = TaosBuilder::from_dsn(&dsn).unwrap().build().await.unwrap();
             for i in 0..50 {
                 let insert_sql = format!(r#"INSERT INTO 
@@ -77,16 +85,17 @@ async fn main() -> anyhow::Result<()> {
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
         });
-
-    }).join().unwrap();
-
+    });
 
     // ANCHOR: consume
     let topic = "topic_meters";
-    match consumer.subscribe([topic]).await{
+    match consumer.subscribe([topic]).await {
         Ok(_) => println!("Subscribe topics successfully."),
         Err(err) => {
-            eprintln!("Failed to subscribe topic: {}, groupId: {}, clientId: {}, ErrMessage: {:?}", topic, group_id, client_id, err);
+            eprintln!(
+                "Failed to subscribe topic: {}, groupId: {}, clientId: {}, ErrMessage: {:?}",
+                topic, group_id, client_id, err
+            );
             return Err(err.into());
         }
     }
@@ -107,32 +116,36 @@ async fn main() -> anyhow::Result<()> {
     }
 
     consumer
-    .stream()
-    .try_for_each(|(offset, message)| async move {
-        let topic = offset.topic();
-        // the vgroup id, like partition id in kafka.
-        let vgroup_id = offset.vgroup_id();
-        println!("* in vgroup id {vgroup_id} of topic {topic}\n");
+        .stream_with_timeout(Timeout::from_secs(10))
+        .try_for_each(|(offset, message)| async move {
+            let topic = offset.topic();
+            // the vgroup id, like partition id in kafka.
+            let vgroup_id = offset.vgroup_id();
+            println!("* in vgroup id {vgroup_id} of topic {topic}\n");
 
-        if let Some(data) = message.into_data() {
-            while let Some(block) = data.fetch_raw_block().await? {
-                let records: Vec<Record> = block.deserialize().try_collect()?;
-                // Add your data processing logic here
-                println!("** read {} records: {:#?}\n", records.len(), records);
+            if let Some(data) = message.into_data() {
+                while let Some(block) = data.fetch_raw_block().await? {
+                    let records: Vec<Record> = block.deserialize().try_collect()?;
+                    // Add your data processing logic here
+                    println!("** read {} records: {:#?}\n", records.len(), records);
+                }
             }
-        }
-        Ok(())
-    })
-    .await.map_err(|e| {
-        eprintln!("Failed to poll data, topic: {}, groupId: {}, clientId: {}, ErrMessage: {:?}", topic, group_id, client_id, e);
-        e
-    })?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| {
+            eprintln!(
+                "Failed to poll data, topic: {}, groupId: {}, clientId: {}, ErrMessage: {:?}",
+                topic, group_id, client_id, e
+            );
+            e
+        })?;
 
     // ANCHOR_END: consume
 
-    // ANCHOR: consumer_commit_manually   
+    // ANCHOR: consumer_commit_manually
     consumer
-        .stream()
+        .stream_with_timeout(Timeout::from_secs(10))
         .try_for_each(|(offset, message)| async {
             // the vgroup id, like partition id in kafka.
             let vgroup_id = offset.vgroup_id();
@@ -162,12 +175,14 @@ async fn main() -> anyhow::Result<()> {
         })?;
     // ANCHOR_END: consumer_commit_manually
 
-
     // ANCHOR: seek_offset
-    let assignments = match consumer.assignments().await{
+    let assignments = match consumer.assignments().await {
         Some(assignments) => assignments,
         None => {
-            let error_message = format!("Failed to get assignments. topic: {}, groupId: {}, clientId: {}", topic, group_id, client_id);
+            let error_message = format!(
+                "Failed to get assignments. topic: {}, groupId: {}, clientId: {}",
+                topic, group_id, client_id
+            );
             eprintln!("{}", error_message);
             return Err(anyhow::anyhow!(error_message));
         }
@@ -185,14 +200,10 @@ async fn main() -> anyhow::Result<()> {
             let end = assignment.end();
             println!(
                 "topic: {}, vgroup_id: {}, current offset: {}, begin {}, end: {}",
-                topic,
-                vgroup_id,
-                current,
-                begin,
-                end
+                topic, vgroup_id, current, begin, end
             );
 
-            match consumer.offset_seek(topic, vgroup_id, begin).await{
+            match consumer.offset_seek(topic, vgroup_id, begin).await {
                 Ok(_) => (),
                 Err(err) => {
                     eprintln!("Failed to seek offset, topic: {}, groupId: {}, clientId: {}, vGroupId: {}, begin: {}, ErrMessage: {:?}", 
@@ -207,10 +218,13 @@ async fn main() -> anyhow::Result<()> {
     }
     println!("Assignment seek to beginning successfully.");
     // after seek offset
-    let assignments = match consumer.assignments().await{
+    let assignments = match consumer.assignments().await {
         Some(assignments) => assignments,
         None => {
-            let error_message = format!("Failed to get assignments. topic: {}, groupId: {}, clientId: {}", topic, group_id, client_id);
+            let error_message = format!(
+                "Failed to get assignments. topic: {}, groupId: {}, clientId: {}",
+                topic, group_id, client_id
+            );
             eprintln!("{}", error_message);
             return Err(anyhow::anyhow!(error_message));
         }
@@ -225,10 +239,9 @@ async fn main() -> anyhow::Result<()> {
 
     tokio::time::sleep(Duration::from_secs(1)).await;
 
-    taos.exec_many([
-        "drop topic topic_meters",
-        "drop database power",
-    ])
-    .await?;
+    handle.join().unwrap();
+
+    taos.exec_many(["drop topic topic_meters", "drop database power"])
+        .await?;
     Ok(())
 }
