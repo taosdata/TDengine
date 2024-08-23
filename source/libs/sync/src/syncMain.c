@@ -220,6 +220,10 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
     TAOS_RETURN(code);
   }
 
+  if (!pSyncNode->restoreFinish) {
+    sInfo("vgId:%d, (not restored) rec sync msg:%p type:%s", pSyncNode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
+  }
+
   switch (pMsg->msgType) {
     case TDMT_SYNC_HEARTBEAT:
       code = syncNodeOnHeartbeat(pSyncNode, pMsg);
