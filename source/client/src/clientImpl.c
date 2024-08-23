@@ -2937,7 +2937,7 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
   int32_t code = schedulerFetchRows(pRequest->body.queryJob, &req);
   if (TSDB_CODE_SUCCESS != code) {
     tscError("0x%" PRIx64 " failed to schedule fetch rows", pRequest->requestId);
-    pRequest->body.fetchFp(param, pRequest, code);
+    //pRequest->body.fetchFp(param, pRequest, code);    
   }
 }
 
