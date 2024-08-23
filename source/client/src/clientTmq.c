@@ -1576,7 +1576,12 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     goto END;
   }
 
-  ASSERT(msgEpoch == clientEpoch);
+  if(msgEpoch != clientEpoch) {
+    tscError("consumer:0x%" PRIx64 " msg discard from vgId:%d since from earlier epoch, rsp epoch %d, current epoch %d, reqId:0x%" PRIx64,
+             tmq->consumerId, vgId, msgEpoch, clientEpoch, requestId);
+    code = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
+    goto END;
+  }
   // handle meta rsp
   rspType = ((SMqRspHead*)pMsg->pData)->mqMsgType;
   pRspWrapper->tmqRspType = rspType;
@@ -1874,7 +1879,10 @@ void changeByteEndian(char* pData) {
   // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
   // length | version:
   int32_t blockVersion = *(int32_t*)p;
-  ASSERT(blockVersion == BLOCK_VERSION_1);
+  if(blockVersion != BLOCK_VERSION_1) {
+    tscError("invalid block version:%d", blockVersion);
+    return;
+  }
   *(int32_t*)p = BLOCK_VERSION_2;
 
   p += sizeof(int32_t);

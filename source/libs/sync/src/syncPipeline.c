@@ -71,16 +71,32 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
     goto _err;
   }
 
-  ASSERT(index == pBuf->endIndex);
+  if (index != pBuf->endIndex) {
+    code = TSDB_CODE_SYN_INTERNAL_ERROR;
+    goto _err;
+  };
 
   SSyncRaftEntry* pExist = pBuf->entries[index % pBuf->size].pItem;
-  ASSERT(pExist == NULL);
+  if (pExist != NULL) {
+    code = TSDB_CODE_SYN_INTERNAL_ERROR;
+    goto _err;
+  }
 
   // initial log buffer with at least one item, e.g. commitIndex
   SSyncRaftEntry* pMatch = pBuf->entries[(index - 1 + pBuf->size) % pBuf->size].pItem;
-  ASSERTS(pMatch != NULL, "no matched log entry");
-  ASSERT(pMatch->index + 1 == index);
-  ASSERT(pMatch->term <= pEntry->term);
+  if (pMatch == NULL) {
+    sError("vgId:%d, no matched log entry", pNode->vgId);
+    code = TSDB_CODE_SYN_INTERNAL_ERROR;
+    goto _err;
+  }
+  if (pMatch->index + 1 != index) {
+    code = TSDB_CODE_SYN_INTERNAL_ERROR;
+    goto _err;
+  }
+  if (!(pMatch->term <= pEntry->term)) {
+    code = TSDB_CODE_SYN_INTERNAL_ERROR;
+    goto _err;
+  }
 
   SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = pMatch->index, .prevLogTerm = pMatch->term};
   pBuf->entries[index % pBuf->size] = tmp;
@@ -114,7 +130,7 @@ int32_t syncLogReplGetPrevLogTerm(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncI
     TAOS_RETURN(TSDB_CODE_WAL_LOG_NOT_EXIST);
   }
 
-  ASSERT(index - 1 == prevIndex);
+  if (index - 1 != prevIndex) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   if (prevIndex >= pBuf->startIndex) {
     pEntry = pBuf->entries[(prevIndex + pBuf->size) % pBuf->size].pItem;
@@ -178,9 +194,18 @@ int32_t syncLogValidateAlignmentOfCommit(SSyncNode* pNode, SyncIndex commitIndex
 }
 
 int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
-  ASSERTS(pNode->pLogStore != NULL, "log store not created");
-  ASSERTS(pNode->pFsm != NULL, "pFsm not registered");
-  ASSERTS(pNode->pFsm->FpGetSnapshotInfo != NULL, "FpGetSnapshotInfo not registered");
+  if (pNode->pLogStore == NULL) {
+    sError("log store not created");
+    return TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
+  if (pNode->pFsm == NULL) {
+    sError("pFsm not registered");
+    return TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
+  if (pNode->pFsm->FpGetSnapshotInfo == NULL) {
+    sError("FpGetSnapshotInfo not registered");
+    return TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
 
   int32_t   code = 0, lino = 0;
   SSnapshot snapshot = {0};
@@ -191,7 +216,8 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   TAOS_CHECK_EXIT(syncLogValidateAlignmentOfCommit(pNode, commitIndex));
 
   SyncIndex lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
-  ASSERT(lastVer >= commitIndex);
+  if (lastVer < commitIndex) return TSDB_CODE_SYN_INTERNAL_ERROR;
+  ;
   SyncIndex toIndex = lastVer;
   // update match index
   pBuf->commitIndex = commitIndex;
@@ -239,7 +265,7 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
 
   // put a dummy record at commitIndex if present in log buffer
   if (takeDummy) {
-    ASSERT(index == pBuf->commitIndex);
+    if (index != pBuf->commitIndex) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
     SSyncRaftEntry* pDummy = syncEntryBuildDummy(commitTerm, commitIndex, pNode->vgId);
     if (pDummy == NULL) {
@@ -392,9 +418,18 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   }
 
   // update
-  ASSERT(pBuf->startIndex < index);
-  ASSERT(index - pBuf->startIndex < pBuf->size);
-  ASSERT(pBuf->entries[index % pBuf->size].pItem == NULL);
+  if (!(pBuf->startIndex < index)) {
+    code = TSDB_CODE_SYN_INTERNAL_ERROR;
+    goto _out;
+  };
+  if (!(index - pBuf->startIndex < pBuf->size)) {
+    code = TSDB_CODE_SYN_INTERNAL_ERROR;
+    goto _out;
+  }
+  if (pBuf->entries[index % pBuf->size].pItem != NULL) {
+    code = TSDB_CODE_SYN_INTERNAL_ERROR;
+    goto _out;
+  }
   SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = prevIndex, .prevLogTerm = prevTerm};
   pEntry = NULL;
   pBuf->entries[index % pBuf->size] = tmp;
@@ -422,14 +457,14 @@ static inline bool syncLogStoreNeedFlush(SSyncRaftEntry* pEntry, int32_t replica
 
 int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncNode* pNode, SSyncRaftEntry* pEntry) {
   int32_t code = 0;
-  ASSERT(pEntry->index >= 0);
+  if (pEntry->index < 0) return TSDB_CODE_SYN_INTERNAL_ERROR;
   SyncIndex lastVer = pLogStore->syncLogLastIndex(pLogStore);
   if (lastVer >= pEntry->index && (code = pLogStore->syncLogTruncate(pLogStore, pEntry->index)) < 0) {
     sError("failed to truncate log store since %s. from index:%" PRId64 "", tstrerror(code), pEntry->index);
     TAOS_RETURN(code);
   }
   lastVer = pLogStore->syncLogLastIndex(pLogStore);
-  ASSERT(pEntry->index == lastVer + 1);
+  if (pEntry->index != lastVer + 1) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   bool doFsync = syncLogStoreNeedFlush(pEntry, pNode->replicaNum);
   if ((code = pLogStore->syncLogAppendEntry(pLogStore, pEntry, doFsync)) < 0) {
@@ -439,7 +474,7 @@ int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncNode* pNode, SSyncRaf
   }
 
   lastVer = pLogStore->syncLogLastIndex(pLogStore);
-  ASSERT(pEntry->index == lastVer);
+  if (pEntry->index != lastVer) return TSDB_CODE_SYN_INTERNAL_ERROR;
   return 0;
 }
 
@@ -718,7 +753,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   SyncIndex until = pBuf->commitIndex - TSDB_SYNC_LOG_BUFFER_RETENTION;
   for (SyncIndex index = pBuf->startIndex; index < until; index++) {
     SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
-    ASSERT(pEntry != NULL);
+    if (pEntry == NULL) return TSDB_CODE_SYN_INTERNAL_ERROR;
     syncEntryDestroy(pEntry);
     (void)memset(&pBuf->entries[(index + pBuf->size) % pBuf->size], 0, sizeof(pBuf->entries[0]));
     pBuf->startIndex = index + 1;
@@ -786,7 +821,10 @@ int32_t syncLogReplRetryOnNeed(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
 
   for (SyncIndex index = pMgr->startIndex; index < pMgr->endIndex; index++) {
     int64_t pos = index % pMgr->size;
-    ASSERT(!pMgr->states[pos].barrier || (index == pMgr->startIndex || index + 1 == pMgr->endIndex));
+    if (!(!pMgr->states[pos].barrier || (index == pMgr->startIndex || index + 1 == pMgr->endIndex))) {
+      code = TSDB_CODE_SYN_INTERNAL_ERROR;
+      goto _out;
+    }
 
     if (nowMs < pMgr->states[pos].timeMs + retryWaitMs) {
       break;
@@ -809,7 +847,10 @@ int32_t syncLogReplRetryOnNeed(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
              tstrerror(code), index, pDestId->addr);
       goto _out;
     }
-    ASSERT(barrier == pMgr->states[pos].barrier);
+    if (barrier != pMgr->states[pos].barrier) {
+      code = TSDB_CODE_SYN_INTERNAL_ERROR;
+      goto _out;
+    }
     pMgr->states[pos].timeMs = nowMs;
     pMgr->states[pos].term = term;
     pMgr->states[pos].acked = false;
@@ -839,11 +880,11 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
   SRaftId         destId = pMsg->srcId;
   int32_t         code = 0;
-  ASSERT(pMgr->restored == false);
+  if (pMgr->restored != false) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   if (pMgr->endIndex == 0) {
-    ASSERT(pMgr->startIndex == 0);
-    ASSERT(pMgr->matchIndex == 0);
+    if (pMgr->startIndex != 0) return TSDB_CODE_SYN_INTERNAL_ERROR;
+    if (pMgr->matchIndex != 0) return TSDB_CODE_SYN_INTERNAL_ERROR;
     if (pMsg->matchIndex < 0) {
       pMgr->restored = true;
       sInfo("vgId:%d, sync log repl restored. peer: dnode:%d (%" PRIx64 "), repl-mgr:[%" PRId64 " %" PRId64 ", %" PRId64
@@ -909,7 +950,7 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
 
     if ((index + 1 < firstVer) || (term < 0) ||
         (term != pMsg->lastMatchTerm && (index + 1 == firstVer || index == firstVer))) {
-      ASSERT(term >= 0 || terrno == TSDB_CODE_WAL_LOG_NOT_EXIST);
+      if (!(term >= 0 || terrno == TSDB_CODE_WAL_LOG_NOT_EXIST)) return TSDB_CODE_SYN_INTERNAL_ERROR;
       if ((code = syncNodeStartSnapshot(pNode, &destId)) < 0) {
         sError("vgId:%d, failed to start snapshot for peer dnode:%d", pNode->vgId, DID(&destId));
         TAOS_RETURN(code);
@@ -918,13 +959,13 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
       return 0;
     }
 
-    ASSERT(index + 1 >= firstVer);
+    if (!(index + 1 >= firstVer)) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
     if (term == pMsg->lastMatchTerm) {
       index = index + 1;
-      ASSERT(index <= pNode->pLogBuf->matchIndex);
+      if (!(index <= pNode->pLogBuf->matchIndex)) return TSDB_CODE_SYN_INTERNAL_ERROR;
     } else {
-      ASSERT(index > firstVer);
+      if (!(index > firstVer)) return TSDB_CODE_SYN_INTERNAL_ERROR;
     }
   }
 
@@ -975,8 +1016,8 @@ int32_t syncLogReplStart(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
 }
 
 int32_t syncLogReplProbe(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index) {
-  ASSERT(!pMgr->restored);
-  ASSERT(pMgr->startIndex >= 0);
+  if (pMgr->restored) return TSDB_CODE_SYN_INTERNAL_ERROR;
+  if (!(pMgr->startIndex >= 0)) return TSDB_CODE_SYN_INTERNAL_ERROR;
   int64_t retryMaxWaitMs = syncGetRetryMaxWaitMs();
   int64_t nowMs = taosGetMonoTimestampMs();
   int32_t code = 0;
@@ -996,7 +1037,7 @@ int32_t syncLogReplProbe(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex inde
     TAOS_RETURN(code);
   }
 
-  ASSERT(index >= 0);
+  if (!(index >= 0)) return TSDB_CODE_SYN_INTERNAL_ERROR;
   pMgr->states[index % pMgr->size].barrier = barrier;
   pMgr->states[index % pMgr->size].timeMs = nowMs;
   pMgr->states[index % pMgr->size].term = term;
@@ -1014,7 +1055,7 @@ int32_t syncLogReplProbe(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex inde
 }
 
 int32_t syncLogReplAttempt(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
-  ASSERT(pMgr->restored);
+  if (!pMgr->restored) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   SRaftId*  pDestId = &pNode->replicasId[pMgr->peerId];
   int32_t   batchSize = TMAX(1, pMgr->size >> (4 + pMgr->retryBackoff));
@@ -1070,7 +1111,7 @@ int32_t syncLogReplAttempt(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
 }
 
 int32_t syncLogReplContinue(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg) {
-  ASSERT(pMgr->restored == true);
+  if (pMgr->restored != true) return TSDB_CODE_SYN_INTERNAL_ERROR;
   if (pMgr->startIndex <= pMsg->lastSendIndex && pMsg->lastSendIndex < pMgr->endIndex) {
     if (pMgr->startIndex < pMgr->matchIndex && pMgr->retryBackoff > 0) {
       int64_t firstMs = pMgr->states[pMgr->startIndex % pMgr->size].timeMs;
@@ -1100,7 +1141,10 @@ SSyncLogReplMgr* syncLogReplCreate() {
 
   pMgr->size = sizeof(pMgr->states) / sizeof(pMgr->states[0]);
 
-  ASSERT(pMgr->size == TSDB_SYNC_LOG_BUFFER_SIZE);
+  if (pMgr->size != TSDB_SYNC_LOG_BUFFER_SIZE) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return NULL;
+  }
 
   return pMgr;
 }
@@ -1115,7 +1159,7 @@ void syncLogReplDestroy(SSyncLogReplMgr* pMgr) {
 
 int32_t syncNodeLogReplInit(SSyncNode* pNode) {
   for (int i = 0; i < TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA; i++) {
-    ASSERT(pNode->logReplMgrs[i] == NULL);
+    if (pNode->logReplMgrs[i] != NULL) return TSDB_CODE_SYN_INTERNAL_ERROR;
     pNode->logReplMgrs[i] = syncLogReplCreate();
     if (pNode->logReplMgrs[i] == NULL) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
@@ -1141,7 +1185,10 @@ int32_t syncLogBufferCreate(SSyncLogBuffer** ppBuf) {
 
   pBuf->size = sizeof(pBuf->entries) / sizeof(pBuf->entries[0]);
 
-  ASSERT(pBuf->size == TSDB_SYNC_LOG_BUFFER_SIZE);
+  if (pBuf->size != TSDB_SYNC_LOG_BUFFER_SIZE) {
+    code = TSDB_CODE_SYN_INTERNAL_ERROR;
+    goto _exit;
+  }
 
   if (taosThreadMutexAttrInit(&pBuf->attr) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
@@ -1194,7 +1241,7 @@ void syncLogBufferDestroy(SSyncLogBuffer* pBuf) {
 
 int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex toIndex) {
   int32_t code = 0;
-  ASSERT(pBuf->commitIndex < toIndex && toIndex <= pBuf->endIndex);
+  if (!(pBuf->commitIndex < toIndex && toIndex <= pBuf->endIndex)) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   if (toIndex == pBuf->endIndex) {
     return 0;
@@ -1217,7 +1264,7 @@ int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex 
   }
   pBuf->endIndex = toIndex;
   pBuf->matchIndex = TMIN(pBuf->matchIndex, index);
-  ASSERT(index + 1 == toIndex);
+  if (index + 1 != toIndex) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   // trunc wal
   SyncIndex lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
@@ -1227,7 +1274,7 @@ int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex 
     TAOS_RETURN(code);
   }
   lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
-  ASSERT(toIndex == lastVer + 1);
+  if (toIndex != lastVer + 1) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   // refill buffer on need
   if (toIndex <= pBuf->startIndex) {
@@ -1237,7 +1284,7 @@ int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex 
     }
   }
 
-  ASSERT(pBuf->endIndex == toIndex);
+  if (pBuf->endIndex != toIndex) return TSDB_CODE_SYN_INTERNAL_ERROR;
   (void)syncLogBufferValidate(pBuf);
   return 0;
 }
@@ -1246,7 +1293,7 @@ int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   (void)taosThreadMutexLock(&pBuf->mutex);
   (void)syncLogBufferValidate(pBuf);
   SyncIndex lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
-  ASSERT(lastVer == pBuf->matchIndex);
+  if (lastVer != pBuf->matchIndex) return TSDB_CODE_SYN_INTERNAL_ERROR;
   SyncIndex index = pBuf->endIndex - 1;
 
   (void)syncLogBufferRollback(pBuf, pNode, pBuf->matchIndex + 1);

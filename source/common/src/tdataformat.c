@@ -1403,7 +1403,6 @@ void tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc) {
         pVal->val = pSrc->pks[i].val;
       } else {
         pVal->nData = pSrc->pks[i].nData;
-        ASSERT(pSrc->pks[i].pData != NULL);
         (void)memcpy(pVal->pData, pSrc->pks[i].pData, pVal->nData);
       }
     }
@@ -2517,7 +2516,7 @@ static FORCE_INLINE int32_t tColDataUpdateValue70(SColData *pColData, uint8_t *p
       return tColDataPutValue(pColData, pData, nData);
     }
   } else {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_PARA;
   }
   return 0;
 }
@@ -2760,7 +2759,9 @@ int32_t tColDataCompress(SColData *colData, SColDataCompressInfo *info, SBuffer 
   int32_t code;
   SBuffer local;
 
-  ASSERT(colData->nVal > 0);
+  if (!(colData->nVal > 0)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   (*info) = (SColDataCompressInfo){
       .cmprAlg = info->cmprAlg,
@@ -3409,7 +3410,6 @@ void tColDataArrGetRowKey(SColData *aColData, int32_t nColData, int32_t iRow, SR
 
   for (int i = 1; i < nColData; i++) {
     if (aColData[i].cflag & COL_IS_KEY) {
-      ASSERT(aColData->flag == HAS_VALUE);
       tColDataGetValue4(&aColData[i], iRow, &cv);
       key->pks[key->numOfPKs++] = cv.value;
     } else {
@@ -3571,8 +3571,6 @@ static void tColDataMergeImpl(SColData *pColData, int32_t iStart, int32_t iEnd /
                     iv < (pColData->nVal - 1) ? pColData->aOffset[iv + 1] - pColData->aOffset[iv]
                                               : pColData->nData - pColData->aOffset[iv]);
           }
-          // TODO
-          ASSERT(0);
         } else {
           if (iv != iStart) {
             (void)memcpy(&pColData->pData[TYPE_BYTES[pColData->type] * iStart],

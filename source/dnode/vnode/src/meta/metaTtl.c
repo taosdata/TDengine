@@ -408,7 +408,7 @@ int32_t ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
   int64_t startNs = taosGetTimestampNs();
   int64_t endNs = startNs;
 
-  metaTrace("%s, ttl mgr flush start. dirty uids:%d", pTtlMgr->logPrefix, taosHashGetSize(pTtlMgr->pDirtyUids));
+  metaTrace("%s, ttl mgr flush start. num of dirty uids:%d", pTtlMgr->logPrefix, taosHashGetSize(pTtlMgr->pDirtyUids));
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -419,13 +419,8 @@ int32_t ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
 
     STtlCacheEntry *cacheEntry = taosHashGet(pTtlMgr->pTtlCache, pUid, sizeof(*pUid));
     if (cacheEntry == NULL) {
-      metaInfo("%s, ttlMgr flush failed to get ttl cache, uid: %" PRId64 ", type: %d", pTtlMgr->logPrefix, *pUid,
+      metaError("%s, ttlMgr flush failed to get ttl cache, uid: %" PRId64 ", type: %d", pTtlMgr->logPrefix, *pUid,
                pEntry->type);
-      code = taosHashRemove(pTtlMgr->pDirtyUids, pUid, sizeof(*pUid));
-      if (TSDB_CODE_SUCCESS != code) {
-        metaError("%s, ttlMgr flush failed to remove dirty uid since %s", pTtlMgr->logPrefix, tstrerror(code));
-        goto _out;
-      }
       continue;
     }
 
@@ -437,31 +432,35 @@ int32_t ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
 
     if (pEntry->type == ENTRY_TYPE_UPSERT) {
       // delete old key & upsert new key
-      (void)tdbTbDelete(pTtlMgr->pTtlIdx, &ttlKey, sizeof(ttlKey), pTxn);  // maybe first insert, ignore error
+      code = tdbTbDelete(pTtlMgr->pTtlIdx, &ttlKey, sizeof(ttlKey), pTxn);  // maybe first insert, ignore error
+      if (TSDB_CODE_SUCCESS != code && TSDB_CODE_NOT_FOUND != code) {
+        metaError("%s, ttlMgr flush failed to delete since %s", pTtlMgr->logPrefix, tstrerror(code));
+        continue;
+      }
       code = tdbTbUpsert(pTtlMgr->pTtlIdx, &ttlKeyDirty, sizeof(ttlKeyDirty), &cacheEntry->ttlDaysDirty,
                          sizeof(cacheEntry->ttlDaysDirty), pTxn);
       if (TSDB_CODE_SUCCESS != code) {
         metaError("%s, ttlMgr flush failed to upsert since %s", pTtlMgr->logPrefix, tstrerror(code));
-        goto _out;
+        continue;
       }
 
       cacheEntry->ttlDays = cacheEntry->ttlDaysDirty;
       cacheEntry->changeTimeMs = cacheEntry->changeTimeMsDirty;
     } else if (pEntry->type == ENTRY_TYPE_DELETE) {
       code = tdbTbDelete(pTtlMgr->pTtlIdx, &ttlKey, sizeof(ttlKey), pTxn);
-      if (TSDB_CODE_SUCCESS != code) {
+      if (TSDB_CODE_SUCCESS != code && TSDB_CODE_NOT_FOUND != code) {
         metaError("%s, ttlMgr flush failed to delete since %s", pTtlMgr->logPrefix, tstrerror(code));
-        goto _out;
+        continue;
       }
 
       code = taosHashRemove(pTtlMgr->pTtlCache, pUid, sizeof(*pUid));
       if (TSDB_CODE_SUCCESS != code) {
         metaError("%s, ttlMgr flush failed to remove cache since %s", pTtlMgr->logPrefix, tstrerror(code));
-        goto _out;
+        continue;
       }
     } else {
       metaError("%s, ttlMgr flush failed, unknown type: %d", pTtlMgr->logPrefix, pEntry->type);
-      goto _out;
+      continue;
     }
 
     metaDebug("isdel:%d", pEntry->type == ENTRY_TYPE_DELETE);
@@ -471,11 +470,18 @@ int32_t ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
     code = taosHashRemove(pTtlMgr->pDirtyUids, pUid, sizeof(*pUid));
     if (TSDB_CODE_SUCCESS != code) {
       metaError("%s, ttlMgr flush failed to remove dirty uid since %s", pTtlMgr->logPrefix, tstrerror(code));
-      goto _out;
+      continue;
     }
   }
 
-  taosHashClear(pTtlMgr->pDirtyUids);
+  int32_t count = taosHashGetSize(pTtlMgr->pDirtyUids);
+  if (count != 0) {
+    taosHashClear(pTtlMgr->pDirtyUids);
+    metaError("%s, ttlMgr flush failed, dirty uids not empty, count: %d", pTtlMgr->logPrefix, count);
+    code = TSDB_CODE_VND_TTL_FLUSH_INCOMPLETION;
+
+    goto _out;
+  }
 
   code = TSDB_CODE_SUCCESS;
 

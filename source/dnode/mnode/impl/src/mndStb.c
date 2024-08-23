@@ -1774,7 +1774,7 @@ static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *
                                                  int32_t nCols) {
   // if (pColCmpr == NULL || colName == NULL) return -1;
 
-  ASSERT(taosArrayGetSize(pField) == nCols);
+  if (taosArrayGetSize(pField) != nCols) return TSDB_CODE_FAILED;
   TAOS_FIELD *p = taosArrayGet(pField, 0);
 
   int32_t code = 0;

@@ -16,13 +16,15 @@
 
 #include <assert.h>
 
-#ifndef TAOS_ASSERT_H
-#define TAOS_ASSERT_H
+#ifndef TAOS_TEST_H
+#define TAOS_TEST_H
 
-#ifdef TAOS_ASSERT_ENABLE
-#define TAOS_ASSERT(i) assert(i);
+#ifdef TAOS_TEST_PARA_ENABLE
 #else
-#define TAOS_ASSERT(i)
+#define TAOS_TEST_PARA(i) \
+  if (!(i)) return 1;
+#define TAOS_TEST_PARA_NULL(i) \
+  if (!(i)) return NULL;
 #endif  // TAOS_TEST
 
-#endif  // TAOS_ASSERT_H
+#endif  // TAOS_TEST_H
