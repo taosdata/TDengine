@@ -94,7 +94,7 @@ static int32_t updateCountWindowInfo(int32_t start, int32_t blockRows, int32_t c
 }
 
 int32_t doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
-    int32_t                 code = TSDB_CODE_SUCCESS;
+  int32_t                 code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*                pExprSup = &pOperator->exprSupp;
