@@ -386,7 +386,8 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
       }
 
     } else {
-      ASSERT(0);
+      tqError("s-task:%s invalid msg type:%d, ver:%" PRId64, id, pCont->msgType, ver);
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
     }
 
     return code;
@@ -675,7 +676,11 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
     pReader->cachedSchemaSuid = suid;
     pReader->cachedSchemaVer = sversion;
 
-    ASSERT(pReader->cachedSchemaVer == pReader->pSchemaWrapper->version);
+    if(pReader->cachedSchemaVer != pReader->pSchemaWrapper->version) {
+      tqError("vgId:%d, schema version mismatch, suid:%" PRId64 ", uid:%" PRId64 ", version:%d, cached version:%d",
+              vgId, suid, uid, sversion, pReader->pSchemaWrapper->version);
+      return TSDB_CODE_TQ_INTERNAL_ERROR;
+    }
     if (blockDataGetNumOfCols(pBlock) == 0) {
       code = buildResSDataBlock(pReader->pResBlock, pReader->pSchemaWrapper, pReader->pColIdList);
       TSDB_CHECK_CODE(code, line, END);
