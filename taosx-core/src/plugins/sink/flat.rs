@@ -169,6 +169,8 @@ async fn write_stable_with_sql(
     cancel: &CancellationToken,
 ) -> Result<usize, FlatWriteError> {
     let sql = records.sql();
+    tracing::trace!("write stable with sql: {}", sql);
+
     match exec_sql_with_connection_retries(
         pool,
         taos,
@@ -226,18 +228,22 @@ pub async fn flat_write_with_sql(
     let mut count = 0;
     // Split messages into different stales.
     let cols = messages[0].records.num_columns();
+    // group by stable name
     let groups = messages
         .into_iter()
         .into_group_map_by(|m| m.stable_name().map(|s| s.to_string()));
-
+    // insert into stable
     for (stable, messages) in groups.into_iter() {
         if let Some(stable) = stable.as_ref() {
-            let describe = taos
-                .as_ref()
-                .unwrap()
-                .describe(&stable)
-                .await
-                .context("Get table meta describe error")?;
+            let describe = describe_table_with_connection_retries(
+                pool,
+                taos,
+                stable,
+                DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                cancel,
+            )
+            .await?;
+
             if let Some(field) = describe
                 .split()
                 .map(|c| c.0)
@@ -266,6 +272,8 @@ pub async fn flat_write_with_sql(
             loop {
                 match write_stable_with_sql(pool, taos, req_id, &records, cancel).await {
                     Ok(n) => {
+                        tracing::debug!(stable, rows = n, "write stable success");
+
                         count += n;
                         metrics.add_inserted_sqls(1 as u64);
                         metrics.add_written_rows(n as u64);
@@ -379,12 +387,14 @@ pub async fn flat_write_with_raw_block(
             bail!("Timestamp field contains null or invalid values");
         }
         if let Some(stable) = records.stable_name() {
-            let describe = taos
-                .as_ref()
-                .unwrap()
-                .describe(&stable)
-                .await
-                .context("Get table meta describe error")?;
+            let describe = describe_table_with_connection_retries(
+                pool,
+                taos,
+                stable,
+                DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                cancel,
+            )
+            .await?;
             if let Some(field) = describe
                 .split()
                 .map(|s| s.0)
