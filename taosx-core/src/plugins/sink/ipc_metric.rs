@@ -143,6 +143,7 @@ impl TaskMetrics for IpcMetrics {
         self.created_stables.store(0, SeqCst);
         self.created_tables.store(0, SeqCst);
         self.failed_rows.store(0, SeqCst);
+        self.drained_rows.store(0, SeqCst);
         self.failed_points.store(0, SeqCst);
         self.written_raw_blocks.store(0, SeqCst);
         self.failed_raw_blocks.store(0, SeqCst);
