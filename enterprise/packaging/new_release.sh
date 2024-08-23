@@ -470,8 +470,8 @@ function preparepkg() {
 
     # copy cfg files
     cp ${cfg_dir}/${prefix}.cfg ${install_dir}/cfg/ || :
-    if [ -f "${cfg_dir}/${prefix}d.service" ]; then
-        cp ${cfg_dir}/${prefix}d.service ${install_dir}/cfg || :
+    if [ -f "${communityDir}/packaging/cfg/${prefix}d.service" ]; then
+        cp ${communityDir}/packaging/cfg/${prefix}d.service ${install_dir}/cfg || :
     fi
 
     if [ -f "${debugDir}/test/cfg/${prefix}adapter.toml" ]; then
