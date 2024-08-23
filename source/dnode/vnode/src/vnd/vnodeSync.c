@@ -373,8 +373,8 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
   int32_t code = syncProcessMsg(pVnode->sync, pMsg);
   if (code != 0) {
-    vGError("vgId:%d, failed to process sync msg:%p type:%s, errno: %s, code:0x%x", pVnode->config.vgId, pMsg,
-            TMSG_INFO(pMsg->msgType), terrstr(), code);
+    vGError("vgId:%d, failed to process sync msg:%p type:%s, reason: %s", pVnode->config.vgId, pMsg,
+            TMSG_INFO(pMsg->msgType), tstrerror(code));
   }
 
   return code;
