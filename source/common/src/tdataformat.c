@@ -3130,7 +3130,9 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
   int32_t code = 0;
 
   if (!(pBind->num == 1 && pBind->is_null && *pBind->is_null)) {
-    ASSERT(pColData->type == pBind->buffer_type);
+    if (!(pColData->type == pBind->buffer_type)) {
+      return TSDB_CODE_INVALID_PARA;
+    }
   }
 
   if (IS_VAR_DATA_TYPE(pColData->type)) {  // var-length data type
