@@ -74,7 +74,7 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
   }
 
   if (!(tlGeosCtx = taosThreadGetSpecific(tlGeosCtxKey))) {
-    if (errno) {
+    if (errno != 0) {
       TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
     } else {
       TAOS_CHECK_EXIT(TSDB_CODE_NOT_FOUND);
