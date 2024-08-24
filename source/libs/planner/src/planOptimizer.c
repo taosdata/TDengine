@@ -6493,6 +6493,7 @@ static int32_t partitionColsOpt(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       pSort->calcGroupId = true;
       code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pNode, (SLogicNode*)pSort);
       if (code == TSDB_CODE_SUCCESS) {
+        nodesDestroyNode((SNode*)pNode);
         pCxt->optimized = true;
       } else {
         nodesDestroyNode((SNode*)pSort);
