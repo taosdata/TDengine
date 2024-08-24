@@ -419,7 +419,6 @@ int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom,
 
   SGeosContext *geosCtx = NULL;
   TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
-
   *outputGeom = GEOSWKBReader_read_r(geosCtx->handle, geosCtx->WKBReader, varDataVal(input), varDataLen(input));
   if (*outputGeom == NULL) {
     return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;

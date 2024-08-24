@@ -72,21 +72,13 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
     TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
   }
 
-  tlGeosCtx = taosThreadGetSpecific(tlGeosCtxKey);
-  if (tlGeosCtx == NULL) {
-    if (errno) {
-      TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
-    } else {
-      TAOS_CHECK_EXIT(TSDB_CODE_NOT_FOUND);
-    }
-  }
+  tlGeosCtx = &tlGeosCtxObj;
   *ppCtx = tlGeosCtx;
 _exit:
   if (code != 0) {
     *ppCtx = NULL;
     uError("failed to get geos context at lino:%d since %s", lino, tstrerror(code));
   }
-
   TAOS_RETURN(code);
 }
 

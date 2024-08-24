@@ -19,7 +19,6 @@
 #include "index.h"
 #include "qworker.h"
 #include "tcompression.h"
-#include "tgeosctx.h"
 #include "tglobal.h"
 #include "tgrant.h"
 #include "tstream.h"

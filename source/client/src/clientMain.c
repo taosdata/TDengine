@@ -24,7 +24,6 @@
 #include "scheduler.h"
 #include "tcompare.h"
 #include "tdatablock.h"
-#include "tgeosctx.h"
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tref.h"
