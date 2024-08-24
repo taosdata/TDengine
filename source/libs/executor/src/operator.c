@@ -240,7 +240,12 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
   *order = info.order;
   *scanFlag = info.scanFlag;
 
-  ASSERT(*order == TSDB_ORDER_ASC || *order == TSDB_ORDER_DESC);
+  if (p.code == TSDB_CODE_SUCCESS) {
+    if (!(*order == TSDB_ORDER_ASC || *order == TSDB_ORDER_DESC)) {
+      qError("operator failed at: %s:%d", __func__, __LINE__);
+      p.code = TSDB_CODE_INVALID_PARA;
+    }
+  }
   return p.code;
 }
 

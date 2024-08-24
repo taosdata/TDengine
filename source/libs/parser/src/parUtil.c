@@ -1281,8 +1281,10 @@ int32_t getTsmaFromCache(SParseMetaCache* pMetaCache, const SName* pTsmaName, ST
   }
   STableTSMAInfoRsp* pTsmaRsp = NULL;
   code = getMetaDataFromHash(tsmaFName, strlen(tsmaFName), pMetaCache->pTSMAs, (void**)&pTsmaRsp);
-  if (TSDB_CODE_SUCCESS == code && pTsmaRsp) {
-    ASSERT(pTsmaRsp->pTsmas->size == 1);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (!pTsmaRsp || pTsmaRsp->pTsmas->size != 1) {
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+    }
     *pTsma = taosArrayGetP(pTsmaRsp->pTsmas, 0);
   } else if (code == TSDB_CODE_PAR_INTERNAL_ERROR){
     code = TSDB_CODE_MND_SMA_NOT_EXIST;
