@@ -872,7 +872,7 @@ static int32_t cliGetConnFromPool(SCliThrd* pThrd, const char* key, SCliConn** p
 }
 
 // code
-static int32_t cliGetConnOrCreate(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn) {
+static int32_t cliGetOrCreateConn(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn) {
   // impl later
   char*    fqdn = EPSET_GET_INUSE_IP(&pReq->ctx->epSet);
   uint16_t port = EPSET_GET_INUSE_PORT(&pReq->ctx->epSet);
@@ -2190,7 +2190,7 @@ void cliHandleReq__noShareConn(SCliThrd* pThrd, SCliReq* pReq) {
   STrans*   pInst = pThrd->pInst;
   SCliConn* pConn = NULL;
 
-  code = cliGetConnOrCreate(pThrd, pReq, &pConn);
+  code = cliGetOrCreateConn(pThrd, pReq, &pConn);
   if (code == TSDB_CODE_RPC_MAX_SESSIONS) {
     TAOS_CHECK_GOTO(code, &lino, _exception);
   } else if (code == TSDB_CODE_RPC_ASYNC_IN_PROCESS) {
@@ -2201,7 +2201,6 @@ void cliHandleReq__noShareConn(SCliThrd* pThrd, SCliReq* pReq) {
 
   tTrace("%s conn %p ready", pInst->label, pConn);
 _exception:
-
   resp.code = code;
   (void)(pThrd->notifyExceptCb)(pThrd, pReq, &resp);
   return;
