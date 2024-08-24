@@ -87,7 +87,6 @@ void taos_cleanup(void) {
   tscDebug("rpc cleanup");
 
   taosConvDestroy();
-  taosGeosDestroy();
 
   tmqMgmtClose();
 

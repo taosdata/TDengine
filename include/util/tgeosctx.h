@@ -39,9 +39,8 @@ typedef struct SGeosContext {
 } SGeosContext;
 
 SGeosContext *acquireThreadLocalGeosCtx();
-SGeosContext *getThreadLocalGeosCtx();
+int32_t       getThreadLocalGeosCtx(SGeosContext **ppCtx);
 const char   *getGeosErrMsg(int32_t code);
-void          taosGeosDestroy();
 
 #ifdef __cplusplus
 }

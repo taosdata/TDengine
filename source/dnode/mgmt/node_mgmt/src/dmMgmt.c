@@ -122,7 +122,6 @@ void dmCleanupDnode(SDnode *pDnode) {
   streamMetaCleanup();
   indexCleanup();
   taosConvDestroy();
-  taosGeosDestroy();
 
   // compress destroy
   tsCompressExit();

@@ -14,7 +14,7 @@
  */
 
 #include "geosWrapper.h"
-#include "tdef.h"
+#include "tutil.h"
 #include "types.h"
 
 typedef char (*_geosRelationFunc_t)(GEOSContextHandle_t handle, const GEOSGeometry *g1, const GEOSGeometry *g2);
@@ -35,7 +35,9 @@ void geosErrMsgeHandler(const char *errMsg, void *userData) {
 
 int32_t initCtxMakePoint() {
   int32_t       code = TSDB_CODE_FAILED;
-  SGeosContext *geosCtx = getThreadLocalGeosCtx();
+  SGeosContext *geosCtx = NULL;
+
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
 
   if (geosCtx->handle == NULL) {
     geosCtx->handle = GEOS_init_r();
@@ -60,7 +62,9 @@ int32_t initCtxMakePoint() {
 // need to call geosFreeBuffer(*outputGeom) later
 int32_t doMakePoint(double x, double y, unsigned char **outputGeom, size_t *size) {
   int32_t       code = TSDB_CODE_FAILED;
-  SGeosContext *geosCtx = getThreadLocalGeosCtx();
+  SGeosContext *geosCtx = NULL;
+  
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
 
   GEOSGeometry  *geom = NULL;
   unsigned char *wkb = NULL;
@@ -165,7 +169,9 @@ static int32_t initWktRegex(pcre2_code **ppRegex, pcre2_match_data **ppMatchData
 
 int32_t initCtxGeomFromText() {
   int32_t       code = TSDB_CODE_FAILED;
-  SGeosContext *geosCtx = getThreadLocalGeosCtx();
+  SGeosContext *geosCtx = NULL;
+  
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
 
   if (geosCtx->handle == NULL) {
     geosCtx->handle = GEOS_init_r();
@@ -201,7 +207,9 @@ int32_t initCtxGeomFromText() {
 // need to call geosFreeBuffer(*outputGeom) later
 int32_t doGeomFromText(const char *inputWKT, unsigned char **outputGeom, size_t *size) {
   int32_t       code = TSDB_CODE_FAILED;
-  SGeosContext *geosCtx = getThreadLocalGeosCtx();
+  SGeosContext *geosCtx = NULL;
+  
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
 
   GEOSGeometry  *geom = NULL;
   unsigned char *wkb = NULL;
@@ -236,7 +244,9 @@ _exit:
 
 int32_t initCtxAsText() {
   int32_t       code = TSDB_CODE_FAILED;
-  SGeosContext *geosCtx = getThreadLocalGeosCtx();
+  SGeosContext *geosCtx = NULL;
+  
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
 
   if (geosCtx->handle == NULL) {
     geosCtx->handle = GEOS_init_r();
@@ -272,7 +282,9 @@ int32_t initCtxAsText() {
 // need to call geosFreeBuffer(*outputWKT) later
 int32_t doAsText(const unsigned char *inputGeom, size_t size, char **outputWKT) {
   int32_t       code = TSDB_CODE_FAILED;
-  SGeosContext *geosCtx = getThreadLocalGeosCtx();
+  SGeosContext *geosCtx = NULL;
+  
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
 
   GEOSGeometry  *geom = NULL;
   char *wkt = NULL;
@@ -303,7 +315,9 @@ _exit:
 
 int32_t initCtxRelationFunc() {
   int32_t       code = TSDB_CODE_FAILED;
-  SGeosContext *geosCtx = getThreadLocalGeosCtx();
+  SGeosContext *geosCtx = NULL;
+  
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
 
   if (geosCtx->handle == NULL) {
     geosCtx->handle = GEOS_init_r();
@@ -328,7 +342,9 @@ int32_t doGeosRelation(const GEOSGeometry *geom1, const GEOSPreparedGeometry *pr
                        bool swapped, char *res, _geosRelationFunc_t relationFn, _geosRelationFunc_t swappedRelationFn,
                        _geosPreparedRelationFunc_t preparedRelationFn,
                        _geosPreparedRelationFunc_t swappedPreparedRelationFn) {
-  SGeosContext *geosCtx = getThreadLocalGeosCtx();
+  SGeosContext *geosCtx = NULL;
+  
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
 
   if (!preparedGeom1) {
     if (!swapped) {
@@ -390,8 +406,6 @@ int32_t doContainsProperly(const GEOSGeometry *geom1, const GEOSPreparedGeometry
 // need to call destroyGeometry(outputGeom, outputPreparedGeom) later
 int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom,
                      const GEOSPreparedGeometry **outputPreparedGeom) {
-  SGeosContext *geosCtx = getThreadLocalGeosCtx();
-
   ASSERT(outputGeom);  // it is not allowed if outputGeom is NULL
   *outputGeom = NULL;
 
@@ -402,6 +416,9 @@ int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom,
   if (varDataLen(input) == 0) {  // empty value
     return TSDB_CODE_SUCCESS;
   }
+
+  SGeosContext *geosCtx = NULL;
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
 
   *outputGeom = GEOSWKBReader_read_r(geosCtx->handle, geosCtx->WKBReader, varDataVal(input), varDataLen(input));
   if (*outputGeom == NULL) {
