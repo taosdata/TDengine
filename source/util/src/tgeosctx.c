@@ -68,10 +68,6 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
     TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
   }
 
-  if ((taosThreadSetSpecific(tlGeosCtxKey, &tlGeosCtxObj)) != 0) {
-    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
-  }
-
   tlGeosCtx = &tlGeosCtxObj;
   *ppCtx = tlGeosCtx;
 _exit:
