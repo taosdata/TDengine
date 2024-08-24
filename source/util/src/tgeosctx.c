@@ -21,7 +21,39 @@ static threadlocal TdThreadKey   tlGeosCtxKey = 0;
 static threadlocal SGeosContext  tlGeosCtxObj = {0};
 static threadlocal SGeosContext *tlGeosCtx = NULL;
 
-static void destroyThreadLocalGeosCtx();
+static void destroyThreadLocalGeosCtx(void *param) {
+  SGeosContext *tlGeosCtx = &tlGeosCtxObj;
+  if (tlGeosCtx->WKTReader) {
+    GEOSWKTReader_destroy_r(tlGeosCtx->handle, tlGeosCtx->WKTReader);
+    tlGeosCtx->WKTReader = NULL;
+  }
+
+  if (tlGeosCtx->WKTWriter) {
+    GEOSWKTWriter_destroy_r(tlGeosCtx->handle, tlGeosCtx->WKTWriter);
+    tlGeosCtx->WKTWriter = NULL;
+  }
+
+  if (tlGeosCtx->WKBReader) {
+    GEOSWKBReader_destroy_r(tlGeosCtx->handle, tlGeosCtx->WKBReader);
+    tlGeosCtx->WKBReader = NULL;
+  }
+
+  if (tlGeosCtx->WKBWriter) {
+    GEOSWKBWriter_destroy_r(tlGeosCtx->handle, tlGeosCtx->WKBWriter);
+    tlGeosCtx->WKBWriter = NULL;
+  }
+
+  if (tlGeosCtx->WKTRegex) {
+    destroyRegexes(tlGeosCtx->WKTRegex, tlGeosCtx->WKTMatchData);
+    tlGeosCtx->WKTRegex = NULL;
+    tlGeosCtx->WKTMatchData = NULL;
+  }
+
+  if (tlGeosCtx->handle) {
+    GEOS_finish_r(tlGeosCtx->handle);
+    tlGeosCtx->handle = NULL;
+  }
+}
 
 SGeosContext *acquireThreadLocalGeosCtx() { return tlGeosCtx; }
 
@@ -59,37 +91,3 @@ _exit:
 }
 
 const char *getGeosErrMsg(int32_t code) { return tlGeosCtx ? tlGeosCtx->errMsg : code ? strerror(code) : ""; }
-
-static void destroyThreadLocalGeosCtx(void *param) {
-  SGeosContext *tlGeosCtx = &tlGeosCtxObj;
-  if (tlGeosCtx->WKTReader) {
-    GEOSWKTReader_destroy_r(tlGeosCtx->handle, tlGeosCtx->WKTReader);
-    tlGeosCtx->WKTReader = NULL;
-  }
-
-  if (tlGeosCtx->WKTWriter) {
-    GEOSWKTWriter_destroy_r(tlGeosCtx->handle, tlGeosCtx->WKTWriter);
-    tlGeosCtx->WKTWriter = NULL;
-  }
-
-  if (tlGeosCtx->WKBReader) {
-    GEOSWKBReader_destroy_r(tlGeosCtx->handle, tlGeosCtx->WKBReader);
-    tlGeosCtx->WKBReader = NULL;
-  }
-
-  if (tlGeosCtx->WKBWriter) {
-    GEOSWKBWriter_destroy_r(tlGeosCtx->handle, tlGeosCtx->WKBWriter);
-    tlGeosCtx->WKBWriter = NULL;
-  }
-
-  if (tlGeosCtx->WKTRegex) {
-    destroyRegexes(tlGeosCtx->WKTRegex, tlGeosCtx->WKTMatchData);
-    tlGeosCtx->WKTRegex = NULL;
-    tlGeosCtx->WKTMatchData = NULL;
-  }
-
-  if (tlGeosCtx->handle) {
-    GEOS_finish_r(tlGeosCtx->handle);
-    tlGeosCtx->handle = NULL;
-  }
-}
