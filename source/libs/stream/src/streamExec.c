@@ -140,7 +140,7 @@ void streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* to
           stError("s-task:%s failed to add retrieve block", pTask->id.idStr);
         }
 
-        stDebug("s-task:%s(child %d) retrieve process completed, QID:0x%" PRIx64 " dump results", pTask->id.idStr,
+        stDebug("s-task:%s(child %d) retrieve process completed, qid:0x%" PRIx64 " dump results", pTask->id.idStr,
                 pTask->info.selfChildId, pRetrieveBlock->reqId);
       }
 

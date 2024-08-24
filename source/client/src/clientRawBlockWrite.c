@@ -47,7 +47,7 @@
     }                       \
   } while (0)
 
-#define LOG_ID_TAG   "connId:0x%" PRIx64 ",QID:0x%" PRIx64
+#define LOG_ID_TAG   "connId:0x%" PRIx64 ",qid:0x%" PRIx64
 #define LOG_ID_VALUE *(int64_t*)taos, pRequest->requestId
 
 #define TMQ_META_VERSION "1.0"
