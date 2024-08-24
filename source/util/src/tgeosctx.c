@@ -82,4 +82,6 @@ _exit:
   TAOS_RETURN(code);
 }
 
-const char *getGeosErrMsg(int32_t code) { return tlGeosCtx ? tlGeosCtx->errMsg : code ? strerror(code) : ""; }
+const char *getGeosErrMsg(int32_t code) {
+  return (tlGeosCtx && tlGeosCtx->errMsg[0] != 0) ? tlGeosCtx->errMsg : (code ? tstrerror(code) : "");
+}
