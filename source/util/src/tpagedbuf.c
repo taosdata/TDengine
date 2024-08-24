@@ -313,7 +313,6 @@ static SListNode* getEldestUnrefedPage(SDiskbasedBuf* pBuf) {
 static char* evictBufPage(SDiskbasedBuf* pBuf) {
   SListNode* pn = getEldestUnrefedPage(pBuf);
   if (pn == NULL) {  // no available buffer pages now, return.
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 

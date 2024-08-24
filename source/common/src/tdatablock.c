@@ -973,6 +973,9 @@ int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock) {
 
 int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
   int32_t numOfRows = *(int32_t*)buf;
+  if (numOfRows == 0) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
   int32_t code = blockDataEnsureCapacity(pBlock, numOfRows);
   if (code) {
     return code;
