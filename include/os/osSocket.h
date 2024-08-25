@@ -85,7 +85,7 @@ typedef int32_t SOCKET;
 #else
 #define TAOS_EPOLL_WAIT_TIME 500
 typedef int32_t SOCKET;
-typedef SOCKET  EpollFd;
+// typedef SOCKET  EpollFd;
 #define EpollClose(pollFd)   taosCloseSocket(pollFd)
 #endif
 
