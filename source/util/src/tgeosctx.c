@@ -14,6 +14,7 @@
  */
 
 #include "tgeosctx.h"
+#include "tlog.h"
 #include "tutil.h"
 
 static threadlocal TdThreadKey   tlGeosCtxKey = 0;
@@ -52,7 +53,6 @@ static void destroyThreadLocalGeosCtx(void *param) {
     GEOS_finish_r(tlGeosCtx->handle);
     tlGeosCtx->handle = NULL;
   }
-  taosThreadKeyDelete(tlGeosCtxKey);
 }
 
 SGeosContext *acquireThreadLocalGeosCtx() { return tlGeosCtx; }
@@ -72,18 +72,12 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
     TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
   }
 
-  if (!(tlGeosCtx = taosThreadGetSpecific(tlGeosCtxKey))) {
-    if (errno != 0) {
-      TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
-    } else {
-      TAOS_CHECK_EXIT(TSDB_CODE_NOT_FOUND);
-    }
-  }
-
+  tlGeosCtx = &tlGeosCtxObj;
   *ppCtx = tlGeosCtx;
 _exit:
   if (code != 0) {
     *ppCtx = NULL;
+    uError("failed to get geos context at lino:%d since %s", lino, tstrerror(code));
   }
   TAOS_RETURN(code);
 }
