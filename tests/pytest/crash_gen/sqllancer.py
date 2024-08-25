@@ -366,22 +366,61 @@ class SQLLancer:
             return "spFuncs"
 
     def getRandomTimeUnitStr(self):
+        """
+        Generates a random time unit string.
+
+        Returns:
+            str: A string representing a random time unit.
+        """
         return f'{random.randint(DataBoundary.SAMPLE_BOUNDARY.value[0], DataBoundary.SAMPLE_BOUNDARY.value[1])}{random.choice(DataBoundary.TIME_UNIT.value)}'
 
     def getRandomWindow(self):
+        """
+        Returns a random window from the available window units.
+
+        Returns:
+            str: A random window unit.
+        """
         return random.choice(DataBoundary.WINDOW_UNIT.value)
 
     def getOffsetValue(self, rand=None):
+        """
+        Returns the offset value for a SQL query.
+
+        Args:
+            rand (bool, optional): If True, a random offset value will be used. If False, a time unit string will be used. Defaults to None.
+
+        Returns:
+            str: The offset value for the SQL query.
+        """
         useTag = random.choice([True, False]) if rand is None else True
         offsetVal = "" if useTag else f',{self.getRandomTimeUnitStr()}'
         return offsetVal
 
     def getSlidingValue(self, rand=None):
+        """
+        Get the sliding value for the SQL query.
+
+        Parameters:
+        - rand (bool, optional): If True, use a random value for the sliding value. If False, use a predefined value. Defaults to None.
+
+        Returns:
+        - slidingVal (str): The sliding value for the SQL query.
+        """
         useTag = random.choice([True, False]) if rand is None else True
         slidingVal = "" if useTag else f'SLIDING({self.getRandomTimeUnitStr()})'
         return slidingVal
 
     def getFillValue(self, rand=None):
+        """
+        Returns a fill value for SQL queries.
+
+        Parameters:
+        - rand (bool, optional): If True, a random fill value will be used. If False, an empty string will be returned. Defaults to None.
+
+        Returns:
+        - str: The fill value for SQL queries.
+        """
         useTag = random.choice([True, False]) if rand is None else True
         fillVal = "" if useTag else f'FILL({random.choice(DataBoundary.FILL_UNIT.value)})'
         return fillVal
@@ -390,8 +429,15 @@ class SQLLancer:
         if window == "INTERVAL":
             return f"{window}({self.getRandomTimeUnitStr()}{self.getOffsetValue()})"
         elif window == "SESSION":
-            return f"{window}({random.randint(1, DataBoundary.SAMPLE_BOUNDARY.value[1])}{random.choice(DataBoundary.TIME_UNIT.value[3:])})"
-        return f"{window}({random.randint(1, 10)})"
+            return 1
+        elif window == "STATE_WINDOW":
+            return 1
+        elif window == "COUNT_WINDOW":
+            return 1
+        elif window == "EVENT_WINDOW":
+            return 1
+        else:
+            return 1
 
     def generateRandomSql(self, colDict, tbname):
         selectPartList = []
