@@ -81,6 +81,7 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
     }
   }
 #endif
+  tlGeosCtx = &tlGeosCtxObj;
   *ppCtx = tlGeosCtx;
 _exit:
   if (code != 0) {
