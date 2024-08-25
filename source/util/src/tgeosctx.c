@@ -53,6 +53,7 @@ static void destroyThreadLocalGeosCtx(void *param) {
     GEOS_finish_r(tlGeosCtx->handle);
     tlGeosCtx->handle = NULL;
   }
+  taosThreadKeyDelete(tlGeosCtxKey);
 }
 
 SGeosContext *acquireThreadLocalGeosCtx() { return tlGeosCtx; }
