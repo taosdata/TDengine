@@ -53,7 +53,6 @@ static void destroyThreadLocalGeosCtx(void *param) {
     GEOS_finish_r(tlGeosCtx->handle);
     tlGeosCtx->handle = NULL;
   }
-  taosThreadKeyDelete(tlGeosCtxKey);
 }
 
 SGeosContext *acquireThreadLocalGeosCtx() { return tlGeosCtx; }
@@ -72,15 +71,7 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
   if ((taosThreadSetSpecific(tlGeosCtxKey, &tlGeosCtxObj)) != 0) {
     TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
   }
-#if 0
-  if (!(tlGeosCtx = taosThreadGetSpecific(tlGeosCtxKey))) {
-    if (errno) {
-      TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
-    } else {
-      TAOS_CHECK_EXIT(TSDB_CODE_NOT_FOUND);
-    }
-  }
-#endif
+
   tlGeosCtx = &tlGeosCtxObj;
   *ppCtx = tlGeosCtx;
 _exit:
