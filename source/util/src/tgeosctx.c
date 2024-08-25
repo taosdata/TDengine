@@ -14,7 +14,6 @@
  */
 
 #include "tgeosctx.h"
-#include "tlog.h"
 #include "tutil.h"
 
 static threadlocal TdThreadKey   tlGeosCtxKey = 0;
@@ -85,7 +84,6 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
 _exit:
   if (code != 0) {
     *ppCtx = NULL;
-    uError("failed to get geos context at lino:%d since %s", lino, tstrerror(code));
   }
   TAOS_RETURN(code);
 }
