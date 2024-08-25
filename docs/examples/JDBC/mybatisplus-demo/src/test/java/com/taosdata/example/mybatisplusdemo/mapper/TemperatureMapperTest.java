@@ -107,7 +107,7 @@ public class TemperatureMapperTest {
      * **/
     @Test
     public void testSelectCount() {
-        int count = mapper.selectCount(null);
+        long count = mapper.selectCount(null);
         Assert.assertEquals(10, count);
     }
 
