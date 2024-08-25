@@ -22,6 +22,7 @@
 extern "C" {
 #endif
 
+#define __USE_PTHREAD
 #if defined(WINDOWS) && !defined(__USE_PTHREAD)
 #include <windows.h>
 #define __USE_WIN_THREAD
