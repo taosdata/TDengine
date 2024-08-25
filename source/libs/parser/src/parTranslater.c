@@ -883,6 +883,8 @@ static uint8_t getPrecisionFromCurrStmt(SNode* pCurrStmt, uint8_t defaultVal) {
   if (isDeleteStmt(pCurrStmt)) {
     return ((SDeleteStmt*)pCurrStmt)->precision;
   }
+  if (pCurrStmt && nodeType(pCurrStmt) == QUERY_NODE_CREATE_TSMA_STMT)
+    return ((SCreateTSMAStmt*)pCurrStmt)->precision;
   return defaultVal;
 }
 
@@ -11152,22 +11154,41 @@ static int32_t rewriteTSMAFuncs(STranslateContext* pCxt, SCreateTSMAStmt* pStmt,
 
 static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMCreateSmaReq* pReq,
                                   SName* useTbName) {
-  SName name;
+  SName      name;
+  SDbCfgInfo pDbInfo = {0};
+  int32_t    code = TSDB_CODE_SUCCESS;
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tsmaName, &name), pReq->name);
   memset(&name, 0, sizeof(SName));
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, useTbName);
   tNameExtractFullName(useTbName, pReq->stb);
   pReq->igExists = pStmt->ignoreExists;
+
+  code = getDBCfg(pCxt, pStmt->dbName, &pDbInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  pStmt->precision = pDbInfo.precision;
+  code = translateValue(pCxt, (SValueNode*)pStmt->pOptions->pInterval);
+  if (code == DEAL_RES_ERROR) {
+    return code;
+  }
   pReq->interval = ((SValueNode*)pStmt->pOptions->pInterval)->datum.i;
-  pReq->intervalUnit = TIME_UNIT_MILLISECOND;
+  pReq->intervalUnit = ((SValueNode*)pStmt->pOptions->pInterval)->unit;
 
 #define TSMA_MIN_INTERVAL_MS 1000 * 60         // 1m
-#define TSMA_MAX_INTERVAL_MS (60 * 60 * 1000)  // 1h
-  if (pReq->interval > TSMA_MAX_INTERVAL_MS || pReq->interval < TSMA_MIN_INTERVAL_MS) {
-    return TSDB_CODE_TSMA_INVALID_INTERVAL;
-  }
+#define TSMA_MAX_INTERVAL_MS (60UL * 60UL * 1000UL * 24UL * 365UL)  // 1y
 
-  int32_t code = TSDB_CODE_SUCCESS;
+  if (!IS_CALENDAR_TIME_DURATION(pReq->intervalUnit)) {
+    int64_t factor = TSDB_TICK_PER_SECOND(pDbInfo.precision) / TSDB_TICK_PER_SECOND(TSDB_TIME_PRECISION_MILLI);
+    if (pReq->interval > TSMA_MAX_INTERVAL_MS * factor || pReq->interval < TSMA_MIN_INTERVAL_MS * factor) {
+      return TSDB_CODE_TSMA_INVALID_INTERVAL;
+    }
+  } else {
+    if (pReq->intervalUnit == TIME_UNIT_MONTH && (pReq->interval < 1 || pReq->interval > 12))
+      return TSDB_CODE_TSMA_INVALID_INTERVAL;
+    if (pReq->intervalUnit == TIME_UNIT_YEAR && (pReq->interval != 1))
+      return TSDB_CODE_TSMA_INVALID_INTERVAL;
+  }
 
   STableMeta*     pTableMeta = NULL;
   STableTSMAInfo* pRecursiveTsma = NULL;
@@ -11180,7 +11201,8 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
       pReq->recursiveTsma = true;
       tNameExtractFullName(useTbName, pReq->baseTsmaName);
       SValueNode* pInterval = (SValueNode*)pStmt->pOptions->pInterval;
-      if (pRecursiveTsma->interval < pInterval->datum.i && pInterval->datum.i % pRecursiveTsma->interval == 0) {
+      if (checkRecursiveTsmaInterval(pRecursiveTsma->interval, pRecursiveTsma->unit, pInterval->datum.i,
+                                     pInterval->unit, pDbInfo.precision, true)) {
       } else {
         code = TSDB_CODE_TSMA_INVALID_PARA;
       }
@@ -11251,7 +11273,8 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
 }
 
 static int32_t translateCreateTSMA(STranslateContext* pCxt, SCreateTSMAStmt* pStmt) {
-  int32_t code = doTranslateValue(pCxt, (SValueNode*)pStmt->pOptions->pInterval);
+  pCxt->pCurrStmt = (SNode*)pStmt;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   SName useTbName = {0};
   if (code == TSDB_CODE_SUCCESS) {

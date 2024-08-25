@@ -2203,7 +2203,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
       
       for (int i = 0; i < numOfTables; i++) {
         STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
-        info->groupId = info->uid;
+        info->groupId = groupByTbname ? info->uid : 0;
         
         taosHashPut(pTableListInfo->remainGroups, &(info->groupId), sizeof(info->groupId), &(info->uid),
                     sizeof(info->uid));

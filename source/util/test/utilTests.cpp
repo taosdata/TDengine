@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <tutil.h>
 #include <random>
+#include "ttime.h"
 
 #include "tarray.h"
 #include "tcompare.h"
@@ -381,4 +382,95 @@ TEST(utilTest, intToHextStr) {
     sprintf(destBuf, "%" PRIx64, v);
     ASSERT_STREQ(buf, destBuf);
   }
+}
+static int64_t getIntervalValWithPrecision(int64_t interval, int8_t unit, int8_t precision) {
+  if (IS_CALENDAR_TIME_DURATION(unit)) {
+    return interval;
+  }
+  if(0 != getDuration(interval, unit, &interval, precision)) {
+    assert(0);
+  }
+  return interval;
+}
+
+static bool tsmaIntervalCheck(int64_t baseInterval, int8_t baseUnit, int64_t interval, int8_t unit, int8_t precision) {
+  auto ret = checkRecursiveTsmaInterval(getIntervalValWithPrecision(baseInterval, baseUnit, precision), baseUnit,
+                                        getIntervalValWithPrecision(interval, unit, precision), unit, precision, true);
+  using namespace std;
+  cout << interval << unit << " on " << baseInterval << baseUnit << ": " << ret << endl;
+  return ret;
+}
+
+TEST(tsma, reverse_unit) {
+  ASSERT_TRUE(tsmaIntervalCheck(1, 'm', 120, 's', TSDB_TIME_PRECISION_MILLI));
+  ASSERT_TRUE(tsmaIntervalCheck(1, 'h', 120, 'm', TSDB_TIME_PRECISION_MILLI));
+  ASSERT_TRUE(tsmaIntervalCheck(20, 's', 2 * 20 * 1000, 'a', TSDB_TIME_PRECISION_MILLI));
+  ASSERT_TRUE(tsmaIntervalCheck(20, 's', 2 * 20 * 1000 * 1000, 'u', TSDB_TIME_PRECISION_MILLI));
+  ASSERT_TRUE(tsmaIntervalCheck(20, 's', 2UL * 20UL * 1000UL * 1000UL * 1000UL, 'b', TSDB_TIME_PRECISION_MILLI));
+
+  ASSERT_FALSE(tsmaIntervalCheck(1, 'h', 60, 'm', TSDB_TIME_PRECISION_MILLI));
+  ASSERT_FALSE(tsmaIntervalCheck(1, 'h', 6, 'm', TSDB_TIME_PRECISION_MILLI));
+
+  ASSERT_FALSE(tsmaIntervalCheck(2, 'h', 120, 'm', TSDB_TIME_PRECISION_MILLI));
+  ASSERT_TRUE(tsmaIntervalCheck(2, 'h', 240, 'm', TSDB_TIME_PRECISION_MILLI));
+  ASSERT_FALSE(tsmaIntervalCheck(1, 'd', 240, 'm', TSDB_TIME_PRECISION_MILLI));
+
+  ASSERT_FALSE(tsmaIntervalCheck(1, 'd', 1440, 'm', TSDB_TIME_PRECISION_MILLI));
+  ASSERT_TRUE(tsmaIntervalCheck(1, 'd', 2880, 'm', TSDB_TIME_PRECISION_MILLI));
+
+  ASSERT_FALSE(tsmaIntervalCheck(1, 'y', 365, 'd', TSDB_TIME_PRECISION_MILLI));
+  ASSERT_FALSE(tsmaIntervalCheck(1, 'n', 30, 'd', TSDB_TIME_PRECISION_MILLI));
+
+  ASSERT_TRUE(tsmaIntervalCheck(1, 'y', 24, 'n', TSDB_TIME_PRECISION_MILLI));
+
+  ASSERT_FALSE(tsmaIntervalCheck(55, 's', 55, 'm', TSDB_TIME_PRECISION_MILLI));
+  ASSERT_TRUE(tsmaIntervalCheck(10, 's', 1, 'm', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_TRUE(tsmaIntervalCheck(10, 's', 2, 'm', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_TRUE(tsmaIntervalCheck(10, 's', 20, 'm', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_TRUE(tsmaIntervalCheck(10, 's', 50, 'm', TSDB_TIME_PRECISION_MICRO));
+
+  ASSERT_TRUE(tsmaIntervalCheck(120, 's', 30, 'm', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_TRUE(tsmaIntervalCheck(360, 's', 30, 'm', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_TRUE(tsmaIntervalCheck(600, 's', 30, 'm', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_FALSE(tsmaIntervalCheck(600, 's', 15, 'm', TSDB_TIME_PRECISION_MICRO));
+
+  ASSERT_TRUE(tsmaIntervalCheck(10, 's', 1, 'h', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_TRUE(tsmaIntervalCheck(15, 's', 1, 'h', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_FALSE(tsmaIntervalCheck(7*60, 's', 1, 'h', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_TRUE(tsmaIntervalCheck(10, 's', 1, 'd', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_TRUE(tsmaIntervalCheck(10, 's', 1, 'w', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_TRUE(tsmaIntervalCheck(1, 'd', 1, 'w', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_TRUE(tsmaIntervalCheck(10, 's', 1, 'n', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_TRUE(tsmaIntervalCheck(10, 's', 1, 'y', TSDB_TIME_PRECISION_MICRO));
+
+  ASSERT_TRUE(tsmaIntervalCheck(1, 'd', 1, 'w', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_TRUE(tsmaIntervalCheck(1, 'd', 1, 'n', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_TRUE(tsmaIntervalCheck(1, 'd', 2, 'n', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_FALSE(tsmaIntervalCheck(2, 'd', 2, 'n', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_FALSE(tsmaIntervalCheck(2, 'd', 2, 'y', TSDB_TIME_PRECISION_MICRO));
+  ASSERT_FALSE(tsmaIntervalCheck(2, 'd', 1, 'y', TSDB_TIME_PRECISION_MICRO));
+
+  ASSERT_FALSE(tsmaIntervalCheck(1, 'w', 1, 'n', TSDB_TIME_PRECISION_NANO));
+  ASSERT_FALSE(tsmaIntervalCheck(4, 'w', 1, 'n', TSDB_TIME_PRECISION_NANO));
+  ASSERT_FALSE(tsmaIntervalCheck(1, 'w', 1, 'y', TSDB_TIME_PRECISION_NANO));
+
+  ASSERT_TRUE(tsmaIntervalCheck(1, 'n', 1, 'y', TSDB_TIME_PRECISION_NANO));
+  ASSERT_TRUE(tsmaIntervalCheck(2, 'n', 1, 'y', TSDB_TIME_PRECISION_NANO));
+  ASSERT_TRUE(tsmaIntervalCheck(3, 'n', 1, 'y', TSDB_TIME_PRECISION_NANO));
+  ASSERT_TRUE(tsmaIntervalCheck(4, 'n', 1, 'y', TSDB_TIME_PRECISION_NANO));
+  ASSERT_FALSE(tsmaIntervalCheck(5, 'n', 1, 'y', TSDB_TIME_PRECISION_NANO));
+  ASSERT_TRUE(tsmaIntervalCheck(6, 'n', 1, 'y', TSDB_TIME_PRECISION_NANO));
+  ASSERT_FALSE(tsmaIntervalCheck(7, 'n', 1, 'y', TSDB_TIME_PRECISION_NANO));
+  ASSERT_FALSE(tsmaIntervalCheck(8, 'n', 1, 'y', TSDB_TIME_PRECISION_NANO));
+  ASSERT_FALSE(tsmaIntervalCheck(9, 'n', 1, 'y', TSDB_TIME_PRECISION_NANO));
+  ASSERT_FALSE(tsmaIntervalCheck(10, 'n', 1, 'y', TSDB_TIME_PRECISION_NANO));
+  ASSERT_FALSE(tsmaIntervalCheck(11, 'n', 1, 'y', TSDB_TIME_PRECISION_NANO));
+
+  ASSERT_FALSE(tsmaIntervalCheck(1, 'w', 1, 'w', TSDB_TIME_PRECISION_NANO));
+  ASSERT_FALSE(tsmaIntervalCheck(120, 's', 2, 'm', TSDB_TIME_PRECISION_NANO));
+
+  ASSERT_FALSE(tsmaIntervalCheck(2, 'n', 2, 'n', TSDB_TIME_PRECISION_NANO));
+  ASSERT_FALSE(tsmaIntervalCheck(2, 'y', 2, 'y', TSDB_TIME_PRECISION_NANO));
+  ASSERT_FALSE(tsmaIntervalCheck(12, 'n', 1, 'y', TSDB_TIME_PRECISION_NANO));
+  ASSERT_TRUE(tsmaIntervalCheck(3, 'n', 1, 'y', TSDB_TIME_PRECISION_NANO));
 }
