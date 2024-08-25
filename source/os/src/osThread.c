@@ -291,7 +291,7 @@ int32_t taosThreadCondAttrInit(TdThreadCondAttr *attr) {
 }
 
 int32_t taosThreadCondAttrSetclock(TdThreadCondAttr *attr, int clockId) {
-#ifdef __USE_WIN_THREAD
+#if defined(__USE_WIN_THREAD) || defined(WINDOWS)
   return 0;
 #elif defined(__APPLE__)
   return 0;
