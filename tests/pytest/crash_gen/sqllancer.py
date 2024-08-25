@@ -60,13 +60,14 @@ class DataBoundary(Enum):
     TOP_BOUNDARY = [1, 100]
     MAVG_BOUNDARY = [1, 1000]
     CONCAT_BOUNDARY = [2, 8]
-    TIME_UNIT = ['1b', '1u', '1a', '1s', '1m', '1h', '1d', '1w']
+    TIME_UNIT = ['b', 'u', 'a', 's', 'm', 'h', 'd', 'w']
     STATECOUNT_UNIT = ["LT", "LE", "EQ", "NE", "GE", "GT"]
     TO_CHAR_UNIT = ['AM,am,PM,pm', 'A.M.,a.m.,P.M.,p.m.', 'YYYY,yyyy', 'YYY,yyy', 'YY,yy', 'Y,y','MONTH', 'Month',
                     'month', 'MON', 'Mon', 'mon', 'MM,mm', 'DD,dd', 'DAY', 'Day', 'day', 'DY', 'Dy', 'dy', 'DDD',
                     'D,d', 'HH24,hh24', 'hh12,HH12, hh, HH', 'MI,mi', 'SS,ss', 'MS,ms', 'US,us', 'NS,ns', 'TZH,tzh']
     ALL_TYPE_UNIT = ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'VARBINARY', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
-
+    WINDOW_UNIT = ['INTERVAL', 'SESSION', 'STATE_WINDOW', 'COUNT_WINDOW', 'EVENT_WINDOW']
+    FILL_UNIT = ["NULL", "PREV", "NEXT", "LINEAR", "VALUE, 0", "NULL_F", "VALUE_F, 0"]
 
 class FunctionMap(Enum):
     # TODO TO_JSON
@@ -136,7 +137,7 @@ class SQLLancer:
     def formatTimediff(self, expr1):
         # 1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)
         time_unit = random.choice(DataBoundary.TIME_UNIT.value)
-        expr2 = f'{expr1}+{time_unit}'
+        expr2 = f'{expr1}+1{time_unit}'
         return f"TIMEDIFF({expr1}, {expr2})"
 
     def formatDiff(self, expr1):
@@ -149,7 +150,7 @@ class SQLLancer:
     def formatTimeTruncate(self, expr):
         time_unit = random.choice(DataBoundary.TIME_UNIT.value[2:])
         use_current_timezone = random.choice(DataBoundary.TIMEZONE_BOUNDARY.value)
-        return f'TIMETRUNCATE({expr}, {time_unit}, {use_current_timezone})'
+        return f'TIMETRUNCATE({expr}, 1{time_unit}, {use_current_timezone})'
 
     def formatHistogram(self, expr):
         user_input1 = [f'HISTOGRAM({expr}, "user_input", "[1, 3, 5, 7]", {random.choice([0, 1])})']
@@ -172,7 +173,7 @@ class SQLLancer:
         val = random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1])
         oper = random.choice(DataBoundary.STATECOUNT_UNIT.value)
         unit = random.choice(DataBoundary.TIME_UNIT.value)
-        return f'STATECOUNT({expr}, "{oper}", {val}, {unit})'
+        return f'STATECOUNT({expr}, "{oper}", {val}, 1{unit})'
 
     def formatConcat(self, expr, *args):
         print("---1args:", *args)
@@ -232,7 +233,7 @@ class SQLLancer:
         elif func in ['PERCENTILE']:
             return self.formatPercentile(colname)
         elif func in ['ELAPSED']:
-            return f"{func}({colname}, {random.choice(DataBoundary.TIME_UNIT.value)})"
+            return f"{func}({colname}, 1{random.choice(DataBoundary.TIME_UNIT.value)})"
         elif func in ['POW']:
             return f"{func}({colname}, {random.choice(DataBoundary.SAMPLE_BOUNDARY.value)})"
         elif func in ['INTERP', 'DIFF', 'TO_UNIXTIMESTAMP']:
@@ -244,7 +245,7 @@ class SQLLancer:
         elif func in ['TOP', 'BOTTOM']:
             return f"{func}({colname}, {random.choice(DataBoundary.TOP_BOUNDARY.value)})"
         elif func in ['DERIVATIVE']:
-            return f"{func}({colname}, {random.choice(DataBoundary.TIME_UNIT.value[3:])}, {random.choice(DataBoundary.IGNORE_NEGATIVE_BOUNDARY.value)})"
+            return f"{func}({colname}, 1{random.choice(DataBoundary.TIME_UNIT.value[3:])}, {random.choice(DataBoundary.IGNORE_NEGATIVE_BOUNDARY.value)})"
         elif func in ['MAVG']:
             return f"{func}({colname}, {random.choice(DataBoundary.MAVG_BOUNDARY.value)})"
         elif func in ['STATECOUNT']:
@@ -363,6 +364,34 @@ class SQLLancer:
             return "nFuncs"
         else:
             return "spFuncs"
+
+    def getRandomTimeUnitStr(self):
+        return f'{random.randint(DataBoundary.SAMPLE_BOUNDARY.value[0], DataBoundary.SAMPLE_BOUNDARY.value[1])}{random.choice(DataBoundary.TIME_UNIT.value)}'
+
+    def getRandomWindow(self):
+        return random.choice(DataBoundary.WINDOW_UNIT.value)
+
+    def getOffsetValue(self, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        offsetVal = "" if useTag else f',{self.getRandomTimeUnitStr()}'
+        return offsetVal
+
+    def getSlidingValue(self, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        slidingVal = "" if useTag else f'SLIDING({self.getRandomTimeUnitStr()})'
+        return slidingVal
+
+    def getFillValue(self, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        fillVal = "" if useTag else f'FILL({random.choice(DataBoundary.FILL_UNIT.value)})'
+        return fillVal
+
+    def getWindowStr(self, window):
+        if window == "INTERVAL":
+            return f"{window}({self.getRandomTimeUnitStr()}{self.getOffsetValue()})"
+        elif window == "SESSION":
+            return f"{window}({random.randint(1, DataBoundary.SAMPLE_BOUNDARY.value[1])}{random.choice(DataBoundary.TIME_UNIT.value[3:])})"
+        return f"{window}({random.randint(1, 10)})"
 
     def generateRandomSql(self, colDict, tbname):
         selectPartList = []
