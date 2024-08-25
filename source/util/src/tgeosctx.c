@@ -86,6 +86,6 @@ _exit:
 }
 
 const char *getGeosErrMsg(int32_t code) {
-  SGeosContext *tlGeosCtx = taosThreadGetSpecific(tlGeosCtxKey)
+  SGeosContext *tlGeosCtx = taosThreadGetSpecific(tlGeosCtxKey);
   return (tlGeosCtx && tlGeosCtx->errMsg[0] != 0) ? tlGeosCtx->errMsg : (code ? tstrerror(code) : "");
 }
