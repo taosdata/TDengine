@@ -19,7 +19,6 @@
 
 static threadlocal TdThreadKey   tlGeosCtxKey = 0;
 static threadlocal SGeosContext  tlGeosCtxObj = {0};
-static threadlocal SGeosContext *tlGeosCtx = NULL;
 
 static void destroyThreadLocalGeosCtx(void *param) {
   SGeosContext *tlGeosCtx = &tlGeosCtxObj;
@@ -55,11 +54,10 @@ static void destroyThreadLocalGeosCtx(void *param) {
   }
 }
 
-SGeosContext *acquireThreadLocalGeosCtx() { return tlGeosCtx; }
+SGeosContext *acquireThreadLocalGeosCtx() { return taosThreadGetSpecific(tlGeosCtxKey); }
 
 int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
-  if (tlGeosCtx) {
-    *ppCtx = tlGeosCtx;
+  if ((*ppCtx = taosThreadGetSpecific(tlGeosCtxKey))) {
     return 0;
   }
 
@@ -72,8 +70,13 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
     TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
   }
 
-  tlGeosCtx = &tlGeosCtxObj;
-  *ppCtx = tlGeosCtx;
+  if (!(*ppCtx = taosThreadGetSpecific(tlGeosCtxKey))) {
+    if (errno != 0) {
+      TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
+    } else {
+      TAOS_CHECK_EXIT(TSDB_CODE_NOT_FOUND);
+    }
+  }
 _exit:
   if (code != 0) {
     *ppCtx = NULL;
@@ -83,5 +86,6 @@ _exit:
 }
 
 const char *getGeosErrMsg(int32_t code) {
+  SGeosContext *tlGeosCtx = taosThreadGetSpecific(tlGeosCtxKey)
   return (tlGeosCtx && tlGeosCtx->errMsg[0] != 0) ? tlGeosCtx->errMsg : (code ? tstrerror(code) : "");
 }
