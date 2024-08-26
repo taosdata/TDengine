@@ -95,7 +95,7 @@ if [ $errors -eq 0 ]; then
 else
   echo -e "\033[44;31;1m"asan total errors: $errors"\033[0m"
   if [ $python_error -ne 0 ] || [ $python_taos_error -ne 0 ] ; then
-    cat ${LOG_DIR}/*.info
+    cat ${LOG_DIR}/*.info |grep "#" | grep -w "TDinternal"
   fi
   cat ${LOG_DIR}/*.asan
   exit 1
