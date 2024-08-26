@@ -310,7 +310,9 @@ static void taosLRUCacheShardEvictLRU(SLRUCacheShard *shard, size_t charge, SArr
     TAOS_LRU_ENTRY_SET_IN_CACHE(old, false);
     shard->usage -= old->totalCharge;
 
-    (void)taosArrayPush(deleted, &old);
+    if (!taosArrayPush(deleted, &old)) {
+      // ignore this round's eviting
+    }
   }
 }
 
@@ -382,7 +384,11 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
   if (shard->usage + e->totalCharge > shard->capacity && (shard->strictCapacity || handle == NULL)) {
     TAOS_LRU_ENTRY_SET_IN_CACHE(e, false);
     if (handle == NULL) {
-      (void)taosArrayPush(lastReferenceList, &e);
+      if (!taosArrayPush(lastReferenceList, &e)) {
+        (void)taosThreadMutexUnlock(&shard->mutex);
+        taosLRUEntryFree(e);
+        return status;
+      }
     } else {
       if (freeOnFail) {
         taosMemoryFree(e);
@@ -403,7 +409,11 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
         taosLRUCacheShardLRURemove(shard, old);
         shard->usage -= old->totalCharge;
 
-        (void)taosArrayPush(lastReferenceList, &old);
+        if (!taosArrayPush(lastReferenceList, &old)) {
+          (void)taosThreadMutexUnlock(&shard->mutex);
+          taosLRUEntryFree(old);
+          return status;
+        }
       }
     }
     if (handle == NULL) {
@@ -519,7 +529,10 @@ static void taosLRUCacheShardEraseUnrefEntries(SLRUCacheShard *shard) {
     TAOS_LRU_ENTRY_SET_IN_CACHE(old, false);
     shard->usage -= old->totalCharge;
 
-    (void)taosArrayPush(lastReferenceList, &old);
+    if (!taosArrayPush(lastReferenceList, &old)) {
+      taosLRUEntryFree(old);
+      return;
+    }
   }
 
   (void)taosThreadMutexUnlock(&shard->mutex);
@@ -674,6 +687,7 @@ SLRUCache *taosLRUCacheInit(size_t capacity, int numShardBits, double highPriPoo
   for (int i = 0; i < numShards; ++i) {
     if (TSDB_CODE_SUCCESS !=
         taosLRUCacheShardInit(&cache->shards[i], perShard, strictCapacity, highPriPoolRatio, 32 - numShardBits)) {
+      taosMemoryFree(cache->shards);
       taosMemoryFree(cache);
       return NULL;
     }

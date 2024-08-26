@@ -232,7 +232,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   int32_t  err = taosHashPut(pTscObj->pRequests, &(*pRequest)->self, sizeof((*pRequest)->self), &(*pRequest)->self,
                              sizeof((*pRequest)->self));
   if (err) {
-    tscError("%" PRId64 " failed to add to request container, QID:0x%" PRIx64 ", conn:%" PRId64 ", %s",
+    tscError("%" PRId64 " failed to add to request container, qid:0x%" PRIx64 ", conn:%" PRId64 ", %s",
              (*pRequest)->self, (*pRequest)->requestId, pTscObj->id, sql);
     destroyRequest(*pRequest);
     *pRequest = NULL;
@@ -243,7 +243,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   if (tsQueryUseNodeAllocator && !qIsInsertValuesSql((*pRequest)->sqlstr, (*pRequest)->sqlLen)) {
     if (TSDB_CODE_SUCCESS !=
         nodesCreateAllocator((*pRequest)->requestId, tsQueryNodeChunkSize, &((*pRequest)->allocatorRefId))) {
-      tscError("%" PRId64 " failed to create node allocator, QID:0x%" PRIx64 ", conn:%" PRId64 ", %s",
+      tscError("%" PRId64 " failed to create node allocator, qid:0x%" PRIx64 ", conn:%" PRId64 ", %s",
                (*pRequest)->self, (*pRequest)->requestId, pTscObj->id, sql);
       destroyRequest(*pRequest);
       *pRequest = NULL;
@@ -251,7 +251,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
     }
   }
 
-  tscDebugL("0x%" PRIx64 " SQL: %s, QID:0x%" PRIx64, (*pRequest)->self, (*pRequest)->sqlstr, (*pRequest)->requestId);
+  tscDebugL("0x%" PRIx64 " SQL: %s, qid:0x%" PRIx64, (*pRequest)->self, (*pRequest)->sqlstr, (*pRequest)->requestId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -365,10 +365,10 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
 
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
-    tscError("0x%" PRIx64 " fetch results failed, code:%s, QID:0x%" PRIx64, pRequest->self, tstrerror(code),
+    tscError("0x%" PRIx64 " fetch results failed, code:%s, qid:0x%" PRIx64, pRequest->self, tstrerror(code),
              pRequest->requestId);
   } else {
-    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%" PRId64 " total Rows:%" PRId64 ", complete:%d, QID:0x%" PRIx64,
+    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%" PRId64 " total Rows:%" PRId64 ", complete:%d, qid:0x%" PRIx64,
              pRequest->self, pResultInfo->numOfRows, pResultInfo->totalRows, pResultInfo->completed,
              pRequest->requestId);
   }
@@ -974,7 +974,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
       break;
     }
     default:
-      tscError("0x%" PRIx64 ", invalid exec result for request type %d, QID:0x%" PRIx64, pRequest->self, pRequest->type,
+      tscError("0x%" PRIx64 ", invalid exec result for request type %d, qid:0x%" PRIx64, pRequest->self, pRequest->type,
                pRequest->requestId);
       code = TSDB_CODE_APP_ERROR;
   }
@@ -1019,7 +1019,7 @@ void returnToUser(SRequestObj* pRequest) {
     (void)releaseRequest(pRequest->relation.userRefId);
     return;
   } else {
-    tscError("0x%" PRIx64 ", user ref 0x%" PRIx64 " is not there, QID:0x%" PRIx64, pRequest->self,
+    tscError("0x%" PRIx64 ", user ref 0x%" PRIx64 " is not there, qid:0x%" PRIx64, pRequest->self,
              pRequest->relation.userRefId, pRequest->requestId);
   }
 }
@@ -1084,7 +1084,7 @@ void postSubQueryFetchCb(void* param, TAOS_RES* res, int32_t rowNum) {
 
   SSDataBlock* pBlock = NULL;
   if (TSDB_CODE_SUCCESS != createResultBlock(res, rowNum, &pBlock)) {
-    tscError("0x%" PRIx64 ", create result block failed, QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
+    tscError("0x%" PRIx64 ", create result block failed, qid:0x%" PRIx64, pRequest->self, pRequest->requestId);
     return;
   }
 
@@ -1093,7 +1093,7 @@ void postSubQueryFetchCb(void* param, TAOS_RES* res, int32_t rowNum) {
     continuePostSubQuery(pNextReq, pBlock);
     (void)releaseRequest(pRequest->relation.nextRefId);
   } else {
-    tscError("0x%" PRIx64 ", next req ref 0x%" PRIx64 " is not there, QID:0x%" PRIx64, pRequest->self,
+    tscError("0x%" PRIx64 ", next req ref 0x%" PRIx64 " is not there, qid:0x%" PRIx64, pRequest->self,
              pRequest->relation.nextRefId, pRequest->requestId);
   }
 
@@ -1112,7 +1112,7 @@ void handlePostSubQuery(SSqlCallbackWrapper* pWrapper) {
     continuePostSubQuery(pNextReq, NULL);
     (void)releaseRequest(pRequest->relation.nextRefId);
   } else {
-    tscError("0x%" PRIx64 ", next req ref 0x%" PRIx64 " is not there, QID:0x%" PRIx64, pRequest->self,
+    tscError("0x%" PRIx64 ", next req ref 0x%" PRIx64 " is not there, qid:0x%" PRIx64, pRequest->self,
              pRequest->relation.nextRefId, pRequest->requestId);
   }
 }
@@ -1143,11 +1143,11 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   }
 
   taosMemoryFree(pResult);
-  tscDebug("0x%" PRIx64 " enter scheduler exec cb, code:%s, QID:0x%" PRIx64, pRequest->self, tstrerror(code),
+  tscDebug("0x%" PRIx64 " enter scheduler exec cb, code:%s, qid:0x%" PRIx64, pRequest->self, tstrerror(code),
            pRequest->requestId);
 
   if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pRequest->sqlstr != NULL) {
-    tscDebug("0x%" PRIx64 " client retry to handle the error, code:%s, tryCount:%d, QID:0x%" PRIx64, pRequest->self,
+    tscDebug("0x%" PRIx64 " client retry to handle the error, code:%s, tryCount:%d, qid:0x%" PRIx64, pRequest->self,
              tstrerror(code), pRequest->retry, pRequest->requestId);
     (void)removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
     restartAsyncQuery(pRequest, code);
@@ -1580,7 +1580,7 @@ int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __ta
     *pTscObj = NULL;
     return terrno;
   } else {
-    tscDebug("0x%" PRIx64 " connection is opening, connId:%u, dnodeConn:%p, QID:0x%" PRIx64, (*pTscObj)->id,
+    tscDebug("0x%" PRIx64 " connection is opening, connId:%u, dnodeConn:%p, qid:0x%" PRIx64, (*pTscObj)->id,
              (*pTscObj)->connId, (*pTscObj)->pAppInfo->pTransporter, pRequest->requestId);
     destroyRequest(pRequest);
   }
@@ -1711,7 +1711,7 @@ int32_t doProcessMsgFromServer(void* param) {
   char      tbuf[40] = {0};
   TRACE_TO_STR(trace, tbuf);
 
-  tscDebug("processMsgFromServer handle %p, message: %s, size:%d, code: %s, QID:%s", pMsg->info.handle,
+  tscDebug("processMsgFromServer handle %p, message: %s, size:%d, code: %s, qid:%s", pMsg->info.handle,
            TMSG_INFO(pMsg->msgType), pMsg->contLen, tstrerror(pMsg->code), tbuf);
 
   if (pSendInfo->requestObjRefId != 0) {
@@ -1909,7 +1909,7 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
       return NULL;
     }
 
-    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%" PRId64 " total Rows:%" PRId64 ", complete:%d, QID:0x%" PRIx64,
+    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%" PRId64 " total Rows:%" PRId64 ", complete:%d, qid:0x%" PRIx64,
              pRequest->self, pResInfo->numOfRows, pResInfo->totalRows, pResInfo->completed, pRequest->requestId);
 
     STscObj*            pTscObj = pRequest->pTscObj;
@@ -2859,7 +2859,7 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
 
-  tscDebug("0x%" PRIx64 " enter scheduler fetch cb, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code,
+  tscDebug("0x%" PRIx64 " enter scheduler fetch cb, code:%d - %s, qid:0x%" PRIx64, pRequest->self, code,
            tstrerror(code), pRequest->requestId);
 
   pResultInfo->pData = pResult;
@@ -2882,10 +2882,10 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
       setQueryResultFromRsp(pResultInfo, (const SRetrieveTableRsp*)pResultInfo->pData, pResultInfo->convertUcs4);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
-    tscError("0x%" PRIx64 " fetch results failed, code:%s, QID:0x%" PRIx64, pRequest->self, tstrerror(pRequest->code),
+    tscError("0x%" PRIx64 " fetch results failed, code:%s, qid:0x%" PRIx64, pRequest->self, tstrerror(pRequest->code),
              pRequest->requestId);
   } else {
-    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%" PRId64 " total Rows:%" PRId64 ", complete:%d, QID:0x%" PRIx64,
+    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%" PRId64 " total Rows:%" PRId64 ", complete:%d, qid:0x%" PRIx64,
              pRequest->self, pResultInfo->numOfRows, pResultInfo->totalRows, pResultInfo->completed,
              pRequest->requestId);
 
@@ -2937,7 +2937,7 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
   int32_t code = schedulerFetchRows(pRequest->body.queryJob, &req);
   if (TSDB_CODE_SUCCESS != code) {
     tscError("0x%" PRIx64 " failed to schedule fetch rows", pRequest->requestId);
-    //pRequest->body.fetchFp(param, pRequest, code);    
+    // pRequest->body.fetchFp(param, pRequest, code);
   }
 }
 

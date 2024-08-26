@@ -1570,14 +1570,15 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (msgEpoch < clientEpoch) {
     // do not write into queue since updating epoch reset
     tscWarn("consumer:0x%" PRIx64
-            " msg discard from vgId:%d since from earlier epoch, rsp epoch %d, current epoch %d, QID:0x%" PRIx64,
+            " msg discard from vgId:%d since from earlier epoch, rsp epoch %d, current epoch %d, qid:0x%" PRIx64,
             tmq->consumerId, vgId, msgEpoch, clientEpoch, requestId);
     code = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
     goto END;
   }
 
-  if(msgEpoch != clientEpoch) {
-    tscError("consumer:0x%" PRIx64 " msg discard from vgId:%d since from earlier epoch, rsp epoch %d, current epoch %d, reqId:0x%" PRIx64,
+  if (msgEpoch != clientEpoch) {
+    tscError("consumer:0x%" PRIx64
+             " msg discard from vgId:%d since from earlier epoch, rsp epoch %d, current epoch %d, reqId:0x%" PRIx64,
              tmq->consumerId, vgId, msgEpoch, clientEpoch, requestId);
     code = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
     goto END;
@@ -1602,7 +1603,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
 
     char buf[TSDB_OFFSET_LEN] = {0};
     tFormatOffset(buf, TSDB_OFFSET_LEN, &pRspWrapper->dataRsp.common.rspOffset);
-    tscDebug("consumer:0x%" PRIx64 " recv poll rsp, vgId:%d, req ver:%" PRId64 ", rsp:%s type %d, QID:0x%" PRIx64,
+    tscDebug("consumer:0x%" PRIx64 " recv poll rsp, vgId:%d, req ver:%" PRId64 ", rsp:%s type %d, qid:0x%" PRIx64,
              tmq->consumerId, vgId, pRspWrapper->dataRsp.common.reqOffset.version, buf, rspType, requestId);
   } else if (rspType == TMQ_MSG_TYPE__POLL_META_RSP) {
     SDecoder decoder = {0};
@@ -1634,7 +1635,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     }
     tDecoderClear(&decoder);
     (void)memcpy(&pRspWrapper->batchMetaRsp, pMsg->pData, sizeof(SMqRspHead));
-    tscDebug("consumer:0x%" PRIx64 " recv poll batchmeta rsp, vgId:%d, QID:0x%" PRIx64, tmq->consumerId, vgId,
+    tscDebug("consumer:0x%" PRIx64 " recv poll batchmeta rsp, vgId:%d, qid:0x%" PRIx64, tmq->consumerId, vgId,
              requestId);
   } else {  // invalid rspType
     tscError("consumer:0x%" PRIx64 " invalid rsp msg received, type:%d ignored", tmq->consumerId, rspType);
@@ -1651,7 +1652,7 @@ END:
     }
   }
   int32_t total = taosQueueItemSize(tmq->mqueue);
-  tscDebug("consumer:0x%" PRIx64 " put poll res into mqueue, type:%d, vgId:%d, total in queue:%d, QID:0x%" PRIx64,
+  tscDebug("consumer:0x%" PRIx64 " put poll res into mqueue, type:%d, vgId:%d, total in queue:%d, qid:0x%" PRIx64,
            tmq ? tmq->consumerId : 0, rspType, vgId, total, requestId);
 
   if (tmq) (void)tsem2_post(&tmq->rspSem);
@@ -1879,7 +1880,7 @@ void changeByteEndian(char* pData) {
   // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
   // length | version:
   int32_t blockVersion = *(int32_t*)p;
-  if(blockVersion != BLOCK_VERSION_1) {
+  if (blockVersion != BLOCK_VERSION_1) {
     tscError("invalid block version:%d", blockVersion);
     return;
   }
@@ -2049,7 +2050,7 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
   char    offsetFormatBuf[TSDB_OFFSET_LEN] = {0};
   tFormatOffset(offsetFormatBuf, tListLen(offsetFormatBuf), &pVg->offsetInfo.endOffset);
   code = asyncSendMsgToServer(pTmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);
-  tscDebug("consumer:0x%" PRIx64 " send poll to %s vgId:%d, code:%d, epoch %d, req:%s, QID:0x%" PRIx64,
+  tscDebug("consumer:0x%" PRIx64 " send poll to %s vgId:%d, code:%d, epoch %d, req:%s, qid:0x%" PRIx64,
            pTmq->consumerId, pTopic->topicName, pVg->vgId, code, pTmq->epoch, offsetFormatBuf, req.reqId);
   if (code != 0) {
     return code;
@@ -2222,7 +2223,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
         tFormatOffset(buf, TSDB_OFFSET_LEN, &pDataRsp->rspOffset);
         if (pDataRsp->blockNum == 0) {
           tscDebug("consumer:0x%" PRIx64 " empty block received, vgId:%d, offset:%s, vg total:%" PRId64
-                   ", total:%" PRId64 ", QID:0x%" PRIx64,
+                   ", total:%" PRId64 ", qid:0x%" PRIx64,
                    tmq->consumerId, pVg->vgId, buf, pVg->numOfRows, tmq->totalRows, pollRspWrapper->reqId);
           pVg->emptyBlockReceiveTs = taosGetTimestampMs();
           tmqFreeRspWrapper(pRspWrapper);
@@ -2245,7 +2246,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
             }
           }
           tscDebug("consumer:0x%" PRIx64 " process poll rsp, vgId:%d, offset:%s, blocks:%d, rows:%" PRId64
-                   ", vg total:%" PRId64 ", total:%" PRId64 ", QID:0x%" PRIx64,
+                   ", vg total:%" PRId64 ", total:%" PRId64 ", qid:0x%" PRIx64,
                    tmq->consumerId, pVg->vgId, buf, pDataRsp->blockNum, numOfRows, pVg->numOfRows, tmq->totalRows,
                    pollRspWrapper->reqId);
           taosFreeQitem(pRspWrapper);
@@ -2356,7 +2357,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
                      tmq->consumerId, pDataRsp->blockNum != 0);
 
         if (pDataRsp->blockNum == 0) {
-          tscDebug("consumer:0x%" PRIx64 " taosx empty block received, vgId:%d, vg total:%" PRId64 ", QID:0x%" PRIx64,
+          tscDebug("consumer:0x%" PRIx64 " taosx empty block received, vgId:%d, vg total:%" PRId64 ", qid:0x%" PRIx64,
                    tmq->consumerId, pVg->vgId, pVg->numOfRows, pollRspWrapper->reqId);
           pVg->emptyBlockReceiveTs = taosGetTimestampMs();
           tmqFreeRspWrapper(pRspWrapper);
@@ -2378,7 +2379,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
         char buf[TSDB_OFFSET_LEN] = {0};
         tFormatOffset(buf, TSDB_OFFSET_LEN, &pVg->offsetInfo.endOffset);
         tscDebug("consumer:0x%" PRIx64 " process taosx poll rsp, vgId:%d, offset:%s, blocks:%d, rows:%" PRId64
-                 ", vg total:%" PRId64 ", total:%" PRId64 ", QID:0x%" PRIx64,
+                 ", vg total:%" PRId64 ", total:%" PRId64 ", qid:0x%" PRIx64,
                  tmq->consumerId, pVg->vgId, buf, pDataRsp->blockNum, numOfRows, pVg->numOfRows, tmq->totalRows,
                  pollRspWrapper->reqId);
 
@@ -2991,7 +2992,7 @@ int32_t askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   sendInfo->msgType = TDMT_MND_TMQ_ASK_EP;
 
   SEpSet epSet = getEpSet_s(&pTmq->pTscObj->pAppInfo->mgmtEp);
-  tscDebug("consumer:0x%" PRIx64 " ask ep from mnode, QID:0x%" PRIx64, pTmq->consumerId, sendInfo->requestId);
+  tscDebug("consumer:0x%" PRIx64 " ask ep from mnode, qid:0x%" PRIx64, pTmq->consumerId, sendInfo->requestId);
   return asyncSendMsgToServer(pTmq->pTscObj->pAppInfo->pTransporter, &epSet, NULL, sendInfo);
 }
 
@@ -3498,7 +3499,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       char    offsetFormatBuf[TSDB_OFFSET_LEN] = {0};
       tFormatOffset(offsetFormatBuf, tListLen(offsetFormatBuf), &pClientVg->offsetInfo.beginOffset);
 
-      tscInfo("consumer:0x%" PRIx64 " %s retrieve wal info vgId:%d, epoch %d, req:%s, QID:0x%" PRIx64, tmq->consumerId,
+      tscInfo("consumer:0x%" PRIx64 " %s retrieve wal info vgId:%d, epoch %d, req:%s, qid:0x%" PRIx64, tmq->consumerId,
               pTopic->topicName, pClientVg->vgId, tmq->epoch, offsetFormatBuf, req.reqId);
       code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pClientVg->epSet, &transporterId, sendInfo);
       if (code != 0) {

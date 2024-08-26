@@ -417,7 +417,13 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
       SWalFileInfo fileInfo;
       (void)memset(&fileInfo, -1, sizeof(SWalFileInfo));
       (void)sscanf(name, "%" PRId64 ".log", &fileInfo.firstVer);
-      (void)taosArrayPush(actualLog, &fileInfo);
+      if (!taosArrayPush(actualLog, &fileInfo)) {
+        regfree(&logRegPattern);
+        regfree(&idxRegPattern);
+        (void)taosCloseDir(&pDir);
+
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      }
     }
   }
 
@@ -730,9 +736,12 @@ int32_t walRollFileInfo(SWal* pWal) {
   pNewInfo->closeTs = -1;
   pNewInfo->fileSize = 0;
   pNewInfo->syncedOffset = 0;
-  (void)taosArrayPush(pArray, pNewInfo);
-  taosMemoryFree(pNewInfo);
+  if (!taosArrayPush(pArray, pNewInfo)) {
+    taosMemoryFree(pNewInfo);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
+  taosMemoryFree(pNewInfo);
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
