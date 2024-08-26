@@ -1029,7 +1029,12 @@ bool fstGet(Fst* fst, FstSlice* b, Output* out) {
   uint8_t* data = fstSliceData(b, &len);
 
   SArray* nodes = (SArray*)taosArrayInit(len, sizeof(FstNode*));
-  (void)taosArrayPush(nodes, &root);
+  if (nodes == NULL) {
+    return false;
+  }
+  if (taosArrayPush(nodes, &root) == NULL) {
+    goto _return;
+  }
   for (uint32_t i = 0; i < len; i++) {
     uint8_t inp = data[i];
     Output  res = 0;
@@ -1041,7 +1046,9 @@ bool fstGet(Fst* fst, FstSlice* b, Output* out) {
     (void)fstNodeGetTransitionAt(root, res, &trn);
     tOut += trn.out;
     root = fstGetNode(fst, trn.addr);
-    (void)taosArrayPush(nodes, &root);
+    if (taosArrayPush(nodes, &root) == NULL) {
+      goto _return;
+    }
   }
   if (!FST_NODE_IS_FINAL(root)) {
     goto _return;
@@ -1188,7 +1195,9 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
                         .trans = 0,
                         .out = {.null = false, .out = 0},
                         .autState = automFuncs[aut->type].start(aut)};  // auto.start callback
-    (void)taosArrayPush(sws->stack, &s);
+    if (taosArrayPush(sws->stack, &s) == NULL) {
+      return false;
+    }
     return true;
   }
   FstSlice* key = NULL;

@@ -62,37 +62,6 @@ bool fstBuilderNodeEqual(FstBuilderNode* n1, FstBuilderNode* n2) {
   return true;
 }
 
-#if 0
-FstBuilderNode* fstBuilderNodeClone(FstBuilderNode* src) {
-  FstBuilderNode* node = taosMemoryMalloc(sizeof(FstBuilderNode));
-  if (node == NULL) {
-    return NULL;
-  }
-
-  //
-  size_t  sz = taosArrayGetSize(src->trans);
-  SArray* trans = taosArrayInit(sz, sizeof(FstTransition));
-  if (trans == NULL) {
-    taosMemoryFree(node);
-    return NULL;
-  }
-
-  for (size_t i = 0; i < sz; i++) {
-    FstTransition* tran = taosArrayGet(src->trans, i);
-    if (taosArrayPush(trans, tran) != NULL) {
-      taosArrayDestroy(trans);
-      taosMemoryFree(node);
-      return NULL;
-    }
-  }
-
-  node->trans = trans;
-  node->isFinal = src->isFinal;
-  node->finalOutput = src->finalOutput;
-  return node;
-}
-#endif
-
 // not destroy src, User's bussiness
 int32_t fstBuilderNodeCloneFrom(FstBuilderNode* dst, FstBuilderNode* src) {
   if (dst == NULL || src == NULL) {

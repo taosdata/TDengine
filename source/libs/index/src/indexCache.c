@@ -162,7 +162,6 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
     if (cond == MATCH) {
       if (c->operaType == ADD_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->del, tr->add, c->uid)
-        // taosArrayPush(result, &c->uid);
         *s = kTypeValue;
       } else if (c->operaType == DEL_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->add, tr->del, c->uid)
@@ -818,7 +817,13 @@ static bool idxCacheIteratorNext(Iterate* itera) {
     iv->type = ct->operaType;
     iv->ver = ct->version;
     iv->colVal = taosStrdup(ct->colVal);
-    (void)taosArrayPush(iv->val, &ct->uid);
+    if (iv->colVal == NULL) {
+      return false;
+    }
+    if (taosArrayPush(iv->val, &ct->uid) == NULL) {
+      taosMemoryFree(iv->colVal);
+      return false;
+    }
   }
   return next;
 }
