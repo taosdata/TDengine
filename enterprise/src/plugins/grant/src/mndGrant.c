@@ -138,7 +138,10 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
       mndReleaseGrant(pMnode, pGrant, pIter);
       TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
     }
-    (void)taosArrayAddAll(grantObj.pMachines, pGrant->pMachines);
+    if(!taosArrayAddAll(grantObj.pMachines, pGrant->pMachines)){
+      mndReleaseGrant(pMnode, pGrant, pIter);
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    }
   }
   mndReleaseGrant(pMnode, pGrant, pIter);
 
@@ -228,6 +231,7 @@ int32_t mndProcessUpdGrantLog(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines, 
     if (pGrant->active) {
       int32_t activeLen = strlen(pGrant->active);
       if (!(grantObj.active = taosMemoryMalloc(activeLen + 1))) {
+        mndReleaseGrant(pMnode, pGrant, pIter);
         TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
       }
       tstrncpy(grantObj.active, pGrant->active, activeLen + 1);
@@ -235,10 +239,17 @@ int32_t mndProcessUpdGrantLog(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines, 
     int32_t totalMachines = taosArrayGetSize(pGrant->pMachines) + nMachines;
     if (totalMachines > 0) {
       if (!(grantObj.pMachines = taosArrayInit(totalMachines, sizeof(SGrantMachine)))) {
+        mndReleaseGrant(pMnode, pGrant, pIter);
         TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
       }
-      (void)taosArrayAddAll(grantObj.pMachines, pGrant->pMachines);
-      (void)taosArrayAddAll(grantObj.pMachines, pMachines);
+      if (taosArrayGetSize(pGrant->pMachines) > 0 && !taosArrayAddAll(grantObj.pMachines, pGrant->pMachines)) {
+        mndReleaseGrant(pMnode, pGrant, pIter);
+        TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+      }
+      if (nMachines > 0 && !taosArrayAddAll(grantObj.pMachines, pMachines)) {
+        mndReleaseGrant(pMnode, pGrant, pIter);
+        TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+      }
     }
   }
   if (pState) {
