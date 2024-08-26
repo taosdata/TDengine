@@ -1127,7 +1127,7 @@ int32_t tMergeTreeNext(SMergeTree *pMTree, bool *pHasNext) {
         (void)tRBTreePut(&pMTree->rbt, (SRBTreeNode *)pMTree->pIter);
         pMTree->pIter = NULL;
       } else {
-        ASSERT(c);
+        return TSDB_CODE_INTERNAL_ERROR;
       }
     }
   }
