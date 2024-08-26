@@ -1024,7 +1024,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object_name, int8_t w
 }
 
 static int32_t s3PutObjectFromFileOffsetByEp(const char *file, const char *object_name, int64_t offset, int64_t size,
-                                      int8_t epIndex) {
+                                             int8_t epIndex) {
   int32_t                  code = 0;
   int32_t                  lmtime = 0;
   const char              *filename = 0;
@@ -1136,7 +1136,10 @@ static S3Status listBucketCallback(int isTruncated, const char *nextMarker, int 
     const S3ListBucketContent *content = &(contents[i]);
     // printf("%-50s", content->key);
     char *object_key = strdup(content->key);
-    (void)taosArrayPush(data->objectArray, &object_key);
+    if (!taosArrayPush(data->objectArray, &object_key)) {
+      taosMemoryFree(object_key);
+      return S3StatusOutOfMemory;
+    }
   }
   data->keyCount += contentsCount;
 
