@@ -21,7 +21,7 @@
 #include "taos_metric_sample_t.h"
 #include "tjson.h"
 #include "taos_monitor_util_i.h"
-#include "taos_assert.h"
+#include "taos_test.h"
 #include "tdef.h"
 #include "taos_collector_t.h"
 #include "taos_log.h"
