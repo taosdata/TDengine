@@ -1845,8 +1845,7 @@ static int32_t mndTSMAGenerateOutputName(const char* tsmaName, char* streamName,
 
 static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
 #ifdef WINDOWS
-  terrno = TSDB_CODE_MND_INVALID_PLATFORM;
-  goto _OVER;
+  TAOS_RETURN(TSDB_CODE_MND_INVALID_PLATFORM);
 #endif
   SMnode *       pMnode = pReq->info.node;
   int32_t        code = -1;
