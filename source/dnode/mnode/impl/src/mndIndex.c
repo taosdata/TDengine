@@ -824,7 +824,7 @@ static int32_t mndDropIdx(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SIdxObj *p
   }
 
   mInfo("trans:%d, used to drop idx:%s", pTrans->id, pIdx->name);
-  mndTransSetDbName(pTrans, pDb->name, NULL);
+  mndTransSetDbName(pTrans, pDb->name, pStb->name);
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
 
   mndTransSetSerial(pTrans);
