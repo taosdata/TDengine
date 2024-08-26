@@ -3523,6 +3523,9 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       return 0;
     }
     SyncTerm matchTerm = syncLogBufferGetLastMatchTerm(ths->pLogBuf);
+    if (matchTerm < 0) {
+      return TSDB_CODE_SYN_INTERNAL_ERROR;
+    }
     if (pMsg->currentTerm == matchTerm) {
       (void)syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);
     }
