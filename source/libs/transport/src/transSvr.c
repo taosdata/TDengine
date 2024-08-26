@@ -468,8 +468,8 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pTransInst), transMsg.info.handle, pConn,
           pConn->refId);
-  ASSERTS(transMsg.info.handle != NULL, "trans-svr failed to alloc handle to msg");
   if (transMsg.info.handle == NULL) {
+    tError("%s handle %p conn:%p handle failed to init" PRIu64, transLabel(pTransInst), transMsg.info.handle, pConn);
     return false;
   }
 
@@ -965,15 +965,19 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
   // free memory allocated by
-  ASSERTS(nread == strlen(notify), "trans-svr mem corrupted");
-  ASSERTS(buf->base[0] == notify[0], "trans-svr mem corrupted");
+  if (nread != strlen(notify) || strncmp(buf->base, notify, strlen(notify)) != 0) {
+    tError("failed to read pip ");
+    taosMemoryFree(buf->base);
+    uv_close((uv_handle_t*)q, NULL);
+  }
+
   taosMemoryFree(buf->base);
 
   SWorkThrd* pThrd = q->data;
 
   uv_pipe_t* pipe = (uv_pipe_t*)q;
   if (!uv_pipe_pending_count(pipe)) {
-    tError("No pending count");
+    tError("no pending count, unexpected error");
     uv_close((uv_handle_t*)q, NULL);
     return;
   }
@@ -1351,25 +1355,32 @@ static void uvPipeListenCb(uv_stream_t* handle, int status) {
   uv_pipe_t*  pipe = &(srv->pipe[srv->numOfWorkerReady][0]);
 
   int ret = uv_pipe_init(srv->loop, pipe, 1);
-  ASSERTS(ret == 0, "trans-svr failed to init pipe");
-  if (ret != 0) return;
+  if (ret != 0) {
+    tError("trans-svr failed to init pipe, errmsg: %s", uv_err_name(ret));
+  }
 
   ret = uv_accept((uv_stream_t*)&srv->pipeListen, (uv_stream_t*)pipe);
-  ASSERTS(ret == 0, "trans-svr failed to accept pipe msg");
-  if (ret != 0) return;
+  if (ret != 0) {
+    tError("trans-svr failed to accept pipe, errmsg: %s", uv_err_name(ret));
+    return;
+  }
 
   ret = uv_is_readable((uv_stream_t*)pipe);
-  ASSERTS(ret == 1, "trans-svr pipe status corrupted");
-  if (ret != 1) return;
-
+  if (ret != 1) {
+    tError("trans-svr failed to check pipe, pip not readable");
+    return;
+  }
   ret = uv_is_writable((uv_stream_t*)pipe);
-  ASSERTS(ret == 1, "trans-svr pipe status corrupted");
-  if (ret != 1) return;
+  if (ret != 1) {
+    tError("trans-svr failed to check pipe, pip not writable");
+    return;
+  }
 
   ret = uv_is_closing((uv_handle_t*)pipe);
-  ASSERTS(ret == 0, "trans-svr pipe status corrupted");
-  if (ret != 0) return;
-
+  if (ret != 0) {
+    tError("trans-svr failed to check pipe, pip is closing");
+    return;
+  }
   srv->numOfWorkerReady++;
 }
 
