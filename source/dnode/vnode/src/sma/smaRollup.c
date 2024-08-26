@@ -928,7 +928,7 @@ static int32_t tdAcquireRSmaInfoBySuid(SSma *pSma, int64_t suid, SRSmaInfo **ppR
 
     tdRefRSmaInfo(pSma, pRSmaInfo);
     taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
-    if (ASSERTS(pRSmaInfo->suid == suid, "suid:%" PRIi64 " != %" PRIi64, pRSmaInfo->suid, suid)) {
+    if (pRSmaInfo->suid != suid) {
       TAOS_RETURN(TSDB_CODE_APP_ERROR);
     }
     *ppRSmaInfo = pRSmaInfo;
@@ -1645,7 +1645,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
                     ((oldStat == 2) && atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat)) < TASK_TRIGGER_STAT_PAUSED)) {
                   int32_t oldVal = atomic_fetch_add_32(&pRSmaStat->nFetchAll, 1);
 
-                  if (ASSERTS(oldVal >= 0, "oldVal of nFetchAll: %d < 0", oldVal)) {
+                  if (oldVal < 0) {
                     code = TSDB_CODE_APP_ERROR;
                     taosHashCancelIterate(infoHash, pIter);
                     TSDB_CHECK_CODE(code, lino, _exit);

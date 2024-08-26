@@ -479,6 +479,12 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   int32_t len = blockEncode(pBlock, pStart, numOfCols);
+  if(len < 0) {
+    dError("failed to retrieve data since %s", tstrerror(code));
+    blockDataDestroy(pBlock);
+    rpcFreeCont(pRsp);
+    return terrno;
+  }
 
   pRsp->numOfRows = htonl(pBlock->info.rows);
   pRsp->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond time precision
