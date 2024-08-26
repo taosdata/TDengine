@@ -617,6 +617,11 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
     SFsmCbMeta cbMeta = {0};
     cbMeta.index = pEntry->index;
     cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(pNode, pEntry->index);
+    if (cbMeta.lastConfigIndex < 0) {
+      code = TSDB_CODE_SYN_INTERNAL_ERROR;
+      if (terrno != 0) code = terrno;
+      return code;
+    }
     cbMeta.isWeak = pEntry->isWeak;
     cbMeta.code = applyCode;
     cbMeta.state = role;
