@@ -594,7 +594,7 @@ int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScal
   return TSDB_CODE_SUCCESS;
 
 _return:
-  taosMemoryFreeClear(paramList);
+  sclFreeParamList(paramList, paramNum);
   SCL_RET(code);
 }
 
