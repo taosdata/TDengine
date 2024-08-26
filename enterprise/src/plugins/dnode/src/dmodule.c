@@ -24,10 +24,13 @@
 
 #if !defined(ASSERT_NOT_CORE) && !defined(WINDOWS)
 #define _TD_DM_CHECK_OFFSET
-#define DM_CHECK_OFFSET(p1, p2, offset, flag)                                  \
-  do {                                                                         \
-    int32_t off = POINTER_DISTANCE((p1), (p2));                                \
-    ASSERTS((offset) == abs(off), "%s offset: %d!=%d", (flag), off, (offset)); \
+#define DM_CHECK_OFFSET(p1, p2, offset, flag)             \
+  do {                                                    \
+    int32_t off = POINTER_DISTANCE((p1), (p2));           \
+    if ((offset) != abs(off)) {                           \
+      dError("%s offset: %d!=%d", (flag), off, (offset)); \
+      return TSDB_CODE_INTERNAL_ERROR;                    \
+    }                                                     \
   } while (0)
 #endif
 
@@ -103,7 +106,7 @@ static int32_t dmWriteVars(SEngineInfo *pInfo);
 // implementations
 
 #ifdef _TD_DM_CHECK_OFFSET
-static void dmCheckOffset(SDnode *pDnode) {
+static int32_t dmCheckOffset(SDnode *pDnode) {
   SDnodeData     *pData = &pDnode->data;
   TdThreadRwlock *pLock = &pData->lock;
   int32_t        *pDnodeId = &pData->dnodeId;
@@ -115,6 +118,8 @@ static void dmCheckOffset(SDnode *pDnode) {
   DM_CHECK_OFFSET(pDnodeId, pData, 0, "data dnodeId");
   DM_CHECK_OFFSET(pEngineVer, pData, 4, "data engineVer");
   DM_CHECK_OFFSET(pClusterId, pData, 8, "data clusterId");
+
+  return TSDB_CODE_SUCCESS;
 }
 #endif
 
@@ -560,7 +565,7 @@ int32_t dmInitModule(SDnode *pDnode) {
   int32_t lino = 0;
 
 #ifdef _TD_DM_CHECK_OFFSET
-  dmCheckOffset(pDnode);
+  TAOS_CHECK_GOTO(dmCheckOffset(pDnode), &lino, _exit);
 #endif
 
   TAOS_CHECK_GOTO(dmInitPrerequisites(), &lino, _exit);
