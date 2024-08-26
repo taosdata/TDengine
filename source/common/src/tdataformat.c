@@ -934,7 +934,8 @@ SColVal *tRowIterNext(SRowIter *pIter) {
         pIter->cv = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
         goto _exit;
       } else {
-        ASSERT(0);
+        uError("unexpected column id %d, %d", cid, pTColumn->colId);
+        goto _exit;
       }
     } else {
       pIter->cv = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
@@ -1356,11 +1357,8 @@ int32_t tValueCompare(const SValue *tv1, const SValue *tv2) {
       int32_t ret = memcmp(tv1->pData, tv2->pData, tv1->nData < tv2->nData ? tv1->nData : tv2->nData);
       return ret ? ret : (tv1->nData < tv2->nData ? -1 : (tv1->nData > tv2->nData ? 1 : 0));
     }
-    case TSDB_DATA_TYPE_DECIMAL:
-      ASSERT(0);
-      break;
     default:
-      ASSERT(0);
+      break;
   }
 
   return 0;
@@ -2600,7 +2598,7 @@ static FORCE_INLINE void tColDataGetValue3(SColData *pColData, int32_t iVal,
       *pColVal = COL_VAL_NULL(pColData->cid, pColData->type);
       break;
     default:
-      ASSERT(0);
+      break;
   }
 }
 static FORCE_INLINE void tColDataGetValue4(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_VALUE
@@ -2628,7 +2626,7 @@ static FORCE_INLINE void tColDataGetValue5(SColData *pColData, int32_t iVal,
       tColDataGetValue4(pColData, iVal, pColVal);
       break;
     default:
-      ASSERT(0);
+      break;
   }
 }
 static FORCE_INLINE void tColDataGetValue6(SColData *pColData, int32_t iVal,
@@ -2641,7 +2639,7 @@ static FORCE_INLINE void tColDataGetValue6(SColData *pColData, int32_t iVal,
       tColDataGetValue4(pColData, iVal, pColVal);
       break;
     default:
-      ASSERT(0);
+      break;
   }
 }
 static FORCE_INLINE void tColDataGetValue7(SColData *pColData, int32_t iVal,
@@ -2657,7 +2655,7 @@ static FORCE_INLINE void tColDataGetValue7(SColData *pColData, int32_t iVal,
       tColDataGetValue4(pColData, iVal, pColVal);
       break;
     default:
-      ASSERT(0);
+      break;
   }
 }
 static void (*tColDataGetValueImpl[])(SColData *pColData, int32_t iVal, SColVal *pColVal) = {
@@ -2671,7 +2669,6 @@ static void (*tColDataGetValueImpl[])(SColData *pColData, int32_t iVal, SColVal 
     tColDataGetValue7   // HAS_VALUE | HAS_NULL | HAS_NONE
 };
 void tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
-  ASSERT(iVal >= 0 && iVal < pColData->nVal && pColData->flag);
   tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
 }
 
@@ -3334,7 +3331,8 @@ static void tColDataMergeImpl(SColData *pColData, int32_t iStart, int32_t iEnd /
         } else if (bv == BIT_FLG_NULL) {
           flag |= HAS_NULL;
         } else {
-          ASSERT(0);
+          uError("invalid bit value:%d", bv);
+          return;
         }
 
         if (flag == pColData->flag) break;
