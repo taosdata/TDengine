@@ -102,8 +102,10 @@ void mndReleaseArbGroup(SMnode *pMnode, SArbGroup *pGroup) {
   sdbRelease(pSdb, pGroup);
 }
 
-void mndArbGroupInitFromVgObj(SVgObj *pVgObj, SArbGroup *outGroup) {
-  ASSERT(pVgObj->replica == 2);
+int32_t mndArbGroupInitFromVgObj(SVgObj *pVgObj, SArbGroup *outGroup) {
+  if (pVgObj->replica != 2) {
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
   (void)memset(outGroup, 0, sizeof(SArbGroup));
   outGroup->dbUid = pVgObj->dbUid;
   outGroup->vgId = pVgObj->vgId;
@@ -111,6 +113,8 @@ void mndArbGroupInitFromVgObj(SVgObj *pVgObj, SArbGroup *outGroup) {
     SArbGroupMember *pMember = &outGroup->members[i];
     pMember->info.dnodeId = pVgObj->vnodeGid[i].dnodeId;
   }
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 SSdbRaw *mndArbGroupActionEncode(SArbGroup *pGroup) {

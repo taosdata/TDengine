@@ -415,7 +415,8 @@ static int32_t createPrimaryTsExprIfNeeded(SFillOperatorInfo* pInfo, SFillPhysiN
     int32_t code = createExprFromTargetNode(&pExpr[pExprSupp->numOfExprs], (STargetNode*)pPhyFillNode->pWStartTs);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      taosMemoryFreeClear(pExpr);
+      pExprSupp->numOfExprs += 1;
+      pExprSupp->pExprInfo = pExpr;
       return code;
     }
 
@@ -447,6 +448,7 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
   QUERY_CHECK_CODE(code, lino, _error);
 
   pOperator->exprSupp.pExprInfo = pExprInfo;
+  pOperator->exprSupp.numOfExprs = pInfo->numOfExpr;
 
   SExprSupp* pNoFillSupp = &pInfo->noFillExprSupp;
   code = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &pNoFillSupp->pExprInfo, &pNoFillSupp->numOfExprs);
@@ -511,7 +513,6 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
   }
 
   setOperatorInfo(pOperator, "FillOperator", QUERY_NODE_PHYSICAL_PLAN_FILL, false, OP_NOT_OPENED, pInfo, pTaskInfo);
-  pOperator->exprSupp.numOfExprs = pInfo->numOfExpr;
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doFill, NULL, destroyFillOperatorInfo, optrDefaultBufFn, NULL,
                                          optrDefaultGetNextExtFn, NULL);
 
