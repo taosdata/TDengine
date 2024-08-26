@@ -1829,6 +1829,38 @@ int stmtGetParamNum2(TAOS_STMT2* stmt, int* nums) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+int stmtGetParamTbName(TAOS_STMT2* stmt, int* nums) {
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+
+  STMT_DLOG_E("start to get param num");
+
+  if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    return pStmt->errCode;
+  }
+
+  STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_FETCH_FIELDS));
+
+  if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
+      STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
+    pStmt->bInfo.needParse = false;
+  }
+
+  if (pStmt->exec.pRequest && STMT_TYPE_QUERY == pStmt->sql.type && pStmt->sql.runTimes) {
+    taos_free_result(pStmt->exec.pRequest);
+    pStmt->exec.pRequest = NULL;
+  }
+
+  STMT_ERR_RET(stmtCreateRequest(pStmt));
+
+  if (pStmt->bInfo.needParse) {
+    STMT_ERR_RET(stmtParseSql(pStmt));
+  }
+
+  *nums = STMT_TYPE_MULTI_INSERT == pStmt->sql.type ? 1 : 0;
+
+  return TSDB_CODE_SUCCESS;
+}
 /*
 int stmtGetParam(TAOS_STMT* stmt, int idx, int* type, int* bytes) {
   STscStmt2* pStmt = (STscStmt2*)stmt;

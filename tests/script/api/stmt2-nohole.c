@@ -70,6 +70,18 @@ void veriry_stmt(TAOS* taos) {
   }
   taos_free_result(result);
 
+  sql =
+      "create table m2 (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, blob2 "
+      "nchar(10), blob nchar(10))";
+  result = taos_query(taos, sql);
+  code = taos_errno(result);
+  if (code != 0) {
+    printf("\033[31mfailed to create table, reason:%s\033[0m\n", taos_errstr(result));
+    taos_free_result(result);
+    return;
+  }
+  taos_free_result(result);
+
   // insert 10 records
   struct {
     int64_t ts[10];
@@ -254,7 +266,7 @@ void veriry_stmt(TAOS* taos) {
     blob2_buffer += blob_len2[i];
   }
 
-  char*            tbname = "m1";
+  char*            tbname = "m2";
   TAOS_STMT2_BIND* bind_cols[1] = {&params[0]};
   TAOS_STMT2_BINDV bindv = {1, &tbname, NULL, &bind_cols[0]};
   start = clock();
@@ -277,7 +289,7 @@ void veriry_stmt(TAOS* taos) {
   TAOS_FIELD_E* fields = NULL;
   int           field_count = -1;
   start = clock();
-  code = taos_stmt2_get_fields(stmt, TAOS_FIELD_COL, &field_count, NULL);
+  code = taos_stmt2_get_fields(stmt, TAOS_FIELD_TBNAME, &field_count, NULL);
   end = clock();
   printf("get fields time:%f\n", (double)(end - start) / CLOCKS_PER_SEC);
   if (code != 0) {

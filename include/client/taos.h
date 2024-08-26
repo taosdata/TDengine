@@ -199,6 +199,7 @@ typedef enum {
   TAOS_FIELD_COL = 1,
   TAOS_FIELD_TAG,
   TAOS_FIELD_QUERY,
+  TAOS_FIELD_TBNAME,
 } TAOS_FIELD_T;
 
 typedef struct {

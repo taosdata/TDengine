@@ -2005,6 +2005,8 @@ int taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count,
     return stmtGetTagFields2(stmt, count, fields);
   } else if (field_type == TAOS_FIELD_QUERY) {
     return stmtGetParamNum2(stmt, count);
+  } else if (field_type == TAOS_FIELD_TBNAME) {
+    return stmtGetParamTbName(stmt, count);
   } else {
     tscError("invalid parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;

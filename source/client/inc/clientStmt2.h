@@ -218,12 +218,13 @@ int         stmtExec2(TAOS_STMT2 *stmt, int *affected_rows);
 int         stmtPrepare2(TAOS_STMT2 *stmt, const char *sql, unsigned long length);
 int         stmtSetTbName2(TAOS_STMT2 *stmt, const char *tbName);
 int         stmtSetTbTags2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *tags);
+int         stmtBindBatch2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *bind, int32_t colIdx);
 int         stmtGetTagFields2(TAOS_STMT2 *stmt, int *nums, TAOS_FIELD_E **fields);
 int         stmtGetColFields2(TAOS_STMT2 *stmt, int *nums, TAOS_FIELD_E **fields);
-int         stmtIsInsert2(TAOS_STMT2 *stmt, int *insert);
 int         stmtGetParamNum2(TAOS_STMT2 *stmt, int *nums);
+int         stmtGetParamTbName(TAOS_STMT2 *stmt, int *nums);
+int         stmtIsInsert2(TAOS_STMT2 *stmt, int *insert);
 TAOS_RES   *stmtUseResult2(TAOS_STMT2 *stmt);
-int         stmtBindBatch2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *bind, int32_t colIdx);
 const char *stmtErrstr2(TAOS_STMT2 *stmt);
 
 #ifdef __cplusplus
