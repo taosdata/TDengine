@@ -39,7 +39,12 @@ FstRegex *regexCreate(const char *str) {
 
   for (int i = 0; i < strlen(str); i++) {
     uint8_t v = str[i];
-    (void)taosArrayPush(insts, &v);
+    if (taosArrayPush(insts, &v) == NULL) {
+      taosArrayDestroy(insts);
+      taosMemoryFree(regex->orig);
+      taosMemoryFree(regex);
+      return NULL;
+    }
   }
   FstDfaBuilder *builder = dfaBuilderCreate(insts);
   regex->dfa = dfaBuilderBuild(builder);
