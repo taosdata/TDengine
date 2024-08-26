@@ -1319,7 +1319,7 @@ int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int6
     }
 
     if (!COL_VAL_IS_VALUE(pColVal)) {
-      if (!tSimpleHashPut(iColHash, &iCol, sizeof(iCol), NULL, 0)) {
+      if (tSimpleHashPut(iColHash, &iCol, sizeof(iCol), NULL, 0)) {
         TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
       }
       continue;
@@ -1464,7 +1464,9 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     tsdbCacheUpdateLastColToNone(pLastCol, TSDB_LAST_CACHE_NO_CACHE);
 
     SLastKey *key = &(SLastKey){.lflag = ltype, .uid = uid, .cid = PRIMARYKEY_TIMESTAMP_COL_ID};
-    (void)taosArrayInsert(remainCols, 0, &(SIdxKey){0, *key});
+    if (!taosArrayInsert(remainCols, 0, &(SIdxKey){0, *key})) {
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
   }
 
   int      num_keys = TARRAY_SIZE(remainCols);
@@ -1530,16 +1532,20 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   if (lastTmpIndexArray != NULL) {
     TAOS_CHECK_EXIT(mergeLastCid(uid, pTsdb, &lastTmpColArray, pr, lastColIds, lastIndex, lastSlotIds));
     for (int i = 0; i < taosArrayGetSize(lastTmpColArray); i++) {
-      (void)taosArrayInsert(pTmpColArray, *(int32_t *)taosArrayGet(lastTmpIndexArray, i),
-                            taosArrayGet(lastTmpColArray, i));
+      if (!taosArrayInsert(pTmpColArray, *(int32_t *)taosArrayGet(lastTmpIndexArray, i),
+                           taosArrayGet(lastTmpColArray, i))) {
+        TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+      }
     }
   }
 
   if (lastrowTmpIndexArray != NULL) {
     TAOS_CHECK_EXIT(mergeLastRowCid(uid, pTsdb, &lastrowTmpColArray, pr, lastrowColIds, lastrowIndex, lastrowSlotIds));
     for (int i = 0; i < taosArrayGetSize(lastrowTmpColArray); i++) {
-      (void)taosArrayInsert(pTmpColArray, *(int32_t *)taosArrayGet(lastrowTmpIndexArray, i),
-                            taosArrayGet(lastrowTmpColArray, i));
+      if (!taosArrayInsert(pTmpColArray, *(int32_t *)taosArrayGet(lastrowTmpIndexArray, i),
+                           taosArrayGet(lastrowTmpColArray, i))) {
+        TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+      }
     }
   }
 
@@ -2075,6 +2081,9 @@ static void freeTableInfoFunc(void *param) {
 static STableLoadInfo *getTableLoadInfo(SCacheRowsReader *pReader, uint64_t uid) {
   if (!pReader->pTableMap) {
     pReader->pTableMap = tSimpleHashInit(pReader->numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    if (!pReader->pTableMap) {
+      return NULL;
+    }
 
     tSimpleHashSetFreeFp(pReader->pTableMap, freeTableInfoFunc);
   }
@@ -2084,7 +2093,9 @@ static STableLoadInfo *getTableLoadInfo(SCacheRowsReader *pReader, uint64_t uid)
   if (!ppInfo) {
     pInfo = taosMemoryCalloc(1, sizeof(STableLoadInfo));
     if (pInfo) {
-      (void)tSimpleHashPut(pReader->pTableMap, &uid, sizeof(uint64_t), &pInfo, POINTER_BYTES);
+      if (tSimpleHashPut(pReader->pTableMap, &uid, sizeof(uint64_t), &pInfo, POINTER_BYTES)) {
+        return NULL;
+      }
     }
 
     return pInfo;
@@ -2988,7 +2999,9 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
           TSDB_CHECK_NULL(pInfo->pTombData, code, lino, _err, TSDB_CODE_OUT_OF_MEMORY);
         }
 
-        (void)taosArrayAddAll(pInfo->pTombData, pIter->pMemDelData);
+        if (!taosArrayAddAll(pInfo->pTombData, pIter->pMemDelData)) {
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
+        }
 
         size_t delSize = TARRAY_SIZE(pInfo->pTombData);
         if (delSize > 0) {
