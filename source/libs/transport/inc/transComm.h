@@ -240,6 +240,7 @@ typedef struct {
   void*         pThrd;
   queue         qmsg;
   TdThreadMutex mtx;  // protect qmsg;
+  int64_t       num;
 } SAsyncItem;
 
 typedef struct {
