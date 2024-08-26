@@ -24,13 +24,13 @@
 #include "tgrant.h"
 
 #define COL_DATA_SET_VAL_AND_CHECK(pCol, rows, buf, isNull) \
-    do {                                                    \
-        int  _code = colDataSetVal(pCol, rows, buf, isNull);\
-        if (TSDB_CODE_SUCCESS != _code) {                   \
-            terrno = _code;                                 \
-            return _code;                                   \
-        }                                                   \
-    } while(0)
+  do {                                                      \
+    int _code = colDataSetVal(pCol, rows, buf, isNull);     \
+    if (TSDB_CODE_SUCCESS != _code) {                       \
+      terrno = _code;                                       \
+      return _code;                                         \
+    }                                                       \
+  } while (0)
 
 extern SConfig* tsCfg;
 
@@ -50,6 +50,10 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   (*pRsp)->numOfCols = htonl(numOfCols);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, numOfCols);
+  if(len < 0) {
+    taosMemoryFree(*pRsp);
+    return terrno;
+  }
   SET_PAYLOAD_LEN((*pRsp)->data, len, len);
 
   int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
@@ -77,7 +81,7 @@ static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
   QRY_OPTR_CHECK(pOutput);
 
   SSDataBlock* pBlock = NULL;
-  int32_t code = createDataBlock(&pBlock);
+  int32_t      code = createDataBlock(&pBlock);
   if (code) {
     return code;
   }
@@ -235,7 +239,7 @@ static int32_t buildCreateDBResultDataBlock(SSDataBlock** pOutput) {
   QRY_OPTR_CHECK(pOutput);
 
   SSDataBlock* pBlock = NULL;
-  int32_t code = createDataBlock(&pBlock);
+  int32_t      code = createDataBlock(&pBlock);
   if (code) {
     return code;
   }
@@ -280,15 +284,15 @@ int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
   return v;
 }
 
-static int32_t buildRetension(SArray* pRetension, char **ppRetentions ) {
+static int32_t buildRetension(SArray* pRetension, char** ppRetentions) {
   size_t size = taosArrayGetSize(pRetension);
   if (size == 0) {
     *ppRetentions = NULL;
     return TSDB_CODE_SUCCESS;
   }
 
-  char*   p1 = taosMemoryCalloc(1, 100);
-  if(NULL == p1) {
+  char* p1 = taosMemoryCalloc(1, 100);
+  if (NULL == p1) {
     return terrno;
   }
   int32_t len = 0;
@@ -368,7 +372,7 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
       break;
   }
 
-  char*   pRetentions = NULL;
+  char* pRetentions = NULL;
   QRY_ERR_RET(buildRetension(pCfg->pRetensions, &pRetentions));
   int32_t dbFNameLen = strlen(dbFName);
   int32_t hashPrefix = 0;
@@ -427,7 +431,7 @@ static int32_t buildCreateTbResultDataBlock(SSDataBlock** pOutput) {
   QRY_OPTR_CHECK(pOutput);
 
   SSDataBlock* pBlock = NULL;
-  int32_t code = createDataBlock(&pBlock);
+  int32_t      code = createDataBlock(&pBlock);
   if (code) {
     return code;
   }
@@ -451,7 +455,7 @@ static int32_t buildCreateViewResultDataBlock(SSDataBlock** pOutput) {
   QRY_OPTR_CHECK(pOutput);
 
   SSDataBlock* pBlock = NULL;
-  int32_t code = createDataBlock(&pBlock);
+  int32_t      code = createDataBlock(&pBlock);
   if (code) {
     return code;
   }
@@ -578,36 +582,7 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
     } else {
       *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "NULL");
     }
-
-    /*
-    if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
-      if (pTagVal->nData > 0) {
-        if (num) {
-          *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", ");
-        }
-
-        memcpy(buf + VARSTR_HEADER_SIZE + *len, pTagVal->pData, pTagVal->nData);
-        *len += pTagVal->nData;
-      }
-    } else if (type == TSDB_DATA_TYPE_NCHAR) {
-      if (pTagVal->nData > 0) {
-        if (num) {
-          *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", ");
-        }
-        int32_t tlen = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, buf + VARSTR_HEADER_SIZE + *len);
-      }
-    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
-      double val = *(double *)(&pTagVal->i64);
-      int    len = 0;
-      term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, (const char *)&val, len);
-    } else if (type == TSDB_DATA_TYPE_BOOL) {
-      int val = *(int *)(&pTagVal->i64);
-      int len = 0;
-      term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_INT, key, nKey, (const char *)&val, len);
-    }
-    */
   }
-
 _exit:
   taosArrayDestroy(pTagVals);
 
@@ -867,26 +842,26 @@ static int32_t buildLocalVariablesResultDataBlock(SSDataBlock** pOutput) {
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN;
-  if(taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
+  if (taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
     goto _exit;
   }
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN;
-  if(taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
+  if (taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
     goto _exit;
   }
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD3_LEN;
-  if(taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
+  if (taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
     goto _exit;
   }
 
   *pOutput = pBlock;
 
 _exit:
-  if(terrno != TSDB_CODE_SUCCESS) {
+  if (terrno != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pBlock);
     taosArrayDestroy(pBlock->pDataBlock);
   }
@@ -910,7 +885,7 @@ static int32_t createSelectResultDataBlock(SNodeList* pProjects, SSDataBlock** p
   QRY_OPTR_CHECK(pOutput);
 
   SSDataBlock* pBlock = NULL;
-  int32_t code = createDataBlock(&pBlock);
+  int32_t      code = createDataBlock(&pBlock);
   if (code) {
     return code;
   }
@@ -945,7 +920,8 @@ int32_t buildSelectResultDataBlock(SNodeList* pProjects, SSDataBlock* pBlock) {
       if (((SValueNode*)pProj)->isNull) {
         QRY_ERR_RET(colDataSetVal(taosArrayGet(pBlock->pDataBlock, index++), 0, NULL, true));
       } else {
-        QRY_ERR_RET(colDataSetVal(taosArrayGet(pBlock->pDataBlock, index++), 0, nodesGetValueFromNode((SValueNode*)pProj), false));
+        QRY_ERR_RET(colDataSetVal(taosArrayGet(pBlock->pDataBlock, index++), 0,
+                                  nodesGetValueFromNode((SValueNode*)pProj), false));
       }
     }
   }

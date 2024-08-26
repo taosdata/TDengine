@@ -592,6 +592,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   SMetaReader     mr = {0};
   const char*     idStr = pTask->id.str;
   int32_t         insertRet = TAOS_LRU_STATUS_OK;
+  STableCachedVal* pVal = NULL;
 
   // currently only the tbname pseudo column
   if (numOfExpr <= 0) {
@@ -656,19 +657,11 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
       pHandle->api.metaReaderFn.readerReleaseLock(&mr);
 
-      STableCachedVal* pVal = NULL;
       code = createTableCacheVal(&mr, &pVal);
       QUERY_CHECK_CODE(code, lino, _end);
 
       val = *pVal;
       freeReader = true;
-
-      insertRet = taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(uint64_t), pVal,
-                                       sizeof(STableCachedVal), freeCachedMetaItem, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
-      if (insertRet != TAOS_LRU_STATUS_OK) {
-        qError("failed to put meta into lru cache, code:%d, %s", insertRet, idStr);
-        taosMemoryFreeClear(pVal);
-      }
     } else {
       pCache->cacheHit += 1;
       STableCachedVal* pVal = taosLRUCacheValue(pCache->pTableMetaEntryCache, h);
@@ -742,9 +735,17 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   pBlock->info.rows = backupRows;
 
 _end:
-  if (insertRet != TAOS_LRU_STATUS_OK) {
-    freeTableCachedValObj(&val);
+
+  if (NULL != pVal) {
+    insertRet = taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(uint64_t), pVal,
+                                     sizeof(STableCachedVal), freeCachedMetaItem, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
+    if (insertRet != TAOS_LRU_STATUS_OK) {
+      qError("failed to put meta into lru cache, code:%d, %s", insertRet, idStr);
+      taosMemoryFreeClear(pVal);
+      freeTableCachedValObj(&val);
+    }
   }
+  
   if (freeReader) {
     pHandle->api.metaReaderFn.clearReader(&mr);
   }
@@ -5118,9 +5119,7 @@ static int32_t adjustSubTableForNextRow(SOperatorInfo* pOperatorInfo, STmsSubTab
     }
   }
 
-  tMergeTreeAdjust(pSubTblsInfo->pTree, tMergeTreeGetAdjustIndex(pSubTblsInfo->pTree));
-
-  return TSDB_CODE_SUCCESS;
+  return tMergeTreeAdjust(pSubTblsInfo->pTree, tMergeTreeGetAdjustIndex(pSubTblsInfo->pTree));
 }
 
 static int32_t appendChosenRowToDataBlock(STmsSubTablesMergeInfo* pSubTblsInfo, SSDataBlock* pBlock) {

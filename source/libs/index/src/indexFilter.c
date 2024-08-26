@@ -661,7 +661,16 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
     }
 
     SIndexMultiTermQuery *mtm = indexMultiTermQueryCreate(MUST);
-    (void)indexMultiTermQueryAdd(mtm, tm, qtype);
+    if (mtm == NULL) {
+      indexTermDestroy(tm);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    if ((ret = indexMultiTermQueryAdd(mtm, tm, qtype)) != 0) {
+      indexMultiTermQueryDestroy(mtm);
+      return ret;
+    }
+
     ret = indexJsonSearch(arg->ivtIdx, mtm, output->result);
     indexMultiTermQueryDestroy(mtm);
   } else {
@@ -1118,7 +1127,6 @@ int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, 
   } else {
     *status = st;
   }
-
 
   if (taosArrayAddAll(result, param.result) == NULL) {
     sifFreeParam(&param);
