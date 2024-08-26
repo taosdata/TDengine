@@ -92,7 +92,6 @@ static int32_t tsdbTFileSetToFSetPartition(STFileSet* fset, STsdbFSetPartition**
   for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
     if (fset->farr[ftype] == NULL) continue;
     typ = tsdbFTypeToFRangeType(ftype);
-    ASSERT(typ < TSDB_FSET_RANGE_TYP_MAX);
     STFile* f = fset->farr[ftype]->f;
     if (f->maxVer > fset->maxVerValid) {
       corrupt = true;
@@ -103,8 +102,7 @@ static int32_t tsdbTFileSetToFSetPartition(STFileSet* fset, STsdbFSetPartition**
     }
     count++;
     SVersionRange vr = {.minVer = f->minVer, .maxVer = f->maxVer};
-    code = TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
-    ASSERT(code == 0);
+    (void)TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
   }
 
   typ = TSDB_FSET_RANGE_TYP_STT;
@@ -122,14 +120,12 @@ static int32_t tsdbTFileSetToFSetPartition(STFileSet* fset, STsdbFSetPartition**
       }
       count++;
       SVersionRange vr = {.minVer = f->minVer, .maxVer = f->maxVer};
-      code = TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
-      ASSERT(code == 0);
+      (void)TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
     }
   }
   if (corrupt && count == 0) {
     SVersionRange vr = {.minVer = VERSION_MIN, .maxVer = fset->maxVerValid};
-    code = TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
-    ASSERT(code == 0);
+    (void)TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
   }
   ppSP[0] = p;
   return 0;
@@ -186,8 +182,7 @@ int32_t tsdbFSetPartListToRangeDiff(STsdbFSetPartList* pList, TFileSetRangeArray
     r->sver = maxVerValid + 1;
     r->ever = VERSION_MAX;
     tsdbDebug("range diff fid:%" PRId64 ", sver:%" PRId64 ", ever:%" PRId64, part->fid, r->sver, r->ever);
-    int32_t code = TARRAY2_SORT_INSERT(pDiff, r, tsdbTFileSetRangeCmprFn);
-    ASSERT(code == 0);
+    (void)TARRAY2_SORT_INSERT(pDiff, r, tsdbTFileSetRangeCmprFn);
   }
   ppRanges[0] = pDiff;
 
@@ -360,9 +355,7 @@ static STsdbFSetPartList* tsdbSnapGetFSetPartList(STFileSystem* fs) {
       terrno = code;
       break;
     }
-    ASSERT(pItem != NULL);
-    code = TARRAY2_SORT_INSERT(pList, pItem, tsdbFSetPartCmprFn);
-    ASSERT(code == 0);
+    (void)TARRAY2_SORT_INSERT(pList, pItem, tsdbFSetPartCmprFn);
   }
   (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
 
@@ -400,7 +393,9 @@ static int32_t tsdbPartitionInfoInit(SVnode* pVnode, STsdbPartitionInfo* pInfo) 
   pInfo->vgId = TD_VID(pVnode);
   pInfo->tsdbMaxCnt = (!VND_IS_RSMA(pVnode) ? 1 : TSDB_RETENTION_MAX);
 
-  ASSERT(sizeof(pInfo->subTyps) == sizeof(subTyps));
+  if (!(sizeof(pInfo->subTyps) == sizeof(subTyps))) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   memcpy(pInfo->subTyps, (char*)subTyps, sizeof(subTyps));
 
   // fset partition list
@@ -437,8 +432,7 @@ static int32_t tsdbPartitionInfoSerialize(STsdbPartitionInfo* pInfo, uint8_t* bu
   for (int32_t j = 0; j < pInfo->tsdbMaxCnt; ++j) {
     SSyncTLV* pSubHead = (void*)((char*)buf + offset);
     int32_t   valOffset = offset + sizeof(*pSubHead);
-    ASSERT(pSubHead->val == (char*)buf + valOffset);
-    int32_t code = tSerializeTsdbFSetPartList(pSubHead->val, bufLen - valOffset, pInfo->pLists[j], &tlen);
+    int32_t   code = tSerializeTsdbFSetPartList(pSubHead->val, bufLen - valOffset, pInfo->pLists[j], &tlen);
     if (code) {
       tsdbError("vgId:%d, failed to serialize fset partition list of tsdb %d since %s", pInfo->vgId, j, terrstr());
       return code;
@@ -574,7 +568,6 @@ static int32_t tsdbSnapPrepDealWithSnapInfo(SVnode* pVnode, SSnapshot* pSnap, ST
 }
 
 int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
-  ASSERT(pSnap->type == TDMT_SYNC_PREP_SNAPSHOT || pSnap->type == TDMT_SYNC_PREP_SNAPSHOT_REPLY);
   STsdbPartitionInfo  partitionInfo = {0};
   int                 code = 0;
   STsdbPartitionInfo* pInfo = &partitionInfo;
@@ -616,7 +609,6 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
     goto _out;
   }
   offset += tlen;
-  ASSERT(offset <= bufLen);
 
   if ((tlen = tsdbRepOptsSerialize(&opts, buf + offset, bufLen - offset)) < 0) {
     code = tlen;
@@ -624,7 +616,6 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
     goto _out;
   }
   offset += tlen;
-  ASSERT(offset <= bufLen);
 
   // set header of info data
   SSyncTLV* pHead = pSnap->data;

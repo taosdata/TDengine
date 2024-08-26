@@ -213,7 +213,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
         TAOS_CHECK_GOTO(code, &lino, _exit);
       }
       SSDataBlock datablock = {.info.type = STREAM_CHECKPOINT};
-      (void)taosArrayPush(pRSmaStat->blocks, &datablock);
+      TSDB_CHECK_NULL(taosArrayPush(pRSmaStat->blocks, &datablock), code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
 
       // init smaMgmt
       TAOS_CHECK_GOTO(smaInit(), &lino, _exit);

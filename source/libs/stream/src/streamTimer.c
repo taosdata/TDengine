@@ -57,6 +57,9 @@ int32_t streamCleanBeforeQuitTmr(SStreamTmrInfo* pInfo, SStreamTask* pTask) {
   atomic_store_8(&pInfo->isActive, 0);
 
   int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
-  ASSERT(ref >= 0);
+  if (ref < 0) {
+    stFatal("invalid task timer ref value:%d, %s", ref, pTask->id.idStr);
+  }
+
   return ref;
 }

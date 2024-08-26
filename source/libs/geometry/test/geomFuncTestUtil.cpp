@@ -66,7 +66,7 @@ void setScalarParam(SScalarParam *sclParam, int32_t type, void *valueArray, TDRo
       break;
     }
     default: {
-      ASSERT(0);
+      ASSERT_TRUE(false);
       break;
     }
   }

@@ -287,7 +287,7 @@ void taosGetSystemInfo() {
 
 int32_t taosGetEmail(char *email, int32_t maxLen) {
 #ifdef WINDOWS
-  // ASSERT(0);
+  return 0;
 #elif defined(_TD_DARWIN_64)
 #ifdef CUS_PROMPT
   const char *filepath = "/usr/local/"CUS_PROMPT"/email";
@@ -1040,7 +1040,6 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
 
 char *taosGetCmdlineByPID(int pid) {
 #ifdef WINDOWS
-  ASSERT(0);
   return "";
 #elif defined(_TD_DARWIN_64)
   static char cmdline[1024];

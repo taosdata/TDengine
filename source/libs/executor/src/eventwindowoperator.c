@@ -36,6 +36,7 @@ typedef struct SEventWindowOperatorInfo {
   SFilterInfo*       pEndCondInfo;
   bool               inWindow;
   SResultRow*        pRow;
+  SSDataBlock*       pPreDataBlock;
 } SEventWindowOperatorInfo;
 
 static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator);
@@ -126,6 +127,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->tsSlotId = tsSlotId;
+  pInfo->pPreDataBlock = NULL;
 
   setOperatorInfo(pOperator, "EventWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
@@ -199,7 +201,14 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   while (1) {
-    SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
+    SSDataBlock* pBlock = NULL;
+    if (pInfo->pPreDataBlock == NULL) {
+      pBlock = getNextBlockFromDownstream(pOperator, 0);
+    } else {
+      pBlock = pInfo->pPreDataBlock;
+      pInfo->pPreDataBlock = NULL;
+    }
+
     if (pBlock == NULL) {
       break;
     }
@@ -224,7 +233,8 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     code = doFilter(pRes, pSup->pFilterInfo, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    if (pRes->info.rows >= pOperator->resultInfo.threshold) {
+    if (pRes->info.rows >= pOperator->resultInfo.threshold ||
+        (pRes->info.id.groupId != pInfo->groupId && pRes->info.rows > 0)) {
       (*ppRes) = pRes;
       return code;
     }
@@ -303,7 +313,10 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
     // this is a new group, reset the info
     pInfo->inWindow = false;
     pInfo->groupId = gid;
+    pInfo->pPreDataBlock = pBlock;
+    goto _return;
   }
+  pRes->info.id.groupId = pInfo->groupId;
 
   SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
 

@@ -295,6 +295,9 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
       break;
     }
   }
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
 
   if (p->info.rows > 0) {
     code = blockDataEnsureCapacity(pDataBlock, capacity);
@@ -337,10 +340,10 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
   return code;
 }
 
-SSDataBlock* loadNextDataBlock(void* param) {
+int32_t loadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
-  SSDataBlock*   pBlock = pOperator->fpSet.getNextFn(pOperator);
-  return pBlock;
+  *ppBlock = pOperator->fpSet.getNextFn(pOperator);
+  return TSDB_CODE_SUCCESS;
 }
 
 // todo refactor: merged with fetch fp
@@ -609,30 +612,32 @@ typedef struct SGroupSortSourceParam {
   SGroupSortOperatorInfo* grpSortOpInfo;
 } SGroupSortSourceParam;
 
-SSDataBlock* fetchNextGroupSortDataBlock(void* param) {
+int32_t fetchNextGroupSortDataBlock(void* param, SSDataBlock** ppBlock) {
+  *ppBlock = NULL;
+  
   SGroupSortSourceParam*  source = param;
   SGroupSortOperatorInfo* grpSortOpInfo = source->grpSortOpInfo;
   if (grpSortOpInfo->prefetchedSortInput) {
     SSDataBlock* block = grpSortOpInfo->prefetchedSortInput;
     grpSortOpInfo->prefetchedSortInput = NULL;
-    return block;
+    *ppBlock = block;
   } else {
     SOperatorInfo* childOp = source->childOpInfo;
     SSDataBlock*   block = childOp->fpSet.getNextFn(childOp);
     if (block != NULL) {
       if (block->info.id.groupId == grpSortOpInfo->currGroupId) {
         grpSortOpInfo->childOpStatus = CHILD_OP_SAME_GROUP;
-        return block;
+        *ppBlock = block;
       } else {
         grpSortOpInfo->childOpStatus = CHILD_OP_NEW_GROUP;
         grpSortOpInfo->prefetchedSortInput = block;
-        return NULL;
       }
     } else {
       grpSortOpInfo->childOpStatus = CHILD_OP_FINISHED;
-      return NULL;
     }
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t beginSortGroup(SOperatorInfo* pOperator) {

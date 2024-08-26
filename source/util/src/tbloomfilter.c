@@ -78,7 +78,10 @@ _error:
 }
 
 int32_t tBloomFilterPutHash(SBloomFilter* pBF, uint64_t hash1, uint64_t hash2) {
-  ASSERT(!tBloomFilterIsFull(pBF));
+  if (tBloomFilterIsFull(pBF)) {
+    uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_INVALID_PARA));
+    return TSDB_CODE_FAILED;
+  }
   bool                    hasChange = false;
   const register uint64_t size = pBF->numBits;
   uint64_t                cbHash = hash1;

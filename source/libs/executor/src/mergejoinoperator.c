@@ -490,8 +490,6 @@ int32_t mJoinCopyMergeMidBlk(SMJoinMergeCtx* pCtx, SSDataBlock** ppMid, SSDataBl
 
 
 int32_t mJoinHandleMidRemains(SMJoinMergeCtx* pCtx) {
-  ASSERT(0 < pCtx->midBlk->info.rows);
-
   TSWAP(pCtx->midBlk, pCtx->finBlk);
 
   pCtx->midRemains = false;
@@ -567,7 +565,6 @@ int32_t mJoinMergeGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool app
   int32_t currRows = append ? pRes->info.rows : 0;
   int32_t firstRows = GRP_REMAIN_ROWS(pFirst);  
   int32_t secondRows = GRP_REMAIN_ROWS(pSecond);
-  ASSERT(secondRows > 0);
 
   for (int32_t c = 0; c < probe->finNum; ++c) {
     SMJoinColMap* pFirstCol = probe->finCols + c;
@@ -581,9 +578,15 @@ int32_t mJoinMergeGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool app
       if (colDataIsNull_s(pInCol, pFirst->readIdx + r)) {
         colDataSetNItemsNull(pOutCol, currRows + r * secondRows, secondRows);
       } else {
-        ASSERT(pRes->info.capacity >= (pRes->info.rows + firstRows * secondRows));
+        if (pRes->info.capacity < (pRes->info.rows + firstRows * secondRows)) {
+          qError("capacity:%d not enough, rows:%" PRId64 ", firstRows:%d, secondRows:%d", pRes->info.capacity, pRes->info.rows, firstRows, secondRows);
+          MJ_ERR_RET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+        }
         uint32_t startOffset = (IS_VAR_DATA_TYPE(pOutCol->info.type)) ? pOutCol->varmeta.length : ((currRows + r * secondRows) * pOutCol->info.bytes);
-        ASSERT((startOffset + 1 * pOutCol->info.bytes) <= pRes->info.capacity * pOutCol->info.bytes);
+        if ((startOffset + 1 * pOutCol->info.bytes) > pRes->info.capacity * pOutCol->info.bytes) {
+          qError("col buff not enough, startOffset:%d, bytes:%d, capacity:%d", startOffset, pOutCol->info.bytes, pRes->info.capacity);
+          MJ_ERR_RET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+        }
         MJ_ERR_RET(colDataSetNItems(pOutCol, currRows + r * secondRows, colDataGetData(pInCol, pFirst->readIdx + r), secondRows, true));
       }
     }
@@ -1097,7 +1100,6 @@ SSDataBlock* mJoinGrpRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTa
   }
 
   SMJoinTableCtx* pProbe = pJoin->probe;
-  ASSERT(pProbe->lastInGid);
 
   while (true) {
     if (pTable->remainInBlk) {

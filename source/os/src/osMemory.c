@@ -24,7 +24,7 @@
 
 int32_t          tsRandErrChance = 1;
 int64_t          tsRandErrDivisor = 10001;
-int64_t          tsRandErrScope = (RAND_ERR_MEMORY | RAND_ERR_FILE);
+int64_t          tsRandErrScope = (RAND_ERR_MEMORY | RAND_ERR_FILE | RAND_ERR_NETWORK);
 threadlocal bool tsEnableRandErr = 0;
 
 #if defined(USE_TD_MEMORY) || defined(USE_ADDR2LINE)
@@ -326,10 +326,8 @@ void *taosMemoryRealloc(void *ptr, int64_t size) {
   if (ptr == NULL) return taosMemoryMalloc(size);
 
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
-  ASSERT(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
   if (tpTdMemoryInfo->symbol != TD_MEMORY_SYMBOL) {
-    +return NULL;
-    +
+    return NULL;
   }
 
   TdMemoryInfo tdMemoryInfo;
@@ -366,7 +364,6 @@ char *taosStrdup(const char *ptr) {
   if (ptr == NULL) return NULL;
 
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
-  ASSERT(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
   if (pTdMemoryInfo->symbol != TD_MEMORY_SYMBOL) {
     return NULL;
   }
@@ -388,7 +385,7 @@ char *taosStrdup(const char *ptr) {
   }
 #endif
 
-  return tstrdup(ptr);  
+  return tstrdup(ptr);
 #endif
 }
 
@@ -413,7 +410,6 @@ int64_t taosMemorySize(void *ptr) {
 
 #ifdef USE_TD_MEMORY
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
-  ASSERT(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
   if (pTdMemoryInfo->symbol != TD_MEMORY_SYMBOL) {
     return NULL;
   }
@@ -441,7 +437,7 @@ void taosMemoryTrim(int32_t size) {
 
 void *taosMemoryMallocAlign(uint32_t alignment, int64_t size) {
 #ifdef USE_TD_MEMORY
-  ASSERT(0);
+  return NULL;
 #else
 #if defined(LINUX)
 #ifdef BUILD_WITH_RAND_ERR

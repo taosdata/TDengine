@@ -1168,6 +1168,10 @@ void cleanupExpiredUdfs() {
 
 void cleanupNotExpiredUdfs() {
   SArray *udfStubs = taosArrayInit(16, sizeof(SUdfcFuncStub));
+  if (udfStubs == NULL) {
+    fnError("cleanupNotExpiredUdfs: failed to init array");
+    return;
+  }
   int32_t i = 0;
   while (i < taosArrayGetSize(gUdfcProxy.udfStubs)) {
     SUdfcFuncStub *stub = taosArrayGet(gUdfcProxy.udfStubs, i);

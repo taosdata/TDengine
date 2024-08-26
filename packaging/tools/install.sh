@@ -229,6 +229,9 @@ function install_bin() {
     if [ -d ${script_dir}/${xname}/bin ]; then
       ${csudo}cp -r ${script_dir}/${xname}/bin/* ${install_main_dir}/bin
     fi
+    if [ -e ${script_dir}/${xname}/uninstall_${xname}.sh ]; then
+      ${csudo}cp -r ${script_dir}/${xname}/uninstall_${xname}.sh ${install_main_dir}/uninstall_${xname}.sh
+    fi
   fi
   
   if [ -f ${script_dir}/bin/quick_deploy.sh ]; then
@@ -250,6 +253,8 @@ function install_bin() {
   for service in "${services[@]}"; do
     [ -x ${install_main_dir}/bin/${service} ] && ${csudo}ln -sf ${install_main_dir}/bin/${service} ${bin_link_dir}/${service} || :
   done
+
+  [ -x ${install_main_dir}/uninstall_${xname}.sh ] && ${csudo}ln -sf ${install_main_dir}/uninstall_${xname}.sh ${bin_link_dir}/uninstall_${xname}.sh || :
 }
 
 function install_lib() {
