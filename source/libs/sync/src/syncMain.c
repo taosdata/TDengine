@@ -730,7 +730,7 @@ SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapsho
     sError("vgId:%d, failed get snapshot config index, configIndexCount:%d", pSyncNode->vgId,
            pSyncNode->raftCfg.configIndexCount);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-    return -1;
+    return -2;
   }
   SyncIndex lastIndex = (pSyncNode->raftCfg.configIndexArr)[0];
 
