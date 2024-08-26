@@ -394,7 +394,7 @@ class SQLLancer:
             str: The offset value for the SQL query.
         """
         useTag = random.choice([True, False]) if rand is None else True
-        offsetVal = "" if useTag else f',{self.getRandomTimeUnitStr()}'
+        offsetVal = f',{self.getRandomTimeUnitStr()}' if useTag else ""
         return offsetVal
 
     def getSlidingValue(self, rand=None):
@@ -408,7 +408,7 @@ class SQLLancer:
         - slidingVal (str): The sliding value for the SQL query.
         """
         useTag = random.choice([True, False]) if rand is None else True
-        slidingVal = "" if useTag else f'SLIDING({self.getRandomTimeUnitStr()})'
+        slidingVal = f'SLIDING({self.getRandomTimeUnitStr()})' if useTag else ""
         return slidingVal
 
     def getFillValue(self, rand=None):
@@ -418,22 +418,85 @@ class SQLLancer:
         Parameters:
         - rand (bool, optional): If True, a random fill value will be used. If False, an empty string will be returned. Defaults to None.
 
-        Returns:
+        Returns:`
         - str: The fill value for SQL queries.
         """
         useTag = random.choice([True, False]) if rand is None else True
-        fillVal = "" if useTag else f'FILL({random.choice(DataBoundary.FILL_UNIT.value)})'
+        fillVal = f'FILL({random.choice(DataBoundary.FILL_UNIT.value)})' if useTag else ""
         return fillVal
 
-    def getWindowStr(self, window):
+    def getTimeRange(self, tbname, tsCol):
+        # self.tdSql.query(f"SELECT first({tsCol}), last({tsCol}) FROM {tbname} tail({tsCol}, 100, 50);")
+        # res = self.tdSql.query_data
+        res = [('2024-08-26 14:00:00.000',), ('2024-08-26 18:00:00.000',)]
+        return [res[0][0], res[1][0]]
+
+    def getTimeRangeFilter(self, tbname, tsCol, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        if useTag:
+            start_time, end_time = self.getTimeRange(tbname, tsCol)
+            timeRangeFilter = random.choice([f'WHERE {tsCol} BETWEEN "{start_time}" AND "{end_time}"', f'where {tsCol} > "{start_time}" AND {tsCol} < "{end_time}"'])
+        else:
+            timeRangeFilter = ""
+        return timeRangeFilter
+
+    def getPartitionValue(self, col, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        partitionVal = f'PARTITION BY {col}' if useTag else ""
+        return partitionVal
+
+    def getPartitionObj(self, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        partitionObj = f'PARTITION BY {random.choice(DataBoundary.ALL_TYPE_UNIT.value)}' if useTag else ""
+        return partitionObj
+
+    def getEventWindowCondition(self, col):
+        self.stb_data_filter_sql = f'ts >= {self.date_time}+1s and c1 = 1 or c2 > 1 and c3 != 4 or c4 <= 3 and c9 <> 0 or c10 is not Null or c11 is Null or \
+                c12 between "na" and "nchar4" and c11 not between "bi" and "binary" and c12 match "nchar[19]" and c12 nmatch "nchar[25]" or c13 = True or \
+                c5 in (1, 2, 3) or c6 not in (6, 7) and c12 like "nch%" and c11 not like "bina_" and c6 < 10 or c12 is Null or c8 >= 4 and t1 = 1 or t2 > 1 \
+                and t3 != 4 or c4 <= 3 and t9 <> 0 or t10 is not Null or t11 is Null or t12 between "na" and "nchar4" and t11 not between "bi" and "binary" \
+                or t12 match "nchar[19]" or t12 nmatch "nchar[25]" or t13 = True or t5 in (1, 2, 3) or t6 not in (6, 7) and t12 like "nch%" \
+                and t11 not like "bina_" and t6 <= 10 or t12 is Null or t8 >= 4'
+        condition_list = list()
+        lte_list = ["<", "<="]
+        gte_list = [">", ">="]
+        enq_list = ["=", "!=", "<>"]
+        null_list = ["is null", "is not null"]
+        in_list = ["in", "not in"]
+        between_list = ["between", "not between"]
+        like_list = ["like", "not like"]
+        match_list = ["match", "nmatch"]
+        int_range_list = self.tdCom.Boundary.INT_BOUNDARY
+        self.c1_half_bf = random.randint(int_range_list[0], round((int_range_list[1]+int_range_list[0])/2))
+        self.c1_half_af = random.randint(round((int_range_list[1]+int_range_list[0])/2), int_range_list[1])
+        # start_trigger_condition += f'c1 {random.choice(lte_list)} {self.c1_half_bf}'
+        # end_trigger_condition += f'c1 {random.choice(gte_list)} {self.c1_half_af}'
+        start_trigger_condition = f'c2 {random.choice(lte_list)} {self.c1_half_bf}'
+        end_trigger_condition = f'c2 {random.choice(gte_list)} {self.c1_half_af}'
+        condition_list.append(f'event_window start with {start_trigger_condition} end with {end_trigger_condition}')
+
+        start_trigger_condition = f'c2 {enq_list[0]} {self.c1_half_bf} or c3 {null_list[0]}'
+        end_trigger_condition = f'c2 {null_list[1]} and c3 {random.choice(enq_list[1:])} {self.c1_half_af}'
+        condition_list.append(f'event_window start with {start_trigger_condition} end with {end_trigger_condition}')
+
+        start_trigger_condition = f'c2 {in_list[0]} (100,200,300) or c3 {between_list[0]} {self.c1_half_bf} and {self.c1_half_af}'
+        end_trigger_condition = f'c2 {in_list[1]} (100,200,300) and c3 {between_list[1]} {self.c1_half_bf} and {self.c1_half_af}'
+        condition_list.append(f'event_window start with {start_trigger_condition} end with {end_trigger_condition}')
+
+        start_trigger_condition = f'c11 {like_list[0]} "%a%" or c11 {match_list[1]} ".*a.*"'
+        end_trigger_condition = f'c11 {like_list[1]} "_a_" and c11 {match_list[0]} ".*a.*"'
+        condition_list.append(f'event_window start with {start_trigger_condition} end with {end_trigger_condition}')
+        return random.choice(condition_list)
+
+    def getWindowStr(self, window, tsCol="ts", stateUnit="1", countUnit="2"):
         if window == "INTERVAL":
             return f"{window}({self.getRandomTimeUnitStr()}{self.getOffsetValue()})"
         elif window == "SESSION":
-            return 1
+            return f"{window}({tsCol}, {self.getRandomTimeUnitStr()})"
         elif window == "STATE_WINDOW":
-            return 1
+            return f"{window}({stateUnit})"
         elif window == "COUNT_WINDOW":
-            return 1
+            return f"{window}({countUnit})"
         elif window == "EVENT_WINDOW":
             return 1
         else:
@@ -446,9 +509,11 @@ class SQLLancer:
         colTypes = [member.name for member in FunctionMap]
         print("-----colTypes", colTypes)
         doAggr = random.choice([0, 1, 2, 3])
-
+        tsCol = "ts"
         for column_name, column_type in colDict.items():
             print(f"-----column_name, column_type: {column_name}, {column_type}")
+            if column_type == "TIMESTAMP":
+                tsCol = column_name
             for fm in FunctionMap:
                 if column_type in fm.value['types']:
                     # cateDict = {'NUMERIC': '......', 'TEXT': '......', 'BINARY': '......', 'BOOLEAN': '......', 'TIMESTAMP': '......'...}
@@ -487,7 +552,9 @@ class SQLLancer:
         if len(groupKeyList) > 0:
             groupKeyStr = ",".join(groupKeyList)
             return f"SELECT {', '.join(selectPartList)} FROM {tbname} GROUP BY {groupKeyStr};"
-        return f"SELECT {', '.join(selectPartList)} FROM {tbname};"
+        else:
+            groupKeyStr = "tbname"
+        return f"SELECT {', '.join(selectPartList)} FROM {tbname} {self.getTimeRangeFilter(tbname, tsCol)} {self.getPartitionValue(groupKeyStr)} {self.getWindowStr(self.getRandomWindow())};"
 
 sqllancer = SQLLancer()
 colDict = {"ts": "TIMESTAMP", "c1": "INT", "c2": "NCHAR", "c3": "BOOL"}
