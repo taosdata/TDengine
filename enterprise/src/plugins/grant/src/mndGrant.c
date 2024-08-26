@@ -242,7 +242,11 @@ int32_t mndProcessUpdGrantLog(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines, 
         mndReleaseGrant(pMnode, pGrant, pIter);
         TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
       }
-      if (!taosArrayAddAll(grantObj.pMachines, pGrant->pMachines) || !taosArrayAddAll(grantObj.pMachines, pMachines)) {
+      if (taosArrayGetSize(pGrant->pMachines) > 0 && !taosArrayAddAll(grantObj.pMachines, pGrant->pMachines)) {
+        mndReleaseGrant(pMnode, pGrant, pIter);
+        TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+      }
+      if (nMachines > 0 && !taosArrayAddAll(grantObj.pMachines, pMachines)) {
         mndReleaseGrant(pMnode, pGrant, pIter);
         TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
       }
