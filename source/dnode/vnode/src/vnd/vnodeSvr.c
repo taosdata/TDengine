@@ -2327,6 +2327,7 @@ static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t ver, void *pReq,
   pRsp->contLen = 0;
 
   if ((code = tDeserializeSDropIdxReq(pReq, len, &req))) {
+    pRsp->code = code;
     return code;
   }
 

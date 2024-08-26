@@ -808,7 +808,7 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
   }
 
   if (pCol == NULL) {
-    code = TSDB_CODE_VND_COL_NOT_EXISTS;
+    code = 0;
     goto _err;
   }
 
