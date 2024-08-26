@@ -3147,7 +3147,7 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
       if (TSDB_CODE_MND_USER_NOT_EXIST == code) {
         SGetUserAuthRsp rsp = {.dropped = 1};
         (void)memcpy(rsp.user, pUsers[i].user, TSDB_USER_LEN);
-        (void)taosArrayPush(batchRsp.pArray, &rsp);
+        TSDB_CHECK_NULL(taosArrayPush(batchRsp.pArray, &rsp), code, lino, _OVER, TSDB_CODE_OUT_OF_MEMORY);
       }
       mError("user:%s, failed to auth user since %s", pUsers[i].user, tstrerror(code));
       code = 0;
@@ -3168,7 +3168,12 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
       TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
 
-    (void)taosArrayPush(batchRsp.pArray, &rsp);
+    if (!(taosArrayPush(batchRsp.pArray, &rsp))) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      mndReleaseUser(pMnode, pUser);
+      tFreeSGetUserAuthRsp(&rsp);
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
+    }
     mndReleaseUser(pMnode, pUser);
   }
 
