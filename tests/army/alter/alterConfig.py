@@ -61,6 +61,8 @@ class TDTestCase(TBase):
         # restart taosd
         os.system("ps -ef | grep taosd | grep -v grep | awk '{print $2}' | xargs kill -9")
         sc.dnodeStart(1)
+        sc.dnodeStart(2)
+        sc.dnodeStart(3)
         tdSql.execute("flush database db5291;")
 
     def alterSupportVnodes(self):
