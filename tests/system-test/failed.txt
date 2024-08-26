@@ -1,38 +1,18 @@
-python3 ./test.py -f 2-query/tbname_vgroup.py
-python3 ./test.py -f 2-query/nestedQuery.py
-python3 ./test.py -f 2-query/nestedQuery_str.py 
-python3 ./test.py -f 2-query/nestedQuery_str.py -Q 2
-python3 ./test.py -f 2-query/nestedQuery_math.py
-python3 ./test.py -f 2-query/nestedQuery_math.py -Q 2
-python3 ./test.py -f 2-query/nestedQuery_time.py
-python3 ./test.py -f 2-query/nestedQuery_26.py
-python3 ./test.py -f 1-insert/insert_stb.py
 python3 ./test.py -f 2-query/match.py
 python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 1
 python3 ./test.py -f 2-query/tsma.py
 python3 ./test.py -f 2-query/tsma2.py
-python3 ./test.py -f 2-query/agg_null.py
 python3 ./test.py -f 1-insert/database_pre_suf.py 
-python3 ./test.py -f 2-query/agg_group_AlwaysReturnValue.py
 python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 1
 python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 1
 python3 ./test.py -f 0-others/delete_check.py
 python3 ./test.py -f 1-insert/alter_database.py
-python3 ./test.py -f 1-insert/insert_wide_column.py
+python3 ./test.py -f 1-insert/db_tb_name_check.py
 python3 ./test.py -f 1-insert/precisionUS.py
 python3 ./test.py -f 1-insert/precisionNS.py
 python3 ./test.py -f 1-insert/ts-4272.py
 python3 ./test.py -f 2-query/last+last_row.py
-python3 ./test.py -f 2-query/primary_ts_base_3.py
-python3 ./test.py -f 2-query/primary_ts_base_5.py
-python3 ./test.py -f 2-query/fill.py
 python3 ./test.py -f 2-query/normal.py
 python3 ./test.py -f 2-query/To_iso8601.py 
-python3 ./test.py -f 2-query/json_tag.py
-python3 ./test.py -f 2-query/test_td28163.py
-python3 ./test.py -f 2-query/stablity.py
-python3 ./test.py -f 2-query/stablity_1.py
 python3 ./test.py -f 2-query/normal.py
-python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
 python3 ./test.py -f 5-taos-tools/taosbenchmark/insertMix.py -N 3
-python3 ./test.py -f 7-tmq/tmq_taosx.py
