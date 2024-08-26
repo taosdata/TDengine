@@ -16,9 +16,14 @@
 
 FstBuilderNode* fstBuilderNodeDefault() {
   FstBuilderNode* bn = taosMemoryMalloc(sizeof(FstBuilderNode));
+  if (bn == NULL) return NULL;
   bn->isFinal = false;
   bn->finalOutput = 0;
   bn->trans = taosArrayInit(16, sizeof(FstTransition));
+  if (bn->trans == NULL) {
+    taosMemoryFree(bn);
+    return NULL;
+  }
   return bn;
 }
 void fstBuilderNodeDestroy(FstBuilderNode* node) {
@@ -56,6 +61,8 @@ bool fstBuilderNodeEqual(FstBuilderNode* n1, FstBuilderNode* n2) {
 
   return true;
 }
+
+#if 0
 FstBuilderNode* fstBuilderNodeClone(FstBuilderNode* src) {
   FstBuilderNode* node = taosMemoryMalloc(sizeof(FstBuilderNode));
   if (node == NULL) {
@@ -65,10 +72,18 @@ FstBuilderNode* fstBuilderNodeClone(FstBuilderNode* src) {
   //
   size_t  sz = taosArrayGetSize(src->trans);
   SArray* trans = taosArrayInit(sz, sizeof(FstTransition));
+  if (trans == NULL) {
+    taosMemoryFree(node);
+    return NULL;
+  }
 
   for (size_t i = 0; i < sz; i++) {
     FstTransition* tran = taosArrayGet(src->trans, i);
-    (void)taosArrayPush(trans, tran);
+    if (taosArrayPush(trans, tran) != NULL) {
+      taosArrayDestroy(trans);
+      taosMemoryFree(node);
+      return NULL;
+    }
   }
 
   node->trans = trans;
@@ -76,10 +91,12 @@ FstBuilderNode* fstBuilderNodeClone(FstBuilderNode* src) {
   node->finalOutput = src->finalOutput;
   return node;
 }
+#endif
+
 // not destroy src, User's bussiness
-void fstBuilderNodeCloneFrom(FstBuilderNode* dst, FstBuilderNode* src) {
+int32_t fstBuilderNodeCloneFrom(FstBuilderNode* dst, FstBuilderNode* src) {
   if (dst == NULL || src == NULL) {
-    return;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   dst->isFinal = src->isFinal;
@@ -89,10 +106,18 @@ void fstBuilderNodeCloneFrom(FstBuilderNode* dst, FstBuilderNode* src) {
   taosArrayDestroy(dst->trans);
   size_t sz = taosArrayGetSize(src->trans);
   dst->trans = taosArrayInit(sz, sizeof(FstTransition));
+  if (dst->trans == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   for (size_t i = 0; i < sz; i++) {
     FstTransition* trn = taosArrayGet(src->trans, i);
-    (void)taosArrayPush(dst->trans, trn);
+    if (taosArrayPush(dst->trans, trn) == NULL) {
+      taosArrayDestroy(dst->trans);
+      dst->trans = NULL;
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
+  return 0;
 }
 
 // bool fstBuilderNodeCompileTo(FstBuilderNode *b, IdxFile *wrt, CompiledAddr lastAddr, CompiledAddr

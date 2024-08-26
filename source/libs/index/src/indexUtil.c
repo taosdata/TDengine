@@ -36,12 +36,16 @@ static FORCE_INLINE int iBinarySearch(SArray *arr, int s, int e, uint64_t k) {
   return s;
 }
 
-void iIntersection(SArray *in, SArray *out) {
+int32_t iIntersection(SArray *in, SArray *out) {
+  int32_t code = 0;
   int32_t sz = (int32_t)taosArrayGetSize(in);
   if (sz <= 0) {
-    return;
+    return 0;
   }
   MergeIndex *mi = taosMemoryCalloc(sz, sizeof(MergeIndex));
+  if (mi == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   for (int i = 0; i < sz; i++) {
     SArray *t = taosArrayGetP(in, i);
     mi[i].len = (int32_t)taosArrayGetSize(t);
@@ -64,19 +68,25 @@ void iIntersection(SArray *in, SArray *out) {
       }
     }
     if (has == true) {
-      (void)taosArrayPush(out, &tgt);
+      if (taosArrayPush(out, &tgt) == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        break;
+      }
     }
   }
   taosMemoryFreeClear(mi);
+  return code;
 }
-void iUnion(SArray *in, SArray *out) {
+int32_t iUnion(SArray *in, SArray *out) {
+  int32_t code = 0;
   int32_t sz = (int32_t)taosArrayGetSize(in);
   if (sz <= 0) {
-    return;
+    return 0;
   }
   if (sz == 1) {
-    (void)taosArrayAddAll(out, taosArrayGetP(in, 0));
-    return;
+    if (taosArrayAddAll(out, taosArrayGetP(in, 0)) == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
   MergeIndex *mi = taosMemoryCalloc(sz, sizeof(MergeIndex));
@@ -108,19 +118,23 @@ void iUnion(SArray *in, SArray *out) {
           continue;
         }
       }
-      (void)taosArrayPush(out, &mVal);
+      if (taosArrayPush(out, &mVal) == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        break;
+      }
     } else {
       break;
     }
   }
   taosMemoryFreeClear(mi);
+  return 0;
 }
 
-void iExcept(SArray *total, SArray *except) {
+int32_t iExcept(SArray *total, SArray *except) {
   int32_t tsz = (int32_t)taosArrayGetSize(total);
   int32_t esz = (int32_t)taosArrayGetSize(except);
   if (esz == 0 || tsz == 0) {
-    return;
+    return 0;
   }
 
   int vIdx = 0;
@@ -135,6 +149,7 @@ void iExcept(SArray *total, SArray *except) {
   }
 
   taosArrayPopTailBatch(total, tsz - vIdx);
+  return 0;
 }
 
 int uidCompare(const void *a, const void *b) {
@@ -191,7 +206,7 @@ void idxTRsltDestroy(SIdxTRslt *tr) {
   taosArrayDestroy(tr->del);
   taosMemoryFree(tr);
 }
-void idxTRsltMergeTo(SIdxTRslt *tr, SArray *result) {
+int32_t idxTRsltMergeTo(SIdxTRslt *tr, SArray *result) {
   taosArraySort(tr->total, uidCompare);
   taosArraySort(tr->add, uidCompare);
   taosArraySort(tr->del, uidCompare);
@@ -201,10 +216,22 @@ void idxTRsltMergeTo(SIdxTRslt *tr, SArray *result) {
     (void)taosArrayAddAll(result, t);
   } else {
     SArray *arrs = taosArrayInit(2, sizeof(void *));
-    (void)taosArrayPush(arrs, &tr->total);
-    (void)taosArrayPush(arrs, &tr->add);
+    if (arrs == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    if (taosArrayPush(arrs, &tr->total) == NULL) {
+      taosArrayDestroy(arrs);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    if (taosArrayPush(arrs, &tr->add) == NULL) {
+      taosArrayDestroy(arrs);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     iUnion(arrs, result);
     taosArrayDestroy(arrs);
   }
   iExcept(result, tr->del);
+  return 0;
 }
