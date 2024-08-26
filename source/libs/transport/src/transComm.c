@@ -869,3 +869,8 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
   *ppBuf = pBuf;
   return len;
 }
+
+// int32_t transGenRandomError(int32_t status) {
+//   STUB_RAND_NETWORK_ERR(status)
+//   return status;
+// }

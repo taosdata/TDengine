@@ -493,6 +493,8 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   SSvrConn*  conn = cli->data;
   SWorkThrd* pThrd = conn->hostThrd;
 
+  STUB_RAND_NETWORK_ERR(nread);
+
   if (true == pThrd->quit) {
     tInfo("work thread received quit msg, destroy conn");
     destroyConn(conn, true);
@@ -553,6 +555,7 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
 }
 
 void uvOnSendCb(uv_write_t* req, int status) {
+  STUB_RAND_NETWORK_ERR(status);
   SSvrConn* conn = transReqQueueRemove(req);
   if (conn == NULL) return;
 
@@ -602,6 +605,7 @@ void uvOnSendCb(uv_write_t* req, int status) {
   }
 }
 static void uvOnPipeWriteCb(uv_write_t* req, int status) {
+  STUB_RAND_NETWORK_ERR(status);
   if (status == 0) {
     tTrace("success to dispatch conn to work thread");
   } else {
@@ -949,6 +953,7 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
   }
 }
 void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
+  STUB_RAND_NETWORK_ERR(nread);
   if (nread < 0) {
     if (nread != UV_EOF) {
       tError("read error %s", uv_err_name(nread));
@@ -1041,9 +1046,11 @@ void* transAcceptThread(void* arg) {
   return NULL;
 }
 void uvOnPipeConnectionCb(uv_connect_t* connect, int status) {
+  STUB_RAND_NETWORK_ERR(status);
   if (status != 0) {
     return;
-  }
+  };
+
   SWorkThrd* pThrd = container_of(connect, SWorkThrd, connect_req);
   (void)uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
 }

@@ -345,6 +345,7 @@ static FORCE_INLINE void clientAllocBuffCb(uv_handle_t* handle, size_t suggested
 }
 
 static FORCE_INLINE void clientRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
+  STUB_RAND_NETWORK_ERR(nread);
   SHttpClient* cli = handle->data;
   if (nread < 0) {
     tError("http-report recv error:%s", uv_strerror(nread));
@@ -356,6 +357,7 @@ static FORCE_INLINE void clientRecvCb(uv_stream_t* handle, ssize_t nread, const 
   }
 }
 static void clientSentCb(uv_write_t* req, int32_t status) {
+  STUB_RAND_NETWORK_ERR(status);
   SHttpClient* cli = req->data;
   if (status != 0) {
     tError("http-report failed to send data, reason: %s, dst:%s:%d, chanId:%" PRId64 "", uv_strerror(status), cli->addr,
@@ -367,6 +369,7 @@ static void clientSentCb(uv_write_t* req, int32_t status) {
   } else {
     tTrace("http-report succ to send data, chanId:%" PRId64 "", cli->chanId);
   }
+
   status = uv_read_start((uv_stream_t*)&cli->tcp, clientAllocBuffCb, clientRecvCb);
   if (status != 0) {
     tError("http-report failed to recv data,reason:%s, dst:%s:%d, chanId:%" PRId64 "", uv_strerror(status), cli->addr,
@@ -377,6 +380,7 @@ static void clientSentCb(uv_write_t* req, int32_t status) {
   }
 }
 static void clientConnCb(uv_connect_t* req, int32_t status) {
+  STUB_RAND_NETWORK_ERR(status);
   SHttpClient* cli = req->data;
   int64_t      chanId = cli->chanId;
 
