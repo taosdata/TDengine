@@ -4752,7 +4752,7 @@ int32_t createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* p
     QUERY_CHECK_NULL(pInfo->filterCtx.colHash, code, lino, _error, terrno);
 
     pInfo->filterCtx.cInfoList = taosArrayInit(4, sizeof(SColumnInfo));
-    QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
+    QUERY_CHECK_NULL(pInfo->filterCtx.cInfoList, code, lino, _error, terrno);
 
     if (pInfo->pTagCond != NULL) {
       nodesRewriteExprPostOrder(&pTagCond, tagScanRewriteTagColumn, (void*)&pInfo->filterCtx);
