@@ -2329,7 +2329,7 @@ int8_t taosGranted(int8_t type) {
     case TSDB_GRANT_VIEW:
       return atomic_load_8(&tsGrant) & GRANT_FLAG_VIEW;
     default:
-      ASSERTS(0, "undefined grant type:%" PRIi8, type);
+      uWarn("undefined grant type:%" PRIi8, type);
       break;
   }
   return 0;
