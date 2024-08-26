@@ -1451,7 +1451,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
         tDeleteSchemaWrapper(mtInfo.schema);
         return code;
-
+      }
 
       code = pTaskInfo->storageAPI.tsdReader.tsdReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size,
                                                            NULL, (void**)&pInfo->dataReader, NULL, NULL);
