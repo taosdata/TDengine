@@ -29,10 +29,10 @@ static int ncolIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen
 
 static int32_t metaInitLock(SMeta *pMeta) {
   TdThreadRwlockAttr attr;
-  taosThreadRwlockAttrInit(&attr);
-  taosThreadRwlockAttrSetKindNP(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
-  taosThreadRwlockInit(&pMeta->lock, &attr);
-  taosThreadRwlockAttrDestroy(&attr);
+  (void)taosThreadRwlockAttrInit(&attr);
+  (void)taosThreadRwlockAttrSetKindNP(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+  (void)taosThreadRwlockInit(&pMeta->lock, &attr);
+  (void)taosThreadRwlockAttrDestroy(&attr);
   return 0;
 }
 static int32_t metaDestroyLock(SMeta *pMeta) { return taosThreadRwlockDestroy(&pMeta->lock); }
@@ -48,7 +48,7 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   char    indexFullPath[128] = {0};
 
   // create handle
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
+  (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
   offset = strlen(path);
   snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VNODE_META_DIR);
 
@@ -56,16 +56,16 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
     TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
   }
 
-  metaInitLock(pMeta);
+  (void)metaInitLock(pMeta);
 
   pMeta->path = (char *)&pMeta[1];
   strcpy(pMeta->path, path);
-  taosRealPath(pMeta->path, NULL, strlen(path) + 1);
+  (void)taosRealPath(pMeta->path, NULL, strlen(path) + 1);
 
   pMeta->pVnode = pVnode;
 
   // create path if not created yet
-  taosMkDir(pMeta->path);
+  (void)taosMkDir(pMeta->path);
 
   // open env
   code = tdbOpen(pMeta->path, pVnode->config.szPage, pVnode->config.szCache, &pMeta->pEnv, rollback,
@@ -186,31 +186,19 @@ int metaAlterCache(SMeta *pMeta, int32_t nPage) {
   return code;
 }
 
-int32_t metaRLock(SMeta *pMeta) {
+void metaRLock(SMeta *pMeta) {
   metaTrace("meta rlock %p", &pMeta->lock);
-  int32_t code = taosThreadRwlockRdlock(&pMeta->lock);
-  if (code) {
-    return TAOS_SYSTEM_ERROR(code);
-  }
-  return 0;
+  (void)taosThreadRwlockRdlock(&pMeta->lock);
 }
 
-int32_t metaWLock(SMeta *pMeta) {
+void metaWLock(SMeta *pMeta) {
   metaTrace("meta wlock %p", &pMeta->lock);
-  int32_t code = taosThreadRwlockWrlock(&pMeta->lock);
-  if (code) {
-    return TAOS_SYSTEM_ERROR(code);
-  }
-  return 0;
+  (void)taosThreadRwlockWrlock(&pMeta->lock);
 }
 
-int32_t metaULock(SMeta *pMeta) {
+void metaULock(SMeta *pMeta) {
   metaTrace("meta ulock %p", &pMeta->lock);
-  int32_t code = taosThreadRwlockUnlock(&pMeta->lock);
-  if (code) {
-    return TAOS_SYSTEM_ERROR(code);
-  }
-  return 0;
+  (void)taosThreadRwlockUnlock(&pMeta->lock);
 }
 
 static void metaCleanup(SMeta **ppMeta) {
@@ -235,7 +223,7 @@ static void metaCleanup(SMeta **ppMeta) {
     if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
     if (pMeta->pTbDb) tdbTbClose(pMeta->pTbDb);
     if (pMeta->pEnv) tdbClose(pMeta->pEnv);
-    metaDestroyLock(pMeta);
+    (void)metaDestroyLock(pMeta);
 
     taosMemoryFreeClear(*ppMeta);
   }
@@ -344,6 +332,10 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
   } else if (!pTagIdxKey1->isNull && !pTagIdxKey2->isNull) {
     // all not NULL, compr tag vals
     __compar_fn_t func = getComparFunc(pTagIdxKey1->type, 0);
+    if (func == NULL) {
+      metaError("meta/open: %s", terrstr());
+      return TSDB_CODE_FAILED;
+    }
     c = func(pTagIdxKey1->data, pTagIdxKey2->data);
     if (c) return c;
   }

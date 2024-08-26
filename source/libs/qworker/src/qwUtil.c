@@ -276,7 +276,9 @@ void qwFreeTaskHandle(qTaskInfo_t *taskHandle) {
   // Note: free/kill may in RC
   qTaskInfo_t otaskHandle = atomic_load_ptr(taskHandle);
   if (otaskHandle && atomic_val_compare_exchange_ptr(taskHandle, otaskHandle, NULL)) {
+    tsEnableRandErr = true;
     qDestroyTask(otaskHandle);
+    tsEnableRandErr = false;
     qDebug("task handle destroyed");
   }
 }
@@ -562,7 +564,7 @@ int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
 void qwCloseRef(void) {
   taosWLockLatch(&gQwMgmt.lock);
   if (atomic_load_32(&gQwMgmt.qwNum) <= 0 && gQwMgmt.qwRef >= 0) {
-    (void)taosCloseRef(gQwMgmt.qwRef);  // ignore error
+    taosCloseRef(gQwMgmt.qwRef);  // ignore error
     gQwMgmt.qwRef = -1;
   }
   taosWUnLockLatch(&gQwMgmt.lock);

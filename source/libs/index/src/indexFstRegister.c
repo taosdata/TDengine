@@ -83,7 +83,7 @@ FstRegistry* fstRegistryCreate(uint64_t tableSize, uint64_t mruSize) {
 
   for (uint64_t i = 0; i < nCells; i++) {
     FstRegistryCell cell = {.addr = NONE_ADDRESS, .node = fstBuilderNodeDefault()};
-    taosArrayPush(tb, &cell);
+    (void)taosArrayPush(tb, &cell);
   }
 
   registry->table = tb;

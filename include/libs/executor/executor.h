@@ -201,7 +201,7 @@ void qStreamSetOpen(qTaskInfo_t tinfo);
 
 void qStreamSetSourceExcluded(qTaskInfo_t tinfo, int8_t sourceExcluded);
 
-void qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
+int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 
 SMqBatchMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
 

@@ -165,9 +165,7 @@ static int32_t vnodeAsyncTaskDone(SVAsync *async, SVATask *task) {
   }
 
   ret = vHashDrop(async->taskTable, task);
-  if (ret != 0) {
-    ASSERT(0);
-  }
+  TAOS_UNUSED(ret);
   async->numTasks--;
 
   if (task->numWait == 0) {
@@ -389,7 +387,7 @@ static int32_t vnodeAsyncDestroy(SVAsync **async) {
   // set stop and broadcast
   (void)taosThreadMutexLock(&(*async)->mutex);
   (*async)->stop = true;
-  taosThreadCondBroadcast(&(*async)->hasTask);
+  (void)taosThreadCondBroadcast(&(*async)->hasTask);
   (void)taosThreadMutexUnlock(&(*async)->mutex);
 
   // join all workers
@@ -403,7 +401,6 @@ static int32_t vnodeAsyncDestroy(SVAsync **async) {
     }
 
     (void)taosThreadJoin((*async)->workers[i].thread, NULL);
-    ASSERT((*async)->workers[i].state == EVA_WORKER_STATE_STOP);
     (*async)->workers[i].state = EVA_WORKER_STATE_UINIT;
   }
 
@@ -413,17 +410,10 @@ static int32_t vnodeAsyncDestroy(SVAsync **async) {
     channel->prev->next = channel->next;
 
     int32_t ret = vHashDrop((*async)->channelTable, channel);
-    if (ret) {
-      ASSERT(0);
-    }
+    TAOS_UNUSED(ret);
     (*async)->numChannels--;
     taosMemoryFree(channel);
   }
-
-  ASSERT((*async)->numLaunchWorkers == 0);
-  ASSERT((*async)->numIdleWorkers == 0);
-  ASSERT((*async)->numChannels == 0);
-  ASSERT((*async)->numTasks == 0);
 
   (void)taosThreadMutexDestroy(&(*async)->mutex);
   (void)taosThreadCondDestroy(&(*async)->hasTask);
@@ -438,7 +428,6 @@ static int32_t vnodeAsyncDestroy(SVAsync **async) {
 
 static int32_t vnodeAsyncLaunchWorker(SVAsync *async) {
   for (int32_t i = 0; i < async->numWorkers; i++) {
-    ASSERT(async->workers[i].state != EVA_WORKER_STATE_IDLE);
     if (async->workers[i].state == EVA_WORKER_STATE_ACTIVE) {
       continue;
     } else if (async->workers[i].state == EVA_WORKER_STATE_STOP) {
@@ -666,7 +655,7 @@ int32_t vnodeAsyncSetWorkers(int64_t asyncID, int32_t numWorkers) {
   (void)taosThreadMutexLock(&async->mutex);
   async->numWorkers = numWorkers;
   if (async->numIdleWorkers > 0) {
-    taosThreadCondBroadcast(&async->hasTask);
+    (void)taosThreadCondBroadcast(&async->hasTask);
   }
   (void)taosThreadMutexUnlock(&async->mutex);
 

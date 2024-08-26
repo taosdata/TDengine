@@ -454,7 +454,7 @@ int buildStable(TAOS* pConn, TAOS_RES* pRes) {
   taos_free_result(pRes);
 #else
   pRes = taos_query(pConn,
-                    "create stream meters_summary_s trigger at_once IGNORE EXPIRED 0 into meters_summary as select "
+                    "create stream meters_summary_s trigger at_once IGNORE EXPIRED 0 fill_history 1 into meters_summary as select "
                     "_wstart, max(current) as current, "
                     "groupid, location from meters partition by groupid, location interval(10m)");
   if (taos_errno(pRes) != 0) {
@@ -596,6 +596,7 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
   tmq_conf_set(conf, "msg.consume.excluded", "1");
+//  tmq_conf_set(conf, "max.poll.interval.ms", "20000");
 
   if (g_conf.snapShot) {
     tmq_conf_set(conf, "experimental.snapshot.enable", "true");
@@ -632,7 +633,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   }
   int32_t cnt = 0;
   while (running) {
-    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 1000);
+    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 5000);
     if (tmqmessage) {
       cnt++;
       msg_process(tmqmessage);

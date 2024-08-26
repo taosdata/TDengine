@@ -615,6 +615,8 @@ class TDTestCase:
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
+        tdSql.execute('alter local "debugFlag" "143"')
+        tdSql.execute('alter dnode 1 "debugFlag" "143"')
         self.tsma_tester: TSMATester = TSMATester(tdSql)
         self.tsma_sql_generator: TSMATestSQLGenerator = TSMATestSQLGenerator()
 
@@ -828,11 +830,21 @@ class TDTestCase:
             ).ignore_res_order(sql_generator.can_ignore_res_order()).get_qc())
         return ctxs
 
+    def test_query_interval(self):
+        sql = 'select count(*), _wstart, _wend from db.meters interval(1n) sliding(1d) limit 1'
+        tdSql.query(sql)
+        tdSql.checkData(0, 1, '2017-06-15 00:00:00')
+        sql = 'select /*+skip_tsma()*/count(*), _wstart, _wend from db.meters interval(1n) sliding(1d) limit 1'
+        tdSql.query(sql)
+        tdSql.checkData(0, 1, '2017-06-15 00:00:00')
+
     def test_bigger_tsma_interval(self):
         db = 'db'
         tb = 'meters'
         func = ['max(c1)', 'min(c1)', 'min(c2)', 'max(c2)', 'avg(c1)', 'count(ts)']
         self.init_data(db,10, 10000, 1500000000000, 11000000)
+        self.test_query_interval()
+
         examples = [
                 ('10m', '1h', True), ('10m','1d',True), ('1m', '120s', True), ('1h','1d',True),
                 ('12h', '1y', False), ('1h', '1n', True), ('1h', '1y', True),
@@ -840,7 +852,7 @@ class TDTestCase:
                 ]
         tdSql.execute('use db')
         for (i, ri, ret) in examples:
-            self.test_create_recursive_tsma_interval(db, tb, func, i, ri, ret, -2147471099)
+            self.test_create_recursive_tsma_interval(db, tb, func, i, ri, ret, -2147471086)
 
         self.create_tsma('tsma1', db, tb, func, '1h')
         self.create_recursive_tsma('tsma1', 'tsma2', db, '1n', tb, func)
@@ -896,7 +908,7 @@ class TDTestCase:
                     .get_qc())
 
         self.check(ctxs)
-        tdSql.execute('drop database db')
+
 
     def stop(self):
         tdSql.close()

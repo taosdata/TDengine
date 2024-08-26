@@ -371,8 +371,11 @@ static FORCE_INLINE int32_t walCheckAndRoll(SWal *pWal) {
 int32_t walBeginSnapshot(SWal *pWal, int64_t ver, int64_t logRetention) {
   int32_t code = 0;
 
+  if (logRetention < 0) {
+    TAOS_RETURN(TSDB_CODE_FAILED);
+  }
+
   TAOS_UNUSED(taosThreadMutexLock(&pWal->mutex));
-  ASSERT(logRetention >= 0);
   pWal->vers.verInSnapshotting = ver;
   pWal->vers.logRetention = logRetention;
 
@@ -438,7 +441,10 @@ int32_t walEndSnapshot(SWal *pWal) {
   if (pInfo) {
     wDebug("vgId:%d, wal search found file info. ver:%" PRId64 ", first:%" PRId64 " last:%" PRId64, pWal->cfg.vgId, ver,
            pInfo->firstVer, pInfo->lastVer);
-    ASSERT(ver <= pInfo->lastVer);
+    if (ver > pInfo->lastVer) {
+      TAOS_CHECK_GOTO(TSDB_CODE_FAILED, &lino, _exit);
+    }
+
     if (ver == pInfo->lastVer) {
       pInfo++;
     }
@@ -525,6 +531,11 @@ static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
   if (size != sizeof(SWalIdxEntry)) {
     wError("vgId:%d, failed to write idx entry due to %s. ver:%" PRId64, pWal->cfg.vgId, strerror(errno), ver);
 
+    if (pWal->stopDnode != NULL) {
+      wWarn("vgId:%d, set stop dnode flag", pWal->cfg.vgId);
+      pWal->stopDnode();
+    }
+
     TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
 
@@ -570,6 +581,11 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     code = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
+
+    if (pWal->stopDnode != NULL) {
+      wWarn("vgId:%d, set stop dnode flag", pWal->cfg.vgId);
+      pWal->stopDnode();
+    }
 
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
@@ -625,6 +641,11 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     if (pWal->cfg.encryptAlgorithm == DND_CA_SM4) {
       taosMemoryFreeClear(newBody);
       taosMemoryFreeClear(newBodyEncrypted);
+    }
+
+    if (pWal->stopDnode != NULL) {
+      wWarn("vgId:%d, set stop dnode flag", pWal->cfg.vgId);
+      pWal->stopDnode();
     }
 
     TAOS_CHECK_GOTO(code, &lino, _exit);

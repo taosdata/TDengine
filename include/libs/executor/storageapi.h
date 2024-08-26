@@ -245,12 +245,12 @@ typedef struct SStoreSnapshotFn {
 } SStoreSnapshotFn;
 
 typedef struct SStoreMeta {
-  SMTbCursor* (*openTableMetaCursor)(void* pVnode);                              // metaOpenTbCursor
-  void (*closeTableMetaCursor)(SMTbCursor* pTbCur);                              // metaCloseTbCursor
-  void (*pauseTableMetaCursor)(SMTbCursor* pTbCur);                              // metaPauseTbCursor
-  void (*resumeTableMetaCursor)(SMTbCursor* pTbCur, int8_t first, int8_t move);  // metaResumeTbCursor
-  int32_t (*cursorNext)(SMTbCursor* pTbCur, ETableType jumpTableType);           // metaTbCursorNext
-  int32_t (*cursorPrev)(SMTbCursor* pTbCur, ETableType jumpTableType);           // metaTbCursorPrev
+  SMTbCursor* (*openTableMetaCursor)(void* pVnode);                                 // metaOpenTbCursor
+  void (*closeTableMetaCursor)(SMTbCursor* pTbCur);                                 // metaCloseTbCursor
+  void (*pauseTableMetaCursor)(SMTbCursor* pTbCur);                                 // metaPauseTbCursor
+  int32_t (*resumeTableMetaCursor)(SMTbCursor* pTbCur, int8_t first, int8_t move);  // metaResumeTbCursor
+  int32_t (*cursorNext)(SMTbCursor* pTbCur, ETableType jumpTableType);              // metaTbCursorNext
+  int32_t (*cursorPrev)(SMTbCursor* pTbCur, ETableType jumpTableType);              // metaTbCursorPrev
 
   int32_t (*getTableTags)(void* pVnode, uint64_t suid, SArray* uidList);
   int32_t (*getTableTagsByUid)(void* pVnode, int64_t suid, SArray* uidList);

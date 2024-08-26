@@ -58,13 +58,16 @@ static int32_t removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColMatchI
 
 #define SCAN_ROW_TYPE(_t) ((_t) ? CACHESCAN_RETRIEVE_LAST : CACHESCAN_RETRIEVE_LAST_ROW)
 
-static void setColIdForCacheReadBlock(SSDataBlock* pBlock, SLastRowScanPhysiNode* pScan) {
+static int32_t setColIdForCacheReadBlock(SSDataBlock* pBlock, SLastRowScanPhysiNode* pScan) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   SNode*  pNode;
   int32_t idx = 0;
   FOREACH(pNode, pScan->pTargets) {
     if (nodeType(pNode) == QUERY_NODE_COLUMN) {
       SColumnNode*     pCol = (SColumnNode*)pNode;
       SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, idx);
+      QUERY_CHECK_NULL(pColInfo, code, lino, _end, terrno);
       pColInfo->info.colId = pCol->colId;
     }
     idx++;
@@ -72,6 +75,7 @@ static void setColIdForCacheReadBlock(SSDataBlock* pBlock, SLastRowScanPhysiNode
 
   for (; idx < pBlock->pDataBlock->size; ++idx) {
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, idx);
+    QUERY_CHECK_NULL(pColInfo, code, lino, _end, terrno);
     if (pScan->scan.pScanPseudoCols) {
       FOREACH(pNode, pScan->scan.pScanPseudoCols) {
         STargetNode* pTarget = (STargetNode*)pNode;
@@ -82,6 +86,12 @@ static void setColIdForCacheReadBlock(SSDataBlock* pBlock, SLastRowScanPhysiNode
       }
     }
   }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandle* readHandle,
@@ -98,7 +108,6 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
 
   if (pInfo == NULL || pOperator == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    tableListDestroy(pTableListInfo);
     goto _error;
   }
 
@@ -107,6 +116,7 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
 
   SDataBlockDescNode* pDescNode = pScanNode->scan.node.pOutputDataBlockDesc;
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
+  QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
 
   code = extractColMatchInfo(pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID, &pInfo->matchInfo);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -125,6 +135,7 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
   } else {
     for (int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); ++i) {
       SColMatchItem* pItem = taosArrayGet(pInfo->matchInfo.pList, i);
+      QUERY_CHECK_NULL(pItem, code, lino, _error, terrno);
       if (pItem->isPk) {
         pInfo->numOfPks += 1;
         pInfo->pkCol.type = pItem->dataType.type;    // only record one primary key
@@ -147,10 +158,14 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
 
   for (int i = 0; i < TARRAY_SIZE(pInfo->matchInfo.pList); ++i) {
     SColMatchItem* pColInfo = taosArrayGet(pInfo->matchInfo.pList, i);
+    QUERY_CHECK_NULL(pColInfo, code, lino, _error, terrno);
+
     void*          tmp = taosArrayPush(pCidList, &pColInfo->colId);
     QUERY_CHECK_NULL(tmp, code, lino, _error, terrno);
     if (pInfo->pFuncTypeList != NULL && taosArrayGetSize(pInfo->pFuncTypeList) > i) {
-      pColInfo->funcType = *(int32_t*)taosArrayGet(pInfo->pFuncTypeList, i);
+      void* pFuncType = taosArrayGet(pInfo->pFuncTypeList, i);
+      QUERY_CHECK_NULL(pFuncType, code, lino, _error, terrno);
+      pColInfo->funcType = *(int32_t*)pFuncType;
     }
   }
   pInfo->pCidList = pCidList;
@@ -165,12 +180,14 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
   int32_t capacity = 0;
 
   pInfo->pUidList = taosArrayInit(4, sizeof(int64_t));
+  QUERY_CHECK_NULL(pInfo->pUidList, code, lino, _error, terrno);
 
   // partition by tbname
   if (oneTableForEachGroup(pTableListInfo) || (totalTables == 1)) {
     pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_ALL | SCAN_ROW_TYPE(pScanNode->ignoreNull);
 
     STableKeyInfo* pList = tableListGetInfo(pTableListInfo, 0);
+    if (totalTables) QUERY_CHECK_NULL(pList, code, lino, _error, terrno);
 
     uint64_t suid = tableListGetSuid(pTableListInfo);
     code = pInfo->readHandle.api.cacheFn.openReader(pInfo->readHandle.vnode, pInfo->retrieveType, pList, totalTables,
@@ -185,13 +202,16 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
     code = createOneDataBlock(pInfo->pRes, false, &pInfo->pBufferedRes);
     QUERY_CHECK_CODE(code, lino, _error);
 
-    setColIdForCacheReadBlock(pInfo->pBufferedRes, pScanNode);
+    code = setColIdForCacheReadBlock(pInfo->pBufferedRes, pScanNode);
+    QUERY_CHECK_CODE(code, lino, _error);
+
     code = blockDataEnsureCapacity(pInfo->pBufferedRes, capacity);
     QUERY_CHECK_CODE(code, lino, _error);
   } else {  // by tags
     pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_SINGLE | SCAN_ROW_TYPE(pScanNode->ignoreNull);
     capacity = 1;  // only one row output
-    setColIdForCacheReadBlock(pInfo->pRes, pScanNode);
+    code = setColIdForCacheReadBlock(pInfo->pRes, pScanNode);
+    QUERY_CHECK_CODE(code, lino, _error);
   }
 
   initResultSizeInfo(&pOperator->resultInfo, capacity);
@@ -200,9 +220,12 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
 
   if (pScanNode->scan.pScanPseudoCols != NULL) {
     SExprSupp* p = &pInfo->pseudoExprSup;
-    p->pExprInfo = createExprInfo(pScanNode->scan.pScanPseudoCols, NULL, &p->numOfExprs);
+    code = createExprInfo(pScanNode->scan.pScanPseudoCols, NULL, &p->pExprInfo, &p->numOfExprs);
+    TSDB_CHECK_CODE(code, lino, _error);
+
     p->pCtx =
         createSqlFunctionCtx(p->pExprInfo, p->numOfExprs, &p->rowEntryInfoOffset, &pTaskInfo->storageAPI.functionStore);
+    QUERY_CHECK_NULL(p->pCtx, code, lino, _error, terrno);
   }
 
   setOperatorInfo(pOperator, "CachedRowScanOperator", QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN, false, OP_NOT_OPENED,
@@ -222,8 +245,14 @@ _error:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  destroyCacheScanOperator(pInfo);
-  taosMemoryFree(pOperator);
+  if (pInfo != NULL) {
+    pInfo->pTableList = NULL;
+    destroyCacheScanOperator(pInfo);
+  }
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   return code;
 }
 
@@ -269,7 +298,11 @@ int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       int32_t resultRows = pBufRes->info.rows;
 
       // the results may be null, if last values are all null
-      ASSERT(resultRows == 0 || resultRows == taosArrayGetSize(pInfo->pUidList));
+      if (resultRows != 0 && resultRows != taosArrayGetSize(pInfo->pUidList)) {
+        pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(pTaskInfo->code));
+        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+      }
       pInfo->indexOfBufferedRes = 0;
     }
 
@@ -278,10 +311,13 @@ int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (pInfo->indexOfBufferedRes < pBufRes->info.rows) {
       for (int32_t i = 0; i < taosArrayGetSize(pBufRes->pDataBlock); ++i) {
         SColumnInfoData* pCol = taosArrayGet(pRes->pDataBlock, i);
+        QUERY_CHECK_NULL(pCol, code, lino, _end, terrno);
         int32_t          slotId = pCol->info.slotId;
 
         SColumnInfoData* pSrc = taosArrayGet(pBufRes->pDataBlock, slotId);
+        QUERY_CHECK_NULL(pSrc, code, lino, _end, terrno);
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, slotId);
+        QUERY_CHECK_NULL(pDst, code, lino, _end, terrno);
 
         if (colDataIsNull_s(pSrc, pInfo->indexOfBufferedRes)) {
           colDataSetNULL(pDst, 0);
@@ -294,7 +330,10 @@ int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         }
       }
 
-      pRes->info.id.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, pInfo->indexOfBufferedRes);
+      void* pUid = taosArrayGet(pInfo->pUidList, pInfo->indexOfBufferedRes);
+      QUERY_CHECK_NULL(pUid, code, lino, _end, terrno);
+
+      pRes->info.id.uid = *(tb_uid_t*)pUid;
       pRes->info.rows = 1;
       pRes->info.scanFlag = MAIN_SCAN;
 
@@ -363,7 +402,9 @@ int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
           pInfo->pRes->info.id.groupId = pKeyInfo->groupId;
 
           if (taosArrayGetSize(pInfo->pUidList) > 0) {
-            pInfo->pRes->info.id.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, 0);
+            void* pUid = taosArrayGet(pInfo->pUidList, 0);
+            QUERY_CHECK_NULL(pUid, code, lino, _end, terrno);
+            pInfo->pRes->info.id.uid = *(tb_uid_t*)pUid;
             code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes,
                                           pInfo->pRes->info.rows, pTaskInfo, NULL);
             if (code != TSDB_CODE_SUCCESS) {
@@ -408,15 +449,15 @@ void destroyCacheScanOperator(void* param) {
   SCacheRowsScanInfo* pInfo = (SCacheRowsScanInfo*)param;
   blockDataDestroy(pInfo->pRes);
   blockDataDestroy(pInfo->pBufferedRes);
-  taosMemoryFree(pInfo->pSlotIds);
-  taosMemoryFree(pInfo->pDstSlotIds);
+  taosMemoryFreeClear(pInfo->pSlotIds);
+  taosMemoryFreeClear(pInfo->pDstSlotIds);
   taosArrayDestroy(pInfo->pCidList);
   taosArrayDestroy(pInfo->pFuncTypeList);
   taosArrayDestroy(pInfo->pUidList);
   taosArrayDestroy(pInfo->matchInfo.pList);
   tableListDestroy(pInfo->pTableList);
 
-  if (pInfo->pLastrowReader != NULL) {
+  if (pInfo->pLastrowReader != NULL && pInfo->readHandle.api.cacheFn.closeReader != NULL) {
     pInfo->readHandle.api.cacheFn.closeReader(pInfo->pLastrowReader);
     pInfo->pLastrowReader = NULL;
   }
@@ -431,13 +472,13 @@ int32_t extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTask
 
   *pSlotIds = taosMemoryMalloc(numOfCols * sizeof(int32_t));
   if (*pSlotIds == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   *pDstSlotIds = taosMemoryMalloc(numOfCols * sizeof(int32_t));
   if (*pDstSlotIds == NULL) {
-    taosMemoryFree(*pSlotIds);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFreeClear(*pSlotIds);
+    return terrno;
   }
 
   SSchemaInfo*    pSchemaInfo = taosArrayGetLast(pTaskInfo->schemaInfos);
@@ -445,6 +486,9 @@ int32_t extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTask
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColMatchItem* pColMatch = taosArrayGet(pColMatchInfo, i);
+    if (!pColMatch) {
+      return terrno;
+    }
     bool           found = false;
     for (int32_t j = 0; j < pWrapper->nCols; ++j) {
       /*      if (pColMatch->colId == pWrapper->pSchema[j].colId && pColMatch->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
@@ -481,11 +525,16 @@ int32_t removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColMatchInfo* pC
 
   for (int32_t i = 0; i < size; ++i) {
     SColMatchItem* pColInfo = taosArrayGet(pColMatchInfo->pList, i);
+    if (!pColInfo) {
+      return terrno;
+    }
 
     int32_t    slotId = pColInfo->dstSlotId;
     SNodeList* pList = pScanNode->scan.node.pOutputDataBlockDesc->pSlots;
 
     SSlotDescNode* pDesc = (SSlotDescNode*)nodesListGetNode(pList, slotId);
+    QUERY_CHECK_NULL(pDesc, code, lino, _end, terrno);
+
     if (pDesc->dataType.type != TSDB_DATA_TYPE_TIMESTAMP) {
       void* tmp = taosArrayPush(pMatchInfo, pColInfo);
       QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);

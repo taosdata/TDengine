@@ -68,7 +68,7 @@ static void mmClose(SMnodeMgmt *pMgmt) {
   if (pMgmt->pMnode != NULL) {
     mmStopWorker(pMgmt);
     mndClose(pMgmt->pMnode);
-    taosThreadRwlockDestroy(&pMgmt->lock);
+    (void)taosThreadRwlockDestroy(&pMgmt->lock);
     pMgmt->pMnode = NULL;
   }
 
@@ -85,7 +85,7 @@ static int32_t mndOpenWrapper(const char *path, SMnodeOpt *opt, SMnode **pMnode)
 }
 static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   int32_t code = 0;
-  if ((code = walInit()) != 0) {
+  if ((code = walInit(pInput->stopDnodeFp)) != 0) {
     dError("failed to init wal since %s", tstrerror(code));
     return code;
   }
@@ -107,7 +107,7 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->msgCb = pInput->msgCb;
   pMgmt->msgCb.putToQueueFp = (PutToQueueFp)mmPutMsgToQueue;
   pMgmt->msgCb.mgmt = pMgmt;
-  taosThreadRwlockInit(&pMgmt->lock, NULL);
+  (void)taosThreadRwlockInit(&pMgmt->lock, NULL);
 
   SMnodeOpt option = {0};
   if ((code = mmReadFile(pMgmt->path, &option)) != 0) {
@@ -163,9 +163,9 @@ static int32_t mmStart(SMnodeMgmt *pMgmt) {
 static void mmStop(SMnodeMgmt *pMgmt) {
   dDebug("mnode-mgmt start to stop");
   mndPreClose(pMgmt->pMnode);
-  taosThreadRwlockWrlock(&pMgmt->lock);
+  (void)taosThreadRwlockWrlock(&pMgmt->lock);
   pMgmt->stopped = 1;
-  taosThreadRwlockUnlock(&pMgmt->lock);
+  (void)taosThreadRwlockUnlock(&pMgmt->lock);
 
   mndStop(pMgmt->pMnode);
 }

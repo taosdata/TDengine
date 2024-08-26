@@ -108,6 +108,7 @@ enum {
   CTG_OP_UPDATE_TB_TSMA,
   CTG_OP_DROP_TB_TSMA,
   CTG_OP_CLEAR_CACHE,
+  CTG_OP_UPDATE_DB_TSMA_VERSION,
   CTG_OP_MAX
 };
 
@@ -603,6 +604,7 @@ typedef struct SCtgUpdateTbTSMAMsg {
   STableTSMAInfo* pTsma;
   int32_t         dbTsmaVersion;
   uint64_t        dbId;
+  char            dbFName[TSDB_DB_FNAME_LEN];
 } SCtgUpdateTbTSMAMsg;
 
 typedef struct SCtgDropTbTSMAMsg {
@@ -850,34 +852,58 @@ typedef struct SCtgCacheItemInfo {
 #define CTG_LOCK(type, _lock)                                                                                \
   do {                                                                                                       \
     if (CTG_READ == (type)) {                                                                                \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before read lock");                          \
+      if (atomic_load_32((_lock)) < 0) {                                                                     \
+        qError("invalid lock value before read lock");                                                       \
+        break;                                                                                               \
+      }                                                                                                      \
       CTG_LOCK_DEBUG("CTG RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
       taosRLockLatch(_lock);                                                                                 \
       CTG_LOCK_DEBUG("CTG RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
-      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value after read lock");                            \
+      if (atomic_load_32((_lock)) <= 0) {                                                                    \
+        qError("invalid lock value after read lock");                                                        \
+        break;                                                                                               \
+      }                                                                                                      \
     } else {                                                                                                 \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before write lock");                         \
+      if (atomic_load_32((_lock)) < 0) {                                                                     \
+        qError("invalid lock value before write lock");                                                      \
+        break;                                                                                               \
+      }                                                                                                      \
       CTG_LOCK_DEBUG("CTG WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
       taosWLockLatch(_lock);                                                                                 \
       CTG_LOCK_DEBUG("CTG WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
-      ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value after write lock"); \
+      if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {                                           \
+        qError("invalid lock value after write lock");                                                       \
+        break;                                                                                               \
+      }                                                                                                      \
     }                                                                                                        \
   } while (0)
 
 #define CTG_UNLOCK(type, _lock)                                                                                 \
   do {                                                                                                          \
     if (CTG_READ == (type)) {                                                                                   \
-      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value before read unlock");                            \
+      if (atomic_load_32((_lock)) <= 0) {                                                                       \
+        qError("invalid lock value before read unlock");                                                        \
+        break;                                                                                                  \
+      }                                                                                                         \
       CTG_LOCK_DEBUG("CTG RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);           \
       taosRUnLockLatch(_lock);                                                                                  \
       CTG_LOCK_DEBUG("CTG RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);           \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after read unlock");                            \
+      if (atomic_load_32((_lock)) < 0) {                                                                        \
+        qError("invalid lock value after read unlock");                                                         \
+        break;                                                                                                  \
+      }                                                                                                         \
     } else {                                                                                                    \
-      ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value before write unlock"); \
+      if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {                                              \
+        qError("invalid lock value before write unlock");                                                       \
+        break;                                                                                                  \
+      }                                                                                                         \
       CTG_LOCK_DEBUG("CTG WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);           \
       taosWUnLockLatch(_lock);                                                                                  \
       CTG_LOCK_DEBUG("CTG WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);           \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after write unlock");                           \
+      if (atomic_load_32((_lock)) < 0) {                                                                        \
+        qError("invalid lock value after write unlock");                                                        \
+        break;                                                                                                  \
+      }                                                                                                         \
     }                                                                                                           \
   } while (0)
 
@@ -1141,6 +1167,7 @@ uint64_t ctgGetClusterCacheSize(SCatalog *pCtg);
 void     ctgClearHandleMeta(SCatalog* pCtg, int64_t *pClearedSize, int64_t *pCleardNum, bool *roundDone);
 void     ctgClearAllHandleMeta(int64_t *clearedSize, int64_t *clearedNum, bool *roundDone);
 void     ctgProcessTimerEvent(void *param, void *tmrId);
+int32_t  ctgBuildUseDbOutput(SUseDbOutput** ppOut, SDBVgInfo* vgInfo);
 
 int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid, char **stbName);
@@ -1166,6 +1193,8 @@ int32_t  ctgGetStreamProgressFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, 
                                        void* bInput);
 int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx, int32_t flag,
                         CTG_TSMA_FETCH_TYPE fetchType, const SName* sourceTbName);
+int32_t ctgOpUpdateDbTsmaVersion(SCtgCacheOperation* pOper);
+int32_t ctgUpdateDbTsmaVersionEnqueue(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId, bool syncOper);
 void    ctgFreeTask(SCtgTask* pTask, bool freeRes);
 
 extern SCatalogMgmt      gCtgMgmt;

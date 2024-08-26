@@ -30,6 +30,7 @@ void         mndReleaseTopic(SMnode *pMnode, SMqTopicObj *pTopic);
 int32_t      mndDropTopicByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 bool         mndTopicExistsForDb(SMnode *pMnode, SDbObj *pDb);
 void         mndTopicGetShowName(const char* fullTopic, char* topic);
+bool         checkTopic(SArray *topics, char *topicName);
 
 int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTopics);
 

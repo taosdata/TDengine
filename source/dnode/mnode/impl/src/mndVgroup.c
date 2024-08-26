@@ -877,7 +877,7 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
     pVgroup->dbUid = pDb->uid;
     pVgroup->replica = pDb->cfg.replications;
 
-    if (mndGetAvailableDnode(pMnode, pDb, pVgroup, pArray) != 0) {
+    if ((code = mndGetAvailableDnode(pMnode, pDb, pVgroup, pArray)) != 0) {
       goto _OVER;
     }
 

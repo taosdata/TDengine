@@ -202,6 +202,7 @@ typedef struct SExchangeInfo {
   SLimitInfo          limitInfo;
   int64_t             openedTs;  // start exec time stamp, todo: move to SLoadRemoteDataInfo
   char*               pTaskId;
+  SArray*             pFetchRpcHandles;
 } SExchangeInfo;
 
 typedef struct SScanInfo {
@@ -855,8 +856,6 @@ int32_t     getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* de
 
 extern void doDestroyExchangeOperatorInfo(void* param);
 
-int32_t doFilterImpl(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo,
-                     SColumnInfoData** pResCol);
 int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo);
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
                                int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache);

@@ -106,6 +106,10 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
       }
 
       int32_t dataLen = blockEncode(pInput->pData, pHandle->pCompressBuf, numOfCols);
+      if(dataLen < 0) {
+        qError("failed to encode data block, code: %d", dataLen);
+        return terrno;
+      }
       int32_t len =
           tsCompressString(pHandle->pCompressBuf, dataLen, 1, pEntry->data, pBuf->allocSize, ONE_STAGE_COMP, NULL, 0);
       if (len < dataLen) {
@@ -120,6 +124,10 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
       }
     } else {
       pEntry->dataLen = blockEncode(pInput->pData, pEntry->data, numOfCols);
+      if(pEntry->dataLen < 0) {
+        qError("failed to encode data block, code: %d", pEntry->dataLen);
+        return terrno;
+      }
       pEntry->rawLen = pEntry->dataLen;
     }
   }
@@ -242,7 +250,11 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, int64_t* pRow
 static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   if (NULL == pDispatcher->nextOutput.pData) {
-    ASSERT(pDispatcher->queryEnd);
+    if (!pDispatcher->queryEnd) {
+      qError("empty res while query not end in data dispatcher");
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+
     pOutput->useconds = pDispatcher->useconds;
     pOutput->precision = pDispatcher->pSchema->precision;
     pOutput->bufStatus = DS_BUF_EMPTY;
@@ -318,6 +330,7 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   dispatcher->sink.fGetCacheSize = getCacheSize;
 
   dispatcher->pManager = pManager;
+  pManager = NULL;
   dispatcher->pSchema = pDataSink->pInputDataBlockDesc;
   dispatcher->status = DS_BUF_EMPTY;
   dispatcher->queryEnd = false;
@@ -332,17 +345,15 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
     goto _return;
   }
 
-  if (NULL == dispatcher->pDataBlocks) {
-    taosMemoryFree(dispatcher);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _return;
-  }
-
   *pHandle = dispatcher;
   return TSDB_CODE_SUCCESS;
 
 _return:
 
   taosMemoryFree(pManager);
+  
+  if (dispatcher) {
+    dsDestroyDataSinker(dispatcher);
+  }
   return terrno;
 }

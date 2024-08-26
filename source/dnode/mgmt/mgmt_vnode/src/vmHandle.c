@@ -22,7 +22,7 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
 
   tfsUpdateSize(pMgmt->pTfs);
 
-  taosThreadRwlockRdlock(&pMgmt->lock);
+  (void)taosThreadRwlockRdlock(&pMgmt->lock);
 
   void *pIter = taosHashIterate(pMgmt->hash, NULL);
   while (pIter) {
@@ -32,21 +32,21 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
     SVnodeObj *pVnode = *ppVnode;
     SVnodeLoad vload = {.vgId = pVnode->vgId};
     if (!pVnode->failed) {
-      vnodeGetLoad(pVnode->pImpl, &vload);
+      (void)vnodeGetLoad(pVnode->pImpl, &vload);
       if (isReset) vnodeResetLoad(pVnode->pImpl, &vload);
     }
-    taosArrayPush(pInfo->pVloads, &vload);
+    (void)taosArrayPush(pInfo->pVloads, &vload);
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
 
-  taosThreadRwlockUnlock(&pMgmt->lock);
+  (void)taosThreadRwlockUnlock(&pMgmt->lock);
 }
 
 void vmGetVnodeLoadsLite(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoadLite));
   if (!pInfo->pVloads) return;
 
-  taosThreadRwlockRdlock(&pMgmt->lock);
+  (void)taosThreadRwlockRdlock(&pMgmt->lock);
 
   void *pIter = taosHashIterate(pMgmt->hash, NULL);
   while (pIter) {
@@ -57,13 +57,13 @@ void vmGetVnodeLoadsLite(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
     if (!pVnode->failed) {
       SVnodeLoadLite vload = {0};
       if (vnodeGetLoadLite(pVnode->pImpl, &vload) == 0) {
-        taosArrayPush(pInfo->pVloads, &vload);
+        (void)taosArrayPush(pInfo->pVloads, &vload);
       }
     }
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
 
-  taosThreadRwlockUnlock(&pMgmt->lock);
+  (void)taosThreadRwlockUnlock(&pMgmt->lock);
 }
 
 void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
@@ -109,7 +109,7 @@ void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   pMgmt->state.numOfBatchInsertReqs = numOfBatchInsertReqs;
   pMgmt->state.numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs;
 
-  tfsGetMonitorInfo(pMgmt->pTfs, &pInfo->tfs);
+  (void)tfsGetMonitorInfo(pMgmt->pTfs, &pInfo->tfs);
   taosArrayDestroy(pVloads);
 }
 
@@ -200,7 +200,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
     pNode->nodePort = pCreate->replicas[pCfg->syncCfg.replicaNum].port;
     pNode->nodeRole = TAOS_SYNC_ROLE_VOTER;
     tstrncpy(pNode->nodeFqdn, pCreate->replicas[pCfg->syncCfg.replicaNum].fqdn, TSDB_FQDN_LEN);
-    tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
     pCfg->syncCfg.replicaNum++;
   }
   if (pCreate->selfIndex != -1) {
@@ -212,7 +212,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
     pNode->nodePort = pCreate->learnerReplicas[pCfg->syncCfg.totalReplicaNum].port;
     pNode->nodeRole = TAOS_SYNC_ROLE_LEARNER;
     tstrncpy(pNode->nodeFqdn, pCreate->learnerReplicas[pCfg->syncCfg.totalReplicaNum].fqdn, TSDB_FQDN_LEN);
-    tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
     pCfg->syncCfg.totalReplicaNum++;
   }
   pCfg->syncCfg.totalReplicaNum += pCfg->syncCfg.replicaNum;
@@ -323,7 +323,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SVnodeObj *pVnode = vmAcquireVnodeImpl(pMgmt, req.vgId, false);
   if (pVnode != NULL && (req.replica == 1 || !pVnode->failed)) {
     dError("vgId:%d, already exist", req.vgId);
-    tFreeSCreateVnodeReq(&req);
+    (void)tFreeSCreateVnodeReq(&req);
     vmReleaseVnode(pMgmt, pVnode);
     code = TSDB_CODE_VND_ALREADY_EXIST;
     return 0;
@@ -340,7 +340,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (vnodeCreate(path, &vnodeCfg, diskPrimary, pMgmt->pTfs) < 0) {
     dError("vgId:%d, failed to create vnode since %s", req.vgId, terrstr());
     vmReleaseVnode(pMgmt, pVnode);
-    tFreeSCreateVnodeReq(&req);
+    (void)tFreeSCreateVnodeReq(&req);
     code = terrno != 0 ? terrno : -1;
     return code;
   }
@@ -374,14 +374,14 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     goto _OVER;
   }
 
-  //taosThreadMutexLock(&pMgmt->createLock);
+  // taosThreadMutexLock(&pMgmt->createLock);
   code = vmWriteVnodeListToFile(pMgmt);
   if (code != 0) {
     code = terrno != 0 ? terrno : code;
-    //taosThreadMutexUnlock(&pMgmt->createLock);
+    // taosThreadMutexUnlock(&pMgmt->createLock);
     goto _OVER;
   }
-  //taosThreadMutexUnlock(&pMgmt->createLock);
+  // taosThreadMutexUnlock(&pMgmt->createLock);
 
 _OVER:
   if (code != 0) {
@@ -392,7 +392,7 @@ _OVER:
           TMSG_INFO(pMsg->msgType));
   }
 
-  tFreeSCreateVnodeReq(&req);
+  (void)tFreeSCreateVnodeReq(&req);
   terrno = code;
   return code;
 }
@@ -779,10 +779,11 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t       code = 0;
   SDropVnodeReq dropReq = {0};
   if (tDeserializeSDropVnodeReq(pMsg->pCont, pMsg->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    return terrno;
   }
 
   int32_t vgId = dropReq.vgId;
@@ -791,25 +792,25 @@ int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (dropReq.dnodeId != pMgmt->pData->dnodeId) {
     terrno = TSDB_CODE_INVALID_MSG;
     dError("vgId:%d, dnodeId:%d not matched with local dnode", dropReq.vgId, dropReq.dnodeId);
-    return -1;
+    return terrno;
   }
 
   SVnodeObj *pVnode = vmAcquireVnodeImpl(pMgmt, vgId, false);
   if (pVnode == NULL) {
     dInfo("vgId:%d, failed to drop since %s", vgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
-    return -1;
+    return terrno;
   }
 
   pVnode->dropped = 1;
-  if (vmWriteVnodeListToFile(pMgmt) != 0) {
+  if ((code = vmWriteVnodeListToFile(pMgmt)) != 0) {
     pVnode->dropped = 0;
     vmReleaseVnode(pMgmt, pVnode);
-    return -1;
+    return code;
   }
 
   vmCloseVnode(pMgmt, pVnode, false);
-  vmWriteVnodeListToFile(pMgmt);
+  (void)vmWriteVnodeListToFile(pMgmt);
 
   dInfo("vgId:%d, is dropped", vgId);
   return 0;
@@ -864,7 +865,7 @@ int32_t vmProcessArbHeartBeatReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       continue;
     }
 
-    taosArrayPush(arbHbRsp.hbMembers, &rspMember);
+    (void)taosArrayPush(arbHbRsp.hbMembers, &rspMember);
 
     vmReleaseVnode(pMgmt, pVnode);
   }
@@ -895,7 +896,7 @@ int32_t vmProcessArbHeartBeatReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 _OVER:
   tFreeSVArbHeartBeatReq(&arbHbReq);
   tFreeSVArbHeartBeatRsp(&arbHbRsp);
-  return terrno == TSDB_CODE_SUCCESS ? 0 : -1;
+  return terrno;
 }
 
 SArray *vmGetMsgHandles() {

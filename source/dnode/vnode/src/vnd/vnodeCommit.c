@@ -256,7 +256,9 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
 
 _exit:
   if (code) {
-    vError("vgId:%d %s failed at %s:%d since %s", pInfo->config.vgId, __func__, __FILE__, lino, tstrerror(code));
+    if (pFile) {
+      vError("vgId:%d %s failed at %s:%d since %s", pInfo->config.vgId, __func__, __FILE__, lino, tstrerror(code));
+    }
   }
   taosMemoryFree(pData);
   (void)taosCloseFile(&pFile);
@@ -291,7 +293,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   code = vnodeSaveInfo(dir, &pInfo->info);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  tsdbPreCommit(pVnode->pTsdb);
+  (void)tsdbPreCommit(pVnode->pTsdb);
 
   code = metaPrepareAsyncCommit(pVnode->pMeta);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -300,7 +302,6 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   (void)taosThreadMutexLock(&pVnode->mutex);
-  ASSERT(pVnode->onCommit == NULL);
   pVnode->onCommit = pVnode->inUse;
   pVnode->inUse = NULL;
   (void)taosThreadMutexUnlock(&pVnode->mutex);
@@ -337,7 +338,7 @@ static void vnodeReturnBufPool(SVnode *pVnode) {
       pVnode->recycleTail = pPool;
     }
   } else {
-    ASSERT(0);
+    vError("vgId:%d, buffer pool %p of id %d nRef:%d", TD_VID(pVnode), pPool, pPool->id, nRef);
   }
 
   (void)taosThreadMutexUnlock(&pVnode->mutex);
@@ -411,9 +412,9 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
         pInfo->info.state.commitID, pInfo->info.state.committed, pInfo->info.state.commitTerm);
 
   // persist wal before starting
-  if (walPersist(pVnode->pWal) < 0) {
-    vError("vgId:%d, failed to persist wal since %s", TD_VID(pVnode), terrstr());
-    return -1;
+  if ((code = walPersist(pVnode->pWal)) < 0) {
+    vError("vgId:%d, failed to persist wal since %s", TD_VID(pVnode), tstrerror(code));
+    return code;
   }
 
   (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
@@ -554,7 +555,6 @@ int vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo) {
   pJson = tjsonParse(pData);
   if (pJson == NULL) {
     TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_DATA_FMT, lino, _exit);
-    return -1;
   }
 
   code = tjsonToObject(pJson, "config", vnodeDecodeConfig, (void *)&pInfo->config);

@@ -23,7 +23,7 @@ static inline void smSendRsp(SRpcMsg *pMsg, int32_t code) {
       .contLen = pMsg->info.rspLen,
       .info = pMsg->info,
   };
-  tmsgSendRsp(&rsp);
+  (void)tmsgSendRsp(&rsp);
 }
 
 static void smProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
@@ -31,7 +31,7 @@ static void smProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
   for (int32_t i = 0; i < numOfMsgs; i++) {
     SRpcMsg *pMsg = NULL;
-    taosGetQitem(qall, (void **)&pMsg);
+    (void)taosGetQitem(qall, (void **)&pMsg);
     const STraceId *trace = &pMsg->info.traceId;
 
     dTrace("msg:%p, get from snode-write queue", pMsg);

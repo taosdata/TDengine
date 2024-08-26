@@ -312,8 +312,7 @@ int32_t taosGetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
     return -1;
   }
 #ifdef WINDOWS
-  ASSERT(0);
-  return 0;
+  return -1;
 #else
   return getsockopt(pSocket->fd, level, optname, optval, (int *)optlen);
 #endif
@@ -681,8 +680,7 @@ int32_t taosKeepTcpAlive(TdSocketPtr pSocket) {
 int taosGetLocalIp(const char *eth, char *ip) {
 #if defined(WINDOWS)
   // DO NOTHAING
-  ASSERT(0);
-  return 0;
+  return -1;
 #else
   int                fd;
   struct ifreq       ifr;
@@ -708,8 +706,7 @@ int taosGetLocalIp(const char *eth, char *ip) {
 int taosValidIp(uint32_t ip) {
 #if defined(WINDOWS)
   // DO NOTHAING
-  ASSERT(0);
-  return 0;
+  return -1;
 #else
   int ret = -1;
   int fd;
@@ -941,7 +938,7 @@ int32_t taosBlockSIGPIPE() {
 #endif
 }
 
-int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t* ip) {
+int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
 #ifdef WINDOWS
   // Initialize Winsock
   WSADATA wsaData;
@@ -959,8 +956,8 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t* ip) {
   hints.ai_socktype = SOCK_STREAM;
 
   struct addrinfo *result = NULL;
-  bool inRetry = false;
-  
+  bool             inRetry = false;
+
   while (true) {
     int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
     if (ret) {
@@ -972,7 +969,7 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t* ip) {
         return terrno;
       }
 
-      terrno = TAOS_SYSTEM_ERROR(ret);
+      terrno = TAOS_SYSTEM_ERROR(errno);
       return terrno;
     }
 
@@ -1011,7 +1008,7 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t* ip) {
 #else
     // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
 #endif
-    
+
     *ip = 0xFFFFFFFF;
     return 0xFFFFFFFF;
   }
@@ -1075,14 +1072,14 @@ int32_t taosGetFqdn(char *fqdn) {
 
   freeaddrinfo(result);
 
-#else
+#elif WINDOWS
   struct addrinfo  hints = {0};
   struct addrinfo *result = NULL;
   hints.ai_flags = AI_CANONNAME;
 
   int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (!result) {
-    fprintf(stderr, "failed to get fqdn, code:%d, reason:%s\n", ret, gai_strerror(ret));
+    fprintf(stderr, "failed to get fqdn, code:%d, hostname:%s, reason:%s\n", ret, hostname, gai_strerror(ret));
     return -1;
   }
   strcpy(fqdn, result->ai_canonname);
@@ -1111,7 +1108,7 @@ int32_t taosIgnSIGPIPE() {
 
 int32_t taosSetMaskSIGPIPE() {
 #ifdef WINDOWS
-  // ASSERT(0);
+  return -1;
 #else
   sigset_t signal_mask;
   (void)sigemptyset(&signal_mask);

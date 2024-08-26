@@ -81,6 +81,7 @@ typedef struct {
   int64_t        dataWritten;
 
   void* pMeta;
+  int8_t removeAllFiles;
 
 } STaskDbWrapper;
 
@@ -151,6 +152,8 @@ void taskDbUpdateChkpId(void* pTaskDb, int64_t chkpId);
 
 void* taskDbAddRef(void* pTaskDb);
 void  taskDbRemoveRef(void* pTaskDb);
+
+void taskDbSetClearFileFlag(void* pTaskDb); 
 
 int  streamStateOpenBackend(void* backend, SStreamState* pState);
 void streamStateCloseBackend(SStreamState* pState, bool remove);

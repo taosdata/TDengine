@@ -35,7 +35,7 @@ int32_t tsdbDataFileRAWReaderOpen(const char *fname, const SDataFileRAWReaderCon
     }
   } else {
     char fname1[TSDB_FILENAME_LEN];
-    tsdbTFileName(config->tsdb, &config->file, fname1);
+    (void)tsdbTFileName(config->tsdb, &config->file, fname1);
     TAOS_CHECK_GOTO(tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd, lcn), &lino, _exit);
   }
 
@@ -113,7 +113,7 @@ _exit:
 }
 
 static int32_t tsdbDataFileRAWWriterCloseAbort(SDataFileRAWWriter *writer) {
-  ASSERT(0);
+  tsdbError("vgId:%d %s failed since not implemented", TD_VID(writer->config->tsdb->pVnode), __func__);
   return 0;
 }
 
@@ -122,8 +122,6 @@ static int32_t tsdbDataFileRAWWriterDoClose(SDataFileRAWWriter *writer) { return
 static int32_t tsdbDataFileRAWWriterCloseCommit(SDataFileRAWWriter *writer, TFileOpArray *opArr) {
   int32_t code = 0;
   int32_t lino = 0;
-  ASSERT(writer->ctx->offset <= writer->file.size);
-  ASSERT(writer->config->fid == writer->file.fid);
 
   STFileOp op = (STFileOp){
       .optype = TSDB_FOP_CREATE,
@@ -159,7 +157,7 @@ static int32_t tsdbDataFileRAWWriterOpenDataFD(SDataFileRAWWriter *writer) {
     flag |= (TD_FILE_CREATE | TD_FILE_TRUNC);
   }
 
-  tsdbTFileName(writer->config->tsdb, &writer->file, fname);
+  (void)tsdbTFileName(writer->config->tsdb, &writer->file, fname);
   TAOS_CHECK_GOTO(tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd, writer->file.lcn), &lino, _exit);
 
 _exit:
@@ -202,7 +200,7 @@ int32_t tsdbDataFileRAWWriterClose(SDataFileRAWWriter **writer, bool abort, TFil
     } else {
       TAOS_CHECK_GOTO(tsdbDataFileRAWWriterCloseCommit(writer[0], opArr), &lino, _exit);
     }
-    tsdbDataFileRAWWriterDoClose(writer[0]);
+    (void)tsdbDataFileRAWWriterDoClose(writer[0]);
   }
   taosMemoryFree(writer[0]);
   writer[0] = NULL;

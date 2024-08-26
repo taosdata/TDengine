@@ -88,7 +88,7 @@ int32_t setCountOutputBuf(SStreamAggSupporter* pAggSup, TSKEY ts, uint64_t group
 
       winCode = TSDB_CODE_FAILED;
     } else if (pBuffInfo->winBuffOp == MOVE_NEXT_WINDOW) {
-      ASSERT(pBuffInfo->pCur);
+      QUERY_CHECK_NULL(pBuffInfo->pCur, code, lino, _end, terrno);
       pAggSup->stateStore.streamStateCurNext(pAggSup->pState, pBuffInfo->pCur);
       winCode = pAggSup->stateStore.streamStateSessionGetKVByCur(pBuffInfo->pCur, &pCurWin->winInfo.sessionWin,
                                                                  (void**)&pCurWin->winInfo.pStatePos, &size);
@@ -345,7 +345,6 @@ static void doStreamCountAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
         if (slidingRows + winRows > pAggSup->windowSliding) {
           buffInfo.winBuffOp = CREATE_NEW_WINDOW;
           winRows = pAggSup->windowSliding - slidingRows;
-          ASSERT(i >= 0);
         }
       } else {
         buffInfo.winBuffOp = MOVE_NEXT_WINDOW;
@@ -651,10 +650,12 @@ static int32_t doStreamCountAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (!pInfo->pUpdated) {
     pInfo->pUpdated = taosArrayInit(16, sizeof(SResultWindowInfo));
+    QUERY_CHECK_NULL(pInfo->pUpdated, code, lino, _end, terrno);
   }
   if (!pInfo->pStUpdated) {
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
     pInfo->pStUpdated = tSimpleHashInit(64, hashFn);
+    QUERY_CHECK_NULL(pInfo->pStUpdated, code, lino, _end, terrno);
   }
   while (1) {
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
@@ -688,7 +689,10 @@ static int32_t doStreamCountAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
       QUERY_CHECK_CODE(code, lino, _end);
       continue;
     } else {
-      ASSERTS(pBlock->info.type == STREAM_NORMAL || pBlock->info.type == STREAM_INVALID, "invalid SSDataBlock type");
+      if (pBlock->info.type != STREAM_NORMAL && pBlock->info.type != STREAM_INVALID) {
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
     }
 
     if (pInfo->scalarSupp.pExprInfo != NULL) {
@@ -823,14 +827,23 @@ int32_t createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   if (pCountNode->window.pExprs != NULL) {
     int32_t    numOfScalar = 0;
-    SExprInfo* pScalarExprInfo = createExprInfo(pCountNode->window.pExprs, NULL, &numOfScalar);
+    SExprInfo* pScalarExprInfo = NULL;
+    code = createExprInfo(pCountNode->window.pExprs, NULL, &pScalarExprInfo, &numOfScalar);
+    QUERY_CHECK_CODE(code, lino, _error);
+
     code = initExprSupp(&pInfo->scalarSupp, pScalarExprInfo, numOfScalar, &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   }
   SExprSupp* pExpSup = &pOperator->exprSupp;
 
-  SExprInfo*   pExprInfo = createExprInfo(pCountNode->window.pFuncs, NULL, &numOfCols);
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
+  QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
+  pInfo->binfo.pRes = pResBlock;
+
+  SExprInfo*   pExprInfo = NULL;
+  code = createExprInfo(pCountNode->window.pFuncs, NULL, &pExprInfo, &numOfCols);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   code = initBasicInfoEx(&pInfo->binfo, pExpSup, pExprInfo, numOfCols, pResBlock, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -854,9 +867,9 @@ int32_t createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  pInfo->binfo.pRes = pResBlock;
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pStDeleted = tSimpleHashInit(64, hashFn);
+  QUERY_CHECK_NULL(pInfo->pStDeleted, code, lino, _error, terrno);
   pInfo->pDelIterator = NULL;
 
   code = createSpecialDataBlock(STREAM_DELETE_RESULT, &pInfo->pDelRes);
@@ -878,6 +891,7 @@ int32_t createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
 
   pInfo->recvGetAll = false;
   pInfo->pPkDeleted = tSimpleHashInit(64, hashFn);
+  QUERY_CHECK_NULL(pInfo->pPkDeleted, code, lino, _error, terrno);
   pInfo->destHasPrimaryKey = pCountNode->window.destHasPrimayKey;
 
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT;
@@ -915,7 +929,13 @@ _error:
     destroyStreamCountAggOperatorInfo(pInfo);
   }
 
-  taosMemoryFreeClear(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;

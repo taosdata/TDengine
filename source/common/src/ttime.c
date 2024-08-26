@@ -815,6 +815,12 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     if (IS_CALENDAR_TIME_DURATION(pInterval->intervalUnit)) {
       int64_t news = (ts / pInterval->sliding) * pInterval->sliding;
       ASSERT(news <= ts);
+      if (pInterval->slidingUnit == 'd' || pInterval->slidingUnit == 'w') {
+#if defined(WINDOWS) && _MSC_VER >= 1900
+        int64_t timezone = _timezone;
+#endif
+        news += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
+      }
 
       if (news <= ts) {
         int64_t prev = news;

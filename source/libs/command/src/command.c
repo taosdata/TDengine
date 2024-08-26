@@ -38,7 +38,7 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
   *pRsp = taosMemoryCalloc(1, rspSize);
   if (NULL == *pRsp) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pRsp)->useconds = 0;
@@ -50,6 +50,10 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   (*pRsp)->numOfCols = htonl(numOfCols);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, numOfCols);
+  if(len < 0) {
+    taosMemoryFree(*pRsp);
+    return terrno;
+  }
   SET_PAYLOAD_LEN((*pRsp)->data, len, len);
 
   int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
@@ -289,7 +293,7 @@ static int32_t buildRetension(SArray* pRetension, char **ppRetentions ) {
 
   char*   p1 = taosMemoryCalloc(1, 100);
   if(NULL == p1) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   int32_t len = 0;
 
@@ -740,11 +744,14 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
   SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
   char*            buf2 = taosMemoryMalloc(SHOW_CREATE_VIEW_RESULT_FIELD2_LEN);
   if (NULL == buf2) {
-    QRY_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    return terrno;
   }
 
   SViewMeta* pMeta = pStmt->pViewMeta;
-  ASSERT(pMeta);
+  if(NULL == pMeta) {
+    qError("exception: view meta is null");
+    return TSDB_CODE_APP_ERROR;
+  }
   snprintf(varDataVal(buf2), SHOW_CREATE_VIEW_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE, "CREATE VIEW `%s`.`%s` AS %s",
            pStmt->dbName, pStmt->viewName, pMeta->querySql);
   int32_t len = strlen(varDataVal(buf2));
@@ -849,7 +856,7 @@ _return:
 static int32_t buildLocalVariablesResultDataBlock(SSDataBlock** pOutput) {
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (NULL == pBlock) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pBlock->info.hasVarCol = true;

@@ -70,16 +70,16 @@ static void mndBuildRuntimeInfo(SMnode* pMnode, SJson* pJson) {
   SMnodeStat mstat = {0};
   mndGetStat(pMnode, &mstat);
 
-  tjsonAddDoubleToObject(pJson, "numOfDnode", mstat.numOfDnode);
-  tjsonAddDoubleToObject(pJson, "numOfMnode", mstat.numOfMnode);
-  tjsonAddDoubleToObject(pJson, "numOfVgroup", mstat.numOfVgroup);
-  tjsonAddDoubleToObject(pJson, "numOfDatabase", mstat.numOfDatabase);
-  tjsonAddDoubleToObject(pJson, "numOfSuperTable", mstat.numOfSuperTable);
-  tjsonAddDoubleToObject(pJson, "numOfChildTable", mstat.numOfChildTable);
-  tjsonAddDoubleToObject(pJson, "numOfColumn", mstat.numOfColumn);
-  tjsonAddDoubleToObject(pJson, "numOfPoint", mstat.totalPoints);
-  tjsonAddDoubleToObject(pJson, "totalStorage", mstat.totalStorage);
-  tjsonAddDoubleToObject(pJson, "compStorage", mstat.compStorage);
+  (void)tjsonAddDoubleToObject(pJson, "numOfDnode", mstat.numOfDnode);
+  (void)tjsonAddDoubleToObject(pJson, "numOfMnode", mstat.numOfMnode);
+  (void)tjsonAddDoubleToObject(pJson, "numOfVgroup", mstat.numOfVgroup);
+  (void)tjsonAddDoubleToObject(pJson, "numOfDatabase", mstat.numOfDatabase);
+  (void)tjsonAddDoubleToObject(pJson, "numOfSuperTable", mstat.numOfSuperTable);
+  (void)tjsonAddDoubleToObject(pJson, "numOfChildTable", mstat.numOfChildTable);
+  (void)tjsonAddDoubleToObject(pJson, "numOfColumn", mstat.numOfColumn);
+  (void)tjsonAddDoubleToObject(pJson, "numOfPoint", mstat.totalPoints);
+  (void)tjsonAddDoubleToObject(pJson, "totalStorage", mstat.totalStorage);
+  (void)tjsonAddDoubleToObject(pJson, "compStorage", mstat.compStorage);
 }
 
 static char* mndBuildTelemetryReport(SMnode* pMnode) {
@@ -90,29 +90,29 @@ static char* mndBuildTelemetryReport(SMnode* pMnode) {
   if (pJson == NULL) return NULL;
 
   char clusterName[64] = {0};
-  mndGetClusterName(pMnode, clusterName, sizeof(clusterName));
-  tjsonAddStringToObject(pJson, "instanceId", clusterName);
-  tjsonAddDoubleToObject(pJson, "reportVersion", 1);
+  if ((terrno = mndGetClusterName(pMnode, clusterName, sizeof(clusterName))) != 0) return NULL;
+  (void)tjsonAddStringToObject(pJson, "instanceId", clusterName);
+  (void)tjsonAddDoubleToObject(pJson, "reportVersion", 1);
 
   if (taosGetOsReleaseName(tmp, NULL, NULL, sizeof(tmp)) == 0) {
-    tjsonAddStringToObject(pJson, "os", tmp);
+    (void)tjsonAddStringToObject(pJson, "os", tmp);
   }
 
   float numOfCores = 0;
   if (taosGetCpuInfo(tmp, sizeof(tmp), &numOfCores) == 0) {
-    tjsonAddStringToObject(pJson, "cpuModel", tmp);
-    tjsonAddDoubleToObject(pJson, "numOfCpu", numOfCores);
+    (void)tjsonAddStringToObject(pJson, "cpuModel", tmp);
+    (void)tjsonAddDoubleToObject(pJson, "numOfCpu", numOfCores);
   } else {
-    tjsonAddDoubleToObject(pJson, "numOfCpu", tsNumOfCores);
+    (void)tjsonAddDoubleToObject(pJson, "numOfCpu", tsNumOfCores);
   }
 
   snprintf(tmp, sizeof(tmp), "%" PRId64 " kB", tsTotalMemoryKB);
-  tjsonAddStringToObject(pJson, "memory", tmp);
+  (void)tjsonAddStringToObject(pJson, "memory", tmp);
 
-  tjsonAddStringToObject(pJson, "version", version);
-  tjsonAddStringToObject(pJson, "buildInfo", buildinfo);
-  tjsonAddStringToObject(pJson, "gitInfo", gitinfo);
-  tjsonAddStringToObject(pJson, "email", pMgmt->email);
+  (void)tjsonAddStringToObject(pJson, "version", version);
+  (void)tjsonAddStringToObject(pJson, "buildInfo", buildinfo);
+  (void)tjsonAddStringToObject(pJson, "gitInfo", gitinfo);
+  (void)tjsonAddStringToObject(pJson, "email", pMgmt->email);
 
   mndBuildRuntimeInfo(pMnode, pJson);
 
@@ -126,9 +126,9 @@ static int32_t mndProcessTelemTimer(SRpcMsg* pReq) {
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
   if (!tsEnableTelem) return 0;
 
-  taosThreadMutexLock(&pMgmt->lock);
+  (void)taosThreadMutexLock(&pMgmt->lock);
   char* pCont = mndBuildTelemetryReport(pMnode);
-  taosThreadMutexUnlock(&pMgmt->lock);
+  (void)taosThreadMutexUnlock(&pMgmt->lock);
 
   if (pCont != NULL) {
     if (taosSendHttpReport(tsTelemServer, tsTelemUri, tsTelemPort, pCont, strlen(pCont), HTTP_FLAT) != 0) {
@@ -142,10 +142,12 @@ static int32_t mndProcessTelemTimer(SRpcMsg* pReq) {
 }
 
 int32_t mndInitTelem(SMnode* pMnode) {
+  int32_t     code = 0;
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
 
-  taosThreadMutexInit(&pMgmt->lock, NULL);
-  taosGetEmail(pMgmt->email, sizeof(pMgmt->email));
+  (void)taosThreadMutexInit(&pMgmt->lock, NULL);
+  if ((code = taosGetEmail(pMgmt->email, sizeof(pMgmt->email))) != 0)
+    mWarn("failed to get email since %s", tstrerror(code));
   mndSetMsgHandle(pMnode, TDMT_MND_TELEM_TIMER, mndProcessTelemTimer);
 
   return 0;
@@ -153,5 +155,5 @@ int32_t mndInitTelem(SMnode* pMnode) {
 
 void mndCleanupTelem(SMnode* pMnode) {
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
-  taosThreadMutexDestroy(&pMgmt->lock);
+  (void)taosThreadMutexDestroy(&pMgmt->lock);
 }

@@ -80,11 +80,11 @@ static void dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert
 static void dmStopDnode(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGUSR1);
   // taosIgnSignal(SIGUSR2);
-  taosIgnSignal(SIGTERM);
-  taosIgnSignal(SIGHUP);
-  taosIgnSignal(SIGINT);
-  taosIgnSignal(SIGABRT);
-  taosIgnSignal(SIGBREAK);
+  (void)taosIgnSignal(SIGTERM);
+  (void)taosIgnSignal(SIGHUP);
+  (void)taosIgnSignal(SIGINT);
+  (void)taosIgnSignal(SIGABRT);
+  (void)taosIgnSignal(SIGBREAK);
 
   dInfo("shut down signal is %d", signum);
 #ifndef WINDOWS
@@ -102,11 +102,11 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGBREAK);
 
 #ifndef WINDOWS
-  taosIgnSignal(SIGBUS);
+  (void)taosIgnSignal(SIGBUS);
 #endif
-  taosIgnSignal(SIGABRT);
-  taosIgnSignal(SIGFPE);
-  taosIgnSignal(SIGSEGV);
+  (void)taosIgnSignal(SIGABRT);
+  (void)taosIgnSignal(SIGFPE);
+  (void)taosIgnSignal(SIGSEGV);
 
   char       *pMsg = NULL;
   const char *flags = "UTL FATAL ";
@@ -125,7 +125,7 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
 
 _return:
 
-  taosLogCrashInfo("taosd", pMsg, msgLen, signum, sigInfo);
+  taosLogCrashInfo(CUS_PROMPT "d", pMsg, msgLen, signum, sigInfo);
 
 #ifdef _TD_DARWIN_64
   exit(signum);
@@ -135,23 +135,23 @@ _return:
 }
 
 static void dmSetSignalHandle() {
-  taosSetSignal(SIGUSR1, dmSetDebugFlag);
-  taosSetSignal(SIGUSR2, dmSetAssert);
-  taosSetSignal(SIGTERM, dmStopDnode);
-  taosSetSignal(SIGHUP, dmStopDnode);
-  taosSetSignal(SIGINT, dmStopDnode);
-  taosSetSignal(SIGBREAK, dmStopDnode);
+  (void)taosSetSignal(SIGUSR1, dmSetDebugFlag);
+  (void)taosSetSignal(SIGUSR2, dmSetAssert);
+  (void)taosSetSignal(SIGTERM, dmStopDnode);
+  (void)taosSetSignal(SIGHUP, dmStopDnode);
+  (void)taosSetSignal(SIGINT, dmStopDnode);
+  (void)taosSetSignal(SIGBREAK, dmStopDnode);
 #ifndef WINDOWS
-  taosSetSignal(SIGTSTP, dmStopDnode);
-  taosSetSignal(SIGQUIT, dmStopDnode);
+  (void)taosSetSignal(SIGTSTP, dmStopDnode);
+  (void)taosSetSignal(SIGQUIT, dmStopDnode);
 #endif
 
 #ifndef WINDOWS
-  taosSetSignal(SIGBUS, dmLogCrash);
+  (void)taosSetSignal(SIGBUS, dmLogCrash);
 #endif
-  taosSetSignal(SIGABRT, dmLogCrash);
-  taosSetSignal(SIGFPE, dmLogCrash);
-  taosSetSignal(SIGSEGV, dmLogCrash);
+  (void)taosSetSignal(SIGABRT, dmLogCrash);
+  (void)taosSetSignal(SIGFPE, dmLogCrash);
+  (void)taosSetSignal(SIGSEGV, dmLogCrash);
 }
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
@@ -258,7 +258,7 @@ static void dmPrintArgs(int32_t argc, char const *argv[]) {
 static void dmGenerateGrant() { mndGenerateMachineCode(); }
 
 static void dmPrintVersion() {
-  printf("%s\ntaosd version: %s compatible_version: %s\n", TD_PRODUCT_NAME, version, compatible_version);
+  printf("%s\n%sd version: %s compatible_version: %s\n", TD_PRODUCT_NAME, CUS_PROMPT, version, compatible_version);
   printf("git: %s\n", gitinfo);
 #ifdef TD_ENTERPRISE
   printf("gitOfInternal: %s\n", gitinfoOfInternal);
@@ -268,7 +268,7 @@ static void dmPrintVersion() {
 
 static void dmPrintHelp() {
   char indent[] = "  ";
-  printf("Usage: taosd [OPTION...] \n\n");
+  printf("Usage: %sd [OPTION...] \n\n", CUS_PROMPT);
   printf("%s%s%s%s\n", indent, "-a,", indent, DM_APOLLO_URL);
   printf("%s%s%s%s\n", indent, "-c,", indent, DM_CFG_DIR);
   printf("%s%s%s%s\n", indent, "-s,", indent, DM_SDB_INFO);

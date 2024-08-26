@@ -16,19 +16,7 @@
 #include "crypt.h"
 #include "tdbInt.h"
 #include "tglobal.h"
-/*
-#pragma pack(push, 1)
-typedef struct {
-  u8    hdrString[16];
-  u16   pageSize;
-  SPgno freePage;
-  u32   nFreePages;
-  u8    reserved[102];
-} SFileHdr;
-#pragma pack(pop)
 
-TDB_STATIC_ASSERT(sizeof(SFileHdr) == 128, "Size of file header is not correct");
-*/
 struct hashset_st {
   size_t  nbits;
   size_t  mask;
@@ -450,7 +438,6 @@ static char *tdbEncryptPage(SPager *pPager, char *pPageData, int32_t pageSize, c
 
   if (encryptAlgorithm == DND_CA_SM4) {
     // tdbInfo("CBC_Encrypt key:%d %s %s", encryptAlgorithm, encryptKey, __FUNCTION__);
-    // ASSERT(strlen(encryptKey) > 0);
 
     // tdbInfo("CBC tdb offset:%" PRId64 ", flag:%d before Encrypt", offset, pPage->pData[0]);
 
@@ -915,7 +902,6 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
 
       if (encryptAlgorithm == DND_CA_SM4) {
         // tdbInfo("CBC_Decrypt key:%d %s %s", encryptAlgorithm, encryptKey, __FUNCTION__);
-        // ASSERT(strlen(encryptKey) > 0);
 
         // uint8_t flags = pPage->pData[0];
         // tdbInfo("CBC tdb offset:%" PRId64 ", flag:%d before Decrypt", ((i64)pPage->pageSize) * (pgno - 1), flags);
@@ -968,7 +954,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
       if (TDB_PAGE_INITIALIZED(pPage)) break;
       nLoops++;
       if (nLoops > 1000) {
-        sched_yield();
+        (void)sched_yield();
         nLoops = 0;
       }
     }
@@ -1180,7 +1166,7 @@ int tdbPagerRestoreJournals(SPager *pPager) {
     if (code) {
       taosArrayDestroy(pTxnList);
       (void)tdbCloseDir(&pDir);
-      tdbError("failed to restore file due to %s. jFileName:%s", strerror(code), jname);
+      tdbError("failed to restore file due to %s. jFileName:%s", tstrerror(code), jname);
       return code;
     }
   }

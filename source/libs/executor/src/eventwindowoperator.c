@@ -36,6 +36,7 @@ typedef struct SEventWindowOperatorInfo {
   SFilterInfo*       pEndCondInfo;
   bool               inWindow;
   SResultRow*        pRow;
+  SSDataBlock*       pPreDataBlock;
 } SEventWindowOperatorInfo;
 
 static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator);
@@ -84,7 +85,10 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
 
   if (pEventWindowNode->window.pExprs != NULL) {
     int32_t    numOfScalarExpr = 0;
-    SExprInfo* pScalarExprInfo = createExprInfo(pEventWindowNode->window.pExprs, NULL, &numOfScalarExpr);
+    SExprInfo* pScalarExprInfo = NULL;
+
+    code = createExprInfo(pEventWindowNode->window.pExprs, NULL, &pScalarExprInfo, &numOfScalarExpr);
+    QUERY_CHECK_CODE(code, lino, _error);
     code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   }
@@ -95,7 +99,10 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
 
   int32_t    num = 0;
-  SExprInfo* pExprInfo = createExprInfo(pEventWindowNode->window.pFuncs, NULL, &num);
+  SExprInfo* pExprInfo = NULL;
+  code = createExprInfo(pEventWindowNode->window.pFuncs, NULL, &pExprInfo, &num);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
@@ -104,11 +111,11 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pEventWindowNode->window.node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
+  initBasicInfo(&pInfo->binfo, pResBlock);
 
   code = blockDataEnsureCapacity(pResBlock, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  initBasicInfo(&pInfo->binfo, pResBlock);
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
   pInfo->binfo.inputTsOrder = physiNode->inputTsOrder;
   pInfo->binfo.outputTsOrder = physiNode->outputTsOrder;
@@ -120,6 +127,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->tsSlotId = tsSlotId;
+  pInfo->pPreDataBlock = NULL;
 
   setOperatorInfo(pOperator, "EventWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
@@ -139,7 +147,13 @@ _error:
     destroyEWindowOperatorInfo(pInfo);
   }
 
-  taosMemoryFreeClear(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
@@ -187,7 +201,14 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   while (1) {
-    SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
+    SSDataBlock* pBlock = NULL;
+    if (pInfo->pPreDataBlock == NULL) {
+      pBlock = getNextBlockFromDownstream(pOperator, 0);
+    } else {
+      pBlock = pInfo->pPreDataBlock;
+      pInfo->pPreDataBlock = NULL;
+    }
+
     if (pBlock == NULL) {
       break;
     }
@@ -212,7 +233,8 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     code = doFilter(pRes, pSup->pFilterInfo, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    if (pRes->info.rows >= pOperator->resultInfo.threshold) {
+    if (pRes->info.rows >= pOperator->resultInfo.threshold ||
+        (pRes->info.id.groupId != pInfo->groupId && pRes->info.rows > 0)) {
       (*ppRes) = pRes;
       return code;
     }
@@ -238,6 +260,9 @@ static int32_t setSingleOutputTupleBufv1(SResultRowInfo* pResultRowInfo, STimeWi
                                          SExprSupp* pExprSup, SAggSupporter* pAggSup) {
   if (*pResult == NULL) {
     SResultRow* p = taosMemoryCalloc(1, pAggSup->resultRowSize);
+    if (!p) {
+      return terrno;
+    }
     pResultRowInfo->cur = (SResultRowPosition){.pageId = p->pageId, .offset = p->offset};
     *pResult = p;
   }
@@ -275,6 +300,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
   SSDataBlock*     pRes = pInfo->binfo.pRes;
   int64_t          gid = pBlock->info.id.groupId;
   SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _return, terrno);
   TSKEY*           tsList = (TSKEY*)pColInfoData->pData;
   SWindowRowsSup*  pRowSup = &pInfo->winSup;
   SColumnInfoData *ps = NULL, *pe = NULL;
@@ -287,7 +313,10 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
     // this is a new group, reset the info
     pInfo->inWindow = false;
     pInfo->groupId = gid;
+    pInfo->pPreDataBlock = pBlock;
+    goto _return;
   }
+  pRes->info.id.groupId = pInfo->groupId;
 
   SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
 

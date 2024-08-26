@@ -297,6 +297,9 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (strlen(usedbRsp.db) == 0) {
+    taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
+
     if (usedbRsp.errCode != 0) {
       return usedbRsp.errCode;
     } else {
@@ -366,9 +369,15 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 }
 
 int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
-  if (pMsg == NULL || param == NULL) {
+  if (pMsg == NULL) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
+  if (param == NULL) {
+    taosMemoryFree(pMsg->pEpSet);
+    taosMemoryFree(pMsg->pData);
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
   SRequestObj* pRequest = param;
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -567,8 +576,8 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
   *pRsp = taosMemoryCalloc(1, rspSize);
   if (NULL == *pRsp) {
-    blockDataDestroy(pBlock);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
+    goto  _exit;
   }
 
   (*pRsp)->useconds = 0;
@@ -580,6 +589,11 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   (*pRsp)->numOfCols = htonl(SHOW_VARIABLES_RESULT_COLS);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, SHOW_VARIABLES_RESULT_COLS);
+  if(len < 0) {
+    uError("buildShowVariablesRsp error, len:%d", len);
+    code = terrno;
+    goto _exit;
+  }
   blockDataDestroy(pBlock);
 
   SET_PAYLOAD_LEN((*pRsp)->data, len, len);
@@ -591,10 +605,21 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
     uError("buildShowVariablesRsp error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
            (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
-    return TSDB_CODE_TSC_INVALID_INPUT;
+    code = TSDB_CODE_TSC_INVALID_INPUT;
+    goto _exit;
   }
 
   return TSDB_CODE_SUCCESS;
+_exit:
+  if(*pRsp)  {
+    taosMemoryFree(*pRsp);
+    *pRsp = NULL;
+  }
+  if(pBlock) {
+    blockDataDestroy(pBlock);
+    pBlock = NULL;
+  }
+  return code;
 }
 
 int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
@@ -702,8 +727,8 @@ static int32_t buildRetriveTableRspForCompactDb(SCompactDbRsp* pCompactDb, SRetr
   size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
   *pRsp = taosMemoryCalloc(1, rspSize);
   if (NULL == *pRsp) {
-    blockDataDestroy(pBlock);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
+    goto _exit;
   }
 
   (*pRsp)->useconds = 0;
@@ -716,6 +741,11 @@ static int32_t buildRetriveTableRspForCompactDb(SCompactDbRsp* pCompactDb, SRetr
   (*pRsp)->numOfCols = htonl(COMPACT_DB_RESULT_COLS);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, COMPACT_DB_RESULT_COLS);
+  if(len < 0) {
+    uError("buildRetriveTableRspForCompactDb error, len:%d", len);
+    code = terrno;
+    goto _exit;
+  }
   blockDataDestroy(pBlock);
 
   SET_PAYLOAD_LEN((*pRsp)->data, len, len);
@@ -727,10 +757,21 @@ static int32_t buildRetriveTableRspForCompactDb(SCompactDbRsp* pCompactDb, SRetr
   if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
     uError("buildRetriveTableRspForCompactDb error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
            (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
-    return TSDB_CODE_TSC_INVALID_INPUT;
+    code = TSDB_CODE_TSC_INVALID_INPUT;
+    goto _exit;
   }
 
   return TSDB_CODE_SUCCESS;
+_exit:
+  if(*pRsp)  {
+    taosMemoryFree(*pRsp);
+    *pRsp = NULL;
+  }
+  if(pBlock) {
+    blockDataDestroy(pBlock);
+    pBlock = NULL;
+  }
+  return code;
 }
 
 

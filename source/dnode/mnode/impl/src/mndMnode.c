@@ -270,7 +270,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
       }
     }
     if (pObj->pDnode != NULL) {
-      addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port);
+      (void)addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port);
     }
     sdbRelease(pSdb, pObj);
   }
@@ -341,7 +341,7 @@ static int32_t mndBuildCreateMnodeRedoAction(STrans *pTrans, SDCreateMnodeReq *p
   int32_t code = 0;
   int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, pCreateReq);
   void   *pReq = taosMemoryMalloc(contLen);
-  tSerializeSDCreateMnodeReq(pReq, contLen, pCreateReq);
+  (void)tSerializeSDCreateMnodeReq(pReq, contLen, pCreateReq);
 
   STransAction action = {
       .epSet = *pCreateEpSet,
@@ -363,7 +363,7 @@ static int32_t mndBuildAlterMnodeTypeRedoAction(STrans *pTrans, SDAlterMnodeType
   int32_t code = 0;
   int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, pAlterMnodeTypeReq);
   void   *pReq = taosMemoryMalloc(contLen);
-  tSerializeSDCreateMnodeReq(pReq, contLen, pAlterMnodeTypeReq);
+  (void)tSerializeSDCreateMnodeReq(pReq, contLen, pAlterMnodeTypeReq);
 
   STransAction action = {
       .epSet = *pAlterMnodeTypeEpSet,
@@ -385,7 +385,7 @@ static int32_t mndBuildAlterMnodeRedoAction(STrans *pTrans, SDCreateMnodeReq *pA
   int32_t code = 0;
   int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, pAlterReq);
   void   *pReq = taosMemoryMalloc(contLen);
-  tSerializeSDCreateMnodeReq(pReq, contLen, pAlterReq);
+  (void)tSerializeSDCreateMnodeReq(pReq, contLen, pAlterReq);
 
   STransAction action = {
       .epSet = *pAlterEpSet,
@@ -407,7 +407,7 @@ static int32_t mndBuildDropMnodeRedoAction(STrans *pTrans, SDDropMnodeReq *pDrop
   int32_t code = 0;
   int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, pDropReq);
   void   *pReq = taosMemoryMalloc(contLen);
-  tSerializeSCreateDropMQSNodeReq(pReq, contLen, pDropReq);
+  (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, pDropReq);
 
   STransAction action = {
       .epSet = *pDroprEpSet,
@@ -881,13 +881,13 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
 
     char b1[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b1, pObj->pDnode->ep, TSDB_EP_LEN + VARSTR_HEADER_SIZE);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, b1, false);
+    (void)colDataSetVal(pColInfo, numOfRows, b1, false);
 
     char role[20] = "offline";
     if (pObj->id == pMnode->selfDnodeId) {
@@ -904,7 +904,7 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     char b2[12 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b2, role, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
 
     const char *status = "ready";
     if (objStatus == SDB_STATUS_CREATING) status = "creating";
@@ -913,14 +913,14 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     char b3[9 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b3, status, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)b3, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)b3, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
 
     int64_t roleTimeMs = (isDnodeOnline) ? pObj->roleTimeMs : 0;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);

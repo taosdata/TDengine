@@ -74,7 +74,7 @@ void dumpFunc(SSdb *pSdb, SJson *json) {
 void dumpDb(SSdb *pSdb, SJson *json) {
   void  *pIter = NULL;
   SJson *items = tjsonCreateObject();
-  tjsonAddItemToObject(json, "dbs", items);
+  (void)tjsonAddItemToObject(json, "dbs", items);
 
   while (1) {
     SDbObj *pObj = NULL;
@@ -82,7 +82,7 @@ void dumpDb(SSdb *pSdb, SJson *json) {
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
-    tjsonAddItemToObject(items, "db", item);
+    (void)tjsonAddItemToObject(items, "db", item);
 
     (void)tjsonAddStringToObject(item, "name", mndGetDbStr(pObj->name));
     (void)tjsonAddStringToObject(item, "acct", pObj->acct);
@@ -546,7 +546,7 @@ void dumpHeader(SSdb *pSdb, SJson *json) {
   (void)tjsonAddStringToObject(json, "applyConfig", i642str(pSdb->applyConfig));
 
   SJson *maxIdsJson = tjsonCreateObject();
-  tjsonAddItemToObject(json, "maxIds", maxIdsJson);
+  (void)tjsonAddItemToObject(json, "maxIds", maxIdsJson);
   for (int32_t i = 0; i < SDB_MAX; ++i) {
     if(i == 5) continue;
     int64_t maxId = 0;
@@ -557,7 +557,7 @@ void dumpHeader(SSdb *pSdb, SJson *json) {
   }
 
   SJson *tableVersJson = tjsonCreateObject();
-  tjsonAddItemToObject(json, "tableVers", tableVersJson);
+  (void)tjsonAddItemToObject(json, "tableVers", tableVersJson);
   for (int32_t i = 0; i < SDB_MAX; ++i) {
     int64_t tableVer = 0;
     if (i < SDB_MAX) {
@@ -581,8 +581,8 @@ void mndDumpSdb() {
   msgCb.mgmt = (SMgmtWrapper *)(&msgCb);  // hack
   tmsgSetDefault(&msgCb);
 
-  walInit();
-  syncInit();
+  (void)walInit(NULL);
+  (void)syncInit();
 
   SMnodeOpt opt = {.msgCb = msgCb};
   SMnode   *pMnode = mndOpen(path, &opt);
@@ -620,10 +620,10 @@ void mndDumpSdb() {
     mError("failed to write %s since %s", file, terrstr());
     return;
   }
-  taosWriteFile(pFile, pCont, contLen);
-  taosWriteFile(pFile, "\n", 1);
+  (void)taosWriteFile(pFile, pCont, contLen);
+  (void)taosWriteFile(pFile, "\n", 1);
   UNUSED(taosFsyncFile(pFile));
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
   tjsonDelete(json);
   taosMemoryFree(pCont);
 

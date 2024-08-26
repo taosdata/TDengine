@@ -33,6 +33,10 @@ int32_t mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt) 
   SArray *pList = taosArrayInit(4, sizeof(SKeyInfo));
   int32_t num = 0;
 
+  if (pList == NULL) {
+    return terrno;
+  }
+
   while ((pIter = taosHashIterate(execInfo.transMgmt.pDBTrans, pIter)) != NULL) {
     SStreamTransInfo *pEntry = (SStreamTransInfo *)pIter;
 
@@ -59,6 +63,10 @@ int32_t mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt) 
   int32_t size = taosArrayGetSize(pList);
   for (int32_t i = 0; i < size; ++i) {
     SKeyInfo *pKey = taosArrayGet(pList, i);
+    if (pKey == NULL) {
+      continue;
+    }
+
     int32_t code = taosHashRemove(execInfo.transMgmt.pDBTrans, pKey->pKey, pKey->keyLen);
     if (code != 0) {
       taosArrayDestroy(pList);
@@ -167,29 +175,28 @@ int32_t mndStreamGetRelTrans(SMnode *pMnode, int64_t streamId) {
 }
 
 int32_t doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name,
-                      const char *pMsg, STrans ** pTrans1) {
+                      const char *pMsg, STrans **pTrans1) {
   *pTrans1 = NULL;
   terrno = 0;
 
+  int32_t code = 0;
   STrans *p = mndTransCreate(pMnode, TRN_POLICY_RETRY, conflict, pReq, name);
   if (p == NULL) {
-    mError("failed to build trans:%s, reason: %s", name, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    mError("failed to build trans:%s, reason: %s", name, tstrerror(terrno));
     return terrno;
   }
 
   mInfo("stream:0x%" PRIx64 " start to build trans %s, transId:%d", pStream->uid, pMsg, p->id);
 
   mndTransSetDbName(p, pStream->sourceDb, pStream->targetSTbName);
-  if (mndTransCheckConflict(pMnode, p) != 0) {
-    terrno = TSDB_CODE_MND_TRANS_CONFLICT;
+  if ((code = mndTransCheckConflict(pMnode, p)) != 0) {
     mError("failed to build trans:%s for stream:0x%" PRIx64 " code:%s", name, pStream->uid, tstrerror(terrno));
     mndTransDrop(p);
-    return terrno;
+    return code;
   }
 
   *pTrans1 = p;
-  return 0;
+  return code;
 }
 
 SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
@@ -327,5 +334,5 @@ void killAllCheckpointTrans(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo) {
     taosMemoryFree(p);
   }
 
-  mDebug("complete clear checkpoints in Dbs");
+  mDebug("complete clear checkpoints in all Dbs");
 }

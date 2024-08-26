@@ -316,15 +316,8 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
       // See TS-3398.
       // Len of pRawExpr->p could be larger than len of aliasName[TSDB_COL_NAME_LEN].
       // If aliasName is truncated, hash value of aliasName could be the same.
-      T_MD5_CTX ctx;
-      tMD5Init(&ctx);
-      tMD5Update(&ctx, (uint8_t*)pRawExpr->p, pRawExpr->n);
-      tMD5Final(&ctx);
-      char* p = pExpr->aliasName;
-      for (uint8_t i = 0; i < tListLen(ctx.digest); ++i) {
-        sprintf(p, "%02x", ctx.digest[i]);
-        p += 2;
-      }
+      uint64_t hashVal = MurmurHash3_64(pRawExpr->p, pRawExpr->n);
+      sprintf(pExpr->aliasName, "%"PRIu64, hashVal);
       strncpy(pExpr->userAlias, pRawExpr->p, len);
       pExpr->userAlias[len] = '\0';
     }
@@ -1000,6 +993,73 @@ SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType d
     func->node.resType.bytes = func->node.resType.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
   }
   pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
+  CHECK_PARSER_STATUS(pCxt);
+  return (SNode*)func;
+}
+
+SNode* createPositionFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExpr2) {
+  CHECK_PARSER_STATUS(pCxt);
+  SFunctionNode* func = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
+  CHECK_MAKE_NODE(func);
+  strcpy(func->functionName, "position");
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr2);
+  CHECK_PARSER_STATUS(pCxt);
+  return (SNode*)func;
+}
+
+SNode* createTrimFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, ETrimType type) {
+  CHECK_PARSER_STATUS(pCxt);
+  SFunctionNode* func = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
+  CHECK_MAKE_NODE(func);
+  strcpy(func->functionName, "trim");
+  func->trimType = type;
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
+  CHECK_PARSER_STATUS(pCxt);
+  return (SNode*)func;
+}
+
+SNode* createTrimFunctionNodeExt(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExpr2, ETrimType type) {
+  CHECK_PARSER_STATUS(pCxt);
+  SFunctionNode* func = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
+  CHECK_MAKE_NODE(func);
+  strcpy(func->functionName, "trim");
+  func->trimType = type;
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr2);
+  CHECK_PARSER_STATUS(pCxt);
+  return (SNode*)func;
+}
+
+SNode* createSubstrFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExpr2) {
+  CHECK_PARSER_STATUS(pCxt);
+  SFunctionNode* func = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
+  CHECK_MAKE_NODE(func);
+  strcpy(func->functionName, "substr");
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr2);
+  CHECK_PARSER_STATUS(pCxt);
+  return (SNode*)func;
+}
+
+SNode* createSubstrFunctionNodeExt(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExpr2, SNode* pExpr3) {
+  CHECK_PARSER_STATUS(pCxt);
+  SFunctionNode* func = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
+  CHECK_MAKE_NODE(func);
+  strcpy(func->functionName, "substr");
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr2);
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr3);
   CHECK_PARSER_STATUS(pCxt);
   return (SNode*)func;
 }
@@ -1845,10 +1905,11 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
     case TABLE_OPTION_TTL: {
       int64_t ttl = taosStr2Int64(((SToken*)pVal)->z, NULL, 10);
       if (ttl > INT32_MAX) {
-        ttl = INT32_MAX;
+        pCxt->errCode = TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+      } else {
+        // ttl can not be smaller than 0, because there is a limitation in sql.y (TTL NK_INTEGER)
+        ((STableOptions*)pOptions)->ttl = ttl;
       }
-      // ttl can not be smaller than 0, because there is a limitation in sql.y (TTL NK_INTEGER)
-      ((STableOptions*)pOptions)->ttl = ttl;
       break;
     }
     case TABLE_OPTION_SMA:
@@ -2456,7 +2517,7 @@ SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pCreateUserStm
   return pCreateUserStmt;
 }
 
-SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo, 
+SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo,
                             int8_t createDb, int8_t is_import) {
   CHECK_PARSER_STATUS(pCxt);
   char password[TSDB_USET_PASSWORD_LEN + 3] = {0};

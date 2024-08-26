@@ -29,8 +29,7 @@ typedef void (*RefFp)(void *);
 int32_t taosOpenRef(int32_t max, RefFp fp);
 
 // close the reference set, refId is the return value by taosOpenRef
-// return 0 if success. On error, -1 is returned, and terrno is set appropriately
-int32_t taosCloseRef(int32_t rsetId);
+void taosCloseRef(int32_t rsetId);
 
 // add ref, p is the pointer to resource or pointer ID
 // return Reference ID(rid) allocated. On error, -1 is returned, and terrno is set appropriately

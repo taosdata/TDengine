@@ -188,23 +188,21 @@ static SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *p
  */
 static FORCE_INLINE void doUpdateHashNode(SHashObj *pHashObj, SHashEntry *pe, SHashNode *prev, SHashNode *pNode,
                                           SHashNode *pNewNode) {
-  atomic_sub_fetch_16(&pNode->refCount, 1);
+  (void)atomic_sub_fetch_16(&pNode->refCount, 1);
   if (prev != NULL) {
     prev->next = pNewNode;
-    ASSERT(prev->next != prev);
   } else {
     pe->next = pNewNode;
   }
 
   if (pNode->refCount <= 0) {
     pNewNode->next = pNode->next;
-    ASSERT(pNewNode->next != pNewNode);
 
     FREE_HASH_NODE(pHashObj->freeFp, pNode);
   } else {
     pNewNode->next = pNode;
     pe->num++;
-    atomic_add_fetch_64(&pHashObj->size, 1);
+    (void)atomic_add_fetch_64(&pHashObj->size, 1);
   }
 }
 
@@ -359,7 +357,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
     }
 
     pushfrontNodeInEntryList(pe, pNewNode);
-    atomic_add_fetch_64(&pHashObj->size, 1);
+    (void)atomic_add_fetch_64(&pHashObj->size, 1);
   } else {
     // not support the update operation, return error
     if (pHashObj->enableUpdate) {
@@ -392,14 +390,14 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen) {
 
 int32_t taosHashGetDup(SHashObj *pHashObj, const void *key, size_t keyLen, void *destBuf) {
   terrno = 0;
-  /*char* p = */ taosHashGetImpl(pHashObj, key, keyLen, &destBuf, 0, false);
+  (void)taosHashGetImpl(pHashObj, key, keyLen, &destBuf, 0, false);
   return terrno;
 }
 
 int32_t taosHashGetDup_m(SHashObj *pHashObj, const void *key, size_t keyLen, void **destBuf, int32_t *size) {
   terrno = 0;
 
-  /*char* p = */ taosHashGetImpl(pHashObj, key, keyLen, destBuf, size, false);
+  (void)taosHashGetImpl(pHashObj, key, keyLen, destBuf, size, false);
   return terrno;
 }
 
@@ -454,7 +452,7 @@ void *taosHashGetImpl(SHashObj *pHashObj, const void *key, size_t keyLen, void *
     }
 
     if (addRef) {
-      atomic_add_fetch_16(&pNode->refCount, 1);
+      (void)atomic_add_fetch_16(&pNode->refCount, 1);
     }
 
     if (*d != NULL) {
@@ -501,18 +499,17 @@ int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
         pNode->removed == 0) {
       code = 0;  // it is found
 
-      atomic_sub_fetch_16(&pNode->refCount, 1);
+      (void)atomic_sub_fetch_16(&pNode->refCount, 1);
       pNode->removed = 1;
       if (pNode->refCount <= 0) {
         if (prevNode == NULL) {
           pe->next = pNode->next;
         } else {
           prevNode->next = pNode->next;
-          ASSERT(prevNode->next != prevNode);
         }
 
         pe->num--;
-        atomic_sub_fetch_64(&pHashObj->size, 1);
+        (void)atomic_sub_fetch_64(&pHashObj->size, 1);
         FREE_HASH_NODE(pHashObj->freeFp, pNode);
       }
     } else {
@@ -624,6 +621,9 @@ void taosHashTableResize(SHashObj *pHashObj) {
 
   size_t inc = newCapacity - pHashObj->capacity;
   void  *p = taosMemoryCalloc(inc, sizeof(SHashEntry));
+  if (p == NULL) {
+    return;
+  }
 
   for (int32_t i = 0; i < inc; ++i) {
     pHashObj->hashList[i + pHashObj->capacity] = (void *)((char *)p + i * sizeof(SHashEntry));
@@ -752,21 +752,19 @@ static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
       pNode = pNode->next;
     }
 
-    atomic_sub_fetch_16(&pOld->refCount, 1);
+    (void)atomic_sub_fetch_16(&pOld->refCount, 1);
     if (pOld->refCount <= 0) {
       if (prevNode) {
         prevNode->next = pOld->next;
-        ASSERT(prevNode->next != prevNode);
       } else {
         pe->next = pOld->next;
         SHashNode *x = pe->next;
         if (x != NULL) {
-          ASSERT(x->next != x);
         }
       }
 
       pe->num--;
-      atomic_sub_fetch_64(&pHashObj->size, 1);
+      (void)atomic_sub_fetch_64(&pHashObj->size, 1);
       FREE_HASH_NODE(pHashObj->freeFp, pOld);
     }
   } else {
@@ -840,7 +838,7 @@ void taosHashCancelIterate(SHashObj *pHashObj, void *p) {
   taosHashRLock(pHashObj);
 
   int slot;
-  taosHashReleaseNode(pHashObj, p, &slot);
+  (void)taosHashReleaseNode(pHashObj, p, &slot);
 
   SHashEntry *pe = pHashObj->hashList[slot];
 

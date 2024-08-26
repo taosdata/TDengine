@@ -89,7 +89,7 @@ void    grantRestore(EGrantType grant, uint64_t value) {}
 int64_t grantRemain(EGrantType grant) { return 0; }
 int32_t tGetMachineId(char **result) {
   *result = NULL;
-  return TSDB_CODE_APP_ERROR;
+  return 0;
 }
 int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
 int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }

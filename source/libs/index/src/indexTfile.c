@@ -125,7 +125,7 @@ TFileCache* tfileCacheCreate(SIndex* idx, const char* path) {
 
     char    buf[128] = {0};
     int32_t sz = idxSerialCacheKey(&key, buf);
-    taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
+    (void)taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
     tfileReaderRef(reader);
   }
   taosArrayDestroyEx(files, tfileDestroyFileName);
@@ -172,7 +172,7 @@ int32_t tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader) {
   TFileReader** p = taosHashGet(tcache->tableCache, buf, sz);
   if (p != NULL && *p != NULL) {
     TFileReader* oldRdr = *p;
-    taosHashRemove(tcache->tableCache, buf, sz);
+    (void)taosHashRemove(tcache->tableCache, buf, sz);
     indexInfo("found %s, should remove file %s", buf, oldRdr->ctx->file.buf);
     oldRdr->remove = true;
     tfileReaderUnRef(oldRdr);
@@ -265,7 +265,7 @@ static int32_t tfSearchPrefix(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
   FStmSt*      st = stmBuilderIntoStm(sb);
   FStmStRslt*  rt = NULL;
   while ((rt = stmStNextWith(st, NULL)) != NULL) {
-    taosArrayPush(offsets, &(rt->out.out));
+    (void)taosArrayPush(offsets, &(rt->out.out));
     swsResultDestroy(rt);
   }
   stmStDestroy(st);
@@ -315,7 +315,7 @@ static int32_t tfSearchRegex(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
 }
 
 static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTRslt* tr, RangeType type) {
-  int                  ret = 0;
+  int32_t              code = TSDB_CODE_SUCCESS;
   char*                p = tem->colVal;
   int                  skip = 0;
   _cache_range_compare cmpFn = idxGetCompare(type);
@@ -335,9 +335,15 @@ static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTRslt* tr,
     FstSlice* s = &rt->data;
     char*     ch = (char*)fstSliceData(s, NULL);
 
+    terrno = TSDB_CODE_SUCCESS;
     TExeCond cond = cmpFn(ch, p, tem->colType);
+    if (TSDB_CODE_SUCCESS != terrno) {
+      swsResultDestroy(rt);
+      code = terrno;
+      goto _return;
+    }
     if (MATCH == cond) {
-      tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total);
+      (void)tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total);
     } else if (CONTINUE == cond) {
     } else if (BREAK == cond) {
       swsResultDestroy(rt);
@@ -345,10 +351,11 @@ static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTRslt* tr,
     }
     swsResultDestroy(rt);
   }
+_return:
   stmStDestroy(st);
   stmBuilderDestroy(sb);
   taosArrayDestroy(offsets);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 static int32_t tfSearchLessThan(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
   return tfSearchCompareFunc(reader, tem, tr, LT);
@@ -427,8 +434,8 @@ static int32_t tfSearchRange_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr) 
 }
 
 static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr, RangeType ctype) {
-  int ret = 0;
-  int skip = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int     skip = 0;
 
   char* p = NULL;
   if (ctype == CONTAINS) {
@@ -469,12 +476,23 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
         continue;
       }
       char* tBuf = taosMemoryCalloc(1, sz + 1);
+      if (NULL == tBuf) {
+        swsResultDestroy(rt);
+        code = terrno;
+        goto _return;
+      }
       memcpy(tBuf, ch, sz);
+      terrno = TSDB_CODE_SUCCESS;
       cond = cmpFn(tBuf + skip, tem->colVal, IDX_TYPE_GET_TYPE(tem->colType));
       taosMemoryFree(tBuf);
+      if (TSDB_CODE_SUCCESS != terrno) {
+        swsResultDestroy(rt);
+        code = terrno;
+        goto _return;
+      }
     }
     if (MATCH == cond) {
-      tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total);
+      (void)tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total);
     } else if (CONTINUE == cond) {
     } else if (BREAK == cond) {
       swsResultDestroy(rt);
@@ -482,12 +500,14 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
     }
     swsResultDestroy(rt);
   }
+
+_return:
   stmStDestroy(st);
   stmBuilderDestroy(sb);
   taosArrayDestroy(offsets);
   taosMemoryFree(p);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTRslt* tr) {
   int             ret = 0;
@@ -523,8 +543,13 @@ int32_t tfileWriterOpen(char* path, uint64_t suid, int64_t version, const char* 
     memcpy(tfh.colName, colName, strlen(colName));
   }
 
-  return tfileWriterCreate(wcx, &tfh, pWriter);
+  code = tfileWriterCreate(wcx, &tfh, pWriter);
+  if (code != 0) {
+    idxFileCtxDestroy(wcx, true);
+  }
+  return code;
 }
+
 int32_t tfileReaderOpen(SIndex* idx, uint64_t suid, int64_t version, const char* colName, TFileReader** pReader) {
   int32_t code = 0;
   char    fullname[256] = {0};
@@ -552,13 +577,17 @@ int32_t tfileWriterCreate(IFileCtx* ctx, TFileHeader* header, TFileWriter** pWri
   }
   tw->ctx = ctx;
   tw->header = *header;
-  tfileWriteHeader(tw);
+  code = tfileWriteHeader(tw);
+  if (code != 0) {
+    taosMemoryFree(tw);
+    return code;
+  }
 
   *pWriter = tw;
   return code;
 }
 
-int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
+int32_t tfileWriterPut(TFileWriter* tw, void* data, bool order) {
   // sort by coltype and write to tindex
   if (order == false) {
     __compar_fn_t fn;
@@ -571,7 +600,10 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     } else {
       fn = getComparFunc(colType, 0);
     }
-    taosArraySortPWithExt((SArray*)(data), tfileValueCompare, &fn);
+    if (fn == NULL) {
+      return terrno;
+    }
+    (void)taosArraySortPWithExt((SArray*)(data), tfileValueCompare, &fn);
   }
 
   int32_t sz = taosArrayGetSize((SArray*)data);
@@ -586,7 +618,7 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     if (tbsz == 0) continue;
     fstOffset += TF_TABLE_TATOAL_SIZE(tbsz);
   }
-  tfileWriteFstOffset(tw, fstOffset);
+  (void)tfileWriteFstOffset(tw, fstOffset);
 
   int32_t cap = 4 * 1024;
   char*   buf = taosMemoryCalloc(1, cap);
@@ -614,7 +646,7 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
 
     char* p = buf;
     tfileSerialTableIdsToBuf(p, v->tableId);
-    tw->ctx->write(tw->ctx, buf, ttsz);
+    (void)(tw->ctx->write(tw->ctx, buf, ttsz));
     v->offset = tw->offset;
     tw->offset += ttsz;
     memset(buf, 0, cap);
@@ -642,7 +674,7 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     }
   }
   fstBuilderDestroy(tw->fb);
-  tfileWriteFooter(tw);
+  (void)tfileWriteFooter(tw);
   return 0;
 }
 void tfileWriterClose(TFileWriter* tw) {
@@ -671,7 +703,7 @@ IndexTFile* idxTFileCreate(SIndex* idx, const char* path) {
     tfileCacheDestroy(cache);
     return NULL;
   }
-  taosThreadMutexInit(&tfile->mtx, NULL);
+  (void)taosThreadMutexInit(&tfile->mtx, NULL);
   tfile->cache = cache;
   return tfile;
 }
@@ -679,7 +711,7 @@ void idxTFileDestroy(IndexTFile* tfile) {
   if (tfile == NULL) {
     return;
   }
-  taosThreadMutexDestroy(&tfile->mtx);
+  (void)taosThreadMutexDestroy(&tfile->mtx);
   tfileCacheDestroy(tfile->cache);
   taosMemoryFree(tfile);
 }
@@ -696,9 +728,9 @@ int idxTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTRslt* result) {
   SIndexTerm* term = query->term;
   ICacheKey key = {.suid = term->suid, .colType = term->colType, .colName = term->colName, .nColName = term->nColName};
 
-  taosThreadMutexLock(&pTfile->mtx);
+  (void)taosThreadMutexLock(&pTfile->mtx);
   TFileReader* reader = tfileCacheGet(pTfile->cache, &key);
-  taosThreadMutexUnlock(&pTfile->mtx);
+  (void)taosThreadMutexUnlock(&pTfile->mtx);
   if (reader == NULL) {
     return 0;
   }
@@ -802,9 +834,9 @@ TFileReader* tfileGetReaderByCol(IndexTFile* tf, uint64_t suid, char* colName) {
   TFileReader* rd = NULL;
   ICacheKey    key = {.suid = suid, .colType = TSDB_DATA_TYPE_BINARY, .colName = colName, .nColName = strlen(colName)};
 
-  taosThreadMutexLock(&tf->mtx);
+  (void)taosThreadMutexLock(&tf->mtx);
   rd = tfileCacheGet(tf->cache, &key);
-  taosThreadMutexUnlock(&tf->mtx);
+  (void)taosThreadMutexUnlock(&tf->mtx);
   return rd;
 }
 
@@ -838,7 +870,7 @@ int tfileValuePush(TFileValue* tf, uint64_t val) {
   if (tf == NULL) {
     return -1;
   }
-  taosArrayPush(tf->tableId, &val);
+  (void)taosArrayPush(tf->tableId, &val);
   return 0;
 }
 void tfileValueDestroy(TFileValue* tf) {
@@ -867,7 +899,8 @@ static int tfileWriteFstOffset(TFileWriter* tw, int32_t offset) {
   return 0;
 }
 static int tfileWriteHeader(TFileWriter* writer) {
-  char buf[TFILE_HEADER_NO_FST] = {0};
+  int32_t code = 0;
+  char    buf[TFILE_HEADER_NO_FST] = {0};
 
   TFileHeader* header = &writer->header;
   memcpy(buf, (char*)header, sizeof(buf));
@@ -875,7 +908,9 @@ static int tfileWriteHeader(TFileWriter* writer) {
   indexInfo("tfile pre write header size: %d", writer->ctx->size(writer->ctx));
   int nwrite = writer->ctx->write(writer->ctx, buf, sizeof(buf));
   if (sizeof(buf) != nwrite) {
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    indexError("failed to write header, code:0x%x, filename: %s", code, writer->ctx->file.buf);
+    return code;
   }
 
   indexInfo("tfile after write header size: %d", writer->ctx->size(writer->ctx));
@@ -897,7 +932,7 @@ static int tfileWriteData(TFileWriter* write, TFileValue* tval) {
 static int tfileWriteFooter(TFileWriter* write) {
   char  buf[sizeof(FILE_MAGIC_NUMBER) + 1] = {0};
   void* pBuf = (void*)buf;
-  taosEncodeFixedU64((void**)(void*)&pBuf, FILE_MAGIC_NUMBER);
+  (void)taosEncodeFixedU64((void**)(void*)&pBuf, FILE_MAGIC_NUMBER);
   int nwrite = write->ctx->write(write->ctx, buf, (int32_t)strlen(buf));
 
   indexInfo("tfile write footer size: %d", write->ctx->size(write->ctx));
@@ -964,7 +999,7 @@ static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* 
   while (nid > 0) {
     int32_t left = block + sizeof(block) - p;
     if (left >= sizeof(uint64_t)) {
-      taosArrayPush(result, (uint64_t*)p);
+      (void)taosArrayPush(result, (uint64_t*)p);
       p += sizeof(uint64_t);
     } else {
       char buf[sizeof(uint64_t)] = {0};
@@ -975,7 +1010,7 @@ static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* 
       nread = ctx->readFrom(ctx, block, sizeof(block), offset);
       memcpy(buf + left, block, sizeof(uint64_t) - left);
 
-      taosArrayPush(result, (uint64_t*)buf);
+      (void)taosArrayPush(result, (uint64_t*)buf);
       p = block + sizeof(uint64_t) - left;
     }
     nid -= 1;
@@ -996,7 +1031,7 @@ static int tfileReaderVerify(TFileReader* reader) {
     return -1;
   }
 
-  taosDecodeFixedU64(buf, &tMagicNumber);
+  (void)taosDecodeFixedU64(buf, &tMagicNumber);
   return tMagicNumber == FILE_MAGIC_NUMBER ? 0 : -1;
 }
 
@@ -1040,12 +1075,12 @@ static SArray* tfileGetFileList(const char* path) {
     size_t len = strlen(path) + 1 + strlen(file) + 1;
     char*  buf = taosMemoryCalloc(1, len);
     sprintf(buf, "%s/%s", path, file);
-    taosArrayPush(files, &buf);
+    (void)taosArrayPush(files, &buf);
   }
-  taosCloseDir(&pDir);
+  (void)taosCloseDir(&pDir);
 
   taosArraySort(files, tfileCompare);
-  tfileRmExpireFile(files);
+  (void)tfileRmExpireFile(files);
 
   return files;
 }
@@ -1072,12 +1107,12 @@ static int tfileParseFileName(const char* filename, uint64_t* suid, char* col, i
 }
 // tfile name suid-colId-version.tindex
 static void tfileGenFileName(char* filename, uint64_t suid, const char* col, int64_t version) {
-  sprintf(filename, "%" PRIu64 "-%s-%" PRId64 ".tindex", suid, col, version);
+  (void)sprintf(filename, "%" PRIu64 "-%s-%" PRId64 ".tindex", suid, col, version);
   return;
 }
 static void FORCE_INLINE tfileGenFileFullName(char* fullname, const char* path, uint64_t suid, const char* col,
                                               int64_t version) {
   char filename[128] = {0};
   tfileGenFileName(filename, suid, col, version);
-  sprintf(fullname, "%s/%s", path, filename);
+  (void)sprintf(fullname, "%s/%s", path, filename);
 }

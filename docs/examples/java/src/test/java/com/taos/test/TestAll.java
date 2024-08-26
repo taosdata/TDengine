@@ -40,12 +40,12 @@ public class TestAll {
     }
 
     @Test
-    public void testJNIConnect() throws SQLException {
+    public void testJNIConnect() throws Exception {
         JNIConnectExample.main(args);
     }
 
     @Test
-    public void testRestConnect() throws SQLException {
+    public void testRestConnect() throws Exception {
         RESTConnectExample.main(args);
     }
 

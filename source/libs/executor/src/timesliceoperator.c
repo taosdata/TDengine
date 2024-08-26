@@ -114,7 +114,6 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
         pLinearInfo->start.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
         char* p = colDataGetData(pColInfoData, rowIndex);
         if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
           memcpy(pLinearInfo->start.val, p, varDataTLen(p));
         } else {
           memcpy(pLinearInfo->start.val, p, pLinearInfo->bytes);
@@ -127,7 +126,6 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
 
         char* p = colDataGetData(pColInfoData, rowIndex);
         if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
           memcpy(pLinearInfo->end.val, p, varDataTLen(p));
         } else {
           memcpy(pLinearInfo->end.val, p, pLinearInfo->bytes);
@@ -143,7 +141,6 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
 
         char* p = colDataGetData(pColInfoData, rowIndex);
         if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
           memcpy(pLinearInfo->end.val, p, varDataTLen(p));
         } else {
           memcpy(pLinearInfo->end.val, p, pLinearInfo->bytes);
@@ -666,6 +663,9 @@ static int32_t initGroupKeyKeeper(STimeSliceOperatorInfo* pInfo, SExprSupp* pExp
       pInfo->pPrevGroupKey->type = pExprInfo->base.resSchema.type;
       pInfo->pPrevGroupKey->isNull = false;
       pInfo->pPrevGroupKey->pData = taosMemoryCalloc(1, pInfo->pPrevGroupKey->bytes);
+      if (!pInfo->pPrevGroupKey->pData) {
+        return terrno;
+      }
     }
   }
 
@@ -1126,13 +1126,19 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   SExprSupp*            pSup = &pOperator->exprSupp;
 
   int32_t    numOfExprs = 0;
-  SExprInfo* pExprInfo = createExprInfo(pInterpPhyNode->pFuncs, NULL, &numOfExprs);
+  SExprInfo* pExprInfo = NULL;
+  code = createExprInfo(pInterpPhyNode->pFuncs, NULL, &pExprInfo, &numOfExprs);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   code = initExprSupp(pSup, pExprInfo, numOfExprs, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
 
   if (pInterpPhyNode->pExprs != NULL) {
     int32_t    num = 0;
-    SExprInfo* pScalarExprInfo = createExprInfo(pInterpPhyNode->pExprs, NULL, &num);
+    SExprInfo* pScalarExprInfo = NULL;
+    code = createExprInfo(pInterpPhyNode->pExprs, NULL, &pScalarExprInfo, &num);
+    QUERY_CHECK_CODE(code, lino, _error);
+
     code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, num, &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   }
@@ -1148,8 +1154,11 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
   pInfo->pFillColInfo = createFillColInfo(pExprInfo, numOfExprs, NULL, 0, (SNodeListNode*)pInterpPhyNode->pFillValues);
+  QUERY_CHECK_NULL(pInfo->pFillColInfo, code, lino, _error, terrno);
+
   pInfo->pLinearInfo = NULL;
   pInfo->pRes = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
+  QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
   pInfo->win = pInterpPhyNode->timeRange;
   pInfo->interval.interval = pInterpPhyNode->interval;
   pInfo->current = pInfo->win.skey;
@@ -1168,6 +1177,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
 
     if (IS_VAR_DATA_TYPE(pInfo->pkCol.type)) {
       pInfo->prevKey.pks[0].pData = taosMemoryCalloc(1, pInfo->pkCol.bytes);
+      QUERY_CHECK_NULL(pInfo->prevKey.pks[0].pData, code, lino, _error, terrno);
     }
   }
 
@@ -1196,8 +1206,14 @@ _error:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  taosMemoryFree(pInfo);
-  taosMemoryFree(pOperator);
+  if (pInfo != NULL) destroyTimeSliceOperatorInfo(pInfo);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
@@ -1231,12 +1247,16 @@ void destroyTimeSliceOperatorInfo(void* param) {
     taosMemoryFree(pInfo->pPrevGroupKey->pData);
     taosMemoryFree(pInfo->pPrevGroupKey);
   }
+  if (pInfo->hasPk && IS_VAR_DATA_TYPE(pInfo->pkCol.type)) {
+    taosMemoryFreeClear(pInfo->prevKey.pks[0].pData);
+  }
 
   cleanupExprSupp(&pInfo->scalarSup);
-
-  for (int32_t i = 0; i < pInfo->pFillColInfo->numOfFillExpr; ++i) {
-    taosVariantDestroy(&pInfo->pFillColInfo[i].fillVal);
+  if (pInfo->pFillColInfo != NULL) {
+    for (int32_t i = 0; i < pInfo->pFillColInfo->numOfFillExpr; ++i) {
+      taosVariantDestroy(&pInfo->pFillColInfo[i].fillVal);
+    }
+    taosMemoryFree(pInfo->pFillColInfo);
   }
-  taosMemoryFree(pInfo->pFillColInfo);
   taosMemoryFreeClear(param);
 }

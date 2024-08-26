@@ -399,6 +399,10 @@ void snapFileDestroy(SBackendSnapFile2* pSnap) {
   // unite read/write snap file
   for (int32_t i = 0; i < taosArrayGetSize(pSnap->pFileList); i++) {
     SBackendFileItem* pItem = taosArrayGet(pSnap->pFileList, i);
+    if (pItem == NULL) {
+      continue;
+    }
+
     if (pItem->ref == 0) {
       taosMemoryFree(pItem->name);
     }
@@ -437,7 +441,9 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, void* pMeta
 
     SBackendSnapFile2 snapFile = {0};
     code = streamBackendSnapInitFile(path, pSnap, &snapFile);
-    ASSERT(code == 0);
+    if (code) {
+      goto _err;
+    }
 
     void* p = taosArrayPush(pDbSnapSet, &snapFile);
     if (p == NULL) {
@@ -763,7 +769,10 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
     if (!taosIsDir(path)) {
       code = taosMulMkDir(path);
       stInfo("%s mkdir %s", STREAM_STATE_TRANSFER, path);
-      ASSERT(code == 0);
+      if (code) {
+        stError("s-task:0x%x failed to mkdir:%s", (int32_t) snapInfo.taskId, path);
+        return code;
+      }
     }
 
     pDbSnapFile->path = path;

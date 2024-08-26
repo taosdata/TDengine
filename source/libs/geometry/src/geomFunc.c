@@ -131,12 +131,12 @@ _exit:
 int32_t executeMakePointFunc(SColumnInfoData *pInputData[], int32_t iLeft, int32_t iRight,
                              SColumnInfoData *pOutputData) {
   int32_t code = TSDB_CODE_FAILED;
+  unsigned char *output = NULL;
 
   _getDoubleValue_fn_t getDoubleValueFn[2];
-  getDoubleValueFn[0] = getVectorDoubleValueFn(pInputData[0]->info.type);
-  getDoubleValueFn[1] = getVectorDoubleValueFn(pInputData[1]->info.type);
+  TAOS_CHECK_GOTO(getVectorDoubleValueFn(pInputData[0]->info.type, &getDoubleValueFn[0]), NULL, _exit);
+  TAOS_CHECK_GOTO(getVectorDoubleValueFn(pInputData[1]->info.type, &getDoubleValueFn[1]), NULL, _exit);
 
-  unsigned char *output = NULL;
   double         leftRes = 0;
   double         rightRes = 0;
 
@@ -155,6 +155,10 @@ _exit:
 
 int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
   int32_t code = TSDB_CODE_FAILED;
+
+  if (!IS_VAR_DATA_TYPE((pInputData)->info.type)) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
 
   char          *input = colDataGetData(pInputData, i);
   unsigned char *output = NULL;

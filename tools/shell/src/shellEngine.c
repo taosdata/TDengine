@@ -164,11 +164,13 @@ int32_t shellRunCommand(char *command, bool recordHistory) {
   }
 
   // add help or help;
-  if (strncasecmp(command, "help;", 5) == 0) {
-    showHelp();
-    return 0;
+  if (strncasecmp(command, "help", 4) == 0) {
+    if(command[4] == ';' || command[4] == ' ' || command[4] == 0) {
+       showHelp();
+       return 0;
+    }
   }
-
+  
   if (recordHistory) shellRecordCommandToHistory(command);
 
   char quote = 0, *cmd = command;
@@ -1170,6 +1172,7 @@ bool shellGetGrantInfo(char* buf) {
         code != TSDB_CODE_PAR_PERMISSION_DENIED) {
       fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\r\n\r\n", code, taos_errstr(tres));
     }
+    taos_free_result(tres);
     return community;
   }
 

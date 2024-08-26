@@ -270,7 +270,10 @@ DLL_EXPORT TAOS_RES *taos_schemaless_insert_raw_ttl(TAOS *taos, char *lines, int
                                                     int precision, int32_t ttl);
 DLL_EXPORT TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows,
                                                                int protocol, int precision, int32_t ttl, int64_t reqid);
-
+DLL_EXPORT TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid_tbname_key(TAOS *taos, char *lines, int len, int32_t *totalRows,
+                                                               int protocol, int precision, int32_t ttl, int64_t reqid, char *tbnameKey);
+DLL_EXPORT TAOS_RES *taos_schemaless_insert_ttl_with_reqid_tbname_key(TAOS *taos, char *lines[], int numLines, int protocol,
+                                                           int precision, int32_t ttl, int64_t reqid, char *tbnameKey);
 /* --------------------------TMQ INTERFACE------------------------------- */
 
 typedef struct tmq_t      tmq_t;

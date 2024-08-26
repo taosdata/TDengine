@@ -61,7 +61,10 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   SSyncLogStoreData* pData = pLogStore->data;
   pData->pSyncNode = pSyncNode;
   pData->pWal = pSyncNode->pWal;
-  ASSERT(pData->pWal != NULL);
+  if (pData->pWal == NULL) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return NULL;
+  }
 
   (void)taosThreadMutexInit(&(pData->mutex), NULL);
   pData->pWalHandle = walOpenReader(pData->pWal, NULL, 0);
@@ -115,7 +118,7 @@ void logStoreDestory(SSyncLogStore* pLogStore) {
 
 // log[m .. n]
 static int32_t raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncIndex snapshotIndex) {
-  ASSERT(snapshotIndex >= 0);
+  if (!(snapshotIndex >= 0)) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -303,14 +306,14 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
   }
 
   *ppEntry = syncEntryBuild(pWalHandle->pHead->head.bodyLen);
-  ASSERT(*ppEntry != NULL);
+  if (*ppEntry == NULL) return TSDB_CODE_SYN_INTERNAL_ERROR;
   (*ppEntry)->msgType = TDMT_SYNC_CLIENT_REQUEST;
   (*ppEntry)->originalRpcType = pWalHandle->pHead->head.msgType;
   (*ppEntry)->seqNum = pWalHandle->pHead->head.syncMeta.seqNum;
   (*ppEntry)->isWeak = pWalHandle->pHead->head.syncMeta.isWeek;
   (*ppEntry)->term = pWalHandle->pHead->head.syncMeta.term;
   (*ppEntry)->index = index;
-  ASSERT((*ppEntry)->dataLen == pWalHandle->pHead->head.bodyLen);
+  if ((*ppEntry)->dataLen != pWalHandle->pHead->head.bodyLen) return TSDB_CODE_SYN_INTERNAL_ERROR;
   (void)memcpy((*ppEntry)->data, pWalHandle->pHead->head.body, pWalHandle->pHead->head.bodyLen);
 
   /*
@@ -362,14 +365,14 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
 static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** ppLastEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  ASSERT(ppLastEntry != NULL);
+  if (ppLastEntry == NULL) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   *ppLastEntry = NULL;
   if (walIsEmpty(pWal)) {
     TAOS_RETURN(TSDB_CODE_WAL_LOG_NOT_EXIST);
   } else {
     SyncIndex lastIndex = raftLogLastIndex(pLogStore);
-    ASSERT(lastIndex >= SYNC_INDEX_BEGIN);
+    if (!(lastIndex >= SYNC_INDEX_BEGIN)) return TSDB_CODE_SYN_INTERNAL_ERROR;
     int32_t code = raftLogGetEntry(pLogStore, lastIndex, ppLastEntry);
 
     TAOS_RETURN(code);

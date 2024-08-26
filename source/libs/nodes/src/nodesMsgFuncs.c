@@ -1112,6 +1112,7 @@ enum {
   FUNCTION_NODE_PK_BYTES,
   FUNCTION_CODE_IS_MERGE_FUNC,
   FUNCTION_CODE_MERGE_FUNC_OF,
+  FUNCTION_CODE_TRIM_TYPE,
 };
 
 static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1144,6 +1145,9 @@ static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, FUNCTION_CODE_MERGE_FUNC_OF, pNode->originalFuncId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeEnum(pEncoder, FUNCTION_CODE_TRIM_TYPE, pNode->trimType);
   }
 
   return code;
@@ -1185,6 +1189,9 @@ static int32_t msgToFunctionNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case FUNCTION_CODE_MERGE_FUNC_OF:
         code = tlvDecodeI32(pTlv, &pNode->originalFuncId);
+        break;
+      case FUNCTION_CODE_TRIM_TYPE:
+        code = tlvDecodeEnum(pTlv, &pNode->trimType, sizeof(pNode->trimType));
         break;
       default:
         break;

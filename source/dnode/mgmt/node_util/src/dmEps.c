@@ -33,7 +33,7 @@ static int32_t dmReadDnodePairs(SDnodeData *pData);
 
 void dmGetDnodeEp(void *data, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort) {
   SDnodeData *pData = data;
-  taosThreadRwlockRdlock(&pData->lock);
+  (void)taosThreadRwlockRdlock(&pData->lock);
 
   SDnodeEp *pDnodeEp = taosHashGet(pData->dnodeHash, &dnodeId, sizeof(int32_t));
   if (pDnodeEp != NULL) {
@@ -48,7 +48,7 @@ void dmGetDnodeEp(void *data, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t 
     }
   }
 
-  taosThreadRwlockUnlock(&pData->lock);
+  (void)taosThreadRwlockUnlock(&pData->lock);
 }
 
 static int32_t dmDecodeEps(SJson *pJson, SDnodeData *pData) {
@@ -255,8 +255,8 @@ _OVER:
   if (taosArrayGetSize(pData->dnodeEps) == 0) {
     SDnodeEp dnodeEp = {0};
     dnodeEp.isMnode = 1;
-    taosGetFqdnPortFromEp(tsFirst, &dnodeEp.ep);
-    taosArrayPush(pData->dnodeEps, &dnodeEp);
+    (void)taosGetFqdnPortFromEp(tsFirst, &dnodeEp.ep);
+    (void)taosArrayPush(pData->dnodeEps, &dnodeEp);
   }
 
   if ((code = dmReadDnodePairs(pData)) != 0) {
@@ -337,7 +337,7 @@ int32_t dmWriteEps(SDnodeData *pData) {
   if (taosWriteFile(pFile, buffer, len) <= 0) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _OVER);
   if (taosFsyncFile(pFile) < 0) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _OVER);
 
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
   if (taosRenameFile(file, realfile) != 0) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _OVER);
 
   code = 0;
@@ -348,7 +348,7 @@ int32_t dmWriteEps(SDnodeData *pData) {
 _OVER:
   if (pJson != NULL) tjsonDelete(pJson);
   if (buffer != NULL) taosMemoryFree(buffer);
-  if (pFile != NULL) taosCloseFile(&pFile);
+  if (pFile != NULL) (void)taosCloseFile(&pFile);
 
   if (code != 0) {
     dError("failed to write dnode file:%s since %s, dnodeVer:%" PRId64, realfile, tstrerror(code), pData->dnodeVer);
@@ -358,18 +358,18 @@ _OVER:
 
 int32_t dmGetDnodeSize(SDnodeData *pData) {
   int32_t size = 0;
-  taosThreadRwlockRdlock(&pData->lock);
+  (void)taosThreadRwlockRdlock(&pData->lock);
   size = taosArrayGetSize(pData->dnodeEps);
-  taosThreadRwlockUnlock(&pData->lock);
+  (void)taosThreadRwlockUnlock(&pData->lock);
   return size;
 }
 
 void dmUpdateEps(SDnodeData *pData, SArray *eps) {
-  taosThreadRwlockWrlock(&pData->lock);
+  (void)taosThreadRwlockWrlock(&pData->lock);
   dDebug("new dnode list get from mnode, dnodeVer:%" PRId64, pData->dnodeVer);
   dmResetEps(pData, eps);
-  dmWriteEps(pData);
-  taosThreadRwlockUnlock(&pData->lock);
+  (void)dmWriteEps(pData);
+  (void)taosThreadRwlockUnlock(&pData->lock);
 }
 
 static void dmResetEps(SDnodeData *pData, SArray *dnodeEps) {
@@ -398,7 +398,7 @@ static void dmResetEps(SDnodeData *pData, SArray *dnodeEps) {
 
   for (int32_t i = 0; i < numOfEps; i++) {
     SDnodeEp *pDnodeEp = taosArrayGet(dnodeEps, i);
-    taosHashPut(pData->dnodeHash, &pDnodeEp->id, sizeof(int32_t), pDnodeEp, sizeof(SDnodeEp));
+    (void)taosHashPut(pData->dnodeHash, &pDnodeEp->id, sizeof(int32_t), pDnodeEp, sizeof(SDnodeEp));
   }
 
   pData->validMnodeEps = true;
@@ -418,7 +418,7 @@ static void dmPrintEps(SDnodeData *pData) {
 static bool dmIsEpChanged(SDnodeData *pData, int32_t dnodeId, const char *ep) {
   bool changed = false;
   if (dnodeId == 0) return changed;
-  taosThreadRwlockRdlock(&pData->lock);
+  (void)taosThreadRwlockRdlock(&pData->lock);
 
   SDnodeEp *pDnodeEp = taosHashGet(pData->dnodeHash, &dnodeId, sizeof(int32_t));
   if (pDnodeEp != NULL) {
@@ -430,14 +430,14 @@ static bool dmIsEpChanged(SDnodeData *pData, int32_t dnodeId, const char *ep) {
     }
   }
 
-  taosThreadRwlockUnlock(&pData->lock);
+  (void)taosThreadRwlockUnlock(&pData->lock);
   return changed;
 }
 
 void dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
-  taosThreadRwlockRdlock(&pData->lock);
+  (void)taosThreadRwlockRdlock(&pData->lock);
   *pEpSet = pData->mnodeEps;
-  taosThreadRwlockUnlock(&pData->lock);
+  (void)taosThreadRwlockUnlock(&pData->lock);
 }
 
 void dmEpSetToStr(char *buf, int32_t len, SEpSet *epSet) {
@@ -464,12 +464,12 @@ static FORCE_INLINE void dmSwapEps(SEp *epLhs, SEp *epRhs) {
 }
 
 void dmRotateMnodeEpSet(SDnodeData *pData) {
-  taosThreadRwlockRdlock(&pData->lock);
+  (void)taosThreadRwlockRdlock(&pData->lock);
   SEpSet *pEpSet = &pData->mnodeEps;
   for (int i = 1; i < pEpSet->numOfEps; i++) {
     dmSwapEps(&pEpSet->eps[i - 1], &pEpSet->eps[i]);
   }
-  taosThreadRwlockUnlock(&pData->lock);
+  (void)taosThreadRwlockUnlock(&pData->lock);
 }
 
 void dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet) {
@@ -486,9 +486,9 @@ void dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet
 
 void dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
   if (memcmp(pEpSet, &pData->mnodeEps, sizeof(SEpSet)) == 0) return;
-  taosThreadRwlockWrlock(&pData->lock);
+  (void)taosThreadRwlockWrlock(&pData->lock);
   pData->mnodeEps = *pEpSet;
-  taosThreadRwlockUnlock(&pData->lock);
+  (void)taosThreadRwlockUnlock(&pData->lock);
 
   dInfo("mnode is changed, num:%d use:%d", pEpSet->numOfEps, pEpSet->inUse);
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
@@ -502,7 +502,7 @@ bool dmUpdateDnodeInfo(void *data, int32_t *did, int64_t *clusterId, char *fqdn,
   int32_t     dnodeId = -1;
   if (did != NULL) dnodeId = *did;
 
-  taosThreadRwlockRdlock(&pData->lock);
+  (void)taosThreadRwlockRdlock(&pData->lock);
 
   if (pData->oldDnodeEps != NULL) {
     int32_t size = (int32_t)taosArrayGetSize(pData->oldDnodeEps);
@@ -542,7 +542,7 @@ bool dmUpdateDnodeInfo(void *data, int32_t *did, int64_t *clusterId, char *fqdn,
     }
   }
 
-  taosThreadRwlockUnlock(&pData->lock);
+  (void)taosThreadRwlockUnlock(&pData->lock);
   return updated;
 }
 
@@ -550,26 +550,26 @@ static int32_t dmDecodeEpPairs(SJson *pJson, SDnodeData *pData) {
   int32_t code = 0;
 
   SJson *dnodes = tjsonGetObjectItem(pJson, "dnodes");
-  if (dnodes == NULL) return -1;
+  if (dnodes == NULL) return TSDB_CODE_INVALID_CFG_VALUE;
   int32_t numOfDnodes = tjsonGetArraySize(dnodes);
 
   for (int32_t i = 0; i < numOfDnodes; ++i) {
     SJson *dnode = tjsonGetArrayItem(dnodes, i);
-    if (dnode == NULL) return -1;
+    if (dnode == NULL) return TSDB_CODE_INVALID_CFG_VALUE;
 
     SDnodeEpPair pair = {0};
     tjsonGetInt32ValueFromDouble(dnode, "id", pair.id, code);
-    if (code < 0) return -1;
+    if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
     code = tjsonGetStringValue(dnode, "fqdn", pair.oldFqdn);
-    if (code < 0) return -1;
+    if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
     tjsonGetUInt16ValueFromDouble(dnode, "port", pair.oldPort, code);
-    if (code < 0) return -1;
+    if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
     code = tjsonGetStringValue(dnode, "new_fqdn", pair.newFqdn);
-    if (code < 0) return -1;
+    if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
     tjsonGetUInt16ValueFromDouble(dnode, "new_port", pair.newPort, code);
-    if (code < 0) return -1;
+    if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
 
-    if (taosArrayPush(pData->oldDnodeEps, &pair) == NULL) return -1;
+    if (taosArrayPush(pData->oldDnodeEps, &pair) == NULL) return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   return code;

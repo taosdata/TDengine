@@ -142,11 +142,12 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
   }
 
   SStreamHbMsg* pMsg = &pInfo->hbMsg;
-  stDebug("vgId:%d build stream hbMsg, leader:%d msgId:%d", pMeta->vgId, (pMeta->role == NODE_ROLE_LEADER),
-          pMeta->pHbInfo->hbCount);
-
   pMsg->vgId = pMeta->vgId;
   pMsg->msgId = pMeta->pHbInfo->hbCount;
+  pMsg->ts = taosGetTimestampMs();
+
+  stDebug("vgId:%d build stream hbMsg, leader:%d HbMsgId:%d, HbMsgTs:%" PRId64, pMeta->vgId,
+          (pMeta->role == NODE_ROLE_LEADER), pMsg->msgId, pMsg->ts);
 
   pMsg->pTaskStatus = taosArrayInit(numOfTasks, sizeof(STaskStatusEntry));
   pMsg->pUpdateNodes = taosArrayInit(numOfTasks, sizeof(int32_t));
@@ -199,7 +200,7 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
     if ((*pTask)->status.requireConsensusChkptId) {
       entry.checkpointInfo.consensusChkptId = 1;
       (*pTask)->status.requireConsensusChkptId = false;
-      stDebug("s-task:%s vgId:%d set the require consensus-checkpointId in hbMsg", (*pTask)->id.idStr, pMeta->vgId);
+      stDebug("s-task:%s vgId:%d set requiring consensus-checkpointId in hbMsg", (*pTask)->id.idStr, pMeta->vgId);
     }
 
     if ((*pTask)->exec.pWalReader != NULL) {
@@ -292,14 +293,14 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
   streamMetaRLock(pMeta);
   code = streamMetaSendHbHelper(pMeta);
   if (code) {
-    stError("vgId:%d failed to send hmMsg to mnode, try again in 5s, code:%s", pMeta->vgId, strerror(code));
+    stError("vgId:%d failed to send hmMsg to mnode, try again in 5s, code:%s", pMeta->vgId, tstrerror(code));
   }
-
   streamMetaRUnLock(pMeta);
+
   streamTmrReset(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, pMeta->vgId,
                  "meta-hb-tmr");
-
   code = taosReleaseRef(streamMetaId, rid);
+
   if (code) {
     stError("vgId:%d in meta timer, failed to release the meta rid:%" PRId64, pMeta->vgId, rid);
   }

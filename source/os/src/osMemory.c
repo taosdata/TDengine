@@ -20,6 +20,12 @@
 #include <malloc.h>
 #endif
 #include "os.h"
+#include "tdef.h"
+
+int32_t          tsRandErrChance = 1;
+int64_t          tsRandErrDivisor = 10001;
+int64_t          tsRandErrScope = (RAND_ERR_MEMORY | RAND_ERR_FILE);
+threadlocal bool tsEnableRandErr = 0;
 
 #if defined(USE_TD_MEMORY) || defined(USE_ADDR2LINE)
 
@@ -266,6 +272,16 @@ void *taosMemoryMalloc(int64_t size) {
 
   return (char *)tmp + sizeof(TdMemoryInfo);
 #else
+
+#ifdef BUILD_WITH_RAND_ERR
+  if (tsEnableRandErr && (tsRandErrScope & RAND_ERR_MEMORY)) {
+    uint32_t r = taosRand() % tsRandErrDivisor;
+    if ((r + 1) <= tsRandErrChance) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+  }
+#endif
   void *p = malloc(size);
   if (NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -287,6 +303,16 @@ void *taosMemoryCalloc(int64_t num, int64_t size) {
 
   return (char *)tmp + sizeof(TdMemoryInfo);
 #else
+#ifdef BUILD_WITH_RAND_ERR
+  if (tsEnableRandErr && (tsRandErrScope & RAND_ERR_MEMORY)) {
+    uint32_t r = taosRand() % tsRandErrDivisor;
+    if ((r + 1) <= tsRandErrChance) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+  }
+#endif
+
   void *p = calloc(num, size);
   if (NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -300,10 +326,8 @@ void *taosMemoryRealloc(void *ptr, int64_t size) {
   if (ptr == NULL) return taosMemoryMalloc(size);
 
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
-  ASSERT(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
   if (tpTdMemoryInfo->symbol != TD_MEMORY_SYMBOL) {
-    +return NULL;
-    +
+    return NULL;
   }
 
   TdMemoryInfo tdMemoryInfo;
@@ -317,6 +341,16 @@ void *taosMemoryRealloc(void *ptr, int64_t size) {
 
   return (char *)tmp + sizeof(TdMemoryInfo);
 #else
+#ifdef BUILD_WITH_RAND_ERR
+  if (tsEnableRandErr && (tsRandErrScope & RAND_ERR_MEMORY)) {
+    uint32_t r = taosRand() % tsRandErrDivisor;
+    if ((r + 1) <= tsRandErrChance) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+  }
+#endif
+
   void *p = realloc(ptr, size);
   if (size > 0 && NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -330,7 +364,6 @@ char *taosStrdup(const char *ptr) {
   if (ptr == NULL) return NULL;
 
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
-  ASSERT(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
   if (pTdMemoryInfo->symbol != TD_MEMORY_SYMBOL) {
     return NULL;
   }
@@ -342,6 +375,16 @@ char *taosStrdup(const char *ptr) {
 
   return (char *)tmp + sizeof(TdMemoryInfo);
 #else
+#ifdef BUILD_WITH_RAND_ERR
+  if (tsEnableRandErr && (tsRandErrScope & RAND_ERR_MEMORY)) {
+    uint32_t r = taosRand() % tsRandErrDivisor;
+    if ((r + 1) <= tsRandErrChance) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+  }
+#endif
+
   return tstrdup(ptr);  
 #endif
 }
@@ -367,7 +410,6 @@ int64_t taosMemorySize(void *ptr) {
 
 #ifdef USE_TD_MEMORY
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
-  ASSERT(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
   if (pTdMemoryInfo->symbol != TD_MEMORY_SYMBOL) {
     return NULL;
   }
@@ -395,9 +437,19 @@ void taosMemoryTrim(int32_t size) {
 
 void *taosMemoryMallocAlign(uint32_t alignment, int64_t size) {
 #ifdef USE_TD_MEMORY
-  ASSERT(0);
+  return NULL;
 #else
 #if defined(LINUX)
+#ifdef BUILD_WITH_RAND_ERR
+  if (tsEnableRandErr && (tsRandErrScope & RAND_ERR_MEMORY)) {
+    uint32_t r = taosRand() % tsRandErrDivisor;
+    if ((r + 1) <= tsRandErrChance) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+  }
+#endif
+
   void *p = memalign(alignment, size);
   if (NULL == p) {
     if (ENOMEM == errno) {

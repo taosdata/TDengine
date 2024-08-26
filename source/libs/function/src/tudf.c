@@ -162,7 +162,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
       fnInfo("[UDFD]Succsess to set TAOS_FQDN:%s", taosFqdn);
     } else {
       fnError("[UDFD]Failed to allocate memory for TAOS_FQDN");
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -229,6 +229,7 @@ static void udfWatchUdfd(void *args) {
   if(uv_loop_close(&pData->loop) != 0) {
     fnError("udfd loop close failed, lino:%d", __LINE__);
   }
+  return;
 
 _exit:
   if (terrno != 0) {
@@ -795,8 +796,13 @@ void *decodeUdfResponse(const void *buf, SUdfResponse *rsp) {
       buf = decodeUdfTeardownResponse(buf, &rsp->teardownRsp);
       break;
     default:
+      rsp->code =  TSDB_CODE_UDF_INTERNAL_ERROR;
       fnError("decode udf response, invalid udf response type %d", rsp->type);
       break;
+  }
+  if(buf == NULL) {
+    rsp->code =  terrno;
+    fnError("decode udf response failed, code:0x%x", rsp->code);
   }
   return (void *)buf;
 }
@@ -836,10 +842,13 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
   udfBlock->numOfRows = block->info.rows;
   udfBlock->numOfCols = taosArrayGetSize(block->pDataBlock);
   udfBlock->udfCols = taosMemoryCalloc(taosArrayGetSize(block->pDataBlock), sizeof(SUdfColumn *));
+  if((udfBlock->udfCols) == NULL) {
+    return terrno;
+  }
   for (int32_t i = 0; i < udfBlock->numOfCols; ++i) {
     udfBlock->udfCols[i] = taosMemoryCalloc(1, sizeof(SUdfColumn));
     if(udfBlock->udfCols[i] == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     SColumnInfoData *col = (SColumnInfoData *)taosArrayGet(block->pDataBlock, i);
     SUdfColumn      *udfCol = udfBlock->udfCols[i];
@@ -853,13 +862,13 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
       udfCol->colData.varLenCol.varOffsetsLen = sizeof(int32_t) * udfBlock->numOfRows;
       udfCol->colData.varLenCol.varOffsets = taosMemoryMalloc(udfCol->colData.varLenCol.varOffsetsLen);
       if(udfCol->colData.varLenCol.varOffsets == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       memcpy(udfCol->colData.varLenCol.varOffsets, col->varmeta.offset, udfCol->colData.varLenCol.varOffsetsLen);
       udfCol->colData.varLenCol.payloadLen = colDataGetLength(col, udfBlock->numOfRows);
       udfCol->colData.varLenCol.payload = taosMemoryMalloc(udfCol->colData.varLenCol.payloadLen);
       if(udfCol->colData.varLenCol.payload == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       if (col->reassigned) {
         for (int32_t row = 0; row < udfCol->colData.numOfRows; ++row) {
@@ -881,7 +890,7 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
       int32_t bitmapLen = udfCol->colData.fixLenCol.nullBitmapLen;
       udfCol->colData.fixLenCol.nullBitmap = taosMemoryMalloc(udfCol->colData.fixLenCol.nullBitmapLen);
       if(udfCol->colData.fixLenCol.nullBitmap == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       char *bitmap = udfCol->colData.fixLenCol.nullBitmap;
       memcpy(bitmap, col->nullbitmap, bitmapLen);
@@ -896,14 +905,14 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
 }
 
 int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
-  int32_t code = 0, lino = 0;
-  SUdfColumnMeta* meta = &udfCol->colMeta;
+  int32_t         code = 0, lino = 0;
+  SUdfColumnMeta *meta = &udfCol->colMeta;
 
   SColumnInfoData colInfoData = createColumnInfoData(meta->type, meta->bytes, 1);
   code = blockDataAppendColInfo(block, &colInfoData);
   TAOS_CHECK_GOTO(code, &lino, _exit);
 
-  code =  blockDataEnsureCapacity(block, udfCol->colData.numOfRows);
+  code = blockDataEnsureCapacity(block, udfCol->colData.numOfRows);
   TAOS_CHECK_GOTO(code, &lino, _exit);
 
   SColumnInfoData *col = NULL;
@@ -984,7 +993,7 @@ int32_t convertDataBlockToScalarParm(SSDataBlock *input, SScalarParam *output) {
 
   output->columnData = taosMemoryMalloc(sizeof(SColumnInfoData));
   if(output->columnData == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   memcpy(output->columnData, taosArrayGet(input->pDataBlock, 0), sizeof(SColumnInfoData));
   output->colAlloced = true;
@@ -1159,6 +1168,10 @@ void cleanupExpiredUdfs() {
 
 void cleanupNotExpiredUdfs() {
   SArray *udfStubs = taosArrayInit(16, sizeof(SUdfcFuncStub));
+  if (udfStubs == NULL) {
+    fnError("cleanupNotExpiredUdfs: failed to init array");
+    return;
+  }
   int32_t i = 0;
   while (i < taosArrayGetSize(gUdfcProxy.udfStubs)) {
     SUdfcFuncStub *stub = taosArrayGet(gUdfcProxy.udfStubs, i);
@@ -1723,7 +1736,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
       if(conn == NULL) {
         fnError("udfc event loop start connect task malloc conn failed.");
         taosMemoryFree(pipe);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       conn->pipe = pipe;
       conn->readBuf.len = 0;
@@ -1953,7 +1966,7 @@ int32_t udfcRunUdfUvTask(SClientUdfTask *task, int8_t uvTaskType) {
   SClientUvTaskNode *uvTask = taosMemoryCalloc(1, sizeof(SClientUvTaskNode));
   if(uvTask == NULL) {
     fnError("udfc client task: %p failed to allocate memory for uvTask", task);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   fnDebug("udfc client task: %p created uvTask: %p. pipe: %p", task, uvTask, task->session->udfUvPipe);
 
@@ -1985,13 +1998,13 @@ int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   SClientUdfTask *task = taosMemoryCalloc(1, sizeof(SClientUdfTask));
   if(task == NULL) {
     fnError("doSetupUdf, failed to allocate memory for task");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   task->session = taosMemoryCalloc(1, sizeof(SUdfcUvSession));
   if(task->session == NULL) {
     fnError("doSetupUdf, failed to allocate memory for session");
     taosMemoryFree(task);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   task->session->udfc = &gUdfcProxy;
   task->type = UDF_TASK_SETUP;
@@ -2036,7 +2049,7 @@ int32_t callUdf(UdfcFuncHandle handle, int8_t callType, SSDataBlock *input, SUdf
   SClientUdfTask *task = taosMemoryCalloc(1, sizeof(SClientUdfTask));
   if(task == NULL) {
     fnError("udfc call udf. failed to allocate memory for task");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   task->session = (SUdfcUvSession *)handle;
   task->type = UDF_TASK_CALL;
@@ -2168,7 +2181,7 @@ int32_t doTeardownUdf(UdfcFuncHandle handle) {
   if(task == NULL) {
     fnError("doTeardownUdf, failed to allocate memory for task");
     taosMemoryFree(session);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   task->session = session;
   task->type = UDF_TASK_TEARDOWN;

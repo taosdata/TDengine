@@ -292,7 +292,7 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbName, uint64_t groupId, char* p
 
 int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
 
-void copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
+int32_t copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
 
 #ifdef __cplusplus
 }

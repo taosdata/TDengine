@@ -143,24 +143,20 @@ int32_t tdigestCompress(TDigest *t) {
 
     if (a->mean <= b->mean) {
       mergeCentroid(&args, a);
-      ASSERTS(args.idx < t->size, "idx over size");
       i++;
     } else {
       mergeCentroid(&args, b);
-      ASSERTS(args.idx < t->size, "idx over size");
       j++;
     }
   }
 
   while (i < num_unmerged) {
     mergeCentroid(&args, &unmerged_centroids[i++]);
-    ASSERTS(args.idx < t->size, "idx over size");
   }
   taosMemoryFree((void *)unmerged_centroids);
 
   while (j < t->num_centroids) {
     mergeCentroid(&args, &t->centroids[j++]);
-    ASSERTS(args.idx < t->size, "idx over size");
   }
 
   if (t->total_weight > 0) {
@@ -256,7 +252,7 @@ double tdigestQuantile(TDigest *t, double q) {
   int64_t    weight_so_far;
   SCentroid *a, *b, tmp;
 
-  tdigestCompress(t);
+  (void)tdigestCompress(t);
   if (t->num_centroids == 0) return NAN;
   if (t->num_centroids == 1) return t->centroids[0].mean;
   if (FLOAT_EQ(q, 0.0)) return t->min;

@@ -221,6 +221,8 @@ typedef enum ELogicConditionType {
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_CGROUP_LEN               193                                // it is a null-terminated string
+#define TSDB_CLIENT_ID_LEN            256                                // it is a null-terminated string
+#define TSDB_CONSUMER_ID_LEN          32                                 // it is a null-terminated string
 #define TSDB_OFFSET_LEN               64                                 // it is a null-terminated string
 #define TSDB_USER_CGROUP_LEN          (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
 #define TSDB_STREAM_NAME_LEN          193                                // it is a null-terminated string
@@ -291,6 +293,8 @@ typedef enum ELogicConditionType {
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 #define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_LOG_VAR_LEN          32
+
+#define TSDB_MAX_EP_NUM           10
 
 #define TSDB_ARB_GROUP_MEMBER_NUM 2
 #define TSDB_ARB_TOKEN_SIZE       32
@@ -562,6 +566,13 @@ typedef struct {
 enum {
   SND_WORKER_TYPE__SHARED = 1,
   SND_WORKER_TYPE__UNIQUE,
+};
+
+enum {
+  RAND_ERR_MEMORY = 1,
+  RAND_ERR_FILE = 2,
+  // RAND_ERR_SCOPE_XXX... = 4,
+  // ...
 };
 
 #define DEFAULT_HANDLE 0

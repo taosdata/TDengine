@@ -77,12 +77,12 @@ void dmCloseNode(SMgmtWrapper *pWrapper) {
     taosMsleep(10);
   }
 
-  taosThreadRwlockWrlock(&pWrapper->lock);
+  (void)taosThreadRwlockWrlock(&pWrapper->lock);
   if (pWrapper->pMgmt != NULL) {
     (*pWrapper->func.closeFp)(pWrapper->pMgmt);
     pWrapper->pMgmt = NULL;
   }
-  taosThreadRwlockUnlock(&pWrapper->lock);
+  (void)taosThreadRwlockUnlock(&pWrapper->lock);
 
   dInfo("node:%s, has been closed", pWrapper->name);
 }

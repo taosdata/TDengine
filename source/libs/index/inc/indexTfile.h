@@ -115,7 +115,7 @@ int32_t tfileWriterOpen(char* path, uint64_t suid, int64_t version, const char* 
 void    tfileWriterClose(TFileWriter* tw);
 int32_t tfileWriterCreate(IFileCtx* ctx, TFileHeader* header, TFileWriter** pWriter);
 void    tfileWriterDestroy(TFileWriter* tw);
-int     tfileWriterPut(TFileWriter* tw, void* data, bool order);
+int32_t tfileWriterPut(TFileWriter* tw, void* data, bool order);
 int     tfileWriterFinish(TFileWriter* tw);
 
 //

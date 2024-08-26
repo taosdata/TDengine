@@ -29,6 +29,10 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, void* pRsp, int32_t numOf
   pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
 
   int32_t actualLen = blockEncode(pBlock, pRetrieve->data, numOfCols);
+  if(actualLen < 0){
+    taosMemoryFree(buf);
+    return terrno;
+  }
   actualLen += sizeof(SRetrieveTableRspForTmq);
   if (taosArrayPush(((SMqDataRspCommon*)pRsp)->blockDataLen, &actualLen) == NULL){
     taosMemoryFree(buf);
@@ -101,6 +105,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
   TSDB_CHECK_CODE(code, line, END);
 
   qStreamSetSourceExcluded(task, pRequest->sourceExcluded);
+  uint64_t st = taosGetTimestampMs();
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     code = getDataBlock(task, pHandle, vgId, &pDataBlock);
@@ -115,14 +120,15 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
         if (pDataBlock == NULL) {
           break;
         }
+
         STqOffsetVal offset = {0};
-        qStreamExtractOffset(task, &offset);
+        code = qStreamExtractOffset(task, &offset);
+        TSDB_CHECK_CODE(code, line, END);
+
         pHandle->block = NULL;
 
         code = createOneDataBlock(pDataBlock, true, &pHandle->block);
-        if (code) {
-          return code;
-        }
+        TSDB_CHECK_CODE(code, line, END);
 
         pHandle->blockTime = offset.ts;
         tOffsetDestroy(&offset);
@@ -140,8 +146,11 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
       } else {
         code = copyDataBlock(pHandle->block, pDataBlock);
         TSDB_CHECK_CODE(code, line, END);
+
         STqOffsetVal offset = {0};
-        qStreamExtractOffset(task, &offset);
+        code = qStreamExtractOffset(task, &offset);
+        TSDB_CHECK_CODE(code, line, END);
+
         pRsp->sleepTime = offset.ts - pHandle->blockTime;
         pHandle->blockTime = offset.ts;
         tOffsetDestroy(&offset);
@@ -156,7 +165,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
 
       pRsp->common.blockNum++;
       totalRows += pDataBlock->info.rows;
-      if (totalRows >= tmqRowSize) {
+      if (totalRows >= tmqRowSize || (taosGetTimestampMs() - st > 1000)) {
         break;
       }
     }
@@ -164,10 +173,11 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
 
   tqDebug("consumer:0x%" PRIx64 " vgId:%d tmq task executed finished, total blocks:%d, totalRows:%d",
           pHandle->consumerId, vgId, pRsp->common.blockNum, totalRows);
-  qStreamExtractOffset(task, &pRsp->common.rspOffset);
+  code = qStreamExtractOffset(task, &pRsp->common.rspOffset);
 END:
-  if ( code!= 0){
-    tqError("consumer:0x%" PRIx64 " vgId:%d tmq task executed error, line:%d code:%d", pHandle->consumerId, vgId, line, code);
+  if (code != 0) {
+    tqError("consumer:0x%" PRIx64 " vgId:%d tmq task executed error, line:%d code:%d", pHandle->consumerId, vgId, line,
+            code);
   }
   return code;
 }
@@ -241,31 +251,40 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqBatc
     // get meta
     SMqBatchMetaRsp* tmp = qStreamExtractMetaMsg(task);
     if (taosArrayGetSize(tmp->batchMetaReq) > 0) {
-      qStreamExtractOffset(task, &tmp->rspOffset);
+      code = qStreamExtractOffset(task, &tmp->rspOffset);
+      if (code) {
+        return code;
+      }
+
       *pBatchMetaRsp = *tmp;
       tqDebug("tmqsnap task get meta");
       break;
     }
 
     if (pDataBlock == NULL) {
-      qStreamExtractOffset(task, pOffset);
+      code = qStreamExtractOffset(task, pOffset);
+      if (code) {
+        break;
+      }
+
       if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
         continue;
       }
+
       tqDebug("tmqsnap vgId: %d, tsdb consume over, switch to wal, ver %" PRId64, TD_VID(pTq->pVnode),
               pHandle->snapshotVer + 1);
-      qStreamExtractOffset(task, &pRsp->common.rspOffset);
+      code = qStreamExtractOffset(task, &pRsp->common.rspOffset);
       break;
     }
 
     if (pRsp->common.blockNum > 0) {
       tqDebug("tmqsnap task exec exited, get data");
-      qStreamExtractOffset(task, &pRsp->common.rspOffset);
+      code = qStreamExtractOffset(task, &pRsp->common.rspOffset);
       break;
     }
   }
 
-  return 0;
+  return code;
 }
 
 

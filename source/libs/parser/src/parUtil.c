@@ -44,7 +44,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION:
       return "There mustn't be aggregation";
     case TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT:
-      return "ORDER BY item must be the number of a SELECT-list expression";
+      return "ORDER BY / GROUP BY item must be the number of a SELECT-list expression";
     case TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION:
       return "Not a GROUP BY expression";
     case TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION:
@@ -1281,8 +1281,10 @@ int32_t getTsmaFromCache(SParseMetaCache* pMetaCache, const SName* pTsmaName, ST
   }
   STableTSMAInfoRsp* pTsmaRsp = NULL;
   code = getMetaDataFromHash(tsmaFName, strlen(tsmaFName), pMetaCache->pTSMAs, (void**)&pTsmaRsp);
-  if (TSDB_CODE_SUCCESS == code && pTsmaRsp) {
-    ASSERT(pTsmaRsp->pTsmas->size == 1);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (!pTsmaRsp || pTsmaRsp->pTsmas->size != 1) {
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+    }
     *pTsma = taosArrayGetP(pTsmaRsp->pTsmas, 0);
   } else if (code == TSDB_CODE_PAR_INTERNAL_ERROR){
     code = TSDB_CODE_MND_SMA_NOT_EXIST;

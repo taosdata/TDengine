@@ -596,11 +596,14 @@ typedef struct {
 typedef struct {
   int64_t  consumerId;
   char     cgroup[TSDB_CGROUP_LEN];
-  char     clientId[256];
+  char     clientId[TSDB_CLIENT_ID_LEN];
+  char     user[TSDB_USER_LEN];
+  char     fqdn[TSDB_FQDN_LEN];
   int8_t   updateType;  // used only for update
   int32_t  epoch;
   int32_t  status;
   int32_t  hbStatus;          // hbStatus is not applicable to serialization
+  int32_t  pollStatus;        // pollStatus is not applicable to serialization
   SRWLatch lock;              // lock is used for topics update
   SArray*  currentTopics;     // SArray<char*>
   SArray*  rebNewTopics;      // SArray<char*>
@@ -620,6 +623,8 @@ typedef struct {
   int8_t  autoCommit;
   int32_t autoCommitInterval;
   int32_t resetOffsetCfg;
+  int32_t sessionTimeoutMs;
+  int32_t maxPollIntervalMs;
 } SMqConsumerObj;
 
 int32_t         tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType,

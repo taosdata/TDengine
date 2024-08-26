@@ -65,10 +65,10 @@ static SSDataBlock* doNonSortMerge1(SOperatorInfo* pOperator);
 static SSDataBlock* doColsMerge1(SOperatorInfo* pOperator);
 static int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 
-SSDataBlock* sortMergeloadNextDataBlock(void* param) {
+int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
-  SSDataBlock*   pBlock = pOperator->fpSet.getNextFn(pOperator);
-  return pBlock;
+  *ppBlock = pOperator->fpSet.getNextFn(pOperator);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t openSortMergeOperator(SOperatorInfo* pOperator) {
@@ -594,9 +594,11 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
       SSortMergeInfo* pSortMergeInfo = &pInfo->sortMergeInfo;
       initLimitInfo(pMergePhyNode->node.pLimit, pMergePhyNode->node.pSlimit, &pInfo->limitInfo);
       pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
+      TSDB_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);
 
       SPhysiNode*  pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, 0);
       SSDataBlock* pInputBlock = createDataBlockFromDescNode(pChildNode->pOutputDataBlockDesc);
+      TSDB_CHECK_NULL(pInputBlock, code, lino, _error, terrno);
 
       initResultSizeInfo(&pOperator->resultInfo, 1024);
       code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
@@ -620,6 +622,8 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
     case MERGE_TYPE_NON_SORT: {
       SNonSortMergeInfo* pNonSortMerge = &pInfo->nsortMergeInfo;
       pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
+      TSDB_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);
+
       initResultSizeInfo(&pOperator->resultInfo, 1024);
       code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
       TSDB_CHECK_CODE(code, lino, _error);
@@ -629,6 +633,8 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
     case MERGE_TYPE_COLUMNS: {
       SColsMergeInfo* pColsMerge = &pInfo->colsMergeInfo;
       pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
+      TSDB_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);
+
       initResultSizeInfo(&pOperator->resultInfo, 1);
       code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
       TSDB_CHECK_CODE(code, lino, _error);

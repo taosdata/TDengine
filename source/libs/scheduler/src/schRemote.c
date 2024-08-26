@@ -17,11 +17,11 @@
 #include "command.h"
 #include "query.h"
 #include "schInt.h"
+#include "tglobal.h"
+#include "tmisce.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
-#include "tglobal.h"
-#include "tmisce.h"
 
 // clang-format off
 int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
@@ -975,11 +975,13 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
   SCH_ERR_JRET(schUpdateSendTargetInfo(pMsgSendInfo, addr, pTask));
 
   if (isHb && persistHandle && trans->pHandle == 0) {
-    trans->pHandle = rpcAllocHandle();
-    if (NULL == trans->pHandle) {
-      SCH_TASK_ELOG("rpcAllocHandle failed, code:%x", terrno);
-      SCH_ERR_JRET(terrno);
+    int64_t refId = 0;
+    code = rpcAllocHandle(&refId); 
+    if (code != 0) {
+      SCH_TASK_ELOG("rpcAllocHandle failed, code:%x", code);
+      SCH_ERR_JRET(code);
     }
+    trans->pHandle = (void *)refId;
   } 
 
   if (pJob && pTask) {
@@ -1200,7 +1202,14 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       }
 
       persistHandle = true;
-      SCH_SET_TASK_HANDLE(pTask, rpcAllocHandle());
+      int64_t refId = 0;
+      code = rpcAllocHandle(&refId);
+      if (code != 0) {
+        SCH_TASK_ELOG("rpcAllocHandle failed, code:%x", code);
+        SCH_ERR_JRET(code);
+      }
+
+      SCH_SET_TASK_HANDLE(pTask, (void *)refId);
       break;
     }
     case TDMT_SCH_FETCH:

@@ -355,7 +355,7 @@ void tsdbCacherowsReaderClose(void* pReader) {
     return;
   }
 
-  if (p->pSchema != NULL) {
+  if (p->pSchema != NULL && p->transferBuf != NULL) {
     for (int32_t i = 0; i < p->pSchema->numOfCols; ++i) {
       taosMemoryFreeClear(p->transferBuf[i]);
     }
@@ -404,26 +404,6 @@ void tsdbCacherowsReaderClose(void* pReader) {
   taosMemoryFree(pReader);
 }
 
-static void freeItemOfRow(void* pItem) {
-  SLastCol* pCol = (SLastCol*)pItem;
-  if (IS_VAR_DATA_TYPE(pCol->colVal.value.type) && pCol->colVal.value.pData) {
-    taosMemoryFree(pCol->colVal.value.pData);
-  }
-}
-
-static void freeItemWithPk(void* pItem) {
-  SLastCol* pCol = (SLastCol*)pItem;
-  for (int i = 0; i < pCol->rowKey.numOfPKs; i++) {
-    if (IS_VAR_DATA_TYPE(pCol->rowKey.pks[i].type)) {
-      taosMemoryFree(pCol->rowKey.pks[i].pData);
-    }
-  }
-
-  if (IS_VAR_DATA_TYPE(pCol->colVal.value.type) && pCol->colVal.value.pData) {
-    taosMemoryFree(pCol->colVal.value.pData);
-  }
-}
-
 static int32_t tsdbCacheQueryReseek(void* pQHandle) {
   int32_t           code = 0;
   SCacheRowsReader* pReader = pQHandle;
@@ -450,23 +430,27 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     return TSDB_CODE_INVALID_PARA;
   }
 
+  int32_t           code = TSDB_CODE_SUCCESS;
+  bool              hasRes = false;
+  SArray*           pRow = NULL;
+  void**            pRes = NULL;
   SCacheRowsReader* pr = pReader;
+  int32_t           pkBufLen = 0;
 
-  int32_t code = TSDB_CODE_SUCCESS;
-  bool    hasRes = false;
-  SArray* pRow = taosArrayInit(TARRAY_SIZE(pr->pCidList), sizeof(SLastCol));
+  pr->pReadSnap = NULL;
+  pRow = taosArrayInit(TARRAY_SIZE(pr->pCidList), sizeof(SLastCol));
   if (pRow == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _end;
   }
 
-  void** pRes = taosMemoryCalloc(pr->numOfCols, POINTER_BYTES);
+  pRes = taosMemoryCalloc(pr->numOfCols, POINTER_BYTES);
   if (pRes == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _end;
   }
 
-  int32_t pkBufLen = (pr->rowKey.numOfPKs > 0) ? pr->pkColumn.bytes : 0;
+  pkBufLen = (pr->rowKey.numOfPKs > 0) ? pr->pkColumn.bytes : 0;
   for (int32_t j = 0; j < pr->numOfCols; ++j) {
     int32_t bytes = (slotIds[j] == -1) ? 1 : pr->pSchema->columns[slotIds[j]].bytes;
 
@@ -555,7 +539,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       }
 
       if (TARRAY_SIZE(pRow) <= 0 || COL_VAL_IS_NONE(&((SLastCol*)TARRAY_DATA(pRow))[0].colVal)) {
-        taosArrayClearEx(pRow, freeItemOfRow);
+        taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);
         continue;
       }
 
@@ -638,7 +622,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         }
       }
 
-      taosArrayClearEx(pRow, freeItemOfRow);
+      taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);
     }
 
     if (hasRes) {
@@ -648,7 +632,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       }
     }
 
-    taosArrayDestroyEx(pLastCols, freeItemWithPk);
+    taosArrayDestroyEx(pLastCols, tsdbCacheFreeSLastColItem);
   } else if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_ALL)) {
     for (int32_t i = pr->tableIndex; i < pr->numOfTables; ++i) {
       tb_uid_t uid = pTableList[i].uid;
@@ -662,7 +646,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       }
 
       if (TARRAY_SIZE(pRow) <= 0 || COL_VAL_IS_NONE(&((SLastCol*)TARRAY_DATA(pRow))[0].colVal)) {
-        taosArrayClearEx(pRow, freeItemOfRow);
+        taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);
         continue;
       }
 
@@ -671,7 +655,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         goto _end;
       }
 
-      taosArrayClearEx(pRow, freeItemOfRow);
+      taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);
 
       void* px = taosArrayPush(pTableUidList, &uid);
       if (px == NULL) {
@@ -690,6 +674,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
 _end:
   tsdbUntakeReadSnap2((STsdbReader*)pr, pr->pReadSnap, true);
+  pr->pReadSnap = NULL;
+
   if (pr->pCurFileSet) {
     pr->pCurFileSet = NULL;
   }

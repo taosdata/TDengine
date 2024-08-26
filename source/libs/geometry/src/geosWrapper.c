@@ -147,7 +147,17 @@ static int32_t initWktRegex(pcre2_code **ppRegex, pcre2_match_data **ppMatchData
       "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *))*( *)\\)))( *))*( *)\\)))( *))*( "
       "*)\\)))|(GEOCOLLECTION\\((?R)(( *)(,)( *)(?R))*( *)\\))( *)$");
 
-  code = doRegComp(ppRegex, ppMatchData, wktPatternWithSpace);
+  pcre2_code       *pRegex = NULL;
+  pcre2_match_data *pMatchData = NULL;
+  code = doRegComp(&pRegex, &pMatchData, wktPatternWithSpace);
+  if (code < 0) {
+    taosMemoryFree(wktPatternWithSpace);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  *ppRegex = pRegex;
+  *ppMatchData = pMatchData;
+
   taosMemoryFree(wktPatternWithSpace);
   return code;
 }

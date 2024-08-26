@@ -124,7 +124,6 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
       if (split == NULL) {
         return NULL;
       }
-      ASSERTS(NULL != split, "realloc memory failed. size=%d", (int32_t)POINTER_BYTES * size);
     }
   }
 
@@ -320,7 +319,7 @@ char *strbetween(char *string, char *begin, char *end) {
     int32_t size = (int32_t)(_end - _begin);
     if (_end != NULL && size > 0) {
       result = (char *)taosMemoryCalloc(1, size);
-      if (result) {
+      if (!result) {
         return NULL;
       }
       memcpy(result, _begin + strlen(begin), size - +strlen(begin));

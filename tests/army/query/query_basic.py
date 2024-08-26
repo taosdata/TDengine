@@ -262,9 +262,9 @@ class TDTestCase(TBase):
         sql1 = f"select substr(bin,1) from {self.db}.d0 order by ts desc limit 100"
         sql2 = f"select bin from {self.db}.d0 order by ts desc limit 100"
         self.checkSameResult(sql1, sql2)
-        #substr error input pos is zero
         sql = f"select substr(bin,0,3) from {self.db}.d0 order by ts desc limit 100"
-        tdSql.error(sql)
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, "")
 
         # cast
         nch = 99

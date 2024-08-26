@@ -209,7 +209,7 @@ static int32_t tSimpleHashTableResize(SSHashObj *pHashObj) {
 
 int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, const void *data, size_t dataLen) {
   if (!pHashObj || !key) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);
@@ -261,8 +261,7 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, cons
 static FORCE_INLINE SHNode *doSearchInEntryList(SSHashObj *pHashObj, const void *key, size_t keyLen, int32_t index) {
   SHNode *pNode = pHashObj->hashList[index];
   while (pNode) {
-    const char* p = GET_SHASH_NODE_KEY(pNode, pNode->dataLen);
-    ASSERT(keyLen > 0);
+    const char *p = GET_SHASH_NODE_KEY(pNode, pNode->dataLen);
 
     if (pNode->keyLen == keyLen && ((*(pHashObj->equalFp))(p, key, keyLen) == 0)) {
       break;

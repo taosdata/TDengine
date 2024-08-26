@@ -141,7 +141,7 @@ static int32_t callocNodeChunk(SNodeAllocator* pAllocator, SNodeMemChunk** pOutC
 static int32_t nodesCallocImpl(int32_t size, void** pOut) {
   if (NULL == g_pNodeAllocator) {
     *pOut = taosMemoryCalloc(1, size);
-    if (!pOut) return TSDB_CODE_OUT_OF_MEMORY;
+    if (!*pOut) return TSDB_CODE_OUT_OF_MEMORY;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -238,7 +238,7 @@ void nodesDestroyAllocatorSet() {
       (void)taosRemoveRef(g_allocatorReqRefPool, refId);
       pAllocator = taosIterateRef(g_allocatorReqRefPool, refId);
     }
-    (void)taosCloseRef(g_allocatorReqRefPool);
+    taosCloseRef(g_allocatorReqRefPool);
   }
 }
 
@@ -2638,11 +2638,12 @@ int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots) {
   return num;
 }
 
-void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
+int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
+  int32_t code = 0;
   if (pNode->isNull) {
     pVal->nType = TSDB_DATA_TYPE_NULL;
     pVal->nLen = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
-    return;
+    return code;
   }
   pVal->nType = pNode->node.resType.type;
   pVal->nLen = pNode->node.resType.bytes;
@@ -2676,13 +2677,21 @@ void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY:
       pVal->pz = taosMemoryMalloc(pVal->nLen + 1);
-      memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
-      pVal->pz[pVal->nLen] = 0;
+      if (pVal->pz) {
+        memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
+        pVal->pz[pVal->nLen] = 0;
+      } else {
+        code = terrno;
+      }
       break;
     case TSDB_DATA_TYPE_JSON:
       pVal->nLen = getJsonValueLen(pNode->datum.p);
       pVal->pz = taosMemoryMalloc(pVal->nLen);
-      memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
+      if (pVal->pz) {
+        memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
+      } else {
+        code = terrno;
+      }
       break;
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_BLOB:
@@ -2690,6 +2699,7 @@ void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     default:
       break;
   }
+  return code;
 }
 
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc) {

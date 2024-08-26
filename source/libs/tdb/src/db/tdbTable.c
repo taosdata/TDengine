@@ -221,10 +221,13 @@ int tdbTbcOpen(TTB *pTb, TBC **ppTbc, TXN *pTxn) {
   *ppTbc = NULL;
   pTbc = (TBC *)tdbOsMalloc(sizeof(*pTbc));
   if (pTbc == NULL) {
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  (void)tdbBtcOpen(&pTbc->btc, pTb->pBt, pTxn);
+  if ((ret = tdbBtcOpen(&pTbc->btc, pTb->pBt, pTxn)) != 0) {
+    taosMemoryFree(pTbc);
+    return ret;
+  }
 
   *ppTbc = pTbc;
   return 0;

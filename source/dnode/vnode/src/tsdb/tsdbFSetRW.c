@@ -44,7 +44,7 @@ static int32_t tsdbFSetWriteTableDataBegin(SFSetWriter *writer, const TABLEID *t
   writer->ctx->tbid->uid = tbid->uid;
 
   code = tsdbUpdateSkmTb(writer->config->tsdb, writer->ctx->tbid, writer->skmTb);
-  TSDB_CHECK_CODE(code , lino, _exit);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, tbid->suid ? tbid->suid : tbid->uid, &writer->pColCmprObj);
   // TODO: TSDB_CHECK_CODE(code, lino, _exit);
@@ -73,8 +73,6 @@ static int32_t tsdbFSetWriteTableDataEnd(SFSetWriter *writer) {
   int32_t numRow = ((writer->blockData[pidx].nRow + writer->blockData[cidx].nRow) >> 1);
 
   if (writer->blockData[pidx].nRow > 0 && numRow >= writer->config->minRow) {
-    ASSERT(writer->blockData[pidx].nRow == writer->config->maxRow);
-
     SRowInfo row = {
         .suid = writer->ctx->tbid->suid,
         .uid = writer->ctx->tbid->uid,

@@ -64,8 +64,12 @@ int32_t binarySearch(void* keyList, int num, const void* key, __session_compare_
 int64_t getSessionWindowEndkey(void* data, int32_t index) {
   SArray*       pWinInfos = (SArray*)data;
   SRowBuffPos** ppos = taosArrayGet(pWinInfos, index);
-  SSessionKey*  pWin = (SSessionKey*)((*ppos)->pKey);
-  return pWin->win.ekey;
+  if (ppos != NULL) {
+    SSessionKey* pWin = (SSessionKey*)((*ppos)->pKey);
+    return pWin->win.ekey;
+  } else {
+    return 0;
+  }
 }
 
 bool inSessionWindow(SSessionKey* pKey, TSKEY ts, int64_t gap) {
@@ -278,7 +282,6 @@ _end:
 int32_t getSessionRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen,
                           int32_t* pWinCode) {
   SWinKey* pTmpkey = pKey;
-  ASSERT(keyLen == sizeof(SWinKey));
   SSessionKey pWinKey = {.groupId = pTmpkey->groupId, .win.skey = pTmpkey->ts, .win.ekey = pTmpkey->ts};
   return getSessionWinResultBuff(pFileState, &pWinKey, 0, pVal, pVLen, pWinCode);
 }
@@ -451,7 +454,7 @@ int32_t allocSessioncWinBuffByNextPosition(SStreamFileState* pFileState, SStream
         SSessionKey pTmpKey = *pWinKey;
         int32_t     winCode = TSDB_CODE_SUCCESS;
         code = getSessionWinResultBuff(pFileState, &pTmpKey, 0, (void**)&pNewPos, pVLen, &winCode);
-        ASSERT(winCode == TSDB_CODE_FAILED);
+        QUERY_CHECK_CONDITION((winCode == TSDB_CODE_FAILED), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
         QUERY_CHECK_CODE(code, lino, _end);
         goto _end;
       }

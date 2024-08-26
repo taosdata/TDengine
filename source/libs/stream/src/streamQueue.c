@@ -231,13 +231,14 @@ EExtractDataCode streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueIte
       if (*pInput == NULL) {
         ASSERT((*numOfBlocks) == 0);
         *pInput = qItem;
-      } else {
-        // merge current block failed, let's handle the already merged blocks.
+      } else { // merge current block failed, let's handle the already merged blocks.
         void*   newRet = NULL;
         int32_t code = streamQueueMergeQueueItem(*pInput, qItem, (SStreamQueueItem**)&newRet);
-        if (code != TSDB_CODE_SUCCESS) {
-          stError("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d, code:%s", id, *numOfBlocks,
-                  tstrerror(terrno));
+        if (newRet == NULL) {
+          if (code != -1) {
+            stError("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d, code:%s", id, *numOfBlocks,
+                    tstrerror(code));
+          }
 
           *blockSize = streamQueueItemGetSize(*pInput);
           if (taskLevel == TASK_LEVEL__SINK) {
@@ -451,7 +452,9 @@ static void fillTokenBucket(STokenBucket* pBucket, const char* id) {
   int64_t now = taosGetTimestampMs();
 
   int64_t deltaToken = now - pBucket->tokenFillTimestamp;
-  ASSERT(pBucket->numOfToken >= 0);
+  if (pBucket->numOfToken < 0) {
+    return;
+  }
 
   int32_t incNum = (deltaToken / 1000.0) * pBucket->numRate;
   if (incNum > 0) {

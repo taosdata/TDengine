@@ -139,7 +139,7 @@ int32_t getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index, STableBlockScan
   int32_t bucketIndex = index / pBuf->numPerBucket;
   char**  pBucket = taosArrayGet(pBuf->pData, bucketIndex);
   if (pBucket == NULL) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_NOT_FOUND;
   }
 
   *pInfo = (STableBlockScanInfo*)((*pBucket) + (index % pBuf->numPerBucket) * sizeof(STableBlockScanInfo));
@@ -194,7 +194,7 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
             break;
           }
           default:
-            ASSERT(0);
+            return TSDB_CODE_INVALID_PARA;
         }
       } else {
         switch (type) {
@@ -223,7 +223,7 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
             pKey->pks[0].val = UINT8_MAX;
             break;
           default:
-            ASSERT(0);
+            return TSDB_CODE_INVALID_PARA;
         }
       }
     } else {
@@ -337,13 +337,14 @@ int32_t createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, c
   int64_t st = taosGetTimestampUs();
   code = initBlockScanInfoBuf(pBuf, numOfTables);
   if (code != TSDB_CODE_SUCCESS) {
+    tSimpleHashCleanup(pTableMap);
     return code;
   }
 
   pUidList->tableUidList = taosMemoryMalloc(numOfTables * sizeof(uint64_t));
   if (pUidList->tableUidList == NULL) {
     tSimpleHashCleanup(pTableMap);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pUidList->currentIndex = 0;
@@ -740,7 +741,10 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     }
 
     numOfTotal += 1;
-    tMergeTreeAdjust(pTree, tMergeTreeGetAdjustIndex(pTree));
+    code = tMergeTreeAdjust(pTree, tMergeTreeGetAdjustIndex(pTree));
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
 
   for (int32_t i = 0; i < numOfTables; ++i) {
@@ -842,7 +846,10 @@ static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_
       continue;
     }
 
-    ASSERT(record.suid == pReader->info.suid && uid == record.uid);
+    if (!(record.suid == pReader->info.suid && uid == record.uid)) {
+      tsdbError("tsdb reader failed at: %s:%d", __func__, __LINE__);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
 
     if (record.version <= pReader->info.verRange.maxVer) {
       SDelData delData = {.version = record.version, .sKey = record.skey, .eKey = record.ekey};
@@ -876,7 +883,10 @@ static int32_t doLoadTombDataFromTombBlk(const TTombBlkArray* pTombBlkArray, STs
       break;
     }
 
-    ASSERT(pTombBlk->minTbid.suid <= pReader->info.suid && pTombBlk->maxTbid.suid >= pReader->info.suid);
+    if (!(pTombBlk->minTbid.suid <= pReader->info.suid && pTombBlk->maxTbid.suid >= pReader->info.suid)) {
+      tsdbError("tsdb reader failed at: %s:%d", __func__, __LINE__);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
     if (pTombBlk->maxTbid.suid == pReader->info.suid && pTombBlk->maxTbid.uid < pList->tableUidList[0]) {
       i += 1;
       continue;
@@ -943,7 +953,7 @@ int32_t loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piM
   if (*ppMemDelData == NULL) {
     *ppMemDelData = taosArrayInit(4, sizeof(SDelData));
     if (*ppMemDelData == NULL) {
-      return TSDB_CODE_SUCCESS;
+      return terrno;
     }
   }
 
@@ -957,7 +967,8 @@ int32_t loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piM
       if (p->version <= ver) {
         void* px = taosArrayPush(pMemDelData, p);
         if (px == NULL) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          taosRUnLockLatch(&pMemTbData->lock);
+          return terrno;
         }
       }
 
@@ -972,7 +983,7 @@ int32_t loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piM
       if (p->version <= ver) {
         void* px = taosArrayPush(pMemDelData, p);
         if (px == NULL) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
       }
       p = p->pNext;
@@ -1074,8 +1085,12 @@ int32_t doAdjustValidDataIters(SArray* pLDIterList, int32_t numOfFileObj) {
     int32_t inc = numOfFileObj - size;
     for (int32_t k = 0; k < inc; ++k) {
       SLDataIter* pIter = taosMemoryCalloc(1, sizeof(SLDataIter));
-      void*       px = taosArrayPush(pLDIterList, &pIter);
+      if (!pIter) {
+        return terrno;
+      }
+      void* px = taosArrayPush(pLDIterList, &pIter);
       if (px == NULL) {
+        taosMemoryFree(pIter);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
     }

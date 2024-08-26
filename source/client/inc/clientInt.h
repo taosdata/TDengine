@@ -373,6 +373,7 @@ int taos_options_imp(TSDB_OPTION option, const char* str);
 
 int32_t openTransporter(const char* user, const char* auth, int32_t numOfThreads, void **pDnodeConn);
 void tscStopCrashReport();
+void cleanupAppInfo();
 
 typedef struct AsyncArg {
   SRpcMsg msg;

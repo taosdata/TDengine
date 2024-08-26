@@ -80,6 +80,11 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
   (void)memcpy(target, buf, TSDB_PASSWORD_LEN);
 }
 
+static FORCE_INLINE int32_t taosHashBinary(char* pBuf, int32_t len) {
+  uint64_t hashVal = MurmurHash3_64(pBuf, len);
+  return sprintf(pBuf, "%" PRIu64, hashVal);
+}
+
 static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len) {
   T_MD5_CTX ctx;
   tMD5Init(&ctx);
@@ -87,11 +92,10 @@ static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len) {
   tMD5Final(&ctx);
   char   *p = pBuf;
   int32_t resLen = 0;
-  for (uint8_t i = 0; i < tListLen(ctx.digest); ++i) {
-    resLen += snprintf(p, 3, "%02x", ctx.digest[i]);
-    p += 2;
-  }
-  return resLen;
+  return sprintf(pBuf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", ctx.digest[0], ctx.digest[1],
+                 ctx.digest[2], ctx.digest[3], ctx.digest[4], ctx.digest[5], ctx.digest[6], ctx.digest[7],
+                 ctx.digest[8], ctx.digest[9], ctx.digest[10], ctx.digest[11], ctx.digest[12], ctx.digest[13],
+                 ctx.digest[14], ctx.digest[15]);
 }
 
 static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, int32_t method, int32_t prefix,
@@ -134,6 +138,13 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
   } while (0)
 
 #define QUERY_CHECK_CODE TSDB_CHECK_CODE
+
+#define QUERY_CHECK_CONDITION(condition, CODE, LINO, LABEL, ERRNO) \
+  if (!condition) {                                                \
+    (CODE) = (ERRNO);                                              \
+    (LINO) = __LINE__;                                             \
+    goto LABEL;                                                    \
+  }
 
 #define TSDB_CHECK_NULL(ptr, CODE, LINO, LABEL, ERRNO) \
   if ((ptr) == NULL) {                                 \

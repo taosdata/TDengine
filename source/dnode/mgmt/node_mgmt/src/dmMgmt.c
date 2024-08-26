@@ -47,7 +47,8 @@ int32_t dmInitDnode(SDnode *pDnode) {
   }
 
   // compress module init
-  tsCompressInit(tsLossyColumns, tsFPrecision, tsDPrecision, tsMaxRange, tsCurRange, (int)tsIfAdtFse, tsCompressor);
+  (void)tsCompressInit(tsLossyColumns, tsFPrecision, tsDPrecision, tsMaxRange, tsCurRange, (int)tsIfAdtFse,
+                       tsCompressor);
 
   pDnode->wrappers[DNODE].func = dmGetMgmtFunc();
   pDnode->wrappers[MNODE].func = mmGetMgmtFunc();
@@ -60,7 +61,7 @@ int32_t dmInitDnode(SDnode *pDnode) {
     pWrapper->pDnode = pDnode;
     pWrapper->name = dmNodeName(ntype);
     pWrapper->ntype = ntype;
-    taosThreadRwlockInit(&pWrapper->lock, NULL);
+    (void)taosThreadRwlockInit(&pWrapper->lock, NULL);
 
     snprintf(path, sizeof(path), "%s%s%s", tsDataDir, TD_DIRSEP, pWrapper->name);
     pWrapper->path = taosStrdup(path);
@@ -214,8 +215,8 @@ int32_t dmInitVars(SDnode *pDnode) {
     return -1;
   }
 
-  taosThreadRwlockInit(&pData->lock, NULL);
-  taosThreadMutexInit(&pDnode->mutex, NULL);
+  (void)taosThreadRwlockInit(&pData->lock, NULL);
+  (void)taosThreadMutexInit(&pDnode->mutex, NULL);
   return 0;
 }
 
@@ -223,16 +224,16 @@ void dmClearVars(SDnode *pDnode) {
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
     taosMemoryFreeClear(pWrapper->path);
-    taosThreadRwlockDestroy(&pWrapper->lock);
+    (void)taosThreadRwlockDestroy(&pWrapper->lock);
   }
   if (pDnode->lockfile != NULL) {
-    taosUnLockFile(pDnode->lockfile);
-    taosCloseFile(&pDnode->lockfile);
+    (void)taosUnLockFile(pDnode->lockfile);
+    (void)taosCloseFile(&pDnode->lockfile);
     pDnode->lockfile = NULL;
   }
 
   SDnodeData *pData = &pDnode->data;
-  taosThreadRwlockWrlock(&pData->lock);
+  (void)taosThreadRwlockWrlock(&pData->lock);
   if (pData->oldDnodeEps != NULL) {
     if (dmWriteEps(pData) == 0) {
       dmRemoveDnodePairs(pData);
@@ -248,10 +249,10 @@ void dmClearVars(SDnode *pDnode) {
     taosHashCleanup(pData->dnodeHash);
     pData->dnodeHash = NULL;
   }
-  taosThreadRwlockUnlock(&pData->lock);
+  (void)taosThreadRwlockUnlock(&pData->lock);
 
-  taosThreadRwlockDestroy(&pData->lock);
-  taosThreadMutexDestroy(&pDnode->mutex);
+  (void)taosThreadRwlockDestroy(&pData->lock);
+  (void)taosThreadMutexDestroy(&pDnode->mutex);
   memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
 }
 
@@ -266,14 +267,14 @@ SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType ntype) {
   SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
   SMgmtWrapper *pRetWrapper = pWrapper;
 
-  taosThreadRwlockRdlock(&pWrapper->lock);
+  (void)taosThreadRwlockRdlock(&pWrapper->lock);
   if (pWrapper->deployed) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
     // dTrace("node:%s, is acquired, ref:%d", pWrapper->name, refCount);
   } else {
     pRetWrapper = NULL;
   }
-  taosThreadRwlockUnlock(&pWrapper->lock);
+  (void)taosThreadRwlockUnlock(&pWrapper->lock);
 
   return pRetWrapper;
 }
@@ -281,7 +282,7 @@ SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType ntype) {
 int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
   int32_t code = 0;
 
-  taosThreadRwlockRdlock(&pWrapper->lock);
+  (void)taosThreadRwlockRdlock(&pWrapper->lock);
   if (pWrapper->deployed) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
     // dTrace("node:%s, is marked, ref:%d", pWrapper->name, refCount);
@@ -304,7 +305,7 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
         break;
     }
   }
-  taosThreadRwlockUnlock(&pWrapper->lock);
+  (void)taosThreadRwlockUnlock(&pWrapper->lock);
 
   return code;
 }
@@ -312,9 +313,9 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
 void dmReleaseWrapper(SMgmtWrapper *pWrapper) {
   if (pWrapper == NULL) return;
 
-  taosThreadRwlockRdlock(&pWrapper->lock);
+  (void)taosThreadRwlockRdlock(&pWrapper->lock);
   int32_t refCount = atomic_sub_fetch_32(&pWrapper->refCount, 1);
-  taosThreadRwlockUnlock(&pWrapper->lock);
+  (void)taosThreadRwlockUnlock(&pWrapper->lock);
   // dTrace("node:%s, is released, ref:%d", pWrapper->name, refCount);
 }
 
@@ -343,7 +344,7 @@ void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg) {
     rsp.contLen = pMsg->contLen;
   }
 
-  rpcSendResponse(&rsp);
+  (void)rpcSendResponse(&rsp);
   rpcFreeCont(pMsg->pCont);
 }
 
@@ -360,11 +361,11 @@ void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg) {
   } else {
     rsp.pCont = rpcMallocCont(contLen);
     if (rsp.pCont != NULL) {
-      tSerializeSServerStatusRsp(rsp.pCont, contLen, &statusRsp);
+      (void)tSerializeSServerStatusRsp(rsp.pCont, contLen, &statusRsp);
       rsp.contLen = contLen;
     }
   }
 
-  rpcSendResponse(&rsp);
+  (void)rpcSendResponse(&rsp);
   rpcFreeCont(pMsg->pCont);
 }

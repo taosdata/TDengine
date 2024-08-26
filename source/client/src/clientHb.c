@@ -269,6 +269,8 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
           TSC_ERR_JRET(catalogAsyncUpdateTSMA(pCatalog, &pTsma, rsp->dbTsmaVersion));
         }
         taosArrayClear(rsp->pTsmaRsp->pTsmas);
+      } else {
+        TSC_ERR_JRET(catalogAsyncUpdateDbTsmaVersion(pCatalog, rsp->dbTsmaVersion, rsp->db, rsp->dbId));
       }
     }
   }
@@ -1405,7 +1407,7 @@ _return:
     TSC_ERR_RET(terrno);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static void hbStopThread() {

@@ -53,10 +53,9 @@ static int32_t streamTaskSetReady(SStreamTask* pTask) {
             pTask->id.idStr, pTask->info.taskLevel, numOfUps, p.name);
   }
 
-  ASSERT(pTask->status.downstreamReady == 0);
   pTask->status.downstreamReady = 1;
-
   pTask->execInfo.readyTs = taosGetTimestampMs();
+
   int64_t el = (pTask->execInfo.readyTs - pTask->execInfo.checkTs);
   stDebug("s-task:%s all %d downstream ready, init completed, elapsed time:%" PRId64 "ms, task status:%s",
           pTask->id.idStr, numOfDowns, el, p.name);
@@ -80,7 +79,7 @@ int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated) {
   return tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &rpcMsg);
 }
 
-int32_t streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) {
+void streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) {
   int32_t numOfTicks = idleDuration / SCANHISTORY_IDLE_TIME_SLICE;
   if (numOfTicks <= 0) {
     numOfTicks = 1;
@@ -91,10 +90,10 @@ int32_t streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) 
   // add ref for task
   SStreamTask* p = NULL;
   int32_t code = streamMetaAcquireTask(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, &p);
-  if (p == NULL) {
+  if (p == NULL || code != 0) {
     stError("s-task:0x%x failed to acquire task, status:%s, not exec scan-history data", pTask->id.taskId,
             streamTaskGetStatus(pTask).name);
-    return TSDB_CODE_SUCCESS;
+    return;
   }
 
   pTask->schedHistoryInfo.numOfTicks = numOfTicks;
@@ -109,8 +108,6 @@ int32_t streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) 
     streamTmrReset(doExecScanhistoryInFuture, SCANHISTORY_IDLE_TIME_SLICE, pTask, streamTimer,
                  &pTask->schedHistoryInfo.pTimer, pTask->pMeta->vgId, " start-history-task-tmr");
   }
-
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t streamTaskStartScanHistory(SStreamTask* pTask) {
@@ -213,8 +210,6 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
   int32_t              hTaskId = pTask->hTaskInfo.id.taskId;
   int64_t              now = taosGetTimestampMs();
   int32_t              code = 0;
-
-  ASSERT(hTaskId != 0);
 
   // check stream task status in the first place.
   SStreamTaskState pStatus = streamTaskGetStatus(pTask);

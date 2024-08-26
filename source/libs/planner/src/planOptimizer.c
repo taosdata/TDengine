@@ -3164,7 +3164,7 @@ static void partTagsSetAlias(char* pAlias, const char* pTableAlias, const char* 
   char    name[TSDB_COL_FNAME_LEN + 1] = {0};
   int32_t len = snprintf(name, TSDB_COL_FNAME_LEN, "%s.%s", pTableAlias, pColName);
 
-  (void)taosCreateMD5Hash(name, len);
+  (void)taosHashBinary(name, len);
   strncpy(pAlias, name, TSDB_COL_NAME_LEN - 1);
 }
 
@@ -3827,7 +3827,7 @@ static int32_t rewriteUniqueOptCreateFirstFunc(SFunctionNode* pSelectValue, SNod
     int64_t pointer = (int64_t)pFunc;
     char    name[TSDB_FUNC_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
     int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pFunc->functionName, pointer);
-    (void)taosCreateMD5Hash(name, len);
+    (void)taosHashBinary(name, len);
     strncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
   }
   SNode* pNew = NULL;
@@ -6493,6 +6493,7 @@ static int32_t partitionColsOpt(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       pSort->calcGroupId = true;
       code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pNode, (SLogicNode*)pSort);
       if (code == TSDB_CODE_SUCCESS) {
+        nodesDestroyNode((SNode*)pNode);
         pCxt->optimized = true;
       } else {
         nodesDestroyNode((SNode*)pSort);
@@ -6641,7 +6642,6 @@ static int32_t fillTSMAOptCtx(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pScan) {
     pTsmaOptCtx->pAggFuncs = pWindow->pFuncs;
     pTsmaOptCtx->ppParentTsmaSubplans = &pWindow->pTsmaSubplans;
   } else {
-    ASSERT(nodeType(pTsmaOptCtx->pParent) == QUERY_NODE_LOGIC_PLAN_AGG);
     SAggLogicNode* pAgg = (SAggLogicNode*)pTsmaOptCtx->pParent;
     pTsmaOptCtx->pAggFuncs = pAgg->pAggFuncs;
     pTsmaOptCtx->ppParentTsmaSubplans = &pAgg->pTsmaSubplans;
@@ -6939,8 +6939,9 @@ static int32_t tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* 
 }
 
 int32_t tsmaOptCreateTsmaScanCols(const STSMAOptUsefulTsma* pTsma, const SNodeList* pAggFuncs, SNodeList** ppList) {
-  ASSERT(pTsma->pTsma);
-  ASSERT(pTsma->pTsmaScanCols);
+  if (!pTsma->pTsma || !pTsma->pTsmaScanCols) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
   int32_t    code;
   SNode*     pNode;
   SNodeList* pScanCols = NULL;
@@ -6996,8 +6997,7 @@ static int32_t tsmaOptRewriteTag(const STSMAOptCtx* pTsmaOptCtx, const STSMAOptU
       break;
     }
   }
-  ASSERT(found);
-  return 0;
+  return found ? TSDB_CODE_SUCCESS : TSDB_CODE_PLAN_INTERNAL_ERROR;
 }
 
 static int32_t tsmaOptRewriteTbname(const STSMAOptCtx* pTsmaOptCtx, SNode** pTbNameNode,
@@ -7116,7 +7116,6 @@ static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNew
     SColumnNode* pPkTsCol = NULL;
     FOREACH(pNode, pNewScan->pScanCols) {
       SColumnNode* pCol = (SColumnNode*)pNode;
-      ASSERT(pTsma->pTsmaScanCols);
       if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         pPkTsCol = NULL;
         code = nodesCloneNode((SNode*)pCol, (SNode**)&pPkTsCol);
@@ -7197,7 +7196,7 @@ static int32_t tsmaOptCreateWStart(int8_t precision, SFunctionNode** pWStartOut)
   int64_t pointer = (int64_t)pWStart;
   char    name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
   int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWStart->functionName, pointer);
-  (void)taosCreateMD5Hash(name, len);
+  (void)taosHashBinary(name, len);
   strncpy(pWStart->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
   pWStart->node.resType.precision = precision;
 
@@ -7302,7 +7301,6 @@ static int32_t tsmaOptGeneratePlan(STSMAOptCtx* pTsmaOptCtx) {
       for (int32_t j = 0; j < pTsmaOptCtx->pScan->pTsmas->size; ++j) {
         if (taosArrayGetP(pTsmaOptCtx->pScan->pTsmas, j) == pTsma->pTsma) {
           const STsmaTargetTbInfo* ptbInfo = taosArrayGet(pTsmaOptCtx->pScan->pTsmaTargetTbInfo, j);
-          ASSERT(ptbInfo->uid != 0);
           strcpy(pTsma->targetTbName, ptbInfo->tableName);
           pTsma->targetTbUid = ptbInfo->uid;
         }

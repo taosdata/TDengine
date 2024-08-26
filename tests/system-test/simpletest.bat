@@ -46,6 +46,7 @@ python3 .\test.py -f 2-query\between.py
 @REM python3 .\test.py -f 2-query\Today.py
 @REM python3 .\test.py -f 2-query\max.py
 @REM python3 .\test.py -f 2-query\min.py
+@REM python3 .\test.py -f 2-query\normal.py
 @REM python3 .\test.py -f 2-query\count.py
 @REM python3 .\test.py -f 2-query\last.py
 @REM python3 .\test.py -f 2-query\first.py

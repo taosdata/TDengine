@@ -62,7 +62,7 @@ void fstUnFinishedNodesPushEmpty(FstUnFinishedNodes* nodes, bool isFinal) {
   node->trans = taosArrayInit(16, sizeof(FstTransition));
 
   FstBuilderNodeUnfinished un = {.node = node, .last = NULL};
-  taosArrayPush(nodes->stack, &un);
+  (void)taosArrayPush(nodes->stack, &un);
 }
 FstBuilderNode* fstUnFinishedNodesPopRoot(FstUnFinishedNodes* nodes) {
   FstBuilderNodeUnfinished* un = taosArrayPop(nodes->stack);
@@ -120,7 +120,7 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes* nodes, FstSlice bs, Output 
     FstLastTransition* trn = fstLastTransitionCreate(data[i], 0);
 
     FstBuilderNodeUnfinished un = {.node = n, .last = trn};
-    taosArrayPush(nodes->stack, &un);
+    (void)taosArrayPush(nodes->stack, &un);
   }
   fstUnFinishedNodesPushEmpty(nodes, true);
 }
@@ -214,9 +214,9 @@ void fstStateCompileForOneTransNext(IdxFstFile* w, CompiledAddr addr, uint8_t in
   uint8_t v = fstStateCommInput(&s, &null);
   if (null) {
     // w->write_all(&[inp])
-    idxFileWrite(w, &inp, 1);
+    (void)idxFileWrite(w, &inp, 1);
   }
-  idxFileWrite(w, &(s.val), 1);
+  (void)idxFileWrite(w, &(s.val), 1);
   // w->write_all(&[s.val])
   return;
 }
@@ -228,7 +228,7 @@ void fstStateCompileForOneTrans(IdxFstFile* w, CompiledAddr addr, FstTransition*
 
   FST_SET_OUTPUT_PACK_SIZE(packSizes, outPackSize);
   FST_SET_TRANSITION_PACK_SIZE(packSizes, transPackSize);
-  idxFileWrite(w, (char*)&packSizes, sizeof(packSizes));
+  (void)idxFileWrite(w, (char*)&packSizes, sizeof(packSizes));
 
   FstState st = fstStateCreate(OneTrans);
 
@@ -237,9 +237,9 @@ void fstStateCompileForOneTrans(IdxFstFile* w, CompiledAddr addr, FstTransition*
   bool    null = false;
   uint8_t inp = fstStateCommInput(&st, &null);
   if (null == true) {
-    idxFileWrite(w, (char*)&trn->inp, sizeof(trn->inp));
+    (void)idxFileWrite(w, (char*)&trn->inp, sizeof(trn->inp));
   }
-  idxFileWrite(w, (char*)(&(st.val)), sizeof(st.val));
+  (void)idxFileWrite(w, (char*)(&(st.val)), sizeof(st.val));
   return;
 }
 void fstStateCompileForAnyTrans(IdxFstFile* w, CompiledAddr addr, FstBuilderNode* node) {
@@ -285,7 +285,7 @@ void fstStateCompileForAnyTrans(IdxFstFile* w, CompiledAddr addr, FstBuilderNode
   }
   for (int32_t i = sz - 1; i >= 0; i--) {
     FstTransition* t = taosArrayGet(node->trans, i);
-    idxFileWrite(w, (char*)&t->inp, 1);
+    (void)idxFileWrite(w, (char*)&t->inp, 1);
   }
   if (sz > TRANS_INDEX_THRESHOLD) {
     // A value of 255 indicates that no transition exists for the byte at that idx
@@ -295,24 +295,24 @@ void fstStateCompileForAnyTrans(IdxFstFile* w, CompiledAddr addr, FstBuilderNode
       FstTransition* t = taosArrayGet(node->trans, i);
       index[t->inp] = i;
     }
-    idxFileWrite(w, (char*)index, 256);
+    (void)idxFileWrite(w, (char*)index, 256);
     taosMemoryFree(index);
   }
-  idxFileWrite(w, (char*)&packSizes, 1);
+  (void)idxFileWrite(w, (char*)&packSizes, 1);
   bool null = false;
-  fstStateStateNtrans(&st, &null);
+  (void)fstStateStateNtrans(&st, &null);
   if (null == true) {
     // 256 can't be represented in a u8, so we abuse the fact that
     // the # of transitions can never be 1 here, since 1 is always
     // encoded in the state byte.
     uint8_t v = 1;
     if (sz == 256) {
-      idxFileWrite(w, (char*)&v, 1);
+      (void)idxFileWrite(w, (char*)&v, 1);
     } else {
-      idxFileWrite(w, (char*)&sz, 1);
+      (void)idxFileWrite(w, (char*)&sz, 1);
     }
   }
-  idxFileWrite(w, (char*)(&(st.val)), 1);
+  (void)idxFileWrite(w, (char*)(&(st.val)), 1);
   return;
 }
 
@@ -342,7 +342,7 @@ uint8_t fstStateCommInput(FstState* s, bool* null) {
 uint64_t fstStateInputLen(FstState* s) {
   ASSERT(s->state == OneTransNext || s->state == OneTrans);
   bool null = false;
-  fstStateCommInput(s, &null);
+  (void)fstStateCommInput(s, &null);
   return null ? 1 : 0;
 }
 
@@ -499,7 +499,7 @@ uint64_t fstStateTransIndexSize(FstState* s, uint64_t version, uint64_t nTrans) 
 uint64_t fstStateNtransLen(FstState* s) {
   ASSERT(s->state == AnyTrans);
   bool null = false;
-  fstStateStateNtrans(s, &null);
+  (void)fstStateStateNtrans(s, &null);
   return null == true ? 1 : 0;
 }
 uint64_t fstStateNtrans(FstState* s, FstSlice* slice) {
@@ -673,12 +673,12 @@ bool fstNodeGetTransitionAddrAt(FstNode* node, uint64_t i, CompiledAddr* res) {
   FstState* st = &node->state;
   if (st->state == OneTransNext) {
     ASSERT(i == 0);
-    fstStateTransAddr(st, node);
+    (void)fstStateTransAddr(st, node);
   } else if (st->state == OneTrans) {
     ASSERT(i == 0);
-    fstStateTransAddr(st, node);
+    (void)fstStateTransAddr(st, node);
   } else if (st->state == AnyTrans) {
-    fstStateTransAddrForAnyTrans(st, node, i);
+    (void)fstStateTransAddrForAnyTrans(st, node, i);
   } else if (FST_STATE_EMPTY_FINAL(node)) {
     s = false;
   } else {
@@ -755,13 +755,13 @@ FstBuilder* fstBuilderCreate(void* w, FstType ty) {
 
   char  buf64[8] = {0};
   void* pBuf64 = buf64;
-  taosEncodeFixedU64(&pBuf64, VERSION);
-  idxFileWrite(b->wrt, buf64, sizeof(buf64));
+  (void)taosEncodeFixedU64(&pBuf64, VERSION);
+  (void)idxFileWrite(b->wrt, buf64, sizeof(buf64));
 
   pBuf64 = buf64;
   memset(buf64, 0, sizeof(buf64));
-  taosEncodeFixedU64(&pBuf64, ty);
-  idxFileWrite(b->wrt, buf64, sizeof(buf64));
+  (void)taosEncodeFixedU64(&pBuf64, ty);
+  (void)idxFileWrite(b->wrt, buf64, sizeof(buf64));
 
   return b;
 }
@@ -862,7 +862,7 @@ CompiledAddr fstBuilderCompile(FstBuilder* b, FstBuilderNode* bn) {
   }
   CompiledAddr startAddr = (CompiledAddr)(FST_WRITER_COUNT(b->wrt));
 
-  fstBuilderNodeCompileTo(bn, b->wrt, b->lastAddr, startAddr);
+  (void)fstBuilderNodeCompileTo(bn, b->wrt, b->lastAddr, startAddr);
   b->lastAddr = (CompiledAddr)(FST_WRITER_COUNT(b->wrt) - 1);
   if (entry->state == NOTFOUND) {
     FST_REGISTRY_CELL_INSERT(entry->cell, b->lastAddr);
@@ -881,23 +881,23 @@ void* fstBuilderInsertInner(FstBuilder* b) {
   char buf64[8] = {0};
 
   void* pBuf64 = buf64;
-  taosEncodeFixedU64(&pBuf64, b->len);
-  idxFileWrite(b->wrt, buf64, sizeof(buf64));
+  (void)taosEncodeFixedU64(&pBuf64, b->len);
+  (void)idxFileWrite(b->wrt, buf64, sizeof(buf64));
 
   pBuf64 = buf64;
-  taosEncodeFixedU64(&pBuf64, rootAddr);
-  idxFileWrite(b->wrt, buf64, sizeof(buf64));
+  (void)taosEncodeFixedU64(&pBuf64, rootAddr);
+  (void)idxFileWrite(b->wrt, buf64, sizeof(buf64));
 
   char     buf32[4] = {0};
   void*    pBuf32 = buf32;
   uint32_t sum = idxFileMaskedCheckSum(b->wrt);
-  taosEncodeFixedU32(&pBuf32, sum);
-  idxFileWrite(b->wrt, buf32, sizeof(buf32));
+  (void)taosEncodeFixedU32(&pBuf32, sum);
+  (void)idxFileWrite(b->wrt, buf32, sizeof(buf32));
 
-  idxFileFlush(b->wrt);
+  (void)idxFileFlush(b->wrt);
   return b->wrt;
 }
-void fstBuilderFinish(FstBuilder* b) { fstBuilderInsertInner(b); }
+void fstBuilderFinish(FstBuilder* b) { (void)fstBuilderInsertInner(b); }
 
 FstSlice fstNodeAsSlice(FstNode* node) {
   FstSlice* slice = &node->data;
@@ -924,7 +924,7 @@ void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished* unNode, Comp
     return;
   }
   FstTransition t = {.inp = trn->inp, .out = trn->out, .addr = addr};
-  taosArrayPush(unNode->node->trans, &t);
+  (void)taosArrayPush(unNode->node->trans, &t);
   fstLastTransitionDestroy(trn);
   unNode->last = NULL;
   return;
@@ -955,19 +955,19 @@ Fst* fstCreate(FstSlice* slice) {
   uint64_t skip = 0;
 
   uint64_t version;
-  taosDecodeFixedU64(buf, &version);
+  (void)taosDecodeFixedU64(buf, &version);
   skip += sizeof(version);
   if (version == 0 || version > VERSION) {
     return NULL;
   }
 
   uint64_t type;
-  taosDecodeFixedU64(buf + skip, &type);
+  (void)taosDecodeFixedU64(buf + skip, &type);
   skip += sizeof(type);
 
   uint32_t checkSum = 0;
   len -= sizeof(checkSum);
-  taosDecodeFixedU32(buf + len, &checkSum);
+  (void)taosDecodeFixedU32(buf + len, &checkSum);
   if (taosCheckChecksum(buf, len, checkSum)) {
     indexError("index file is corrupted");
     // verify fst
@@ -975,11 +975,11 @@ Fst* fstCreate(FstSlice* slice) {
   }
   CompiledAddr rootAddr;
   len -= sizeof(rootAddr);
-  taosDecodeFixedU64(buf + len, &rootAddr);
+  (void)taosDecodeFixedU64(buf + len, &rootAddr);
 
   uint64_t fstLen;
   len -= sizeof(fstLen);
-  taosDecodeFixedU64(buf + len, &fstLen);
+  (void)taosDecodeFixedU64(buf + len, &fstLen);
   // TODO(validate root addr)
   Fst* fst = (Fst*)taosMemoryCalloc(1, sizeof(Fst));
   if (fst == NULL) {
@@ -1001,7 +1001,7 @@ Fst* fstCreate(FstSlice* slice) {
   *s = fstSliceCopy(slice, 0, FST_SLICE_LEN(slice) - 1);
   fst->data = s;
 
-  taosThreadMutexInit(&fst->mtx, NULL);
+  (void)taosThreadMutexInit(&fst->mtx, NULL);
   return fst;
 
 FST_CREAT_FAILED:
@@ -1015,7 +1015,7 @@ void fstDestroy(Fst* fst) {
     taosMemoryFree(fst->meta);
     fstSliceDestroy(fst->data);
     taosMemoryFree(fst->data);
-    taosThreadMutexDestroy(&fst->mtx);
+    (void)taosThreadMutexDestroy(&fst->mtx);
   }
   taosMemoryFree(fst);
 }
@@ -1029,7 +1029,7 @@ bool fstGet(Fst* fst, FstSlice* b, Output* out) {
   uint8_t* data = fstSliceData(b, &len);
 
   SArray* nodes = (SArray*)taosArrayInit(len, sizeof(FstNode*));
-  taosArrayPush(nodes, &root);
+  (void)taosArrayPush(nodes, &root);
   for (uint32_t i = 0; i < len; i++) {
     uint8_t inp = data[i];
     Output  res = 0;
@@ -1038,10 +1038,10 @@ bool fstGet(Fst* fst, FstSlice* b, Output* out) {
     }
 
     FstTransition trn;
-    fstNodeGetTransitionAt(root, res, &trn);
+    (void)fstNodeGetTransitionAt(root, res, &trn);
     tOut += trn.out;
     root = fstGetNode(fst, trn.addr);
-    taosArrayPush(nodes, &root);
+    (void)taosArrayPush(nodes, &root);
   }
   if (!FST_NODE_IS_FINAL(root)) {
     goto _return;
@@ -1163,7 +1163,7 @@ FStmSt* stmStCreate(Fst* fst, FAutoCtx* automation, FstBoundWithData* min, FstBo
 
   sws->stack = (SArray*)taosArrayInit(256, sizeof(FstStreamState));
   sws->endAt = max;
-  stmStSeekMin(sws, min);
+  (void)stmStSeekMin(sws, min);
 
   return sws;
 }
@@ -1188,7 +1188,7 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
                         .trans = 0,
                         .out = {.null = false, .out = 0},
                         .autState = automFuncs[aut->type].start(aut)};  // auto.start callback
-    taosArrayPush(sws->stack, &s);
+    (void)taosArrayPush(sws->stack, &s);
     return true;
   }
   FstSlice* key = NULL;
@@ -1214,15 +1214,15 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
     uint64_t res = 0;
     if (fstNodeFindInput(node, b, &res)) {
       FstTransition trn;
-      fstNodeGetTransitionAt(node, res, &trn);
+      (void)fstNodeGetTransitionAt(node, res, &trn);
       void* preState = autState;
       autState = automFuncs[aut->type].accept(aut, preState, b);
-      taosArrayPush(sws->inp, &b);
+      (void)taosArrayPush(sws->inp, &b);
 
       FstStreamState s = {.node = node, .trans = res + 1, .out = {.null = false, .out = out}, .autState = preState};
       node = NULL;
 
-      taosArrayPush(sws->stack, &s);
+      (void)taosArrayPush(sws->stack, &s);
       out += trn.out;
       node = fstGetNode(sws->fst, trn.addr);
     } else {
@@ -1241,7 +1241,7 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
       }
 
       FstStreamState s = {.node = node, .trans = i, .out = {.null = false, .out = out}, .autState = autState};
-      taosArrayPush(sws->stack, &s);
+      (void)taosArrayPush(sws->stack, &s);
       taosMemoryFree(trans);
       return true;
     }
@@ -1254,15 +1254,15 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
     FstStreamState* s = taosArrayGet(sws->stack, sz - 1);
     if (inclusize) {
       s->trans -= 1;
-      taosArrayPop(sws->inp);
+      (void)taosArrayPop(sws->inp);
     } else {
       FstNode*      n = s->node;
       uint64_t      trans = s->trans;
       FstTransition trn;
-      fstNodeGetTransitionAt(n, trans - 1, &trn);
+      (void)fstNodeGetTransitionAt(n, trans - 1, &trn);
       FstStreamState s = {
           .node = fstGetNode(sws->fst, trn.addr), .trans = 0, .out = {.null = false, .out = out}, .autState = autState};
-      taosArrayPush(sws->stack, &s);
+      (void)taosArrayPush(sws->stack, &s);
       return true;
     }
     return false;
@@ -1291,13 +1291,13 @@ FStmStRslt* stmStNextWith(FStmSt* sws, streamCallback__fn callback) {
     FstStreamState* p = (FstStreamState*)taosArrayPop(sws->stack);
     if (p->trans >= FST_NODE_LEN(p->node) || !automFuncs[aut->type].canMatch(aut, p->autState)) {
       if (FST_NODE_ADDR(p->node) != fstGetRootAddr(sws->fst)) {
-        taosArrayPop(sws->inp);
+        (void)taosArrayPop(sws->inp);
       }
       fstStreamStateDestroy(p);
       continue;
     }
     FstTransition trn;
-    fstNodeGetTransitionAt(p->node, p->trans, &trn);
+    (void)fstNodeGetTransitionAt(p->node, p->trans, &trn);
 
     Output out = p->out.out + trn.out;
     void*  nextState = automFuncs[aut->type].accept(aut, p->autState, trn.inp);
@@ -1305,8 +1305,8 @@ FStmStRslt* stmStNextWith(FStmSt* sws, streamCallback__fn callback) {
     bool   isMatch = automFuncs[aut->type].isMatch(aut, nextState);
 
     FstNode* nextNode = fstGetNode(sws->fst, trn.addr);
-    taosArrayPush(nodes, &nextNode);
-    taosArrayPush(sws->inp, &(trn.inp));
+    (void)taosArrayPush(nodes, &nextNode);
+    (void)taosArrayPush(sws->inp, &(trn.inp));
 
     if (FST_NODE_IS_FINAL(nextNode)) {
       void* eofState = automFuncs[aut->type].acceptEof(aut, nextState);
@@ -1315,10 +1315,10 @@ FStmStRslt* stmStNextWith(FStmSt* sws, streamCallback__fn callback) {
       }
     }
     FstStreamState s1 = {.node = p->node, .trans = p->trans + 1, .out = p->out, .autState = p->autState};
-    taosArrayPush(sws->stack, &s1);
+    (void)taosArrayPush(sws->stack, &s1);
 
     FstStreamState s2 = {.node = nextNode, .trans = 0, .out = {.null = false, .out = out}, .autState = nextState};
-    taosArrayPush(sws->stack, &s2);
+    (void)taosArrayPush(sws->stack, &s2);
 
     int32_t  isz = taosArrayGetSize(sws->inp);
     uint8_t* buf = (uint8_t*)taosMemoryMalloc(isz * sizeof(uint8_t));

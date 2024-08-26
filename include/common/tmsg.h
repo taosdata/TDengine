@@ -1547,6 +1547,8 @@ typedef struct {
   SDbCfgRsp*         cfgRsp;
   STableTSMAInfoRsp* pTsmaRsp;
   int32_t            dbTsmaVersion;
+  char               db[TSDB_DB_FNAME_LEN];
+  int64_t            dbId;
 } SDbHbRsp;
 
 typedef struct {
@@ -1763,6 +1765,14 @@ int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
 
+typedef struct {
+  int32_t dnodeId;
+  char    machineId[TSDB_MACHINE_ID_LEN + 1];
+} SDnodeInfoReq;
+
+int32_t tSerializeSDnodeInfoReq(void* buf, int32_t bufLen, SDnodeInfoReq* pReq);
+int32_t tDeserializeSDnodeInfoReq(void* buf, int32_t bufLen, SDnodeInfoReq* pReq);
+
 typedef enum {
   MONITOR_TYPE_COUNTER = 0,
   MONITOR_TYPE_SLOW_LOG = 1,
@@ -1827,12 +1837,19 @@ typedef struct {
 int32_t tSerializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
 // int32_t tDeserializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
 
-typedef struct {
-  int64_t tick;
-} SMStreamTickReq;
+typedef struct SOrphanTask {
+  int64_t streamId;
+  int32_t taskId;
+  int32_t nodeId;
+} SOrphanTask;
 
-int32_t tSerializeSMStreamTickMsg(void* buf, int32_t bufLen, SMStreamTickReq* pReq);
-// int32_t tDeserializeSMStreamTickMsg(void* buf, int32_t bufLen, SMStreamTickReq* pReq);
+typedef struct SMStreamDropOrphanMsg {
+  SArray* pList;  // SArray<SOrphanTask>
+} SMStreamDropOrphanMsg;
+
+int32_t tSerializeDropOrphanTaskMsg(void* buf, int32_t bufLen, SMStreamDropOrphanMsg* pMsg);
+int32_t tDeserializeDropOrphanTaskMsg(void* buf, int32_t bufLen, SMStreamDropOrphanMsg* pMsg);
+void    tDestroyDropOrphanTaskMsg(SMStreamDropOrphanMsg* pMsg);
 
 typedef struct {
   int32_t  id;
@@ -2796,6 +2813,9 @@ enum {
   TOPIC_SUB_TYPE__COLUMN,
 };
 
+#define DEFAULT_MAX_POLL_INTERVAL      3000000
+#define DEFAULT_SESSION_TIMEOUT        12000
+
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];  // accout.topic
   int8_t igExists;
@@ -2818,7 +2838,9 @@ typedef struct {
 typedef struct {
   int64_t consumerId;
   char    cgroup[TSDB_CGROUP_LEN];
-  char    clientId[256];
+  char    clientId[TSDB_CLIENT_ID_LEN];
+  char    user[TSDB_USER_LEN];
+  char    fqdn[TSDB_FQDN_LEN];
   SArray* topicNames;  // SArray<char**>
 
   int8_t  withTbName;
@@ -2827,6 +2849,8 @@ typedef struct {
   int8_t  resetOffsetCfg;
   int8_t  enableReplay;
   int8_t  enableBatchMeta;
+  int32_t sessionTimeoutMs;
+  int32_t maxPollIntervalMs;
 } SCMSubscribeReq;
 
 static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
@@ -2848,11 +2872,16 @@ static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubsc
   tlen += taosEncodeFixedI8(buf, pReq->resetOffsetCfg);
   tlen += taosEncodeFixedI8(buf, pReq->enableReplay);
   tlen += taosEncodeFixedI8(buf, pReq->enableBatchMeta);
+  tlen += taosEncodeFixedI32(buf, pReq->sessionTimeoutMs);
+  tlen += taosEncodeFixedI32(buf, pReq->maxPollIntervalMs);
+  tlen += taosEncodeString(buf, pReq->user);
+  tlen += taosEncodeString(buf, pReq->fqdn);
 
   return tlen;
 }
 
-static FORCE_INLINE int32_t tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq* pReq) {
+static FORCE_INLINE int32_t tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq* pReq, int32_t len) {
+  void* start = buf;
   buf = taosDecodeFixedI64(buf, &pReq->consumerId);
   buf = taosDecodeStringTo(buf, pReq->cgroup);
   buf = taosDecodeStringTo(buf, pReq->clientId);
@@ -2878,6 +2907,16 @@ static FORCE_INLINE int32_t tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeR
   buf = taosDecodeFixedI8(buf, &pReq->resetOffsetCfg);
   buf = taosDecodeFixedI8(buf, &pReq->enableReplay);
   buf = taosDecodeFixedI8(buf, &pReq->enableBatchMeta);
+  if ((char*)buf - (char*)start < len) {
+    buf = taosDecodeFixedI32(buf, &pReq->sessionTimeoutMs);
+    buf = taosDecodeFixedI32(buf, &pReq->maxPollIntervalMs);
+    buf = taosDecodeStringTo(buf, pReq->user);
+    buf = taosDecodeStringTo(buf, pReq->fqdn);
+  } else {
+    pReq->sessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
+    pReq->maxPollIntervalMs = DEFAULT_MAX_POLL_INTERVAL;
+  }
+
   return 0;
 }
 
@@ -4105,6 +4144,7 @@ typedef struct {
   int64_t consumerId;
   int32_t epoch;
   SArray* topics;
+  int8_t  pollFlag;
 } SMqHbReq;
 
 typedef struct {

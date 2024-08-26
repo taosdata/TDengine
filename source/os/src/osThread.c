@@ -242,7 +242,7 @@ int32_t taosThreadCondTimedWait(TdThreadCond *cond, TdThreadMutex *mutex, const 
   return EINVAL;
 #else
   int32_t code = pthread_cond_timedwait(cond, mutex, abstime);
-  if (code) {
+  if (code && code != ETIMEDOUT) {
     terrno = TAOS_SYSTEM_ERROR(code);
     return terrno;
   }
@@ -445,9 +445,8 @@ int32_t taosThreadMutexTryLock(TdThreadMutex *mutex) {
   return EBUSY;
 #else
   int32_t code = pthread_mutex_trylock(mutex);
-  if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+  if (code && code != EBUSY) {
+    code = TAOS_SYSTEM_ERROR(code);
   }
   return code;
 #endif
@@ -785,8 +784,7 @@ int32_t taosThreadSpinDestroy(TdThreadSpinlock *lock) {
 
 int32_t taosThreadSpinInit(TdThreadSpinlock *lock, int32_t pshared) {
 #ifdef TD_USE_SPINLOCK_AS_MUTEX
-  ASSERT(pshared == 0);
-  if (pshared != 0) return -1;
+  if (pshared != 0) return TSDB_CODE_INVALID_PARA;
   return pthread_mutex_init((pthread_mutex_t *)lock, NULL);
 #else
   int32_t code = pthread_spin_init((pthread_spinlock_t *)lock, pshared);
@@ -816,9 +814,8 @@ int32_t taosThreadSpinTrylock(TdThreadSpinlock *lock) {
   return pthread_mutex_trylock((pthread_mutex_t *)lock);
 #else
   int32_t code = pthread_spin_trylock((pthread_spinlock_t *)lock);
-  if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return code;
+  if (code && code != EBUSY) {
+    code = TAOS_SYSTEM_ERROR(code);
   }
   return code;
 #endif

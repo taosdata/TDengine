@@ -73,7 +73,13 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
                                     SOperatorInfo** pOptrInfo) {
   QRY_OPTR_CHECK(pOptrInfo);
 
-  int32_t code = 0;
+  int32_t    lino = 0;
+  int32_t    code = 0;
+  int32_t    num = 0;
+  SExprInfo* pExprInfo = NULL;
+  int32_t    numOfScalarExpr = 0;
+  SExprInfo* pScalarExprInfo = NULL;
+
   SAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SAggOperatorInfo));
   SOperatorInfo*    pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -84,34 +90,29 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
   pOperator->exprSupp.hasWindowOrGroup = false;
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pAggNode->node.pOutputDataBlockDesc);
+  QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
   initBasicInfo(&pInfo->binfo, pResBlock);
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
-  int32_t    num = 0;
-  SExprInfo* pExprInfo = createExprInfo(pAggNode->pAggFuncs, pAggNode->pGroupKeys, &num);
+  code = createExprInfo(pAggNode->pAggFuncs, pAggNode->pGroupKeys, &pExprInfo, &num);
+  TSDB_CHECK_CODE(code, lino, _error);
+
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
                                pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  TSDB_CHECK_CODE(code, lino, _error);
 
-  int32_t    numOfScalarExpr = 0;
-  SExprInfo* pScalarExprInfo = NULL;
   if (pAggNode->pExprs != NULL) {
-    pScalarExprInfo = createExprInfo(pAggNode->pExprs, NULL, &numOfScalarExpr);
+    code = createExprInfo(pAggNode->pExprs, NULL, &pScalarExprInfo, &numOfScalarExpr);
+    TSDB_CHECK_CODE(code, lino, _error);
   }
 
   code = initExprSupp(&pInfo->scalarExprSup, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  TSDB_CHECK_CODE(code, lino, _error);
 
   code = filterInitFromNode((SNode*)pAggNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  TSDB_CHECK_CODE(code, lino, _error);
 
   pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
   pInfo->groupKeyOptimized = pAggNode->groupKeyOptimized;
@@ -140,15 +141,19 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
   return code;
 
 _error:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   if (pInfo != NULL) {
     destroyAggOperatorInfo(pInfo);
   }
-
   if (pOperator != NULL) {
-    cleanupExprSupp(&pOperator->exprSupp);
+    pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
+    destroyOperator(pOperator);
   }
-
-  taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
   return code;
 }
@@ -176,11 +181,11 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   SExecTaskInfo*    pTaskInfo = pOperator->pTaskInfo;
   SAggOperatorInfo* pAggInfo = pOperator->info;
 
-  if (pOperator->blocking && pAggInfo->hasValidBlock) return false;
+  if (pOperator->blocking && pAggInfo->hasValidBlock) {
+    return false;
+  }
 
-  SExprSupp*     pSup = &pOperator->exprSupp;
-  SOperatorInfo* downstream = pOperator->pDownstream[0];
-
+  SExprSupp*   pSup = &pOperator->exprSupp;
   int64_t      st = taosGetTimestampUs();
   int32_t      order = pAggInfo->binfo.inputTsOrder;
   SSDataBlock* pBlock = pAggInfo->pNewGroupBlock;
@@ -341,6 +346,7 @@ int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
 static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBlock** ppBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  SSDataBlock* pBlock = NULL;
   if (!tsCountAlwaysReturnValue) {
     return TSDB_CODE_SUCCESS;
   }
@@ -364,7 +370,6 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
     return TSDB_CODE_SUCCESS;
   }
 
-  SSDataBlock* pBlock = NULL;
   code = createDataBlock(&pBlock);
   if (code) {
     return code;
@@ -405,12 +410,14 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
 
   for (int32_t i = 0; i < blockDataGetNumOfCols(pBlock); ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
     colDataSetNULL(pColInfoData, 0);
   }
   *ppBlock = pBlock;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
   }
   return code;
@@ -449,6 +456,9 @@ void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uin
   SResultRow* pResultRow =
       doSetResultOutBufByKey(pAggInfo->aggSup.pResultBuf, pResultRowInfo, (char*)&groupId, sizeof(groupId), true,
                              groupId, pTaskInfo, false, &pAggInfo->aggSup, true);
+  if (pResultRow == NULL || pTaskInfo->code != 0) {
+    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+  }
   /*
    * not assign result buffer yet, add new result buffer
    * all group belong to one result set, and each group result has different group id so set the id to be one
@@ -480,6 +490,10 @@ int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, ui
 
   if (taosArrayGetSize(list) == 0) {
     pData = getNewBufPage(pResultBuf, &pageId);
+    if (pData == NULL) {
+      qError("failed to get buffer, code:%s", tstrerror(terrno));
+      return terrno;
+    }
     pData->num = sizeof(SFilePage);
   } else {
     SPageInfo* pi = getLastPageInfo(list);
@@ -496,9 +510,11 @@ int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, ui
       releaseBufPageInfo(pResultBuf, pi);
 
       pData = getNewBufPage(pResultBuf, &pageId);
-      if (pData != NULL) {
-        pData->num = sizeof(SFilePage);
+      if (pData == NULL) {
+        qError("failed to get buffer, code:%s", tstrerror(terrno));
+        return terrno;
       }
+      pData->num = sizeof(SFilePage);
     }
   }
 
