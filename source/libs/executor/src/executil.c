@@ -435,6 +435,7 @@ int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle,
   code = nodesCloneNode(pTagCond, &pTagCondTmp);
   if (TSDB_CODE_SUCCESS != code) {
     *pQualified = false;
+    pAPI->metaReaderFn.clearReader(&mr);
     return code;
   }
   STransTagExprCtx ctx = {.code = 0, .pReader = &mr};

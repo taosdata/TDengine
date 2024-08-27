@@ -655,16 +655,20 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         }
         SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&smrSuperTable.me.stbEntry.schemaRow);
         if (smrSuperTable.me.stbEntry.schemaRow.pSchema) {
-          QUERY_CHECK_NULL(schemaWrapper, code, lino, _end, terrno);
+          if (schemaWrapper == NULL) {
+            code = terrno;
+            lino = __LINE__;
+            pAPI->metaReaderFn.clearReader(&smrSuperTable);
+            goto _end;
+          }
         }
         code = taosHashPut(pInfo->pSchema, &suid, sizeof(int64_t), &schemaWrapper, POINTER_BYTES);
         if (code == TSDB_CODE_DUP_KEY) {
           code = TSDB_CODE_SUCCESS;
         }
-        QUERY_CHECK_CODE(code, lino, _end);
-
         schemaRow = schemaWrapper;
         pAPI->metaReaderFn.clearReader(&smrSuperTable);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
     } else if (pInfo->pCur->mr.me.type == TSDB_NORMAL_TABLE) {
       qDebug("sysTableScanUserCols cursor get normal table, %s", GET_TASKID(pTaskInfo));
@@ -789,10 +793,11 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
     code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildTable, dbname, tableName, &numOfRows,
                                             dataBlock);
-    QUERY_CHECK_CODE(code, lino, _end);
 
     pAPI->metaReaderFn.clearReader(&smrSuperTable);
     pAPI->metaReaderFn.clearReader(&smrChildTable);
+
+    QUERY_CHECK_CODE(code, lino, _end);
 
     if (numOfRows > 0) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo, pTaskInfo);
@@ -831,6 +836,8 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
       pAPI->metaReaderFn.clearReader(&smrSuperTable);
       pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
       pInfo->pCur = NULL;
+      blockDataDestroy(dataBlock);
+      dataBlock = NULL;
       T_LONG_JMP(pTaskInfo->env, terrno);
     }
 
@@ -846,7 +853,15 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     } else {
       code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows,
                                               dataBlock);
-      QUERY_CHECK_CODE(code, lino, _end);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        pAPI->metaReaderFn.clearReader(&smrSuperTable);
+        pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+        pInfo->pCur = NULL;
+        blockDataDestroy(dataBlock);
+        dataBlock = NULL;
+        T_LONG_JMP(pTaskInfo->env, terrno);
+      }
     }
     pAPI->metaReaderFn.clearReader(&smrSuperTable);
   }
