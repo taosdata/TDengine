@@ -18,7 +18,7 @@
 #include "indexFst.h"
 #include "indexFstFile.h"
 #include "indexInt.h"
-#include "indexTfile.h"
+//#include "indexTfile.h"
 #include "indexUtil.h"
 #include "tlockfree.h"
 
