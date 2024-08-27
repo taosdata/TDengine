@@ -960,7 +960,9 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
   }
 
   if (ttlReq.nUids > 0) {
-    metaDropTables(pVnode->pMeta, ttlReq.pTbUids);
+    int32_t code = metaDropTables(pVnode->pMeta, ttlReq.pTbUids);
+    if (code) return code;
+
     (void)tqUpdateTbUidList(pVnode->pTq, ttlReq.pTbUids, false);
   }
 
