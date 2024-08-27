@@ -1051,6 +1051,10 @@ static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock*
 
   for (int32_t i = 0; i < numOfRows; ++i) {
     TAOS_ROW pRow = taos_fetch_row(pRes);
+    if(NULL == pRow[0] || NULL == pRow[1] || NULL ==  pRow[2]) {
+      tscError("invalid data from vnode");
+      return TSDB_CODE_TSC_INTERNAL_ERROR;
+    }
     int64_t  ts = *(int64_t*)pRow[0];
     if (lastTs < ts) {
       lastTs = ts;
