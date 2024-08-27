@@ -1396,6 +1396,12 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
   SLRUCache *pCache = pTsdb->lruCache;
   SArray    *pCidList = pr->pCidList;
   int        num_keys = TARRAY_SIZE(pCidList);
+  bool       lruLocked = false;
+
+  if (num_keys > 0) {
+    taosThreadMutexLock(&pTsdb->lruMutex);
+    lruLocked = true;
+  }
 
   for (int i = 0; i < num_keys; ++i) {
     int16_t cid = ((int16_t *)TARRAY_DATA(pCidList))[i];
@@ -1424,7 +1430,6 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
   }
 
   if (remainCols && TARRAY_SIZE(remainCols) > 0) {
-    taosThreadMutexLock(&pTsdb->lruMutex);
     for (int i = 0; i < TARRAY_SIZE(remainCols);) {
       SIdxKey   *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[i];
       LRUHandle *h = taosLRUCacheLookup(pCache, &idxKey->key, ROCKS_KEY_LEN);
@@ -1446,11 +1451,14 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
     // tsdbTrace("tsdb/cache: vgId: %d, load %" PRId64 " from rocks", TD_VID(pTsdb->pVnode), uid);
     code = tsdbCacheLoadFromRocks(pTsdb, uid, pLastArray, remainCols, pr, ltype);
 
-    taosThreadMutexUnlock(&pTsdb->lruMutex);
-
     if (remainCols) {
       taosArrayDestroy(remainCols);
     }
+  }
+
+  if (lruLocked) {
+    taosThreadMutexUnlock(&pTsdb->lruMutex);
+    lruLocked = false;
   }
 
   return code;
