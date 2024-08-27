@@ -581,7 +581,10 @@ int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fs
     }
 
     code = TARRAY2_APPEND(fset[0]->lvlArr, lvl);
-    if (code) return code;
+    if (code) {
+      tsdbTFileSetClear(fset);
+      return code;
+    }
   }
 
   return 0;
