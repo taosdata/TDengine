@@ -118,7 +118,7 @@ EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWin
 int32_t fmFuncDynDataRequired(int32_t funcId, void* pRes, SDataBlockInfo* pBlockInfo, int32_t *reqStatus) {
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     *reqStatus = -1;
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_SUCCESS;
   }
 
   const char* name = funcMgtBuiltins[funcId].name;
