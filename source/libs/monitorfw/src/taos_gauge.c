@@ -20,7 +20,7 @@
 #include "taos_alloc.h"
 
 // Private
-#include "taos_assert.h"
+#include "taos_test.h"
 #include "taos_errors.h"
 #include "taos_log.h"
 #include "taos_metric_i.h"
