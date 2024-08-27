@@ -707,7 +707,9 @@ static FORCE_INLINE SColCmprWrapper* tCloneSColCmprWrapper(const SColCmprWrapper
 }
 
 static FORCE_INLINE int32_t tInitDefaultSColCmprWrapperByCols(SColCmprWrapper* pCmpr, int32_t nCols) {
-  assert(!pCmpr->pColCmpr);
+  if (!(!pCmpr->pColCmpr)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   pCmpr->pColCmpr = (SColCmpr*)taosMemoryCalloc(nCols, sizeof(SColCmpr));
   if (pCmpr->pColCmpr == NULL) {
     return terrno;
@@ -718,7 +720,9 @@ static FORCE_INLINE int32_t tInitDefaultSColCmprWrapperByCols(SColCmprWrapper* p
 
 static FORCE_INLINE int32_t tInitDefaultSColCmprWrapper(SColCmprWrapper* pCmpr, SSchemaWrapper* pSchema) {
   pCmpr->nCols = pSchema->nCols;
-  assert(!pCmpr->pColCmpr);
+  if (!(!pCmpr->pColCmpr)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   pCmpr->pColCmpr = (SColCmpr*)taosMemoryCalloc(pCmpr->nCols, sizeof(SColCmpr));
   if (pCmpr->pColCmpr == NULL) {
     return terrno;
@@ -2813,8 +2817,8 @@ enum {
   TOPIC_SUB_TYPE__COLUMN,
 };
 
-#define DEFAULT_MAX_POLL_INTERVAL      3000000
-#define DEFAULT_SESSION_TIMEOUT        12000
+#define DEFAULT_MAX_POLL_INTERVAL 3000000
+#define DEFAULT_SESSION_TIMEOUT   12000
 
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];  // accout.topic

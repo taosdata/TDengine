@@ -1319,7 +1319,9 @@ static bool doCheckDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, const S
             return true;
           }
         } else {  // it must be the last point
-          ASSERT(p->version == 0);
+          if (!(p->version == 0)) {
+            tsdbError("unexpected version:%" PRId64, p->version);
+          }
         }
       }
     } else {  // (p->ts > pBlock->maxKey.ts) {
