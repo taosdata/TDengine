@@ -1733,12 +1733,18 @@ _exit:
 }
 
 int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, int8_t ltype) {
-  int32_t    code = 0;
+  int32_t    code = 0, lino = 0;
   SArray    *remainCols = NULL;
   SArray    *ignoreFromRocks = NULL;
   SLRUCache *pCache = pTsdb->lruCache;
   SArray    *pCidList = pr->pCidList;
   int        numKeys = TARRAY_SIZE(pCidList);
+  bool       lruLocked = false;
+
+  if (numKeys) {
+    (void)taosThreadMutexLock(&pTsdb->lruMutex);
+    lruLocked = true;
+  }
 
   for (int i = 0; i < numKeys; ++i) {
     int16_t cid = ((int16_t *)TARRAY_DATA(pCidList))[i];
@@ -1803,18 +1809,13 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
   }
 
   if (remainCols && TARRAY_SIZE(remainCols) > 0) {
-    (void)taosThreadMutexLock(&pTsdb->lruMutex);
     for (int i = 0; i < TARRAY_SIZE(remainCols);) {
       SIdxKey   *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[i];
       LRUHandle *h = taosLRUCacheLookup(pCache, &idxKey->key, ROCKS_KEY_LEN);
       SLastCol  *pLastCol = h ? (SLastCol *)taosLRUCacheValue(pCache, h) : NULL;
       if (h && pLastCol->cacheStatus != TSDB_LAST_CACHE_NO_CACHE) {
         SLastCol lastCol = *pLastCol;
-        code = tsdbCacheReallocSLastCol(&lastCol, NULL);
-        if (code) {
-          (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-          TAOS_RETURN(code);
-        }
+        TAOS_CHECK_EXIT(tsdbCacheReallocSLastCol(&lastCol, NULL));
 
         taosArraySet(pLastArray, idxKey->idx, &lastCol);
 
@@ -1832,11 +1833,18 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
 
     // tsdbTrace("tsdb/cache: vgId: %d, load %" PRId64 " from rocks", TD_VID(pTsdb->pVnode), uid);
     code = tsdbCacheLoadFromRocks(pTsdb, uid, pLastArray, remainCols, ignoreFromRocks, pr, ltype);
-
-    (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
   }
 
 _exit:
+  if (TSDB_CODE_SUCCESS != code) {
+    tsdbError("tsdb/cache: vgId:%d, get batch failed since %s.", TD_VID(pTsdb->pVnode), tstrerror(code));
+  }
+
+  if (lruLocked) {
+    (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
+    lruLocked = false;
+  }
+
   if (remainCols) {
     taosArrayDestroy(remainCols);
   }
