@@ -1232,7 +1232,7 @@ int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
   return 0;
 }
 
-static int32_t blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataBlock, const int32_t* index) {
+static void blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataBlock, const int32_t* index) {
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pDst = &pCols[i];
@@ -1260,8 +1260,6 @@ static int32_t blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataB
       }
     }
   }
-
-  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t createHelpColInfoData(const SSDataBlock* pDataBlock, SColumnInfoData** ppCols) {
@@ -1448,18 +1446,16 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
   }
 
   int64_t p2 = taosGetTimestampUs();
-  code = blockDataAssign(pCols, pDataBlock, index);
-  if (code) {
-    return code;
-  }
+  blockDataAssign(pCols, pDataBlock, index);
 
   int64_t p3 = taosGetTimestampUs();
   copyBackToBlock(pDataBlock, pCols);
-  int64_t p4 = taosGetTimestampUs();
 
+  int64_t p4 = taosGetTimestampUs();
   uDebug("blockDataSort complex sort:%" PRId64 ", create:%" PRId64 ", assign:%" PRId64 ", copyback:%" PRId64
          ", rows:%d\n",
          p1 - p0, p2 - p1, p3 - p2, p4 - p3, rows);
+
   destroyTupleIndex(index);
   return TSDB_CODE_SUCCESS;
 }
