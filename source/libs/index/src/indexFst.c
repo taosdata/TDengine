@@ -228,7 +228,7 @@ void fstStateCompileForOneTrans(IdxFstFile* w, CompiledAddr addr, FstTransition*
 
   FST_SET_OUTPUT_PACK_SIZE(packSizes, outPackSize);
   FST_SET_TRANSITION_PACK_SIZE(packSizes, transPackSize);
-  (void)idxFileWrite(w, (char*)&packSizes, sizeof(packSizes));
+  (void)idxFileWrite(w, (uint8_t*)&packSizes, sizeof(packSizes));
 
   FstState st = fstStateCreate(OneTrans);
 
@@ -237,9 +237,9 @@ void fstStateCompileForOneTrans(IdxFstFile* w, CompiledAddr addr, FstTransition*
   bool    null = false;
   uint8_t inp = fstStateCommInput(&st, &null);
   if (null == true) {
-    (void)idxFileWrite(w, (char*)&trn->inp, sizeof(trn->inp));
+    (void)idxFileWrite(w, (uint8_t*)&trn->inp, sizeof(trn->inp));
   }
-  (void)idxFileWrite(w, (char*)(&(st.val)), sizeof(st.val));
+  (void)idxFileWrite(w, (uint8_t*)(&(st.val)), sizeof(st.val));
   return;
 }
 void fstStateCompileForAnyTrans(IdxFstFile* w, CompiledAddr addr, FstBuilderNode* node) {
@@ -285,7 +285,7 @@ void fstStateCompileForAnyTrans(IdxFstFile* w, CompiledAddr addr, FstBuilderNode
   }
   for (int32_t i = sz - 1; i >= 0; i--) {
     FstTransition* t = taosArrayGet(node->trans, i);
-    (void)idxFileWrite(w, (char*)&t->inp, 1);
+    (void)idxFileWrite(w, (uint8_t*)&t->inp, 1);
   }
   if (sz > TRANS_INDEX_THRESHOLD) {
     // A value of 255 indicates that no transition exists for the byte at that idx
@@ -295,7 +295,7 @@ void fstStateCompileForAnyTrans(IdxFstFile* w, CompiledAddr addr, FstBuilderNode
       FstTransition* t = taosArrayGet(node->trans, i);
       index[t->inp] = i;
     }
-    (void)idxFileWrite(w, (char*)index, 256);
+    (void)idxFileWrite(w, (uint8_t*)index, 256);
     taosMemoryFree(index);
   }
   (void)idxFileWrite(w, (char*)&packSizes, 1);

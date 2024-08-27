@@ -16,6 +16,7 @@
 #include "indexFstRegex.h"
 #include "indexFstDfa.h"
 #include "indexFstSparse.h"
+#include "indexInt.h"
 
 FstRegex *regexCreate(const char *str) {
   FstRegex *regex = taosMemoryCalloc(1, sizeof(FstRegex));

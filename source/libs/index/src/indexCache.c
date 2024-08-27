@@ -148,7 +148,7 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
     }
     CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
     terrno = TSDB_CODE_SUCCESS;
-    TExeCond   cond = cmpFn(c->colVal, pCt->colVal, pCt->colType);
+    TExeCond cond = cmpFn(c->colVal, pCt->colVal, pCt->colType);
     if (terrno != TSDB_CODE_SUCCESS) {
       code = terrno;
       goto _return;
@@ -586,7 +586,7 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   ct->uid = uid;
   ct->operaType = term->operType;
   // ugly code, refactor later
-  int64_t estimate = sizeof(ct) + strlen(ct->colVal);
+  int64_t estimate = sizeof(CacheTerm) + strlen(ct->colVal);
 
   (void)taosThreadMutexLock(&pCache->mtx);
   pCache->occupiedMem += estimate;
