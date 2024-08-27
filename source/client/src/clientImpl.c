@@ -135,7 +135,7 @@ int32_t taos_connect_internal(const char* ip, const char* user, const char* pass
   if (pInst == NULL) {
     p = taosMemoryCalloc(1, sizeof(struct SAppInstInfo));
     if (NULL == p) {
-      TSC_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      TSC_ERR_JRET(terrno);
     }
     p->mgmtEp = epSet;
     code = taosThreadMutexInit(&p->qnodeMutex, NULL);
@@ -513,9 +513,11 @@ int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32
     taosMemoryFree(pResInfo->userFields);
   }
   pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
+  if(NULL == pResInfo->fields) return terrno;
   pResInfo->userFields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
-  if (NULL == pResInfo->fields || NULL == pResInfo->userFields) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  if (NULL == pResInfo->userFields) {
+    taosMemoryFree(pResInfo->fields);
+    return terrno;
   }
   if (numOfCols != pResInfo->numOfCols) {
     tscError("numOfCols:%d != pResInfo->numOfCols:%d", numOfCols, pResInfo->numOfCols);
@@ -1594,7 +1596,7 @@ int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __ta
 static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo) {
   *pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (*pMsgSendInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pMsgSendInfo)->msgType = TDMT_MND_CONNECT;
@@ -1605,7 +1607,7 @@ static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInf
   (*pMsgSendInfo)->param = taosMemoryCalloc(1, sizeof(pRequest->self));
   if (NULL == (*pMsgSendInfo)->param) {
     taosMemoryFree(*pMsgSendInfo);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   *(int64_t*)(*pMsgSendInfo)->param = pRequest->self;
@@ -1981,7 +1983,11 @@ static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
     pResInfo->convertBuf = taosMemoryCalloc(pResInfo->numOfCols, POINTER_BYTES);
 
     if (pResInfo->row == NULL || pResInfo->pCol == NULL || pResInfo->length == NULL || pResInfo->convertBuf == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      taosMemoryFree(pResInfo->row);
+      taosMemoryFree(pResInfo->pCol);
+      taosMemoryFree(pResInfo->length);
+      taosMemoryFree(pResInfo->convertBuf);
+      return terrno;
     }
   }
 
@@ -2129,7 +2135,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
 
   taosMemoryFreeClear(pResultInfo->convertJson);
   pResultInfo->convertJson = taosMemoryCalloc(1, dataLen);
-  if (pResultInfo->convertJson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (pResultInfo->convertJson == NULL) return terrno;
   char* p1 = pResultInfo->convertJson;
 
   int32_t totalLen = 0;

@@ -169,8 +169,7 @@ static int32_t hbGenerateVgInfoFromRsp(SDBVgInfo **pInfo, SUseDbRsp *rsp) {
   int32_t    code = 0;
   SDBVgInfo *vgInfo = taosMemoryCalloc(1, sizeof(SDBVgInfo));
   if (NULL == vgInfo) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    return code;
+    return terrno;
   }
 
   vgInfo->vgVersion = rsp->vgVersion;
@@ -713,7 +712,7 @@ int32_t hbGetQueryBasicInfo(SClientHbKey *connKey, SClientHbReq *req) {
   if (NULL == hbBasic) {
     tscError("calloc %d failed", (int32_t)sizeof(SQueryHbReqBasic));
     releaseTscObj(connKey->tscRid);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   hbBasic->connId = pTscObj->connId;
@@ -1174,7 +1173,7 @@ static FORCE_INLINE void hbMgrInitHandle() {
 int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
   *pBatchReq = taosMemoryCalloc(1, sizeof(SClientHbBatchReq));
   if (pBatchReq == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   int32_t connKeyCnt = atomic_load_32(&pAppHbMgr->connKeyCnt);
   (*pBatchReq)->reqs = taosArrayInit(connKeyCnt, sizeof(SClientHbReq));
