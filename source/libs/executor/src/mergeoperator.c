@@ -505,7 +505,6 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     return 0;
   }
 
-  SSDataBlock* pBlock = NULL;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
 
@@ -516,15 +515,15 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   }
 
   if (NULL != gMultiwayMergeFps[pInfo->type].getNextFn) {
-    code = (*gMultiwayMergeFps[pInfo->type].getNextFn)(pOperator, &pBlock);
+    code = (*gMultiwayMergeFps[pInfo->type].getNextFn)(pOperator, pResBlock);
     if (code) {
       pTaskInfo->code = code;
       return code;
     }
   }
 
-  if (pBlock != NULL) {
-    pOperator->resultInfo.totalRows += pBlock->info.rows;
+  if ((*pResBlock) != NULL) {
+    pOperator->resultInfo.totalRows += (*pResBlock)->info.rows;
   } else {
     setOperatorCompleted(pOperator);
   }
