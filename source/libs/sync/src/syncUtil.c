@@ -394,13 +394,13 @@ void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64
 
     sNTrace(pSyncNode,
             "recv sync-heartbeat from dnode:%d slow {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
-            ", ts:%" PRId64 "}, QID:%s, net elapsed:%" PRId64,
+            ", ts:%" PRId64 "}, qid:%s, net elapsed:%" PRId64,
             DID(&pMsg->srcId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pMsg->timeStamp, s, timeDiff);
   }
 
   sNTrace(pSyncNode,
           "recv sync-heartbeat from dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
-          ", ts:%" PRId64 "}, QID:%s, net elapsed:%" PRId64,
+          ", ts:%" PRId64 "}, qid:%s, net elapsed:%" PRId64,
           DID(&pMsg->srcId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pMsg->timeStamp, s, timeDiff);
 }
 
