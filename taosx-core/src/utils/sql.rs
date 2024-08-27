@@ -153,7 +153,7 @@ async fn reconnect_with_max_retries(
     }
 }
 
-#[tracing::instrument(skip(pool, taos))]
+#[tracing::instrument(skip(pool, taos, cancel))]
 pub async fn exec_sql_with_connection_retries(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,

@@ -2691,9 +2691,14 @@ async fn consume_flat_record(
         if num_rows == 0 {
             continue;
         }
+        let instant = std::time::Instant::now();
         let batch = parser
             .parse_message_from_records(batch, true)
             .context("Transformer parse error")?;
+        if tracing::event_enabled!(tracing::Level::TRACE) {
+            let elapsed = instant.elapsed();
+            tracing::trace!(cost = ?elapsed, "Parse message elapsed: {:?}", elapsed);
+        }
         match batch {
             crate::plugins::transform::Message::Raw(_) => todo!(),
             crate::plugins::transform::Message::Tables(_) => todo!(),
@@ -3342,56 +3347,58 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     info!(?stream_type, "Processing stream");
     match stream_type {
         StreamType::Line => todo!(),
-        StreamType::Flat => {
-            ipc_flat_stream_reader(
-                &pool,
-                ipc_reader,
-                ipc_ack_writer,
-                cancel,
-                parser.as_ref(),
-                license.as_ref(),
-                transferred.as_deref(),
-                target_precision,
-                notifier,
-                ipc_error_strategy,
-                stream_trace_id,
-                metrics_arc.clone(),
-            )
-            .await?
-        }
-        StreamType::Lush => {
-            ipc_lush_stream_reader(
-                &pool,
-                ipc_reader,
-                ipc_ack_writer,
-                lush_model_config,
-                task_id,
-                notifier,
-                ipc_error_strategy,
-                stream_trace_id,
-                metrics,
-                &metrics_arc,
-            )
-            .await?
-        }
-        StreamType::Point => {
-            ipc_point_reader(
-                &pool,
-                ipc_reader,
-                ipc_ack_writer,
-                opc_model_config,
-                license.as_ref(),
-                transferred.as_deref(),
-                target_precision,
-                notifier,
-                ipc_error_strategy,
-                stream_trace_id,
-                metrics_arc.clone(),
-            )
-            .await?
-        }
+        StreamType::Flat => ipc_flat_stream_reader(
+            &pool,
+            ipc_reader,
+            ipc_ack_writer,
+            cancel,
+            parser.as_ref(),
+            license.as_ref(),
+            transferred.as_deref(),
+            target_precision,
+            notifier,
+            ipc_error_strategy,
+            stream_trace_id,
+            metrics_arc.clone(),
+        )
+        .await
+        .inspect_err(|err| {
+            tracing::error!("IPC stream error: {err:#}");
+        }),
+        StreamType::Lush => ipc_lush_stream_reader(
+            &pool,
+            ipc_reader,
+            ipc_ack_writer,
+            lush_model_config,
+            task_id,
+            notifier,
+            ipc_error_strategy,
+            stream_trace_id,
+            metrics,
+            &metrics_arc,
+        )
+        .await
+        .inspect_err(|err| {
+            tracing::error!("IPC stream error: {err:#}");
+        }),
+        StreamType::Point => ipc_point_reader(
+            &pool,
+            ipc_reader,
+            ipc_ack_writer,
+            opc_model_config,
+            license.as_ref(),
+            transferred.as_deref(),
+            target_precision,
+            notifier,
+            ipc_error_strategy,
+            stream_trace_id,
+            metrics_arc.clone(),
+        )
+        .await
+        .inspect_err(|err| {
+            tracing::error!("IPC stream error: {err:#}");
+        }),
     }
-    Ok(())
 }
 
 pub async fn handle_point_message_init(config: &OpcModelConfig, taos: &Taos) -> anyhow::Result<()> {

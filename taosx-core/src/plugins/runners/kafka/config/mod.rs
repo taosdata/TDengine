@@ -1,6 +1,10 @@
+use std::collections::HashMap;
+use std::str::FromStr;
 use std::time::Duration;
 
-use taos::Dsn;
+use faststr::FastStr;
+use taos::{Dsn, Itertools};
+use tracing::debug;
 
 use crate::plugins::config::AdvancedOptions;
 use crate::runners::kafka::config::connect::KafkaConnectConfig;
@@ -24,6 +28,8 @@ pub struct KafkaTaskConfig {
     pub client_id: Option<String>,
 
     pub advanced_options: AdvancedOptions,
+
+    pub extras: Option<HashMap<FastStr, FastStr>>,
 }
 
 impl KafkaTaskConfig {
@@ -41,6 +47,7 @@ impl KafkaTaskConfig {
             connection_idle_timeout: Self::parse_connection_idle_timeout(dsn)?,
             client_id: Self::parse_client_id(dsn)?,
             advanced_options: AdvancedOptions::from_dsn(dsn)?,
+            extras: Self::parse_extras(dsn)?,
         };
         Ok(config)
     }
@@ -197,6 +204,34 @@ impl KafkaTaskConfig {
                 e
             )),
         };
+    }
+
+    fn parse_extras(dsn: &Dsn) -> anyhow::Result<Option<HashMap<FastStr, FastStr>>> {
+        let mut extras = HashMap::new();
+        for (k, v) in dsn
+            .params
+            .iter()
+            .filter(|(k, _)| !k.is_empty())
+            .filter(|(k, _)| k.contains('.'))
+            .map(|(k, v)| (k.trim(), v.trim()))
+        {
+            extras.insert(FastStr::from_str(k)?, FastStr::from_str(v)?);
+        }
+        if let Some(str) = std::env::var("KAFKA_CONSUMER_EXTRAS").ok() {
+            debug!("use env KAFKA_CONSUMER_EXTRAS: {}", str);
+            for (k, v) in str
+                .split(',')
+                .flat_map(|s| s.split('=').collect_tuple::<(_, _)>())
+                .map(|(k, v)| (k.trim(), v.trim()))
+            {
+                extras.insert(FastStr::from_str(k)?, FastStr::from_str(v)?);
+            }
+        }
+        Ok(if extras.is_empty() {
+            None
+        } else {
+            Some(extras)
+        })
     }
 }
 
