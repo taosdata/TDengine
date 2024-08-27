@@ -1525,7 +1525,7 @@ static int32_t vnodeResetTableCxt(SMeta *pMeta, SSubmitReqConvertCxt *pCxt) {
   if (NULL == pCxt->pTbData) {
     pCxt->pTbData = taosMemoryCalloc(1, sizeof(SSubmitTbData));
     if (NULL == pCxt->pTbData) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   pCxt->pTbData->flags = 0;
@@ -1608,7 +1608,7 @@ static int32_t vnodeDecodeCreateTbReq(SSubmitReqConvertCxt *pCxt) {
 
   pCxt->pTbData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
   if (NULL == pCxt->pTbData->pCreateTbReq) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SDecoder decoder = {0};

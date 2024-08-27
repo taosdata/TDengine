@@ -66,7 +66,7 @@ static bool tqOffsetEqual(const STqOffset* pLeft, const STqOffset* pRight) {
 int32_t tqOpen(const char* path, SVnode* pVnode) {
   STQ* pTq = taosMemoryCalloc(1, sizeof(STQ));
   if (pTq == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pVnode->pTq = pTq;
   pTq->path = taosStrdup(path);
