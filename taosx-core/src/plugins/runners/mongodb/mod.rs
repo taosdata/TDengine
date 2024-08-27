@@ -101,6 +101,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     let database = config.task.generate_database()?;
     let collection = config.task.generate_collection()?;
     let filter = config.task.generate_filter()?;
+    let sort = config.task.generate_sort()?;
     tracing::info!(
         "get sample data, filter: {}, limit: {}",
         filter,
@@ -113,6 +114,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
             &database,
             &collection,
             filter,
+            sort,
             config.task.sample_data_limit,
         )
         .await?;
@@ -523,7 +525,7 @@ mod tests {
         let _ = test_clear_data().await;
         let _ = test_insert_data(4).await;
 
-        let from = Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27017?source=admin&database=test_taosx&collection=metrics&sql={\"datetime\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}&start=2024-07-01T00:00:00+00:00&end=2024-08-01T00:00:00+00:00&interval=12h&delay=0&sample_data_limit=4")
+        let from = Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27017?source=admin&database=test_db6_2023&collection=tb_9&sql={\"createtime\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}&start=2023-09-01T00:00:00+00:00&end=2023-09-30T00:00:00+00:00&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
 
         let res = get_sample(&from).await;
@@ -583,7 +585,9 @@ mod tests {
         let result = MongoDBQuery::try_new(config).await;
         match result {
             Ok(mut query) => {
-                let query_result = query.top_n("test_taosx", "metrics", doc! {}, 1).await;
+                let query_result = query
+                    .top_n("test_taosx", "metrics", doc! {}, doc! {}, 1)
+                    .await;
                 match query_result {
                     Ok(documents) => {
                         for document in documents {

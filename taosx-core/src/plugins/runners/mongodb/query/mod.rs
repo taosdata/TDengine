@@ -1,7 +1,7 @@
 use anyhow::Context;
 use arrow::array::RecordBatch;
 use flume::Sender;
-use mongodb::bson::Document;
+use mongodb::bson::{doc, Bson, Document};
 use mongodb::options::{AuthMechanism, ClientOptions, Compressor, Credential, Tls, TlsOptions};
 use mongodb::{Client, Cursor};
 use std::path::PathBuf;
@@ -124,6 +124,23 @@ impl MongoDBQuery {
         }
     }
 
+    pub async fn select_distinct_values(
+        &mut self,
+        database: &str,
+        collection: &str,
+        field: &str,
+    ) -> anyhow::Result<Vec<Bson>> {
+        // connect to mongodb
+        let database = self.client.database(database);
+        let collection: mongodb::Collection<Document> = database.collection(collection);
+        // select distinct values
+        let result = collection.distinct(field, doc! {}).await;
+        match result {
+            Ok(values) => Ok(values),
+            Err(err) => anyhow::bail!("failed to select distinct values, cause: {err:#}"),
+        }
+    }
+
     #[allow(unused)]
     pub async fn select_all_and_to_record_batches(
         &mut self,
@@ -164,6 +181,7 @@ impl MongoDBQuery {
         database: &str,
         collection: &str,
         filter: Document,
+        sort: Document,
         batch_size: usize,
         tx: Sender<RecordBatch>,
     ) -> anyhow::Result<u64> {
@@ -173,7 +191,8 @@ impl MongoDBQuery {
         // statistics
         let mut amount = 0;
         // select data
-        let result: Result<Cursor<Document>, mongodb::error::Error> = collection.find(filter).await;
+        let result: Result<Cursor<Document>, mongodb::error::Error> =
+            collection.find(filter).sort(sort).await;
         match result {
             Ok(mut cursor) => {
                 let mut documents = Vec::new();
@@ -211,13 +230,15 @@ impl MongoDBQuery {
         database: &str,
         collection: &str,
         filter: Document,
+        sort: Document,
         top_n: u32,
     ) -> anyhow::Result<Vec<Document>> {
         // connect to mongodb
         let database = self.client.database(database);
         let collection: mongodb::Collection<Document> = database.collection(collection);
         // select data
-        let result: Result<Cursor<Document>, mongodb::error::Error> = collection.find(filter).await;
+        let result: Result<Cursor<Document>, mongodb::error::Error> =
+            collection.find(filter).sort(sort).await;
         match result {
             Ok(mut cursor) => {
                 let mut documents = Vec::new();
@@ -381,6 +402,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_select_distinct_values() {
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(3).await;
+
+        let dsn = Dsn::from_str(
+            "mongodb://admin:tbase125!@192.168.1.40:27017?source=admin&database=test_taosx&collection=metrics&sql={}",
+        )
+        .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MongoDBQuery::try_new(config).await;
+        match result {
+            Ok(mut query) => {
+                let query_result = query
+                    .select_distinct_values("test_taosx", "metrics", "string")
+                    .await;
+                match query_result {
+                    Ok(values) => {
+                        dbg!(&values);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data().await;
+    }
+
+    #[tokio::test]
     async fn test_select_all_and_to_record_batches() {
         // prepare data
         let _ = test_create_table().await;
@@ -433,7 +490,9 @@ mod tests {
         let result = MongoDBQuery::try_new(config).await;
         match result {
             Ok(mut query) => {
-                let query_result = query.top_n("test_taosx", "metrics", doc! {}, 5).await;
+                let query_result = query
+                    .top_n("test_taosx", "metrics", doc! {}, doc! {}, 5)
+                    .await;
                 match query_result {
                     Ok(documents) => {
                         dbg!(&documents);
