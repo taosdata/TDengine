@@ -474,14 +474,13 @@ where
         }
     }
 
-    // Create event subscriber
-    let layered = tracing_subscriber::registry().with(layers);
-
     // Enable console subscriber
     #[cfg(feature = "tokio-tracing")]
     {
         layers.push(console_subscriber::spawn().boxed());
     }
+    // Create event subscriber
+    let layered = tracing_subscriber::registry().with(layers);
 
     // Enable opentelemetry layer
     if otel_enabled(args) {

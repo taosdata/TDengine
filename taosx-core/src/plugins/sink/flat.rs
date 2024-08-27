@@ -267,7 +267,15 @@ pub async fn flat_write_with_sql(
                 }
             }
         }
+        let instant = std::time::Instant::now();
         let sqls = message_to_sql(messages.iter().map(|v| *v), target_precision, true, true);
+        tracing::debug!(
+            stable = stable.as_deref(),
+            sqls = sqls.len(),
+            cost = ?instant.elapsed(),
+            "message to sql cost: {:#?}",
+            instant.elapsed()
+        );
         for records in sqls {
             loop {
                 match write_stable_with_sql(pool, taos, req_id, &records, cancel).await {

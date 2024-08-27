@@ -367,6 +367,15 @@ docker compose run --remove-orphans --rm build \
   cargo build --release -p taosx
 """
 
+[tasks.build-centos7-jemalloc]
+# dependencies = ["build-docker-dev"]
+script = """
+echo Build taosX release binaries with taosx/dev image.
+mkdir -p target/centos7
+docker compose run --remove-orphans --rm build \
+  cargo build --profile production -p taosx --no-default-features --features jemallocator,optin,native-tls,tokio-tracing
+"""
+
 [tasks.build-centos7-production]
 # dependencies = ["build-docker-dev"]
 script = """

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -29,8 +30,9 @@ use scc::HashIndex;
 use serde_json::json;
 use taos::Dsn;
 use tokio::task::JoinSet;
+use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
-use tracing::{instrument, warn, Instrument, Span};
+use tracing::{error, instrument, warn, Instrument, Span};
 
 use taosx_ipc::ack::AckReaderBuilder;
 use taosx_ipc::prelude::ArrowDataType;
@@ -375,12 +377,30 @@ async fn execute(
     ack_stream.set_read_timeout(None)?;
     let mut consumers = JoinSet::new();
 
+    // kafka task config
+    let config = KafkaTaskConfig::from_dsn(&from)?;
+
+    let batch_size = config.advanced_options.batch_size.unwrap_or(1000);
+    let batch_timeout_ms = config.advanced_options.batch_timeout.unwrap_or(1000) as i64;
+    tracing::info!(
+        timeout = config.timeout,
+        batch.size = batch_size,
+        batch.timeout.ms = batch_timeout_ms,
+        "Kafka consumer configuration"
+    );
+
+    // split into sub tasks
+    let sub_tasks: Vec<SubTask> = SubTask::build_tasks(config, notify.clone())?;
+
     let ack_span = tracing::info_span!("kafka_ack_reader");
+    let ack_num = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let ack_num_clone = ack_num.clone();
     // receive ACK from IPC
     consumers.spawn_blocking(move || {
         let _entered = ack_span.entered();
         let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
         for ack in ack_reader {
+            ack_num_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             if !ack.success() {
                 tracing::error!(ack.code = %ack.code(), ack.message = ack.message(), ack.context = ack.context(), "Kafka ack found error");
                 if let Some(message) = ack.message() {
@@ -394,7 +414,10 @@ async fn execute(
 
     let schema = Arc::new(build_schema());
     // multi producer(KafkaConsumer) and single consumer(IPC Writer)
-    let (tx, rx) = flume::bounded(0);
+    let (tx, rx) = flume::bounded(
+        sub_tasks.len() * std::thread::available_parallelism().map_or_else(|_| 8, |n| n.get()),
+    );
+    let max_wait_ack = sub_tasks.len() * 10;
 
     // IPC Writer
     let schema_clone = schema.clone();
@@ -406,7 +429,34 @@ async fn execute(
 
         let mut row_count = 0;
         let mut batches = 0;
+        let mut backoff = 0;
         while let Ok(batch) = rx.recv() {
+            loop {
+                let ack = ack_num.load(std::sync::atomic::Ordering::SeqCst);
+                if batches - ack > max_wait_ack {
+                    if tracing::enabled!(tracing::Level::TRACE) {
+                        tracing::debug!(
+                            ack = ack,
+                            backoff,
+                            batches,
+                            "Kafka IPC Writer ack not catch up, wait for ack"
+                        );
+                    } else if backoff > 0 {
+                        tracing::debug!(
+                            ack = ack,
+                            backoff,
+                            batches,
+                            "Kafka IPC Writer ack not catch up, wait for ack"
+                        );
+                    }
+                    backoff += 1;
+                    std::thread::sleep(Duration::from_millis(backoff * 100));
+                    continue;
+                } else {
+                    backoff = 0;
+                    break;
+                }
+            }
             writer.write(&batch)?;
             row_count += batch.num_rows();
             tracing::trace!(
@@ -427,21 +477,6 @@ async fn execute(
         Ok(ExitStatus::Finished)
     });
 
-    // kafka task config
-    let config = KafkaTaskConfig::from_dsn(&from)?;
-
-    let batch_size = config.advanced_options.batch_size.unwrap_or(1000);
-    let batch_timeout_ms = config.advanced_options.batch_timeout.unwrap_or(1000) as i64;
-    tracing::info!(
-        timeout = config.timeout,
-        batch.size = batch_size,
-        batch.timeout.ms = batch_timeout_ms,
-        "Kafka consumer configuration"
-    );
-
-    // split into sub tasks
-    let sub_tasks: Vec<SubTask> = SubTask::build_tasks(config, notify.clone())?;
-
     for (idx, task) in sub_tasks.into_iter().enumerate() {
         let tx = tx.clone();
         let aborted = aborted.clone();
@@ -453,7 +488,7 @@ async fn execute(
                 let SubTask {
                     topics,
                     config,
-                    instance,
+                    mut instance,
                     mut consumer,
                     timeout,
                 } = task;
@@ -484,11 +519,27 @@ async fn execute(
                             if last_errors.elapsed() >= MAX_RETRY_INTERVAL {
                                 errors = 0;
                             }
+                            let error = format!("{err:#}");
                             if errors < MAX_RETRY_TIMES {
-                                warn!(error = format!("{err:#}"), "Try to rebuild consumer {idx}");
-                                consumer = config.build_consumer(&instance).with_context(|| {
-                                    format!("Try to rebuild consumer {idx} error")
-                                })?;
+                                let context = consumer.context().clone();
+                                drop(consumer);
+                                let joins = context.current_joins();
+
+                                if error.contains("FencedInstanceId") {
+                                    instance = format!("{idx}-{}", uuid::Uuid::new_v4());
+                                }
+                                warn!(error, instance, "Try to rebuild consumer {idx}");
+
+                                consumer = Arc::into_inner(context)
+                                    .map_or_else(
+                                        || config.build_consumer(&instance),
+                                        |context| {
+                                            config.build_consumer_with_context(&instance, context)
+                                        },
+                                    )
+                                    .with_context(|| {
+                                        format!("{joins} loop to rebuild consumer {idx} error")
+                                    })?;
                                 consumer
                                     .subscribe(
                                         &topics.iter().map(|s| s.as_str()).collect::<Vec<&str>>(),
@@ -503,7 +554,7 @@ async fn execute(
                             }
                             last_errors = std::time::Instant::now();
                             errors += 1;
-                            warn!(error = format!("{err:#}"), "Kafka consuming error");
+                            warn!(error, "Kafka consuming error");
                             Err(err)?;
                         }
                     }
@@ -597,9 +648,6 @@ impl SubTask {
         };
 
         let config = Arc::new(config);
-        use rand::distributions::{Alphanumeric, DistString};
-        let mut rng = rand::thread_rng();
-
         let topics = topic_partitions
             .keys()
             .into_iter()
@@ -607,8 +655,8 @@ impl SubTask {
             .collect_vec();
         let topics = Arc::new(topics);
 
-        for _ in 0..concurrency {
-            let instance = Alphanumeric.sample_string(&mut rng, 12);
+        for i in 0..concurrency {
+            let instance = format!("{i}-{}", uuid::Uuid::new_v4());
             let consumer = config.build_consumer(&instance)?;
             consumer
                 .subscribe(&topics.iter().map(|s| s.as_str()).collect::<Vec<&str>>())
@@ -649,12 +697,15 @@ impl ExitStatus {
 struct MessagesSender<'a> {
     consumer: &'a LoggingConsumer,
     tx: &'a flume::Sender<RecordBatch>,
+    /// Batch id/sequence number
+    bid: u64,
     // Send options
     batch_size: usize,
     batch_timeout_ms: i64,
     polling_timeout_ms: i64,
     last_polling: i64,
     last_sent: i64,
+    runtime_polling: Instant,
 
     // Builders
     timestamp: TimestampNanosecondBuilder,
@@ -745,6 +796,7 @@ impl<'a> MessagesSender<'a> {
                 cache.len = self.value.len(),
                 "Batch size reached, send directly"
             );
+            self.runtime_polling = Instant::now();
             // Reaches batch size, send directly.
             return unsafe { self.send_unchecked().in_current_span().await };
         }
@@ -755,6 +807,7 @@ impl<'a> MessagesSender<'a> {
                 cache.len = self.value.len(),
                 "Batch timeout reached, send directly"
             );
+            self.runtime_polling = Instant::now();
             // Reaches batch timeout, send directly.
             return unsafe { self.send_unchecked().in_current_span().await };
         }
@@ -768,6 +821,12 @@ impl<'a> MessagesSender<'a> {
     }
 
     async unsafe fn send_unchecked(&mut self) -> anyhow::Result<ExitStatus> {
+        let cost = self.runtime_polling.elapsed();
+        if cost > Duration::from_secs(1) {
+            tracing::warn!(runtime.cost = ?cost, "Send batch to IPC Writer");
+        } else {
+            tracing::debug!(runtime.cost = ?cost, "Send batch to IPC Writer");
+        }
         debug_assert!(
             self.value.len() > 0,
             "value length should be greater than 0"
@@ -783,15 +842,25 @@ impl<'a> MessagesSender<'a> {
                 Arc::new(self.value.finish()),
             ],
         )?;
-
         let batch_size = batch.num_rows();
-        self.tx.send_async(batch).await?;
-        self.last_sent = chrono::Utc::now().timestamp_millis();
-
         tracing::debug!(
-            "Kafka consumer send batch to IPC Writer, batch size: {}",
-            batch_size
+            ipc.sender.cap = self.tx.capacity(),
+            ipc.sender.len = self.tx.len(),
+            ipc.batch.size = batch_size,
+            ipc.batch.id = self.bid,
+            "Send batch to IPC Writer",
         );
+        self.runtime_polling = Instant::now();
+        self.tx.send_async(batch).await?;
+        self.bid += 1;
+        self.last_sent = chrono::Utc::now().timestamp_millis();
+        let cost = self.runtime_polling.elapsed();
+
+        if cost > Duration::from_secs(2) {
+            tracing::warn!(runtime.cost = ?cost, "Send batch to IPC Writer seems slow");
+        } else {
+            tracing::debug!(runtime.cost = ?cost, "Send batch to IPC Writer");
+        }
 
         let context = self.consumer.context();
         let permit = context.sem.acquire().await;
@@ -854,6 +923,7 @@ impl<'a> MessagesSender<'a> {
                 }
             }
         }
+        drop(permit);
 
         if no_offsets {
             tracing::warn!(batch.size = batch_size, "No offsets stored, skip commit");
@@ -877,7 +947,6 @@ impl<'a> MessagesSender<'a> {
             }
             bail!("failed to commit consumer state, cause: {}", err_str);
         }
-        drop(permit);
 
         anyhow::Ok(ExitStatus::Finished)
     }
@@ -895,7 +964,7 @@ impl<'a> MessagesSender<'a> {
             }
             return Ok(ExitStatus::None);
         }
-        unsafe { self.send_unchecked().await }
+        unsafe { self.send_unchecked().in_current_span().await }
     }
 }
 
@@ -933,11 +1002,13 @@ async fn poll_message<'a>(
     let mut sender = MessagesSender {
         consumer,
         tx,
+        bid: 0,
         batch_size,
         batch_timeout_ms,
         polling_timeout_ms: timeout,
         last_polling: chrono::Utc::now().timestamp_millis(),
         last_sent: chrono::Utc::now().timestamp_millis(),
+        runtime_polling: Instant::now(),
         timestamp,
         topic,
         partition,
@@ -947,6 +1018,9 @@ async fn poll_message<'a>(
         schema,
     };
 
+    // static RANDOM_ERROR_ATOMIC: AtomicUsize = AtomicUsize::new(1);
+
+    let mut backoff = 1;
     loop {
         tracing::trace!("Kafka consumer-{} polling by ready trunks", index);
         tokio::select! {
@@ -960,8 +1034,12 @@ async fn poll_message<'a>(
                 return Ok(ExitStatus::Timeout);
             }
             chunk = ready_chunks.next() => {
+                // if RANDOM_ERROR_ATOMIC.fetch_add(1, std::sync::atomic::Ordering::SeqCst) % 32 == 0 {
+                //     bail!("Random error");
+                // };
                 match chunk {
                     Some(Ok(chunk)) => {
+                        backoff = 1;
                         match sender.send_chuck(&chunk).in_current_span().await? {
                             ExitStatus::None => {
                                 tokio::time::sleep(Duration::from_millis(100)).await;
@@ -1003,7 +1081,8 @@ async fn poll_message<'a>(
                         tracing::trace!("Kafka polling return None, continue");
                         match sender.send().in_current_span().await? {
                             ExitStatus::None => {
-                                tokio::time::sleep(Duration::from_millis(200)).await;
+                                backoff *= 2;
+                                tokio::time::sleep(Duration::from_millis(backoff.max(16) * 100)).await;
                             }
                             ExitStatus::Timeout => {
                                 tracing::info!("None messages received, exit with consumer polling timeout");
@@ -1051,6 +1130,20 @@ fn build_schema() -> Schema {
 struct CustomContext {
     offsets_cache: scc::HashIndex<String, scc::HashIndex<i32, i64>>,
     sem: tokio::sync::Semaphore,
+    /// Metric 1: joins, times that a retryable consumer joins to the group.
+    joins: AtomicUsize,
+    rebalances: AtomicUsize,
+    commits: AtomicUsize,
+}
+
+impl CustomContext {
+    fn fetch_add_joins(&self) -> usize {
+        self.joins.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+    }
+
+    fn current_joins(&self) -> usize {
+        self.joins.load(std::sync::atomic::Ordering::SeqCst)
+    }
 }
 
 impl Default for CustomContext {
@@ -1058,6 +1151,9 @@ impl Default for CustomContext {
         Self {
             offsets_cache: scc::HashIndex::with_capacity(1),
             sem: tokio::sync::Semaphore::new(1),
+            joins: AtomicUsize::new(0),
+            rebalances: AtomicUsize::new(0),
+            commits: AtomicUsize::new(0),
         }
     }
 }
@@ -1070,9 +1166,11 @@ impl ConsumerContext for CustomContext {
             return;
         }
         self.sem.forget_permits(1);
-        tracing::info!("Pre rebalance {:?}", rebalance);
         if !self.offsets_cache.is_empty() {
+            tracing::info!("Pre rebalance {:?}, will clear offsets cache", rebalance);
             self.offsets_cache.clear();
+        } else {
+            tracing::info!("Pre rebalance {:?}", rebalance);
         }
     }
 
@@ -1080,7 +1178,10 @@ impl ConsumerContext for CustomContext {
         if is_rebalance_empty(rebalance) {
             return;
         }
-        tracing::info!("Post rebalance {:?}", rebalance);
+        let rebalances = self
+            .rebalances
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        tracing::info!(rebalances, "Post rebalance {:?}", rebalance);
         self.sem.add_permits(1);
     }
 
@@ -1088,7 +1189,14 @@ impl ConsumerContext for CustomContext {
         if is_tplist_empty(tpl) {
             return;
         }
-        tracing::info!("Committing offsets: {:?}", result);
+        if let Err(err) = result {
+            error!(commits = self.commits.load(std::sync::atomic::Ordering::SeqCst), error = %err, "Commit error");
+        } else {
+            let commits = self
+                .commits
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            tracing::info!(commits, "Committing offsets: {:?}", result);
+        }
     }
 
     fn main_queue_min_poll_interval(&self) -> rdkafka::util::Timeout {
@@ -1113,6 +1221,14 @@ type LoggingConsumer = StreamConsumer<CustomContext>;
 
 impl KafkaTaskConfig {
     fn build_consumer(&self, instance: &str) -> anyhow::Result<LoggingConsumer> {
+        self.build_consumer_with_context(instance, CustomContext::default())
+    }
+
+    fn build_consumer_with_context(
+        &self,
+        instance: &str,
+        context: CustomContext,
+    ) -> anyhow::Result<LoggingConsumer> {
         let mut client = build_client_config(self.connect.clone()).unwrap();
         // Client identifier, default "rdkafka".
         if let Some(client_id) = &self.client_id {
@@ -1144,15 +1260,15 @@ impl KafkaTaskConfig {
         // for high-level consumers. If this interval is exceeded the consumer is considered failed
         // and the group will rebalance in order to reassign the partitions to another consumer group member.
         // Warning: Offset commits may be not possible at this point.
-        client.set("max.poll.interval.ms", "600000");
+        client.set("max.poll.interval.ms", "3600000");
 
         if !instance.is_empty() {
-            client.set("enable.idempotence", "true");
+            // client.set("enable.idempotence", "true");
             client.set("group.instance.id", instance);
         }
 
         // A larger value allows the consumer to fetch more messages in one request.
-        client.set("queued.min.messages", "1000000");
+        // client.set("queued.min.messages", "1000000");
 
         // Minimum number of bytes the broker responds with, default is 1.
         client.set(
@@ -1181,10 +1297,24 @@ impl KafkaTaskConfig {
                     .to_string(),
             );
         }
+
+        client.set("partition.assignment.strategy", "cooperative-sticky");
+        client.set("socket.keepalive.enable", "true");
+        client.set("socket.timeout.ms", "300000");
+
+        if let Some(extras) = &self.extras {
+            for (k, v) in extras.iter() {
+                client.set(k.as_str(), v.as_str());
+                tracing::info!("Set extra config: {}={}", k, v);
+            }
+        }
         // Set log level and create consumer
+        let joins = context.fetch_add_joins();
+        tracing::info!(joins, "Consumer {instance} begin join");
+
         let consumer = client
             .set_log_level(RDKafkaLogLevel::Info)
-            .create_with_context(CustomContext::default())
+            .create_with_context(context)
             .context("Consumer creation failed")?;
         Ok(consumer)
     }
