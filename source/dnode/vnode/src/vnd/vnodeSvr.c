@@ -960,7 +960,9 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
   }
 
   if (ttlReq.nUids > 0) {
-    metaDropTables(pVnode->pMeta, ttlReq.pTbUids);
+    int32_t code = metaDropTables(pVnode->pMeta, ttlReq.pTbUids);
+    if (code) return code;
+
     (void)tqUpdateTbUidList(pVnode->pTq, ttlReq.pTbUids, false);
   }
 
@@ -2327,6 +2329,7 @@ static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t ver, void *pReq,
   pRsp->contLen = 0;
 
   if ((code = tDeserializeSDropIdxReq(pReq, len, &req))) {
+    pRsp->code = code;
     return code;
   }
 

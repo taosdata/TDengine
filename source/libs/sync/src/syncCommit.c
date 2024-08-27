@@ -45,9 +45,6 @@
 //
 
 static inline int64_t syncNodeAbs64(int64_t a, int64_t b) {
-  ASSERT(a >= 0);
-  ASSERT(b >= 0);
-
   int64_t c = a > b ? a - b : b - a;
   return c;
 }

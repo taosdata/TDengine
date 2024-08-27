@@ -933,17 +933,20 @@ static int tfileWriteFooter(TFileWriter* write) {
   char  buf[sizeof(FILE_MAGIC_NUMBER) + 1] = {0};
   void* pBuf = (void*)buf;
   (void)taosEncodeFixedU64((void**)(void*)&pBuf, FILE_MAGIC_NUMBER);
-  int nwrite = write->ctx->write(write->ctx, buf, (int32_t)strlen(buf));
+  int nwrite = write->ctx->write(write->ctx, (uint8_t*)buf, (int32_t)strlen(buf));
 
   indexInfo("tfile write footer size: %d", write->ctx->size(write->ctx));
-  ASSERTS(nwrite == sizeof(FILE_MAGIC_NUMBER), "index write incomplete data");
-  return nwrite;
+  if (nwrite != sizeof(FILE_MAGIC_NUMBER)) {
+    return TAOS_SYSTEM_ERROR(errno);
+  } else {
+    return nwrite;
+  }
 }
 static int tfileReaderLoadHeader(TFileReader* reader) {
   // TODO simple tfile header later
   char buf[TFILE_HEADER_SIZE] = {0};
 
-  int64_t nread = reader->ctx->readFrom(reader->ctx, buf, sizeof(buf), 0);
+  int64_t nread = reader->ctx->readFrom(reader->ctx, (uint8_t*)buf, sizeof(buf), 0);
 
   if (nread == -1) {
     indexError("actual Read: %d, to read: %d, code:0x%x, filename: %s", (int)(nread), (int)sizeof(buf), errno,
@@ -967,14 +970,13 @@ static int tfileReaderLoadFst(TFileReader* reader) {
   }
 
   int64_t ts = taosGetTimestampUs();
-  int32_t nread = ctx->readFrom(ctx, buf, fstSize, reader->header.fstOffset);
+  int32_t nread = ctx->readFrom(ctx, (uint8_t*)buf, fstSize, reader->header.fstOffset);
   int64_t cost = taosGetTimestampUs() - ts;
   indexInfo("nread = %d, and fst offset=%d, fst size: %d, filename: %s, file size: %d, time cost: %" PRId64 "us", nread,
             reader->header.fstOffset, fstSize, ctx->file.buf, size, cost);
   // we assuse fst size less than FST_MAX_SIZE
-  ASSERTS(nread > 0 && nread <= fstSize, "index read incomplete fst");
   if (nread <= 0 || nread > fstSize) {
-    return -1;
+    return TSDB_CODE_INDEX_INVALID_FILE;
   }
 
   FstSlice st = fstSliceCreate((uint8_t*)buf, nread);
@@ -989,8 +991,10 @@ static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* 
   IFileCtx* ctx = reader->ctx;
   // add block cache
   char    block[4096] = {0};
-  int32_t nread = ctx->readFrom(ctx, block, sizeof(block), offset);
-  ASSERT(nread >= sizeof(uint32_t));
+  int32_t nread = ctx->readFrom(ctx, (uint8_t*)block, sizeof(block), offset);
+  if (nread < sizeof(uint32_t)) {
+    return TSDB_CODE_INDEX_INVALID_FILE;
+  }
 
   char*   p = block;
   int32_t nid = *(int32_t*)p;
@@ -1007,7 +1011,7 @@ static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* 
 
       memset(block, 0, sizeof(block));
       offset += sizeof(block);
-      nread = ctx->readFrom(ctx, block, sizeof(block), offset);
+      nread = ctx->readFrom(ctx, (uint8_t*)block, sizeof(block), offset);
       memcpy(buf + left, block, sizeof(uint64_t) - left);
 
       (void)taosArrayPush(result, (uint64_t*)buf);
@@ -1026,13 +1030,14 @@ static int tfileReaderVerify(TFileReader* reader) {
   int      size = ctx->size(ctx);
 
   if (size < sizeof(tMagicNumber) || size <= sizeof(reader->header)) {
-    return -1;
-  } else if (ctx->readFrom(ctx, buf, sizeof(tMagicNumber), size - sizeof(tMagicNumber)) != sizeof(tMagicNumber)) {
-    return -1;
+    return TSDB_CODE_INDEX_INVALID_FILE;
+  } else if (ctx->readFrom(ctx, (uint8_t*)buf, sizeof(tMagicNumber), size - sizeof(tMagicNumber)) !=
+             sizeof(tMagicNumber)) {
+    return TSDB_CODE_INDEX_INVALID_FILE;
   }
 
   (void)taosDecodeFixedU64(buf, &tMagicNumber);
-  return tMagicNumber == FILE_MAGIC_NUMBER ? 0 : -1;
+  return tMagicNumber == FILE_MAGIC_NUMBER ? 0 : TSDB_CODE_INDEX_INVALID_FILE;
 }
 
 void tfileReaderRef(TFileReader* rd) {

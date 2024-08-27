@@ -656,7 +656,8 @@ use_current_timezone: {
   例如客户端所配置时区为 UTC+0800, 则 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 0) 返回结果为东八区时间 '2020-01-01 08:00:00'。
   而使用 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 1) 时，返回结果为东八区时间 '2020-01-01 00:00:00'。
   当不指定 use_current_timezone 时，use_current_timezone 默认值为 1 。
-
+- 当将时间值截断到一周（1w）时，timetruncate 的计算是基于 Unix 时间戳（1970年1月1日00:00:00 UTC）进行的。Unix 时间戳始于星期四，
+  因此所有截断后的日期都是星期四。
 
 
 #### TIMEZONE
