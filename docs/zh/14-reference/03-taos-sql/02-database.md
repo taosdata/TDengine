@@ -40,7 +40,7 @@ database_option: {
 
 ### 参数说明
 
-- VGROUPS：数据库中初始 vgroup 的数目。
+- VGROUPS：数据库中初始 vgroup 的数目，默认值为 2。
 - PRECISION：数据库的时间戳精度。ms 表示毫秒，us 表示微秒，ns 表示纳秒，默认 ms 毫秒。
 - REPLICA：表示数据库副本数，取值为 1、2 或 3，默认为 1; 2 仅在企业版 3.3.0.0 及以后版本中可用。在集群中使用，副本数必须小于或等于 DNODE 的数目。且使用时存在以下限制： 
   - 暂不支持对双副本数据库相关 Vgroup 进行 SPLITE VGROUP 或 REDISTRIBUTE VGROUP 操作
