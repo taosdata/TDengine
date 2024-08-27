@@ -97,6 +97,11 @@ TFileCache* tfileCacheCreate(SIndex* idx, const char* path) {
   }
 
   tcache->tableCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (tcache->tableCache == NULL) {
+    indexError("failed to open table cache since%s", tstrerror(terrno));
+    goto End;
+  }
+
   tcache->capacity = 64;
 
   SArray* files = NULL;
@@ -126,8 +131,11 @@ TFileCache* tfileCacheCreate(SIndex* idx, const char* path) {
 
     char    buf[128] = {0};
     int32_t sz = idxSerialCacheKey(&key, buf);
-    (void)taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
-    tfileReaderRef(reader);
+    code = taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
+    if (code != 0) {
+      tfileReaderRef(reader);
+      goto End;
+    }
   }
   taosArrayDestroyEx(files, tfileDestroyFileName);
   return tcache;
@@ -173,10 +181,14 @@ int32_t tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader) {
   TFileReader** p = taosHashGet(tcache->tableCache, buf, sz);
   if (p != NULL && *p != NULL) {
     TFileReader* oldRdr = *p;
-    (void)taosHashRemove(tcache->tableCache, buf, sz);
-    indexInfo("found %s, should remove file %s", buf, oldRdr->ctx->file.buf);
-    oldRdr->remove = true;
-    tfileReaderUnRef(oldRdr);
+    if ((code = taosHashRemove(tcache->tableCache, buf, sz)) != 0) {
+      indexError("failed to remove old reader from cache since %s, suid:%" PRIu64 ", colName:%s", tstrerror(code),
+                 oldRdr->header.suid, oldRdr->header.colName);
+    } else {
+      indexInfo("found %s, should remove file %s", buf, oldRdr->ctx->file.buf);
+      oldRdr->remove = true;
+      tfileReaderUnRef(oldRdr);
+    }
   }
 
   code = taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
@@ -267,8 +279,16 @@ static int32_t tfSearchPrefix(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
   uint64_t sz = tem->nColVal;
 
   SArray* offsets = taosArrayInit(16, sizeof(uint64_t));
+  if (offsets == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
-  FAutoCtx*    ctx = automCtxCreate((void*)p, AUTOMATION_PREFIX);
+  FAutoCtx* ctx = automCtxCreate((void*)p, AUTOMATION_PREFIX);
+  if (ctx == NULL) {
+    taosArrayDestroy(offsets);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   FStmBuilder* sb = fstSearch(((TFileReader*)reader)->fst, ctx);
   FStmSt*      st = stmBuilderIntoStm(sb);
   FStmStRslt*  rt = NULL;

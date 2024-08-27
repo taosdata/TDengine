@@ -212,6 +212,7 @@ void idxReleaseRef(int64_t ref) {
 
 int32_t indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
   // TODO(yihao): reduce the lock range
+  int32_t code = 0;
   (void)taosThreadMutexLock(&index->mtx);
   for (int i = 0; i < taosArrayGetSize(fVals); i++) {
     SIndexTerm* p = taosArrayGetP(fVals, i);
@@ -223,10 +224,18 @@ int32_t indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
     IndexCache** cache = taosHashGet(index->colObj, buf, sz);
     if (cache == NULL) {
       IndexCache* pCache = idxCacheCreate(index, p->suid, p->colName, p->colType);
-      (void)taosHashPut(index->colObj, buf, sz, &pCache, sizeof(void*));
+      code = taosHashPut(index->colObj, buf, sz, &pCache, sizeof(void*));
+      if (code != 0) {
+        idxCacheDestroy(pCache);
+        break;
+      }
     }
   }
   (void)taosThreadMutexUnlock(&index->mtx);
+
+  if (code != 0) {
+    return code;
+  }
 
   for (int i = 0; i < taosArrayGetSize(fVals); i++) {
     SIndexTerm* p = taosArrayGetP(fVals, i);

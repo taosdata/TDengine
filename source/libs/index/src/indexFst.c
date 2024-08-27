@@ -1366,11 +1366,18 @@ FStmBuilder* stmBuilderCreate(Fst* fst, FAutoCtx* aut) {
   b->aut = aut;
   b->min = fstBoundStateCreate(Unbounded, NULL);
   b->max = fstBoundStateCreate(Unbounded, NULL);
+
+  if (b->min == NULL || b->max == NULL) {
+    stmBuilderDestroy(b);
+    return NULL;
+  }
+
   return b;
 }
 void stmBuilderDestroy(FStmBuilder* b) {
-  fstSliceDestroy(&b->min->data);
-  fstSliceDestroy(&b->max->data);
+  if (b->min) fstSliceDestroy(&b->min->data);
+  if (b->max) fstSliceDestroy(&b->max->data);
+
   taosMemoryFreeClear(b->min);
   taosMemoryFreeClear(b->max);
   taosMemoryFree(b);
