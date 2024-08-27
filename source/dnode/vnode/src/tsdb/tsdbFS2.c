@@ -1025,6 +1025,7 @@ int32_t tsdbFSCreateRefSnapshotWithoutLock(STFileSystem *fs, TFileSetArray **fse
 
   if (code) {
     TARRAY2_DESTROY(fsetArr[0], tsdbTFileSetClear);
+    taosMemoryFree(fsetArr[0]);
     fsetArr[0] = NULL;
   }
   return code;

@@ -459,7 +459,6 @@ _error:
     pOperator->info = NULL;
     destroyOperator(pOperator);
   }
-  pTaskInfo->code = code;
   return code;
 }
 

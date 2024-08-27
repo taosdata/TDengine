@@ -587,6 +587,7 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
       SPhysiNode*  pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, 0);
       SSDataBlock* pInputBlock = createDataBlockFromDescNode(pChildNode->pOutputDataBlockDesc);
       TSDB_CHECK_NULL(pInputBlock, code, lino, _error, terrno);
+      pSortMergeInfo->pInputBlock = pInputBlock;
 
       initResultSizeInfo(&pOperator->resultInfo, 1024);
       code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
@@ -599,7 +600,6 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
       pSortMergeInfo->bufPageSize = getProperSortPageSize(rowSize, numOfCols);
       pSortMergeInfo->sortBufSize =
           pSortMergeInfo->bufPageSize * (numStreams + 1);  // one additional is reserved for merged result.
-      pSortMergeInfo->pInputBlock = pInputBlock;
       code = extractColMatchInfo(pMergePhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID,
                                  &pSortMergeInfo->matchInfo);
       if (code != TSDB_CODE_SUCCESS) {
