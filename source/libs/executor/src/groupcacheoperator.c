@@ -692,39 +692,48 @@ _return:
   return code;
 }
 
-static FORCE_INLINE int32_t getBlkFromDownstreamOperator(struct SOperatorInfo* pOperator, int32_t downstreamIdx, SSDataBlock** ppRes) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SOperatorParam* pDownstreamParam = NULL;
-  SSDataBlock* pBlock = NULL;
+static FORCE_INLINE int32_t getBlkFromDownstreamOperator(struct SOperatorInfo* pOperator, int32_t downstreamIdx,
+                                                         SSDataBlock** ppRes) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  SOperatorParam*          pDownstreamParam = NULL;
+  SSDataBlock*             pBlock = NULL;
   SGroupCacheOperatorInfo* pGCache = pOperator->info;
+
   code = appendNewGroupToDownstream(pOperator, downstreamIdx, &pDownstreamParam);
   if (code) {
     return code;
   }
 
+  SOperatorInfo* pDownstream = pOperator->pDownstream[downstreamIdx];
   if (pDownstreamParam) {
-    code = pOperator->pDownstream[downstreamIdx]->fpSet.getNextExtFn(pOperator->pDownstream[downstreamIdx], pDownstreamParam, &pBlock);
+    code = pDownstream->fpSet.getNextExtFn(pDownstream, pDownstreamParam, &pBlock);
   } else {
-    pBlock = pOperator->pDownstream[downstreamIdx]->fpSet.getNextFn(pOperator->pDownstream[downstreamIdx]);
+    code = pDownstream->fpSet.getNextFn(pDownstream, &pBlock);
+  }
+
+  if (code) {
+    qError("failed to get block from downstream, code:%s %s", tstrerror(code), GET_TASKID(pOperator->pTaskInfo));
+    return code;
   }
 
   if (pBlock) {
-    qDebug("%s blk retrieved from group %" PRIu64, GET_TASKID(pOperator->pTaskInfo), pBlock->info.id.groupId);
-    
+    qDebug("%s res block retrieved from group %" PRIu64, GET_TASKID(pOperator->pTaskInfo), pBlock->info.id.groupId);
+
     pGCache->execInfo.pDownstreamBlkNum[downstreamIdx]++;
     if (NULL == pGCache->pDownstreams[downstreamIdx].pBaseBlock) {
       code = buildGroupCacheBaseBlock(&pGCache->pDownstreams[downstreamIdx].pBaseBlock, pBlock);
       if (code) {
         return code;
       }
-      if (NULL == taosArrayPush(pGCache->pDownstreams[downstreamIdx].pFreeBlock, &pGCache->pDownstreams[downstreamIdx].pBaseBlock)) {
+
+      if (NULL == taosArrayPush(pGCache->pDownstreams[downstreamIdx].pFreeBlock,
+                                &pGCache->pDownstreams[downstreamIdx].pBaseBlock)) {
         QRY_ERR_RET(terrno);
       }
     }
   }
 
   *ppRes = pBlock;
-  
   return code;
 }
 
