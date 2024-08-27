@@ -207,6 +207,7 @@ void idxTRsltDestroy(SIdxTRslt *tr) {
   taosMemoryFree(tr);
 }
 int32_t idxTRsltMergeTo(SIdxTRslt *tr, SArray *result) {
+  int32_t code = 0;
   taosArraySort(tr->total, uidCompare);
   taosArraySort(tr->add, uidCompare);
   taosArraySort(tr->del, uidCompare);
@@ -229,9 +230,11 @@ int32_t idxTRsltMergeTo(SIdxTRslt *tr, SArray *result) {
       taosArrayDestroy(arrs);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    iUnion(arrs, result);
+    code = iUnion(arrs, result);
     taosArrayDestroy(arrs);
   }
-  iExcept(result, tr->del);
-  return 0;
+  if (code == 0) {
+    code = iExcept(result, tr->del);
+  }
+  return code;
 }
