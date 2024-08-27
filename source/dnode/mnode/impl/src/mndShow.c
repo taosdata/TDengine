@@ -180,7 +180,11 @@ static void mndFreeShowObj(SShowObj *pShow) {
   ShowFreeIterFp freeFp = pMgmt->freeIterFps[pShow->type];
   if (freeFp != NULL) {
     if (pShow->pIter != NULL) {
+      mTrace("show:0x%" PRIx64 ", is destroying, data:%p, pIter:%p, ", pShow->id, pShow, pShow->pIter);
+
       (*freeFp)(pMnode, pShow->pIter);
+
+      pShow->pIter = NULL;
     }
   }
 

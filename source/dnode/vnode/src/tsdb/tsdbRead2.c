@@ -1081,7 +1081,6 @@ static void copyNumericCols(const SColData* pData, SFileBlockDumpInfo* pDumpInfo
   int32_t step = asc ? 1 : -1;
 
   // make sure it is aligned to 8bit, the allocated memory address is aligned to 256bit
-  //  ASSERT((((uint64_t)pColData->pData) & (0x8 - 1)) == 0);
 
   // 1. copy data in a batch model
   (void)memcpy(pColData->pData, p, dumpedRows * tDataTypes[pData->type].bytes);
@@ -3828,7 +3827,6 @@ bool hasBeenDropped(const SArray* pDelList, int32_t* index, int64_t key, int64_t
         return false;
       }
 
-      // ASSERT(key >= last->ts);
       if (key > last->ts) {
         return false;
       } else if (key == last->ts) {
@@ -3891,7 +3889,7 @@ bool hasBeenDropped(const SArray* pDelList, int32_t* index, int64_t key, int64_t
       } else if (key == pFirst->ts) {
         return pFirst->version >= ver;
       } else {
-        // ASSERT(0);
+        tsdbError("unexpected error, key:%" PRId64 ", first:%" PRId64, key, pFirst->ts);
       }
     } else {
       TSDBKEY* pCurrent = taosArrayGet(pDelList, *index);

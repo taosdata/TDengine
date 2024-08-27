@@ -17,7 +17,7 @@
 #include "tlog.h"
 #include "tutil.h"
 
-static threadlocal TdThreadKey   tlGeosCtxKey = 0;
+static TdThreadKey               tlGeosCtxKey = 0;
 static threadlocal SGeosContext *tlGeosCtx = NULL;
 
 static void destroyThreadLocalGeosCtx(void *param) {

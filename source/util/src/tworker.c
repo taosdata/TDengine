@@ -493,7 +493,7 @@ int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) 
       }
     } break;
     default:
-      assert(0);
+      return TSDB_CODE_INVALID_PARA;
   }
   return 0;
 }
@@ -516,7 +516,7 @@ void tSingleWorkerCleanup(SSingleWorker *pWorker) {
       taosMemoryFree(pWorker->pool);
       break;
     default:
-      assert(0);
+      break;
   }
 }
 
@@ -809,7 +809,6 @@ int32_t tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pool) {
   pool->exitedWorkers = tdListNew(sizeof(SQueryAutoQWorker));
   if (!pool->exitedWorkers) return TSDB_CODE_OUT_OF_MEMORY;
   pool->maxInUse = pool->max * 2 + 2;
-
 
   if (!pool->pCb) {
     pool->pCb = taosMemoryCalloc(1, sizeof(SQueryAutoQWorkerPoolCB));

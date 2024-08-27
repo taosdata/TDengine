@@ -89,7 +89,7 @@ static int32_t mndFindSuperTableTagId(const SStbObj *pStb, const char *tagName, 
     }
   }
 
-  return -1;
+  return TSDB_CODE_MND_TAG_NOT_EXIST;
 }
 
 int mndSetCreateIdxRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb, SIdxObj *pIdx) {
@@ -188,7 +188,7 @@ int mndSetDropIdxRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbOb
       sdbRelease(pSdb, pVgroup);
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
       if (terrno != 0) code = terrno;
-      return -1;
+      return code;
     }
     STransAction action = {0};
     action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
@@ -199,7 +199,7 @@ int mndSetDropIdxRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbOb
       taosMemoryFree(pReq);
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
-      return -1;
+      return code;
     }
     sdbRelease(pSdb, pVgroup);
   }
@@ -824,7 +824,7 @@ static int32_t mndDropIdx(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SIdxObj *p
   }
 
   mInfo("trans:%d, used to drop idx:%s", pTrans->id, pIdx->name);
-  mndTransSetDbName(pTrans, pDb->name, NULL);
+  mndTransSetDbName(pTrans, pDb->name, pStb->name);
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
 
   mndTransSetSerial(pTrans);
@@ -899,8 +899,8 @@ static int32_t mndProcessGetIdxReq(SRpcMsg *pReq) {
 
 int32_t mndDropIdxsByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
   int32_t code = 0;
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
 
   while (1) {
     SIdxObj *pIdx = NULL;
@@ -944,8 +944,8 @@ int32_t mndGetIdxsByTagName(SMnode *pMnode, SStbObj *pStb, char *tagName, SIdxOb
 }
 int32_t mndDropIdxsByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   int32_t code = 0;
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
 
   while (1) {
     SIdxObj *pIdx = NULL;

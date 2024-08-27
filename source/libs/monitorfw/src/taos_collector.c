@@ -22,7 +22,7 @@
 #include "taos_collector_registry.h"
 
 // Private
-#include "taos_assert.h"
+#include "taos_test.h"
 #include "taos_collector_t.h"
 #include "taos_log.h"
 #include "taos_map_i.h"

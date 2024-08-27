@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <assert.h>
-
 #ifndef TAOS_TEST_H
 #define TAOS_TEST_H
 

@@ -21,13 +21,13 @@
 #include "taos_alloc.h"
 
 // Private
-#include "taos_assert.h"
 #include "taos_errors.h"
 #include "taos_linked_list_i.h"
 #include "taos_linked_list_t.h"
 #include "taos_log.h"
 #include "taos_map_i.h"
 #include "taos_map_t.h"
+#include "taos_test.h"
 
 #define TAOS_MAP_INITIAL_SIZE 32
 

@@ -115,7 +115,7 @@ void callMakePointAndCompareResult(int32_t type1, void *valueArray1, TDRowValT v
 #define MAKE_POINT_FIRST_COLUMN_VALUES {2, 3, -4}
 #define MAKE_POINT_SECOND_COLUMN_VALUES {5, -6, -7}
 
-TEST(GeomIoFuncTest, makePointFunctionTwoColumns) {
+void geomIoFuncTestMakePointFunctionTwoColumns() {
   const int32_t rowNum = 3;
   SScalarParam *pExpectedResult;
   TDRowValT valTypeArray[rowNum] = {TD_VTYPE_NORM, TD_VTYPE_NORM, TD_VTYPE_NORM};
@@ -151,7 +151,7 @@ TEST(GeomIoFuncTest, makePointFunctionTwoColumns) {
   destroyScalarParam(pExpectedResult, 1);
 }
 
-TEST(GeomIoFuncTest, makePointFunctionConstant) {
+void geomIoFuncTestMakePointFunctionConstant() {
   const int32_t rowNum = 3;
   SScalarParam *pExpectedResult;
   TDRowValT valTypeArray[rowNum] = {TD_VTYPE_NORM, TD_VTYPE_NORM, TD_VTYPE_NORM};
@@ -188,7 +188,7 @@ TEST(GeomIoFuncTest, makePointFunctionConstant) {
   destroyScalarParam(pExpectedResult, 1);
 }
 
-TEST(GeomIoFuncTest, makePointFunctionWithNull) {
+void geomIoFuncTestMakePointFunctionWithNull() {
   const int32_t rowNum = 3;
   SScalarParam *pExpectedResult;
   TDRowValT valTypeNormArray[rowNum] = {TD_VTYPE_NORM, TD_VTYPE_NORM, TD_VTYPE_NORM};
@@ -244,7 +244,7 @@ TEST(GeomIoFuncTest, makePointFunctionWithNull) {
   destroyScalarParam(pExpectedResult, 1);
 }
 
-TEST(GeomIoFuncTest, geomFromTextFunction) {
+void geomIoFuncTestGeomFromTextFunction() {
   const int32_t rowNum = 4;
   char strArray[rowNum][TSDB_MAX_BINARY_LEN];
   TDRowValT valTypeNormArray[rowNum] = {TD_VTYPE_NORM, TD_VTYPE_NORM, TD_VTYPE_NORM, TD_VTYPE_NORM};
@@ -293,7 +293,7 @@ TEST(GeomIoFuncTest, geomFromTextFunction) {
   callGeomFromTextWrapper4(strArray, valTypeNormArray, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
 }
 
-TEST(GeomIoFuncTest, asTextFunction) {
+void geomIoFuncTestAsTextFunction() {
   // column input has been tested in geomFromTextFunction
 
   TDRowValT valTypeArray[1] = {TD_VTYPE_NORM};
@@ -318,4 +318,22 @@ TEST(GeomIoFuncTest, asTextFunction) {
   // wrong content input
   STR_TO_VARSTR(strInput, "XXX");
   callAsTextWrapper2(TSDB_DATA_TYPE_GEOMETRY, strInput, valTypeArray, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
+}
+
+static void *geomIoFuncTest(void *arg) {
+  geomIoFuncTestMakePointFunctionTwoColumns();
+  geomIoFuncTestMakePointFunctionConstant();
+  geomIoFuncTestMakePointFunctionWithNull();
+  geomIoFuncTestGeomFromTextFunction();
+  geomIoFuncTestAsTextFunction();
+
+  return NULL;
+}
+
+TEST(GeomIoFuncTest, summary) {
+  TdThread threadId;
+  int32_t  ret = taosThreadCreate(&threadId, NULL, geomIoFuncTest, 0);
+  ASSERT_EQ(ret, 0);
+  ret = taosThreadJoin(threadId, NULL);
+  ASSERT_EQ(ret, 0);
 }
