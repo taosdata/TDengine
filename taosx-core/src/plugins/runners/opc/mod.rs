@@ -1,27 +1,29 @@
+use anyhow::{bail, Context};
+use csv_async::AsyncReader;
+use futures_util::StreamExt;
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs::File;
 use std::str::FromStr;
-use std::{fs, io::prelude::*, path::PathBuf, sync::Arc};
-
-use anyhow::Context;
-use itertools::Itertools;
-use serde::{Deserialize, Serialize};
+use std::{io::prelude::*, path::PathBuf, sync::Arc};
 use taos::{Dsn, DsnError};
+use taosx_ipc::prelude::IpcDataType;
+use taosx_ipc::types::OptionSet;
 use tempfile::NamedTempFile;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
-pub use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
 
-use taosx_ipc::prelude::IpcDataType;
-use taosx_ipc::types::OptionSet;
-
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
+use crate::runners::opc::config::csv::header::CsvHeader;
 use crate::runners::opc::config::csv::CsvParser;
-use crate::runners::opc::config::OPCConfig;
-use crate::runners::opc::point_updater::PointsUpdater;
+use crate::runners::opc::config::model::OpcModelConfig;
+use crate::runners::opc::config::{OPCConfig, PointsMode};
+use crate::runners::opc::point_updater::{PointsUpdater, UpdateBy};
 use crate::utils::monitor::send_sub_process_info;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
@@ -32,6 +34,67 @@ use super::get_data_dir;
 
 pub mod config;
 mod point_updater;
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum OpcType {
+    OPCUA,
+    OPCDA,
+    FAKE,
+}
+
+impl OpcType {
+    /// valid dsn driver:
+    /// opcua:// -> OPCUA
+    /// opcda:// -> OPCDA
+    /// fake:// -> FAKE
+    /// opc+ua:// -> OPCUA
+    /// opc+da:// -> OPCDA
+    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
+        let fake = dsn.params.get("fake").is_some();
+        if fake {
+            return Ok(Self::FAKE);
+        }
+
+        let opc_type = dsn.driver.as_str();
+        let protocol = dsn.protocol.clone();
+        match opc_type {
+            "opcua" => Ok(Self::OPCUA),
+            "opcda" => Ok(Self::OPCDA),
+            "fake" => Ok(Self::FAKE),
+            "opc" => match protocol.as_deref() {
+                Some("ua") => Ok(Self::OPCUA),
+                Some("da") => Ok(Self::OPCDA),
+                _ => anyhow::bail!("unknown opc protocol"),
+            },
+            _ => anyhow::bail!("invalid opc type"),
+        }
+    }
+}
+
+impl FromStr for OpcType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "opcua" => Ok(Self::OPCUA),
+            "opcda" => Ok(Self::OPCDA),
+            "fake" => Ok(Self::FAKE),
+            _ => Err(s.to_string()),
+        }
+    }
+}
+
+impl Display for OpcType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::OPCUA => "opcua",
+            Self::OPCDA => "opcda",
+            Self::FAKE => "fake",
+        };
+        write!(f, "{}", s)
+    }
+}
 
 const EXE: &'static str = {
     cfg_if::cfg_if! {
@@ -137,7 +200,7 @@ pub async fn opc_to_taos(
     let config_dir = get_data_dir()
         .join("tasks")
         .join(format!("{}", task_id.unwrap_or(-1)));
-    fs::create_dir_all(&config_dir).map_err(|err| {
+    std::fs::create_dir_all(&config_dir).map_err(|err| {
         anyhow::anyhow!(
             "failed to create config dir: {}, cause: {}",
             config_dir.display(),
@@ -172,9 +235,26 @@ pub async fn opc_to_taos(
     let pu_cancel_token = CancellationToken::new();
     let token = pu_cancel_token.clone();
     let cloned_opc_config = config.clone();
+    let points_mode = config
+        .points_mode
+        .ok_or(anyhow::anyhow!("points mode cannot be None"))?;
+    let update_by = match points_mode {
+        PointsMode::ByCsv => {
+            let csv_config_files = OPCConfig::parse_csv_config_files(&from).ok_or(
+                anyhow::anyhow!("csv config file not found in dsn: {}", from.to_string()),
+            )?;
+            let csv = csv_config_files.get(0).ok_or(anyhow::anyhow!(
+                "cannot found the first csv config file in dsn: {}",
+                from.to_string()
+            ))?;
+            UpdateBy::Csv(csv.clone())
+        }
+        PointsMode::ByCommand => UpdateBy::Command,
+    };
     tokio::spawn(async move {
-        let mut updater = PointsUpdater::from_opc_config(
+        let mut updater = PointsUpdater::new(
             cloned_opc_config,
+            update_by,
             config_file_path.display().to_string(),
             token,
         );
@@ -378,20 +458,22 @@ async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
     let auth_certificate = get_temp_file(&from, "auth_certificate");
     let auth_private_key = get_temp_file(&from, "auth_private_key");
 
-    let csv_config_file = OPCConfig::parse_csv_config_file(&from);
-    let opc_points = match csv_config_file {
+    let points_mode = PointsMode::from_dsn(&from)?;
+    let opc_points = match points_mode {
         // 解析 csv 文件中的点位
-        Some(_file_paths) => {
-            let parser = CsvParser::from_dsn(&from).await.map_err(|err| {
-                anyhow::anyhow!(
-                    "failed to parse csv_config_file, cause: {}",
-                    err.to_string()
-                )
-            })?;
-            opc_datasets_by_csv(&parser).await?
+        PointsMode::ByCsv => {
+            let opc_type = OpcType::from_dsn(&from)?;
+            let csv_files = OPCConfig::parse_csv_config_files(&from).ok_or(anyhow::anyhow!(
+                "csv_config_file not found in dsn: {}",
+                from.to_string()
+            ))?;
+
+            let parser = CsvParser::try_new(opc_type.clone(), csv_files)?;
+            let model_config = parser.parse().await?;
+            to_opc_dataset_vec(&model_config).await?
         }
         // 通过 taosx-opc points 命令获取点位
-        None => {
+        PointsMode::ByCommand => {
             let mut config = OPCConfig::from_dsn_point_mode(&from)?;
 
             config.set_temp_filepath("certificate", certificate.as_ref())?;
@@ -411,9 +493,7 @@ async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
     Ok(opc_points)
 }
 
-async fn opc_datasets_by_csv(parser: &CsvParser) -> anyhow::Result<Vec<DataSet>> {
-    let model_config = parser.get_model_config();
-
+async fn to_opc_dataset_vec(model_config: &OpcModelConfig) -> anyhow::Result<Vec<DataSet>> {
     let mut datasets = vec![];
     for (point_id, point_config) in model_config.point_config_map.iter() {
         let point_type = point_config.value_type.as_ref().map(|v| v.to_string());
@@ -444,6 +524,55 @@ async fn opc_datasets_by_csv(parser: &CsvParser) -> anyhow::Result<Vec<DataSet>>
             format: None,
         };
         datasets.push(ds);
+    }
+
+    Ok(datasets)
+}
+
+/// get opc datasets in csv
+/// csv: a file path which start with '@' or an encoded csv string
+async fn opc_datasets_by_csv(opc_type: OpcType, csv: String) -> anyhow::Result<Vec<DataSet>> {
+    let mut rdr = CsvParser::open_csv_file(csv).await?;
+
+    let header = rdr.headers().await?;
+    let point_id_idx = match opc_type {
+        OpcType::OPCUA => {
+            let point_id_idx = header
+                .iter()
+                .position(|h| h == "point_id")
+                .ok_or(anyhow::anyhow!("point_id not found in csv header"))?;
+            point_id_idx
+        }
+        OpcType::OPCDA => {
+            let point_id_idx = header
+                .iter()
+                .position(|h| h == "tag_name")
+                .ok_or(anyhow::anyhow!("tag_name not found in csv header"))?;
+            point_id_idx
+        }
+        OpcType::FAKE => {
+            bail!("invalid opc type");
+        }
+    };
+
+    let mut datasets = vec![];
+    let mut records = rdr.records();
+    while let Some(record) = records.next().await {
+        let record = record?;
+        let point_id = record.get(point_id_idx).ok_or(anyhow::anyhow!(
+            "failed to get point id in record: {:?} with index: {}",
+            record,
+            point_id_idx
+        ))?;
+
+        datasets.push(DataSet {
+            id: point_id.to_string(),
+            name: None,
+            category: None,
+            r#type: None,
+            options: None,
+            format: None,
+        });
     }
 
     Ok(datasets)
@@ -594,9 +723,74 @@ async fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<DataSourceValidation> {
     Ok(result)
 }
 
+/// 从 csv_config_files 中获取 csv 文件的 headers
+pub async fn get_csv_headers(dsn: &Dsn) -> anyhow::Result<HashMap<String, CsvHeader>> {
+    let opc_type = OpcType::from_dsn(dsn)?;
+    let csv_files = OPCConfig::parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
+        "csv_config_file not found in dsn: {}",
+        dsn.to_string()
+    ))?;
+    tracing::debug!("get headers from csv files: {:?}", csv_files);
+
+    // parse header from csv files
+    let parser = CsvParser::try_new(opc_type, csv_files)?;
+    let headers = parser.get_all_headers().await?;
+
+    Ok(headers)
+}
+
+/// 为 opc 的 csv_config_file 追加一行点位配置
+pub async fn append_point(dsn: &Dsn, csv_line: String) -> anyhow::Result<()> {
+    let opc_type = OpcType::from_dsn(dsn)?;
+
+    // new point
+    let csv_line_cloned = csv_line.clone();
+    let mut rdr = AsyncReader::from_reader(csv_line_cloned.as_bytes());
+    // new point header
+    let headers = rdr.headers().await?;
+    let csv_header = CsvHeader::try_new(opc_type.clone(), headers)?;
+    // new point line
+    let mut records = rdr.records();
+    let record = records.next().await.unwrap()?;
+    let point_id = CsvParser::parse_point_id(&csv_header, &record)?;
+
+    // old points
+    let csv_files = OPCConfig::parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
+        "csv_config_file not found in dsn: {}",
+        dsn.to_string()
+    ))?;
+    let parser = CsvParser::try_new(opc_type.clone(), csv_files)?;
+    let point_ids = parser.parse_all_point_id().await?;
+    for id in point_ids {
+        if id == point_id {
+            bail!("point id: {} already exists", point_id);
+        }
+    }
+
+    // TODO: 检查提交的点位配置能否通过 CSV 合法性校验
+
+    // 将新增的点位配置，追加到现有的 CSV 点位配置文件中
+    let csv_files = OPCConfig::parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
+        "csv_config_file not found in dsn: {}",
+        dsn.to_string()
+    ))?;
+    let parser = CsvParser::try_new(opc_type, csv_files)?;
+    parser.append_line(csv_line).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn test_get_csv_headers() {
+        let dsn =
+            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
+
+        let headers = get_csv_headers(&dsn).await.unwrap();
+
+        dbg!(headers);
+    }
 
     #[test]
     fn test_get_temp_file() {
@@ -703,75 +897,9 @@ mod tests {
 
         dbg!(res);
     }
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-#[serde(rename_all = "lowercase")]
-pub enum OpcType {
-    OPCUA,
-    OPCDA,
-    FAKE,
-}
-
-impl OpcType {
-    /// valid dsn driver:
-    /// opcua:// -> OPCUA
-    /// opcda:// -> OPCDA
-    /// fake:// -> FAKE
-    /// opc+ua:// -> OPCUA
-    /// opc+da:// -> OPCDA
-    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
-        let fake = dsn.params.get("fake").is_some();
-        if fake {
-            return Ok(Self::FAKE);
-        }
-
-        let opc_type = dsn.driver.as_str();
-        let protocol = dsn.protocol.clone();
-        match opc_type {
-            "opcua" => Ok(Self::OPCUA),
-            "opcda" => Ok(Self::OPCDA),
-            "fake" => Ok(Self::FAKE),
-            "opc" => match protocol.as_deref() {
-                Some("ua") => Ok(Self::OPCUA),
-                Some("da") => Ok(Self::OPCDA),
-                _ => anyhow::bail!("unknown opc protocol"),
-            },
-            _ => anyhow::bail!("invalid opc type"),
-        }
-    }
-}
-
-impl FromStr for OpcType {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "opcua" => Ok(Self::OPCUA),
-            "opcda" => Ok(Self::OPCDA),
-            "fake" => Ok(Self::FAKE),
-            _ => Err(s.to_string()),
-        }
-    }
-}
-
-impl Display for OpcType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            Self::OPCUA => "opcua",
-            Self::OPCDA => "opcda",
-            Self::FAKE => "fake",
-        };
-        write!(f, "{}", s)
-    }
-}
-
-#[cfg(test)]
-mod opc_type_tests {
-    use super::*;
 
     #[test]
-    fn test_from_dsn() {
+    fn test_opc_type() {
         let dsn = Dsn::from_str("opcua://").unwrap();
         let opc_type = OpcType::from_dsn(&dsn).unwrap();
         assert_eq!(opc_type, OpcType::OPCUA);

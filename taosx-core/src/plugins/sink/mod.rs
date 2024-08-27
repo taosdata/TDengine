@@ -12,11 +12,13 @@ use std::{
     time::Duration,
 };
 
-use crate::plugins::runners::opc::config::model::ColumnConfig;
-use crate::plugins::runners::opc::config::model::OpcModelConfig;
+use crate::runners::opc::config::model::ColumnConfig;
+use crate::runners::opc::config::model::OpcModelConfig;
 use crate::runners::opc::config::model::TableConfig;
 use crate::runners::opc::config::model::TagConfig;
+
 use crate::utils::breakpoints::BreakpointDb;
+use crate::utils::sql::get_minimum_timestamp;
 use crate::utils::trace::TraceDataId;
 use crate::{core_metrics::get_metrics_arc_from_i64, utils::trace::TraceStreamId};
 use crate::{
@@ -64,7 +66,6 @@ use taosx_ipc::{
 
 use tracing::{trace, warn};
 
-use crate::runners::opc::config::points::UpdateMode;
 use crate::{
     plugins::transform::WrittenMethod,
     sink::flat::{
@@ -1810,7 +1811,8 @@ mod handle_transform_tests {
 
         let dsn =
             Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
-        let model_config = CsvParser::from_dsn(&dsn).await.unwrap().get_model_config();
+        let parser = CsvParser::from_dsn(&dsn).unwrap();
+        let model_config = parser.parse().await.unwrap();
 
         let transformed_msg = handle_transform(&message, &model_config).unwrap();
 
@@ -1984,7 +1986,6 @@ async fn consume_point_record(
     }
     tracing::trace!("consume point record, opc model config: {:?}", config);
 
-    let point_model_config = config.get_point_model_config();
     let mut point_config_map = config.point_config_map.clone();
     let mut table_config_map = config.table_config_map.clone();
 
@@ -2033,60 +2034,36 @@ async fn consume_point_record(
                 .to_string()
                 .unwrap();
 
-            // point_config
-            let point_config = point_config_map.get(&point_id);
-            if point_config.is_none() {
-                let point_config = match point_model_config.clone() {
-                    None => None,
-                    Some(point_model_config) => match point_model_config.update_mode {
-                        UpdateMode::Append | UpdateMode::Update => {
-                            let index = point_config_map.len();
-
-                            let point_config = config.build_point_config(
-                                index,
-                                point_id.clone(),
-                                Some(value_raw_type.clone()),
-                            )?;
-                            Some(point_config)
-                        }
-                        UpdateMode::None => None,
-                    },
-                };
-
-                match point_config {
-                    None => {
-                        tracing::trace!("cannot get point_config with point_id: {}", point_id);
+            let mapping = config.get_point_mapping(&point_id)?;
+            if mapping.is_none() {
+                tracing::warn!(
+                    "point mapping not found and try to auto generate, point_id: {}",
+                    point_id
+                );
+                let mapping = config
+                    .generate_point_mapping(&point_id, &value_raw_type)
+                    .await;
+                match mapping {
+                    Err(err) => {
+                        tracing::warn!(
+                            "failed to generate point mapping with point_id: {}, cause: {:?}",
+                            point_id,
+                            err
+                        );
                         continue;
                     }
-                    Some(point_config) => {
-                        point_config_map.insert(point_id.clone(), point_config);
+                    Ok((p, t)) => {
+                        tracing::debug!(
+                            "generate point mapping, point config: {:?}, table config: {:?}",
+                            p,
+                            t
+                        );
+                        point_config_map.insert(point_id.clone(), p);
+                        table_config_map.insert(point_id.clone(), t);
                     }
                 }
             }
             let point_config = point_config_map.get(&point_id).unwrap();
-
-            // table_config
-            let table_config = table_config_map.get(&point_id);
-            if table_config.is_none() {
-                let table_config = match point_model_config.clone() {
-                    None => None,
-                    Some(point_model_config) => match point_model_config.update_mode {
-                        UpdateMode::Append | UpdateMode::Update => {
-                            Some(config.build_table_config(Some(value_raw_type.clone()))?)
-                        }
-                        UpdateMode::None => None,
-                    },
-                };
-                match table_config {
-                    None => {
-                        tracing::trace!("cannot get table_config with point_id: {}", point_id);
-                        continue;
-                    }
-                    Some(table_config) => {
-                        table_config_map.insert(point_id.clone(), table_config);
-                    }
-                }
-            }
             let table_config = table_config_map.get(&point_id).unwrap();
 
             // stable_name
@@ -2751,7 +2728,7 @@ async fn consume_flat_record(
     target_precision: taos::Precision,
     data_trace_id: TraceDataId,
     metrics: &IpcMetrics,
-    notifier: Option<crate::TaskNotifySender>,
+    notifier: Option<&crate::TaskNotifySender>,
 ) -> anyhow::Result<()> {
     if cancel.is_cancelled() {
         tracing::warn!("Task is cancelled");
@@ -2770,14 +2747,19 @@ async fn consume_flat_record(
         if num_rows == 0 {
             continue;
         }
+        let instant = std::time::Instant::now();
         let batch = parser
             .parse_message_from_records(batch, true)
             .context("Transformer parse error")?;
+        if tracing::event_enabled!(tracing::Level::TRACE) {
+            let elapsed = instant.elapsed();
+            tracing::trace!(cost = ?elapsed, "Parse message elapsed: {:?}", elapsed);
+        }
         match batch {
             crate::plugins::transform::Message::Raw(_) => todo!(),
             crate::plugins::transform::Message::Tables(_) => todo!(),
             crate::plugins::transform::Message::ChildTables(_) => todo!(),
-            crate::plugins::transform::Message::Records(message) => {
+            crate::plugins::transform::Message::Records(mut message) => {
                 if message.len() == 0 {
                     continue;
                 }
@@ -2791,34 +2773,116 @@ async fn consume_flat_record(
                     .map(|message| message.records.num_rows())
                     .sum::<usize>()
                     / message.len();
-                if factor < 200 {
-                    *count += flat_write_with_sql(
+                let res = if factor < 200 {
+                    flat_write_with_sql(
                         pool,
                         taos,
                         target_precision,
                         &req_id,
-                        message,
+                        &message,
                         metrics,
-                        notifier.clone(),
+                        notifier,
                         cancel,
                     )
                     .in_current_span()
-                    .await?;
+                    .await
                 } else {
-                    *count += flat_write_with_raw_block(
+                    flat_write_with_raw_block(
                         pool,
                         taos,
                         &mut max_lengths,
                         parser,
                         target_precision,
                         &req_id,
-                        message,
+                        &message,
                         metrics,
-                        notifier.clone(),
+                        notifier,
                         cancel,
                     )
                     .in_current_span()
-                    .await?;
+                    .await
+                };
+                match res {
+                    Ok(n) => {
+                        *count += n;
+                        metrics.add_processed_rows(num_rows as u64);
+                    }
+                    Err(err) => {
+                        let errstr = format!("{:#}", err);
+                        if errstr.contains("Timestamp data out of range") {
+                            tracing::warn!("Contains invalid timestamp, filter out them");
+                            // filter timestamp.
+                            let min = get_minimum_timestamp(
+                                pool,
+                                taos,
+                                req_id.next(),
+                                DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                cancel,
+                            )
+                            .in_current_span()
+                            .await?;
+                            tracing::debug!("Minimus timestamp: {}", min.to_rfc3339());
+                            let rows: usize = message.iter().map(|m| m.records.num_rows()).sum();
+                            message = message
+                                .into_iter()
+                                .flat_map(|item| item.filter_by_primary_timestamp(&min))
+                                .collect();
+
+                            let rows_after: usize =
+                                message.iter().map(|m| m.records.num_rows()).sum();
+
+                            let filtered = rows - rows_after;
+                            tracing::info!(
+                                rows,
+                                filtered,
+                                after = rows_after,
+                                "Filter out records"
+                            );
+                            metrics.add_drained_rows(filtered as _);
+
+                            if message.len() == 0 {
+                                continue;
+                            }
+                            let factor = message
+                                .iter()
+                                .map(|message| message.records.num_rows())
+                                .sum::<usize>()
+                                / message.len();
+                            let n = if factor < 200 {
+                                flat_write_with_sql(
+                                    pool,
+                                    taos,
+                                    target_precision,
+                                    &req_id,
+                                    &message,
+                                    metrics,
+                                    notifier,
+                                    cancel,
+                                )
+                                .in_current_span()
+                                .await
+                            } else {
+                                flat_write_with_raw_block(
+                                    pool,
+                                    taos,
+                                    &mut max_lengths,
+                                    parser,
+                                    target_precision,
+                                    &req_id,
+                                    &message,
+                                    metrics,
+                                    notifier,
+                                    cancel,
+                                )
+                                .in_current_span()
+                                .await
+                            }?;
+                            *count += n;
+                            metrics.add_processed_rows(num_rows as u64);
+                        } else {
+                            return Err(err);
+                        }
+                    }
                 }
                 metrics.add_processed_rows(num_rows as u64);
             }
@@ -3343,56 +3407,58 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     info!(?stream_type, "Processing stream");
     match stream_type {
         StreamType::Line => todo!(),
-        StreamType::Flat => {
-            ipc_flat_stream_reader(
-                &pool,
-                ipc_reader,
-                ipc_ack_writer,
-                cancel,
-                parser.as_ref(),
-                license.as_ref(),
-                transferred.as_deref(),
-                target_precision,
-                notifier,
-                ipc_error_strategy,
-                stream_trace_id,
-                metrics_arc.clone(),
-            )
-            .await?
-        }
-        StreamType::Lush => {
-            ipc_lush_stream_reader(
-                &pool,
-                ipc_reader,
-                ipc_ack_writer,
-                lush_model_config,
-                task_id,
-                notifier,
-                ipc_error_strategy,
-                stream_trace_id,
-                metrics,
-                &metrics_arc,
-            )
-            .await?
-        }
-        StreamType::Point => {
-            ipc_point_reader(
-                &pool,
-                ipc_reader,
-                ipc_ack_writer,
-                opc_model_config,
-                license.as_ref(),
-                transferred.as_deref(),
-                target_precision,
-                notifier,
-                ipc_error_strategy,
-                stream_trace_id,
-                metrics_arc.clone(),
-            )
-            .await?
-        }
+        StreamType::Flat => ipc_flat_stream_reader(
+            &pool,
+            ipc_reader,
+            ipc_ack_writer,
+            cancel,
+            parser.as_ref(),
+            license.as_ref(),
+            transferred.as_deref(),
+            target_precision,
+            notifier,
+            ipc_error_strategy,
+            stream_trace_id,
+            metrics_arc.clone(),
+        )
+        .await
+        .inspect_err(|err| {
+            tracing::error!("IPC stream error: {err:#}");
+        }),
+        StreamType::Lush => ipc_lush_stream_reader(
+            &pool,
+            ipc_reader,
+            ipc_ack_writer,
+            lush_model_config,
+            task_id,
+            notifier,
+            ipc_error_strategy,
+            stream_trace_id,
+            metrics,
+            &metrics_arc,
+        )
+        .await
+        .inspect_err(|err| {
+            tracing::error!("IPC stream error: {err:#}");
+        }),
+        StreamType::Point => ipc_point_reader(
+            &pool,
+            ipc_reader,
+            ipc_ack_writer,
+            opc_model_config,
+            license.as_ref(),
+            transferred.as_deref(),
+            target_precision,
+            notifier,
+            ipc_error_strategy,
+            stream_trace_id,
+            metrics_arc.clone(),
+        )
+        .await
+        .inspect_err(|err| {
+            tracing::error!("IPC stream error: {err:#}");
+        }),
     }
-    Ok(())
 }
 
 pub async fn handle_point_message_init(config: &OpcModelConfig, taos: &Taos) -> anyhow::Result<()> {
@@ -3601,7 +3667,7 @@ impl IpcStreamWorker {
         metrics: &IpcMetrics,
         metrics_arc: &Arc<CoreMetrics>,
         tables_messages_in_progress: &Arc<AtomicUsize>,
-        notifier: Option<crate::TaskNotifySender>,
+        notifier: Option<&crate::TaskNotifySender>,
     ) -> anyhow::Result<usize> {
         let taos = unsafe { &mut *self.taos.as_ptr() };
         if taos.is_none() {
@@ -3631,7 +3697,7 @@ impl IpcStreamWorker {
                     self.target_precision,
                     data_trace_id,
                     metrics,
-                    notifier.clone(),
+                    notifier,
                 )
                 .await?;
                 Ok(count)

@@ -47,6 +47,7 @@ total_failed_sqls: Total number of INSERT SQLs failed to execute by taosx
 total_created_stables: Total number of super tables that taosX try to created. (may greater than successfully created super tables)
 total_created_tables: Total number of child tables that taosX try to created.(not include auto created child tables)
 total_failed_rows: Total number of rows failed to write
+total_drained_rows: Total number of rows filtered out to write in case of timestamp out of range
 total_failed_points: Total number of points failed to write
 total_written_raw_blocks: Total number of raw blocks successfully written
 total_failed_raw_blocks: Total number of raw blocks failed to write
@@ -59,6 +60,7 @@ failed_sqls: Number of INSERT SQLs failed to execute by taosx in this task run
 created_stables: Number of super tables that taosX try to created in this task run.(may greater than successfully created super tables)
 created_tables: Number of child tables that taosX try to created in this task run
 failed_rows: Number of rows failed to write in this task run
+drained_rows: Number of row filtered out to write in case of timestamp out of range in this task run
 failed_points: Number of points failed to write in this task run
 written_raw_blocks: Number of raw blocks successfully written in this task run
 failed_raw_blocks: Number of raw blocks failed to write in this task run

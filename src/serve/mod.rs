@@ -34,9 +34,7 @@ use crate::serve::controller::agent::{
 use crate::serve::middleware::TaosXRootSpanBuilder;
 use crate::serve::opc::AddPointReq;
 use crate::serve::opc::GetPointsHeaderReq;
-use crate::serve::opc::OpcPoint;
-use crate::serve::opc::OpcPointTag;
-use crate::serve::opc::PointsHeader;
+use crate::serve::opc::PointDetail;
 
 use self::scheduler::agent::AgentSpawnSender;
 use self::{
@@ -374,9 +372,7 @@ impl Cli {
 
                     TaskBatchReq,
 
-                    PointsHeader,
-                    OpcPoint,
-                    OpcPointTag,
+                    PointDetail,
                     GetPointsHeaderReq,
                     AddPointReq,
 

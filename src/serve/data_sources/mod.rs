@@ -18,6 +18,7 @@ use utoipa::*;
 use crate::serve::{controller::TaskControllerRef, task::Failed};
 pub use definition::*;
 pub use point_loader::*;
+use taosx_core::runners::opc::config::OPCConfig;
 use taosx_core::{dsv::DataSourceValidation, utils::license, QueryDataSourceReq};
 use taosx_core::{get_data_dir, list_datasets_from, plugins, validate_dsn, DataSetsReq};
 use taosx_core::{
@@ -718,7 +719,21 @@ pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl 
 
 async fn is_opc_csv_valid_impl(dsn: String) -> anyhow::Result<()> {
     let dsn = dsn.into_dsn()?;
-    plugins::runners::opc::config::csv::CsvParser::is_valid(&dsn).await
+
+    let csv_config = OPCConfig::parse_csv_config_file(&dsn).ok_or(anyhow::anyhow!(
+        "csv_config_file not found in the dsn: {}",
+        dsn.to_string()
+    ))?;
+
+    if csv_config.is_empty() {
+        anyhow::bail!("csv_config_file is empty in the dsn: {}", dsn.to_string());
+    }
+
+    let parser = plugins::runners::opc::config::csv::CsvParser::from_dsn(&dsn)?;
+
+    let model_config = parser.parse().await?;
+
+    model_config.validate()
 }
 
 #[get("/ds/in/download/pi_default_config")]

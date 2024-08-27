@@ -44,6 +44,7 @@ total_inserted_sqls: 成功执行的 INSERT SQL 总条数
 total_failed_sqls: 执行失败的 INSERT SQL 总条数
 total_created_stables: 尝试创建超级表总数（可能大于实际值）
 total_failed_rows: 写入失败的总行数
+total_drained_rows: 排除时间戳无法入库的总行数
 total_failed_points: 写入失败的总点数
 total_written_raw_blocks: 写入成功的 raw block 总数
 total_failed_raw_blocks: 写入失败的 raw block 总数
@@ -56,6 +57,7 @@ failed_sqls: 本次运行此任务执行失败的 INSERT SQL 总条数
 created_stables: 本次运行此任务尝试创建超级表数（可能大于实际值）
 created_tables: 本次运行此任务尝试创建子表数(可能大于实际值,不包括自动创建的子表)
 failed_rows: 本次运行此任务写入失败的行数
+drained_rows: 本次运行此任务排除时间戳无法入库的总行数
 failed_points: 本次运行此任务写入失败的点数
 written_raw_blocks: 本次运行此任务写人成功的 raw block 数
 failed_raw_blocks: 本次运行此任务写入失败的 raw block 数
