@@ -29,7 +29,7 @@ void       mndReleaseArbGroup(SMnode *pMnode, SArbGroup *pObj);
 SSdbRaw   *mndArbGroupActionEncode(SArbGroup *pGroup);
 SSdbRow   *mndArbGroupActionDecode(SSdbRaw *pRaw);
 
-void mndArbGroupInitFromVgObj(SVgObj *pVgObj, SArbGroup *outGroup);
+int32_t mndArbGroupInitFromVgObj(SVgObj *pVgObj, SArbGroup *outGroup);
 
 int32_t mndSetCreateArbGroupRedoLogs(STrans *pTrans, SArbGroup *pGroup);
 int32_t mndSetCreateArbGroupUndoLogs(STrans *pTrans, SArbGroup *pGroup);

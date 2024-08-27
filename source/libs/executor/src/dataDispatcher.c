@@ -106,6 +106,10 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
       }
 
       int32_t dataLen = blockEncode(pInput->pData, pHandle->pCompressBuf, numOfCols);
+      if(dataLen < 0) {
+        qError("failed to encode data block, code: %d", dataLen);
+        return terrno;
+      }
       int32_t len =
           tsCompressString(pHandle->pCompressBuf, dataLen, 1, pEntry->data, pBuf->allocSize, ONE_STAGE_COMP, NULL, 0);
       if (len < dataLen) {
@@ -120,6 +124,10 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
       }
     } else {
       pEntry->dataLen = blockEncode(pInput->pData, pEntry->data, numOfCols);
+      if(pEntry->dataLen < 0) {
+        qError("failed to encode data block, code: %d", pEntry->dataLen);
+        return terrno;
+      }
       pEntry->rawLen = pEntry->dataLen;
     }
   }

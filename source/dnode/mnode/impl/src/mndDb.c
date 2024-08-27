@@ -629,7 +629,7 @@ static int32_t mndSetCreateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
     for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
       SVgObj   *pVgObj = pVgroups + v;
       SArbGroup arbGroup = {0};
-      mndArbGroupInitFromVgObj(pVgObj, &arbGroup);
+      TAOS_CHECK_RETURN(mndArbGroupInitFromVgObj(pVgObj, &arbGroup));
       TAOS_CHECK_RETURN(mndSetCreateArbGroupRedoLogs(pTrans, &arbGroup));
     }
   }
@@ -663,7 +663,7 @@ static int32_t mndSetCreateDbUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
     for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
       SVgObj   *pVgObj = pVgroups + v;
       SArbGroup arbGroup = {0};
-      mndArbGroupInitFromVgObj(pVgObj, &arbGroup);
+      TAOS_CHECK_RETURN(mndArbGroupInitFromVgObj(pVgObj, &arbGroup));
       TAOS_CHECK_RETURN(mndSetCreateArbGroupUndoLogs(pTrans, &arbGroup));
     }
   }
@@ -698,7 +698,7 @@ static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *
     for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
       SVgObj   *pVgObj = pVgroups + v;
       SArbGroup arbGroup = {0};
-      mndArbGroupInitFromVgObj(pVgObj, &arbGroup);
+      TAOS_CHECK_RETURN(mndArbGroupInitFromVgObj(pVgObj, &arbGroup));
       TAOS_CHECK_RETURN(mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup));
     }
   }
@@ -1156,44 +1156,30 @@ static int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
 }
 
 static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) {
-  int32_t code = 0;
+  int32_t code = 0, lino = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
+  SVgObj *pVgroup = NULL;
   SArray *pArray = mndBuildDnodesArray(pMnode, 0);
 
   while (1) {
-    SVgObj *pVgroup = NULL;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
     if (mndVgroupInDb(pVgroup, pNewDb->uid)) {
       SVgObj newVgroup = {0};
-      if ((code = mndBuildAlterVgroupAction(pMnode, pTrans, pOldDb, pNewDb, pVgroup, pArray, &newVgroup)) != 0) {
-        sdbCancelFetch(pSdb, pIter);
-        sdbRelease(pSdb, pVgroup);
-        taosArrayDestroy(pArray);
-        TAOS_RETURN(code);
-      }
+      TAOS_CHECK_GOTO(mndBuildAlterVgroupAction(pMnode, pTrans, pOldDb, pNewDb, pVgroup, pArray, &newVgroup), &lino,
+                      _err);
+
       if (pNewDb->cfg.withArbitrator != pOldDb->cfg.withArbitrator) {
         if (pNewDb->cfg.withArbitrator) {
           SArbGroup arbGroup = {0};
-          mndArbGroupInitFromVgObj(&newVgroup, &arbGroup);
-          if ((code = mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup)) != 0) {
-            sdbCancelFetch(pSdb, pIter);
-            sdbRelease(pSdb, pVgroup);
-            taosArrayDestroy(pArray);
-            TAOS_RETURN(code);
-          }
-
+          TAOS_CHECK_GOTO(mndArbGroupInitFromVgObj(&newVgroup, &arbGroup), &lino, _err);
+          TAOS_CHECK_GOTO(mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup), &lino, _err);
         } else {
           SArbGroup arbGroup = {0};
-          mndArbGroupInitFromVgObj(pVgroup, &arbGroup);
-          if ((code = mndSetDropArbGroupCommitLogs(pTrans, &arbGroup)) != 0) {
-            sdbCancelFetch(pSdb, pIter);
-            sdbRelease(pSdb, pVgroup);
-            taosArrayDestroy(pArray);
-            TAOS_RETURN(code);
-          }
+          TAOS_CHECK_GOTO(mndArbGroupInitFromVgObj(pVgroup, &arbGroup), &lino, _err);
+          TAOS_CHECK_GOTO(mndSetDropArbGroupCommitLogs(pTrans, &arbGroup), &lino, _err);
         }
       }
     }
@@ -1201,6 +1187,14 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     sdbRelease(pSdb, pVgroup);
   }
 
+  taosArrayDestroy(pArray);
+  TAOS_RETURN(code);
+
+_err:
+  mError("db:%s, %s failed at %d since %s", pNewDb->name, __func__, lino, tstrerror(code));
+
+  sdbCancelFetch(pSdb, pIter);
+  sdbRelease(pSdb, pVgroup);
   taosArrayDestroy(pArray);
   TAOS_RETURN(code);
 }

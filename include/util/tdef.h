@@ -294,7 +294,7 @@ typedef enum ELogicConditionType {
 #define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_LOG_VAR_LEN          32
 
-#define TSDB_MAX_EP_NUM           10
+#define TSDB_MAX_EP_NUM 10
 
 #define TSDB_ARB_GROUP_MEMBER_NUM 2
 #define TSDB_ARB_TOKEN_SIZE       32
@@ -568,12 +568,7 @@ enum {
   SND_WORKER_TYPE__UNIQUE,
 };
 
-enum {
-  RAND_ERR_MEMORY = 1,
-  RAND_ERR_FILE = 2,
-  // RAND_ERR_SCOPE_XXX... = 4,
-  // ...
-};
+enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 
 #define DEFAULT_HANDLE 0
 #define MNODE_HANDLE   1

@@ -189,13 +189,16 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
     goto _OUT;
   }
 
+  (void)taosThreadMutexLock(&pMnode->pSdb->filelock);
   code = sdbWriteWithoutFree(pMnode->pSdb, pRaw);
   if (code != 0) {
     mError("trans:%d, failed to write to sdb since %s", transId, terrstr());
     // code = 0;
+    (void)taosThreadMutexUnlock(&pMnode->pSdb->filelock);
     pMeta->code = code;
     goto _OUT;
   }
+  (void)taosThreadMutexUnlock(&pMnode->pSdb->filelock);
 
   pTrans = mndAcquireTrans(pMnode, transId);
   if (pTrans == NULL) {
