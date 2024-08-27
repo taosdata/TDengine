@@ -60,6 +60,7 @@ class DataBoundary(Enum):
     TOP_BOUNDARY = [1, 100]
     MAVG_BOUNDARY = [1, 1000]
     CONCAT_BOUNDARY = [2, 8]
+    LIMIT_BOUNDARY = 100
     TIME_UNIT = ['b', 'u', 'a', 's', 'm', 'h', 'd', 'w']
     STATECOUNT_UNIT = ["LT", "LE", "EQ", "NE", "GE", "GT"]
     TO_CHAR_UNIT = ['AM,am,PM,pm', 'A.M.,a.m.,P.M.,p.m.', 'YYYY,yyyy', 'YYY,yyy', 'YY,yy', 'Y,y','MONTH', 'Month',
@@ -68,7 +69,10 @@ class DataBoundary(Enum):
     ALL_TYPE_UNIT = ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'VARBINARY', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
     WINDOW_UNIT = ['INTERVAL', 'SESSION', 'STATE_WINDOW', 'COUNT_WINDOW', 'EVENT_WINDOW']
     FILL_UNIT = ["NULL", "PREV", "NEXT", "LINEAR", "VALUE, 0", "NULL_F", "VALUE_F, 0"]
-
+    SYSTABLE_UNIT = ['INFORMATION_SCHEMA', 'PERFORMANCE_SCHEMA']
+    SHOW_UNIT = ['SHOW CLUSTER', 'SHOW CLUSTER ALIVE', 'SHOW CLUSTER VARIABLES', 'SHOW LOCAL VARIABLES', 'SHOW CLUSTER MACHINES', 'SHOW CONNECTIONS', 'SHOW MNODES', 'SHOW DNODES', 'SHOW QNODES', 'SHOW VNODES', 'SHOW SNODES',
+                'SHOW VGROUPS', 'SHOW STREAMS', 'SHOW VIEWS', 'SHOW APPS', 'SHOW DNODE ID 1 VARIABLES', 'SHOW CREATE', 'SHOW GRANTS', 'SHOW GRANTS LOGS', 'SHOW GRANTS FULL', 'SHOW DATABASES', 'SHOW STABLES', 'SHOW TABLES',
+                'SHOW USERS', 'SHOW LICENCES', 'SHOW TRANSACTIONS', 'SHOW TABLE DISTRIBUTED', 'SHOW TABLE LIKE "%a%"', 'SHOW TAGS FROM', 'SHOW TOPICS', 'SHOW SUBCRIPTIONS', 'SHOW CONSUMERS', 'SHOW FUNCTIONS', 'SHOW SCORES', 'SHOW INDEXES']
 class FunctionMap(Enum):
     # TODO TO_JSON
     NUMERIC = {
@@ -91,7 +95,7 @@ class FunctionMap(Enum):
         'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
         'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE'],
         'specialFuncs': [],
-        'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TOP', 'TAIL', 'SAMPLE'],
+        'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TAIL', 'SAMPLE'],
         'castFuncs': ['CAST', 'TO_UNIXTIMESTAMP'],
         'castTypes': DataBoundary.ALL_TYPE_UNIT.value
     }
@@ -173,7 +177,7 @@ class SQLLancer:
         val = random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1])
         oper = random.choice(DataBoundary.STATECOUNT_UNIT.value)
         unit = random.choice(DataBoundary.TIME_UNIT.value)
-        return f'STATECOUNT({expr}, "{oper}", {val}, 1{unit})'
+        return f'STATEDURATION({expr}, "{oper}", {val}, 1{unit})'
 
     def formatConcat(self, expr, *args):
         print("---1args:", *args)
@@ -269,6 +273,34 @@ class SQLLancer:
         else:
             pass
 
+    def getShowSql(self, dbname, tbname, ctbname):
+        showSql = random.choice(DataBoundary.SHOW_UNIT.value)
+        if "DISTRIBUTED" in showSql:
+            return showSql + tbname + ";"
+        elif "SHOW CREATE DATABASE" in showSql:
+            return showSql + dbname + ";"
+        elif "SHOW CREATE STABLE" in showSql:
+            return showSql + tbname + ";"
+        elif "SHOW CREATE TABLE" in showSql:
+            return showSql + ctbname + ";"
+        elif "SHOW TAGS" in showSql:
+            return showSql + ctbname + ";"
+        else:
+            return showSql + ";"
+
+    def getSystableSql(self):
+        '''
+        sysdb = random.choice(DataBoundary.SYSTABLE_UNIT.value
+        self.tdSql.query(f'show {sysdb}.tables')
+        systableList = list(map(lambda x:x[0], self.tdSql.query_data))
+        systable = random.choice(systableList)
+        if systable == "ins_tables":
+            return f'select * from {systable} limit({DataBoundary.LIMIT_BOUNDARY.value})'
+        else:
+            return f'select * from {systable}'
+        '''
+        return "select * from information_schema.ins_stables;"
+
     def setGroupTag(self, fm, funcList):
         """
         Check if there are common elements between `funcList` and `selectFuncs` in `fm`.
@@ -299,7 +331,7 @@ class SQLLancer:
         elif doAggr == 3:
             categoryList = ['specialFuncs']
         else:
-            pass
+            return
         funcList = list()
         print("----categoryList", categoryList)
         print("----fm", fm)
@@ -450,45 +482,37 @@ class SQLLancer:
         partitionObj = f'PARTITION BY {random.choice(DataBoundary.ALL_TYPE_UNIT.value)}' if useTag else ""
         return partitionObj
 
-    def getEventWindowCondition(self, col):
-        self.stb_data_filter_sql = f'ts >= {self.date_time}+1s and c1 = 1 or c2 > 1 and c3 != 4 or c4 <= 3 and c9 <> 0 or c10 is not Null or c11 is Null or \
-                c12 between "na" and "nchar4" and c11 not between "bi" and "binary" and c12 match "nchar[19]" and c12 nmatch "nchar[25]" or c13 = True or \
-                c5 in (1, 2, 3) or c6 not in (6, 7) and c12 like "nch%" and c11 not like "bina_" and c6 < 10 or c12 is Null or c8 >= 4 and t1 = 1 or t2 > 1 \
-                and t3 != 4 or c4 <= 3 and t9 <> 0 or t10 is not Null or t11 is Null or t12 between "na" and "nchar4" and t11 not between "bi" and "binary" \
-                or t12 match "nchar[19]" or t12 nmatch "nchar[25]" or t13 = True or t5 in (1, 2, 3) or t6 not in (6, 7) and t12 like "nch%" \
-                and t11 not like "bina_" and t6 <= 10 or t12 is Null or t8 >= 4'
-        condition_list = list()
-        lte_list = ["<", "<="]
-        gte_list = [">", ">="]
-        enq_list = ["=", "!=", "<>"]
-        null_list = ["is null", "is not null"]
-        in_list = ["in", "not in"]
-        between_list = ["between", "not between"]
-        like_list = ["like", "not like"]
-        match_list = ["match", "nmatch"]
-        int_range_list = self.tdCom.Boundary.INT_BOUNDARY
-        self.c1_half_bf = random.randint(int_range_list[0], round((int_range_list[1]+int_range_list[0])/2))
-        self.c1_half_af = random.randint(round((int_range_list[1]+int_range_list[0])/2), int_range_list[1])
-        # start_trigger_condition += f'c1 {random.choice(lte_list)} {self.c1_half_bf}'
-        # end_trigger_condition += f'c1 {random.choice(gte_list)} {self.c1_half_af}'
-        start_trigger_condition = f'c2 {random.choice(lte_list)} {self.c1_half_bf}'
-        end_trigger_condition = f'c2 {random.choice(gte_list)} {self.c1_half_af}'
-        condition_list.append(f'event_window start with {start_trigger_condition} end with {end_trigger_condition}')
+    def getEventWindowCondition(self, colDict):
+        conditionList = list()
+        lteList = ["<", "<="]
+        gteList = [">", ">="]
+        enqList = ["=", "!=", "<>"]
+        nullList = ["is null", "is not null"]
+        inList = ["in", "not in"]
+        betweenList = ["between", "not between"]
+        likeList = ["like", "not like"]
+        matchList = ["match", "nmatch"]
+        tinyintRangeList = DataBoundary.TINYINT_BOUNDARY.value
+        intHalfBf = random.randint(tinyintRangeList[0], round((tinyintRangeList[1]+tinyintRangeList[0])/2))
+        intHalfAf = random.randint(round((tinyintRangeList[1]+tinyintRangeList[0])/2), tinyintRangeList[1])
+        for columnName, columnType in colDict.items():
+            print(f"-----column_name, column_type: {columnName}, {columnType}")
+            if columnType in ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', ]:
+                startTriggerCondition = f'{columnName} {inList[0]} {tuple(random.randint(0, 100) for _ in range(10))} or {columnName} {betweenList[0]} {intHalfBf} and {intHalfAf}'
+                endTriggerCondition = f'{columnName} {inList[1]} {{tuple(random.randint(0, 100) for _ in range(10))}} and {columnName} {betweenList[1]} {intHalfBf} and {intHalfAf}'
+            elif columnType in ['FLOAT', 'DOUBLE']:
+                startTriggerCondition = f'{columnName} {random.choice(lteList)} {intHalfBf}'
+                endTriggerCondition = f'{columnName} {random.choice(gteList)} {intHalfAf}'
+            elif columnType in ['BINARY', 'VARCHAR', 'NCHAR']:
+                startTriggerCondition = f'{columnName} {likeList[0]} "%a%" or {columnName} {matchList[1]} ".*a.*"'
+                endTriggerCondition = f'{columnName} {likeList[1]} "_a_" and {columnName} {matchList[0]} ".*a.*"'
+            else:
+                startTriggerCondition = f'{columnName} {random.choice(enqList)} {intHalfBf} or {columnName} {nullList[0]}'
+                endTriggerCondition = f'{columnName} {nullList[1]} and {columnName} {random.choice(enqList[1:])} {intHalfAf}'
+            conditionList.append(f'EVENT_WINDOW start with {startTriggerCondition} end with {endTriggerCondition}')
+        return random.choice(conditionList)
 
-        start_trigger_condition = f'c2 {enq_list[0]} {self.c1_half_bf} or c3 {null_list[0]}'
-        end_trigger_condition = f'c2 {null_list[1]} and c3 {random.choice(enq_list[1:])} {self.c1_half_af}'
-        condition_list.append(f'event_window start with {start_trigger_condition} end with {end_trigger_condition}')
-
-        start_trigger_condition = f'c2 {in_list[0]} (100,200,300) or c3 {between_list[0]} {self.c1_half_bf} and {self.c1_half_af}'
-        end_trigger_condition = f'c2 {in_list[1]} (100,200,300) and c3 {between_list[1]} {self.c1_half_bf} and {self.c1_half_af}'
-        condition_list.append(f'event_window start with {start_trigger_condition} end with {end_trigger_condition}')
-
-        start_trigger_condition = f'c11 {like_list[0]} "%a%" or c11 {match_list[1]} ".*a.*"'
-        end_trigger_condition = f'c11 {like_list[1]} "_a_" and c11 {match_list[0]} ".*a.*"'
-        condition_list.append(f'event_window start with {start_trigger_condition} end with {end_trigger_condition}')
-        return random.choice(condition_list)
-
-    def getWindowStr(self, window, tsCol="ts", stateUnit="1", countUnit="2"):
+    def getWindowStr(self, window, colDict, tsCol="ts", stateUnit="1", countUnit="2"):
         if window == "INTERVAL":
             return f"{window}({self.getRandomTimeUnitStr()}{self.getOffsetValue()})"
         elif window == "SESSION":
@@ -498,17 +522,22 @@ class SQLLancer:
         elif window == "COUNT_WINDOW":
             return f"{window}({countUnit})"
         elif window == "EVENT_WINDOW":
-            return 1
+            return self.getEventWindowCondition(colDict)
         else:
-            return 1
+            return ""
 
     def generateRandomSql(self, colDict, tbname):
         selectPartList = []
         groupKeyList = []
         # colTypes = ['NUMERIC', 'TEXT', 'BINARY', 'BOOLEAN', 'TIMESTAMP'...]
         colTypes = [member.name for member in FunctionMap]
+        print("-----colDict", colDict)
         print("-----colTypes", colTypes)
-        doAggr = random.choice([0, 1, 2, 3])
+        doAggr = random.choice([0, 1, 2, 3, 4, 5])
+        if doAggr == 4:
+            return self.getShowSql("test", "stb", "ctb1")
+        if doAggr == 5:
+            return self.getSystableSql()
         tsCol = "ts"
         for column_name, column_type in colDict.items():
             print(f"-----column_name, column_type: {column_name}, {column_type}")
@@ -547,6 +576,7 @@ class SQLLancer:
                     # pass
                     # func_expression = self.selectFuncsFromType(fm.value, column_name)
                     # select_parts.append(func_expression)
+        
         if doAggr == 2:
             selectPartList = [random.choice(selectPartList)]
         if len(groupKeyList) > 0:
@@ -554,7 +584,7 @@ class SQLLancer:
             return f"SELECT {', '.join(selectPartList)} FROM {tbname} GROUP BY {groupKeyStr};"
         else:
             groupKeyStr = "tbname"
-        return f"SELECT {', '.join(selectPartList)} FROM {tbname} {self.getTimeRangeFilter(tbname, tsCol)} {self.getPartitionValue(groupKeyStr)} {self.getWindowStr(self.getRandomWindow())};"
+        return f"SELECT {', '.join(selectPartList)} FROM {tbname} {self.getTimeRangeFilter(tbname, tsCol)} {self.getPartitionValue(groupKeyStr)} {self.getWindowStr(self.getRandomWindow(), colDict)};"
 
 sqllancer = SQLLancer()
 colDict = {"ts": "TIMESTAMP", "c1": "INT", "c2": "NCHAR", "c3": "BOOL"}
