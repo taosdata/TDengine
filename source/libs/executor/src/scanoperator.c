@@ -419,7 +419,11 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
       size_t size = taosArrayGetSize(pBlock->pDataBlock);
       bool   keep = false;
       code = doFilterByBlockSMA(pOperator->exprSupp.pFilterInfo, pBlock->pBlockAgg, size, pBlockInfo->rows, &keep);
-      QUERY_CHECK_CODE(code, lino, _end);
+      if (code) {
+        pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
+        qError("%s failed to do filter by block sma, code:%s", GET_TASKID(pTaskInfo), tstrerror(code));
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
 
       if (!keep) {
         qDebug("%s data block filter out by block SMA, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64,
