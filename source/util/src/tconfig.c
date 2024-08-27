@@ -194,7 +194,7 @@ static int32_t cfgSetFloat(SConfigItem *pItem, const char *value, ECfgSrcType st
   float dval = 0;
   TAOS_CHECK_RETURN(parseCfgReal(value, &dval));
   if (dval < pItem->fmin || dval > pItem->fmax) {
-    uError("cfg:%s, type:%s src:%s value:%f out of range[%f, %f]", pItem->name, cfgDtypeStr(pItem->dtype),
+    uError("cfg:%s, type:%s src:%s value:%g out of range[%g, %g]", pItem->name, cfgDtypeStr(pItem->dtype),
            cfgStypeStr(stype), dval, pItem->fmin, pItem->fmax);
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
@@ -484,7 +484,7 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
         TAOS_RETURN(code);
       }
       if (dval < pItem->fmin || dval > pItem->fmax) {
-        uError("cfg:%s, type:%s value:%f out of range[%f, %f]", pItem->name, cfgDtypeStr(pItem->dtype), dval,
+        uError("cfg:%s, type:%s value:%g out of range[%g, %g]", pItem->name, cfgDtypeStr(pItem->dtype), dval,
                pItem->fmin, pItem->fmax);
         cfgUnLock(pCfg);
         TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
