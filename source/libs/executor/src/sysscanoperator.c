@@ -1361,7 +1361,7 @@ static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMet
   int32_t lino = 0;
   int32_t code = pMetaReaderFn->getTableEntryByUid(pMReader, uid);
   if (code < 0) {
-    qError("failed to get table meta, cname:%s, uid:%" PRId64 ", code:%s, %s", uid, tstrerror(terrno), idStr);
+    qError("failed to get table meta, uid:%" PRId64 ", code:%s, %s", uid, tstrerror(terrno), idStr);
     return code;
   }
 
