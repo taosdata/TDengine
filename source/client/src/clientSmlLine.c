@@ -104,7 +104,7 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
       }
       char* tmp = taosMemoryCalloc(pVal->length, 1);
       if (tmp == NULL){
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       (void)memcpy(tmp, pVal->value + NCHAR_ADD_LEN - 1, pVal->length - NCHAR_ADD_LEN);
       code = doGeomFromText(tmp, (unsigned char **)&pVal->value, &pVal->length);
