@@ -600,7 +600,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
   (void)taosThreadOnce(&initPoolOnce, initRefPool);
 
-  qDebug("start to create task, TID:0x%" PRIx64 " qid:0x%" PRIx64 ", vgId:%d", taskId, pSubplan->id.queryId, vgId);
+  qDebug("start to create task, TID:0x%" PRIx64 "QID:0x%" PRIx64 ", vgId:%d", taskId, pSubplan->id.queryId, vgId);
 
   int32_t code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model);
   if (code != TSDB_CODE_SUCCESS || NULL == *pTask) {
@@ -629,7 +629,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
     code = dsCreateDataSinker(pSinkManager, pSubplan->pDataSink, handle, pSinkParam, (*pTask)->id.str);
   }
 
-  qDebug("subplan task create completed, TID:0x%" PRIx64 " qid:0x%" PRIx64, taskId, pSubplan->id.queryId);
+  qDebug("subplan task create completed, TID:0x%" PRIx64 "QID:0x%" PRIx64, taskId, pSubplan->id.queryId);
 
 _error:
   // if failed to add ref for all tables in this query, abort current query
