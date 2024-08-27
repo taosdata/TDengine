@@ -62,7 +62,9 @@ void fstUnFinishedNodesPushEmpty(FstUnFinishedNodes* nodes, bool isFinal) {
   node->trans = taosArrayInit(16, sizeof(FstTransition));
 
   FstBuilderNodeUnfinished un = {.node = node, .last = NULL};
-  (void)taosArrayPush(nodes->stack, &un);
+  if (taosArrayPush(nodes->stack, &un) == NULL) {
+    fstBuilderNodeDestroy(node);
+  }
 }
 FstBuilderNode* fstUnFinishedNodesPopRoot(FstUnFinishedNodes* nodes) {
   FstBuilderNodeUnfinished* un = taosArrayPop(nodes->stack);
@@ -120,7 +122,10 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes* nodes, FstSlice bs, Output 
     FstLastTransition* trn = fstLastTransitionCreate(data[i], 0);
 
     FstBuilderNodeUnfinished un = {.node = n, .last = trn};
-    (void)taosArrayPush(nodes->stack, &un);
+    if (taosArrayPush(nodes->stack, &un) == NULL) {
+      fstBuilderNodeDestroy(n);
+      taosMemoryFree(trn);
+    }
   }
   fstUnFinishedNodesPushEmpty(nodes, true);
 }
@@ -892,7 +897,9 @@ void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished* unNode, Comp
     return;
   }
   FstTransition t = {.inp = trn->inp, .out = trn->out, .addr = addr};
-  (void)taosArrayPush(unNode->node->trans, &t);
+  if (taosArrayPush(unNode->node->trans, &t) == NULL) {
+    return;
+  }
   fstLastTransitionDestroy(trn);
   unNode->last = NULL;
   return;
@@ -1194,12 +1201,16 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
       (void)fstNodeGetTransitionAt(node, res, &trn);
       void* preState = autState;
       autState = automFuncs[aut->type].accept(aut, preState, b);
-      (void)taosArrayPush(sws->inp, &b);
+      if (taosArrayPush(sws->inp, &b) == NULL) {
+        return false;
+      }
 
       FstStreamState s = {.node = node, .trans = res + 1, .out = {.null = false, .out = out}, .autState = preState};
       node = NULL;
 
-      (void)taosArrayPush(sws->stack, &s);
+      if (taosArrayPush(sws->stack, &s) == NULL) {
+        return false;
+      }
       out += trn.out;
       node = fstGetNode(sws->fst, trn.addr);
     } else {
@@ -1218,7 +1229,9 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
       }
 
       FstStreamState s = {.node = node, .trans = i, .out = {.null = false, .out = out}, .autState = autState};
-      (void)taosArrayPush(sws->stack, &s);
+      if (taosArrayPush(sws->stack, &s) == NULL) {
+        return false;
+      }
       taosMemoryFree(trans);
       return true;
     }
@@ -1239,7 +1252,9 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
       (void)fstNodeGetTransitionAt(n, trans - 1, &trn);
       FstStreamState s = {
           .node = fstGetNode(sws->fst, trn.addr), .trans = 0, .out = {.null = false, .out = out}, .autState = autState};
-      (void)taosArrayPush(sws->stack, &s);
+      if (taosArrayPush(sws->stack, &s) == NULL) {
+        return false;
+      }
       return true;
     }
     return false;
@@ -1282,8 +1297,14 @@ FStmStRslt* stmStNextWith(FStmSt* sws, streamCallback__fn callback) {
     bool   isMatch = automFuncs[aut->type].isMatch(aut, nextState);
 
     FstNode* nextNode = fstGetNode(sws->fst, trn.addr);
-    (void)taosArrayPush(nodes, &nextNode);
-    (void)taosArrayPush(sws->inp, &(trn.inp));
+    if (taosArrayPush(nodes, &nextNode) == NULL) {
+      taosArrayDestroy(nodes);
+      return NULL;
+    }
+    if (taosArrayPush(sws->inp, &(trn.inp)) == NULL) {
+      taosArrayDestroy(nodes);
+      return NULL;
+    }
 
     if (FST_NODE_IS_FINAL(nextNode)) {
       void* eofState = automFuncs[aut->type].acceptEof(aut, nextState);
@@ -1292,10 +1313,16 @@ FStmStRslt* stmStNextWith(FStmSt* sws, streamCallback__fn callback) {
       }
     }
     FstStreamState s1 = {.node = p->node, .trans = p->trans + 1, .out = p->out, .autState = p->autState};
-    (void)taosArrayPush(sws->stack, &s1);
+    if (taosArrayPush(sws->stack, &s1) == NULL) {
+      taosArrayDestroy(nodes);
+      return NULL;
+    }
 
     FstStreamState s2 = {.node = nextNode, .trans = 0, .out = {.null = false, .out = out}, .autState = nextState};
-    (void)taosArrayPush(sws->stack, &s2);
+    if (taosArrayPush(sws->stack, &s2) == NULL) {
+      taosArrayDestroy(nodes);
+      return NULL;
+    }
 
     int32_t  isz = taosArrayGetSize(sws->inp);
     uint8_t* buf = (uint8_t*)taosMemoryMalloc(isz * sizeof(uint8_t));
