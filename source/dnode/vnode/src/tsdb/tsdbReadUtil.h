@@ -398,6 +398,7 @@ typedef struct SCacheRowsReader {
 } SCacheRowsReader;
 
 int32_t tsdbCacheGetBatch(STsdb* pTsdb, tb_uid_t uid, SArray* pLastArray, SCacheRowsReader* pr, int8_t ltype);
+void    tsdbCacheFreeSLastColItem(void* pItem);
 
 #ifdef __cplusplus
 }

@@ -176,7 +176,10 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
   code = extractCacheScanSlotId(pInfo->matchInfo.pList, pTaskInfo, &pInfo->pSlotIds, &pInfo->pDstSlotIds);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  int32_t totalTables = tableListGetSize(pTableListInfo);
+  int32_t totalTables = 0;
+  code = tableListGetSize(pTableListInfo, &totalTables);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   int32_t capacity = 0;
 
   pInfo->pUidList = taosArrayInit(4, sizeof(int64_t));
@@ -271,7 +274,10 @@ int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SSDataBlock*        pBufRes = pInfo->pBufferedRes;
 
   uint64_t suid = tableListGetSuid(pTableList);
-  int32_t  size = tableListGetSize(pTableList);
+  int32_t  size = 0;
+  code = tableListGetSize(pTableList, &size);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   if (size == 0) {
     setOperatorCompleted(pOperator);
     (*ppRes) = NULL;

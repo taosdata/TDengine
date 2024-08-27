@@ -432,22 +432,37 @@ typedef int (*FilterFunc)(void *a, void *b, int16_t dtype);
 
 static FORCE_INLINE int sifGreaterThan(void *a, void *b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return tDoCompare(func, QUERY_GREATER_THAN, a, b);
 }
 static FORCE_INLINE int sifGreaterEqual(void *a, void *b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return tDoCompare(func, QUERY_GREATER_EQUAL, a, b);
 }
 static FORCE_INLINE int sifLessEqual(void *a, void *b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return tDoCompare(func, QUERY_LESS_EQUAL, a, b);
 }
 static FORCE_INLINE int sifLessThan(void *a, void *b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return (int)tDoCompare(func, QUERY_LESS_THAN, a, b);
 }
 static FORCE_INLINE int sifEqual(void *a, void *b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   //__compar_fn_t func = idxGetCompar(dtype);
   return (int)tDoCompare(func, QUERY_TERM, a, b);
 }
@@ -646,7 +661,16 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
     }
 
     SIndexMultiTermQuery *mtm = indexMultiTermQueryCreate(MUST);
-    (void)indexMultiTermQueryAdd(mtm, tm, qtype);
+    if (mtm == NULL) {
+      indexTermDestroy(tm);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    if ((ret = indexMultiTermQueryAdd(mtm, tm, qtype)) != 0) {
+      indexMultiTermQueryDestroy(mtm);
+      return ret;
+    }
+
     ret = indexJsonSearch(arg->ivtIdx, mtm, output->result);
     indexMultiTermQueryDestroy(mtm);
   } else {
@@ -1103,7 +1127,6 @@ int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, 
   } else {
     *status = st;
   }
-
 
   if (taosArrayAddAll(result, param.result) == NULL) {
     sifFreeParam(&param);

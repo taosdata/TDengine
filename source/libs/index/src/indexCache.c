@@ -123,6 +123,7 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
   if (cache == NULL) {
     return 0;
   }
+  int32_t     code = TSDB_CODE_SUCCESS;
   MemTable*   mem = cache;
   IndexCache* pCache = mem->pCache;
 
@@ -146,7 +147,12 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
       break;
     }
     CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
+    terrno = TSDB_CODE_SUCCESS;
     TExeCond   cond = cmpFn(c->colVal, pCt->colVal, pCt->colType);
+    if (terrno != TSDB_CODE_SUCCESS) {
+      code = terrno;
+      goto _return;
+    }
     if (cond == MATCH) {
       if (c->operaType == ADD_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->del, tr->add, c->uid)
@@ -161,9 +167,11 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
       break;
     }
   }
+
+_return:
   taosMemoryFree(pCt);
   (void)tSkipListDestroyIter(iter);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 static int32_t cacheSearchLessThan(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
   return cacheSearchCompareFunc(cache, term, tr, s, LT);
@@ -265,6 +273,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
   }
   _cache_range_compare cmpFn = idxGetCompare(type);
 
+  int32_t     code = TSDB_CODE_SUCCESS;
   MemTable*   mem = cache;
   IndexCache* pCache = mem->pCache;
 
@@ -308,9 +317,18 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
         continue;
       } else {
         char* p = taosMemoryCalloc(1, strlen(c->colVal) + 1);
+        if (NULL == p) {
+          code = terrno;
+          goto _return;
+        }
         memcpy(p, c->colVal, strlen(c->colVal));
+        terrno = TSDB_CODE_SUCCESS;
         cond = cmpFn(p + skip, term->colVal, dType);
         taosMemoryFree(p);
+        if (terrno != TSDB_CODE_SUCCESS) {
+          code = terrno;
+          goto _return;
+        }
       }
     }
     if (cond == MATCH) {
@@ -327,11 +345,12 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
     }
   }
 
+_return:
   taosMemoryFree(pCt);
   taosMemoryFree(exBuf);
   (void)tSkipListDestroyIter(iter);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 static int32_t cacheSearchRange(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
   // impl later

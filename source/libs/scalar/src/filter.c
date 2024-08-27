@@ -521,6 +521,10 @@ int32_t filterInitRangeCtx(int32_t type, int32_t options, SFilterRangeCtx **ctx)
   (*ctx)->type = type;
   (*ctx)->options = options;
   (*ctx)->pCompareFunc = getComparFunc(type, 0);
+  if ((*ctx)->pCompareFunc == NULL) {
+    taosMemoryFree(*ctx);
+    return terrno;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -556,6 +560,9 @@ int32_t filterReuseRangeCtx(SFilterRangeCtx *ctx, int32_t type, int32_t options)
   ctx->options = options;
   ctx->pCompareFunc = getComparFunc(type, 0);
 
+  if (ctx->pCompareFunc == NULL) {
+    return terrno;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1454,6 +1461,9 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
 
     if ((!FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) && (!FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL))) {
       __compar_fn_t func = getComparFunc(type, 0);
+      if (func == NULL) {
+        FLT_ERR_RET(terrno);
+      }
       if (func(&ra->s, &ra->e) == 0) {
         void *data = taosMemoryMalloc(sizeof(int64_t));
         if (data == NULL) {
@@ -1565,6 +1575,9 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
 
     if ((!FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) && (!FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_NULL))) {
       __compar_fn_t func = getComparFunc(type, 0);
+      if (func == NULL) {
+        FLT_ERR_RET(terrno);
+      }
       if (func(&r->ra.s, &r->ra.e) == 0) {
         void *data = taosMemoryMalloc(sizeof(int64_t));
         if (data == NULL) {
@@ -2433,8 +2446,7 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t
     }
     gRes[gResIdx]->colInfo = taosMemoryCalloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(SFilterColInfo));
     if (gRes[gResIdx]->colInfo == NULL) {
-      filterFreeGroupCtx(gRes[gResIdx]);
-      FLT_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_JRET(terrno);
     }
     colIdxi = 0;
     empty = false;
@@ -2446,7 +2458,6 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t
       if (gRes[gResIdx]->colInfo[cidx].info == NULL) {
         gRes[gResIdx]->colInfo[cidx].info = (SArray *)taosArrayInit(4, POINTER_BYTES);
         if (gRes[gResIdx]->colInfo[cidx].info == NULL) {
-          filterFreeGroupCtx(gRes[gResIdx]);
           FLT_ERR_JRET(terrno);
         }
         colIdx[colIdxi++] = cidx;
@@ -2461,7 +2472,11 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t
     }
 
     if (colIdxi > 1) {
-      taosSort(colIdx, colIdxi, sizeof(uint32_t), getComparFunc(TSDB_DATA_TYPE_USMALLINT, 0));
+      __compar_fn_t cmpFn = getComparFunc(TSDB_DATA_TYPE_USMALLINT, 0);
+      if (cmpFn == NULL) {
+        FLT_ERR_JRET(terrno);
+      }
+      taosSort(colIdx, colIdxi, sizeof(uint32_t), cmpFn);
     }
 
     for (uint32_t l = 0; l < colIdxi; ++l) {
@@ -2470,12 +2485,7 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t
       if (FILTER_NO_MERGE_DATA_TYPE(type)) {
         continue;
       }
-
-      code = filterMergeUnits(info, gRes[gResIdx], colIdx[l], &empty);
-      if (TSDB_CODE_SUCCESS != code) {
-        filterFreeGroupCtx(gRes[gResIdx]);
-        SCL_ERR_JRET(code);
-      }
+      SCL_ERR_JRET(filterMergeUnits(info, gRes[gResIdx], colIdx[l], &empty));
 
       if (empty) {
         break;
@@ -2501,6 +2511,9 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t
   }
 
 _return:
+  if (code) {
+    filterFreeGroupCtx(gRes[gResIdx]);
+  }
   taosMemoryFreeClear(colIdx);
   FLT_RET(code);
 }

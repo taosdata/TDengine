@@ -426,10 +426,6 @@ int64_t taosStr2Int64(const char *str, char **pEnd, int32_t radix) {
 #if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
 #endif
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
-#endif
   return tmp;
 }
 
@@ -437,10 +433,6 @@ uint64_t taosStr2UInt64(const char *str, char **pEnd, int32_t radix) {
   uint64_t tmp = strtoull(str, pEnd, radix);
 #if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
-#endif
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
 #endif
   return tmp;
 }
@@ -450,10 +442,6 @@ int32_t taosStr2Int32(const char *str, char **pEnd, int32_t radix) {
 #if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
 #endif
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
-#endif
   return tmp;
 }
 
@@ -461,10 +449,6 @@ uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
   uint32_t tmp = strtol(str, pEnd, radix);
 #if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
-#endif
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
 #endif
   return tmp;
 }
@@ -474,12 +458,6 @@ int16_t taosStr2Int16(const char *str, char **pEnd, int32_t radix) {
 #if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
 #endif
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
-  ASSERT(tmp >= SHRT_MIN);
-  ASSERT(tmp <= SHRT_MAX);
-#endif
   return (int16_t)tmp;
 }
 
@@ -488,22 +466,11 @@ uint16_t taosStr2UInt16(const char *str, char **pEnd, int32_t radix) {
 #if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
 #endif
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
-  ASSERT(tmp <= USHRT_MAX);
-#endif
   return (uint16_t)tmp;
 }
 
 int8_t taosStr2Int8(const char *str, char **pEnd, int32_t radix) {
   int32_t tmp = strtol(str, pEnd, radix);
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
-  ASSERT(tmp >= SCHAR_MIN);
-  ASSERT(tmp <= SCHAR_MAX);
-#endif
   return tmp;
 }
 
@@ -512,32 +479,16 @@ uint8_t taosStr2UInt8(const char *str, char **pEnd, int32_t radix) {
 #if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
 #endif
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
-  ASSERT(tmp <= UCHAR_MAX);
-#endif
   return tmp;
 }
 
 double taosStr2Double(const char *str, char **pEnd) {
   double tmp = strtod(str, pEnd);
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
-  ASSERT(tmp != HUGE_VAL);
-#endif
   return tmp;
 }
 
 float taosStr2Float(const char *str, char **pEnd) {
   float tmp = strtof(str, pEnd);
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
-  ASSERT(tmp != HUGE_VALF);
-  ASSERT(tmp != NAN);
-#endif
   return tmp;
 }
 

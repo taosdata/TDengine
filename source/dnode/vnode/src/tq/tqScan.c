@@ -29,6 +29,10 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, void* pRsp, int32_t numOf
   pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
 
   int32_t actualLen = blockEncode(pBlock, pRetrieve->data, numOfCols);
+  if(actualLen < 0){
+    taosMemoryFree(buf);
+    return terrno;
+  }
   actualLen += sizeof(SRetrieveTableRspForTmq);
   if (taosArrayPush(((SMqDataRspCommon*)pRsp)->blockDataLen, &actualLen) == NULL){
     taosMemoryFree(buf);

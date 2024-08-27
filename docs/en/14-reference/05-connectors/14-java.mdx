@@ -150,7 +150,7 @@ TDengine currently supports timestamp, number, character, Boolean type, and the 
 Due to historical reasons, the BINARY type data in TDengine is not truly binary data and is no longer recommended for use. Please use VARBINARY type instead.  
 GEOMETRY type is binary data in little endian byte order, which complies with the WKB specification. For detailed information, please refer to [Data Type](../../taos-sql/data-type/)
 For WKB specifications, please refer to [Well Known Binary (WKB)](https://libgeos.org/specifications/wkb/)
-For Java connector, the jts library can be used to easily create GEOMETRY type objects, serialize them, and write them to TDengine. Here is an example [Geometry example](https://github.com/taosdata/TDengine/blob/3.0/docs/examples/java/src/main/java/com/taos/example/GeometryDemo.java)
+For Java connector, the jts library can be used to easily create GEOMETRY type objects, serialize them, and write them to TDengine. Here is an example [Geometry example](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/GeometryDemo.java)
 
 
 ## Installation Steps
@@ -662,7 +662,7 @@ Example usage is as follows.
 
 ### More sample programs
 
-The source code of the sample application is under `TDengine/examples/JDBC`:
+The source code of the sample application is under `TDengine/docs/examples/JDBC`:
 
 - JDBCDemo: JDBC sample source code.
 - connectionPools: using taos-jdbcdriver in connection pools such as HikariCP, Druid, dbcp, c3p0, etc.
@@ -671,7 +671,7 @@ The source code of the sample application is under `TDengine/examples/JDBC`:
 - springbootdemo: using taos-jdbcdriver in Springboot.
 - consumer-demo: consumer TDengine data example, the consumption rate can be controlled by parameters.
 
-[JDBC example](https://github.com/taosdata/TDengine/tree/3.0/examples/JDBC)
+[JDBC example](https://github.com/taosdata/TDengine/tree/main/docs/examples/JDBC)
 
 ## Frequently Asked Questions
 

@@ -343,27 +343,45 @@ int optSysDoCompare(__compar_fn_t func, int8_t comparType, void* a, void* b) {
 
 static int optSysFilterFuncImpl__LowerThan(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_LOWER_THAN, a, b);
 }
 static int optSysFilterFuncImpl__LowerEqual(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_LOWER_EQUAL, a, b);
 }
 static int optSysFilterFuncImpl__GreaterThan(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_GREATER_THAN, a, b);
 }
 static int optSysFilterFuncImpl__GreaterEqual(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_GREATER_EQUAL, a, b);
 }
 static int optSysFilterFuncImpl__Equal(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_EQUAL, a, b);
 }
 
 static int optSysFilterFuncImpl__NoEqual(void* a, void* b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return optSysDoCompare(func, OP_TYPE_NOT_EQUAL, a, b);
 }
 
@@ -1337,8 +1355,8 @@ _end:
 }
 
 static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMeta* pMetaFn, void* pVnode,
-                                      SMTbCursor* pCur, SMetaReader* pMReader, int64_t uid, const char* dbname,
-                                      int32_t vgId, SSDataBlock* p, int32_t rowIndex, const char* idStr) {
+                                      SMetaReader* pMReader, int64_t uid, const char* dbname, int32_t vgId,
+                                      SSDataBlock* p, int32_t rowIndex, const char* idStr) {
   char    n[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
   int32_t lino = 0;
   int32_t code = pMetaReaderFn->getTableEntryByUid(pMReader, uid);
@@ -1383,7 +1401,7 @@ static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMet
     int64_t suid = pMReader->me.ctbEntry.suid;
     code = pMetaReaderFn->getTableEntryByUid(&mr1, suid);
     if (code != TSDB_CODE_SUCCESS) {
-      qError("failed to get super table meta, cname:%s, suid:0x%" PRIx64 ", code:%s, %s", pCur->mr.me.name, suid,
+      qError("failed to get super table meta, cname:%s, suid:0x%" PRIx64 ", code:%s, %s", pMReader->me.name, suid,
              tstrerror(code), idStr);
       pMetaReaderFn->clearReader(&mr1);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -1448,14 +1466,14 @@ static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMet
     // create time
     pColInfoData = taosArrayGet(p->pDataBlock, 2);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    code = colDataSetVal(pColInfoData, rowIndex, (char*)&pCur->mr.me.ntbEntry.btime, false);
+    code = colDataSetVal(pColInfoData, rowIndex, (char*)&pMReader->me.ntbEntry.btime, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
     // number of columns
     pColInfoData = taosArrayGet(p->pDataBlock, 3);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
 
-    code = colDataSetVal(pColInfoData, rowIndex, (char*)&pCur->mr.me.ntbEntry.schemaRow.nCols, false);
+    code = colDataSetVal(pColInfoData, rowIndex, (char*)&pMReader->me.ntbEntry.schemaRow.nCols, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
     // super table name
@@ -1542,8 +1560,8 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
 
     SMetaReader mr = {0};
     pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
-    doSetUserTableMetaInfo(&pAPI->metaReaderFn, &pAPI->metaFn, pInfo->readHandle.vnode, pInfo->pCur, &mr, *uid, dbname,
-                           vgId, p, numOfRows, GET_TASKID(pTaskInfo));
+    doSetUserTableMetaInfo(&pAPI->metaReaderFn, &pAPI->metaFn, pInfo->readHandle.vnode, &mr, *uid, dbname, vgId, p,
+                           numOfRows, GET_TASKID(pTaskInfo));
 
     pAPI->metaReaderFn.clearReader(&mr);
 
@@ -2852,7 +2870,10 @@ int32_t createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanP
     QUERY_CHECK_CODE(code, lino, _error);
 
     pInfo->pTableListInfo = pTableListInfo;
-    size_t num = tableListGetSize(pTableListInfo);
+    int32_t num = 0;
+    code = tableListGetSize(pTableListInfo, &num);
+    QUERY_CHECK_CODE(code, lino, _error);
+
     void*  pList = tableListGetInfo(pTableListInfo, 0);
 
     code = readHandle->api.tsdReader.tsdReaderOpen(readHandle->vnode, &cond, pList, num, pInfo->pResBlock,

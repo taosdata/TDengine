@@ -56,7 +56,11 @@ local_bin_link_dir="/usr/local/bin"
 service_config_dir="/etc/systemd/system"
 config_dir="/etc/${PREFIX}"
 
-services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"x" ${PREFIX}"-explorer" ${PREFIX}"keeper")
+if [ "${verMode}" == "cluster" ]; then
+  services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper")
+else
+  services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper" ${PREFIX}"-explorer")
+fi
 tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" udfd set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
 
 csudo=""
@@ -222,6 +226,30 @@ function remove_data_and_config() {
   [ -d "${log_dir}" ] && ${csudo}rm -rf ${log_dir}
 }
 
+echo 
+echo "Do you want to remove all the data, log and configuration files? [y/n]"
+read answer
+remove_flag=false
+if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
+  confirmMsg="I confirm that I would like to delete all data, log and configuration files"
+  echo "Please enter '${confirmMsg}' to continue"
+  read answer
+  if [ X"$answer" == X"${confirmMsg}" ]; then    
+    remove_flag=true    
+  else    
+    echo "answer doesn't match, skip this step"    
+  fi
+fi
+echo 
+
+if [ -e ${install_main_dir}/uninstall_${PREFIX}x.sh ]; then
+  if [ X$remove_flag == X"true" ]; then  
+    bash ${install_main_dir}/uninstall_${PREFIX}x.sh --clean-all true
+  else
+    bash ${install_main_dir}/uninstall_${PREFIX}x.sh --clean-all false
+  fi
+fi
+
 remove_bin
 clean_header
 # Remove lib file
@@ -232,6 +260,11 @@ clean_log
 clean_config
 # Remove data link directory
 ${csudo}rm -rf ${data_link_dir} || :
+
+if [ X$remove_flag == X"true" ]; then
+  remove_data_and_config
+fi
+
 ${csudo}rm -rf ${install_main_dir} || :
 if [[ -e /etc/os-release ]]; then
   osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
@@ -252,20 +285,6 @@ fi
 if [ "$osType" = "Darwin" ]; then
   clean_service_on_launchctl
   ${csudo}rm -rf /Applications/TDengine.app
-fi
-
-echo 
-echo "Do you want to remove all the data, log and configuration files? [y/n]"
-read answer
-if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
-  confirmMsg="I confirm that I would like to delete all data, log and configuration files"
-  echo "Please enter '${confirmMsg}' to continue"
-  read answer
-  if [ X"$answer" == X"${confirmMsg}" ]; then
-    remove_data_and_config
-  else
-    echo "answer doesn't match, skip this step"
-  fi
 fi
 
 command -v systemctl >/dev/null 2>&1 && ${csudo}systemctl daemon-reload >/dev/null 2>&1 || true 

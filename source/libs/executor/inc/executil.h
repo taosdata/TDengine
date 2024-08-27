@@ -126,7 +126,7 @@ uint64_t        tableListGetTableGroupId(const STableListInfo* pTableList, uint6
 int32_t         tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid);
 int32_t         tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo,
                                       int32_t* num);
-uint64_t        tableListGetSize(const STableListInfo* pTableList);
+int32_t         tableListGetSize(const STableListInfo* pTableList, int32_t* pRes);
 uint64_t        tableListGetSuid(const STableListInfo* pTableList);
 STableKeyInfo*  tableListGetInfo(const STableListInfo* pTableList, int32_t index);
 int32_t         tableListFind(const STableListInfo* pTableList, uint64_t uid, int32_t startIndex);

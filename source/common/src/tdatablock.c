@@ -973,6 +973,9 @@ int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock) {
 
 int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
   int32_t numOfRows = *(int32_t*)buf;
+  if (numOfRows == 0) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
   int32_t code = blockDataEnsureCapacity(pBlock, numOfRows);
   if (code) {
     return code;
@@ -1670,6 +1673,8 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
   int32_t code = 0;
 
   dst->info = src->info;
+  dst->info.pks[0].pData = NULL;
+  dst->info.pks[1].pData = NULL;
   dst->info.rows = 0;
   dst->info.capacity = 0;
 
@@ -1707,6 +1712,8 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
 
   uint32_t cap = dst->info.capacity;
   dst->info = src->info;
+  dst->info.pks[0].pData = NULL;
+  dst->info.pks[1].pData = NULL;
   dst->info.capacity = cap;
   return code;
 }
@@ -1737,6 +1744,8 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc) {
   uint32_t cap = pDst->info.capacity;
 
   pDst->info = pSrc->info;
+  pDst->info.pks[0].pData = NULL;
+  pDst->info.pks[1].pData = NULL;
   code = copyPkVal(&pDst->info, &pSrc->info);
   if (code != TSDB_CODE_SUCCESS) {
     uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -1854,6 +1863,8 @@ int32_t blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx, SSDataBlo
   }
 
   pBlock->info = pDataBlock->info;
+  pBlock->info.pks[0].pData = NULL;
+  pBlock->info.pks[1].pData = NULL;
   pBlock->info.rows = 0;
   pBlock->info.capacity = 0;
 
@@ -1916,20 +1927,20 @@ int32_t copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc) {
   // prepare the pk buffer if needed
   SValue* p = &pDst->pks[0];
 
-  p->type = pDst->pks[0].type;
-  p->pData = taosMemoryCalloc(1, pDst->pks[0].nData);
+  p->type = pSrc->pks[0].type;
+  p->pData = taosMemoryCalloc(1, pSrc->pks[0].nData);
   QUERY_CHECK_NULL(p->pData, code, lino, _end, terrno);
 
-  p->nData = pDst->pks[0].nData;
-  memcpy(p->pData, pDst->pks[0].pData, p->nData);
+  p->nData = pSrc->pks[0].nData;
+  memcpy(p->pData, pSrc->pks[0].pData, p->nData);
 
   p = &pDst->pks[1];
-  p->type = pDst->pks[1].type;
-  p->pData = taosMemoryCalloc(1, pDst->pks[1].nData);
+  p->type = pSrc->pks[1].type;
+  p->pData = taosMemoryCalloc(1, pSrc->pks[1].nData);
   QUERY_CHECK_NULL(p->pData, code, lino, _end, terrno);
 
-  p->nData = pDst->pks[1].nData;
-  memcpy(p->pData, pDst->pks[1].pData, p->nData);
+  p->nData = pSrc->pks[1].nData;
+  memcpy(p->pData, pSrc->pks[1].pData, p->nData);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1951,6 +1962,8 @@ int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataB
   }
 
   pDstBlock->info = pDataBlock->info;
+  pDstBlock->info.pks[0].pData = NULL;
+  pDstBlock->info.pks[1].pData = NULL;
 
   pDstBlock->info.rows = 0;
   pDstBlock->info.capacity = 0;
@@ -2878,6 +2891,7 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, cha
   return code;
 }
 
+// return length of encoded data, return -1 if failed
 int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
   int32_t dataLen = 0;
 
@@ -2911,7 +2925,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
     if (pColInfoData == NULL) {
-      return terrno;
+      return -1;
     }
 
     *((int8_t*)data) = pColInfoData->info.type;
@@ -2930,7 +2944,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
   for (int32_t col = 0; col < numOfCols; ++col) {
     SColumnInfoData* pColRes = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, col);
     if (pColRes == NULL) {
-      return terrno;
+      return -1;
     }
 
     // copy the null bitmap
@@ -2981,7 +2995,6 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
 
   *actualLen = dataLen;
   *groupId = pBlock->info.id.groupId;
-  ASSERT(dataLen > 0);
   return dataLen;
 }
 

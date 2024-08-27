@@ -1599,6 +1599,12 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minDiskFreeSize");
   tsMinDiskFreeSize = pItem->i64;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3MigrateIntervalSec");
+  tsS3MigrateIntervalSec = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3MigrateEnabled");
+  tsS3MigrateEnabled = (bool)pItem->bval;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3PageCacheSize");
   tsS3PageCacheSize = pItem->i32;
 
@@ -2323,7 +2329,7 @@ int8_t taosGranted(int8_t type) {
     case TSDB_GRANT_VIEW:
       return atomic_load_8(&tsGrant) & GRANT_FLAG_VIEW;
     default:
-      ASSERTS(0, "undefined grant type:%" PRIi8, type);
+      uWarn("undefined grant type:%" PRIi8, type);
       break;
   }
   return 0;
