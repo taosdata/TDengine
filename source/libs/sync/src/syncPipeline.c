@@ -682,12 +682,18 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
   int32_t code = 0, lino = 0;
   bool    retry = false;
   do {
+    SFsmCbMeta cbMeta = {0};
+    cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(pNode, pEntry->index);
+    if (cbMeta.lastConfigIndex < -1) {
+      code = TSDB_CODE_SYN_INTERNAL_ERROR;
+      if (terrno != 0) code = terrno;
+      return code;
+    }
+
     SRpcMsg rpcMsg = {.code = applyCode};
     TAOS_CHECK_EXIT(syncEntry2OriginalRpc(pEntry, &rpcMsg));
 
-    SFsmCbMeta cbMeta = {0};
     cbMeta.index = pEntry->index;
-    cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(pNode, pEntry->index);
     cbMeta.isWeak = pEntry->isWeak;
     cbMeta.code = applyCode;
     cbMeta.state = role;

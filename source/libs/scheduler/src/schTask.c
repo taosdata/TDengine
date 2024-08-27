@@ -301,7 +301,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
       SCH_TASK_ELOG("fail to get task %d parent, parentNum: %d", i, parentNum);
       SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
     }
-    
+
     SCH_LOCK(SCH_WRITE, &parent->planLock);
     SDownstreamSourceNode source = {
         .type = QUERY_NODE_DOWNSTREAM_SOURCE,
@@ -319,7 +319,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     SCH_UNLOCK(SCH_WRITE, &parent->planLock);
 
     SCH_ERR_RET(code);
-    
+
     int32_t readyNum = atomic_add_fetch_32(&parent->childReady, 1);
 
     if (SCH_TASK_READY_FOR_LAUNCH(readyNum, parent)) {
@@ -331,7 +331,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
   if (taskDone == pTask->level->taskNum) {
     SCH_ERR_RET(schLaunchJobLowerLevel(pJob, pTask));
   }
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -422,10 +422,10 @@ void schResetTaskForRetry(SSchJob *pJob, SSchTask *pTask) {
 
   schDropTaskOnExecNode(pJob, pTask);
   if (pTask->delayTimer) {
-    (void)taosTmrStopA(&pTask->delayTimer); // ignore error
+    (void)taosTmrStopA(&pTask->delayTimer);  // ignore error
   }
   taosHashClear(pTask->execNodes);
-  (void)schRemoveTaskFromExecList(pJob, pTask); // ignore error
+  (void)schRemoveTaskFromExecList(pJob, pTask);  // ignore error
   schDeregisterTaskHb(pJob, pTask);
   taosMemoryFreeClear(pTask->msg);
   pTask->msgLen = 0;
@@ -453,17 +453,19 @@ int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
     } else if (SYNC_SELF_LEADER_REDIRECT_ERROR(rspCode)) {
       SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
       if (NULL == addr) {
-        SCH_TASK_ELOG("fail to get the %dth condidateAddr, totalNum:%d", pTask->candidateIdx, (int32_t)taosArrayGetSize(pTask->candidateAddrs));
+        SCH_TASK_ELOG("fail to get the %dth condidateAddr, totalNum:%d", pTask->candidateIdx,
+                      (int32_t)taosArrayGetSize(pTask->candidateAddrs));
         SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
       }
-      
-      SEp            *pEp = &addr->epSet.eps[addr->epSet.inUse];
+
+      SEp *pEp = &addr->epSet.eps[addr->epSet.inUse];
       SCH_TASK_DLOG("task retry node %d current ep, idx:%d/%d,%s:%d, code:%s", addr->nodeId, addr->epSet.inUse,
                     addr->epSet.numOfEps, pEp->fqdn, pEp->port, tstrerror(rspCode));
     } else {
       SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
       if (NULL == addr) {
-        SCH_TASK_ELOG("fail to get the %dth condidateAddr, totalNum:%d", pTask->candidateIdx, (int32_t)taosArrayGetSize(pTask->candidateAddrs));
+        SCH_TASK_ELOG("fail to get the %dth condidateAddr, totalNum:%d", pTask->candidateIdx,
+                      (int32_t)taosArrayGetSize(pTask->candidateAddrs));
         SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
       }
 
@@ -495,7 +497,7 @@ int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
   for (int32_t i = 0; i < childrenNum; ++i) {
     SSchTask *pChild = taosArrayGetP(pTask->children, i);
     SCH_LOCK_TASK(pChild);
-    (void)schDoTaskRedirect(pJob, pChild, NULL, rspCode); // error handled internal
+    (void)schDoTaskRedirect(pJob, pChild, NULL, rspCode);  // error handled internal
     SCH_UNLOCK_TASK(pChild);
   }
 
@@ -509,13 +511,13 @@ _return:
 int32_t schResetTaskSetLevelInfo(SSchJob *pJob, SSchTask *pTask) {
   SSchLevel *pLevel = pTask->level;
 
-  SCH_TASK_DLOG("start to reset level for current task set, execDone:%d, launched:%d", 
-    atomic_load_32(&pLevel->taskExecDoneNum), atomic_load_32(&pLevel->taskLaunchedNum));
+  SCH_TASK_DLOG("start to reset level for current task set, execDone:%d, launched:%d",
+                atomic_load_32(&pLevel->taskExecDoneNum), atomic_load_32(&pLevel->taskLaunchedNum));
 
   if (SCH_GET_TASK_STATUS(pTask) >= JOB_TASK_STATUS_PART_SUCC) {
     (void)atomic_sub_fetch_32(&pLevel->taskExecDoneNum, 1);
   }
-  
+
   (void)atomic_sub_fetch_32(&pLevel->taskLaunchedNum, 1);
 
   int32_t childrenNum = taosArrayGetSize(pTask->children);
@@ -525,16 +527,16 @@ int32_t schResetTaskSetLevelInfo(SSchJob *pJob, SSchTask *pTask) {
       SCH_TASK_ELOG("fail to get the %dth child, childrenNum:%d", i, childrenNum);
       SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
     }
-    
+
     SCH_LOCK_TASK(pChild);
     pLevel = pChild->level;
     (void)atomic_sub_fetch_32(&pLevel->taskExecDoneNum, 1);
     (void)atomic_sub_fetch_32(&pLevel->taskLaunchedNum, 1);
     SCH_UNLOCK_TASK(pChild);
-  }  
+  }
 
-  SCH_TASK_DLOG("end to reset level for current task set, execDone:%d, launched:%d", 
-    atomic_load_32(&pLevel->taskExecDoneNum), atomic_load_32(&pLevel->taskLaunchedNum));
+  SCH_TASK_DLOG("end to reset level for current task set, execDone:%d, launched:%d",
+                atomic_load_32(&pLevel->taskExecDoneNum), atomic_load_32(&pLevel->taskLaunchedNum));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -737,7 +739,7 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
 int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
   (void)atomic_sub_fetch_32(&pTask->level->taskLaunchedNum, 1);
 
-  (void)schRemoveTaskFromExecList(pJob, pTask); // ignore error
+  (void)schRemoveTaskFromExecList(pJob, pTask);  // ignore error
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
 
   if (SCH_TASK_NEED_FLOW_CTRL(pJob, pTask)) {
@@ -749,10 +751,11 @@ int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
   if (SCH_IS_DATA_BIND_TASK(pTask)) {
     SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
     if (NULL == addr) {
-      SCH_TASK_ELOG("fail to the %dth condidateAddr, totalNum:%d", pTask->candidateIdx, (int32_t)taosArrayGetSize(pTask->candidateAddrs));
+      SCH_TASK_ELOG("fail to the %dth condidateAddr, totalNum:%d", pTask->candidateIdx,
+                    (int32_t)taosArrayGetSize(pTask->candidateAddrs));
       SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
     }
-    
+
     SCH_SWITCH_EPSET(addr);
   } else {
     SCH_ERR_RET(schSwitchTaskCandidateAddr(pJob, pTask));
@@ -776,7 +779,7 @@ int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask) {
         SCH_TASK_ELOG("fail to get the %dth node in nodeList, nodeNum:%d", i, nodeNum);
         SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
       }
-      
+
       SQueryNodeAddr *naddr = &nload->addr;
 
       if (NULL == taosArrayPush(pTask->candidateAddrs, naddr)) {
@@ -859,7 +862,7 @@ int32_t schUpdateTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSe
 
   char *origEpset = NULL;
   char *newEpset = NULL;
-  
+
   SCH_ERR_RET(schDumpEpSet(&pAddr->epSet, &origEpset));
   SCH_ERR_JRET(schDumpEpSet(pEpSet, &newEpset));
 
@@ -932,7 +935,7 @@ void schDropTaskOnExecNode(SSchJob *pJob, SSchTask *pTask) {
     if (nodeInfo->handle) {
       SCH_SET_TASK_HANDLE(pTask, nodeInfo->handle);
       void *pExecId = taosHashGetKey(nodeInfo, NULL);
-      (void)schBuildAndSendMsg(pJob, pTask, &nodeInfo->addr, TDMT_SCH_DROP_TASK, pExecId); // ignore error and continue
+      (void)schBuildAndSendMsg(pJob, pTask, &nodeInfo->addr, TDMT_SCH_DROP_TASK, pExecId);  // ignore error and continue
 
       SCH_TASK_DLOG("start to drop task's %dth execNode", i);
     } else {
@@ -986,10 +989,10 @@ int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList) {
       qError("fail to get the %dth task status in hb rsp, taskNum:%d", i, taskNum);
       continue;
     }
-    
-    int32_t      code = 0;
 
-    qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d task status in server: %s", pStatus->queryId, pStatus->taskId,
+    int32_t code = 0;
+
+    qDebug("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d task status in server: %s", pStatus->queryId, pStatus->taskId,
            pStatus->execId, jobTaskStatusStr(pStatus->status));
 
     if (schProcessOnCbBegin(&pJob, &pTask, pStatus->queryId, pStatus->refId, pStatus->taskId)) {
@@ -1036,12 +1039,12 @@ int32_t schHandleExplainRes(SArray *pExplainRes) {
       continue;
     }
 
-    qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ", begin to handle LOCAL explain rsp msg", localRsp->qId, localRsp->tId);
+    qDebug("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ", begin to handle LOCAL explain rsp msg", localRsp->qId, localRsp->tId);
 
     pJob = NULL;
     (void)schAcquireJob(localRsp->rId, &pJob);
     if (NULL == pJob) {
-      qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 "job no exist, may be dropped, refId:0x%" PRIx64, localRsp->qId,
+      qWarn("qid:0x%" PRIx64 ",TID:0x%" PRIx64 "job no exist, may be dropped, refId:0x%" PRIx64, localRsp->qId,
             localRsp->tId, localRsp->rId);
       SCH_ERR_JRET(TSDB_CODE_QRY_JOB_NOT_EXIST);
     }
@@ -1061,7 +1064,7 @@ int32_t schHandleExplainRes(SArray *pExplainRes) {
 
     (void)schReleaseJob(pJob->refId);
 
-    qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ", end to handle LOCAL explain rsp msg, code:%x", localRsp->qId,
+    qDebug("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ", end to handle LOCAL explain rsp msg, code:%x", localRsp->qId,
            localRsp->tId, code);
 
     SCH_ERR_JRET(code);
@@ -1079,7 +1082,7 @@ _return:
       qError("in _return fail to get the %dth LOCAL explain rsp msg, total:%d", i, resNum);
       continue;
     }
-    
+
     tFreeSExplainRsp(&localRsp->rsp);
   }
 

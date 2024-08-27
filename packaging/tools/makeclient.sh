@@ -182,15 +182,16 @@ if [[ $productName == "TDengine" ]] && [ "$verMode" != "cloud" ]; then
   # Copy example code
   mkdir -p ${install_dir}/examples
   examples_dir="${top_dir}/examples"
+  new_example_dir="${top_dir}/docs/examples"
   cp -r ${examples_dir}/c ${install_dir}/examples
   if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-    cp -r ${examples_dir}/JDBC ${install_dir}/examples
-    cp -r ${examples_dir}/matlab ${install_dir}/examples
-    cp -r ${examples_dir}/python ${install_dir}/examples
-    cp -r ${examples_dir}/R ${install_dir}/examples
-    cp -r ${examples_dir}/go ${install_dir}/examples
-    cp -r ${examples_dir}/nodejs ${install_dir}/examples
-    cp -r ${examples_dir}/C# ${install_dir}/examples
+    cp -r ${new_example_dir}/JDBC ${install_dir}/examples ||:
+    cp -r ${examples_dir}/matlab ${install_dir}/examples ||:
+    cp -r ${examples_dir}/python ${install_dir}/examples ||:
+    cp -r ${examples_dir}/R ${install_dir}/examples ||:
+    cp -r ${examples_dir}/go ${install_dir}/examples ||:
+    cp -r ${examples_dir}/nodejs ${install_dir}/examples ||:
+    cp -r ${examples_dir}/C# ${install_dir}/examples ||:
     mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
