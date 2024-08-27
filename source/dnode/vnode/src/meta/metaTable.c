@@ -381,7 +381,11 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq, SArray *tb
       break;
     }
 
-    (void)taosArrayPush(tbUidList, &(((SCtbIdxKey *)pKey)->uid));
+    if (taosArrayPush(tbUidList, &(((SCtbIdxKey *)pKey)->uid)) == NULL) {
+      tdbFree(pKey);
+      (void)tdbTbcClose(pCtbIdxc);
+      return terrno;
+    }
   }
 
   (void)tdbTbcClose(pCtbIdxc);
@@ -505,7 +509,11 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     return terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
   }
 
-  oStbEntry.pBuf = taosMemoryMalloc(nData);
+  if ((oStbEntry.pBuf = taosMemoryMalloc(nData)) == NULL) {
+    (void)tdbTbcClose(pTbDbc);
+    (void)tdbTbcClose(pUidIdxc);
+    return terrno;
+  }
   memcpy(oStbEntry.pBuf, pData, nData);
   tDecoderInit(&dc, oStbEntry.pBuf, nData);
   (void)metaDecodeEntry(&dc, &oStbEntry);
@@ -527,6 +535,13 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
     STsdb  *pTsdb = pMeta->pVnode->pTsdb;
     SArray *uids = taosArrayInit(8, sizeof(int64_t));
+    if (uids == NULL) {
+      if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
+      tDecoderClear(&dc);
+      (void)tdbTbcClose(pTbDbc);
+      (void)tdbTbcClose(pUidIdxc);
+      return terrno;
+    }
     if (deltaCol == 1) {
       int16_t cid = pReq->schemaRow.pSchema[nCols - 1].colId;
       int8_t  col_type = pReq->schemaRow.pSchema[nCols - 1].type;
@@ -1108,7 +1123,10 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUi
   }
 
   if ((type == TSDB_CHILD_TABLE || type == TSDB_NORMAL_TABLE) && tbUids) {
-    (void)taosArrayPush(tbUids, &uid);
+    if (taosArrayPush(tbUids, &uid) == NULL) {
+      rc = terrno;
+      goto _exit;
+    }
 
     if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
       (void)tsdbCacheDropTable(pMeta->pVnode->pTsdb, uid, suid, NULL);
@@ -1125,11 +1143,15 @@ _exit:
   return rc;
 }
 
-void metaDropTables(SMeta *pMeta, SArray *tbUids) {
-  if (taosArrayGetSize(tbUids) == 0) return;
+int32_t metaDropTables(SMeta *pMeta, SArray *tbUids) {
+  int32_t code = 0;
+  if (taosArrayGetSize(tbUids) == 0) return TSDB_CODE_SUCCESS;
 
   int64_t    nCtbDropped = 0;
   SSHashObj *suidHash = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (suidHash == NULL) {
+    return terrno;
+  }
 
   metaWLock(pMeta);
   for (int i = 0; i < taosArrayGetSize(tbUids); ++i) {
@@ -1137,7 +1159,8 @@ void metaDropTables(SMeta *pMeta, SArray *tbUids) {
     tb_uid_t suid = 0;
     int8_t   sysTbl = 0;
     int      type;
-    (void)metaDropTableByUid(pMeta, uid, &type, &suid, &sysTbl);
+    code = metaDropTableByUid(pMeta, uid, &type, &suid, &sysTbl);
+    if (code) return code;
     if (!sysTbl && type == TSDB_CHILD_TABLE && suid != 0 && suidHash) {
       int64_t *pVal = tSimpleHashGet(suidHash, &suid, sizeof(tb_uid_t));
       if (pVal) {
@@ -1145,7 +1168,8 @@ void metaDropTables(SMeta *pMeta, SArray *tbUids) {
       } else {
         nCtbDropped = 1;
       }
-      (void)tSimpleHashPut(suidHash, &suid, sizeof(tb_uid_t), &nCtbDropped, sizeof(int64_t));
+      code = tSimpleHashPut(suidHash, &suid, sizeof(tb_uid_t), &nCtbDropped, sizeof(int64_t));
+      if (code) return code;
     }
     /*
     if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
@@ -1170,6 +1194,7 @@ void metaDropTables(SMeta *pMeta, SArray *tbUids) {
   tSimpleHashCleanup(suidHash);
 
   pMeta->changed = true;
+  return 0;
 }
 
 static int32_t metaFilterTableByHash(SMeta *pMeta, SArray *uidList) {
@@ -1210,7 +1235,10 @@ static int32_t metaFilterTableByHash(SMeta *pMeta, SArray *uidList) {
       tbFName[TSDB_TABLE_FNAME_LEN] = '\0';
       int32_t ret = vnodeValidateTableHash(pMeta->pVnode, tbFName);
       if (ret < 0 && terrno == TSDB_CODE_VND_HASH_MISMATCH) {
-        (void)taosArrayPush(uidList, &me.uid);
+        if (taosArrayPush(uidList, &me.uid) == NULL) {
+          code = terrno;
+          break;
+        }
       }
     }
     tDecoderClear(&dc);
@@ -1239,7 +1267,8 @@ int32_t metaTrimTables(SMeta *pMeta) {
   }
 
   metaInfo("vgId:%d, trim %ld tables", TD_VID(pMeta->pVnode), taosArrayGetSize(tbUids));
-  metaDropTables(pMeta, tbUids);
+  code = metaDropTables(pMeta, tbUids);
+  if (code) goto end;
 
 end:
   taosArrayDestroy(tbUids);
@@ -1867,11 +1896,19 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
         } else {
           memcpy(&val.i64, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
         }
-        (void)taosArrayPush(pTagArray, &val);
+        if (taosArrayPush(pTagArray, &val) == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          taosArrayDestroy(pTagArray);
+          goto _err;
+        }
       } else {
         STagVal val = {.cid = pCol->colId};
         if (tTagGet(pOldTag, &val)) {
-          (void)taosArrayPush(pTagArray, &val);
+          if (taosArrayPush(pTagArray, &val) == NULL) {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            taosArrayDestroy(pTagArray);
+            goto _err;
+          }
         }
       }
     }
@@ -2238,6 +2275,9 @@ static int metaDropTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterT
   }
 
   SArray *tagIdxList = taosArrayInit(512, sizeof(SMetaPair));
+  if (tagIdxList == NULL) {
+    goto _err;
+  }
 
   TBC *pTagIdxc = NULL;
   TAOS_CHECK_RETURN(tdbTbcOpen(pMeta->pTagIdx, &pTagIdxc, NULL));
@@ -2255,7 +2295,9 @@ static int metaDropTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterT
     }
 
     SMetaPair pair = {.key = pKey, nKey = nKey};
-    (void)taosArrayPush(tagIdxList, &pair);
+    if (taosArrayPush(tagIdxList, &pair) == NULL) {
+      goto _err;
+    }
   }
   (void)tdbTbcClose(pTagIdxc);
 
@@ -2797,7 +2839,14 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
     SColCmprWrapper *p = &e.colCmpr;
     for (int32_t i = 0; i < p->nCols; i++) {
       SColCmpr *pCmpr = &p->pColCmpr[i];
-      (void)taosHashPut(pColCmprObj, &pCmpr->id, sizeof(pCmpr->id), &pCmpr->alg, sizeof(pCmpr->alg));
+      rc = taosHashPut(pColCmprObj, &pCmpr->id, sizeof(pCmpr->id), &pCmpr->alg, sizeof(pCmpr->alg));
+      if (rc < 0) {
+        tDecoderClear(&dc);
+        tdbFree(pData);
+        metaULock(pMeta);
+        taosHashClear(pColCmprObj);
+        return rc;
+      }
     }
   } else {
     tDecoderClear(&dc);
