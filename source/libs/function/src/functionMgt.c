@@ -117,7 +117,7 @@ EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWin
 
 int32_t fmFuncDynDataRequired(int32_t funcId, void* pRes, SDataBlockInfo* pBlockInfo, int32_t *reqStatus) {
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
-    *reqStatus = -1;
+    *reqStatus = FUNC_DATA_REQUIRED_NOT_LOAD;
     return TSDB_CODE_SUCCESS;
   }
 
