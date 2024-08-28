@@ -19,10 +19,6 @@ export default {
             })
           );
         });
-        // 默认保留 csv 数据源，不参与授权
-        array.push({
-          grant_name: "data_in_csv"
-        })
         localStorage.setItem("allLicenseNameData",JSON.stringify(array))
       }
     },

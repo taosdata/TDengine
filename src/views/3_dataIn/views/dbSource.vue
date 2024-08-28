@@ -17,6 +17,7 @@ import SourceInfo from "./sourceInfo.vue";
 import { getUIData, getTask } from "@/api/explorer/datain";
 import { getDataSources } from "@/api/explorer/community";
 import { sendSQLReq } from "@/api/gateway/console";
+import { compareVersion } from "@/utils";
 
 export default {
   name: "DbSource",
@@ -39,6 +40,14 @@ export default {
   created() {
     this.getData();
   },
+  computed: {
+    TDengineVersion() {
+      return localStorage.getItem('agent_version');
+    },
+    isLessThen3_3_3_0() {
+      return compareVersion(this.TDengineVersion, '<3.3.3.0')
+    }
+  },
   watch: {
     "$i18n.locale": {
       deep: true,
@@ -54,10 +63,17 @@ export default {
       try {
         let result = getDataSources(this.$i18n.locale);
         let allData = [];
-        let version = localStorage.getItem("agent_version");
-        let [a, b, c, d] = version.split(".");
         if (this.$INDUSTRY) {
           let array = JSON.parse(localStorage.getItem('allLicenseNameData')) || [];
+          const filterRes = array.filter(item => ['csv'].includes(item.grant_name));
+          if (this.isLessThen3_3_3_0) {
+            // 3_3_3_0 之前默认保留 csv 数据源，不参与授权
+            if (filterRes.length < 0) {
+              array.push({
+                grant_name: "csv"
+              })
+            }
+          }
           let allLicenseNameData = array.map((item) => item.grant_name);
           result = result.filter(item => allLicenseNameData.includes(item.license_id))
         }

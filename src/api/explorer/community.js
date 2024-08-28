@@ -2673,7 +2673,7 @@ export function getDataSources(lang) {
         "id": "csv",
         "type": "path",
         "name": "CSV",
-        "license_id": "data_in_csv",
+        "license_id": "csv",
         "description": "Import a file or a collection of files in CSV format to TDengine.\n",
         "strict": true,
         "options": {
@@ -7074,7 +7074,7 @@ export function getDataSources(lang) {
         "id": "csv",
         "type": "path",
         "name": "CSV",
-        "license_id": "data_in_csv",
+        "license_id": "csv",
         "description": "导入一个或多个 CSV 文件数据到 TDengine。\n",
         "strict": true,
         "options": {
