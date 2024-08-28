@@ -11,7 +11,7 @@ members = [
 [workspace.dependencies]
 chrono = { version = "0.4.37" }
 chrono-tz = { version = "0.8.3" }
-shadow-rs = { version = "0.26.0" }
+shadow-rs = { version = "0.33.0" }
 itertools = { version = "0.13.0" }
 
 clap = { version = "4.4.7", features = ["default", "derive"] }
@@ -39,7 +39,7 @@ sysinfo = "0.30.5"
 version = "0.12"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
-features = ["ws", "deadpool"]
+features = ["ws", "optin", "deadpool"]
 
 [workspace.package]
 version = "1.7.0"
@@ -211,8 +211,8 @@ shadow-rs = { workspace = true }
 tower = "0.4"
 
 [features]
-default = ["optin", "native-tls", "mimalloc"]
-optin = ["taos/optin", "taosx-core/optin"]
+default = ["native-tls", "mimalloc"]
+optin = []
 jemallocator = [
     "tikv-jemallocator",
     "tikv-jemalloc-sys",
