@@ -5258,44 +5258,47 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
 int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
+  int32_t ret = -1;
 
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pRsp->acctId) < 0) return -1;
-  if (tDecodeI64(&decoder, &pRsp->clusterId) < 0) return -1;
-  if (tDecodeU32(&decoder, &pRsp->connId) < 0) return -1;
-  if (tDecodeI32(&decoder, &pRsp->dnodeNum) < 0) return -1;
-  if (tDecodeI8(&decoder, &pRsp->superUser) < 0) return -1;
-  if (tDecodeI8(&decoder, &pRsp->sysInfo) < 0) return -1;
-  if (tDecodeI8(&decoder, &pRsp->connType) < 0) return -1;
-  if (tDecodeSEpSet(&decoder, &pRsp->epSet) < 0) return -1;
-  if (tDecodeI32(&decoder, &pRsp->svrTimestamp) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pRsp->sVer) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pRsp->sDetailVer) < 0) return -1;
+  if (tStartDecode(&decoder) < 0)                      goto _END;
+  if (tDecodeI32(&decoder,   &pRsp->acctId) < 0)       goto _END;
+  if (tDecodeI64(&decoder,   &pRsp->clusterId) < 0)    goto _END;
+  if (tDecodeU32(&decoder,   &pRsp->connId) < 0)       goto _END;
+  if (tDecodeI32(&decoder,   &pRsp->dnodeNum) < 0)     goto _END;
+  if (tDecodeI8(&decoder,    &pRsp->superUser) < 0)    goto _END;
+  if (tDecodeI8(&decoder,    &pRsp->sysInfo) < 0)      goto _END;
+  if (tDecodeI8(&decoder,    &pRsp->connType) < 0)     goto _END;
+  if (tDecodeSEpSet(&decoder,&pRsp->epSet) < 0)        goto _END;
+  if (tDecodeI32(&decoder,   &pRsp->svrTimestamp) < 0) goto _END;
+  if (tDecodeCStrTo(&decoder, pRsp->sVer) < 0)         goto _END;
+  if (tDecodeCStrTo(&decoder, pRsp->sDetailVer) < 0)   goto _END;
 
   if (!tDecodeIsEnd(&decoder)) {
-    if (tDecodeI32(&decoder, &pRsp->passVer) < 0) return -1;
+    if (tDecodeI32(&decoder, &pRsp->passVer) < 0)      goto _END;
   } else {
     pRsp->passVer = 0;
   }
   // since 3.0.7.0
   if (!tDecodeIsEnd(&decoder)) {
-    if (tDecodeI32(&decoder, &pRsp->authVer) < 0) return -1;
+    if (tDecodeI32(&decoder, &pRsp->authVer) < 0)      goto _END;
   } else {
     pRsp->authVer = 0;
   }
 
   if (!tDecodeIsEnd(&decoder)) {
-    if (tDecodeI64(&decoder, &pRsp->whiteListVer) < 0) return -1;
+    if (tDecodeI64(&decoder, &pRsp->whiteListVer) < 0) goto _END;
   } else {
     pRsp->whiteListVer = 0;
   }
   if (!tDecodeIsEnd(&decoder)) {
-    if (tDeserializeSMonitorParas(&decoder, &pRsp->monitorParas) < 0) return -1;
+    if (tDeserializeSMonitorParas(&decoder, &pRsp->monitorParas) < 0) goto _END;
   }
   tEndDecode(&decoder);
+  ret = 0;
 
+_END:
   tDecoderClear(&decoder);
-  return 0;
+  return ret;
 }
 
 int32_t tSerializeSMTimerMsg(void *buf, int32_t bufLen, SMTimerReq *pReq) {
