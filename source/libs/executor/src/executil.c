@@ -1747,6 +1747,8 @@ static SColumn* createColumn(int32_t blockId, int32_t slotId, int32_t colId, SDa
 int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  pExp->base.numOfParams = 0;
+  pExp->base.pParam = NULL;
   pExp->pExpr = taosMemoryCalloc(1, sizeof(tExprNode));
   QUERY_CHECK_NULL(pExp->pExpr, code, lino, _end, terrno);
 
@@ -1787,6 +1789,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
         createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pValNode->node.aliasName);
     pExp->base.pParam[0].type = FUNC_PARAM_TYPE_VALUE;
     code = nodesValueNodeToVariant(pValNode, &pExp->base.pParam[0].param);
+    QUERY_CHECK_CODE(code, lino, _end);
   } else if (type == QUERY_NODE_FUNCTION) {
     pExp->pExpr->nodeType = QUERY_NODE_FUNCTION;
     SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
