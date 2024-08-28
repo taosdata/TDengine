@@ -136,8 +136,12 @@ async fn check_connector_grant_of(
     // get tdengine server version and handle compatibility
     // skip license check for newly-added connectors in old version
     let connectors_old = vec!["opc_da", "opc_ua", "pi", "kafka", "influxdb", "mqtt"];
+    let connectors_3330 = vec!["csv"];
 
     if *version < VERSION_3_2_3 && connectors_old.contains(&connector) {
+        return Ok(LicenseKind::good());
+    }
+    if *version < VERSION_3_3_3 && connectors_3330.contains(&connector) {
         return Ok(LicenseKind::good());
     }
     let grants_sql = if *version >= VERSION_3_2_3 {
@@ -484,9 +488,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 crate::runners::oracle::ORACLE_ID => "oracle",
                 crate::runners::mssql::MSSQL_ID => "mssql",
                 crate::runners::mongodb::MONGODB_ID => "mongodb",
-                "csv" => {
-                    return Ok(LicenseKind::good());
-                }
+                "csv" => "csv",
                 connector => {
                     bail!("The current connector {connector} is not supported by license.");
                 }
