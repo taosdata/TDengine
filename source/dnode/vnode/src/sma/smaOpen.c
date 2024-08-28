@@ -139,7 +139,7 @@ int32_t smaOpen(SVnode *pVnode, int8_t rollback, bool force) {
 
   SSma *pSma = taosMemoryCalloc(1, sizeof(SSma));
   if (!pSma) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
 
   pVnode->pSma = pSma;

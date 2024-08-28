@@ -41,7 +41,7 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
 
   reader[0] = taosMemoryCalloc(1, sizeof(*reader[0]));
   if (reader[0] == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   reader[0]->config[0] = config[0];
@@ -897,7 +897,7 @@ static int32_t tsdbSttFWriterCloseAbort(SSttFileWriter *writer) {
 int32_t tsdbSttFileWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter **writer) {
   writer[0] = taosMemoryCalloc(1, sizeof(*writer[0]));
   if (writer[0] == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   writer[0]->config[0] = config[0];
