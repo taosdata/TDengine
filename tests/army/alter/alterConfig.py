@@ -59,7 +59,7 @@ class TDTestCase(TBase):
         tdSql.execute("flush database db5291;")
         tdSql.execute("drop table ttltb2;")
         # restart taosd
-        os.system("ps -ef | grep taosd | grep -v grep | awk '{print $2}' | xargs kill -9")
+        sc.dnodeStopAll()
         sc.dnodeStart(1)
         sc.dnodeStart(2)
         sc.dnodeStart(3)
