@@ -61,6 +61,12 @@ class TDSql:
     def close(self):
         self.cursor.close()
 
+    def print_error_frame_info(self, elm, expect_elm):
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
+        args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
+        # tdLog.info("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
+        raise Exception("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
+
     def prepare(self, dbname="db", drop=True, **kwargs):
         tdLog.info(f"prepare database:{dbname}")
         s = 'reset query cache'
@@ -331,13 +337,14 @@ class TDSql:
         return self.queryRows
 
     def checkRows(self, expectedRows):
-        if self.queryRows == expectedRows:
-            tdLog.info("sql:%s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectedRows))
-            return True
-        else:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, self.queryRows, expectedRows)
-            tdLog.exit("%s(%d) failed: sql:%s, queryRows:%d != expect:%d" % args)
+        self.checkEqual(self.queryRows, expectedRows)
+        # if self.queryRows == expectedRows:
+        #     tdLog.info("sql:%s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectedRows))
+        #     return True
+        # else:
+        #     caller = inspect.getframeinfo(inspect.stack()[1][0])
+        #     args = (caller.filename, caller.lineno, self.sql, self.queryRows, expectedRows)
+        #     tdLog.exit("%s(%d) failed: sql:%s, queryRows:%d != expect:%d" % args)
 
     def checkRows_not_exited(self, expectedRows):
         """
@@ -640,12 +647,8 @@ class TDSql:
         if self.__check_equal(elm, expect_elm):
             tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
             return
-
-        caller = inspect.getframeinfo(inspect.stack()[1][0])
-        args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
-        # tdLog.info("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
-        raise Exception("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
-
+        self.print_error_frame_info(elm, expect_elm)
+        
     def checkNotEqual(self, elm, expect_elm):
         if elm != expect_elm:
             tdLog.info("sql:%s, elm:%s != expect_elm:%s" % (self.sql, elm, expect_elm))
