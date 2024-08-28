@@ -859,8 +859,8 @@ int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
   return pResInfo->pCol[columnIndex].offset;
 }
 
-int taos_get_column_data_null(TAOS_RES *res, int columnIndex, bool result[], int rows){
-  if (res == NULL || result == NULL || rows <= 0 || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+int taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *rows){
+  if (res == NULL || result == NULL || *rows <= 0 || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -873,8 +873,11 @@ int taos_get_column_data_null(TAOS_RES *res, int columnIndex, bool result[], int
   TAOS_FIELD     *pField = &pResInfo->userFields[columnIndex];
   SResultColumn  *pCol = &pResInfo->pCol[columnIndex];
 
+  if (*rows > pResInfo->numOfRows){
+    *rows = pResInfo->numOfRows;
+  }
   if (IS_VAR_DATA_TYPE(pField->type)) {
-    for(int i = 0; i < rows && i < pResInfo->numOfRows; i++){
+    for(int i = 0; i < *rows; i++){
       if(pCol->offset[i] == -1){
         result[i] = true;
       }else{
@@ -882,7 +885,7 @@ int taos_get_column_data_null(TAOS_RES *res, int columnIndex, bool result[], int
       }
     }
   }else{
-    for(int i = 0; i < rows && i < pResInfo->numOfRows; i++){
+    for(int i = 0; i < *rows; i++){
       if (colDataIsNull_f(pCol->nullbitmap, i)){
         result[i] = true;
       }else{
