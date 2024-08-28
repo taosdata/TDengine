@@ -26,7 +26,7 @@ from frame.sql import *
 from frame.caseBase import *
 from frame import *
 from frame.srvCtl import *
-
+from frame.clusterCommonCheck import clusterComCheck
 
 class TDTestCase(TBase):
     def init(self, conn, logSql, replicaVar=3):
@@ -36,28 +36,31 @@ class TDTestCase(TBase):
         tdSql.init(conn.cursor(), logSql)
 
     def checkClusterEmptyDB(self):
-        time.sleep(10)
+        while 1:
+            if clusterComCheck.checkDnodes(3): break
         tdSql.query("show cluster alive;")
         tdSql.checkData(0, 0, 1)
-        
+
         sc.dnodeStop(3)
-        time.sleep(2)
+        while 1:
+            if clusterComCheck.checkDnodes(2): break
         tdSql.query("show cluster alive;")
         tdSql.checkData(0, 0, 1)
 
 
     def checkClusterWithDB(self):
         sc.dnodeStart(3)
-        time.sleep(10)
+        while 1:
+            if clusterComCheck.checkDnodes(3): break
         tdSql.execute(f'drop database if exists {self.db}')
         tdSql.execute(f'create database {self.db} replica 3')
-        time.sleep(2)
         tdSql.query("show cluster alive;")
         print(tdSql.getResult("show cluster alive;"))
         tdSql.checkData(0, 0, 1)
-        
+
         sc.dnodeStop(3)
-        time.sleep(10)
+        while 1:
+            if clusterComCheck.checkDnodes(2): break
         tdSql.query("show cluster alive;")
         print(tdSql.getResult("show cluster alive;"))
         tdSql.checkData(0, 0, 1)
@@ -77,4 +80,3 @@ class TDTestCase(TBase):
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())
-
