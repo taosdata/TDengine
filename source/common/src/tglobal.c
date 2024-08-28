@@ -638,7 +638,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddLocale(pCfg, "locale", tsLocale, CFG_SCOPE_BOTH, CFG_DYN_CLIENT));
   TAOS_CHECK_RETURN(cfgAddCharset(pCfg, "charset", tsCharset, CFG_SCOPE_BOTH, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "assert", tsAssert, CFG_SCOPE_BOTH, CFG_DYN_CLIENT));
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableCoreFile", 1, CFG_SCOPE_BOTH, CFG_DYN_CLIENT));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableCoreFile", tsEnableCoreFile, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
   TAOS_CHECK_RETURN(cfgAddFloat(pCfg, "numOfCores", tsNumOfCores, 1, 100000, CFG_SCOPE_BOTH, CFG_DYN_NONE));
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "ssd42", tsSSE42Supported, CFG_SCOPE_BOTH, CFG_DYN_NONE));
@@ -1287,8 +1287,8 @@ static int32_t taosSetSystemCfg(SConfig *pCfg) {
   osSetSystemLocale(locale, charset);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableCoreFile");
-  bool enableCore = pItem->bval;
-  taosSetCoreDump(enableCore);
+  tsEnableCoreFile = pItem->bval;
+  taosSetCoreDump(tsEnableCoreFile);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "assert");
   tsAssert = pItem->bval;
@@ -1901,6 +1901,13 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     goto _exit;
   }
 
+  if (strncasecmp(name, "enableCoreFile", 9) == 0) {
+    tsEnableCoreFile = pItem->bval;
+    taosSetCoreDump(tsEnableCoreFile);
+    uInfo("%s set to %d", name, tsEnableCoreFile);
+    goto _exit;
+  }
+
   if (strcasecmp("slowLogScope", name) == 0) {
     int32_t scope = 0;
     TAOS_CHECK_GOTO(taosSetSlowLogScope(pItem->str, &scope), NULL, _exit);
@@ -2009,9 +2016,9 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
     }
     case 'e': {
       if (strcasecmp("enableCoreFile", name) == 0) {
-        bool enableCore = pItem->bval;
-        taosSetCoreDump(enableCore);
-        uInfo("%s set to %d", name, enableCore);
+        tsEnableCoreFile = pItem->bval;
+        taosSetCoreDump(tsEnableCoreFile);
+        uInfo("%s set to %d", name, tsEnableCoreFile);
         matched = true;
       }
       break;
@@ -2205,7 +2212,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"compressMsgSize", &tsCompressMsgSize},
                                          {"countAlwaysReturnValue", &tsCountAlwaysReturnValue},
                                          {"crashReporting", &tsEnableCrashReport},
-                                         {"enableCoreFile", &tsAsyncLog},
                                          {"enableQueryHb", &tsEnableQueryHb},
                                          {"keepColumnName", &tsKeepColumnName},
                                          {"keepAliveIdle", &tsKeepAliveIdle},

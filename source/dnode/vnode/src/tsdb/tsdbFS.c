@@ -53,7 +53,7 @@ static int32_t tsdbBinaryToFS(uint8_t *pData, int64_t nData, STsdbFS *pFS) {
   if (hasDel) {
     pFS->pDelFile = (SDelFile *)taosMemoryCalloc(1, sizeof(SDelFile));
     if (pFS->pDelFile == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
 

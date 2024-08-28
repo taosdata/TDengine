@@ -38,7 +38,7 @@ int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapRead
   // alloc
   pReader = (SRSmaSnapReader*)taosMemoryCalloc(1, sizeof(*pReader));
   if (pReader == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
   pReader->pSma = pSma;
   pReader->sver = sver;
@@ -136,7 +136,7 @@ int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, void** ppRang
   // alloc
   pWriter = (SRSmaSnapWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
   if (!pWriter) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
   pWriter->pSma = pSma;
   pWriter->sver = sver;

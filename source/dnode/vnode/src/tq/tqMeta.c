@@ -115,7 +115,7 @@ int32_t tqMetaSaveOffset(STQ* pTq, STqOffset* pOffset) {
 
   buf = taosMemoryCalloc(1, vlen);
   if (buf == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto END;
   }
 
@@ -212,7 +212,7 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
 
   buf = taosMemoryCalloc(1, vlen);
   if (buf == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto END;
   }
 
