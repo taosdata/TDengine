@@ -61,9 +61,10 @@ class TDSql:
     def close(self):
         self.cursor.close()
 
-    def print_error_frame_info(self, elm, expect_elm):
+    def print_error_frame_info(self, elm, expect_elm, sql=None):
         caller = inspect.getframeinfo(inspect.stack()[1][0])
-        args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
+        print_sql = self.sql if sql is None else sql
+        args = (caller.filename, caller.lineno, print_sql, elm, expect_elm)
         # tdLog.info("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
         raise Exception("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
 
