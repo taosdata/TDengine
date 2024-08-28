@@ -546,8 +546,9 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 
   int32_t kvNum = taosHashGetSize(pHbReq->info);
   if (NULL == pHbReq->info || kvNum <= 0) {
-    // TODO return value
-    (void)taosArrayPush(pBatchRsp->rsps, &hbRsp);
+    if (taosArrayPush(pBatchRsp->rsps, &hbRsp) == NULL) {
+      mError("failed to put rsp into array, but continue at this heartbeat");
+    }
     return TSDB_CODE_SUCCESS;
   }
 
@@ -597,7 +598,9 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
                                       pObj->ipWhiteListVer);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_USER_AUTHINFO, .valueLen = rspLen, .value = rspMsg};
-          (void)taosArrayPush(hbRsp.info, &kv1);
+          if (taosArrayPush(hbRsp.info, &kv1) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
         }
         break;
       }
@@ -607,7 +610,9 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         (void)mndValidateDbInfo(pMnode, kv->value, kv->valueLen / sizeof(SDbCacheInfo), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_DBINFO, .valueLen = rspLen, .value = rspMsg};
-          (void)taosArrayPush(hbRsp.info, &kv1);
+          if (taosArrayPush(hbRsp.info, &kv1) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
         }
         break;
       }
@@ -617,7 +622,9 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         (void)mndValidateStbInfo(pMnode, kv->value, kv->valueLen / sizeof(SSTableVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_STBINFO, .valueLen = rspLen, .value = rspMsg};
-          (void)taosArrayPush(hbRsp.info, &kv1);
+          if (taosArrayPush(hbRsp.info, &kv1) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
         }
         break;
       }
@@ -635,7 +642,9 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         (void)mndValidateViewInfo(pMnode, kv->value, kv->valueLen / sizeof(SViewVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_VIEWINFO, .valueLen = rspLen, .value = rspMsg};
-          (void)taosArrayPush(hbRsp.info, &kv1);
+          if (taosArrayPush(hbRsp.info, &kv1) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
         }
         break;
       }
@@ -646,7 +655,9 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         (void)mndValidateTSMAInfo(pMnode, kv->value, kv->valueLen / sizeof(STSMAVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv = {.key = HEARTBEAT_KEY_TSMA, .valueLen = rspLen, .value = rspMsg};
-          (void)taosArrayPush(hbRsp.info, &kv);
+          if (taosArrayPush(hbRsp.info, &kv) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
         }
         break;
       }
@@ -706,7 +717,9 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
     } else if (pHbReq->connKey.connType == CONN_TYPE__TMQ) {
       SClientHbRsp *pRsp = mndMqHbBuildRsp(pMnode, pHbReq);
       if (pRsp != NULL) {
-        (void)taosArrayPush(batchRsp.rsps, pRsp);
+        if (taosArrayPush(batchRsp.rsps, pRsp) == NULL) {
+          mError("failed to put kv into array, but continue at this heartbeat");
+        }
         taosMemoryFree(pRsp);
       }
     }
