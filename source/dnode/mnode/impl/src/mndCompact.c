@@ -826,7 +826,9 @@ void mndCompactPullup(SMnode *pMnode) {
     SCompactObj *pCompact = NULL;
     pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT, pIter, (void **)&pCompact);
     if (pIter == NULL) break;
-    (void)taosArrayPush(pArray, &pCompact->compactId);
+    if (taosArrayPush(pArray, &pCompact->compactId) == NULL) {
+      mError("failed to push compact id:%d into array, but continue pull up", pCompact->compactId);
+    }
     sdbRelease(pSdb, pCompact);
   }
 
