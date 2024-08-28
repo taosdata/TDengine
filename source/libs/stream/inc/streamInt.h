@@ -202,14 +202,14 @@ void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
 int32_t streamTaskResetTimewindowFilter(SStreamTask* pTask);
 void    streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo);
 
-void              streamClearChkptReadyMsg(SActiveCheckpointInfo* pActiveInfo);
-EExtractDataCode  streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
-                                              int32_t* blockSize);
-int32_t           streamQueueItemGetSize(const SStreamQueueItem* pItem);
-void              streamQueueItemIncSize(const SStreamQueueItem* pItem, int32_t size);
-const char*       streamQueueItemGetTypeStr(int32_t type);
-int32_t           streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem, SStreamQueueItem** pRes);
-int32_t           streamTransferStatePrepare(SStreamTask* pTask);
+void             streamClearChkptReadyMsg(SActiveCheckpointInfo* pActiveInfo);
+EExtractDataCode streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
+                                             int32_t* blockSize);
+int32_t          streamQueueItemGetSize(const SStreamQueueItem* pItem);
+void             streamQueueItemIncSize(const SStreamQueueItem* pItem, int32_t size);
+const char*      streamQueueItemGetTypeStr(int32_t type);
+int32_t          streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem, SStreamQueueItem** pRes);
+int32_t          streamTransferStatePrepare(SStreamTask* pTask);
 
 int32_t streamQueueOpen(int64_t cap, SStreamQueue** pQ);
 void    streamQueueClose(SStreamQueue* pQueue, int32_t taskId);
@@ -238,8 +238,7 @@ void    initCheckpointReadyInfo(STaskCheckpointReadyInfo* pReadyInfo, int32_t up
 int32_t initCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamNodeId, int32_t upstreamTaskId, int32_t childId,
                                int64_t checkpointId, SRpcMsg* pMsg);
 
-void    flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock);
-
+void flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock);
 
 #ifdef __cplusplus
 }
