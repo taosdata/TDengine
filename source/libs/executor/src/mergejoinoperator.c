@@ -1691,13 +1691,13 @@ void mJoinResetOperator(struct SOperatorInfo* pOperator) {
   pOperator->status = OP_OPENED;
 }
 
-SSDataBlock* mJoinMainProcess(struct SOperatorInfo* pOperator) {
+int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SMJoinOperatorInfo* pJoin = pOperator->info;
   int32_t code = TSDB_CODE_SUCCESS;
   if (pOperator->status == OP_EXEC_DONE) {
     if (NULL == pOperator->pDownstreamGetParams || NULL == pOperator->pDownstreamGetParams[0] || NULL == pOperator->pDownstreamGetParams[1]) {
       qDebug("%s merge join done", GET_TASKID(pOperator->pTaskInfo));
-      return NULL;
+      return code;
     } else {
       mJoinResetOperator(pOperator);
       qDebug("%s start new round merge join", GET_TASKID(pOperator->pTaskInfo));
@@ -1739,7 +1739,10 @@ SSDataBlock* mJoinMainProcess(struct SOperatorInfo* pOperator) {
   }
 
   pJoin->execInfo.resRows += pBlock ? pBlock->info.rows : 0;
-  return (pBlock && pBlock->info.rows > 0) ? pBlock : NULL;
+  if (pBlock && pBlock->info.rows > 0) {
+    *pResBlock = pBlock;
+  }
+  return code;
 }
 
 void destroyGrpArray(void* ppArray) {

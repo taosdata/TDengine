@@ -693,8 +693,10 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     pTaskInfo->paramSet = true;
     code = pTaskInfo->pRoot->fpSet.getNextExtFn(pTaskInfo->pRoot, pTaskInfo->pOpParam, &pRes);
   } else {
-    pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
+    code = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot, &pRes);
   }
+
+  QUERY_CHECK_CODE(code, lino, _end);
 
   if (pRes == NULL) {
     st = taosGetTimestampUs();
@@ -719,6 +721,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     } else {
       void* tmp = taosArrayGet(pTaskInfo->pResultBlockList, blockIndex);
       QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+
       p = *(SSDataBlock**)tmp;
       code = copyDataBlock(p, pRes);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -736,8 +739,10 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
       break;
     }
 
-    pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
+    code = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot, &pRes);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
+
   if (pTaskInfo->pSubplan->dynamicRowThreshold) {
     pTaskInfo->pSubplan->rowsThreshold -= current;
   }
@@ -751,7 +756,6 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   }
 
 _end:
-
   (void)cleanUpUdfs();
 
   uint64_t total = pTaskInfo->pRoot->resultInfo.totalRows;
@@ -759,6 +763,11 @@ _end:
          GET_TASKID(pTaskInfo), current, (int32_t)taosArrayGetSize(pResList), total, 0, el / 1000.0);
 
   atomic_store_64(&pTaskInfo->owner, 0);
+  if (code) {
+    pTaskInfo->code = code;
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
   return pTaskInfo->code;
 }
 
@@ -779,9 +788,10 @@ void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo) {
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   int64_t        threadId = taosGetSelfPthreadId();
+  int32_t        lino = 0;
+  int64_t        curOwner = 0;
 
   *pRes = NULL;
-  int64_t curOwner = 0;
 
   // todo extract method
   taosRLockLatch(&pTaskInfo->lock);
@@ -823,7 +833,12 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
 
   int64_t st = taosGetTimestampUs();
 
-  *pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
+  int32_t code = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot, pRes);
+  if (code) {
+    pTaskInfo->code = code;
+    qError("%s failed at line %d, code:%s %s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+
   uint64_t el = (taosGetTimestampUs() - st);
 
   pTaskInfo->cost.elapsedTime += el;
@@ -831,8 +846,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
     *useconds = pTaskInfo->cost.elapsedTime;
   }
 
-  int32_t tmpRes = cleanUpUdfs();
-  qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
+  (void) cleanUpUdfs();
 
   int32_t  current = (*pRes != NULL) ? (*pRes)->info.rows : 0;
   uint64_t total = pTaskInfo->pRoot->resultInfo.totalRows;

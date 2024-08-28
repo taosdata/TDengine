@@ -50,7 +50,7 @@ typedef struct SCacheRowsScanInfo {
   SColumnInfo     pkCol;
 } SCacheRowsScanInfo;
 
-static SSDataBlock* doScanCache(SOperatorInfo* pOperator);
+static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 static void    destroyCacheScanOperator(void* param);
 static int32_t extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo, int32_t** pSlotIds,
                                       int32_t** pDstSlotIds);
@@ -235,7 +235,7 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
                   pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doScanCache, NULL, destroyCacheScanOperator, optrDefaultBufFn,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doScanCacheNext, NULL, destroyCacheScanOperator, optrDefaultBufFn,
                                          NULL, optrDefaultGetNextExtFn, NULL);
 
   pOperator->cost.openCost = 0;
@@ -259,7 +259,7 @@ _error:
   return code;
 }
 
-int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pOperator->status == OP_EXEC_DONE) {
@@ -443,12 +443,6 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   return code;
-}
-
-static SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = doScanCacheNext(pOperator, &pRes);
-  return pRes;
 }
 
 void destroyCacheScanOperator(void* param) {

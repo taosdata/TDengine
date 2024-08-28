@@ -1164,12 +1164,6 @@ _end:
   return code;
 }
 
-static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = doStreamFillNext(pOperator, &pRes);
-  return pRes;
-}
-
 static int32_t initResultBuf(SStreamFillSupporter* pFillSup) {
   pFillSup->rowSize = sizeof(SResultCellData) * pFillSup->numOfAllCols;
   for (int i = 0; i < pFillSup->numOfAllCols; i++) {
@@ -1449,7 +1443,7 @@ int32_t createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysi
   pInfo->srcRowIndex = -1;
   setOperatorInfo(pOperator, "StreamFillOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamFill, NULL, destroyStreamFillOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamFillNext, NULL, destroyStreamFillOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamOpReleaseState, streamOpReloadState);
 
