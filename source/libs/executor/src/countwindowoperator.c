@@ -64,6 +64,8 @@ void destroyCountWindowOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
+static int32_t countWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
+
 static void clearWinStateBuff(SCountWindowResult* pBuff) { pBuff->winRows = 0; }
 
 static SCountWindowResult* getCountWinStateInfo(SCountWindowSupp* pCountSup) {
@@ -227,7 +229,6 @@ static int32_t countWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
   SExprSupp*                pExprSup = &pOperator->exprSupp;
   int32_t                   order = pInfo->binfo.inputTsOrder;
   SSDataBlock*              pRes = pInfo->binfo.pRes;
-  SOperatorInfo*            downstream = pOperator->pDownstream[0];
 
   blockDataCleanup(pRes);
 
@@ -290,12 +291,6 @@ _end:
   }
   (*ppRes) = pRes->info.rows == 0 ? NULL : pRes;
   return code;
-}
-
-static SSDataBlock* countWindowAggregate(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t code = countWindowAggregateNext(pOperator, &pRes);
-  return pRes;
 }
 
 int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode,
@@ -374,7 +369,7 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
 
   setOperatorInfo(pOperator, "CountWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, countWindowAggregate, NULL, destroyCountWindowOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, countWindowAggregateNext, NULL, destroyCountWindowOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);

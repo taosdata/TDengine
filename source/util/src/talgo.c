@@ -39,8 +39,6 @@ static void median(void *src, int64_t size, int64_t s, int64_t e, const void *pa
     doswap(elePtrAt(src, size, s), elePtrAt(src, size, e), size, buf);
   }
 
-  ASSERT(comparFn(elePtrAt(src, size, mid), elePtrAt(src, size, s), param) <= 0 &&
-         comparFn(elePtrAt(src, size, s), elePtrAt(src, size, e), param) <= 0);
 }
 
 static void tInsertSort(void *src, int64_t size, int32_t s, int32_t e, const void *param, __ext_compar_fn_t comparFn,
@@ -323,7 +321,7 @@ void *taosbsearch(const void *key, const void *base, int32_t nmemb, int32_t size
   } else if (flags == TD_LT) {
     return (c > 0) ? p : (midx > 0 ? p - size : NULL);
   } else {
-    ASSERT(0);
+    uError("Invalid bsearch flags:%d", flags);
     return NULL;
   }
 }

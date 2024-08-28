@@ -531,12 +531,6 @@ _end:
   return code;
 }
 
-static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t code = hashGroupbyAggregateNext(pOperator, &pRes);
-  return pRes;
-}
-
 int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo,
                                 SOperatorInfo** pOptrInfo) {
   QRY_OPTR_CHECK(pOptrInfo);
@@ -600,7 +594,7 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
   pInfo->binfo.inputTsOrder = pAggNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pAggNode->node.outputTsOrder;
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashGroupbyAggregate, NULL, destroyGroupOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashGroupbyAggregateNext, NULL, destroyGroupOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -1103,12 +1097,6 @@ _end:
   return code;
 }
 
-static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t code = hashPartitionNext(pOperator, &pRes);
-  return pRes;
-}
-
 static void destroyPartitionOperatorInfo(void* param) {
   SPartitionOperatorInfo* pInfo = (SPartitionOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
@@ -1232,7 +1220,7 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
   setOperatorInfo(pOperator, "PartitionOperator", QUERY_NODE_PHYSICAL_PLAN_PARTITION, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashPartition, NULL, destroyPartitionOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashPartitionNext, NULL, destroyPartitionOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
@@ -1583,12 +1571,6 @@ _end:
   return code;
 }
 
-static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t code = doStreamHashPartitionNext(pOperator, &pRes);
-  return pRes;
-}
-
 static void destroyStreamPartitionOperatorInfo(void* param) {
   SStreamPartitionOperatorInfo* pInfo = (SStreamPartitionOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
@@ -1785,7 +1767,7 @@ int32_t createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStreamPart
   pOperator->exprSupp.numOfExprs = numOfCols;
   pOperator->exprSupp.pExprInfo = pExprInfo;
   pOperator->fpSet =
-      createOperatorFpSet(optrDummyOpenFn, doStreamHashPartition, NULL, destroyStreamPartitionOperatorInfo,
+      createOperatorFpSet(optrDummyOpenFn, doStreamHashPartitionNext, NULL, destroyStreamPartitionOperatorInfo,
                           optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamOpReleaseState, streamOpReloadState);
 

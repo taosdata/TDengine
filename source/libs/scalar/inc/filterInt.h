@@ -464,7 +464,7 @@ struct SFilterInfo {
     (colInfo).type = RANGE_TYPE_UNIT;                            \
     (colInfo).dataType = FILTER_UNIT_DATA_TYPE(u);               \
     if (taosArrayPush((SArray *)((colInfo).info), &u) == NULL) { \
-      FLT_ERR_RET(terrno);                      \
+      FLT_ERR_JRET(terrno);                                      \
     }                                                            \
   } while (0)
 #define FILTER_PUSH_VAR_HASH(colInfo, ha) \
@@ -482,7 +482,7 @@ struct SFilterInfo {
   do {                                               \
     *(dst) = taosMemoryMalloc(sizeof(uint32_t) * n); \
     if (NULL == *(dst)) {                            \
-      FLT_ERR_JRET(terrno);         \
+      FLT_ERR_JRET(terrno);                          \
     }                                                \
     (void)memcpy(*(dst), src, sizeof(uint32_t) * n); \
   } while (0)

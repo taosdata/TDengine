@@ -506,7 +506,7 @@ static int32_t doSendCommitMsg(tmq_t* tmq, int32_t vgId, SEpSet* epSet, STqOffse
 
   void* buf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   ((SMsgHead*)buf)->vgId = htonl(vgId);
@@ -526,7 +526,7 @@ static int32_t doSendCommitMsg(tmq_t* tmq, int32_t vgId, SEpSet* epSet, STqOffse
   SMqCommitCbParam* pParam = taosMemoryCalloc(1, sizeof(SMqCommitCbParam));
   if (pParam == NULL) {
     taosMemoryFree(buf);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pParam->params = pParamSet;
@@ -540,7 +540,7 @@ static int32_t doSendCommitMsg(tmq_t* tmq, int32_t vgId, SEpSet* epSet, STqOffse
   if (pMsgSendInfo == NULL) {
     taosMemoryFree(buf);
     taosMemoryFree(pParam);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pMsgSendInfo->msgInfo = (SDataBuf){.pData = buf, .len = sizeof(SMsgHead) + len, .handle = NULL};
@@ -581,7 +581,7 @@ static int32_t prepareCommitCbParamSet(tmq_t* tmq, tmq_commit_cb* pCommitFp, voi
                                        SMqCommitCbParamSet** ppParamSet) {
   SMqCommitCbParamSet* pParamSet = taosMemoryCalloc(1, sizeof(SMqCommitCbParamSet));
   if (pParamSet == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pParamSet->refId = tmq->refId;
@@ -1382,7 +1382,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
     }
     char* topicFName = taosMemoryCalloc(1, TSDB_TOPIC_FNAME_LEN);
     if (topicFName == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto FAIL;
     }
 
@@ -1414,7 +1414,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
 
   sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     taosMemoryFree(buf);
     goto FAIL;
   }
@@ -1843,7 +1843,7 @@ void tmqBuildConsumeReqImpl(SMqPollReq* pReq, tmq_t* tmq, int64_t timeout, SMqCl
 int32_t tmqBuildMetaRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqMetaRspObj** ppRspObj) {
   SMqMetaRspObj* pRspObj = taosMemoryCalloc(1, sizeof(SMqMetaRspObj));
   if (pRspObj == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pRspObj->resType = RES_TYPE__TMQ_META;
   tstrncpy(pRspObj->topic, pWrapper->topicHandle->topicName, TSDB_TOPIC_FNAME_LEN);
@@ -1858,7 +1858,7 @@ int32_t tmqBuildMetaRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqMetaRspObj** 
 int32_t tmqBuildBatchMetaRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqBatchMetaRspObj** ppRspObj) {
   SMqBatchMetaRspObj* pRspObj = taosMemoryCalloc(1, sizeof(SMqBatchMetaRspObj));
   if (pRspObj == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pRspObj->common.resType = RES_TYPE__TMQ_BATCH_META;
   tstrncpy(pRspObj->common.topic, pWrapper->topicHandle->topicName, TSDB_TOPIC_FNAME_LEN);
@@ -1969,7 +1969,7 @@ int32_t tmqBuildRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqClientVg* pVg, in
                                SMqRspObj** ppRspObj) {
   SMqRspObj* pRspObj = taosMemoryCalloc(1, sizeof(SMqRspObj));
   if (pRspObj == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pRspObj->common.resType = RES_TYPE__TMQ;
   (void)memcpy(&pRspObj->rsp, &pWrapper->dataRsp, sizeof(SMqDataRsp));
@@ -1982,7 +1982,7 @@ int32_t tmqBuildTaosxRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqClientVg* pV
                                     SMqTaosxRspObj** ppRspObj) {
   SMqTaosxRspObj* pRspObj = taosMemoryCalloc(1, sizeof(SMqTaosxRspObj));
   if (pRspObj == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pRspObj->common.resType = RES_TYPE__TMQ_METADATA;
   (void)memcpy(&pRspObj->rsp, &pWrapper->taosxRsp, sizeof(STaosxRsp));
@@ -2008,8 +2008,7 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
 
   msg = taosMemoryCalloc(1, msgSize);
   if (NULL == msg) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    return code;
+    return terrno;
   }
 
   if (tSerializeSMqPollReq(msg, msgSize, &req) < 0) {
@@ -2032,10 +2031,9 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
 
   sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFreeClear(pParam);
     taosMemoryFreeClear(msg);
-    return code;
+    return terrno;
   }
 
   sendInfo->msgInfo = (SDataBuf){.pData = msg, .len = msgSize, .handle = NULL};
@@ -2956,7 +2954,7 @@ int32_t askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   pReq = taosMemoryCalloc(1, tlen);
   if (pReq == NULL) {
     tscError("consumer:0x%" PRIx64 ", failed to malloc askEpReq msg, size:%d", pTmq->consumerId, tlen);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (tSerializeSMqAskEpReq(pReq, tlen, &req) < 0) {
@@ -2969,7 +2967,7 @@ int32_t askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   if (pParam == NULL) {
     tscError("consumer:0x%" PRIx64 ", failed to malloc subscribe param", pTmq->consumerId);
     taosMemoryFree(pReq);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pParam->refId = pTmq->refId;
@@ -2980,7 +2978,7 @@ int32_t askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   if (sendInfo == NULL) {
     taosMemoryFree(pReq);
     taosMemoryFree(pParam);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   sendInfo->msgInfo = (SDataBuf){.pData = pReq, .len = tlen, .handle = NULL};
@@ -3175,7 +3173,7 @@ int64_t getCommittedFromServer(tmq_t* tmq, char* tname, int32_t vgId, SEpSet* ep
 
   void* buf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   ((SMsgHead*)buf)->vgId = htonl(vgId);
@@ -3195,14 +3193,14 @@ int64_t getCommittedFromServer(tmq_t* tmq, char* tname, int32_t vgId, SEpSet* ep
   SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) {
     taosMemoryFree(buf);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SMqCommittedParam* pParam = taosMemoryMalloc(sizeof(SMqCommittedParam));
   if (pParam == NULL) {
     taosMemoryFree(buf);
     taosMemoryFree(sendInfo);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if (tsem2_init(&pParam->sem, 0, 0) != 0) {
     taosMemoryFree(buf);
@@ -3393,7 +3391,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
   if (*assignment == NULL) {
     tscError("consumer:0x%" PRIx64 " failed to malloc buffer, size:%" PRIzu, tmq->consumerId,
              (*numOfAssignment) * sizeof(tmq_topic_assignment));
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto end;
   }
 
@@ -3421,7 +3419,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
   if (needFetch) {
     pCommon = taosMemoryCalloc(1, sizeof(SMqVgCommon));
     if (pCommon == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto end;
     }
 
@@ -3468,7 +3466,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       char* msg = taosMemoryCalloc(1, msgSize);
       if (NULL == msg) {
         taosMemoryFree(pParam);
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto end;
       }
 
@@ -3483,7 +3481,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       if (sendInfo == NULL) {
         taosMemoryFree(pParam);
         taosMemoryFree(msg);
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto end;
       }
 
@@ -3631,7 +3629,7 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
 
   char* msg = taosMemoryCalloc(1, msgSize);
   if (NULL == msg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (tSerializeSMqSeekReq(msg, msgSize, &req) < 0) {
@@ -3642,7 +3640,7 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) {
     taosMemoryFree(msg);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SMqSeekParam* pParam = taosMemoryMalloc(sizeof(SMqSeekParam));

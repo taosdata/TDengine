@@ -38,7 +38,7 @@ static int32_t initBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
   for (int32_t i = 0; i < num; ++i) {
     char* p = taosMemoryCalloc(pBuf->numPerBucket, sizeof(STableBlockScanInfo));
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     void* px = taosArrayPush(pBuf->pData, &p);
@@ -50,7 +50,7 @@ static int32_t initBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
   if (remainder > 0) {
     char* p = taosMemoryCalloc(remainder, sizeof(STableBlockScanInfo));
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     void* px = taosArrayPush(pBuf->pData, &p);
     if (px == NULL) {
@@ -96,7 +96,7 @@ int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
   for (int32_t i = 0; i < num; ++i) {
     char* p = taosMemoryCalloc(pBuf->numPerBucket, sizeof(STableBlockScanInfo));
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     void* px = taosArrayPush(pBuf->pData, &p);
@@ -108,7 +108,7 @@ int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
   if (remainder > 0) {
     char* p = taosMemoryCalloc(remainder, sizeof(STableBlockScanInfo));
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     void* px = taosArrayPush(pBuf->pData, &p);
     if (px == NULL) {
@@ -231,7 +231,6 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
       pKey->pks[0].nData = 0;
 
       if (pKey->pks[0].pData == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
         return terrno;
       }
 
@@ -526,12 +525,22 @@ static void cleanupBlockOrderSupporter(SBlockOrderSupporter* pSup) {
 
 static int32_t initBlockOrderSupporter(SBlockOrderSupporter* pSup, int32_t numOfTables) {
   pSup->numOfBlocksPerTable = taosMemoryCalloc(1, sizeof(int32_t) * numOfTables);
-  pSup->indexPerTable = taosMemoryCalloc(1, sizeof(int32_t) * numOfTables);
-  pSup->pDataBlockInfo = taosMemoryCalloc(1, POINTER_BYTES * numOfTables);
-
-  if (pSup->numOfBlocksPerTable == NULL || pSup->indexPerTable == NULL || pSup->pDataBlockInfo == NULL) {
+  if(pSup->numOfBlocksPerTable == NULL) {
     cleanupBlockOrderSupporter(pSup);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
+  }
+  pSup->indexPerTable = taosMemoryCalloc(1, sizeof(int32_t) * numOfTables);
+  if(pSup->indexPerTable == NULL) {
+    taosMemoryFree(pSup->numOfBlocksPerTable);
+    cleanupBlockOrderSupporter(pSup);
+    return terrno;
+  }
+  pSup->pDataBlockInfo = taosMemoryCalloc(1, POINTER_BYTES * numOfTables);
+  if (pSup->pDataBlockInfo == NULL) {
+    cleanupBlockOrderSupporter(pSup);
+    taosMemoryFree(pSup->numOfBlocksPerTable);
+    taosMemoryFree(pSup->indexPerTable);
+    return terrno;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1319,7 +1328,9 @@ static bool doCheckDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, const S
             return true;
           }
         } else {  // it must be the last point
-          ASSERT(p->version == 0);
+          if (!(p->version == 0)) {
+            tsdbError("unexpected version:%" PRId64, p->version);
+          }
         }
       }
     } else {  // (p->ts > pBlock->maxKey.ts) {

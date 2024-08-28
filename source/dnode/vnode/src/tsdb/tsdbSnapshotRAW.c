@@ -52,7 +52,7 @@ int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, STsdbSnapR
   int32_t lino = 0;
 
   reader[0] = taosMemoryCalloc(1, sizeof(STsdbSnapRAWReader));
-  if (reader[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (reader[0] == NULL) return terrno;
 
   reader[0]->tsdb = tsdb;
   reader[0]->ever = ever;
@@ -196,7 +196,7 @@ static int32_t tsdbSnapRAWReadNext(STsdbSnapRAWReader* reader, SSnapDataHdr** pp
 
   void* pBuf = taosMemoryCalloc(1, sizeof(SSnapDataHdr) + sizeof(STsdbDataRAWBlockHeader) + dataLength);
   if (pBuf == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   SSnapDataHdr* pHdr = pBuf;
@@ -343,7 +343,7 @@ int32_t tsdbSnapRAWWriterOpen(STsdb* pTsdb, int64_t ever, STsdbSnapRAWWriter** w
 
   // start to write
   writer[0] = taosMemoryCalloc(1, sizeof(*writer[0]));
-  if (writer[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (writer[0] == NULL) return terrno;
 
   writer[0]->tsdb = pTsdb;
   writer[0]->ever = ever;

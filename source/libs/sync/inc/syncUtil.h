@@ -32,6 +32,13 @@ extern "C" {
 #define sDebug(...) if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("SYN ",       DEBUG_DEBUG, sDebugFlag, __VA_ARGS__); }
 #define sTrace(...) if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("SYN ",       DEBUG_TRACE, sDebugFlag, __VA_ARGS__); }
 
+#define sGTrace(param, ...) do { if (sDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); sTrace(param ", QID:%s", __VA_ARGS__, buf);}} while(0)
+#define sGFatal(param, ...) do { if (sDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); sFatal(param ", QID:%s", __VA_ARGS__, buf);}} while(0)
+#define sGError(param, ...) do { if (sDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf);sError(param ", QID:%s", __VA_ARGS__, buf);}} while(0)
+#define sGWarn(param, ...)  do { if (sDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); sWarn(param ", QID:%s", __VA_ARGS__, buf);}} while(0)
+#define sGInfo(param, ...)  do { if (sDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); sInfo(param ", QID:%s", __VA_ARGS__, buf);}} while(0)
+#define sGDebug(param, ...) do { if (sDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); sDebug(param ", QID:%s", __VA_ARGS__, buf);}}    while(0)
+
 #define sLFatal(...) if (sDebugFlag & DEBUG_FATAL) { taosPrintLongString("SYN FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }
 #define sLError(...) if (sDebugFlag & DEBUG_ERROR) { taosPrintLongString("SYN ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }
 #define sLWarn(...)  if (sDebugFlag & DEBUG_WARN)  { taosPrintLongString("SYN WARN ",  DEBUG_WARN,  255,        __VA_ARGS__); }

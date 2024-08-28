@@ -33,8 +33,8 @@ int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq2 *pMsg, SSubmitRsp2
   int32_t affectedrows = 0;
   int32_t numOfRows = 0;
 
-  if (ASSERTS(pTsdb->mem != NULL, "vgId:%d, mem is NULL", TD_VID(pTsdb->pVnode))) {
-    TAOS_RETURN(TSDB_CODE_INVALID_PTR);
+  if (pTsdb->mem == NULL) {
+    TAOS_RETURN(TSDB_CODE_INTERNAL_ERROR);
   }
 
   arrSize = taosArrayGetSize(pMsg->aSubmitTbData);

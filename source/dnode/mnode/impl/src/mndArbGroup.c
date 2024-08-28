@@ -407,7 +407,9 @@ static int32_t mndProcessArbHbTimer(SRpcMsg *pReq) {
         (void)taosHashPut(pDnodeHash, &dnodeId, sizeof(int32_t), &hbMembers, POINTER_BYTES);
       }
       SVArbHbReqMember reqMember = {.vgId = pArbGroup->vgId, .hbSeq = pMember->state.nextHbSeq++};
-      (void)taosArrayPush(hbMembers, &reqMember);
+      if (taosArrayPush(hbMembers, &reqMember) == NULL) {
+        mError("dnodeId:%d, failed to push hb member, but conitnue next at this timer round", dnodeId);
+      }
     }
 
     (void)taosThreadMutexUnlock(&pArbGroup->mutex);
@@ -998,7 +1000,9 @@ static int32_t mndUpdateArbHeartBeat(SMnode *pMnode, int32_t dnodeId, SArray *me
 
     bool updateToken = mndUpdateArbGroupByHeartBeat(pGroup, pRspMember, nowMs, dnodeId, &newGroup);
     if (updateToken) {
-      (void)taosArrayPush(pUpdateArray, &newGroup);
+      if (taosArrayPush(pUpdateArray, &newGroup) == NULL) {
+        mError("failed to push newGroup to updateArray, but continue at this hearbear");
+      }
     }
 
     sdbRelease(pMnode->pSdb, pGroup);

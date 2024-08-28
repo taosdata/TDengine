@@ -2650,7 +2650,9 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
         pSyncTimer->timeStamp = tsNow;
 
         // send msg
-        sTrace("vgId:%d, send heartbeat to dnode:%d", pSyncNode->vgId, DID(&(pSyncMsg->destId)));
+        TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
+        STraceId* trace = &(rpcMsg.info.traceId);
+        sGTrace("vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId, DID(&(pSyncMsg->destId)));
         syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed, pData->execTime);
         (void)syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
       } else {
@@ -3434,7 +3436,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pMsgReply->startTime = ths->startTime;
   pMsgReply->timeStamp = tsMs;
 
-  sTrace("vgId:%d, heartbeat msg from dnode:%d, cluster:%d, Msgterm:%" PRId64 " currentTerm:%" PRId64, ths->vgId,
+  sGTrace("vgId:%d, process sync-heartbeat msg from dnode:%d, cluster:%d, Msgterm:%" PRId64 " currentTerm:%" PRId64, ths->vgId,
          DID(&(pMsg->srcId)), CID(&(pMsg->srcId)), pMsg->term, currentTerm);
 
   if (pMsg->term > currentTerm && ths->state == TAOS_SYNC_STATE_LEARNER) {
