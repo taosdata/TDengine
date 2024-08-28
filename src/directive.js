@@ -270,19 +270,24 @@ const loadMore = {
        * target 目标DOM节点的类名
        * distance 减少触发加载的距离阈值，单位为px
        * func 触发的方法
+       * func 横向滚动触发的方法
        * delay 防抖时延，单位为ms
        * load-more-disabled 是否禁用无限加载
        */
-      let { target, distance = 0, func, delay = 200 } = binding.value;
+      let { target, distance = 0, func, func1, delay = 200 } = binding.value;
       if (typeof target !== "string") return;
       let targetEl = el.querySelector(target);
       if (!targetEl) {
         return;
       }
       binding.handler = utils.debounce(function () {
-        const { scrollTop, scrollHeight, clientHeight } = targetEl;
+        const { scrollTop, scrollHeight, clientHeight, scrollLeft, scrollWidth, clientWidth } = targetEl;
         let disabled = el.getAttribute("load-more-disabled");
         disabled = vnode[disabled] || disabled;
+        if (scrollWidth <= scrollLeft + clientWidth + distance) {
+          if (disabled) return;
+          func1 && func1();
+        }
         if (scrollHeight <= scrollTop + clientHeight + distance) {
           if (disabled) return;
           func && func();

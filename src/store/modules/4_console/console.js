@@ -26,7 +26,8 @@ const state = {
   repeatResult:[],
   sharedTotal: 0,
   total: 0,
-  selectedSqlStr: ""
+  selectedSqlStr: "",
+  gridLoading: false
 };
 
 const mutations = {
@@ -94,13 +95,16 @@ const actions = {
   sendConsoleSQL({ state, commit, rootState }, sql) {
     if (!sql) return;
     let startTime = Date.now();
+    state.gridLoading = true;
     return sendSQLReq(sql)
       .then(res => {
         handleSuccess(res, state, commit, rootState, sql, startTime);
         updateTree(res, commit)
+        state.gridLoading = false;
       })
       .catch(res => {
         handleFail(res, state, commit, rootState, sql, startTime);
+        state.gridLoading = false;
       });
   },
   getFavorites({ state }, params) {

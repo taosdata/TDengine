@@ -2,6 +2,7 @@
   <div class="gird">
     <!-- 列表 -->
     <el-table
+      v-loading="loading"
       :key="key"
       stripe
       tooltip-effect="light"
@@ -9,6 +10,7 @@
       size="mini"
       v-load-more.expand.immediate="{
         func: load,
+        func1: loadLeft,
         target: '.el-table__body-wrapper',
         delay: 200,
         distance: 100,
@@ -19,9 +21,9 @@
     >
       <!--数据源-->
 
-      <template v-if="head.length">
+      <template v-if="currentHead.length">
         <el-table-column
-          v-for="(item, index) in head"
+          v-for="(item, index) in currentHead"
           :key="item + index"
           :prop="item"
           :show-overflow-tooltip="true"
@@ -69,7 +71,10 @@ export default {
       currentTableData: [],
       currentPage: 1,
       pageSize: 30,
+      currentCol: 1,
+      colSize: 20,
       key: 0,
+      currentHead: [],
     };
   },
   components: {},
@@ -80,7 +85,8 @@ export default {
       currentHistory: state => {
         const currentHistory = state.console.history[state.console.history.length - 1];
         if (currentHistory && currentHistory.type == 1) return currentHistory;
-      }
+      },
+      loading: (state) => state.console.gridLoading
     }),
   },
   watch: {
@@ -92,6 +98,12 @@ export default {
       },
       immediate: true,
     },
+    head: {
+      handler(val) {
+        this.currentHead = val.slice(0, this.colSize)
+      },
+      immediate: true,
+    }
   },
   mounted() {},
   methods: {
@@ -110,6 +122,17 @@ export default {
           )
       );
     },
+    loadLeft() {
+      if (this.currentHead.length === this.head.length) return;
+      this.currentCol++;
+      this.currentHead.push(
+        ...this.head
+          .slice(
+            this.colSize * (this.currentCol - 1),
+            this.colSize * this.currentCol
+          )
+      )
+    }
   },
 };
 </script>
