@@ -320,20 +320,26 @@ void geomIoFuncTestAsTextFunction() {
   callAsTextWrapper2(TSDB_DATA_TYPE_GEOMETRY, strInput, valTypeArray, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
 }
 
-static void *geomIoFuncTest(void *arg) {
+static void geomIoFuncTestImpl() {
   geomIoFuncTestMakePointFunctionTwoColumns();
   geomIoFuncTestMakePointFunctionConstant();
   geomIoFuncTestMakePointFunctionWithNull();
   geomIoFuncTestGeomFromTextFunction();
   geomIoFuncTestAsTextFunction();
-
-  return NULL;
 }
 
-TEST(GeomIoFuncTest, summary) {
-  TdThread threadId;
-  int32_t  ret = taosThreadCreate(&threadId, NULL, geomIoFuncTest, 0);
-  ASSERT_EQ(ret, 0);
-  ret = taosThreadJoin(threadId, NULL);
-  ASSERT_EQ(ret, 0);
+static void *geomIoFuncTestFunc(void *arg) {
+  geomIoFuncTestImpl();
+  return nullptr;
+}
+
+static void geomIoFuncTestInThread() {
+  TdThread thread;
+  ASSERT_EQ(taosThreadCreate(&thread, nullptr, geomIoFuncTestFunc, NULL), 0);
+  ASSERT_EQ(taosThreadJoin(thread, nullptr), 0);
+}
+
+TEST(threadGeomFuncTest, threadFuncTest) {
+  geomIoFuncTestImpl();
+  geomIoFuncTestInThread();
 }

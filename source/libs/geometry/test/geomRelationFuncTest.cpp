@@ -238,21 +238,27 @@ void geomRelationFuncTestContainsProperlyFunction() {
   geomRelationFuncTest(containsProperlyFunction, expectedResults);
 }
 
-static void *geomRelationFuncTest(void *arg) {
+static void geomRelationFuncTestImpl() {
   geomRelationFuncTestIntersectsFunction();
   geomRelationFuncTestEqualsFunction();
   geomRelationFuncTestTouchesFunction();
   geomRelationFuncTestCoversFunction();
   geomRelationFuncTestContainsFunction();
   geomRelationFuncTestContainsProperlyFunction();
-
-  return NULL;
 }
 
-TEST(GeomRelationFuncTest, summary) {
-  TdThread threadId;
-  int32_t  ret = taosThreadCreate(&threadId, NULL, geomRelationFuncTest, 0);
-  ASSERT_EQ(ret, 0);
-  ret = taosThreadJoin(threadId, NULL);
-  ASSERT_EQ(ret, 0);
+static void *geomRelationFuncTestFunc(void *arg) {
+  geomRelationFuncTestImpl();
+  return nullptr;
+}
+
+static void geomRelationFuncTestInThread() {
+  TdThread thread;
+  ASSERT_EQ(taosThreadCreate(&thread, nullptr, geomRelationFuncTestFunc, NULL), 0);
+  ASSERT_EQ(taosThreadJoin(thread, nullptr), 0);
+}
+
+TEST(threadGeomRelationFuncTest, threadGeomRelationFuncTest) {
+  geomRelationFuncTestImpl();
+  geomRelationFuncTestInThread();
 }

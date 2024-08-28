@@ -21,6 +21,10 @@ static TdThreadKey               tlGeosCtxKey = 0;
 static threadlocal SGeosContext *tlGeosCtx = NULL;
 
 static void destroyThreadLocalGeosCtx(void *param) {
+#ifdef WINDOWS
+  if (taosThreadIsMain()) return;
+#endif
+
   SGeosContext *pGeosCtx = (SGeosContext *)param;
   if (!pGeosCtx) {
     return;
@@ -72,9 +76,11 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
 
   SGeosContext *tlGeosCtxObj = (SGeosContext *)taosMemoryCalloc(1, sizeof(SGeosContext));
   if (!tlGeosCtxObj) {
+    taosThreadKeyDelete(tlGeosCtxKey);
     TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
   if ((taosThreadSetSpecific(tlGeosCtxKey, (const void *)tlGeosCtxObj)) != 0) {
+    taosThreadKeyDelete(tlGeosCtxKey);
     taosMemoryFreeClear(tlGeosCtxObj);
     TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
   }

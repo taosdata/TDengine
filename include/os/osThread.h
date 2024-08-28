@@ -22,8 +22,12 @@
 extern "C" {
 #endif
 
-#if defined(WINDOWS) && !defined(__USE_PTHREAD)
+#if defined(WINDOWS)
+#include <tlhelp32.h>
 #include <windows.h>
+#endif
+
+#if defined(WINDOWS) && !defined(__USE_PTHREAD)
 #define __USE_WIN_THREAD
 // https://learn.microsoft.com/en-us/windows/win32/winprog/using-the-windows-headers
 // #ifndef _WIN32_WINNT
@@ -274,6 +278,10 @@ int32_t  taosThreadSpinTrylock(TdThreadSpinlock *lock);
 int32_t  taosThreadSpinUnlock(TdThreadSpinlock *lock);
 void     taosThreadTestCancel(void);
 void     taosThreadClear(TdThread *thread);
+
+#ifdef WINDOWS
+bool taosThreadIsMain();
+#endif
 
 #ifdef __cplusplus
 }
