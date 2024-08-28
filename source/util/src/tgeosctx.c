@@ -93,7 +93,7 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
 _exit:
   if (code != 0) {
     *ppCtx = NULL;
-    uError("failed to get geos context at lino:%d since %s", lino, tstrerror(code));
+    uError("failed to get geos context at line:%d since %s", lino, tstrerror(code));
   }
   TAOS_RETURN(code);
 }
