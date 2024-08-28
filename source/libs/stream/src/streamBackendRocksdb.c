@@ -1169,7 +1169,7 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
 _exception:
   taosArrayDestroy(chkpDup);
   taosArrayDestroy(chkpDel);
-  taosThreadRwlockUnlock(&pBackend->chkpDirLock);
+  (void)taosThreadRwlockUnlock(&pBackend->chkpDirLock);
   return code;
 }
 
