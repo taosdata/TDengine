@@ -17,7 +17,9 @@
 #include "tlog.h"
 #include "tutil.h"
 
-static TdThreadKey               tlGeosCtxKey = 0;
+static TdThreadKey tlGeosCtxKey = 0;
+static int8_t      tlGeosCtxKeyInited = 0;
+
 static threadlocal SGeosContext *tlGeosCtx = NULL;
 
 static void destroyThreadLocalGeosCtx(void *param) {
@@ -70,17 +72,18 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
   }
 
   int32_t code = 0, lino = 0;
-  if ((taosThreadKeyCreate(&tlGeosCtxKey, destroyThreadLocalGeosCtx)) != 0) {
-    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
+  if (atomic_val_compare_exchange_8(&tlGeosCtxKeyInited, 0, 1) == 0) {
+    if ((taosThreadKeyCreate(&tlGeosCtxKey, destroyThreadLocalGeosCtx)) != 0) {
+      atomic_store_8(&tlGeosCtxKeyInited, 0);
+      TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
+    }
   }
 
   SGeosContext *tlGeosCtxObj = (SGeosContext *)taosMemoryCalloc(1, sizeof(SGeosContext));
   if (!tlGeosCtxObj) {
-    taosThreadKeyDelete(tlGeosCtxKey);
     TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
   if ((taosThreadSetSpecific(tlGeosCtxKey, (const void *)tlGeosCtxObj)) != 0) {
-    taosThreadKeyDelete(tlGeosCtxKey);
     taosMemoryFreeClear(tlGeosCtxObj);
     TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
   }
