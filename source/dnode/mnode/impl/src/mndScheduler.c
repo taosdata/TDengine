@@ -634,7 +634,10 @@ static void bindSourceSink(SStreamObj* pStream, SMnode* pMnode, SArray* tasks, b
 static void bindTwoLevel(SArray* tasks, int32_t begin, int32_t end) {
   int32_t code = 0;
   size_t size = taosArrayGetSize(tasks);
-  ASSERT(size >= 2);
+  if (size < 2) {
+    mError("task list size is less than 2, size:%" PRId64, size);
+    return;
+  }
   SArray* pDownTaskList = taosArrayGetP(tasks, size - 1);
   SArray* pUpTaskList = taosArrayGetP(tasks, size - 2);
 
