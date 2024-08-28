@@ -909,8 +909,7 @@ void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
   if (taosHashGetSize(pExecNode->pTaskMap) != taosArrayGetSize(pExecNode->pTaskList)) {
     streamMutexUnlock(&pExecNode->lock);
     destroyStreamTaskIter(pIter);
-    mError("task map size:%d, task list size:%" PRId64 " not equal", taosHashGetSize(pExecNode->pTaskMap),
-           taosArrayGetSize(pExecNode->pTaskList));
+    mError("task map size, task list size, not equal");
     return;
   }
 
