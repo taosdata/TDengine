@@ -535,9 +535,9 @@ static int32_t idxMergeFinalResults(SArray* in, EIndexOperatorType oType, SArray
   }
 
   if (oType == MUST) {
-    iIntersection(in, out);
+    return iIntersection(in, out);
   } else if (oType == SHOULD) {
-    iUnion(in, out);
+    return iUnion(in, out);
   } else if (oType == NOT) {
     // just one column index, enhance later
     // taosArrayAddAll(fResults, interResults);
@@ -624,6 +624,7 @@ static void idxDestroyFinalRslt(SArray* result) {
 }
 
 int32_t idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
+  int32_t code = 0;
   if (sIdx == NULL) {
     return TSDB_CODE_INVALID_PTR;
   }
@@ -680,18 +681,25 @@ int32_t idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
       comp = 1;
     }
     if (comp == 0) {
-      idxMergeCacheAndTFile(result, cv, tv, tr);
+      code = idxMergeCacheAndTFile(result, cv, tv, tr);
+      if (code != 0) return code;
+
       cn = cacheIter->next(cacheIter);
       tn = tfileIter->next(tfileIter);
     } else if (comp < 0) {
-      idxMergeCacheAndTFile(result, cv, NULL, tr);
+      code = idxMergeCacheAndTFile(result, cv, NULL, tr);
+      if (code != 0) return code;
       cn = cacheIter->next(cacheIter);
     } else {
-      idxMergeCacheAndTFile(result, NULL, tv, tr);
+      code = idxMergeCacheAndTFile(result, NULL, tv, tr);
+      if (code != 0) return code;
       tn = tfileIter->next(tfileIter);
     }
   }
-  idxMayMergeTempToFinalRslt(result, NULL, tr);
+  if ((code = idxMayMergeTempToFinalRslt(result, NULL, tr)) != 0) {
+    idxTRsltDestroy(tr);
+    return code;
+  }
   idxTRsltDestroy(tr);
 
   int ret = idxGenTFile(sIdx, pCache, result);
