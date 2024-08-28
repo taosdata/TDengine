@@ -3318,7 +3318,7 @@ static int32_t tColDataMerge(SArray **colArr) {
 
     SColData *dstCol = taosArrayReserve(dst, 1);
     if (dstCol == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
     tColDataInit(dstCol, srcCol->cid, srcCol->type, srcCol->cflag);
@@ -3337,7 +3337,10 @@ static int32_t tColDataMerge(SArray **colArr) {
 
         SColVal cv;
         tColDataGetValue(srcCol, i, &cv);
-        tColDataAppendValue(dstCol, &cv);
+        code = tColDataAppendValue(dstCol, &cv);
+        if (code) {
+          goto _exit;
+        }
       }
       lastKey = key;
     } else {  // update existing row
@@ -3347,7 +3350,10 @@ static int32_t tColDataMerge(SArray **colArr) {
 
         SColVal cv;
         tColDataGetValue(srcCol, i, &cv);
-        tColDataUpdateValue(dstCol, &cv, true);
+        code = tColDataUpdateValue(dstCol, &cv, true);
+        if (code) {
+          goto _exit;
+        }
       }
     }
   }
