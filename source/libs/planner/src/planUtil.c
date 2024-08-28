@@ -716,5 +716,8 @@ int32_t tagScanSetExecutionMode(SScanLogicNode* pScan) {
   return TSDB_CODE_SUCCESS;
 }
 
+bool isColRefExpr(const SColumnNode* pCol, const SExprNode* pExpr) {
+  if (pCol->projRefIdx > 0) return pCol->projRefIdx == pExpr->projIdx;
 
-
+  return 0 == strcmp(pCol->colName, pExpr->aliasName);
+}

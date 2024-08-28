@@ -103,6 +103,7 @@ static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(aliasName);
   COPY_CHAR_ARRAY_FIELD(userAlias);
   COPY_SCALAR_FIELD(orderAlias);
+  COPY_SCALAR_FIELD(projIdx);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -124,6 +125,7 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_SCALAR_FIELD(tableHasPk);
   COPY_SCALAR_FIELD(isPk);
   COPY_SCALAR_FIELD(numOfPKs);
+  COPY_SCALAR_FIELD(projRefIdx);
   return TSDB_CODE_SUCCESS;
 }
 

@@ -1390,11 +1390,14 @@ static int32_t createColumnByProjections(SLogicPlanContext* pCxt, const char* pS
   }
 
   SNode* pNode;
+  int32_t projIdx = 1;
   FOREACH(pNode, pExprs) {
-    if (TSDB_CODE_SUCCESS != (code = nodesListStrictAppend(pList, (SNode*)createColumnByExpr(pStmtName, (SExprNode*)pNode)))) {
+    SColumnNode* pCol = createColumnByExpr(pStmtName, (SExprNode*)pNode);
+    if (TSDB_CODE_SUCCESS != (code = nodesListStrictAppend(pList, (SNode*)pCol))) {
       nodesDestroyList(pList);
       return code;
     }
+    pCol->projRefIdx = ((SExprNode*)pNode)->projIdx;
   }
 
   *pCols = pList;

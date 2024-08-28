@@ -1305,7 +1305,11 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
         SListCell* pCell = nodesListGetCell(pList, LIST_LENGTH(pList) - 1);
         code = setColumnInfoByExpr(pTempTable, (SExprNode*)pNode, (SColumnNode**)&pCell->pNode);
       }
-      if (TSDB_CODE_SUCCESS != code) break;
+      if (TSDB_CODE_SUCCESS == code) {
+        pCol->projRefIdx = ((SExprNode*)pNode)->projIdx;
+      } else {
+        break;
+      }
     }
   }
   return code;
@@ -5174,6 +5178,11 @@ static int32_t translateProjectionList(STranslateContext* pCxt, SSelectStmt* pSe
   if (!pSelect->isSubquery) {
     return rewriteProjectAlias(pSelect->pProjectionList);
   } else {
+    SNode* pNode;
+    int32_t projIdx = 1;
+    FOREACH(pNode, pSelect->pProjectionList) {
+      ((SExprNode*)pNode)->projIdx = projIdx++;
+    }
     return TSDB_CODE_SUCCESS;
   }
 }
