@@ -52,7 +52,7 @@ def UninstallTaos(version, verMode, uninstall):
 
             # 发送交互输入
             stdout, stderr = process.communicate(
-                input="y\nI confirm that I would like to delete all data, log and configuration files.\n")
+                input="y\nI confirm that I would like to delete all data, log and configuration files\n")
 
             # 打印输出（可选）
             print(stdout)
