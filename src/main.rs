@@ -691,6 +691,11 @@ fn main() -> Result<()> {
     tracing::info!("{}x version: {version}", build::CUS_PROMPT);
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
+    tracing::info!(
+        "connector version: {}-{}",
+        taos::build::PKG_VERSION,
+        taos::build::SHORT_COMMIT
+    );
 
     if args.global.dry_run.unwrap_or(false) {
         tracing::info!("dry run mode enabled");

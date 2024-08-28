@@ -49,10 +49,10 @@ fn upx_run
   else
     echo "UPX version not 4, use local upx in ${upx_dir}"
     if use_local_upx
-      echo "Local upx is not 4.x, remove and update it"
-      rm ${upx}
+      echo "WARN: Local upx is not 4.x, please remove ${upx_dir} and update it"
+      #rm ${upx}
     end
-    cm_run_task upx-local
+    #cm_run_task upx-local
     upx = set "${upx_dir}/upx"
   end
 
