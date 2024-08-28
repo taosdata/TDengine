@@ -2266,6 +2266,7 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
       SNode* pNew = NULL;
       pCxt->errCode = nodesCloneNode(pNode, &pNew);
       if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+        //((SColumnNode*)pNew)->projRefIdx = pCol->node.projIdx;
         pCxt->errCode = nodesListStrictAppend(pCxt->pCols, pNew);
       }
     }

@@ -3475,6 +3475,20 @@ static EDealRes eliminateProjOptRewriteScanTableAlias(SNode* pNode, void* pConte
 }
 
 
+static void eliminateProjPushdownProjIdx(SNodeList* pParentProjects, SNodeList* pChildTargets) {
+  SNode* pChildTarget = NULL, *pParentProject = NULL;
+  FOREACH(pChildTarget, pChildTargets) {
+    SColumnNode* pTargetCol = (SColumnNode*)pChildTarget;
+    FOREACH(pParentProject, pParentProjects) {
+      SExprNode* pProject = (SExprNode*)pParentProject;
+      if (0 == strcmp(pTargetCol->colName, pProject->aliasName)) {
+        pTargetCol->resIdx = pProject->projIdx;
+        break;
+      }
+    }
+  }
+}
+
 static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan,
                                          SProjectLogicNode* pProjectNode) {
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProjectNode->node.pChildren, 0);
@@ -3546,6 +3560,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     nodesWalkExprs(pScan->pScanPseudoCols, eliminateProjOptRewriteScanTableAlias, &cxt);    
     nodesWalkExpr(pScan->node.pConditions, eliminateProjOptRewriteScanTableAlias, &cxt);
     nodesWalkExprs(pChild->pTargets, eliminateProjOptRewriteScanTableAlias, &cxt);
+    eliminateProjPushdownProjIdx(pProjectNode->pProjections, pChild->pTargets);
   }
   
   if (TSDB_CODE_SUCCESS == code) {

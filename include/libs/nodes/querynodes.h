@@ -93,6 +93,7 @@ typedef struct SColumnNode {
   bool        tableHasPk;
   bool        isPk;
   int32_t     projRefIdx;
+  int32_t     resIdx;
 } SColumnNode;
 
 typedef struct SColumnRefNode {
@@ -450,6 +451,7 @@ typedef struct SSelectStmt {
   bool          groupSort;
   bool          tagScan;
   bool          joinContains;
+  bool          expandStar;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;

@@ -166,7 +166,6 @@ static int32_t createTarget(SNode* pNode, int16_t dataBlockId, int16_t slotId, S
 }
 
 static int32_t putSlotToHashImpl(int16_t dataBlockId, int16_t slotId, const char* pName, int32_t len, SHashObj* pHash) {
-  qInfo("wjm put slot into hash: %p, name: %s, slotId: %d", pHash, pName, slotId);
   SSlotIndex* pIndex = taosHashGet(pHash, pName, len);
   if (NULL != pIndex) {
     SSlotIdInfo info = {.slotId = slotId, .set = false};
@@ -228,11 +227,11 @@ static int32_t buildDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SD
       code = putSlotToHash(name, len, pDataBlockDesc->dataBlockId, slotId, pNode, pHash);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      if (nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->projRefIdx > 0) {
-        sprintf(name + strlen(name), "%d", ((SColumnNode*)pNode)->projRefIdx);
+      if (nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->resIdx > 0) {
+        sprintf(name + strlen(name), "%d", ((SColumnNode*)pNode)->resIdx);
+        qInfo("wjm append slot name: %s, slotId: %d, aliasName: %s", name, slotId, ((SExprNode*)pNode)->aliasName);
+        code = putSlotToHash(name, strlen(name), pDataBlockDesc->dataBlockId, slotId, pNode, pHash);
       }
-      qInfo("wjm append slot name: %s, slotId: %d, aliasName: %s", name, slotId, ((SExprNode*)pNode)->aliasName);
-      code = putSlotToHash(name, strlen(name), pDataBlockDesc->dataBlockId, slotId, pNode, pHash);
     }
     taosMemoryFree(name);
     if (TSDB_CODE_SUCCESS == code) {

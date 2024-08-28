@@ -122,6 +122,7 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
           strcpy(pCol->node.aliasName, pToBeRewrittenExpr->aliasName);
           strcpy(pCol->node.userAlias, ((SExprNode*)pExpr)->userAlias);
           strcpy(pCol->colName, ((SExprNode*)pExpr)->aliasName);
+          pCol->node.projIdx = ((SExprNode*)(*pNode))->projIdx;
           if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
             setColumnInfo((SFunctionNode*)pExpr, pCol, pCxt->isPartitionBy);
           }
@@ -1397,7 +1398,7 @@ static int32_t createColumnByProjections(SLogicPlanContext* pCxt, const char* pS
       nodesDestroyList(pList);
       return code;
     }
-    pCol->projRefIdx = ((SExprNode*)pNode)->projIdx;
+    pCol->resIdx = ((SExprNode*)pNode)->projIdx;
   }
 
   *pCols = pList;
