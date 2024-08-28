@@ -793,7 +793,12 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   atomic_store_ptr(&ctx->taskHandle, pTaskInfo);
   atomic_store_ptr(&ctx->sinkHandle, sinkHandle);
 
-  QW_ERR_JRET(qwSaveTbVersionInfo(pTaskInfo, ctx));
+  code = qwSaveTbVersionInfo(pTaskInfo, ctx);
+  if(code) {
+    QW_TASK_ELOG("qwSaveTbVersionInfo failed, code:%x - %s", code, tstrerror(code));
+    qDestroyTask(pTaskInfo);
+    QW_ERR_JRET(code);
+  }
 
   if (!ctx->dynamicTask) {
     QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL));

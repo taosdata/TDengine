@@ -633,6 +633,9 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
   } else {
     code = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = code;
+    for (int32_t i = 0; i < size; ++i) {
+      destroyOperator(ops[i]);
+    }
     taosMemoryFree(ops);
     return code;
   }
