@@ -77,6 +77,32 @@ class DataBoundary(Enum):
     DB_PARAM_STRICT_CONFIG = {"create_name": "strict", "query_name": "strict", "vnode_json_key": "", "boundary": {"off": "off", "on": "on"}, "default": "off"}
     DB_PARAM_VGROUPS_CONFIG = {"create_name": "vgroups", "query_name": "vgroups", "vnode_json_key": "", "boundary": [1, 1024], "default": 2}
     DB_PARAM_WAL_CONFIG = {"create_name": "wal_level", "query_name": "wal_level", "vnode_json_key": "wal.level", "boundary": [0, 2], "default": 1}
+    SAMPLE_BOUNDARY = [1, 1000]
+    TIMEZONE_BOUNDARY = [0, 1]
+    HISTOGRAM_BOUNDARY = [0, 1]
+    IGNORE_NEGATIVE_BOUNDARY = [0, 1]
+    DIFF_IGNORE_BOUNDARY = [0, 1, 2, 3]
+    PERCENTILE_BOUNDARY = [1, 10]
+    LEASTSQUARES_BOUNDARY = [1, 10]
+    SUBSTR_BOUNDARY = [1, 10]
+    TAIL_BOUNDARY = [1, 100]
+    TAIL_OFFSET_BOUNDARY = [0, 100]
+    TOP_BOUNDARY = [1, 100]
+    MAVG_BOUNDARY = [1, 1000]
+    CONCAT_BOUNDARY = [2, 8]
+    LIMIT_BOUNDARY = 100
+    TIME_UNIT = ['b', 'u', 'a', 's', 'm', 'h', 'd', 'w']
+    STATECOUNT_UNIT = ["LT", "LE", "EQ", "NE", "GE", "GT"]
+    TO_CHAR_UNIT = ['AM,am,PM,pm', 'A.M.,a.m.,P.M.,p.m.', 'YYYY,yyyy', 'YYY,yyy', 'YY,yy', 'Y,y','MONTH', 'Month',
+                    'month', 'MON', 'Mon', 'mon', 'MM,mm', 'DD,dd', 'DAY', 'Day', 'day', 'DY', 'Dy', 'dy', 'DDD',
+                    'D,d', 'HH24,hh24', 'hh12,HH12, hh, HH', 'MI,mi', 'SS,ss', 'MS,ms', 'US,us', 'NS,ns', 'TZH,tzh']
+    ALL_TYPE_UNIT = ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'VARBINARY', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
+    WINDOW_UNIT = ['INTERVAL', 'SESSION', 'STATE_WINDOW', 'COUNT_WINDOW', 'EVENT_WINDOW']
+    FILL_UNIT = ["NULL", "PREV", "NEXT", "LINEAR", "VALUE, 0", "NULL_F", "VALUE_F, 0"]
+    SYSTABLE_UNIT = ['INFORMATION_SCHEMA', 'PERFORMANCE_SCHEMA']
+    SHOW_UNIT = ['SHOW CLUSTER', 'SHOW CLUSTER ALIVE', 'SHOW CLUSTER VARIABLES', 'SHOW LOCAL VARIABLES', 'SHOW CLUSTER MACHINES', 'SHOW CONNECTIONS', 'SHOW MNODES', 'SHOW DNODES', 'SHOW QNODES', 'SHOW VNODES', 'SHOW SNODES',
+                'SHOW VGROUPS', 'SHOW STREAMS', 'SHOW VIEWS', 'SHOW APPS', 'SHOW DNODE ID 1 VARIABLES', 'SHOW CREATE', 'SHOW GRANTS', 'SHOW GRANTS LOGS', 'SHOW GRANTS FULL', 'SHOW DATABASES', 'SHOW STABLES', 'SHOW TABLES',
+                'SHOW USERS', 'SHOW LICENCES', 'SHOW TRANSACTIONS', 'SHOW TABLE DISTRIBUTED', 'SHOW TABLE LIKE "%a%"', 'SHOW TAGS FROM', 'SHOW TOPICS', 'SHOW SUBCRIPTIONS', 'SHOW CONSUMERS', 'SHOW FUNCTIONS', 'SHOW SCORES', 'SHOW INDEXES']
 
 class FunctionMap(Enum):
     # TODO TO_JSON
@@ -84,45 +110,49 @@ class FunctionMap(Enum):
         'types': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE'],
         'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
         'strFuncs': [],
-        'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMEZONE', 'TODAY'],
-        'aggFuncs': ['APERCENTILE', 'AVG', 'COUNT', 'LEASTSQUARES', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG', 'HISTOGRAM', 'PERCENTILE'],
-        'selectFuncs': ['BOTTOM', 'FIRST', 'INTERP', 'LAST', 'LAST_ROW', 'MAX', 'MIN', 'MODE', 'SAMPLE', 'TAIL', 'TOP', 'UNIQUE'],
-        'specialFuncs': ['CSUM', 'DERIVATIVE', 'DIFF', 'IRATE', 'MAVG', 'STATECOUNT', 'STATEDURATION', 'TWA'],
+        'timeFuncs': ['NOW', 'TIMEZONE', 'TODAY'],
+        'aggFuncs': ['APERCENTILE', 'AVG', 'COUNT', 'LEASTSQUARES', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG', 'PERCENTILE'],
+        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MAX', 'MIN', 'MODE'],
+        'specialFuncs': ['IRATE', 'TWA'],
+        'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TOP', 'TAIL', 'SAMPLE', 'DIFF', 'CSUM', 'MAVG', 'DERIVATIVE', 'STATECOUNT', 'STATEDURATION', 'HISTOGRAM'],
         'castFuncs': ['CAST', 'TO_ISO8601'],
-        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP']
+        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
     }
     TEXT = {
         'types': ['BINARY', 'VARCHAR', 'NCHAR'],
         'mathFuncs': [],
-        'strFuncs': ['CHAR_LENGTH', 'CONCAT', 'CONCAT_WS', 'LENGTH', 'LOWER', 'LTRIM', 'RTRIM', 'SUBSTR', 'UPPER', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ],
-        'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
+        'strFuncs': ['CHAR_LENGTH', 'CONCAT', 'CONCAT_WS', 'LENGTH', 'LOWER', 'LTRIM', 'RTRIM', 'SUBSTR', 'UPPER'],
+        'timeFuncs': ['NOW', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
         'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
-        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'TAIL', 'UNIQUE'],
+        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE'],
         'specialFuncs': [],
+        'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TAIL', 'SAMPLE'],
         'castFuncs': ['CAST', 'TO_UNIXTIMESTAMP'],
-        'castTypes': []
+        'castTypes': DataBoundary.ALL_TYPE_UNIT.value
     }
     BINARY = {
         'types': ['VARBINARY'],
         'mathFuncs': [],
         'strFuncs': ['LENGTH'],
-        'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
+        'timeFuncs': ['NOW', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
         'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
-        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'TAIL', 'UNIQUE'],
+        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE'],
         'specialFuncs': [],
-        'castFuncs': ['TO_ISO8601'],
+        'VariableFuncs': ['UNIQUE', 'TAIL', 'SAMPLE'],
+        'castFuncs': [],
         'castTypes': []
     }
     BOOLEAN = {
         'types': ['BOOL'],
         'mathFuncs': [],
         'strFuncs': [],
-        'timeFuncs': ['NOW', 'TIMEDIFF'],
+        'timeFuncs': ['NOW'],
         'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
-        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'TAIL', 'UNIQUE'],
+        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE'],
         'specialFuncs': [],
+        'VariableFuncs': ['UNIQUE', 'TAIL', 'SAMPLE'],
         'castFuncs': ['CAST'],
-        'castTypes': []
+        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
     }
     TIMESTAMP = {
         'types': ['TIMESTAMP'],
@@ -130,10 +160,11 @@ class FunctionMap(Enum):
         'strFuncs': [],
         'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
         'aggFuncs': ['ELAPSED', 'SPREAD'],
-        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'UNIQUE'],
+        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE'],
         'specialFuncs': [],
+        'VariableFuncs': ['UNIQUE', 'SAMPLE'],
         'castFuncs': ['CAST', 'TO_ISO8601', 'TO_CHAR'],
-        'castTypes': []
+        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
     }
     # TODO sysinfoFuncs and geometryFuncs
 

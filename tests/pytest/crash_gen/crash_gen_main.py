@@ -2424,96 +2424,249 @@ class TdSuperTable:
 
     #     return ret
 
-    
+    def formatTimediff(self, expr1):
+        # 1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)
+        time_unit = random.choice(DataBoundary.TIME_UNIT.value)
+        expr2 = f'{expr1}+1{time_unit}'
+        return f"TIMEDIFF({expr1}, {expr2})"
 
-    """
-        import random
-        from enum import Enum
+    def formatDiff(self, expr1):
+        ignore_val = random.choice(DataBoundary.DIFF_IGNORE_BOUNDARY.value)
+        if ignore_val == 0:
+            return f"DIFF({expr1})"
+        else:
+            return f"DIFF({expr1}, {ignore_val})"
 
-        class FunctionMap(Enum):
-            NUMERIC = {
-                'types': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE'],
-                'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
-                'strFuncs': [],
-                'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMEZONE', 'TODAY'],
-                'aggFuncs': ['APERCENTILE', 'AVG', 'COUNT', 'LEASTSQUARES', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG', 'HISTOGRAM', 'PERCENTILE'],
-                'selectFuncs': ['BOTTOM', 'FIRST', 'INTERP', 'LAST', 'LAST_ROW', 'MAX', 'MIN', 'MODE', 'SAMPLE', 'TAIL', 'TOP', 'UNIQUE'],
-                'specialFuncs': ['CSUM', 'DERIVATIVE', 'DIFF', 'IRATE', 'MAVG', 'STATECOUNT', 'STATEDURATION', 'TWA'],
-                'castFuncs': ['CAST', 'TO_ISO8601'],
-                'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP']
-            }
-            # ... Similar definitions for TEXT, BINARY, BOOLEAN, TIMESTAMP
+    def formatTimeTruncate(self, expr):
+        time_unit = random.choice(DataBoundary.TIME_UNIT.value[2:])
+        use_current_timezone = random.choice(DataBoundary.TIMEZONE_BOUNDARY.value)
+        return f'TIMETRUNCATE({expr}, 1{time_unit}, {use_current_timezone})'
 
-        def select_function_from_type(function_map, column_name):
-            # Randomize function categories to vary selection
-            categories = ['mathFuncs', 'strFuncs', 'timeFuncs', 'aggFuncs', 'selectFuncs', 'specialFuncs']
-            random.shuffle(categories)
+    def formatHistogram(self, expr):
+        user_input1 = [f'HISTOGRAM({expr}, "user_input", "[1, 3, 5, 7]", {random.choice([0, 1])})']
+        linear_bin  = [f'HISTOGRAM({expr}, "linear_bin", \'{{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}}\', {random.choice(DataBoundary.HISTOGRAM_BOUNDARY.value)})']
+        user_input2 = [f'HISTOGRAM({expr}, "user_input", \'{{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}}\', {random.choice(DataBoundary.HISTOGRAM_BOUNDARY.value)})']
+        funcList = user_input1 + linear_bin + user_input2
+        return random.choice(funcList)
 
-            for category in categories:
-                if function_map[category]:
-                    func = random.choice(function_map[category])
-                    if func == 'CAST':
-                        cast_type = random.choice(function_map['castTypes'])
-                        return f"{func}({column_name} AS {cast_type})"
-                    return f"{func}({column_name})"
-            return f"COUNT({column_name})"  # Default fallback
+    def formatPercentile(self, expr):
+        rcnt = random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1])
+        p = random.sample(range(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1]*10), rcnt)
+        return f'PERCENTILE({expr},{",".join(map(str, p))})'
 
-        def generate_random_sql_query(columns):
-            select_parts = []
-            for column_name, column_type in columns.items():
-                for fm in FunctionMap:
-                    if column_type in fm.value['types']:
-                        func_expression = select_function_from_type(fm.value, column_name)
-                        select_parts.append(func_expression)
-                        break
-                else:
-                    # If column type is not found, use a generic function
-                    select_parts.append(f"COUNT({column_name})")
-            return f"SELECT {', '.join(select_parts)} FROM your_table_name;"
+    def formatStatecount(self, expr):
+        val = random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1])
+        oper = random.choice(DataBoundary.STATECOUNT_UNIT.value)
+        return f'STATECOUNT({expr}, "{oper}", {val})'
 
-        # Example usage
-        columns = {
-            'age': 'INT',
-            'name': 'VARCHAR',
-            'created_at': 'TIMESTAMP',
-            'active': 'BOOL'
-        }
+    def formatStateduration(self, expr):
+        val = random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1])
+        oper = random.choice(DataBoundary.STATECOUNT_UNIT.value)
+        unit = random.choice(DataBoundary.TIME_UNIT.value)
+        return f'STATEDURATION({expr}, "{oper}", {val}, 1{unit})'
 
-        print(generate_random_sql_query(columns))
-    """
+    def formatConcat(self, expr, *args):
+        print("---1args:", *args)
+        print("---2args:", args)
+        base = f'CONCAT("pre_", cast({expr} as nchar({DataBoundary.CONCAT_BOUNDARY.value[1]})))'
+        argsVals = list()
+        for i in range(len(args[:DataBoundary.CONCAT_BOUNDARY.value[1]-1])):
+            print("---args[i]:", args[i])
+            argsVals.append(f'cast({args[i]} as nchar({DataBoundary.CONCAT_BOUNDARY.value[1]}))')
+        if len(argsVals) == 0:
+            return base
+        else:
+            return f'CONCAT({base}, {", ".join(argsVals)})'
 
-    def formatFunc(self, fm, func, colname):
-        if func == 'CAST':
-            cast_type = random.choice(fm['castTypes'])
-            return f"{func}({colname} AS {cast_type})"
-        return f"{func}({colname})"
+    def formatConcatWs(self, expr, *args):
+        separator_expr = random.choice([",", ":", ";", "_", "-"])
+        base = f'CONCAT_WS("{separator_expr}", "pre_", cast({expr} as nchar({DataBoundary.CONCAT_BOUNDARY.value[1]})))'
+        print("----base", base)
+        argsVals = list()
+        for i in range(len(args[:DataBoundary.CONCAT_BOUNDARY.value[1]-1])):
+            argsVals.append(f'cast({args[i]} as nchar({DataBoundary.CONCAT_BOUNDARY.value[1]}))')
+            print("----argsVals", argsVals)
+        if len(argsVals) == 0:
+            return base
+        else:
+            return f'CONCAT_WS("{separator_expr}", {base}, {", ".join(argsVals)})'
 
-    def selectFuncsFromType(self, fm, colname, funcCategory):
-        if funcCategory == "nAggFuncs":
-            supportFuncList = ['mathFuncs', 'strFuncs', 'timeFuncs', 'selectFuncs', 'castFuncs']
-        elif funcCategory == "asFuncs":
-            supportFuncList = ['aggFuncs', 'specialFuncs']
+    def formatSubstr(self, expr):
+        pos = random.choice(DataBoundary.SUBSTR_BOUNDARY.value)
+        length = random.choice(DataBoundary.SUBSTR_BOUNDARY.value)
+        return f'SUBSTR({expr}, {pos}, {length})'
+
+    def formatCast(self, expr, castTypeList):
+        return f'CAST({expr} AS {random.choice(castTypeList)})'
+
+    def formatFunc(self, func, colname, castTypeList="nchar", *args, **kwarg):
+        if func in ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'ROUND', 'SIN', 'SQRT', 'TAN'] + \
+                    ['AVG', 'COUNT', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG'] + \
+                    ['FIRST', 'LAST', 'LAST_ROW', 'MAX', 'MIN', 'MODE', 'UNIQUE'] + \
+                    ['CSUM', 'IRATE', 'TWA'] + \
+                    ['CHAR_LENGTH', 'LENGTH', 'LOWER', 'LTRIM', 'RTRIM', 'UPPER', 'TO_JSON']:
+            return f"{func}({colname})"
+        elif func in ['NOW', 'TODAY', 'TIMEZONE', 'DATABASES', 'CLIENT_VERSION', 'SERVER_VERSION', 'SERVER_STATUS', 'CURRENT_USER']:
+            return f"{func}()"
+        elif func in ['TIMEDIFF']:
+            return self.formatTimediff(colname)
+        elif func in ['TIMEDIFF']:
+            return self.formatDiff(colname)
+        elif func in ['TIMETRUNCATE']:
+            return self.formatTimeTruncate(colname)
+        elif func in ['APERCENTILE']:
+            return f'{func}({colname}, {random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1])}, "{random.choice(["default", "t-digest"])}")'
+        elif func in ['LEASTSQUARES']:
+            return f"{func}({colname}, {random.randint(1, DataBoundary.LEASTSQUARES_BOUNDARY.value[1])}, {random.randint(1, DataBoundary.LEASTSQUARES_BOUNDARY.value[1])})"
+        elif func in ['HISTOGRAM']:
+            return self.formatHistogram(colname)
+        elif func in ['PERCENTILE']:
+            return self.formatPercentile(colname)
+        elif func in ['ELAPSED']:
+            return f"{func}({colname}, 1{random.choice(DataBoundary.TIME_UNIT.value)})"
+        elif func in ['POW']:
+            return f"{func}({colname}, {random.choice(DataBoundary.SAMPLE_BOUNDARY.value)})"
+        elif func in ['INTERP', 'DIFF', 'TO_UNIXTIMESTAMP']:
+            return f"{func}({colname}, {random.choice(DataBoundary.IGNORE_NEGATIVE_BOUNDARY.value)})"
+        elif func in ['SAMPLE']:
+            return f"{func}({colname}, {random.choice(DataBoundary.SAMPLE_BOUNDARY.value)})"
+        elif func in ['TAIL']:
+            return f"{func}({colname}, {random.choice(DataBoundary.TAIL_BOUNDARY.value)}, {random.choice(DataBoundary.TAIL_OFFSET_BOUNDARY.value)})"
+        elif func in ['TOP', 'BOTTOM']:
+            return f"{func}({colname}, {random.choice(DataBoundary.TOP_BOUNDARY.value)})"
+        elif func in ['DERIVATIVE']:
+            return f"{func}({colname}, 1{random.choice(DataBoundary.TIME_UNIT.value[3:])}, {random.choice(DataBoundary.IGNORE_NEGATIVE_BOUNDARY.value)})"
+        elif func in ['MAVG']:
+            return f"{func}({colname}, {random.choice(DataBoundary.MAVG_BOUNDARY.value)})"
+        elif func in ['STATECOUNT']:
+            return self.formatStatecount(colname)
+        elif func in ['STATEDURATION']:
+            return self.formatStateduration(colname)
+        elif func in ['CONCAT']:
+            print("----args", args)
+            return self.formatConcat(colname, *args)
+        elif func in ['CONCAT_WS']:
+            return self.formatConcatWs(colname, *args)
+        elif func in ['SUBSTR']:
+            return self.formatSubstr(colname, *args)
+        elif func in ['CAST']:
+            return self.formatCast(colname, castTypeList)
+        elif func in ['TO_ISO8601']:
+            timezone = random.choice(["+00:00", "-00:00", "+08:00", "-08:00", "+12:00", "-12:00"])
+            return f'{func}({colname}, "{timezone}")'
+        elif func in ['TO_CHAR', 'TO_TIMESTAMP']:
+            return f'{func}({colname}, "{random.choice(DataBoundary.TO_CHAR_UNIT.value)}")'
         else:
             pass
+
+    def getShowSql(self, dbname, tbname, ctbname):
+        showSql = random.choice(DataBoundary.SHOW_UNIT.value)
+        if "DISTRIBUTED" in showSql:
+            return f'{showSql} {tbname};'
+        elif "SHOW CREATE DATABASE" in showSql:
+            return f'{showSql} {dbname};'
+        elif "SHOW CREATE STABLE" in showSql:
+            return f'{showSql} {tbname};'
+        elif "SHOW CREATE TABLE" in showSql:
+            return f'{showSql} {ctbname};'
+        elif "SHOW TAGS" in showSql:
+            return f'{showSql} {ctbname};'
+        else:
+            return f'{showSql};'
+
+    def getSystableSql(self):
+        '''
+        sysdb = random.choice(DataBoundary.SYSTABLE_UNIT.value
+        self.tdSql.query(f'show {sysdb}.tables')
+        systableList = list(map(lambda x:x[0], self.tdSql.query_data))
+        systable = random.choice(systableList)
+        if systable == "ins_tables":
+            return f'select * from {systable} limit({DataBoundary.LIMIT_BOUNDARY.value})'
+        else:
+            return f'select * from {systable}'
+        '''
+        return "select * from information_schema.ins_stables;"
+
+    def getSlimitValue(self, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        if useTag:
+            slimitValList = [f'SLIMIT({random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)})', f'SLIMIT {random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)}, {random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)}']
+            slimitVal = random.choice(slimitValList)
+        else:
+            slimitVal = ""
+        return slimitVal
+
+    def setGroupTag(self, fm, funcList):
+        """
+        Check if there are common elements between `funcList` and `selectFuncs` in `fm`.
+
+        Args:
+            fm (dict): The dictionary containing the 'selectFuncs' key.
+            funcList (list): The list of functions to compare with 'selectFuncs'.
+
+        Returns:
+            bool: True if there are common elements, False otherwise.
+        """
+        selectFuncs = fm['selectFuncs']
+        s1 = set(funcList)
+        s2 = set(selectFuncs)
+        common_elements = s1 & s2
+        if len(common_elements) > 1:
+            return True
+        else:
+            return False
+
+    def selectFuncsFromType(self, fm, colname, column_type, doAggr):
+        if doAggr == 0:
+            categoryList = ['aggFuncs']
+        elif doAggr == 1:
+            categoryList = ['mathFuncs', 'strFuncs', 'timeFuncs', 'selectFuncs', 'castFuncs']
+        elif doAggr == 2:
+            categoryList = ['VariableFuncs']
+        elif doAggr == 3:
+            categoryList = ['specialFuncs']
+        else:
+            return
         funcList = list()
-        for category in supportFuncList:
-            funcList.append(fm[category])
-        selectItems = random.sample(funcList, random.randint(1, len(funcList)))
-        
-            
-        print(FunctionMap)
-        # colTypes = ['NUMERIC', 'TEXT', 'BINARY', 'BOOLEAN', 'TIMESTAMP'...]
-        colTypes = [member.name for member in FunctionMap]
-        # cateDict = {'NUMERIC': '......', 'TEXT': '......', 'BINARY': '......', 'BOOLEAN': '......', 'TIMESTAMP': '......'...}
-        cateDict = FunctionMap.colTypes[0].value
-        # categories = ['mathFuncs', 'strFuncs', 'timeFuncs', 'aggFuncs', 'selectFuncs', 'specialFuncs']
-        categories = [key for key in cateDict.keys() if "Funcs" in key]
+        print("----categoryList", categoryList)
+        print("----fm", fm)
+
+        for category in categoryList:
+            funcList += fm[category]
+        print("----funcList", funcList)
+        selectItems = random.sample(funcList, random.randint(1, len(funcList))) if len(funcList) > 0 else list()
+        funcStrList = list()
+        for func in selectItems:
+            print("----func", func)
+            funcStr = self.formatFunc(func, colname, fm["castTypes"])
+            print("----funcStr", funcStr)
+            funcStrList.append(funcStr)
+        print("-------funcStrList:", funcStrList)
+        print("-------funcStr:", ",".join(funcStrList))
+        print("----selectItems", selectItems)
+
+        if "INT" in column_type:
+            groupKey = colname if self.setGroupTag(fm, funcList) else ""
+        else:
+            groupKey = colname if self.setGroupTag(fm, funcList) else ""
+        if doAggr == 2:
+            return ",".join([random.choice(funcStrList)]), groupKey
+        return ",".join(funcStrList), groupKey
+
+
+        # # colTypes = ['NUMERIC', 'TEXT', 'BINARY', 'BOOLEAN', 'TIMESTAMP'...]
+        # colTypes = [member.name for member in FunctionMap]
+        # # cateDict = {'NUMERIC': '......', 'TEXT': '......', 'BINARY': '......', 'BOOLEAN': '......', 'TIMESTAMP': '......'...}
+        # print(fm)
+        # cateDict = fm.value
+        # # categories = ['mathFuncs', 'strFuncs', 'timeFuncs', 'aggFuncs', 'selectFuncs', 'specialFuncs']
+        # categories = [key for key in cateDict.keys() if "Funcs" in key]
         # for category in categories:
         #     if FunctionMap[category]:
         #         func = random.choice()
         #         pass
         '''
-        fm:
+    fm:
         {
             'types': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE'],
             'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
@@ -2526,53 +2679,220 @@ class TdSuperTable:
             'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP']
         }
         '''
-        for category in categories:
-            if fm[category]:
-                func = random.choice(fm[category])
-                if func == 'CAST':
-                    cast_type = random.choice(fm['castTypes'])
-                    return f"{func}({colname} AS {cast_type})"
-                return f"{func}({colname})"
-        return f"COUNT({colname})"  # Default fallback
+        # for category in categories:
+        #     if fm[category]:
+        #         func = random.choice(fm[category])
+        #         if func == 'CAST':
+        #             cast_type = random.choice(fm['castTypes'])
+        #             return f"{func}({colname} AS {cast_type})"
+        #         return f"{func}({colname})"
+        # return f"COUNT({colname})"  # Default fallback
 
-    def getFuncCategory(self, func):
-        if func in ['mathFuncs', 'strFuncs', 'timeFuncs', 'selectFuncs', 'castFuncs']:
-            return "nAggFuncs"
-        elif func in ['aggFuncs', 'specialFuncs']:
-            return "asFuncs"
+    def getFuncCategory(self, doAggr):
+        if doAggr == 0:
+            return "aggFuncs"
+        elif doAggr == 1:
+            return "nFuncs"
+        else:
+            return "spFuncs"
+
+    def getRandomTimeUnitStr(self):
+        """
+        Generates a random time unit string.
+
+        Returns:
+            str: A string representing a random time unit.
+        """
+        return f'{random.randint(DataBoundary.SAMPLE_BOUNDARY.value[0], DataBoundary.SAMPLE_BOUNDARY.value[1])}{random.choice(DataBoundary.TIME_UNIT.value)}'
+
+    def getRandomWindow(self):
+        """
+        Returns a random window from the available window units.
+
+        Returns:
+            str: A random window unit.
+        """
+        return random.choice(DataBoundary.WINDOW_UNIT.value)
+
+    def getOffsetValue(self, rand=None):
+        """
+        Returns the offset value for a SQL query.
+
+        Args:
+            rand (bool, optional): If True, a random offset value will be used. If False, a time unit string will be used. Defaults to None.
+
+        Returns:
+            str: The offset value for the SQL query.
+        """
+        useTag = random.choice([True, False]) if rand is None else True
+        offsetVal = f',{self.getRandomTimeUnitStr()}' if useTag else ""
+        return offsetVal
+
+    def getSlidingValue(self, rand=None):
+        """
+        Get the sliding value for the SQL query.
+
+        Parameters:
+        - rand (bool, optional): If True, use a random value for the sliding value. If False, use a predefined value. Defaults to None.
+
+        Returns:
+        - slidingVal (str): The sliding value for the SQL query.
+        """
+        useTag = random.choice([True, False]) if rand is None else True
+        slidingVal = f'SLIDING({self.getRandomTimeUnitStr()})' if useTag else ""
+        return slidingVal
+
+    def getOrderByValue(self, col, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        orderType = random.choice(["ASC", "DESC", ""]) if useTag else ""
+        orderVal = f'ORDER BY {col} {orderType}' if useTag else ""
+        return orderVal
+
+    def getFillValue(self, rand=None):
+        """
+        Returns a fill value for SQL queries.
+
+        Parameters:
+        - rand (bool, optional): If True, a random fill value will be used. If False, an empty string will be returned. Defaults to None.
+
+        Returns:`
+        - str: The fill value for SQL queries.
+        """
+        useTag = random.choice([True, False]) if rand is None else True
+        fillVal = f'FILL({random.choice(DataBoundary.FILL_UNIT.value)})' if useTag else ""
+        return fillVal
+
+    def getTimeRange(self, tbname, tsCol):
+        # self.tdSql.query(f"SELECT first({tsCol}), last({tsCol}) FROM {tbname} tail({tsCol}, 100, 50);")
+        # res = self.tdSql.query_data
+        res = [('2024-08-26 14:00:00.000',), ('2024-08-26 18:00:00.000',)]
+        return [res[0][0], res[1][0]]
+
+    def getTimeRangeFilter(self, tbname, tsCol, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        if useTag:
+            start_time, end_time = self.getTimeRange(tbname, tsCol)
+            timeRangeFilter = random.choice([f'WHERE {tsCol} BETWEEN "{start_time}" AND "{end_time}"', f'where {tsCol} > "{start_time}" AND {tsCol} < "{end_time}"'])
+        else:
+            timeRangeFilter = ""
+        return timeRangeFilter
+
+    def getPartitionValue(self, col, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        partitionVal = f'PARTITION BY {col}' if useTag else ""
+        return partitionVal
+
+    def getPartitionObj(self, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        partitionObj = f'PARTITION BY {random.choice(DataBoundary.ALL_TYPE_UNIT.value)}' if useTag else ""
+        return partitionObj
+
+    def getEventWindowCondition(self, colDict):
+        conditionList = list()
+        lteList = ["<", "<="]
+        gteList = [">", ">="]
+        enqList = ["=", "!=", "<>"]
+        nullList = ["is null", "is not null"]
+        inList = ["in", "not in"]
+        betweenList = ["between", "not between"]
+        likeList = ["like", "not like"]
+        matchList = ["match", "nmatch"]
+        tinyintRangeList = DataBoundary.TINYINT_BOUNDARY.value
+        intHalfBf = random.randint(tinyintRangeList[0], round((tinyintRangeList[1]+tinyintRangeList[0])/2))
+        intHalfAf = random.randint(round((tinyintRangeList[1]+tinyintRangeList[0])/2), tinyintRangeList[1])
+        for columnName, columnType in colDict.items():
+            print(f"-----column_name, column_type: {columnName}, {columnType}")
+            if columnType in ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', ]:
+                startTriggerCondition = f'{columnName} {inList[0]} {tuple(random.randint(0, 100) for _ in range(10))} or {columnName} {betweenList[0]} {intHalfBf} and {intHalfAf}'
+                endTriggerCondition = f'{columnName} {inList[1]} {tuple(random.randint(0, 100) for _ in range(10))} and {columnName} {betweenList[1]} {intHalfBf} and {intHalfAf}'
+            elif columnType in ['FLOAT', 'DOUBLE']:
+                startTriggerCondition = f'{columnName} {random.choice(lteList)} {intHalfBf}'
+                endTriggerCondition = f'{columnName} {random.choice(gteList)} {intHalfAf}'
+            elif columnType in ['BINARY', 'VARCHAR', 'NCHAR']:
+                startTriggerCondition = f'{columnName} {likeList[0]} "%a%" or {columnName} {matchList[1]} ".*a.*"'
+                endTriggerCondition = f'{columnName} {likeList[1]} "_a_" and {columnName} {matchList[0]} ".*a.*"'
+            else:
+                startTriggerCondition = f'{columnName} {random.choice(enqList)} {intHalfBf} or {columnName} {nullList[0]}'
+                endTriggerCondition = f'{columnName} {nullList[1]} and {columnName} {random.choice(enqList[1:])} {intHalfAf}'
+            conditionList.append(f'EVENT_WINDOW start with {startTriggerCondition} end with {endTriggerCondition}')
+        return random.choice(conditionList)
+
+    def getWindowStr(self, window, colDict, tsCol="ts", stateUnit="1", countUnit="2"):
+        if window == "INTERVAL":
+            return f"{window}({self.getRandomTimeUnitStr()}{self.getOffsetValue()})"
+        elif window == "SESSION":
+            return f"{window}({tsCol}, {self.getRandomTimeUnitStr()})"
+        elif window == "STATE_WINDOW":
+            return f"{window}({stateUnit})"
+        elif window == "COUNT_WINDOW":
+            return f"{window}({countUnit})"
+        elif window == "EVENT_WINDOW":
+            return self.getEventWindowCondition(colDict)
         else:
             return ""
 
     def generateRandomSql(self, colDict, tbname):
-        select_parts = []
+        selectPartList = []
+        groupKeyList = []
+        # colTypes = ['NUMERIC', 'TEXT', 'BINARY', 'BOOLEAN', 'TIMESTAMP'...]
+        colTypes = [member.name for member in FunctionMap]
+        print("-----colDict", colDict)
+        print("-----colTypes", colTypes)
+        doAggr = random.choice([0, 1, 2, 3, 4, 5])
+        if doAggr == 4:
+            return self.getShowSql("test", "stb", "ctb1")
+        if doAggr == 5:
+            return self.getSystableSql()
+        tsCol = "ts"
         for column_name, column_type in colDict.items():
+            print(f"-----column_name, column_type: {column_name}, {column_type}")
+            if column_type == "TIMESTAMP":
+                tsCol = column_name
             for fm in FunctionMap:
                 if column_type in fm.value['types']:
-                    # colTypes = ['NUMERIC', 'TEXT', 'BINARY', 'BOOLEAN', 'TIMESTAMP'...]
-                    colTypes = [member.name for member in FunctionMap]
                     # cateDict = {'NUMERIC': '......', 'TEXT': '......', 'BINARY': '......', 'BOOLEAN': '......', 'TIMESTAMP': '......'...}
-                    cateDict = FunctionMap.colTypes[0].value
+                    # cateDict = fm.value
+                    # print("-----cateDict", cateDict)
                     # categories = ['mathFuncs', 'strFuncs', 'timeFuncs', 'aggFuncs', 'selectFuncs', 'specialFuncs']
-                    categories = [key for key in cateDict.keys() if "Funcs" in key]
-                    # / selectFunc = 'mathFuncs'
-                    selectFunc = random.choice(categories)
-                    funcCategory = self.getFuncCategory(selectFunc)
-                    
-                    
-                    
+                    # categories = [key for key in cateDict.keys() if "Funcs" in key]
+                    # print("-----categories", categories)
+                    # / selectCate = 'mathFuncs'
+                    # selectCate = random.choice(categories)
+                    # print("-----selectCate", selectCate)
+                    selectStrs, groupKey = self.selectFuncsFromType(fm.value, column_name, column_type, doAggr)
+                    print("-----selectStrs", selectStrs)
+                    if len(selectStrs) > 0:
+                        selectPartList.append(selectStrs)
+                    print("-----selectPartList", selectPartList)
+                    if len(groupKey) > 0:
+                        groupKeyList.append(groupKey)
+
                     # / funcs = ['ABS', 'ACOS', 'ASIN'....]
-                    funcs = random.sample(fm.value[selectFunc], random.randint(1, len(fm.value[selectFunc])))
-                    if func == 'CAST':
-                        cast_type = random.choice(FunctionMap['castTypes'])
-                        func_expression = f"{func}({column_name} AS {cast_type})"
-                        select_parts.append(func_expression)
-                    else:
-                        func_expression = f"{func}({column_name})"
-                        select_parts.append(func_expression)
-                    pass
+                    # funcs = random.sample(fm.value[selectFunc], random.randint(1, len(fm.value[selectFunc])))
+                    # print("-----funcs", funcs)
+                    print("\n")
+                    # if func == 'CAST':
+                    #     cast_type = random.choice(FunctionMap['castTypes'])
+                    #     func_expression = f"{func}({column_name} AS {cast_type})"
+                    #     select_parts.append(func_expression)
+                    # else:
+                    #     func_expression = f"{func}({column_name})"
+                    #     select_parts.append(func_expression)
+                    # pass
                     # func_expression = self.selectFuncsFromType(fm.value, column_name)
                     # select_parts.append(func_expression)
-        return f"SELECT {', '.join(select_parts)} FROM {tbname};"
+
+        if doAggr == 2:
+            selectPartList = [random.choice(selectPartList)]
+        if len(groupKeyList) > 0:
+            groupKeyStr = ",".join(groupKeyList)
+            return f"SELECT {', '.join(selectPartList)} FROM {tbname} GROUP BY {groupKeyStr} {self.getOrderByValue(groupKeyStr)} {self.getSlimitValue()};"
+        else:
+            groupKeyStr = "tbname"
+        randomSelectPart = f'`{random.choice(selectPartList)}`'
+        return f"SELECT {', '.join(selectPartList)} FROM {tbname} {self.getTimeRangeFilter(tbname, tsCol)} {self.getPartitionValue(groupKeyStr)} {self.getWindowStr(self.getRandomWindow(), colDict)} {self.getSlidingValue()} {self.getOrderByValue(randomSelectPart)} {self.getSlimitValue()};"
+
+
 
     def generateQueries_n(self, dbc: DbConn, selectItems) -> List[SqlQuery]:
         ''' Generate queries to test/exercise this super table '''
@@ -2584,100 +2904,102 @@ class TdSuperTable:
             filterExpr = Dice.choice([  # TODO: add various kind of WHERE conditions
                 None
             ])
+            sql = self.generateRandomSql(selectItems, rTbName)
+            print("-----sql", sql)
+            ret.append(SqlQuery(sql))
+            # # Run the query against the regular table first
+            # doAggr = (Dice.throw(2) == 0)  # 1 in 2 chance
+            # if not doAggr:  # don't do aggregate query, just simple one
+            #     query_parts = []
+            #     for colName, colType in selectItems.items():
+            #         for groupKey, group in FunctionMap:
+            #             query_parts.append(colName)
 
-            # Run the query against the regular table first
-            doAggr = (Dice.throw(2) == 0)  # 1 in 2 chance
-            if not doAggr:  # don't do aggregate query, just simple one
-                query_parts = []
-                for colName, colType in selectItems.items():
-                    for groupKey, group in FunctionMap:
-                        query_parts.append(colName)
+            #     commonExpr = Dice.choice([
+            #         '*',
+            #         'abs(speed)',
+            #         'acos(speed)',
+            #         'asin(speed)',
+            #         'atan(speed)',
+            #         'ceil(speed)',
+            #         'cos(speed)',
+            #         'cos(speed)',
+            #         'floor(speed)',
+            #         'log(speed,2)',
+            #         'pow(speed,2)',
+            #         'round(speed)',
+            #         'sin(speed)',
+            #         'sqrt(speed)',
+            #         'char_length(color)',
+            #         'concat(color,color)',
+            #         'concat_ws(" ", color,color," ")',
+            #         'length(color)',
+            #         'lower(color)',
+            #         'ltrim(color)',
+            #         'substr(color , 2)',
+            #         'upper(color)',
+            #         'cast(speed as double)',
+            #         'cast(ts as bigint)',
+            #         # 'TO_ISO8601(color)',
+            #         # 'TO_UNIXTIMESTAMP(ts)',
+            #         'now()',
+            #         'timediff(ts,now)',
+            #         'timezone()',
+            #         'TIMETRUNCATE(ts,1s)',
+            #         'TIMEZONE()',
+            #         'TODAY()',
+            #         'distinct(color)'
+            #     ]
+            #     )
+            #     ret.append(SqlQuery(  # reg table
+            #         "select {} from {}.{}".format(commonExpr, self._dbName, rTbName)))
+            #     ret.append(SqlQuery(  # super table
+            #         "select {} from {}.{}".format(commonExpr, self._dbName, self.getName())))
+            # else:  # Aggregate query
+            #     aggExpr = Dice.choice([
+            #         'count(*)',
+            #         'avg(speed)',
+            #         # 'twa(speed)', # TODO: this one REQUIRES a where statement, not reasonable
+            #         'sum(speed)',
+            #         'stddev(speed)',
+            #         # SELECTOR functions
+            #         'min(speed)',
+            #         'max(speed)',
+            #         'first(speed)',
+            #         'last(speed)',
+            #         'top(speed, 50)',  # TODO: not supported?
+            #         'bottom(speed, 50)',  # TODO: not supported?
+            #         'apercentile(speed, 10)',  # TODO: TD-1316
+            #         'last_row(*)',  # TODO: commented out per TD-3231, we should re-create
+            #         # Transformation Functions
+            #         # 'diff(speed)', # TODO: no supported?!
+            #         'spread(speed)',
+            #         'elapsed(ts)',
+            #         'mode(speed)',
+            #         'bottom(speed,1)',
+            #         'top(speed,1)',
+            #         'tail(speed,1)',
+            #         'unique(color)',
+            #         'csum(speed)',
+            #         'DERIVATIVE(speed,1s,1)',
+            #         'diff(speed,1)',
+            #         'irate(speed)',
+            #         'mavg(speed,3)',
+            #         'sample(speed,5)',
+            #         'STATECOUNT(speed,"LT",1)',
+            #         'STATEDURATION(speed,"LT",1)',
+            #         'twa(speed)'
 
-                commonExpr = Dice.choice([
-                    '*',
-                    'abs(speed)',
-                    'acos(speed)',
-                    'asin(speed)',
-                    'atan(speed)',
-                    'ceil(speed)',
-                    'cos(speed)',
-                    'cos(speed)',
-                    'floor(speed)',
-                    'log(speed,2)',
-                    'pow(speed,2)',
-                    'round(speed)',
-                    'sin(speed)',
-                    'sqrt(speed)',
-                    'char_length(color)',
-                    'concat(color,color)',
-                    'concat_ws(" ", color,color," ")',
-                    'length(color)',
-                    'lower(color)',
-                    'ltrim(color)',
-                    'substr(color , 2)',
-                    'upper(color)',
-                    'cast(speed as double)',
-                    'cast(ts as bigint)',
-                    # 'TO_ISO8601(color)',
-                    # 'TO_UNIXTIMESTAMP(ts)',
-                    'now()',
-                    'timediff(ts,now)',
-                    'timezone()',
-                    'TIMETRUNCATE(ts,1s)',
-                    'TIMEZONE()',
-                    'TODAY()',
-                    'distinct(color)'
-                ]
-                )
-                ret.append(SqlQuery(  # reg table
-                    "select {} from {}.{}".format(commonExpr, self._dbName, rTbName)))
-                ret.append(SqlQuery(  # super table
-                    "select {} from {}.{}".format(commonExpr, self._dbName, self.getName())))
-            else:  # Aggregate query
-                aggExpr = Dice.choice([
-                    'count(*)',
-                    'avg(speed)',
-                    # 'twa(speed)', # TODO: this one REQUIRES a where statement, not reasonable
-                    'sum(speed)',
-                    'stddev(speed)',
-                    # SELECTOR functions
-                    'min(speed)',
-                    'max(speed)',
-                    'first(speed)',
-                    'last(speed)',
-                    'top(speed, 50)',  # TODO: not supported?
-                    'bottom(speed, 50)',  # TODO: not supported?
-                    'apercentile(speed, 10)',  # TODO: TD-1316
-                    'last_row(*)',  # TODO: commented out per TD-3231, we should re-create
-                    # Transformation Functions
-                    # 'diff(speed)', # TODO: no supported?!
-                    'spread(speed)',
-                    'elapsed(ts)',
-                    'mode(speed)',
-                    'bottom(speed,1)',
-                    'top(speed,1)',
-                    'tail(speed,1)',
-                    'unique(color)',
-                    'csum(speed)',
-                    'DERIVATIVE(speed,1s,1)',
-                    'diff(speed,1)',
-                    'irate(speed)',
-                    'mavg(speed,3)',
-                    'sample(speed,5)',
-                    'STATECOUNT(speed,"LT",1)',
-                    'STATEDURATION(speed,"LT",1)',
-                    'twa(speed)'
+            #     ])  # TODO: add more from 'top'
 
-                ])  # TODO: add more from 'top'
-
-                # if aggExpr not in ['stddev(speed)']: # STDDEV not valid for super tables?! (Done in TD-1049)
-                sql = "select {} from {}.{}".format(aggExpr, self._dbName, self.getName())
-                if Dice.throw(3) == 0:  # 1 in X chance
-                    partion_expr = Dice.choice(['color', 'tbname'])
-                    sql = sql + ' partition BY ' + partion_expr + ' order by ' + partion_expr
-                    Progress.emit(Progress.QUERY_GROUP_BY)
-                    # Logging.info("Executing GROUP-BY query: " + sql)
-                ret.append(SqlQuery(sql))
+            #     # if aggExpr not in ['stddev(speed)']: # STDDEV not valid for super tables?! (Done in TD-1049)
+            #     sql = "select {} from {}.{}".format(aggExpr, self._dbName, self.getName())
+            #     if Dice.throw(3) == 0:  # 1 in X chance
+            #         partion_expr = Dice.choice(['color', 'tbname'])
+            #         sql = sql + ' partition BY ' + partion_expr + ' order by ' + partion_expr
+            #         Progress.emit(Progress.QUERY_GROUP_BY)
+            #         # Logging.info("Executing GROUP-BY query: " + sql)
+            #     ret.append(SqlQuery(sql))
 
         return ret
 

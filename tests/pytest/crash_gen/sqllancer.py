@@ -276,17 +276,17 @@ class SQLLancer:
     def getShowSql(self, dbname, tbname, ctbname):
         showSql = random.choice(DataBoundary.SHOW_UNIT.value)
         if "DISTRIBUTED" in showSql:
-            return showSql + tbname + ";"
+            return f'{showSql} {tbname};'
         elif "SHOW CREATE DATABASE" in showSql:
-            return showSql + dbname + ";"
+            return f'{showSql} {dbname};'
         elif "SHOW CREATE STABLE" in showSql:
-            return showSql + tbname + ";"
+            return f'{showSql} {tbname};'
         elif "SHOW CREATE TABLE" in showSql:
-            return showSql + ctbname + ";"
+            return f'{showSql} {ctbname};'
         elif "SHOW TAGS" in showSql:
-            return showSql + ctbname + ";"
+            return f'{showSql} {ctbname};'
         else:
-            return showSql + ";"
+            return f'{showSql};'
 
     def getSystableSql(self):
         '''
@@ -300,6 +300,15 @@ class SQLLancer:
             return f'select * from {systable}'
         '''
         return "select * from information_schema.ins_stables;"
+
+    def getSlimitValue(self, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        if useTag:
+            slimitValList = [f'SLIMIT({random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)})', f'SLIMIT {random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)}, {random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)}']
+            slimitVal = random.choice(slimitValList)
+        else:
+            slimitVal = ""
+        return slimitVal
 
     def setGroupTag(self, fm, funcList):
         """
@@ -321,7 +330,7 @@ class SQLLancer:
         else:
             return False
 
-    def selectFuncsFromType(self, fm, colname, doAggr):
+    def selectFuncsFromType(self, fm, colname, column_type, doAggr):
         if doAggr == 0:
             categoryList = ['aggFuncs']
         elif doAggr == 1:
@@ -349,7 +358,11 @@ class SQLLancer:
         print("-------funcStrList:", funcStrList)
         print("-------funcStr:", ",".join(funcStrList))
         print("----selectItems", selectItems)
-        groupKey = colname if self.setGroupTag(fm, funcList) else ""
+
+        if "INT" in column_type:
+            groupKey = colname if self.setGroupTag(fm, funcList) else ""
+        else:
+            groupKey = colname if self.setGroupTag(fm, funcList) else ""
         if doAggr == 2:
             return ",".join([random.choice(funcStrList)]), groupKey
         return ",".join(funcStrList), groupKey
@@ -443,6 +456,12 @@ class SQLLancer:
         slidingVal = f'SLIDING({self.getRandomTimeUnitStr()})' if useTag else ""
         return slidingVal
 
+    def getOrderByValue(self, col, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        orderType = random.choice(["ASC", "DESC", ""]) if useTag else ""
+        orderVal = f'ORDER BY {col} {orderType}' if useTag else ""
+        return orderVal
+
     def getFillValue(self, rand=None):
         """
         Returns a fill value for SQL queries.
@@ -499,7 +518,7 @@ class SQLLancer:
             print(f"-----column_name, column_type: {columnName}, {columnType}")
             if columnType in ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', ]:
                 startTriggerCondition = f'{columnName} {inList[0]} {tuple(random.randint(0, 100) for _ in range(10))} or {columnName} {betweenList[0]} {intHalfBf} and {intHalfAf}'
-                endTriggerCondition = f'{columnName} {inList[1]} {{tuple(random.randint(0, 100) for _ in range(10))}} and {columnName} {betweenList[1]} {intHalfBf} and {intHalfAf}'
+                endTriggerCondition = f'{columnName} {inList[1]} {tuple(random.randint(0, 100) for _ in range(10))} and {columnName} {betweenList[1]} {intHalfBf} and {intHalfAf}'
             elif columnType in ['FLOAT', 'DOUBLE']:
                 startTriggerCondition = f'{columnName} {random.choice(lteList)} {intHalfBf}'
                 endTriggerCondition = f'{columnName} {random.choice(gteList)} {intHalfAf}'
@@ -554,7 +573,7 @@ class SQLLancer:
                     # / selectCate = 'mathFuncs'
                     # selectCate = random.choice(categories)
                     # print("-----selectCate", selectCate)
-                    selectStrs, groupKey = self.selectFuncsFromType(fm.value, column_name, doAggr)
+                    selectStrs, groupKey = self.selectFuncsFromType(fm.value, column_name, column_type, doAggr)
                     print("-----selectStrs", selectStrs)
                     if len(selectStrs) > 0:
                         selectPartList.append(selectStrs)
@@ -581,10 +600,11 @@ class SQLLancer:
             selectPartList = [random.choice(selectPartList)]
         if len(groupKeyList) > 0:
             groupKeyStr = ",".join(groupKeyList)
-            return f"SELECT {', '.join(selectPartList)} FROM {tbname} GROUP BY {groupKeyStr};"
+            return f"SELECT {', '.join(selectPartList)} FROM {tbname} GROUP BY {groupKeyStr} {self.getOrderByValue(groupKeyStr)} {self.getSlimitValue()};"
         else:
             groupKeyStr = "tbname"
-        return f"SELECT {', '.join(selectPartList)} FROM {tbname} {self.getTimeRangeFilter(tbname, tsCol)} {self.getPartitionValue(groupKeyStr)} {self.getWindowStr(self.getRandomWindow(), colDict)};"
+        randomSelectPart = f'`{random.choice(selectPartList)}`'
+        return f"SELECT {', '.join(selectPartList)} FROM {tbname} {self.getTimeRangeFilter(tbname, tsCol)} {self.getPartitionValue(groupKeyStr)} {self.getWindowStr(self.getRandomWindow(), colDict)} {self.getSlidingValue()} {self.getOrderByValue(randomSelectPart)} {self.getSlimitValue()};"
 
 sqllancer = SQLLancer()
 colDict = {"ts": "TIMESTAMP", "c1": "INT", "c2": "NCHAR", "c3": "BOOL"}
