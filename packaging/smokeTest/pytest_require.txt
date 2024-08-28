@@ -1,0 +1,16 @@
+pytest-html
+pytest-json-report
+pytest-timeout
+taospy
+numpy
+fabric2
+psutil
+pandas
+toml
+distro
+requests
+pexpect
+faker
+pyopenssl
+taos-ws-py
+taospy
