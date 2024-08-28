@@ -9,7 +9,7 @@
         <el-tab-pane name="backup" :label="$t('taosuser.backup')" :disabled='taosxDisabled' lazy v-if="getMetaShow('backup_restore')">
           <AdBackup ></AdBackup>
         </el-tab-pane>
-        <el-tab-pane name="replication" :label="$t('taosuser.datareplication')" :disabled='taosxDisabled' lazy v-if="getMetaShow('td3.0')">
+        <el-tab-pane name="replication" :label="$t('taosuser.datareplication')" :disabled='taosxDisabled' lazy v-if="isLessThen3_3_3_0 ? getMetaShow('td3.0') : getMetaShow('data_sync')">
           <AdReplication ></AdReplication>
         </el-tab-pane>
         <el-tab-pane name="cluster" :label="$t('route.cluster')" lazy v-if="getMetaShow('dnodes')">
@@ -42,7 +42,9 @@ import License from './views/license.vue'
 import Activities from './views/activities.vue'
 import Cluster from '@/views/14_cluster/index.vue'
 import Audit from './views/audit.vue'
-import LicenseMixin from "@/mixins/license"
+import SlowSql from './views/slowSql.vue'
+import LicenseMixin from "@/mixins/license";
+import { compareVersion } from "@/utils";
 export default {
   name: "Admin",
   components:{
@@ -55,6 +57,21 @@ export default {
       taosxDisabled:false,
       activeName: 'user'
     };
+  },
+  computed: {
+    TDengineVersion() {
+      return localStorage.getItem("agent_version");
+    },
+    isLessThen3_3_3_0() {
+      return compareVersion(this.TDengineVersion, '<3.3.3.0')
+    }
+  },
+  created() {
+    let version = localStorage.getItem("agent_version");
+    let [a, b, c, d] = version.split(".");
+    if (a > 3 || (a == 3 && b >= 1 && c >= 2)) {
+      this.version_gt_equ_3330 = true;
+    }
   }
 };
 </script>
