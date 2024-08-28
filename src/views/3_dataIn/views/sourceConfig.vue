@@ -448,7 +448,7 @@ export default {
             [data.from_detail],
             data.parser
           );
-          this.oldParams.from = data.from;
+          // this.oldParams.from = data.from;
           this.oldParams.labels = data.labels;
           this.oldParams.name = data.name;
           this.oldParams.to = data.to;
@@ -469,6 +469,7 @@ export default {
       this.sourceForm.data = generateFormInitData(
         this.currentDefinition?.config
       );
+      this.oldParams.data = _.cloneDeep(this.sourceForm.data);
     },
 
     edit() {
@@ -593,7 +594,10 @@ export default {
           }
           
           if (this.isEditable && this.editId && !this.isCopyable) {
-            if (!this.isEqualParams(this.oldParams,params)) {
+            const newParams = _.cloneDeep(params)
+            delete newParams.from
+            newParams.data = this.sourceForm.data
+            if (!this.isEqualParams(this.oldParams,newParams)) {
               let result = await EditSource(params, this.editId);
               this.loading = false;
               if (result.message) {
