@@ -87,6 +87,9 @@ typedef struct SCliConn {
   char  src[32];
   char  dst[32];
 
+  char*   ipStr;
+  int32_t port;
+
   int64_t refId;
   int32_t seq;
   int32_t shareCnt;
@@ -165,7 +168,7 @@ static void      addConnToPool(void* pool, SCliConn* conn);
 static void      doCloseIdleConn(void* param);
 static int32_t   cliCreateConn2(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn);
 static int32_t   cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int port);
-static int32_t   cliDoConn(SCliThrd* pThrd, SCliConn* conn, char* ip, int port);
+static int32_t   cliDoConn(SCliThrd* pThrd, SCliConn* conn);
 
 // register conn timer
 static void cliConnTimeout(uv_timer_t* handle);
@@ -1216,7 +1219,7 @@ static int32_t cliCreateConn2(SCliThrd* pThrd, SCliReq* pReq, SCliConn** ppConn)
 
   transQueuePush(&pConn->reqs, pReq);
 
-  return cliDoConn(pThrd, pConn, ip, port);
+  return cliDoConn(pThrd, pConn);
 _exception:
   // free conn
   return code;
@@ -1234,6 +1237,8 @@ static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int
   char addr[TSDB_FQDN_LEN + 64] = {0};
   CONN_CONSTRUCT_HASH_KEY(addr, ip, port);
   conn->dstAddr = taosStrdup(addr);
+  conn->ipStr = taosStrdup(ip);
+  conn->port = port;
 
   transReqQueueInit(&conn->wreqQueue);
   QUEUE_INIT(&conn->q);
@@ -1679,12 +1684,12 @@ static void cliDestroyBatch(SCliBatch* pBatch) {
   taosMemoryFree(pBatch);
 }
 
-static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn, char* ip, int port) {
+static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   int32_t lino = 0;
   STrans* pInst = pThrd->pInst;
 
   uint32_t ipaddr;
-  int32_t  code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, ip, &ipaddr);
+  int32_t  code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ipStr, &ipaddr);
   if (code != 0) {
     TAOS_CHECK_GOTO(code, &lino, _exception1);
   }
@@ -1692,7 +1697,7 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn, char* ip, int port) {
   struct sockaddr_in addr;
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = ipaddr;
-  addr.sin_port = (uint16_t)htons(port);
+  addr.sin_port = (uint16_t)htons(conn->port);
 
   tTrace("%s conn %p try to connect to %s", pInst->label, conn, conn->dstAddr);
 
@@ -1777,14 +1782,11 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
     }
 
     conn->pBatch = pBatch;
-    conn->dstAddr = taosStrdup(pList->dst);
-    if (conn->dstAddr == NULL) {
-      tError("%s failed to send batch msg, batch size:%d, msgLen: %d, conn limit:%d, reason:%s", pInst->label,
-             pBatch->wLen, pBatch->batchSize, pInst->connLimitNum, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-      cliDestroyBatch(pBatch);
-      return;
+    code = cliDoConn(pThrd, conn);
+    if (code != 0) {
+      
     }
-    code = cliDoConn(pThrd, conn, pList->ip, pList->port);
+    return;
   }
 
   conn->pBatch = pBatch;
@@ -2215,7 +2217,7 @@ void cliHandleReq__shareConn(SCliThrd* pThrd, SCliReq* pReq) {
 
   transQueuePush(&pConn->reqs, pReq);
 
-  code = cliDoConn(pThrd, pConn, ip, port);
+  code = cliDoConn(pThrd, pConn);
 _exception:
 
   resp.code = code;
