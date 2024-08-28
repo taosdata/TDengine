@@ -50,8 +50,8 @@
                         { "type": "usmallint",   "name": "usi"},
                         { "type": "uint",        "name": "ui" },
                         { "type": "ubigint",     "name": "ubi"},
-                        { "type": "binary",      "name": "bin", "len": 32},
-                        { "type": "nchar",       "name": "nch", "len": 64}
+                        { "type": "binary",      "name": "bin", "len": 50},
+                        { "type": "nchar",       "name": "nch", "len": 100}
                     ],
                     "tags": [
                         {"type": "tinyint", "name": "groupid","max": 10,"min": 1},

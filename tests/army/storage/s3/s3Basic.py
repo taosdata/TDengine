@@ -172,7 +172,7 @@ class TDTestCase(TBase):
         if compact is not None:
             kw3 = f"s3_compact {compact}"    
 
-        sql = f" create database db1 duration 1h {kw1} {kw2} {kw3}"
+        sql = f" create database db1 vgroups 1 duration 1h {kw1} {kw2} {kw3}"
         tdSql.execute(sql, show=True)
         #sql = f"select name,s3_keeplocal,s3_chunksize,s3_compact from information_schema.ins_databases where name='db1';"
         sql = f"select * from information_schema.ins_databases where name='db1';"
@@ -327,8 +327,6 @@ class TDTestCase(TBase):
             # check insert correct again
             self.checkInsertCorrect()
 
-            # checkBasic
-            self.checkBasic()
 
             # check stream correct and drop stream
             #self.checkStreamCorrect()
@@ -338,6 +336,10 @@ class TDTestCase(TBase):
 
             # insert history  disorder data
             self.insertHistory()
+
+            # checkBasic
+            self.checkBasic()
+
             #self.checkInsertCorrect()
             self.snapshotAgg()
             self.doAction()
