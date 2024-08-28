@@ -3328,7 +3328,7 @@ static int32_t tColDataMerge(SArray **colArr) {
   SRowKey lastKey;
   for (int32_t i = 0; i < numRows; i++) {
     SRowKey key;
-    tColDataArrGetRowKey((SColData *)TARRAY_DATA(dst), taosArrayGetSize(dst), i, &key);
+    tColDataArrGetRowKey((SColData *)TARRAY_DATA(src), taosArrayGetSize(src), i, &key);
 
     if (i == 0 || tRowKeyCompare(&key, &lastKey) != 0) {  // append new row
       for (int32_t j = 0; j < taosArrayGetSize(src); j++) {
