@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-#if defined(WINDOWS)
+#ifdef WINDOWS
 #include <tlhelp32.h>
 #include <windows.h>
 #endif
