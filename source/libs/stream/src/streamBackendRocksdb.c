@@ -1100,17 +1100,22 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
 
   (void)taosThreadRwlockWrlock(&pBackend->chkpDirLock);
 
-  (void)taosArrayPush(pBackend->chkpSaved, &chkpId);
+  if (taosArrayPush(pBackend->chkpSaved, &chkpId) == NULL) {
+    (void)taosThreadRwlockUnlock(&pBackend->chkpDirLock);
+    return TSDB_CODE_OUT_OF_MEMORY ;
+  }
 
   SArray* chkpDel = taosArrayInit(8, sizeof(int64_t));
   if (chkpDel == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    (void)taosThreadRwlockUnlock(&pBackend->chkpDirLock);
+    return TSDB_CODE_OUT_OF_MEMORY ;
   }
 
   SArray* chkpDup = taosArrayInit(8, sizeof(int64_t));
   if (chkpDup == NULL) {
     taosArrayDestroy(chkpDel);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    (void)taosThreadRwlockUnlock(&pBackend->chkpDirLock);
+    return TSDB_CODE_OUT_OF_MEMORY ;
   }
 
   int64_t firsId = 0;
