@@ -385,11 +385,11 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
   if (code == TSDB_CODE_SUCCESS) {
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
     if (code != TSDB_CODE_SUCCESS) {
-      stError("s-task:%s vgId:%d failed to handle event:%d, code:%s", pTask->id.idStr, pMeta->vgId, TASK_EVENT_INIT,
+      stError("s-task:%s vgId:%d failed to handle event:init-task, code:%s", pTask->id.idStr, pMeta->vgId,
               tstrerror(code));
 
       // do no added into result hashmap if it is failed due to concurrently starting of this stream task.
-      if (code != TSDB_CODE_STREAM_INVALID_STATETRANS) {
+      if (code != TSDB_CODE_STREAM_CONFLICT_EVENT) {
         streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
       }
     }
