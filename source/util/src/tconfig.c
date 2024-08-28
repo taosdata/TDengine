@@ -193,15 +193,15 @@ static int32_t cfgSetInt64(SConfigItem *pItem, const char *value, ECfgSrcType st
 }
 
 static int32_t cfgSetFloat(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  double dval;
+  float dval = 0;
   TAOS_CHECK_RETURN(parseCfgReal(value, &dval));
   if (dval < pItem->fmin || dval > pItem->fmax) {
-    uError("cfg:%s, type:%s src:%s value:%f out of range[%f, %f]", pItem->name, cfgDtypeStr(pItem->dtype),
+    uError("cfg:%s, type:%s src:%s value:%g out of range[%g, %g]", pItem->name, cfgDtypeStr(pItem->dtype),
            cfgStypeStr(stype), dval, pItem->fmin, pItem->fmax);
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
-  pItem->fval = (float)dval;
+  pItem->fval = dval;
   pItem->stype = stype;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -385,6 +385,10 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
     (void)taosThreadMutexUnlock(&pCfg->lock);
   }
 
+  if (code != 0){
+    uError("cfg:%s, type:%s src:%s value:%s failed since %s", pItem->name, cfgDtypeStr(pItem->dtype),
+           cfgStypeStr(stype), value, tstrerror(code));
+  }
   TAOS_RETURN(code);
 }
 
@@ -475,14 +479,14 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
     } break;
     case CFG_DTYPE_FLOAT:
     case CFG_DTYPE_DOUBLE: {
-      double  dval;
+      float  dval = 0;
       int32_t code = parseCfgReal(pVal, &dval);
       if (code != TSDB_CODE_SUCCESS) {
         cfgUnLock(pCfg);
         TAOS_RETURN(code);
       }
       if (dval < pItem->fmin || dval > pItem->fmax) {
-        uError("cfg:%s, type:%s value:%f out of range[%f, %f]", pItem->name, cfgDtypeStr(pItem->dtype), dval,
+        uError("cfg:%s, type:%s value:%g out of range[%g, %g]", pItem->name, cfgDtypeStr(pItem->dtype), dval,
                pItem->fmin, pItem->fmax);
         cfgUnLock(pCfg);
         TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);

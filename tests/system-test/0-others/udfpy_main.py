@@ -272,11 +272,23 @@ class TDTestCase:
                 if val is not None:
                     tdLog.exit(f" check {sql} not expect None.")
 
-        # concat
+        # concat - stable
         sql = f'select sf_concat_var(col12, t12), concat(col12, t12) from {self.stbname} limit 1000'
         self.verify_same_value(sql)
         sql = f'select sf_concat_nch(col13, t13), concat(col13, t13) from {self.stbname} limit 1000'
         self.verify_same_value(sql)
+
+        # concat - child table
+        sql = f'select sf_concat_var(col12, t12), concat(col12, t12) from {self.tbname}0 limit 1000'
+        self.verify_same_value(sql)
+        sql = f'select sf_concat_nch(col13, t13), concat(col13, t13) from {self.tbname}0 limit 1000'
+        self.verify_same_value(sql)
+
+        # single child
+        sql = f'select sf_concat_nch(col13, t13) from {self.tbname}1'
+        tdSql.query(sql)
+        tdSql.checkRows(5000)
+
 
     # create aggregate 
     def create_aggr_udfpy(self):
@@ -349,6 +361,12 @@ class TDTestCase:
         self.verify_same_value(sql)
         sql = f'select count(col8), af_count_float(col8) from {self.stbname}'
         self.verify_same_value(sql)
+        # child
+        sql = f'select count(col8), af_count_float(col8) from {self.tbname}0'
+        self.verify_same_value(sql)
+        sql = f'select af_count_bigint(col7) from {self.tbname}1'
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, 5000)
 
         # nest
         sql = f'select a+1000,b+1000 from (select count(col8) as a, af_count_float(col8) as b from {self.stbname})'

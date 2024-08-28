@@ -1,0 +1,17 @@
+select ASCII('hello');
+select ASCII('hello world');
+select ASCII('hello world!');
+select ASCII('hello,world.你好，世界。');
+select ASCII('北京涛思数据科技有限公司');
+select ASCII('hello') + 1;
+select ASCII('hello') - 1;
+select ASCII('hello') from ts_4893.meters limit 5;
+select ASCII('hello') + 1 from ts_4893.meters limit 1;
+select ASCII('hello') + ASCII('hello') from ts_4893.meters limit 1;
+select ASCII(nch1) from ts_4893.meters order by ts limit 5;
+select ASCII(var1) from ts_4893.meters order by ts limit 5;
+select ASCII(concat(nch1,var1)) from ts_4893.meters order by ts limit 5;
+select ASCII(cast(nch1 as varchar)) from ts_4893.meters order by ts limit 5;
+select pow(ASCII(nch1), 2) from ts_4893.meters order by ts limit 5;
+select sqrt(ASCII(nch1)) from ts_4893.meters order by ts limit 5;
+select cast(ASCII(nch1) as int) from ts_4893.meters order by ts limit 5;

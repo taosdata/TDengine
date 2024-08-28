@@ -20,6 +20,7 @@
 int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)(void *), void *arg) {
   int32_t code = pthread_create(tid, attr, start, arg);
   if (code) {
+    taosThreadClear(tid);
     terrno = TAOS_SYSTEM_ERROR(code);
     return terrno;
   }

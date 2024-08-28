@@ -2967,7 +2967,8 @@ void runSingleTest(char* caseName, SJoinTestParam* param) {
 
     jtCtx.startTsUs = taosGetTimestampUs();
     while (true) {
-      SSDataBlock* pBlock = jtCtx.pJoinOp->fpSet.getNextFn(jtCtx.pJoinOp);
+      SSDataBlock* pBlock = NULL;
+      int32_t code = jtCtx.pJoinOp->fpSet.getNextFn(jtCtx.pJoinOp, &pBlock);
       if (NULL == pBlock) {
         checkJoinDone(caseName);
         break;

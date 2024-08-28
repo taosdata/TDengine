@@ -547,7 +547,7 @@ int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrap
   pDst->nCols = cnt;
   pDst->pSchema = taosMemoryCalloc(cnt, sizeof(SSchema));
   if (pDst->pSchema == NULL) {
-    return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    return TAOS_GET_TERRNO(terrno);
   }
 
   int32_t j = 0;

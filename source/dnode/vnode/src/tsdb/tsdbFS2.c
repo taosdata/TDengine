@@ -42,7 +42,7 @@ static const char *gCurrentFname[] = {
 static int32_t create_fs(STsdb *pTsdb, STFileSystem **fs) {
   fs[0] = taosMemoryCalloc(1, sizeof(*fs[0]));
   if (fs[0] == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   fs[0]->tsdb = pTsdb;
@@ -417,7 +417,7 @@ static int32_t tsdbFSCreateFileObjHash(STFileSystem *fs, STFileHash *hash) {
   hash->numBucket = 4096;
   hash->buckets = taosMemoryCalloc(hash->numBucket, sizeof(STFileHashEntry *));
   if (hash->buckets == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   // vnode.json
@@ -1013,7 +1013,7 @@ int32_t tsdbFSCreateRefSnapshotWithoutLock(STFileSystem *fs, TFileSetArray **fse
   STFileSet *fset, *fset1;
 
   fsetArr[0] = taosMemoryCalloc(1, sizeof(*fsetArr[0]));
-  if (fsetArr[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (fsetArr[0] == NULL) return terrno;
 
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     code = tsdbTFileSetInitRef(fs->tsdb, fset, &fset1);
@@ -1025,6 +1025,7 @@ int32_t tsdbFSCreateRefSnapshotWithoutLock(STFileSystem *fs, TFileSetArray **fse
 
   if (code) {
     TARRAY2_DESTROY(fsetArr[0], tsdbTFileSetClear);
+    taosMemoryFree(fsetArr[0]);
     fsetArr[0] = NULL;
   }
   return code;
@@ -1118,7 +1119,7 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
 
   fsrArr[0] = taosMemoryCalloc(1, sizeof(*fsrArr[0]));
   if (fsrArr[0] == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _out;
   }
 
