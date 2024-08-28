@@ -971,10 +971,6 @@ void taos_init_imp(void) {
 
   tscDebug("starting to initialize TAOS driver");
 
-#ifndef WINDOWS
-  taosSetCoreDump(true);
-#endif
-
   ENV_ERR_RET(initTaskQueue(), "failed to init task queue");
   ENV_ERR_RET(fmFuncMgtInit(), "failed to init funcMgt");
   ENV_ERR_RET(nodesInitAllocatorSet(), "failed to init allocator set");
