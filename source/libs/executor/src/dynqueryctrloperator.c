@@ -879,7 +879,9 @@ static int32_t seqJoinLaunchNewRetrieve(SOperatorInfo* pOperator, SSDataBlock** 
 }
 
 static FORCE_INLINE void seqStableJoinComposeRes(SStbJoinDynCtrlInfo* pStbJoin, SSDataBlock* pBlock) {
-  pBlock->info.id.blockId = pStbJoin->outputBlkId;
+  if (pBlock != NULL) {
+    pBlock->info.id.blockId = pStbJoin->outputBlkId;
+  }
 }
 
 int32_t seqStableJoin(SOperatorInfo* pOperator, SSDataBlock** pRes) {
@@ -906,7 +908,7 @@ int32_t seqStableJoin(SOperatorInfo* pOperator, SSDataBlock** pRes) {
   }
 
   QRY_ERR_JRET(seqJoinContinueCurrRetrieve(pOperator, pRes));
-  if (pRes) {
+  if (*pRes) {
     goto _return;
   }
 
