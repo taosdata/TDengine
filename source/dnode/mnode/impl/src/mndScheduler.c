@@ -635,7 +635,7 @@ static void bindTwoLevel(SArray* tasks, int32_t begin, int32_t end) {
   int32_t code = 0;
   size_t size = taosArrayGetSize(tasks);
   if (size < 2) {
-    mError("task list size is less than 2, size:%" PRId64, size);
+    mError("task list size is less than 2");
     return;
   }
   SArray* pDownTaskList = taosArrayGetP(tasks, size - 1);
