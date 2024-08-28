@@ -476,6 +476,8 @@ int32_t subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf);
 int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf);
 int32_t transUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf);
 
+enum { REQ_STATUS_INIT = 0, REQ_STATUS_PROCESSING };
+
 #ifdef __cplusplus
 }
 #endif
