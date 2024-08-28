@@ -482,7 +482,7 @@ int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLe
   }
 
   tDecoderClear(&decoder);
-  tqDebug("tq task:0x%x (vgId:%d) recv check rsp(QID:0x%" PRIx64 ") from 0x%x (vgId:%d) status %d", rsp.upstreamTaskId,
+  tqDebug("tq task:0x%x (vgId:%d) recv check rsp(qid:0x%" PRIx64 ") from 0x%x (vgId:%d) status %d", rsp.upstreamTaskId,
           rsp.upstreamNodeId, rsp.reqId, rsp.downstreamTaskId, rsp.downstreamNodeId, rsp.status);
 
   if (!isLeader) {
@@ -582,7 +582,7 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   SStreamTask* pTask = taosMemoryCalloc(1, size);
   if (pTask == NULL) {
     tqError("vgId:%d failed to create stream task due to out of memory, alloc size:%d", vgId, size);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SDecoder decoder;

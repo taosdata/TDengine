@@ -24,7 +24,7 @@
 #include "taos_collector_registry.h"
 
 // Private
-#include "taos_assert.h"
+#include "taos_test.h"
 #include "taos_collector_registry_t.h"
 #include "taos_collector_t.h"
 #include "taos_errors.h"

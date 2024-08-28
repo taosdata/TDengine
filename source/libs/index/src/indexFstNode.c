@@ -98,7 +98,6 @@ void fstBuilderNodeCloneFrom(FstBuilderNode* dst, FstBuilderNode* src) {
 // bool fstBuilderNodeCompileTo(FstBuilderNode *b, IdxFile *wrt, CompiledAddr lastAddr, CompiledAddr
 // startAddr) {
 // size_t sz = taosArrayGetSize(b->trans);
-// ASSERT(sz < 256);
 // if (FST_BUILDER_NODE_IS_FINAL(b)
 //    && FST_BUILDER_NODE_TRANS_ISEMPTY(b)
 //    && FST_BUILDER_NODE_FINALOUTPUT_ISZERO(b)) {

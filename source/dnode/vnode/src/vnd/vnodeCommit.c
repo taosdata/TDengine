@@ -372,7 +372,7 @@ int vnodeAsyncCommit(SVnode *pVnode) {
 
   SCommitInfo *pInfo = (SCommitInfo *)taosMemoryCalloc(1, sizeof(*pInfo));
   if (NULL == pInfo) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   // prepare to commit

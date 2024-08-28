@@ -118,7 +118,8 @@ int32_t tScalableBfPut(SScalableBf* pSBf, const void* keyBuf, uint32_t len, int3
   }
 
   SBloomFilter* pNormalBf = taosArrayGetP(pSBf->bfArray, size - 1);
-  ASSERT(pNormalBf);
+  QUERY_CHECK_NULL(pNormalBf, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+
   if (tBloomFilterIsFull(pNormalBf)) {
     code = tScalableBfAddFilter(pSBf, pNormalBf->expectedEntries * pSBf->growth,
                                 pNormalBf->errorRate * DEFAULT_TIGHTENING_RATIO, &pNormalBf);

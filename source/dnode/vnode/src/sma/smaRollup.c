@@ -123,7 +123,7 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo) {
 static FORCE_INLINE int32_t tdUidStoreInit(STbUidStore **pStore) {
   *pStore = taosMemoryCalloc(1, sizeof(STbUidStore));
   if (*pStore == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    return terrno;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -285,7 +285,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
 
     SStreamTask *pStreamTask = taosMemoryCalloc(1, sizeof(*pStreamTask));
     if (!pStreamTask) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      return terrno;
     }
     pItem->pStreamTask = pStreamTask;
     pStreamTask->id.taskId = 0;
@@ -389,7 +389,7 @@ int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
   // from write queue: single thead
   pRSmaInfo = (SRSmaInfo *)taosMemoryCalloc(1, sizeof(SRSmaInfo));
   if (!pRSmaInfo) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    return terrno;
   }
 
   STSchema *pTSchema = metaGetTbTSchema(SMA_META(pSma), suid, -1, 1);
@@ -1430,7 +1430,7 @@ static void tdFreeRSmaSubmitItems(SArray *pItems, int32_t type) {
       blockDataDestroy(packData->pDataBlock);
     }
   } else {
-    ASSERTS(0, "unknown type:%d", type);
+    smaWarn("%s:%d unknown type:%d", __func__, __LINE__, type);
   }
   taosArrayClear(pItems);
 }
@@ -1540,14 +1540,13 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
           ++nDelete;
         }
       } else {
-        ASSERTS(0, "unknown msg type:%d", inputType);
+        smaWarn("%s:%d unknown msg type:%d", __func__, __LINE__, inputType);
         break;
       }
     }
 
     if (nSubmit > 0 || nDelete > 0) {
       int32_t size = TARRAY_SIZE(pSubmitArr);
-      ASSERTS(size > 0, "size is %d", size);
       int32_t inputType = nSubmit > 0 ? STREAM_INPUT__MERGED_SUBMIT : STREAM_INPUT__REF_DATA_BLOCK;
       for (int32_t i = 1; i <= TSDB_RETENTION_L2; ++i) {
         TAOS_CHECK_EXIT(tdExecuteRSmaImpl(pSma, pSubmitArr->pData, size, version, inputType, pInfo, type, i));
@@ -1677,7 +1676,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
         }
       }
     } else {
-      ASSERTS(0, "unknown rsma exec type:%d", (int32_t)type);
+      smaWarn("%s:%d unknown rsma exec type:%d", __func__, __LINE__, (int32_t)type);
       code = TSDB_CODE_APP_ERROR;
       TSDB_CHECK_CODE(code, lino, _exit);
     }

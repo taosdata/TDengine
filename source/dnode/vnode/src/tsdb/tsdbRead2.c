@@ -257,7 +257,7 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, TFileSetArray* pFileSetA
   if (pIter->pSttBlockReader == NULL) {
     pIter->pSttBlockReader = taosMemoryCalloc(1, sizeof(struct SSttBlockReader));
     if (pIter->pSttBlockReader == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       tsdbError("failed to prepare the last block iterator, since:%s %s", tstrerror(code), pReader->idStr);
       return code;
     }
@@ -507,13 +507,13 @@ static int32_t initResBlockInfo(SResultBlockInfo* pResBlockInfo, int64_t capacit
       if (IS_VAR_DATA_TYPE(pSup->pk.type)) {
         p->info.pks[0].pData = taosMemoryCalloc(1, pSup->pk.bytes);
         if (p->info.pks[0].pData == NULL) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
 
         p->info.pks[1].pData = taosMemoryCalloc(1, pSup->pk.bytes);
         if (p->info.pks[1].pData == NULL) {
           taosMemoryFreeClear(p->info.pks[0].pData);
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
 
         p->info.pks[0].nData = pSup->pk.bytes;
@@ -533,7 +533,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
   int8_t       level = 0;
   STsdbReader* pReader = (STsdbReader*)taosMemoryCalloc(1, sizeof(*pReader));
   if (pReader == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _end;
   }
 
@@ -1081,7 +1081,6 @@ static void copyNumericCols(const SColData* pData, SFileBlockDumpInfo* pDumpInfo
   int32_t step = asc ? 1 : -1;
 
   // make sure it is aligned to 8bit, the allocated memory address is aligned to 256bit
-  //  ASSERT((((uint64_t)pColData->pData) & (0x8 - 1)) == 0);
 
   // 1. copy data in a batch model
   (void)memcpy(pColData->pData, p, dumpedRows * tDataTypes[pData->type].bytes);
@@ -3828,7 +3827,6 @@ bool hasBeenDropped(const SArray* pDelList, int32_t* index, int64_t key, int64_t
         return false;
       }
 
-      // ASSERT(key >= last->ts);
       if (key > last->ts) {
         return false;
       } else if (key == last->ts) {
@@ -3891,7 +3889,7 @@ bool hasBeenDropped(const SArray* pDelList, int32_t* index, int64_t key, int64_t
       } else if (key == pFirst->ts) {
         return pFirst->version >= ver;
       } else {
-        // ASSERT(0);
+        tsdbError("unexpected error, key:%" PRId64 ", first:%" PRId64, key, pFirst->ts);
       }
     } else {
       TSDBKEY* pCurrent = taosArrayGet(pDelList, *index);
@@ -4588,6 +4586,8 @@ int32_t tsdbSetTableList2(STsdbReader* pReader, const void* pTableList, int32_t 
   STableBlockScanInfo** p = NULL;
   int32_t               iter = 0;
 
+  (void)tsdbAcquireReader(pReader);
+
   while ((p = tSimpleHashIterate(pReader->status.pTableMap, p, &iter)) != NULL) {
     clearBlockScanInfo(*p);
   }
@@ -4595,12 +4595,14 @@ int32_t tsdbSetTableList2(STsdbReader* pReader, const void* pTableList, int32_t 
   if (size < num) {
     code = ensureBlockScanInfoBuf(&pReader->blockInfoBuf, num);
     if (code) {
+      (void) tsdbReleaseReader(pReader);
       return code;
     }
 
     char* p1 = taosMemoryRealloc(pReader->status.uidList.tableUidList, sizeof(uint64_t) * num);
     if (p1 == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      (void) tsdbReleaseReader(pReader);
+      return terrno;
     }
 
     pReader->status.uidList.tableUidList = (uint64_t*)p1;
@@ -4617,16 +4619,19 @@ int32_t tsdbSetTableList2(STsdbReader* pReader, const void* pTableList, int32_t 
     STableBlockScanInfo* pInfo = NULL;
     code = getPosInBlockInfoBuf(&pReader->blockInfoBuf, i, &pInfo);
     if (code != TSDB_CODE_SUCCESS) {
+      (void) tsdbReleaseReader(pReader);
       return code;
     }
 
     code = initTableBlockScanInfo(pInfo, pList[i].uid, pReader->status.pTableMap, pReader);
     if (code != TSDB_CODE_SUCCESS) {
+      (void) tsdbReleaseReader(pReader);
       return code;
     }
   }
 
-  return TDB_CODE_SUCCESS;
+  (void) tsdbReleaseReader(pReader);
+  return code;
 }
 
 uint64_t tsdbGetReaderMaxVersion2(STsdbReader* pReader) { return pReader->info.verRange.maxVer; }
@@ -5418,7 +5423,7 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
     size_t num = taosArrayGetSize(pResBlock->pDataBlock);
     pResBlock->pBlockAgg = taosMemoryCalloc(num, sizeof(SColumnDataAgg));
     if (pResBlock->pBlockAgg == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     for (int i = 0; i < num; ++i) {
       pResBlock->pBlockAgg[i].colId = -1;

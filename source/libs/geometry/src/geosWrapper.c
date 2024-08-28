@@ -331,18 +331,26 @@ int32_t doGeosRelation(const GEOSGeometry *geom1, const GEOSPreparedGeometry *pr
 
   if (!preparedGeom1) {
     if (!swapped) {
-      ASSERT(relationFn);
+      if (!relationFn) {
+        return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+      }
       *res = relationFn(geosCtx->handle, geom1, geom2);
     } else {
-      ASSERT(swappedRelationFn);
+      if (!swappedRelationFn) {
+        return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+      }
       *res = swappedRelationFn(geosCtx->handle, geom1, geom2);
     }
   } else {
     if (!swapped) {
-      ASSERT(preparedRelationFn);
+      if (!preparedRelationFn) {
+        return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+      }
       *res = preparedRelationFn(geosCtx->handle, preparedGeom1, geom2);
     } else {
-      ASSERT(swappedPreparedRelationFn);
+      if (!swappedPreparedRelationFn) {
+        return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+      }
       *res = swappedPreparedRelationFn(geosCtx->handle, preparedGeom1, geom2);
     }
   }
@@ -391,7 +399,9 @@ int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom,
                      const GEOSPreparedGeometry **outputPreparedGeom) {
   SGeosContext *geosCtx = getThreadLocalGeosCtx();
 
-  ASSERT(outputGeom);  // it is not allowed if outputGeom is NULL
+  if (!outputGeom) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
   *outputGeom = NULL;
 
   if (outputPreparedGeom) {  // it means not to generate PreparedGeometry if outputPreparedGeom is NULL

@@ -214,12 +214,12 @@ int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t 
   while (offset <= appliedVer) {
     if (walFetchHead(pHandle->pWalReader, offset) < 0) {
       tqDebug("tmq poll: consumer:0x%" PRIx64 ", (epoch %d) vgId:%d offset %" PRId64
-              ", no more log to return, QID:0x%" PRIx64 " 0x%" PRIx64,
+              ", no more log to return, qid:0x%" PRIx64 " 0x%" PRIx64,
               pHandle->consumerId, pHandle->epoch, vgId, offset, reqId, id);
       goto END;
     }
 
-    tqDebug("vgId:%d, consumer:0x%" PRIx64 " taosx get msg ver %" PRId64 ", type: %s, QID:0x%" PRIx64 " 0x%" PRIx64,
+    tqDebug("vgId:%d, consumer:0x%" PRIx64 " taosx get msg ver %" PRId64 ", type: %s, qid:0x%" PRIx64 " 0x%" PRIx64,
             vgId, pHandle->consumerId, offset, TMSG_INFO(pHandle->pWalReader->pHead->head.msgType), reqId, id);
 
     if (pHandle->pWalReader->pHead->head.msgType == TDMT_VND_SUBMIT) {
@@ -547,7 +547,7 @@ int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrap
   pDst->nCols = cnt;
   pDst->pSchema = taosMemoryCalloc(cnt, sizeof(SSchema));
   if (pDst->pSchema == NULL) {
-    return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    return TAOS_GET_TERRNO(terrno);
   }
 
   int32_t j = 0;
@@ -676,7 +676,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
     pReader->cachedSchemaSuid = suid;
     pReader->cachedSchemaVer = sversion;
 
-    if(pReader->cachedSchemaVer != pReader->pSchemaWrapper->version) {
+    if (pReader->cachedSchemaVer != pReader->pSchemaWrapper->version) {
       tqError("vgId:%d, schema version mismatch, suid:%" PRId64 ", uid:%" PRId64 ", version:%d, cached version:%d",
               vgId, suid, uid, sversion, pReader->pSchemaWrapper->version);
       return TSDB_CODE_TQ_INTERNAL_ERROR;

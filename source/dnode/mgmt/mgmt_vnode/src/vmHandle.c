@@ -57,7 +57,11 @@ void vmGetVnodeLoadsLite(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
     if (!pVnode->failed) {
       SVnodeLoadLite vload = {0};
       if (vnodeGetLoadLite(pVnode->pImpl, &vload) == 0) {
-        (void)taosArrayPush(pInfo->pVloads, &vload);
+        if (taosArrayPush(pInfo->pVloads, &vload) == NULL) {
+          taosArrayDestroy(pInfo->pVloads);
+          pInfo->pVloads = NULL;
+          break;
+        }
       }
     }
     pIter = taosHashIterate(pMgmt->hash, pIter);
@@ -841,6 +845,9 @@ int32_t vmProcessArbHeartBeatReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   arbHbRsp.dnodeId = pMgmt->pData->dnodeId;
   strncpy(arbHbRsp.arbToken, arbHbReq.arbToken, TSDB_ARB_TOKEN_SIZE);
   arbHbRsp.hbMembers = taosArrayInit(size, sizeof(SVArbHbRspMember));
+  if (arbHbRsp.hbMembers == NULL) {
+    goto _OVER;
+  }
 
   for (int32_t i = 0; i < size; i++) {
     SVArbHbReqMember *pReqMember = taosArrayGet(arbHbReq.hbMembers, i);
@@ -865,7 +872,11 @@ int32_t vmProcessArbHeartBeatReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       continue;
     }
 
-    (void)taosArrayPush(arbHbRsp.hbMembers, &rspMember);
+    if (taosArrayPush(arbHbRsp.hbMembers, &rspMember) == NULL) {
+      dError("dnodeId:%d vgId:%d failed to push arb hb rsp member", arbHbReq.dnodeId, pReqMember->vgId);
+      vmReleaseVnode(pMgmt, pVnode);
+      goto _OVER;
+    }
 
     vmReleaseVnode(pMgmt, pVnode);
   }

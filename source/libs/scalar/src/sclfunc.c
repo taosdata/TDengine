@@ -1591,16 +1591,14 @@ int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
   SColumnInfoData *pInputData[3];
   SColumnInfoData *pOutputData = pOutput[0].columnData;
   int32_t          outputLen;
-  int32_t          numOfRows;
+  int32_t          numOfRows = 0;
 
   pInputData[0] = pInput[0].columnData;
   pInputData[1] = pInput[1].columnData;
   pInputData[2] = pInput[2].columnData;
 
   for (int32_t i = 0; i < inputNum; ++i) {
-    if (pInput[i].numOfRows > numOfRows) {
-      numOfRows = pInput[i].numOfRows;
-    }
+    numOfRows = TMAX(numOfRows, pInput[i].numOfRows);
   }
 
   outputLen = pInputData[0]->info.bytes;
@@ -1619,8 +1617,12 @@ int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     for (int32_t i = 0; i < inputNum; ++i) {
       if (colDataIsNull_s(pInputData[i], k) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]))) {
         colDataSetNULL(pOutputData, k);
-        continue;
+        hasNull = true;
+        break;
       }
+    }
+    if (hasNull) {
+      continue;
     }
 
     int32_t colIdx1 = (pInput[0].numOfRows == 1) ? 0 : k;
