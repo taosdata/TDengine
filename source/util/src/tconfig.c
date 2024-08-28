@@ -199,7 +199,7 @@ static int32_t cfgSetFloat(SConfigItem *pItem, const char *value, ECfgSrcType st
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
-  pItem->fval = (float)dval;
+  pItem->fval = dval;
   pItem->stype = stype;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
