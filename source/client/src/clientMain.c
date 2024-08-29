@@ -860,12 +860,13 @@ int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
 }
 
 int taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *rows){
-  if (res == NULL || result == NULL || *rows <= 0 || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+  if (res == NULL || result == NULL || rows == NULL || *rows <= 0 ||
+      columnIndex < 0 || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return TSDB_CODE_INVALID_PARA;
   }
 
   int32_t numOfFields = taos_num_fields(res);
-  if (columnIndex < 0 || columnIndex >= numOfFields || numOfFields == 0) {
+  if (columnIndex >= numOfFields || numOfFields == 0) {
     return TSDB_CODE_INVALID_PARA;
   }
 
