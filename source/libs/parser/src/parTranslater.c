@@ -1476,7 +1476,7 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
       pCxt->errCode = getFuncInfo(pCxt, (SFunctionNode*)pFoundNode);
       if (TSDB_CODE_SUCCESS == pCxt->errCode) {
         if (fmIsVectorFunc(((SFunctionNode*)pFoundNode)->funcId)) {
-          pCxt->errCode = TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION;
+          pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION, (*pCol)->colName);
           return DEAL_RES_ERROR;
         } else if (fmIsPseudoColumnFunc(((SFunctionNode*)pFoundNode)->funcId)) {
           if ('\0' != (*pCol)->tableAlias[0]) {
@@ -1500,6 +1500,7 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
     nodesDestroyNode(*(SNode**)pCol);
     *(SNode**)pCol = (SNode*)pNew;
     if (QUERY_NODE_COLUMN == nodeType(pFoundNode)) {
+      pCxt->errCode = TSDB_CODE_SUCCESS;
       if ('\0' != (*pCol)->tableAlias[0]) {
         return translateColumnWithPrefix(pCxt, pCol);
       } else {
@@ -1776,7 +1777,7 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
     res = translateColumnWithPrefix(pCxt, pCol);
   } else {
     bool found = false;
-    if ((clauseSupportAlias(pCxt->currClause)) &&
+    if ((pCxt->currClause == SQL_CLAUSE_ORDER_BY) &&
         !(*pCol)->node.asParam) {
       res = translateColumnUseAlias(pCxt, pCol, &found);
     }
@@ -5292,6 +5293,7 @@ static int32_t translateGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GROUPBY_WINDOW_COEXIST);
   }
   bool other;
+  pCxt->currClause = SQL_CLAUSE_GROUP_BY;
   int32_t code = translateClausePosition(pCxt, pSelect->pProjectionList, pSelect->pGroupByList, &other);
   if (TSDB_CODE_SUCCESS == code) {
     if (0 == LIST_LENGTH(pSelect->pGroupByList)) {
@@ -5301,7 +5303,6 @@ static int32_t translateGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
     code = replaceGroupByAlias(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    pCxt->currClause = SQL_CLAUSE_GROUP_BY;
     pSelect->timeLineResMode = TIME_LINE_NONE;
     code = translateExprList(pCxt, pSelect->pGroupByList);
   }

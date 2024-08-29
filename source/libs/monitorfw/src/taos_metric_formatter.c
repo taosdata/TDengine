@@ -20,7 +20,6 @@
 #include "taos_alloc.h"
 
 // Private
-#include "taos_assert.h"
 #include "taos_collector_t.h"
 #include "taos_linked_list_t.h"
 #include "taos_map_i.h"
@@ -28,7 +27,7 @@
 #include "taos_metric_sample_t.h"
 #include "taos_metric_t.h"
 #include "taos_string_builder_i.h"
-
+#include "taos_test.h"
 
 taos_metric_formatter_t *taos_metric_formatter_new() {
   taos_metric_formatter_t *self = (taos_metric_formatter_t *)taos_malloc(sizeof(taos_metric_formatter_t));

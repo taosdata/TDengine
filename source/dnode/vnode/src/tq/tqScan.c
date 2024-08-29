@@ -19,7 +19,7 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, void* pRsp, int32_t numOf
   int32_t dataStrLen = sizeof(SRetrieveTableRspForTmq) + blockGetEncodeSize(pBlock);
   void*   buf = taosMemoryCalloc(1, dataStrLen);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SRetrieveTableRspForTmq* pRetrieve = (SRetrieveTableRspForTmq*)buf;
@@ -344,7 +344,7 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, STaosxRsp* pRsp, int3
     }
     void*    createReq = taosMemoryCalloc(1, len);
     if (createReq == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto END;
     }
     SEncoder encoder = {0};

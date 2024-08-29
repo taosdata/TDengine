@@ -2927,7 +2927,7 @@ int32_t transReleaseCliHandle(void* handle) {
 }
 
 static int32_t transInitMsg(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx, SCliMsg** pCliMsg) {
-  TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
+  if (pReq->info.traceId.msgId == 0) TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
   if (pCtx == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -3095,7 +3095,7 @@ int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
     TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _RETURN1);
   }
 
-  TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
+  if (pReq->info.traceId.msgId == 0) TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
 
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
   if (pCtx == NULL) {
@@ -3207,7 +3207,7 @@ int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq,
     TAOS_CHECK_GOTO(TSDB_CODE_RPC_BROKEN_LINK, NULL, _RETURN2);
   }
 
-  TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
+  if (pReq->info.traceId.msgId == 0) TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
 
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
   if (pCtx == NULL) {

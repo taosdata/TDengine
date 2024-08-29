@@ -745,7 +745,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
 
       taosArraySort(pTableCxt->pData->aCol, insColDataComp);
 
-      code = tColDataSortMerge(pTableCxt->pData->aCol);
+      code = tColDataSortMerge(&pTableCxt->pData->aCol);
     } else {
       // skip the table has no data to insert
       // eg: import a csv without valid data

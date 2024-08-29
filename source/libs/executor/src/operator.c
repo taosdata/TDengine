@@ -862,10 +862,13 @@ int32_t optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam*
   int32_t code = setOperatorParams(pOperator, pParam, OP_GET_PARAM);
   if (TSDB_CODE_SUCCESS != code) {
     pOperator->pTaskInfo->code = code;
-    T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
+  } else {
+    code = pOperator->fpSet.getNextFn(pOperator, pRes);
+    if (code) {
+      pOperator->pTaskInfo->code = code;
+    }
   }
 
-  *pRes = pOperator->fpSet.getNextFn(pOperator);
   return code;
 }
 

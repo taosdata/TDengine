@@ -1255,7 +1255,7 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
   SIdxCursor *pCursor = NULL;
   pCursor = (SIdxCursor *)taosMemoryCalloc(1, sizeof(SIdxCursor));
   if (!pCursor) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    return terrno;
   }
   pCursor->pMeta = pMeta;
   pCursor->suid = param->suid;
@@ -1486,7 +1486,12 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
         taosHashInit(numOfElems / 0.7, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     for (int i = 0; i < numOfElems; i++) {
       STUidTagInfo *pTagInfo = taosArrayGet(pUidTagInfo, i);
-      (void)taosHashPut(pSepecifiedUidMap, &pTagInfo->uid, sizeof(uint64_t), &i, sizeof(int32_t));
+      int32_t       code = taosHashPut(pSepecifiedUidMap, &pTagInfo->uid, sizeof(uint64_t), &i, sizeof(int32_t));
+      if (code) {
+        metaCloseCtbCursor(pCur);
+        taosHashCleanup(pSepecifiedUidMap);
+        return code;
+      }
     }
   }
 

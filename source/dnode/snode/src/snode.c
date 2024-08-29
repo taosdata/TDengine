@@ -26,7 +26,9 @@
 // clang-format on
 
 int32_t sndBuildStreamTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer) {
-  ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG && taosArrayGetSize(pTask->upstreamInfo.pList) != 0);
+  if (!(pTask->info.taskLevel == TASK_LEVEL__AGG && taosArrayGetSize(pTask->upstreamInfo.pList) != 0)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t code = streamTaskInit(pTask, pSnode->pMeta, &pSnode->msgCb, nextProcessVer);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -135,7 +137,7 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       return tqStreamTaskProcessRetrieveTriggerRsp(pSnode->pMeta, pMsg);
     default:
       sndError("invalid snode msg:%d", pMsg->msgType);
-      ASSERT(0);
+      return TSDB_CODE_INVALID_MSG;
   }
   return 0;
 }
@@ -164,7 +166,7 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
     case TDMT_STREAM_CONSEN_CHKPT:
       return tqStreamTaskProcessConsenChkptIdReq(pSnode->pMeta, pMsg);
     default:
-      ASSERT(0);
+      return TSDB_CODE_INVALID_MSG;
   }
   return 0;
 }

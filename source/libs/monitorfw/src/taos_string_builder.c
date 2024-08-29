@@ -20,9 +20,9 @@
 #include "taos_alloc.h"
 
 // Private
-#include "taos_assert.h"
 #include "taos_string_builder_i.h"
 #include "taos_string_builder_t.h"
+#include "taos_test.h"
 
 // The initial size of a string created via taos_string_builder
 #define TAOS_STRING_BUILDER_INIT_SIZE 32

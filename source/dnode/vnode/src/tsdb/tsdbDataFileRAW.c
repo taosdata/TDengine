@@ -23,7 +23,7 @@ int32_t tsdbDataFileRAWReaderOpen(const char *fname, const SDataFileRAWReaderCon
 
   reader[0] = taosMemoryCalloc(1, sizeof(SDataFileRAWReader));
   if (reader[0] == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   reader[0]->config[0] = config[0];
@@ -94,7 +94,7 @@ int32_t tsdbDataFileRAWWriterOpen(const SDataFileRAWWriterConfig *config, SDataF
 
   SDataFileRAWWriter *writer = taosMemoryCalloc(1, sizeof(SDataFileRAWWriter));
   if (!writer) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   writer->config[0] = config[0];

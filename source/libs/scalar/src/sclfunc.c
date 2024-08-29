@@ -581,12 +581,12 @@ static bool isCharStart(char c) {
   return strcasecmp(tsCharset, "UTF-8") == 0 ? ((c & 0xC0) != 0x80) : true;
 }
 
-static int32_t trimHelper(char *orgStr, char* remStr, int32_t orgLen, int32_t remLen, bool trimLeft) {
+static int32_t trimHelper(char *orgStr, char* remStr, int32_t orgLen, int32_t remLen, bool trimLeft, bool isNchar) {
   if (trimLeft) {
     int32_t pos = 0;
     for (int32_t i = 0; i < orgLen; i += remLen) {
       if (memcmp(orgStr + i, remStr, remLen) == 0) {
-        if (isCharStart(orgStr[i + remLen])) {
+        if (isCharStart(orgStr[i + remLen]) || isNchar) {
           pos = i + remLen;
           continue;
         } else {
@@ -601,7 +601,7 @@ static int32_t trimHelper(char *orgStr, char* remStr, int32_t orgLen, int32_t re
     int32_t pos = orgLen;
     for (int32_t i = orgLen - remLen; i >= 0; i -= remLen) {
       if (memcmp(orgStr + i, remStr, remLen) == 0) {
-        if (isCharStart(orgStr[i])) {
+        if (isCharStart(orgStr[i]) || isNchar) {
           pos = i;
           continue;
         } else {
@@ -671,7 +671,7 @@ static int32_t tltrim(char *input, char *remInput, char *output, int32_t inputTy
     return TSDB_CODE_SUCCESS;
   }
 
-  pos = trimHelper(orgStr, remStr, orgLen, remLen, true);
+  pos = trimHelper(orgStr, remStr, orgLen, remLen, true, inputType == TSDB_DATA_TYPE_NCHAR);
 
   if (needFree) {
     taosMemoryFree(remStr);
@@ -735,7 +735,7 @@ static int32_t trtrim(char *input, char *remInput, char *output, int32_t inputTy
     return TSDB_CODE_SUCCESS;
   }
 
-  pos = trimHelper(orgStr, remStr, orgLen, remLen, false);
+  pos = trimHelper(orgStr, remStr, orgLen, remLen, false, inputType == TSDB_DATA_TYPE_NCHAR);
 
   if (needFree) {
     taosMemoryFree(remStr);
@@ -769,8 +769,8 @@ static int32_t tlrtrim(char *input, char *remInput, char *output, int32_t inputT
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t leftPos = trimHelper(orgStr, remStr, orgLen, remLen, true);
-  int32_t rightPos = trimHelper(orgStr, remStr, orgLen, remLen, false);
+  int32_t leftPos = trimHelper(orgStr, remStr, orgLen, remLen, true, inputType == TSDB_DATA_TYPE_NCHAR);
+  int32_t rightPos = trimHelper(orgStr, remStr, orgLen, remLen, false, inputType == TSDB_DATA_TYPE_NCHAR);
 
   if (needFree) {
     taosMemoryFree(remStr);
@@ -1112,12 +1112,15 @@ _return:
   return code;
 }
 
-static int32_t findPosBytes(char *orgStr, char *delimStr, int32_t orgLen, int32_t delimLen, int32_t charNums) {
+static int32_t findPosBytes(char *orgStr, char *delimStr, int32_t orgLen, int32_t delimLen, int32_t charNums, bool isNchar) {
   int32_t charCount = 0;
   if (charNums > 0) {
     for (int32_t pos = 0; pos < orgLen; pos++) {
       if (delimStr) {
-        if (isCharStart(orgStr[pos]) && memcmp(orgStr + pos, delimStr, delimLen) == 0) {
+        if (pos + delimLen > orgLen)  {
+          return orgLen;
+        }
+        if ((isCharStart(orgStr[pos]) || isNchar) && memcmp(orgStr + pos, delimStr, delimLen) == 0) {
           charCount++;
           if (charCount == charNums) {
             return pos;
@@ -1125,7 +1128,7 @@ static int32_t findPosBytes(char *orgStr, char *delimStr, int32_t orgLen, int32_
           pos = pos + delimLen - 1;
         }
       } else {
-        if (isCharStart(orgStr[pos])) {
+        if ((isCharStart(orgStr[pos]) || isNchar)) {
           charCount++;
           if (charCount == charNums) {
             return pos;
@@ -1136,8 +1139,8 @@ static int32_t findPosBytes(char *orgStr, char *delimStr, int32_t orgLen, int32_
     return orgLen;
   } else {
     if (delimStr) {
-      for (int32_t pos = orgLen - 1; pos >= 0; pos--) {
-        if (isCharStart(orgStr[pos]) && memcmp(orgStr + pos, delimStr, delimLen) == 0) {
+      for (int32_t pos = orgLen - delimLen; pos >= 0; pos--) {
+        if ((isCharStart(orgStr[pos]) || isNchar) && memcmp(orgStr + pos, delimStr, delimLen) == 0) {
           charCount++;
           if (charCount == -charNums) {
             return pos + delimLen;
@@ -1147,7 +1150,7 @@ static int32_t findPosBytes(char *orgStr, char *delimStr, int32_t orgLen, int32_
       }
     } else {
       for (int32_t pos = orgLen - 1; pos >= 0; pos--) {
-        if (isCharStart(orgStr[pos])) {
+        if ((isCharStart(orgStr[pos]) || isNchar)) {
           charCount++;
           if (charCount == -charNums) {
             return pos;
@@ -1224,17 +1227,17 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     int32_t startPosBytes;
     int32_t endPosBytes = len;
     if (subPos > 0) {
-      startPosBytes = (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_VARCHAR) ? findPosBytes(varDataVal(input), NULL, varDataLen(input), -1, subPos) : (subPos - 1) * TSDB_NCHAR_SIZE;
+      startPosBytes = (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_VARCHAR) ? findPosBytes(varDataVal(input), NULL, varDataLen(input), -1, subPos, false) : (subPos - 1) * TSDB_NCHAR_SIZE;
       startPosBytes = TMIN(startPosBytes, len);
     } else {
       startPosBytes =
-          (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_VARCHAR) ? findPosBytes(varDataVal(input), NULL, varDataLen(input), -1, subPos) : len + subPos * TSDB_NCHAR_SIZE;
+          (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_VARCHAR) ? findPosBytes(varDataVal(input), NULL, varDataLen(input), -1, subPos, false) : len + subPos * TSDB_NCHAR_SIZE;
       startPosBytes = TMAX(startPosBytes, 0);
     }
     if (inputNum == 3) {
       endPosBytes =
           (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_VARCHAR)
-              ? startPosBytes + findPosBytes(varDataVal(input) + startPosBytes, NULL, varDataLen(input) - startPosBytes, -1, subLen + 1)
+              ? startPosBytes + findPosBytes(varDataVal(input) + startPosBytes, NULL, varDataLen(input) - startPosBytes, -1, subLen + 1, false)
               : startPosBytes + subLen * TSDB_NCHAR_SIZE;
       endPosBytes = TMIN(endPosBytes, len);
     }
@@ -1375,18 +1378,31 @@ int32_t asciiFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
       colDataSetNULL(pOutputData, i);
       continue;
     }
-    char *in = colDataGetData(pInputData, i);
-    out[i] = (uint8_t)(varDataVal(in))[0];
+    if (type == TSDB_DATA_TYPE_NCHAR) {
+      char   *in = varDataVal(colDataGetData(pInputData, i));
+      int32_t inLen = varDataLen(colDataGetData(pInputData, i));
+      SCL_ERR_RET(convBetweenNcharAndVarchar(varDataVal(colDataGetData(pInputData, i)), &in,
+                                             varDataLen(colDataGetData(pInputData, i)), &inLen,
+                                             TSDB_DATA_TYPE_VARBINARY));
+      out[i] = (uint8_t)(in)[0];
+      taosMemoryFree(in);
+    } else {
+      char *in = colDataGetData(pInputData, i);
+      out[i] = (uint8_t)(varDataVal(in))[0];
+    }
   }
 
   pOutput->numOfRows = pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t findPosChars(char *orgStr, char *delimStr, int32_t orgLen, int32_t delimLen, bool isUcs4) {
+static int32_t findPosChars(char *orgStr, char *delimStr, int32_t orgLen, int32_t delimLen, bool isNchar) {
   int32_t charCount = 0;
-  for (int32_t pos = 0; pos < orgLen; pos += isUcs4 ? TSDB_NCHAR_SIZE : 1) {
-    if (isUcs4 || isCharStart(orgStr[pos])) {
+  for (int32_t pos = 0; pos < orgLen; pos += isNchar ? TSDB_NCHAR_SIZE : 1) {
+    if (isNchar || isCharStart(orgStr[pos])) {
+      if (pos + delimLen > orgLen) {
+        return 0;
+      }
       if (memcmp(orgStr + pos, delimStr, delimLen) == 0) {
         return charCount + 1;
       } else {
@@ -1487,19 +1503,14 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
   }
 
   int8_t  orgType = pInputData[0]->info.type;
-  int8_t  fromType = pInputData[1]->info.type;
   int8_t  toType = pInputData[2]->info.type;
-  int32_t orgLength = pInputData[0]->info.bytes;
-  int32_t fromLength = pInputData[1]->info.bytes;
-  int32_t toLength = pInputData[2]->info.bytes;
+  int32_t orgLength = pInputData[0]->info.bytes - VARSTR_HEADER_SIZE;
+  int32_t toLength = pInputData[2]->info.bytes - VARSTR_HEADER_SIZE;
 
-  if (orgType == TSDB_DATA_TYPE_VARBINARY && fromType != orgType) {
-    fromLength = fromLength / TSDB_NCHAR_SIZE;
-  }
   if (orgType == TSDB_DATA_TYPE_NCHAR && toType != orgType) {
     toLength = toLength * TSDB_NCHAR_SIZE;
   }
-  outputLen = TMAX(orgLength, orgLength + orgLength / fromLength * (toLength - fromLength));
+  outputLen = toLength == 0 ? orgLength : TMIN(TSDB_MAX_FIELD_LEN, orgLength * toLength);
 
   if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL ||
       GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NULL ||
@@ -1528,14 +1539,22 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
     char   *output = outputBuf + VARSTR_HEADER_SIZE;
     int32_t totalLen = 0;
 
-    char   *orgStr = varDataVal(colDataGetData(pInputData[0], i));
-    int32_t orgLen = varDataLen(colDataGetData(pInputData[0], i));
+    char   *orgStr = varDataVal(colDataGetData(pInputData[0], colIdx1));
+    int32_t orgLen = varDataLen(colDataGetData(pInputData[0], colIdx1));
     char   *fromStr = varDataVal(colDataGetData(pInputData[1], colIdx2));
     int32_t fromLen = varDataLen(colDataGetData(pInputData[1], colIdx2));
     char   *toStr = varDataVal(colDataGetData(pInputData[2], colIdx3));
     int32_t toLen = varDataLen(colDataGetData(pInputData[2], colIdx3));
     bool    needFreeFrom = false;
     bool    needFreeTo = false;
+
+    if (fromLen == 0 || orgLen == 0) {
+      (void)memcpy(output, orgStr, orgLen);
+      totalLen = orgLen;
+      varDataSetLen(outputBuf, totalLen);
+      SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
+      continue;
+    }
 
     if (GET_PARAM_TYPE(&pInput[1]) != GET_PARAM_TYPE(&pInput[0])) {
       SCL_ERR_JRET(convBetweenNcharAndVarchar(varDataVal(colDataGetData(pInputData[1], colIdx2)), &fromStr,
@@ -1558,7 +1577,16 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
 
     int32_t pos = 0;
     while (pos < orgLen) {
-      if (memcmp(orgStr + pos, fromStr, fromLen) == 0) {
+      if (orgLen - pos < fromLen) {
+        (void)memcpy(output, orgStr + pos, orgLen - pos);
+        output += orgLen - pos;
+        totalLen += orgLen - pos;
+        break;
+      }
+      if (memcmp(orgStr + pos, fromStr, fromLen) == 0 &&
+          (pos + fromLen == orgLen ||
+           isCharStart(orgStr[pos + fromLen]) ||
+           GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR)) {
         (void)memcpy(output, toStr, toLen);
         output += toLen;
         pos += fromLen;
@@ -1577,6 +1605,9 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
     if (needFreeFrom) {
       taosMemoryFree(fromStr);
     }
+    if (totalLen > TSDB_MAX_FIELD_LEN) {
+      SCL_ERR_JRET(TSDB_CODE_FUNC_INVALID_RES_LENGTH);
+    }
     varDataSetLen(outputBuf, totalLen);
     SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
   }
@@ -1591,16 +1622,14 @@ int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
   SColumnInfoData *pInputData[3];
   SColumnInfoData *pOutputData = pOutput[0].columnData;
   int32_t          outputLen;
-  int32_t          numOfRows;
+  int32_t          numOfRows = 0;
 
   pInputData[0] = pInput[0].columnData;
   pInputData[1] = pInput[1].columnData;
   pInputData[2] = pInput[2].columnData;
 
   for (int32_t i = 0; i < inputNum; ++i) {
-    if (pInput[i].numOfRows > numOfRows) {
-      numOfRows = pInput[i].numOfRows;
-    }
+    numOfRows = TMAX(numOfRows, pInput[i].numOfRows);
   }
 
   outputLen = pInputData[0]->info.bytes;
@@ -1619,8 +1648,12 @@ int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     for (int32_t i = 0; i < inputNum; ++i) {
       if (colDataIsNull_s(pInputData[i], k) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]))) {
         colDataSetNULL(pOutputData, k);
-        continue;
+        hasNull = true;
+        break;
       }
+    }
+    if (hasNull) {
+      continue;
     }
 
     int32_t colIdx1 = (pInput[0].numOfRows == 1) ? 0 : k;
@@ -1644,9 +1677,9 @@ int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 
     if (count > 0) {
       startPosBytes = 0;
-      endPosBytes = findPosBytes(orgStr, delimStr, orgLen, delimLen, count);
+      endPosBytes = findPosBytes(orgStr, delimStr, orgLen, delimLen, count, GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR);
     } else if (count < 0) {
-      startPosBytes = findPosBytes(orgStr, delimStr, orgLen, delimLen, count);
+      startPosBytes = findPosBytes(orgStr, delimStr, orgLen, delimLen, count, GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR);
       endPosBytes = orgLen;
     } else {
       startPosBytes = endPosBytes = 0;
@@ -1690,6 +1723,9 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
   for (int32_t i = 0; i < pInput[1].numOfRows; i++) {
     int32_t tmpCount = 0;
+    if (colDataIsNull_s(pInput[1].columnData, i)) {
+      continue;
+    }
     GET_TYPED_DATA(tmpCount, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i));
     maxCount = TMAX(maxCount, tmpCount);
   }
@@ -2924,12 +2960,13 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
         colDataSetNULL(pOutputData, i);
         continue;
       }
+      double in2;
+      GET_TYPED_DATA(in2, double, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInputData[1], i));
       switch (GET_PARAM_TYPE(&pInput[0])) {
         case TSDB_DATA_TYPE_DOUBLE: {
           double  *in = (double *)pInputData[0]->pData;
-          int64_t *in2 = (int64_t *)pInputData[1]->pData;
           double  *out = (double *)pOutputData->pData;
-          double  result = d1(in[i], (double)in2[i]);
+          double  result = d1(in[i], in2);
           if (isinf(result) || isnan(result)) {
             colDataSetNULL(pOutputData, i);
           } else {
@@ -2939,9 +2976,8 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
         }
         case TSDB_DATA_TYPE_FLOAT: {
           float   *in = (float *)pInputData[0]->pData;
-          int64_t *in2 = (int64_t *)pInputData[1]->pData;
           float   *out = (float *)pOutputData->pData;
-          float   result = f1(in[i], (float)in2[i]);
+          float   result = f1(in[i], (float)in2);
           if (isinf(result) || isnan(result)) {
             colDataSetNULL(pOutputData, i);
           } else {
@@ -2954,9 +2990,8 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
         case TSDB_DATA_TYPE_INT:
         case TSDB_DATA_TYPE_BIGINT:{
           int64_t *in = (int64_t *)pInputData[0]->pData;
-          int64_t *in2 = (int64_t *)pInputData[1]->pData;
           int64_t *out = (int64_t *)pOutputData->pData;
-          int64_t result = (int64_t)d1((double)in[i], (double)in2[i]);
+          int64_t result = (int64_t)d1((double)in[i], in2);
           out[i] = result;
           break;
         }
@@ -2965,9 +3000,8 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
         case TSDB_DATA_TYPE_UINT:
         case TSDB_DATA_TYPE_UBIGINT:{
           uint64_t *in = (uint64_t *)pInputData[0]->pData;
-          int64_t  *in2 = (int64_t *)pInputData[1]->pData;
           uint64_t *out = (uint64_t *)pOutputData->pData;
-          uint64_t result = (uint64_t)d1((double)in[i], (double)in2[i]);
+          uint64_t result = (uint64_t)d1((double)in[i], in2);
           out[i] = result;
           break;
         }
@@ -2982,12 +3016,13 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
           colDataSetNULL(pOutputData, i);
           continue;
         }
+        double in2;
+        GET_TYPED_DATA(in2, double, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInputData[1], i));
         switch (GET_PARAM_TYPE(&pInput[0])) {
           case TSDB_DATA_TYPE_DOUBLE: {
             double   *in = (double *)pInputData[0]->pData;
-            int64_t  *in2 = (int64_t *)pInputData[1]->pData;
             double   *out = (double *)pOutputData->pData;
-            double   result = d1(in[0], (double)in2[i]);
+            double   result = d1(in[0], in2);
             if (isinf(result) || isnan(result)) {
               colDataSetNULL(pOutputData, i);
             } else {
@@ -2997,9 +3032,8 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
           }
           case TSDB_DATA_TYPE_FLOAT: {
             float   *in = (float *)pInputData[0]->pData;
-            int64_t *in2 = (int64_t *)pInputData[1]->pData;
             float   *out = (float *)pOutputData->pData;
-            float   result = f1(in[0], (float)in2[i]);
+            float   result = f1(in[0], (float)in2);
             if (isinf(result) || isnan(result)) {
               colDataSetNULL(pOutputData, i);
             } else {
@@ -3012,9 +3046,8 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
           case TSDB_DATA_TYPE_INT:
           case TSDB_DATA_TYPE_BIGINT:{
             int64_t *in = (int64_t *)pInputData[0]->pData;
-            int64_t *in2 = (int64_t *)pInputData[1]->pData;
             int64_t *out = (int64_t *)pOutputData->pData;
-            int64_t result = (int64_t)d1((double)in[0], (double)in2[i]);
+            int64_t result = (int64_t)d1((double)in[0], in2);
             out[i] = result;
             break;
           }
@@ -3023,9 +3056,8 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
           case TSDB_DATA_TYPE_UINT:
           case TSDB_DATA_TYPE_UBIGINT:{
             uint64_t *in = (uint64_t *)pInputData[0]->pData;
-            int64_t  *in2 = (int64_t *)pInputData[1]->pData;
             uint64_t *out = (uint64_t *)pOutputData->pData;
-            uint64_t result = (uint64_t)d1((double)in[0], (double)in2[i]);
+            uint64_t result = (uint64_t)d1((double)in[0], in2);
             out[i] = result;
             break;
           }
@@ -3041,12 +3073,13 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
           colDataSetNULL(pOutputData, i);
           continue;
         }
+        double in2;
+        GET_TYPED_DATA(in2, double, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInputData[1], 0));
         switch (GET_PARAM_TYPE(&pInput[0])) {
           case TSDB_DATA_TYPE_DOUBLE: {
             double   *in = (double *)pInputData[0]->pData;
-            int64_t  *in2 = (int64_t *)pInputData[1]->pData;
             double   *out = (double *)pOutputData->pData;
-            double   result = d1(in[i], (double)in2[0]);
+            double   result = d1(in[i], in2);
             if (isinf(result) || isnan(result)) {
               colDataSetNULL(pOutputData, i);
             } else {
@@ -3056,9 +3089,8 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
           }
           case TSDB_DATA_TYPE_FLOAT: {
             float   *in = (float *)pInputData[0]->pData;
-            int64_t *in2 = (int64_t *)pInputData[1]->pData;
             float   *out = (float *)pOutputData->pData;
-            float   result = f1(in[i], (float)in2[0]);
+            float   result = f1(in[i], in2);
             if (isinf(result) || isnan(result)) {
               colDataSetNULL(pOutputData, i);
             } else {
@@ -3071,9 +3103,8 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
           case TSDB_DATA_TYPE_INT:
           case TSDB_DATA_TYPE_BIGINT:{
             int64_t *in = (int64_t *)pInputData[0]->pData;
-            int64_t *in2 = (int64_t *)pInputData[1]->pData;
             int64_t *out = (int64_t *)pOutputData->pData;
-            int64_t result = (int64_t)d1((double)in[i], (double)in2[0]);
+            int64_t result = (int64_t)d1((double)in[i], in2);
             out[i] = result;
             break;
           }
@@ -3082,9 +3113,8 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
           case TSDB_DATA_TYPE_UINT:
           case TSDB_DATA_TYPE_UBIGINT:{
             uint64_t *in = (uint64_t *)pInputData[0]->pData;
-            int64_t  *in2 = (int64_t *)pInputData[1]->pData;
             uint64_t *out = (uint64_t *)pOutputData->pData;
-            uint64_t result = (uint64_t)d1((double)in[i], (double)in2[0]);
+            uint64_t result = (uint64_t)d1((double)in[i], in2);
             out[i] = result;
             break;
           }

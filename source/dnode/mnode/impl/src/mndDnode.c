@@ -430,7 +430,9 @@ static void mndGetDnodeEps(SMnode *pMnode, SArray *pDnodeEps) {
     if (mndIsMnode(pMnode, pDnode->id)) {
       dnodeEp.isMnode = 1;
     }
-    (void)taosArrayPush(pDnodeEps, &dnodeEp);
+    if (taosArrayPush(pDnodeEps, &dnodeEp) == NULL) {
+      mError("failed to put ep into array, but continue at this call");
+    }
   }
 }
 
@@ -991,7 +993,12 @@ static int32_t mndProcessDnodeListReq(SRpcMsg *pReq) {
     tstrncpy(epSet.eps[0].fqdn, pObj->fqdn, TSDB_FQDN_LEN);
     epSet.eps[0].port = pObj->port;
 
-    (void)taosArrayPush(rsp.dnodeList, &epSet);
+    if (taosArrayPush(rsp.dnodeList, &epSet) == NULL) {
+      if (terrno != 0) code = terrno;
+      sdbRelease(pSdb, pObj);
+      sdbCancelFetch(pSdb, pIter);
+      goto _OVER;
+    }
 
     sdbRelease(pSdb, pObj);
   }
@@ -1845,7 +1852,9 @@ SArray *mndGetAllDnodeFqdns(SMnode *pMnode) {
     if (pIter == NULL) break;
 
     char *fqdn = taosStrdup(pObj->fqdn);
-    (void)taosArrayPush(fqdns, &fqdn);
+    if (taosArrayPush(fqdns, &fqdn) == NULL) {
+      mError("failed to fqdn into array, but continue at this time");
+    }
     sdbRelease(pSdb, pObj);
   }
   return fqdns;

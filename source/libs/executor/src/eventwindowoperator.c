@@ -39,9 +39,9 @@ typedef struct SEventWindowOperatorInfo {
   SSDataBlock*       pPreDataBlock;
 } SEventWindowOperatorInfo;
 
-static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator);
-static void         destroyEWindowOperatorInfo(void* param);
-static int32_t      eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo, SSDataBlock* pBlock);
+static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** pRes);
+static void    destroyEWindowOperatorInfo(void* param);
+static int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo, SSDataBlock* pBlock);
 
 // todo : move to  util
 static void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex,
@@ -131,7 +131,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
 
   setOperatorInfo(pOperator, "EventWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, eventWindowAggregate, NULL, destroyEWindowOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, eventWindowAggregateNext, NULL, destroyEWindowOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
@@ -248,12 +248,6 @@ _end:
   }
   (*ppRes) =  pRes->info.rows == 0 ? NULL : pRes;
   return code;
-}
-
-static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t code = eventWindowAggregateNext(pOperator, &pRes);
-  return pRes;
 }
 
 static int32_t setSingleOutputTupleBufv1(SResultRowInfo* pResultRowInfo, STimeWindow* win, SResultRow** pResult,

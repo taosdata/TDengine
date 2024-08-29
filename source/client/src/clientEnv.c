@@ -477,7 +477,7 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
                      STscObj **pObj) {
   *pObj = (STscObj *)taosMemoryCalloc(1, sizeof(STscObj));
   if (NULL == *pObj) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pObj)->pRequests = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
@@ -556,7 +556,7 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   (*pRequest)->inCallback = false;
   (*pRequest)->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   if (NULL == (*pRequest)->msgBuf) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _return;
   }
   (*pRequest)->msgBufLen = ERROR_MSG_BUF_DEFAULT_SIZE;
@@ -970,10 +970,6 @@ void taos_init_imp(void) {
   ENV_ERR_RET(schedulerInit(), "failed to init scheduler");
 
   tscDebug("starting to initialize TAOS driver");
-
-#ifndef WINDOWS
-  taosSetCoreDump(true);
-#endif
 
   ENV_ERR_RET(initTaskQueue(), "failed to init task queue");
   ENV_ERR_RET(fmFuncMgtInit(), "failed to init funcMgt");

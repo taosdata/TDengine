@@ -326,7 +326,7 @@ static int32_t vnodeAsyncInit(SVAsync **async, const char *label) {
 
   (*async) = (SVAsync *)taosMemoryCalloc(1, sizeof(SVAsync) + strlen(label) + 1);
   if ((*async) == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   strcpy((char *)((*async) + 1), label);
@@ -480,7 +480,7 @@ int32_t vnodeAsync(SVAChannelID *channelID, EVAPriority priority, int32_t (*exec
   // create task object
   SVATask *task = (SVATask *)taosMemoryCalloc(1, sizeof(SVATask));
   if (task == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   task->priority = priority;

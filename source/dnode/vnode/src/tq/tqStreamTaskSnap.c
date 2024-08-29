@@ -39,7 +39,7 @@ int32_t streamTaskSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTa
   // alloc
   pReader = (SStreamTaskReader*)taosMemoryCalloc(1, sizeof(SStreamTaskReader));
   if (pReader == NULL) {
-    TAOS_CHECK_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_RETURN(terrno);
   }
   pReader->pTq = pTq;
   pReader->sver = sver;
@@ -120,7 +120,7 @@ NextTbl:
     } else {
       pVal = taosMemoryCalloc(1, tLen);
       if (pVal == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _err;
       }
       memcpy(pVal, tVal, tLen);
@@ -181,7 +181,7 @@ int32_t streamTaskSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTa
   // alloc
   pWriter = (SStreamTaskWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
   if (pWriter == NULL) {
-    TAOS_CHECK_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_RETURN(terrno);
   }
   pWriter->pTq = pTq;
   pWriter->sver = sver;

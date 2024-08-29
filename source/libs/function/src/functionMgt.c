@@ -115,24 +115,20 @@ EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWin
   return funcMgtBuiltins[pFunc->funcId].dataRequiredFunc(pFunc, pTimeWindow);
 }
 
-int32_t fmFuncDynDataRequired(int32_t funcId, void* pRes, SDataBlockInfo* pBlockInfo, int32_t *reqStatus) {
+EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, SDataBlockInfo* pBlockInfo) {
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
-    *reqStatus = -1;
-    return TSDB_CODE_FAILED;
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
 
   const char* name = funcMgtBuiltins[funcId].name;
   if ((strcmp(name, "_group_key") == 0) || (strcmp(name, "_select_value") == 0)) {
-    *reqStatus = FUNC_DATA_REQUIRED_NOT_LOAD;
-    return TSDB_CODE_SUCCESS;;
+    return FUNC_DATA_REQUIRED_NOT_LOAD;;
   }
 
   if (funcMgtBuiltins[funcId].dynDataRequiredFunc == NULL) {
-    *reqStatus = FUNC_DATA_REQUIRED_DATA_LOAD;
-    return TSDB_CODE_SUCCESS;
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
   } else {
-    *reqStatus = funcMgtBuiltins[funcId].dynDataRequiredFunc(pRes, pBlockInfo);
-    return TSDB_CODE_SUCCESS;
+    return funcMgtBuiltins[funcId].dynDataRequiredFunc(pRes, pBlockInfo);
   }
 }
 

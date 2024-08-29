@@ -498,7 +498,12 @@ int32_t mndCreateQnodeList(SMnode *pMnode, SArray **pList, int32_t limit) {
     nodeLoad.addr.epSet.eps[0].port = pObj->pDnode->port;
     nodeLoad.load = QNODE_LOAD_VALUE(pObj);
 
-    (void)taosArrayPush(qnodeList, &nodeLoad);
+    if (taosArrayPush(qnodeList, &nodeLoad) == NULL) {
+      sdbRelease(pSdb, pObj);
+      sdbCancelFetch(pSdb, pIter);
+      if (terrno != 0) code = terrno;
+      return code;
+    }
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
