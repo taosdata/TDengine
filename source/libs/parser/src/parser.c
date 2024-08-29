@@ -335,6 +335,7 @@ int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, SSDataBlock
 static void destoryTablesReq(void *p) {
   STablesReq *pRes = (STablesReq *)p;
   taosArrayDestroy(pRes->pTables);
+  pRes->pTables = NULL;
 }
 
 void destoryCatalogReq(SCatalogReq *pCatalogReq) {
