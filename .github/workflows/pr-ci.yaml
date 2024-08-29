@@ -238,6 +238,8 @@ jobs:
         continue-on-error: true
         run: |
           echo "container_id: ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}"
+          # 删除之前的测试结果，以防重新执行的时候由于旧的数据导致计算通过率错误
+          rm -rf $COVERAGE_BASE_DIR/$DIR_PATH/
           ls $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
           # docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && poetry add pytest-xdist && poetry add pytest-rerunfailures && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile --reruns 3 --reruns-delay 2"
 
@@ -256,7 +258,7 @@ jobs:
           echo "see report at $REPORT_BASE_URL/$DIR_PATH/allure_report/"
           pass_rate=$(cd /data/github/TestNG_taosX && /root/.local/bin/poetry run python3 testng_taosx/ci_calculate_pass_rate.py $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile)
           # 若通过率小于 100 则返回失败
-          echo $pass_rate
+          echo "Pass Rate: $pass_rate"
           awk "BEGIN {exit ($pass_rate < 100)}"
       
   clean_up:
