@@ -2930,6 +2930,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
   if (*rows <= 0) {
     uError("Invalid rows %d in block", *rows);
     terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    return -1;
   }
 
   int32_t* cols = (int32_t*)data;
