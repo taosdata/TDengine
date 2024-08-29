@@ -184,16 +184,31 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   code = mndTransValidate(pMnode, pRaw);
   if (code != 0) {
     mError("trans:%d, failed to validate requested trans since %s", transId, terrstr());
-    // code = 0;
+    code = 0;
     pMeta->code = code;
     goto _OUT;
+  }
+
+  if (transId == 17) {
+    SHashObj *hash = sdbGetHash(pMnode->pSdb, pRaw->type);
+    if (hash == NULL) return terrno;
+
+    SdbDecodeFp decodeFp = pMnode->pSdb->decodeFps[pRaw->type];
+    SSdbRow    *pRow = (*decodeFp)(pRaw);
+
+    STrans *pTrans = (STrans *)pRow->pObj;
+    if (pTrans->stage != TRN_STAGE_COMMIT) {
+      code = 0;
+      pMeta->code = -1;
+      goto _OUT;
+    }
   }
 
   (void)taosThreadMutexLock(&pMnode->pSdb->filelock);
   code = sdbWriteWithoutFree(pMnode->pSdb, pRaw);
   if (code != 0) {
     mError("trans:%d, failed to write to sdb since %s", transId, terrstr());
-    // code = 0;
+    code = 0;
     (void)taosThreadMutexUnlock(&pMnode->pSdb->filelock);
     pMeta->code = code;
     goto _OUT;

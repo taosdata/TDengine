@@ -116,7 +116,7 @@ void sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper) {
 #endif
 }
 
-static SHashObj *sdbGetHash(SSdb *pSdb, int32_t type) {
+SHashObj *sdbGetHash(SSdb *pSdb, int32_t type) {
   if (type >= SDB_MAX || type < 0) {
     terrno = TSDB_CODE_SDB_INVALID_TABLE_TYPE;
     return NULL;
