@@ -39,8 +39,17 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
 
   *pNew = *pDataBlock->pData;
 
-  cloneSVreateTbReq(pDataBlock->pData->pCreateTbReq, &pNew->pCreateTbReq);
+  int32_t code = cloneSVreateTbReq(pDataBlock->pData->pCreateTbReq, &pNew->pCreateTbReq);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosMemoryFreeClear(*pData);
+    return code;
+  }
   pNew->aCol = taosArrayDup(pDataBlock->pData->aCol, NULL);
+  if (!pNew->aCol) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFreeClear(*pData);
+    return code;
+  }
 
   int32_t colNum = taosArrayGetSize(pNew->aCol);
   for (int32_t i = 0; i < colNum; ++i) {
@@ -152,7 +161,10 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
         goto end;
       }
     }
-    taosArrayPush(tagName, pTagSchema->name);
+    if (NULL == taosArrayPush(tagName, pTagSchema->name)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto end;
+    }
     if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
       if (colLen > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
         code = buildSyntaxErrMsg(&pBuf, "json string too long than 4095", bind[c].buffer);
@@ -198,7 +210,10 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
       } else {
         memcpy(&val.i64, bind[c].buffer, colLen);
       }
-      taosArrayPush(pTagArray, &val);
+      if (NULL == taosArrayPush(pTagArray, &val)) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto end;
+      }
     }
   }
 
@@ -433,7 +448,7 @@ int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bi
     pBind = bind;
   }
 
-  tColDataAddValueByBind(pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1);
+  code = tColDataAddValueByBind(pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1);
 
   qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 
@@ -518,6 +533,10 @@ int32_t qResetStmtColumns(SArray* pCols, bool deepClear) {
 
   for (int32_t i = 0; i < colNum; ++i) {
     SColData* pCol = (SColData*)taosArrayGet(pCols, i);
+    if (pCol == NULL){
+      qError("qResetStmtColumns column is NULL");
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     if (deepClear) {
       tColDataDeepClear(pCol);
     } else {
@@ -534,6 +553,10 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
 
   for (int32_t i = 0; i < colNum; ++i) {
     SColData* pCol = (SColData*)taosArrayGet(pBlock->pData->aCol, i);
+    if (pCol == NULL){
+      qError("qResetStmtDataBlock column is NULL");
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     if (deepClear) {
       tColDataDeepClear(pCol);
     } else {

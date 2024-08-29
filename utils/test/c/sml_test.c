@@ -121,7 +121,8 @@ int smlProcess_json1_Test() {
   char *sql1[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql1[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql1[i], sql[i], 1023);
+    ASSERT(sql1[i] != NULL);
+    (void)strncpy(sql1[i], sql[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
@@ -149,7 +150,8 @@ int smlProcess_json1_Test() {
   char *sql3[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql3[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql3[i], sql2[i], 1023);
+    ASSERT(sql3[i] != NULL);
+    (void)strncpy(sql3[i], sql2[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql3, sizeof(sql3) / sizeof(sql3[0]), TSDB_SML_JSON_PROTOCOL,
@@ -176,7 +178,8 @@ int smlProcess_json1_Test() {
   char *sql5[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql5[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql5[i], sql4[i], 1023);
+    ASSERT(sql5[i] != NULL);
+    (void)strncpy(sql5[i], sql4[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql5, sizeof(sql5) / sizeof(sql5[0]), TSDB_SML_JSON_PROTOCOL,
@@ -215,7 +218,8 @@ int smlProcess_json2_Test() {
   char *sql1[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql1[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql1[i], sql[i], 1023);
+    ASSERT(sql1[i] != NULL);
+    (void)strncpy(sql1[i], sql[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
@@ -249,7 +253,8 @@ int smlProcess_json3_Test() {
   char *sql1[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql1[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql1[i], sql[i], 1023);
+    ASSERT(sql1[i] != NULL);
+    (void)strncpy(sql1[i], sql[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
@@ -286,7 +291,8 @@ int smlProcess_json_tag_not_same_Test() {
   char *sql1[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql1[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql1[i], sql[i], 1023);
+    ASSERT(sql1[i] != NULL);
+    (void)strncpy(sql1[i], sql[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
@@ -312,7 +318,8 @@ int smlProcess_json_tag_not_same_Test() {
   char *sql3[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql3[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql3[i], sql2[i], 1023);
+    ASSERT(sql3[i] != NULL);
+    (void)strncpy(sql3[i], sql2[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql3, sizeof(sql3) / sizeof(sql3[0]), TSDB_SML_JSON_PROTOCOL,
@@ -338,7 +345,8 @@ int smlProcess_json_tag_not_same_Test() {
   char *sql5[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql5[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql5[i], sql4[i], 1023);
+    ASSERT(sql5[i] != NULL);
+    (void)strncpy(sql5[i], sql4[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql5, sizeof(sql5) / sizeof(sql5[0]), TSDB_SML_JSON_PROTOCOL,
@@ -1147,7 +1155,8 @@ int sml_19221_Test() {
   taos_free_result(pRes);
 
   char *tmp = (char *)taosMemoryCalloc(1024, 1);
-  memcpy(tmp, sql[0], strlen(sql[0]));
+  ASSERT(tmp != NULL);
+  (void)memcpy(tmp, sql[0], strlen(sql[0]));
   *(char *)(tmp + 44) = 0;
   int32_t totalRows = 0;
   pRes = taos_schemaless_insert_raw(taos, tmp, strlen(sql[0]), &totalRows, TSDB_SML_LINE_PROTOCOL,
@@ -1218,7 +1227,8 @@ int sml_ts3116_Test() {
   taos_free_result(pRes);
   int32_t totalRows = 0;
   char *tmp = (char *)taosMemoryCalloc(1024, 1);
-  memcpy(tmp, sql, strlen(sql));
+  ASSERT(tmp != NULL);
+  (void)memcpy(tmp, sql, strlen(sql));
   totalRows = 0;
   pRes = taos_schemaless_insert_raw(taos, tmp, strlen(tmp), &totalRows, TSDB_SML_LINE_PROTOCOL,
                                     TSDB_SML_TIMESTAMP_MILLI_SECONDS);
@@ -1235,7 +1245,8 @@ int sml_ts3116_Test() {
   taos_free_result(pRes);
 
   tmp = (char *)taosMemoryCalloc(1024, 1);
-  memcpy(tmp, sql1, strlen(sql1));
+  ASSERT(tmp != NULL);
+  (void)memcpy(tmp, sql1, strlen(sql1));
   totalRows = 0;
   pRes = taos_schemaless_insert_raw(taos, tmp, strlen(tmp), &totalRows, TSDB_SML_LINE_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_MILLI_SECONDS);
@@ -2049,7 +2060,8 @@ int sml_td29373_Test() {
   char *sql3[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql3[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql3[i], sql2[i], 1023);
+    ASSERT(sql3[i] != NULL);
+    (void)strncpy(sql3[i], sql2[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql3, sizeof(sql3) / sizeof(sql3[0]), TSDB_SML_JSON_PROTOCOL,

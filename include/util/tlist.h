@@ -224,7 +224,7 @@ void       tdListInit(SList *list, int32_t eleSize);
 void       tdListEmpty(SList *list);
 SList     *tdListNew(int32_t eleSize);
 void      *tdListFree(SList *list);
-void      *tdListFreeP(SList *list, FDelete fp);
+void       tdListFreeP(SList *list, FDelete fp);
 void       tdListPrependNode(SList *list, SListNode *node);
 void       tdListAppendNode(SList *list, SListNode *node);
 int32_t    tdListPrepend(SList *list, void *data);

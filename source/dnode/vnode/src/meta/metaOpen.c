@@ -29,203 +29,143 @@ static int ncolIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen
 
 static int32_t metaInitLock(SMeta *pMeta) {
   TdThreadRwlockAttr attr;
-  taosThreadRwlockAttrInit(&attr);
-  taosThreadRwlockAttrSetKindNP(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
-  taosThreadRwlockInit(&pMeta->lock, &attr);
-  taosThreadRwlockAttrDestroy(&attr);
+  (void)taosThreadRwlockAttrInit(&attr);
+  (void)taosThreadRwlockAttrSetKindNP(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+  (void)taosThreadRwlockInit(&pMeta->lock, &attr);
+  (void)taosThreadRwlockAttrDestroy(&attr);
   return 0;
 }
 static int32_t metaDestroyLock(SMeta *pMeta) { return taosThreadRwlockDestroy(&pMeta->lock); }
 
 static void metaCleanup(SMeta **ppMeta);
 
-int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
-  SMeta *pMeta = NULL;
-  int    ret;
-  int    offset;
-  char   path[TSDB_FILENAME_LEN] = {0};
-
-  *ppMeta = NULL;
+int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
+  SMeta  *pMeta = NULL;
+  int32_t code = 0;
+  int32_t lino;
+  int32_t offset;
+  char    path[TSDB_FILENAME_LEN] = {0};
+  char    indexFullPath[128] = {0};
 
   // create handle
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
+  (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
   offset = strlen(path);
   snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VNODE_META_DIR);
 
   if ((pMeta = taosMemoryCalloc(1, sizeof(*pMeta) + strlen(path) + 1)) == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
-  metaInitLock(pMeta);
+  (void)metaInitLock(pMeta);
 
   pMeta->path = (char *)&pMeta[1];
   strcpy(pMeta->path, path);
-  taosRealPath(pMeta->path, NULL, strlen(path) + 1);
+  (void)taosRealPath(pMeta->path, NULL, strlen(path) + 1);
 
   pMeta->pVnode = pVnode;
 
   // create path if not created yet
-  taosMkDir(pMeta->path);
+  (void)taosMkDir(pMeta->path);
 
   // open env
-  ret = tdbOpen(pMeta->path, pVnode->config.szPage, pVnode->config.szCache, &pMeta->pEnv, rollback, 
-                pVnode->config.tdbEncryptAlgorithm, pVnode->config.tdbEncryptKey);
-  if (ret < 0) {
-    metaError("vgId:%d, failed to open meta env since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
+  code = tdbOpen(pMeta->path, pVnode->config.szPage, pVnode->config.szCache, &pMeta->pEnv, rollback,
+                 pVnode->config.tdbEncryptAlgorithm, pVnode->config.tdbEncryptKey);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // open pTbDb
-  ret = tdbTbOpen("table.db", sizeof(STbDbKey), -1, tbDbKeyCmpr, pMeta->pEnv, &pMeta->pTbDb, 0);
-  if (ret < 0) {
-    metaError("vgId:%d, failed to open meta table db since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
+  code = tdbTbOpen("table.db", sizeof(STbDbKey), -1, tbDbKeyCmpr, pMeta->pEnv, &pMeta->pTbDb, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // open pSkmDb
-  ret = tdbTbOpen("schema.db", sizeof(SSkmDbKey), -1, skmDbKeyCmpr, pMeta->pEnv, &pMeta->pSkmDb, 0);
-  if (ret < 0) {
-    metaError("vgId:%d, failed to open meta schema db since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
+  code = tdbTbOpen("schema.db", sizeof(SSkmDbKey), -1, skmDbKeyCmpr, pMeta->pEnv, &pMeta->pSkmDb, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // open pUidIdx
-  ret = tdbTbOpen("uid.idx", sizeof(tb_uid_t), sizeof(SUidIdxVal), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pUidIdx, 0);
-  if (ret < 0) {
-    metaError("vgId:%d, failed to open meta uid idx since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
+  code = tdbTbOpen("uid.idx", sizeof(tb_uid_t), sizeof(SUidIdxVal), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pUidIdx, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // open pNameIdx
-  ret = tdbTbOpen("name.idx", -1, sizeof(tb_uid_t), NULL, pMeta->pEnv, &pMeta->pNameIdx, 0);
-  if (ret < 0) {
-    metaError("vgId:%d, failed to open meta name index since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
+  code = tdbTbOpen("name.idx", -1, sizeof(tb_uid_t), NULL, pMeta->pEnv, &pMeta->pNameIdx, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // open pCtbIdx
-  ret = tdbTbOpen("ctb.idx", sizeof(SCtbIdxKey), -1, ctbIdxKeyCmpr, pMeta->pEnv, &pMeta->pCtbIdx, 0);
-  if (ret < 0) {
-    metaError("vgId:%d, failed to open meta child table index since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
+  code = tdbTbOpen("ctb.idx", sizeof(SCtbIdxKey), -1, ctbIdxKeyCmpr, pMeta->pEnv, &pMeta->pCtbIdx, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // open pSuidIdx
-  ret = tdbTbOpen("suid.idx", sizeof(tb_uid_t), 0, uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pSuidIdx, 0);
-  if (ret < 0) {
-    metaError("vgId:%d, failed to open meta super table index since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
+  code = tdbTbOpen("suid.idx", sizeof(tb_uid_t), 0, uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pSuidIdx, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  char indexFullPath[128] = {0};
   sprintf(indexFullPath, "%s/%s", pMeta->path, "invert");
-  taosMkDir(indexFullPath);
+  TAOS_UNUSED(taosMkDir(indexFullPath));
 
   SIndexOpts opts = {.cacheSize = 8 * 1024 * 1024};
-  ret = indexOpen(&opts, indexFullPath, (SIndex **)&pMeta->pTagIvtIdx);
-  if (ret < 0) {
-    metaError("vgId:%d, failed to open meta tag index since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
+  code = indexOpen(&opts, indexFullPath, (SIndex **)&pMeta->pTagIvtIdx);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  ret = tdbTbOpen("tag.idx", -1, 0, tagIdxKeyCmpr, pMeta->pEnv, &pMeta->pTagIdx, 0);
-  if (ret < 0) {
-    metaError("vgId:%d, failed to open meta tag index since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
+  code = tdbTbOpen("tag.idx", -1, 0, tagIdxKeyCmpr, pMeta->pEnv, &pMeta->pTagIdx, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // open pTtlMgr ("ttlv1.idx")
   char logPrefix[128] = {0};
   sprintf(logPrefix, "vgId:%d", TD_VID(pVnode));
-  ret = ttlMgrOpen(&pMeta->pTtlMgr, pMeta->pEnv, 0, logPrefix, tsTtlFlushThreshold);
-  if (ret < 0) {
-    metaError("vgId:%d, failed to open meta ttl index since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
+  code = ttlMgrOpen(&pMeta->pTtlMgr, pMeta->pEnv, 0, logPrefix, tsTtlFlushThreshold);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // open pSmaIdx
-  ret = tdbTbOpen("sma.idx", sizeof(SSmaIdxKey), 0, smaIdxKeyCmpr, pMeta->pEnv, &pMeta->pSmaIdx, 0);
-  if (ret < 0) {
-    metaError("vgId:%d, failed to open meta sma index since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
+  code = tdbTbOpen("sma.idx", sizeof(SSmaIdxKey), 0, smaIdxKeyCmpr, pMeta->pEnv, &pMeta->pSmaIdx, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // idx table create time
-  ret = tdbTbOpen("ctime.idx", sizeof(SBtimeIdxKey), 0, btimeIdxCmpr, pMeta->pEnv, &pMeta->pBtimeIdx, 0);
-  if (ret < 0) {
-    metaError("vgId:%d, failed to open meta ctime index since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
+  code = tdbTbOpen("ctime.idx", sizeof(SBtimeIdxKey), 0, btimeIdxCmpr, pMeta->pEnv, &pMeta->pBtimeIdx, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // idx num of col, normal table only
-  ret = tdbTbOpen("ncol.idx", sizeof(SNcolIdxKey), 0, ncolIdxCmpr, pMeta->pEnv, &pMeta->pNcolIdx, 0);
-  if (ret < 0) {
-    metaError("vgId:%d, failed to open meta ncol index since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
+  code = tdbTbOpen("ncol.idx", sizeof(SNcolIdxKey), 0, ncolIdxCmpr, pMeta->pEnv, &pMeta->pNcolIdx, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  ret = tdbTbOpen("stream.task.db", sizeof(int64_t), -1, taskIdxKeyCmpr, pMeta->pEnv, &pMeta->pStreamDb, 0);
-  if (ret < 0) {
-    metaError("vgId:%d, failed to open meta stream task index since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
+  code = tdbTbOpen("stream.task.db", sizeof(int64_t), -1, taskIdxKeyCmpr, pMeta->pEnv, &pMeta->pStreamDb, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  // open index
-  if (metaOpenIdx(pMeta) < 0) {
-    metaError("vgId:%d, failed to open meta index since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
+  code = metaCacheOpen(pMeta);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  int32_t code = metaCacheOpen(pMeta);
+  code = metaInitTbFilterCache(pMeta);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
   if (code) {
-    terrno = code;
-    metaError("vgId:%d, failed to open meta cache since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
+    metaError("vgId:%d %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    metaCleanup(&pMeta);
+    *ppMeta = NULL;
+  } else {
+    metaDebug("vgId:%d %s success", TD_VID(pVnode), __func__);
+    *ppMeta = pMeta;
   }
-
-  if (metaInitTbFilterCache(pMeta) != 0) {
-    goto _err;
-  }
-
-  metaDebug("vgId:%d, meta is opened", TD_VID(pVnode));
-
-  *ppMeta = pMeta;
-  return 0;
-
-_err:
-  metaCleanup(&pMeta);
-  return -1;
+  return code;
 }
 
-int metaUpgrade(SVnode *pVnode, SMeta **ppMeta) {
-  int    code = TSDB_CODE_SUCCESS;
-  SMeta *pMeta = *ppMeta;
+int32_t metaUpgrade(SVnode *pVnode, SMeta **ppMeta) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino;
+  SMeta  *pMeta = *ppMeta;
 
   if (ttlMgrNeedUpgrade(pMeta->pEnv)) {
     code = metaBegin(pMeta, META_BEGIN_HEAP_OS);
-    if (code < 0) {
-      metaError("vgId:%d, failed to upgrade meta, meta begin failed since %s", TD_VID(pVnode), tstrerror(terrno));
-      goto _err;
-    }
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     code = ttlMgrUpgrade(pMeta->pTtlMgr, pMeta);
-    if (code < 0) {
-      metaError("vgId:%d, failed to upgrade meta ttl since %s", TD_VID(pVnode), tstrerror(terrno));
-      goto _err;
-    }
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     code = metaCommit(pMeta, pMeta->txn);
-    if (code < 0) {
-      metaError("vgId:%d, failed to upgrade meta ttl, meta commit failed since %s", TD_VID(pVnode), tstrerror(terrno));
-      goto _err;
-    }
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  return TSDB_CODE_SUCCESS;
-
-_err:
-  metaCleanup(ppMeta);
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    metaCleanup(ppMeta);
+  }
   return code;
 }
 
@@ -235,33 +175,30 @@ int metaClose(SMeta **ppMeta) {
 }
 
 int metaAlterCache(SMeta *pMeta, int32_t nPage) {
+  int32_t code = 0;
   metaWLock(pMeta);
-
-  if (tdbAlter(pMeta->pEnv, nPage) < 0) {
-    metaULock(pMeta);
-    return -1;
-  }
-
+  code = tdbAlter(pMeta->pEnv, nPage);
   metaULock(pMeta);
-  return 0;
+
+  if (code) {
+    metaError("vgId:%d %s failed since %s", TD_VID(pMeta->pVnode), __func__, tstrerror(code));
+  }
+  return code;
 }
 
-int32_t metaRLock(SMeta *pMeta) {
+void metaRLock(SMeta *pMeta) {
   metaTrace("meta rlock %p", &pMeta->lock);
-  int32_t ret = taosThreadRwlockRdlock(&pMeta->lock);
-  return ret;
+  (void)taosThreadRwlockRdlock(&pMeta->lock);
 }
 
-int32_t metaWLock(SMeta *pMeta) {
+void metaWLock(SMeta *pMeta) {
   metaTrace("meta wlock %p", &pMeta->lock);
-  int32_t ret = taosThreadRwlockWrlock(&pMeta->lock);
-  return ret;
+  (void)taosThreadRwlockWrlock(&pMeta->lock);
 }
 
-int32_t metaULock(SMeta *pMeta) {
+void metaULock(SMeta *pMeta) {
   metaTrace("meta ulock %p", &pMeta->lock);
-  int32_t ret = taosThreadRwlockUnlock(&pMeta->lock);
-  return ret;
+  (void)taosThreadRwlockUnlock(&pMeta->lock);
 }
 
 static void metaCleanup(SMeta **ppMeta) {
@@ -286,7 +223,7 @@ static void metaCleanup(SMeta **ppMeta) {
     if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
     if (pMeta->pTbDb) tdbTbClose(pMeta->pTbDb);
     if (pMeta->pEnv) tdbClose(pMeta->pEnv);
-    metaDestroyLock(pMeta);
+    (void)metaDestroyLock(pMeta);
 
     taosMemoryFreeClear(*ppMeta);
   }
@@ -395,6 +332,10 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
   } else if (!pTagIdxKey1->isNull && !pTagIdxKey2->isNull) {
     // all not NULL, compr tag vals
     __compar_fn_t func = getComparFunc(pTagIdxKey1->type, 0);
+    if (func == NULL) {
+      metaError("meta/open: %s", terrstr());
+      return TSDB_CODE_FAILED;
+    }
     c = func(pTagIdxKey1->data, pTagIdxKey2->data);
     if (c) return c;
   }

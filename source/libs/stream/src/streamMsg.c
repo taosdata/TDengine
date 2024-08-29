@@ -16,6 +16,7 @@
 #include "streamMsg.h"
 #include "os.h"
 #include "tstream.h"
+#include "streamInt.h"
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamUpstreamEpInfo* pInfo) {
   if (tEncodeI32(pEncoder, pInfo->taskId) < 0) return -1;
@@ -87,6 +88,10 @@ int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpda
 
   for (int32_t i = 0; i < size; ++i) {
     SNodeUpdateInfo* pInfo = taosArrayGet(pMsg->pNodeList, i);
+    if (pInfo == NULL) {
+      return terrno;
+    }
+
     if (tEncodeI32(pEncoder, pInfo->nodeId) < 0) return -1;
     if (tEncodeSEpSet(pEncoder, &pInfo->prevEp) < 0) return -1;
     if (tEncodeSEpSet(pEncoder, &pInfo->newEp) < 0) return -1;
@@ -99,6 +104,8 @@ int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpda
 }
 
 int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg* pMsg) {
+  int32_t code = 0;
+
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pMsg->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pMsg->taskId) < 0) return -1;
@@ -111,13 +118,17 @@ int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg*
     if (tDecodeI32(pDecoder, &info.nodeId) < 0) return -1;
     if (tDecodeSEpSet(pDecoder, &info.prevEp) < 0) return -1;
     if (tDecodeSEpSet(pDecoder, &info.newEp) < 0) return -1;
-    taosArrayPush(pMsg->pNodeList, &info);
+
+    void* p = taosArrayPush(pMsg->pNodeList, &info);
+    if (p == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
   if (tDecodeI32(pDecoder, &pMsg->transId) < 0) return -1;
 
   tEndDecode(pDecoder);
-  return 0;
+  return code;
 }
 
 int32_t tEncodeStreamTaskCheckReq(SEncoder* pEncoder, const SStreamTaskCheckReq* pReq) {
@@ -219,13 +230,21 @@ int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* p
   if (tEncodeI32(pEncoder, pReq->upstreamRelTaskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->blockNum) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->totalLen) < 0) return -1;
-  ASSERT(taosArrayGetSize(pReq->data) == pReq->blockNum);
-  ASSERT(taosArrayGetSize(pReq->dataLen) == pReq->blockNum);
+
+  if (taosArrayGetSize(pReq->data) != pReq->blockNum || taosArrayGetSize(pReq->dataLen) != pReq->blockNum) {
+    stError("invalid dispatch req msg");
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   for (int32_t i = 0; i < pReq->blockNum; i++) {
-    int32_t len = *(int32_t*)taosArrayGet(pReq->dataLen, i);
-    void*   data = taosArrayGetP(pReq->data, i);
-    if (tEncodeI32(pEncoder, len) < 0) return -1;
-    if (tEncodeBinary(pEncoder, data, len) < 0) return -1;
+    int32_t* pLen = taosArrayGet(pReq->dataLen, i);
+    void*    data = taosArrayGetP(pReq->data, i);
+    if (data == NULL || pLen == NULL) {
+      return terrno;
+    }
+
+    if (tEncodeI32(pEncoder, *pLen) < 0) return -1;
+    if (tEncodeBinary(pEncoder, data, *pLen) < 0) return -1;
   }
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -247,7 +266,6 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
   if (tDecodeI32(pDecoder, &pReq->blockNum) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->totalLen) < 0) return -1;
 
-  ASSERT(pReq->blockNum > 0);
   pReq->data = taosArrayInit(pReq->blockNum, sizeof(void*));
   pReq->dataLen = taosArrayInit(pReq->blockNum, sizeof(int32_t));
   for (int32_t i = 0; i < pReq->blockNum; i++) {
@@ -256,9 +274,22 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
     void*    data;
     if (tDecodeI32(pDecoder, &len1) < 0) return -1;
     if (tDecodeBinaryAlloc(pDecoder, &data, &len2) < 0) return -1;
-    ASSERT(len1 == len2);
-    taosArrayPush(pReq->dataLen, &len1);
-    taosArrayPush(pReq->data, &data);
+
+    if (len1 != len2) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+
+    void* p = taosArrayPush(pReq->dataLen, &len1);
+    if (p == NULL) {
+      tEndDecode(pDecoder);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    p = taosArrayPush(pReq->data, &data);
+    if (p == NULL) {
+      tEndDecode(pDecoder);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
   tEndDecode(pDecoder);
@@ -325,6 +356,10 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
 
   for (int32_t i = 0; i < pReq->numOfTasks; ++i) {
     STaskStatusEntry* ps = taosArrayGet(pReq->pTaskStatus, i);
+    if (ps == NULL) {
+      return terrno;
+    }
+
     if (tEncodeI64(pEncoder, ps->id.streamId) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->id.taskId) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->status) < 0) return -1;
@@ -349,6 +384,8 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeI64(pEncoder, ps->checkpointInfo.latestTime) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->checkpointInfo.latestSize) < 0) return -1;
     if (tEncodeI8(pEncoder, ps->checkpointInfo.remoteBackup) < 0) return -1;
+    if (tEncodeI8(pEncoder, ps->checkpointInfo.consensusChkptId) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->checkpointInfo.consensusTs) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->startTime) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->startCheckpointId) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->startCheckpointVer) < 0) return -1;
@@ -360,15 +397,22 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
 
   for (int j = 0; j < numOfVgs; ++j) {
     int32_t* pVgId = taosArrayGet(pReq->pUpdateNodes, j);
+    if (pVgId == NULL) {
+      return terrno;
+    }
+
     if (tEncodeI32(pEncoder, *pVgId) < 0) return -1;
   }
 
   if (tEncodeI32(pEncoder, pReq->msgId) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->ts) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
 
 int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
+  int32_t code = 0;
+
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->vgId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->numOfTasks) < 0) return -1;
@@ -403,13 +447,19 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     if (tDecodeI64(pDecoder, &entry.checkpointInfo.latestTime) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.checkpointInfo.latestSize) < 0) return -1;
     if (tDecodeI8(pDecoder, &entry.checkpointInfo.remoteBackup) < 0) return -1;
+    if (tDecodeI8(pDecoder, &entry.checkpointInfo.consensusChkptId) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.checkpointInfo.consensusTs) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.startTime) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.startCheckpointId) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.startCheckpointVer) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.hTaskId) < 0) return -1;
 
     entry.id.taskId = taskId;
-    taosArrayPush(pReq->pTaskStatus, &entry);
+    void* p = taosArrayPush(pReq->pTaskStatus, &entry);
+    if (p == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
   }
 
   int32_t numOfVgs = 0;
@@ -420,12 +470,21 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
   for (int j = 0; j < numOfVgs; ++j) {
     int32_t vgId = 0;
     if (tDecodeI32(pDecoder, &vgId) < 0) return -1;
-    taosArrayPush(pReq->pUpdateNodes, &vgId);
+    void* p = taosArrayPush(pReq->pUpdateNodes, &vgId);
+    if (p == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
   }
 
   if (tDecodeI32(pDecoder, &pReq->msgId) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->ts) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
+
+  _err:
+  tEndDecode(pDecoder);
+  return code;
 }
 
 void tCleanupStreamHbMsg(SStreamHbMsg* pMsg) {
@@ -434,11 +493,13 @@ void tCleanupStreamHbMsg(SStreamHbMsg* pMsg) {
   }
 
   if (pMsg->pUpdateNodes != NULL) {
-    pMsg->pUpdateNodes = taosArrayDestroy(pMsg->pUpdateNodes);
+    taosArrayDestroy(pMsg->pUpdateNodes);
+    pMsg->pUpdateNodes = NULL;
   }
 
   if (pMsg->pTaskStatus != NULL) {
-    pMsg->pTaskStatus = taosArrayDestroy(pMsg->pTaskStatus);
+    taosArrayDestroy(pMsg->pTaskStatus);
+    pMsg->pTaskStatus = NULL;
   }
 
   pMsg->msgId = -1;
@@ -513,7 +574,7 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tEncodeCStrWithLen(pEncoder, pTask->reserve, sizeof(pTask->reserve) - 1) < 0) return -1;
 
   tEndEncode(pEncoder);
-  return pEncoder->pos;
+  return 0;
 }
 
 int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
@@ -566,7 +627,11 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
       taosMemoryFreeClear(pInfo);
       return -1;
     }
-    taosArrayPush(pTask->upstreamInfo.pList, &pInfo);
+    void* p = taosArrayPush(pTask->upstreamInfo.pList, &pInfo);
+    if (p == NULL) {
+      tEndDecode(pDecoder);
+      return -1;
+    }
   }
 
   if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
@@ -634,6 +699,7 @@ int32_t tEncodeRestoreCheckpointInfo (SEncoder* pEncoder, const SRestoreCheckpoi
   if (tEncodeI64(pEncoder, pReq->startTs) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->checkpointId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->transId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->nodeId) < 0) return -1;
   tEndEncode(pEncoder);
@@ -645,28 +711,9 @@ int32_t tDecodeRestoreCheckpointInfo(SDecoder* pDecoder, SRestoreCheckpointInfo*
   if (tDecodeI64(pDecoder, &pReq->startTs) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->checkpointId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->transId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->nodeId) < 0) return -1;
   tEndDecode(pDecoder);
-  return 0;
-}
-
-int32_t tEncodeRestoreCheckpointInfoRsp(SEncoder* pCoder, const SRestoreCheckpointInfoRsp* pInfo) {
-  if (tStartEncode(pCoder) < 0) return -1;
-  if (tEncodeI64(pCoder, pInfo->startTs) < 0) return -1;
-  if (tEncodeI64(pCoder, pInfo->streamId) < 0) return -1;
-  if (tEncodeI32(pCoder, pInfo->taskId) < 0) return -1;
-  if (tEncodeI64(pCoder, pInfo->checkpointId) < 0) return -1;
-  tEndEncode(pCoder);
-  return 0;
-}
-
-int32_t tDecodeRestoreCheckpointInfoRsp(SDecoder* pCoder, SRestoreCheckpointInfoRsp* pInfo) {
-  if (tStartDecode(pCoder) < 0) return -1;
-  if (tDecodeI64(pCoder, &pInfo->startTs) < 0) return -1;
-  if (tDecodeI64(pCoder, &pInfo->streamId) < 0) return -1;
-  if (tDecodeI32(pCoder, &pInfo->taskId) < 0) return -1;
-  if (tDecodeI64(pCoder, &pInfo->checkpointId) < 0) return -1;
-  tEndDecode(pCoder);
   return 0;
 }

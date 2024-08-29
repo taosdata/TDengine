@@ -18,6 +18,9 @@ sql use test7;
 sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));
 sql create stream streams7 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt7 as select  _wstart as ts, max(a), b+c, s  from t1 where ts >= 1648791150000 and ts < 1648791261000 interval(1s) fill(prev);
 sql create stream streams8 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt8 as select  _wstart as ts, max(a), 1, b+1 from t1 where ts >= 1648791150000 and ts < 1648791261000 interval(1s) fill(next);
+
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1 values(1648791215000,1,1,1,1.0,'aaa');
 sql insert into t1 values(1648791217000,2,2,2,2.0,'bbb');
 sql insert into t1 values(1648791211000,3,3,3,3.0,'ccc');

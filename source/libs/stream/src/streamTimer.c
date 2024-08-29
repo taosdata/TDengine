@@ -35,6 +35,31 @@ void streamTimerCleanUp() {
   streamTimer = NULL;
 }
 
-tmr_h streamTimerGetInstance() {
-  return streamTimer;
+int32_t streamTimerGetInstance(tmr_h* pTmr) {
+  *pTmr = streamTimer;
+  return TSDB_CODE_SUCCESS;
+}
+
+void streamTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId, int32_t vgId,
+                    const char* pMsg) {
+//  while (1) {
+    bool ret = taosTmrReset(fp, mseconds, param, handle, pTmrId);
+    if (ret) {
+//      break;
+    }
+//    stError("vgId:%d failed to reset tmr: %s, try again", vgId, pMsg);
+//  }
+}
+
+int32_t streamCleanBeforeQuitTmr(SStreamTmrInfo* pInfo, SStreamTask* pTask) {
+  pInfo->activeCounter = 0;
+  pInfo->launchChkptId = 0;
+  atomic_store_8(&pInfo->isActive, 0);
+
+  int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+  if (ref < 0) {
+    stFatal("invalid task timer ref value:%d, %s", ref, pTask->id.idStr);
+  }
+
+  return ref;
 }

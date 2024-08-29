@@ -84,27 +84,45 @@ __compar_fn_t idxGetCompar(int8_t type) {
 }
 static FORCE_INLINE TExeCond tCompareLessThan(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
+  if (func == NULL) {
+    return BREAK;
+  }
   return tCompare(func, QUERY_LESS_THAN, a, b, type);
 }
 static FORCE_INLINE TExeCond tCompareLessEqual(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
+  if (func == NULL) {
+    return BREAK;
+  }
   return tCompare(func, QUERY_LESS_EQUAL, a, b, type);
 }
 static FORCE_INLINE TExeCond tCompareGreaterThan(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
+  if (func == NULL) {
+    return BREAK;
+  }
   return tCompare(func, QUERY_GREATER_THAN, a, b, type);
 }
 static FORCE_INLINE TExeCond tCompareGreaterEqual(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
+  if (func == NULL) {
+    return BREAK;
+  }
   return tCompare(func, QUERY_GREATER_EQUAL, a, b, type);
 }
 
 static FORCE_INLINE TExeCond tCompareContains(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
+  if (func == NULL) {
+    return BREAK;
+  }
   return tCompare(func, QUERY_TERM, a, b, type);
 }
 static FORCE_INLINE TExeCond tCompareEqual(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
+  if (func == NULL) {
+    return BREAK;
+  }
   return tCompare(func, QUERY_TERM, a, b, type);
 }
 TExeCond tCompare(__compar_fn_t func, int8_t cmptype, void* a, void* b, int8_t dtype) {
@@ -290,94 +308,13 @@ int idxUidCompare(const void* a, const void* b) {
   uint64_t r = *(uint64_t*)b;
   return l - r;
 }
-#ifdef BUILD_NO_CALL
-int32_t idxConvertData(void* src, int8_t type, void** dst) {
-  int tlen = -1;
-  switch (type) {
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      tlen = taosEncodeFixedI64(NULL, *(int64_t*)src);
-      *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeFixedI64(dst, *(int64_t*)src);
-      break;
-    case TSDB_DATA_TYPE_BOOL:
-    case TSDB_DATA_TYPE_UTINYINT:
-      tlen = taosEncodeFixedU8(NULL, *(uint8_t*)src);
-      *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeFixedU8(dst, *(uint8_t*)src);
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-      tlen = taosEncodeFixedI8(NULL, *(uint8_t*)src);
-      *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeFixedI8(dst, *(uint8_t*)src);
-      break;
-    case TSDB_DATA_TYPE_SMALLINT:
-      tlen = taosEncodeFixedI16(NULL, *(int16_t*)src);
-      *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeFixedI16(dst, *(int16_t*)src);
-      break;
-    case TSDB_DATA_TYPE_USMALLINT:
-      tlen = taosEncodeFixedU16(NULL, *(uint16_t*)src);
-      *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeFixedU16(dst, *(uint16_t*)src);
-      break;
-    case TSDB_DATA_TYPE_INT:
-      tlen = taosEncodeFixedI32(NULL, *(int32_t*)src);
-      *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeFixedI32(dst, *(int32_t*)src);
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-      tlen = taosEncodeBinary(NULL, src, sizeof(float));
-      *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeBinary(dst, src, sizeof(float));
-      break;
-    case TSDB_DATA_TYPE_UINT:
-      tlen = taosEncodeFixedU32(NULL, *(uint32_t*)src);
-      *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeFixedU32(dst, *(uint32_t*)src);
-      break;
-    case TSDB_DATA_TYPE_BIGINT:
-      tlen = taosEncodeFixedI64(NULL, *(int64_t*)src);
-      *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeFixedI64(dst, *(int64_t*)src);
-      break;
-    case TSDB_DATA_TYPE_DOUBLE:
-      tlen = taosEncodeBinary(NULL, src, sizeof(double));
-      *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeBinary(dst, src, sizeof(double));
-      break;
-    case TSDB_DATA_TYPE_UBIGINT:
-      tlen = taosEncodeFixedU64(NULL, *(uint64_t*)src);
-      *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeFixedU64(dst, *(uint64_t*)src);
-      break;
-    case TSDB_DATA_TYPE_NCHAR: {
-      tlen = taosEncodeBinary(NULL, varDataVal(src), varDataLen(src));
-      *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeBinary(dst, varDataVal(src), varDataLen(src));
-
-      break;
-    }
-    case TSDB_DATA_TYPE_VARCHAR:  // TSDB_DATA_TYPE_BINARY
-    case TSDB_DATA_TYPE_VARBINARY:
-    case TSDB_DATA_TYPE_GEOMETRY: {
-      tlen = taosEncodeBinary(NULL, src, strlen(src));
-      *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeBinary(dst, src, strlen(src));
-      break;
-    }
-    default:
-      ASSERTS(0, "index invalid input type");
-      break;
-  }
-  *dst = (char*)*dst - tlen;
-  // indexMayFillNumbericData(*dst, tlen);
-  return tlen;
-}
-#endif
 
 int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
   if (src == NULL) {
     *dst = strndup(INDEX_DATA_NULL_STR, (int)strlen(INDEX_DATA_NULL_STR));
+    if (*dst == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     return (int32_t)strlen(INDEX_DATA_NULL_STR);
   }
   int     tlen = tDataTypes[type].bytes;
@@ -385,63 +322,96 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
   switch (type) {
     case TSDB_DATA_TYPE_TIMESTAMP:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      idxInt2str(*(int64_t*)src, *dst, -1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      (void)idxInt2str(*(int64_t*)src, *dst, -1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_UTINYINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      idxInt2str(*(uint8_t*)src, *dst, 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      (void)idxInt2str(*(uint8_t*)src, *dst, 1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_TINYINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      idxInt2str(*(int8_t*)src, *dst, 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      (void)idxInt2str(*(int8_t*)src, *dst, 1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_SMALLINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      idxInt2str(*(int16_t*)src, *dst, -1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      (void)idxInt2str(*(int16_t*)src, *dst, -1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_USMALLINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      idxInt2str(*(uint16_t*)src, *dst, -1);
+      (void)idxInt2str(*(uint16_t*)src, *dst, -1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_INT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      idxInt2str(*(int32_t*)src, *dst, -1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      (void)idxInt2str(*(int32_t*)src, *dst, -1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_UINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      idxInt2str(*(uint32_t*)src, *dst, 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      (void)idxInt2str(*(uint32_t*)src, *dst, 1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_BIGINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       sprintf(*dst, "%" PRIu64, *(uint64_t*)src);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_UBIGINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      idxInt2str(*(uint64_t*)src, *dst, 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      (void)idxInt2str(*(uint64_t*)src, *dst, 1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_FLOAT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       sprintf(*dst, "%.9lf", *(float*)src);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       *dst = taosMemoryCalloc(1, bufSize + 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       sprintf(*dst, "%.9lf", *(double*)src);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_NCHAR: {
       tlen = taosEncodeBinary(NULL, varDataVal(src), varDataLen(src));
       *dst = taosMemoryCalloc(1, tlen + 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       tlen = taosEncodeBinary(dst, varDataVal(src), varDataLen(src));
       *dst = (char*)*dst - tlen;
       break;
@@ -451,12 +421,15 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
     case TSDB_DATA_TYPE_GEOMETRY: {
       tlen = taosEncodeBinary(NULL, varDataVal(src), varDataLen(src));
       *dst = taosMemoryCalloc(1, tlen + 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       tlen = taosEncodeBinary(dst, varDataVal(src), varDataLen(src));
       *dst = (char*)*dst - tlen;
       break;
     }
     default:
-      ASSERTS(0, "index invalid input type");
+      tlen = TSDB_CODE_INVALID_DATA_FMT;
       break;
   }
   return tlen;

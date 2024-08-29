@@ -17,13 +17,13 @@
 #define _TD_COMMON_MSG_CB_H_
 
 #include "os.h"
+#include "tmsg.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct SRpcMsg        SRpcMsg;
-typedef struct SEpSet         SEpSet;
 typedef struct SMgmtWrapper   SMgmtWrapper;
 typedef struct SRpcHandleInfo SRpcHandleInfo;
 
@@ -46,7 +46,7 @@ typedef int32_t (*PutToQueueFp)(void* pMgmt, EQueueType qtype, SRpcMsg* pMsg);
 typedef int32_t (*GetQueueSizeFp)(void* pMgmt, int32_t vgId, EQueueType qtype);
 typedef int32_t (*SendReqFp)(const SEpSet* pEpSet, SRpcMsg* pMsg);
 typedef void (*SendRspFp)(SRpcMsg* pMsg);
-typedef void (*RegisterBrokenLinkArgFp)(SRpcMsg* pMsg);
+typedef void (*RegisterBrokenLinkArgFp)(struct SRpcMsg* pMsg);
 typedef void (*ReleaseHandleFp)(SRpcHandleInfo* pHandle, int8_t type);
 typedef void (*ReportStartup)(const char* name, const char* desc);
 

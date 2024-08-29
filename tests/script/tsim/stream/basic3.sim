@@ -28,6 +28,7 @@ sql create stream streamd4 into streamt4 as select tbname, _wstart,_wend, count(
 sql create stream streamd5 into streamt5 as select tbname, _wstart,_wend, count(*), max(ca), min(cb) from st where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by tbname state_window(cc);
 sql create stream streamd6 into streamt6 as select ca, _wstart,_wend, count(*), max(ca), min(cb) from t1 where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ca state_window(cc);
 
+run tsim/stream/checkTaskStatus.sim
 
 sql alter local 'keepColumnName' '1'
 sql CREATE STABLE `meters_test_data` (`ts` TIMESTAMP, `close` FLOAT, `parttime` TIMESTAMP, `parttime_str` VARCHAR(32)) TAGS (`id` VARCHAR(32));

@@ -26,19 +26,21 @@ void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, transUnrefCliHan
 int (*transReleaseHandle[])(void* handle) = {transReleaseSrvHandle, transReleaseCliHandle};
 
 static int32_t transValidLocalFqdn(const char* localFqdn, uint32_t* ip) {
-  *ip = taosGetIpv4FromFqdn(localFqdn);
-  if (*ip == 0xFFFFFFFF) {
-    terrno = TSDB_CODE_RPC_FQDN_ERROR;
-    return -1;
+  int32_t code = taosGetIpv4FromFqdn(localFqdn, ip);
+  if (code != 0) {
+    return TSDB_CODE_RPC_FQDN_ERROR;
   }
   return 0;
 }
 void* rpcOpen(const SRpcInit* pInit) {
-  rpcInit();
+  int32_t code = rpcInit();
+  if (code != 0) {
+    TAOS_CHECK_GOTO(code, NULL, _end);
+  }
 
   SRpcInfo* pRpc = taosMemoryCalloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) {
-    return NULL;
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
   }
   if (pInit->label) {
     int len = strlen(pInit->label) > sizeof(pRpc->label) ? sizeof(pRpc->label) : strlen(pInit->label);
@@ -84,10 +86,9 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   uint32_t ip = 0;
   if (pInit->connType == TAOS_CONN_SERVER) {
-    if (transValidLocalFqdn(pInit->localFqdn, &ip) != 0) {
-      tError("invalid fqdn:%s, errmsg:%s", pInit->localFqdn, terrstr());
-      taosMemoryFree(pRpc);
-      return NULL;
+    if ((code = transValidLocalFqdn(pInit->localFqdn, &ip)) != 0) {
+      tError("invalid fqdn:%s, errmsg:%s", pInit->localFqdn, tstrerror(code));
+      TAOS_CHECK_GOTO(code, NULL, _end);
     }
   }
 
@@ -101,23 +102,30 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pRpc->timeToGetConn == 0) {
     pRpc->timeToGetConn = 10 * 1000;
   }
+  pRpc->notWaitAvaliableConn = pInit->notWaitAvaliableConn;
+  
   pRpc->tcphandle =
       (*taosInitHandle[pRpc->connType])(ip, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
 
   if (pRpc->tcphandle == NULL) {
-    taosMemoryFree(pRpc);
-    return NULL;
+    tError("failed to init rpc handle");
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
-  transAcquireExHandle(transGetInstMgt(), refId);
+  (void)transAcquireExHandle(transGetInstMgt(), refId);
   pRpc->refId = refId;
   return (void*)refId;
+_end:
+  taosMemoryFree(pRpc);
+  terrno = code;
+
+  return NULL;
 }
 void rpcClose(void* arg) {
   tInfo("start to close rpc");
-  transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
-  transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
+  (void)transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
+  (void)transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
   tInfo("end to close rpc");
   return;
 }
@@ -132,7 +140,6 @@ void* rpcMallocCont(int64_t contLen) {
   char*   start = taosMemoryCalloc(1, size);
   if (start == NULL) {
     tError("failed to malloc msg, size:%" PRId64, size);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   } else {
     tTrace("malloc mem:%p size:%" PRId64, start, size);
@@ -157,38 +164,48 @@ void* rpcReallocCont(void* ptr, int64_t contLen) {
   return st + TRANS_MSG_OVERHEAD;
 }
 
-int rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
+int32_t rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
   return transSendRequest(shandle, pEpSet, pMsg, NULL);
 }
-int rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
-  return transSendRequest(shandle, pEpSet, pMsg, pCtx);
-}
-int rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
-  return transSendRecv(shandle, pEpSet, pMsg, pRsp);
-}
-int rpcSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp, int8_t* epUpdated,
-                           int32_t timeoutMs) {
-  return transSendRecvWithTimeout(shandle, pEpSet, pMsg, pRsp, epUpdated, timeoutMs);
+int32_t rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
+  if (pCtx != NULL || pMsg->info.handle != 0 || pMsg->info.noResp != 0|| pRid == NULL) {
+    return transSendRequest(shandle, pEpSet, pMsg, pCtx);
+  } else {
+    return transSendRequestWithId(shandle, pEpSet, pMsg, pRid);
+  }
 }
 
-int rpcSendResponse(const SRpcMsg* pMsg) { return transSendResponse(pMsg); }
+int32_t rpcSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
+  return transSendRequestWithId(shandle, pEpSet, pReq, transpointId);
+}
+
+int32_t rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
+  return transSendRecv(shandle, pEpSet, pMsg, pRsp);
+}
+int32_t rpcSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp, int8_t* epUpdated,
+                               int32_t timeoutMs) {
+  return transSendRecvWithTimeout(shandle, pEpSet, pMsg, pRsp, epUpdated, timeoutMs);
+}
+int32_t rpcFreeConnById(void* shandle, int64_t connId) { return transFreeConnById(shandle, connId); }
+
+int32_t rpcSendResponse(const SRpcMsg* pMsg) { return transSendResponse(pMsg); }
 
 void rpcRefHandle(void* handle, int8_t type) { (*taosRefHandle[type])(handle); }
 
 void rpcUnrefHandle(void* handle, int8_t type) { (*taosUnRefHandle[type])(handle); }
 
-int rpcRegisterBrokenLinkArg(SRpcMsg* msg) { return transRegisterMsg(msg); }
-int rpcReleaseHandle(void* handle, int8_t type) { return (*transReleaseHandle[type])(handle); }
+int32_t rpcRegisterBrokenLinkArg(SRpcMsg* msg) { return transRegisterMsg(msg); }
+int32_t rpcReleaseHandle(void* handle, int8_t type) { return (*transReleaseHandle[type])(handle); }
 
 // client only
-int rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
+int32_t rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   // later
   return transSetDefaultAddr(thandle, ip, fqdn);
 }
 // server only
-void rpcSetIpWhite(void* thandle, void* arg) { transSetIpWhiteList(thandle, arg, NULL); }
+int32_t rpcSetIpWhite(void* thandle, void* arg) { return transSetIpWhiteList(thandle, arg, NULL); }
 
-void* rpcAllocHandle() { return (void*)transAllocHandle(); }
+int32_t rpcAllocHandle(int64_t* refId) { return transAllocHandle(refId); }
 
 int32_t rpcUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) { return transUtilSIpRangeToStr(pRange, buf); }
 int32_t rpcUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf) {
@@ -202,10 +219,8 @@ int32_t rpcCvtErrCode(int32_t code) {
   return code;
 }
 
-int32_t rpcInit() {
-  transInit();
-  return 0;
-}
+int32_t rpcInit() { return transInit(); }
+
 void rpcCleanup(void) {
   transCleanup();
   transHttpEnvDestroy();

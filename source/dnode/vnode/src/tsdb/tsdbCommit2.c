@@ -92,12 +92,12 @@ static int32_t tsdbCommitOpenWriter(SCommitter2 *committer) {
     }
   }
 
-  code = tsdbFSetWriterOpen(&config, &committer->writer);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbFSetWriterOpen(&config, &committer->writer), &lino, _exit);
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(committer->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -122,32 +122,28 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
       committer->ctx->tbid->uid = row->uid;
 
       if (metaGetInfo(committer->tsdb->pVnode->pMeta, row->uid, &info, NULL) != 0) {
-        code = tsdbIterMergerSkipTableData(committer->dataIterMerger, committer->ctx->tbid);
-        TSDB_CHECK_CODE(code, lino, _exit);
+        TAOS_CHECK_GOTO(tsdbIterMergerSkipTableData(committer->dataIterMerger, committer->ctx->tbid), &lino, _exit);
         continue;
       }
     }
 
     int64_t ts = TSDBROW_TS(&row->row);
     if (ts > committer->ctx->maxKey) {
-      code = tsdbIterMergerSkipTableData(committer->dataIterMerger, committer->ctx->tbid);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tsdbIterMergerSkipTableData(committer->dataIterMerger, committer->ctx->tbid), &lino, _exit);
       continue;
     }
 
     committer->ctx->hasTSData = true;
     numOfRow++;
 
-    code = tsdbFSetWriteRow(committer->writer, row);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = tsdbIterMergerNext(committer->dataIterMerger);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tsdbFSetWriteRow(committer->writer, row), &lino, _exit);
+    TAOS_CHECK_GOTO(tsdbIterMergerNext(committer->dataIterMerger), &lino, _exit);
   }
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(committer->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   } else {
     tsdbDebug("vgId:%d fid:%d commit %" PRId64 " rows", TD_VID(committer->tsdb->pVnode), committer->ctx->info->fid,
               numOfRow);
@@ -161,49 +157,41 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
   int64_t   numRecord = 0;
   SMetaInfo info;
 
-  if (committer->tsdb->imem->nDel == 0) {
-    goto _exit;
-  }
+  // if no history data and no new timestamp data, skip tomb data
+  if (committer->ctx->info->fset || committer->ctx->hasTSData) {
+    committer->ctx->tbid->suid = 0;
+    committer->ctx->tbid->uid = 0;
+    for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(committer->tombIterMerger));) {
+      if (record->uid != committer->ctx->tbid->uid) {
+        committer->ctx->tbid->suid = record->suid;
+        committer->ctx->tbid->uid = record->uid;
 
-  // do not need to write tomb data if there is no ts data
-  bool skip = (committer->ctx->info->fset == NULL && !committer->ctx->hasTSData);
-
-  committer->ctx->tbid->suid = 0;
-  committer->ctx->tbid->uid = 0;
-  for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(committer->tombIterMerger));) {
-    if (record->uid != committer->ctx->tbid->uid) {
-      committer->ctx->tbid->suid = record->suid;
-      committer->ctx->tbid->uid = record->uid;
-
-      if (metaGetInfo(committer->tsdb->pVnode->pMeta, record->uid, &info, NULL) != 0) {
-        code = tsdbIterMergerSkipTableData(committer->tombIterMerger, committer->ctx->tbid);
-        TSDB_CHECK_CODE(code, lino, _exit);
-        continue;
+        if (metaGetInfo(committer->tsdb->pVnode->pMeta, record->uid, &info, NULL) != 0) {
+          TAOS_CHECK_GOTO(tsdbIterMergerSkipTableData(committer->tombIterMerger, committer->ctx->tbid), &lino, _exit);
+          continue;
+        }
       }
-    }
 
-    if (record->ekey < committer->ctx->minKey) {
-      // do nothing
-    } else if (record->skey > committer->ctx->maxKey) {
-      // committer->ctx->nextKey = TMIN(record->skey, committer->ctx->nextKey);
-    } else {
-      record->skey = TMAX(record->skey, committer->ctx->minKey);
-      record->ekey = TMIN(record->ekey, committer->ctx->maxKey);
+      if (record->ekey < committer->ctx->minKey) {
+        // do nothing
+      } else if (record->skey > committer->ctx->maxKey) {
+        // committer->ctx->nextKey = TMIN(record->skey, committer->ctx->nextKey);
+      } else {
+        record->skey = TMAX(record->skey, committer->ctx->minKey);
+        record->ekey = TMIN(record->ekey, committer->ctx->maxKey);
 
-      if (!skip) {
         numRecord++;
-        code = tsdbFSetWriteTombRecord(committer->writer, record);
-        TSDB_CHECK_CODE(code, lino, _exit);
+        TAOS_CHECK_GOTO(tsdbFSetWriteTombRecord(committer->writer, record), &lino, _exit);
       }
-    }
 
-    code = tsdbIterMergerNext(committer->tombIterMerger);
-    TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tsdbIterMergerNext(committer->tombIterMerger), &lino, _exit);
+    }
   }
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(committer->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   } else {
     tsdbDebug("vgId:%d fid:%d commit %" PRId64 " tomb records", TD_VID(committer->tsdb->pVnode),
               committer->ctx->info->fid, numRecord);
@@ -219,8 +207,6 @@ static int32_t tsdbCommitCloseReader(SCommitter2 *committer) {
 static int32_t tsdbCommitOpenReader(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  ASSERT(TARRAY2_SIZE(committer->sttReaderArray) == 0);
 
   if (committer->ctx->info->fset == NULL                        //
       || committer->sttTrigger > 1                              //
@@ -241,11 +227,9 @@ static int32_t tsdbCommitOpenReader(SCommitter2 *committer) {
           .file = fobj->f[0],
       };
 
-      code = tsdbSttFileReaderOpen(fobj->fname, &config, &sttReader);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tsdbSttFileReaderOpen(fobj->fname, &config, &sttReader), &lino, _exit);
 
-      code = TARRAY2_APPEND(committer->sttReaderArray, sttReader);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(TARRAY2_APPEND(committer->sttReaderArray, sttReader), &lino, _exit);
 
       STFileOp op = {
           .optype = TSDB_FOP_REMOVE,
@@ -253,22 +237,22 @@ static int32_t tsdbCommitOpenReader(SCommitter2 *committer) {
           .of = fobj->f[0],
       };
 
-      code = TARRAY2_APPEND(committer->fopArray, op);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(TARRAY2_APPEND(committer->fopArray, op), &lino, _exit);
     }
   }
 
 _exit:
   if (code) {
-    tsdbCommitCloseReader(committer);
-    TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
+    TAOS_UNUSED(tsdbCommitCloseReader(committer));
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(committer->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
 
 static int32_t tsdbCommitCloseIter(SCommitter2 *committer) {
-  tsdbIterMergerClose(&committer->tombIterMerger);
-  tsdbIterMergerClose(&committer->dataIterMerger);
+  TAOS_UNUSED(tsdbIterMergerClose(&committer->tombIterMerger));
+  TAOS_UNUSED(tsdbIterMergerClose(&committer->dataIterMerger));
   TARRAY2_CLEAR(committer->tombIterArray, tsdbIterClose);
   TARRAY2_CLEAR(committer->dataIterArray, tsdbIterClose);
   return 0;
@@ -277,11 +261,6 @@ static int32_t tsdbCommitCloseIter(SCommitter2 *committer) {
 static int32_t tsdbCommitOpenIter(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  ASSERT(TARRAY2_SIZE(committer->dataIterArray) == 0);
-  ASSERT(committer->dataIterMerger == NULL);
-  ASSERT(TARRAY2_SIZE(committer->tombIterArray) == 0);
-  ASSERT(committer->tombIterMerger == NULL);
 
   STsdbIter      *iter;
   STsdbIterConfig config = {0};
@@ -295,21 +274,15 @@ static int32_t tsdbCommitOpenIter(SCommitter2 *committer) {
       .numOfPKs = 0,
   };
 
-  code = tsdbIterOpen(&config, &iter);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = TARRAY2_APPEND(committer->dataIterArray, iter);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbIterOpen(&config, &iter), &lino, _exit);
+  TAOS_CHECK_GOTO(TARRAY2_APPEND(committer->dataIterArray, iter), &lino, _exit);
 
   // mem tomb iter
   config.type = TSDB_ITER_TYPE_MEMT_TOMB;
   config.memt = committer->tsdb->imem;
 
-  code = tsdbIterOpen(&config, &iter);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = TARRAY2_APPEND(committer->tombIterArray, iter);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbIterOpen(&config, &iter), &lino, _exit);
+  TAOS_CHECK_GOTO(TARRAY2_APPEND(committer->tombIterArray, iter), &lino, _exit);
 
   // STT
   SSttFileReader *sttReader;
@@ -318,34 +291,27 @@ static int32_t tsdbCommitOpenIter(SCommitter2 *committer) {
     config.type = TSDB_ITER_TYPE_STT;
     config.sttReader = sttReader;
 
-    code = tsdbIterOpen(&config, &iter);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = TARRAY2_APPEND(committer->dataIterArray, iter);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tsdbIterOpen(&config, &iter), &lino, _exit);
+    TAOS_CHECK_GOTO(TARRAY2_APPEND(committer->dataIterArray, iter), &lino, _exit);
 
     // tomb iter
     config.type = TSDB_ITER_TYPE_STT_TOMB;
     config.sttReader = sttReader;
 
-    code = tsdbIterOpen(&config, &iter);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tsdbIterOpen(&config, &iter), &lino, _exit);
 
-    code = TARRAY2_APPEND(committer->tombIterArray, iter);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(TARRAY2_APPEND(committer->tombIterArray, iter), &lino, _exit);
   }
 
   // open merger
-  code = tsdbIterMergerOpen(committer->dataIterArray, &committer->dataIterMerger, false);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbIterMergerOpen(committer->tombIterArray, &committer->tombIterMerger, true);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbIterMergerOpen(committer->dataIterArray, &committer->dataIterMerger, false), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbIterMergerOpen(committer->tombIterArray, &committer->tombIterMerger, true), &lino, _exit);
 
 _exit:
   if (code) {
-    tsdbCommitCloseIter(committer);
-    TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
+    TAOS_UNUSED(tsdbCommitCloseIter(committer));
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(committer->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -356,33 +322,26 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
   STsdb  *tsdb = committer->tsdb;
 
   // check if can commit
-  tsdbFSCheckCommit(tsdb, committer->ctx->info->fid);
+  TAOS_UNUSED(tsdbFSCheckCommit(tsdb, committer->ctx->info->fid));
 
   committer->ctx->expLevel = tsdbFidLevel(committer->ctx->info->fid, &tsdb->keepCfg, committer->now);
   tsdbFidKeyRange(committer->ctx->info->fid, committer->minutes, committer->precision, &committer->ctx->minKey,
                   &committer->ctx->maxKey);
-  code = tfsAllocDisk(committer->tsdb->pVnode->pTfs, committer->ctx->expLevel, &committer->ctx->did);
-  TSDB_CHECK_CODE(code, lino, _exit);
-  tfsMkdirRecurAt(committer->tsdb->pVnode->pTfs, committer->tsdb->path, committer->ctx->did);
+
+  TAOS_CHECK_GOTO(tfsAllocDisk(committer->tsdb->pVnode->pTfs, committer->ctx->expLevel, &committer->ctx->did), &lino,
+                  _exit);
+
+  TAOS_UNUSED(tfsMkdirRecurAt(committer->tsdb->pVnode->pTfs, committer->tsdb->path, committer->ctx->did));
   committer->ctx->tbid->suid = 0;
   committer->ctx->tbid->uid = 0;
 
-  ASSERT(TARRAY2_SIZE(committer->dataIterArray) == 0);
-  ASSERT(committer->dataIterMerger == NULL);
-  ASSERT(committer->writer == NULL);
-
-  code = tsdbCommitOpenReader(committer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbCommitOpenIter(committer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbCommitOpenWriter(committer);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbCommitOpenReader(committer), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbCommitOpenIter(committer), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbCommitOpenWriter(committer), &lino, _exit);
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
   } else {
     tsdbDebug("vgId:%d %s done, fid:%d minKey:%" PRId64 " maxKey:%" PRId64 " expLevel:%d", TD_VID(tsdb->pVnode),
               __func__, committer->ctx->info->fid, committer->ctx->minKey, committer->ctx->maxKey,
@@ -395,18 +354,14 @@ static int32_t tsdbCommitFileSetEnd(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbCommitCloseWriter(committer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbCommitCloseIter(committer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbCommitCloseReader(committer);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbCommitCloseWriter(committer), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbCommitCloseIter(committer), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbCommitCloseReader(committer), &lino, _exit);
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(committer->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   } else {
     tsdbDebug("vgId:%d %s done, fid:%d", TD_VID(committer->tsdb->pVnode), __func__, committer->ctx->info->fid);
   }
@@ -417,24 +372,15 @@ static int32_t tsdbCommitFileSet(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  // fset commit start
-  code = tsdbCommitFileSetBegin(committer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  // commit fset
-  code = tsdbCommitTSData(committer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbCommitTombData(committer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  // fset commit end
-  code = tsdbCommitFileSetEnd(committer);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbCommitFileSetBegin(committer), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbCommitTSData(committer), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbCommitTombData(committer), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbCommitFileSetEnd(committer), &lino, _exit);
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(committer->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   } else {
     tsdbDebug("vgId:%d %s done, fid:%d", TD_VID(committer->tsdb->pVnode), __func__, committer->ctx->info->fid);
   }
@@ -464,28 +410,20 @@ static uint32_t tFileSetCommitInfoHash(const void *arg) {
 }
 
 static int32_t tsdbCommitInfoDestroy(STsdb *pTsdb) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
   if (pTsdb->commitInfo) {
     for (int32_t i = 0; i < taosArrayGetSize(pTsdb->commitInfo->arr); i++) {
       SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(pTsdb->commitInfo->arr, i);
-      vHashDrop(pTsdb->commitInfo->ht, info);
+      TAOS_UNUSED(vHashDrop(pTsdb->commitInfo->ht, info));
       tsdbTFileSetClear(&info->fset);
       taosMemoryFree(info);
     }
 
-    vHashDestroy(&pTsdb->commitInfo->ht);
+    TAOS_UNUSED(vHashDestroy(&pTsdb->commitInfo->ht));
     taosArrayDestroy(pTsdb->commitInfo->arr);
     pTsdb->commitInfo->arr = NULL;
     taosMemoryFreeClear(pTsdb->commitInfo);
   }
-
-_exit:
-  if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
-  }
-  return code;
+  return 0;
 }
 
 static int32_t tsdbCommitInfoInit(STsdb *pTsdb) {
@@ -494,11 +432,10 @@ static int32_t tsdbCommitInfoInit(STsdb *pTsdb) {
 
   pTsdb->commitInfo = taosMemoryCalloc(1, sizeof(*pTsdb->commitInfo));
   if (pTsdb->commitInfo == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
-  code = vHashInit(&pTsdb->commitInfo->ht, tFileSetCommitInfoHash, tFileSetCommitInfoCompare);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(vHashInit(&pTsdb->commitInfo->ht, tFileSetCommitInfoHash, tFileSetCommitInfoCompare), &lino, _exit);
 
   pTsdb->commitInfo->arr = taosArrayInit(0, sizeof(SFileSetCommitInfo *));
   if (pTsdb->commitInfo->arr == NULL) {
@@ -507,8 +444,8 @@ static int32_t tsdbCommitInfoInit(STsdb *pTsdb) {
 
 _exit:
   if (code) {
-    tsdbCommitInfoDestroy(pTsdb);
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    TAOS_UNUSED(tsdbCommitInfoDestroy(pTsdb));
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(pTsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
   }
   return code;
 }
@@ -520,22 +457,21 @@ static int32_t tsdbCommitInfoAdd(STsdb *tsdb, int32_t fid) {
   SFileSetCommitInfo *tinfo;
 
   if ((tinfo = taosMemoryMalloc(sizeof(*tinfo))) == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
   }
   tinfo->fid = fid;
   tinfo->fset = NULL;
 
-  code = vHashPut(tsdb->commitInfo->ht, tinfo);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(vHashPut(tsdb->commitInfo->ht, tinfo), &lino, _exit);
 
   if ((taosArrayPush(tsdb->commitInfo->arr, &tinfo)) == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
   }
   taosArraySort(tsdb->commitInfo->arr, tFileSetCommitInfoPCompare);
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(tsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
   }
   return code;
 }
@@ -547,8 +483,7 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
   STFileSet  *fset = NULL;
   SRBTreeIter iter;
 
-  code = tsdbCommitInfoInit(tsdb);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbCommitInfoInit(tsdb), &lino, _exit);
 
   // scan time-series data
   iter = tRBTreeIterCreate(tsdb->imem->tbDataTree, 1);
@@ -579,17 +514,16 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
       SFileSetCommitInfo  tinfo = {
            .fid = fid,
       };
-      vHashGet(tsdb->commitInfo->ht, &tinfo, (void **)&info);
+      TAOS_UNUSED(vHashGet(tsdb->commitInfo->ht, &tinfo, (void **)&info));
       if (info == NULL) {
-        code = tsdbCommitInfoAdd(tsdb, fid);
-        TSDB_CHECK_CODE(code, lino, _exit);
+        TAOS_CHECK_GOTO(tsdbCommitInfoAdd(tsdb, fid), &lino, _exit);
       }
 
       from.key.ts = maxKey + 1;
     }
   }
 
-  taosThreadMutexLock(&tsdb->mutex);
+  (void)taosThreadMutexLock(&tsdb->mutex);
 
   // scan tomb data
   if (tsdb->imem->nDel > 0) {
@@ -604,7 +538,7 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
       };
 
       // check if the file set already on the commit list
-      vHashGet(tsdb->commitInfo->ht, &tinfo, (void **)&info);
+      TAOS_UNUSED(vHashGet(tsdb->commitInfo->ht, &tinfo, (void **)&info));
       if (info != NULL) {
         continue;
       }
@@ -621,7 +555,7 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
           } else {
             hasDataToCommit = true;
             if ((code = tsdbCommitInfoAdd(tsdb, fset->fid))) {
-              taosThreadMutexUnlock(&tsdb->mutex);
+              (void)taosThreadMutexUnlock(&tsdb->mutex);
               TSDB_CHECK_CODE(code, lino, _exit);
             }
             break;
@@ -638,18 +572,22 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
   // begin tasks on file set
   for (int i = 0; i < taosArrayGetSize(tsdb->commitInfo->arr); i++) {
     SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
-    tsdbBeginTaskOnFileSet(tsdb, info->fid, &fset);
+    TAOS_UNUSED(tsdbBeginTaskOnFileSet(tsdb, info->fid, &fset));
     if (fset) {
-      tsdbTFileSetInitCopy(tsdb, fset, &info->fset);
+      code = tsdbTFileSetInitCopy(tsdb, fset, &info->fset);
+      if (code) {
+        (void)taosThreadMutexUnlock(&tsdb->mutex);
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+      }
     }
   }
 
-  taosThreadMutexUnlock(&tsdb->mutex);
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
 
 _exit:
   if (code) {
-    tsdbCommitInfoDestroy(tsdb);
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(tsdb->pVnode), __func__, lino, tstrerror(code));
+    TAOS_UNUSED(tsdbCommitInfoDestroy(tsdb));
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
   }
   return code;
 }
@@ -670,12 +608,11 @@ static int32_t tsdbOpenCommitter(STsdb *tsdb, SCommitInfo *info, SCommitter2 *co
   committer->cid = tsdbFSAllocEid(tsdb->pFS);
   committer->now = taosGetTimestampSec();
 
-  code = tsdbCommitInfoBuild(tsdb);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbCommitInfoBuild(tsdb), &lino, _exit);
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
   } else {
     tsdbDebug("vgId:%d %s done", TD_VID(tsdb->pVnode), __func__);
   }
@@ -687,16 +624,12 @@ static int32_t tsdbCloseCommitter(SCommitter2 *committer, int32_t eno) {
   int32_t lino = 0;
 
   if (eno == 0) {
-    code = tsdbFSEditBegin(committer->tsdb->pFS, committer->fopArray, TSDB_FEDIT_COMMIT);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tsdbFSEditBegin(committer->tsdb->pFS, committer->fopArray, TSDB_FEDIT_COMMIT), &lino, _exit);
   } else {
-    // TODO
-    ASSERT(0);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(committer->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(eno));
   }
 
-  ASSERT(committer->writer == NULL);
-  ASSERT(committer->dataIterMerger == NULL);
-  ASSERT(committer->tombIterMerger == NULL);
   TARRAY2_DESTROY(committer->dataIterArray, NULL);
   TARRAY2_DESTROY(committer->tombIterArray, NULL);
   TARRAY2_DESTROY(committer->sttReaderArray, NULL);
@@ -705,8 +638,8 @@ static int32_t tsdbCloseCommitter(SCommitter2 *committer, int32_t eno) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s, eid:%" PRId64, TD_VID(committer->tsdb->pVnode), __func__, lino,
-              tstrerror(code), committer->cid);
+    tsdbError("vgId:%d %s failed at %s:%d since %s, eid:%" PRId64, TD_VID(committer->tsdb->pVnode), __func__, __FILE__,
+              lino, tstrerror(code), committer->cid);
   } else {
     tsdbDebug("vgId:%d %s done, eid:%" PRId64, TD_VID(committer->tsdb->pVnode), __func__, committer->cid);
   }
@@ -714,11 +647,11 @@ _exit:
 }
 
 int32_t tsdbPreCommit(STsdb *tsdb) {
-  taosThreadMutexLock(&tsdb->mutex);
+  (void)taosThreadMutexLock(&tsdb->mutex);
   ASSERT_CORE(tsdb->imem == NULL, "imem should be null to commit mem");
   tsdb->imem = tsdb->mem;
   tsdb->mem = NULL;
-  taosThreadMutexUnlock(&tsdb->mutex);
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
   return 0;
 }
 
@@ -733,29 +666,26 @@ int32_t tsdbCommitBegin(STsdb *tsdb, SCommitInfo *info) {
   int64_t    nDel = imem->nDel;
 
   if (nRow == 0 && nDel == 0) {
-    taosThreadMutexLock(&tsdb->mutex);
+    (void)taosThreadMutexLock(&tsdb->mutex);
     tsdb->imem = NULL;
-    taosThreadMutexUnlock(&tsdb->mutex);
-    tsdbUnrefMemTable(imem, NULL, true);
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
+    TAOS_UNUSED(tsdbUnrefMemTable(imem, NULL, true));
   } else {
     SCommitter2 committer = {0};
 
-    code = tsdbOpenCommitter(tsdb, info, &committer);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tsdbOpenCommitter(tsdb, info, &committer), &lino, _exit);
 
     for (int32_t i = 0; i < taosArrayGetSize(tsdb->commitInfo->arr); i++) {
       committer.ctx->info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
-      code = tsdbCommitFileSet(&committer);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tsdbCommitFileSet(&committer), &lino, _exit);
     }
 
-    code = tsdbCloseCommitter(&committer, code);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tsdbCloseCommitter(&committer, code), &lino, _exit);
   }
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
   } else {
     tsdbInfo("vgId:%d %s done, nRow:%" PRId64 " nDel:%" PRId64, TD_VID(tsdb->pVnode), __func__, nRow, nDel);
   }
@@ -769,10 +699,10 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
   if (tsdb->imem) {
     SMemTable *pMemTable = tsdb->imem;
 
-    taosThreadMutexLock(&tsdb->mutex);
+    (void)taosThreadMutexLock(&tsdb->mutex);
 
     if ((code = tsdbFSEditCommit(tsdb->pFS))) {
-      taosThreadMutexUnlock(&tsdb->mutex);
+      (void)taosThreadMutexUnlock(&tsdb->mutex);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     tsdb->imem = NULL;
@@ -780,19 +710,19 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
     for (int32_t i = 0; i < taosArrayGetSize(tsdb->commitInfo->arr); i++) {
       SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
       if (info->fset) {
-        tsdbFinishTaskOnFileSet(tsdb, info->fid);
+        TAOS_UNUSED(tsdbFinishTaskOnFileSet(tsdb, info->fid));
       }
     }
 
-    taosThreadMutexUnlock(&tsdb->mutex);
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
 
-    tsdbCommitInfoDestroy(tsdb);
-    tsdbUnrefMemTable(pMemTable, NULL, true);
+    TAOS_UNUSED(tsdbCommitInfoDestroy(tsdb));
+    TAOS_UNUSED(tsdbUnrefMemTable(pMemTable, NULL, true));
   }
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(tsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
   } else {
     tsdbInfo("vgId:%d %s done", TD_VID(tsdb->pVnode), __func__);
   }
@@ -805,18 +735,17 @@ int32_t tsdbCommitAbort(STsdb *pTsdb) {
 
   if (pTsdb->imem == NULL) goto _exit;
 
-  code = tsdbFSEditAbort(pTsdb->pFS);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbFSEditAbort(pTsdb->pFS), &lino, _exit);
 
-  taosThreadMutexLock(&pTsdb->mutex);
+  (void)taosThreadMutexLock(&pTsdb->mutex);
   for (int32_t i = 0; i < taosArrayGetSize(pTsdb->commitInfo->arr); i++) {
     SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(pTsdb->commitInfo->arr, i);
     if (info->fset) {
-      tsdbFinishTaskOnFileSet(pTsdb, info->fid);
+      TAOS_UNUSED(tsdbFinishTaskOnFileSet(pTsdb, info->fid));
     }
   }
-  taosThreadMutexUnlock(&pTsdb->mutex);
-  tsdbCommitInfoDestroy(pTsdb);
+  (void)taosThreadMutexUnlock(&pTsdb->mutex);
+  TAOS_UNUSED(tsdbCommitInfoDestroy(pTsdb));
 
 _exit:
   if (code) {

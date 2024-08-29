@@ -226,10 +226,12 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
 }
 
 int32_t taosFloatEqual(const void *a, const void *b, size_t UNUSED_PARAM(sz)) {
+  // getComparFunc(TSDB_DATA_TYPE_FLOAT, -1) will always get function compareFloatVal, which will never be NULL.
   return getComparFunc(TSDB_DATA_TYPE_FLOAT, -1)(a, b);
 }
 
 int32_t taosDoubleEqual(const void *a, const void *b, size_t UNUSED_PARAM(sz)) {
+  // getComparFunc(TSDB_DATA_TYPE_DOUBLE, -1) will always get function compareDoubleVal, which will never be NULL.
   return getComparFunc(TSDB_DATA_TYPE_DOUBLE, -1)(a, b);
 }
 

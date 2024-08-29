@@ -46,7 +46,7 @@ typedef struct {
 #pragma pack(pop)
 
 #define varDataTLen(v)         (sizeof(VarDataLenT) + varDataLen(v))
-#define varDataCopy(dst, v)    memcpy((dst), (void *)(v), varDataTLen(v))
+#define varDataCopy(dst, v)    (void)memcpy((dst), (void *)(v), varDataTLen(v))
 #define varDataLenByData(v)    (*(VarDataLenT *)(((char *)(v)) - VARSTR_HEADER_SIZE))
 #define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT)(_len))
 

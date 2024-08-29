@@ -28,8 +28,9 @@ from util.common import *
 from util.constant import *
 from dataclasses import dataclass,field
 from typing import List
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
+
 @dataclass
 class DataSet:
     ts_data     : List[int]     = field(default_factory=list)
@@ -537,21 +538,34 @@ class TDCom:
         tdLog.info("cfgPath: %s" % cfgPath)
         return cfgPath
 
-    def newcon(self,host='localhost',port=6030,user='root',password='taosdata'):
-        con=taos.connect(host=host, user=user, password=password, port=port)
+    def newcon(self,host='localhost',port=6030,user='root',password='taosdata', database=None):
+        con=taos.connect(host=host, user=user, password=password, port=port, database=database)
         # print(con)
         return con
 
-    def newcur(self,host='localhost',port=6030,user='root',password='taosdata'):
+    def newcur(self,host='localhost',port=6030,user='root',password='taosdata',database=None):
         cfgPath = self.getClientCfgPath()
-        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port)
+        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port,database=database)
         cur=con.cursor()
         # print(cur)
         return cur
 
-    def newTdSql(self, host='localhost',port=6030,user='root',password='taosdata'):
+    def newTdSql(self, host='localhost',port=6030,user='root',password='taosdata', database = None):
         newTdSql = TDSql()
-        cur = self.newcur(host=host,port=port,user=user,password=password)
+        cur = self.newcur(host=host,port=port,user=user,password=password, database=database)
+        newTdSql.init(cur, False)
+        return newTdSql
+    
+    def newcurWithTimezone(self,  timezone, host='localhost', port=6030,  user='root', password='taosdata'):
+        cfgPath = self.getClientCfgPath()
+        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port, timezone=timezone)
+        cur=con.cursor()
+        # print(cur)
+        return cur
+
+    def newTdSqlWithTimezone(self, timezone, host='localhost',port=6030,user='root',password='taosdata'):
+        newTdSql = TDSql()
+        cur = self.newcurWithTimezone(host=host,port=port,user=user,password=password, timezone=timezone)
         newTdSql.init(cur, False)
         return newTdSql
 
@@ -1797,6 +1811,21 @@ class TDCom:
             self.sdelete_rows(tbname=self.ctb_name, start_ts=self.time_cast(self.record_history_ts, "-"))
             self.sdelete_rows(tbname=self.tb_name, start_ts=self.time_cast(self.record_history_ts, "-"))
 
+    def get_timestamp_n_days_later(self, n=30):
+        """
+        Get the timestamp of a date n days later from the current date.
+
+        Args:
+            n (int): Number of days to add to the current date. Default is 30.
+
+        Returns:
+            int: Timestamp of the date n days later, in milliseconds.
+        """
+        now = datetime.now()
+        thirty_days_later = now + timedelta(days=n)
+        timestamp_thirty_days_later = thirty_days_later.timestamp()
+        return int(timestamp_thirty_days_later*1000)
+
     def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", fill_history_value=0, ext_stb=None, custom_col_index=None, col_value_type="random"):
         """prepare stream data
 
@@ -1827,7 +1856,7 @@ class TDCom:
             "state_window_max": state_window_max,
             "iteration": interation,
             "range_count": range_count,
-            "start_ts": 1655903478508,
+            "start_ts": self.get_timestamp_n_days_later(),
         }
         if range_count is not None:
             self.range_count = range_count
@@ -1880,6 +1909,8 @@ class TDCom:
             if latency < self.stream_timeout:
                 latency += 1
                 time.sleep(1)
+            else:
+                return False
         return tbname
 
     def get_group_id_from_stb(self, stbname):

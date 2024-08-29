@@ -33,11 +33,15 @@ static void qmClose(SQnodeMgmt *pMgmt) {
   taosMemoryFree(pMgmt);
 }
 
+static int32_t qndOpenWrapper(SQnodeOpt *pOption, SQnode **pQnode) {
+  int32_t code = qndOpen(pOption, pQnode);
+  return code;
+}
 static int32_t qmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
+  int32_t     code = 0;
   SQnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SQnodeMgmt));
   if (pMgmt == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pMgmt->pData = pInput->pData;
@@ -50,29 +54,30 @@ static int32_t qmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 
   SQnodeOpt option = {0};
   qmInitOption(pMgmt, &option);
-  pMgmt->pQnode = qndOpen(&option);
-  if (pMgmt->pQnode == NULL) {
-    dError("failed to open qnode since %s", terrstr());
+
+  code = qndOpenWrapper(&option, &pMgmt->pQnode);
+  if (code != 0) {
+    dError("failed to open qnode since %s", tstrerror(code));
     qmClose(pMgmt);
-    return -1;
+    return code;
   }
   tmsgReportStartup("qnode-impl", "initialized");
 
-  if (udfcOpen() != 0) {
+  if ((code = udfcOpen()) != 0) {
     dError("qnode can not open udfc");
     qmClose(pMgmt);
-    return -1;
+    return code;
   }
 
-  if (qmStartWorker(pMgmt) != 0) {
-    dError("failed to start qnode worker since %s", terrstr());
+  if ((code = qmStartWorker(pMgmt)) != 0) {
+    dError("failed to start qnode worker since %s", tstrerror(code));
     qmClose(pMgmt);
-    return -1;
+    return code;
   }
   tmsgReportStartup("qnode-worker", "initialized");
 
   pOutput->pMgmt = pMgmt;
-  return 0;
+  return code;
 }
 
 SMgmtFunc qmGetMgmtFunc() {

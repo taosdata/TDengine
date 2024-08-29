@@ -236,7 +236,9 @@ TEST(testCase, toInteger_test) {
 }
 
 TEST(testCase, Datablock_test) {
-  SSDataBlock* b = createDataBlock();
+  SSDataBlock* b = NULL;
+  int32_t code = createDataBlock(&b);
+  ASSERT(code == 0);
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
   taosArrayPush(b->pDataBlock, &infoData);
@@ -361,7 +363,9 @@ TEST(testCase, non_var_dataBlock_split_test) {
 TEST(testCase, var_dataBlock_split_test) {
   int32_t numOfRows = 1000000;
 
-  SSDataBlock* b = createDataBlock();
+  SSDataBlock* b = NULL;
+  int32_t code = createDataBlock(&b);
+  ASSERT(code == 0);
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
   blockDataAppendColInfo(b, &infoData);
@@ -465,7 +469,8 @@ TEST(timeTest, timestamp2tm) {
 
 void test_ts2char(int64_t ts, const char* format, int32_t precison, const char* expected) {
   char buf[256] = {0};
-  TEST_ts2char(format, ts, precison, buf, 256);
+  int32_t code = TEST_ts2char(format, ts, precison, buf, 256);
+  ASSERT_EQ(code, 0);
   printf("ts: %ld format: %s res: [%s], expected: [%s]\n", ts, format, buf, expected);
   ASSERT_STREQ(expected, buf);
 }
@@ -732,16 +737,17 @@ TEST(AlreadyAddGroupIdTest, GroupIdAddedWithDifferentLength) {
 #define SLOW_LOG_TYPE_OTHERS 0x4
 #define SLOW_LOG_TYPE_ALL    0x7
 
-static int32_t taosSetSlowLogScope(char *pScope) {
-  if (NULL == pScope || 0 == strlen(pScope)) {
-    return SLOW_LOG_TYPE_QUERY;
+static int32_t taosSetSlowLogScope(char* pScopeStr, int32_t* pScope) {
+  if (NULL == pScopeStr || 0 == strlen(pScopeStr)) {
+    *pScope = SLOW_LOG_TYPE_QUERY;
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
   int32_t slowScope = 0;
 
   char* scope = NULL;
   char *tmp   = NULL;
-  while((scope = strsep(&pScope, "|")) != NULL){
+  while((scope = strsep(&pScopeStr, "|")) != NULL){
     taosMemoryFreeClear(tmp);
     tmp = taosStrdup(scope);
     strtrim(tmp);
@@ -771,73 +777,94 @@ static int32_t taosSetSlowLogScope(char *pScope) {
     }
 
     taosMemoryFreeClear(tmp);
-    uError("Invalid slowLog scope value:%s", pScope);
-    terrno = TSDB_CODE_INVALID_CFG_VALUE;
-    return -1;
+    uError("Invalid slowLog scope value:%s", pScopeStr);
+    TAOS_RETURN(TSDB_CODE_INVALID_CFG_VALUE);
   }
 
+  *pScope = slowScope;
   taosMemoryFreeClear(tmp);
-  return slowScope;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 TEST(TaosSetSlowLogScopeTest, NullPointerInput) {
-  char *pScope = NULL;
-  int32_t result = taosSetSlowLogScope(pScope);
-  EXPECT_EQ(result, SLOW_LOG_TYPE_QUERY);
+  char*   pScopeStr = NULL;
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_QUERY);
 }
 
 TEST(TaosSetSlowLogScopeTest, EmptyStringInput) {
-  char pScope[1] = "";
-  int32_t result = taosSetSlowLogScope(pScope);
-  EXPECT_EQ(result, SLOW_LOG_TYPE_QUERY);
+  char    pScopeStr[1] = "";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_QUERY);
 }
 
 TEST(TaosSetSlowLogScopeTest, AllScopeInput) {
-  char pScope[] = "all";
-  int32_t result = taosSetSlowLogScope(pScope);
-  EXPECT_EQ(result, SLOW_LOG_TYPE_ALL);
+  char    pScopeStr[] = "all";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_ALL);
 }
 
 TEST(TaosSetSlowLogScopeTest, QueryScopeInput) {
-  char pScope[] = " query";
-  int32_t result = taosSetSlowLogScope(pScope);
-  EXPECT_EQ(result, SLOW_LOG_TYPE_QUERY);
+  char    pScopeStr[] = " query";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_QUERY);
 }
 
 TEST(TaosSetSlowLogScopeTest, InsertScopeInput) {
-  char pScope[] = "insert";
-  int32_t result = taosSetSlowLogScope(pScope);
-  EXPECT_EQ(result, SLOW_LOG_TYPE_INSERT);
+  char    pScopeStr[] = "insert";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_INSERT);
 }
 
 TEST(TaosSetSlowLogScopeTest, OthersScopeInput) {
-  char pScope[] = "others";
-  int32_t result = taosSetSlowLogScope(pScope);
-  EXPECT_EQ(result, SLOW_LOG_TYPE_OTHERS);
+  char    pScopeStr[] = "others";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_OTHERS);
 }
 
 TEST(TaosSetSlowLogScopeTest, NoneScopeInput) {
-  char pScope[] = "none";
-  int32_t result = taosSetSlowLogScope(pScope);
-  EXPECT_EQ(result, SLOW_LOG_TYPE_NULL);
+  char    pScopeStr[] = "none";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_NULL);
 }
 
 TEST(TaosSetSlowLogScopeTest, InvalidScopeInput) {
-  char pScope[] = "invalid";
-  int32_t result = taosSetSlowLogScope(pScope);
-  EXPECT_EQ(result, -1);
+  char    pScopeStr[] = "invalid";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, -1);
 }
 
 TEST(TaosSetSlowLogScopeTest, MixedScopesInput) {
-  char pScope[] = "query|insert|others|none";
-  int32_t result = taosSetSlowLogScope(pScope);
-  EXPECT_EQ(result, (SLOW_LOG_TYPE_QUERY | SLOW_LOG_TYPE_INSERT | SLOW_LOG_TYPE_OTHERS));
+  char    pScopeStr[] = "query|insert|others|none";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, (SLOW_LOG_TYPE_QUERY | SLOW_LOG_TYPE_INSERT | SLOW_LOG_TYPE_OTHERS));
 }
 
 TEST(TaosSetSlowLogScopeTest, MixedScopesInputWithSpaces) {
-  char pScope[] = "query | insert | others ";
-  int32_t result = taosSetSlowLogScope(pScope);
-  EXPECT_EQ(result, (SLOW_LOG_TYPE_QUERY | SLOW_LOG_TYPE_INSERT | SLOW_LOG_TYPE_OTHERS));
+  char    pScopeStr[] = "query | insert | others ";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, (SLOW_LOG_TYPE_QUERY | SLOW_LOG_TYPE_INSERT | SLOW_LOG_TYPE_OTHERS));
 }
 
 #pragma GCC diagnostic pop

@@ -136,7 +136,7 @@ int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
 int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag);
 void    tRowGetPrimaryKey(SRow *pRow, SRowKey *key);
 int32_t tRowKeyCompare(const SRowKey *key1, const SRowKey *key2);
-int32_t tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc);
+void    tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc);
 
 // SRowIter ================================
 int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
@@ -193,7 +193,7 @@ int32_t tColDataDecompress(void *input, SColDataCompressInfo *info, SColData *co
 
 // for stmt bind
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen);
-void    tColDataSortMerge(SArray *colDataArr);
+int32_t tColDataSortMerge(SArray **arr);
 
 // for raw block
 int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
@@ -315,7 +315,7 @@ struct STag {
   do {                                            \
     VarDataLenT __len = (VarDataLenT)strlen(str); \
     *(VarDataLenT *)(x) = __len;                  \
-    memcpy(varDataVal(x), (str), __len);          \
+    (void)memcpy(varDataVal(x), (str), __len);    \
   } while (0);
 
 #define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs)                         \
@@ -324,10 +324,10 @@ struct STag {
     varDataSetLen(x, (_e - (x)-VARSTR_HEADER_SIZE));                      \
   } while (0)
 
-#define STR_WITH_SIZE_TO_VARSTR(x, str, _size)  \
-  do {                                          \
-    *(VarDataLenT *)(x) = (VarDataLenT)(_size); \
-    memcpy(varDataVal(x), (str), (_size));      \
+#define STR_WITH_SIZE_TO_VARSTR(x, str, _size)   \
+  do {                                           \
+    *(VarDataLenT *)(x) = (VarDataLenT)(_size);  \
+    (void)memcpy(varDataVal(x), (str), (_size)); \
   } while (0);
 
 // STSchema ================================

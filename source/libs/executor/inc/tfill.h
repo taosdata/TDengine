@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "executil.h"
 #include "os.h"
 #include "taosdef.h"
 #include "tcommon.h"
@@ -77,6 +78,7 @@ typedef struct SFillInfo {
   SFillColInfo*    pFillCol;  // column info for fill operations
   SFillTagColInfo* pTags;     // tags value for filling gap
   const char*      id;
+  SExecTaskInfo*   pTaskInfo;
 } SFillInfo;
 
 typedef struct SResultCellData {
@@ -126,16 +128,16 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
                                 int32_t numOfNotFillCols, const struct SNodeListNode* val);
 bool          taosFillHasMoreResults(struct SFillInfo* pFillInfo);
 
-SFillInfo* taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillCols, int32_t capacity,
-                              SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol, int32_t slotId,
-                              int32_t order, const char* id);
+int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillCols, int32_t capacity,
+                           SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol, int32_t slotId,
+                           int32_t order, const char* id, SExecTaskInfo* pTaskInfo, SFillInfo** ppFillInfo);
 
 void*   taosDestroyFillInfo(struct SFillInfo* pFillInfo);
-int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity);
+int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity);
 int64_t getFillInfoStart(struct SFillInfo* pFillInfo);
 
 bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnInfoData* pDstColInfoData,
-                                     int32_t rowIndex);
+                              int32_t rowIndex);
 #ifdef __cplusplus
 }
 #endif

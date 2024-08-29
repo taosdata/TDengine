@@ -42,7 +42,7 @@ mpool_h taosMemPoolInit(int32_t numOfBlock, int32_t blockSize) {
     uError("mempool malloc failed\n");
     return NULL;
   } else {
-    memset(pool_p, 0, sizeof(pool_t));
+    (void)memset(pool_p, 0, sizeof(pool_t));
   }
 
   pool_p->blockSize = blockSize;
@@ -58,9 +58,9 @@ mpool_h taosMemPoolInit(int32_t numOfBlock, int32_t blockSize) {
     return NULL;
   }
 
-  taosThreadMutexInit(&(pool_p->mutex), NULL);
+  (void)taosThreadMutexInit(&(pool_p->mutex), NULL);
 
-  memset(pool_p->pool, 0, (size_t)(blockSize * numOfBlock));
+  (void)memset(pool_p->pool, 0, (size_t)(blockSize * numOfBlock));
   for (i = 0; i < pool_p->numOfBlock; ++i) pool_p->freeList[i] = i;
 
   pool_p->first = 0;
@@ -73,7 +73,7 @@ char *taosMemPoolMalloc(mpool_h handle) {
   char   *pos = NULL;
   pool_t *pool_p = (pool_t *)handle;
 
-  taosThreadMutexLock(&(pool_p->mutex));
+  (void)taosThreadMutexLock(&(pool_p->mutex));
 
   if (pool_p->numOfFree > 0) {
     pos = pool_p->pool + pool_p->blockSize * (pool_p->freeList[pool_p->first]);
@@ -82,7 +82,7 @@ char *taosMemPoolMalloc(mpool_h handle) {
     pool_p->numOfFree--;
   }
 
-  taosThreadMutexUnlock(&(pool_p->mutex));
+  (void)taosThreadMutexUnlock(&(pool_p->mutex));
 
   if (pos == NULL) uDebug("mempool: out of memory");
   return pos;
@@ -106,22 +106,22 @@ void taosMemPoolFree(mpool_h handle, char *pMem) {
     return;
   }
 
-  memset(pMem, 0, (size_t)pool_p->blockSize);
+  (void)memset(pMem, 0, (size_t)pool_p->blockSize);
 
-  taosThreadMutexLock(&pool_p->mutex);
+  (void)taosThreadMutexLock(&pool_p->mutex);
 
   pool_p->freeList[(pool_p->first + pool_p->numOfFree) % pool_p->numOfBlock] = index;
   pool_p->numOfFree++;
 
-  taosThreadMutexUnlock(&pool_p->mutex);
+  (void)taosThreadMutexUnlock(&pool_p->mutex);
 }
 
 void taosMemPoolCleanUp(mpool_h handle) {
   pool_t *pool_p = (pool_t *)handle;
 
-  taosThreadMutexDestroy(&pool_p->mutex);
+  (void)taosThreadMutexDestroy(&pool_p->mutex);
   if (pool_p->pool) taosMemoryFree(pool_p->pool);
   if (pool_p->freeList) taosMemoryFree(pool_p->freeList);
-  memset(pool_p, 0, sizeof(*pool_p));
+  (void)memset(pool_p, 0, sizeof(*pool_p));
   taosMemoryFree(pool_p);
 }

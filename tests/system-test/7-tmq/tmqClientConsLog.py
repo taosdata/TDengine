@@ -16,6 +16,9 @@ sys.path.append("./7-tmq")
 from tmqCommon import *
 
 class TDTestCase:
+    
+    clientCfgDict = {'debugFlag': 135}
+    updatecfgDict = {'debugFlag': 131, 'clientCfg':clientCfgDict}
     def __init__(self):
         self.vgroups    = 3
         self.ctbNum     = 10

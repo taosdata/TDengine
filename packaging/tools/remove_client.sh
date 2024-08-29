@@ -31,6 +31,8 @@ bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
 lib64_link_dir="/usr/lib64"
 inc_link_dir="/usr/include"
+log_dir="/var/log/${clientName2}"
+cfg_dir="/etc/${clientName2}"
 
 csudo=""
 if command -v sudo > /dev/null; then
@@ -38,9 +40,10 @@ if command -v sudo > /dev/null; then
 fi
 
 function kill_client() {
-  if [ -n "$(ps aux | grep -v grep | grep ${clientName})" ]; then
-    ${csudo}kill -9 $pid   || :
-  fi
+    pid=$(ps -ef | grep ${clientName2} | grep -v grep | grep -v $uninstallScript2 | awk '{print $2}')
+    if [ -n "$pid" ]; then
+        ${csudo}kill -9 $pid || :
+    fi
 }
 
 function clean_bin() {
@@ -62,10 +65,13 @@ function clean_bin() {
 }
 
 function clean_lib() {
-    # Remove link
-    ${csudo}rm -f ${lib_link_dir}/libtaos.*      || :
-    ${csudo}rm -f ${lib64_link_dir}/libtaos.*    || :
-    #${csudo}rm -rf ${v15_java_app_dir}           || :
+  # Remove link
+  ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
+  [ -f ${lib_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.* || :
+
+  ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
+  [ -f ${lib64_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
+  #${csudo}rm -rf ${v15_java_app_dir}           || :
 }
 
 function clean_header() {
@@ -75,6 +81,7 @@ function clean_header() {
     ${csudo}rm -f ${inc_link_dir}/taoserror.h      || :
     ${csudo}rm -f ${inc_link_dir}/tdef.h      || :
     ${csudo}rm -f ${inc_link_dir}/taosudf.h      || :    
+    ${csudo}rm -f ${inc_link_dir}/taosws.h      || :
 }
 
 function clean_config() {
@@ -85,6 +92,24 @@ function clean_config() {
 function clean_log() {
     # Remove link
     ${csudo}rm -rf ${log_link_dir}    || :
+}
+
+function clean_config_and_log_dir() {
+    # Remove link
+    echo "Do you want to remove all the log and configuration files? [y/n]"
+    read answer
+    if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
+        confirmMsg="I confirm that I would like to delete all log and configuration files"
+        echo "Please enter '${confirmMsg}' to continue"
+        read answer
+        if [ X"$answer" == X"${confirmMsg}" ]; then
+            # Remove dir
+            rm -rf ${cfg_dir} || :
+            rm -rf ${log_dir} || :
+        else
+            echo "answer doesn't match, skip this step"
+        fi
+    fi
 }
 
 # Stop client.
@@ -99,6 +124,8 @@ clean_lib
 clean_log
 # Remove link configuration file
 clean_config
+# Remove dir
+clean_config_and_log_dir
 
 ${csudo}rm -rf ${install_main_dir}
 

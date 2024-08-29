@@ -164,6 +164,7 @@ int32_t tDecodeStreamTaskCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpoint
 typedef struct SStreamHbMsg {
   int32_t vgId;
   int32_t msgId;
+  int64_t ts;
   int32_t numOfTasks;
   SArray* pTaskStatus;   // SArray<STaskStatusEntry>
   SArray* pUpdateNodes;  // SArray<int32_t>, needs update the epsets in stream tasks for those nodes.
@@ -216,22 +217,13 @@ typedef struct SRestoreCheckpointInfo {
   int64_t  startTs;
   int64_t  streamId;
   int64_t  checkpointId;   // latest checkpoint id
+  int32_t  transId;        // transaction id of the update the consensus-checkpointId transaction
   int32_t  taskId;
   int32_t  nodeId;
 } SRestoreCheckpointInfo;
 
 int32_t tEncodeRestoreCheckpointInfo (SEncoder* pEncoder, const SRestoreCheckpointInfo* pReq);
 int32_t tDecodeRestoreCheckpointInfo(SDecoder* pDecoder, SRestoreCheckpointInfo* pReq);
-
-typedef struct SRestoreCheckpointInfoRsp {
-  int64_t streamId;
-  int64_t checkpointId;
-  int64_t startTs;
-  int32_t taskId;
-} SRestoreCheckpointInfoRsp;
-
-int32_t tEncodeRestoreCheckpointInfoRsp(SEncoder* pCoder, const SRestoreCheckpointInfoRsp* pInfo);
-int32_t tDecodeRestoreCheckpointInfoRsp(SDecoder* pCoder, SRestoreCheckpointInfoRsp* pInfo);
 
 typedef struct {
   SMsgHead head;
@@ -242,8 +234,7 @@ typedef struct {
 
 typedef struct SCheckpointConsensusEntry {
   SRestoreCheckpointInfo req;
-  SRpcMsg rsp;
-  int64_t ts;
+  int64_t                ts;
 } SCheckpointConsensusEntry;
 
 #ifdef __cplusplus

@@ -15,9 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "tmisce.h"
+#include "tdatablock.h"
 #include "tglobal.h"
 #include "tjson.h"
-#include "tdatablock.h"
 
 int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
@@ -34,18 +34,26 @@ int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
     pEp->port = tsServerPort;
   }
 
+  if (pEp->port <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   return 0;
 }
 
-void addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port) {
+int32_t addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port) {
   if (pEpSet == NULL || fqdn == NULL || strlen(fqdn) == 0) {
-    return;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   int32_t index = pEpSet->numOfEps;
+  if (index >= sizeof(pEpSet->eps) / sizeof(pEpSet->eps[0])) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
   tstrncpy(pEpSet->eps[index].fqdn, fqdn, tListLen(pEpSet->eps[index].fqdn));
   pEpSet->eps[index].port = port;
   pEpSet->numOfEps += 1;
+  return 0;
 }
 
 bool isEpsetEqual(const SEpSet* s1, const SEpSet* s2) {
@@ -131,75 +139,95 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet) {
   return ep;
 }
 
-int32_t epsetToStr(const SEpSet* pEpSet, char* pBuf, int32_t bufLen) {
-  int len = snprintf(pBuf, bufLen, "epset:{");
-  if (len < 0) {
-    return -1;
-  }
+int32_t epsetToStr(const SEpSet* pEpSet, char* pBuf, int32_t cap) {
+  int32_t ret = 0;
+  int32_t nwrite = 0;
 
-  for (int _i = 0; (_i < pEpSet->numOfEps) && (bufLen > len); _i++) {
-    int32_t ret = 0;
+  nwrite = snprintf(pBuf + nwrite, cap, "epset:{");
+  if (nwrite <= 0 || nwrite >= cap) {
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+  cap -= nwrite;
+
+  for (int _i = 0; (_i < pEpSet->numOfEps) && (cap > 0); _i++) {
     if (_i == pEpSet->numOfEps - 1) {
-      ret = snprintf(pBuf + len, bufLen - len, "%d. %s:%d", _i, pEpSet->eps[_i].fqdn, pEpSet->eps[_i].port);
+      ret = snprintf(pBuf + nwrite, cap, "%d. %s:%d", _i, pEpSet->eps[_i].fqdn, pEpSet->eps[_i].port);
     } else {
-      ret = snprintf(pBuf + len, bufLen - len, "%d. %s:%d, ", _i, pEpSet->eps[_i].fqdn, pEpSet->eps[_i].port);
+      ret = snprintf(pBuf + nwrite, cap, "%d. %s:%d, ", _i, pEpSet->eps[_i].fqdn, pEpSet->eps[_i].port);
     }
 
-    if (ret < 0) {
-      return -1;
+    if (ret <= 0 || ret >= cap) {
+      return TSDB_CODE_OUT_OF_BUFFER;
     }
 
-    len += ret;
+    nwrite += ret;
+    cap -= ret;
   }
 
-  if (len < bufLen) {
-    /*len += */snprintf(pBuf + len, bufLen - len, "}, inUse:%d", pEpSet->inUse);
+  if (cap <= 0) {
+    return TSDB_CODE_OUT_OF_BUFFER;
   }
 
+  ret = snprintf(pBuf + nwrite, cap, "}, inUse:%d", pEpSet->inUse);
+  if (ret <= 0 || ret >= cap) {
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime) {
-  SJson* pJson = tjsonCreateObject();
-  if (pJson == NULL) return -1;
+  int32_t code = 0;
+  SJson*  pJson = tjsonCreateObject();
+  if (pJson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
   char tmp[4096] = {0};
 
-  tjsonAddDoubleToObject(pJson, "reportVersion", 1);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "reportVersion", 1), NULL, _exit);
 
-  tjsonAddIntegerToObject(pJson, "clusterId", clusterId);
-  tjsonAddIntegerToObject(pJson, "startTime", startTime);
+  TAOS_CHECK_GOTO(tjsonAddIntegerToObject(pJson, "clusterId", clusterId), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddIntegerToObject(pJson, "startTime", startTime), NULL, _exit);
 
   // Do NOT invoke the taosGetFqdn here.
   // this function may be invoked when memory exception occurs,so we should assume that it is running in a memory locked
   // environment. The lock operation by taosGetFqdn may cause this program deadlock.
-  tjsonAddStringToObject(pJson, "fqdn", tsLocalFqdn);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "fqdn", tsLocalFqdn), NULL, _exit);
 
-  tjsonAddIntegerToObject(pJson, "pid", taosGetPId());
+  TAOS_CHECK_GOTO(tjsonAddIntegerToObject(pJson, "pid", taosGetPId()), NULL, _exit);
 
-  taosGetAppName(tmp, NULL);
-  tjsonAddStringToObject(pJson, "appName", tmp);
+  code = taosGetAppName(tmp, NULL);
+  if (code != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    TAOS_CHECK_GOTO(code, NULL, _exit);
+  }
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "appName", tmp), NULL, _exit);
 
   if (taosGetOsReleaseName(tmp, NULL, NULL, sizeof(tmp)) == 0) {
-    tjsonAddStringToObject(pJson, "os", tmp);
+    TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "os", tmp), NULL, _exit);
+  } else {
+    // do nothing
   }
 
   float numOfCores = 0;
   if (taosGetCpuInfo(tmp, sizeof(tmp), &numOfCores) == 0) {
-    tjsonAddStringToObject(pJson, "cpuModel", tmp);
-    tjsonAddDoubleToObject(pJson, "numOfCpu", numOfCores);
+    TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "cpuModel", tmp), NULL, _exit);
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfCpu", numOfCores), NULL, _exit);
   } else {
-    tjsonAddDoubleToObject(pJson, "numOfCpu", tsNumOfCores);
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfCpu", tsNumOfCores), NULL, _exit);
   }
 
-  snprintf(tmp, sizeof(tmp), "%" PRId64 " kB", tsTotalMemoryKB);
-  tjsonAddStringToObject(pJson, "memory", tmp);
+  int32_t nBytes = snprintf(tmp, sizeof(tmp), "%" PRId64 " kB", tsTotalMemoryKB);
+  if (nBytes <= 9 || nBytes >= sizeof(tmp)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_RANGE, NULL, _exit);
+  }
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "memory", tmp), NULL, _exit);
 
-  tjsonAddStringToObject(pJson, "version", version);
-  tjsonAddStringToObject(pJson, "buildInfo", buildinfo);
-  tjsonAddStringToObject(pJson, "gitInfo", gitinfo);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "version", version), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "buildInfo", buildinfo), NULL, _exit);
 
-  tjsonAddIntegerToObject(pJson, "crashSig", signum);
-  tjsonAddIntegerToObject(pJson, "crashTs", taosGetTimestampUs());
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "gitInfo", gitinfo), NULL, _exit);
+
+  TAOS_CHECK_GOTO(tjsonAddIntegerToObject(pJson, "crashSig", signum), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddIntegerToObject(pJson, "crashTs", taosGetTimestampUs()), NULL, _exit);
 
 #ifdef _TD_DARWIN_64
   taosLogTraceToBuf(tmp, sizeof(tmp), 4);
@@ -209,26 +237,43 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
   taosLogTraceToBuf(tmp, sizeof(tmp), 8);
 #endif
 
-  tjsonAddStringToObject(pJson, "stackInfo", tmp);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "stackInfo", tmp), NULL, _exit);
 
   char* pCont = tjsonToString(pJson);
+  if (pCont == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_CHECK_GOTO(code, NULL, _exit);
+    goto _exit;
+  }
+
   tjsonDelete(pJson);
-
   *pMsg = pCont;
-
-  return TSDB_CODE_SUCCESS;
+  pJson = NULL;
+_exit:
+  tjsonDelete(pJson);
+  TAOS_RETURN(code);
 }
 
 int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
-  SConfig*     pConf = taosGetCfg();
+  int32_t  code = 0;
+  SConfig* pConf = taosGetCfg();
+  if (pConf == NULL) {
+    return TSDB_CODE_INVALID_CFG;
+  }
+
   int32_t      numOfRows = 0;
   int32_t      col = startCol;
   SConfigItem* pItem = NULL;
+  SConfigIter* pIter = NULL;
 
-  blockDataEnsureCapacity(pBlock, cfgGetSize(pConf));
-  SConfigIter* pIter = cfgCreateIter(pConf);
+  int8_t locked = 0;
+
+  TAOS_CHECK_GOTO(blockDataEnsureCapacity(pBlock, cfgGetSize(pConf)), NULL, _exit);
+
+  TAOS_CHECK_GOTO(cfgCreateIter(pConf, &pIter), NULL, _exit);
 
   cfgLock(pConf);
+  locked = 1;
 
   while ((pItem = cfgNextIter(pIter)) != NULL) {
     col = startCol;
@@ -236,29 +281,44 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
     // GRANT_CFG_SKIP;
     char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
+
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
-    colDataSetVal(pColInfo, numOfRows, name, false);
+    if (pColInfo == NULL) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      TAOS_CHECK_GOTO(code, NULL, _exit);
+    }
+
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, name, false), NULL, _exit);
 
     char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
     int32_t valueLen = 0;
-    cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen);
+    TAOS_CHECK_GOTO(cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen), NULL, _exit);
     varDataSetLen(value, valueLen);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
-    colDataSetVal(pColInfo, numOfRows, value, false);
+    if (pColInfo == NULL) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      TAOS_CHECK_GOTO(code, NULL, _exit);
+    }
+
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, value, false), NULL, _exit);
 
     char scope[TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE] = {0};
-    cfgDumpItemScope(pItem, &scope[VARSTR_HEADER_SIZE], TSDB_CONFIG_SCOPE_LEN, &valueLen);
+    TAOS_CHECK_GOTO(cfgDumpItemScope(pItem, &scope[VARSTR_HEADER_SIZE], TSDB_CONFIG_SCOPE_LEN, &valueLen), NULL, _exit);
     varDataSetLen(scope, valueLen);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
-    colDataSetVal(pColInfo, numOfRows, scope, false);
+    if (pColInfo == NULL) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      TAOS_CHECK_GOTO(code, NULL, _exit);
+    }
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, scope, false), NULL, _exit);
 
     numOfRows++;
   }
-
-  cfgUnLock(pConf);
-
   pBlock->info.rows = numOfRows;
-
+_exit:
+  if (locked) cfgUnLock(pConf);
   cfgDestroyIter(pIter);
-  return TSDB_CODE_SUCCESS;
+  TAOS_RETURN(code);
 }

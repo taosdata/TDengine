@@ -24,7 +24,9 @@ class NodesCloneTest : public testing::Test {
   void registerCheckFunc(const std::function<void(const SNode*, const SNode*)>& func) { checkFunc_ = func; }
 
   void run(const SNode* pSrc) {
-    std::unique_ptr<SNode, void (*)(SNode*)> pDst(nodesCloneNode(pSrc), nodesDestroyNode);
+    SNode* pNew = NULL;
+    int32_t code = nodesCloneNode(pSrc, &pNew);
+    std::unique_ptr<SNode, void (*)(SNode*)> pDst(pNew, nodesDestroyNode);
     checkFunc_(pSrc, pDst.get());
   }
 
@@ -43,9 +45,13 @@ TEST_F(NodesCloneTest, tempTable) {
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
 
   run([&]() {
-    srcNode.reset(nodesMakeNode(QUERY_NODE_TEMP_TABLE));
+    SNode*  pNew = NULL;
+    int32_t code = nodesMakeNode(QUERY_NODE_TEMP_TABLE, &pNew);
+    srcNode.reset(pNew);
     STempTableNode* pNode = (STempTableNode*)srcNode.get();
-    pNode->pSubquery = nodesMakeNode(QUERY_NODE_SELECT_STMT);
+    pNew = NULL;
+    code = nodesMakeNode(QUERY_NODE_SELECT_STMT, &pNew);
+    pNode->pSubquery = pNew;
     return srcNode.get();
   }());
 }
@@ -66,12 +72,14 @@ TEST_F(NodesCloneTest, joinTable) {
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
 
   run([&]() {
-    srcNode.reset(nodesMakeNode(QUERY_NODE_JOIN_TABLE));
+    SNode*  pNew = NULL;
+    int32_t code = nodesMakeNode(QUERY_NODE_JOIN_TABLE, &pNew);
+    srcNode.reset(pNew);
     SJoinTableNode* pNode = (SJoinTableNode*)srcNode.get();
     pNode->joinType = JOIN_TYPE_INNER;
-    pNode->pLeft = nodesMakeNode(QUERY_NODE_REAL_TABLE);
-    pNode->pRight = nodesMakeNode(QUERY_NODE_REAL_TABLE);
-    pNode->pOnCond = nodesMakeNode(QUERY_NODE_OPERATOR);
+    code = nodesMakeNode(QUERY_NODE_REAL_TABLE, &pNode->pLeft);
+    code = nodesMakeNode(QUERY_NODE_REAL_TABLE, &pNode->pRight);
+    code = nodesMakeNode(QUERY_NODE_OPERATOR, &pNode->pOnCond);
     return srcNode.get();
   }());
 }
@@ -88,10 +96,12 @@ TEST_F(NodesCloneTest, stateWindow) {
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
 
   run([&]() {
-    srcNode.reset(nodesMakeNode(QUERY_NODE_STATE_WINDOW));
+    SNode*  pNew = NULL;
+    int32_t code = nodesMakeNode(QUERY_NODE_STATE_WINDOW, &pNew);
+    srcNode.reset(pNew);
     SStateWindowNode* pNode = (SStateWindowNode*)srcNode.get();
-    pNode->pCol = nodesMakeNode(QUERY_NODE_COLUMN);
-    pNode->pExpr = nodesMakeNode(QUERY_NODE_OPERATOR);
+    code = nodesMakeNode(QUERY_NODE_COLUMN, &pNode->pCol);
+    code = nodesMakeNode(QUERY_NODE_OPERATOR, &pNode->pExpr);
     return srcNode.get();
   }());
 }
@@ -108,10 +118,12 @@ TEST_F(NodesCloneTest, sessionWindow) {
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
 
   run([&]() {
-    srcNode.reset(nodesMakeNode(QUERY_NODE_SESSION_WINDOW));
+    SNode*  pNew = NULL;
+    int32_t code = nodesMakeNode(QUERY_NODE_SESSION_WINDOW, &pNew);
+    srcNode.reset(pNew);
     SSessionWindowNode* pNode = (SSessionWindowNode*)srcNode.get();
-    pNode->pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
-    pNode->pGap = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pNode->pCol);
+    code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pNode->pGap);
     return srcNode.get();
   }());
 }
@@ -136,12 +148,14 @@ TEST_F(NodesCloneTest, intervalWindow) {
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
 
   run([&]() {
-    srcNode.reset(nodesMakeNode(QUERY_NODE_INTERVAL_WINDOW));
+      SNode* pNew = NULL;
+      int32_t code = nodesMakeNode(QUERY_NODE_INTERVAL_WINDOW, &pNew);
+    srcNode.reset(pNew);
     SIntervalWindowNode* pNode = (SIntervalWindowNode*)srcNode.get();
-    pNode->pInterval = nodesMakeNode(QUERY_NODE_VALUE);
-    pNode->pOffset = nodesMakeNode(QUERY_NODE_VALUE);
-    pNode->pSliding = nodesMakeNode(QUERY_NODE_VALUE);
-    pNode->pFill = nodesMakeNode(QUERY_NODE_FILL);
+    code =  nodesMakeNode(QUERY_NODE_VALUE, &pNode->pInterval);
+    code = nodesMakeNode(QUERY_NODE_VALUE, &pNode->pOffset);
+    code = nodesMakeNode(QUERY_NODE_VALUE, &pNode->pSliding);
+    code = nodesMakeNode(QUERY_NODE_FILL, &pNode->pFill);
     return srcNode.get();
   }());
 }
@@ -163,11 +177,13 @@ TEST_F(NodesCloneTest, fill) {
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
 
   run([&]() {
-    srcNode.reset(nodesMakeNode(QUERY_NODE_FILL));
+    SNode*  pNew = NULL;
+    int32_t code = nodesMakeNode(QUERY_NODE_FILL, &pNew);
+    srcNode.reset(pNew);
     SFillNode* pNode = (SFillNode*)srcNode.get();
     pNode->mode = FILL_MODE_VALUE;
-    pNode->pValues = nodesMakeNode(QUERY_NODE_NODE_LIST);
-    pNode->pWStartTs = nodesMakeNode(QUERY_NODE_COLUMN);
+    code = nodesMakeNode(QUERY_NODE_NODE_LIST, &pNode->pValues);
+    code = nodesMakeNode(QUERY_NODE_COLUMN, &pNode->pWStartTs);
     pNode->timeRange.skey = 1666756692907;
     pNode->timeRange.ekey = 1666756699907;
     return srcNode.get();
@@ -188,7 +204,9 @@ TEST_F(NodesCloneTest, logicSubplan) {
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
 
   run([&]() {
-    srcNode.reset(nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN));
+    SNode*  pNew = NULL;
+    int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN, &pNew);
+    srcNode.reset(pNew);
     SLogicSubplan* pNode = (SLogicSubplan*)srcNode.get();
     return srcNode.get();
   }());
@@ -208,7 +226,9 @@ TEST_F(NodesCloneTest, physiScan) {
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
 
   run([&]() {
-    srcNode.reset(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN));
+    SNode*  pNew = nullptr;
+    int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN, &pNew);
+    srcNode.reset(pNew);
     STagScanPhysiNode* pNode = (STagScanPhysiNode*)srcNode.get();
     return srcNode.get();
   }());
@@ -227,7 +247,9 @@ TEST_F(NodesCloneTest, physiSystemTableScan) {
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
 
   run([&]() {
-    srcNode.reset(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN));
+      SNode* pNew = NULL;
+      int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, &pNew);
+    srcNode.reset(pNew);
     SSystemTableScanPhysiNode* pNode = (SSystemTableScanPhysiNode*)srcNode.get();
     return srcNode.get();
   }());
@@ -244,7 +266,9 @@ TEST_F(NodesCloneTest, physiStreamSemiSessionWinodw) {
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
 
   run([&]() {
-    srcNode.reset(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION));
+    SNode*  pNew = NULL;
+    int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION, &pNew);
+    srcNode.reset(pNew);
     SStreamSemiSessionWinodwPhysiNode* pNode = (SStreamSemiSessionWinodwPhysiNode*)srcNode.get();
     return srcNode.get();
   }());
@@ -261,7 +285,9 @@ TEST_F(NodesCloneTest, physiStreamFinalSessionWinodw) {
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
 
   run([&]() {
-    srcNode.reset(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION));
+    SNode*  pNew = NULL;
+    int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION, &pNew);
+    srcNode.reset(pNew);
     SStreamFinalSessionWinodwPhysiNode* pNode = (SStreamFinalSessionWinodwPhysiNode*)srcNode.get();
     return srcNode.get();
   }());
@@ -277,7 +303,9 @@ TEST_F(NodesCloneTest, physiStreamPartition) {
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
 
   run([&]() {
-    srcNode.reset(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION));
+    SNode* pNew = NULL;
+    int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION, &pNew);
+    srcNode.reset(pNew);
     SStreamPartitionPhysiNode* pNode = (SStreamPartitionPhysiNode*)srcNode.get();
     return srcNode.get();
   }());
@@ -293,7 +321,9 @@ TEST_F(NodesCloneTest, physiPartition) {
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
 
   run([&]() {
-    srcNode.reset(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_PARTITION));
+    SNode*  pNew = NULL;
+    int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_PARTITION, &pNew);
+    srcNode.reset(pNew);
     SPartitionPhysiNode* pNode = (SPartitionPhysiNode*)srcNode.get();
     return srcNode.get();
   }());

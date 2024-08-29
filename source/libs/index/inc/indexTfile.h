@@ -99,23 +99,24 @@ typedef struct TFileReaderOpt {
 TFileCache*  tfileCacheCreate(SIndex* idx, const char* path);
 void         tfileCacheDestroy(TFileCache* tcache);
 TFileReader* tfileCacheGet(TFileCache* tcache, ICacheKey* key);
-void         tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader);
+int32_t      tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader);
 
 TFileReader* tfileGetReaderByCol(IndexTFile* tf, uint64_t suid, char* colName);
 
-TFileReader* tfileReaderOpen(SIndex* idx, uint64_t suid, int64_t version, const char* colName);
-TFileReader* tfileReaderCreate(IFileCtx* ctx);
-void         tfileReaderDestroy(TFileReader* reader);
-int          tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTRslt* tr);
-void         tfileReaderRef(TFileReader* reader);
-void         tfileReaderUnRef(TFileReader* reader);
+int32_t tfileReaderOpen(SIndex* idx, uint64_t suid, int64_t version, const char* colName, TFileReader** pReader);
+int32_t tfileReaderCreate(IFileCtx* ctx, TFileReader** pReader);
+void    tfileReaderDestroy(TFileReader* reader);
+int     tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTRslt* tr);
+void    tfileReaderRef(TFileReader* reader);
+void    tfileReaderUnRef(TFileReader* reader);
 
-TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int64_t version, const char* colName, uint8_t type);
-void         tfileWriterClose(TFileWriter* tw);
-TFileWriter* tfileWriterCreate(IFileCtx* ctx, TFileHeader* header);
-void         tfileWriterDestroy(TFileWriter* tw);
-int          tfileWriterPut(TFileWriter* tw, void* data, bool order);
-int          tfileWriterFinish(TFileWriter* tw);
+int32_t tfileWriterOpen(char* path, uint64_t suid, int64_t version, const char* colName, uint8_t type,
+                        TFileWriter** pWriter);
+void    tfileWriterClose(TFileWriter* tw);
+int32_t tfileWriterCreate(IFileCtx* ctx, TFileHeader* header, TFileWriter** pWriter);
+void    tfileWriterDestroy(TFileWriter* tw);
+int32_t tfileWriterPut(TFileWriter* tw, void* data, bool order);
+int     tfileWriterFinish(TFileWriter* tw);
 
 //
 IndexTFile* idxTFileCreate(SIndex* idx, const char* path);

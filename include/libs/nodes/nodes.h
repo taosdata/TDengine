@@ -112,11 +112,11 @@ int64_t nodesMakeAllocatorWeakRef(int64_t allocatorId);
 int64_t nodesReleaseAllocatorWeakRef(int64_t allocatorId);
 void    nodesDestroyAllocator(int64_t allocatorId);
 
-SNode* nodesMakeNode(ENodeType type);
+int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut);
 void   nodesDestroyNode(SNode* pNode);
 void   nodesFree(void* p);
 
-SNodeList* nodesMakeList();
+int32_t    nodesMakeList(SNodeList** ppListOut);
 int32_t    nodesListAppend(SNodeList* pList, SNode* pNode);
 int32_t    nodesListStrictAppend(SNodeList* pList, SNode* pNode);
 int32_t    nodesListMakeAppend(SNodeList** pList, SNode* pNode);
@@ -156,8 +156,8 @@ bool nodeListNodeEqual(const SNodeList* a, const SNode* b);
 
 bool nodesMatchNode(const SNode* pSub, const SNode* pNode);
 
-SNode*     nodesCloneNode(const SNode* pNode);
-SNodeList* nodesCloneList(const SNodeList* pList);
+int32_t nodesCloneNode(const SNode* pNode, SNode** ppNodeOut);
+int32_t nodesCloneList(const SNodeList* pList, SNodeList** ppList);
 
 const char* nodesNodeName(ENodeType type);
 int32_t     nodesNodeToString(const SNode* pNode, bool format, char** pStr, int32_t* pLen);

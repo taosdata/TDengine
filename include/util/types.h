@@ -38,7 +38,7 @@ static FORCE_INLINE float taos_align_get_float(const char *pBuf) {
   assert(sizeof(float) == sizeof(uint32_t));
 #endif
   float fv = 0;
-  memcpy(&fv, pBuf, sizeof(fv));  // in ARM, return *((const float*)(pBuf)) may cause problem
+  (void)memcpy(&fv, pBuf, sizeof(fv));  // in ARM, return *((const float*)(pBuf)) may cause problem
   return fv;
 }
 
@@ -49,7 +49,7 @@ static FORCE_INLINE double taos_align_get_double(const char *pBuf) {
   assert(sizeof(double) == sizeof(uint64_t));
 #endif
   double dv = 0;
-  memcpy(&dv, pBuf, sizeof(dv));  // in ARM, return *((const double*)(pBuf)) may cause problem
+  (void)memcpy(&dv, pBuf, sizeof(dv));  // in ARM, return *((const double*)(pBuf)) may cause problem
   return dv;
 }
 

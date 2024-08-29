@@ -25,13 +25,13 @@ extern "C" {
 int32_t mndInitTopic(SMnode *pMnode);
 void    mndCleanupTopic(SMnode *pMnode);
 
-SMqTopicObj *mndAcquireTopic(SMnode *pMnode, const char *topicName);
+int32_t      mndAcquireTopic(SMnode *pMnode, const char *topicName, SMqTopicObj **pTopic);
 void         mndReleaseTopic(SMnode *pMnode, SMqTopicObj *pTopic);
 int32_t      mndDropTopicByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 bool         mndTopicExistsForDb(SMnode *pMnode, SDbObj *pDb);
-const char  *mndTopicGetShowName(const char topic[TSDB_TOPIC_FNAME_LEN]);
+void         mndTopicGetShowName(const char* fullTopic, char* topic);
+bool         checkTopic(SArray *topics, char *topicName);
 
-int32_t mndSetTopicCommitLogs(SMnode *pMnode, STrans *pTrans, SMqTopicObj *pTopic);
 int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTopics);
 
 #ifdef __cplusplus

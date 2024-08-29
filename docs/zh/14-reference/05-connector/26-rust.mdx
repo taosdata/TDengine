@@ -1,0 +1,525 @@
+---
+toc_max_heading_level: 4
+sidebar_label: Rust
+title: TDengine Rust Connector
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+import Preparation from "./_preparation.mdx"
+import RequestId from "./_request_id.mdx";
+
+[![Crates.io](https://img.shields.io/crates/v/taos)](https://crates.io/crates/taos) ![Crates.io](https://img.shields.io/crates/d/taos) [![docs.rs](https://img.shields.io/docsrs/taos)](https://docs.rs/taos)
+
+`taos` 是 TDengine 的官方 Rust 语言连接器。Rust 开发人员可以通过它开发存取 TDengine 数据库的应用软件。
+
+该 Rust 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-connector-rust)。
+
+## 连接方式
+
+`taos` 提供两种建立连接的方式。一般我们推荐使用 **Websocket 连接**。
+- **原生连接**，它通过 TDengine 客户端驱动程序（taosc）连接 TDengine 运行实例。
+- **Websocket 连接**，它通过 taosAdapter 的 Websocket 接口连接 TDengine 运行实例。
+
+你可以通过不同的 “特性（即 Cargo 关键字 `features`）” 来指定使用哪种连接器（默认同时支持）。
+
+连接方式的详细介绍请参考：[连接方式](../../../develop/connect/#连接方式)
+
+## 支持的平台
+
+原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
+Websocket 连接支持所有能运行 Rust 的平台。
+
+## 版本历史
+
+|   Rust 连接器版本   |   TDengine 版本   |                        主要功能                       |
+| :----------------: | :--------------: | :--------------------------------------------------: |
+|       v0.12.3      |      3.3.0.0 or later    | 优化了 Websocket 查询和插入性能，支持了 VARBINARY 和 GEOMETRY 类型 |
+|       v0.12.0      |      3.2.3.0 or later    | WS 支持压缩。 |
+|       v0.11.0      |      3.2.0.0     | TMQ 功能优化。 |
+|       v0.10.0      |      3.1.0.0     | WS endpoint 变更。 |
+|       v0.9.2       |      3.0.7.0     | STMT：ws 下获取 tag_fields、col_fields。 |
+|       v0.8.12      |      3.0.5.0     | 消息订阅：获取消费进度及按照指定进度开始消费。 |
+|       v0.8.0       |      3.0.4.0     | 支持无模式写入。 |
+|       v0.7.6       |      3.0.3.0     | 支持在请求中使用 req_id。 |
+|       v0.6.0       |      3.0.0.0     | 基础功能。 |
+
+
+## 处理错误
+
+在报错后，可以获取到错误的具体信息：
+
+```rust
+match conn.exec(sql) {
+    Ok(_) => {
+        Ok(())
+    }
+    Err(e) => {
+        eprintln!("ERROR: {:?}", e);
+        Err(e)
+    }
+}
+```
+错误信息的错误码可以参考：[错误码](../../../reference/error-code)    
+
+## 数据类型映射
+
+TDengine 目前支持时间戳、数字、字符、布尔类型，与 Rust 对应类型转换如下：
+
+| TDengine DataType | Rust DataType     |
+| ----------------- | ----------------- |
+| TIMESTAMP         | Timestamp         |
+| INT               | i32               |
+| BIGINT            | i64               |
+| FLOAT             | f32               |
+| DOUBLE            | f64               |
+| SMALLINT          | i16               |
+| TINYINT           | i8                |
+| BOOL              | bool              |
+| BINARY            | Vec\<u8>          |
+| NCHAR             | String            |
+| JSON              | serde_json::Value |
+
+**注意**：JSON 类型仅在 tag 中支持。
+
+## 示例程序汇总
+
+示例程序源码请参考：[rust example](https://github.com/taosdata/TDengine/tree/main/docs/examples/rust)
+
+## 常见问题
+
+请参考 [FAQ](../../../train-faq/faq)
+
+## API 参考
+
+Rust 连接器的接口分为同步接口和异步接口，一般同步接口是由异步接口实现，方法签名除 async 关键字外基本相同。对于同步接口和异步接口功能一样的接口，本文档只提供同步接口的说明。  
+对于 WebSocket 连接和原生连接两种方式，除了建立连接的 DSN 不同，其余接口调用没有区别。  
+
+### 连接功能  
+#### DSN
+
+TaosBuilder 通过 DSN 连接描述字符串创建一个连接构造器。
+DSN 描述字符串基本结构如下：
+
+```text
+<driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
+|------|------------|---|-----------|-----------|------|------|------------|-----------------------|
+|driver|   protocol |   | username  | password  | host | port |  database  |  params               |
+```
+
+各部分意义见下表：
+
+- **driver**: 必须指定驱动名以便连接器选择何种方式创建连接，支持如下驱动名：
+  - **taos**: 表名使用 TDengine 连接器驱动。
+  - **tmq**: 使用 TMQ 订阅数据。
+  - **http/ws**: 使用 Websocket 创建连接。
+  - **https/wss**: 在 Websocket 连接方式下显示启用 SSL/TLS 连接。
+- **protocol**: 显示指定以何种方式建立连接，例如：`taos+ws://localhost:6041` 指定以 Websocket 方式建立连接。
+- **username/password**: 用于创建连接的用户名及密码。
+- **host/port**: 指定创建连接的服务器及端口，当不指定服务器地址及端口时（`taos://`），原生连接默认为 `localhost:6030`，Websocket 连接默认为 `localhost:6041` 。
+- **database**: 指定默认连接的数据库名，可选参数。
+- **params**：其他可选参数。
+
+一个完整的 DSN 描述字符串示例如下：`taos+ws://localhost:6041/test`， 表示使用 Websocket（`ws`）方式通过 `6041` 端口连接服务器 `localhost`，并指定默认数据库为 `test`。
+
+#### TaosBuilder
+TaosBuilder 结构体主要提供了根据 DSN 构建 Taos 对象的方法，还提供了检查连接，以及获取客户端版本号等功能。
+
+- `fn available_params() -> &'static [&'static str]`
+  - **接口说明**：获取 DSN 中可用的参数列表。
+  - **返回值**：返回静态字符串切片的引用，包含可用的参数名称。
+
+- `fn from_dsn<D: IntoDsn>(dsn: D) -> RawResult<Self>`
+  - **接口说明**：使用 DSN 字符串创建连接，不检查连接。
+  - **参数说明**：
+    - `dsn`：DSN 字符串或可转换为 DSN 的类型。
+  - **返回值**：成功时返回自身类型的 `RawResult`，失败时返回错误。
+
+- `fn client_version() -> &'static str`
+  - **接口说明**：获取客户端版本。
+  - **返回值**：返回客户端版本的静态字符串。
+
+- `fn ping(&self, _: &mut Self::Target) -> RawResult<()>`
+  - **接口说明**：检查连接是否仍然存活。
+  - **参数说明**：
+    - `_`：目标连接的可变引用。
+  - **返回值**：成功时返回空的 `RawResult`，失败时返回错误。
+
+- `fn ready(&self) -> bool`
+  - **接口说明**：检查是否准备好连接。
+  - **返回值**：大多数情况下返回 `true`，表示地址准备好连接。
+
+- `fn build(&self) -> RawResult<Self::Target>`
+  - **接口说明**：从此结构创建新的 Taos 对象。
+  - **返回值**：成功时返回目标连接类型的 `RawResult`，失败时返回错误。
+
+### 执行 SQL
+执行 SQL 主要使用 Taos 结构体，获取结果集以及元数据需要使用下节介绍的 ResultSet 结构体 和列信息 Field 结构体。
+
+#### Taos
+Taos 结构体提供了多个数据库操作的 API，包括：执行 SQL，无模式写入，以及一些常用数据库查询的封装（如创建数据库，获取）
+
+- `pub fn is_native(&self) -> bool`
+  - **接口说明**：判断连接是否使用本地协议。
+  - **返回值**：如果使用本地协议，则返回 `true`，否则返回 `false`。
+
+- `pub fn is_ws(&self) -> bool`
+  - **接口说明**：判断连接是否使用websocket协议。
+  - **返回值**：如果使用websocket协议，则返回 `true`，否则返回 `false`。
+
+- `fn query<T: AsRef<str>>(&self, sql: T) -> RawResult<Self::ResultSet>`
+  - **接口说明**：执行 SQL 查询。
+  - **参数说明**：
+    - `sql`：要执行的 SQL 语句。
+  - **返回值**：成功时返回结果集 `ResultSet` 的 `RawResult`，失败时返回错误。
+
+- `fn query_with_req_id<T: AsRef<str>>(&self, sql: T, req_id: u64) -> RawResult<Self::ResultSet>`
+  - **接口说明**：带请求 ID 执行 SQL 查询。
+  - **参数说明**：
+    - `sql`：要执行的 SQL 语句。
+    - `req_id`：请求 ID。
+  - **返回值**：成功时返回结果集 `ResultSet` 的 `RawResult`，失败时返回错误。
+
+- `fn exec<T: AsRef<str>>(&self, sql: T) -> RawResult<usize>`
+  - **接口说明**：执行 SQL 语句。
+  - **参数说明**：
+    - `sql`：要执行的 SQL 语句。
+  - **返回值**：成功时返回受影响的行数，失败时返回错误。
+
+- `fn exec_many<T: AsRef<str>, I: IntoIterator<Item = T>>(&self, input: I) -> RawResult<usize>`
+  - **接口说明**：批量执行 SQL 语句。
+  - **参数说明**：
+    - `input`：要执行的 SQL 语句集合。
+  - **返回值**：成功时返回总共受影响的行数，失败时返回错误。
+
+- `fn query_one<T: AsRef<str>, O: DeserializeOwned>(&self, sql: T) -> RawResult<Option<O>>`
+  - **接口说明**：执行 SQL 查询并返回单个结果。
+  - **参数说明**：
+    - `sql`：要执行的 SQL 语句。
+  - **返回值**：成功时返回可选的结果对象，失败时返回错误。
+
+- `fn server_version(&self) -> RawResult<Cow<str>>`
+  - **接口说明**：获取服务器版本。
+  - **返回值**：成功时返回服务器版本字符串的 `RawResult`，失败时返回错误。
+
+- `fn create_topic(&self, name: impl AsRef<str>, sql: impl AsRef<str>) -> RawResult<()>`
+  - **接口说明**：创建主题。
+  - **参数说明**：
+    - `name`：主题名称。
+    - `sql`：关联的 SQ L语句。
+  - **返回值**：成功时返回空的 `RawResult`，失败时返回错误。
+
+- `fn databases(&self) -> RawResult<Vec<ShowDatabase>>`
+  - **接口说明**：获取数据库列表。
+  - **返回值**：成功时返回数据库列表的 `RawResult`，失败时返回错误。
+
+- `fn topics(&self) -> RawResult<Vec<Topic>>`
+  - **接口说明**：获取主题信息。
+  - **返回值**：成功时返回主题列表的 `RawResult`，失败时返回错误。
+
+- `fn describe(&self, table: &str) -> RawResult<Describe>`
+  - **接口说明**：描述表结构。
+  - **参数说明**：
+    - `table`：表名称。
+  - **返回值**：成功时返回表结构描述的 `RawResult`，失败时返回错误。
+
+- `fn database_exists(&self, name: &str) -> RawResult<bool>`
+  - **接口说明**：检查数据库是否存在。
+  - **参数说明**：
+    - `name`：数据库名称。
+  - **返回值**：成功时返回布尔值的 `RawResult`，指示数据库是否存在，失败时返回错误。
+
+- `fn put(&self, data: &SmlData) -> RawResult<()>`
+  - **接口说明**：写入无模式数据，SmlData 结构介绍见下文。
+  - **参数说明**：
+    - `data`：无模式数据。
+  - **返回值**：成功时返回空的 `RawResult`，失败时返回错误。
+
+### SmlData  
+SmlData 结构体提供了无模式写入的数据结构，以及获取属性的方法。
+- `pub struct SmlData`
+  - **结构体说明**：`SmlData` 结构体用于存储无模式数据及其相关信息。
+  - **字段说明**：
+    - `protocol`：无模式协议，支持 InfluxDB `Line`, OpenTSDB `Telnet`, OpenTSDB `Json`, 三种。
+    - `precision`：时间戳精度，支持 `Hours`, `Minutes`, `Seconds`, `Millisecond`（默认）, `Microsecond`, `Nanosecond`。
+    - `data`：数据列表。
+    - `ttl`：数据存活时间，单位为秒。
+    - `req_id`：请求 ID。
+
+- `pub fn protocol(&self) -> SchemalessProtocol`
+  - **接口说明**：获取无模式协议。
+  - **返回值**：无模式协议类型，支持 InfluxDB `Line`, OpenTSDB `Telnet`, OpenTSDB `Json`, 三种。
+
+- `pub fn precision(&self) -> SchemalessPrecision`
+  - **接口说明**：获取时间戳精度。
+  - **返回值**：时间戳精度类型，支持 `Hours`, `Minutes`, `Seconds`, `Millisecond`（默认）, `Microsecond`, `Nanosecond`。
+
+- `pub fn data(&self) -> &Vec<String>`
+  - **接口说明**：获取数据列表。
+  - **返回值**：数据列表的引用。
+
+- `pub fn ttl(&self) -> Option<i32>`
+  - **接口说明**：获取数据存活时间。
+  - **返回值**：数据存活时间（可选），单位为秒。
+
+- `pub fn req_id(&self) -> Option<u64>`
+  - **接口说明**：获取请求 ID。
+  - **返回值**：请求 ID（可选）。
+
+### 结果获取  
+#### ResultSet
+ResultSet 结构体提供了结果集的一些方法，可以用来获取结果集的数据和元数据。
+
+- `fn affected_rows(&self) -> i32`
+  - **接口说明**：获取受影响的行数。
+  - **返回值**：受影响的行数，类型为 `i32`。
+
+- `fn precision(&self) -> Precision`
+  - **接口说明**：获取精度信息。
+  - **返回值**：精度信息，类型为 `Precision`。
+
+- `fn fields(&self) -> &[Field]`
+  - **接口说明**：获取字段信息。见下文 Feild 结构体描述。
+  - **返回值**：字段信息数组的引用。
+
+- `fn summary(&self) -> (usize, usize)`
+  - **接口说明**：获取摘要信息。
+  - **返回值**：包含两个 `usize` 类型的元组，分别表示某些统计信息。
+
+- `fn num_of_fields(&self) -> usize`
+  - **接口说明**：获取字段数量。
+  - **返回值**：字段数量，类型为 `usize`。
+
+- `fn blocks(&mut self) -> IBlockIter<'_, Self>`
+  - **接口说明**：获取原始数据块的迭代器。
+  - **返回值**：原始数据块的迭代器，类型为 `IBlockIter<'_, Self>`。
+
+- `fn rows(&mut self) -> IRowsIter<'_, Self>`
+  - **接口说明**：获取按行查询的迭代器。
+  - **返回值**：按行查询的迭代器，类型为 `IRowsIter<'_, Self>`。
+
+- `fn deserialize<T>(&mut self) -> Map<IRowsIter<'_, Self>, fn(_: Result<RowView<'_>, Error>) -> Result<T, Error>>`
+  - **接口说明**：反序列化行数据。
+  - **泛型参数**：
+    - `T`：目标类型，需实现 `DeserializeOwned`。
+  - **返回值**：反序列化结果的映射，类型为 `Map<IRowsIter<'_, Self>, fn(_: Result<RowView<'_>, Error>) -> Result<T, Error>>`。
+
+- `fn to_rows_vec(&mut self) -> Result<Vec<Vec<Value>>, Error>`
+  - **接口说明**：将结果集转换为值的二维向量。
+  - **返回值**：成功时返回值的二维向量，失败时返回错误，类型为 `Result<Vec<Vec<Value>>, Error>`。
+
+#### Feild  
+Feild 结构体提供了字段信息的一些方法。
+
+- `pub const fn empty() -> Field`
+  - **接口说明**：创建一个空的 `Field` 实例。
+  - **返回值**：返回一个空的 `Field` 实例。
+
+- `pub fn new(name: impl Into<String>, ty: Ty, bytes: u32) -> Field`
+  - **接口说明**：创建一个新的 `Field` 实例。
+  - **参数说明**：
+    - `name`：字段名称。
+    - `ty`：字段类型。
+    - `bytes`：字段数据长度。
+  - **返回值**：返回一个新的 `Field` 实例。
+
+- `pub fn name(&self) -> &str`
+  - **接口说明**：获取字段名称。
+  - **返回值**：返回字段的名称。
+
+- `pub fn escaped_name(&self) -> String`
+  - **接口说明**：获取转义后的字段名称。
+  - **返回值**：返回转义后的字段名称。
+
+- `pub const fn ty(&self) -> Ty`
+  - **接口说明**：获取字段类型。
+  - **返回值**：返回字段的类型。
+
+- `pub const fn bytes(&self) -> u32`
+  - **接口说明**：获取字段的预设长度。
+  - **返回值**：对于变长数据类型，返回其预设长度；对于其他类型，返回其字节宽度。
+
+- `pub fn to_c_field(&self) -> c_field_t`
+  - **接口说明**：将 `Field` 实例转换为 C 语言结构体。
+  - **返回值**：返回 C 语言结构体表示的字段。
+
+- `pub fn sql_repr(&self) -> String`
+  - **接口说明**：表示字段在 SQL 中的数据类型。
+  - **返回值**：例如："INT", "VARCHAR(100)" 等 SQL 数据类型表示。
+
+### 参数绑定
+参数绑定功能主要由 Stmt 结构体支持。
+#### Stmt  
+Stmt 结构体提供了参数绑定相关功能，用于实现高效写入。
+
+- `fn init(taos: &Q) -> RawResult<Self>`
+  - **接口说明**：初始化参数绑定实例。
+  - **参数说明**：
+    - `taos`：数据库连接实例。
+  - **返回值**：成功时返回初始化的实例，失败时返回错误。
+
+- `fn init_with_req_id(taos: &Q, req_id: u64) -> RawResult<Self>`
+  - **接口说明**：使用请求 ID 初始化参数绑定实例。
+  - **参数说明**：
+    - `taos`：数据库连接实例。
+    - `req_id`：请求 ID。
+  - **返回值**：成功时返回初始化的实例，失败时返回错误。
+
+- `fn prepare<S: AsRef<str>>(&mut self, sql: S) -> RawResult<&mut Self>`
+  - **接口说明**：准备要绑定的 SQL 语句。
+  - **参数说明**：
+    - `sql`：要准备的 SQL 语句。
+  - **返回值**：成功时返回自身的可变引用，失败时返回错误。
+
+- `fn set_tbname<S: AsRef<str>>(&mut self, name: S) -> RawResult<&mut Self>`
+  - **接口说明**：设置表名称。
+  - **参数说明**：
+    - `name`：表名称。
+  - **返回值**：成功时返回自身的可变引用，失败时返回错误。
+
+- `fn set_tags(&mut self, tags: &[Value]) -> RawResult<&mut Self>`
+  - **接口说明**：设置标签。
+  - **参数说明**：
+    - `tags`：标签数组。
+  - **返回值**：成功时返回自身的可变引用，失败时返回错误。
+
+- `fn set_tbname_tags<S: AsRef<str>>(&mut self, name: S, tags: &[Value]) -> RawResult<&mut Self>`
+  - **接口说明**：设置表名称和标签。
+  - **参数说明**：
+    - `name`：表名称。
+    - `tags`：标签数组。
+  - **返回值**：成功时返回自身的可变引用，失败时返回错误。
+
+- `fn bind(&mut self, params: &[ColumnView]) -> RawResult<&mut Self>`
+  - **接口说明**：绑定参数。
+  - **参数说明**：
+    - `params`：参数数组。
+  - **返回值**：成功时返回自身的可变引用，失败时返回错误。
+
+- `fn add_batch(&mut self) -> RawResult<&mut Self>`
+  - **接口说明**：添加批处理。
+  - **返回值**：成功时返回自身的可变引用，失败时返回错误。
+
+- `fn execute(&mut self) -> RawResult<usize>`
+  - **接口说明**：执行语句。
+  - **返回值**：成功时返回受影响的行数，失败时返回错误。
+
+- `fn affected_rows(&self) -> usize`
+  - **接口说明**：获取受影响的行数。
+  - **返回值**：受影响的行数。
+
+### 数据订阅
+数据订阅主要涉及三个结构体，提供连接建立的 TmqBuilder， 消费数据和提交偏移量的 Consumer，以及偏移量 Offset。
+
+#### TmqBuilder
+同 TaosBuilder 类似，TmqBuilder 提供了创建消费者对象的功能。
+
+- `fn available_params() -> &'static [&'static str]`
+  - **接口说明**：获取 DSN 中可用的参数列表。
+  - **返回值**：返回静态字符串切片的引用，包含可用的参数名称。
+
+- `fn from_dsn<D: IntoDsn>(dsn: D) -> RawResult<Self>`
+  - **接口说明**：使用 DSN 字符串创建连接，不检查连接。
+  - **参数说明**：
+    - `dsn`：DSN 字符串或可转换为DSN的类型。
+  - **返回值**：成功时返回自身类型的 `RawResult`，失败时返回错误。
+
+- `fn client_version() -> &'static str`
+  - **接口说明**：获取客户端版本。
+  - **返回值**：返回客户端版本的静态字符串。
+
+- `fn ping(&self, conn: &mut Self::Target) -> RawResult<()>`
+  - **接口说明**：检查连接是否仍然存活。
+  - **参数说明**：
+    - `conn`：目标连接的可变引用。
+  - **返回值**：成功时返回空的 `RawResult`，失败时返回错误。
+
+- `fn ready(&self) -> bool`
+  - **接口说明**：检查是否准备好连接。
+  - **返回值**：大多数情况下返回 `true`，表示地址准备好连接。
+
+- `fn build(&self) -> RawResult<Self::Target>`
+  - **接口说明**：从此结构创建新的连接。
+  - **返回值**：成功时返回目标连接类型的 `RawResult`，失败时返回错误。
+
+#### Consumer
+Consumer 结构体提供了订阅相关的功能，包括订阅，获取消息，提交偏移量，设置偏移量等。
+
+- `fn subscribe<T: Into<String>, I: IntoIterator<Item = T> + Send>(&mut self, topics: I) -> RawResult<()>`
+  - **接口说明**：订阅一系列主题。
+  - **参数说明**：
+    - `topics`：要订阅的主题列表。
+  - **返回值**：成功时返回空的 `RawResult`，失败时返回错误。
+
+- `fn recv_timeout(&self, timeout: Timeout) -> RawResult<Option<(Self::Offset, MessageSet<Self::Meta, Self::Data>)>>`
+  - **接口说明**：在指定超时时间内接收消息。
+  - **参数说明**：
+    - `timeout`：超时时间。
+  - **返回值**：成功时返回消息，失败时返回错误。
+
+- `fn commit(&self, offset: Self::Offset) -> RawResult<()>`
+  - **接口说明**：提交给定的偏移量。
+  - **参数说明**：
+    - `offset`：要提交的偏移量，见下文 Offset 结构体。
+  - **返回值**：成功时返回空的 `RawResult`，失败时返回错误。
+
+- `fn commit_offset(&self, topic_name: &str, vgroup_id: VGroupId, offset: i64) -> RawResult<()>`
+  - **接口说明**：为特定主题和分区提交偏移量。
+  - **参数说明**：
+    - `topic_name`：主题名称。
+    - `vgroup_id`：分区 ID。
+    - `offset`：要提交的偏移量。
+  - **返回值**：成功时返回空的 `RawResult`，失败时返回错误。
+
+- `fn list_topics(&self) -> RawResult<Vec<String>>`
+  - **接口说明**：列出所有可用主题。
+  - **返回值**：成功时返回主题列表，失败时返回错误。
+
+- `fn assignments(&self) -> Option<Vec<(String, Vec<Assignment>)>>`
+  - **接口说明**：获取当前分配的主题和分区。
+  - **返回值**：成功时返回分配信息，失败时返回 `None`。
+
+- `fn offset_seek(&mut self, topic: &str, vg_id: VGroupId, offset: i64) -> RawResult<()>`
+  - **接口说明**：为特定主题和分区设置偏移量。
+  - **参数说明**：
+    - `topic`：主题名称。
+    - `vg_id`：分区 ID。
+    - `offset`：要设置的偏移量。
+  - **返回值**：成功时返回空的 `RawResult`，失败时返回错误。
+
+- `fn committed(&self, topic: &str, vgroup_id: VGroupId) -> RawResult<i64>`
+  - **接口说明**：获取特定主题和分区的已提交偏移量。
+  - **参数说明**：
+    - `topic`：主题名称。
+    - `vgroup_id`：分区 ID。
+  - **返回值**：成功时返回偏移量，失败时返回错误。
+
+- `fn position(&self, topic: &str, vgroup_id: VGroupId) -> RawResult<i64>`
+  - **接口说明**：获取特定主题和分区的当前位置。
+  - **参数说明**：
+    - `topic`：主题名称。
+    - `vgroup_id`：分区 ID。
+  - **返回值**：成功时返回当前位置，失败时返回错误。
+
+#### Offset
+
+Offset 结构体提供了获取当前消息所属的数据库，主题和分区信息。
+
+- `fn database(&self) -> &str`
+  - **接口说明**：获取当前消息的数据库名称。
+  - **返回值**：数据库名称的引用。
+
+- `fn topic(&self) -> &str`
+  - **接口说明**：获取当前消息的主题名称。
+  - **返回值**：主题名称的引用。
+
+- `fn vgroup_id(&self) -> VGroupId`
+  - **接口说明**：获取当前消息的分区 ID。
+  - **返回值**：分区 ID。
+
+## 附录  
+- Rust 连接器文档：https://docs.rs/taos
+- Rust 连接器项目地址: https://github.com/taosdata/rust-connector-taos  
+- deadpool 连接池: https://crates.io/crates/deadpool  
+- r2d2 连接池: https://crates.io/crates/r2d2  

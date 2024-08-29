@@ -84,11 +84,11 @@ typedef struct SConfigItem {
   };
   union {
     int64_t imin;
-    double  fmin;
+    float   fmin;
   };
   union {
     int64_t imax;
-    double  fmax;
+    float   fmax;
   };
   SArray *array;  // SDiskCfg/SLogVar
 } SConfigItem;
@@ -101,7 +101,7 @@ typedef struct {
 typedef struct SConfig SConfig;
 typedef struct SConfigIter SConfigIter;
 
-SConfig     *cfgInit();
+int32_t      cfgInit(SConfig **ppCfg);
 int32_t      cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const void *sourceStr);
 int32_t      cfgLoadFromArray(SConfig *pCfg, SArray *pArgs);  // SConfigPair
 void         cfgCleanup(SConfig *pCfg);
@@ -110,7 +110,7 @@ SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName);
 int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock);
 int32_t      cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer);
 
-SConfigIter *cfgCreateIter(SConfig *pConf);
+int32_t      cfgCreateIter(SConfig *pConf, SConfigIter **ppIter);
 SConfigItem *cfgNextIter(SConfigIter *pIter);
 void         cfgDestroyIter(SConfigIter *pIter);
 void         cfgLock(SConfig *pCfg);
@@ -131,8 +131,8 @@ int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal, 
 const char *cfgStypeStr(ECfgSrcType type);
 const char *cfgDtypeStr(ECfgDataType type);
 
-void cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
-void cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
+int32_t cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
+int32_t cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
 
 void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump);
 void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump);

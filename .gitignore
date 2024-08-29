@@ -136,4 +136,5 @@ tags
 *CMakeFiles*
 packaging/smokeTest/*.html
 packaging/smokeTest/*.json
+.history/
 

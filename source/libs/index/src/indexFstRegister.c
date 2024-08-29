@@ -57,8 +57,9 @@ static void fstRegistryCellPromote(SArray* arr, uint32_t start, uint32_t end) {
   if (start >= sz && end >= sz) {
     return;
   }
-  ASSERTS(start >= end, "index-fst start lower than end");
-  if (start < end) return;
+  if (start < end) {
+    return;
+  }
 
   int32_t s = (int32_t)start;
   int32_t e = (int32_t)end;
@@ -83,7 +84,7 @@ FstRegistry* fstRegistryCreate(uint64_t tableSize, uint64_t mruSize) {
 
   for (uint64_t i = 0; i < nCells; i++) {
     FstRegistryCell cell = {.addr = NONE_ADDRESS, .node = fstBuilderNodeDefault()};
-    taosArrayPush(tb, &cell);
+    (void)taosArrayPush(tb, &cell);
   }
 
   registry->table = tb;

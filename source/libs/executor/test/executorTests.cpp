@@ -71,11 +71,16 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator) {
   }
 
   if (pInfo->pBlock == NULL) {
-    pInfo->pBlock = createDataBlock();
+    pInfo->pBlock = NULL;
+    int32_t code = createDataBlock(&pInfo->pBlock);
+    ASSERT(code == 0);
 
     SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
-    blockDataAppendColInfo(pInfo->pBlock, &colInfo);
-    blockDataEnsureCapacity(pInfo->pBlock, pInfo->numOfRowsPerPage);
+    code = blockDataAppendColInfo(pInfo->pBlock, &colInfo);
+    ASSERT(code == 0);
+
+    code = blockDataEnsureCapacity(pInfo->pBlock, pInfo->numOfRowsPerPage);
+    ASSERT(code == 0);
 
     //    SColumnInfoData colInfo1 = {0};
     //    colInfo1.info.type = TSDB_DATA_TYPE_BINARY;
@@ -107,7 +112,8 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator) {
       v = taosRand();
     }
 
-    colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(&v), false);
+    int32_t code = colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(&v), false);
+    ASSERT(code == 0);
 
     //    sprintf(buf, "this is %d row", i);
     //    STR_TO_VARSTR(b1, buf);
@@ -129,15 +135,21 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
   }
 
   if (pInfo->pBlock == NULL) {
-    pInfo->pBlock = createDataBlock();
+    pInfo->pBlock = NULL;
+
+    int32_t code = createDataBlock(&pInfo->pBlock);
+    ASSERT(code == 0);
 
     SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
-    blockDataAppendColInfo(pInfo->pBlock, &colInfo);
+    int32_t code = blockDataAppendColInfo(pInfo->pBlock, &colInfo);
+    ASSERT(code == 0);
 
     SColumnInfoData colInfo1 = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 2);
-    blockDataAppendColInfo(pInfo->pBlock, &colInfo1);
+    code = blockDataAppendColInfo(pInfo->pBlock, &colInfo1);
+    ASSERT(code == 0);
 
-    blockDataEnsureCapacity(pInfo->pBlock, pInfo->numOfRowsPerPage);
+    code = blockDataEnsureCapacity(pInfo->pBlock, pInfo->numOfRowsPerPage);
+    ASSERT(code == 0);
   } else {
     blockDataCleanup(pInfo->pBlock);
   }
@@ -152,7 +164,8 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
     SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 0));
 
     ts = (++pInfo->tsStart);
-    colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(&ts), false);
+    int32_t code = colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(&ts), false);
+    ASSERT(code == 0);
 
     SColumnInfoData* pColInfo1 = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 1));
     if (pInfo->type == data_desc) {
@@ -163,7 +176,8 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
       v = taosRand();
     }
 
-    colDataSetVal(pColInfo1, i, reinterpret_cast<const char*>(&v), false);
+    code = colDataSetVal(pColInfo1, i, reinterpret_cast<const char*>(&v), false);
+    ASSERT(code == 0);
 
     //    sprintf(buf, "this is %d row", i);
     //    STR_TO_VARSTR(b1, buf);
@@ -177,13 +191,14 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
   pInfo->current += 1;
 
   pBlock->info.dataLoad = 1;
-  blockDataUpdateTsWindow(pBlock, 0);
+  int32_t code = blockDataUpdateTsWindow(pBlock, 0);
   return pBlock;
 }
 
 SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_t rowsPerPage, int32_t type,
                                    int32_t numOfCols) {
   SOperatorInfo* pOperator = static_cast<SOperatorInfo*>(taosMemoryCalloc(1, sizeof(SOperatorInfo)));
+  ASSERT(!pOperator);
   pOperator->name = "dummyInputOpertor4Test";
 
   if (numOfCols == 1) {
@@ -193,6 +208,7 @@ SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_
   }
 
   SDummyInputInfo* pInfo = (SDummyInputInfo*)taosMemoryCalloc(1, sizeof(SDummyInputInfo));
+  ASSERT(!pInfo);
   pInfo->totalPages = numOfBlocks;
   pInfo->startVal = startVal;
   pInfo->numOfRowsPerPage = rowsPerPage;

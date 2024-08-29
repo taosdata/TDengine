@@ -21,9 +21,8 @@ sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   in
 sql create stream streams2 trigger at_once watermark 1d IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt2 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s) sliding (5s);
 sql create stream stream_t1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamtST as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s) sliding (5s);
 sql create stream stream_t2 trigger at_once watermark 1d IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamtST2 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s) sliding (5s);
-sleep 1000
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791210000,1,2,3,1.0);
 sql insert into t1 values(1648791216000,2,2,3,1.1);
@@ -314,9 +313,8 @@ sql create table t2 using st tags(2,2,2);
 
 sql create stream streams11 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s, 5s);
 sql create stream streams12 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt2 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s, 5s);
-sleep 1000
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791213000,1,2,3,1.0);
 sql insert into t1 values(1648791223001,2,2,3,1.1);
@@ -450,9 +448,8 @@ sql create table t2 using st tags(2,2,2);
 
 sql create stream streams21 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt21 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s, 5s);
 sql create stream streams22 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt22 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s, 5s);
-sleep 1000
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791213000,1,1,1,1.0);
 sql insert into t1 values(1648791223001,2,2,2,1.1);
@@ -591,7 +588,8 @@ sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 
 sql create stream streams23 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt23 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(20s) sliding(10s);
-sleep 1000
+
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791213000,1,1,1,1.0);
 sql insert into t1 values(1648791223001,2,2,2,1.1);
@@ -716,9 +714,8 @@ sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 
 sql create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt4 as select  _wstart as ts, count(*),min(a) c1 from st interval(10s) sliding(5s);
-sleep 1000
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791213000,1,1,1,1.0);
 sql insert into t1 values(1648791243000,2,1,1,1.0);

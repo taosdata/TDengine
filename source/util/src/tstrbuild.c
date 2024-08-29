@@ -47,7 +47,7 @@ void taosStringBuilderDestroy(SStringBuilder* sb) {
 
 void taosStringBuilderAppend(SStringBuilder* sb, const void* data, size_t len) {
   taosStringBuilderEnsureCapacity(sb, len);
-  memcpy(sb->buf + sb->pos, data, len);
+  (void)memcpy(sb->buf + sb->pos, data, len);
   sb->pos += len;
 }
 
@@ -59,7 +59,7 @@ void taosStringBuilderAppendChar(SStringBuilder* sb, char c) {
 void taosStringBuilderAppendStringLen(SStringBuilder* sb, const char* str, size_t len) {
   taosStringBuilderEnsureCapacity(sb, len);
   if(!sb->buf) return;
-  memcpy(sb->buf + sb->pos, str, len);
+  (void)memcpy(sb->buf + sb->pos, str, len);
   sb->pos += len;
 }
 

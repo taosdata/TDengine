@@ -19,7 +19,7 @@ sql create table streamt2(ts timestamp, a int primary key, b bigint ) tags(ta va
 sql create stream streams0 trigger at_once ignore expired 0 ignore update 0  into streamt0 as select  _wstart, count(*) c1, max(b) from t1 interval(1s);
 sql create stream streams2 trigger at_once ignore expired 0 ignore update 0  into streamt2 tags(ta) as select  _wstart, count(*) c1, max(b) from st partition by tbname ta interval(1s);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791210000,1,2,3,1.0);
 
@@ -109,7 +109,7 @@ sql create table streamt5(ts timestamp, a int primary key, b bigint ) tags(ta va
 sql create stream streams3 trigger at_once ignore expired 0 ignore update 0  into streamt3 as select  _wstart, count(*) c1, max(b) from t1 session(ts,1s);
 sql create stream streams5 trigger at_once ignore expired 0 ignore update 0  into streamt5 tags(ta) as select  _wstart, count(*) c1, max(b) from st partition by tbname ta session(ts,1s);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791210000,1,2,3,1.0);
 
@@ -196,7 +196,7 @@ sql create table t1 using st tags("aa", 1, 2);
 sql create table streamt6(ts timestamp, a int primary key, b bigint ) tags(ta varchar(100),tb int,tc int);
 sql create stream streams6 trigger at_once ignore expired 0 ignore update 0  into streamt6 tags(ta) as select  _wstart, count(*) c1, max(b) from st partition by tbname ta state_window(a);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791210000,1,2,3,1.0);
 

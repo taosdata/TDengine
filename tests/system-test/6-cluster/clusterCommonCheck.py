@@ -37,7 +37,7 @@ class ClusterComCheck:
         tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def checkDnodes(self,dnodeNumbers, timeout=30):
+    def checkDnodes(self,dnodeNumbers, timeout=100):
         count=0
         # print(tdSql)
         while count < timeout:

@@ -81,7 +81,7 @@ typedef struct {
 //  uint64_t uid;           // child table uid, may be useful
 } RandTableName;
 
-void buildChildTableName(RandTableName* rName);
+int32_t buildChildTableName(RandTableName* rName);
 
 #ifdef __cplusplus
 }

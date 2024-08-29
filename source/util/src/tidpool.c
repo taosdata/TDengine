@@ -19,7 +19,9 @@
 
 void *taosInitIdPool(int32_t maxId) {
   id_pool_t *pIdPool = taosMemoryCalloc(1, sizeof(id_pool_t));
-  if (pIdPool == NULL) return NULL;
+  if (pIdPool == NULL) {
+    return NULL;
+  }
 
   pIdPool->freeList = taosMemoryCalloc(maxId, sizeof(bool));
   if (pIdPool->freeList == NULL) {
@@ -31,7 +33,7 @@ void *taosInitIdPool(int32_t maxId) {
   pIdPool->numOfFree = maxId;
   pIdPool->freeSlot = 0;
 
-  taosThreadMutexInit(&pIdPool->mutex, NULL);
+  (void)taosThreadMutexInit(&pIdPool->mutex, NULL);
 
   uDebug("pool:%p is setup, maxId:%d", pIdPool, pIdPool->maxId);
 
@@ -42,7 +44,7 @@ int32_t taosAllocateId(id_pool_t *pIdPool) {
   if (pIdPool == NULL) return -1;
 
   int32_t slot = -1;
-  taosThreadMutexLock(&pIdPool->mutex);
+  (void)taosThreadMutexLock(&pIdPool->mutex);
 
   if (pIdPool->numOfFree > 0) {
     for (int32_t i = 0; i < pIdPool->maxId; ++i) {
@@ -56,14 +58,14 @@ int32_t taosAllocateId(id_pool_t *pIdPool) {
     }
   }
 
-  taosThreadMutexUnlock(&pIdPool->mutex);
+  (void)taosThreadMutexUnlock(&pIdPool->mutex);
   return slot + 1;
 }
 
 void taosFreeId(id_pool_t *pIdPool, int32_t id) {
   if (pIdPool == NULL) return;
 
-  taosThreadMutexLock(&pIdPool->mutex);
+  (void)taosThreadMutexLock(&pIdPool->mutex);
 
   int32_t slot = (id - 1) % pIdPool->maxId;
   if (pIdPool->freeList[slot]) {
@@ -71,7 +73,7 @@ void taosFreeId(id_pool_t *pIdPool, int32_t id) {
     pIdPool->numOfFree++;
   }
 
-  taosThreadMutexUnlock(&pIdPool->mutex);
+  (void)taosThreadMutexUnlock(&pIdPool->mutex);
 }
 
 void taosIdPoolCleanUp(id_pool_t *pIdPool) {
@@ -81,7 +83,7 @@ void taosIdPoolCleanUp(id_pool_t *pIdPool) {
 
   if (pIdPool->freeList) taosMemoryFree(pIdPool->freeList);
 
-  taosThreadMutexDestroy(&pIdPool->mutex);
+  (void)taosThreadMutexDestroy(&pIdPool->mutex);
 
   memset(pIdPool, 0, sizeof(id_pool_t));
 
@@ -89,16 +91,16 @@ void taosIdPoolCleanUp(id_pool_t *pIdPool) {
 }
 
 int32_t taosIdPoolNumOfUsed(id_pool_t *pIdPool) {
-  taosThreadMutexLock(&pIdPool->mutex);
+  (void)taosThreadMutexLock(&pIdPool->mutex);
   int32_t ret = pIdPool->maxId - pIdPool->numOfFree;
-  taosThreadMutexUnlock(&pIdPool->mutex);
+  (void)taosThreadMutexUnlock(&pIdPool->mutex);
 
   return ret;
 }
 
 bool taosIdPoolMarkStatus(id_pool_t *pIdPool, int32_t id) {
   bool ret = false;
-  taosThreadMutexLock(&pIdPool->mutex);
+  (void)taosThreadMutexLock(&pIdPool->mutex);
 
   int32_t slot = (id - 1) % pIdPool->maxId;
   if (!pIdPool->freeList[slot]) {
@@ -109,7 +111,7 @@ bool taosIdPoolMarkStatus(id_pool_t *pIdPool, int32_t id) {
     ret = false;
   }
 
-  taosThreadMutexUnlock(&pIdPool->mutex);
+  (void)taosThreadMutexUnlock(&pIdPool->mutex);
   return ret;
 }
 
@@ -120,10 +122,10 @@ int32_t taosUpdateIdPool(id_pool_t *pIdPool, int32_t maxId) {
 
   bool *idList = taosMemoryCalloc(maxId, sizeof(bool));
   if (idList == NULL) {
-    return -1;
+    return terrno;
   }
 
-  taosThreadMutexLock(&pIdPool->mutex);
+  (void)taosThreadMutexLock(&pIdPool->mutex);
 
   memcpy(idList, pIdPool->freeList, sizeof(bool) * pIdPool->maxId);
   pIdPool->numOfFree += (maxId - pIdPool->maxId);
@@ -133,15 +135,15 @@ int32_t taosUpdateIdPool(id_pool_t *pIdPool, int32_t maxId) {
   pIdPool->freeList = idList;
   taosMemoryFree(oldIdList);
 
-  taosThreadMutexUnlock(&pIdPool->mutex);
+  (void)taosThreadMutexUnlock(&pIdPool->mutex);
 
   return 0;
 }
 
 int32_t taosIdPoolMaxSize(id_pool_t *pIdPool) {
-  taosThreadMutexLock(&pIdPool->mutex);
+  (void)taosThreadMutexLock(&pIdPool->mutex);
   int32_t ret = pIdPool->maxId;
-  taosThreadMutexUnlock(&pIdPool->mutex);
+  (void)taosThreadMutexUnlock(&pIdPool->mutex);
 
   return ret;
 }

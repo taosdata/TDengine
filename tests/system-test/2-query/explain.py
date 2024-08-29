@@ -77,7 +77,7 @@ class TDTestCase:
             )
         query_condition.extend(
             (
-                1010,
+                1010.1,
                 ''' "test1234!@#$%^&*():'><?/.,][}{" ''',
                 "null"
             )

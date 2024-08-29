@@ -36,11 +36,12 @@ typedef struct SFuncExecEnv {
 } SFuncExecEnv;
 
 typedef bool (*FExecGetEnv)(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
-typedef bool (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo);
+typedef int32_t (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo);
 typedef int32_t (*FExecProcess)(struct SqlFunctionCtx *pCtx);
 typedef int32_t (*FExecFinalize)(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock);
 typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 typedef int32_t (*FExecCombine)(struct SqlFunctionCtx *pDestCtx, struct SqlFunctionCtx *pSourceCtx);
+typedef int32_t (*processFuncByRow)(SArray* pCtx);  // array of SqlFunctionCtx
 
 typedef struct SScalarFuncExecFuncs {
   FExecGetEnv        getEnv;
@@ -48,11 +49,12 @@ typedef struct SScalarFuncExecFuncs {
 } SScalarFuncExecFuncs;
 
 typedef struct SFuncExecFuncs {
-  FExecGetEnv   getEnv;
-  FExecInit     init;
-  FExecProcess  process;
-  FExecFinalize finalize;
-  FExecCombine  combine;
+  FExecGetEnv      getEnv;
+  FExecInit        init;
+  FExecProcess     process;
+  FExecFinalize    finalize;
+  FExecCombine     combine;
+  processFuncByRow processFuncByRow;
 } SFuncExecFuncs;
 
 #define MAX_INTERVAL_TIME_WINDOW 10000000  // maximum allowed time windows in final results
@@ -253,6 +255,7 @@ typedef struct SqlFunctionCtx {
   bool                 hasPrimaryKey;
   SFuncInputRowIter    rowIter;
   bool                 bInputFinished;
+  bool                 hasWindowOrGroup; // denote that the function is used with time window or group
 } SqlFunctionCtx;
 
 typedef struct tExprNode {
@@ -291,7 +294,7 @@ typedef struct SPoint {
   void   *val;
 } SPoint;
 
-int32_t taosGetLinearInterpolationVal(SPoint *point, int32_t outputType, SPoint *point1, SPoint *point2,
+void taosGetLinearInterpolationVal(SPoint *point, int32_t outputType, SPoint *point1, SPoint *point2,
                                       int32_t inputType);
 
 #define LEASTSQUARES_DOUBLE_ITEM_LENGTH 25

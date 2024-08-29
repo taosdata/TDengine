@@ -16,10 +16,12 @@
 #include "cos.h"
 #include "crypt.h"
 #include "tsdb.h"
+#include "tsdbDef.h"
 #include "vnd.h"
 
 static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
   int32_t     code = 0;
+  int32_t     lino;
   const char *path = pFD->path;
   int32_t     szPage = pFD->szPage;
   int32_t     flag = pFD->flag;
@@ -33,75 +35,32 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
 
       int32_t     vid = 0;
       const char *object_name = taosDirEntryBaseName((char *)path);
-      sscanf(object_name, "v%df%dver%" PRId64 ".data", &vid, &pFD->fid, &pFD->cid);
+      (void)sscanf(object_name, "v%df%dver%" PRId64 ".data", &vid, &pFD->fid, &pFD->cid);
 
       char *dot = strrchr(lc_path, '.');
       if (!dot) {
         tsdbError("unexpected path: %s", lc_path);
-        code = TAOS_SYSTEM_ERROR(ENOENT);
-        goto _exit;
+        TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(ENOENT), lino, _exit);
       }
       snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", pFD->lcn);
 
       pFD->pFD = taosOpenFile(lc_path, flag);
       if (pFD->pFD == NULL) {
-        code = TAOS_SYSTEM_ERROR(errno);
-        // taosMemoryFree(pFD);
-        goto _exit;
+        TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
       }
       if (taosStatFile(lc_path, &lc_size, NULL, NULL) < 0) {
-        code = TAOS_SYSTEM_ERROR(errno);
-        // taosCloseFile(&pFD->pFD);
-        // taosMemoryFree(pFD);
-        goto _exit;
+        TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
       }
     } else {
       tsdbInfo("no file: %s", path);
-      code = TAOS_SYSTEM_ERROR(errno);
-      // taosMemoryFree(pFD);
-      goto _exit;
+      TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
     }
     pFD->s3File = 1;
-    /*
-    const char *object_name = taosDirEntryBaseName((char *)path);
-    long        s3_size = 0;
-    if (tsS3Enabled) {
-      long size = s3Size(object_name);
-      if (size < 0) {
-        code = terrno = TSDB_CODE_FAILED_TO_CONNECT_S3;
-        goto _exit;
-      }
-
-      s3_size = size;
-    }
-
-    if (tsS3Enabled && !strncmp(path + strlen(path) - 5, ".data", 5) && s3_size > 0) {
-#ifndef S3_BLOCK_CACHE
-      s3EvictCache(path, s3_size);
-      s3Get(object_name, path);
-
-      pFD->pFD = taosOpenFile(path, flag);
-      if (pFD->pFD == NULL) {
-        code = TAOS_SYSTEM_ERROR(ENOENT);
-        // taosMemoryFree(pFD);
-        goto _exit;
-      }
-#else
-      pFD->pFD = (TdFilePtr)&pFD->s3File;
-      int32_t vid = 0;
-      sscanf(object_name, "v%df%dver%" PRId64 ".data", &vid, &pFD->fid, &pFD->cid);
-      pFD->objName = object_name;
-      // pFD->szFile = s3_size;
-#endif
-    */
   }
 
   pFD->pBuf = taosMemoryCalloc(1, szPage);
   if (pFD->pBuf == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    // taosCloseFile(&pFD->pFD);
-    // taosMemoryFree(pFD);
-    goto _exit;
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   if (lc_size > 0) {
@@ -114,24 +73,26 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
   // not check file size when reading data files.
   if (flag != TD_FILE_READ /* && !pFD->s3File*/) {
     if (!lc_size && taosStatFile(path, &pFD->szFile, NULL, NULL) < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      // taosMemoryFree(pFD->pBuf);
-      // taosCloseFile(&pFD->pFD);
-      // taosMemoryFree(pFD);
-      goto _exit;
+      TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
     }
   }
 
-  ASSERT(pFD->szFile % szPage == 0);
+  if (pFD->szFile % szPage != 0) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_PARA, lino, _exit);
+  }
   pFD->szFile = pFD->szFile / szPage;
 
 _exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+  }
   return code;
 }
 
 // =============== PAGE-WISE FILE ===============
 int32_t tsdbOpenFile(const char *path, STsdb *pTsdb, int32_t flag, STsdbFD **ppFD, int32_t lcn) {
   int32_t  code = 0;
+  int32_t  lino;
   STsdbFD *pFD = NULL;
   int32_t  szPage = pTsdb->pVnode->config.tsdbPageSize;
 
@@ -139,8 +100,7 @@ int32_t tsdbOpenFile(const char *path, STsdb *pTsdb, int32_t flag, STsdbFD **ppF
 
   pFD = (STsdbFD *)taosMemoryCalloc(1, sizeof(*pFD) + strlen(path) + 1);
   if (pFD == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   pFD->path = (char *)&pFD[1];
@@ -155,6 +115,9 @@ int32_t tsdbOpenFile(const char *path, STsdb *pTsdb, int32_t flag, STsdbFD **ppF
   *ppFD = pFD;
 
 _exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pTsdb->pVnode), lino, code);
+  }
   return code;
 }
 
@@ -163,7 +126,7 @@ void tsdbCloseFile(STsdbFD **ppFD) {
   if (pFD) {
     taosMemoryFree(pFD->pBuf);
     // if (!pFD->s3File) {
-    taosCloseFile(&pFD->pFD);
+    (void)taosCloseFile(&pFD->pFD);
     //}
     taosMemoryFree(pFD);
     *ppFD = NULL;
@@ -172,12 +135,11 @@ void tsdbCloseFile(STsdbFD **ppFD) {
 
 static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *encryptKey) {
   int32_t code = 0;
+  int32_t lino;
 
   if (!pFD->pFD) {
     code = tsdbOpenFileImpl(pFD);
-    if (code) {
-      goto _exit;
-    }
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (pFD->pgno > 0) {
@@ -189,15 +151,13 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
 
       offset -= chunkoffset;
     }
-    ASSERT(offset >= 0);
 
     int64_t n = taosLSeekFile(pFD->pFD, offset, SEEK_SET);
     if (n < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _exit;
+      TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
     }
 
-    taosCalcChecksumAppend(0, pFD->pBuf, pFD->szPage);
+    (void)taosCalcChecksumAppend(0, pFD->pBuf, pFD->szPage);
 
     if (encryptAlgorithm == DND_CA_SM4) {
       // if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_TSDB) == DND_CS_TSDB){
@@ -223,8 +183,7 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
 
     n = taosWriteFile(pFD->pFD, pFD->pBuf, pFD->szPage);
     if (n < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _exit;
+      TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
     }
 
     if (pFD->szFile < pFD->pgno) {
@@ -234,18 +193,19 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
   pFD->pgno = 0;
 
 _exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+  }
   return code;
 }
 
 static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgorithm, char *encryptKey) {
   int32_t code = 0;
+  int32_t lino;
 
-  // ASSERT(pgno <= pFD->szFile);
   if (!pFD->pFD) {
     code = tsdbOpenFileImpl(pFD);
-    if (code) {
-      goto _exit;
-    }
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   int64_t offset = PAGE_OFFSET(pgno, pFD->szPage);
@@ -256,44 +216,19 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
 
     offset -= chunkoffset;
   }
-  ASSERT(offset >= 0);
-  /*
-  if (pFD->s3File) {
-    LRUHandle *handle = NULL;
 
-    pFD->blkno = (pgno + tsS3BlockSize - 1) / tsS3BlockSize;
-    code = tsdbCacheGetBlockS3(pFD->pTsdb->bCache, pFD, &handle);
-    if (code != TSDB_CODE_SUCCESS || handle == NULL) {
-      tsdbCacheRelease(pFD->pTsdb->bCache, handle);
-      if (code == TSDB_CODE_SUCCESS && !handle) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-      }
-      goto _exit;
-    }
-
-    uint8_t *pBlock = (uint8_t *)taosLRUCacheValue(pFD->pTsdb->bCache, handle);
-
-    int64_t blk_offset = (pFD->blkno - 1) * tsS3BlockSize * pFD->szPage;
-    memcpy(pFD->pBuf, pBlock + (offset - blk_offset), pFD->szPage);
-
-    tsdbCacheRelease(pFD->pTsdb->bCache, handle);
-  } else {
-  */
   // seek
   int64_t n = taosLSeekFile(pFD->pFD, offset, SEEK_SET);
   if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _exit;
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
   }
 
   // read
   n = taosReadFile(pFD->pFD, pFD->pBuf, pFD->szPage);
   if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _exit;
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
   } else if (n < pFD->szPage) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _exit;
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
   //}
 
@@ -322,19 +257,22 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
 
   // check
   if (pgno > 1 && !taosCheckChecksumWhole(pFD->pBuf, pFD->szPage)) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _exit;
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
 
   pFD->pgno = pgno;
 
 _exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+  }
   return code;
 }
 
 int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size, int32_t encryptAlgorithm,
                       char *encryptKey) {
   int32_t code = 0;
+  int32_t lino;
   int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
   int64_t pgno = OFFSET_PGNO(fOffset, pFD->szPage);
   int64_t bOffset = fOffset % pFD->szPage;
@@ -343,11 +281,11 @@ int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t
   do {
     if (pFD->pgno != pgno) {
       code = tsdbWriteFilePage(pFD, encryptAlgorithm, encryptKey);
-      if (code) goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
 
       if (pgno <= pFD->szFile) {
         code = tsdbReadFilePage(pFD, pgno, encryptAlgorithm, encryptKey);
-        if (code) goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       } else {
         pFD->pgno = pgno;
       }
@@ -362,25 +300,30 @@ int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t
   } while (n < size);
 
 _exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+  }
   return code;
 }
 
 static int32_t tsdbReadFileImp(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int32_t encryptAlgorithm,
                                char *encryptKey) {
   int32_t code = 0;
+  int32_t lino;
   int64_t n = 0;
   int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
   int64_t pgno = OFFSET_PGNO(fOffset, pFD->szPage);
   int32_t szPgCont = PAGE_CONTENT_SIZE(pFD->szPage);
   int64_t bOffset = fOffset % pFD->szPage;
 
-  // ASSERT(pgno && pgno <= pFD->szFile);
-  ASSERT(bOffset < szPgCont);
+  if (bOffset >= szPgCont) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_PARA, lino, _exit);
+  }
 
   while (n < size) {
     if (pFD->pgno != pgno) {
       code = tsdbReadFilePage(pFD, pgno, encryptAlgorithm, encryptKey);
-      if (code) goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     int64_t nRead = TMIN(szPgCont - bOffset, size - n);
@@ -392,15 +335,20 @@ static int32_t tsdbReadFileImp(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int6
   }
 
 _exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+  }
   return code;
 }
 
 static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, bool check, uint8_t **ppBlock) {
   int32_t    code = 0;
+  int32_t    lino;
   SVnodeCfg *pCfg = &pFD->pTsdb->pVnode->config;
   int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
   int64_t    cOffset = offset % chunksize;
   int64_t    n = 0;
+  char      *buf = NULL;
 
   char   *object_name = taosDirEntryBaseName(pFD->path);
   char    object_name_prefix[TSDB_FILENAME_LEN];
@@ -410,11 +358,13 @@ static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, boo
   char *dot = strrchr(object_name_prefix, '.');
   if (!dot) {
     tsdbError("unexpected path: %s", object_name_prefix);
-    code = TAOS_SYSTEM_ERROR(ENOENT);
-    goto _exit;
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(ENOENT), lino, _exit);
   }
 
-  char *buf = taosMemoryCalloc(1, size);
+  buf = taosMemoryCalloc(1, size);
+  if (buf == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
+  }
 
   for (int32_t chunkno = offset / chunksize + 1; n < size; ++chunkno) {
     int64_t nRead = TMIN(chunksize - cOffset, size - n);
@@ -423,20 +373,14 @@ static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, boo
       // read last chunk
       int64_t ret = taosLSeekFile(pFD->pFD, chunksize * (chunkno - pFD->lcn) + cOffset, SEEK_SET);
       if (ret < 0) {
-        code = TAOS_SYSTEM_ERROR(errno);
-        taosMemoryFree(buf);
-        goto _exit;
+        TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
       }
 
       ret = taosReadFile(pFD->pFD, buf + n, nRead);
       if (ret < 0) {
-        code = TAOS_SYSTEM_ERROR(errno);
-        taosMemoryFree(buf);
-        goto _exit;
+        TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
       } else if (ret < nRead) {
-        code = TSDB_CODE_FILE_CORRUPTED;
-        taosMemoryFree(buf);
-        goto _exit;
+        TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
       }
     } else {
       uint8_t *pBlock = NULL;
@@ -444,10 +388,7 @@ static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, boo
       snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - object_name_prefix), "%d.data", chunkno);
 
       code = s3GetObjectBlock(object_name_prefix, cOffset, nRead, check, &pBlock);
-      if (code != TSDB_CODE_SUCCESS) {
-        taosMemoryFree(buf);
-        goto _exit;
-      }
+      TSDB_CHECK_CODE(code, lino, _exit);
 
       memcpy(buf + n, pBlock, nRead);
       taosMemoryFree(pBlock);
@@ -457,21 +398,28 @@ static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, boo
     cOffset = 0;
   }
 
-  *ppBlock = buf;
-
 _exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+    taosMemoryFree(buf);
+  } else {
+    *ppBlock = (uint8_t *)buf;
+  }
   return code;
 }
 
 static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint) {
   int32_t code = 0;
+  int32_t lino;
   int64_t n = 0;
   int32_t szPgCont = PAGE_CONTENT_SIZE(pFD->szPage);
   int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
   int64_t pgno = OFFSET_PGNO(fOffset, pFD->szPage);
   int64_t bOffset = fOffset % pFD->szPage;
 
-  ASSERT(bOffset < szPgCont);
+  if (bOffset >= szPgCont) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_PARA, lino, _exit);
+  }
 
   // 1, find pgnoStart & pgnoEnd to fetch from s3, if all pgs are local, no need to fetch
   // 2, fetch pgnoStart ~ pgnoEnd from s3
@@ -484,9 +432,9 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
       code = tsdbCacheGetPageS3(pFD->pTsdb->pgCache, pFD, pgno, &handle);
       if (code != TSDB_CODE_SUCCESS) {
         if (handle) {
-          tsdbCacheRelease(pFD->pTsdb->pgCache, handle);
+          (void)tsdbCacheRelease(pFD->pTsdb->pgCache, handle);
         }
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
 
       if (!handle) {
@@ -495,12 +443,11 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
 
       uint8_t *pPage = (uint8_t *)taosLRUCacheValue(pFD->pTsdb->pgCache, handle);
       memcpy(pFD->pBuf, pPage, pFD->szPage);
-      tsdbCacheRelease(pFD->pTsdb->pgCache, handle);
+      (void)tsdbCacheRelease(pFD->pTsdb->pgCache, handle);
 
       // check
       if (pgno > 1 && !taosCheckChecksumWhole(pFD->pBuf, pFD->szPage)) {
-        code = TSDB_CODE_FILE_CORRUPTED;
-        goto _exit;
+        TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
       }
 
       pFD->pgno = pgno;
@@ -525,21 +472,14 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
     }
 
     int64_t retrieve_size = (pgnoEnd - pgno + 1) * pFD->szPage;
-    /*
-    code = s3GetObjectBlock(pFD->objName, retrieve_offset, retrieve_size, 1, &pBlock);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _exit;
-    }
-    */
+
     code = tsdbReadFileBlock(pFD, retrieve_offset, retrieve_size, 1, &pBlock);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _exit;
-    }
+    TSDB_CHECK_CODE(code, lino, _exit);
     // 3, Store Pages in Cache
     int nPage = pgnoEnd - pgno + 1;
     for (int i = 0; i < nPage; ++i) {
       if (pFD->szFile != pgno) {  // DONOT cache last volatile page
-        tsdbCacheSetPageS3(pFD->pTsdb->pgCache, pFD, pgno, pBlock + i * pFD->szPage);
+        (void)tsdbCacheSetPageS3(pFD->pTsdb->pgCache, pFD, pgno, pBlock + i * pFD->szPage);
       }
 
       if (szHint > 0 && n >= size) {
@@ -550,8 +490,7 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
 
       // check
       if (pgno > 1 && !taosCheckChecksumWhole(pFD->pBuf, pFD->szPage)) {
-        code = TSDB_CODE_FILE_CORRUPTED;
-        goto _exit;
+        TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
       }
 
       pFD->pgno = pgno;
@@ -568,59 +507,72 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
   }
 
 _exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+  }
   return code;
 }
 
 int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint,
                      int32_t encryptAlgorithm, char *encryptKey) {
   int32_t code = 0;
+  int32_t lino;
+
   if (!pFD->pFD) {
     code = tsdbOpenFileImpl(pFD);
-    if (code) {
-      goto _exit;
-    }
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (pFD->s3File && pFD->lcn > 1 /* && tsS3BlockSize < 0*/) {
-    return tsdbReadFileS3(pFD, offset, pBuf, size, szHint);
+    code = tsdbReadFileS3(pFD, offset, pBuf, size, szHint);
+    TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    return tsdbReadFileImp(pFD, offset, pBuf, size, encryptAlgorithm, encryptKey);
+    code = tsdbReadFileImp(pFD, offset, pBuf, size, encryptAlgorithm, encryptKey);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+  }
   return code;
 }
 
 int32_t tsdbReadFileToBuffer(STsdbFD *pFD, int64_t offset, int64_t size, SBuffer *buffer, int64_t szHint,
                              int32_t encryptAlgorithm, char *encryptKey) {
   int32_t code;
+  int32_t lino;
 
   code = tBufferEnsureCapacity(buffer, buffer->size + size);
-  if (code) return code;
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   code = tsdbReadFile(pFD, offset, (uint8_t *)tBufferGetDataEnd(buffer), size, szHint, encryptAlgorithm, encryptKey);
-  if (code) return code;
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   buffer->size += size;
 
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+  }
   return code;
 }
 
 int32_t tsdbFsyncFile(STsdbFD *pFD, int32_t encryptAlgorithm, char *encryptKey) {
   int32_t code = 0;
-  /*
-  if (pFD->s3File) {
-    tsdbWarn("%s file: %s", __func__, pFD->path);
-    return code;
-  }
-  */
+  int32_t lino;
+
   code = tsdbWriteFilePage(pFD, encryptAlgorithm, encryptKey);
-  if (code) goto _exit;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   if (taosFsyncFile(pFD->pFD) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _exit;
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
   }
 
 _exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
+  }
   return code;
 }
 
@@ -635,8 +587,7 @@ int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pS
   // alloc
   pReader = (SDataFReader *)taosMemoryCalloc(1, sizeof(*pReader));
   if (pReader == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
   pReader->pTsdb = pTsdb;
   pReader->pSet = pSet;
@@ -711,22 +662,25 @@ int32_t tsdbDataFReaderClose(SDataFReader **ppReader) {
 
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx) {
   int32_t    code = 0;
+  int32_t    lino;
   SHeadFile *pHeadFile = pReader->pSet->pHeadF;
   int64_t    offset = pHeadFile->offset;
   int64_t    size = pHeadFile->size - offset;
 
   taosArrayClear(aBlockIdx);
-  if (size == 0) return code;
+  if (size == 0) {
+    return code;
+  }
 
   // alloc
   code = tRealloc(&pReader->aBuf[0], size);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // read
   int32_t encryptAlgorithm = pReader->pTsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
   char   *encryptKey = pReader->pTsdb->pVnode->config.tsdbCfg.encryptKey;
   code = tsdbReadFile(pReader->pHeadFD, offset, pReader->aBuf[0], size, 0, encryptAlgorithm, encryptKey);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // decode
   int64_t n = 0;
@@ -735,37 +689,41 @@ int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx) {
     n += tGetBlockIdx(pReader->aBuf[0] + n, &blockIdx);
 
     if (taosArrayPush(aBlockIdx, &blockIdx) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
+      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
     }
   }
-  ASSERT(n == size);
+  if (n != size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
-  return code;
-
-_err:
-  tsdbError("vgId:%d, read block idx failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pReader->pTsdb->pVnode), lino, code);
+  }
   return code;
 }
 
 int32_t tsdbReadSttBlk(SDataFReader *pReader, int32_t iStt, SArray *aSttBlk) {
   int32_t   code = 0;
+  int32_t   lino;
   SSttFile *pSttFile = pReader->pSet->aSttF[iStt];
   int64_t   offset = pSttFile->offset;
   int64_t   size = pSttFile->size - offset;
 
   taosArrayClear(aSttBlk);
-  if (size == 0) return code;
+  if (size == 0) {
+    return 0;
+  }
 
   // alloc
   code = tRealloc(&pReader->aBuf[0], size);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // read
   int32_t encryptAlgorithm = pReader->pTsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
   char   *encryptKey = pReader->pTsdb->pVnode->config.tsdbCfg.encryptKey;
   code = tsdbReadFile(pReader->aSttFD[iStt], offset, pReader->aBuf[0], size, 0, encryptAlgorithm, encryptKey);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // decode
   int64_t n = 0;
@@ -774,46 +732,48 @@ int32_t tsdbReadSttBlk(SDataFReader *pReader, int32_t iStt, SArray *aSttBlk) {
     n += tGetSttBlk(pReader->aBuf[0] + n, &sttBlk);
 
     if (taosArrayPush(aSttBlk, &sttBlk) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
+      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
     }
   }
-  ASSERT(n == size);
+  if (n != size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
-  return code;
-
-_err:
-  tsdbError("vgId:%d, read stt blk failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pReader->pTsdb->pVnode), lino, code);
+  }
   return code;
 }
 
 int32_t tsdbReadDataBlk(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *mDataBlk) {
   int32_t code = 0;
+  int32_t lino;
   int64_t offset = pBlockIdx->offset;
   int64_t size = pBlockIdx->size;
 
   // alloc
   code = tRealloc(&pReader->aBuf[0], size);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // read
   int32_t encryptAlgorithm = pReader->pTsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
   char   *encryptKey = pReader->pTsdb->pVnode->config.tsdbCfg.encryptKey;
   code = tsdbReadFile(pReader->pHeadFD, offset, pReader->aBuf[0], size, 0, encryptAlgorithm, encryptKey);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // decode
-  int64_t n = tGetMapData(pReader->aBuf[0], mDataBlk);
-  if (n < 0) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+  int32_t n;
+  code = tGetMapData(pReader->aBuf[0], mDataBlk, &n);
+  if (code) goto _exit;
+  if (n != size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
-  ASSERT(n == size);
 
-  return code;
-
-_err:
-  tsdbError("vgId:%d, read block failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pReader->pTsdb->pVnode), lino, code);
+  }
   return code;
 }
 
@@ -834,8 +794,7 @@ int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb
   // alloc
   pDelFReader = (SDelFReader *)taosMemoryCalloc(1, sizeof(*pDelFReader));
   if (pDelFReader == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   // open impl
@@ -844,15 +803,13 @@ int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb
 
   tsdbDelFileName(pTsdb, pFile, fname);
   code = tsdbOpenFile(fname, pTsdb, TD_FILE_READ, &pDelFReader->pReadH, 0);
-  if (code) {
-    taosMemoryFree(pDelFReader);
-    goto _exit;
-  }
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
     *ppReader = NULL;
-    tsdbError("vgId:%d, %s failed at %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    TSDB_ERROR_LOG(TD_VID(pTsdb->pVnode), lino, code);
+    taosMemoryFree(pDelFReader);
   } else {
     *ppReader = pDelFReader;
   }
@@ -881,6 +838,7 @@ int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData
 
 int32_t tsdbReadDelDatav1(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData, int64_t maxVer) {
   int32_t code = 0;
+  int32_t lino;
   int64_t offset = pDelIdx->offset;
   int64_t size = pDelIdx->size;
   int64_t n;
@@ -889,13 +847,13 @@ int32_t tsdbReadDelDatav1(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelDa
 
   // alloc
   code = tRealloc(&pReader->aBuf[0], size);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // read
   int32_t encryptAlgorithm = pReader->pTsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
   char   *encryptKey = pReader->pTsdb->pVnode->config.tsdbCfg.encryptKey;
   code = tsdbReadFile(pReader->pReadH, offset, pReader->aBuf[0], size, 0, encryptAlgorithm, encryptKey);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // // decode
   n = 0;
@@ -907,22 +865,24 @@ int32_t tsdbReadDelDatav1(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelDa
       continue;
     }
     if (taosArrayPush(aDelData, &delData) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
+      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
     }
   }
 
-  ASSERT(n == size);
+  if (n != size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
-  return code;
-
-_err:
-  tsdbError("vgId:%d, read del data failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pReader->pTsdb->pVnode), lino, code);
+  }
   return code;
 }
 
 int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx) {
   int32_t code = 0;
+  int32_t lino;
   int32_t n;
   int64_t offset = pReader->fDel.offset;
   int64_t size = pReader->fDel.size - offset;
@@ -931,13 +891,13 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx) {
 
   // alloc
   code = tRealloc(&pReader->aBuf[0], size);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // read
   int32_t encryptAlgorithm = pReader->pTsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
   char   *encryptKey = pReader->pTsdb->pVnode->config.tsdbCfg.encryptKey;
   code = tsdbReadFile(pReader->pReadH, offset, pReader->aBuf[0], size, 0, encryptAlgorithm, encryptKey);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // decode
   n = 0;
@@ -947,16 +907,17 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx) {
     n += tGetDelIdx(pReader->aBuf[0] + n, &delIdx);
 
     if (taosArrayPush(aDelIdx, &delIdx) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
+      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
     }
   }
 
-  ASSERT(n == size);
+  if (n != size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
-  return code;
-
-_err:
-  tsdbError("vgId:%d, read del idx failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(pReader->pTsdb->pVnode), lino, code);
+  }
   return code;
 }

@@ -24,7 +24,7 @@ sql_error create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 
 
 sql create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt3(a, b) as select  count(*) c1, max(a) from st interval(10s);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql desc streamt3;
 

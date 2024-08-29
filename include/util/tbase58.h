@@ -25,8 +25,8 @@ extern "C" {
 #define TBASE_MAX_ILEN 4096
 #define TBASE_MAX_OLEN 5653
 
-uint8_t *base58_decode(const char *value, size_t inlen, int32_t *outlen);
-char    *base58_encode(const uint8_t *value, int32_t vlen);
+int32_t base58_decode(const char *value, size_t inlen, int32_t *outlen, uint8_t **result);
+int32_t base58_encode(const uint8_t *value, int32_t vlen, char **result);
 
 #ifdef __cplusplus
 }

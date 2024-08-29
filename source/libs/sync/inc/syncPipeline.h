@@ -77,7 +77,7 @@ static FORCE_INLINE int32_t syncLogReplGetNextRetryBackoff(SSyncLogReplMgr* pMgr
   return TMIN(pMgr->retryBackoff + 1, SYNC_MAX_RETRY_BACKOFF);
 }
 
-SyncTerm syncLogReplGetPrevLogTerm(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index);
+int32_t syncLogReplGetPrevLogTerm(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index, SyncTerm* pSyncTerm);
 
 int32_t syncLogReplStart(SSyncLogReplMgr* pMgr, SSyncNode* pNode);
 int32_t syncLogReplAttempt(SSyncLogReplMgr* pMgr, SSyncNode* pNode);
@@ -93,10 +93,10 @@ int32_t syncLogReplContinue(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendE
 int32_t syncLogReplProcessHeartbeatReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncHeartbeatReply* pMsg);
 
 // SSyncLogBuffer
-SSyncLogBuffer* syncLogBufferCreate();
-void            syncLogBufferDestroy(SSyncLogBuffer* pBuf);
-int32_t         syncLogBufferInit(SSyncLogBuffer* pBuf, SSyncNode* pNode);
-int32_t         syncLogBufferReInit(SSyncLogBuffer* pBuf, SSyncNode* pNode);
+int32_t syncLogBufferCreate(SSyncLogBuffer** ppBuf);
+void    syncLogBufferDestroy(SSyncLogBuffer* pBuf);
+int32_t syncLogBufferInit(SSyncLogBuffer* pBuf, SSyncNode* pNode);
+int32_t syncLogBufferReInit(SSyncLogBuffer* pBuf, SSyncNode* pNode);
 
 // access
 int64_t syncLogBufferGetEndIndex(SSyncLogBuffer* pBuf);
@@ -110,9 +110,10 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
 int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode);
 
 // private
-SSyncRaftEntry* syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex index, bool* pInBuf);
-int32_t         syncLogBufferValidate(SSyncLogBuffer* pBuf);
-int32_t         syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex toIndex);
+int32_t syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex index, bool* pInBuf,
+                                 SSyncRaftEntry** ppEntry);
+int32_t syncLogBufferValidate(SSyncLogBuffer* pBuf);
+int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex toIndex);
 
 int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncRaftEntry* pEntry,
                        int32_t applyCode, bool force);

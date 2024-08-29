@@ -28,29 +28,28 @@ int64_t tsMaxKeyByPrecision[] = {31556995200000L, 31556995200000000L, 9214646400
 // static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg);
 
 int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq2 *pMsg, SSubmitRsp2 *pRsp) {
+  int32_t code;
   int32_t arrSize = 0;
   int32_t affectedrows = 0;
   int32_t numOfRows = 0;
 
-  if (ASSERTS(pTsdb->mem != NULL, "vgId:%d, mem is NULL", TD_VID(pTsdb->pVnode))) {
-    return -1;
+  if (pTsdb->mem == NULL) {
+    TAOS_RETURN(TSDB_CODE_INTERNAL_ERROR);
   }
 
   arrSize = taosArrayGetSize(pMsg->aSubmitTbData);
 
   // scan and convert
-  if ((terrno = tsdbScanAndConvertSubmitMsg(pTsdb, pMsg)) < 0) {
-    if (terrno != TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-      tsdbError("vgId:%d, failed to insert data since %s", TD_VID(pTsdb->pVnode), tstrerror(terrno));
+  if ((code = tsdbScanAndConvertSubmitMsg(pTsdb, pMsg)) < 0) {
+    if (code != TSDB_CODE_TDB_TABLE_RECONFIGURE) {
+      tsdbError("vgId:%d, failed to insert data since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
     }
-    return -1;
+    return code;
   }
 
   // loop to insert
   for (int32_t i = 0; i < arrSize; ++i) {
-    if ((terrno = tsdbInsertTableData(pTsdb, version, taosArrayGet(pMsg->aSubmitTbData, i), &affectedrows)) < 0) {
-      return -1;
-    }
+    TAOS_CHECK_RETURN(tsdbInsertTableData(pTsdb, version, taosArrayGet(pMsg->aSubmitTbData, i), &affectedrows));
   }
 
   if (pRsp != NULL) {
@@ -74,22 +73,12 @@ static FORCE_INLINE int tsdbCheckRowRange(STsdb *pTsdb, tb_uid_t uid, TSKEY rowK
 }
 
 int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq2 *pMsg) {
-  int32_t       code = 0;
   STsdbKeepCfg *pCfg = &pTsdb->keepCfg;
   TSKEY         now = taosGetTimestamp(pCfg->precision);
   TSKEY         minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep2;
   TSKEY         maxKey = tsMaxKeyByPrecision[pCfg->precision];
   int32_t       size = taosArrayGetSize(pMsg->aSubmitTbData);
-  /*
-  int32_t nlevel = tfsGetLevel(pTsdb->pVnode->pTfs);
-  if (nlevel > 1 && tsS3Enabled) {
-    if (nlevel == 3) {
-      minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep1;
-    } else if (nlevel == 2) {
-      minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep0;
-    }
-  }
-  */
+
   for (int32_t i = 0; i < size; ++i) {
     SSubmitTbData *pData = TARRAY_GET_ELEM(pMsg->aSubmitTbData, i);
     if (pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
@@ -99,22 +88,17 @@ int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq2 *pMsg) {
         int32_t nRows = aColData[0].nVal;
         TSKEY  *aKey = (TSKEY *)aColData[0].pData;
         for (int32_t r = 0; r < nRows; ++r) {
-          if ((code = tsdbCheckRowRange(pTsdb, pData->uid, aKey[r], minKey, maxKey, now)) < 0) {
-            goto _exit;
-          }
+          TAOS_CHECK_RETURN(tsdbCheckRowRange(pTsdb, pData->uid, aKey[r], minKey, maxKey, now));
         }
       }
     } else {
       int32_t nRows = taosArrayGetSize(pData->aRowP);
       for (int32_t r = 0; r < nRows; ++r) {
         SRow *pRow = (SRow *)taosArrayGetP(pData->aRowP, r);
-        if ((code = tsdbCheckRowRange(pTsdb, pData->uid, pRow->ts, minKey, maxKey, now)) < 0) {
-          goto _exit;
-        }
+        TAOS_CHECK_RETURN(tsdbCheckRowRange(pTsdb, pData->uid, pRow->ts, minKey, maxKey, now));
       }
     }
   }
 
-_exit:
-  return code;
+  return 0;
 }

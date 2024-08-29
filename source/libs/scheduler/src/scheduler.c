@@ -108,14 +108,26 @@ int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
 
   for (int32_t i = pJob->levelNum - 1; i >= 0; --i) {
     SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
+    if (NULL == pLevel) {
+      qError("failed to get level %d", i);
+      SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
+    }
 
     for (int32_t m = 0; m < pLevel->taskNum; ++m) {
       SSchTask     *pTask = taosArrayGet(pLevel->subTasks, m);
+      if (NULL == pTask) {
+        qError("failed to get task %d, total: %d", m, pLevel->taskNum);
+        SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      }
+      
       SQuerySubDesc subDesc = {0};
       subDesc.tid = pTask->taskId;
-      strcpy(subDesc.status, jobTaskStatusStr(pTask->status));
+      TAOS_STRCPY(subDesc.status, jobTaskStatusStr(pTask->status));
 
-      taosArrayPush(pSub, &subDesc);
+      if (NULL == taosArrayPush(pSub, &subDesc)) {
+        qError("taosArrayPush task %d failed, error: %x, ", m, terrno);
+        SCH_ERR_JRET(terrno);
+      }
     }
   }
 
@@ -141,7 +153,7 @@ int32_t schedulerUpdatePolicy(int32_t policy) {
       qDebug("schedule policy updated to %d", schMgmt.cfg.schPolicy);
       break;
     default:
-      return TSDB_CODE_TSC_INVALID_INPUT;
+      SCH_RET(TSDB_CODE_TSC_INVALID_INPUT);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -157,16 +169,17 @@ void schedulerFreeJob(int64_t *jobId, int32_t errCode) {
     return;
   }
 
-  SSchJob *pJob = schAcquireJob(*jobId);
+  SSchJob *pJob = NULL;
+  (void)schAcquireJob(*jobId, &pJob);
   if (NULL == pJob) {
-    qDebug("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *jobId);
+    qWarn("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *jobId);
     return;
   }
 
   SCH_JOB_DLOG("start to free job 0x%" PRIx64 ", code:%s", *jobId, tstrerror(errCode));
-  schHandleJobDrop(pJob, errCode);
+  (void)schHandleJobDrop(pJob, errCode); // ignore any error
 
-  schReleaseJob(*jobId);
+  (void)schReleaseJob(*jobId); // ignore error
   *jobId = 0;
 }
 
@@ -182,7 +195,7 @@ void schedulerDestroy(void) {
       if (refId == 0) {
         break;
       }
-      taosRemoveRef(schMgmt.jobRef, pJob->refId);
+      (void)taosRemoveRef(schMgmt.jobRef, pJob->refId); // ignore error
 
       pJob = taosIterateRef(schMgmt.jobRef, refId);
     }

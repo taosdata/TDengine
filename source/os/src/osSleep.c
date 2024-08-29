@@ -26,7 +26,9 @@ void taosSsleep(int32_t s) {
 #ifdef WINDOWS
   Sleep(1000 * s);
 #else
-  sleep(s);
+  while (s > 0) {
+    s = sleep(s);
+  }
 #endif
 }
 
@@ -35,7 +37,7 @@ void taosMsleep(int32_t ms) {
 #ifdef WINDOWS
   Sleep(ms);
 #else
-  usleep(ms * 1000);
+  (void)usleep(ms * 1000);
 #endif
 }
 
@@ -51,6 +53,6 @@ void taosUsleep(int32_t us) {
   WaitForSingleObject(timer, INFINITE);
   CloseHandle(timer);
 #else
-  usleep(us);
+  (void)usleep(us);
 #endif
 }

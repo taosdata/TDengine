@@ -54,7 +54,7 @@ extern SDiskSpace tsDataSpace;
 extern SDiskSpace tsLogSpace;
 extern SDiskSpace tsTempSpace;
 
-void osDefaultInit();
+int32_t osDefaultInit();
 void osUpdate();
 void osCleanup();
 
@@ -66,7 +66,7 @@ bool osLogSpaceSufficient();
 bool osDataSpaceSufficient();
 bool osTempSpaceSufficient();
 
-void osSetTimezone(const char *timezone);
+int32_t osSetTimezone(const char *timezone);
 void osSetSystemLocale(const char *inLocale, const char *inCharSet);
 void osSetProcPath(int32_t argc, char **argv);
 

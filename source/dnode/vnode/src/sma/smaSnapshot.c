@@ -38,8 +38,7 @@ int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapRead
   // alloc
   pReader = (SRSmaSnapReader*)taosMemoryCalloc(1, sizeof(*pReader));
   if (pReader == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
   pReader->pSma = pSma;
   pReader->sver = sver;
@@ -50,7 +49,7 @@ int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapRead
     if (pSma->pRSmaTsdb[i]) {
       code = tsdbSnapReaderOpen(pSma->pRSmaTsdb[i], sver, ever, (i == 0 ? SNAP_DATA_RSMA1 : SNAP_DATA_RSMA2), NULL,
                                 &pReader->pDataReader[i]);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
   }
 
@@ -61,7 +60,7 @@ _exit:
     *ppReader = NULL;
     smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   }
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t rsmaSnapRead(SRSmaSnapReader* pReader, uint8_t** ppData) {
@@ -80,7 +79,7 @@ int32_t rsmaSnapRead(SRSmaSnapReader* pReader, uint8_t** ppData) {
     if (!pReader->rsmaDataDone[i]) {
       smaInfo("vgId:%d, vnode snapshot rsma read level %d not done", SMA_VID(pReader->pSma), i);
       code = tsdbSnapRead(pTsdbSnapReader, ppData);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
       if (*ppData) {
         goto _exit;
       } else {
@@ -93,12 +92,12 @@ int32_t rsmaSnapRead(SRSmaSnapReader* pReader, uint8_t** ppData) {
 
 _exit:
   if (code) {
-    smaError("vgId:%d, vnode snapshot rsma read failed since %s", SMA_VID(pReader->pSma), tstrerror(code));
-    rsmaSnapReaderClose(&pReader);
+    smaError("vgId:%d, %s failed at line %d since %s", SMA_VID(pReader->pSma), __func__, lino, tstrerror(code));
+    (void)rsmaSnapReaderClose(&pReader);
   } else {
     smaInfo("vgId:%d, vnode snapshot rsma read succeed", SMA_VID(pReader->pSma));
   }
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t rsmaSnapReaderClose(SRSmaSnapReader** ppReader) {
@@ -107,14 +106,14 @@ int32_t rsmaSnapReaderClose(SRSmaSnapReader** ppReader) {
 
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pReader->pDataReader[i]) {
-      tsdbSnapReaderClose(&pReader->pDataReader[i]);
+      (void)tsdbSnapReaderClose(&pReader->pDataReader[i]);
     }
   }
 
   smaInfo("vgId:%d, vnode snapshot rsma reader closed", SMA_VID(pReader->pSma));
 
   taosMemoryFreeClear(*ppReader);
-  return code;
+  TAOS_RETURN(code);
 }
 
 // SRSmaSnapWriter ========================================
@@ -137,8 +136,7 @@ int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, void** ppRang
   // alloc
   pWriter = (SRSmaSnapWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
   if (!pWriter) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
   pWriter->pSma = pSma;
   pWriter->sver = sver;
@@ -148,7 +146,7 @@ int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, void** ppRang
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pSma->pRSmaTsdb[i]) {
       code = tsdbSnapWriterOpen(pSma->pRSmaTsdb[i], sver, ever, ((void**)ppRanges)[i], &pWriter->pDataWriter[i]);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
   }
 
@@ -162,7 +160,7 @@ _exit:
   } else {
     smaInfo("vgId:%d, rsma snapshot writer open succeed", TD_VID(pSma->pVnode));
   }
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t rsmaSnapWriterPrepareClose(SRSmaSnapWriter* pWriter) {
@@ -171,13 +169,13 @@ int32_t rsmaSnapWriterPrepareClose(SRSmaSnapWriter* pWriter) {
     if (pWriter->pDataWriter[i]) {
       code = tsdbSnapWriterPrepareClose(pWriter->pDataWriter[i]);
       if (code) {
-        smaError("vgId:%d, failed to prepare close tsdbSnapWriter since %s. i: %d", SMA_VID(pWriter->pSma), terrstr(),
-                 i);
-        return -1;
+        smaError("vgId:%d, failed to prepare close tsdbSnapWriter since %s. i: %d", SMA_VID(pWriter->pSma),
+                 tstrerror(code), i);
+        TAOS_RETURN(code);
       }
     }
   }
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback) {
@@ -206,13 +204,13 @@ int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback) {
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pWriter->pDataWriter[i]) {
       code = tsdbSnapWriterClose(&pWriter->pDataWriter[i], rollback);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
   }
 
   // rsma restore
   code = tdRSmaRestore(pWriter->pSma, RSMA_RESTORE_SYNC, pWriter->ever, rollback);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
   smaInfo("vgId:%d, vnode snapshot rsma writer restore from sync succeed", SMA_VID(pSma));
 
 _exit:
@@ -221,12 +219,13 @@ _exit:
   if (code) {
     if (pOutFD) taosCloseFile(&pOutFD);
     if (pInFD) taosCloseFile(&pInFD);
-    smaError("vgId:%d, vnode snapshot rsma writer close failed since %s", SMA_VID(pSma), tstrerror(code));
+    smaError("vgId:%d, vnode snapshot rsma writer close failed at line %d since %s", SMA_VID(pSma), lino,
+             tstrerror(code));
   } else {
     smaInfo("vgId:%d, vnode snapshot rsma writer close succeed", pSma ? SMA_VID(pSma) : 0);
   }
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t rsmaSnapWrite(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
@@ -244,7 +243,7 @@ int32_t rsmaSnapWrite(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   } else {
     code = TSDB_CODE_RSMA_FS_SYNC;
   }
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
 
 _exit:
   if (code) {
@@ -253,5 +252,5 @@ _exit:
   } else {
     smaInfo("vgId:%d, rsma snapshot write for data type %" PRIi8 " succeed", SMA_VID(pWriter->pSma), pHdr->type);
   }
-  return code;
+  TAOS_RETURN(code);
 }

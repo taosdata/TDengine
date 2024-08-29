@@ -27,7 +27,7 @@ struct SVHashEntry {
 static int32_t vHashRehash(SVHashTable* ht, uint32_t newNumBuckets) {
   SVHashEntry** newBuckets = (SVHashEntry**)taosMemoryCalloc(newNumBuckets, sizeof(SVHashEntry*));
   if (newBuckets == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int32_t i = 0; i < ht->numBuckets; i++) {
@@ -65,7 +65,7 @@ int32_t vHashInit(SVHashTable** ht, uint32_t (*hash)(const void*), int32_t (*com
   (*ht)->buckets = (SVHashEntry**)taosMemoryCalloc((*ht)->numBuckets, sizeof(SVHashEntry*));
   if ((*ht)->buckets == NULL) {
     taosMemoryFree(*ht);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   return 0;
@@ -77,7 +77,6 @@ int32_t vHashDestroy(SVHashTable** ht) {
   }
 
   if (*ht) {
-    ASSERT((*ht)->numEntries == 0);
     taosMemoryFree((*ht)->buckets);
     taosMemoryFree(*ht);
     (*ht) = NULL;
@@ -98,7 +97,7 @@ int32_t vHashPut(SVHashTable* ht, void* obj) {
   }
 
   if (ht->numEntries >= ht->numBuckets) {
-    vHashRehash(ht, ht->numBuckets * 2);
+    (void)vHashRehash(ht, ht->numBuckets * 2);
     bucketIndex = ht->hash(obj) % ht->numBuckets;
   }
 
@@ -144,7 +143,7 @@ int32_t vHashDrop(SVHashTable* ht, const void* obj) {
       taosMemoryFree(tmp);
       ht->numEntries--;
       if (ht->numBuckets > VNODE_HASH_DEFAULT_NUM_BUCKETS && ht->numEntries < ht->numBuckets / 4) {
-        vHashRehash(ht, ht->numBuckets / 2);
+        (void)vHashRehash(ht, ht->numBuckets / 2);
       }
       return 0;
     }

@@ -17,6 +17,7 @@
 
 #include "tscalablebf.h"
 #include "taoserror.h"
+#include "tutil.h"
 
 #define DEFAULT_GROWTH           2
 #define DEFAULT_TIGHTENING_RATIO 0.5
@@ -24,82 +25,130 @@
 #define SBF_INVALID              -1
 #define SBF_VALID                0
 
-static SBloomFilter *tScalableBfAddFilter(SScalableBf *pSBf, uint64_t expectedEntries, double errorRate);
+static int32_t tScalableBfAddFilter(SScalableBf* pSBf, uint64_t expectedEntries, double errorRate,
+                                    SBloomFilter** ppNormalBf);
 
-SScalableBf *tScalableBfInit(uint64_t expectedEntries, double errorRate) {
+int32_t tScalableBfInit(uint64_t expectedEntries, double errorRate, SScalableBf** ppSBf) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
   const uint32_t defaultSize = 8;
   if (expectedEntries < 1 || errorRate <= 0 || errorRate >= 1.0) {
-    return NULL;
+    code = TSDB_CODE_INVALID_PARA;
+    QUERY_CHECK_CODE(code, lino, _error);
   }
-  SScalableBf *pSBf = taosMemoryCalloc(1, sizeof(SScalableBf));
+  SScalableBf* pSBf = taosMemoryCalloc(1, sizeof(SScalableBf));
   if (pSBf == NULL) {
-    return NULL;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    QUERY_CHECK_CODE(code, lino, _error);
   }
   pSBf->maxBloomFilters = DEFAULT_MAX_BLOOMFILTERS;
   pSBf->status = SBF_VALID;
   pSBf->numBits = 0;
-  pSBf->bfArray = taosArrayInit(defaultSize, sizeof(void *));
-  if (tScalableBfAddFilter(pSBf, expectedEntries, errorRate * DEFAULT_TIGHTENING_RATIO) == NULL) {
+  pSBf->bfArray = taosArrayInit(defaultSize, sizeof(void*));
+  if (!pSBf->bfArray) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
+
+  SBloomFilter* pNormalBf = NULL;
+  code = tScalableBfAddFilter(pSBf, expectedEntries, errorRate * DEFAULT_TIGHTENING_RATIO, &pNormalBf);
+  if (code != TSDB_CODE_SUCCESS) {
     tScalableBfDestroy(pSBf);
-    return NULL;
+    QUERY_CHECK_CODE(code, lino, _error);
   }
   pSBf->growth = DEFAULT_GROWTH;
   pSBf->hashFn1 = HASH_FUNCTION_1;
   pSBf->hashFn2 = HASH_FUNCTION_2;
-  return pSBf;
+  (*ppSBf) = pSBf;
+  return TSDB_CODE_SUCCESS;
+
+_error:
+  uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
 }
 
-int32_t tScalableBfPutNoCheck(SScalableBf *pSBf, const void *keyBuf, uint32_t len) {
+int32_t tScalableBfPutNoCheck(SScalableBf* pSBf, const void* keyBuf, uint32_t len) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (pSBf->status == SBF_INVALID) {
-    return TSDB_CODE_FAILED;
+    return code;
   }
-  int32_t size = taosArrayGetSize(pSBf->bfArray);
-  SBloomFilter *pNormalBf = taosArrayGetP(pSBf->bfArray, size - 1);
-  ASSERT(pNormalBf);
+  int32_t       size = taosArrayGetSize(pSBf->bfArray);
+  SBloomFilter* pNormalBf = taosArrayGetP(pSBf->bfArray, size - 1);
+  if (!pNormalBf) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
   if (tBloomFilterIsFull(pNormalBf)) {
-    pNormalBf = tScalableBfAddFilter(pSBf, pNormalBf->expectedEntries * pSBf->growth,
-                                     pNormalBf->errorRate * DEFAULT_TIGHTENING_RATIO);
-    if (pNormalBf == NULL) {
+    code = tScalableBfAddFilter(pSBf, pNormalBf->expectedEntries * pSBf->growth,
+                                pNormalBf->errorRate * DEFAULT_TIGHTENING_RATIO, &pNormalBf);
+    if (code != TSDB_CODE_SUCCESS) {
       pSBf->status = SBF_INVALID;
-      return TSDB_CODE_OUT_OF_MEMORY;
+      if (code == TSDB_CODE_OUT_OF_BUFFER) {
+        code = TSDB_CODE_SUCCESS;
+        return code;
+      }
+      QUERY_CHECK_CODE(code, lino, _error);
     }
   }
   return tBloomFilterPut(pNormalBf, keyBuf, len);
+
+_error:
+  if (code != TSDB_CODE_SUCCESS) {
+    uDebug("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
-int32_t tScalableBfPut(SScalableBf *pSBf, const void *keyBuf, uint32_t len) {
+int32_t tScalableBfPut(SScalableBf* pSBf, const void* keyBuf, uint32_t len, int32_t* winRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (pSBf->status == SBF_INVALID) {
-    return TSDB_CODE_FAILED;
+    (*winRes) = TSDB_CODE_FAILED;
+    return code;
   }
   uint64_t h1 = (uint64_t)pSBf->hashFn1(keyBuf, len);
   uint64_t h2 = (uint64_t)pSBf->hashFn2(keyBuf, len);
-  int32_t size = taosArrayGetSize(pSBf->bfArray);
+  int32_t  size = taosArrayGetSize(pSBf->bfArray);
   for (int32_t i = size - 2; i >= 0; --i) {
     if (tBloomFilterNoContain(taosArrayGetP(pSBf->bfArray, i), h1, h2) != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_FAILED;
+      (*winRes) = TSDB_CODE_FAILED;
+      goto _end;
     }
   }
 
-  SBloomFilter *pNormalBf = taosArrayGetP(pSBf->bfArray, size - 1);
-  ASSERT(pNormalBf);
+  SBloomFilter* pNormalBf = taosArrayGetP(pSBf->bfArray, size - 1);
+  QUERY_CHECK_NULL(pNormalBf, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+
   if (tBloomFilterIsFull(pNormalBf)) {
-    pNormalBf = tScalableBfAddFilter(pSBf, pNormalBf->expectedEntries * pSBf->growth,
-                                     pNormalBf->errorRate * DEFAULT_TIGHTENING_RATIO);
-    if (pNormalBf == NULL) {
+    code = tScalableBfAddFilter(pSBf, pNormalBf->expectedEntries * pSBf->growth,
+                                pNormalBf->errorRate * DEFAULT_TIGHTENING_RATIO, &pNormalBf);
+    if (code != TSDB_CODE_SUCCESS) {
       pSBf->status = SBF_INVALID;
-      return TSDB_CODE_OUT_OF_MEMORY;
+      if (code == TSDB_CODE_OUT_OF_BUFFER) {
+        code = TSDB_CODE_SUCCESS;
+        (*winRes) = TSDB_CODE_FAILED;
+        goto _end;
+      }
+      QUERY_CHECK_CODE(code, lino, _end);
     }
   }
-  return tBloomFilterPutHash(pNormalBf, h1, h2);
+  (*winRes) = tBloomFilterPutHash(pNormalBf, h1, h2);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
-int32_t tScalableBfNoContain(const SScalableBf *pSBf, const void *keyBuf, uint32_t len) {
+int32_t tScalableBfNoContain(const SScalableBf* pSBf, const void* keyBuf, uint32_t len) {
   if (pSBf->status == SBF_INVALID) {
     return TSDB_CODE_FAILED;
   }
   uint64_t h1 = (uint64_t)pSBf->hashFn1(keyBuf, len);
   uint64_t h2 = (uint64_t)pSBf->hashFn2(keyBuf, len);
-  int32_t size = taosArrayGetSize(pSBf->bfArray);
+  int32_t  size = taosArrayGetSize(pSBf->bfArray);
   for (int32_t i = size - 1; i >= 0; --i) {
     if (tBloomFilterNoContain(taosArrayGetP(pSBf->bfArray, i), h1, h2) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_FAILED;
@@ -108,24 +157,35 @@ int32_t tScalableBfNoContain(const SScalableBf *pSBf, const void *keyBuf, uint32
   return TSDB_CODE_SUCCESS;
 }
 
-static SBloomFilter *tScalableBfAddFilter(SScalableBf *pSBf, uint64_t expectedEntries, double errorRate) {
+static int32_t tScalableBfAddFilter(SScalableBf* pSBf, uint64_t expectedEntries, double errorRate,
+                                    SBloomFilter** ppNormalBf) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (taosArrayGetSize(pSBf->bfArray) >= pSBf->maxBloomFilters) {
-    return NULL;
+    code = TSDB_CODE_OUT_OF_BUFFER;
+    QUERY_CHECK_CODE(code, lino, _error);
   }
 
-  SBloomFilter *pNormalBf = tBloomFilterInit(expectedEntries, errorRate);
-  if (pNormalBf == NULL) {
-    return NULL;
-  }
+  SBloomFilter* pNormalBf = NULL;
+  code = tBloomFilterInit(expectedEntries, errorRate, &pNormalBf);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   if (taosArrayPush(pSBf->bfArray, &pNormalBf) == NULL) {
     tBloomFilterDestroy(pNormalBf);
-    return NULL;
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _error);
   }
   pSBf->numBits += pNormalBf->numBits;
-  return pNormalBf;
+  (*ppNormalBf) = pNormalBf;
+
+_error:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
-void tScalableBfDestroy(SScalableBf *pSBf) {
+void tScalableBfDestroy(SScalableBf* pSBf) {
   if (pSBf == NULL) {
     return;
   }
@@ -135,48 +195,84 @@ void tScalableBfDestroy(SScalableBf *pSBf) {
   taosMemoryFree(pSBf);
 }
 
-int32_t tScalableBfEncode(const SScalableBf *pSBf, SEncoder *pEncoder) {
+int32_t tScalableBfEncode(const SScalableBf* pSBf, SEncoder* pEncoder) {
   if (!pSBf) {
-    if (tEncodeI32(pEncoder, 0) < 0) return -1;
+    TAOS_CHECK_RETURN(tEncodeI32(pEncoder, 0));
     return 0;
   }
   int32_t size = taosArrayGetSize(pSBf->bfArray);
-  if (tEncodeI32(pEncoder, size) < 0) return -1;
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, size));
   for (int32_t i = 0; i < size; i++) {
-    SBloomFilter *pBF = taosArrayGetP(pSBf->bfArray, i);
-    if (tBloomFilterEncode(pBF, pEncoder) < 0) return -1;
+    SBloomFilter* pBF = taosArrayGetP(pSBf->bfArray, i);
+    TAOS_CHECK_RETURN(tBloomFilterEncode(pBF, pEncoder));
   }
-  if (tEncodeU32(pEncoder, pSBf->growth) < 0) return -1;
-  if (tEncodeU64(pEncoder, pSBf->numBits) < 0) return -1;
-  if (tEncodeU32(pEncoder, pSBf->maxBloomFilters) < 0) return -1;
-  if (tEncodeI8(pEncoder, pSBf->status) < 0) return -1;
+  TAOS_CHECK_RETURN(tEncodeU32(pEncoder, pSBf->growth));
+  TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pSBf->numBits));
+  TAOS_CHECK_RETURN(tEncodeU32(pEncoder, pSBf->maxBloomFilters));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pSBf->status));
   return 0;
 }
 
-SScalableBf *tScalableBfDecode(SDecoder *pDecoder) {
-  SScalableBf *pSBf = taosMemoryCalloc(1, sizeof(SScalableBf));
+int32_t tScalableBfDecode(SDecoder* pDecoder, SScalableBf** ppSBf) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SScalableBf* pSBf = taosMemoryCalloc(1, sizeof(SScalableBf));
+  if (!pSBf) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
   pSBf->hashFn1 = HASH_FUNCTION_1;
   pSBf->hashFn2 = HASH_FUNCTION_2;
   pSBf->bfArray = NULL;
   int32_t size = 0;
-  if (tDecodeI32(pDecoder, &size) < 0) goto _error;
+  if (tDecodeI32(pDecoder, &size) < 0) {
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
   if (size == 0) {
+    (*ppSBf) = NULL;
     tScalableBfDestroy(pSBf);
-    return NULL;
+    goto _error;
   }
-  pSBf->bfArray = taosArrayInit(size * 2, sizeof(void *));
+  pSBf->bfArray = taosArrayInit(size * 2, POINTER_BYTES);
+  if (!pSBf->bfArray) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
+
   for (int32_t i = 0; i < size; i++) {
-    SBloomFilter *pBF = tBloomFilterDecode(pDecoder);
-    if (!pBF) goto _error;
-    taosArrayPush(pSBf->bfArray, &pBF);
+    SBloomFilter* pBF = NULL;
+    code = tBloomFilterDecode(pDecoder, &pBF);
+    QUERY_CHECK_CODE(code, lino, _error);
+    void* tmpRes = taosArrayPush(pSBf->bfArray, &pBF);
+    if (!tmpRes) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      QUERY_CHECK_CODE(code, lino, _error);
+    }
   }
-  if (tDecodeU32(pDecoder, &pSBf->growth) < 0) goto _error;
-  if (tDecodeU64(pDecoder, &pSBf->numBits) < 0) goto _error;
-  if (tDecodeU32(pDecoder, &pSBf->maxBloomFilters) < 0) goto _error;
-  if (tDecodeI8(pDecoder, &pSBf->status) < 0) goto _error;
-  return pSBf;
+  if (tDecodeU32(pDecoder, &pSBf->growth) < 0) {
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
+  if (tDecodeU64(pDecoder, &pSBf->numBits) < 0) {
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
+  if (tDecodeU32(pDecoder, &pSBf->maxBloomFilters) < 0) {
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
+  if (tDecodeI8(pDecoder, &pSBf->status) < 0) {
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
+  (*ppSBf) = pSBf;
 
 _error:
-  tScalableBfDestroy(pSBf);
-  return NULL;
+
+  if (code != TSDB_CODE_SUCCESS) {
+    tScalableBfDestroy(pSBf);
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }

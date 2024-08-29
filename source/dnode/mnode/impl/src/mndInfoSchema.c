@@ -18,10 +18,11 @@
 #include "systable.h"
 
 static int32_t mndInitInfosTableSchema(const SSysDbTableSchema *pSrc, int32_t colNum, SSchema **pDst) {
+  int32_t  code = 0;
   SSchema *schema = taosMemoryCalloc(colNum, sizeof(SSchema));
   if (NULL == schema) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_RETURN(code);
   }
 
   for (int32_t i = 0; i < colNum; ++i) {
@@ -35,10 +36,11 @@ static int32_t mndInitInfosTableSchema(const SSysDbTableSchema *pSrc, int32_t co
   }
 
   *pDst = schema;
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndInsInitMeta(SHashObj *hash) {
+  int32_t       code = 0;
   STableMetaRsp meta = {0};
 
   tstrncpy(meta.dbFName, TSDB_INFORMATION_SCHEMA_DB, sizeof(meta.dbFName));
@@ -55,24 +57,23 @@ static int32_t mndInsInitMeta(SHashObj *hash) {
     meta.numOfColumns = pInfosTableMeta[i].colNum;
     meta.sysInfo = pInfosTableMeta[i].sysInfo;
 
-    if (mndInitInfosTableSchema(pInfosTableMeta[i].schema, pInfosTableMeta[i].colNum, &meta.pSchemas)) {
-      return -1;
-    }
+    TAOS_CHECK_RETURN(mndInitInfosTableSchema(pInfosTableMeta[i].schema, pInfosTableMeta[i].colNum, &meta.pSchemas));
 
     if (taosHashPut(hash, meta.tbName, strlen(meta.tbName), &meta, sizeof(meta))) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TAOS_RETURN(code);
     }
   }
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *tbName, bool sysinfo,
                                STableMetaRsp *pRsp) {
+  int32_t code = 0;
   if (NULL == pMnode->infosMeta) {
-    terrno = TSDB_CODE_APP_ERROR;
-    return -1;
+    code = TSDB_CODE_APP_ERROR;
+    TAOS_RETURN(code);
   }
 
   STableMetaRsp *pMeta = NULL;
@@ -84,40 +85,41 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
 
   if (NULL == pMeta) {
     mError("invalid information schema table name:%s", tbName);
-    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-    return -1;
+    code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    TAOS_RETURN(code);
   }
 
   if (!sysinfo && pMeta->sysInfo) {
     mError("no permission to get schema of table name:%s", tbName);
-    terrno = TSDB_CODE_PAR_PERMISSION_DENIED;
-    return -1;
+    code = TSDB_CODE_PAR_PERMISSION_DENIED;
+    TAOS_RETURN(code);
   }
 
   *pRsp = *pMeta;
 
   pRsp->pSchemas = taosMemoryCalloc(pMeta->numOfColumns, sizeof(SSchema));
   if (pRsp->pSchemas == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     pRsp->pSchemas = NULL;
-    return -1;
+    TAOS_RETURN(code);
   }
 
   memcpy(pRsp->pSchemas, pMeta->pSchemas, pMeta->numOfColumns * sizeof(SSchema));
-  return 0;
+  TAOS_RETURN(code);
 }
 
 int32_t mndBuildInsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbName, STableCfgRsp *pRsp) {
+  int32_t code = 0;
   if (NULL == pMnode->infosMeta) {
-    terrno = TSDB_CODE_APP_ERROR;
-    return -1;
+    code = TSDB_CODE_APP_ERROR;
+    TAOS_RETURN(code);
   }
 
   STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, tbName, strlen(tbName));
   if (NULL == pMeta) {
     mError("invalid information schema table name:%s", tbName);
-    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-    return -1;
+    code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    TAOS_RETURN(code);
   }
 
   strcpy(pRsp->tbName, pMeta->tbName);
@@ -129,22 +131,21 @@ int32_t mndBuildInsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbN
 
   pRsp->pSchemas = taosMemoryCalloc(pMeta->numOfColumns, sizeof(SSchema));
   if (pRsp->pSchemas == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     pRsp->pSchemas = NULL;
-    return -1;
+    TAOS_RETURN(code);
   }
 
   memcpy(pRsp->pSchemas, pMeta->pSchemas, pMeta->numOfColumns * sizeof(SSchema));
 
   pRsp->pSchemaExt = taosMemoryCalloc(pMeta->numOfColumns, sizeof(SSchemaExt));
-  return 0;
+  TAOS_RETURN(code);
 }
 
 int32_t mndInitInfos(SMnode *pMnode) {
   pMnode->infosMeta = taosHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
   if (pMnode->infosMeta == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   return mndInsInitMeta(pMnode->infosMeta);

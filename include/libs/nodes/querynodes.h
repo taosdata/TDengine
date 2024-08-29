@@ -60,6 +60,7 @@ typedef struct SExprNode {
   bool      orderAlias;
   bool      asAlias;
   bool      asParam;
+  bool      asPosition;
 } SExprNode;
 
 typedef enum EColumnType {
@@ -169,6 +170,12 @@ typedef struct SNodeListNode {
   SNodeList* pNodeList;
 } SNodeListNode;
 
+typedef enum ETrimType {
+  TRIM_TYPE_LEADING = 1,
+  TRIM_TYPE_TRAILING,
+  TRIM_TYPE_BOTH,
+} ETrimType;
+
 typedef struct SFunctionNode {
   SExprNode  node;  // QUERY_NODE_FUNCTION
   char       functionName[TSDB_FUNC_NAME_LEN];
@@ -180,6 +187,7 @@ typedef struct SFunctionNode {
   int32_t    pkBytes;
   bool       hasOriginalFunc;
   int32_t    originalFuncId;
+  ETrimType  trimType;
 } SFunctionNode;
 
 typedef struct STableNode {
@@ -233,7 +241,7 @@ typedef struct SViewNode {
 #define IS_WINDOW_JOIN(_stype) ((_stype) == JOIN_STYPE_WIN)
 #define IS_ASOF_JOIN(_stype) ((_stype) == JOIN_STYPE_ASOF)
 
-typedef enum EJoinType { 
+typedef enum EJoinType {
   JOIN_TYPE_INNER = 0,
   JOIN_TYPE_LEFT,
   JOIN_TYPE_RIGHT,
@@ -251,7 +259,7 @@ typedef enum EJoinSubType {
   JOIN_STYPE_MAX_VALUE
 } EJoinSubType;
 
-typedef enum EJoinAlgorithm { 
+typedef enum EJoinAlgorithm {
   JOIN_ALGO_UNKNOWN = 0,
   JOIN_ALGO_MERGE,
   JOIN_ALGO_HASH,
@@ -415,6 +423,7 @@ typedef struct SSelectStmt {
   int32_t       returnRows;  // EFuncReturnRows
   ETimeLineMode timeLineCurMode;
   ETimeLineMode timeLineResMode;
+  int32_t       lastProcessByRowFuncId;
   bool          timeLineFromOrderBy;
   bool          isEmptyResult;
   bool          isSubquery;
@@ -453,7 +462,7 @@ typedef struct SSetOperator {
   SNode*           pLimit;
   char             stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t          precision;
-  ETimeLineMode    timeLineResMode;  
+  ETimeLineMode    timeLineResMode;
   bool             timeLineFromOrderBy;
   bool             joinContains;
 } SSetOperator;
@@ -503,6 +512,10 @@ typedef void (*FFreeTableBlockHash)(SHashObj*);
 typedef void (*FFreeVgourpBlockArray)(SArray*);
 struct SStbRowsDataContext;
 typedef void (*FFreeStbRowsDataContext)(struct SStbRowsDataContext*);
+struct SCreateTbInfo;
+struct SParseFileContext;
+typedef void (*FDestroyParseFileContext)(struct SParseFileContext**);
+
 typedef struct SVnodeModifyOpStmt {
   ENodeType             nodeType;
   ENodeType             sqlNodeType;
@@ -523,7 +536,7 @@ typedef struct SVnodeModifyOpStmt {
   SHashObj*             pTableNameHashObj;   // set of table names for refreshing meta, sync mode
   SHashObj*             pDbFNameHashObj;     // set of db names for refreshing meta, sync mode
   SHashObj*             pTableCxtHashObj;    // temp SHashObj<tuid, STableDataCxt*> for single request
-  SArray*               pVgDataBlocks;  // SArray<SVgroupDataCxt*>
+  SArray*               pVgDataBlocks;       // SArray<SVgroupDataCxt*>
   SVCreateTbReq*        pCreateTblReq;
   TdFilePtr             fp;
   FFreeTableBlockHash   freeHashFunc;
@@ -531,9 +544,13 @@ typedef struct SVnodeModifyOpStmt {
   bool                  usingTableProcessing;
   bool                  fileProcessing;
 
-  bool                  stbSyntax;
-  struct SStbRowsDataContext*  pStbRowsCxt;
+  bool                        stbSyntax;
+  struct SStbRowsDataContext* pStbRowsCxt;
   FFreeStbRowsDataContext     freeStbRowsCxtFunc;
+
+  struct SCreateTbInfo*     pCreateTbInfo;
+  struct SParseFileContext* pParFileCxt;
+  FDestroyParseFileContext  destroyParseFileCxt;
 } SVnodeModifyOpStmt;
 
 typedef struct SExplainOptions {
@@ -601,7 +618,7 @@ typedef enum ECollectColType { COLLECT_COL_TYPE_COL = 1, COLLECT_COL_TYPE_TAG, C
 int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
                             SNodeList** pCols);
 int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, SSHashObj* pMultiTableAlias, ECollectColType type,
-                            SNodeList** pCols);                            
+                            SNodeList** pCols);
 int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, ECollectColType type, SNodeList** pCols);
 
 typedef bool (*FFuncClassifier)(int32_t funcId);
@@ -617,6 +634,7 @@ bool nodesIsArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);
 bool nodesIsRegularOp(const SOperatorNode* pOp);
+bool nodesIsMatchRegularOp(const SOperatorNode* pOp);
 bool nodesIsBitwiseOp(const SOperatorNode* pOp);
 
 bool nodesExprHasColumn(SNode* pNode);
@@ -625,10 +643,10 @@ bool nodesExprsHasColumn(SNodeList* pList);
 void*   nodesGetValueFromNode(SValueNode* pNode);
 int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value);
 char*   nodesGetStrValueFromNode(SValueNode* pNode);
-void    nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
-SValueNode* nodesMakeValueNodeFromString(char* literal);
-SValueNode* nodesMakeValueNodeFromBool(bool b);
-SNode* nodesMakeValueNodeFromInt32(int32_t value);
+int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
+int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode);
+int32_t nodesMakeValueNodeFromBool(bool b, SValueNode** ppValNode);
+int32_t nodesMakeValueNodeFromInt32(int32_t value, SNode** ppNode);
 
 char*   nodesGetFillModeString(EFillMode mode);
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);

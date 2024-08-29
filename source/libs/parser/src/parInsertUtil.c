@@ -94,7 +94,7 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
 
     char tbname[TSDB_TABLE_FNAME_LEN] = {0};
     strncpy(tbname, p + 1, tbLen);
-    /*tbLen = */ strdequote(tbname);
+    /*tbLen = */ (void)strdequote(tbname);
 
     code = tNameFromString(pName, tbname, T_NAME_TABLE);
     if (code != 0) {
@@ -110,7 +110,7 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
 
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     strncpy(name, pTableName->z, pTableName->n);
-    strdequote(name);
+    (void)strdequote(name);
 
     if (dbName == NULL) {
       return buildInvalidOperationMsg(pMsgBuf, msg3);
@@ -167,19 +167,25 @@ static void initBoundCols(int32_t ncols, int16_t* pBoundCols) {
   }
 }
 
-static void initColValues(STableMeta* pTableMeta, SArray* pValues) {
+static int32_t initColValues(STableMeta* pTableMeta, SArray* pValues) {
   SSchema* pSchemas = getTableColumnSchema(pTableMeta);
+  int32_t code = 0;
   for (int32_t i = 0; i < pTableMeta->tableInfo.numOfColumns; ++i) {
     SColVal val = COL_VAL_NONE(pSchemas[i].colId, pSchemas[i].type);
-    taosArrayPush(pValues, &val);
+    if (NULL == taosArrayPush(pValues, &val)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      break;
+    }
   }
+  return code;
 }
 
-void insInitColValues(STableMeta* pTableMeta, SArray* aColValues) { initColValues(pTableMeta, aColValues); }
+int32_t insInitColValues(STableMeta* pTableMeta, SArray* aColValues) { return initColValues(pTableMeta, aColValues); }
 
 int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo* pInfo) {
   pInfo->numOfCols = numOfBound;
   pInfo->numOfBound = numOfBound;
+  pInfo->hasBoundCols = false;
   pInfo->pColIndex = taosMemoryCalloc(numOfBound, sizeof(int16_t));
   if (NULL == pInfo->pColIndex) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -188,6 +194,14 @@ int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo* pInfo) {
     pInfo->pColIndex[i] = i;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+void insResetBoundColsInfo(SBoundColInfo* pInfo) {
+  pInfo->numOfBound = pInfo->numOfCols;
+  pInfo->hasBoundCols = false;
+  for (int32_t i = 0; i < pInfo->numOfCols; ++i) {
+    pInfo->pColIndex[i] = i;
+  }
 }
 
 void insCheckTableDataOrder(STableDataCxt* pTableCxt, SRowKey* rowKey) {
@@ -244,7 +258,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
     if (NULL == pTableCxt->pValues) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     } else {
-      initColValues(pTableMeta, pTableCxt->pValues);
+      code = initColValues(pTableMeta, pTableCxt->pValues);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -272,9 +286,12 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
       }
     }
   }
-
-  *pOutput = pTableCxt;
-  qDebug("tableDataCxt created, code:%d, uid:%" PRId64 ", vgId:%d", code, pTableMeta->uid, pTableMeta->vgId);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = pTableCxt;
+    qDebug("tableDataCxt created, code:%d, uid:%" PRId64 ", vgId:%d", code, pTableMeta->uid, pTableMeta->vgId);
+  } else {
+    insDestroyTableDataCxt(pTableCxt);
+  }
 
   return code;
 }
@@ -292,24 +309,27 @@ static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
     pTmp->pCreateTbReq = NULL;
     if (pTmp->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
       if (pSrc->pCreateTbReq) {
-        cloneSVreateTbReq(pSrc->pCreateTbReq, &pTmp->pCreateTbReq);
+        code = cloneSVreateTbReq(pSrc->pCreateTbReq, &pTmp->pCreateTbReq);
       } else {
         pTmp->flags &= ~SUBMIT_REQ_AUTO_CREATE_TABLE;
       }
     }
-
-    if (pTmp->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-      pTmp->aCol = taosArrayInit(128, sizeof(SColData));
-      if (NULL == pTmp->aCol) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        taosMemoryFree(pTmp);
+    if (TSDB_CODE_SUCCESS == code) {
+      if (pTmp->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+        pTmp->aCol = taosArrayInit(128, sizeof(SColData));
+        if (NULL == pTmp->aCol) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          taosMemoryFree(pTmp);
+        }
+      } else {
+        pTmp->aRowP = taosArrayInit(128, POINTER_BYTES);
+        if (NULL == pTmp->aRowP) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          taosMemoryFree(pTmp);
+        }
       }
     } else {
-      pTmp->aRowP = taosArrayInit(128, POINTER_BYTES);
-      if (NULL == pTmp->aRowP) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        taosMemoryFree(pTmp);
-      }
+      taosMemoryFree(pTmp);
     }
   }
 
@@ -438,16 +458,19 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
   }
 
   // push data to submit, rebuild empty data for next submit
-  taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData);
+  if (NULL == taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData)) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  int32_t code = 0;
   if (isRebuild) {
-    rebuildTableData(pTableCxt->pData, &pTableCxt->pData);
+    code = rebuildTableData(pTableCxt->pData, &pTableCxt->pData);
   } else if (clear) {
     taosMemoryFreeClear(pTableCxt->pData);
   }
 
   qDebug("add tableDataCxt uid:%" PRId64 " to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t createVgroupDataCxt(STableDataCxt* pTableCxt, SHashObj* pVgroupHash, SArray* pVgroupList,
@@ -465,7 +488,11 @@ static int32_t createVgroupDataCxt(STableDataCxt* pTableCxt, SHashObj* pVgroupHa
   pVgCxt->vgId = pTableCxt->pMeta->vgId;
   int32_t code = taosHashPut(pVgroupHash, &pVgCxt->vgId, sizeof(pVgCxt->vgId), &pVgCxt, POINTER_BYTES);
   if (TSDB_CODE_SUCCESS == code) {
-    taosArrayPush(pVgroupList, &pVgCxt);
+    if (NULL == taosArrayPush(pVgroupList, &pVgCxt)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      insDestroyVgroupDataCxt(pVgCxt);
+      return code;
+    }
     //    uDebug("td23101 2vgId:%d, uid:%" PRIu64, pVgCxt->vgId, pTableCxt->pMeta->uid);
     *pOutput = pVgCxt;
   } else {
@@ -522,7 +549,10 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
 
   if (NULL == pTbInfo) {
     SName sname;
-    qCreateSName(&sname, pTbData->tbName, pBuildInfo->acctId, pBuildInfo->dbname, NULL, 0);
+    code = qCreateSName(&sname, pTbData->tbName, pBuildInfo->acctId, pBuildInfo->dbname, NULL, 0);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
 
     STableMeta*      pTableMeta = NULL;
     SRequestConnInfo conn = {.pTrans = pBuildInfo->transport,
@@ -544,9 +574,10 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
     *vgId = pTableMeta->vgId;
 
     STableVgUid tbInfo = {.uid = *uid, .vgid = *vgId};
-    tSimpleHashPut(pBuildInfo->pTableHash, pTbData->tbName, strlen(pTbData->tbName), &tbInfo, sizeof(tbInfo));
-
-    code = insTryAddTableVgroupInfo(pAllVgHash, pBuildInfo, vgId, pTbData, &sname);
+    code = tSimpleHashPut(pBuildInfo->pTableHash, pTbData->tbName, strlen(pTbData->tbName), &tbInfo, sizeof(tbInfo));
+    if (TSDB_CODE_SUCCESS == code) {
+      code = insTryAddTableVgroupInfo(pAllVgHash, pBuildInfo, vgId, pTbData, &sname);
+    }
 
     taosMemoryFree(pTableMeta);
   } else {
@@ -714,7 +745,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
 
       taosArraySort(pTableCxt->pData->aCol, insColDataComp);
 
-      tColDataSortMerge(pTableCxt->pData->aCol);
+      code = tColDataSortMerge(&pTableCxt->pData->aCol);
     } else {
       // skip the table has no data to insert
       // eg: import a csv without valid data
@@ -852,6 +883,10 @@ static bool findFileds(SSchema* pSchema, TAOS_FIELD* fields, int numFields) {
 
 int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq** pCreateTb, TAOS_FIELD* tFields,
                      int numFields, bool needChangeLength, char* errstr, int32_t errstrLen) {
+  if(data == NULL) {
+    uError("rawBlockBindData, data is NULL");
+    return TSDB_CODE_APP_ERROR;
+  }
   void* tmp =
       taosHashGet(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid, sizeof(pTableMeta->uid));
   STableDataCxt* pTableCxt = NULL;

@@ -24,7 +24,6 @@ extern "C" {
 
 int32_t syncWriteCfgFile(SSyncNode *pNode);
 int32_t syncReadCfgFile(SSyncNode *pNode);
-int32_t syncAddCfgIndex(SSyncNode *pNode, SyncIndex cfgIndex);
 
 #ifdef __cplusplus
 }

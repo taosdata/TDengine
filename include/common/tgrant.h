@@ -68,7 +68,7 @@ int32_t generateEncryptCode(const char *key, const char *machineId, char **encry
 int64_t grantRemain(EGrantType grant);
 int32_t grantCheck(EGrantType grant);
 int32_t grantCheckExpire(EGrantType grant);
-char   *tGetMachineId();
+int32_t tGetMachineId(char **result);
 
 // #ifndef GRANTS_CFG
 #ifdef TD_ENTERPRISE

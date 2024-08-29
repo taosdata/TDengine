@@ -24,12 +24,22 @@ FstRegex *regexCreate(const char *str) {
   }
 
   regex->orig = taosStrdup(str);
+  if (regex->orig == NULL) {
+    taosMemoryFree(regex);
+    return NULL;
+  }
 
   // construct insts based on str
   SArray *insts = taosArrayInit(256, sizeof(uint8_t));
+  if (insts == NULL) {
+    taosMemoryFree(regex->orig);
+    taosMemoryFree(regex);
+    return NULL;
+  }
+
   for (int i = 0; i < strlen(str); i++) {
     uint8_t v = str[i];
-    taosArrayPush(insts, &v);
+    (void)taosArrayPush(insts, &v);
   }
   FstDfaBuilder *builder = dfaBuilderCreate(insts);
   regex->dfa = dfaBuilderBuild(builder);

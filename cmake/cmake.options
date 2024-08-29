@@ -146,6 +146,13 @@ option(
 
 ENDIF ()
 
+IF(NOT TD_ENTERPRISE)
+MESSAGE("switch s3 off with community version")
+set(BUILD_S3 OFF)
+set(BUILD_WITH_S3 OFF)
+set(BUILD_WITH_COS OFF)
+ENDIF ()
+
 IF(${BUILD_S3})
 
 IF(${BUILD_WITH_S3})

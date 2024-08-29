@@ -68,7 +68,7 @@ FstBuilderNode* fstBuilderNodeClone(FstBuilderNode* src) {
 
   for (size_t i = 0; i < sz; i++) {
     FstTransition* tran = taosArrayGet(src->trans, i);
-    taosArrayPush(trans, tran);
+    (void)taosArrayPush(trans, tran);
   }
 
   node->trans = trans;
@@ -91,15 +91,13 @@ void fstBuilderNodeCloneFrom(FstBuilderNode* dst, FstBuilderNode* src) {
   dst->trans = taosArrayInit(sz, sizeof(FstTransition));
   for (size_t i = 0; i < sz; i++) {
     FstTransition* trn = taosArrayGet(src->trans, i);
-    taosArrayPush(dst->trans, trn);
+    (void)taosArrayPush(dst->trans, trn);
   }
 }
 
 // bool fstBuilderNodeCompileTo(FstBuilderNode *b, IdxFile *wrt, CompiledAddr lastAddr, CompiledAddr
 // startAddr) {
-
 // size_t sz = taosArrayGetSize(b->trans);
-// assert(sz < 256);
 // if (FST_BUILDER_NODE_IS_FINAL(b)
 //    && FST_BUILDER_NODE_TRANS_ISEMPTY(b)
 //    && FST_BUILDER_NODE_FINALOUTPUT_ISZERO(b)) {

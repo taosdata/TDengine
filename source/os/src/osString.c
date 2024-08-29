@@ -28,7 +28,12 @@ char *tstrdup(const char *str) {
 #ifdef WINDOWS
   return _strdup(str);
 #else
-  return strdup(str);
+  char* p = strdup(str);
+  if (str != NULL && NULL == p) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return p;
+  
 #endif
 }
 
@@ -102,26 +107,32 @@ int32_t tasoUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes) {
 
   return 0;
 
-//#if 0
-//  int32_t ucs4_max_len = bytes + 4;
-//  char *f1_mbs = taosMemoryCalloc(bytes, 1);
-//  char *f2_mbs = taosMemoryCalloc(bytes, 1);
-//  if (taosUcs4ToMbs(f1_ucs4, ucs4_max_len, f1_mbs) < 0) {
-//    return -1;
-//  }
-//  if (taosUcs4ToMbs(f2_ucs4, ucs4_max_len, f2_mbs) < 0) {
-//    return -1;
-//  }
-//  int32_t ret = strcmp(f1_mbs, f2_mbs);
-//  taosMemoryFree(f1_mbs);
-//  taosMemoryFree(f2_mbs);
-//  return ret;
-//#endif
+  //#if 0
+  //  int32_t ucs4_max_len = bytes + 4;
+  //  char *f1_mbs = taosMemoryCalloc(bytes, 1);
+  //  char *f2_mbs = taosMemoryCalloc(bytes, 1);
+  //  if (taosUcs4ToMbs(f1_ucs4, ucs4_max_len, f1_mbs) < 0) {
+  //    return -1;
+  //  }
+  //  if (taosUcs4ToMbs(f2_ucs4, ucs4_max_len, f2_mbs) < 0) {
+  //    return -1;
+  //  }
+  //  int32_t ret = strcmp(f1_mbs, f2_mbs);
+  //  taosMemoryFree(f1_mbs);
+  //  taosMemoryFree(f2_mbs);
+  //  return ret;
+  //#endif
 }
 
-TdUcs4 *tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4) {
-  ASSERT(taosMemorySize(target_ucs4) >= len_ucs4 * sizeof(TdUcs4));
-  return memcpy(target_ucs4, source_ucs4, len_ucs4 * sizeof(TdUcs4));
+int32_t tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4) {
+  if (taosMemorySize(target_ucs4) < len_ucs4 * sizeof(TdUcs4)) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  
+  (void)memcpy(target_ucs4, source_ucs4, len_ucs4 * sizeof(TdUcs4));
+
+  return TSDB_CODE_SUCCESS;
 }
 
 typedef struct {
@@ -141,18 +152,28 @@ int32_t taosConvInit(void) {
   gConvMaxNum[1 - M2C] = 512;
 
   gConv[M2C] = taosMemoryCalloc(gConvMaxNum[M2C], sizeof(SConv));
+  if (gConv[M2C] == NULL) {
+    return terrno;
+  }
+
   gConv[1 - M2C] = taosMemoryCalloc(gConvMaxNum[1 - M2C], sizeof(SConv));
+  if (gConv[1 - M2C] == NULL) {
+    taosMemoryFree(gConv[M2C]);
+    return terrno;
+  }
 
   for (int32_t i = 0; i < gConvMaxNum[M2C]; ++i) {
     gConv[M2C][i].conv = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
     if ((iconv_t)-1 == gConv[M2C][i].conv || (iconv_t)0 == gConv[M2C][i].conv) {
-      return -1;
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return terrno;
     }
   }
   for (int32_t i = 0; i < gConvMaxNum[1 - M2C]; ++i) {
     gConv[1 - M2C][i].conv = iconv_open(tsCharset, DEFAULT_UNICODE_ENCODEC);
     if ((iconv_t)-1 == gConv[1 - M2C][i].conv || (iconv_t)0 == gConv[1 - M2C][i].conv) {
-      return -1;
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return terrno;
     }
   }
 
@@ -162,10 +183,10 @@ int32_t taosConvInit(void) {
 void taosConvDestroy() {
   int8_t M2C = 0;
   for (int32_t i = 0; i < gConvMaxNum[M2C]; ++i) {
-    iconv_close(gConv[M2C][i].conv);
+    (void)iconv_close(gConv[M2C][i].conv);
   }
   for (int32_t i = 0; i < gConvMaxNum[1 - M2C]; ++i) {
-    iconv_close(gConv[1 - M2C][i].conv);
+    (void)iconv_close(gConv[1 - M2C][i].conv);
   }
   taosMemoryFreeClear(gConv[M2C]);
   taosMemoryFreeClear(gConv[1 - M2C]);
@@ -177,9 +198,17 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type) {
   if (gConvMaxNum[type] <= 0) {
     *idx = -1;
     if (type == M2C) {
-      return iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
+      iconv_t c = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
+      if ((iconv_t)-1 == c || (iconv_t)0 == c) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+      }
+      return c;
     } else {
-      return iconv_open(tsCharset, DEFAULT_UNICODE_ENCODEC);
+      iconv_t c = iconv_open(tsCharset, DEFAULT_UNICODE_ENCODEC);
+      if ((iconv_t)-1 == c || (iconv_t)0 == c) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+      }
+      return c;
     }
   }
 
@@ -187,7 +216,7 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type) {
     int32_t used = atomic_add_fetch_32(&convUsed[type], 1);
     if (used > gConvMaxNum[type]) {
       used = atomic_sub_fetch_32(&convUsed[type], 1);
-      sched_yield();
+      (void)sched_yield();
       continue;
     }
 
@@ -213,12 +242,12 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type) {
 
 void taosReleaseConv(int32_t idx, iconv_t conv, ConvType type) {
   if (idx < 0) {
-    iconv_close(conv);
+    (void)iconv_close(conv);
     return;
   }
 
   atomic_store_8(&gConv[type][idx].inUse, 0);
-  atomic_sub_fetch_32(&convUsed[type], 1);
+  (void)atomic_sub_fetch_32(&convUsed[type], 1);
 }
 
 bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len) {
@@ -226,14 +255,21 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
   printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
   return -1;
 #else
-  memset(ucs4, 0, ucs4_max_len);
+  (void)memset(ucs4, 0, ucs4_max_len);
 
   int32_t idx = -1;
+  int32_t code = 0;
   iconv_t conv = taosAcquireConv(&idx, M2C);
+  if ((iconv_t)-1 == conv || (iconv_t)0 == conv) {
+    return false;
+  }
+  
   size_t  ucs4_input_len = mbsLength;
   size_t  outLeft = ucs4_max_len;
   if (iconv(conv, (char **)&mbs, &ucs4_input_len, (char **)&ucs4, &outLeft) == -1) {
+    code = TAOS_SYSTEM_ERROR(errno);
     taosReleaseConv(idx, conv, M2C);
+    terrno = code;
     return false;
   }
 
@@ -256,14 +292,23 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
 #else
 
   int32_t idx = -1;
+  int32_t code = 0;
   iconv_t conv = taosAcquireConv(&idx, C2M);
+  if ((iconv_t)-1 == conv || (iconv_t)0 == conv) {
+    return false;
+  }
+  
   size_t  ucs4_input_len = ucs4_max_len;
   size_t  outLen = ucs4_max_len;
   if (iconv(conv, (char **)&ucs4, &ucs4_input_len, &mbs, &outLen) == -1) {
+    code = TAOS_SYSTEM_ERROR(errno);
     taosReleaseConv(idx, conv, C2M);
-    return -1;
+    terrno = code;    
+    return code;
   }
+  
   taosReleaseConv(idx, conv, C2M);
+  
   return (int32_t)(ucs4_max_len - outLen);
 #endif
 }
@@ -277,8 +322,10 @@ int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_t c
   size_t ucs4_input_len = ucs4_max_len;
   size_t outLen = ucs4_max_len;
   if (iconv(conv, (char **)&ucs4, &ucs4_input_len, &mbs, &outLen) == -1) {
-    return -1;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
+  
   return (int32_t)(ucs4_max_len - outLen);
 #endif
 }
@@ -290,10 +337,11 @@ bool taosValidateEncodec(const char *encodec) {
 #else
   iconv_t cd = iconv_open(encodec, DEFAULT_UNICODE_ENCODEC);
   if (cd == (iconv_t)(-1)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return false;
   }
 
-  iconv_close(cd);
+  (void)iconv_close(cd);
   return true;
 #endif
 }
@@ -318,11 +366,12 @@ int32_t taosUcs4len(TdUcs4 *ucs4) {
 // dst buffer size should be at least 2*len + 1
 int32_t taosHexEncode(const unsigned char *src, char *dst, int32_t len) {
   if (!dst) {
-    return -1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
 
   for (int32_t i = 0; i < len; ++i) {
-    sprintf(dst + i * 2, "%02x", src[i]);
+    (void)sprintf(dst + i * 2, "%02x", src[i]);
   }
 
   return 0;
@@ -330,7 +379,8 @@ int32_t taosHexEncode(const unsigned char *src, char *dst, int32_t len) {
 
 int32_t taosHexDecode(const char *src, char *dst, int32_t len) {
   if (!dst) {
-    return -1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
 
   uint8_t hn, ln, out;
@@ -339,7 +389,7 @@ int32_t taosHexDecode(const char *src, char *dst, int32_t len) {
     ln = src[i + 1] > '9' ? src[i + 1] - 'a' + 10 : src[i + 1] - '0';
 
     out = (hn << 4) | ln;
-    memcpy(dst + j, &out, 1);
+    (void)memcpy(dst + j, &out, 1);
   }
 
   return 0;
@@ -376,10 +426,6 @@ int64_t taosStr2Int64(const char *str, char **pEnd, int32_t radix) {
 #if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
 #endif
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
-#endif
   return tmp;
 }
 
@@ -387,10 +433,6 @@ uint64_t taosStr2UInt64(const char *str, char **pEnd, int32_t radix) {
   uint64_t tmp = strtoull(str, pEnd, radix);
 #if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
-#endif
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
 #endif
   return tmp;
 }
@@ -400,10 +442,6 @@ int32_t taosStr2Int32(const char *str, char **pEnd, int32_t radix) {
 #if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
 #endif
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
-#endif
   return tmp;
 }
 
@@ -411,10 +449,6 @@ uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
   uint32_t tmp = strtol(str, pEnd, radix);
 #if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
-#endif
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
 #endif
   return tmp;
 }
@@ -424,12 +458,6 @@ int16_t taosStr2Int16(const char *str, char **pEnd, int32_t radix) {
 #if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
 #endif
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
-  ASSERT(tmp >= SHRT_MIN);
-  ASSERT(tmp <= SHRT_MAX);
-#endif
   return (int16_t)tmp;
 }
 
@@ -438,22 +466,11 @@ uint16_t taosStr2UInt16(const char *str, char **pEnd, int32_t radix) {
 #if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
 #endif
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
-  ASSERT(tmp <= USHRT_MAX);
-#endif
   return (uint16_t)tmp;
 }
 
 int8_t taosStr2Int8(const char *str, char **pEnd, int32_t radix) {
   int32_t tmp = strtol(str, pEnd, radix);
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
-  ASSERT(tmp >= SCHAR_MIN);
-  ASSERT(tmp <= SCHAR_MAX);
-#endif
   return tmp;
 }
 
@@ -462,46 +479,30 @@ uint8_t taosStr2UInt8(const char *str, char **pEnd, int32_t radix) {
 #if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
 #endif
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
-  ASSERT(tmp <= UCHAR_MAX);
-#endif
   return tmp;
 }
 
 double taosStr2Double(const char *str, char **pEnd) {
   double tmp = strtod(str, pEnd);
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
-  ASSERT(tmp != HUGE_VAL);
-#endif
   return tmp;
 }
 
 float taosStr2Float(const char *str, char **pEnd) {
   float tmp = strtof(str, pEnd);
-#ifdef TD_CHECK_STR_TO_INT_ERROR
-  ASSERT(errno != ERANGE);
-  ASSERT(errno != EINVAL);
-  ASSERT(tmp != HUGE_VALF);
-  ASSERT(tmp != NAN);
-#endif
   return tmp;
 }
 
-#define HEX_PREFIX_LEN 2    // \x
-bool isHex(const char* z, uint32_t n){
-  if(n < HEX_PREFIX_LEN) return false;
-  if(z[0] == '\\' && z[1] == 'x') return true;
+#define HEX_PREFIX_LEN 2  // \x
+bool isHex(const char *z, uint32_t n) {
+  if (n < HEX_PREFIX_LEN) return false;
+  if (z[0] == '\\' && z[1] == 'x') return true;
   return false;
 }
 
-bool isValidateHex(const char* z, uint32_t n){
-  if((n & 1) != 0) return false;
-  for(size_t i = HEX_PREFIX_LEN; i < n; i++){
-    if(isxdigit(z[i]) == 0){
+bool isValidateHex(const char *z, uint32_t n) {
+  if ((n & 1) != 0) return false;
+  for (size_t i = HEX_PREFIX_LEN; i < n; i++) {
+    if (isxdigit(z[i]) == 0) {
       return false;
     }
   }
@@ -513,11 +514,17 @@ int32_t taosHex2Ascii(const char *z, uint32_t n, void **data, uint32_t *size) {
   z += HEX_PREFIX_LEN;
   *size = n / HEX_PREFIX_LEN;
   if (*size == 0) {
-    if (!(*data = taosStrdup(""))) return -1;
+    if (!(*data = taosStrdup(""))) {
+      return terrno;
+    }
     return 0;
   }
+  
   uint8_t *tmp = (uint8_t *)taosMemoryCalloc(*size, 1);
-  if (tmp == NULL) return -1;
+  if (tmp == NULL) {
+    return terrno;
+  }
+  
   int8_t   num = 0;
   uint8_t *byte = tmp + *size - 1;
 
@@ -537,73 +544,91 @@ int32_t taosHex2Ascii(const char *z, uint32_t n, void **data, uint32_t *size) {
     }
   }
   *data = tmp;
+  
   return 0;
 }
 
-//int32_t taosBin2Ascii(const char *z, uint32_t n, void** data, uint32_t* size){
+// int32_t taosBin2Ascii(const char *z, uint32_t n, void** data, uint32_t* size){
 //
-//  for (i = 2; isdigit(z[i]) || (z[i] >= 'a' && z[i] <= 'f') || (z[i] >= 'A' && z[i] <= 'F'); ++i) {
-//  }
+//   for (i = 2; isdigit(z[i]) || (z[i] >= 'a' && z[i] <= 'f') || (z[i] >= 'A' && z[i] <= 'F'); ++i) {
+//   }
 //
-//  n -= 2;   // remove 0b
-//  z += 2;
-//  *size = n%8 == 0 ? n/8 : n/8 + 1;
-//  uint8_t* tmp = (uint8_t*)taosMemoryCalloc(*size, 1);
-//  if(tmp == NULL) return -1;
-//  int8_t   num = 0;
-//  uint8_t *byte = tmp + *size - 1;
+//   n -= 2;   // remove 0b
+//   z += 2;
+//   *size = n%8 == 0 ? n/8 : n/8 + 1;
+//   uint8_t* tmp = (uint8_t*)taosMemoryCalloc(*size, 1);
+//   if(tmp == NULL) return -1;
+//   int8_t   num = 0;
+//   uint8_t *byte = tmp + *size - 1;
 //
-//  for (int i = n - 1; i >= 0; i--) {
-//    *byte |= ((uint8_t)(z[i] - '0') << num);
-//    if (num == 7) {
-//      byte--;
-//      num = 0;
-//    } else {
-//      num++;
-//    }
-//  }
-//  *data = tmp;
-//  return 0;
-//}
+//   for (int i = n - 1; i >= 0; i--) {
+//     *byte |= ((uint8_t)(z[i] - '0') << num);
+//     if (num == 7) {
+//       byte--;
+//       num = 0;
+//     } else {
+//       num++;
+//     }
+//   }
+//   *data = tmp;
+//   return 0;
+// }
 
-static char valueOf(uint8_t symbol)
-{
-  switch(symbol)
-  {
-    case 0: return '0';
-    case 1: return '1';
-    case 2: return '2';
-    case 3: return '3';
-    case 4: return '4';
-    case 5: return '5';
-    case 6: return '6';
-    case 7: return '7';
-    case 8: return '8';
-    case 9: return '9';
-    case 10: return 'A';
-    case 11: return 'B';
-    case 12: return 'C';
-    case 13: return 'D';
-    case 14: return 'E';
-    case 15: return 'F';
-    default:
-    {
+static char valueOf(uint8_t symbol) {
+  switch (symbol) {
+    case 0:
+      return '0';
+    case 1:
+      return '1';
+    case 2:
+      return '2';
+    case 3:
+      return '3';
+    case 4:
+      return '4';
+    case 5:
+      return '5';
+    case 6:
+      return '6';
+    case 7:
+      return '7';
+    case 8:
+      return '8';
+    case 9:
+      return '9';
+    case 10:
+      return 'A';
+    case 11:
+      return 'B';
+    case 12:
+      return 'C';
+    case 13:
+      return 'D';
+    case 14:
+      return 'E';
+    case 15:
+      return 'F';
+    default: {
       return -1;
     }
   }
 }
 
-int32_t taosAscii2Hex(const char *z, uint32_t n, void** data, uint32_t* size){
+int32_t taosAscii2Hex(const char *z, uint32_t n, void **data, uint32_t *size) {
   *size = n * 2 + HEX_PREFIX_LEN;
-  uint8_t* tmp = (uint8_t*)taosMemoryCalloc(*size + 1, 1);
-  if(tmp == NULL) return -1;
+  uint8_t *tmp = (uint8_t *)taosMemoryCalloc(*size + 1, 1);
+  if (tmp == NULL) {
+    return terrno;
+  }
+  
   *data = tmp;
   *(tmp++) = '\\';
   *(tmp++) = 'x';
-  for(int i = 0; i < n; i ++){
+  for (int i = 0; i < n; i++) {
     uint8_t val = z[i];
-    tmp[i*2] = valueOf(val >> 4);
-    tmp[i*2 + 1] = valueOf(val & 0x0F);
+    tmp[i * 2] = valueOf(val >> 4);
+    tmp[i * 2 + 1] = valueOf(val & 0x0F);
   }
+  
   return 0;
 }

@@ -156,7 +156,7 @@ void setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp);
  * @param pBuf
  * @param pageId
  */
-void dBufSetBufPageRecycled(SDiskbasedBuf* pBuf, void* pPage);
+int32_t dBufSetBufPageRecycled(SDiskbasedBuf* pBuf, void* pPage);
 
 /**
  * Print the statistics when closing this buffer

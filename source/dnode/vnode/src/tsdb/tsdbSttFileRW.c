@@ -40,7 +40,9 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
   int32_t lino = 0;
 
   reader[0] = taosMemoryCalloc(1, sizeof(*reader[0]));
-  if (reader[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (reader[0] == NULL) {
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
+  }
 
   reader[0]->config[0] = config[0];
   reader[0]->buffers = config->buffers;
@@ -50,31 +52,31 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
 
   // open file
   if (fname) {
-    code = tsdbOpenFile(fname, config->tsdb, TD_FILE_READ, &reader[0]->fd, 0);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tsdbOpenFile(fname, config->tsdb, TD_FILE_READ, &reader[0]->fd, 0), &lino, _exit);
   } else {
     char fname1[TSDB_FILENAME_LEN];
-    tsdbTFileName(config->tsdb, config->file, fname1);
-    code = tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd, 0);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    (void)tsdbTFileName(config->tsdb, config->file, fname1);
+    TAOS_CHECK_GOTO(tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd, 0), &lino, _exit);
   }
 
   // // open each segment reader
   int64_t offset = config->file->size - sizeof(SSttFooter);
-  ASSERT(offset >= TSDB_FHDR_SIZE);
+  if (offset < TSDB_FHDR_SIZE) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
   int32_t encryptAlgoirthm = config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 #if 1
-  code = tsdbReadFile(reader[0]->fd, offset, (uint8_t *)(reader[0]->footer), sizeof(SSttFooter), 0, encryptAlgoirthm, 
-                      encryptKey);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbReadFile(reader[0]->fd, offset, (uint8_t *)(reader[0]->footer), sizeof(SSttFooter), 0,
+                               encryptAlgoirthm, encryptKey),
+                  &lino, _exit);
 #else
   int64_t size = config->file->size;
 
   for (; size > TSDB_FHDR_SIZE; size--) {
-    code = tsdbReadFile(reader[0]->fd, size - sizeof(SSttFooter), (uint8_t *)(reader[0]->footer), sizeof(SSttFooter), 0, encryptAlgoirthm, 
-                      encryptKey);
+    code = tsdbReadFile(reader[0]->fd, size - sizeof(SSttFooter), (uint8_t *)(reader[0]->footer), sizeof(SSttFooter), 0,
+                        encryptAlgoirthm, encryptKey);
     if (code) continue;
     if ((*reader)->footer->sttBlkPtr->offset + (*reader)->footer->sttBlkPtr->size + sizeof(SSttFooter) == size ||
         (*reader)->footer->statisBlkPtr->offset + (*reader)->footer->statisBlkPtr->size + sizeof(SSttFooter) == size ||
@@ -89,8 +91,9 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(config->tsdb->pVnode), lino, code);
-    tsdbSttFileReaderClose(reader);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
+    (void)tsdbSttFileReaderClose(reader);
   }
   return code;
 }
@@ -114,17 +117,20 @@ int32_t tsdbSttFileReaderClose(SSttFileReader **reader) {
 int32_t tsdbSttFileReadStatisBlk(SSttFileReader *reader, const TStatisBlkArray **statisBlkArray) {
   if (!reader->ctx->statisBlkLoaded) {
     if (reader->footer->statisBlkPtr->size > 0) {
-      ASSERT(reader->footer->statisBlkPtr->size % sizeof(SStatisBlk) == 0);
+      if (reader->footer->statisBlkPtr->size % sizeof(SStatisBlk) != 0) {
+        return TSDB_CODE_FILE_CORRUPTED;
+      }
 
       int32_t size = reader->footer->statisBlkPtr->size / sizeof(SStatisBlk);
       void   *data = taosMemoryMalloc(reader->footer->statisBlkPtr->size);
-      if (!data) return TSDB_CODE_OUT_OF_MEMORY;
+      if (!data) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
 
       int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-      char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-      int32_t code =
-          tsdbReadFile(reader->fd, reader->footer->statisBlkPtr->offset, data, reader->footer->statisBlkPtr->size, 0,
-                        encryptAlgorithm, encryptKey);
+      char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+      int32_t code = tsdbReadFile(reader->fd, reader->footer->statisBlkPtr->offset, data,
+                                  reader->footer->statisBlkPtr->size, 0, encryptAlgorithm, encryptKey);
       if (code) {
         taosMemoryFree(data);
         return code;
@@ -145,17 +151,20 @@ int32_t tsdbSttFileReadStatisBlk(SSttFileReader *reader, const TStatisBlkArray *
 int32_t tsdbSttFileReadTombBlk(SSttFileReader *reader, const TTombBlkArray **tombBlkArray) {
   if (!reader->ctx->tombBlkLoaded) {
     if (reader->footer->tombBlkPtr->size > 0) {
-      ASSERT(reader->footer->tombBlkPtr->size % sizeof(STombBlk) == 0);
+      if (reader->footer->tombBlkPtr->size % sizeof(STombBlk) != 0) {
+        return TSDB_CODE_FILE_CORRUPTED;
+      }
 
       int32_t size = reader->footer->tombBlkPtr->size / sizeof(STombBlk);
       void   *data = taosMemoryMalloc(reader->footer->tombBlkPtr->size);
-      if (!data) return TSDB_CODE_OUT_OF_MEMORY;
+      if (!data) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
 
       int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-      char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-      int32_t code =
-          tsdbReadFile(reader->fd, reader->footer->tombBlkPtr->offset, data, reader->footer->tombBlkPtr->size, 0, 
-                        encryptAlgorithm, encryptKey);
+      char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+      int32_t code = tsdbReadFile(reader->fd, reader->footer->tombBlkPtr->offset, data,
+                                  reader->footer->tombBlkPtr->size, 0, encryptAlgorithm, encryptKey);
       if (code) {
         taosMemoryFree(data);
         return code;
@@ -176,17 +185,20 @@ int32_t tsdbSttFileReadTombBlk(SSttFileReader *reader, const TTombBlkArray **tom
 int32_t tsdbSttFileReadSttBlk(SSttFileReader *reader, const TSttBlkArray **sttBlkArray) {
   if (!reader->ctx->sttBlkLoaded) {
     if (reader->footer->sttBlkPtr->size > 0) {
-      ASSERT(reader->footer->sttBlkPtr->size % sizeof(SSttBlk) == 0);
+      if (reader->footer->sttBlkPtr->size % sizeof(SSttBlk) != 0) {
+        return TSDB_CODE_FILE_CORRUPTED;
+      }
 
       int32_t size = reader->footer->sttBlkPtr->size / sizeof(SSttBlk);
       void   *data = taosMemoryMalloc(reader->footer->sttBlkPtr->size);
-      if (!data) return TSDB_CODE_OUT_OF_MEMORY;
+      if (!data) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
 
       int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-      char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-      int32_t code =
-          tsdbReadFile(reader->fd, reader->footer->sttBlkPtr->offset, data, reader->footer->sttBlkPtr->size, 0,
-                        encryptAlgorithm, encryptKey);
+      char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+      int32_t code = tsdbReadFile(reader->fd, reader->footer->sttBlkPtr->offset, data, reader->footer->sttBlkPtr->size,
+                                  0, encryptAlgorithm, encryptKey);
       if (code) {
         taosMemoryFree(data);
         return code;
@@ -212,20 +224,20 @@ int32_t tsdbSttFileReadBlockData(SSttFileReader *reader, const SSttBlk *sttBlk, 
   SBuffer *assist = reader->buffers + 1;
 
   int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
   // load data
   tBufferClear(buffer0);
-  code = tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset, sttBlk->bInfo.szBlock, buffer0, 0,
-                              encryptAlgorithm, encryptKey);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset, sttBlk->bInfo.szBlock, buffer0, 0,
+                                       encryptAlgorithm, encryptKey),
+                  &lino, _exit);
 
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
-  code = tBlockDataDecompress(&br, bData, assist);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tBlockDataDecompress(&br, bData, assist), &lino, _exit);
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -241,19 +253,20 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
   SBuffer     *assist = reader->buffers + 2;
 
   int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
   // load key part
   tBufferClear(buffer0);
-  code = tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset, sttBlk->bInfo.szKey, buffer0, 0,
-                              encryptAlgorithm, encryptKey);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset, sttBlk->bInfo.szKey, buffer0, 0,
+                                       encryptAlgorithm, encryptKey),
+                  &lino, _exit);
 
   // decode header
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
-  code = tGetDiskDataHdr(&br, &hdr);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tGetDiskDataHdr(&br, &hdr), &lino, _exit);
 
-  ASSERT(hdr.delimiter == TSDB_FILE_DLMT);
+  if (hdr.delimiter != TSDB_FILE_DLMT) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
   // set data container
   tBlockDataReset(bData);
@@ -262,9 +275,10 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
   bData->nRow = hdr.nRow;
 
   // key part
-  code = tBlockDataDecompressKeyPart(&hdr, &br, bData, assist);
-  TSDB_CHECK_CODE(code, lino, _exit);
-  ASSERT(br.offset == buffer0->size);
+  TAOS_CHECK_GOTO(tBlockDataDecompressKeyPart(&hdr, &br, bData, assist), &lino, _exit);
+  if (br.offset != buffer0->size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
   bool loadExtra = false;
   for (int i = 0; i < ncid; i++) {
@@ -280,9 +294,9 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
 
   // load SBlockCol part
   tBufferClear(buffer0);
-  code = tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey, hdr.szBlkCol, buffer0, 0,
-                              encryptAlgorithm, encryptKey);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey, hdr.szBlkCol, buffer0, 0,
+                                       encryptAlgorithm, encryptKey),
+                  &lino, _exit);
 
   // load each column
   SBlockCol blockCol = {
@@ -302,13 +316,12 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
         break;
       }
 
-      code = tGetBlockCol(&br, &blockCol, hdr.fmtVer, hdr.cmprAlg);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tGetBlockCol(&br, &blockCol, hdr.fmtVer, hdr.cmprAlg), &lino, _exit);
     }
 
     if (cid < blockCol.cid) {
       const STColumn *tcol = tTSchemaSearchColumn(pTSchema, cid);
-      ASSERT(tcol);
+      TSDB_CHECK_NULL(tcol, code, lino, _exit, TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER);
       SBlockCol none = {
           .cid = cid,
           .type = tcol->type,
@@ -320,27 +333,26 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
           .szValue = 0,
           .offset = 0,
       };
-      code = tBlockDataDecompressColData(&hdr, &none, &br, bData, assist);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tBlockDataDecompressColData(&hdr, &none, &br, bData, assist), &lino, _exit);
     } else if (cid == blockCol.cid) {
       // load from file
       tBufferClear(buffer1);
-      code =
+      TAOS_CHECK_GOTO(
           tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey + hdr.szBlkCol + blockCol.offset,
-                               blockCol.szBitmap + blockCol.szOffset + blockCol.szValue, buffer1, 0,
-                              encryptAlgorithm, encryptKey);
-      TSDB_CHECK_CODE(code, lino, _exit);
+                               blockCol.szBitmap + blockCol.szOffset + blockCol.szValue, buffer1, 0, encryptAlgorithm,
+                               encryptKey),
+          &lino, _exit);
 
       // decode the buffer
       SBufferReader br1 = BUFFER_READER_INITIALIZER(0, buffer1);
-      code = tBlockDataDecompressColData(&hdr, &blockCol, &br1, bData, assist);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tBlockDataDecompressColData(&hdr, &blockCol, &br1, bData, assist), &lino, _exit);
     }
   }
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -353,12 +365,12 @@ int32_t tsdbSttFileReadTombBlock(SSttFileReader *reader, const STombBlk *tombBlk
   SBuffer *assist = reader->buffers + 1;
 
   int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
   // load
   tBufferClear(buffer0);
-  code = tsdbReadFileToBuffer(reader->fd, tombBlk->dp->offset, tombBlk->dp->size, buffer0, 0,
-                              encryptAlgorithm, encryptKey);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbReadFileToBuffer(reader->fd, tombBlk->dp->offset, tombBlk->dp->size, buffer0, 0, encryptAlgorithm,
+                                       encryptKey),
+                  &lino, _exit);
 
   // decode
   int32_t       size = 0;
@@ -372,15 +384,18 @@ int32_t tsdbSttFileReadTombBlock(SSttFileReader *reader, const STombBlk *tombBlk
         .originalSize = tombBlk->numRec * sizeof(int64_t),
         .compressedSize = tombBlk->size[i],
     };
-    code = tDecompressDataToBuffer(BR_PTR(&br), &cinfo, tombBlock->buffers + i, assist);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tDecompressDataToBuffer(BR_PTR(&br), &cinfo, tombBlock->buffers + i, assist), &lino, _exit);
     br.offset += tombBlk->size[i];
   }
 
-  ASSERT(br.offset == tombBlk->dp->size);
+  if (br.offset != tombBlk->dp->size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
+
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -393,15 +408,15 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
   SBuffer *assist = reader->buffers + 1;
 
   int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
   // load data
   tBufferClear(buffer0);
-  code = tsdbReadFileToBuffer(reader->fd, statisBlk->dp->offset, statisBlk->dp->size, buffer0, 0,
-                              encryptAlgorithm, encryptKey);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbReadFileToBuffer(reader->fd, statisBlk->dp->offset, statisBlk->dp->size, buffer0, 0,
+                                       encryptAlgorithm, encryptKey),
+                  &lino, _exit);
 
   // decode data
-  tStatisBlockClear(statisBlock);
+  TAOS_UNUSED(tStatisBlockClear(statisBlock));
   statisBlock->numOfPKs = statisBlk->numOfPKs;
   statisBlock->numOfRecords = statisBlk->numRec;
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
@@ -413,8 +428,7 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
         .originalSize = statisBlk->numRec * sizeof(int64_t),
     };
 
-    code = tDecompressDataToBuffer(BR_PTR(&br), &info, &statisBlock->buffers[i], assist);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tDecompressDataToBuffer(BR_PTR(&br), &info, &statisBlock->buffers[i], assist), &lino, _exit);
     br.offset += statisBlk->size[i];
   }
 
@@ -424,34 +438,35 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
 
     // decode compress info
     for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
-      code = tValueColumnCompressInfoDecode(&br, &firstKeyInfos[i]);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tValueColumnCompressInfoDecode(&br, &firstKeyInfos[i]), &lino, _exit);
     }
 
     for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
-      code = tValueColumnCompressInfoDecode(&br, &lastKeyInfos[i]);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tValueColumnCompressInfoDecode(&br, &lastKeyInfos[i]), &lino, _exit);
     }
 
     // decode value columns
     for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
-      code = tValueColumnDecompress(BR_PTR(&br), firstKeyInfos + i, &statisBlock->firstKeyPKs[i], assist);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tValueColumnDecompress(BR_PTR(&br), firstKeyInfos + i, &statisBlock->firstKeyPKs[i], assist),
+                      &lino, _exit);
       br.offset += (firstKeyInfos[i].dataCompressedSize + firstKeyInfos[i].offsetCompressedSize);
     }
 
     for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
-      code = tValueColumnDecompress(BR_PTR(&br), &lastKeyInfos[i], &statisBlock->lastKeyPKs[i], assist);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tValueColumnDecompress(BR_PTR(&br), &lastKeyInfos[i], &statisBlock->lastKeyPKs[i], assist), &lino,
+                      _exit);
       br.offset += (lastKeyInfos[i].dataCompressedSize + lastKeyInfos[i].offsetCompressedSize);
     }
   }
 
-  ASSERT(br.offset == buffer0->size);
+  if (br.offset != buffer0->size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -486,7 +501,7 @@ struct SSttFileWriter {
 
 static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, SColCompressInfo *info,
                                            int64_t *fileSize, TSttBlkArray *sttBlkArray, SBuffer *buffers,
-                                           SVersionRange *range, int32_t encryptAlgorithm, char* encryptKey) {
+                                           SVersionRange *range, int32_t encryptAlgorithm, char *encryptKey) {
   if (blockData->nRow == 0) return 0;
 
   int32_t code = 0;
@@ -509,26 +524,22 @@ static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, S
     if (sttBlk->maxVer < blockData->aVersion[iRow]) sttBlk->maxVer = blockData->aVersion[iRow];
   }
 
-  tsdbWriterUpdVerRange(range, sttBlk->minVer, sttBlk->maxVer);
-  code = tBlockDataCompress(blockData, info, buffers, buffers + 4);
-  if (code) return code;
+  (void)tsdbWriterUpdVerRange(range, sttBlk->minVer, sttBlk->maxVer);
+  TAOS_CHECK_RETURN(tBlockDataCompress(blockData, info, buffers, buffers + 4));
 
   sttBlk->bInfo.offset = *fileSize;
   sttBlk->bInfo.szKey = buffers[0].size + buffers[1].size;
   sttBlk->bInfo.szBlock = buffers[2].size + buffers[3].size + sttBlk->bInfo.szKey;
   for (int i = 0; i < 4; i++) {
     if (buffers[i].size) {
-      code = tsdbWriteFile(fd, *fileSize, buffers[i].data, buffers[i].size, encryptAlgorithm, encryptKey);
-      if (code) return code;
+      TAOS_CHECK_RETURN(tsdbWriteFile(fd, *fileSize, buffers[i].data, buffers[i].size, encryptAlgorithm, encryptKey));
       *fileSize += buffers[i].size;
     }
   }
 
-  code = TARRAY2_APPEND_PTR(sttBlkArray, sttBlk);
-  if (code) return code;
+  TAOS_CHECK_RETURN(TARRAY2_APPEND_PTR(sttBlkArray, sttBlk));
 
   tBlockDataClear(blockData);
-
   return 0;
 }
 
@@ -543,22 +554,25 @@ static int32_t tsdbSttFileDoWriteBlockData(SSttFileWriter *writer) {
   code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, uid, &(info.pColCmpr));
 
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-  code = tsdbFileDoWriteSttBlockData(writer->fd, writer->blockData, &info, &writer->file->size, writer->sttBlkArray,
-                                     writer->buffers, &writer->ctx->range,
-                                    encryptAlgorithm, encryptKey);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  TAOS_CHECK_GOTO(
+      tsdbFileDoWriteSttBlockData(writer->fd, writer->blockData, &info, &writer->file->size, writer->sttBlkArray,
+                                  writer->buffers, &writer->ctx->range, encryptAlgorithm, encryptKey),
+      &lino, _exit);
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   taosHashCleanup(info.pColCmpr);
   return code;
 }
 
 static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
-  if (writer->staticBlock->numOfRecords == 0) return 0;
+  if (writer->staticBlock->numOfRecords == 0) {
+    return 0;
+  }
 
   int32_t code = 0;
   int32_t lino = 0;
@@ -577,16 +591,16 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
   statisBlk.cmprAlg = writer->config->cmprAlg;
   statisBlk.numOfPKs = statisBlock->numOfPKs;
 
-  tStatisBlockGet(statisBlock, 0, &record);
+  (void)tStatisBlockGet(statisBlock, 0, &record);
   statisBlk.minTbid.suid = record.suid;
   statisBlk.minTbid.uid = record.uid;
 
-  tStatisBlockGet(statisBlock, statisBlock->numOfRecords - 1, &record);
+  (void)tStatisBlockGet(statisBlock, statisBlock->numOfRecords - 1, &record);
   statisBlk.maxTbid.suid = record.suid;
   statisBlk.maxTbid.uid = record.uid;
 
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
   // compress each column
   for (int32_t i = 0; i < ARRAY_SIZE(statisBlk.size); i++) {
@@ -597,12 +611,10 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
     };
 
     tBufferClear(buffer0);
-    code = tCompressDataToBuffer(statisBlock->buffers[i].data, &info, buffer0, assist);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = tsdbWriteFile(writer->fd, writer->file->size, buffer0->data, info.compressedSize,
-                        encryptAlgorithm, encryptKey);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tCompressDataToBuffer(statisBlock->buffers[i].data, &info, buffer0, assist), &lino, _exit);
+    TAOS_CHECK_GOTO(
+        tsdbWriteFile(writer->fd, writer->file->size, buffer0->data, info.compressedSize, encryptAlgorithm, encryptKey),
+        &lino, _exit);
 
     statisBlk.size[i] = info.compressedSize;
     statisBlk.dp->size += info.compressedSize;
@@ -617,74 +629,72 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
     tBufferClear(buffer1);
 
     for (int32_t i = 0; i < statisBlk.numOfPKs; i++) {
-      code = tValueColumnCompress(&statisBlock->firstKeyPKs[i], &compressInfo, buffer1, assist);
-      TSDB_CHECK_CODE(code, lino, _exit);
-      code = tValueColumnCompressInfoEncode(&compressInfo, buffer0);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tValueColumnCompress(&statisBlock->firstKeyPKs[i], &compressInfo, buffer1, assist), &lino, _exit);
+      TAOS_CHECK_GOTO(tValueColumnCompressInfoEncode(&compressInfo, buffer0), &lino, _exit);
     }
 
     for (int32_t i = 0; i < statisBlk.numOfPKs; i++) {
-      code = tValueColumnCompress(&statisBlock->lastKeyPKs[i], &compressInfo, buffer1, assist);
-      TSDB_CHECK_CODE(code, lino, _exit);
-      code = tValueColumnCompressInfoEncode(&compressInfo, buffer0);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tValueColumnCompress(&statisBlock->lastKeyPKs[i], &compressInfo, buffer1, assist), &lino, _exit);
+      TAOS_CHECK_GOTO(tValueColumnCompressInfoEncode(&compressInfo, buffer0), &lino, _exit);
     }
 
-    code = tsdbWriteFile(writer->fd, writer->file->size, buffer0->data, buffer0->size, encryptAlgorithm, encryptKey);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(
+        tsdbWriteFile(writer->fd, writer->file->size, buffer0->data, buffer0->size, encryptAlgorithm, encryptKey),
+        &lino, _exit);
     writer->file->size += buffer0->size;
     statisBlk.dp->size += buffer0->size;
 
-    code = tsdbWriteFile(writer->fd, writer->file->size, buffer1->data, buffer1->size, encryptAlgorithm, encryptKey);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(
+        tsdbWriteFile(writer->fd, writer->file->size, buffer1->data, buffer1->size, encryptAlgorithm, encryptKey),
+        &lino, _exit);
     writer->file->size += buffer1->size;
     statisBlk.dp->size += buffer1->size;
   }
 
-  code = TARRAY2_APPEND_PTR(writer->statisBlkArray, &statisBlk);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(TARRAY2_APPEND_PTR(writer->statisBlkArray, &statisBlk), &lino, _exit);
 
-  tStatisBlockClear(writer->staticBlock);
+  TAOS_UNUSED(tStatisBlockClear(writer->staticBlock));
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
 
 static int32_t tsdbSttFileDoWriteTombBlock(SSttFileWriter *writer) {
-  if (TOMB_BLOCK_SIZE(writer->tombBlock) == 0) return 0;
+  if (TOMB_BLOCK_SIZE(writer->tombBlock) == 0) {
+    return 0;
+  }
 
   int32_t code = 0;
   int32_t lino = 0;
 
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
-  code = tsdbFileWriteTombBlock(writer->fd, writer->tombBlock, writer->config->cmprAlg, &writer->file->size,
-                                writer->tombBlkArray, writer->buffers, &writer->ctx->range,
-                                encryptAlgorithm, encryptKey);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(
+      tsdbFileWriteTombBlock(writer->fd, writer->tombBlock, writer->config->cmprAlg, &writer->file->size,
+                             writer->tombBlkArray, writer->buffers, &writer->ctx->range, encryptAlgorithm, encryptKey),
+      &lino, _exit);
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
 
 int32_t tsdbFileWriteSttBlk(STsdbFD *fd, const TSttBlkArray *sttBlkArray, SFDataPtr *ptr, int64_t *fileSize,
-                            int32_t encryptAlgorithm, char* encryptKey) {
+                            int32_t encryptAlgorithm, char *encryptKey) {
   ptr->size = TARRAY2_DATA_LEN(sttBlkArray);
   if (ptr->size > 0) {
     ptr->offset = *fileSize;
 
-    int32_t code = tsdbWriteFile(fd, *fileSize, (const uint8_t *)TARRAY2_DATA(sttBlkArray), ptr->size, encryptAlgorithm,
-                                  encryptKey);
-    if (code) {
-      return code;
-    }
+    TAOS_CHECK_RETURN(tsdbWriteFile(fd, *fileSize, (const uint8_t *)TARRAY2_DATA(sttBlkArray), ptr->size,
+                                    encryptAlgorithm, encryptKey));
 
     *fileSize += ptr->size;
   }
@@ -696,15 +706,16 @@ static int32_t tsdbSttFileDoWriteSttBlk(SSttFileWriter *writer) {
   int32_t lino;
 
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
-  code = tsdbFileWriteSttBlk(writer->fd, writer->sttBlkArray, writer->footer->sttBlkPtr, &writer->file->size,
-                              encryptAlgorithm, encryptKey);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbFileWriteSttBlk(writer->fd, writer->sttBlkArray, writer->footer->sttBlkPtr, &writer->file->size,
+                                      encryptAlgorithm, encryptKey),
+                  &lino, _exit);
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -713,20 +724,21 @@ static int32_t tsdbSttFileDoWriteStatisBlk(SSttFileWriter *writer) {
   int32_t code = 0;
   int32_t lino;
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
   writer->footer->statisBlkPtr->size = TARRAY2_DATA_LEN(writer->statisBlkArray);
   if (writer->footer->statisBlkPtr->size) {
     writer->footer->statisBlkPtr->offset = writer->file->size;
-    code = tsdbWriteFile(writer->fd, writer->file->size, (const uint8_t *)TARRAY2_DATA(writer->statisBlkArray),
-                          writer->footer->statisBlkPtr->size, encryptAlgorithm, encryptKey);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tsdbWriteFile(writer->fd, writer->file->size, (const uint8_t *)TARRAY2_DATA(writer->statisBlkArray),
+                                  writer->footer->statisBlkPtr->size, encryptAlgorithm, encryptKey),
+                    &lino, _exit);
     writer->file->size += writer->footer->statisBlkPtr->size;
   }
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -736,30 +748,31 @@ static int32_t tsdbSttFileDoWriteTombBlk(SSttFileWriter *writer) {
   int32_t lino = 0;
 
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
-  code = tsdbFileWriteTombBlk(writer->fd, writer->tombBlkArray, writer->footer->tombBlkPtr, &writer->file->size,
-                              encryptAlgorithm, encryptKey);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbFileWriteTombBlk(writer->fd, writer->tombBlkArray, writer->footer->tombBlkPtr,
+                                       &writer->file->size, encryptAlgorithm, encryptKey),
+                  &lino, _exit);
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
 
-int32_t tsdbFileWriteSttFooter(STsdbFD *fd, const SSttFooter *footer, int64_t *fileSize, int32_t encryptAlgorithm, 
-                                char* encryptKey) {
-  int32_t code = tsdbWriteFile(fd, *fileSize, (const uint8_t *)footer, sizeof(*footer), encryptAlgorithm, encryptKey);
-  if (code) return code;
+int32_t tsdbFileWriteSttFooter(STsdbFD *fd, const SSttFooter *footer, int64_t *fileSize, int32_t encryptAlgorithm,
+                               char *encryptKey) {
+  TAOS_CHECK_RETURN(
+      tsdbWriteFile(fd, *fileSize, (const uint8_t *)footer, sizeof(*footer), encryptAlgorithm, encryptKey));
   *fileSize += sizeof(*footer);
   return 0;
 }
 
 static int32_t tsdbSttFileDoWriteFooter(SSttFileWriter *writer) {
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
   return tsdbFileWriteSttFooter(writer->fd, writer->footer, &writer->file->size, encryptAlgorithm, encryptKey);
 }
@@ -794,16 +807,14 @@ static int32_t tsdbSttFWriterDoOpen(SSttFileWriter *writer) {
   int32_t flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
   char    fname[TSDB_FILENAME_LEN];
 
-  tsdbTFileName(writer->config->tsdb, writer->file, fname);
-  code = tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd, 0);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  (void)tsdbTFileName(writer->config->tsdb, writer->file, fname);
+  TAOS_CHECK_GOTO(tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd, 0), &lino, _exit);
 
   uint8_t hdr[TSDB_FHDR_SIZE] = {0};
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
-  code = tsdbWriteFile(writer->fd, 0, hdr, sizeof(hdr), encryptAlgorithm, encryptKey);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbWriteFile(writer->fd, 0, hdr, sizeof(hdr), encryptAlgorithm, encryptKey), &lino, _exit);
   writer->file->size += sizeof(hdr);
 
   // range
@@ -813,21 +824,20 @@ static int32_t tsdbSttFWriterDoOpen(SSttFileWriter *writer) {
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
 
 static void tsdbSttFWriterDoClose(SSttFileWriter *writer) {
-  ASSERT(writer->fd == NULL);
-
   for (int32_t i = 0; i < ARRAY_SIZE(writer->local); ++i) {
     tBufferDestroy(writer->local + i);
   }
   tDestroyTSchema(writer->skmRow->pTSchema);
   tDestroyTSchema(writer->skmTb->pTSchema);
   tTombBlockDestroy(writer->tombBlock);
-  tStatisBlockDestroy(writer->staticBlock);
+  (void)tStatisBlockDestroy(writer->staticBlock);
   tBlockDataDestroy(writer->blockData);
   TARRAY2_DESTROY(writer->tombBlkArray, NULL);
   TARRAY2_DESTROY(writer->statisBlkArray, NULL);
@@ -843,58 +853,42 @@ static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, TFileOpArray *o
   int32_t lino;
   int32_t code;
 
-  code = tsdbSttFileDoWriteBlockData(writer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbSttFileDoWriteStatisBlock(writer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbSttFileDoWriteTombBlock(writer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbSttFileDoWriteSttBlk(writer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbSttFileDoWriteStatisBlk(writer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbSttFileDoWriteTombBlk(writer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbSttFileDoWriteFooter(writer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbSttFileDoUpdateHeader(writer);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbSttFileDoWriteBlockData(writer), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbSttFileDoWriteStatisBlock(writer), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbSttFileDoWriteTombBlock(writer), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbSttFileDoWriteSttBlk(writer), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbSttFileDoWriteStatisBlk(writer), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbSttFileDoWriteTombBlk(writer), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbSttFileDoWriteFooter(writer), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbSttFileDoUpdateHeader(writer), &lino, _exit);
 
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-  code = tsdbFsyncFile(writer->fd, encryptAlgorithm, encryptKey);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+
+  TAOS_CHECK_GOTO(tsdbFsyncFile(writer->fd, encryptAlgorithm, encryptKey), &lino, _exit);
 
   tsdbCloseFile(&writer->fd);
 
-  ASSERT(writer->file->size > 0);
   STFileOp op = (STFileOp){
       .optype = TSDB_FOP_CREATE,
       .fid = writer->config->fid,
       .nf = writer->file[0],
   };
-  tsdbTFileUpdVerRange(&op.nf, writer->ctx->range);
+  (void)tsdbTFileUpdVerRange(&op.nf, writer->ctx->range);
 
-  code = TARRAY2_APPEND(opArray, op);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(TARRAY2_APPEND(opArray, op), &lino, _exit);
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
 
 static int32_t tsdbSttFWriterCloseAbort(SSttFileWriter *writer) {
   char fname[TSDB_FILENAME_LEN];
-  tsdbTFileName(writer->config->tsdb, writer->file, fname);
+  (void)tsdbTFileName(writer->config->tsdb, writer->file, fname);
   tsdbCloseFile(&writer->fd);
   (void)taosRemoveFile(fname);
   return 0;
@@ -902,7 +896,9 @@ static int32_t tsdbSttFWriterCloseAbort(SSttFileWriter *writer) {
 
 int32_t tsdbSttFileWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter **writer) {
   writer[0] = taosMemoryCalloc(1, sizeof(*writer[0]));
-  if (writer[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (writer[0] == NULL) {
+    return terrno;
+  }
 
   writer[0]->config[0] = config[0];
   writer[0]->ctx->opened = false;
@@ -915,11 +911,9 @@ int32_t tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, TFileOpArr
 
   if (writer[0]->ctx->opened) {
     if (abort) {
-      code = tsdbSttFWriterCloseAbort(writer[0]);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tsdbSttFWriterCloseAbort(writer[0]), &lino, _exit);
     } else {
-      code = tsdbSttFWriterCloseCommit(writer[0], opArray);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tsdbSttFWriterCloseCommit(writer[0], opArray), &lino, _exit);
     }
     tsdbSttFWriterDoClose(writer[0]);
   }
@@ -928,7 +922,8 @@ int32_t tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, TFileOpArr
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer[0]->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer[0]->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -938,20 +933,19 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
   int32_t lino = 0;
 
   if (!writer->ctx->opened) {
-    code = tsdbSttFWriterDoOpen(writer);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tsdbSttFWriterDoOpen(writer), &lino, _exit);
   }
 
   if (!TABLE_SAME_SCHEMA(row->suid, row->uid, writer->ctx->tbid->suid, writer->ctx->tbid->uid)) {
-    code = tsdbSttFileDoWriteBlockData(writer);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tsdbSttFileDoWriteBlockData(writer), &lino, _exit);
 
-    code = tsdbUpdateSkmTb(writer->config->tsdb, (TABLEID *)row, writer->config->skmTb);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tsdbUpdateSkmTb(writer->config->tsdb, (TABLEID *)row, writer->config->skmTb), &lino, _exit);
 
-    TABLEID id = {.suid = row->suid, .uid = row->suid ? 0 : row->uid};
-    code = tBlockDataInit(writer->blockData, &id, writer->config->skmTb->pTSchema, NULL, 0);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TABLEID id = {
+        .suid = row->suid,
+        .uid = row->suid ? 0 : row->uid,
+    };
+    TAOS_CHECK_GOTO(tBlockDataInit(writer->blockData, &id, writer->config->skmTb->pTSchema, NULL, 0), &lino, _exit);
   }
 
   if (writer->ctx->tbid->uid != row->uid) {
@@ -965,8 +959,7 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
   for (;;) {
     code = tStatisBlockPut(writer->staticBlock, row, writer->config->maxRow);
     if (code == TSDB_CODE_INVALID_PARA) {
-      code = tsdbSttFileDoWriteStatisBlock(writer);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tsdbSttFileDoWriteStatisBlock(writer), &lino, _exit);
       continue;
     } else {
       TSDB_CHECK_CODE(code, lino, _exit);
@@ -975,9 +968,9 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
   }
 
   if (row->row.type == TSDBROW_ROW_FMT) {
-    code = tsdbUpdateSkmRow(writer->config->tsdb, writer->ctx->tbid,  //
-                            TSDBROW_SVERSION(&row->row), writer->config->skmRow);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tsdbUpdateSkmRow(writer->config->tsdb, writer->ctx->tbid,  //
+                                     TSDBROW_SVERSION(&row->row), writer->config->skmRow),
+                    &lino, _exit);
   }
 
   // row to col conversion
@@ -989,21 +982,20 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
       && tsdbRowCompareWithoutVersion(&row->row,
                                       &tsdbRowFromBlockData(writer->blockData, writer->blockData->nRow - 1)) == 0  //
   ) {
-    code = tBlockDataUpdateRow(writer->blockData, &row->row, writer->config->skmRow->pTSchema);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tBlockDataUpdateRow(writer->blockData, &row->row, writer->config->skmRow->pTSchema), &lino, _exit);
   } else {
     if (writer->blockData->nRow >= writer->config->maxRow) {
-      code = tsdbSttFileDoWriteBlockData(writer);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tsdbSttFileDoWriteBlockData(writer), &lino, _exit);
     }
 
-    code = tBlockDataAppendRow(writer->blockData, &row->row, writer->config->skmRow->pTSchema, row->uid);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tBlockDataAppendRow(writer->blockData, &row->row, writer->config->skmRow->pTSchema, row->uid),
+                    &lino, _exit);
   }
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -1018,13 +1010,13 @@ int32_t tsdbSttFileWriteBlockData(SSttFileWriter *writer, SBlockData *bdata) {
     row->uid = bdata->uid ? bdata->uid : bdata->aUid[i];
     row->row = tsdbRowFromBlockData(bdata, i);
 
-    code = tsdbSttFileWriteRow(writer, row);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tsdbSttFileWriteRow(writer, row), &lino, _exit);
   }
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -1034,31 +1026,27 @@ int32_t tsdbSttFileWriteTombRecord(SSttFileWriter *writer, const STombRecord *re
   int32_t lino;
 
   if (!writer->ctx->opened) {
-    code = tsdbSttFWriterDoOpen(writer);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tsdbSttFWriterDoOpen(writer), &lino, _exit);
   } else {
     if (writer->blockData->nRow > 0) {
-      code = tsdbSttFileDoWriteBlockData(writer);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tsdbSttFileDoWriteBlockData(writer), &lino, _exit);
     }
 
     if (STATIS_BLOCK_SIZE(writer->staticBlock) > 0) {
-      code = tsdbSttFileDoWriteStatisBlock(writer);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tsdbSttFileDoWriteStatisBlock(writer), &lino, _exit);
     }
   }
 
-  code = tTombBlockPut(writer->tombBlock, record);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tTombBlockPut(writer->tombBlock, record), &lino, _exit);
 
   if (TOMB_BLOCK_SIZE(writer->tombBlock) >= writer->config->maxRow) {
-    code = tsdbSttFileDoWriteTombBlock(writer);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tsdbSttFileDoWriteTombBlock(writer), &lino, _exit);
   }
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   } else {
     tsdbTrace("vgId:%d write tomb record to stt file:%s, cid:%" PRId64 ", suid:%" PRId64 ", uid:%" PRId64
               ", version:%" PRId64,

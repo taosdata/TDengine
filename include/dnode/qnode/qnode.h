@@ -34,9 +34,10 @@ typedef struct {
  * @brief Start one Qnode in Dnode.
  *
  * @param pOption Option of the qnode.
- * @return SQnode* The qnode object.
+ * @param pQnode The qnode object.
+ * @return int32_t The error code.
  */
-SQnode *qndOpen(const SQnodeOpt *pOption);
+int32_t qndOpen(const SQnodeOpt *pOption, SQnode **pQnode);
 
 /**
  * @brief Stop Qnode in Dnode.

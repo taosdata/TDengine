@@ -37,26 +37,27 @@ class TDTestCase:
     def case1(self):
         tdLog.debug("========case1 start========")
 
-        os.system("nohup taosBenchmark -y -B 1 -t 40 -S 1000 -n 10 -i 1000 -v 5  > /dev/null 2>&1 &")
+        os.system(" taosBenchmark -y -B 1 -t 10 -S 1000 -n 10 -i 1000 -v 5 ")
         time.sleep(10)
         tdSql.execute("use test", queryTimes=100)
         tdSql.query("create stream if not exists s1 trigger at_once  ignore expired 0 ignore update 0  fill_history 1 into st1 as select _wstart,sum(voltage),groupid from meters partition by groupid interval(2s)")
-        tdLog.debug("========create stream and insert data ok========")
-        time.sleep(20)
+        time.sleep(5)
 
+        tdLog.debug("========create stream and insert data ok========")
         tdSql.query("select _wstart,sum(voltage),groupid from meters partition by groupid interval(2s) order by groupid,_wstart")
         rowCnt = tdSql.getRows()
-        results = []
-        for i in range(rowCnt):
-            results.append(tdSql.getData(i,1))
+        results_meters = tdSql.queryResult
 
-        tdSql.query("select * from st1 order by groupid,_wstart")
-        tdSql.checkRows(rowCnt)
+        sql = "select  _wstart,`sum(voltage)`,groupid from st1 order by groupid,_wstart"
+        tdSql.check_rows_loop(rowCnt, sql, loopCount=100, waitTime=0.5)
+
+        tdSql.query(sql)
+        results_st1 = tdSql.queryResult
         for i in range(rowCnt):
-            data1 = tdSql.getData(i,1)
-            data2 = results[i]
+            data1 = results_st1[i]
+            data2 = results_meters[i]
             if data1 != data2:
-                tdLog.info("num: %d, act data: %d, expect data: %d"%(i, data1, data2))
+                tdLog.info(f"num: {i}, act data: {data1}, expect data: {data2}")
                 tdLog.exit("check data error!")
 
         tdLog.debug("case1 end")
@@ -64,7 +65,7 @@ class TDTestCase:
     def case2(self):
         tdLog.debug("========case2 start========")
 
-        os.system("taosBenchmark -d db -t 20 -v 6 -n 1000 -y  > /dev/null 2>&1")
+        os.system("taosBenchmark -d db -t 20 -v 6 -n 1000 -y")
         # create stream
         tdSql.execute("use db", queryTimes=100)
         tdSql.execute("create stream stream1 fill_history 1 into sta as select count(*) as cnt from meters interval(10a);",show=True)
@@ -73,7 +74,7 @@ class TDTestCase:
         sql = "select count(*) from sta"
         # loop wait max 60s to check count is ok
         tdLog.info("loop wait result ...")
-        tdSql.checkDataLoop(0, 0, 100, sql, loopCount=10, waitTime=0.5)
+        tdSql.checkDataLoop(0, 0, 100, sql, loopCount=100, waitTime=0.5)
 
         # check all data is correct
         sql = "select * from sta where cnt != 200;"

@@ -40,13 +40,16 @@ TEST(testCase, smlParseInfluxString_Test) {
   msgBuf.len = 256;
   SSmlLineInfo elements = {0};
 
-  SSmlHandle *info = smlBuildSmlInfo(NULL);
+  SSmlHandle *info = nullptr;
+  int32_t code = smlBuildSmlInfo(nullptr, &info);
+  ASSERT_EQ(code, 0);
   info->protocol = TSDB_SML_LINE_PROTOCOL;
   info->dataFormat = false;
   // case 1
   char *tmp = "\\,st,t1=3,t2=4,t3=t3 c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64 1626006833639000000    ,32,c=3";
   char *sql = (char *)taosMemoryCalloc(256, 1);
-  memcpy(sql, tmp, strlen(tmp) + 1);
+  ASSERT_NE(sql, nullptr);
+  (void)memcpy(sql, tmp, strlen(tmp) + 1);
   int ret = smlParseInfluxString(info, sql, sql + strlen(sql), &elements);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(elements.measure, sql);
@@ -63,21 +66,21 @@ TEST(testCase, smlParseInfluxString_Test) {
   ASSERT_EQ(elements.timestamp, sql + elements.measureTagsLen + 1 + elements.colsLen + 1);
   ASSERT_EQ(elements.timestampLen, strlen("1626006833639000000"));
   taosArrayDestroy(elements.colArray);
-  elements.colArray = NULL;
+  elements.colArray = nullptr;
 
   // case 2  false
   tmp = "st,t1=3,t2=4,t3=t3 c1=3i64,c3=\"passit hello,c1=2,c2=false,c4=4f64 1626006833639000000";
-  memcpy(sql, tmp, strlen(tmp) + 1);
-  memset(&elements, 0, sizeof(SSmlLineInfo));
+  (void)memcpy(sql, tmp, strlen(tmp) + 1);
+  (void)memset(&elements, 0, sizeof(SSmlLineInfo));
   ret = smlParseInfluxString(info, sql, sql + strlen(sql), &elements);
   ASSERT_NE(ret, 0);
   taosArrayDestroy(elements.colArray);
-  elements.colArray = NULL;
+  elements.colArray = nullptr;
 
   // case 4  tag is null
   tmp = "st, c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64 1626006833639000000";
-  memcpy(sql, tmp, strlen(tmp) + 1);
-  memset(&elements, 0, sizeof(SSmlLineInfo));
+  (void)memcpy(sql, tmp, strlen(tmp) + 1);
+  (void)memset(&elements, 0, sizeof(SSmlLineInfo));
   ret = smlParseInfluxString(info, sql, sql + strlen(sql), &elements);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(elements.measure, sql);
@@ -93,12 +96,12 @@ TEST(testCase, smlParseInfluxString_Test) {
   ASSERT_EQ(elements.timestamp, sql + elements.measureTagsLen + 1 + elements.colsLen + 1);
   ASSERT_EQ(elements.timestampLen, strlen("1626006833639000000"));
   taosArrayDestroy(elements.colArray);
-  elements.colArray = NULL;
+  elements.colArray = nullptr;
 
   // case 5 tag is null
   tmp = " st   c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64  1626006833639000000 ";
-  memcpy(sql, tmp, strlen(tmp) + 1);
-  memset(&elements, 0, sizeof(SSmlLineInfo));
+  (void)memcpy(sql, tmp, strlen(tmp) + 1);
+  (void)memset(&elements, 0, sizeof(SSmlLineInfo));
   ret = smlParseInfluxString(info, sql, sql + strlen(sql), &elements);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(elements.measure, sql + 1);
@@ -113,35 +116,35 @@ TEST(testCase, smlParseInfluxString_Test) {
   ASSERT_EQ(elements.timestamp, sql + 1 + elements.measureTagsLen + 3 + elements.colsLen + 2);
   ASSERT_EQ(elements.timestampLen, strlen("1626006833639000000"));
   taosArrayDestroy(elements.colArray);
-  elements.colArray = NULL;
+  elements.colArray = nullptr;
 
   // case 6
   tmp = " st   c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64   ";
-  memcpy(sql, tmp, strlen(tmp) + 1);
-  memset(&elements, 0, sizeof(SSmlLineInfo));
+  (void)memcpy(sql, tmp, strlen(tmp) + 1);
+  (void)memset(&elements, 0, sizeof(SSmlLineInfo));
   ret = smlParseInfluxString(info, sql, sql + strlen(sql), &elements);
   ASSERT_EQ(ret, 0);
   taosArrayDestroy(elements.colArray);
-  elements.colArray = NULL;
-  smlClearForRerun(info);
+  elements.colArray = nullptr;
+  ASSERT_EQ(smlClearForRerun(info), 0);
 
   // case 7
   tmp = " st   ,   ";
-  memcpy(sql, tmp, strlen(tmp) + 1);
-  memset(&elements, 0, sizeof(SSmlLineInfo));
+  (void)memcpy(sql, tmp, strlen(tmp) + 1);
+  (void)memset(&elements, 0, sizeof(SSmlLineInfo));
   ret = smlParseInfluxString(info, sql, sql + strlen(sql), &elements);
   ASSERT_NE(ret, 0);
   taosArrayDestroy(elements.colArray);
-  elements.colArray = NULL;
+  elements.colArray = nullptr;
 
   // case 8 false
   tmp = ", st   ,   ";
-  memcpy(sql, tmp, strlen(tmp) + 1);
-  memset(&elements, 0, sizeof(SSmlLineInfo));
+  (void)memcpy(sql, tmp, strlen(tmp) + 1);
+  (void)memset(&elements, 0, sizeof(SSmlLineInfo));
   ret = smlParseInfluxString(info, sql, sql + strlen(sql), &elements);
   ASSERT_NE(ret, 0);
   taosArrayDestroy(elements.colArray);
-  elements.colArray = NULL;
+  elements.colArray = nullptr;
 
   taosMemoryFree(sql);
   smlDestroyInfo(info);
@@ -228,7 +231,9 @@ TEST(testCase, smlParseCols_Error_Test) {
                         "escape_test,tag1=\"tag1_value\",tag2=\"tag2_value\" col0=\"co\"l\"0_value\",col1=\"col1_value\" 1680918783010000000"
   };
 
-  SSmlHandle *info = smlBuildSmlInfo(NULL);
+  SSmlHandle *info = nullptr;
+  int32_t code = smlBuildSmlInfo(nullptr, &info);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   info->protocol = TSDB_SML_LINE_PROTOCOL;
   info->dataFormat = false;
   for (int i = 0; i < sizeof(data) / sizeof(data[0]); i++) {
@@ -238,7 +243,8 @@ TEST(testCase, smlParseCols_Error_Test) {
     msgBuf.len = 256;
     int32_t len = strlen(data[i]);
     char   *sql = (char *)taosMemoryCalloc(256, 1);
-    memcpy(sql, data[i], len + 1);
+    ASSERT_NE(sql, nullptr);
+    (void)memcpy(sql, data[i], len + 1);
     SSmlLineInfo elements = {0};
     int32_t ret = smlParseInfluxString(info, sql, sql + len, &elements);
 //    printf("i:%d\n", i);
@@ -254,7 +260,9 @@ TEST(testCase, smlParseCols_Test) {
   SSmlMsgBuf msgBuf;
   msgBuf.buf = msg;
   msgBuf.len = 256;
-  SSmlHandle *info = smlBuildSmlInfo(NULL);
+  SSmlHandle *info = nullptr;
+  int32_t code = smlBuildSmlInfo(nullptr, &info);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   info->protocol = TSDB_SML_LINE_PROTOCOL;
   info->dataFormat = false;
   SSmlLineInfo elements = {0};
@@ -267,7 +275,8 @@ TEST(testCase, smlParseCols_Test) {
       "cboolf=f,cnch_=l\"iuwq\" 1626006833639000000";
   int32_t len = strlen(data);
   char   *sql = (char *)taosMemoryCalloc(1024, 1);
-  memcpy(sql, data, len + 1);
+  ASSERT_NE(sql, nullptr);
+  (void)memcpy(sql, data, len + 1);
   int32_t ret = smlParseInfluxString(info, sql, sql + len, &elements);
   ASSERT_EQ(ret, TSDB_CODE_SUCCESS);
   int32_t size = taosArrayGetSize(elements.colArray);
@@ -275,6 +284,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // binary
   SSmlKv *kv = (SSmlKv *)taosArrayGet(elements.colArray, 1);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "cb=in", 5), 0);
   ASSERT_EQ(kv->keyLen, 5);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_BINARY);
@@ -285,6 +295,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // nchar
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 2);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "cnch", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
@@ -293,6 +304,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // bool
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 3);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "cbool", 5), 0);
   ASSERT_EQ(kv->keyLen, 5);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_BOOL);
@@ -301,6 +313,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // double
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 4);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "cf64", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_DOUBLE);
@@ -310,6 +323,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // float
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 5);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "cf64_", 5), 0);
   ASSERT_EQ(kv->keyLen, 5);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_DOUBLE);
@@ -319,6 +333,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // float
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 6);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "cf32", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_FLOAT);
@@ -328,6 +343,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // tiny int
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 7);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "ci8", 3), 0);
   ASSERT_EQ(kv->keyLen, 3);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_TINYINT);
@@ -336,6 +352,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // unsigned tiny int
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 8);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "cu8", 3), 0);
   ASSERT_EQ(kv->keyLen, 3);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_UTINYINT);
@@ -344,6 +361,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // small int
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 9);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "ci16", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_SMALLINT);
@@ -352,6 +370,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // unsigned smallint
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 10);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "cu16", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_USMALLINT);
@@ -360,6 +379,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // int
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 11);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "ci32", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_INT);
@@ -368,6 +388,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // unsigned int
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 12);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "cu32", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_UINT);
@@ -376,6 +397,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // bigint
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 13);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "ci64", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_BIGINT);
@@ -384,6 +406,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // bigint
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 14);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "ci", 2), 0);
   ASSERT_EQ(kv->keyLen, 2);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_BIGINT);
@@ -392,6 +415,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // unsigned bigint
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 15);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "cu64", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_UBIGINT);
@@ -400,6 +424,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // bool
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 16);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "cbooltrue", 9), 0);
   ASSERT_EQ(kv->keyLen, 9);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_BOOL);
@@ -408,6 +433,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // bool
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 17);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "cboolt", 6), 0);
   ASSERT_EQ(kv->keyLen, 6);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_BOOL);
@@ -416,6 +442,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // bool
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 18);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "cboolf", 6), 0);
   ASSERT_EQ(kv->keyLen, 6);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_BOOL);
@@ -424,6 +451,7 @@ TEST(testCase, smlParseCols_Test) {
 
   // nchar
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 19);
+  ASSERT_NE(kv, nullptr);
   ASSERT_EQ(strncasecmp(kv->key, "cnch_", 5), 0);
   ASSERT_EQ(kv->keyLen, 5);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
@@ -471,7 +499,9 @@ TEST(testCase, smlParseNumber_Test) {
 }
 
 TEST(testCase, smlParseTelnetLine_error_Test) {
-  SSmlHandle *info = smlBuildSmlInfo(NULL);
+  SSmlHandle *info = nullptr;
+  int32_t code = smlBuildSmlInfo(nullptr, &info);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   info->dataFormat = false;
   info->protocol = TSDB_SML_TELNET_PROTOCOL;
   ASSERT_NE(info, nullptr);
@@ -509,7 +539,9 @@ TEST(testCase, smlParseTelnetLine_error_Test) {
 }
 
 TEST(testCase, smlParseTelnetLine_Test) {
-  SSmlHandle *info = smlBuildSmlInfo(NULL);
+  SSmlHandle *info = nullptr;
+  int32_t code = smlBuildSmlInfo(nullptr, &info);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   info->dataFormat = false;
   info->protocol = TSDB_SML_TELNET_PROTOCOL;
   ASSERT_NE(info, nullptr);
@@ -528,7 +560,9 @@ TEST(testCase, smlParseTelnetLine_Test) {
 }
 
 //TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
-//  SSmlHandle *info = smlBuildSmlInfo(NULL);
+//   SSmlHandle *info = nullptr;
+//   int32_t code = smlBuildSmlInfo(nullptr, &info);
+//   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 //  info->protocol = TSDB_SML_JSON_PROTOCOL;
 //  ASSERT_NE(info, nullptr);
 //
@@ -568,7 +602,7 @@ TEST(testCase, smlParseNumber_performance_Test) {
     for (int j = 0; j < 10000000; ++j) {
       kv.value = str[i];
       kv.length = strlen(str[i]);
-      smlParseNumber(&kv, &msgBuf);
+      (void)smlParseNumber(&kv, &msgBuf); //ignore result
     }
     printf("smlParseNumber:%s cost:%" PRId64, str[i], taosGetTimestampUs() - t1);
     printf("\n");
@@ -576,7 +610,7 @@ TEST(testCase, smlParseNumber_performance_Test) {
     for (int j = 0; j < 10000000; ++j) {
       kv.value = str[i];
       kv.length = strlen(str[i]);
-      smlParseNumberOld(&kv, &msgBuf);
+      (void)smlParseNumberOld(&kv, &msgBuf); //ignore result
     }
     printf("smlParseNumberOld:%s cost:%" PRId64, str[i], taosGetTimestampUs() - t2);
     printf("\n\n");

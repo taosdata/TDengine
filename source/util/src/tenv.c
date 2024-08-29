@@ -28,7 +28,7 @@ int32_t taosEnvNameToCfgName(const char *envNameStr, char *cfgNameStr, int32_t c
     // p[cfgNameMaxLen - 1] = '\0';
     // return strlen(cfgNameStr);
     cfgNameStr[0] = '\0';
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
   envNameStr += 5;
   if (*envNameStr != '\0') {
@@ -55,7 +55,7 @@ int32_t taosEnvNameToCfgName(const char *envNameStr, char *cfgNameStr, int32_t c
 
 int32_t taosEnvToCfg(const char *envStr, char *cfgStr) {
   if (envStr == NULL || cfgStr == NULL) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
   if (cfgStr != envStr) strcpy(cfgStr, envStr);
   char *p = strchr(cfgStr, '=');
@@ -74,7 +74,7 @@ int32_t taosEnvToCfg(const char *envStr, char *cfgStr) {
       memset(&cfgStr[cfgNameLen], ' ', p - cfgStr - cfgNameLen + 1);
     } else {
       *cfgStr = '\0';
-      return -1;
+      return TSDB_CODE_INVALID_PARA;
     }
   }
   return strlen(cfgStr);

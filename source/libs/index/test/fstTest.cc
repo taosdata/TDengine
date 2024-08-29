@@ -607,7 +607,8 @@ void validateTFile(char* arg) {
   // std::vector<std::thread> threads;
   SIndex* index = (SIndex*)taosMemoryCalloc(1, sizeof(SIndex));
   index->path = taosStrdup(arg);
-  TFileReader* reader = tfileReaderOpen(index, 0, 20000000, "tag1");
+  TFileReader* reader = NULL;
+  int32_t      code = tfileReaderOpen(index, 0, 20000000, "tag1", &reader);
 
   for (int i = 0; i < NUM_OF_THREAD; i++) {
     threads[i] = std::thread(fst_get, reader->fst);
@@ -626,7 +627,8 @@ void iterTFileReader(char* path, char* uid, char* colName, char* ver) {
   uint64_t suid = atoi(uid);
   int      version = atoi(ver);
 
-  TFileReader* reader = tfileReaderOpen(NULL, suid, version, colName);
+  TFileReader* reader = NULL;
+  int32_t      code = tfileReaderOpen(NULL, suid, version, colName, &reader);
 
   Iterate* iter = tfileIteratorCreate(reader);
   bool     tn = iter ? iter->next(iter) : false;

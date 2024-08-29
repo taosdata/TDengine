@@ -49,7 +49,9 @@ typedef struct SVSnapWriter SVSnapWriter;
 
 extern const SVnodeCfg vnodeCfgDefault;
 
-int32_t vnodeInit(int32_t nthreads);
+typedef void (*StopDnodeFp)();
+
+int32_t vnodeInit(int32_t nthreads, StopDnodeFp stopDnodeFp);
 void    vnodeCleanup();
 int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs *pTfs);
 bool    vnodeShouldRemoveWal(SVnode *pVnode);
@@ -167,7 +169,7 @@ void         tsdbReaderClose2(STsdbReader *pReader);
 int32_t      tsdbNextDataBlock2(STsdbReader *pReader, bool *hasNext);
 int32_t      tsdbRetrieveDatablockSMA2(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave, bool *hasNullSMA);
 void         tsdbReleaseDataBlock2(STsdbReader *pReader);
-SSDataBlock *tsdbRetrieveDataBlock2(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
+int32_t      tsdbRetrieveDataBlock2(STsdbReader *pReader, SSDataBlock **pBlock, SArray *pIdList);
 int32_t      tsdbReaderReset2(STsdbReader *pReader, SQueryTableDataCond *pCond);
 int32_t      tsdbGetFileBlocksDistInfo2(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 int64_t      tsdbGetNumOfRowsInMemTable2(STsdbReader *pHandle);
@@ -185,7 +187,7 @@ int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, 
                                 SArray *pFuncTypeList, SColumnInfo *pkCol, int32_t numOfPks);
 int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
                               SArray *pTableUids);
-void   *tsdbCacherowsReaderClose(void *pReader);
+void    tsdbCacherowsReaderClose(void *pReader);
 
 void    tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
 size_t  tsdbCacheGetCapacity(SVnode *pVnode);
@@ -223,9 +225,9 @@ bool tqGetTablePrimaryKey(STqReader *pReader);
 void tqSetTablePrimaryKey(STqReader *pReader, int64_t uid);
 
 void    tqReaderSetColIdList(STqReader *pReader, SArray *pColIdList);
-int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList, const char *id);
-int32_t tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
-int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
+void    tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList, const char *id);
+void    tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
+void    tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 
 bool tqReaderIsQueriedTable(STqReader *pReader, uint64_t uid);
 bool tqCurrentBlockConsumed(const STqReader *pReader);
@@ -261,9 +263,9 @@ void           taosXSetTablePrimaryKey(SSnapContext *ctx, int64_t uid);
 int32_t        buildSnapContext(SVnode *pVnode, int64_t snapVersion, int64_t suid, int8_t subType, int8_t withMeta,
                                 SSnapContext **ctxRet);
 int32_t        getTableInfoFromSnapshot(SSnapContext *ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid);
-SMetaTableInfo getMetaTableInfoFromSnapshot(SSnapContext *ctx);
+int32_t        getMetaTableInfoFromSnapshot(SSnapContext *ctx, SMetaTableInfo* info);
 int32_t        setForSnapShot(SSnapContext *ctx, int64_t uid);
-int32_t        destroySnapContext(SSnapContext *ctx);
+void           destroySnapContext(SSnapContext *ctx);
 
 // structs
 struct STsdbCfg {

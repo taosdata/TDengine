@@ -39,18 +39,20 @@ extern "C" {
 
 #define SDB_GET_VAL(pData, dataPos, val, pos, func, type) \
   {                                                       \
-    if (func(pRaw, dataPos, val) != 0) {                  \
+    if ((code = func(pRaw, dataPos, val)) != 0) {         \
+      lino = __LINE__;                                    \
       goto pos;                                           \
     }                                                     \
     dataPos += sizeof(type);                              \
   }
 
-#define SDB_GET_BINARY(pRaw, dataPos, val, valLen, pos)     \
-  {                                                         \
-    if (sdbGetRawBinary(pRaw, dataPos, val, valLen) != 0) { \
-      goto pos;                                             \
-    }                                                       \
-    dataPos += valLen;                                      \
+#define SDB_GET_BINARY(pRaw, dataPos, val, valLen, pos)              \
+  {                                                                  \
+    if ((code = sdbGetRawBinary(pRaw, dataPos, val, valLen)) != 0) { \
+      lino = __LINE__;                                               \
+      goto pos;                                                      \
+    }                                                                \
+    dataPos += valLen;                                               \
   }
 
 #define SDB_GET_INT64(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt64, int64_t)
@@ -67,7 +69,8 @@ extern "C" {
 
 #define SDB_SET_VAL(pRaw, dataPos, val, pos, func, type) \
   {                                                      \
-    if (func(pRaw, dataPos, val) != 0) {                 \
+    if ((code = func(pRaw, dataPos, val)) != 0) {        \
+      lino = __LINE__;                                   \
       goto pos;                                          \
     }                                                    \
     dataPos += sizeof(type);                             \
@@ -79,12 +82,13 @@ extern "C" {
 #define SDB_SET_INT8(pRaw, dataPos, val, pos)  SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt8, int8_t)
 #define SDB_SET_UINT8(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawUInt8, uint8_t)
 
-#define SDB_SET_BINARY(pRaw, dataPos, val, valLen, pos)     \
-  {                                                         \
-    if (sdbSetRawBinary(pRaw, dataPos, val, valLen) != 0) { \
-      goto pos;                                             \
-    }                                                       \
-    dataPos += valLen;                                      \
+#define SDB_SET_BINARY(pRaw, dataPos, val, valLen, pos)              \
+  {                                                                  \
+    if ((code = sdbSetRawBinary(pRaw, dataPos, val, valLen)) != 0) { \
+      lino = __LINE__;                                               \
+      goto pos;                                                      \
+    }                                                                \
+    dataPos += valLen;                                               \
   }
 
 #define SDB_SET_RESERVE(pRaw, dataPos, valLen, pos) \
@@ -93,11 +97,12 @@ extern "C" {
     SDB_SET_BINARY(pRaw, dataPos, val, valLen, pos) \
   }
 
-#define SDB_SET_DATALEN(pRaw, dataLen, pos)     \
-  {                                             \
-    if (sdbSetRawDataLen(pRaw, dataLen) != 0) { \
-      goto pos;                                 \
-    }                                           \
+#define SDB_SET_DATALEN(pRaw, dataLen, pos)              \
+  {                                                      \
+    if ((code = sdbSetRawDataLen(pRaw, dataLen)) != 0) { \
+      lino = __LINE__;                                   \
+      goto pos;                                          \
+    }                                                    \
   }
 
 typedef struct SMnode  SMnode;
@@ -329,9 +334,18 @@ void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStat
  * @brief Cancel a traversal
  *
  * @param pSdb The sdb object.
- * @param type The initial iterator of table.
+ * @param pIter The initial iterator of table.
  */
 void sdbCancelFetch(SSdb *pSdb, void *pIter);
+
+/**
+ * @brief Cancel a traversal
+ *
+ * @param pSdb The sdb object.
+ * @param pIter The initial iterator of table.
+ * @param type The type of table.
+ */
+void sdbCancelFetchByType(SSdb *pSdb, void *pIter, ESdbType type);
 
 /**
  * @brief Traverse a sdb

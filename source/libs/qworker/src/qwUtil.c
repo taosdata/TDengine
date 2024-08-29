@@ -276,7 +276,9 @@ void qwFreeTaskHandle(qTaskInfo_t *taskHandle) {
   // Note: free/kill may in RC
   qTaskInfo_t otaskHandle = atomic_load_ptr(taskHandle);
   if (otaskHandle && atomic_val_compare_exchange_ptr(taskHandle, otaskHandle, NULL)) {
+    tsEnableRandErr = true;
     qDestroyTask(otaskHandle);
+    tsEnableRandErr = false;
     qDebug("task handle destroyed");
   }
 }
@@ -323,34 +325,52 @@ static void freeExplainExecItem(void *param) {
 
 
 int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
+  int32_t code = TSDB_CODE_SUCCESS;
   qTaskInfo_t taskHandle = ctx->taskHandle;
 
   ctx->explainRsped = true;
   
   SArray *execInfoList = taosArrayInit(4, sizeof(SExplainExecInfo));
-  QW_ERR_RET(qGetExplainExecInfo(taskHandle, execInfoList));
+  if (NULL == execInfoList) {
+    QW_ERR_JRET(terrno);
+  }
+  
+  QW_ERR_JRET(qGetExplainExecInfo(taskHandle, execInfoList));
   
   if (ctx->localExec) {
     SExplainLocalRsp localRsp = {0};
     localRsp.rsp.numOfPlans = taosArrayGetSize(execInfoList);
     SExplainExecInfo *pExec = taosMemoryCalloc(localRsp.rsp.numOfPlans, sizeof(SExplainExecInfo));
-    memcpy(pExec, taosArrayGet(execInfoList, 0), localRsp.rsp.numOfPlans * sizeof(SExplainExecInfo));
+    if (NULL == pExec) {
+      QW_ERR_JRET(terrno);
+    }
+    (void)memcpy(pExec, taosArrayGet(execInfoList, 0), localRsp.rsp.numOfPlans * sizeof(SExplainExecInfo));
     localRsp.rsp.subplanInfo = pExec;
     localRsp.qId = qId;
     localRsp.tId = tId;
     localRsp.rId = rId;
     localRsp.eId = eId;
-    taosArrayPush(ctx->explainRes, &localRsp);
+    if (NULL == taosArrayPush(ctx->explainRes, &localRsp)) {
+      QW_ERR_JRET(terrno);
+    }
+    
     taosArrayDestroy(execInfoList);
+    execInfoList = NULL;
   } else {
     SRpcHandleInfo connInfo = ctx->ctrlConnInfo;
     connInfo.ahandle = NULL;
     int32_t code = qwBuildAndSendExplainRsp(&connInfo, execInfoList);
     taosArrayDestroyEx(execInfoList, freeExplainExecItem);
+    execInfoList = NULL;
+
     QW_ERR_RET(code);
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+
+  taosArrayDestroyEx(execInfoList, freeExplainExecItem);
+
+  return code;
 }
 
 
@@ -503,37 +523,48 @@ void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
   *pParam = &gQwMgmt.param[paramIdx];
 }
 
-void qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
+int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
   char dbFName[TSDB_DB_FNAME_LEN];
   char tbName[TSDB_TABLE_NAME_LEN];
   STbVerInfo tbInfo;
   int32_t i = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+  bool tbGet = false;
 
   while (true) {
-    if (qGetQueryTableSchemaVersion(pTaskInfo, dbFName, tbName, &tbInfo.sversion, &tbInfo.tversion, i) < 0) {
+    tbGet = false;
+    code = qGetQueryTableSchemaVersion(pTaskInfo, dbFName, tbName, &tbInfo.sversion, &tbInfo.tversion, i, &tbGet);
+    if (TSDB_CODE_SUCCESS != code || !tbGet) {
       break;
     }
 
     if (dbFName[0] && tbName[0]) {
-      sprintf(tbInfo.tbFName, "%s.%s", dbFName, tbName);
+      (void)sprintf(tbInfo.tbFName, "%s.%s", dbFName, tbName);
     } else {
       tbInfo.tbFName[0] = 0;
     }
 
     if (NULL == ctx->tbInfo) {
       ctx->tbInfo = taosArrayInit(1, sizeof(tbInfo));
+      if (NULL == ctx->tbInfo) {
+        QW_ERR_RET(terrno);
+      }
     }
     
-    taosArrayPush(ctx->tbInfo, &tbInfo);
+    if (NULL == taosArrayPush(ctx->tbInfo, &tbInfo)) {
+      QW_ERR_RET(terrno);
+    }
     
     i++;
   }
+
+  QW_RET(code);
 }
 
 void qwCloseRef(void) {
   taosWLockLatch(&gQwMgmt.lock);
   if (atomic_load_32(&gQwMgmt.qwNum) <= 0 && gQwMgmt.qwRef >= 0) {
-    taosCloseRef(gQwMgmt.qwRef);
+    taosCloseRef(gQwMgmt.qwRef);  // ignore error
     gQwMgmt.qwRef = -1;
   }
   taosWUnLockLatch(&gQwMgmt.lock);
@@ -550,7 +581,7 @@ void qwDestroyImpl(void *pMgmt) {
   int32_t schStatusCount = 0;
   qDebug("start to destroy qworker, type:%d, id:%d, handle:%p", nodeType, nodeId, mgmt);
 
-  taosTmrStop(mgmt->hbTimer);
+  (void)taosTmrStop(mgmt->hbTimer); //ignore error
   mgmt->hbTimer = NULL;
   taosTmrCleanUp(mgmt->timer);
 
@@ -584,7 +615,7 @@ void qwDestroyImpl(void *pMgmt) {
 
   taosMemoryFree(mgmt);
 
-  atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
+  (void)atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
 
   qwCloseRef();
 
@@ -641,24 +672,33 @@ int64_t qwGetTimeInQueue(SQWorker *mgmt, EQueueType type) {
       return pStat->num ? (pStat->total / pStat->num) : 0;
     default:
       qError("unsupported queue type %d", type);
+      break;
   }
 
   return -1;
 }
 
 void qwClearExpiredSch(SQWorker *mgmt, SArray *pExpiredSch) {
+  int32_t code = TSDB_CODE_SUCCESS;
   int32_t num = taosArrayGetSize(pExpiredSch);
   for (int32_t i = 0; i < num; ++i) {
     uint64_t     *sId = taosArrayGet(pExpiredSch, i);
     SQWSchStatus *pSch = NULL;
-    if (qwAcquireScheduler(mgmt, *sId, QW_WRITE, &pSch)) {
+    if (NULL == sId) {
+      qError("get the %dth sch failed, code:%x", i, terrno);
+      break;
+    }
+
+    code = qwAcquireScheduler(mgmt, *sId, QW_WRITE, &pSch);
+    if (TSDB_CODE_SUCCESS != code) {
+      qError("acquire sch %" PRIx64 " failed, code:%x", *sId, code);
       continue;
     }
 
     if (taosHashGetSize(pSch->tasksHash) <= 0) {
       qwDestroySchStatus(pSch);
-      taosHashRemove(mgmt->schHash, sId, sizeof(*sId));
-      qDebug("sch %" PRIx64 " destroyed", *sId);
+      code = taosHashRemove(mgmt->schHash, sId, sizeof(*sId));
+      qDebug("sch %" PRIx64 " destroy result code:%x", *sId, code);
     }
 
     qwReleaseScheduler(QW_WRITE, mgmt);
