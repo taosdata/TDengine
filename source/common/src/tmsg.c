@@ -566,30 +566,34 @@ int32_t tSerializeSClientHbBatchRsp(void *buf, int32_t bufLen, const SClientHbBa
 int32_t tDeserializeSClientHbBatchRsp(void *buf, int32_t bufLen, SClientHbBatchRsp *pBatchRsp) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
+  int32_t ret = -1;
 
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI64(&decoder, &pBatchRsp->reqId) < 0) return -1;
-  if (tDecodeI64(&decoder, &pBatchRsp->rspId) < 0) return -1;
-  if (tDecodeI32(&decoder, &pBatchRsp->svrTimestamp) < 0) return -1;
+  if (tStartDecode(&decoder) < 0) goto _END;
+  if (tDecodeI64(&decoder, &pBatchRsp->reqId) < 0) goto _END;
+  if (tDecodeI64(&decoder, &pBatchRsp->rspId) < 0) goto _END;
+  if (tDecodeI32(&decoder, &pBatchRsp->svrTimestamp) < 0) goto _END;
 
   int32_t rspNum = 0;
-  if (tDecodeI32(&decoder, &rspNum) < 0) return -1;
+  if (tDecodeI32(&decoder, &rspNum) < 0) goto _END;
   if (pBatchRsp->rsps == NULL) {
-    if ((pBatchRsp->rsps = taosArrayInit(rspNum, sizeof(SClientHbRsp))) == NULL) return -1;
+    if ((pBatchRsp->rsps = taosArrayInit(rspNum, sizeof(SClientHbRsp))) == NULL) goto _END;
   }
   for (int32_t i = 0; i < rspNum; i++) {
     SClientHbRsp rsp = {0};
-    if (tDeserializeSClientHbRsp(&decoder, &rsp) < 0) return -1;
-    if (taosArrayPush(pBatchRsp->rsps, &rsp) == NULL) return -1;
+    if (tDeserializeSClientHbRsp(&decoder, &rsp) < 0) goto _END;
+    if (taosArrayPush(pBatchRsp->rsps, &rsp) == NULL) goto _END;
   }
 
   if (!tDecodeIsEnd(&decoder)) {
-    if (tDeserializeSMonitorParas(&decoder, &pBatchRsp->monitorParas) < 0) return -1;
+    if (tDeserializeSMonitorParas(&decoder, &pBatchRsp->monitorParas) < 0)  goto _END;
   }
 
   tEndDecode(&decoder);
+  ret = 0;
+
+_END:
   tDecoderClear(&decoder);
-  return 0;
+  return ret;
 }
 
 int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq) {
