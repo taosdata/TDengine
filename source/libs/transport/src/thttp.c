@@ -98,13 +98,16 @@ static int32_t taosBuildHttpHeader(const char* server, const char* uri, int32_t 
                                    EHttpCompFlag flag) {
   int32_t code = 0;
   int32_t len = 0;
+  int64_t QID = tGenIdPI64();
   if (flag == HTTP_FLAT) {
     len = snprintf(pHead, headLen,
                    "POST %s HTTP/1.1\n"
                    "Host: %s\n"
+                   "X-QID: 0x%" PRIx64
+                   "\n"
                    "Content-Type: application/json\n"
                    "Content-Length: %d\n\n",
-                   uri, server, contLen);
+                   uri, server, QID, contLen);
     if (len < 0 || len >= headLen) {
       code = TSDB_CODE_OUT_OF_RANGE;
     }
@@ -112,10 +115,12 @@ static int32_t taosBuildHttpHeader(const char* server, const char* uri, int32_t 
     len = snprintf(pHead, headLen,
                    "POST %s HTTP/1.1\n"
                    "Host: %s\n"
+                   "X-QID: 0x%" PRIx64
+                   "\n"
                    "Content-Type: application/json\n"
                    "Content-Encoding: gzip\n"
                    "Content-Length: %d\n\n",
-                   uri, server, contLen);
+                   uri, server, QID, contLen);
     if (len < 0 || len >= headLen) {
       code = TSDB_CODE_OUT_OF_RANGE;
     }
