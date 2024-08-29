@@ -1,0 +1,40 @@
+{
+    "host": "localhost",
+    "port": 6041,
+    "protocol": "ws",
+    "topic": "tmq_topic",
+    "numeric_alert": [{
+            "col_name": "voltage",
+            "min": 1.0,
+            "max": 2.0,
+            "level": "L2+H1"
+
+        },
+        {
+            "col_name": "voltage",
+            "min": 2.0,
+            "max": 3.0,
+            "level": "L2+H2"
+
+        },
+        {
+            "col_name": "current",
+            "min": 3.0,
+            "max": 4.0,
+            "level": "L4+H3"
+
+        }
+    ],
+    "bool_alert": [{
+            "col_name": "boolabc",
+            "to_false_level": "L2+H1"
+        },
+        {
+            "col_name": "boolabc",
+            "to_true_level": "L3+H1",
+            "to_false_level": "L3+H2"
+        }
+    ],
+    "alert_file": "/var/log/taos/alert.txt"
+
+}
