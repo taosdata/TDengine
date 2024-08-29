@@ -19,7 +19,6 @@
 #include "index.h"
 #include "qworker.h"
 #include "tcompression.h"
-#include "tgeosctx.h"
 #include "tglobal.h"
 #include "tgrant.h"
 #include "tstream.h"
@@ -122,7 +121,6 @@ void dmCleanupDnode(SDnode *pDnode) {
   streamMetaCleanup();
   indexCleanup();
   taosConvDestroy();
-  destroyThreadLocalGeosCtx();
 
   // compress destroy
   tsCompressExit();
