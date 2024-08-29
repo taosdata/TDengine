@@ -1870,7 +1870,7 @@ int32_t grantCheckExpire(EGrantType grant) {
     case TSDB_GRANT_VIEW:
       return grantCheckViews(false, DEBUG_ERROR);
     default:
-      ASSERTS(0, "undefined grant check le:%d", grant);
+      uError("undefined grant check expire type:%d", grant);
       break;
   }
   return TSDB_CODE_SUCCESS;
