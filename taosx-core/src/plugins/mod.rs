@@ -155,7 +155,7 @@ pub async fn build_ipc(
 pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let from = data.from.clone().into_dsn()?;
     match from.driver.as_str() {
-        "tmq" => {
+        "tmq" | "sync" => {
             // get tmq list
             let builder = TaosBuilder::from_dsn(&from)?.build().await?;
             let mut topics: Vec<_> = builder
@@ -221,7 +221,7 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
             "opentsdb" => runners::opentsdb::is_valid(&dsn).await,
             "pi" | "pibackfill" => runners::pi::is_pi_valid(&dsn).await,
             "taos" => crate::taoz::is_taos_valid(&dsn).await,
-            "tmq" => crate::tmq::is_tmq_valid(&dsn).await,
+            "tmq" | "sync" => crate::tmq::is_tmq_valid(&dsn).await,
             "csv" => crate::csv::is_csv_valid(&dsn).await,
             "local" => crate::local_to_taos::is_local_valid(&dsn).await,
             runners::mysql::MYSQL_ID => runners::mysql::is_valid(&dsn).await,

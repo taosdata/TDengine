@@ -1429,7 +1429,7 @@ impl TaskController {
                 let from = task.from.parse::<Dsn>()?;
                 let to = task.to.parse::<Dsn>()?;
                 match (from.driver.as_str(), to.driver.as_str()) {
-                    ("tmq", _) => {
+                    ("tmq" | "sync", _) => {
                         let offsets = self.tmq_offsets(id).await?;
                         Ok(offsets)
                     }

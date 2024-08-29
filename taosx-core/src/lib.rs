@@ -249,7 +249,7 @@ impl TaskOpts {
         // Run task
         {
             match (from.driver.as_str(), to.driver.as_str()) {
-                ("tmq", "taos") => {
+                ("tmq" | "sync", "taos") => {
                     tmq_to_td(
                         from.clone(),
                         transform.clone(),
@@ -262,7 +262,7 @@ impl TaskOpts {
                     .in_current_span()
                     .await?;
                 }
-                ("tmq", "local") => {
+                ("tmq" | "sync", "local") => {
                     tmq_to_local(
                         from.clone(),
                         to.clone(),
