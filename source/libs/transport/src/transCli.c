@@ -1656,6 +1656,9 @@ static void cliHandleFreeById(SCliMsg* pMsg, SCliThrd* pThrd) {
     // already recv, and notify upper layer
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _exception);
   } else {
+    destroyCmsg(pMsg);
+    (void)transReleaseExHandle(transGetRefMgt(), refId);
+
     while (T_REF_VAL_GET(conn) >= 1) {
       transUnrefCliHandle(conn);
     }
