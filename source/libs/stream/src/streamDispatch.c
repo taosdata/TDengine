@@ -130,7 +130,7 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
       return code;
     }
 
-    stDebug("s-task:%s (child %d) send retrieve req to task:0x%x (vgId:%d), qid:0x%" PRIx64, pTask->id.idStr,
+    stDebug("s-task:%s (child %d) send retrieve req to task:0x%x (vgId:%d),QID:0x%" PRIx64, pTask->id.idStr,
             pTask->info.selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req->reqId);
   }
 
