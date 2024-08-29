@@ -13,12 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "mndDb.h"
+#include "mndStb.h"
 #include "mndStream.h"
 #include "mndTrans.h"
-#include "tmisce.h"
 #include "mndVgroup.h"
-#include "mndStb.h"
-#include "mndDb.h"
+#include "taoserror.h"
+#include "tmisce.h"
 
 struct SStreamTaskIter {
   SStreamObj  *pStream;
@@ -905,7 +906,12 @@ void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
     }
   }
 
-  ASSERT(taosHashGetSize(pExecNode->pTaskMap) == taosArrayGetSize(pExecNode->pTaskList));
+  if (taosHashGetSize(pExecNode->pTaskMap) != taosArrayGetSize(pExecNode->pTaskList)) {
+    streamMutexUnlock(&pExecNode->lock);
+    destroyStreamTaskIter(pIter);
+    mError("task map size, task list size, not equal");
+    return;
+  }
 
   // 2. remove stream entry in consensus hash table and checkpoint-report hash table
   (void) mndClearConsensusCheckpointId(execInfo.pStreamConsensus, pStream->uid);

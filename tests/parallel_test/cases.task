@@ -313,7 +313,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellError.py
-,,n,system-test,python3 ./test.py -f 0-others/taosShellNetChk.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellNetChk.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/telemetry.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/backquote_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdMonitor.py

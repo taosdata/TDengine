@@ -214,12 +214,12 @@ int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t 
   while (offset <= appliedVer) {
     if (walFetchHead(pHandle->pWalReader, offset) < 0) {
       tqDebug("tmq poll: consumer:0x%" PRIx64 ", (epoch %d) vgId:%d offset %" PRId64
-              ", no more log to return, qid:0x%" PRIx64 " 0x%" PRIx64,
+              ", no more log to return,QID:0x%" PRIx64 " 0x%" PRIx64,
               pHandle->consumerId, pHandle->epoch, vgId, offset, reqId, id);
       goto END;
     }
 
-    tqDebug("vgId:%d, consumer:0x%" PRIx64 " taosx get msg ver %" PRId64 ", type: %s, qid:0x%" PRIx64 " 0x%" PRIx64,
+    tqDebug("vgId:%d, consumer:0x%" PRIx64 " taosx get msg ver %" PRId64 ", type: %s,QID:0x%" PRIx64 " 0x%" PRIx64,
             vgId, pHandle->consumerId, offset, TMSG_INFO(pHandle->pWalReader->pHead->head.msgType), reqId, id);
 
     if (pHandle->pWalReader->pHead->head.msgType == TDMT_VND_SUBMIT) {

@@ -941,7 +941,7 @@ STaskStatusEntry streamTaskGetStatusEntry(SStreamTask* pTask) {
       .checkpointInfo.latestSize = 0,
       .checkpointInfo.remoteBackup = 0,
       .checkpointInfo.consensusChkptId = 0,
-      .checkpointInfo.consensusTs = taosGetTimestampMs(),
+      .checkpointInfo.consensusTs = 0,
       .hTaskId = pTask->hTaskInfo.id.taskId,
       .procsTotal = SIZE_IN_MiB(pExecInfo->inputDataSize),
       .outputTotal = SIZE_IN_MiB(pExecInfo->outputDataSize),
@@ -1092,7 +1092,7 @@ static int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq*
   }
 
   // enqueue
-  stDebug("s-task:%s (vgId:%d level:%d) recv retrieve req from task:0x%x(vgId:%d), qid:0x%" PRIx64, pTask->id.idStr,
+  stDebug("s-task:%s (vgId:%d level:%d) recv retrieve req from task:0x%x(vgId:%d),QID:0x%" PRIx64, pTask->id.idStr,
           pTask->pMeta->vgId, pTask->info.taskLevel, pReq->srcTaskId, pReq->srcNodeId, pReq->reqId);
 
   pData->type = STREAM_INPUT__DATA_RETRIEVE;

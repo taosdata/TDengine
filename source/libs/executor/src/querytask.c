@@ -287,7 +287,7 @@ void buildTaskId(uint64_t taskId, uint64_t queryId, char* dst) {
   memcpy(p, "TID:0x", offset);
   offset += tintToHex(taskId, &p[offset]);
 
-  memcpy(&p[offset], " qid:0x", 7);
+  memcpy(&p[offset], "QID:0x", 7);
   offset += 7;
   offset += tintToHex(queryId, &p[offset]);
 
