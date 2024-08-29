@@ -2163,6 +2163,8 @@ static int32_t refreshNodeListFromExistedStreams(SMnode *pMnode, SArray *pNodeLi
 
       SNodeEntry entry = {.hbTimestamp = -1, .nodeId = pTask->info.nodeId, .lastHbMsgId = -1};
       epsetAssign(&entry.epset, &pTask->info.epSet);
+      (void)taosHashPut(pHash, &entry.nodeId, sizeof(entry.nodeId), &entry, sizeof(entry));
+      /*
       if (taosHashPut(pHash, &entry.nodeId, sizeof(entry.nodeId), &entry, sizeof(entry)) == 0) {
         code = terrno;
         taosWUnLockLatch(&pStream->lock);
@@ -2171,6 +2173,7 @@ static int32_t refreshNodeListFromExistedStreams(SMnode *pMnode, SArray *pNodeLi
         taosArrayClear(pNodeList);
         return code;
       }
+      */
     }
 
     destroyStreamTaskIter(pTaskIter);
