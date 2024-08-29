@@ -444,7 +444,7 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
   return 0;
 }
 
-int32_t streamTaskSetReqConsensusChkptId(SStreamTask* pTask, int64_t ts) {
+int32_t streamTaskCheckIfReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
   SConsenChkptInfo* pConChkptInfo = &pTask->status.consenChkptInfo;
 
   int32_t vgId = pTask->pMeta->vgId;
@@ -455,11 +455,13 @@ int32_t streamTaskSetReqConsensusChkptId(SStreamTask* pTask, int64_t ts) {
             vgId, pConChkptInfo->statusTs);
     return 1;
   } else {
-    if ((pConChkptInfo->status == TASK_CONSEN_CHKPT_SEND) && (ts - pConChkptInfo->statusTs) > 60 * 1000) {
+    int32_t el = (ts - pConChkptInfo->statusTs) / 1000;
+    if ((pConChkptInfo->status == TASK_CONSEN_CHKPT_SEND) && el > 60) {
       pConChkptInfo->statusTs = ts;
 
-      stWarn("s-task:%s vgId:%d not recv consensus-chkptId for 60s, set requiring in Hb again, ts:%" PRId64,
-             pTask->id.idStr, vgId, pConChkptInfo->statusTs);
+      stWarn(
+          "s-task:%s vgId:%d not recv consensus-chkptId for %ds(more than 60s), set requiring in Hb again, ts:%" PRId64,
+          pTask->id.idStr, vgId, el, pConChkptInfo->statusTs);
       return 1;
     }
   }
@@ -467,4 +469,22 @@ int32_t streamTaskSetReqConsensusChkptId(SStreamTask* pTask, int64_t ts) {
   return 0;
 }
 
+void streamTaskSetConsenChkptIdRecv(SStreamTask* pTask, int32_t transId, int64_t ts) {
+  SConsenChkptInfo* pInfo = &pTask->status.consenChkptInfo;
+  pInfo->consenChkptTransId = transId;
+  pInfo->status = TASK_CONSEN_CHKPT_RECV;
+  pInfo->statusTs = ts;
 
+  stDebug("s-task:%s set recv consen-checkpointId, transId:%d", pTask->id.idStr, transId);
+}
+
+void streamTaskSetReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
+  SConsenChkptInfo* pInfo = &pTask->status.consenChkptInfo;
+  int32_t           prevTrans = pInfo->consenChkptTransId;
+
+  pInfo->status = TASK_CONSEN_CHKPT_REQ;
+  pInfo->statusTs = ts;
+  pInfo->consenChkptTransId = 0;
+
+  stDebug("s-task:%s set req consen-checkpointId flag, prev transId:%d, ts:%" PRId64, pTask->id.idStr, prevTrans, ts);
+}
