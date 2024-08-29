@@ -1476,7 +1476,10 @@ impl TaskController {
     pub async fn tmq_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
         let from = self.get(id).await?;
         if let Some(task) = from {
-            let from = task.from.parse::<Dsn>()?;
+            let mut from = task.from.parse::<Dsn>()?;
+            if from.driver == "sync".to_string() {
+                from.driver = "tmq".to_string();
+            }
             let offsets = taosx_core::tmq_offsets(from).await?;
             let res = serde_json::to_value(&offsets)?;
             Ok(Some(res))

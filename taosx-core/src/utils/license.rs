@@ -300,7 +300,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
             } else {
                 // plain tmq to taos task.
 
-                // Check source enterprise license
+                // Check target enterprise license
                 let mut conn = sink_builder
                     .build()
                     .await
@@ -336,6 +336,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
         ("sync", "taos") => {
             let mut from = from.clone();
             from.subject.take();
+            from.driver = "tmq".to_string();
             let source_builder = TaosBuilder::from_dsn(&from)?;
             let sink_builder = TaosBuilder::from_dsn(to)?;
 
