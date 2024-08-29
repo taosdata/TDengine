@@ -2042,6 +2042,8 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
 
   // reset elect timer
   syncNodeResetElectTimer(pSyncNode);
+
+  sInfo("vgId:%d, become follower. %s", pSyncNode->vgId, debugStr);
 }
 
 void syncNodeBecomeLearner(SSyncNode* pSyncNode, const char* debugStr) {
