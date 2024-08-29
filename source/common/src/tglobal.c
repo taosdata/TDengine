@@ -515,7 +515,7 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
 int32_t taosAddClientLogCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "configDir", configDir, CFG_SCOPE_BOTH, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "scriptDir", configDir, CFG_SCOPE_BOTH, CFG_DYN_NONE));
-  TAOS_CHECK_RETURN(cfgAddDir(pCfg, "logDir", tsLogDir, CFG_SCOPE_BOTH, CFG_DYN_CLIENT));
+  TAOS_CHECK_RETURN(cfgAddDir(pCfg, "logDir", tsLogDir, CFG_SCOPE_BOTH, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddFloat(pCfg, "minimalLogDirGB", 1.0f, 0.001f, 10000000, CFG_SCOPE_BOTH, CFG_DYN_CLIENT));
   TAOS_CHECK_RETURN(
       cfgAddInt32(pCfg, "numOfLogLines", tsNumOfLogLines, 1000, 2000000000, CFG_SCOPE_BOTH, CFG_DYN_ENT_BOTH));
@@ -2094,11 +2094,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         TAOS_CHECK_GOTO(taosSetSystemLocale(locale, charset), &lino, _out);
         osSetSystemLocale(locale, charset);
         uInfo("locale set to '%s', charset set to '%s'", locale, charset);
-        matched = true;
-      } else if (strcasecmp("logDir", name) == 0) {
-        uInfo("%s set from '%s' to '%s'", name, tsLogDir, pItem->str);
-        tstrncpy(tsLogDir, pItem->str, PATH_MAX);
-        TAOS_CHECK_GOTO(taosExpandDir(tsLogDir, tsLogDir, PATH_MAX), &lino, _out);
         matched = true;
       }
       break;
