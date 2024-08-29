@@ -169,6 +169,11 @@ export default {
       requesting: false,
     };
   },
+  props: {
+    isLessThen3_3_3_0: {
+      type: Boolean,
+    },
+  },
   computed: {
     confirmStatus() {
       if (!this.ruleForm.source) {
@@ -222,17 +227,17 @@ export default {
       this.getReplication();
     },
     async addReplication() {
-      console.log('8888888');
       try {
         this.requesting = true;
         let id = localStorage.getItem("local_clusterID");
+        const type = this.isLessThen3_3_3_0 ? 'tmq' : 'sync';
         let params = {
           labels: [
             "type::replication",
             `cluster-id::${localStorage.getItem("local_clusterID")}`,
           ],
           to: `${this.ruleForm.target}`,
-          from: `tmq+${localStorage.getItem("base_url")}/${this.ruleForm.source
+          from: `${type}+${localStorage.getItem("base_url")}/${this.ruleForm.source
             }?timeout=never`,
         };
         let res = await addReplicationData(id, params);

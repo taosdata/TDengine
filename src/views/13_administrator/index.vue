@@ -10,7 +10,7 @@
           <AdBackup ></AdBackup>
         </el-tab-pane>
         <el-tab-pane name="replication" :label="$t('taosuser.datareplication')" :disabled='taosxDisabled' lazy v-if="isLessThen3_3_3_0 ? getMetaShow('td3.0') : getMetaShow('data_sync')">
-          <AdReplication ></AdReplication>
+          <AdReplication :isLessThen3_3_3_0="isLessThen3_3_3_0"></AdReplication>
         </el-tab-pane>
         <el-tab-pane name="cluster" :label="$t('route.cluster')" lazy v-if="getMetaShow('dnodes')">
           <Cluster></Cluster>
