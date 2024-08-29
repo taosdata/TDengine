@@ -90,7 +90,6 @@ void streamQueueNextItem(SStreamQueue* pQueue, SStreamQueueItem** pItem) {
   int8_t flag = atomic_exchange_8(&pQueue->status, STREAM_QUEUE__PROCESSING);
 
   if (flag == STREAM_QUEUE__FAILED) {
-    ASSERT(pQueue->qItem != NULL);
     *pItem = streamQueueCurItem(pQueue);
   } else {
     pQueue->qItem = NULL;
@@ -105,13 +104,20 @@ void streamQueueNextItem(SStreamQueue* pQueue, SStreamQueueItem** pItem) {
 }
 
 void streamQueueProcessSuccess(SStreamQueue* queue) {
-  ASSERT(atomic_load_8(&queue->status) == STREAM_QUEUE__PROCESSING);
+  if (atomic_load_8(&queue->status) != STREAM_QUEUE__PROCESSING) {
+    stError("invalid queue status:%d, expect:%d", atomic_load_8(&queue->status), STREAM_QUEUE__PROCESSING);
+    return;
+  }
+
   queue->qItem = NULL;
   atomic_store_8(&queue->status, STREAM_QUEUE__SUCESS);
 }
 
 void streamQueueProcessFail(SStreamQueue* queue) {
-  ASSERT(atomic_load_8(&queue->status) == STREAM_QUEUE__PROCESSING);
+  if (atomic_load_8(&queue->status) != STREAM_QUEUE__PROCESSING) {
+    stError("invalid queue status:%d, expect:%d", atomic_load_8(&queue->status), STREAM_QUEUE__PROCESSING);
+    return;
+  }
   atomic_store_8(&queue->status, STREAM_QUEUE__FAILED);
 }
 
@@ -229,7 +235,6 @@ EExtractDataCode streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueIte
       }
     } else {
       if (*pInput == NULL) {
-        ASSERT((*numOfBlocks) == 0);
         *pInput = qItem;
       } else { // merge current block failed, let's handle the already merged blocks.
         void*   newRet = NULL;
@@ -340,7 +345,8 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
     double size = SIZE_IN_MiB(taosQueueMemorySize(pQueue));
     stDebug("s-task:%s data res enqueue, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr, total, size);
   } else {
-    ASSERT(0);
+    stError("s-task:%s invalid type:%d to put in inputQ", pTask->id.idStr, type);
+    return TSDB_CODE_INVALID_PARA;
   }
 
   if (type != STREAM_INPUT__GET_RES && type != STREAM_INPUT__CHECKPOINT && type != STREAM_INPUT__CHECKPOINT_TRIGGER &&

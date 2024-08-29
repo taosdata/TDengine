@@ -749,7 +749,7 @@ _end:
       freeTableCachedValObj(&val);
     }
   }
-  
+
   if (freeReader) {
     pHandle->api.metaReaderFn.clearReader(&mr);
   }
@@ -5548,7 +5548,7 @@ static int32_t getBlockForTableMergeScan(void* param, SSDataBlock** ppBlock) {
     pOperator->resultInfo.totalRows += pBlock->info.rows;
     pInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
     *ppBlock = pBlock;
-    
+
     return code;
   }
 
@@ -5703,7 +5703,7 @@ void startGroupTableMergeScan(SOperatorInfo* pOperator) {
     int32_t numOfTables = 0;
     code = tableListGetSize(pInfo->base.pTableListInfo, &numOfTables);
     QUERY_CHECK_CODE(code, lino, _end);
-  
+
     int32_t i = pInfo->tableStartIndex + 1;
     for (; i < numOfTables; ++i) {
       STableKeyInfo* tableKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, i);
