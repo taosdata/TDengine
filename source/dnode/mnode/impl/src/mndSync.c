@@ -312,7 +312,12 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   }
   (void)mndRefreshUserIpWhiteList(pMnode);
 
-  ASSERT(commitIdx == mndSyncAppliedIndex(pFsm));
+  SyncIndex fsmIndex = mndSyncAppliedIndex(pFsm);
+  if (commitIdx != fsmIndex) {
+    mError("vgId:1, sync restore finished, but commitIdx:%" PRId64 " is not equal to appliedIdx:%" PRId64, commitIdx,
+           fsmIndex);
+    mndSetRestored(pMnode, false);
+  }
 }
 
 int32_t mndSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void **ppReader) {
