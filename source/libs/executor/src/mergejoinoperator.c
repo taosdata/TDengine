@@ -1869,6 +1869,7 @@ int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDo
                                            SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_OPTR_CHECK(pOptrInfo);
 
+  int32_t oldNum = numOfDownstream;
   bool newDownstreams = false;
   int32_t code = TSDB_CODE_SUCCESS;
   SOperatorInfo* pOperator = NULL;
@@ -1921,8 +1922,7 @@ _return:
   if (newDownstreams) {
     taosMemoryFree(pDownstream);
   }
-
-  taosMemoryFree(pOperator);
+  destroyOperatorAndDownstreams(pOperator, pDownstream, oldNum);
   pTaskInfo->code = code;
   
   return code;
