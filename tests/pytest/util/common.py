@@ -997,8 +997,8 @@ class TDCom:
             second_number = int(match.group(3))  # The second number inside the brackets
 
             # Compare the extracted numbers and return the result
-            return first_number == second_number
-
+            if first_number >= second_number-5 and first_number <= second_number:
+                return True
         # If no match was found, or the pattern does not match the expected format, return False
         return False
     
@@ -1035,7 +1035,7 @@ class TDCom:
                 result_task_history_rows = tdSql.query(sql_task_history)
                 
                 tdLog.notice(f"Try to check stream status, check times: {checktimes} and stream task list[{check_stream_success}]")
-                # print(f"result_task_status:{result_task_status},result_task_history:{result_task_history},result_task_alll:{result_task_alll}")
+                print(f"result_task_status:{result_task_status},result_task_history:{result_task_history},result_task_alll:{result_task_alll}")
                 if result_task_status_rows == 1 and result_task_status ==[('ready',)] :
                     if result_task_history_rows == 1 and  result_task_history == [(None,)] :
                         for vgroup_num in range(vgroups):
