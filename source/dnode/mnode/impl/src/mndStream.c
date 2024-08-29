@@ -775,7 +775,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
 #ifdef WINDOWS
-  terrno = TSDB_CODE_MND_INVALID_PLATFORM;
+  code = TSDB_CODE_MND_INVALID_PLATFORM;
   goto _OVER;
 #endif
 
