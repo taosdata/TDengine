@@ -2101,7 +2101,7 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize, int
   int32_t rowSize = pBlock->info.rowSize;
   int32_t nRows = payloadSize / rowSize;
   if (nRows < 1) {
-    qError("rows %d in page is too small, payloadSize:%d, rowSize:%d", nRows, payloadSize, rowSize);
+    uError("rows %d in page is too small, payloadSize:%d, rowSize:%d", nRows, payloadSize, rowSize);
     terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     return -1;
   }
