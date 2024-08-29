@@ -524,22 +524,12 @@ static void cleanupBlockOrderSupporter(SBlockOrderSupporter* pSup) {
 }
 
 static int32_t initBlockOrderSupporter(SBlockOrderSupporter* pSup, int32_t numOfTables) {
-  pSup->numOfBlocksPerTable = taosMemoryCalloc(1, sizeof(int32_t) * numOfTables);
-  if(pSup->numOfBlocksPerTable == NULL) {
-    cleanupBlockOrderSupporter(pSup);
-    return terrno;
-  }
-  pSup->indexPerTable = taosMemoryCalloc(1, sizeof(int32_t) * numOfTables);
-  if(pSup->indexPerTable == NULL) {
-    taosMemoryFree(pSup->numOfBlocksPerTable);
-    cleanupBlockOrderSupporter(pSup);
-    return terrno;
-  }
   pSup->pDataBlockInfo = taosMemoryCalloc(1, POINTER_BYTES * numOfTables);
-  if (pSup->pDataBlockInfo == NULL) {
+  pSup->indexPerTable = taosMemoryCalloc(1, sizeof(int32_t) * numOfTables);
+  pSup->numOfBlocksPerTable = taosMemoryCalloc(1, sizeof(int32_t) * numOfTables);
+  pSup->numOfTables = 0;
+  if (pSup->pDataBlockInfo == NULL || pSup->indexPerTable == NULL || pSup->numOfBlocksPerTable == NULL) {
     cleanupBlockOrderSupporter(pSup);
-    taosMemoryFree(pSup->numOfBlocksPerTable);
-    taosMemoryFree(pSup->indexPerTable);
     return terrno;
   }
 
