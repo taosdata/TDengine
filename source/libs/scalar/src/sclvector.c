@@ -446,12 +446,12 @@ static FORCE_INLINE int32_t varToGeometry(char *buf, SScalarParam *pOut, int32_t
   unsigned char *t = NULL;
   char          *output = NULL;
 
-  if (initCtxGeomFromText()) {
-    sclError("failed to init geometry ctx, %s", getThreadLocalGeosCtx()->errMsg);
+  if ((code = initCtxGeomFromText()) != 0) {
+    sclError("failed to init geometry ctx, %s", getGeosErrMsg(code));
     SCL_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
-  if (doGeomFromText(buf, &t, &len)) {
-    sclInfo("failed to convert text to geometry, %s", getThreadLocalGeosCtx()->errMsg);
+  if ((code = doGeomFromText(buf, &t, &len)) != 0) {
+    sclInfo("failed to convert text to geometry, %s", getGeosErrMsg(code));
     SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
   }
 

@@ -1012,7 +1012,7 @@ static int32_t sysTableGetGeomText(char* iGeom, int32_t nGeom, char** output, in
 
   if (TSDB_CODE_SUCCESS != (code = initCtxAsText()) ||
       TSDB_CODE_SUCCESS != (code = doAsText(iGeom, nGeom, &outputWKT))) {
-    qError("geo text for systable failed:%s", getThreadLocalGeosCtx()->errMsg);
+    qError("geo text for systable failed:%s", getGeosErrMsg(code));
     *output = NULL;
     *nOutput = 0;
     return code;
