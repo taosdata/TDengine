@@ -338,7 +338,7 @@ class TDSql:
         return self.queryRows
 
     def checkRows(self, expectedRows):
-        self.checkEqual(self.queryRows, expectedRows)
+        return self.checkEqual(self.queryRows, expectedRows)
         # if self.queryRows == expectedRows:
         #     tdLog.info("sql:%s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectedRows))
         #     return True
@@ -644,10 +644,10 @@ class TDSql:
     def checkEqual(self, elm, expect_elm):
         if elm == expect_elm:
             tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
-            return
+            return True
         if self.__check_equal(elm, expect_elm):
             tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
-            return
+            return True
         self.print_error_frame_info(elm, expect_elm)
         
     def checkNotEqual(self, elm, expect_elm):
