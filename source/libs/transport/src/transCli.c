@@ -258,7 +258,7 @@ static void    cliWalkCb(uv_handle_t* handle, void* arg);
     int i = 0, sz = transQueueSize(&conn->cliMsgs);                                                                  \
     for (; i < sz; i++) {                                                                                            \
       pMsg = transQueueGet(&conn->cliMsgs, i);                                                                       \
-      if (pMsg->ctx != NULL && pMsg->msg.msgType != TDMT_SCH_DROP_TASK && (uint64_t)pMsg->ctx->ahandle == ahandle) { \
+      if (pMsg->msg.msgType != TDMT_SCH_DROP_TASK && pMsg->ctx != NULL && (uint64_t)pMsg->ctx->ahandle == ahandle) { \
         break;                                                                                                       \
       }                                                                                                              \
     }                                                                                                                \
