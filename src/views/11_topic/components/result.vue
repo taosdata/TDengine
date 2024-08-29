@@ -20,7 +20,7 @@
     <template v-if="currentFn && currentFn.filters">
       <el-form-item v-for="item in currentFn.filters" :label="item.label" :key="item.field">
         <el-select class="w100" clearable v-if="item.type == 'select'" v-bind="item" v-model="result.params[item.field]" filterable>
-          <el-option v-for="ite in getOptions(item)" :key="ite.field" v-bind="ite" :value="ite.field" :label="ite.field"></el-option>
+          <el-option v-for="ite in getOptions(item)" :key="ite.value" v-bind="ite" :value="ite.value" :label="ite.label"></el-option>
         </el-select>
         <el-input v-else-if="item.type == 'input'" clearable v-model="result.params[item.field]" v-bind="item"></el-input>
         <el-input-number v-else-if="item.type == 'number'" clearable v-model="result.params[item.field]" v-bind="item"></el-input-number>
@@ -77,7 +77,14 @@
         let options = item.options;
         if (!options) return [];
         if (isArray(item.options)) return item.options;
-        if (typeof item.options == "function") return item.options.call(this) || [];
+        if (typeof item.options == "function") {
+          return item.options.call(this).map(opt => {
+            return {
+              label: opt.field,
+              value: opt.field
+            }
+          }) || [];
+        }
       },
     },
   };
