@@ -152,6 +152,7 @@ typedef struct {
 
   int64_t reqid;
   int32_t errCode;
+  tsem_t  asyncQuerySem;
 
   SStmtStatInfo stat;
 } STscStmt2;
