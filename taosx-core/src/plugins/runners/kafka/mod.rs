@@ -1112,13 +1112,15 @@ async fn poll_message<'a>(
                                     backoff *= 2;
                                 }
                                 let duration = Duration::from_secs(last_warning_interval);
-                                if last_message.elapsed() > duration {
-                                    tracing::warn!("No messages received in {:?} consumer polling timeout", duration);
-                                    let _ = notify.send(crate::TaskNotify::warn(format!("No messages received in {:?} consumer polling timeout", duration)));
+                                let elapsed = last_message.elapsed();
+                                if elapsed > duration {
+                                    tracing::warn!("Consumer {index} has no messages received in {:?} consumer polling timeout", elapsed);
+                                    let _ = notify.send(crate::TaskNotify::warn(format!("Consumer {index} has no messages received in {:?} consumer polling timeout", duration)));
                                     if last_warning_interval < MAX_NON_MESSAGE_WARNING_INTERVAL {
                                         last_warning_interval *= 2;
+                                        last_message = Instant::now();
                                     } else {
-                                        bail!("No messages received in {:?}", duration);
+                                        bail!("Consumer {index} has no messages received in {:?}", elapsed);
                                     }
                                 }
                                 tokio::time::sleep(Duration::from_millis(backoff * 100)).await;
