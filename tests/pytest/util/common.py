@@ -997,8 +997,13 @@ class TDCom:
             second_number = int(match.group(3))  # The second number inside the brackets
 
             # Compare the extracted numbers and return the result
-            if first_number >= second_number-5 and first_number <= second_number:
-                return True
+            if second_number >=5 :
+                if first_number >= second_number-5 and first_number <= second_number:
+                    return True
+            elif second_number < 5:
+                if first_number >= second_number-1 and first_number <= second_number:
+                    return True
+
         # If no match was found, or the pattern does not match the expected format, return False
         return False
     
