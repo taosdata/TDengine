@@ -125,7 +125,7 @@ void veriry_stmt(TAOS* taos) {
   // TAOS_MULTI_BIND params[10];
   TAOS_STMT2_BIND params[10];
   char            is_null2[10] = {0};
-  char            is_null[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  char            is_null[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 2};
 
   params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
   // params[0].buffer_length = sizeof(v.ts[0]);
