@@ -20,7 +20,7 @@ use linked_hash_map::LinkedHashMap;
 use rdkafka::client::ClientContext;
 use rdkafka::config::{ClientConfig, RDKafkaLogLevel};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
-use rdkafka::consumer::{BaseConsumer, CommitMode, Consumer, ConsumerContext, Rebalance};
+use rdkafka::consumer::{BaseConsumer, Consumer, ConsumerContext, Rebalance};
 use rdkafka::error::{KafkaError, KafkaResult};
 use rdkafka::message::{BorrowedMessage, Message};
 use rdkafka::topic_partition_list::TopicPartitionList;
@@ -525,29 +525,45 @@ async fn execute(
                                 drop(consumer);
                                 let joins = context.current_joins();
 
-                                if error.contains("FencedInstanceId") {
-                                    instance = format!("{idx}-{}", uuid::Uuid::new_v4());
+                                if instance.is_some() && error.contains("FencedInstanceId") {
+                                    instance = Some(format!("{idx}-{}", uuid::Uuid::new_v4()));
                                 }
                                 warn!(error, instance, "Try to rebuild consumer {idx}");
 
                                 consumer = Arc::into_inner(context)
                                     .map_or_else(
-                                        || config.build_consumer(&instance),
+                                        || {
+                                            config.build_consumer(
+                                                instance.as_deref(),
+                                                &topics
+                                                    .iter()
+                                                    .map(|s| s.as_str())
+                                                    .collect::<Vec<&str>>(),
+                                            )
+                                        },
                                         |context| {
-                                            config.build_consumer_with_context(&instance, context)
+                                            config.build_consumer_with_context(
+                                                instance.as_deref(),
+                                                &topics
+                                                    .iter()
+                                                    .map(|s| s.as_str())
+                                                    .collect::<Vec<&str>>(),
+                                                context,
+                                            )
                                         },
                                     )
                                     .with_context(|| {
                                         format!("{joins} loop to rebuild consumer {idx} error")
                                     })?;
-                                consumer
-                                    .subscribe(
-                                        &topics.iter().map(|s| s.as_str()).collect::<Vec<&str>>(),
-                                    )
-                                    .context("Kafka subscribe consumer error")?;
+
                                 notify
-                                    .send(crate::TaskNotify::info(format!(
+                                    .send(crate::TaskNotify::info(instance.as_deref().map_or_else(
+                                        || format!("Rebuild consumer {idx}"),
+                                        |instance| {
+                                            format!(
                                         "Rebuild consumer {idx} with instance id {instance}"
+                                    )
+                                        },
                                     )))
                                     .context("Task logging listener seems closed")?;
                                 continue;
@@ -575,7 +591,7 @@ struct SubTask {
     /// Topics to consume.
     topics: Arc<Vec<String>>,
     /// Unique id in the group, for rdkafka `group.instance.id` configuration.
-    instance: String,
+    instance: Option<String>,
     /// Initial consumer.
     consumer: LoggingConsumer,
     /// Timeout for polling messages in milliseconds.
@@ -656,11 +672,15 @@ impl SubTask {
         let topics = Arc::new(topics);
 
         for i in 0..concurrency {
-            let instance = format!("{i}-{}", uuid::Uuid::new_v4());
-            let consumer = config.build_consumer(&instance)?;
-            consumer
-                .subscribe(&topics.iter().map(|s| s.as_str()).collect::<Vec<&str>>())
-                .context("Kafka subscribe consumer error")?;
+            let instance = if config.enable_group_instance_id {
+                Some(format!("{i}-{}", uuid::Uuid::new_v4()))
+            } else {
+                None
+            };
+            let consumer = config.build_consumer(
+                instance.as_deref(),
+                &topics.iter().map(|s| s.as_str()).collect::<Vec<&str>>(),
+            )?;
             let topics = topics.clone();
 
             let sub_task = SubTask {
@@ -927,26 +947,26 @@ impl<'a> MessagesSender<'a> {
 
         if no_offsets {
             tracing::warn!(batch.size = batch_size, "No offsets stored, skip commit");
-            return anyhow::Ok(ExitStatus::Finished);
+            // return anyhow::Ok(ExitStatus::Finished);
         }
 
-        if self.consumer.assignment_lost() {
-            warn!("Consumer assignment lost, continue");
-            return anyhow::Ok(ExitStatus::Finished);
-        }
+        // if self.consumer.assignment_lost() {
+        //     warn!("Consumer assignment lost, continue");
+        //     return anyhow::Ok(ExitStatus::Finished);
+        // }
 
-        if let Err(err) = self.consumer.commit_consumer_state(CommitMode::Sync) {
-            let err_str = format!("{:#}", err);
-            tracing::warn!("failed to commit consumer state, cause: {}", err_str);
-            if err_str.contains("NoOffset")
-                || err_str.contains("AssignmentLost")
-                || err_str.contains("UnknownMemberId")
-            {
-                // Maybe the consumer has been rebalanced, so we continue to see next.
-                return Ok(ExitStatus::Finished);
-            }
-            bail!("failed to commit consumer state, cause: {}", err_str);
-        }
+        // if let Err(err) = self.consumer.commit_consumer_state(CommitMode::Sync) {
+        //     let err_str = format!("{:#}", err);
+        //     tracing::warn!("failed to commit consumer state, cause: {}", err_str);
+        //     if err_str.contains("NoOffset")
+        //         || err_str.contains("AssignmentLost")
+        //         || err_str.contains("UnknownMemberId")
+        //     {
+        //         // Maybe the consumer has been rebalanced, so we continue to see next.
+        //         return Ok(ExitStatus::Finished);
+        //     }
+        //     bail!("failed to commit consumer state, cause: {}", err_str);
+        // }
 
         anyhow::Ok(ExitStatus::Finished)
     }
@@ -1220,13 +1240,18 @@ fn is_tplist_empty(tpl: &TopicPartitionList) -> bool {
 type LoggingConsumer = StreamConsumer<CustomContext>;
 
 impl KafkaTaskConfig {
-    fn build_consumer(&self, instance: &str) -> anyhow::Result<LoggingConsumer> {
-        self.build_consumer_with_context(instance, CustomContext::default())
+    fn build_consumer(
+        &self,
+        instance: Option<&str>,
+        topics: &[&str],
+    ) -> anyhow::Result<LoggingConsumer> {
+        self.build_consumer_with_context(instance, topics, CustomContext::default())
     }
 
     fn build_consumer_with_context(
         &self,
-        instance: &str,
+        instance: Option<&str>,
+        topics: &[&str],
         context: CustomContext,
     ) -> anyhow::Result<LoggingConsumer> {
         let mut client = build_client_config(self.connect.clone()).unwrap();
@@ -1246,6 +1271,17 @@ impl KafkaTaskConfig {
         // >  (using offsets_store()) after message processing, to make sure
         // >  offsets are not auto-committed prior to processing has finished.
         client.set("enable.auto.offset.store", "false");
+        client.set("enable.auto.commit", "true");
+
+        client.set(
+            "auto.commit.interval.ms",
+            self.commit_interval
+                .as_ref()
+                .map_or(5000, |d| d.as_millis())
+                .to_string(),
+        );
+
+        client.set("queued.max.messages.kbytes", "262144");
 
         // Maximum time the broker may wait to fill the Fetch response with fetch.min.bytes of messages, default 500ms.
         client.set(
@@ -1262,7 +1298,7 @@ impl KafkaTaskConfig {
         // Warning: Offset commits may be not possible at this point.
         client.set("max.poll.interval.ms", "3600000");
 
-        if !instance.is_empty() {
+        if let Some(instance) = instance {
             // client.set("enable.idempotence", "true");
             client.set("group.instance.id", instance);
         }
@@ -1310,12 +1346,42 @@ impl KafkaTaskConfig {
         }
         // Set log level and create consumer
         let joins = context.fetch_add_joins();
-        tracing::info!(joins, "Consumer {instance} begin join");
+        match instance.as_deref() {
+            Some(instance) => {
+                tracing::info!(joins, "Consumer {instance} begin join");
+            }
+            None => {
+                tracing::info!(joins, "Consumer begin join");
+            }
+        }
 
-        let consumer = client
+        let consumer: LoggingConsumer = client
             .set_log_level(RDKafkaLogLevel::Info)
             .create_with_context(context)
             .context("Consumer creation failed")?;
+
+        consumer
+            .subscribe(topics)
+            .context("Kafka subscribe consumer error")?;
+
+        let subscription = consumer
+            .subscription()
+            .context("Kafka get consumer subscription metadata error")?;
+        for t in subscription.elements() {
+            tracing::info!(
+                "Consumer subscribed to topic: {}:{}:{:?}",
+                t.topic(),
+                t.partition(),
+                t.offset()
+            );
+        }
+
+        if subscription.count() > 0 {
+            let _ = consumer.store_offsets(&subscription);
+        } else {
+            tracing::info!("No subscription found");
+        }
+
         Ok(consumer)
     }
 }

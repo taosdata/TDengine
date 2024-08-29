@@ -26,6 +26,8 @@ pub struct KafkaTaskConfig {
     pub fetch_crc_validation: Option<bool>,
     pub connection_idle_timeout: Option<Duration>,
     pub client_id: Option<String>,
+    pub commit_interval: Option<Duration>,
+    pub enable_group_instance_id: bool,
 
     pub advanced_options: AdvancedOptions,
 
@@ -45,7 +47,9 @@ impl KafkaTaskConfig {
             fetch_max_bytes_per_partition: Self::parse_fetch_max_bytes_per_partition(dsn)?,
             fetch_crc_validation: Self::parse_fetch_crc_validation(dsn)?,
             connection_idle_timeout: Self::parse_connection_idle_timeout(dsn)?,
+            commit_interval: Self::parse_commit_interval(dsn)?,
             client_id: Self::parse_client_id(dsn)?,
+            enable_group_instance_id: Self::parse_enable_group_instance_id(dsn),
             advanced_options: AdvancedOptions::from_dsn(dsn)?,
             extras: Self::parse_extras(dsn)?,
         };
@@ -171,6 +175,24 @@ impl KafkaTaskConfig {
             .unwrap_or(Ok(None))
     }
 
+    fn parse_commit_interval(dsn: &Dsn) -> anyhow::Result<Option<Duration>> {
+        dsn.params
+            .get("commit_interval")
+            .map(String::as_str)
+            .map(|s| {
+                let result = parse_duration::parse(s);
+                match result {
+                    Ok(d) => Ok(Some(d)),
+                    Err(e) => Err(anyhow::anyhow!(
+                        "invalid commit_interval: {}, cause: {}",
+                        s,
+                        e
+                    )),
+                }
+            })
+            .unwrap_or(Ok(None))
+    }
+
     fn parse_client_id(dsn: &Dsn) -> anyhow::Result<Option<String>> {
         dsn.params
             .get("client_id")
@@ -183,6 +205,14 @@ impl KafkaTaskConfig {
                 }
             })
             .unwrap_or(Ok(None))
+    }
+
+    fn parse_enable_group_instance_id(dsn: &Dsn) -> bool {
+        dsn.params
+            .get("enable_group_instance_id")
+            .map(String::as_str)
+            .map(|s| s.parse::<bool>().unwrap_or(false))
+            .unwrap_or(false)
     }
 
     fn parse_timeout(dsn: &Dsn) -> anyhow::Result<i64> {
