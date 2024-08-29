@@ -22,9 +22,10 @@
       <el-form-item
         :label="$t('taosuser.items')"
         class="database-item"
+        prop="selectedItems"
       >
         <el-checkbox-group
-          v-model="selectedItems"
+          v-model="ruleForm.selectedItems"
           class="db-pri"
         >
           <el-checkbox label="passwords">{{ $t('taosuser.userItem') }}</el-checkbox>
@@ -45,8 +46,8 @@
             <span v-if="importReason?.fails?.passwords?.length > 0 || importReason?.fails?.privileges?.length > 0" class="fail">{{$t('taosuser.fail1')}}</span>
           </p>
           <ul>
-            <li v-for="(item,index) in importReason?.fails.passwords" :key="'pwd'+index">{{ $t('taosuser.user') }} {{ item.user}} {{$t('taosuser.fail2')}} {{ item.reason }}</li>
-            <li v-for="(item,index) in importReason?.fails.privileges" :key="'pri'+index">{{ $t('taosuser.user') }} {{ item.user }} {{ $t('taosuser.privilegesItem') }}(`{{ item.privilege }}`){{$t('taosuser.fail2')}} {{ item.reason }}</li>
+            <li v-for="(item,index) in importReason?.fails?.passwords" :key="'pwd'+index">{{ $t('taosuser.user') }} {{ item.user}} {{$t('taosuser.fail2')}} {{ item.reason }}</li>
+            <li v-for="(item,index) in importReason?.fails?.privileges" :key="'pri'+index">{{ $t('taosuser.user') }} {{ item.user }} {{ $t('taosuser.privilegesItem') }}(`{{ item.privilege }}`){{$t('taosuser.fail2')}} {{ item.reason }}</li>
           </ul>
           <br/>
           <span v-if="importReason?.fails?.passwords?.length > 0 || importReason?.fails?.privileges?.length > 0">{{$t('taosuser.fail3')}}</span>
@@ -92,13 +93,13 @@ export default {
   async created() {
   },
   watch: {
-    selectedItems: {
+    "ruleForm.selectedItems": {
       deep: true,
       handler(items) {
         if (items) {
           // 当选中白名单时默认勾选 Passwords
           if (items.includes('whitelist') && !items.includes('passwords')) {
-            this.selectedItems.push('passwords')
+            this.ruleForm.selectedItems.push('passwords')
           }
         }
       },
@@ -109,6 +110,7 @@ export default {
       ruleForm: {
         server: "",
         pwd: '',
+        selectedItems: ['passwords','privileges'],
         passwords: false,
         privileges: false,
         whitelist: false,
@@ -130,9 +132,15 @@ export default {
             message: this.$t("taosuser.password") + this.$t("requiredMessage"),
           }
         ],
+        selectedItems: [
+        {
+            required: true,
+            message: this.$t("taosuser.items") + this.$t("requiredMessage"),
+          }
+        ]
       },
       confirmStatus: false,
-      selectedItems: ['passwords','privileges'],
+      // selectedItems: ['passwords','privileges'],
       loading: false,
       showAlert: false,
       importReason: {
@@ -173,7 +181,7 @@ export default {
       return url || server
     },
     getSelectItem(item) {
-      return this.selectedItems.includes(item)
+      return this.ruleForm.selectedItems.includes(item)
     },
     createUser() {
       this.$refs["ruleForm"].validate(async(valid) => {
