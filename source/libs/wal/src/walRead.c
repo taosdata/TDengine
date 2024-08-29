@@ -136,7 +136,10 @@ static int32_t walReadSeekFilePos(SWalReader *pReader, int64_t fileFirstVer, int
   if (ret < 0) {
     wError("vgId:%d, failed to seek idx file, index:%" PRId64 ", pos:%" PRId64 ", since %s", pReader->pWal->cfg.vgId,
            ver, offset, terrstr());
-
+    if (pReader->pWal->stopDnode != NULL) {
+      wWarn("vgId:%d, set stop dnode flag", pReader->pWal->cfg.vgId);
+      pReader->pWal->stopDnode();
+    }
     TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
   SWalIdxEntry entry = {0};
@@ -269,6 +272,10 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver) {
       seeked = true;
       continue;
     } else {
+      if (pRead->pWal->stopDnode != NULL) {
+        wWarn("vgId:%d, set stop dnode flag", pRead->pWal->cfg.vgId);
+        pRead->pWal->stopDnode();
+      }
       if (contLen < 0) {
         TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
       } else {
@@ -341,6 +348,10 @@ int32_t walFetchBody(SWalReader *pRead) {
   }
 
   if (cryptedBodyLen != taosReadFile(pRead->pLogFile, pReadHead->body, cryptedBodyLen)) {
+    if (pRead->pWal->stopDnode != NULL) {
+      wWarn("vgId:%d, set stop dnode flag", pRead->pWal->cfg.vgId);
+      pRead->pWal->stopDnode();
+    }
     if (plainBodyLen < 0) {
       wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64 ", since %s, 0x%" PRIx64, vgId,
              pReadHead->version, ver, tstrerror(terrno), id);
@@ -424,7 +435,10 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
       wError("vgId:%d, failed to read WAL record head, index:%" PRId64 ", from log file since %s",
              pReader->pWal->cfg.vgId, ver, terrstr());
       TAOS_UNUSED(taosThreadMutexUnlock(&pReader->mutex));
-
+      if (pReader->pWal->stopDnode != NULL) {
+        wWarn("vgId:%d, set stop dnode flag", pReader->pWal->cfg.vgId);
+        pReader->pWal->stopDnode();
+      }
       if (contLen < 0) {
         TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
       } else {
@@ -465,7 +479,10 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     wError("vgId:%d, failed to read WAL record body, index:%" PRId64 ", from log file since %s",
            pReader->pWal->cfg.vgId, ver, terrstr());
     TAOS_UNUSED(taosThreadMutexUnlock(&pReader->mutex));
-
+    if (pReader->pWal->stopDnode != NULL) {
+      wWarn("vgId:%d, set stop dnode flag", pReader->pWal->cfg.vgId);
+      pReader->pWal->stopDnode();
+    }
     if (contLen < 0) {
       TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
     } else {

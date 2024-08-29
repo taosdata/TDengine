@@ -403,6 +403,10 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
     regfree(&logRegPattern);
     regfree(&idxRegPattern);
     wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
+    if (pWal->stopDnode != NULL) {
+      wWarn("vgId:%d, set stop dnode flag", pWal->cfg.vgId);
+      pWal->stopDnode();
+    }
     TAOS_RETURN(TSDB_CODE_FAILED);
   }
 
@@ -879,6 +883,10 @@ static int walFindCurMetaVer(SWal* pWal) {
   TdDirPtr pDir = taosOpenDir(pWal->path);
   if (pDir == NULL) {
     wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, tstrerror(terrno));
+    if (pWal->stopDnode != NULL) {
+      wWarn("vgId:%d, set stop dnode flag", pWal->cfg.vgId);
+      pWal->stopDnode();
+    }
     return terrno;
   }
 

@@ -528,6 +528,7 @@ static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
          idxOffset);
 
   int64_t size = taosWriteFile(pWal->pIdxFile, &entry, sizeof(SWalIdxEntry));
+  wInfo("walWriteIndex %" PRId64, size);
   if (size != sizeof(SWalIdxEntry)) {
     wError("vgId:%d, failed to write idx entry due to %s. ver:%" PRId64, pWal->cfg.vgId, strerror(errno), ver);
 
@@ -575,9 +576,9 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   if (pWal->cfg.level != TAOS_WAL_SKIP) {
     TAOS_CHECK_GOTO(walWriteIndex(pWal, index, offset), &lino, _exit);
   }
-
-  if (pWal->cfg.level != TAOS_WAL_SKIP &&
-      taosWriteFile(pWal->pLogFile, &pWal->writeHead, sizeof(SWalCkHead)) != sizeof(SWalCkHead)) {
+  int64_t size1 = taosWriteFile(pWal->pLogFile, &pWal->writeHead, sizeof(SWalCkHead));
+  wInfo("walWriteImpl1 %" PRId64, size1);
+  if (pWal->cfg.level != TAOS_WAL_SKIP && size1 != sizeof(SWalCkHead)) {
     code = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
@@ -632,8 +633,9 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
     buf = newBodyEncrypted;
   }
-
-  if (pWal->cfg.level != TAOS_WAL_SKIP && taosWriteFile(pWal->pLogFile, (char *)buf, cyptedBodyLen) != cyptedBodyLen) {
+  int64_t size = taosWriteFile(pWal->pLogFile, (char *)buf, cyptedBodyLen);
+  wInfo("walWriteImpl %" PRId64, size);
+  if (pWal->cfg.level != TAOS_WAL_SKIP && size != cyptedBodyLen) {
     code = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
