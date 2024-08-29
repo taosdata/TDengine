@@ -1521,7 +1521,7 @@ static void mndCancelRetrieveIdx(SMnode *pMnode, void *pIter) {
   if (p != NULL) {
     SSdb *pSdb = pMnode->pSdb;
     sdbCancelFetch(pSdb, p->pSmaIter);
-    sdbCancelFetch(pSdb, p->pIdxIter);
+    sdbCancelFetchByType(pSdb, p->pIdxIter, SDB_IDX);
   }
   taosMemoryFree(p);
 }
