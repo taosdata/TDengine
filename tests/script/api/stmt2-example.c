@@ -29,7 +29,7 @@ void do_stmt(TAOS* taos) {
   char    is_null2[2] = {0, 2};
   //  TAOS_STMT2_OPTION option = {0};
   // TAOS_STMT2_OPTION option = {0, true, true, stmtAsyncQueryCb, NULL};
-  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  TAOS_STMT2_OPTION option = {0, true, false, NULL, NULL};
 
   char*           tbs[2] = {"tb", "tb2"};
   int             t1_val[2] = {0, 1};

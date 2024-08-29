@@ -116,7 +116,7 @@ void veriry_stmt(TAOS* taos) {
 
 #include "time.h"
   clock_t           start, end;
-  TAOS_STMT2_OPTION option = {0, true, true, stmtAsyncQueryCb, NULL};
+  TAOS_STMT2_OPTION option = {0, true, false, stmtAsyncQueryCb, NULL};
 
   start = clock();
   TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
@@ -270,10 +270,11 @@ void veriry_stmt(TAOS* taos) {
     blob_buffer += blob_len[i];
     blob2_buffer += blob_len2[i];
   }
-
+  int              run_time = 0;
   char*            tbname = "m2";
   TAOS_STMT2_BIND* bind_cols[1] = {&params[0]};
   TAOS_STMT2_BINDV bindv = {1, &tbname, NULL, &bind_cols[0]};
+_bind_again:
   start = clock();
   // taos_stmt2_bind_param(stmt, "m1", NULL, params, -1);
   taos_stmt2_bind_param(stmt, &bindv, -1);
@@ -331,7 +332,9 @@ void veriry_stmt(TAOS* taos) {
 
   sem_wait(&sem);
   (void)sem_destroy(&sem);
-
+  if (++run_time < 2) {
+    goto _bind_again;
+  }
   taos_stmt2_close(stmt);
 
   free(t8_len);
