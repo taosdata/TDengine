@@ -5,7 +5,7 @@
         <section class="flexBetween">
           <div>
             <el-form-item>
-              <el-date-picker
+              <TimezoneDatePicker
                 v-model="date"
                 size="mini"
                 type="datetimerange"
@@ -16,7 +16,7 @@
                 value-format="timestamp"
                 align="left"
               >
-              </el-date-picker>
+              </TimezoneDatePicker>
             </el-form-item>
             <el-form-item>
               <el-input
@@ -155,6 +155,9 @@ import { parse } from "json2csv";
 import FileSaver from "file-saver";
 import { auditMockData } from "@/const"
 export default {
+  components: {
+    TimezoneDatePicker: () => import("@/components/date-picker"),
+  },
   data() {
     return {
       requestIng: false,
@@ -215,7 +218,9 @@ export default {
     conditions() {
       let conditions = "";
       if (this.date?.length > 0) {
-        conditions = ` ts > ${this.date[0]} AND ts <= ${this.date[1]} AND`;
+        let start = parsinginZone(this.date[0])
+        let end = parsinginZone(this.date[1])
+        conditions = ` ts > to_unixtimestamp('${start}') AND ts <= to_unixtimestamp('${end}') AND`;
       }
       const currentFilterParams = { ...this.filterParams };
       for (let key in currentFilterParams) {
