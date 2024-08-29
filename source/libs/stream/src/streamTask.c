@@ -377,11 +377,11 @@ int32_t streamTaskSetBackendPath(SStreamTask* pTask) {
   int32_t taskId = 0;
 
   if (pTask->info.fillHistory) {
-    streamId = pTask->hTaskInfo.id.taskId;
-    taskId = pTask->hTaskInfo.id.taskId;
-  } else {
-    streamId = pTask->streamTaskId.taskId;
+    streamId = pTask->streamTaskId.streamId;
     taskId = pTask->streamTaskId.taskId;
+  } else {
+    streamId = pTask->id.streamId;
+    taskId = pTask->id.taskId;
   }
 
   char    id[128] = {0};
