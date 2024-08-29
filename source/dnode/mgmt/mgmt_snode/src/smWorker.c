@@ -38,11 +38,12 @@ static void smProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     int32_t code = sndProcessWriteMsg(pMgmt->pSnode, pMsg, NULL);
     if (code < 0) {
       dGError("snd, msg:%p failed to process write since %s", pMsg, tstrerror(code));
-      if (pMsg->info.handle != NULL) {
-        tmsgSendRsp(pMsg);
-      }
+      smSendRsp(pMsg, code);
+      // if (pMsg->info.handle != NULL) {
+      //   tmsgSendRsp(pMsg);
+      // }
     } else {
-      smSendRsp(pMsg, 0);
+      // smSendRsp(pMsg, 0);
     }
 
     dTrace("msg:%p, is freed", pMsg);
