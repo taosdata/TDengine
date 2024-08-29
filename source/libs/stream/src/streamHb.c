@@ -197,10 +197,12 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
       }
     }
 
-    entry.checkpointInfo.consensusChkptId = streamTaskSetReqConsensusChkptId(*pTask, pMsg->ts);
+    streamMutexLock(&(*pTask)->lock);
+    entry.checkpointInfo.consensusChkptId = streamTaskCheckIfReqConsenChkptId(*pTask, pMsg->ts);
     if (entry.checkpointInfo.consensusChkptId) {
       entry.checkpointInfo.consensusTs = pMsg->ts;
     }
+    streamMutexUnlock(&(*pTask)->lock);
 
     if ((*pTask)->exec.pWalReader != NULL) {
       entry.processedVer = walReaderGetCurrentVer((*pTask)->exec.pWalReader) - 1;

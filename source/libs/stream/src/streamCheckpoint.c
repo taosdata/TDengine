@@ -615,7 +615,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
     pInfo->checkpointVer = pReq->checkpointVer;
     pInfo->checkpointTime = pReq->checkpointTs;
 
-    if (restored) {
+    if (restored && (pMeta->role == NODE_ROLE_LEADER)) {
       code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
     }
   }
@@ -1371,29 +1371,23 @@ int32_t deleteCheckpointFile(const char* id, const char* name) {
 }
 
 int32_t streamTaskSendNegotiateChkptIdMsg(SStreamTask* pTask) {
-  const char*       id = pTask->id.idStr;
-  SConsenChkptInfo* pInfo = &pTask->status.consenChkptInfo;
-
   streamMutexLock(&pTask->lock);
   ETaskStatus p = streamTaskGetStatus(pTask).state;
-//  if (pInfo->alreadySendChkptId == true) {
-//    stDebug("s-task:%s already start to consensus-checkpointId, not start again before it completed", id);
-//    streamMutexUnlock(&pTask->lock);
-//    return TSDB_CODE_SUCCESS;
-//  } else {
-//    pInfo->alreadySendChkptId = true;
-//  }
-//
+  //  if (pInfo->alreadySendChkptId == true) {
+  //    stDebug("s-task:%s already start to consensus-checkpointId, not start again before it completed", id);
+  //    streamMutexUnlock(&pTask->lock);
+  //    return TSDB_CODE_SUCCESS;
+  //  } else {
+  //    pInfo->alreadySendChkptId = true;
+  //  }
+  //
+  streamTaskSetReqConsenChkptId(pTask, taosGetTimestampMs());
   streamMutexUnlock(&pTask->lock);
 
   if (pTask->pBackend != NULL) {
     streamFreeTaskState(pTask, p);
     pTask->pBackend = NULL;
   }
-
-  pInfo->status = TASK_CONSEN_CHKPT_REQ;
-  pInfo->statusTs = taosGetTimestampMs();
-  stDebug("s-task:%s set the require consensus-checkpointId flag, ts:%" PRId64, id, pInfo->statusTs);
   return 0;
 }
 
