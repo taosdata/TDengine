@@ -66,6 +66,7 @@ TEST(testCase, regexCacheTest1) {
   char    s1[] = "abc";
   auto start = std::chrono::high_resolution_clock::now();
 
+#ifndef WINDOWS
   uint64_t t0 = taosGetTimestampUs();
   for (int i = 0; i < times; i++) {
     HashRegexPtr* ret = NULL;
@@ -77,6 +78,7 @@ TEST(testCase, regexCacheTest1) {
   uint64_t t1 = taosGetTimestampUs();
 
   printf("%s regex(current) %d times:%" PRIu64 " us.\n", s1, times, t1 - t0);
+ #endif
 
   uint64_t t2 = taosGetTimestampUs();
   for(int i = 0; i < times; i++) {
@@ -101,6 +103,7 @@ TEST(testCase, regexCacheTest2) {
   char    s1[] = "abc%*";
   auto start = std::chrono::high_resolution_clock::now();
 
+#ifndef WINDOWS
   uint64_t t0 = taosGetTimestampUs();
   for (int i = 0; i < times; i++) {
     HashRegexPtr* ret = NULL;
@@ -112,6 +115,7 @@ TEST(testCase, regexCacheTest2) {
   uint64_t t1 = taosGetTimestampUs();
 
   printf("%s regex(current) %d times:%" PRIu64 " us.\n", s1, times, t1 - t0);
+  #endif
 
   uint64_t t2 = taosGetTimestampUs();
   for(int i = 0; i < times; i++) {
@@ -137,6 +141,7 @@ TEST(testCase, regexCacheTest3) {
   char    s2[] = "abc";
   auto start = std::chrono::high_resolution_clock::now();
 
+#ifndef WINDOWS
   uint64_t t0 = taosGetTimestampUs();
   for (int i = 0; i < times; i++) {
     HashRegexPtr* ret = NULL;
@@ -148,6 +153,7 @@ TEST(testCase, regexCacheTest3) {
   uint64_t t1 = taosGetTimestampUs();
 
   printf("'%s' and '%s' take place by turn regex(current) %d times:%" PRIu64 " us.\n", s1, s2, times, t1 - t0);
+#endif
 
   uint64_t t2 = taosGetTimestampUs();
   for(int i = 0; i < times; i++) {
@@ -176,6 +182,7 @@ TEST(testCase, regexCacheTest4) {
   char    s2[] = "abc";
   auto start = std::chrono::high_resolution_clock::now();
 
+#ifndef WINDOWS
   uint64_t t0 = taosGetTimestampUs();
   for (int i = 0; i < times; i++) {
     for (int j = 0; j < count; ++j) {
@@ -196,6 +203,7 @@ TEST(testCase, regexCacheTest4) {
   uint64_t t1 = taosGetTimestampUs();
 
   printf("'%s' and '%s' take place by turn(per %d count) regex(current) %d times:%" PRIu64 " us.\n", s1, s2, count, times, t1 - t0);
+#endif
 
   uint64_t t2 = taosGetTimestampUs();
   for (int i = 0; i < times; i++) {
