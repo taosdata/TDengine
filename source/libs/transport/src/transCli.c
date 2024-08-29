@@ -253,20 +253,20 @@ static void    cliWalkCb(uv_handle_t* handle, void* arg);
 #define CONN_PERSIST_TIME(para)   ((para) <= 90000 ? 90000 : (para))
 #define CONN_GET_INST_LABEL(conn) (((STrans*)(((SCliThrd*)(conn)->hostThrd)->pTransInst))->label)
 
-#define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                         \
-  do {                                                                    \
-    int i = 0, sz = transQueueSize(&conn->cliMsgs);                       \
-    for (; i < sz; i++) {                                                 \
-      pMsg = transQueueGet(&conn->cliMsgs, i);                            \
-      if (pMsg->ctx != NULL && (uint64_t)pMsg->ctx->ahandle == ahandle) { \
-        break;                                                            \
-      }                                                                   \
-    }                                                                     \
-    if (i == sz) {                                                        \
-      pMsg = NULL;                                                        \
-    } else {                                                              \
-      pMsg = transQueueRm(&conn->cliMsgs, i);                             \
-    }                                                                     \
+#define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                                                                    \
+  do {                                                                                                               \
+    int i = 0, sz = transQueueSize(&conn->cliMsgs);                                                                  \
+    for (; i < sz; i++) {                                                                                            \
+      pMsg = transQueueGet(&conn->cliMsgs, i);                                                                       \
+      if (pMsg->ctx != NULL && pMsg->msg.msgType != TDMT_SCH_DROP_TASK && (uint64_t)pMsg->ctx->ahandle == ahandle) { \
+        break;                                                                                                       \
+      }                                                                                                              \
+    }                                                                                                                \
+    if (i == sz) {                                                                                                   \
+      pMsg = NULL;                                                                                                   \
+    } else {                                                                                                         \
+      pMsg = transQueueRm(&conn->cliMsgs, i);                                                                        \
+    }                                                                                                                \
   } while (0)
 
 #define CONN_GET_NEXT_SENDMSG(conn)                 \
