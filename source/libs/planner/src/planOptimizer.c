@@ -6578,7 +6578,6 @@ static bool tsmaOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
         return false;
     }
 
-    assert(pFuncs);
     FOREACH(pTmpNode, pFuncs) {
       SFunctionNode* pFunc = (SFunctionNode*)pTmpNode;
       if (!fmIsTSMASupportedFunc(pFunc->funcId) && !fmIsPseudoColumnFunc(pFunc->funcId) &&
@@ -7271,7 +7270,6 @@ static int32_t tsmaOptRewriteParent(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParen
 
   if (code == TSDB_CODE_SUCCESS && pWindow) {
     SColumnNode* pCol = (SColumnNode*)pScan->pScanCols->pTail->pNode;
-    assert(pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
     nodesDestroyNode(pWindow->pTspk);
     pWindow->pTspk = NULL;
     code = nodesCloneNode((SNode*)pCol, &pWindow->pTspk);
