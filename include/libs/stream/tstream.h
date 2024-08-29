@@ -272,24 +272,35 @@ typedef struct SCheckpointInfo {
   int64_t                processedVer;
   int64_t                nextProcessVer;  // current offset in WAL, not serialize it
   int64_t                msgVer;
-  int32_t                consensusTransId;  // consensus checkpoint id
   SActiveCheckpointInfo* pActiveInfo;
 } SCheckpointInfo;
 
+typedef enum {
+  TASK_CONSEN_CHKPT_REQ = 0x1,
+  TASK_CONSEN_CHKPT_SEND = 0x2,
+  TASK_CONSEN_CHKPT_RECV = 0x3,
+} EConsenChkptStatus;
+
+typedef struct SConsenChkptInfo {
+//  bool               alreadySendChkptId;
+  EConsenChkptStatus status;
+  int64_t            statusTs;
+  int32_t            consenChkptTransId;
+} SConsenChkptInfo;
+
 typedef struct SStreamStatus {
-  SStreamTaskSM* pSM;
-  int8_t         taskStatus;
-  int8_t         downstreamReady;  // downstream tasks are all ready now, if this flag is set
-  int8_t         schedStatus;
-  int8_t         statusBackup;
-  int32_t        schedIdleTime;  // idle time before invoke again
-  int32_t        timerActive;    // timer is active
-  int64_t        lastExecTs;     // last exec time stamp
-  int32_t        inScanHistorySentinel;
-  bool           appendTranstateBlock;  // has append the transfer state data block already
-  bool           removeBackendFiles;    // remove backend files on disk when free stream tasks
-  bool           sendConsensusChkptId;
-  bool           requireConsensusChkptId;
+  SStreamTaskSM*   pSM;
+  int8_t           taskStatus;
+  int8_t           downstreamReady;  // downstream tasks are all ready now, if this flag is set
+  int8_t           schedStatus;
+  int8_t           statusBackup;
+  int32_t          schedIdleTime;  // idle time before invoke again
+  int32_t          timerActive;    // timer is active
+  int64_t          lastExecTs;     // last exec time stamp
+  int32_t          inScanHistorySentinel;
+  bool             appendTranstateBlock;  // has append the transfer state data block already
+  bool             removeBackendFiles;    // remove backend files on disk when free stream tasks
+  SConsenChkptInfo consenChkptInfo;
 } SStreamStatus;
 
 typedef struct SDataRange {
@@ -774,6 +785,7 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 bool    streamMetaAllTasksReady(const SStreamMeta* pMeta);
 int32_t streamTaskSendNegotiateChkptIdMsg(SStreamTask* pTask);
+int32_t streamTaskSetReqConsensusChkptId(SStreamTask* pTask, int64_t ts);
 
 // timer
 int32_t streamTimerGetInstance(tmr_h* pTmr);

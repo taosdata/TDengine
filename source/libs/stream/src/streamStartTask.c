@@ -120,7 +120,8 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
         stError("vgId:%d failed to handle event:%d", pMeta->vgId, TASK_EVENT_INIT);
         code = ret;
 
-        if (code != TSDB_CODE_STREAM_INVALID_STATETRANS) {
+        // do no added into result hashmap if it is failed due to concurrently starting of this stream task.
+        if (code != TSDB_CODE_STREAM_CONFLICT_EVENT) {
           streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
         }
       }
@@ -195,9 +196,9 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
   }
 
   // clear the send consensus-checkpointId flag
-  streamMutexLock(&(*p)->lock);
-  (*p)->status.sendConsensusChkptId = false;
-  streamMutexUnlock(&(*p)->lock);
+//  streamMutexLock(&(*p)->lock);
+//  (*p)->status.sendConsensusChkptId = false;
+//  streamMutexUnlock(&(*p)->lock);
 
   if (pStartInfo->startAllTasks != 1) {
     int64_t el = endTs - startTs;
@@ -440,6 +441,29 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
   stDebug("vgId:%d stop all %d task(s) completed, elapsed time:%.2f Sec.", pMeta->vgId, num, el);
 
   streamMetaRUnLock(pMeta);
+  return 0;
+}
+
+int32_t streamTaskSetReqConsensusChkptId(SStreamTask* pTask, int64_t ts) {
+  SConsenChkptInfo* pConChkptInfo = &pTask->status.consenChkptInfo;
+
+  int32_t vgId = pTask->pMeta->vgId;
+  if (pConChkptInfo->status == TASK_CONSEN_CHKPT_REQ) {
+    pConChkptInfo->status = TASK_CONSEN_CHKPT_SEND;
+    pConChkptInfo->statusTs = ts;
+    stDebug("s-task:%s vgId:%d set requiring consensus-chkptId in hbMsg, ts:%" PRId64, pTask->id.idStr,
+            vgId, pConChkptInfo->statusTs);
+    return 1;
+  } else {
+    if ((pConChkptInfo->status == TASK_CONSEN_CHKPT_SEND) && (ts - pConChkptInfo->statusTs) > 60 * 1000) {
+      pConChkptInfo->statusTs = ts;
+
+      stWarn("s-task:%s vgId:%d not recv consensus-chkptId for 60s, set requiring in Hb again, ts:%" PRId64,
+             pTask->id.idStr, vgId, pConChkptInfo->statusTs);
+      return 1;
+    }
+  }
+
   return 0;
 }
 

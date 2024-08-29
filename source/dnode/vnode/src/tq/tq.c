@@ -1291,6 +1291,3 @@ int32_t tqProcessTaskChkptReportRsp(STQ* pTq, SRpcMsg* pMsg) {
   return tqStreamProcessChkptReportRsp(pTq->pStreamMeta, pMsg);
 }
 
-int32_t tqProcessTaskConsensusChkptRsp(STQ* pTq, SRpcMsg* pMsg) {
-  return tqStreamProcessConsensusChkptRsp2(pTq->pStreamMeta, pMsg);
-}
