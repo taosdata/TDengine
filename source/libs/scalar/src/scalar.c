@@ -74,15 +74,17 @@ int32_t sclConvertValueToSclParam(SValueNode *pValueNode, SScalarParam *out, int
 
   code = colDataSetVal(in.columnData, 0, nodesGetValueFromNode(pValueNode), false);
   if (code != TSDB_CODE_SUCCESS) {
-    return code;
+    goto  _exit;
   }
 
   code = colInfoDataEnsureCapacity(out->columnData, 1, true);
   if (code != TSDB_CODE_SUCCESS) {
-    return code;
+    goto _exit;
   }
 
   code = vectorConvertSingleColImpl(&in, out, overflow, -1, -1);
+
+_exit:
   sclFreeParam(&in);
 
   return code;
@@ -594,7 +596,7 @@ int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScal
   return TSDB_CODE_SUCCESS;
 
 _return:
-  taosMemoryFreeClear(paramList);
+  sclFreeParamList(paramList, paramNum);
   SCL_RET(code);
 }
 

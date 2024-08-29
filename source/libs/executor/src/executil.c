@@ -435,6 +435,7 @@ int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle,
   code = nodesCloneNode(pTagCond, &pTagCondTmp);
   if (TSDB_CODE_SUCCESS != code) {
     *pQualified = false;
+    pAPI->metaReaderFn.clearReader(&mr);
     return code;
   }
   STransTagExprCtx ctx = {.code = 0, .pReader = &mr};
@@ -1970,6 +1971,8 @@ int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** 
 // set the output buffer for the selectivity + tag query
 static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   int32_t num = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
 
   SqlFunctionCtx*  p = NULL;
   SqlFunctionCtx** pValCtx = taosMemoryCalloc(numOfOutput, POINTER_BYTES);
@@ -1978,6 +1981,8 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
   }
 
   SHashObj* pSelectFuncs = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  QUERY_CHECK_NULL(pSelectFuncs, code, lino, _end, terrno);
+
   for (int32_t i = 0; i < numOfOutput; ++i) {
     const char* pName = pCtx[i].pExpr->pExpr->_function.functionName;
     if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0) ||
@@ -1991,8 +1996,8 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
       } else {
         int32_t tempRes = taosHashPut(pSelectFuncs, pName, strlen(pName), &num, sizeof(num));
         if (tempRes != TSDB_CODE_SUCCESS && tempRes != TSDB_CODE_DUP_KEY) {
-          qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(tempRes));
-          return tempRes;
+          code = tempRes;
+          QUERY_CHECK_CODE(code, lino, _end);
         }
         p = &pCtx[i];
       }
@@ -2007,7 +2012,13 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
     taosMemoryFreeClear(pValCtx);
   }
 
-  return TSDB_CODE_SUCCESS;
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFreeClear(pValCtx);
+    taosHashCleanup(pSelectFuncs);
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset,

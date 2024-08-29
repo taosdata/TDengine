@@ -227,9 +227,8 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SDataBlockInfo*
 
     SResultRowEntryInfo* pEntry = getResultEntryInfo(pRow, i, pTableScanInfo->base.pdInfo.pExprSup->rowEntryInfoOffset);
 
-    int32_t reqStatus;
-    code = fmFuncDynDataRequired(functionId, pEntry, pBlockInfo, &reqStatus);
-    if (code != TSDB_CODE_SUCCESS || reqStatus != FUNC_DATA_REQUIRED_NOT_LOAD) {
+    EFuncDataRequired reqStatus  = fmFuncDynDataRequired(functionId, pEntry, pBlockInfo);
+    if (reqStatus != FUNC_DATA_REQUIRED_NOT_LOAD) {
       notLoadBlock = false;
       break;
     }
@@ -420,7 +419,11 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
       size_t size = taosArrayGetSize(pBlock->pDataBlock);
       bool   keep = false;
       code = doFilterByBlockSMA(pOperator->exprSupp.pFilterInfo, pBlock->pBlockAgg, size, pBlockInfo->rows, &keep);
-      QUERY_CHECK_CODE(code, lino, _end);
+      if (code) {
+        pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
+        qError("%s failed to do filter by block sma, code:%s", GET_TASKID(pTaskInfo), tstrerror(code));
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
 
       if (!keep) {
         qDebug("%s data block filter out by block SMA, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64,
@@ -641,6 +644,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
     h = taosLRUCacheLookup(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(pBlock->info.id.uid));
     if (h == NULL) {
       pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
+      freeReader = true;
       code = pHandle->api.metaReaderFn.getEntryGetUidCache(&mr, pBlock->info.id.uid);
       if (code != TSDB_CODE_SUCCESS) {
         if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
@@ -662,7 +666,6 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       QUERY_CHECK_CODE(code, lino, _end);
 
       val = *pVal;
-      freeReader = true;
     } else {
       pCache->cacheHit += 1;
       STableCachedVal* pVal = taosLRUCacheValue(pCache->pTableMetaEntryCache, h);
@@ -6520,8 +6523,8 @@ static void buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountScanO
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   setOperatorCompleted(pOperator);
 }

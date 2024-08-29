@@ -1201,7 +1201,12 @@ static SStreamFillSupporter* initStreamFillSup(SStreamFillPhysiNode* pPhyFillNod
 
   pFillSup->pAllColInfo = createFillColInfo(pFillExprInfo, pFillSup->numOfFillCols, noFillExprInfo, numOfNotFillCols,
                                             (const SNodeListNode*)(pPhyFillNode->pValues));
-  QUERY_CHECK_NULL(pFillSup->pAllColInfo, code, lino, _end, terrno);
+  if (pFillSup->pAllColInfo == NULL) {
+    code = terrno;
+    lino = __LINE__;
+    destroyExprInfo(noFillExprInfo, numOfNotFillCols);
+    goto _end;
+  }
 
   pFillSup->type = convertFillType(pPhyFillNode->mode);
   pFillSup->numOfAllCols = pFillSup->numOfFillCols + numOfNotFillCols;

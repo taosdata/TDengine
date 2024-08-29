@@ -965,7 +965,7 @@ int32_t cloneCatalogReq(SCatalogReq **ppTarget, SCatalogReq *pSrc) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SCatalogReq *pTarget = taosMemoryCalloc(1, sizeof(SCatalogReq));
   if (pTarget == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
   } else {
     pTarget->pDbVgroup = taosArrayDup(pSrc->pDbVgroup, NULL);
     pTarget->pDbCfg = taosArrayDup(pSrc->pDbCfg, NULL);
@@ -1174,7 +1174,7 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
 
   *pCxt = taosMemoryCalloc(1, sizeof(SParseContext));
   if (*pCxt == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   **pCxt = (SParseContext){.requestId = pRequest->requestId,
@@ -1208,7 +1208,7 @@ int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *p
   STscObj             *pTscObj = pRequest->pTscObj;
   SSqlCallbackWrapper *pWrapper = taosMemoryCalloc(1, sizeof(SSqlCallbackWrapper));
   if (pWrapper == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
   } else {
     pWrapper->pRequest = pRequest;
     pRequest->pWrapper = pWrapper;
@@ -1229,7 +1229,7 @@ int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *p
 
     pWrapper->pCatalogReq = taosMemoryCalloc(1, sizeof(SCatalogReq));
     if (pWrapper->pCatalogReq == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     } else {
       pWrapper->pCatalogReq->forceUpdate = updateMetaForce;
       TSC_ERR_RET(qnodeRequired(pRequest, &pWrapper->pCatalogReq->qNodeRequired));

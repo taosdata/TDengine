@@ -1132,8 +1132,8 @@ int32_t tMergeTreeNext(SMergeTree *pMTree, bool *pHasNext) {
       if (c > 0) {
         (void)tRBTreePut(&pMTree->rbt, (SRBTreeNode *)pMTree->pIter);
         pMTree->pIter = NULL;
-      } else {
-        ASSERT(c);
+      } else if (!c) {
+        return TSDB_CODE_INTERNAL_ERROR;
       }
     }
   }

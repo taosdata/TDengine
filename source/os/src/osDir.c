@@ -294,6 +294,8 @@ void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
       int32_t len = (int32_t)strlen(filename);
       if (len > 3 && strcmp(filename + len - 3, ".gz") == 0) {
         len -= 3;
+      }else{
+        continue;
       }
 
       int64_t fileSec = 0;
@@ -308,7 +310,7 @@ void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
       int32_t days = (int32_t)(TABS(sec - fileSec) / 86400 + 1);
       if (days > keepDays) {
         (void)taosRemoveFile(filename);
-        // printf("file:%s is removed, days:%d keepDays:%d", filename, days, keepDays);
+         uInfo("file:%s is removed, days:%d keepDays:%d, sed:%"PRId64, filename, days, keepDays, fileSec);
       } else {
         // printf("file:%s won't be removed, days:%d keepDays:%d", filename, days, keepDays);
       }

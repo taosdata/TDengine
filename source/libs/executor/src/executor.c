@@ -372,11 +372,11 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SArray* qa = taosArrayInit(4, sizeof(tb_uid_t));
-  QUERY_CHECK_NULL(qa, code, lino, _end, terrno);
+  QUERY_CHECK_NULL(qa, code, lino, _error, terrno);
   int32_t numOfUids = taosArrayGetSize(tableIdList);
   if (numOfUids == 0) {
     (*ppArrayRes) = qa;
-    goto _end;
+    goto _error;
   }
 
   STableScanInfo* pTableScanInfo = pScanInfo->pTableScanOp->info;
@@ -437,10 +437,11 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   }
 
+_end:
   pAPI->metaReaderFn.clearReader(&mr);
   (*ppArrayRes) = qa;
 
-_end:
+_error:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
