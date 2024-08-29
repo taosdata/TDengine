@@ -131,7 +131,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
   SListCell     *cell = nodeList->pNodeList->pHead;
   SScalarParam   out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
   if (out.columnData == NULL) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
   int32_t len = 0;
   void   *buf = NULL;
