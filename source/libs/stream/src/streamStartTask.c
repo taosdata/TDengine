@@ -455,7 +455,7 @@ int32_t streamTaskCheckIfReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
             vgId, pConChkptInfo->statusTs);
     return 1;
   } else {
-    int64_t el = (ts - pConChkptInfo->statusTs) / 1000;
+    int32_t el = (ts - pConChkptInfo->statusTs) / 1000;
     if ((pConChkptInfo->status == TASK_CONSEN_CHKPT_SEND) && el > 60) {
       pConChkptInfo->statusTs = ts;
 
