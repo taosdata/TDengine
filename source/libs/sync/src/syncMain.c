@@ -1413,6 +1413,18 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
   SyncIndex endIndex = pSyncNode->pLogBuf->endIndex;
   (void)taosThreadMutexUnlock(&pSyncNode->pLogBuf->mutex);
 
+  sInfo("vgId:%d, expected lastLogIndex1:%" PRId64 ", lastVer:%" PRId64 "", pSyncNode->vgId, endIndex - 1, lastVer);
+
+  taosMsleep(1000);
+
+  (void)taosThreadMutexLock(&pSyncNode->pLogBuf->mutex);
+  lastVer = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
+  commitIndex = pSyncNode->pLogStore->syncLogCommitIndex(pSyncNode->pLogStore);
+  endIndex = pSyncNode->pLogBuf->endIndex;
+  (void)taosThreadMutexUnlock(&pSyncNode->pLogBuf->mutex);
+
+  sInfo("vgId:%d, expected lastLogIndex2:%" PRId64 ", lastVer:%" PRId64 "", pSyncNode->vgId, endIndex - 1, lastVer);
+
   if (lastVer != -1 && endIndex != lastVer + 1) {
     code = TSDB_CODE_WAL_LOG_INCOMPLETE;
     sError("vgId:%d, failed to restore sync node since %s. expected lastLogIndex:%" PRId64 ", lastVer:%" PRId64 "",
