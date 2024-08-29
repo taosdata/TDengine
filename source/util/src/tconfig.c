@@ -384,7 +384,7 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
   }
 
   if (code != 0){
-    uError("cfg:%s, type:%s src:%s value:%s failed since %s", pItem->name, cfgDtypeStr(pItem->dtype),
+    printf("cfg:%s, type:%s src:%s value:%s failed since %s\n", pItem->name, cfgDtypeStr(pItem->dtype),
            cfgStypeStr(stype), value, tstrerror(code));
   }
   TAOS_RETURN(code);
