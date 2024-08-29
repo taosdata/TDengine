@@ -26,7 +26,7 @@
 static int32_t setFirstLastResColToNull(SColumnInfoData* pCol, int32_t row) {
   char* buf = taosMemoryCalloc(1, pCol->info.bytes);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SFirstLastRes* pRes = (SFirstLastRes*)((char*)buf + VARSTR_HEADER_SIZE);
@@ -283,7 +283,7 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
   *pReader = NULL;
   SCacheRowsReader* p = taosMemoryCalloc(1, sizeof(SCacheRowsReader));
   if (p == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   p->type = type;
@@ -323,7 +323,7 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
   p->transferBuf = taosMemoryCalloc(p->pSchema->numOfCols, POINTER_BYTES);
   if (p->transferBuf == NULL) {
     tsdbCacherowsReaderClose(p);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int32_t i = 0; i < p->pSchema->numOfCols; ++i) {
@@ -446,7 +446,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
   pRes = taosMemoryCalloc(pr->numOfCols, POINTER_BYTES);
   if (pRes == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _end;
   }
 
@@ -456,7 +456,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
     pRes[j] = taosMemoryCalloc(1, sizeof(SFirstLastRes) + bytes + pkBufLen + VARSTR_HEADER_SIZE);
     if (pRes[j] == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _end;
     }
 
@@ -504,7 +504,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
             p.rowKey.pks[j].pData = taosMemoryCalloc(1, pr->pkColumn.bytes);
             if (p.rowKey.pks[j].pData == NULL) {
-              code = TSDB_CODE_OUT_OF_MEMORY;
+              code = terrno;
               goto _end;
             }
           }
@@ -514,7 +514,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       if (IS_VAR_DATA_TYPE(pCol->type)) {
         p.colVal.value.pData = taosMemoryCalloc(pCol->bytes, sizeof(char));
         if (p.colVal.value.pData == NULL) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           goto _end;
         }
       }

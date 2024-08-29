@@ -270,7 +270,9 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     }
     int16_t colId;
     SDB_GET_INT16(pRaw, dataPos, &colId, TOPIC_DECODE_OVER);
-    (void)taosArrayPush(pTopic->ntbColIds, &colId);
+    if (taosArrayPush(pTopic->ntbColIds, &colId) == NULL) {
+      goto TOPIC_DECODE_OVER;
+    }
   }
 
   SDB_GET_INT64(pRaw, dataPos, &pTopic->ctbStbUid, TOPIC_DECODE_OVER);

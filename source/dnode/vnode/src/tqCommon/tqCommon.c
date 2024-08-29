@@ -582,7 +582,7 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   SStreamTask* pTask = taosMemoryCalloc(1, size);
   if (pTask == NULL) {
     tqError("vgId:%d failed to create stream task due to out of memory, alloc size:%d", vgId, size);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SDecoder decoder;
@@ -1238,9 +1238,9 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   streamMutexLock(&pTask->lock);
   ASSERT(pTask->chkInfo.checkpointId >= req.checkpointId);
 
-  if (pTask->chkInfo.consensusTransId >= req.transId) {
+  if (pTask->status.consenChkptInfo.consenChkptTransId >= req.transId) {
     tqDebug("s-task:%s vgId:%d latest consensus transId:%d, expired consensus trans:%d, discard", pTask->id.idStr, vgId,
-            pTask->chkInfo.consensusTransId, req.transId);
+            pTask->status.consenChkptInfo.consenChkptTransId, req.transId);
     streamMutexUnlock(&pTask->lock);
     streamMetaReleaseTask(pMeta, pTask);
     return TSDB_CODE_SUCCESS;
@@ -1256,7 +1256,9 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
             pTask->id.idStr, vgId, req.checkpointId, req.transId);
   }
 
-  pTask->chkInfo.consensusTransId = req.transId;
+  pTask->status.consenChkptInfo.consenChkptTransId = req.transId;
+  pTask->status.consenChkptInfo.status = TASK_CONSEN_CHKPT_RECV;
+  pTask->status.consenChkptInfo.statusTs = taosGetTimestampMs();
   streamMutexUnlock(&pTask->lock);
 
   if (pMeta->role == NODE_ROLE_LEADER) {
