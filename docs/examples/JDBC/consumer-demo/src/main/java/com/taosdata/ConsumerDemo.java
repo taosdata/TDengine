@@ -31,11 +31,8 @@ public class ConsumerDemo {
                 }
             }
         }
-        if (configFilePath!= null) {
-            System.out.println("配置文件路径为：" + configFilePath);
-        } else {
-            configFilePath = "/Users/sheyanjie/work/taosdata/temp/alert.json";
-            System.out.println("未找到配置文件路径参数。");
+        if (configFilePath == null) {
+            configFilePath = "./alert.json";
         }
 
 
@@ -63,7 +60,7 @@ public class ConsumerDemo {
         }
 
 
-        System.out.println(JSON.toJSONString(alertConfig));
+        System.out.println("Config: " + JSON.toJSONString(alertConfig));
 
 
         Properties prop = new Properties();
