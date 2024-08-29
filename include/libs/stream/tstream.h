@@ -785,7 +785,9 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 bool    streamMetaAllTasksReady(const SStreamMeta* pMeta);
 int32_t streamTaskSendNegotiateChkptIdMsg(SStreamTask* pTask);
-int32_t streamTaskSetReqConsensusChkptId(SStreamTask* pTask, int64_t ts);
+int32_t streamTaskCheckIfReqConsenChkptId(SStreamTask* pTask, int64_t ts);
+void    streamTaskSetConsenChkptIdRecv(SStreamTask* pTask, int32_t transId, int64_t ts);
+void    streamTaskSetReqConsenChkptId(SStreamTask* pTask, int64_t ts);
 
 // timer
 int32_t streamTimerGetInstance(tmr_h* pTmr);

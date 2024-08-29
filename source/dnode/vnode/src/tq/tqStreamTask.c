@@ -138,6 +138,12 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
     return 0;
   }
 
+  if (pMeta->startInfo.startAllTasks) {
+    tqTrace("vgId:%d in restart procedure, not scan wal", vgId);
+    streamMetaWUnLock(pMeta);
+    return 0;
+  }
+
   pMeta->scanInfo.scanCounter += 1;
   if (pMeta->scanInfo.scanCounter > MAX_REPEAT_SCAN_THRESHOLD) {
     pMeta->scanInfo.scanCounter = MAX_REPEAT_SCAN_THRESHOLD;
