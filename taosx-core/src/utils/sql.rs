@@ -379,6 +379,10 @@ impl std::fmt::Display for SingleQuoteSqlValueEscaped<'_> {
 
         for c in value.chars() {
             match c {
+                '\0' => {
+                    // taosc uses C escape syntax for SQL which not support null byte escape,
+                    // so we need to ignore null byte.
+                }
                 '\'' => {
                     f.write_char('\'')?;
                     f.write_char('\'')?;
@@ -414,37 +418,7 @@ pub fn sql_value_escaped_fmt(value: &str) -> SingleQuoteSqlValueEscaped {
 }
 /// Escape a string value for SQL.
 pub fn sql_value_escape(value: &str) -> String {
-    let mut escaped = String::with_capacity(value.len() + 2);
-    escaped.push('\'');
-
-    for c in value.chars() {
-        match c {
-            '\'' => {
-                escaped.push('\'');
-                escaped.push('\'');
-            }
-
-            '\t' => {
-                escaped.push('\\');
-                escaped.push('t');
-            }
-            '\r' => {
-                escaped.push('\\');
-                escaped.push('r');
-            }
-            '\n' => {
-                escaped.push('\\');
-                escaped.push('n');
-            }
-            '\\' | '"' => {
-                escaped.push('\\');
-                escaped.push(c);
-            }
-            _ => escaped.push(c),
-        }
-    }
-    escaped.push('\'');
-    escaped
+    SingleQuoteSqlValueEscaped(value).to_string()
 }
 
 pub fn sql_max_var_length(batch: &RecordBatch) -> Vec<usize> {

@@ -170,17 +170,31 @@ async fn write_stable_with_sql(
 ) -> Result<usize, FlatWriteError> {
     let sql = records.sql();
     tracing::trace!("write stable with sql: {}", sql);
+    let res = if sql.find(|c| c == '\0').is_some() {
+        tracing::warn!("SQL contains null character, remove it");
+        let sql: String = sql.chars().filter(|c| *c != '\0').collect();
+        exec_sql_with_connection_retries(
+            pool,
+            taos,
+            &sql,
+            req_id.next(),
+            DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+            cancel,
+        )
+        .await
+    } else {
+        exec_sql_with_connection_retries(
+            pool,
+            taos,
+            sql,
+            req_id.next(),
+            DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+            cancel,
+        )
+        .await
+    };
 
-    match exec_sql_with_connection_retries(
-        pool,
-        taos,
-        sql,
-        req_id.next(),
-        DEFAULT_MAX_RETRIES_FOR_CONNECTION,
-        cancel,
-    )
-    .await
-    {
+    match res {
         Ok(n) => Ok(n),
         Err(err) => {
             let code = err.code();
@@ -1552,6 +1566,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
     let (msg_tx, msg_rx) = flume::bounded(workers);
     let (ack_tx, ack_rx) = flume::bounded(workers);
 
+    let (cancel, upstream) = (cancel.child_token(), cancel);
     let mut writer_set = tokio::task::JoinSet::new();
 
     writer_set.spawn(async move {
@@ -1624,11 +1639,15 @@ pub async fn ipc_flat_stream_worker_concurrent(
                             };
                             ack_tx.send_async(ack).await.context("ACK writer error")?;
                             if ipc_error_strategy.will_stop() {
+                                cancel.cancel();
                                 Err(err).context("write batch error")?;
                             } else if let Err(_) =
                                 notifier.send(crate::TaskNotify::Error(format!("{:#}", err)))
                             {
+                                cancel.cancel();
                                 Err(err).context("write batch error")?;
+                            } else {
+                                continue;
                             }
                         }
                         Ok(_) => {
@@ -1669,29 +1688,39 @@ pub async fn ipc_flat_stream_worker_concurrent(
     }
 
     let mut batches = 0;
-    while let Some(record) = stream.next().await {
-        batches += 1;
-        metrics_arc.ipc().add_received_batches(1);
-        match record {
-            Ok(record) => {
-                msg_tx.send_async(record).await?;
-            }
-            Err(err) => {
-                tracing::warn!("Consume message error: {err:#}");
-                ack_tx
-                    .send_async(LushAck {
-                        code: 0xFFFF,
-                        message: Some(format!("Parse message error: {err:#}")),
-                        context: Some(
-                            json!({
-                                "stream": "flat",
-                            })
-                            .to_string(),
-                        ),
-                    })
-                    .await?;
-            }
-        };
+
+    loop {
+        if cancel.is_cancelled() && !upstream.is_cancelled() {
+            // Writer is failed
+            tracing::warn!("Writer may be failed, try join all workers");
+            break;
+        }
+        if let Some(record) = stream.next().await {
+            batches += 1;
+            metrics_arc.ipc().add_received_batches(1);
+            match record {
+                Ok(record) => {
+                    msg_tx.send_async(record).await?;
+                }
+                Err(err) => {
+                    tracing::warn!("Consume message error: {err:#}");
+                    ack_tx
+                        .send_async(LushAck {
+                            code: 0xFFFF,
+                            message: Some(format!("Parse message error: {err:#}")),
+                            context: Some(
+                                json!({
+                                    "stream": "flat",
+                                })
+                                .to_string(),
+                            ),
+                        })
+                        .await?;
+                }
+            };
+        } else {
+            break;
+        }
     }
 
     if batches == 0 {

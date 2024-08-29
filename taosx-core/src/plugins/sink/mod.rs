@@ -3329,9 +3329,7 @@ impl IpcErrorStrategy {
 
     fn from_connector(connector: &str) -> Self {
         match connector {
-            "taos" | "opentsdb" | "influxdb" | "csv" | runners::kafka::KAFKA_ID => {
-                IpcErrorStrategy::Stop
-            }
+            "taos" | "opentsdb" | "influxdb" | "csv" => IpcErrorStrategy::Stop,
             _ => IpcErrorStrategy::Report,
         }
     }
