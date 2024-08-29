@@ -72,23 +72,42 @@ void s3CleanUp() { /*s3End();*/
 
 static int32_t s3ListBucket(char const *bucketname);
 
+static void s3DumpCfgByEp(int8_t epIndex) {
+  // clang-format off
+  (void)fprintf(stdout,
+                "%-24s %s\n"
+                "%-24s %s\n"
+                "%-24s %s\n"
+                "%-24s %s\n"
+                "%-24s %s\n"
+                "%-24s %s\n",
+                "hostName", tsS3Hostname[epIndex],
+                "bucketName", tsS3BucketName,
+                "protocol", (protocolG[epIndex] == S3ProtocolHTTPS ? "https" : "http"),
+                "uristyle", (uriStyleG[epIndex] == S3UriStyleVirtualHost ? "virtualhost" : "path"),
+                "accessKey", tsS3AccessKeyId[epIndex],
+                "accessKeySecret", tsS3AccessKeySecret[epIndex]);
+  // clang-format on
+}
+
 int32_t s3CheckCfg() {
   int32_t code = 0, lino = 0;
   int8_t  i = 0;
 
   if (!tsS3Enabled) {
     (void)fprintf(stderr, "s3 not configured.\n");
-    goto _exit;
+    TAOS_RETURN(code);
   }
 
   code = s3Begin();
   if (code != 0) {
     (void)fprintf(stderr, "failed to initialize s3.\n");
-    TAOS_CHECK_GOTO(code, &lino, _exit);
+    TAOS_RETURN(code);
   }
 
   for (; i < tsS3EpNum; i++) {
-    (void)fprintf(stdout, "test s3 ep: %d/%d.\n", i + 1, tsS3EpNum);
+    (void)fprintf(stdout, "test s3 ep (%d/%d):\n", i + 1, tsS3EpNum);
+    s3DumpCfgByEp(i);
 
     // test put
     char        testdata[17] = "0123456789abcdef";
@@ -109,15 +128,15 @@ int32_t s3CheckCfg() {
     if (!fp) {
       (void)fprintf(stderr, "failed to open test file: %s.\n", path);
       // uError("ERROR: %s Failed to open %s", __func__, path);
-      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
+      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _next);
     }
     if (taosWriteFile(fp, testdata, strlen(testdata)) < 0) {
       (void)fprintf(stderr, "failed to write test file: %s.\n", path);
-      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
+      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _next);
     }
     if (taosFsyncFile(fp) < 0) {
       (void)fprintf(stderr, "failed to fsync test file: %s.\n", path);
-      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
+      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _next);
     }
     (void)taosCloseFile(&fp);
 
@@ -125,7 +144,7 @@ int32_t s3CheckCfg() {
     code = s3PutObjectFromFileOffsetByEp(path, objectname[0], 0, 16, i);
     if (code != 0) {
       (void)fprintf(stderr, "put object %s : failed.\n", objectname[0]);
-      TAOS_CHECK_GOTO(code, &lino, _exit);
+      TAOS_CHECK_GOTO(code, &lino, _next);
     }
     (void)fprintf(stderr, "put object %s: success.\n\n", objectname[0]);
 
@@ -134,7 +153,7 @@ int32_t s3CheckCfg() {
     code = s3ListBucketByEp(tsS3BucketName, i);
     if (code != 0) {
       (void)fprintf(stderr, "listing bucket %s : failed.\n", tsS3BucketName);
-      TAOS_CHECK_GOTO(code, &lino, _exit);
+      TAOS_CHECK_GOTO(code, &lino, _next);
     }
     (void)fprintf(stderr, "listing bucket %s: success.\n\n", tsS3BucketName);
 
@@ -147,7 +166,7 @@ int32_t s3CheckCfg() {
     code = s3GetObjectBlockByEp(objectname[0], c_offset, c_len, true, &pBlock, i);
     if (code != 0) {
       (void)fprintf(stderr, "get object %s : failed.\n", objectname[0]);
-      TAOS_CHECK_GOTO(code, &lino, _exit);
+      TAOS_CHECK_GOTO(code, &lino, _next);
     }
     char buf[7] = {0};
     (void)memcpy(buf, pBlock, c_len);
@@ -160,17 +179,23 @@ int32_t s3CheckCfg() {
     code = s3DeleteObjectsByEp(objectname, 1, i);
     if (code != 0) {
       (void)fprintf(stderr, "delete object %s : failed.\n", objectname[0]);
-      TAOS_CHECK_GOTO(code, &lino, _exit);
+      TAOS_CHECK_GOTO(code, &lino, _next);
     }
     (void)fprintf(stderr, "delete object %s: success.\n\n", objectname[0]);
+
+  _next:
+    if (fp) {
+      (void)taosCloseFile(&fp);
+    }
+
+    if (TSDB_CODE_SUCCESS != code) {
+      (void)fprintf(stderr, "s3 check failed, code: %d, line: %d, index: %d.\n", code, lino, i);
+    }
+
+    (void)fprintf(stdout, "=================================================================\n");
   }
 
   s3End();
-
-_exit:
-  if (TSDB_CODE_SUCCESS != code) {
-    (void)fprintf(stderr, "s3 check failed, code: %d, line: %d, index: %d.\n", code, lino, i);
-  }
 
   TAOS_RETURN(code);
 }
@@ -1024,7 +1049,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object_name, int8_t w
 }
 
 static int32_t s3PutObjectFromFileOffsetByEp(const char *file, const char *object_name, int64_t offset, int64_t size,
-                                      int8_t epIndex) {
+                                             int8_t epIndex) {
   int32_t                  code = 0;
   int32_t                  lmtime = 0;
   const char              *filename = 0;
@@ -1136,7 +1161,10 @@ static S3Status listBucketCallback(int isTruncated, const char *nextMarker, int 
     const S3ListBucketContent *content = &(contents[i]);
     // printf("%-50s", content->key);
     char *object_key = strdup(content->key);
-    (void)taosArrayPush(data->objectArray, &object_key);
+    if (!taosArrayPush(data->objectArray, &object_key)) {
+      taosMemoryFree(object_key);
+      return S3StatusOutOfMemory;
+    }
   }
   data->keyCount += contentsCount;
 

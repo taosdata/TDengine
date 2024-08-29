@@ -1071,8 +1071,8 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
   if (stubIndex != -1) {
     SUdfcFuncStub *foundStub = taosArrayGet(gUdfcProxy.udfStubs, stubIndex);
     UdfcFuncHandle handle = foundStub->handle;
-    int64_t currUs = taosGetTimestampUs();
-    bool expired = (currUs - foundStub->createTime) >= 10 * 1000 * 1000;
+    int64_t        currUs = taosGetTimestampUs();
+    bool           expired = (currUs - foundStub->createTime) >= 10 * 1000 * 1000;
     if (!expired) {
       if (handle != NULL && ((SUdfcUvSession *)handle)->udfUvPipe != NULL) {
         *pHandle = foundStub->handle;
@@ -1086,14 +1086,15 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
       }
     } else {
       fnInfo("udf handle expired for %s, will setup udf. move it to expired list", udfName);
-      taosArrayRemove(gUdfcProxy.udfStubs, stubIndex);
-      if(taosArrayPush(gUdfcProxy.expiredUdfStubs, foundStub) == NULL) {
+      if (taosArrayPush(gUdfcProxy.expiredUdfStubs, foundStub) == NULL) {
         fnError("acquireUdfFuncHandle: failed to push udf stub to array");
-        goto _exit;
+      } else {
+        taosArrayRemove(gUdfcProxy.udfStubs, stubIndex);
+        taosArraySort(gUdfcProxy.expiredUdfStubs, compareUdfcFuncSub);
       }
-      taosArraySort(gUdfcProxy.expiredUdfStubs, compareUdfcFuncSub);
     }
   }
+  uv_mutex_unlock(&gUdfcProxy.udfStubsMutex);
   *pHandle = NULL;
   code = doSetupUdf(udfName, pHandle);
   if (code == TSDB_CODE_SUCCESS) {
@@ -1102,17 +1103,20 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
     stub.handle = *pHandle;
     ++stub.refCount;
     stub.createTime = taosGetTimestampUs();
-    if(taosArrayPush(gUdfcProxy.udfStubs, &stub) == NULL) {
+    uv_mutex_lock(&gUdfcProxy.udfStubsMutex);
+    if (taosArrayPush(gUdfcProxy.udfStubs, &stub) == NULL) {
       fnError("acquireUdfFuncHandle: failed to push udf stub to array");
+      uv_mutex_unlock(&gUdfcProxy.udfStubsMutex);
       goto _exit;
+    } else {
+      taosArraySort(gUdfcProxy.udfStubs, compareUdfcFuncSub);
     }
-    taosArraySort(gUdfcProxy.udfStubs, compareUdfcFuncSub);
+    uv_mutex_unlock(&gUdfcProxy.udfStubsMutex);
   } else {
     *pHandle = NULL;
   }
 
 _exit:
-  uv_mutex_unlock(&gUdfcProxy.udfStubsMutex);
   return code;
 }
 
@@ -1168,6 +1172,10 @@ void cleanupExpiredUdfs() {
 
 void cleanupNotExpiredUdfs() {
   SArray *udfStubs = taosArrayInit(16, sizeof(SUdfcFuncStub));
+  if (udfStubs == NULL) {
+    fnError("cleanupNotExpiredUdfs: failed to init array");
+    return;
+  }
   int32_t i = 0;
   while (i < taosArrayGetSize(gUdfcProxy.udfStubs)) {
     SUdfcFuncStub *stub = taosArrayGet(gUdfcProxy.udfStubs, i);

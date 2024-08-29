@@ -201,7 +201,7 @@ End:
 
 SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pRequest) {
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
-
+  if(pMsgSendInfo == NULL) return pMsgSendInfo;
   pMsgSendInfo->requestObjRefId = pRequest->self;
   pMsgSendInfo->requestId = pRequest->requestId;
   pMsgSendInfo->param = pRequest;
@@ -507,7 +507,7 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
   int32_t code = 0;
   int32_t line = 0;
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  TSDB_CHECK_NULL(pBlock, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(pBlock, code, line, END, terrno);
   pBlock->info.hasVarCol = true;
 
   pBlock->pDataBlock = taosArrayInit(SHOW_VARIABLES_RESULT_COLS, sizeof(SColumnInfoData));
@@ -576,8 +576,8 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
   *pRsp = taosMemoryCalloc(1, rspSize);
   if (NULL == *pRsp) {
-    blockDataDestroy(pBlock);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
+    goto  _exit;
   }
 
   (*pRsp)->useconds = 0;
@@ -589,6 +589,11 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   (*pRsp)->numOfCols = htonl(SHOW_VARIABLES_RESULT_COLS);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, SHOW_VARIABLES_RESULT_COLS);
+  if(len < 0) {
+    uError("buildShowVariablesRsp error, len:%d", len);
+    code = terrno;
+    goto _exit;
+  }
   blockDataDestroy(pBlock);
 
   SET_PAYLOAD_LEN((*pRsp)->data, len, len);
@@ -600,10 +605,21 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
     uError("buildShowVariablesRsp error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
            (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
-    return TSDB_CODE_TSC_INVALID_INPUT;
+    code = TSDB_CODE_TSC_INVALID_INPUT;
+    goto _exit;
   }
 
   return TSDB_CODE_SUCCESS;
+_exit:
+  if(*pRsp)  {
+    taosMemoryFree(*pRsp);
+    *pRsp = NULL;
+  }
+  if(pBlock) {
+    blockDataDestroy(pBlock);
+    pBlock = NULL;
+  }
+  return code;
 }
 
 int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
@@ -642,7 +658,7 @@ static int32_t buildCompactDbBlock(SCompactDbRsp* pRsp, SSDataBlock** block) {
   int32_t code = 0;
   int32_t line = 0;
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  TSDB_CHECK_NULL(pBlock, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(pBlock, code, line, END, terrno);
   pBlock->info.hasVarCol = true;
 
   pBlock->pDataBlock = taosArrayInit(COMPACT_DB_RESULT_COLS, sizeof(SColumnInfoData));
@@ -711,8 +727,8 @@ static int32_t buildRetriveTableRspForCompactDb(SCompactDbRsp* pCompactDb, SRetr
   size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
   *pRsp = taosMemoryCalloc(1, rspSize);
   if (NULL == *pRsp) {
-    blockDataDestroy(pBlock);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
+    goto _exit;
   }
 
   (*pRsp)->useconds = 0;
@@ -725,6 +741,11 @@ static int32_t buildRetriveTableRspForCompactDb(SCompactDbRsp* pCompactDb, SRetr
   (*pRsp)->numOfCols = htonl(COMPACT_DB_RESULT_COLS);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, COMPACT_DB_RESULT_COLS);
+  if(len < 0) {
+    uError("buildRetriveTableRspForCompactDb error, len:%d", len);
+    code = terrno;
+    goto _exit;
+  }
   blockDataDestroy(pBlock);
 
   SET_PAYLOAD_LEN((*pRsp)->data, len, len);
@@ -736,10 +757,21 @@ static int32_t buildRetriveTableRspForCompactDb(SCompactDbRsp* pCompactDb, SRetr
   if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
     uError("buildRetriveTableRspForCompactDb error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
            (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
-    return TSDB_CODE_TSC_INVALID_INPUT;
+    code = TSDB_CODE_TSC_INVALID_INPUT;
+    goto _exit;
   }
 
   return TSDB_CODE_SUCCESS;
+_exit:
+  if(*pRsp)  {
+    taosMemoryFree(*pRsp);
+    *pRsp = NULL;
+  }
+  if(pBlock) {
+    blockDataDestroy(pBlock);
+    pBlock = NULL;
+  }
+  return code;
 }
 
 

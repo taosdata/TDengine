@@ -130,7 +130,7 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
       return code;
     }
 
-    stDebug("s-task:%s (child %d) send retrieve req to task:0x%x (vgId:%d), QID:0x%" PRIx64, pTask->id.idStr,
+    stDebug("s-task:%s (child %d) send retrieve req to task:0x%x (vgId:%d),QID:0x%" PRIx64, pTask->id.idStr,
             pTask->info.selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req->reqId);
   }
 
@@ -158,6 +158,10 @@ static int32_t buildStreamRetrieveReq(SStreamTask* pTask, const SSDataBlock* pBl
   pRetrieve->version = htobe64(pBlock->info.version);
 
   int32_t actualLen = blockEncode(pBlock, pRetrieve->data + PAYLOAD_PREFIX_LEN, numOfCols);
+  if (actualLen < 0) {
+    taosMemoryFree(pRetrieve);
+    return terrno;
+  }
   SET_PAYLOAD_LEN(pRetrieve->data, actualLen, actualLen);
 
   int32_t payloadLen = actualLen + PAYLOAD_PREFIX_LEN;
@@ -1064,7 +1068,7 @@ int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatch
 
   void* buf = taosMemoryCalloc(1, dataStrLen);
   if (buf == NULL) {
-    return -1;
+    return terrno;
   }
 
   SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
@@ -1084,6 +1088,10 @@ int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatch
   pRetrieve->numOfCols = htonl(numOfCols);
 
   int32_t actualLen = blockEncode(pBlock, pRetrieve->data + PAYLOAD_PREFIX_LEN, numOfCols);
+  if (actualLen < 0) {
+    taosMemoryFree(buf);
+    return terrno;
+  }
   SET_PAYLOAD_LEN(pRetrieve->data, actualLen, actualLen);
 
   int32_t payloadLen = actualLen + PAYLOAD_PREFIX_LEN;

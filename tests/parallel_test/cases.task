@@ -12,9 +12,10 @@
 #
 ,,y,army,./pytest.sh python3 ./test.py -f multi-level/mlevel_basic.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f db-encrypt/basic.py
-,,n,army,python3 ./test.py -f s3/s3Basic.py -N 3
+,,n,army,python3 ./test.py -f storage/s3/s3Basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/snapshot.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_elapsed.py
+,,y,army,./pytest.sh python3 ./test.py -f query/function/test_function.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/concat.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/cast.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_join.py
@@ -23,6 +24,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_desc.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_null.py
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/incSnapshot.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f cluster/clusterBasic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/query_basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_query_accuracy.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/insert_basic.py -N 3
@@ -38,6 +40,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/queryBugs.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f tmq/tmqBugs.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_compare_asc_desc.py
+,,y,army,./pytest.sh python3 ./test.py -f query/last/test_last.py
 
 #
 # system test

@@ -118,7 +118,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   metaRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (metaRsp.numOfColumns + metaRsp.numOfTags));
   metaRsp.pSchemaExt = (SSchemaExt *)taosMemoryCalloc(metaRsp.numOfColumns, sizeof(SSchemaExt));
   if (NULL == metaRsp.pSchemas || NULL == metaRsp.pSchemaExt) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
   (void)memcpy(metaRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
@@ -129,7 +129,6 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     SMetaReader *pReader = mer1.me.type == TSDB_CHILD_TABLE ? &mer2 : &mer1;
     code = fillTableColCmpr(pReader, metaRsp.pSchemaExt, metaRsp.numOfColumns);
     if (code < 0) {
-      code = TSDB_CODE_INVALID_MSG;
       goto _exit;
     }
   } else {
@@ -151,7 +150,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -310,7 +309,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -545,7 +544,7 @@ int32_t vnodeGetTableList(void *pVnode, int8_t type, SArray *pList) {
 }
 
 int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t      code = TSDB_CODE_SUCCESS;
   SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, uid, 1);
   if (NULL == pCur) {
     qError("vnode get all table list failed");
@@ -575,7 +574,7 @@ int32_t vnodeGetCtbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bo
 }
 
 int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t      code = TSDB_CODE_SUCCESS;
   SVnode      *pVnodeObj = pVnode;
   SMCtbCursor *pCur = metaOpenCtbCursor(pVnodeObj, suid, 1);
   if (NULL == pCur) {
@@ -589,7 +588,7 @@ int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list) {
       break;
     }
 
-    if (NULL == taosArrayPush(list, &id))  {
+    if (NULL == taosArrayPush(list, &id)) {
       qError("taosArrayPush failed");
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
@@ -602,7 +601,7 @@ _exit:
 }
 
 int32_t vnodeGetStbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t      code = TSDB_CODE_SUCCESS;
   SMStbCursor *pCur = metaOpenStbCursor(pVnode->pMeta, suid);
   if (!pCur) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -614,7 +613,7 @@ int32_t vnodeGetStbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
       break;
     }
 
-    if (NULL == taosArrayPush(list, &id))  {
+    if (NULL == taosArrayPush(list, &id)) {
       qError("taosArrayPush failed");
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
@@ -628,7 +627,7 @@ _exit:
 
 int32_t vnodeGetStbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bool (*filter)(void *arg, void *arg1),
                                   void *arg) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t      code = TSDB_CODE_SUCCESS;
   SMStbCursor *pCur = metaOpenStbCursor(pVnode->pMeta, suid);
   if (!pCur) {
     return terrno;
@@ -644,7 +643,7 @@ int32_t vnodeGetStbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bo
       continue;
     }
 
-    if (NULL == taosArrayPush(list, &id))  {
+    if (NULL == taosArrayPush(list, &id)) {
       qError("taosArrayPush failed");
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
@@ -870,7 +869,7 @@ int32_t vnodeGetStreamProgress(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       buf = taosMemoryCalloc(1, rspLen);
     }
     if (!buf) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _OVER;
     }
   }

@@ -275,10 +275,10 @@ void metaPauseTbCursor(SMTbCursor *pTbCur) {
 int32_t metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
   int32_t code = 0;
   int32_t lino;
-  int8_t locked = 0;
+  int8_t  locked = 0;
   if (pTbCur->paused) {
     metaReaderDoInit(&pTbCur->mr, pTbCur->pMeta, META_READER_LOCK);
-    locked = 1; 
+    locked = 1;
     code = tdbTbcOpen(((SMeta *)pTbCur->pMeta)->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
     if (code != 0) {
       TSDB_CHECK_CODE(code, lino, _exit);
@@ -673,7 +673,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
     }
   }
 
-  if (ASSERTS(sver > 0, "failed to get table schema version: %d", sver)) {
+  if (!(sver > 0)) {
     code = TSDB_CODE_NOT_FOUND;
     goto _exit;
   }
@@ -1255,7 +1255,7 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
   SIdxCursor *pCursor = NULL;
   pCursor = (SIdxCursor *)taosMemoryCalloc(1, sizeof(SIdxCursor));
   if (!pCursor) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    return terrno;
   }
   pCursor->pMeta = pMeta;
   pCursor->suid = param->suid;
@@ -1486,7 +1486,12 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
         taosHashInit(numOfElems / 0.7, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     for (int i = 0; i < numOfElems; i++) {
       STUidTagInfo *pTagInfo = taosArrayGet(pUidTagInfo, i);
-      (void)taosHashPut(pSepecifiedUidMap, &pTagInfo->uid, sizeof(uint64_t), &i, sizeof(int32_t));
+      int32_t       code = taosHashPut(pSepecifiedUidMap, &pTagInfo->uid, sizeof(uint64_t), &i, sizeof(int32_t));
+      if (code) {
+        metaCloseCtbCursor(pCur);
+        taosHashCleanup(pSepecifiedUidMap);
+        return code;
+      }
     }
   }
 
@@ -1608,8 +1613,6 @@ int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t
     metaULock(pVnodeObj->pMeta);
     if (numOfTables) *numOfTables = state.ctbNum;
     if (numOfCols) *numOfCols = state.colNum;
-    ASSERTS(state.colNum > 0, "vgId:%d, suid:%" PRIi64 " nCols:%d <= 0 in metaCache", TD_VID(pVnodeObj), uid,
-            state.colNum);
     goto _exit;
   }
 

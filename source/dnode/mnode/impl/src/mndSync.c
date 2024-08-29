@@ -189,13 +189,16 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
     goto _OUT;
   }
 
+  (void)taosThreadMutexLock(&pMnode->pSdb->filelock);
   code = sdbWriteWithoutFree(pMnode->pSdb, pRaw);
   if (code != 0) {
     mError("trans:%d, failed to write to sdb since %s", transId, terrstr());
     // code = 0;
+    (void)taosThreadMutexUnlock(&pMnode->pSdb->filelock);
     pMeta->code = code;
     goto _OUT;
   }
+  (void)taosThreadMutexUnlock(&pMnode->pSdb->filelock);
 
   pTrans = mndAcquireTrans(pMnode, transId);
   if (pTrans == NULL) {
@@ -309,7 +312,12 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   }
   (void)mndRefreshUserIpWhiteList(pMnode);
 
-  ASSERT(commitIdx == mndSyncAppliedIndex(pFsm));
+  SyncIndex fsmIndex = mndSyncAppliedIndex(pFsm);
+  if (commitIdx != fsmIndex) {
+    mError("vgId:1, sync restore finished, but commitIdx:%" PRId64 " is not equal to appliedIdx:%" PRId64, commitIdx,
+           fsmIndex);
+    mndSetRestored(pMnode, false);
+  }
 }
 
 int32_t mndSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void **ppReader) {

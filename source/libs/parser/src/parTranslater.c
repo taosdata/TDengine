@@ -1476,7 +1476,7 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
       pCxt->errCode = getFuncInfo(pCxt, (SFunctionNode*)pFoundNode);
       if (TSDB_CODE_SUCCESS == pCxt->errCode) {
         if (fmIsVectorFunc(((SFunctionNode*)pFoundNode)->funcId)) {
-          pCxt->errCode = TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION;
+          pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION, (*pCol)->colName);
           return DEAL_RES_ERROR;
         } else if (fmIsPseudoColumnFunc(((SFunctionNode*)pFoundNode)->funcId)) {
           if ('\0' != (*pCol)->tableAlias[0]) {
@@ -1500,6 +1500,7 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
     nodesDestroyNode(*(SNode**)pCol);
     *(SNode**)pCol = (SNode*)pNew;
     if (QUERY_NODE_COLUMN == nodeType(pFoundNode)) {
+      pCxt->errCode = TSDB_CODE_SUCCESS;
       if ('\0' != (*pCol)->tableAlias[0]) {
         return translateColumnWithPrefix(pCxt, pCol);
       } else {
@@ -1776,7 +1777,7 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
     res = translateColumnWithPrefix(pCxt, pCol);
   } else {
     bool found = false;
-    if ((clauseSupportAlias(pCxt->currClause)) &&
+    if ((pCxt->currClause == SQL_CLAUSE_ORDER_BY) &&
         !(*pCol)->node.asParam) {
       res = translateColumnUseAlias(pCxt, pCol, &found);
     }
@@ -4014,7 +4015,6 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
         if (TSDB_CODE_SUCCESS == code)
           code = catalogGetCachedTableHashVgroup(pCxt->pParseCxt->pCatalog, &tsmaTargetTbName, &vgInfo, &exists);
         if (TSDB_CODE_SUCCESS == code) {
-          ASSERT(exists);
           if (!pRealTable->tsmaTargetTbVgInfo) {
             pRealTable->tsmaTargetTbVgInfo = taosArrayInit(pRealTable->pTsmas->size, POINTER_BYTES);
             if (!pRealTable->tsmaTargetTbVgInfo) {
@@ -5293,6 +5293,7 @@ static int32_t translateGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GROUPBY_WINDOW_COEXIST);
   }
   bool other;
+  pCxt->currClause = SQL_CLAUSE_GROUP_BY;
   int32_t code = translateClausePosition(pCxt, pSelect->pProjectionList, pSelect->pGroupByList, &other);
   if (TSDB_CODE_SUCCESS == code) {
     if (0 == LIST_LENGTH(pSelect->pGroupByList)) {
@@ -5302,7 +5303,6 @@ static int32_t translateGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
     code = replaceGroupByAlias(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    pCxt->currClause = SQL_CLAUSE_GROUP_BY;
     pSelect->timeLineResMode = TIME_LINE_NONE;
     code = translateExprList(pCxt, pSelect->pGroupByList);
   }
@@ -7320,7 +7320,10 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
     SValueNode* pFreq = (SValueNode*)nodesListGetNode(((SNodeListNode*)pRetention)->pNodeList, 0);
     SValueNode* pKeep = (SValueNode*)nodesListGetNode(((SNodeListNode*)pRetention)->pNodeList, 1);
 
-    ASSERTS(IS_DURATION_VAL(pFreq->flag) && IS_DURATION_VAL(pKeep->flag), "Retentions freq/keep should have unit");
+    if (!IS_DURATION_VAL(pFreq->flag) || !IS_DURATION_VAL(pKeep->flag)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Retentions freq/keep should have unit");
+    }
 
     // check unit
     if (IS_DURATION_VAL(pFreq->flag) && TIME_UNIT_SECOND != pFreq->unit && TIME_UNIT_MINUTE != pFreq->unit &&
@@ -9427,7 +9430,9 @@ static int32_t buildCreateTagIndexReq(STranslateContext* pCxt, SCreateIndexStmt*
   (void)tNameGetFullDbName(&name, pReq->dbFName);
 
   SNode* pNode = NULL;
-  ASSERT(LIST_LENGTH(pStmt->pCols) == 1);
+  if (LIST_LENGTH(pStmt->pCols) != 1) {
+    return TSDB_CODE_PAR_INVALID_TAGS_NUM;
+  }
   FOREACH(pNode, pStmt->pCols) {
     SColumnNode* p = (SColumnNode*)pNode;
     memcpy(pReq->colName, p->colName, sizeof(p->colName));
@@ -11068,7 +11073,10 @@ static int32_t createStreamReqVersionInfo(SSDataBlock* pBlock, SArray** pArray, 
 
     for (int32_t i = 0; i < pBlock->info.rows; ++i) {
       SVgroupVer v = {.vgId = *(int32_t*)colDataGetData(pCol1, i), .ver = *(int64_t*)colDataGetData(pCol2, i)};
-      (void)taosArrayPush(*pArray, &v);
+      if((taosArrayPush(*pArray, &v)) == NULL) {
+        taosArrayDestroy(*pArray);
+        return terrno;
+      }
     }
   } else {
     int32_t precision = (pInterval->interval > 0) ? pInterval->precision : TSDB_TIME_PRECISION_MILLI;

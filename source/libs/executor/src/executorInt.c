@@ -1115,7 +1115,14 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
       pDeleterParam->suid = tableListGetSuid(pTableListInfo);
 
       // TODO extract uid list
-      int32_t numOfTables = tableListGetSize(pTableListInfo);
+      int32_t numOfTables = 0;
+      code = tableListGetSize(pTableListInfo, &numOfTables);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        taosMemoryFree(pDeleterParam);
+        return code;
+      }
+
       pDeleterParam->pUidList = taosArrayInit(numOfTables, sizeof(uint64_t));
       if (NULL == pDeleterParam->pUidList) {
         taosMemoryFree(pDeleterParam);
@@ -1284,12 +1291,8 @@ FORCE_INLINE int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOpera
     return code;
   }
 
-  *pResBlock = pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx]);
-  if (*pResBlock == NULL && terrno != 0) {
-    return terrno;
-  } else {
-    return code;
-  }
+  code = pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx], pResBlock);
+  return code;
 }
 
 bool compareVal(const char* v, const SStateKeys* pKey) {

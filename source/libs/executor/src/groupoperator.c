@@ -213,7 +213,6 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
         memcpy(pkey->pData, val, dataLen);
       } else if (IS_VAR_DATA_TYPE(pkey->type)) {
         memcpy(pkey->pData, val, varDataTLen(val));
-        ASSERT(varDataTLen(val) <= pkey->bytes);
       } else {
         memcpy(pkey->pData, val, pkey->bytes);
       }
@@ -241,7 +240,6 @@ static int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals) {
     } else if (IS_VAR_DATA_TYPE(pkey->type)) {
       varDataCopy(pStart, pkey->pData);
       pStart += varDataTLen(pkey->pData);
-      ASSERT(varDataTLen(pkey->pData) <= pkey->bytes);
     } else {
       memcpy(pStart, pkey->pData, pkey->bytes);
       pStart += pkey->bytes;
@@ -533,12 +531,6 @@ _end:
   return code;
 }
 
-static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t code = hashGroupbyAggregateNext(pOperator, &pRes);
-  return pRes;
-}
-
 int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo,
                                 SOperatorInfo** pOptrInfo) {
   QRY_OPTR_CHECK(pOptrInfo);
@@ -548,7 +540,7 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
   SGroupbyOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SGroupbyOperatorInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _error;
   }
 
@@ -602,7 +594,7 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
   pInfo->binfo.inputTsOrder = pAggNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pAggNode->node.outputTsOrder;
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashGroupbyAggregate, NULL, destroyGroupOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashGroupbyAggregateNext, NULL, destroyGroupOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -740,7 +732,7 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
             memcpy(data + (*columnLen), src, dataLen);
             int32_t v = (data + (*columnLen) + dataLen - (char*)pPage);
-            ASSERT(v > 0);
+            QUERY_CHECK_CONDITION((v > 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
             contentLen = dataLen;
           } else {
@@ -748,7 +740,7 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
             char* src = colDataGetData(pColInfoData, j);
             memcpy(data + (*columnLen), src, varDataTLen(src));
             int32_t v = (data + (*columnLen) + varDataTLen(src) - (char*)pPage);
-            ASSERT(v > 0);
+            QUERY_CHECK_CONDITION((v > 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
             contentLen = varDataTLen(src);
           }
@@ -762,7 +754,8 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
             colDataSetNull_f(bitmap, (*rows));
           } else {
             memcpy(data + (*columnLen), colDataGetData(pColInfoData, j), bytes);
-            ASSERT((data + (*columnLen) + bytes - (char*)pPage) <= getBufPageSize(pInfo->pBuf));
+            QUERY_CHECK_CONDITION(((data + (*columnLen) + bytes - (char*)pPage) <= getBufPageSize(pInfo->pBuf)), code,
+                                  lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
           }
           contentLen = bytes;
         }
@@ -1104,12 +1097,6 @@ _end:
   return code;
 }
 
-static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t code = hashPartitionNext(pOperator, &pRes);
-  return pRes;
-}
-
 static void destroyPartitionOperatorInfo(void* param) {
   SPartitionOperatorInfo* pInfo = (SPartitionOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
@@ -1233,7 +1220,7 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
   setOperatorInfo(pOperator, "PartitionOperator", QUERY_NODE_PHYSICAL_PLAN_PARTITION, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashPartition, NULL, destroyPartitionOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashPartitionNext, NULL, destroyPartitionOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
@@ -1299,7 +1286,7 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
 
   SStreamPartitionOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*                  pDest = pInfo->binfo.pRes;
-  ASSERT(hasRemainPartion(pInfo));
+  QUERY_CHECK_CONDITION((hasRemainPartion(pInfo)), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   SPartitionDataInfo* pParInfo = (SPartitionDataInfo*)pInfo->parIte;
   blockDataCleanup(pDest);
   int32_t      rows = taosArrayGetSize(pParInfo->rowIds);
@@ -1343,7 +1330,7 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
   pDest->info.id.groupId = pParInfo->groupId;
   pOperator->resultInfo.totalRows += pDest->info.rows;
   pInfo->parIte = taosHashIterate(pInfo->pPartitions, pInfo->parIte);
-  ASSERT(pDest->info.rows > 0);
+  QUERY_CHECK_CONDITION((pDest->info.rows > 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1549,7 +1536,8 @@ static int32_t doStreamHashPartitionNext(SOperatorInfo* pOperator, SSDataBlock**
         return code;
       }
       default:
-        ASSERTS(0, "invalid SSDataBlock type");
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        QUERY_CHECK_CODE(code, lino, _end);
     }
 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
@@ -1581,12 +1569,6 @@ _end:
   }
   (*ppRes) = NULL;
   return code;
-}
-
-static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t code = doStreamHashPartitionNext(pOperator, &pRes);
-  return pRes;
 }
 
 static void destroyStreamPartitionOperatorInfo(void* param) {
@@ -1785,7 +1767,7 @@ int32_t createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStreamPart
   pOperator->exprSupp.numOfExprs = numOfCols;
   pOperator->exprSupp.pExprInfo = pExprInfo;
   pOperator->fpSet =
-      createOperatorFpSet(optrDummyOpenFn, doStreamHashPartition, NULL, destroyStreamPartitionOperatorInfo,
+      createOperatorFpSet(optrDummyOpenFn, doStreamHashPartitionNext, NULL, destroyStreamPartitionOperatorInfo,
                           optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamOpReleaseState, streamOpReloadState);
 

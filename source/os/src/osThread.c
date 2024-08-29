@@ -20,6 +20,7 @@
 int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)(void *), void *arg) {
   int32_t code = pthread_create(tid, attr, start, arg);
   if (code) {
+    taosThreadClear(tid);
     terrno = TAOS_SYSTEM_ERROR(code);
     return terrno;
   }
@@ -841,3 +842,35 @@ void taosThreadTestCancel(void) {
 void taosThreadClear(TdThread *thread) { 
   (void)memset(thread, 0, sizeof(TdThread)); 
 }
+
+#ifdef WINDOWS
+bool taosThreadIsMain() {
+  DWORD curProcessId = GetCurrentProcessId();
+  DWORD curThreadId = GetCurrentThreadId();
+  DWORD dwThreadId = -1;
+
+  HANDLE hThreadSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+  if (hThreadSnapshot == INVALID_HANDLE_VALUE) {
+    return false;
+  }
+
+  THREADENTRY32 te32;
+  te32.dwSize = sizeof(THREADENTRY32);
+
+  if (!Thread32First(hThreadSnapshot, &te32)) {
+    CloseHandle(hThreadSnapshot);
+    return false;
+  }
+
+  do {
+    if (te32.th32OwnerProcessID == curProcessId) {
+      dwThreadId = te32.th32ThreadID;
+      break;
+    }
+  } while (Thread32Next(hThreadSnapshot, &te32));
+
+  CloseHandle(hThreadSnapshot);
+
+  return curThreadId == dwThreadId;
+}
+#endif

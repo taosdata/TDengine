@@ -1085,12 +1085,6 @@ _finished:
   return code;
 }
 
-static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t code = doTimesliceNext(pOperator, &pRes);
-  return pRes;
-}
-
 static int32_t extractPkColumnFromFuncs(SNodeList* pFuncs, bool* pHasPk, SColumn* pPkColumn) {
   SNode* pNode;
   FOREACH(pNode, pFuncs) {
@@ -1189,7 +1183,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
 
   setOperatorInfo(pOperator, "TimeSliceOperator", QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTimeslice, NULL, destroyTimeSliceOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTimesliceNext, NULL, destroyTimeSliceOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   code = blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
@@ -1246,6 +1240,9 @@ void destroyTimeSliceOperatorInfo(void* param) {
   if (pInfo->pPrevGroupKey) {
     taosMemoryFree(pInfo->pPrevGroupKey->pData);
     taosMemoryFree(pInfo->pPrevGroupKey);
+  }
+  if (pInfo->hasPk && IS_VAR_DATA_TYPE(pInfo->pkCol.type)) {
+    taosMemoryFreeClear(pInfo->prevKey.pks[0].pData);
   }
 
   cleanupExprSupp(&pInfo->scalarSup);

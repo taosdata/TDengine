@@ -165,7 +165,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
 
   setOperatorInfo(pOperator, "ProjectOperator", QUERY_NODE_PHYSICAL_PLAN_PROJECT, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doProjectOperation1, NULL, destroyProjectOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doProjectOperation, NULL, destroyProjectOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamOperatorReleaseState, streamOperatorReloadState);
 
@@ -218,7 +218,10 @@ static int32_t discardGroupDataBlock(SSDataBlock* pBlock, SLimitInfo* pLimitInfo
 static int32_t setInfoForNewGroup(SSDataBlock* pBlock, SLimitInfo* pLimitInfo, SOperatorInfo* pOperator) {
   // remainGroupOffset == 0
   // here check for a new group data, we need to handle the data of the previous group.
-  ASSERT(pLimitInfo->remainGroupOffset == 0 || pLimitInfo->remainGroupOffset == -1);
+  if (!(pLimitInfo->remainGroupOffset == 0 || pLimitInfo->remainGroupOffset == -1)) {
+    qError("project failed at: %s:%d", __func__, __LINE__);
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   bool newGroup = false;
   if (0 == pBlock->info.id.groupId) {
@@ -442,16 +445,6 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   return code;
 }
 
-SSDataBlock* doProjectOperation1(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t code = doProjectOperation(pOperator, &pRes);
-  if (code && pOperator->pTaskInfo->code == 0) {
-    pOperator->pTaskInfo->code = code;
-  }
-
-  return pRes;
-}
-
 int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pNode,
                                                  SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_OPTR_CHECK(pOptrInfo);
@@ -523,7 +516,7 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
 
   setOperatorInfo(pOperator, "IndefinitOperator", QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doApplyIndefinitFunction1, NULL, destroyIndefinitOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doApplyIndefinitFunction, NULL, destroyIndefinitOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
@@ -818,7 +811,10 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
         }
 
         int32_t startOffset = pRes->info.rows;
-        ASSERT(pRes->info.capacity > 0);
+        if (pRes->info.capacity <= 0) {
+          qError("project failed at: %s:%d", __func__, __LINE__);
+          return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        }
         code = colDataAssign(pResColData, &idata, dest.numOfRows, &pRes->info);
         if (code) {
           return code;
@@ -875,7 +871,11 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     for (int32_t k = 0; k < numOfOutput; ++k) {
       int32_t outputSlotId = pExpr[k].base.resSchema.slotId;
 
-      ASSERT(pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE);
+      if (pExpr[k].pExpr->nodeType != QUERY_NODE_VALUE) {
+        qError("project failed at: %s:%d", __func__, __LINE__);
+        code = TSDB_CODE_INVALID_PARA;
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
       SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
       if (pColInfoData == NULL) {
         code = terrno;
@@ -1019,7 +1019,11 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       }
 
       int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
-      ASSERT(pResult->info.capacity > 0);
+      if (pResult->info.capacity <= 0) {
+        qError("project failed at: %s:%d", __func__, __LINE__);
+        code = TSDB_CODE_INVALID_PARA;
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
 
       int32_t ret = colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
       if (ret < 0) {
@@ -1146,7 +1150,11 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         }
 
         int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
-        ASSERT(pResult->info.capacity > 0);
+        if (pResult->info.capacity <= 0) {
+          qError("project failed at: %s:%d", __func__, __LINE__);
+          code = TSDB_CODE_INVALID_PARA;
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
         int32_t ret = colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
         if (ret < 0) {
           code = ret;

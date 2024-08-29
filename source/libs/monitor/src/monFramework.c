@@ -117,7 +117,10 @@ void monInitMonitorFW(){
     if(taos_collector_registry_register_metric(gauge) == 1){
       (void)taos_counter_destroy(gauge);
     }
-    (void)taosHashPut(tsMonitor.metrics, dnodes_gauges[i], strlen(dnodes_gauges[i]), &gauge, sizeof(taos_gauge_t *));
+    if (taosHashPut(tsMonitor.metrics, dnodes_gauges[i], strlen(dnodes_gauges[i]), &gauge, sizeof(taos_gauge_t *)) !=
+        0) {
+      uError("failed to add dnode gauge at%d:%s", i, dnodes_gauges[i]);
+    }
   }
 
   int32_t dnodes_data_label_count = 5;
@@ -128,8 +131,10 @@ void monInitMonitorFW(){
     if(taos_collector_registry_register_metric(gauge) == 1){
       (void)taos_counter_destroy(gauge);
     }
-    (void)taosHashPut(tsMonitor.metrics, dnodes_data_gauges[i], strlen(dnodes_data_gauges[i]), &gauge,
-                      sizeof(taos_gauge_t *));
+    if (taosHashPut(tsMonitor.metrics, dnodes_data_gauges[i], strlen(dnodes_data_gauges[i]), &gauge,
+                    sizeof(taos_gauge_t *)) != 0) {
+      uError("failed to add dnode data gauge at%d:%s", i, dnodes_data_gauges[i]);
+    }
   }
 
   int32_t dnodes_log_label_count = 4;
@@ -140,8 +145,10 @@ void monInitMonitorFW(){
     if(taos_collector_registry_register_metric(gauge) == 1){
       (void)taos_counter_destroy(gauge);
     }
-    (void)taosHashPut(tsMonitor.metrics, dnodes_log_gauges[i], strlen(dnodes_log_gauges[i]), &gauge,
-                      sizeof(taos_gauge_t *));
+    if (taosHashPut(tsMonitor.metrics, dnodes_log_gauges[i], strlen(dnodes_log_gauges[i]), &gauge,
+                    sizeof(taos_gauge_t *)) != 0) {
+      uError("failed to add dnode log gauge at%d:%s", i, dnodes_log_gauges[i]);
+    }
   }
 }
 
@@ -186,7 +193,9 @@ void monGenClusterInfoTable(SMonInfo *pMonitor){
     if(taos_collector_registry_register_metric(gauge) == 1){
       (void)taos_counter_destroy(gauge);
     }
-    (void)taosHashPut(tsMonitor.metrics, metric_names[i], strlen(metric_names[i]), &gauge, sizeof(taos_gauge_t *));
+    if (taosHashPut(tsMonitor.metrics, metric_names[i], strlen(metric_names[i]), &gauge, sizeof(taos_gauge_t *)) != 0) {
+      uError("failed to add cluster gauge at%d:%s", i, metric_names[i]);
+    }
   }
 
   char buf[TSDB_CLUSTER_ID_LEN] = {0};
@@ -640,8 +649,10 @@ void monGenMnodeRoleTable(SMonInfo *pMonitor){
     if(taos_collector_registry_register_metric(gauge) == 1){
       (void)taos_counter_destroy(gauge);
     }
-    (void)taosHashPut(tsMonitor.metrics, mnodes_role_gauges[i], strlen(mnodes_role_gauges[i]), &gauge,
-                      sizeof(taos_gauge_t *));
+    if (taosHashPut(tsMonitor.metrics, mnodes_role_gauges[i], strlen(mnodes_role_gauges[i]), &gauge,
+                    sizeof(taos_gauge_t *)) != 0) {
+      uError("failed to add mnode role gauge at%d:%s", i, mnodes_role_gauges[i]);
+    }
   }
 
   char buf[TSDB_CLUSTER_ID_LEN] = {0};
@@ -707,8 +718,10 @@ void monGenVnodeRoleTable(SMonInfo *pMonitor){
     if(taos_collector_registry_register_metric(gauge) == 1){
       (void)taos_counter_destroy(gauge);
     }
-    (void)taosHashPut(tsMonitor.metrics, vnodes_role_gauges[i], strlen(vnodes_role_gauges[i]), &gauge,
-                      sizeof(taos_gauge_t *));
+    if (taosHashPut(tsMonitor.metrics, vnodes_role_gauges[i], strlen(vnodes_role_gauges[i]), &gauge,
+                    sizeof(taos_gauge_t *)) != 0) {
+      uError("failed to add vnode role gauge at%d:%s", i, vnodes_role_gauges[i]);
+    }
   }
 
   char buf[TSDB_CLUSTER_ID_LEN] = {0};

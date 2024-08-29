@@ -122,7 +122,7 @@ int32_t metaCacheOpen(SMeta* pMeta) {
 
   pMeta->pCache = (SMetaCache*)taosMemoryCalloc(1, sizeof(SMetaCache));
   if (pMeta->pCache == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   // open entry cache
@@ -131,7 +131,7 @@ int32_t metaCacheOpen(SMeta* pMeta) {
   pMeta->pCache->sEntryCache.aBucket =
       (SMetaCacheEntry**)taosMemoryCalloc(pMeta->pCache->sEntryCache.nBucket, sizeof(SMetaCacheEntry*));
   if (pMeta->pCache->sEntryCache.aBucket == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   // open stats cache
@@ -140,7 +140,7 @@ int32_t metaCacheOpen(SMeta* pMeta) {
   pMeta->pCache->sStbStatsCache.aBucket =
       (SMetaStbStatsEntry**)taosMemoryCalloc(pMeta->pCache->sStbStatsCache.nBucket, sizeof(SMetaStbStatsEntry*));
   if (pMeta->pCache->sStbStatsCache.aBucket == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   pMeta->pCache->sTagFilterResCache.pUidResCache = taosLRUCacheInit(5 * 1024 * 1024, -1, 0.5);
@@ -228,7 +228,7 @@ static int32_t metaRehashCache(SMetaCache* pCache, int8_t expand) {
 
   SMetaCacheEntry** aBucket = (SMetaCacheEntry**)taosMemoryCalloc(nBucket, sizeof(SMetaCacheEntry*));
   if (aBucket == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -361,7 +361,7 @@ static int32_t metaRehashStatsCache(SMetaCache* pCache, int8_t expand) {
 
   SMetaStbStatsEntry** aBucket = (SMetaStbStatsEntry**)taosMemoryCalloc(nBucket, sizeof(SMetaStbStatsEntry*));
   if (aBucket == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -512,7 +512,6 @@ static void initCacheKey(uint64_t* buf, const SHashObj* pHashMap, uint64_t suid,
   buf[0] = (uint64_t)pHashMap;
   buf[1] = suid;
   setMD5DigestInKey(buf, key, keyLen);
-  ASSERT(keyLen == sizeof(uint64_t) * 2);
 }
 
 int32_t metaGetCachedTableUidList(void* pVnode, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray* pList1,

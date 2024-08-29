@@ -47,7 +47,7 @@
     }                       \
   } while (0)
 
-#define LOG_ID_TAG   "connId:0x%" PRIx64 ",QID:0x%" PRIx64
+#define LOG_ID_TAG   "connId:0x%" PRIx64 ",qid:0x%" PRIx64
 #define LOG_ID_VALUE *(int64_t*)taos, pRequest->requestId
 
 #define TMQ_META_VERSION "1.0"
@@ -1657,7 +1657,6 @@ static void* getRawDataFromRes(void* pRetrieve) {
   } else if (*(int64_t*)pRetrieve == 1) {
     rawData = ((SRetrieveTableRspForTmq*)pRetrieve)->data;
   }
-  ASSERT(rawData != NULL);
   return rawData;
 }
 
@@ -1901,7 +1900,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     TAOS_FIELD* fields = taosMemoryCalloc(pSW->nCols, sizeof(TAOS_FIELD));
     if (fields == NULL) {
       SET_ERROR_MSG("calloc fields failed");
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto end;
     }
     for (int i = 0; i < pSW->nCols; i++) {
@@ -2060,7 +2059,7 @@ static int32_t encodeMqDataRsp(__encode_func__* encodeFunc, void* rspObj, tmq_ra
   len += sizeof(int8_t) + sizeof(int32_t);
   buf = taosMemoryCalloc(1, len);
   if (buf == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto FAILED;
   }
   tEncoderInit(&encoder, buf, len);

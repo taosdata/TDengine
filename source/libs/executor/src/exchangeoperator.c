@@ -305,12 +305,6 @@ _end:
   return code;
 }
 
-static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = loadRemoteDataNext(pOperator, &pRes);
-  return pRes;
-}
-
 static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo, const char* id) {
   pInfo->pSourceDataInfo = taosArrayInit(numOfSources, sizeof(SSourceDataInfo));
   if (pInfo->pSourceDataInfo == NULL) {
@@ -447,7 +441,7 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
   code = filterInitFromNode((SNode*)pExNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, loadRemoteData, NULL, destroyExchangeOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, loadRemoteDataNext, NULL, destroyExchangeOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   *pOptrInfo = pOperator;
   return code;
@@ -465,7 +459,6 @@ _error:
     pOperator->info = NULL;
     destroyOperator(pOperator);
   }
-  pTaskInfo->code = code;
   return code;
 }
 
@@ -894,12 +887,12 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
 
     int32_t rawLen = *(int32_t*)pStart;
     pStart += sizeof(int32_t);
-    ASSERT(compLen <= rawLen && compLen != 0);
+    QUERY_CHECK_CONDITION((compLen <= rawLen && compLen != 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
     pNextStart = pStart + compLen;
     if (pRetrieveRsp->compressed && (compLen < rawLen)) {
       int32_t t = tsDecompressString(pStart, compLen, 1, pDataInfo->decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
-      ASSERT(t == rawLen);
+      QUERY_CHECK_CONDITION((t == rawLen), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       pStart = pDataInfo->decompBuf;
     }
 

@@ -100,7 +100,11 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
 
   if (voteGrantedMajority(pSyncNode->pVotesGranted)) {
     // only myself, to leader
-    ASSERT(!pSyncNode->pVotesGranted->toLeader);
+    if (pSyncNode->pVotesGranted->toLeader) {
+      ret = TSDB_CODE_SYN_INTERNAL_ERROR;
+      sError("vgId:%d, failed to elect since already be to leader", pSyncNode->vgId);
+      return ret;
+    }
     syncNodeCandidate2Leader(pSyncNode);
     pSyncNode->pVotesGranted->toLeader = true;
     return ret;
@@ -119,7 +123,7 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   }
 
   ret = syncNodeRequestVotePeers(pSyncNode);
-  ASSERT(ret == 0);
+  if (ret != 0) return ret;
 
   syncNodeResetElectTimer(pSyncNode);
   return ret;

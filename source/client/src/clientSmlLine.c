@@ -104,7 +104,7 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
       }
       char* tmp = taosMemoryCalloc(pVal->length, 1);
       if (tmp == NULL){
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       (void)memcpy(tmp, pVal->value + NCHAR_ADD_LEN - 1, pVal->length - NCHAR_ADD_LEN);
       code = doGeomFromText(tmp, (unsigned char **)&pVal->value, &pVal->length);
@@ -437,7 +437,11 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
       }
       (void)memcpy(tmp, kv.value, kv.length);
       PROCESS_SLASH_IN_FIELD_VALUE(tmp, kv.length);
-      ASSERT(kv.type != TSDB_DATA_TYPE_GEOMETRY);
+      if(kv.type == TSDB_DATA_TYPE_GEOMETRY) {
+        uError("SML:0x%" PRIx64 " smlParseColLine error, invalid GEOMETRY type.", info->id);
+        taosMemoryFree((void*)kv.value);
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
       if(kv.type == TSDB_DATA_TYPE_VARBINARY){
         taosMemoryFree((void*)kv.value);
       }

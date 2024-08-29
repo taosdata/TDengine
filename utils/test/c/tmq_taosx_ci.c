@@ -1170,7 +1170,7 @@ void testDetailError() {
   int32_t code = tmq_write_raw((TAOS*)1, raw);
   ASSERT(code);
   const char* err = tmq_err2str(code);
-  char*       tmp = strstr(err, "Invalid parameters,detail:taos:0x1 or data");
+  char*       tmp = strstr(err, "Invalid parameters,detail:taos:");
   ASSERT(tmp != NULL);
 }
 

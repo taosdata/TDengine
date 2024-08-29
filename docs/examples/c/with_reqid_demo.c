@@ -45,7 +45,7 @@ static int DemoWithReqId() {
   TAOS_RES *result = taos_query_with_reqid(taos, sql, reqid);
   code = taos_errno(result);
   if (code != 0) {
-    fprintf(stderr, "Failed to execute sql with QID: %ld, ErrCode: 0x%x, ErrMessage: %s\n.", reqid, code,
+    fprintf(stderr, "Failed to execute sql withQID: %ld, ErrCode: 0x%x, ErrMessage: %s\n.", reqid, code,
             taos_errstr(result));
     taos_close(taos);
     taos_cleanup();

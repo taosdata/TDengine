@@ -310,39 +310,34 @@ static int32_t buildBatchExchangeOperatorParam(SOperatorParam** ppRes, int32_t d
 }
 
 
-static int32_t buildMergeJoinOperatorParam(SOperatorParam** ppRes, bool initParam, SOperatorParam* pChild0, SOperatorParam* pChild1) {
+static int32_t buildMergeJoinOperatorParam(SOperatorParam** ppRes, bool initParam, SOperatorParam** ppChild0, SOperatorParam** ppChild1) {
   int32_t code = TSDB_CODE_SUCCESS;
   *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
   if (NULL == *ppRes) {
     code = terrno;
-    freeOperatorParam(pChild0, OP_GET_PARAM);
-    freeOperatorParam(pChild1, OP_GET_PARAM);
     return code;
   }
   (*ppRes)->pChildren = taosArrayInit(2, POINTER_BYTES);
   if (NULL == (*ppRes)->pChildren) {
     code = terrno;
-    freeOperatorParam(pChild0, OP_GET_PARAM);
-    freeOperatorParam(pChild1, OP_GET_PARAM);
     freeOperatorParam(*ppRes, OP_GET_PARAM);
     *ppRes = NULL;
     return code;
   }
-  if (NULL == taosArrayPush((*ppRes)->pChildren, &pChild0)) {
+  if (NULL == taosArrayPush((*ppRes)->pChildren, ppChild0)) {
     code = terrno;
-    freeOperatorParam(pChild0, OP_GET_PARAM);
-    freeOperatorParam(pChild1, OP_GET_PARAM);
     freeOperatorParam(*ppRes, OP_GET_PARAM);
     *ppRes = NULL;
     return code;
   }
-  if (NULL == taosArrayPush((*ppRes)->pChildren, &pChild1)) {
+  *ppChild0 = NULL;
+  if (NULL == taosArrayPush((*ppRes)->pChildren, ppChild1)) {
     code = terrno;
-    freeOperatorParam(pChild1, OP_GET_PARAM);
     freeOperatorParam(*ppRes, OP_GET_PARAM);
     *ppRes = NULL;
     return code;
   }
+  *ppChild1 = NULL;
   
   SSortMergeJoinOperatorParam* pJoin = taosMemoryMalloc(sizeof(SSortMergeJoinOperatorParam));
   if (NULL == pJoin) {
@@ -493,7 +488,7 @@ static int32_t buildSeqStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SS
     pSrcParam1 = NULL;
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildMergeJoinOperatorParam(ppParam, initParam, pGcParam0, pGcParam1);
+    code = buildMergeJoinOperatorParam(ppParam, initParam, &pGcParam0, &pGcParam1);
   }
   if (TSDB_CODE_SUCCESS != code) {
     if (pSrcParam0) {
@@ -883,20 +878,20 @@ static int32_t seqJoinLaunchNewRetrieve(SOperatorInfo* pOperator, SSDataBlock** 
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE SSDataBlock* seqStableJoinComposeRes(SStbJoinDynCtrlInfo*        pStbJoin, SSDataBlock* pBlock) {
-  pBlock->info.id.blockId = pStbJoin->outputBlkId;
-  return pBlock;
+static FORCE_INLINE void seqStableJoinComposeRes(SStbJoinDynCtrlInfo* pStbJoin, SSDataBlock* pBlock) {
+  if (pBlock != NULL) {
+    pBlock->info.id.blockId = pStbJoin->outputBlkId;
+  }
 }
 
-
-SSDataBlock* seqStableJoin(SOperatorInfo* pOperator) {
-  int32_t code = TSDB_CODE_SUCCESS;
+int32_t seqStableJoin(SOperatorInfo* pOperator, SSDataBlock** pRes) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
   SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
   SStbJoinDynCtrlInfo*       pStbJoin = (SStbJoinDynCtrlInfo*)&pInfo->stbJoin;
-  SSDataBlock* pRes = NULL;
 
+  QRY_OPTR_CHECK(pRes);
   if (pOperator->status == OP_EXEC_DONE) {
-    return pRes;
+    return code;
   }
 
   int64_t st = 0;
@@ -912,25 +907,24 @@ SSDataBlock* seqStableJoin(SOperatorInfo* pOperator) {
     }
   }
 
-  QRY_ERR_JRET(seqJoinContinueCurrRetrieve(pOperator, &pRes));
-  if (pRes) {
+  QRY_ERR_JRET(seqJoinContinueCurrRetrieve(pOperator, pRes));
+  if (*pRes) {
     goto _return;
   }
-  
-  QRY_ERR_JRET(seqJoinLaunchNewRetrieve(pOperator, &pRes));
+
+  QRY_ERR_JRET(seqJoinLaunchNewRetrieve(pOperator, pRes));
 
 _return:
-
   if (pOperator->cost.openCost == 0) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
 
   if (code) {
     pOperator->pTaskInfo->code = code;
-    T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
+  } else {
+    seqStableJoinComposeRes(pStbJoin, *pRes);
   }
-  
-  return pRes ? seqStableJoinComposeRes(pStbJoin, pRes) : NULL;
+  return code;
 }
 
 int32_t initSeqStbJoinTableHash(SStbJoinPrevJoinCtx* pPrev, bool batchFetch) {

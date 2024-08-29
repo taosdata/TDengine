@@ -107,7 +107,7 @@ void streamTaskSendCheckMsg(SStreamTask* pTask) {
     streamTaskAddReqInfo(&pTask->taskCheckInfo, req.reqId, pDispatch->taskId, pDispatch->nodeId, idstr);
 
     stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " check single downstream task:0x%x(vgId:%d) ver:%" PRId64 "-%" PRId64
-            " window:%" PRId64 "-%" PRId64 " QID:0x%" PRIx64,
+            " window:%" PRId64 "-%" PRId64 "QID:0x%" PRIx64,
             idstr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, pRange->range.minVer,
             pRange->range.maxVer, pWindow->skey, pWindow->ekey, req.reqId);
 
@@ -133,7 +133,7 @@ void streamTaskSendCheckMsg(SStreamTask* pTask) {
       streamTaskAddReqInfo(&pTask->taskCheckInfo, req.reqId, pVgInfo->taskId, pVgInfo->vgId, idstr);
 
       stDebug("s-task:%s (vgId:%d) stage:%" PRId64
-              " check downstream task:0x%x (vgId:%d) (shuffle), idx:%d, QID:0x%" PRIx64,
+              " check downstream task:0x%x (vgId:%d) (shuffle), idx:%d,QID:0x%" PRIx64,
               idstr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i, req.reqId);
       (void)streamSendCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
@@ -171,14 +171,14 @@ void streamTaskProcessCheckMsg(SStreamMeta* pMeta, SStreamTaskCheckReq* pReq, SS
           streamTaskCheckStatus(pTask, pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->stage, &pRsp->oldStage);
 
       SStreamTaskState pState = streamTaskGetStatus(pTask);
-      stDebug("s-task:%s status:%s, stage:%" PRId64 " recv task check req(QID:0x%" PRIx64
+      stDebug("s-task:%s status:%s, stage:%" PRId64 " recv task check req(qid:0x%" PRIx64
               ") task:0x%x (vgId:%d), check_status:%d",
               pTask->id.idStr, pState.name, pRsp->oldStage, pRsp->reqId, pRsp->upstreamTaskId, pRsp->upstreamNodeId,
               pRsp->status);
       streamMetaReleaseTask(pMeta, pTask);
     } else {
       pRsp->status = TASK_DOWNSTREAM_NOT_READY;
-      stDebug("tq recv task check(taskId:0x%" PRIx64 "-0x%x not built yet) req(QID:0x%" PRIx64
+      stDebug("tq recv task check(taskId:0x%" PRIx64 "-0x%x not built yet) req(qid:0x%" PRIx64
               ") from task:0x%x (vgId:%d), rsp check_status %d",
               pReq->streamId, taskId, pRsp->reqId, pRsp->upstreamTaskId, pRsp->upstreamNodeId, pRsp->status);
     }
@@ -432,7 +432,7 @@ int32_t streamTaskUpdateCheckInfo(STaskCheckInfo* pInfo, int32_t taskId, int32_t
   findCheckRspStatus(pInfo, taskId, &p);
   if (p != NULL) {
     if (reqId != p->reqId) {
-      stError("s-task:%s QID:0x%" PRIx64 " expected:0x%" PRIx64
+      stError("s-task:%sQID:0x%" PRIx64 " expected:0x%" PRIx64
               " expired check-rsp recv from downstream task:0x%x, discarded",
               id, reqId, p->reqId, taskId);
       streamMutexUnlock(&pInfo->checkInfoLock);
@@ -454,7 +454,7 @@ int32_t streamTaskUpdateCheckInfo(STaskCheckInfo* pInfo, int32_t taskId, int32_t
   }
 
   streamMutexUnlock(&pInfo->checkInfoLock);
-  stError("s-task:%s unexpected check rsp msg, invalid downstream task:0x%x, QID:%" PRIx64 " discarded", id, taskId,
+  stError("s-task:%s unexpected check rsp msg, invalid downstream task:0x%x,QID:%" PRIx64 " discarded", id, taskId,
           reqId);
   return TSDB_CODE_FAILED;
 }
@@ -541,7 +541,7 @@ void doSendCheckMsg(SStreamTask* pTask, SDownstreamStatusInfo* p) {
     STaskDispatcherFixed* pDispatch = &pOutputInfo->fixedDispatcher;
     setCheckDownstreamReqInfo(&req, p->reqId, pDispatch->taskId, pDispatch->nodeId);
 
-    stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " re-send check downstream task:0x%x(vgId:%d) QID:0x%" PRIx64, id,
+    stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " re-send check downstream task:0x%x(vgId:%d)QID:0x%" PRIx64, id,
             pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, req.reqId);
 
     (void)streamSendCheckMsg(pTask, &req, pOutputInfo->fixedDispatcher.nodeId, &pOutputInfo->fixedDispatcher.epSet);
@@ -559,7 +559,7 @@ void doSendCheckMsg(SStreamTask* pTask, SDownstreamStatusInfo* p) {
         setCheckDownstreamReqInfo(&req, p->reqId, pVgInfo->taskId, pVgInfo->vgId);
 
         stDebug("s-task:%s (vgId:%d) stage:%" PRId64
-                " re-send check downstream task:0x%x(vgId:%d) (shuffle), idx:%d QID:0x%" PRIx64,
+                " re-send check downstream task:0x%x(vgId:%d) (shuffle), idx:%dQID:0x%" PRIx64,
                 id, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i, p->reqId);
         (void)streamSendCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
         break;

@@ -468,7 +468,11 @@ static int32_t doAddNewExternalMemSource(SDiskbasedBuf* pBuf, SArray* pAllSource
   // The value of numOfRows must be greater than 0, which is guaranteed by the previous memory allocation
   int32_t numOfRows =
       (getBufPageSize(pBuf) - blockDataGetSerialMetaSize(taosArrayGetSize(pBlock->pDataBlock))) / rowSize;
-  ASSERT(numOfRows > 0);
+  if (numOfRows <= 0) {
+    qError("sort failed at: %s:%d", __func__, __LINE__);
+    taosArrayDestroy(pPageIdList);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
 
   return blockDataEnsureCapacity(pSource->src.pBlock, numOfRows);
 }
@@ -528,7 +532,10 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     }
 
     int32_t size = blockDataGetSize(p) + sizeof(int32_t) + taosArrayGetSize(p->pDataBlock) * sizeof(int32_t);
-    ASSERT(size <= getBufPageSize(pHandle->pBuf));
+    if (size > getBufPageSize(pHandle->pBuf)) {
+      qError("sort failed at: %s:%d", __func__, __LINE__);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
 
     code = blockDataToBuf(pPage, p);
     if (code) {
@@ -733,7 +740,10 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
   tMergeTreePrint(pTree);
 #endif
 
-  tMergeTreeAdjust(pTree, leafNodeIndex);
+  int32_t code = tMergeTreeAdjust(pTree, leafNodeIndex);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
 
 #ifdef _DEBUG_VIEW
   printf("\nafter adjust:\t");
@@ -1040,7 +1050,10 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
 
         int32_t size =
             blockDataGetSize(pDataBlock) + sizeof(int32_t) + taosArrayGetSize(pDataBlock->pDataBlock) * sizeof(int32_t);
-        ASSERT(size <= getBufPageSize(pHandle->pBuf));
+        if (size > getBufPageSize(pHandle->pBuf)) {
+          qError("sort failed at: %s:%d", __func__, __LINE__);
+          return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        }
 
         code= blockDataToBuf(pPage, pDataBlock);
         if (code) {
@@ -1310,7 +1323,10 @@ static int32_t getRowBufFromExtMemFile(SSortHandle* pHandle, int32_t regionId, i
     }
     pRegion->bufLen = readBytes;
   }
-  ASSERT(pRegion->bufRegOffset <= tupleOffset);
+  if (pRegion->bufRegOffset > tupleOffset) {
+    qError("sort failed at: %s:%d", __func__, __LINE__);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
   if (pRegion->bufRegOffset + pRegion->bufLen >= tupleOffset + rowLen) {
     *pFreeRow = false;
     *ppRow = pRegion->buf + tupleOffset - pRegion->bufRegOffset;
@@ -1487,7 +1503,10 @@ static int32_t tsortCloseRegion(SSortHandle* pHandle) {
 static int32_t tsortFinalizeRegions(SSortHandle* pHandle) {
   SSortMemFile* pMemFile = pHandle->pExtRowsMemFile;
   size_t numRegions = taosArrayGetSize(pMemFile->aFileRegions);
-  ASSERT(numRegions == (pMemFile->currRegionId + 1));
+  if (numRegions != (pMemFile->currRegionId + 1)) {
+    qError("sort failed at: %s:%d", __func__, __LINE__);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
   if (numRegions == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1812,7 +1831,10 @@ static int32_t appendDataBlockToPageBuf(SSortHandle* pHandle, SSDataBlock* blk, 
   }
 
   int32_t size = blockDataGetSize(blk) + sizeof(int32_t) + taosArrayGetSize(blk->pDataBlock) * sizeof(int32_t);
-  ASSERT(size <= getBufPageSize(pHandle->pBuf));
+  if (size > getBufPageSize(pHandle->pBuf)) {
+    qError("sort failed at: %s:%d", __func__, __LINE__);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
   
   int32_t code = blockDataToBuf(pPage, blk);
 
@@ -1863,12 +1885,18 @@ static int32_t getPageBufIncForRowIdSort(SSDataBlock* pDstBlock, int32_t srcRowI
   int32_t numOfCols = blockDataGetNumOfCols(pDstBlock);
 
   if (pPkCol == NULL) { // no var column
-    ASSERT((numOfCols == 4) && (!pDstBlock->info.hasVarCol));
+    if (!((numOfCols == 4) && (!pDstBlock->info.hasVarCol))) {
+      qError("sort failed at: %s:%d", __func__, __LINE__);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
 
     size += numOfCols * ((dstRowIndex & 0x7) == 0 ? 1: 0);
     size += blockDataGetRowSize(pDstBlock);
   } else {
-    ASSERT(numOfCols == 5);
+    if (numOfCols != 5) {
+      qError("sort failed at: %s:%d", __func__, __LINE__);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
 
     size += (numOfCols - 1) * (((dstRowIndex & 0x7) == 0)? 1:0);
     for(int32_t i = 0; i < numOfCols - 1; ++i) {
@@ -2018,7 +2046,7 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
 
   SArray* aPgId = taosArrayInit(8, sizeof(int32_t));
   if (aPgId == NULL) {
-    return terrno;
+    goto _error;
   }
 
   int32_t nRows = 0;
@@ -2039,10 +2067,7 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
       lastPageBufTs = ((int64_t*)tsCol->pData)[pHandle->pDataBlock->info.rows - 1];
       code = appendDataBlockToPageBuf(pHandle, pHandle->pDataBlock, aPgId);
       if (code != TSDB_CODE_SUCCESS) {
-        taosMemoryFree(pTree);
-        taosArrayDestroy(aPgId);
-        cleanupMergeSup(&sup);
-        return code;
+        goto _error;
       }
 
       nMergedRows += pHandle->pDataBlock->info.rows;
@@ -2064,7 +2089,7 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
 
     code = blockDataEnsureCapacity(pHandle->pDataBlock, pHandle->pDataBlock->info.rows + 1);
     if (code) {
-      return code;
+      goto _error;
     }
 
     if (pHandle->bSortByRowId) {
@@ -2074,11 +2099,14 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
     }
 
     if (code) {
-      return code;
+      goto _error;
     }
 
     blkPgSz += bufInc;
-    ASSERT(blkPgSz == blockDataGetSize(pHandle->pDataBlock) + pageHeaderSize);
+    if (blkPgSz != blockDataGetSize(pHandle->pDataBlock) + pageHeaderSize) {
+      qError("sort failed at: %s:%d", __func__, __LINE__);
+      goto _error;
+    }
 
     ++nRows;
 
@@ -2087,7 +2115,10 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
     } else {
       ++sup.aRowIdx[minIdx];
     }
-    tMergeTreeAdjust(pTree, tMergeTreeGetAdjustIndex(pTree));
+    code = tMergeTreeAdjust(pTree, tMergeTreeGetAdjustIndex(pTree));
+    if (TSDB_CODE_SUCCESS != code) {
+      goto _error;
+    }
   }
 
   if (pHandle->pDataBlock->info.rows > 0) {
@@ -2096,10 +2127,7 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
       lastPageBufTs = ((int64_t*)tsCol->pData)[pHandle->pDataBlock->info.rows - 1];
       code = appendDataBlockToPageBuf(pHandle, pHandle->pDataBlock, aPgId);
       if (code != TSDB_CODE_SUCCESS) {
-        taosArrayDestroy(aPgId);
-        taosMemoryFree(pTree);
-        cleanupMergeSup(&sup);
-        return code;
+        goto _error;
       }
       nMergedRows += pHandle->pDataBlock->info.rows;
       if ((pHandle->mergeLimit != -1) && (nMergedRows >= pHandle->mergeLimit)) {
@@ -2115,17 +2143,19 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
 
   SSDataBlock* pMemSrcBlk = NULL;
   code = createOneDataBlock(pHandle->pDataBlock, false, &pMemSrcBlk);
-  if (code) {
-    cleanupMergeSup(&sup);
-    tMergeTreeDestroy(&pTree);
-    return code;
-  }
+  if (code) goto _error;
 
   code = doAddNewExternalMemSource(pHandle->pBuf, aExtSrc, pMemSrcBlk, &pHandle->sourceId, aPgId);
 
   cleanupMergeSup(&sup);
   tMergeTreeDestroy(&pTree);
 
+  return code;
+
+_error:
+  tMergeTreeDestroy(&pTree);
+  cleanupMergeSup(&sup);
+  if (aPgId) taosArrayDestroy(aPgId);
   return code;
 }
 
@@ -2182,63 +2212,57 @@ static int32_t getRowsBlockWithinMergeLimit(const SSortHandle* pHandle, SSHashOb
   return code;
 }
 
-static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
-  int32_t szSort = 0;
-  size_t  nSrc = taosArrayGetSize(pHandle->pOrderedSource);
-  SArray* aExtSrc = taosArrayInit(nSrc, POINTER_BYTES);
-  if (aExtSrc == NULL) {
-    return terrno;
+static void freeHelp(void* param) {
+  SSDataBlock** ptr = param;
+  if (*ptr != NULL) {
+    blockDataDestroy(*ptr);
   }
+}
+
+static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
+  int32_t          szSort = 0;
+  int32_t          code = 0;
+  int32_t          lino = 0;
+  size_t           nSrc = taosArrayGetSize(pHandle->pOrderedSource);
+  SArray*          aExtSrc = NULL;
+  SArray*          aBlkSort = NULL;
+  SSHashObj*       mTableNumRows = NULL;
+  SSHashObj*       mUidBlk = NULL;
+  SBlockOrderInfo* pOrigTsOrder = NULL;
+
+  aExtSrc = taosArrayInit(nSrc, POINTER_BYTES);
+  QUERY_CHECK_NULL(aExtSrc, code, lino, _err, terrno);
+
+  mTableNumRows = tSimpleHashInit(8192, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
+  QUERY_CHECK_NULL(mTableNumRows, code, lino, _err, terrno);
+
+  aBlkSort = taosArrayInit(8, POINTER_BYTES);
+  QUERY_CHECK_NULL(aBlkSort, code, lino, _err, terrno);
+
+  mUidBlk = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
+  QUERY_CHECK_NULL(mUidBlk, code, lino, _err, terrno);
 
   size_t maxBufSize = (pHandle->bSortByRowId) ? pHandle->extRowsMemSize : (pHandle->numOfPages * pHandle->pageSize);
-  int32_t code = createPageBuf(pHandle);
-  if (code != TSDB_CODE_SUCCESS) {
-    taosArrayDestroy(aExtSrc);
-    return code;
-  }
+  code = createPageBuf(pHandle);
+  QUERY_CHECK_CODE(code, lino, _err);
 
   SSortSource* pSrc = taosArrayGetP(pHandle->pOrderedSource, 0);
-  if (pSrc == NULL) {
-    taosArrayDestroy(aExtSrc);
-    return TSDB_CODE_INVALID_PARA;
-  }
+  QUERY_CHECK_NULL(pSrc, code, lino, _err, terrno);
 
-  SBlockOrderInfo* pOrigTsOrder = (!pHandle->bSortByRowId) ? 
-          taosArrayGet(pHandle->pSortInfo, 0) : taosArrayGet(pHandle->aExtRowsOrders, 0);
-  if (pOrigTsOrder == NULL) {
-    return terrno;
-  }
+  pOrigTsOrder =
+      (!pHandle->bSortByRowId) ? taosArrayGet(pHandle->pSortInfo, 0) : taosArrayGet(pHandle->aExtRowsOrders, 0);
+  QUERY_CHECK_NULL(pOrigTsOrder, code, lino, _err, terrno);
 
-  if (pOrigTsOrder->order == TSDB_ORDER_ASC) {
-    pHandle->currMergeLimitTs = INT64_MAX;
-  } else {
-    pHandle->currMergeLimitTs = INT64_MIN;
-  }
-
-  SSHashObj* mTableNumRows = tSimpleHashInit(8192, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
-  if (mTableNumRows == NULL) {
-    return terrno;
-  }
-
-  SArray* aBlkSort = taosArrayInit(8, POINTER_BYTES);
-  if (aBlkSort == NULL) {
-    tSimpleHashCleanup(mTableNumRows);
-    return terrno;
-  }
-
-  SSHashObj* mUidBlk = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
-  if (mUidBlk == NULL) {
-    tSimpleHashCleanup(mTableNumRows);
-    taosArrayDestroy(aBlkSort);
-    return terrno;
-  }
+  pHandle->currMergeLimitTs = (pOrigTsOrder->order == TSDB_ORDER_ASC)? INT64_MAX:INT64_MIN;
 
   while (1) {
-    bool bExtractedBlock = false;
-    bool bSkipBlock = false;
+    bool         bExtractedBlock = false;
+    bool         bSkipBlock = false;
     SSDataBlock* pBlk = NULL;
-    
-    TAOS_CHECK_RETURN(pHandle->fetchfp(pSrc->param, &pBlk));
+
+    code = pHandle->fetchfp(pSrc->param, &pBlk);
+    QUERY_CHECK_CODE(code, lino, _err);
+
     if (pBlk != NULL && pHandle->mergeLimit > 0) {
       SSDataBlock* p = NULL;
       code = getRowsBlockWithinMergeLimit(pHandle, mTableNumRows, pBlk, &bExtractedBlock, &bSkipBlock, &p);
@@ -2251,9 +2275,7 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
 
     if (pBlk != NULL) {
       SColumnInfoData* tsCol = taosArrayGet(pBlk->pDataBlock, pOrigTsOrder->slotId);
-      if (tsCol == NULL) {
-        return terrno;
-      }
+      QUERY_CHECK_NULL(tsCol, code, lino, _err, terrno);
 
       int64_t firstRowTs = *(int64_t*)tsCol->pData;
       if ((pOrigTsOrder->order == TSDB_ORDER_ASC && firstRowTs > pHandle->currMergeLimitTs) ||
@@ -2270,7 +2292,8 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
       void* ppBlk = tSimpleHashGet(mUidBlk, &pBlk->info.id.uid, sizeof(pBlk->info.id.uid));
       if (ppBlk != NULL) {
         SSDataBlock* tBlk = *(SSDataBlock**)(ppBlk);
-        TAOS_CHECK_RETURN(blockDataMerge(tBlk, pBlk));
+        code = blockDataMerge(tBlk, pBlk);
+        QUERY_CHECK_CODE(code, lino, _err);
 
         if (bExtractedBlock) {
           blockDataDestroy(pBlk);
@@ -2280,18 +2303,15 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
         if (bExtractedBlock) {
           tBlk = pBlk;
         } else {
-          TAOS_CHECK_RETURN(createOneDataBlock(pBlk, true, &tBlk));
+          code = createOneDataBlock(pBlk, true, &tBlk);
+          QUERY_CHECK_CODE(code, lino, _err);
         }
 
         code = tSimpleHashPut(mUidBlk, &pBlk->info.id.uid, sizeof(pBlk->info.id.uid), &tBlk, POINTER_BYTES);
-        if (code) {
-          return code;
-        }
+        QUERY_CHECK_CODE(code, lino, _err);
 
         void* px = taosArrayPush(aBlkSort, &tBlk);
-        if (px == NULL) {
-          return terrno;
-        }
+        QUERY_CHECK_NULL(px, code, lino, _err, terrno);
       }
     }
 
@@ -2300,17 +2320,12 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
 
       int64_t p = taosGetTimestampUs();
       if (pHandle->bSortByRowId) {
-        TAOS_CHECK_RETURN(tsortOpenRegion(pHandle));
+        code = tsortOpenRegion(pHandle);
+        QUERY_CHECK_CODE(code, lino, _err);
       }
 
       code = sortBlocksToExtSource(pHandle, aBlkSort, aExtSrc);
-      if (code != TSDB_CODE_SUCCESS) {
-        for (int32_t i = 0; i < taosArrayGetSize(aBlkSort); ++i) {
-          blockDataDestroy(taosArrayGetP(aBlkSort, i));
-        }
-        taosArrayClear(aBlkSort);
-        break;	
-      }
+      QUERY_CHECK_CODE(code, lino, _err);
 
       if (pHandle->bSortByRowId) {
         code = tsortCloseRegion(pHandle);  // ignore this error code
@@ -2318,14 +2333,10 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
 
       int64_t el = taosGetTimestampUs() - p;
       pHandle->sortElapsed += el;
+      taosArrayClearEx(aBlkSort, freeHelp);
 
-      for (int32_t i = 0; i < taosArrayGetSize(aBlkSort); ++i) {
-        blockDataDestroy(taosArrayGetP(aBlkSort, i));
-      }
-
-      taosArrayClear(aBlkSort);
       szSort = 0;
-      qDebug("source %zu created", taosArrayGetSize(aExtSrc));
+      qDebug("%s source %zu created", pHandle->idStr, taosArrayGetSize(aExtSrc));
     }
 
     if (pBlk == NULL) {
@@ -2333,40 +2344,47 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
     }
 
     if (tsortIsClosed(pHandle)) {
-      tSimpleHashClear(mUidBlk);
-      for (int32_t i = 0; i < taosArrayGetSize(aBlkSort); ++i) {
-        blockDataDestroy(taosArrayGetP(aBlkSort, i));
-      }
-      taosArrayClear(aBlkSort);
       break;
     }
   }
 
-  tSimpleHashCleanup(mUidBlk);
-  for (int32_t i = 0; i < taosArrayGetSize(aBlkSort); ++i) {
-    blockDataDestroy(taosArrayGetP(aBlkSort, i));
-  }
-  taosArrayDestroy(aBlkSort);
   tsortClearOrderdSource(pHandle->pOrderedSource, NULL, NULL);
   if (!tsortIsClosed(pHandle)) {
     void* px = taosArrayAddAll(pHandle->pOrderedSource, aExtSrc);
-    if (px == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    }
+    QUERY_CHECK_NULL(px, code, lino, _err, terrno);
   }
 
-  taosArrayDestroy(aExtSrc);
-  tSimpleHashCleanup(mTableNumRows);
   if (pHandle->bSortByRowId) {
     code = tsortFinalizeRegions(pHandle);
   }
 
   pHandle->type = SORT_SINGLESOURCE_SORT;
+
+  _err:
+  if (code) {
+    qError("%s %s failed at line %d since %s", pHandle->idStr, __func__, lino, tstrerror(code));
+  }
+
+  if (aExtSrc) {
+    taosArrayDestroy(aExtSrc);
+  }
+  if (aBlkSort) {
+    taosArrayDestroyEx(aBlkSort, freeHelp);
+  }
+  if (mTableNumRows) {
+    tSimpleHashCleanup(mTableNumRows);
+  }
+  if (mUidBlk) {
+    tSimpleHashCleanup(mUidBlk);
+  }
   return code;
 }
 
 static void freeSSortSource(SSortSource* source) {
-  if (NULL == source) return;
+  if (NULL == source) {
+    return;
+  }
+
   if (source->param && !source->onlyRef) {
     taosMemoryFree(source->param);
   }
@@ -2502,7 +2520,10 @@ static int32_t tsortOpenForBufMergeSort(SSortHandle* pHandle) {
 
   int32_t numOfSources = taosArrayGetSize(pHandle->pOrderedSource);
   if (pHandle->pBuf != NULL) {
-    ASSERT(numOfSources <= getNumOfInMemBufPages(pHandle->pBuf));
+    if (numOfSources > getNumOfInMemBufPages(pHandle->pBuf)) {
+      qError("sort failed at: %s:%d", __func__, __LINE__);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
   }
 
   if (numOfSources == 0) {
@@ -2596,7 +2617,10 @@ static int32_t tsortBufMergeSortNextTuple(SSortHandle* pHandle, STupleHandle** p
   index = tMergeTreeGetChosenIndex(pHandle->pMergeTree);
   pSource = pHandle->cmpParam.pSources[index];
 
-  ASSERT(pSource->src.pBlock != NULL);
+  if (pSource->src.pBlock == NULL) {
+    qError("sort failed at: %s:%d", __func__, __LINE__);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
 
   pHandle->tupleHandle.rowIndex = pSource->src.rowIndex;
   pHandle->tupleHandle.pBlock = pSource->src.pBlock;

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.taosdata.jdbc</groupId>
+    <artifactId>JDBCDemo</artifactId>
+    <version>SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <properties>
+        <project.assembly.dir>src/main/resources/assembly</project.assembly.dir>
+        <java.version>1.8</java.version>
+
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.taosdata.jdbc</groupId>
+            <artifactId>taos-jdbcdriver</artifactId>
+            <version>3.3.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.locationtech.jts</groupId>
+            <artifactId>jts-core</artifactId>
+            <version>1.19.0</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.3.0</version>
+                <executions>
+                    <!-- jdbcDemo -->
+                    <execution>
+                        <id>JdbcDemo</id>
+                        <configuration>
+                            <finalName>JdbcDemo</finalName>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.taosdata.example.JdbcDemo</mainClass>
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+
+                    <execution>
+                        <id>JdbcRestfulDemo</id>
+                        <configuration>
+                            <finalName>JdbcRestfulDemo</finalName>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.taosdata.example.JdbcRestfulDemo</mainClass>
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+
+                    <execution>
+                        <id>GeometryDemo</id>
+                        <configuration>
+                            <finalName>GeometryDemo</finalName>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.taosdata.example.GeometryDemo</mainClass>
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>8</source>
+                    <target>8</target>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+
+        </plugins>
+    </build>
+
+</project>

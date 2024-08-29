@@ -92,7 +92,7 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
     char formatBuf[TSDB_OFFSET_LEN] = {0};
     tFormatOffset(formatBuf, TSDB_OFFSET_LEN, pOffsetVal);
     tqDebug("tmq poll: consumer:0x%" PRIx64
-            ", subkey %s, vgId:%d, existed offset found, offset reset to %s and continue. QID:0x%" PRIx64,
+            ", subkey %s, vgId:%d, existed offset found, offset reset to %s and continue.QID:0x%" PRIx64,
             consumerId, pHandle->subKey, vgId, formatBuf, pRequest->reqId);
     return 0;
   } else {
@@ -176,7 +176,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
 end : {
   char buf[TSDB_OFFSET_LEN] = {0};
   tFormatOffset(buf, TSDB_OFFSET_LEN, &dataRsp.common.rspOffset);
-  tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, rsp offset type:%s, QID:0x%" PRIx64
+  tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, rsp offset type:%s,QID:0x%" PRIx64
           " code:%d",
           consumerId, pHandle->subKey, vgId, dataRsp.common.blockNum, buf, pRequest->reqId, code);
   tDeleteMqDataRsp(&dataRsp);
@@ -245,13 +245,22 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
     int32_t  totalMetaRows = 0;
     while (1) {
       int32_t savedEpoch = atomic_load_32(&pHandle->epoch);
-      ASSERT(savedEpoch <= pRequest->epoch);
+      if (savedEpoch > pRequest->epoch) {
+        tqError("tmq poll: consumer:0x%" PRIx64 " (epoch %d) iter log, savedEpoch error, vgId:%d offset %" PRId64,
+                pRequest->consumerId, pRequest->epoch, vgId, fetchVer);
+        code = TSDB_CODE_TQ_INTERNAL_ERROR;
+        goto END;
+      }
 
       if (tqFetchLog(pTq, pHandle, &fetchVer, pRequest->reqId) < 0) {
         if (totalMetaRows > 0) {
           tqOffsetResetToLog(&btMetaRsp.rspOffset, fetchVer);
           code = tqSendBatchMetaPollRsp(pHandle, pMsg, pRequest, &btMetaRsp, vgId);
-          ASSERT(totalRows == 0);
+          if (totalRows != 0) {
+            tqError("tmq poll: consumer:0x%" PRIx64 " (epoch %d) iter log, totalRows error, vgId:%d offset %" PRId64,
+                    pRequest->consumerId, pRequest->epoch, vgId, fetchVer);
+            code = code == 0 ? TSDB_CODE_TQ_INTERNAL_ERROR : code;
+          }
           goto END;
         }
         tqOffsetResetToLog(&taosxRsp.common.rspOffset, fetchVer);
@@ -302,12 +311,12 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         if (!btMetaRsp.batchMetaReq) {
           btMetaRsp.batchMetaReq = taosArrayInit(4, POINTER_BYTES);
           if (btMetaRsp.batchMetaReq == NULL) {
-            code = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+            code = TAOS_GET_TERRNO(terrno);
             goto END;
           }
           btMetaRsp.batchMetaLen = taosArrayInit(4, sizeof(int32_t));
           if (btMetaRsp.batchMetaLen == NULL) {
-            code = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+            code = TAOS_GET_TERRNO(terrno);
             goto END;
           }
         }
@@ -326,7 +335,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         int32_t tLen = sizeof(SMqRspHead) + len;
         void*   tBuf = taosMemoryCalloc(1, tLen);
         if (tBuf == NULL) {
-          code = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+          code = TAOS_GET_TERRNO(terrno);
           goto END;
         }
         void*    metaBuff = POINTER_SHIFT(tBuf, sizeof(SMqRspHead));
@@ -340,11 +349,11 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           continue;
         }
         if (taosArrayPush(btMetaRsp.batchMetaReq, &tBuf) == NULL) {
-          code = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+          code = TAOS_GET_TERRNO(terrno);
           goto END;
         }
         if (taosArrayPush(btMetaRsp.batchMetaLen, &tLen) == NULL) {
-          code = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+          code = TAOS_GET_TERRNO(terrno);
           goto END;
         }
         totalMetaRows++;
@@ -448,7 +457,7 @@ int32_t tqSendBatchMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SM
   int32_t tlen = sizeof(SMqRspHead) + len;
   void*   buf = rpcMallocCont(tlen);
   if (buf == NULL) {
-    return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    return TAOS_GET_TERRNO(terrno);
   }
 
   int64_t sver = 0, ever = 0;
@@ -628,7 +637,8 @@ int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void*
   } else if (type == 1) {
     *pRefBlock = pDelBlock;
   } else {
-    ASSERTS(0, "unknown type:%d", type);
+    tqError("unknown type:%d", type);
+    code = TSDB_CODE_TMQ_CONSUMER_ERROR;
   }
 
 END:

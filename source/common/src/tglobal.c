@@ -515,7 +515,7 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
 int32_t taosAddClientLogCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "configDir", configDir, CFG_SCOPE_BOTH, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "scriptDir", configDir, CFG_SCOPE_BOTH, CFG_DYN_NONE));
-  TAOS_CHECK_RETURN(cfgAddDir(pCfg, "logDir", tsLogDir, CFG_SCOPE_BOTH, CFG_DYN_CLIENT));
+  TAOS_CHECK_RETURN(cfgAddDir(pCfg, "logDir", tsLogDir, CFG_SCOPE_BOTH, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddFloat(pCfg, "minimalLogDirGB", 1.0f, 0.001f, 10000000, CFG_SCOPE_BOTH, CFG_DYN_CLIENT));
   TAOS_CHECK_RETURN(
       cfgAddInt32(pCfg, "numOfLogLines", tsNumOfLogLines, 1000, 2000000000, CFG_SCOPE_BOTH, CFG_DYN_ENT_BOTH));
@@ -638,7 +638,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddLocale(pCfg, "locale", tsLocale, CFG_SCOPE_BOTH, CFG_DYN_CLIENT));
   TAOS_CHECK_RETURN(cfgAddCharset(pCfg, "charset", tsCharset, CFG_SCOPE_BOTH, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "assert", tsAssert, CFG_SCOPE_BOTH, CFG_DYN_CLIENT));
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableCoreFile", 1, CFG_SCOPE_BOTH, CFG_DYN_CLIENT));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableCoreFile", tsEnableCoreFile, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
   TAOS_CHECK_RETURN(cfgAddFloat(pCfg, "numOfCores", tsNumOfCores, 1, 100000, CFG_SCOPE_BOTH, CFG_DYN_NONE));
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "ssd42", tsSSE42Supported, CFG_SCOPE_BOTH, CFG_DYN_NONE));
@@ -1287,8 +1287,8 @@ static int32_t taosSetSystemCfg(SConfig *pCfg) {
   osSetSystemLocale(locale, charset);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableCoreFile");
-  bool enableCore = pItem->bval;
-  taosSetCoreDump(enableCore);
+  tsEnableCoreFile = pItem->bval;
+  taosSetCoreDump(tsEnableCoreFile);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "assert");
   tsAssert = pItem->bval;
@@ -1901,6 +1901,13 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     goto _exit;
   }
 
+  if (strncasecmp(name, "enableCoreFile", 9) == 0) {
+    tsEnableCoreFile = pItem->bval;
+    taosSetCoreDump(tsEnableCoreFile);
+    uInfo("%s set to %d", name, tsEnableCoreFile);
+    goto _exit;
+  }
+
   if (strcasecmp("slowLogScope", name) == 0) {
     int32_t scope = 0;
     TAOS_CHECK_GOTO(taosSetSlowLogScope(pItem->str, &scope), NULL, _exit);
@@ -2009,9 +2016,9 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
     }
     case 'e': {
       if (strcasecmp("enableCoreFile", name) == 0) {
-        bool enableCore = pItem->bval;
-        taosSetCoreDump(enableCore);
-        uInfo("%s set to %d", name, enableCore);
+        tsEnableCoreFile = pItem->bval;
+        taosSetCoreDump(tsEnableCoreFile);
+        uInfo("%s set to %d", name, tsEnableCoreFile);
         matched = true;
       }
       break;
@@ -2087,11 +2094,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         TAOS_CHECK_GOTO(taosSetSystemLocale(locale, charset), &lino, _out);
         osSetSystemLocale(locale, charset);
         uInfo("locale set to '%s', charset set to '%s'", locale, charset);
-        matched = true;
-      } else if (strcasecmp("logDir", name) == 0) {
-        uInfo("%s set from '%s' to '%s'", name, tsLogDir, pItem->str);
-        tstrncpy(tsLogDir, pItem->str, PATH_MAX);
-        TAOS_CHECK_GOTO(taosExpandDir(tsLogDir, tsLogDir, PATH_MAX), &lino, _out);
         matched = true;
       }
       break;
@@ -2205,7 +2207,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"compressMsgSize", &tsCompressMsgSize},
                                          {"countAlwaysReturnValue", &tsCountAlwaysReturnValue},
                                          {"crashReporting", &tsEnableCrashReport},
-                                         {"enableCoreFile", &tsAsyncLog},
                                          {"enableQueryHb", &tsEnableQueryHb},
                                          {"keepColumnName", &tsKeepColumnName},
                                          {"keepAliveIdle", &tsKeepAliveIdle},
@@ -2329,7 +2330,7 @@ int8_t taosGranted(int8_t type) {
     case TSDB_GRANT_VIEW:
       return atomic_load_8(&tsGrant) & GRANT_FLAG_VIEW;
     default:
-      ASSERTS(0, "undefined grant type:%" PRIi8, type);
+      uWarn("undefined grant type:%" PRIi8, type);
       break;
   }
   return 0;

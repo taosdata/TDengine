@@ -70,7 +70,10 @@ SSyncRaftEntry* syncEntryBuildFromAppendEntries(const SyncAppendEntries* pMsg) {
     return NULL;
   }
   memcpy(pEntry, pMsg->data, pMsg->dataLen);
-  ASSERT(pEntry->bytes == pMsg->dataLen);
+  if (pEntry->bytes != pMsg->dataLen) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return NULL;
+  }
   return pEntry;
 }
 

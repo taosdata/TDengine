@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.taosdata.example.springbootdemo.dao.WeatherMapper">
+
+    <resultMap id="BaseResultMap" type="com.taosdata.example.springbootdemo.domain.Weather">
+        <id column="ts" jdbcType="TIMESTAMP" property="ts"/>
+        <result column="temperature" jdbcType="FLOAT" property="temperature"/>
+        <result column="humidity" jdbcType="FLOAT" property="humidity"/>
+        <result column="bytes" jdbcType="BINARY" property="bytes" />
+    </resultMap>
+
+    <select id="lastOne" resultType="java.util.Map">
+        select last_row(ts) as ts, last_row(temperature) as temperature, last_row(humidity) as humidity, last_row(note) as note,last_row(location) as location , last_row(groupid) as groupid from test.weather;
+    </select>
+
+    <update id="dropDB">
+        drop
+        database if exists test
+    </update>
+
+    <update id="createDB">
+        create
+        database if not exists test
+    </update>
+
+    <update id="createSuperTable">
+        create table if not exists test.weather
+        (
+            ts
+            timestamp,
+            temperature
+            float,
+            humidity
+            float,
+            note
+            binary
+        (
+            64
+        ),
+            bytes
+            binary
+        (
+            64
+        )) tags
+        (
+            location nchar
+        (
+            64
+        ), groupId int)
+    </update>
+
+    <update id="createTable" parameterType="com.taosdata.example.springbootdemo.domain.Weather">
+        create table if not exists test.t#{groupId} using test.weather tags
+        (
+            #{location},
+            #{groupId}
+        )
+    </update>
+
+    <select id="select" resultMap="BaseResultMap">
+        select * from test.weather order by ts desc
+        <if test="limit != null">
+            limit #{limit,jdbcType=BIGINT}
+        </if>
+        <if test="offset != null">
+            offset #{offset,jdbcType=BIGINT}
+        </if>
+    </select>
+
+    <insert id="insert" parameterType="com.taosdata.example.springbootdemo.domain.Weather">
+        insert into test.t#{groupId} (ts, temperature, humidity, note, bytes)
+        values (#{ts}, ${temperature}, ${humidity}, #{note}, #{bytes})
+    </insert>
+
+    <select id="getSubTables" resultType="String">
+        select tbname
+        from test.weather
+    </select>
+
+    <select id="count" resultType="int">
+        select count(*)
+        from test.weather
+    </select>
+
+    <resultMap id="avgResultSet" type="com.taosdata.example.springbootdemo.domain.Weather">
+        <id column="ts" jdbcType="TIMESTAMP" property="ts"/>
+        <result column="avg(temperature)" jdbcType="FLOAT" property="temperature"/>
+        <result column="avg(humidity)" jdbcType="FLOAT" property="humidity"/>
+    </resultMap>
+
+    <select id="avg" resultMap="avgResultSet">
+        select avg(temperature), avg(humidity)
+        from test.weather interval(1m)
+    </select>
+
+</mapper>
