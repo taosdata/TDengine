@@ -837,6 +837,9 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
 
   if (pNew->conflict == TRN_CONFLICT_NOTHING) return conflict;
 
+  int32_t size = sdbGetSize(pMnode->pSdb, SDB_TRANS);
+  mInfo("trans:%d, trans hash size %d", pNew->id, size);
+
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_TRANS, pIter, (void **)&pTrans);
     if (pIter == NULL) break;
@@ -905,14 +908,14 @@ int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans) {
   if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
     if (strlen(pTrans->dbname) == 0 && strlen(pTrans->stbname) == 0) {
       code = TSDB_CODE_MND_TRANS_CONFLICT;
-      mError("trans:%d, failed to prepare conflict db not set", pTrans->id);
+      mError("trans:%d, failed to check tran conflict since db not set", pTrans->id);
       TAOS_RETURN(code);
     }
   }
 
   if (mndCheckTransConflict(pMnode, pTrans)) {
     code = TSDB_CODE_MND_TRANS_CONFLICT;
-    mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
+    mError("trans:%d, failed to check tran conflict since %s", pTrans->id, tstrerror(code));
     TAOS_RETURN(code);
   }
 
@@ -948,7 +951,7 @@ int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans) {
 
   if (conflict) {
     code = TSDB_CODE_MND_TRANS_CONFLICT_COMPACT;
-    mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
+    mError("trans:%d, failed to check tran conflict with compact since %s", pTrans->id, tstrerror(code));
     TAOS_RETURN(code);
   }
 
