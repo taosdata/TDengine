@@ -146,6 +146,7 @@ class TDTestCase:
         err_param = [1.5,'a','c2']
         for i in err_param:
             tdSql.error(f"select to_iso8601({i}) from db.ntb")
+        tdSql.error(f"select to_iso8601(ts, timezone()) from db.stb")
         tdSql.query("select to_iso8601(now) from db.stb")
         tdSql.checkRows(3)
         tdSql.query("select to_iso8601(now()) from db.stb")
