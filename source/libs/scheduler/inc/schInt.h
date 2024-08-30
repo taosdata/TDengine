@@ -91,7 +91,7 @@ typedef struct SSchRuntimeStat {
 #if defined(WINDOWS) || defined(_TD_DARWIN_64)
   size_t avoidCompilationErrors;
 #endif
-
+  int64_t hbConnNotFound;
 } SSchRuntimeStat;
 
 typedef struct SSchJobStat {
