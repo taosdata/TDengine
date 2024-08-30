@@ -168,7 +168,7 @@ int64_t smlGetTimeValue(const char *value, int32_t len, uint8_t fromPrecision, u
 int32_t smlBuildTableInfo(int numRows, const char *measure, int32_t measureLen, SSmlTableInfo** tInfo) {
   SSmlTableInfo *tag = (SSmlTableInfo *)taosMemoryCalloc(sizeof(SSmlTableInfo), 1);
   if (!tag) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   tag->sTableName = measure;
@@ -609,7 +609,7 @@ int32_t getTableUid(SSmlHandle *info, SSmlLineInfo *currElement, SSmlTableInfo *
 int32_t smlBuildSTableMeta(bool isDataFormat, SSmlSTableMeta **sMeta) {
   SSmlSTableMeta *meta = (SSmlSTableMeta *)taosMemoryCalloc(sizeof(SSmlSTableMeta), 1);
   if (!meta) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (unlikely(!isDataFormat)) {
@@ -1625,7 +1625,7 @@ int32_t smlBuildSmlInfo(TAOS *taos, SSmlHandle **handle) {
   int32_t     code = TSDB_CODE_SUCCESS;
   SSmlHandle *info = (SSmlHandle *)taosMemoryCalloc(1, sizeof(SSmlHandle));
   if (NULL == info) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if (taos != NULL) {
     info->taos = acquireTscObj(*(int64_t *)taos);
