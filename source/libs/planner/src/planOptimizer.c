@@ -4907,16 +4907,13 @@ static EDealRes mergeProjectionsExpr2(SNode** pNode, void* pContext) {
     int32_t projIdx = 1;
     FOREACH(pProjection, pChildProj->pProjections) {
       if (isColRefExpr(pProjCol, (SExprNode*)pProjection)) {
-      
-      //}
-      //if (0 == strcmp(((SColumnNode*)(*pNode))->colName, ((SExprNode*)pProjection)->aliasName)) {
         SNode* pExpr = NULL;
         pCxt->errCode = nodesCloneNode(pProjection, &pExpr);
         if (pExpr == NULL) {
           return DEAL_RES_ERROR;
         }
         snprintf(((SExprNode*)pExpr)->aliasName, sizeof(((SExprNode*)pExpr)->aliasName), "%s",
-            ((SExprNode*)*pNode)->aliasName);// 保留外层project的aliasname, 外层project的aliasName是被改写过的.
+            ((SExprNode*)*pNode)->aliasName);
         nodesDestroyNode(*pNode);
         *pNode = pExpr;
         return DEAL_RES_IGNORE_CHILD;
@@ -4932,7 +4929,7 @@ static EDealRes mergeProjectionsExpr(SNode** pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
     SNode* pTarget;
     FOREACH(pTarget, ((SLogicNode*)pChildProj)->pTargets) {
-      if (nodesEqualNode(pTarget, *pNode)) { // pNode是projectlist里的, aliasName被改写成了expr_#, 而pTarget是根据childProject的projectlist生成的, node里面啥都没有 
+      if (nodesEqualNode(pTarget, *pNode)) {
         SNode* pProjection;
         FOREACH(pProjection, pChildProj->pProjections) {
           if (0 == strcmp(((SColumnNode*)pTarget)->colName, ((SExprNode*)pProjection)->aliasName)) {

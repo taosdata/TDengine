@@ -451,7 +451,6 @@ typedef struct SSelectStmt {
   bool          groupSort;
   bool          tagScan;
   bool          joinContains;
-  bool          expandStar;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -624,9 +623,6 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
 int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, SSHashObj* pMultiTableAlias, ECollectColType type,
                             SNodeList** pCols);
 int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, ECollectColType type, SNodeList** pCols);
-
-int32_t nodesCollectColumnsForTargets(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
-                            SNodeList** pCols);
 
 typedef bool (*FFuncClassifier)(int32_t funcId);
 int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList** pFuncs);

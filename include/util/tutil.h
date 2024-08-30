@@ -82,9 +82,7 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
 
 static FORCE_INLINE int32_t taosHashBinary(char* pBuf, int32_t len) {
   uint64_t hashVal = MurmurHash3_64(pBuf, len);
-  uInfo("wjm hash binary for: %s", pBuf);
-  int32_t ret = sprintf(pBuf, "%" PRIu64, hashVal);
-  return ret;
+  return sprintf(pBuf, "%" PRIu64, hashVal);
 }
 
 static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len) {

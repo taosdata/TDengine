@@ -1346,7 +1346,10 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pSort->node.resultDataOrder = isPrimaryKeySort(pSelect->pOrderByList)
                                     ? (pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
                                     : DATA_ORDER_LEVEL_NONE;
-  code = nodesCollectColumnsForTargets(pSelect, SQL_CLAUSE_ORDER_BY, NULL, COLLECT_COL_TYPE_ALL, &pSort->node.pTargets);
+  code = nodesCollectColumns(pSelect, SQL_CLAUSE_ORDER_BY, NULL, COLLECT_COL_TYPE_ALL, &pSort->node.pTargets);
+  if (TSDB_CODE_SUCCESS == code) {
+    rewriteTargetsWithResId(pSort->node.pTargets);
+  }
   if (TSDB_CODE_SUCCESS == code && NULL == pSort->node.pTargets) {
     SNode* pNew = NULL;
     code = nodesCloneNode(nodesListGetNode(pCxt->pCurrRoot->pTargets, 0), &pNew);
@@ -1466,6 +1469,9 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListMakeStrictAppend(&pPartition->node.pTargets, pNew);
     }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    rewriteTargetsWithResId(pPartition->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

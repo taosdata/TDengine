@@ -235,12 +235,10 @@ static int32_t buildDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SD
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListStrictAppend(pDataBlockDesc->pSlots, createSlotDesc(pCxt, name, pNode, slotId, true, false));
     }
-    qInfo("wjm append slot to hash name: %s, slotId: %d, aliasName: %s", name, slotId, ((SExprNode*)pNode)->aliasName);
     code = putSlotToHash(name, len, pDataBlockDesc->dataBlockId, slotId, pNode, pHash);
     if (TSDB_CODE_SUCCESS == code) {
       if (nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->resIdx > 0) {
-        sprintf(name + strlen(name), "%d", ((SColumnNode*)pNode)->resIdx);
-        qInfo("wjm append slot name to projidx hash: %s, slotId: %d, aliasName: %s", name, slotId, ((SExprNode*)pNode)->aliasName);
+        sprintf(name + strlen(name), "_%d", ((SColumnNode*)pNode)->resIdx);
         code = putSlotToHash(name, strlen(name), pDataBlockDesc->dataBlockId, slotId, pNode, pProjIdxDescHash);
       }
     }
@@ -326,7 +324,6 @@ static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, 
       }
     }
 
-      qInfo("wjm add datablock slots for: %s id: %d, aliasName: %s", name, slotId, ((SExprNode*)pNode)->aliasName);
       taosMemoryFree(name);
     if (TSDB_CODE_SUCCESS == code) {
       SNode* pTarget = NULL;
@@ -402,13 +399,13 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     SSetSlotIdCxt* pCxt = (SSetSlotIdCxt*)pContext;
     char           *name = NULL;
     int32_t        len = 0;
-    pCxt->errCode = getSlotKey(pNode, NULL, &name, &len, 0);
+    pCxt->errCode = getSlotKey(pNode, NULL, &name, &len, 16);
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
       return DEAL_RES_ERROR;
     }
     SSlotIndex *pIndex = NULL;
     if (((SColumnNode*)pNode)->projRefIdx > 0) {
-      sprintf(name + strlen(name), "%d", ((SColumnNode*)pNode)->projRefIdx);
+      sprintf(name + strlen(name), "_%d", ((SColumnNode*)pNode)->projRefIdx);
       pIndex = taosHashGet(pCxt->pLeftProjIdxHash, name, strlen(name));
       if (!pIndex) {
         pIndex = taosHashGet(pCxt->pRightProdIdxHash, name, strlen(name));
@@ -421,7 +418,7 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     }
     // pIndex is definitely not NULL, otherwise it is a bug
     if (NULL == pIndex) {
-      planError("wjm doSetSlotId failed, invalid slot name %s", name);
+      planError("doSetSlotId failed, invalid slot name %s", name);
       dumpSlots("left datablock desc", pCxt->pLeftHash);
       dumpSlots("right datablock desc", pCxt->pRightHash);
       pCxt->errCode = TSDB_CODE_PLAN_INTERNAL_ERROR;
@@ -430,7 +427,6 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     }
     ((SColumnNode*)pNode)->dataBlockId = pIndex->dataBlockId;
     ((SColumnNode*)pNode)->slotId = ((SSlotIdInfo*)taosArrayGet(pIndex->pSlotIdsInfo, 0))->slotId;
-    qInfo("wjm set slotId for %s, slotId: %d, aliasName: %s", name, ((SColumnNode*)pNode)->slotId, ((SExprNode*)pNode)->aliasName);
     taosMemoryFree(name);
     return DEAL_RES_IGNORE_CHILD;
   }
@@ -499,7 +495,6 @@ static SPhysiNode* makePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
     terrno = code;
     return NULL;
   }
-  qInfo("wjm create node: %s", nodesNodeName(type));
 
   TSWAP(pPhysiNode->pLimit, pLogicNode->pLimit);
   TSWAP(pPhysiNode->pSlimit, pLogicNode->pSlimit);
