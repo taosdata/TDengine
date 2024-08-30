@@ -15,3 +15,11 @@ select CHAR_LENGTH(cast(nch1 as varchar)) from ts_4893.meters order by ts limit 
 select pow(CHAR_LENGTH(nch1), 2) from ts_4893.meters order by ts limit 5;
 select sqrt(CHAR_LENGTH(nch1)) from ts_4893.meters order by ts limit 5;
 select cast(CHAR_LENGTH(nch1) as int) from ts_4893.meters order by ts limit 5;
+select char_length('taos');
+select char_length('涛思');
+select char_length('涛思taos');
+select char_length('tao\'s');
+select char_length(nch1) from ts_4893.d0 limit 10;
+select char_length(nch1) from ts_4893.meters limit 10;
+select char_length(var1) from ts_4893.d0 limit 10;
+select char_length(var1) from ts_4893.meters limit 10;

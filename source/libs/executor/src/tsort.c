@@ -286,23 +286,19 @@ int32_t tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t pageSize,
                               SSDataBlock* pBlock, const char* idstr, uint64_t pqMaxRows, uint32_t pqMaxTupleLength,
                               uint32_t pqSortBufSize, SSortHandle** pHandle) {
   int32_t code = 0;
-  *pHandle = NULL;
+  int32_t lino = 0;
 
+  QRY_OPTR_CHECK(pHandle);
   SSortHandle* pSortHandle = taosMemoryCalloc(1, sizeof(SSortHandle));
-  if (pSortHandle == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
+  QUERY_CHECK_NULL(pSortHandle, code, lino, _err, terrno);
 
   pSortHandle->type = type;
   pSortHandle->pageSize = pageSize;
   pSortHandle->numOfPages = numOfPages;
   pSortHandle->pSortInfo = taosArrayDup(pSortInfo, NULL);
-  if (pSortHandle->pSortInfo == NULL) {
-    return terrno;
-  }
+  QUERY_CHECK_NULL(pSortHandle->pSortInfo, code, lino, _err, terrno);
 
   pSortHandle->loops = 0;
-
   pSortHandle->pqMaxTupleLength = pqMaxTupleLength;
   if (pqMaxRows != 0) {
     pSortHandle->pqSortBufSize = pqSortBufSize;
@@ -312,18 +308,13 @@ int32_t tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t pageSize,
   pSortHandle->forceUsePQSort = false;
   if (pBlock != NULL) {
     code = createOneDataBlock(pBlock, false, &pSortHandle->pDataBlock);
-    if (code) {
-      goto _err;
-    }
+    QUERY_CHECK_CODE(code, lino, _err);
   }
 
   pSortHandle->mergeLimit = -1;
 
   pSortHandle->pOrderedSource = taosArrayInit(4, POINTER_BYTES);
-  if (pSortHandle->pOrderedSource == NULL) {
-    code = terrno;
-    goto _err;
-  }
+  QUERY_CHECK_NULL(pSortHandle->pOrderedSource, code, lino, _err, terrno);
 
   pSortHandle->cmpParam.orderInfo = pSortInfo;
   pSortHandle->cmpParam.cmpGroupId = false;
@@ -346,17 +337,17 @@ int32_t tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t pageSize,
 
   if (idstr != NULL) {
     pSortHandle->idStr = taosStrdup(idstr);
-    if (pSortHandle->idStr == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
-    }
+    QUERY_CHECK_NULL(pSortHandle->idStr, code, lino, _err, terrno);
   }
 
   *pHandle = pSortHandle;
   return code;
 
 _err:
-  tsortDestroySortHandle(pSortHandle);
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  if (pSortHandle) {
+    tsortDestroySortHandle(pSortHandle);
+  }
   return code;
 }
 

@@ -126,3 +126,14 @@ select SUBSTR(nch1, 2, id) from ts_4893.meters where char_length(nch1) > 6 order
 select SUBSTR(nch1 FROM 2 FOR id) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
 select SUBSTR(var1, 2, id) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
 select SUBSTR(var1 FROM 2 FOR id) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
+select substring('tdengine', 2);
+select substring('tdengine', 8);
+select substring('tdengine', 1, 3);
+select substring('tdengine', 2, 99);
+select substring('tdengine', -1, 10);
+select substring('中国', 1, 3);
+select substring('中国tdengine', 1, 3);
+select substring(var1, 1, 5) from ts_4893.d0 order by ts limit 10;
+select substring(var1, 1, 5) from ts_4893.meters order by ts limit 10;
+select substring(nch1, 1, 5) from ts_4893.d0 order by ts limit 10;
+select substring(nch1, 1, 5) from ts_4893.meters order by ts limit 10;
