@@ -1209,6 +1209,11 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
   pInfo->rowCapacity =
       blockDataGetCapacityInRow(pInfo->binfo.pRes, getBufPageSize(pInfo->pBuf),
                                 blockDataGetSerialMetaSize(taosArrayGetSize(pInfo->binfo.pRes->pDataBlock)));
+  if (pInfo->rowCapacity < 0) {
+    code = terrno;
+    goto _error;
+  }
+  
   pInfo->columnOffset = setupColumnOffset(pInfo->binfo.pRes, pInfo->rowCapacity);
   QUERY_CHECK_NULL(pInfo->columnOffset, code, lino, _error, terrno);
 

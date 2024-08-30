@@ -32,7 +32,6 @@
 
 #define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)           \
   do {                                                     \
-    assert(sizeof(_uid) == sizeof(uint64_t));              \
     *(uint64_t*)(_k) = (_uid);                             \
     (void)memcpy((_k) + sizeof(uint64_t), (_ori), (_len)); \
   } while (0)
