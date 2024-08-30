@@ -6248,7 +6248,7 @@ static int32_t replaceToChildTableQuery(STranslateContext* pCxt, SEqCondTbNameTa
     for (int32_t i = 0; i < pRealTable->pTsmas->size; ++i) {
       STableTSMAInfo* pTsma = taosArrayGetP(pRealTable->pTsmas, i);
       SName           tsmaTargetTbName = {0};
-      toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, "", &tsmaTargetTbName);
+      (void)toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, "", &tsmaTargetTbName);
       int32_t len = snprintf(buf, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN, "%s.%s_%s", pTsma->dbFName, pTsma->name,
                              pRealTable->table.tableName);
       len = taosCreateMD5Hash(buf, len);
@@ -6264,7 +6264,10 @@ static int32_t replaceToChildTableQuery(STranslateContext* pCxt, SEqCondTbNameTa
       sprintf(ctbInfo.tableName, "%s", tsmaTargetTbName.tname);
       ctbInfo.uid = pMeta->uid;
 
-      taosArrayPush(pRealTable->tsmaTargetTbInfo, &ctbInfo);
+      if (NULL == taosArrayPush(pRealTable->tsmaTargetTbInfo, &ctbInfo)) {
+        code = terrno;
+        goto _return;
+      }
     }
   }
 
