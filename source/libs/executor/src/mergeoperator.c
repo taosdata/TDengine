@@ -649,14 +649,13 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
   }
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (pInfo != NULL) {
     destroyMultiwayMergeOperatorInfo(pInfo);
   }
-
   pTaskInfo->code = code;
-  taosMemoryFree(pOperator);
+  destroyOperatorAndDownstreams(pOperator, downStreams, numStreams);
   return code;
 }

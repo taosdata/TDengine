@@ -5221,7 +5221,7 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) 
     FLT_ERR_JRET(fltOptimizeNodes(info, &info->sclCtx.node, &stat));
   }
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _return:
 
