@@ -2258,6 +2258,7 @@ static int32_t lastIterOpen(SFSLastIter *iter, STFileSet *pFileSet, STsdb *pTsdb
   int32_t code = 0;
   destroySttBlockReader(pr->pLDataIterArray, NULL);
   pr->pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
+  if (pr->pLDataIterArray == NULL) return terrno;
 
   SMergeTreeConf conf = {
       .uid = uid,
