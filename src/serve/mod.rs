@@ -220,6 +220,13 @@ impl Cli {
             None => "0.0.0.0:6050".to_string(),
         }
     }
+    #[inline]
+    pub fn get_grpc_address(&self) -> String {
+        match self.grpc.as_ref() {
+            Some(addr) => addr.clone(),
+            None => "0.0.0.0:6055".to_string(),
+        }
+    }
 
     #[instrument(skip_all)]
     pub(super) async fn controller(

@@ -1,3 +1,5 @@
+mod worker;
+
 use std::{collections::BTreeMap, ops::Deref, sync::Arc, time::Duration};
 
 use crate::{
@@ -9,7 +11,6 @@ use crate::{
     Action,
 };
 use anyhow::{anyhow, bail, Context, Result};
-use deadpool::managed::{Metrics, RecycleResult};
 use faststr::FastStr;
 use linked_hash_map::LinkedHashMap;
 use serde::Serialize;
@@ -18,6 +19,9 @@ use taos::taos_query::tmq::Assignment;
 use taos::*;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
+use worker::{parse_message, Worker, WriteOptions};
+
+use worker::*;
 
 async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<()> {
     let target_desc = to.describe(&table).await?;
@@ -600,104 +604,6 @@ async fn write_meta(
     Ok(())
 }
 
-struct RawMessage {
-    raw: RawMeta,
-    meta: Option<JsonMeta>,
-    data: Option<Vec<RawBlock>>,
-}
-
-impl RawMessage {
-    pub fn meta_only(raw: RawMeta, meta: Option<JsonMeta>) -> Self {
-        Self {
-            raw,
-            meta,
-            data: None,
-        }
-    }
-    pub fn data_only(raw: RawMeta, data: Vec<RawBlock>) -> Self {
-        Self {
-            raw,
-            meta: None,
-            data: Some(data),
-        }
-    }
-    pub fn meta_data(raw: RawMeta, meta: Option<JsonMeta>, data: Vec<RawBlock>) -> Self {
-        Self {
-            raw,
-            meta,
-            data: Some(data),
-        }
-    }
-
-    fn rows(&self) -> Option<usize> {
-        self.data
-            .as_ref()
-            .map(|v| v.iter().map(|b| b.nrows()).sum())
-    }
-}
-async fn parse_meta_only(meta: &Meta, metrics: &TmqMetrics) -> Result<RawMessage> {
-    let raw = meta.as_raw_meta().await?;
-    let json_meta = meta
-        .as_json_meta()
-        .in_current_span()
-        .await
-        .context("Fetch json meta error")
-        .ok();
-    metrics.add_messages_of_meta(1);
-    Ok(RawMessage::meta_only(raw, json_meta))
-}
-
-async fn parse_data_only(data: &Data, metrics: &TmqMetrics) -> Result<RawMessage> {
-    let raw = data.as_raw_data().await?;
-    let mut vec = Vec::new();
-    while let Some(mut raw) = data
-        .fetch_raw_block()
-        .await
-        .context("Fetch raw block error")?
-    {
-        vec.push(raw);
-    }
-    metrics.add_messages_of_data(1);
-    Ok(RawMessage::data_only(
-        unsafe { std::mem::transmute(raw) },
-        vec,
-    ))
-}
-
-async fn parse_meta_data(meta: &Meta, data: &Data, metrics: &TmqMetrics) -> Result<RawMessage> {
-    let raw = meta.as_raw_meta().await?;
-    let json_meta = meta
-        .as_json_meta()
-        .in_current_span()
-        .await
-        .context("Fetch json meta error")
-        .ok();
-    metrics.add_messages_of_meta(1);
-    let mut vec = Vec::new();
-    while let Some(mut raw) = data
-        .fetch_raw_block()
-        .await
-        .context("Fetch raw block error")?
-    {
-        vec.push(raw);
-    }
-    metrics.add_messages_of_data(1);
-    Ok(RawMessage::meta_data(raw, json_meta, vec))
-}
-
-async fn parse_message(
-    message: &MessageSet<Meta, Data>,
-    metrics: &TmqMetrics,
-) -> Result<RawMessage> {
-    match message {
-        MessageSet::Meta(meta) => parse_meta_only(meta, metrics).in_current_span().await,
-        MessageSet::Data(data) => parse_data_only(data, metrics).in_current_span().await,
-        MessageSet::MetaData(meta, data) => {
-            parse_meta_data(meta, data, metrics).in_current_span().await
-        }
-    }
-}
-
 type TaosConnection = deadpool::managed::Object<taos::taos_query::Manager<taos::TaosBuilder>>;
 async fn sync_msg(
     topic: &Topic,
@@ -932,7 +838,7 @@ async fn sync(
 
 #[instrument(skip_all, fields(consumer.id = id, table))]
 async fn sync_concurrently(
-    topic: &Topic,
+    topic: &Arc<Topic>,
     id: usize,
     consumer: Consumer,
     source_pool: &TaosPool,
@@ -947,189 +853,30 @@ async fn sync_concurrently(
 ) -> Result<Consumer> {
     tracing::info!("Task start");
     let mut stream = consumer.stream();
-    let mut rows = 0;
-    let mut messages = 0;
-    let mut taos = target_pool.get().await?;
-    let target_is_v3 = taos
+    let taos = target_pool.get().await?;
+    let _target_is_v3 = taos
         .exec("desc information_schema.ins_databases")
         .await
         .is_ok();
     let metrics = metrics_arc.tmq();
-    let refresh_progress_interval =
-        crate::utils::interval::IntervalLimit::new(Duration::from_secs(1));
 
     let chunk_size = std::env::var("TMQ_COMMIT_CHUNK_SIZE")
         .ok()
         .and_then(|s| s.parse().ok())
-        .unwrap_or(1024);
-    let mut items = Vec::with_capacity(chunk_size);
+        .unwrap_or(128);
     let mut last_type = 0;
-
-    struct Worker {
-        source: TaosPool,
-        target: TaosPool,
-        target_connection: Option<TaosConnection>,
-        table: Option<FastStr>,
-        sender: flume::Sender<anyhow::Result<()>>,
-    }
-    impl Clone for Worker {
-        fn clone(&self) -> Self {
-            Self {
-                source: self.source.clone(),
-                target: self.target.clone(),
-                target_connection: None,
-                table: self.table.clone(),
-                sender: self.sender.clone(),
-            }
-        }
-    }
-
-    impl Worker {
-        pub async fn write(&mut self, message: &RawMessage) -> Result<()> {
-            if self.target_connection.is_none() {
-                self.target_connection = Some(self.target.get().await?);
-            }
-            let rows = message.rows();
-            let conn = self.target_connection.as_ref().unwrap();
-
-            tracing::debug!(rows, bytes = message.raw.raw_len(), "Write raw message");
-            if let Err(err) = conn.write_raw_meta(&message.raw).await {
-                // metrics.add_write_raw_fails(1);
-                // Print error no matter how we will deal with it, so that we can know what happened.
-                tracing::debug!("Write raw meta error: {err:#}");
-                let code = *err.code().deref();
-                if let Some(meta) = &message.meta {
-                    match code {
-                        // Table not exist error codes.
-                        0x0218 | 0x2603 | 0x036D | 0x0618 => {
-                            for json_meta in meta {
-                                match json_meta {
-                                    MetaUnit::Create(create) => match create {
-                                        MetaCreate::Super {
-                                            table_name: _,
-                                            columns: _,
-                                            tags: _,
-                                        } => {
-                                            // Stable should never not exist.
-                                            continue;
-                                        }
-                                        MetaCreate::Child {
-                                            table_name,
-                                            using,
-                                            tags: _,
-                                            tag_num: _,
-                                        } => {
-                                            // Create child table error means stable not exist.
-                                            tracing::warn!("Table does not exist: {using} while create child {table_name}. Sync super table schema.");
-                                            let from = self.source.get().await?;
-                                            sync_super_table_schema(
-                                                &from,
-                                                &using,
-                                                &conn,
-                                                None,
-                                                &Default::default(),
-                                                &[],
-                                            )
-                                            .await?;
-                                            if let Err(err) =
-                                                conn.write_raw_meta(&message.raw).await
-                                            {
-                                                // metrics.add_write_raw_fails(1);
-                                                Err(err.context(format!(
-                                                    "Write raw meta error with table {table_name}"
-                                                )))?;
-                                            }
-                                        }
-                                        MetaCreate::Normal {
-                                            table_name: _,
-                                            columns: _,
-                                        } => {
-                                            // Normal table should never not exist.
-                                            continue;
-                                        }
-                                    },
-                                    // Do nothing if not create
-                                    MetaUnit::Alter(_)
-                                    | MetaUnit::Drop(_)
-                                    | MetaUnit::Delete(_) => {
-                                        tracing::warn!(
-                                    "Unexpected error {err:#} for meta: ```{json_meta}```, do nothing."
-                                );
-                                    }
-                                }
-                            }
-                        }
-                        0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3 => {
-                            tokio::time::sleep(Duration::from_millis(500)).await;
-                            // let _ = conn;
-                            // let _ = self.target_connection.take();
-                            // self.target_connection.replace(self.target.get().await?);
-                            // let conn = self.target_connection.as_ref().unwrap();
-                            // // let _ = conn.exec("show tables").await;
-                            let _ = conn.write_raw_meta(&message.raw).await.inspect_err(|err| {
-                                tracing::debug!(
-                                    error = format!("{err:#}"),
-                                    "retry write raw with code {code}"
-                                );
-                            });
-                        }
-                        _ => {
-                            // Fallback to sql method.
-                            tracing::debug!("Fallback to sql method due to: {err:#}.");
-                            let sqls = meta.iter().map(ToString::to_string).collect_vec();
-                            conn.exec_many(&sqls)
-                                .in_current_span()
-                                .await
-                                .context("Write raw meta with sql error")?;
-                        }
-                    }
-                }
-                if let Some(data) = &message.data {
-                    match code {
-                        // Table not exist error codes or invalid input.
-                        0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 | 0x0118 | 0x4000 => {
-                            tracing::debug!("Fallback to block-by-block method due to: {err:#}.");
-                        }
-                        _ => {
-                            // metrics.add_write_raw_fails(1);
-                            tracing::error!("Write data error: {err}");
-                            // let block = data.fetch_raw_block().await;
-                            if let Some(block) = data.first() {
-                                tracing::error!(
-                                    "Details about the failed data: {}",
-                                    block.pretty_format()
-                                );
-                            }
-                            Err(err).context("Write raw data into target error")?;
-                        }
-                    }
-                }
-            }
-            Ok(())
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl deadpool::managed::Manager for Worker {
-        type Type = Worker;
-        type Error = ();
-
-        async fn create(&self) -> Result<Self::Type, Self::Error> {
-            Ok(self.clone())
-        }
-
-        async fn recycle(
-            &self,
-            _obj: &mut Self::Type,
-            _metrics: &Metrics,
-        ) -> RecycleResult<Self::Error> {
-            Ok(())
-        }
-    }
+    let actions = Arc::new(actions.to_owned());
+    let strategy = WriteStrategy::from_env();
+    let options = WriteOptions {
+        with_meta_delete,
+        with_meta_drop,
+        strategy,
+        actions,
+    };
 
     use std::str::FromStr;
     let mut join_set = tokio::task::JoinSet::new();
-    let (msg_tx, mut msg_rx) = flume::bounded(concurrency * 2);
+    let (msg_tx, msg_rx) = flume::bounded::<RawMessage>(concurrency * 2);
     let (res_tx, res_rx) = flume::bounded(chunk_size);
 
     let table = table.map(|str| FastStr::from_str(str).unwrap());
@@ -1140,40 +887,67 @@ async fn sync_concurrently(
             target_connection: None,
             table: table.clone(),
             sender: res_tx.clone(),
+            options: options.clone(),
+            metrics: metrics_arc.clone(),
+            topic: topic.clone(),
         };
         let msg_rx = msg_rx.clone();
         join_set.spawn(
             async move {
                 let mut worker = worker;
-                while let Ok(message) = msg_rx.recv_async().await {
-                    let res = worker.write(&message).await;
+                let mut mid = 0;
+                while let Ok(mut message) = msg_rx.recv_async().await {
+                    mid += 1;
+                    let rows = message.rows();
+                    let bytes = message.raw.raw_len();
+                    tracing::debug!(mid, rows, bytes, "Received message");
+                    let res = worker
+                        .write(&mut message)
+                        .instrument(tracing::debug_span!("write", mid))
+                        .await;
                     let _ = worker.sender.send_async(res).await;
                 }
+                tracing::info!("Worker done");
             }
             .instrument(tracing::info_span!("worker", wid)),
         );
     }
 
-    // type WorkerPool = deadpool::managed::Pool<Worker>;
-
-    // let manager = WorkerPool::builder(worker)
-    //     .max_size()
-    //     .runtime(deadpool::Runtime::Tokio1)
-    //     .build()?;
-
-    // let sem = tokio::sync::Semaphore::new(
-    //     std::thread::available_parallelism().map_or_else(|_| 1, |n| n.get()),
-    // );
-
     let mut last_offset = None;
+    let mut chunk_len = 0;
+
+    macro_rules! clean_cache {
+        () => {
+            for _ in 0..chunk_len {
+                res_rx.recv_async().await??;
+            }
+
+            #[allow(unused_assignments)]
+            {
+                chunk_len = 0;
+            }
+        };
+    }
+
+    let now = std::time::Instant::now();
+    println!("# [{id}] Start consuming at {}", chrono::Local::now());
+    tracing::info!("Start consuming");
     while let Some((offset, message)) = stream.try_next().await? {
+        if cancel.is_cancelled() {
+            tracing::info!("Sync cancelled");
+            break;
+        }
         let message_type = match &message {
             MessageSet::Meta(_) => 1,
             MessageSet::Data(_) => 2,
             MessageSet::MetaData(_, _) => 3,
         };
-        let message = parse_message(&message, metrics).in_current_span().await?;
+        metrics.add_messages(1);
+        let message = parse_message(&message, &options.actions, metrics)
+            .in_current_span()
+            .await?;
         if message_type == 1 {
+            clean_cache!();
             // meta only, sync immediately.
             msg_tx.send_async(message).await?;
             res_rx.recv_async().await??;
@@ -1181,54 +955,27 @@ async fn sync_concurrently(
             continue;
         }
 
-        if (last_type != 0 && last_type != message_type) || items.len() >= chunk_size {
-            let len = items.len();
-            // raw data type changed, must sync cache.
-            for item in items.drain(..) {
-                msg_tx.send_async(item).await?;
-                // let _permit = sem.acquire().await?;
-                // let manager = manager.clone();
-                // tokio::spawn(async move {
-                //     let mut worker = manager.get().await.unwrap();
-                //     let res = worker.write(&item).await;
-                //     worker.sender.send_async(res).await?;
-                //     anyhow::Result::<()>::Ok(())
-                // });
-            }
-            for _ in 0..len {
-                let res = res_rx.recv_async().await?;
-                res?;
-            }
+        if (last_type != 0 && last_type != message_type) || chunk_len >= chunk_size {
+            clean_cache!();
 
             // meta only, sync immediately.
             msg_tx.send_async(message).await?;
             res_rx.recv_async().await??;
             consumer.commit(offset).await?;
-            items.clear();
         } else {
-            items.push(message);
+            msg_tx.send_async(message).await?;
+            chunk_len += 1;
             last_offset.replace(offset);
         }
         last_type = message_type;
     }
-    if items.len() > 0 {
-        let len = items.len();
-        // raw data type changed, must sync cache.
-        for item in items.drain(..) {
-            msg_tx.send_async(item).await?;
-            // let _permit = sem.acquire().await?;
-            // let manager = manager.clone();
-            // tokio::spawn(async move {
-            //     let mut worker = manager.get().await.unwrap();
-            //     let res = worker.write(&item).await;
-            //     worker.sender.send_async(res).await?;
-            //     anyhow::Result::<()>::Ok(())
-            // });
-        }
-        for _ in 0..len {
-            let res = res_rx.recv_async().await?;
-            res?;
-        }
+    println!(
+        "# [{id}] Consume done after {:?}, waiting for writers to finish",
+        now.elapsed()
+    );
+    tracing::info!(elapse = ?now.elapsed(), "Consume done, waiting for writers to finish");
+    if chunk_len > 0 {
+        clean_cache!();
         consumer.commit(last_offset.unwrap()).await?;
     }
     update_progress(&consumer, &metrics).await;
@@ -1501,7 +1248,7 @@ pub async fn tmq_to_td(
             }
             let actions = actions.to_vec();
             let cancellation = cancel.clone();
-            let sender = consumers_sender.clone();
+            let sender: tokio::sync::mpsc::UnboundedSender<Consumer> = consumers_sender.clone();
             let source_pool = source_pool.clone();
             let metrics_arc = metrics_arc.clone();
             let notify = notify.clone();
@@ -1514,22 +1261,38 @@ pub async fn tmq_to_td(
                     let tick = IntervalLimit::new(Duration::from_secs(60));
                     loop {
                         // let taos = target.get().await?;
-                        match sync_concurrently(
-                            &topic,
-                            consumer_task_id,
-                            consumer,
-                            &source_pool,
-                            &target,
-                            table.as_deref(),
-                            &actions,
-                            cancellation.clone(),
-                            metrics_arc.clone(),
-                            with_meta_delete,
-                            with_meta_drop,
-                            concurrency,
-                        )
-                        .await
-                        {
+                        match if actions.is_empty() {
+                            sync_concurrently(
+                                &topic,
+                                consumer_task_id,
+                                consumer,
+                                &source_pool,
+                                &target,
+                                table.as_deref(),
+                                &actions,
+                                cancellation.clone(),
+                                metrics_arc.clone(),
+                                with_meta_delete,
+                                with_meta_drop,
+                                concurrency,
+                            )
+                            .await
+                        } else {
+                            sync(
+                                &topic,
+                                consumer_task_id,
+                                consumer,
+                                &source_pool,
+                                &target,
+                                table.as_deref(),
+                                &actions,
+                                cancellation.clone(),
+                                metrics_arc.clone(),
+                                with_meta_delete,
+                                with_meta_drop,
+                            )
+                            .await
+                        } {
                             Ok(consumer) => {
                                 let _ = sender.send(consumer);
                                 break;
@@ -1582,6 +1345,7 @@ pub async fn tmq_to_td(
             return Err(err);
         }
     }
+    println!("# Syncing done at {}", chrono::Local::now());
     tracing::info!("Stop all consumers({})", consumer_task_id);
     for _ in 0..consumer_task_id {
         let consumer = consumers_receiver.recv().await;
