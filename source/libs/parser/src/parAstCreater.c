@@ -24,7 +24,7 @@
 #define CHECK_MAKE_NODE(p) \
   do {                     \
     if (NULL == (p)) {     \
-      goto _err;           \
+      return NULL;         \
     }                      \
   } while (0)
 
@@ -32,21 +32,21 @@
   do {                                         \
     if (NULL == (p)) {                         \
       pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY; \
-      goto _err;                               \
+      return NULL;                             \
     }                                          \
   } while (0)
 
 #define CHECK_PARSER_STATUS(pCxt)             \
   do {                                        \
     if (TSDB_CODE_SUCCESS != pCxt->errCode) { \
-      goto _err;                              \
+      return NULL;                            \
     }                                         \
   } while (0)
 
 #define CHECK_NAME(p)                         \
   do {                                        \
     if (!p) {                                 \
-      goto _err;                              \
+      return NULL;                            \
     }                                         \
   } while (0)
 
@@ -931,10 +931,7 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
   if (OP_TYPE_MINUS == type && QUERY_NODE_VALUE == nodeType(pLeft)) {
     SValueNode* pVal = (SValueNode*)pLeft;
     char*       pNewLiteral = taosMemoryCalloc(1, strlen(pVal->literal) + 2);
-    if (!pNewLiteral) {
-      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
-    }
+    CHECK_OUT_OF_MEM(pNewLiteral);
     if ('+' == pVal->literal[0]) {
       sprintf(pNewLiteral, "-%s", pVal->literal + 1);
     } else if ('-' == pVal->literal[0]) {
