@@ -2019,8 +2019,12 @@ static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t l
 
   // param1
   if (numOfParams == 2) {
-    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
-
+    SNode* pNode = (SNode*)nodesListGetNode(pFunc->pParameterList, 1);
+    if (QUERY_NODE_VALUE != nodeType(pNode)) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Not supported timzone format");
+    }
+    
+    SValueNode* pValue = (SValueNode*)pNode;
     if (!validateTimezoneFormat(pValue)) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Invalid timzone format");
     }
