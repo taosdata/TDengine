@@ -116,8 +116,8 @@ int32_t streamTaskStartScanHistory(SStreamTask* pTask) {
 
   if (((pTask->status.downstreamReady != 1) || (state.state != TASK_STATUS__SCAN_HISTORY) ||
        (pTask->info.fillHistory != 1))) {
-    stFatal("s-task:%s invalid status to start fill-history task, downReady:%d, status:%s, is-fill-history task:%d",
-            pTask->id.idStr, state.name, pTask->info.fillHistory);
+    stFatal("s-task:%s invalid status:%s to start fill-history task, downReady:%d, is-fill-history task:%d",
+            pTask->id.idStr, state.name, pTask->status.downstreamReady, pTask->info.fillHistory);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
