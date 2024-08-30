@@ -1191,14 +1191,13 @@ int32_t tqStreamProcessCheckpointReadyRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 }
 
 int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
-  int32_t vgId = pMeta->vgId;
-  int32_t code = 0;
-
-  char*   msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-  int32_t len = pMsg->contLen - sizeof(SMsgHead);
-  int64_t now = taosGetTimestampMs();
-
+  int32_t                vgId = pMeta->vgId;
+  int32_t                code = 0;
+  SStreamTask*           pTask = NULL;
   SRestoreCheckpointInfo req = {0};
+  char*                  msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t                len = pMsg->contLen - sizeof(SMsgHead);
+  int64_t                now = taosGetTimestampMs();
 
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, len);
@@ -1211,7 +1210,6 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 
   tDecoderClear(&decoder);
 
-  SStreamTask* pTask = NULL;
   code = streamMetaAcquireTask(pMeta, req.streamId, req.taskId, &pTask);
   if (pTask == NULL || (code != 0)) {
     tqError(
@@ -1238,9 +1236,10 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   streamMutexLock(&pTask->lock);
   ASSERT(pTask->chkInfo.checkpointId >= req.checkpointId);
 
-  if (pTask->status.consenChkptInfo.consenChkptTransId >= req.transId) {
+  SConsenChkptInfo* pConsenInfo = &pTask->status.consenChkptInfo;
+  if (pConsenInfo->consenChkptTransId >= req.transId) {
     tqDebug("s-task:%s vgId:%d latest consensus transId:%d, expired consensus trans:%d, discard", pTask->id.idStr, vgId,
-            pTask->status.consenChkptInfo.consenChkptTransId, req.transId);
+            pConsenInfo->consenChkptTransId, req.transId);
     streamMutexUnlock(&pTask->lock);
     streamMetaReleaseTask(pMeta, pTask);
     return TSDB_CODE_SUCCESS;
@@ -1256,9 +1255,7 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
             pTask->id.idStr, vgId, req.checkpointId, req.transId);
   }
 
-  pTask->status.consenChkptInfo.consenChkptTransId = req.transId;
-  pTask->status.consenChkptInfo.status = TASK_CONSEN_CHKPT_RECV;
-  pTask->status.consenChkptInfo.statusTs = taosGetTimestampMs();
+  streamTaskSetConsenChkptIdRecv(pTask, req.transId, now);
   streamMutexUnlock(&pTask->lock);
 
   if (pMeta->role == NODE_ROLE_LEADER) {

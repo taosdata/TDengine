@@ -193,8 +193,9 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     pAggInfo->pNewGroupBlock = NULL;
     tSimpleHashClear(pAggInfo->aggSup.pResultRowHashTable);
     setExecutionContext(pOperator, pOperator->exprSupp.numOfExprs, pBlock->info.id.groupId);
-    QUERY_CHECK_CODE(code, lino, _end);
     code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     code = doAggregateImpl(pOperator, pSup->pCtx);
     QUERY_CHECK_CODE(code, lino, _end);
   }
