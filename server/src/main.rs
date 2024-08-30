@@ -418,9 +418,15 @@ fn print_config_values(args: &Args) {
     let v = serde_json::to_vec(args).unwrap();
     let map = serde_json::from_slice::<HashMap<String, serde_json::Value>>(&v).unwrap();
     let mut s = String::new();
-    s += "     global config\n";
+    tracing::info!("explorer version: {}", build::PKG_VERSION);
+    tracing::info!("commit id: {}", build::COMMIT_HASH);
+    tracing::info!("build time: {}", build::BUILD_TIME);
+    s += "global config\n";
     s += "=======================================================================\n";
     for (k, v) in map {
+        if v.is_null() {
+            continue;
+        }
         s += &format!("{:<18}{:<22}{}\n", ' ', k, v);
     }
     s += "=======================================================================";
