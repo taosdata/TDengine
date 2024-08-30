@@ -822,12 +822,12 @@ static void grantUniqAdjustSubscribeByDataSync(SGrantUniqObj *pObj) {
       if (subExpire == GRANT_UNIQ_UNDEFINED) {
         pObj->expireDays[GRANT_OPT_SUBSCRIPTION] = pDataSync->expire;
         pObj->limitSubscriptions = GRANT_UNIQ_DFT_SUBSCRIPTION_NUM;
-        uDebug("adjust grant of subscribe by data_sync expire:%" PRId64 " and default limits:%" PRIi16,
-               pDataSync->expire, GRANT_UNIQ_DFT_SUBSCRIPTION_NUM);
+        uDebug("adjust grant of subscribe by data_sync expire:%d and default limits:%" PRIi16, pDataSync->expire,
+               GRANT_UNIQ_DFT_SUBSCRIPTION_NUM);
       } else if ((subExpire != GRANT_UNIQ_UNLIMITED) &&
                  (pDataSync->expire == GRANT_UNIQ_UNLIMITED || subExpire < pDataSync->expire)) {
         pObj->expireDays[GRANT_OPT_SUBSCRIPTION] = pDataSync->expire;
-        uDebug("adjust grant of subscribe by data_sync expire:%" PRId64, pDataSync->expire);
+        uDebug("adjust grant of subscribe by data_sync expire:%d", pDataSync->expire);
       }
     }
   }
