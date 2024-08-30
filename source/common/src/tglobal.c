@@ -485,27 +485,27 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
   }
 
   if ((code = cfgLoad(pCfg, CFG_STYPE_APOLLO_URL, apolloUrl)) != 0) {
-    uError("failed to load from apollo url:%s since %s", apolloUrl, tstrerror(code));
+    printf("failed to load from apollo url:%s since %s\n", apolloUrl, tstrerror(code));
     TAOS_RETURN(code);
   }
 
   if ((code = cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgFile)) != 0) {
-    uError("failed to load from cfg file:%s since %s", cfgFile, tstrerror(code));
+    printf("failed to load from cfg file:%s since %s\n", cfgFile, tstrerror(code));
     TAOS_RETURN(code);
   }
 
   if ((code = cfgLoad(pCfg, CFG_STYPE_ENV_FILE, envFile)) != 0) {
-    uError("failed to load from env file:%s since %s", envFile, tstrerror(code));
+    printf("failed to load from env file:%s since %s\n", envFile, tstrerror(code));
     TAOS_RETURN(code);
   }
 
   if ((code = cfgLoad(pCfg, CFG_STYPE_ENV_VAR, NULL)) != 0) {
-    uError("failed to load from global env variables since %s", tstrerror(code));
+    printf("failed to load from global env variables since %s\n", tstrerror(code));
     TAOS_RETURN(code);
   }
 
   if ((code = cfgLoad(pCfg, CFG_STYPE_ENV_CMD, envCmd)) != 0) {
-    uError("failed to load from cmd env variables since %s", tstrerror(code));
+    printf("failed to load from cmd env variables since %s\n", tstrerror(code));
     TAOS_RETURN(code);
   }
 
@@ -1769,14 +1769,14 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
   TAOS_CHECK_GOTO(taosAddSystemCfg(tsCfg), &lino, _exit);
 
   if ((code = taosLoadCfg(tsCfg, envCmd, cfgDir, envFile, apolloUrl)) != 0) {
-    uError("failed to load cfg since %s", tstrerror(code));
+    printf("failed to load cfg since %s\n", tstrerror(code));
     cfgCleanup(tsCfg);
     tsCfg = NULL;
     TAOS_RETURN(code);
   }
 
   if ((code = cfgLoadFromArray(tsCfg, pArgs)) != 0) {
-    uError("failed to load cfg from array since %s", tstrerror(code));
+    printf("failed to load cfg from array since %s\n", tstrerror(code));
     cfgCleanup(tsCfg);
     tsCfg = NULL;
     TAOS_RETURN(code);
@@ -1798,7 +1798,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
 
   SConfigItem *pItem = cfgGetItem(tsCfg, "debugFlag");
   if (NULL == pItem) {
-    uError("debugFlag not found in cfg");
+    printf("debugFlag not found in cfg\n");
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
   TAOS_CHECK_GOTO(taosSetAllDebugFlag(tsCfg, pItem->i32), &lino, _exit);
@@ -1811,7 +1811,7 @@ _exit:
   if (TSDB_CODE_SUCCESS != code) {
     cfgCleanup(tsCfg);
     tsCfg = NULL;
-    uError("failed to init cfg at %d since %s", lino, tstrerror(code));
+    printf("failed to init cfg at %d since %s\n", lino, tstrerror(code));
   }
 
   TAOS_RETURN(code);
