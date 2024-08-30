@@ -792,6 +792,46 @@ static int32_t grantGetDnodesMiscInfo(SMnode *pMnode, SSHashObj *pMachineHash) {
   TAOS_RETURN(code);
 }
 
+static void grantUniqAdjustSubscribeByDataSync(SGrantUniqObj *pObj) {
+  SGrantItemI64 *pDataSync = NULL;
+  int32_t        size = taosArrayGetSize(pObj->pItemI64);
+  for (int32_t i = 0; i < size; ++i) {
+    SGrantItemI64 *pItem = TARRAY_GET_ELEM(pObj->pItemI64, i);
+    if (pItem->index == GRANT_OPT_DATA_SYNC) {
+      pDataSync = pItem;
+      break;
+    }
+  }
+  if (pDataSync) {
+    /**
+     * 需求：TS-5301
+     *  数据同步功能需要授权，数据同步指从本集群将数据同步到另一集群
+     *  数据同步功能依赖数据订阅功能，如果授权了数据同步功能则自动授权数据订阅功能，在生成授权码时解决这一依赖，以如下几种组合：
+     *  1）只授权数据订阅功能，行为不受影响
+     *  2）同时授权了数据订阅和数据同步，如果数据订阅过期时间早于数据同步过期时间，将数据订阅过期时间与数据同步过期时间保持一致，其他情况互不干扰。
+     *  3）只授权了数据同步，自动授权数据订阅（数据订阅过期时间与数据同步保持一致，其他授权项都使用默认值）
+     *
+     * 逻辑：
+     * 1）sync 功能已过期: 修改 subscribe 不受影响
+     * 2）sync 功能未过期: subscribe 过期时间不能小于 sync 过期时间，否则以 sync 为准，不报错; subscribe
+     *    数量不受限制，因为已创建的订阅不受影响。
+     */
+    if ((pDataSync->expire == GRANT_UNIQ_UNLIMITED) ||
+        (((int64_t)pDataSync->expire * 86400LL) > (taosGetTimestampMs() / 1000LL))) {
+      int32_t mergeSubExpire = pObj->expireDays[GRANT_OPT_SUBSCRIPTION];
+      if (mergeSubExpire == GRANT_UNIQ_UNDEFINED) {
+        pObj->expireDays[GRANT_OPT_SUBSCRIPTION] = pDataSync->expire;
+        pObj->limitSubscriptions = GRANT_UNIQ_DFT_SUBSCRIPTION_NUM;
+        uDebug("adjust grant of subscribe by data_sync expire:%" PRId64 " and default limits:%" PRIi16,
+               pDataSync->expire, GRANT_UNIQ_DFT_SUBSCRIPTION_NUM);
+      } else if (pDataSync->expire == GRANT_UNIQ_UNLIMITED || mergeSubExpire < pDataSync->expire) {
+        pObj->expireDays[GRANT_OPT_SUBSCRIPTION] = pDataSync->expire;
+        uDebug("adjust grant of subscribe by data_sync expire:%" PRId64, pDataSync->expire);
+      }
+    }
+  }
+}
+
 static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj, int8_t state) {
   bool revoked = state == GRANT_STATE_REVOKED;
 #ifndef GRANTS_CFG
@@ -800,6 +840,8 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
 #else
   int64_t dftExpireSec = GRANT_UNIQ_UNLIMITED;
 #endif
+
+  grantUniqAdjustSubscribeByDataSync(&grantObj);
 
   gStatus.officialVersion = grantObj.officialVersion;
   GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_BASIC], gStatus.basicExpireSec, 86400, dftExpireSec);
@@ -912,7 +954,8 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
         GRANT_EXPIRE_CONVERT(pDataIns->expire, gStatus.dataIns[j].expireSec, 86400, dftExpireSec,
                              grantHandle.showDataIns[j]);
         GRANT_VALUE_CONVERT(pDataIns->speed, gStatus.dataIns[j].speed, 1, GRANT_UNIQ_DFT_DATAIN_SPEED);
-        GRANT_VALUE_CONVERT(pDataIns->number, gStatus.dataIns[j].number, 1, GRANT_UNIQ_DFT_DATAIN_NUM);
+        GRANT_VALUE_CONVERT(pDataIns->number, gStatus.dataIns[j].number, 1,
+                            j == CONN_TYPE_CSV ? GRANT_UNIQ_UNLIMITED : GRANT_UNIQ_DFT_DATAIN_NUM);
 
         knownDataInAssigned[j] = 1;
         taosArrayRemove(pObj->pDataIns, i--);
@@ -924,7 +967,8 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
       GRANT_EXPIRE_CONVERT(GRANT_UNIQ_UNDEFINED, gStatus.dataIns[j].expireSec, 86400, dftExpireSec,
                            grantHandle.showDataIns[j]);
       GRANT_VALUE_CONVERT(GRANT_UNIQ_UNDEFINED, gStatus.dataIns[j].speed, 1, GRANT_UNIQ_DFT_DATAIN_SPEED);
-      GRANT_VALUE_CONVERT(GRANT_UNIQ_UNDEFINED, gStatus.dataIns[j].number, 1, GRANT_UNIQ_DFT_DATAIN_NUM);
+      GRANT_VALUE_CONVERT(GRANT_UNIQ_UNDEFINED, gStatus.dataIns[j].number, 1,
+                          j == CONN_TYPE_CSV ? GRANT_UNIQ_UNLIMITED : GRANT_UNIQ_DFT_DATAIN_NUM);
     }
   }
 
@@ -1631,7 +1675,7 @@ static void grantDataInsSetDefault(SGrantDataIn *pDataIns, int32_t num, int64_t 
   for (int32_t i = 0; i < num; ++i) {
     (pDataIns + i)->expireSec = grantHandle.showDataIns[i] ? expireSec : GRANT_UNIQ_UNDEFINED;
     (pDataIns + i)->speed = GRANT_UNIQ_DFT_DATAIN_SPEED;
-    (pDataIns + i)->number = GRANT_UNIQ_DFT_DATAIN_NUM;
+    (pDataIns + i)->number = (i == CONN_TYPE_CSV ? GRANT_UNIQ_UNLIMITED : GRANT_UNIQ_DFT_DATAIN_NUM);
   }
 }
 
