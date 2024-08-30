@@ -213,6 +213,7 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
         memcpy(pkey->pData, val, dataLen);
       } else if (IS_VAR_DATA_TYPE(pkey->type)) {
         memcpy(pkey->pData, val, varDataTLen(val));
+        ASSERT(varDataTLen(val) <= pkey->bytes);
       } else {
         memcpy(pkey->pData, val, pkey->bytes);
       }

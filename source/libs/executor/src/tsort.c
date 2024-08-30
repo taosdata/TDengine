@@ -1235,6 +1235,7 @@ int32_t tsortAppendTupleToBlock(SSortHandle* pHandle, SSDataBlock* pBlock, STupl
         tsortGetValue(pTupleHandle, i, (void**)&pData);
         if (pData != NULL) {
           code = colDataSetVal(pColInfo, pBlock->info.rows, pData, false);
+          ASSERT(varDataTLen(pData) <= pColInfo->info.bytes);
           if (code) {
             return code;
           }
