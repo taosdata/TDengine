@@ -47,7 +47,7 @@ int32_t tqScanWal(STQ* pTq) {
   streamMetaWLock(pMeta);
   int32_t times = (--pMeta->scanInfo.scanCounter);
   if (times < 0) {
-    tqError("vgId:%d invalid scan counter:%d, reset to 0", vgId);
+    tqError("vgId:%d invalid scan counter:%d, reset to 0", vgId, times);
     times = 0;
   }
 
