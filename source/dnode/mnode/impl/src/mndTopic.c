@@ -934,7 +934,7 @@ END:
 
 static void mndCancelGetNextTopic(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_TOPIC);
 }
 
 bool mndTopicExistsForDb(SMnode *pMnode, SDbObj *pDb) {

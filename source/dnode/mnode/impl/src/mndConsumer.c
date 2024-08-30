@@ -1003,7 +1003,7 @@ END:
 
 static void mndCancelGetNextConsumer(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_CONSUMER);
 }
 
 const char *mndConsumerStatusName(int status) {
