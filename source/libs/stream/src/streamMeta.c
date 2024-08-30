@@ -865,7 +865,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
 
     int32_t numOfTmr = pTask->status.timerActive;
     if (numOfTmr != 0) {
-      stError("s-task:0x%x vgId:%d invalid timer Active record:%d, internal error", pTask->id.idStr, numOfTmr);
+      stError("s-task:%s vgId:%d invalid timer Active record:%d, internal error", pTask->id.idStr, numOfTmr);
     }
 
     if (pTask->info.delaySchedParam != 0 && pTask->info.fillHistory == 0) {
