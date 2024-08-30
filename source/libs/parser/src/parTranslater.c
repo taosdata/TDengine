@@ -883,6 +883,8 @@ static uint8_t getPrecisionFromCurrStmt(SNode* pCurrStmt, uint8_t defaultVal) {
   if (isDeleteStmt(pCurrStmt)) {
     return ((SDeleteStmt*)pCurrStmt)->precision;
   }
+  if (pCurrStmt && nodeType(pCurrStmt) == QUERY_NODE_CREATE_TSMA_STMT)
+    return ((SCreateTSMAStmt*)pCurrStmt)->precision;
   return defaultVal;
 }
 
@@ -1231,7 +1233,7 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
   if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
     const STableMeta* pMeta = ((SRealTableNode*)pTable)->pMeta;
     int32_t           nums = pMeta->tableInfo.numOfColumns +
-                   (igTags ? 0 : ((TSDB_SUPER_TABLE == pMeta->tableType) ? pMeta->tableInfo.numOfTags : 0));
+                   (igTags ? 0 : ((TSDB_SUPER_TABLE == pMeta->tableType || ((SRealTableNode*)pTable)->stbRewrite) ? pMeta->tableInfo.numOfTags : 0));
     for (int32_t i = 0; i < nums; ++i) {
       if (invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
         pCxt->pParseCxt->hasInvisibleCol = true;
@@ -5594,6 +5596,7 @@ typedef struct SEqCondTbNameTableInfo {
 static bool isOperatorEqTbnameCond(STranslateContext* pCxt, SOperatorNode* pOperator, char** ppTableAlias,
                                    SArray** ppTabNames) {
   if (pOperator->opType != OP_TYPE_EQUAL) return false;
+  
   SFunctionNode* pTbnameFunc = NULL;
   SValueNode*    pValueNode = NULL;
   if (nodeType(pOperator->pLeft) == QUERY_NODE_FUNCTION &&
@@ -5813,12 +5816,70 @@ static int32_t findVgroupsFromEqualTbname(STranslateContext* pCxt, SArray* aTbna
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t replaceToChildTableQuery(STranslateContext* pCxt, SEqCondTbNameTableInfo* pInfo) {
+  SName snameTb;
+  int32_t code = 0;
+  SRealTableNode* pRealTable = pInfo->pRealTable;
+  char* tbName = taosArrayGetP(pInfo->aTbnames, 0);
+  (void)toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, tbName, &snameTb);
+
+  STableMeta* pMeta = NULL;
+  TAOS_CHECK_RETURN(catalogGetCachedTableMeta(pCxt->pParseCxt->pCatalog, &snameTb, &pMeta));
+  if (NULL == pMeta || TSDB_CHILD_TABLE != pMeta->tableType || pMeta->suid != pRealTable->pMeta->suid) {
+    goto _return;
+  }
+  
+  pRealTable->pMeta->uid = pMeta->uid;
+  pRealTable->pMeta->vgId = pMeta->vgId;
+  pRealTable->pMeta->tableType = pMeta->tableType;
+  tstrncpy(pRealTable->table.tableName, tbName, sizeof(pRealTable->table.tableName));
+
+  pRealTable->stbRewrite = true;
+
+  if (pRealTable->pTsmas) {
+  // if select from a child table, fetch it's corresponding tsma target child table infos
+    char buf[TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN + 1];
+    for (int32_t i = 0; i < pRealTable->pTsmas->size; ++i) {
+      STableTSMAInfo* pTsma = taosArrayGetP(pRealTable->pTsmas, i);
+      SName           tsmaTargetTbName = {0};
+      toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, "", &tsmaTargetTbName);
+      int32_t len = snprintf(buf, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN, "%s.%s_%s", pTsma->dbFName, pTsma->name,
+                             pRealTable->table.tableName);
+      len = taosCreateMD5Hash(buf, len);
+      strncpy(tsmaTargetTbName.tname, buf, MD5_OUTPUT_LEN);
+      STsmaTargetTbInfo ctbInfo = {0};
+      if (!pRealTable->tsmaTargetTbInfo) {
+        pRealTable->tsmaTargetTbInfo = taosArrayInit(pRealTable->pTsmas->size, sizeof(STsmaTargetTbInfo));
+        if (!pRealTable->tsmaTargetTbInfo) {
+          code = terrno;
+          break;
+        }
+      }
+      sprintf(ctbInfo.tableName, "%s", tsmaTargetTbName.tname);
+      ctbInfo.uid = pMeta->uid;
+
+      taosArrayPush(pRealTable->tsmaTargetTbInfo, &ctbInfo);
+    }
+  }
+
+_return:
+
+  taosMemoryFree(pMeta);
+  return code;
+}
+
 static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* pSelect, SArray* aTables) {
   int32_t code = TSDB_CODE_SUCCESS;
-  for (int i = 0; i < taosArrayGetSize(aTables); ++i) {
-    SEqCondTbNameTableInfo* pInfo = taosArrayGet(aTables, i);
-    int32_t                 nTbls = taosArrayGetSize(pInfo->aTbnames);
+  int32_t aTableNum = taosArrayGetSize(aTables);
+  int32_t nTbls = 0;
+  bool    stableQuery = false;
+  SEqCondTbNameTableInfo* pInfo = NULL;
+
+  qDebug("start to update stable vg for tbname optimize, aTableNum:%d", aTableNum);
+  for (int i = 0; i < aTableNum; ++i) {
+    pInfo = taosArrayGet(aTables, i);
     int32_t                 numOfVgs = pInfo->pRealTable->pVgroupList->numOfVgroups;
+    nTbls = taosArrayGetSize(pInfo->aTbnames);
 
     SVgroupsInfo* vgsInfo = taosMemoryMalloc(sizeof(SVgroupsInfo) + nTbls * sizeof(SVgroupInfo));
     findVgroupsFromEqualTbname(pCxt, pInfo->aTbnames, pInfo->pRealTable->table.dbName, numOfVgs, vgsInfo);
@@ -5828,6 +5889,7 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
     } else {
       taosMemoryFree(vgsInfo);
     }
+    stableQuery = pInfo->pRealTable->pMeta->tableType == TSDB_SUPER_TABLE;
     vgsInfo = NULL;
 
     if (pInfo->pRealTable->pTsmas) {
@@ -5867,7 +5929,14 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
       }
     }
   }
-  return TSDB_CODE_SUCCESS;
+
+  qDebug("before ctbname optimize, code:%d, aTableNum:%d, nTbls:%d, stableQuery:%d", code, aTableNum, nTbls, stableQuery);
+  
+  if (TSDB_CODE_SUCCESS == code && 1 == aTableNum && 1 == nTbls && stableQuery && NULL == pInfo->pRealTable->pTsmas) {
+    code = replaceToChildTableQuery(pCxt, pInfo);
+  }
+  
+  return code;
 }
 
 static int32_t setTableVgroupsFromEqualTbnameCond(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -11152,22 +11221,41 @@ static int32_t rewriteTSMAFuncs(STranslateContext* pCxt, SCreateTSMAStmt* pStmt,
 
 static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMCreateSmaReq* pReq,
                                   SName* useTbName) {
-  SName name;
+  SName      name;
+  SDbCfgInfo pDbInfo = {0};
+  int32_t    code = TSDB_CODE_SUCCESS;
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tsmaName, &name), pReq->name);
   memset(&name, 0, sizeof(SName));
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, useTbName);
   tNameExtractFullName(useTbName, pReq->stb);
   pReq->igExists = pStmt->ignoreExists;
+
+  code = getDBCfg(pCxt, pStmt->dbName, &pDbInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  pStmt->precision = pDbInfo.precision;
+  code = translateValue(pCxt, (SValueNode*)pStmt->pOptions->pInterval);
+  if (code == DEAL_RES_ERROR) {
+    return code;
+  }
   pReq->interval = ((SValueNode*)pStmt->pOptions->pInterval)->datum.i;
-  pReq->intervalUnit = TIME_UNIT_MILLISECOND;
+  pReq->intervalUnit = ((SValueNode*)pStmt->pOptions->pInterval)->unit;
 
 #define TSMA_MIN_INTERVAL_MS 1000 * 60         // 1m
-#define TSMA_MAX_INTERVAL_MS (60 * 60 * 1000)  // 1h
-  if (pReq->interval > TSMA_MAX_INTERVAL_MS || pReq->interval < TSMA_MIN_INTERVAL_MS) {
-    return TSDB_CODE_TSMA_INVALID_INTERVAL;
-  }
+#define TSMA_MAX_INTERVAL_MS (60UL * 60UL * 1000UL * 24UL * 365UL)  // 1y
 
-  int32_t code = TSDB_CODE_SUCCESS;
+  if (!IS_CALENDAR_TIME_DURATION(pReq->intervalUnit)) {
+    int64_t factor = TSDB_TICK_PER_SECOND(pDbInfo.precision) / TSDB_TICK_PER_SECOND(TSDB_TIME_PRECISION_MILLI);
+    if (pReq->interval > TSMA_MAX_INTERVAL_MS * factor || pReq->interval < TSMA_MIN_INTERVAL_MS * factor) {
+      return TSDB_CODE_TSMA_INVALID_INTERVAL;
+    }
+  } else {
+    if (pReq->intervalUnit == TIME_UNIT_MONTH && (pReq->interval < 1 || pReq->interval > 12))
+      return TSDB_CODE_TSMA_INVALID_INTERVAL;
+    if (pReq->intervalUnit == TIME_UNIT_YEAR && (pReq->interval != 1))
+      return TSDB_CODE_TSMA_INVALID_INTERVAL;
+  }
 
   STableMeta*     pTableMeta = NULL;
   STableTSMAInfo* pRecursiveTsma = NULL;
@@ -11180,7 +11268,8 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
       pReq->recursiveTsma = true;
       tNameExtractFullName(useTbName, pReq->baseTsmaName);
       SValueNode* pInterval = (SValueNode*)pStmt->pOptions->pInterval;
-      if (pRecursiveTsma->interval < pInterval->datum.i && pInterval->datum.i % pRecursiveTsma->interval == 0) {
+      if (checkRecursiveTsmaInterval(pRecursiveTsma->interval, pRecursiveTsma->unit, pInterval->datum.i,
+                                     pInterval->unit, pDbInfo.precision, true)) {
       } else {
         code = TSDB_CODE_TSMA_INVALID_PARA;
       }
@@ -11251,7 +11340,8 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
 }
 
 static int32_t translateCreateTSMA(STranslateContext* pCxt, SCreateTSMAStmt* pStmt) {
-  int32_t code = doTranslateValue(pCxt, (SValueNode*)pStmt->pOptions->pInterval);
+  pCxt->pCurrStmt = (SNode*)pStmt;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   SName useTbName = {0};
   if (code == TSDB_CODE_SUCCESS) {

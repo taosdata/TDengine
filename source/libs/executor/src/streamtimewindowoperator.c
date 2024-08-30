@@ -448,8 +448,11 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   nodesDestroyNode((SNode*)pInfo->pPhyNode);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   cleanupExprSupp(&pInfo->scalarSupp);
-  tSimpleHashCleanup(pInfo->pUpdatedMap);
-  pInfo->pUpdatedMap = NULL;
+  if (pInfo->pUpdatedMap != NULL) {
+    tSimpleHashSetFreeFp(pInfo->pUpdatedMap, destroyFlusedppPos);
+    tSimpleHashCleanup(pInfo->pUpdatedMap);
+    pInfo->pUpdatedMap = NULL;
+  }
   tSimpleHashCleanup(pInfo->pDeletedMap);
 
   blockDataDestroy(pInfo->pCheckpointRes);

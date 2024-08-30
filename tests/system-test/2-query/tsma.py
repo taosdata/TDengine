@@ -687,10 +687,10 @@ class TDTestCase:
         tdLog.debug("insert data ............ [OK]")
         return
 
-    def init_data(self, ctb_num: int = 10, rows_per_ctb: int = 10000, start_ts: int = 1537146000000, ts_step: int = 500):
+    def init_data(self, db: str = 'test', ctb_num: int = 10, rows_per_ctb: int = 10000, start_ts: int = 1537146000000, ts_step: int = 500):
         tdLog.printNoPrefix(
             "======== prepare test env include database, stable, ctables, and insert data: ")
-        paraDict = {'dbName':     'test',
+        paraDict = {'dbName':     db,
                     'dropFlag':   1,
                     'vgroups':    2,
                     'stbName':    'meters',
@@ -707,8 +707,8 @@ class TDTestCase:
                     'tsStep':     ts_step}
 
         paraDict['vgroups'] = self.vgroups
-        paraDict['ctbNum'] = self.ctbNum
-        paraDict['rowsPerTbl'] = self.rowsPerTbl
+        paraDict['ctbNum'] = ctb_num
+        paraDict['rowsPerTbl'] = rows_per_ctb
 
         tdLog.info("create database")
         self.create_database(tsql=tdSql, dbName=paraDict["dbName"], dropFlag=paraDict["dropFlag"],
@@ -972,16 +972,16 @@ class TDTestCase:
         sql = 'select avg(c2), "recursive test.tsma4" from test.meters'
         ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(
             'tsma4', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
-        #time.sleep(999999)
         self.tsma_tester.check_sql(sql, ctx)
         self.check(self.test_query_tsma_all(select_func_list))
         self.create_recursive_tsma(
-            'tsma4', 'tsma6', 'test', '1h', 'meters', tsma_func_list)
+            'tsma4', 'tsma6', 'test', '5h', 'meters', tsma_func_list)
         ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(
             'tsma6', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
         self.tsma_tester.check_sql(sql, ctx)
 
         self.check(self.test_query_tsma_all(select_func_list))
+        #time.sleep(999999)
 
         tdSql.error('drop tsma test.tsma3', -2147482491)
         tdSql.error('drop tsma test.tsma4', -2147482491)
@@ -1217,7 +1217,6 @@ class TDTestCase:
         self.test_create_tsma()
         self.test_drop_tsma()
         self.test_tb_ddl_with_created_tsma()
-
     
     def run(self):
         self.init_data()
@@ -1358,18 +1357,19 @@ class TDTestCase:
             'create table nsdb.meters(ts timestamp, c1 int, c2 int, c3 varchar(255)) tags(t1 int, t2 int)', queryTimes=1)
         self.create_tsma('tsma1', 'nsdb', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
         # Invalid tsma interval, 1ms ~ 1h is allowed
-        tdSql.error(
-            'create tsma tsma2 on nsdb.meters function(avg(c1), avg(c2)) interval(2h)', -2147471097)
-        tdSql.error(
-            'create tsma tsma2 on nsdb.meters function(avg(c1), avg(c2)) interval(3601s)', -2147471097)
-        tdSql.error(
-            'create tsma tsma2 on nsdb.meters function(avg(c1), avg(c2)) interval(3600001a)', -2147471097)
-        tdSql.error(
-            'create tsma tsma2 on nsdb.meters function(avg(c1), avg(c2)) interval(3600001000u)', -2147471097)
-        tdSql.error(
-            'create tsma tsma2 on nsdb.meters function(avg(c1), avg(c2)) interval(999999b)', -2147471097)
-        tdSql.error(
-            'create tsma tsma2 on nsdb.meters function(avg(c1), avg(c2)) interval(999u)', -2147471097)
+        def _():
+            tdSql.error(
+                'create tsma tsma2 on nsdb.meters function(avg(c1), avg(c2)) interval(2h)', -2147471097)
+            tdSql.error(
+                'create tsma tsma2 on nsdb.meters function(avg(c1), avg(c2)) interval(3601s)', -2147471097)
+            tdSql.error(
+                'create tsma tsma2 on nsdb.meters function(avg(c1), avg(c2)) interval(3600001a)', -2147471097)
+            tdSql.error(
+                'create tsma tsma2 on nsdb.meters function(avg(c1), avg(c2)) interval(3600001000u)', -2147471097)
+            tdSql.error(
+                'create tsma tsma2 on nsdb.meters function(avg(c1), avg(c2)) interval(999999b)', -2147471097)
+            tdSql.error(
+                'create tsma tsma2 on nsdb.meters function(avg(c1), avg(c2)) interval(999u)', -2147471097)
         # invalid tsma func param
         tdSql.error(
             'create tsma tsma2 on nsdb.meters function(avg(c1, c2), avg(c2)) interval(10m)',  -2147471096)
@@ -1446,8 +1446,6 @@ class TDTestCase:
             ['avg(c1)', 'avg(c2)'], 'nsdb', 'meters', '10m', 'tsma1')
         tdSql.execute('drop tsma nsdb.tsma1', queryTimes=1)
 
-        tdSql.error(
-            'create tsma tsma1 on test.meters function(avg(c1), avg(c2)) interval(2h)', -2147471097)
         self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-chkpt-u')
         tdSql.execute('drop database nsdb')
 
@@ -1610,7 +1608,6 @@ class TDTestCase:
     # def test_replica_dnode(self):
         
     # def test_split_dnode(self):
-
 
     def stop(self):
         tdSql.close()

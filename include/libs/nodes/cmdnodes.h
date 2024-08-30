@@ -637,6 +637,7 @@ typedef struct SCreateTSMAStmt {
   STSMAOptions*   pOptions;
   SNode*          pPrevQuery;
   SMCreateSmaReq* pReq;
+  uint8_t         precision;
 } SCreateTSMAStmt;
 
 typedef struct SDropTSMAStmt {
