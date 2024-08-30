@@ -6224,26 +6224,54 @@ static void findVgroupsFromEqualTbname(STranslateContext* pCxt, SArray* aTbnames
 
 static int32_t replaceToChildTableQuery(STranslateContext* pCxt, SEqCondTbNameTableInfo* pInfo) {
   SName snameTb;
+  int32_t code = 0;
+  SRealTableNode* pRealTable = pInfo->pRealTable;
   char* tbName = taosArrayGetP(pInfo->aTbnames, 0);
-  (void)toName(pCxt->pParseCxt->acctId, pInfo->pRealTable->table.dbName, tbName, &snameTb);
+  (void)toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, tbName, &snameTb);
 
   STableMeta* pMeta = NULL;
   TAOS_CHECK_RETURN(catalogGetCachedTableMeta(pCxt->pParseCxt->pCatalog, &snameTb, &pMeta));
-  if (NULL == pMeta || TSDB_CHILD_TABLE != pMeta->tableType || pMeta->suid != pInfo->pRealTable->pMeta->suid) {
+  if (NULL == pMeta || TSDB_CHILD_TABLE != pMeta->tableType || pMeta->suid != pRealTable->pMeta->suid) {
     goto _return;
   }
   
-  pInfo->pRealTable->pMeta->uid = pMeta->uid;
-  pInfo->pRealTable->pMeta->vgId = pMeta->vgId;
-  pInfo->pRealTable->pMeta->tableType = pMeta->tableType;
-  tstrncpy(pInfo->pRealTable->table.tableName, tbName, sizeof(pInfo->pRealTable->table.tableName));
+  pRealTable->pMeta->uid = pMeta->uid;
+  pRealTable->pMeta->vgId = pMeta->vgId;
+  pRealTable->pMeta->tableType = pMeta->tableType;
+  tstrncpy(pRealTable->table.tableName, tbName, sizeof(pRealTable->table.tableName));
 
-  pInfo->pRealTable->stbRewrite = true;
+  pRealTable->stbRewrite = true;
+
+  if (pRealTable->pTsmas) {
+  // if select from a child table, fetch it's corresponding tsma target child table infos
+    char buf[TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN + 1];
+    for (int32_t i = 0; i < pRealTable->pTsmas->size; ++i) {
+      STableTSMAInfo* pTsma = taosArrayGetP(pRealTable->pTsmas, i);
+      SName           tsmaTargetTbName = {0};
+      toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, "", &tsmaTargetTbName);
+      int32_t len = snprintf(buf, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN, "%s.%s_%s", pTsma->dbFName, pTsma->name,
+                             pRealTable->table.tableName);
+      len = taosCreateMD5Hash(buf, len);
+      strncpy(tsmaTargetTbName.tname, buf, MD5_OUTPUT_LEN);
+      STsmaTargetTbInfo ctbInfo = {0};
+      if (!pRealTable->tsmaTargetTbInfo) {
+        pRealTable->tsmaTargetTbInfo = taosArrayInit(pRealTable->pTsmas->size, sizeof(STsmaTargetTbInfo));
+        if (!pRealTable->tsmaTargetTbInfo) {
+          code = terrno;
+          break;
+        }
+      }
+      sprintf(ctbInfo.tableName, "%s", tsmaTargetTbName.tname);
+      ctbInfo.uid = pMeta->uid;
+
+      taosArrayPush(pRealTable->tsmaTargetTbInfo, &ctbInfo);
+    }
+  }
 
 _return:
 
   taosMemoryFree(pMeta);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* pSelect, SArray* aTables) {
@@ -6252,6 +6280,8 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
   int32_t nTbls = 0;
   bool    stableQuery = false;
   SEqCondTbNameTableInfo* pInfo = NULL;
+
+  qDebug("start to update stable vg for tbname optimize, aTableNum:%d", aTableNum);
   for (int i = 0; i < aTableNum; ++i) {
     pInfo = taosArrayGet(aTables, i);
     int32_t                 numOfVgs = pInfo->pRealTable->pVgroupList->numOfVgroups;
@@ -6306,7 +6336,9 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code && 1 == aTableNum && 1 == nTbls && stableQuery) {
+  qDebug("before ctbname optimize, code:%d, aTableNum:%d, nTbls:%d, stableQuery:%d", code, aTableNum, nTbls, stableQuery);
+  
+  if (TSDB_CODE_SUCCESS == code && 1 == aTableNum && 1 == nTbls && stableQuery && NULL == pInfo->pRealTable->pTsmas) {
     code = replaceToChildTableQuery(pCxt, pInfo);
   }
   
