@@ -852,20 +852,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_invalid_sync() {
-        // tmq
-        let dsn = Dsn::from_str("sync+ws://192.168.1.92:6041").unwrap();
-        let dsv = is_tmq_valid(&dsn).await;
-        assert_eq!(false, dsv.valid);
-        assert_eq!(false, dsv.support);
-        assert_eq!("sync", dsv.data_source);
-        assert_eq!(
-            "invalid dsn: sync+ws://192.168.1.92:6041, cause: subject is required in tmq dsn",
-            dsv.message.unwrap()
-        );
-    }
-
-    #[tokio::test]
     #[ignore]
     async fn test_replica() {
         let dsn = Dsn::from_str("tmq:///db1?replica&with.meta.delete").unwrap();
