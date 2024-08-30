@@ -569,10 +569,11 @@ static int32_t idxMayMergeTempToFinalRslt(SArray* result, TFileValue* tfv, SIdxT
         indexFatal("failed to merge result since %s", tstrerror(code));
       }
     } else {
-      return TSDB_CODE_INVALID_PARA;
+      return 0;
     }
   } else {
     if (taosArrayPush(result, &tfv) == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
   return code;
@@ -736,6 +737,9 @@ _exception:
     idxPost(sIdx);
   }
   idxReleaseRef(sIdx->refId);
+  if (code != 0) {
+    indexError("failed to merge since %s", tstrerror(code));
+  }
 
   return code;
 }

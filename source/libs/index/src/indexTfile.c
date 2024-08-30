@@ -133,9 +133,10 @@ TFileCache* tfileCacheCreate(SIndex* idx, const char* path) {
     int32_t sz = idxSerialCacheKey(&key, buf);
     code = taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
     if (code != 0) {
-      tfileReaderRef(reader);
+      tfileReaderDestroy(reader);
       goto End;
     }
+    tfileReaderRef(reader);
   }
   taosArrayDestroyEx(files, tfileDestroyFileName);
   return tcache;
@@ -172,6 +173,7 @@ TFileReader* tfileCacheGet(TFileCache* tcache, ICacheKey* key) {
 
   return *reader;
 }
+
 int32_t tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader) {
   int32_t code = 0;
 
@@ -192,9 +194,7 @@ int32_t tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader) {
   }
 
   code = taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
-  if (code == 0) {
-    tfileReaderRef(reader);
-  }
+  tfileReaderRef(reader);
   return code;
 }
 int32_t tfileReaderCreate(IFileCtx* ctx, TFileReader** pReader) {

@@ -214,7 +214,9 @@ int32_t idxTRsltMergeTo(SIdxTRslt *tr, SArray *result) {
 
   if (taosArrayGetSize(tr->total) == 0 || taosArrayGetSize(tr->add) == 0) {
     SArray *t = taosArrayGetSize(tr->total) == 0 ? tr->add : tr->total;
-    (void)taosArrayAddAll(result, t);
+    if (taosArrayAddAll(result, t) == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   } else {
     SArray *arrs = taosArrayInit(2, sizeof(void *));
     if (arrs == NULL) {
