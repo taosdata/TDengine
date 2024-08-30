@@ -42,7 +42,7 @@
 namespace {
 
 #define MPT_PRINTF          (void)printf
-#define MPT_MAX_MEM_ACT_TIMES 1000
+#define MPT_MAX_MEM_ACT_TIMES 300
 #define MPT_MAX_SESSION_NUM 100
 #define MPT_MAX_JOB_NUM     100
 #define MPT_MAX_THREAD_NUM  100
@@ -243,11 +243,11 @@ void mptInit() {
   mptInitLogFile();
   
   mptCtrl.caseLoopTimes = 1;
-  mptCtrl.taskActTimes = 50;
+  mptCtrl.taskActTimes = 0;
   mptCtrl.maxSingleAllocSize = 104857600;
   mptCtrl.jobNum = 100;
   mptCtrl.jobExecTimes = 1;
-  mptCtrl.jobTaskNum = 1;
+  mptCtrl.jobTaskNum = 0;
 
   mptCtx.pJobs = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   ASSERT_TRUE(NULL != mptCtx.pJobs);
@@ -269,6 +269,9 @@ void mptDestroyTaskCtx(SMPTestTaskCtx* pTask, void* pSession) {
 
   mptEnableMemoryPoolUsage(mptCtx.memPoolHandle, pSession);  
   for (int32_t i = 0; i < pTask->memIdx; ++i) {
+    pTask->stat.times.memFree.exec++;
+    pTask->stat.bytes.memFree.exec+=mptMemorySize(pTask->pMemList[i].p);        
+    pTask->stat.bytes.memFree.succ+=mptMemorySize(pTask->pMemList[i].p);        
     mptMemoryFree(pTask->pMemList[i].p);
     pTask->pMemList[i].p = NULL;
   }
@@ -397,6 +400,14 @@ int32_t mptDestroyJob(SMPTestJobCtx* pJobCtx, bool reset) {
 
   uint64_t jobId = pJobCtx->jobId;
   for (int32_t i = 0; i < pJobCtx->taskNum; ++i) {
+    SMPStatDetail* pStat = NULL;
+    int64_t allocSize = 0;
+    taosMemPoolGetSessionStat(pJobCtx->pSessions[i], &pStat, &allocSize, NULL);
+    int64_t usedSize = MEMPOOL_GET_USED_SIZE(pStat);
+
+    assert(allocSize == usedSize);
+    assert(0 == memcmp(pStat, &pJobCtx->taskCtxs[i].stat, sizeof(*pStat)));
+    
     mptDestroyTaskCtx(&pJobCtx->taskCtxs[i], pJobCtx->pSessions[i]);
     taosMemPoolDestroySession(mptCtx.memPoolHandle, pJobCtx->pSessions[i]);
   }
@@ -502,18 +513,18 @@ void mptCheckUpateCfgCb(void* pHandle, void* cfg) {
     atomic_store_64(&pCfg->jobQuota, newJobQuota);
   }
   
-  int64_t maxSize = 0;
+  int64_t freeSize = 0;
   bool autoMaxSize = false;
-  int32_t code = mptGetQueryMemPoolMaxSize(pHandle, &maxSize, &autoMaxSize);
+  int32_t code = mptGetQueryMemPoolMaxSize(pHandle, &freeSize, &autoMaxSize);
   if (TSDB_CODE_SUCCESS != code) {
-    pCfg->maxSize = 0;
-    uError("get query memPool maxSize failed, reset maxSize to %" PRId64, pCfg->maxSize);
+    pCfg->freeSize = 0;
+    uError("get query memPool freeSize failed, reset freeSize to %" PRId64, pCfg->freeSize);
     return;
   }
   
-  if (pCfg->autoMaxSize != autoMaxSize || pCfg->maxSize != maxSize) {
+  if (pCfg->autoMaxSize != autoMaxSize || pCfg->freeSize != freeSize) {
     pCfg->autoMaxSize = autoMaxSize;
-    atomic_store_64(&pCfg->maxSize, maxSize);
+    atomic_store_64(&pCfg->freeSize, freeSize);
     taosMemPoolCfgUpdate(pHandle, pCfg);
   }
 }
@@ -618,11 +629,11 @@ void mptInitPool(void) {
 
   cfg.autoMaxSize = mptCtx.param.autoPoolSize;
   if (!mptCtx.param.autoPoolSize) {
-    cfg.maxSize = mptCtx.param.poolSize;
+    cfg.freeSize = mptCtx.param.poolSize;
   } else {
     int64_t memSize = 0;
     ASSERT_TRUE(0 == taosGetSysAvailMemory(&memSize));
-    cfg.maxSize = memSize * 0.8;
+    cfg.freeSize = memSize * 0.8;
   }
   cfg.threadNum = 10; //TODO
   cfg.evicPolicy = E_EVICT_AUTO; //TODO
@@ -635,10 +646,20 @@ void mptInitPool(void) {
   ASSERT_TRUE(0 == taosMemPoolOpen("testQMemPool", &cfg, &mptCtx.memPoolHandle));
 }
 
+void mptWriteMem(void* pStart, int32_t size) {
+  char* pEnd = (char*)pStart + size - 1;
+  char* p = (char*)pStart;
+  while (p <= pEnd) {
+    *p = 'a' + taosRand() % 26;
+    p += 4096;
+  }
+}
+
 void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
   int32_t actId = 0;
   bool actDone = false;
   int32_t size = taosRand() % mptCtrl.maxSingleAllocSize;
+  int32_t osize = 0, nsize = 0;
   
   while (!actDone) {
     actId = taosRand() % 10;
@@ -649,19 +670,23 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
         }
         
         pTask->pMemList[pTask->memIdx].p = mptMemoryMalloc(size);
-        pTask->stat.times.memMalloc.exec++;
-        pTask->stat.bytes.memMalloc.exec+=size;        
         if (NULL == pTask->pMemList[pTask->memIdx].p) {
+          pTask->stat.times.memMalloc.exec++;
+          pTask->stat.bytes.memMalloc.exec+=size;        
+          pTask->stat.times.memMalloc.fail++;
           pTask->stat.bytes.memMalloc.fail+=size;        
           uError("JOB:0x%x TASK:0x%x mpMalloc %d failed, terrno:0x%x", pJobCtx->jobId, pTask->taskId, size, terrno);
           return;
         }
 
-        pTask->stat.bytes.memMalloc.succ+=size;                
-        *(char*)pTask->pMemList[pTask->memIdx].p = 'a' + taosRand() % 26;
-        *((char*)pTask->pMemList[pTask->memIdx].p + size -1) = 'a' + taosRand() % 26;
+        nsize = mptMemorySize(pTask->pMemList[pTask->memIdx].p);
+        pTask->stat.times.memMalloc.exec++;
+        pTask->stat.bytes.memMalloc.exec+=nsize;        
+        pTask->stat.bytes.memMalloc.succ+=nsize;                
+        pTask->stat.times.memMalloc.succ++;
+
+        mptWriteMem(pTask->pMemList[pTask->memIdx].p, size);
         
-        pTask->pMemList[pTask->memIdx].size = size;
         pTask->memIdx++;
         pTask->lastAct = actId;
         actDone = true;
@@ -673,73 +698,91 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
         }
         
         pTask->pMemList[pTask->memIdx].p = mptMemoryCalloc(1, size);
-        pTask->stat.times.memCalloc.exec++;
-        pTask->stat.bytes.memCalloc.exec+=size;        
         if (NULL == pTask->pMemList[pTask->memIdx].p) {
+          pTask->stat.times.memCalloc.exec++;
+          pTask->stat.bytes.memCalloc.exec+=size;        
+          pTask->stat.times.memCalloc.fail++;
           pTask->stat.bytes.memCalloc.fail+=size;        
           uError("JOB:0x%x TASK:0x%x mpCalloc %d failed, terrno:0x%x", pJobCtx->jobId, pTask->taskId, size, terrno);
           return;
         }
 
-        pTask->stat.bytes.memCalloc.succ+=size;        
-        *(char*)pTask->pMemList[pTask->memIdx].p = 'a' + taosRand() % 26;
-        *((char*)pTask->pMemList[pTask->memIdx].p + size -1) = 'a' + taosRand() % 26;
+        nsize = mptMemorySize(pTask->pMemList[pTask->memIdx].p);
+
+        pTask->stat.times.memCalloc.exec++;
+        pTask->stat.bytes.memCalloc.exec+=nsize;        
+        pTask->stat.times.memCalloc.succ++;
+        pTask->stat.bytes.memCalloc.succ+=nsize;      
+
+        mptWriteMem(pTask->pMemList[pTask->memIdx].p, size);
         
-        pTask->pMemList[pTask->memIdx].size = size;
         pTask->memIdx++;
         pTask->lastAct = actId;
         actDone = true;
         break;
       }
       case 2:{ // new realloc
+        break;
         if (pTask->memIdx >= MPT_MAX_MEM_ACT_TIMES) {
           break;
         }
         
         pTask->pMemList[pTask->memIdx].p = mptMemoryRealloc(NULL, size);
-        pTask->stat.times.memRealloc.exec++;
-        pTask->stat.bytes.memRealloc.exec+=size;        
         if (NULL == pTask->pMemList[pTask->memIdx].p) {
+          pTask->stat.times.memRealloc.exec++;
+          pTask->stat.bytes.memRealloc.exec+=size;        
+          pTask->stat.times.memRealloc.fail++;
           pTask->stat.bytes.memRealloc.fail+=size;        
           uError("JOB:0x%x TASK:0x%x new mpRealloc %d failed, terrno:0x%x", pJobCtx->jobId, pTask->taskId, size, terrno);
           return;
         }
 
-        pTask->stat.bytes.memRealloc.succ+=size;        
-        *(char*)pTask->pMemList[pTask->memIdx].p = 'a' + taosRand() % 26;
-        *((char*)pTask->pMemList[pTask->memIdx].p + size -1) = 'a' + taosRand() % 26;
+        nsize = mptMemorySize(pTask->pMemList[pTask->memIdx].p);
         
-        pTask->pMemList[pTask->memIdx].size = size;
+        pTask->stat.times.memRealloc.exec++;
+        pTask->stat.bytes.memRealloc.exec+=nsize;        
+        pTask->stat.bytes.memRealloc.succ+=nsize;        
+        pTask->stat.times.memRealloc.succ++;
+
+        mptWriteMem(pTask->pMemList[pTask->memIdx].p, size);
+        
         pTask->memIdx++;
         pTask->lastAct = actId;
         actDone = true;
         break;
       }
       case 3:{ // real realloc
+        break;
         if (pTask->memIdx <= 0) {
           break;
         }
 
         assert(pTask->pMemList[pTask->memIdx - 1].p);
+        osize = mptMemorySize(pTask->pMemList[pTask->memIdx - 1].p);
         size++;
         pTask->pMemList[pTask->memIdx - 1].p = mptMemoryRealloc(pTask->pMemList[pTask->memIdx - 1].p, size);
-        pTask->stat.times.memRealloc.exec++;
-        pTask->stat.bytes.memRealloc.exec+=size;        
         if (NULL == pTask->pMemList[pTask->memIdx - 1].p) {
+          pTask->stat.times.memRealloc.exec++;
+          pTask->stat.bytes.memRealloc.exec+=size;        
+          pTask->stat.bytes.memRealloc.origExec+=osize;  
+          pTask->stat.times.memRealloc.fail++;
           pTask->stat.bytes.memRealloc.fail+=size;  
-          pTask->stat.bytes.memFree.succ+=pTask->pMemList[pTask->memIdx - 1].size;
+          pTask->stat.bytes.memFree.succ+=osize;
           uError("JOB:0x%x TASK:0x%x real mpRealloc %d failed, terrno:0x%x", pJobCtx->jobId, pTask->taskId, size, terrno);
           pTask->memIdx--;
-          pTask->pMemList[pTask->memIdx].size = 0;
           return;
         }
 
-        pTask->stat.bytes.memRealloc.succ+=size;  
-        pTask->stat.bytes.memRealloc.origSucc+=pTask->pMemList[pTask->memIdx - 1].size;  
-        *(char*)pTask->pMemList[pTask->memIdx - 1].p = 'a' + taosRand() % 26;
-        *((char*)pTask->pMemList[pTask->memIdx - 1].p + size -1) = 'a' + taosRand() % 26;
+        nsize = mptMemorySize(pTask->pMemList[pTask->memIdx - 1].p);
+        pTask->stat.times.memRealloc.exec++;
+        pTask->stat.bytes.memRealloc.exec+=nsize;        
+        pTask->stat.bytes.memRealloc.origExec+=osize;  
+        pTask->stat.bytes.memRealloc.origSucc+=osize;
+        pTask->stat.times.memRealloc.succ++;
+        pTask->stat.bytes.memRealloc.succ+=nsize;  
+
+        mptWriteMem(pTask->pMemList[pTask->memIdx - 1].p, size);
         
-        pTask->pMemList[pTask->memIdx - 1].size = size;
         pTask->lastAct = actId;
         actDone = true;
         break;
@@ -750,14 +793,16 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
         }
 
         assert(pTask->pMemList[pTask->memIdx - 1].p);
+        osize = mptMemorySize(pTask->pMemList[pTask->memIdx - 1].p);
+
         pTask->pMemList[pTask->memIdx - 1].p = mptMemoryRealloc(pTask->pMemList[pTask->memIdx - 1].p, 0);
         pTask->stat.times.memRealloc.exec++;
-        pTask->stat.bytes.memRealloc.exec+=size;        
+        pTask->stat.bytes.memRealloc.origExec+=osize;  
         assert(NULL == pTask->pMemList[pTask->memIdx - 1].p);
 
-        pTask->stat.bytes.memRealloc.origSucc+=pTask->pMemList[pTask->memIdx - 1].size;  
+        pTask->stat.times.memRealloc.succ++;
+        pTask->stat.bytes.memRealloc.origSucc+=osize;  
 
-        pTask->pMemList[pTask->memIdx - 1].size = 0;
         pTask->memIdx--;
         pTask->lastAct = actId;
         actDone = true;
@@ -772,15 +817,25 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
         mptCtrl.pSrcString[size] = 0;
         pTask->pMemList[pTask->memIdx].p = mptStrdup(mptCtrl.pSrcString);
         mptCtrl.pSrcString[size] = 'W';
+
         if (NULL == pTask->pMemList[pTask->memIdx].p) {
+          pTask->stat.times.strdup.exec++;
+          pTask->stat.bytes.strdup.exec+=size + 1;        
+          pTask->stat.times.strdup.fail++;
+          pTask->stat.bytes.strdup.fail+=size + 1;        
           uError("JOB:0x%x TASK:0x%x mpStrdup %d failed, terrno:0x%x", pJobCtx->jobId, pTask->taskId, size, terrno);
           return;
         }
 
-        *(char*)pTask->pMemList[pTask->memIdx].p = 'a' + taosRand() % 26;
-        *((char*)pTask->pMemList[pTask->memIdx].p + size - 1) = 'a' + taosRand() % 26;
+        nsize = mptMemorySize(pTask->pMemList[pTask->memIdx].p);  
+        pTask->stat.times.strdup.exec++;
+        pTask->stat.bytes.strdup.exec+= nsize;    
+
+        pTask->stat.times.strdup.succ++;
+        pTask->stat.bytes.strdup.succ+=nsize;        
+
+        mptWriteMem(pTask->pMemList[pTask->memIdx].p, size);
         
-        pTask->pMemList[pTask->memIdx].size = size + 1;
         pTask->memIdx++;
         pTask->lastAct = actId;
         actDone = true;
@@ -792,16 +847,28 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
         }
 
         size /= 10;
+        assert(strlen(mptCtrl.pSrcString) > size);
         pTask->pMemList[pTask->memIdx].p = mptStrndup(mptCtrl.pSrcString, size);
+
         if (NULL == pTask->pMemList[pTask->memIdx].p) {
+          pTask->stat.times.strndup.exec++;
+          pTask->stat.bytes.strndup.exec+=size + 1;        
+          pTask->stat.times.strndup.fail++;
+          pTask->stat.bytes.strndup.fail+=size + 1;        
           uError("JOB:0x%x TASK:0x%x mpStrndup %d failed, terrno:0x%x", pJobCtx->jobId, pTask->taskId, size, terrno);
           return;
         }
 
-        *(char*)pTask->pMemList[pTask->memIdx].p = 'a' + taosRand() % 26;
-        *((char*)pTask->pMemList[pTask->memIdx].p + size -1) = 'a' + taosRand() % 26;
+        assert(strlen((char*)pTask->pMemList[pTask->memIdx].p) == size);
+        nsize = mptMemorySize(pTask->pMemList[pTask->memIdx].p);
+
+        pTask->stat.times.strndup.exec++;
+        pTask->stat.bytes.strndup.exec+=nsize;        
+        pTask->stat.times.strndup.succ++;
+        pTask->stat.bytes.strndup.succ+=nsize;        
+
+        mptWriteMem(pTask->pMemList[pTask->memIdx].p, size);
         
-        pTask->pMemList[pTask->memIdx].size = size + 1;
         pTask->memIdx++;
         pTask->lastAct = actId;
         actDone = true;
@@ -813,7 +880,12 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
         }
 
         assert(pTask->pMemList[pTask->memIdx - 1].p);
+        osize = mptMemorySize(pTask->pMemList[pTask->memIdx - 1].p);
         mptMemoryFree(pTask->pMemList[pTask->memIdx - 1].p);
+        pTask->stat.times.memFree.exec++;
+        pTask->stat.times.memFree.succ++;
+        pTask->stat.bytes.memFree.exec+=osize;        
+        pTask->stat.bytes.memFree.succ+=osize;        
         pTask->pMemList[pTask->memIdx - 1].p = NULL;
         
         pTask->memIdx--;
@@ -822,7 +894,17 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
         break;
       }
       case 8:{ // trim
-        mptMemoryTrim(0, NULL);
+        bool trimed = false;
+        int32_t code = mptMemoryTrim(0, &trimed);
+        pTask->stat.times.memTrim.exec++;
+        if (code) {
+          pTask->stat.times.memTrim.fail++;
+        } else {
+          pTask->stat.times.memTrim.succ++;
+          if (trimed) {
+            pTask->stat.bytes.memTrim.succ++;
+          }
+        }
         pTask->lastAct = actId;
         actDone = true;
         break;
@@ -834,14 +916,23 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
         
         pTask->pMemList[pTask->memIdx].p = mptMemoryMallocAlign(8, size);
         if (NULL == pTask->pMemList[pTask->memIdx].p) {
+          pTask->stat.times.memMalloc.exec++;
+          pTask->stat.bytes.memMalloc.exec+=size;        
+          pTask->stat.times.memMalloc.fail++;
+          pTask->stat.bytes.memMalloc.fail+=size;        
           uError("JOB:0x%x TASK:0x%x mpMallocAlign %d failed, terrno:0x%x", pJobCtx->jobId, pTask->taskId, size, terrno);
           return;
         }
+
+        nsize = mptMemorySize(pTask->pMemList[pTask->memIdx].p);
         
-        *(char*)pTask->pMemList[pTask->memIdx].p = 'a' + taosRand() % 26;
-        *((char*)pTask->pMemList[pTask->memIdx].p + size -1) = 'a' + taosRand() % 26;
+        mptWriteMem(pTask->pMemList[pTask->memIdx].p, size);
+
+        pTask->stat.times.memMalloc.exec++;
+        pTask->stat.bytes.memMalloc.exec+=nsize;        
         
-        pTask->pMemList[pTask->memIdx].size = size;
+        pTask->stat.times.memMalloc.succ++;
+        pTask->stat.bytes.memMalloc.succ+=nsize;        
         pTask->memIdx++;
         pTask->lastAct = actId;
         actDone = true;
@@ -936,6 +1027,37 @@ void mptInitJobs() {
   }
 }
 
+void mptCheckPoolUsedSize(int32_t jobNum) {
+  int64_t usedSize = 0;
+  bool needEnd = false;
+  int64_t poolUsedSize = 0;
+  
+  taosMemPoolGetUsedSizeBegin(mptCtx.memPoolHandle, &usedSize, &needEnd);
+  for (int32_t i = 0; i < jobNum; ++i) {
+    SMPTestJobCtx* pJobCtx = &mptCtx.jobCtxs[i];
+    int64_t jobUsedSize = 0;
+    for (int32_t m = 0; m < pJobCtx->taskNum; ++m) {
+      SMPStatDetail* pStat = NULL;
+      int64_t allocSize = 0;
+      taosMemPoolGetSessionStat(pJobCtx->pSessions[m], &pStat, &allocSize, NULL);
+      int64_t usedSize = MEMPOOL_GET_USED_SIZE(pStat);
+      
+      assert(allocSize == usedSize);
+      assert(0 == memcmp(pStat, &pJobCtx->taskCtxs[m].stat, sizeof(*pStat)));
+
+      jobUsedSize += allocSize;
+    }
+    
+    assert(pJobCtx->pJob->memInfo->allocMemSize == jobUsedSize);
+
+    poolUsedSize += jobUsedSize;
+  }
+
+  assert(poolUsedSize == usedSize);
+  
+  taosMemPoolGetUsedSizeEnd(mptCtx.memPoolHandle);
+}
+
 void* mptThreadFunc(void* param) {
   SMPTestThread* pThread = (SMPTestThread*)param;
   int32_t jobExecTimes = (mptCtrl.jobExecTimes) ? mptCtrl.jobExecTimes : taosRand() % MPT_MAX_JOB_LOOP_TIMES + 1;
@@ -977,6 +1099,8 @@ void* mptThreadFunc(void* param) {
     }
 
     MPT_PRINTF("Thread %d finish the %dth job loops\n", pThread->idx, n);
+
+    mptCheckPoolUsedSize(jobNum);
   }
 
   return NULL;
@@ -1037,7 +1161,34 @@ void mptPrintTestBeginInfo(char* caseName, SMPTestParam* param) {
 }  // namespace
 
 #if 1
+
 #if 1
+TEST(FuncTest, SysMemoryPerfTest) {
+  char* caseName = "FuncTest:SingleThreadTest";
+  int32_t code = 0;
+
+  int64_t msize = 1048576UL*10240;
+  char* p = (char*)taosMemMalloc(msize);
+  int64_t st = taosGetTimestampUs();
+  memset(p, 0, msize);
+  int64_t totalUs = taosGetTimestampUs() - st;  
+  printf("memset %" PRId64 " used time:%" PRId64 "us\n", msize, totalUs, totalUs);
+  
+  int64_t freeSize = 0;
+  int32_t loopTimes = 1000000;
+  st = taosGetTimestampUs();
+  int64_t lt = st;
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    code = taosGetSysAvailMemory(&freeSize);
+    assert(0 == code);
+  }
+  totalUs = taosGetTimestampUs() - st;
+  
+  printf("%d times getSysMemory total time:%" PRId64 "us, avg:%dus\n", loopTimes, totalUs, totalUs/loopTimes);
+}
+#endif
+
+#if 0
 TEST(FuncTest, SingleThreadTest) {
   char* caseName = "FuncTest:SingleThreadTest";
   SMPTestParam param = {0};

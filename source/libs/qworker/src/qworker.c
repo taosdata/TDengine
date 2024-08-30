@@ -1345,7 +1345,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
     QW_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  if (NULL == gQueryMgmt.memPoolHandle) {
+  if (0 == atomic_val_compare_exchange_8(&gQueryMgmt.memPoolInited, 0, 1)) {
     QW_ERR_RET(qwInitQueryPool());
   }
   

@@ -18,7 +18,7 @@ int32_t qwGetMemPoolMaxMemSize(void* pHandle, int64_t* maxSize) {
   }
 
   int64_t totalSize = freeSize + usedSize;
-  int64_t reserveSize = TMAX(totalSize * QW_DEFAULT_RESERVE_MEM_PERCENT / 100 / 1048576UL * 1048576UL, QW_MIN_RESERVE_MEM_SIZE);
+  int64_t reserveSize = TMAX(tsTotalMemoryKB * 1024 * QW_DEFAULT_RESERVE_MEM_PERCENT / 100 / 1048576UL * 1048576UL, QW_MIN_RESERVE_MEM_SIZE);
   int64_t availSize = (totalSize - reserveSize) / 1048576UL * 1048576UL;
   if (availSize < QW_MIN_MEM_POOL_SIZE) {
     qError("too little available query memory, totalAvailable: %" PRId64 ", reserveSize: %" PRId64, totalSize, reserveSize);
@@ -238,15 +238,15 @@ void qwRetireJobsCb(void* pHandle, int64_t retireSize, bool lowLevelRetire, int3
   (lowLevelRetire) ? qwLowLevelRetire(pHandle, retireSize, errCode) : qwMidLevelRetire(pHandle, retireSize, errCode);
 }
 
-int32_t qwGetQueryMemPoolMaxSize(void* pHandle, int64_t* pMaxSize, bool* autoMaxSize) {
+int32_t qwUpdateQueryMemPoolCfg(void* pHandle, int64_t* pFreeSize, bool* autoMaxSize, int64_t* pReserveSize, int64_t* pRetireUnitSize) {
   if (tsQueryBufferPoolSize > 0) {
-    *pMaxSize = tsQueryBufferPoolSize * 1048576UL;
+    *pFreeSize = tsQueryBufferPoolSize * 1048576UL;
     *autoMaxSize = false;
 
     return TSDB_CODE_SUCCESS;
   }
   
-  int32_t code = qwGetMemPoolMaxMemSize(pHandle, pMaxSize);
+  int32_t code = qwGetMemPoolMaxMemSize(pHandle, pFreeSize);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -263,18 +263,17 @@ void qwCheckUpateCfgCb(void* pHandle, void* cfg) {
     atomic_store_64(&pCfg->jobQuota, newJobQuota);
   }
   
-  int64_t maxSize = 0;
+  int64_t freeSize = 0, reserveSize = 0, retireUnitSize = 0;
   bool autoMaxSize = false;
-  int32_t code = qwGetQueryMemPoolMaxSize(pHandle, &maxSize, &autoMaxSize);
+  int32_t code = qwUpdateQueryMemPoolCfg(pHandle, &freeSize, &autoMaxSize, &reserveSize, &retireUnitSize);
   if (TSDB_CODE_SUCCESS != code) {
-    pCfg->maxSize = 0;
-    qError("get query memPool maxSize failed, reset maxSize to %" PRId64, pCfg->maxSize);
-    return;
+    pCfg->freeSize = 0;
+    qError("get query memPool freeSize failed, reset freeSize to %" PRId64, pCfg->freeSize);
   }
   
-  if (pCfg->autoMaxSize != autoMaxSize || pCfg->maxSize != maxSize) {
+  if (pCfg->autoMaxSize != autoMaxSize || pCfg->freeSize != freeSize) {
     pCfg->autoMaxSize = autoMaxSize;
-    atomic_store_64(&pCfg->maxSize, maxSize);
+    atomic_store_64(&pCfg->freeSize, freeSize);
     taosMemPoolCfgUpdate(pHandle, pCfg);
   }
 }
@@ -304,10 +303,10 @@ int32_t qwInitQueryPool(void) {
   }
 #endif
 
+  taosGetTotalMemory(&tsTotalMemoryKB);
+
   SMemPoolCfg cfg = {0};
-  int64_t maxSize = 0;
-  bool autoMaxSize = false;
-  code = qwGetQueryMemPoolMaxSize(NULL, &maxSize, &autoMaxSize);
+  code = qwUpdateQueryMemPoolCfg(NULL, &cfg.freeSize, &cfg.autoMaxSize, &cfg.reserveSize, &cfg.retireUnitSize);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }  
@@ -321,11 +320,6 @@ int32_t qwInitQueryPool(void) {
   cfg.cb.retireJobsFp = qwRetireJobsCb;
   cfg.cb.retireJobFp  = qwRetireJobCb;
   cfg.cb.cfgUpdateFp = qwCheckUpateCfgCb;
-
-  code = qwGetMemPoolChunkSize(cfg.maxSize, cfg.threadNum, &cfg.chunkSize);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
-  }  
 
   gQueryMgmt.pJobInfo = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   if (NULL == gQueryMgmt.pJobInfo) {

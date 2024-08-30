@@ -94,13 +94,20 @@ typedef struct SMemPoolCallBack {
 
 typedef struct SMemPoolCfg {
   bool               autoMaxSize;
-  int64_t            maxSize;
+  int64_t            reserveSize;
+  int64_t            retireUnitSize;
+  int64_t            freeSize;
   int64_t            jobQuota;
   int32_t            chunkSize;
   int32_t            threadNum;
   MemPoolEvictPolicy evicPolicy;
   SMemPoolCallBack   cb;
 } SMemPoolCfg;
+
+#define MEMPOOL_GET_ALLOC_SIZE(_dstat) ((_dstat)->bytes.memMalloc.succ + (_dstat)->bytes.memCalloc.succ + (_dstat)->bytes.memRealloc.succ + (_dstat)->bytes.strdup.succ + (_dstat)->bytes.strndup.succ)
+#define MEMPOOL_GET_FREE_SIZE(_dstat) ((_dstat)->bytes.memRealloc.origSucc + (_dstat)->bytes.memFree.succ)
+#define MEMPOOL_GET_USED_SIZE(_dstat) (MEMPOOL_GET_ALLOC_SIZE(_dstat) - MEMPOOL_GET_FREE_SIZE(_dstat))
+
 
 int32_t taosMemPoolOpen(char* poolName, SMemPoolCfg* cfg, void** poolHandle);
 void   *taosMemPoolMalloc(void* poolHandle, void* session, int64_t size, char* fileName, int32_t lineNo);
@@ -123,6 +130,8 @@ void    taosMemPoolPrintStat(void* poolHandle, void* session, char* procName);
 void    taosMemPoolGetUsedSizeBegin(void* poolHandle, int64_t* usedSize, bool* needEnd);
 void    taosMemPoolGetUsedSizeEnd(void* poolHandle);
 bool    taosMemPoolNeedRetireJob(void* poolHandle);
+int32_t taosMemPoolGetSessionStat(void* session, SMPStatDetail** ppStat, int64_t* allocSize, int64_t* maxAllocSize);
+
 
 #define taosMemPoolFreeClear(ptr)   \
   do {                             \

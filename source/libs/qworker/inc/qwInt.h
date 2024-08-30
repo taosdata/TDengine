@@ -253,6 +253,7 @@ typedef struct SQueryMgmt {
   int32_t      concTaskLevel;
   SHashObj*    pJobInfo;
   void*        memPoolHandle;
+  int8_t       memPoolInited;
   SQWRetireCtx retireCtx;
 } SQueryMgmt;
 

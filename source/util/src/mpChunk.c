@@ -153,7 +153,7 @@ int32_t mpChunkAllocMem(SMemPool* pPool, SMPSession* pSession, int64_t size, uin
     
     pSession->chunk.allocChunkNum++;
     pSession->chunk.allocChunkMemSize += pPool->cfg.chunkSize;
-    mpUpdateAllocSize(pPool, pSession, totalSize);
+    mpUpdateAllocSize(pPool, pSession, totalSize, 0);
 
     MP_ADD_TO_CHUNK_LIST(pSession->chunk.srcChunkHead, pSession->chunk.srcChunkTail, pSession->chunk.srcChunkNum, pChunk);
     MP_ADD_TO_CHUNK_LIST(pSession->chunk.inUseChunkHead, pSession->chunk.inUseChunkTail, pSession->chunk.inUseChunkNum, pChunk);
@@ -198,7 +198,7 @@ int32_t mpChunkNSAllocMem(SMemPool* pPool, SMPSession* pSession, int64_t size, u
   
   pSession->chunk.allocChunkNum++;
   pSession->chunk.allocChunkMemSize += totalSize;
-  mpUpdateAllocSize(pPool, pSession, totalSize);
+  mpUpdateAllocSize(pPool, pSession, totalSize, 0);
   
   if (NULL == pSession->chunk.inUseNSChunkHead) {
     pSession->chunk.inUseNSChunkHead = pChunk;
@@ -240,8 +240,8 @@ int64_t mpChunkGetMemSize(SMemPool* pPool, SMPSession* pSession, void *ptr) {
   return pHeader->size;
 }
 
-int32_t mpChunkAlloc(SMemPool* pPool, SMPSession* pSession, int64_t size, uint32_t alignment, void** ppRes) {
-  MP_RET((size > pPool->cfg.chunkSize) ? mpChunkNSAllocMem(pPool, pSession, size, alignment, ppRes) : mpChunkAllocMem(pPool, pSession, size, alignment, ppRes));
+int32_t mpChunkAlloc(SMemPool* pPool, SMPSession* pSession, int64_t* size, uint32_t alignment, void** ppRes) {
+  MP_RET((*size > pPool->cfg.chunkSize) ? mpChunkNSAllocMem(pPool, pSession, *size, alignment, ppRes) : mpChunkAllocMem(pPool, pSession, *size, alignment, ppRes));
 }
 
 
@@ -258,12 +258,12 @@ void mpChunkFree(SMemPool* pPool, SMPSession* pSession, void *ptr, int64_t* orig
 }
 
 
-int32_t mpChunkRealloc(SMemPool* pPool, SMPSession* pSession, void **pPtr, int64_t size, int64_t* origSize) {
+int32_t mpChunkRealloc(SMemPool* pPool, SMPSession* pSession, void **pPtr, int64_t* size, int64_t* origSize) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  if (*origSize >= size) {
+  if (*origSize >= *size) {
     SMPMemHeader* pHeader = (SMPMemHeader*)((char*)*pPtr - sizeof(SMPMemHeader));
-    pHeader->size = size;
+    pHeader->size = *size;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -301,9 +301,9 @@ int32_t mpChunkInitSession(SMemPool* pPool, SMPSession* pSession) {
 }
 
 int32_t mpChunkUpdateCfg(SMemPool* pPool) {
-  pPool->chunk.maxChunkNum = pPool->cfg.maxSize / pPool->cfg.chunkSize;
+  pPool->chunk.maxChunkNum = pPool->cfg.freeSize / pPool->cfg.chunkSize;
   if (pPool->chunk.maxChunkNum <= 0) {
-    uError("invalid memory pool max chunk num, maxSize:%" PRId64 ", chunkSize:%d", pPool->cfg.maxSize, pPool->cfg.chunkSize);
+    uError("invalid memory pool max chunk num, freeSize:%" PRId64 ", chunkSize:%d", pPool->cfg.freeSize, pPool->cfg.chunkSize);
     return TSDB_CODE_INVALID_MEM_POOL_PARAM;
   }
 
