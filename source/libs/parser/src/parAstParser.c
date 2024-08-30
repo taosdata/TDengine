@@ -106,6 +106,7 @@ typedef struct SCollectMetaKeyCxt {
 typedef struct SCollectMetaKeyFromExprCxt {
   SCollectMetaKeyCxt* pComCxt;
   bool                hasLastRowOrLast;
+  bool                tbnameCollect;
   int32_t             errCode;
 } SCollectMetaKeyFromExprCxt;
 
@@ -203,6 +204,45 @@ static EDealRes collectMetaKeyFromTempTable(SCollectMetaKeyFromExprCxt* pCxt, ST
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
+static int32_t isTbnameEqCondOperator(SOperatorNode* pOperator, char** ppTableName) {
+  if (pOperator->opType != OP_TYPE_EQUAL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  SValueNode*    pValueNode = NULL;
+  if (nodeType(pOperator->pLeft) == QUERY_NODE_FUNCTION &&
+      0 == strcasecmp(((SFunctionNode*)(pOperator->pLeft))->functionName, "tbname") &&
+      nodeType(pOperator->pRight) == QUERY_NODE_VALUE) {
+    pValueNode = (SValueNode*)pOperator->pRight;
+  } else if (nodeType(pOperator->pRight) == QUERY_NODE_FUNCTION &&
+     0 == strcasecmp(((SFunctionNode*)(pOperator->pRight))->functionName, "tbname") &&
+     nodeType(pOperator->pLeft) == QUERY_NODE_VALUE) {
+    pValueNode = (SValueNode*)pOperator->pLeft;
+  } else {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *ppTableName = pValueNode->literal;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static EDealRes collectMetaKeyFromOperator(SCollectMetaKeyFromExprCxt* pCxt, SOperatorNode* pOpNode) {
+  if (!pCxt->tbnameCollect) {
+    return DEAL_RES_CONTINUE;
+  }
+  
+  char*   pTableName = NULL;
+  int32_t code = isTbnameEqCondOperator((SOperatorNode*)pOpNode, &pTableName);
+  if (TSDB_CODE_SUCCESS != code) return DEAL_RES_CONTINUE;
+  if (pTableName) {
+    SSelectStmt* pSelect = (SSelectStmt*)pCxt->pComCxt->pStmt;
+    pCxt->errCode = collectMetaKeyFromRealTableImpl(pCxt->pComCxt, ((SRealTableNode*)pSelect->pFromTable)->table.dbName, pTableName, AUTH_TYPE_READ);
+  }
+
+  return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
+}
+
 static EDealRes collectMetaKeyFromExprImpl(SNode* pNode, void* pContext) {
   SCollectMetaKeyFromExprCxt* pCxt = pContext;
   switch (nodeType(pNode)) {
@@ -212,6 +252,8 @@ static EDealRes collectMetaKeyFromExprImpl(SNode* pNode, void* pContext) {
       return collectMetaKeyFromRealTable(pCxt, (SRealTableNode*)pNode);
     case QUERY_NODE_TEMP_TABLE:
       return collectMetaKeyFromTempTable(pCxt, (STempTableNode*)pNode);
+    case QUERY_NODE_OPERATOR:
+      return collectMetaKeyFromOperator(pCxt, (SOperatorNode*)pNode);
     default:
       break;
   }
@@ -219,7 +261,7 @@ static EDealRes collectMetaKeyFromExprImpl(SNode* pNode, void* pContext) {
 }
 
 static int32_t collectMetaKeyFromExprs(SCollectMetaKeyCxt* pCxt, SNodeList* pList) {
-  SCollectMetaKeyFromExprCxt cxt = {.pComCxt = pCxt, .errCode = TSDB_CODE_SUCCESS};
+  SCollectMetaKeyFromExprCxt cxt = {.pComCxt = pCxt, .errCode = TSDB_CODE_SUCCESS, .tbnameCollect = false};
   nodesWalkExprs(pList, collectMetaKeyFromExprImpl, &cxt);
   return cxt.errCode;
 }
@@ -244,6 +286,9 @@ static int32_t reserveDbCfgForLastRow(SCollectMetaKeyCxt* pCxt, SNode* pTable) {
 
 static int32_t collectMetaKeyFromSelect(SCollectMetaKeyCxt* pCxt, SSelectStmt* pStmt) {
   SCollectMetaKeyFromExprCxt cxt = {.pComCxt = pCxt, .hasLastRowOrLast = false, .errCode = TSDB_CODE_SUCCESS};
+  if (pStmt->pFromTable && QUERY_NODE_REAL_TABLE == nodeType(pStmt->pFromTable)) {
+    cxt.tbnameCollect = true;
+  }
   nodesWalkSelectStmt(pStmt, SQL_CLAUSE_FROM, collectMetaKeyFromExprImpl, &cxt);
   if (TSDB_CODE_SUCCESS == cxt.errCode && cxt.hasLastRowOrLast) {
     cxt.errCode = reserveDbCfgForLastRow(pCxt, pStmt->pFromTable);
