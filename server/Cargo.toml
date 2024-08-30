@@ -53,10 +53,11 @@ chrono = "0.4"
 chrono-tz = "0.9.0"
 scc = "2.1.16"
 
-taoslog = { git = "https://github.com/taosdata/taoslog-rs.git", rev = "b92844c0db7ace9af9f2dbcc5860b7fd1fc3a607", features = [
+taoslog = { git = "https://github.com/taosdata/taoslog-rs.git", rev = "d3d37a72b997204d1fc1d2d55d120e47e64b8370", features = [
 	"ansi",
 ] }
 http = "0.2.12"
+bitfield = "0.16.1"
 
 [dependencies.taos]
 # path = "../taos-connector-rust/taos"
