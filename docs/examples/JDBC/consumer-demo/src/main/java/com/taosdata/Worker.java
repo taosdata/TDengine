@@ -73,6 +73,7 @@ public class Worker implements Runnable {
                     try {
                         for (ConsumerRecord<Map<String, Object>> record : records) {
                             // 流量控制
+                            System.out.println(JSON.toJSONString(record.value()));
 
                             Map<String, Object> colMap = record.value();
 
