@@ -1248,13 +1248,39 @@ _err:
   return NULL;
 }
 
+#define CHECK_PARSER_STATUS1(pCxt)             \
+  do {                                        \
+    if (TSDB_CODE_SUCCESS != pCxt->errCode) { \
+      return NULL;                            \
+    }                                         \
+  } while (0)
+
+#define CHECK_MAKE_NODE1(p) \
+  do {                     \
+    if (NULL == (p)) {     \
+      return NULL;         \
+    }                      \
+  } while (0)
+
+#define CHECK_OUT_OF_MEM1(p)                    \
+  do {                                         \
+    if (NULL == (p)) {                         \
+      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY; \
+      return NULL;                             \
+    }                                          \
+  } while (0)
+
+
 SNode* createViewNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pViewName) {
-  CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkDbName(pCxt, pDbName, true));
-  CHECK_NAME(checkViewName(pCxt, pViewName));
+  CHECK_PARSER_STATUS1(pCxt);
+  if (!checkDbName(pCxt, pDbName, true) || !checkViewName(pCxt, pViewName)) {
+    return NULL;
+  }
+  //CHECK_NAME(checkDbName(pCxt, pDbName, true));
+  //CHECK_NAME(checkViewName(pCxt, pViewName));
   SViewNode* pView = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_VIEW, (SNode**)&pView);
-  CHECK_MAKE_NODE(pView);
+  CHECK_MAKE_NODE1(pView);
   if (NULL != pDbName) {
     COPY_STRING_FORM_ID_TOKEN(pView->table.dbName, pDbName);
   } else {
@@ -3309,15 +3335,15 @@ _err:
 
 SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pView, const SToken* pAs, SNode* pQuery) {
   SCreateViewStmt* pStmt = NULL;
-  CHECK_PARSER_STATUS(pCxt);
+  CHECK_PARSER_STATUS1(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIEW_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
+  CHECK_MAKE_NODE1(pStmt);
   int32_t i = pAs->n;
   while (isspace(*(pAs->z + i))) {
     ++i;
   }
   pStmt->pQuerySql = tstrdup(pAs->z + i);
-  CHECK_OUT_OF_MEM(pStmt->pQuerySql);
+  CHECK_OUT_OF_MEM1(pStmt->pQuerySql);
   strcpy(pStmt->dbName, ((SViewNode*)pView)->table.dbName);
   strcpy(pStmt->viewName, ((SViewNode*)pView)->table.tableName);
   nodesDestroyNode(pView);
