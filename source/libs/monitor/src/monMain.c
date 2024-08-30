@@ -132,7 +132,8 @@ int32_t monInit(const SMonCfg *pCfg) {
 }
 
 void monInitVnode() {
-  if (tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && tsInsertCounter == NULL) {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+  if (tsInsertCounter == NULL) {
     taos_counter_t *counter = NULL;
     int32_t         label_count = 7;
     const char     *sample_labels[] = {VNODE_METRIC_TAG_NAME_SQL_TYPE,  VNODE_METRIC_TAG_NAME_CLUSTER_ID,

@@ -81,7 +81,7 @@ int32_t getJsonValueLen(const char* data) {
   } else if (tTagIsJson(data)) {  // json string
     dataLen = ((STag*)(data))->len;
   } else {
-    ASSERT(0);
+    uError("Invalid data type:%d in Json", *data);
   }
   return dataLen;
 }
@@ -801,7 +801,7 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
     size_t  rowSize = blockDataGetRowSize(pBlock);
     int32_t capacity = blockDataGetCapacityInRow(pBlock, pageSize, headerSize + colHeaderSize);
     if (capacity <= 0) {
-      return TSDB_CODE_FAILED;
+      return terrno;
     }
 
     *stopIndex = startIndex + capacity - 1;
@@ -835,7 +835,7 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
     if (size > pageSize) {  // pageSize must be able to hold one row
       *stopIndex = j - 1;
       if (*stopIndex < startIndex) {
-        return TSDB_CODE_FAILED;
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       }
 
       return TSDB_CODE_SUCCESS;
@@ -1232,7 +1232,7 @@ int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
   return 0;
 }
 
-static int32_t blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataBlock, const int32_t* index) {
+static void blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataBlock, const int32_t* index) {
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pDst = &pCols[i];
@@ -1260,8 +1260,6 @@ static int32_t blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataB
       }
     }
   }
-
-  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t createHelpColInfoData(const SSDataBlock* pDataBlock, SColumnInfoData** ppCols) {
@@ -1448,18 +1446,16 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
   }
 
   int64_t p2 = taosGetTimestampUs();
-  code = blockDataAssign(pCols, pDataBlock, index);
-  if (code) {
-    return code;
-  }
+  blockDataAssign(pCols, pDataBlock, index);
 
   int64_t p3 = taosGetTimestampUs();
   copyBackToBlock(pDataBlock, pCols);
-  int64_t p4 = taosGetTimestampUs();
 
+  int64_t p4 = taosGetTimestampUs();
   uDebug("blockDataSort complex sort:%" PRId64 ", create:%" PRId64 ", assign:%" PRId64 ", copyback:%" PRId64
          ", rows:%d\n",
          p1 - p0, p2 - p1, p3 - p2, p4 - p3, rows);
+
   destroyTupleIndex(index);
   return TSDB_CODE_SUCCESS;
 }
@@ -2064,7 +2060,7 @@ int32_t blockDataAppendColInfo(SSDataBlock* pBlock, SColumnInfoData* pColInfoDat
   }
 
   // todo disable it temporarily
-  //  ASSERT(pColInfoData->info.type != 0);
+  //  A S S E R T(pColInfoData->info.type != 0);
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
     pBlock->info.hasVarCol = true;
   }
@@ -2104,14 +2100,18 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize, int
   int32_t payloadSize = pageSize - extraSize;
   int32_t rowSize = pBlock->info.rowSize;
   int32_t nRows = payloadSize / rowSize;
-  ASSERT(nRows >= 1);
+  if (nRows < 1) {
+    uError("rows %d in page is too small, payloadSize:%d, rowSize:%d", nRows, payloadSize, rowSize);
+    terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    return -1;
+  }
 
   int32_t numVarCols = 0;
   int32_t numFixCols = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
     if (pCol == NULL) {
-      return terrno;
+      return -1;
     }
 
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
@@ -2139,7 +2139,11 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize, int
 
   int32_t newRows = (result != -1) ? result - 1 : nRows;
   // the true value must be less than the value of nRows
-  ASSERT(newRows <= nRows && newRows >= 1);
+  if (newRows > nRows || newRows < 1) {
+    uError("invalid newRows:%d, nRows:%d", newRows, nRows);
+    terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    return -1;
+  }
 
   return newRows;
 }
@@ -2620,7 +2624,11 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
     }
 
     // the rsma result should has the same column number with schema.
-    ASSERT(colNum == pTSchema->numOfCols);
+    if (colNum != pTSchema->numOfCols) {
+      uError("colNum %d is not equal to numOfCols %d", colNum, pTSchema->numOfCols);
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      goto _end;
+    }
 
     SSubmitTbData tbData = {0};
 
@@ -2656,10 +2664,18 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
 
         switch (pColInfoData->info.type) {
           case TSDB_DATA_TYPE_TIMESTAMP:
-            ASSERT(pColInfoData->info.type == pCol->type);
+            if (pColInfoData->info.type != pCol->type) {
+              uError("colType:%d mismatch with sechma colType:%d", pColInfoData->info.type, pCol->type);
+              terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+              return terrno;
+            }
             if (!isStartKey) {
               isStartKey = true;
-              ASSERT(PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId);
+              if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId) {
+                uError("the first timestamp colId %d is not primary colId", pCol->colId);
+                terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+                return terrno;
+              }
               SColVal cv = COL_VAL_VALUE(pCol->colId, ((SValue){.type = pCol->type, .val = *(TSKEY*)var}));
               void*   px = taosArrayPush(pVals, &cv);
               if (px == NULL) {
@@ -2683,7 +2699,11 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
           case TSDB_DATA_TYPE_NCHAR:
           case TSDB_DATA_TYPE_VARBINARY:
           case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
-            ASSERT(pColInfoData->info.type == pCol->type);
+            if (pColInfoData->info.type != pCol->type) {
+              uError("colType:%d mismatch with sechma colType:%d", pColInfoData->info.type, pCol->type);
+              terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+              return terrno;
+            }
             if (colDataIsNull_s(pColInfoData, j)) {
               SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
               void* px = taosArrayPush(pVals, &cv);
@@ -2708,7 +2728,8 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
           case TSDB_DATA_TYPE_JSON:
           case TSDB_DATA_TYPE_MEDIUMBLOB:
             uError("the column type %" PRIi16 " is defined but not implemented yet", pColInfoData->info.type);
-            ASSERT(0);
+            terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+            return terrno;
             break;
           default:
             if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
@@ -2756,7 +2777,8 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
               }
             } else {
               uError("the column type %" PRIi16 " is undefined\n", pColInfoData->info.type);
-              ASSERT(0);
+              terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+              return terrno;
             }
             break;
         }
@@ -2767,7 +2789,6 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
         goto _end;
       }
 
-      ASSERT(pRow);
       void* px = taosArrayPush(tbData.aRowP, &pRow);
       if (px == NULL) {
         code = terrno;
@@ -2906,7 +2927,11 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
   int32_t* rows = (int32_t*)data;
   *rows = pBlock->info.rows;
   data += sizeof(int32_t);
-  ASSERT(*rows > 0);
+  if (*rows <= 0) {
+    uError("Invalid rows %d in block", *rows);
+    terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    return -1;
+  }
 
   int32_t* cols = (int32_t*)data;
   *cols = numOfCols;
@@ -3059,7 +3084,11 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     colLen[i] = htonl(colLen[i]);
-    ASSERT(colLen[i] >= 0);
+    if (colLen[i] < 0) {
+      uError("block decode colLen:%d error, colIdx:%d", colLen[i], i);
+      terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      return terrno;
+    }
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
     if (pColInfoData == NULL) {
@@ -3103,7 +3132,11 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
   pBlock->info.dataLoad = 1;
   pBlock->info.rows = numOfRows;
   pBlock->info.blankFill = blankFill;
-  ASSERT(pStart - pData == dataLen);
+  if (pStart - pData != dataLen) {
+    uError("block decode msg len error, pStart:%p, pData:%p, dataLen:%d", pStart, pData, dataLen);
+    terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    return terrno;
+  }
 
   *pEndPos = pStart;
   return code;

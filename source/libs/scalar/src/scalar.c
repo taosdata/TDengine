@@ -74,15 +74,17 @@ int32_t sclConvertValueToSclParam(SValueNode *pValueNode, SScalarParam *out, int
 
   code = colDataSetVal(in.columnData, 0, nodesGetValueFromNode(pValueNode), false);
   if (code != TSDB_CODE_SUCCESS) {
-    return code;
+    goto  _exit;
   }
 
   code = colInfoDataEnsureCapacity(out->columnData, 1, true);
   if (code != TSDB_CODE_SUCCESS) {
-    return code;
+    goto _exit;
   }
 
   code = vectorConvertSingleColImpl(&in, out, overflow, -1, -1);
+
+_exit:
   sclFreeParam(&in);
 
   return code;
@@ -129,7 +131,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
   SListCell     *cell = nodeList->pNodeList->pHead;
   SScalarParam   out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
   if (out.columnData == NULL) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
   int32_t len = 0;
   void   *buf = NULL;
@@ -594,7 +596,7 @@ int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScal
   return TSDB_CODE_SUCCESS;
 
 _return:
-  taosMemoryFreeClear(paramList);
+  sclFreeParamList(paramList, paramNum);
   SCL_RET(code);
 }
 
@@ -877,7 +879,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   SScalarParam *params = NULL;
   int32_t       rowNum = 0;
   int32_t       code = 0;
-  int32_t       paramNum = 0;
+  int32_t       paramNum = scalarGetOperatorParamNum(node->opType);
 
   // json not support in in operator
   if (nodeType(node->pLeft) == QUERY_NODE_VALUE) {
@@ -888,7 +890,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
     }
   }
 
-  SCL_ERR_RET(sclInitOperatorParams(&params, node, ctx, &rowNum));
+  SCL_ERR_JRET(sclInitOperatorParams(&params, node, ctx, &rowNum));
   if (output->columnData == NULL) {
     code = sclCreateColumnInfoData(&node->node.resType, rowNum, output);
     if (code != TSDB_CODE_SUCCESS) {
@@ -898,7 +900,6 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(node->opType);
 
-  paramNum = scalarGetOperatorParamNum(node->opType);
   SScalarParam *pLeft = &params[0];
   SScalarParam *pRight = paramNum > 1 ? &params[1] : NULL;
 

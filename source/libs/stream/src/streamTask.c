@@ -310,6 +310,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
 }
 
 void streamFreeTaskState(SStreamTask* pTask, int8_t remove) {
+  stDebug("s-task:0x%x start to free task state/backend", pTask->id.taskId);
   if (pTask->pState != NULL) {
     stDebug("s-task:0x%x start to free task state", pTask->id.taskId);
     streamStateClose(pTask->pState, remove);
@@ -319,8 +320,11 @@ void streamFreeTaskState(SStreamTask* pTask, int8_t remove) {
     pTask->pBackend = NULL;
     pTask->pState = NULL;
   } else {
+    stDebug("s-task:0x%x task state is NULL, may del backend:%s", pTask->id.taskId,
+            pTask->backendPath ? pTask->backendPath : "NULL");
     if (remove) {
       if (pTask->backendPath != NULL) {
+        stDebug("s-task:0x%x task state is NULL, do del backend:%s", pTask->id.taskId, pTask->backendPath);
         taosRemoveDir(pTask->backendPath);
       }
     }
@@ -373,11 +377,11 @@ int32_t streamTaskSetBackendPath(SStreamTask* pTask) {
   int32_t taskId = 0;
 
   if (pTask->info.fillHistory) {
-    streamId = pTask->hTaskInfo.id.taskId;
-    taskId = pTask->hTaskInfo.id.taskId;
-  } else {
-    streamId = pTask->streamTaskId.taskId;
+    streamId = pTask->streamTaskId.streamId;
     taskId = pTask->streamTaskId.taskId;
+  } else {
+    streamId = pTask->id.streamId;
+    taskId = pTask->id.taskId;
   }
 
   char    id[128] = {0};
@@ -393,6 +397,7 @@ int32_t streamTaskSetBackendPath(SStreamTask* pTask) {
   }
 
   (void)sprintf(pTask->backendPath, "%s%s%s", pTask->pMeta->path, TD_DIRSEP, id);
+  stDebug("s-task:%s set backend path:%s", pTask->id.idStr, pTask->backendPath);
 
   return 0;
 }
@@ -941,7 +946,7 @@ STaskStatusEntry streamTaskGetStatusEntry(SStreamTask* pTask) {
       .checkpointInfo.latestSize = 0,
       .checkpointInfo.remoteBackup = 0,
       .checkpointInfo.consensusChkptId = 0,
-      .checkpointInfo.consensusTs = taosGetTimestampMs(),
+      .checkpointInfo.consensusTs = 0,
       .hTaskId = pTask->hTaskInfo.id.taskId,
       .procsTotal = SIZE_IN_MiB(pExecInfo->inputDataSize),
       .outputTotal = SIZE_IN_MiB(pExecInfo->outputDataSize),
@@ -1092,7 +1097,7 @@ static int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq*
   }
 
   // enqueue
-  stDebug("s-task:%s (vgId:%d level:%d) recv retrieve req from task:0x%x(vgId:%d), qid:0x%" PRIx64, pTask->id.idStr,
+  stDebug("s-task:%s (vgId:%d level:%d) recv retrieve req from task:0x%x(vgId:%d),QID:0x%" PRIx64, pTask->id.idStr,
           pTask->pMeta->vgId, pTask->info.taskLevel, pReq->srcTaskId, pReq->srcNodeId, pReq->reqId);
 
   pData->type = STREAM_INPUT__DATA_RETRIEVE;

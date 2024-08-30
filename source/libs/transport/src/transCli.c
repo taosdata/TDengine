@@ -253,20 +253,20 @@ static void    cliWalkCb(uv_handle_t* handle, void* arg);
 #define CONN_PERSIST_TIME(para)   ((para) <= 90000 ? 90000 : (para))
 #define CONN_GET_INST_LABEL(conn) (((STrans*)(((SCliThrd*)(conn)->hostThrd)->pTransInst))->label)
 
-#define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                         \
-  do {                                                                    \
-    int i = 0, sz = transQueueSize(&conn->cliMsgs);                       \
-    for (; i < sz; i++) {                                                 \
-      pMsg = transQueueGet(&conn->cliMsgs, i);                            \
-      if (pMsg->ctx != NULL && (uint64_t)pMsg->ctx->ahandle == ahandle) { \
-        break;                                                            \
-      }                                                                   \
-    }                                                                     \
-    if (i == sz) {                                                        \
-      pMsg = NULL;                                                        \
-    } else {                                                              \
-      pMsg = transQueueRm(&conn->cliMsgs, i);                             \
-    }                                                                     \
+#define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                                                                    \
+  do {                                                                                                               \
+    int i = 0, sz = transQueueSize(&conn->cliMsgs);                                                                  \
+    for (; i < sz; i++) {                                                                                            \
+      pMsg = transQueueGet(&conn->cliMsgs, i);                                                                       \
+      if (pMsg->msg.msgType != TDMT_SCH_DROP_TASK && pMsg->ctx != NULL && (uint64_t)pMsg->ctx->ahandle == ahandle) { \
+        break;                                                                                                       \
+      }                                                                                                              \
+    }                                                                                                                \
+    if (i == sz) {                                                                                                   \
+      pMsg = NULL;                                                                                                   \
+    } else {                                                                                                         \
+      pMsg = transQueueRm(&conn->cliMsgs, i);                                                                        \
+    }                                                                                                                \
   } while (0)
 
 #define CONN_GET_NEXT_SENDMSG(conn)                 \
@@ -1656,6 +1656,9 @@ static void cliHandleFreeById(SCliMsg* pMsg, SCliThrd* pThrd) {
     // already recv, and notify upper layer
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _exception);
   } else {
+    destroyCmsg(pMsg);
+    (void)transReleaseExHandle(transGetRefMgt(), refId);
+
     while (T_REF_VAL_GET(conn) >= 1) {
       transUnrefCliHandle(conn);
     }
@@ -2927,7 +2930,7 @@ int32_t transReleaseCliHandle(void* handle) {
 }
 
 static int32_t transInitMsg(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx, SCliMsg** pCliMsg) {
-  TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
+  if (pReq->info.traceId.msgId == 0) TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
   if (pCtx == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -3095,7 +3098,7 @@ int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
     TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _RETURN1);
   }
 
-  TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
+  if (pReq->info.traceId.msgId == 0) TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
 
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
   if (pCtx == NULL) {
@@ -3207,7 +3210,7 @@ int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq,
     TAOS_CHECK_GOTO(TSDB_CODE_RPC_BROKEN_LINK, NULL, _RETURN2);
   }
 
-  TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
+  if (pReq->info.traceId.msgId == 0) TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
 
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
   if (pCtx == NULL) {

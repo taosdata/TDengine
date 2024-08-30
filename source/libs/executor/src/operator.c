@@ -635,7 +635,11 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
   } else {
     code = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = code;
+    for (int32_t i = 0; i < size; ++i) {
+      destroyOperator(ops[i]);
+    }
     taosMemoryFree(ops);
+    qError("invalid operator type %d", type);
     return code;
   }
 
@@ -672,6 +676,23 @@ void destroyOperator(SOperatorInfo* pOperator) {
 
   cleanupExprSupp(&pOperator->exprSupp);
   taosMemoryFreeClear(pOperator);
+}
+
+void destroyOperatorAndDownstreams(SOperatorInfo* pOperator, SOperatorInfo** downstreams, int32_t num) {
+  if (downstreams != NULL) {
+    for (int i = 0; i < num; i++) {
+      destroyOperator(downstreams[i]);
+    }
+  }
+
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    if (pOperator->pDownstream != NULL) {
+      taosMemoryFreeClear(pOperator->pDownstream);
+      pOperator->pDownstream = NULL;
+    }
+    destroyOperator(pOperator);
+  }
 }
 
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInfoList) {
@@ -864,10 +885,13 @@ int32_t optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam*
   int32_t code = setOperatorParams(pOperator, pParam, OP_GET_PARAM);
   if (TSDB_CODE_SUCCESS != code) {
     pOperator->pTaskInfo->code = code;
-    T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
+  } else {
+    code = pOperator->fpSet.getNextFn(pOperator, pRes);
+    if (code) {
+      pOperator->pTaskInfo->code = code;
+    }
   }
 
-  *pRes = pOperator->fpSet.getNextFn(pOperator);
   return code;
 }
 

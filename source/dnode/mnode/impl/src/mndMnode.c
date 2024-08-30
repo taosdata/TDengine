@@ -935,7 +935,7 @@ _out:
 
 static void mndCancelGetNextMnode(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_MNODE);
 }
 
 static int32_t mndProcessAlterMnodeReq(SRpcMsg *pReq) {

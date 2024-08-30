@@ -103,14 +103,14 @@ void sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper) {
   EKeyType keyType = pSdb->keyTypes[pRow->type];
 
   if (keyType == SDB_KEY_BINARY) {
-    mTrace("%s:%s, ref:%d oper:%s row:%p status:%s", sdbTableName(pRow->type), (char *)pRow->pObj, pRow->refCount, oper,
-           pRow->pObj, sdbStatusName(pRow->status));
+    mTrace("%s:%s, ref:%d oper:%s row:%p row->pObj:%p status:%s", sdbTableName(pRow->type), (char *)pRow->pObj,
+           pRow->refCount, oper, pRow, pRow->pObj, sdbStatusName(pRow->status));
   } else if (keyType == SDB_KEY_INT32) {
-    mTrace("%s:%d, ref:%d oper:%s row:%p status:%s", sdbTableName(pRow->type), *(int32_t *)pRow->pObj, pRow->refCount,
-           oper, pRow->pObj, sdbStatusName(pRow->status));
+    mTrace("%s:%d, ref:%d oper:%s row:%p row->pObj:%p status:%s", sdbTableName(pRow->type), *(int32_t *)pRow->pObj,
+           pRow->refCount, oper, pRow, pRow->pObj, sdbStatusName(pRow->status));
   } else if (keyType == SDB_KEY_INT64) {
-    mTrace("%s:%" PRId64 ", ref:%d oper:%s row:%p status:%s", sdbTableName(pRow->type), *(int64_t *)pRow->pObj,
-           pRow->refCount, oper, pRow->pObj, sdbStatusName(pRow->status));
+    mTrace("%s:%" PRId64 ", ref:%d oper:%s row:%p row->pObj:%p status:%s", sdbTableName(pRow->type),
+           *(int64_t *)pRow->pObj, pRow->refCount, oper, pRow, pRow->pObj, sdbStatusName(pRow->status));
   } else {
   }
 #endif
@@ -242,7 +242,12 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   (void)atomic_add_fetch_32(&pOldRow->refCount, 1);
   sdbPrintOper(pSdb, pOldRow, "delete");
 
-  TAOS_CHECK_RETURN(taosHashRemove(hash, pOldRow->pObj, keySize));
+  if (taosHashRemove(hash, pOldRow->pObj, keySize) != 0) {
+    sdbUnLock(pSdb, type);
+    sdbFreeRow(pSdb, pRow, false);
+    terrno = TSDB_CODE_SDB_OBJ_NOT_THERE;
+    return terrno;
+  }
   pSdb->tableVer[pOldRow->type]++;
   sdbUnLock(pSdb, type);
 
@@ -439,10 +444,22 @@ void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStat
 void sdbCancelFetch(SSdb *pSdb, void *pIter) {
   if (pIter == NULL) return;
   SSdbRow  *pRow = *(SSdbRow **)pIter;
+  mTrace("cancel fetch row:%p", pRow);
   SHashObj *hash = sdbGetHash(pSdb, pRow->type);
   if (hash == NULL) return;
 
   int32_t type = pRow->type;
+  sdbReadLock(pSdb, type);
+  taosHashCancelIterate(hash, pIter);
+  sdbUnLock(pSdb, type);
+}
+
+void sdbCancelFetchByType(SSdb *pSdb, void *pIter, ESdbType type) {
+  if (pIter == NULL) return;
+  if (type >= SDB_MAX || type < 0) return;
+  SHashObj *hash = sdbGetHash(pSdb, type);
+  if (hash == NULL) return;
+
   sdbReadLock(pSdb, type);
   taosHashCancelIterate(hash, pIter);
   sdbUnLock(pSdb, type);

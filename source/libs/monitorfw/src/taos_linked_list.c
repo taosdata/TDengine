@@ -18,7 +18,7 @@
 #include "taos_alloc.h"
 
 // Private
-#include "taos_assert.h"
+#include "taos_test.h"
 #include "taos_linked_list_i.h"
 #include "taos_linked_list_t.h"
 #include "taos_log.h"

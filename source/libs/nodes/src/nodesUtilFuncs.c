@@ -1092,7 +1092,7 @@ void nodesDestroyNode(SNode* pNode) {
         pStmt->destroyParseFileCxt(&pStmt->pParFileCxt);
       }
 
-      assert(TSDB_CODE_SUCCESS == taosCloseFile(&pStmt->fp));
+      (void)taosCloseFile(&pStmt->fp);
       break;
     }
     case QUERY_NODE_CREATE_DATABASE_STMT:

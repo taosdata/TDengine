@@ -86,14 +86,19 @@ void destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
   pInfo->sttBlockIndex = -1;
   pInfo->pin = false;
 
-  if (pLoadInfo->info.pCount != NULL) {
-    taosArrayDestroy(pLoadInfo->info.pUid);
-    taosArrayDestroyEx(pLoadInfo->info.pFirstKey, freeItem);
-    taosArrayDestroyEx(pLoadInfo->info.pLastKey, freeItem);
-    taosArrayDestroy(pLoadInfo->info.pCount);
-    taosArrayDestroy(pLoadInfo->info.pFirstTs);
-    taosArrayDestroy(pLoadInfo->info.pLastTs);
-  }
+  taosArrayDestroy(pLoadInfo->info.pUid);
+  taosArrayDestroyEx(pLoadInfo->info.pFirstKey, freeItem);
+  taosArrayDestroyEx(pLoadInfo->info.pLastKey, freeItem);
+  taosArrayDestroy(pLoadInfo->info.pCount);
+  taosArrayDestroy(pLoadInfo->info.pFirstTs);
+  taosArrayDestroy(pLoadInfo->info.pLastTs);
+
+  pLoadInfo->info.pUid = NULL;
+  pLoadInfo->info.pFirstKey = NULL;
+  pLoadInfo->info.pLastKey = NULL;
+  pLoadInfo->info.pCount = NULL;
+  pLoadInfo->info.pFirstTs = NULL;
+  pLoadInfo->info.pLastTs = NULL;
 
   taosArrayDestroy(pLoadInfo->aSttBlk);
   taosMemoryFree(pLoadInfo);
@@ -834,7 +839,6 @@ int32_t tLDataIterNextRow(SLDataIter *pIter, const char *idStr, bool *hasNext) {
   int32_t     lino = 0;
 
   *hasNext = false;
-  terrno = 0;
 
   // no qualified last file block in current file, no need to fetch row
   if (pIter->pSttBlk == NULL) {
@@ -843,6 +847,7 @@ int32_t tLDataIterNextRow(SLDataIter *pIter, const char *idStr, bool *hasNext) {
 
   code = loadLastBlock(pIter, idStr, &pBlockData);
   if (pBlockData == NULL || code != TSDB_CODE_SUCCESS) {
+    lino = __LINE__;
     goto _exit;
   }
 
@@ -888,6 +893,7 @@ int32_t tLDataIterNextRow(SLDataIter *pIter, const char *idStr, bool *hasNext) {
     if (iBlockL != pIter->iSttBlk) {
       code = loadLastBlock(pIter, idStr, &pBlockData);
       if ((pBlockData == NULL) || (code != 0)) {
+        lino = __LINE__;
         goto _exit;
       }
 
@@ -1126,8 +1132,8 @@ int32_t tMergeTreeNext(SMergeTree *pMTree, bool *pHasNext) {
       if (c > 0) {
         (void)tRBTreePut(&pMTree->rbt, (SRBTreeNode *)pMTree->pIter);
         pMTree->pIter = NULL;
-      } else {
-        ASSERT(c);
+      } else if (!c) {
+        return TSDB_CODE_INTERNAL_ERROR;
       }
     }
   }

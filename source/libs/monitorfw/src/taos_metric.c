@@ -20,13 +20,13 @@
 #include "taos_alloc.h"
 
 // Private
-#include "taos_assert.h"
 #include "taos_errors.h"
 #include "taos_log.h"
 #include "taos_map_i.h"
 #include "taos_metric_formatter_i.h"
 #include "taos_metric_i.h"
 #include "taos_metric_sample_i.h"
+#include "taos_test.h"
 
 char *taos_metric_type_map[4] = {"counter", "gauge", "histogram", "summary"};
 

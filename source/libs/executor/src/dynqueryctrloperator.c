@@ -878,20 +878,20 @@ static int32_t seqJoinLaunchNewRetrieve(SOperatorInfo* pOperator, SSDataBlock** 
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE SSDataBlock* seqStableJoinComposeRes(SStbJoinDynCtrlInfo*        pStbJoin, SSDataBlock* pBlock) {
-  pBlock->info.id.blockId = pStbJoin->outputBlkId;
-  return pBlock;
+static FORCE_INLINE void seqStableJoinComposeRes(SStbJoinDynCtrlInfo* pStbJoin, SSDataBlock* pBlock) {
+  if (pBlock != NULL) {
+    pBlock->info.id.blockId = pStbJoin->outputBlkId;
+  }
 }
 
-
-SSDataBlock* seqStableJoin(SOperatorInfo* pOperator) {
-  int32_t code = TSDB_CODE_SUCCESS;
+int32_t seqStableJoin(SOperatorInfo* pOperator, SSDataBlock** pRes) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
   SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
   SStbJoinDynCtrlInfo*       pStbJoin = (SStbJoinDynCtrlInfo*)&pInfo->stbJoin;
-  SSDataBlock* pRes = NULL;
 
+  QRY_OPTR_CHECK(pRes);
   if (pOperator->status == OP_EXEC_DONE) {
-    return pRes;
+    return code;
   }
 
   int64_t st = 0;
@@ -907,25 +907,24 @@ SSDataBlock* seqStableJoin(SOperatorInfo* pOperator) {
     }
   }
 
-  QRY_ERR_JRET(seqJoinContinueCurrRetrieve(pOperator, &pRes));
-  if (pRes) {
+  QRY_ERR_JRET(seqJoinContinueCurrRetrieve(pOperator, pRes));
+  if (*pRes) {
     goto _return;
   }
-  
-  QRY_ERR_JRET(seqJoinLaunchNewRetrieve(pOperator, &pRes));
+
+  QRY_ERR_JRET(seqJoinLaunchNewRetrieve(pOperator, pRes));
 
 _return:
-
   if (pOperator->cost.openCost == 0) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
 
   if (code) {
     pOperator->pTaskInfo->code = code;
-    T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
+  } else {
+    seqStableJoinComposeRes(pStbJoin, *pRes);
   }
-  
-  return pRes ? seqStableJoinComposeRes(pStbJoin, pRes) : NULL;
+  return code;
 }
 
 int32_t initSeqStbJoinTableHash(SStbJoinPrevJoinCtx* pPrev, bool batchFetch) {
@@ -1007,14 +1006,14 @@ int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numO
                                          NULL, optrDefaultGetNextExtFn, NULL);
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (pInfo != NULL) {
     destroyDynQueryCtrlOperator(pInfo);
   }
 
-  taosMemoryFree(pOperator);
+  destroyOperatorAndDownstreams(pOperator, pDownstream, numOfDownstream);
   pTaskInfo->code = code;
   return code;
 }
