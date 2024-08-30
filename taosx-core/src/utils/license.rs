@@ -120,11 +120,11 @@ async fn check_grant_of(
         .await
         .with_context(|| format!("Failed to check {grant} license"))?
         .ok_or_else(|| anyhow!("You enterprise edition has no {grant} license"))?;
-    tracing::debug!(ok, expire, sql, "active-active license check");
+    tracing::debug!(ok, expire, sql, "{grant} license check");
     if ok {
         Ok(LicenseKind::good())
     } else {
-        Ok(LicenseKind::Edition(anyhow!("Active-Active expired at {expire}, please contact the TDengine customer success team for further assistance.")))
+        Ok(LicenseKind::Edition(anyhow!("{grant} expired at {expire}, please contact the TDengine customer success team for further assistance.")))
     }
 }
 
@@ -361,13 +361,15 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     bail!("Failed to connect source server: {err}");
                 }
             };
-            let edition = source_builder
-                .get_edition()
-                .await
-                .context("Failed to check source edition")?
-                .assert_enterprise_edition();
-            if let Err(err) = edition {
-                return Ok(LicenseKind::Edition(anyhow!("The source is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
+            if !is_cloud(&from) {
+                let edition = source_builder
+                    .get_edition()
+                    .await
+                    .context("Failed to check source edition")?
+                    .assert_enterprise_edition();
+                if let Err(err) = edition {
+                    return Ok(LicenseKind::Edition(anyhow!("The source is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
+                }
             }
 
             // check source grant
