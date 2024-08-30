@@ -19,6 +19,10 @@
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
+#else
+#ifndef CUS_PROMPT
+#define CUS_PROMPT "taos"
+#endif
 #endif
 
 #define PROCESS_ITEM 12
@@ -283,7 +287,7 @@ void taosGetSystemInfo() {
 
 int32_t taosGetEmail(char *email, int32_t maxLen) {
 #ifdef WINDOWS
-  // ASSERT(0);
+  return 0;
 #elif defined(_TD_DARWIN_64)
 #ifdef CUS_PROMPT
   const char *filepath = "/usr/local/"CUS_PROMPT"/email";
@@ -1040,7 +1044,7 @@ void taosKillSystem() {
   exit(0);
 #else
   // SIGINT
-  (void)printf("taosd will shut down soon");
+  (void)printf("%sd will shut down soon", CUS_PROMPT);
   (void)kill(tsProcId, 2);
 #endif
 }
@@ -1089,7 +1093,6 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
 
 char *taosGetCmdlineByPID(int pid) {
 #ifdef WINDOWS
-  ASSERT(0);
   return "";
 #elif defined(_TD_DARWIN_64)
   static char cmdline[1024];

@@ -60,7 +60,7 @@ REST 连接支持所有能运行 Java 的平台。
 在报错后，通过 SQLException 可以获取到错误的信息和错误码：
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/JdbcBasicDemo.java:jdbc_exception}}
+{{#include docs/examples/java/src/main/java/com/taos/example/JdbcBasicDemo.java:jdbc_exception}}
 ```
 
 JDBC 连接器可能报错的错误码包括 4 种：
@@ -141,11 +141,11 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 由于历史原因，TDengine中的BINARY底层不是真正的二进制数据，已不建议使用。请用VARBINARY类型代替。  
 GEOMETRY类型是little endian字节序的二进制数据，符合WKB规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)  
 WKB规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  
-对于java连接器，可以使用jts库来方便的创建GEOMETRY类型对象，序列化后写入TDengine，这里有一个样例[Geometry示例](https://github.com/taosdata/TDengine/blob/3.0/examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/GeometryDemo.java)  
+对于java连接器，可以使用jts库来方便的创建GEOMETRY类型对象，序列化后写入TDengine，这里有一个样例[Geometry示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/GeometryDemo.java)  
 
 ## 示例程序汇总
 
-示例程序源码位于 `TDengine/examples/JDBC` 下:
+示例程序源码位于 `TDengine/docs/examples/JDBC` 下:
 
 - JDBCDemo：JDBC 示例源程序。
 - connectionPools：HikariCP, Druid, dbcp, c3p0 等连接池中使用 taos-jdbcdriver。
@@ -154,7 +154,7 @@ WKB规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/w
 - springbootdemo: Springboot 中使用 taos-jdbcdriver。
 - consumer-demo：Consumer 消费 TDengine 数据示例，可通过参数控制消费速度。
 
-请参考：[JDBC example](https://github.com/taosdata/TDengine/tree/3.0/examples/JDBC)
+请参考：[JDBC example](https://github.com/taosdata/TDengine/tree/main/docs/examples/JDBC)
 
 ## 常见问题
 

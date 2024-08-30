@@ -40,7 +40,7 @@ extern const int32_t TYPE_BYTES[21];
 #define LONG_BYTES      sizeof(int64_t)
 #define FLOAT_BYTES     sizeof(float)
 #define DOUBLE_BYTES    sizeof(double)
-#define POINTER_BYTES   sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
+#define POINTER_BYTES   sizeof(void *)
 #define TSDB_KEYSIZE    sizeof(TSKEY)
 #define TSDB_NCHAR_SIZE sizeof(TdUcs4)
 
@@ -293,6 +293,8 @@ typedef enum ELogicConditionType {
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 #define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_LOG_VAR_LEN          32
+
+#define TSDB_MAX_EP_NUM 10
 
 #define TSDB_ARB_GROUP_MEMBER_NUM 2
 #define TSDB_ARB_TOKEN_SIZE       32
@@ -565,6 +567,8 @@ enum {
   SND_WORKER_TYPE__SHARED = 1,
   SND_WORKER_TYPE__UNIQUE,
 };
+
+enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 
 #define DEFAULT_HANDLE 0
 #define MNODE_HANDLE   1

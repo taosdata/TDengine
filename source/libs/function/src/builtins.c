@@ -247,7 +247,7 @@ static int32_t addTimezoneParam(SNodeList* pList) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t addDbPrecisonParam(SNodeList** pList, uint8_t precision) {
+static int32_t addUint8Param(SNodeList** pList, uint8_t param) {
   SValueNode* pVal = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
   if (pVal == NULL) {
@@ -259,9 +259,9 @@ static int32_t addDbPrecisonParam(SNodeList** pList, uint8_t precision) {
   pVal->notReserved = true;
   pVal->node.resType.type = TSDB_DATA_TYPE_TINYINT;
   pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TINYINT].bytes;
-  pVal->node.resType.precision = precision;
-  pVal->datum.i = (int64_t)precision;
-  pVal->typeData = (int64_t)precision;
+  pVal->node.resType.precision = param;
+  pVal->datum.i = (int64_t)param;
+  pVal->typeData = (int64_t)param;
 
   code = nodesListMakeAppend(pList, (SNode*)pVal);
   if (TSDB_CODE_SUCCESS != code) {
@@ -493,7 +493,7 @@ static int32_t translateAvgStateMerge(SFunctionNode* pFunc, char* pErrBuf, int32
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateStddevPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+static int32_t translateStdPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
@@ -503,11 +503,11 @@ static int32_t translateStddevPartial(SFunctionNode* pFunc, char* pErrBuf, int32
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  pFunc->node.resType = (SDataType){.bytes = getStddevInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  pFunc->node.resType = (SDataType){.bytes = getStdInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateStddevMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+static int32_t translateStdMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
@@ -522,7 +522,7 @@ static int32_t translateStddevMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateStddevState(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+static int32_t translateStdState(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
@@ -532,11 +532,11 @@ static int32_t translateStddevState(SFunctionNode* pFunc, char* pErrBuf, int32_t
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  pFunc->node.resType = (SDataType){.bytes = getStddevInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  pFunc->node.resType = (SDataType){.bytes = getStdInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateStddevStateMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+static int32_t translateStdStateMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
@@ -546,7 +546,7 @@ static int32_t translateStddevStateMerge(SFunctionNode* pFunc, char* pErrBuf, in
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  pFunc->node.resType = (SDataType){.bytes = getStddevInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  pFunc->node.resType = (SDataType){.bytes = getStdInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
 
   return TSDB_CODE_SUCCESS;
 }
@@ -563,13 +563,60 @@ static int32_t translateNowToday(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
-  int32_t code = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  int32_t code = addUint8Param(&pFunc->pParameterList, dbPrec);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
   pFunc->node.resType =
       (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translatePi(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType =
+      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateRound(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (2 != LIST_LENGTH(pFunc->pParameterList) && 1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (!IS_NUMERIC_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  } else if (IS_NULL_TYPE(paraType)) {
+    paraType = TSDB_DATA_TYPE_BIGINT;
+  }
+
+  if (2 == LIST_LENGTH(pFunc->pParameterList)) {
+    uint8_t paraType2 = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+    if (!IS_NUMERIC_TYPE(paraType2) && !IS_NULL_TYPE(paraType2)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+  }
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[paraType].bytes, .type = paraType};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateTrunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (2 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (!IS_NUMERIC_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType2 = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+  if (!IS_NUMERIC_TYPE(paraType2) && !IS_NULL_TYPE(paraType2)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[paraType].bytes, .type = paraType};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1745,7 +1792,7 @@ static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
 
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
-  int32_t code = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  int32_t code = addUint8Param(&pFunc->pParameterList, dbPrec);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1776,7 +1823,7 @@ static int32_t translateIrateImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t l
 
     // add database precision as param
     uint8_t dbPrec = pFunc->node.resType.precision;
-    int32_t code = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+    int32_t code = addUint8Param(&pFunc->pParameterList, dbPrec);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -2032,7 +2079,22 @@ static int32_t translateLength(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  if (!IS_STR_DATA_TYPE(getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type)) {
+  uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (!IS_STR_DATA_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateCharLength(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (paraType == TSDB_DATA_TYPE_VARBINARY || (!IS_STR_DATA_TYPE(paraType) && !IS_NULL_TYPE(paraType))) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -2124,28 +2186,190 @@ static int32_t translateSubstr(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
   uint8_t para0Type = pPara0->resType.type;
   uint8_t para1Type = pPara1->resType.type;
-  if (TSDB_DATA_TYPE_VARBINARY == para0Type || !IS_STR_DATA_TYPE(para0Type) || !IS_INTEGER_TYPE(para1Type)) {
+  if (TSDB_DATA_TYPE_VARBINARY == para0Type ||
+      (!IS_STR_DATA_TYPE(para0Type) && !IS_NULL_TYPE(para0Type)) ||
+      (!IS_INTEGER_TYPE(para1Type) && !IS_NULL_TYPE(para1Type))) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
-  if (((SValueNode*)pPara1)->datum.i == 0) {
-    return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
   if (3 == numOfParams) {
     SExprNode* pPara2 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 2);
     uint8_t    para2Type = pPara2->resType.type;
-    if (!IS_INTEGER_TYPE(para2Type)) {
+    if (!IS_INTEGER_TYPE(para2Type) && !IS_NULL_TYPE(para2Type)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
 
     int64_t v = ((SValueNode*)pPara2)->datum.i;
-    if (v < 0) {
-      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
-    }
   }
 
   pFunc->node.resType = (SDataType){.bytes = pPara0->resType.bytes, .type = pPara0->resType.type};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateSubstrIdx(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (3 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SExprNode* pPara0 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  SExprNode* pPara1 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 1);
+  SExprNode* pPara2 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 2);
+
+  uint8_t para0Type = pPara0->resType.type;
+  uint8_t para1Type = pPara1->resType.type;
+  uint8_t para2Type = pPara2->resType.type;
+  if (TSDB_DATA_TYPE_VARBINARY == para0Type || (!IS_STR_DATA_TYPE(para0Type) && !IS_NULL_TYPE(para0Type)) ||
+      TSDB_DATA_TYPE_VARBINARY == para1Type || (!IS_STR_DATA_TYPE(para1Type) && !IS_NULL_TYPE(para1Type)) ||
+      (!IS_INTEGER_TYPE(para2Type) && !IS_NULL_TYPE(para2Type))) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = pPara0->resType.bytes, .type = pPara0->resType.type};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateChar(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  SNode *node;
+  FOREACH(node, pFunc->pParameterList) {
+    uint8_t paraType = getSDataTypeFromNode(node)->type;
+    if (paraType == TSDB_DATA_TYPE_VARBINARY ||
+        (!IS_STR_DATA_TYPE(paraType) && !IS_NUMERIC_TYPE(paraType) && !IS_NULL_TYPE(paraType))) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+  }
+
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  pFunc->node.resType = (SDataType){.bytes = 4 * numOfParams + 2, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateAscii(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (paraType == TSDB_DATA_TYPE_VARBINARY ||
+      (!IS_STR_DATA_TYPE(paraType) && !IS_NULL_TYPE(paraType))) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_UTINYINT].bytes, .type = TSDB_DATA_TYPE_UTINYINT};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translatePosition(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (2 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para0Type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (para0Type == TSDB_DATA_TYPE_VARBINARY ||
+      (!IS_STR_DATA_TYPE(para0Type) && !IS_NULL_TYPE(para0Type))) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+  if (para1Type == TSDB_DATA_TYPE_VARBINARY ||
+      (!IS_STR_DATA_TYPE(para1Type) && !IS_NULL_TYPE(para1Type))) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateTrim(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (2 != LIST_LENGTH(pFunc->pParameterList) && 1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para0Type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (para0Type == TSDB_DATA_TYPE_VARBINARY ||
+      (!IS_STR_DATA_TYPE(para0Type) && !IS_NULL_TYPE(para0Type))) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  int32_t resLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
+  uint8_t type = para0Type;
+
+  if (2 == LIST_LENGTH(pFunc->pParameterList)) {
+    uint8_t para1Type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+    if (para1Type == TSDB_DATA_TYPE_VARBINARY ||
+        (!IS_STR_DATA_TYPE(para1Type) && !IS_NULL_TYPE(para1Type))) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    resLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->bytes;
+    type = para1Type;
+  }
+  if (type == TSDB_DATA_TYPE_NCHAR) {
+    resLen *= TSDB_NCHAR_SIZE;
+  }
+  uint8_t trimType = pFunc->trimType;
+  int32_t code = addUint8Param(&pFunc->pParameterList, trimType);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  pFunc->node.resType = (SDataType){.bytes = resLen, .type = type};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateReplace(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (3 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  for (int32_t i = 0; i < 3; ++i) {
+    uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i))->type;
+    if (paraType == TSDB_DATA_TYPE_VARBINARY ||
+        (!IS_STR_DATA_TYPE(paraType) && !IS_NULL_TYPE(paraType))) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+  }
+
+  uint8_t orgType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  uint8_t fromType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+  uint8_t toType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 2))->type;
+  int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
+  int32_t fromLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->bytes;
+  int32_t toLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 2))->bytes;
+
+  int32_t resLen;
+  // Since we don't know the accurate length of result, estimate the maximum length here.
+  // To make the resLen bigger, we should make fromLen smaller and toLen bigger.
+  if (orgType == TSDB_DATA_TYPE_VARBINARY && fromType != orgType) {
+    fromLen = fromLen / TSDB_NCHAR_SIZE;
+  }
+  if (orgType == TSDB_DATA_TYPE_NCHAR && toType != orgType) {
+    toLen = toLen * TSDB_NCHAR_SIZE;
+  }
+  resLen = TMAX(orgLen, orgLen + orgLen / fromLen * (toLen - fromLen));
+  pFunc->node.resType = (SDataType){.bytes = resLen, .type = orgType};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateRepeat(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (2 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para0Type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (para0Type == TSDB_DATA_TYPE_VARBINARY ||
+      (!IS_STR_DATA_TYPE(para0Type) && !IS_NULL_TYPE(para0Type))) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+  if (!IS_INTEGER_TYPE(para1Type) && !IS_NULL_TYPE(para1Type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
+  int32_t count = TMAX((int32_t)((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i, 1);
+
+  int32_t resLen = orgLen * count;
+  pFunc->node.resType = (SDataType){.bytes = resLen, .type = type};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2180,7 +2404,7 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
-  int32_t code = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  int32_t code = addUint8Param(&pFunc->pParameterList, dbPrec);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -2202,8 +2426,12 @@ static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t l
 
   // param1
   if (numOfParams == 2) {
-    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
-
+    SNode* pNode = (SNode*)nodesListGetNode(pFunc->pParameterList, 1);
+    if (QUERY_NODE_VALUE != nodeType(pNode)) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Not supported timzone format");
+    }
+    
+    SValueNode* pValue = (SValueNode*)pNode;
     if (!validateTimezoneFormat(pValue)) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Invalid timzone format");
     }
@@ -2251,7 +2479,7 @@ static int32_t translateToUnixtimestamp(SFunctionNode* pFunc, char* pErrBuf, int
 
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
-  int32_t code = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  int32_t code = addUint8Param(&pFunc->pParameterList, dbPrec);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -2325,7 +2553,7 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
 
   // add database precision as param
 
-  code = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  code = addUint8Param(&pFunc->pParameterList, dbPrec);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -2349,13 +2577,14 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 
   for (int32_t i = 0; i < 2; ++i) {
     uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i))->type;
-    if (!IS_STR_DATA_TYPE(paraType) && !IS_INTEGER_TYPE(paraType) && !IS_TIMESTAMP_TYPE(paraType)) {
+    if (!IS_STR_DATA_TYPE(paraType) && !IS_INTEGER_TYPE(paraType) && !IS_TIMESTAMP_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
   }
-
+  uint8_t para2Type;
   if (3 == numOfParams) {
-    if (!IS_INTEGER_TYPE(getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 2))->type)) {
+    para2Type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 2))->type;
+    if (!IS_INTEGER_TYPE(para2Type) && !IS_NULL_TYPE(para2Type)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
   }
@@ -2363,7 +2592,7 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
 
-  if (3 == numOfParams) {
+  if (3 == numOfParams && !IS_NULL_TYPE(para2Type)) {
     int32_t code = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2));
     if (code == TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL) {
       return buildFuncErrMsg(pErrBuf, len, code,
@@ -2375,12 +2604,97 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
     }
   }
 
-  int32_t code = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  int32_t code = addUint8Param(&pFunc->pParameterList, dbPrec);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateWeekday(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if ((!IS_STR_DATA_TYPE(para1Type) && !IS_INTEGER_TYPE(para1Type) &&
+       !IS_TIMESTAMP_TYPE(para1Type) && !IS_NULL_TYPE(para1Type))) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  // add database precision as param
+  uint8_t dbPrec = pFunc->node.resType.precision;
+
+  int32_t code = addUint8Param(&pFunc->pParameterList, dbPrec);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  pFunc->node.resType =
+      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateWeek(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList) && 2 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if ((!IS_STR_DATA_TYPE(para1Type) && !IS_INTEGER_TYPE(para1Type) &&
+       !IS_TIMESTAMP_TYPE(para1Type)) && !IS_NULL_TYPE(para1Type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (2 == LIST_LENGTH(pFunc->pParameterList)) {
+    uint8_t para2Type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+    if (!IS_INTEGER_TYPE(para2Type) && !IS_NULL_TYPE(para2Type)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    if (IS_INTEGER_TYPE(para2Type)) {
+      SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+      if (pValue->datum.i < 0 || pValue->datum.i > 7) {
+        return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+      }
+    }
+  }
+
+  // add database precision as param
+  uint8_t dbPrec = pFunc->node.resType.precision;
+
+  int32_t code = addUint8Param(&pFunc->pParameterList, dbPrec);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  pFunc->node.resType =
+      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateWeekofyear(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if ((!IS_STR_DATA_TYPE(para1Type) && !IS_INTEGER_TYPE(para1Type) &&
+       !IS_TIMESTAMP_TYPE(para1Type)) && !IS_NULL_TYPE(para1Type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  // add database precision as param
+  uint8_t dbPrec = pFunc->node.resType.precision;
+
+  int32_t code = addUint8Param(&pFunc->pParameterList, dbPrec);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  pFunc->node.resType =
+      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2623,47 +2937,47 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_STDDEV,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateInNumOutDou,
-    .getEnvFunc   = getStddevFuncEnv,
-    .initFunc     = stddevFunctionSetup,
-    .processFunc  = stddevFunction,
-    .sprocessFunc = stddevScalarFunction,
+    .getEnvFunc   = getStdFuncEnv,
+    .initFunc     = stdFunctionSetup,
+    .processFunc  = stdFunction,
+    .sprocessFunc = stdScalarFunction,
     .finalizeFunc = stddevFinalize,
 #ifdef BUILD_NO_CALL
-    .invertFunc   = stddevInvertFunction,
+    .invertFunc   = stdInvertFunction,
 #endif
-    .combineFunc  = stddevCombine,
-    .pPartialFunc = "_stddev_partial",
-    .pStateFunc = "_stddev_state",
+    .combineFunc  = stdCombine,
+    .pPartialFunc = "_std_partial",
+    .pStateFunc = "_std_state",
     .pMergeFunc   = "_stddev_merge"
   },
   {
-    .name = "_stddev_partial",
-    .type = FUNCTION_TYPE_STDDEV_PARTIAL,
+    .name = "_std_partial",
+    .type = FUNCTION_TYPE_STD_PARTIAL,
     .classification = FUNC_MGT_AGG_FUNC,
-    .translateFunc = translateStddevPartial,
-    .getEnvFunc   = getStddevFuncEnv,
-    .initFunc     = stddevFunctionSetup,
-    .processFunc  = stddevFunction,
-    .finalizeFunc = stddevPartialFinalize,
+    .translateFunc = translateStdPartial,
+    .getEnvFunc   = getStdFuncEnv,
+    .initFunc     = stdFunctionSetup,
+    .processFunc  = stdFunction,
+    .finalizeFunc = stdPartialFinalize,
 #ifdef BUILD_NO_CALL
-    .invertFunc   = stddevInvertFunction,
+    .invertFunc   = stdInvertFunction,
 #endif
-    .combineFunc  = stddevCombine,
+    .combineFunc  = stdCombine,
   },
   {
     .name = "_stddev_merge",
     .type = FUNCTION_TYPE_STDDEV_MERGE,
     .classification = FUNC_MGT_AGG_FUNC,
-    .translateFunc = translateStddevMerge,
-    .getEnvFunc   = getStddevFuncEnv,
-    .initFunc     = stddevFunctionSetup,
-    .processFunc  = stddevFunctionMerge,
+    .translateFunc = translateStdMerge,
+    .getEnvFunc   = getStdFuncEnv,
+    .initFunc     = stdFunctionSetup,
+    .processFunc  = stdFunctionMerge,
     .finalizeFunc = stddevFinalize,
 #ifdef BUILD_NO_CALL
-    .invertFunc   = stddevInvertFunction,
+    .invertFunc   = stdInvertFunction,
 #endif
-    .combineFunc  = stddevCombine,
-    .pPartialFunc = "_stddev_state_merge",
+    .combineFunc  = stdCombine,
+    .pPartialFunc = "_std_state_merge",
     .pMergeFunc = "_stddev_merge",
   },
   {
@@ -3409,7 +3723,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "round",
     .type = FUNCTION_TYPE_ROUND,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .translateFunc = translateInOutNum,
+    .translateFunc = translateRound,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = roundFunction,
@@ -3489,7 +3803,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "char_length",
     .type = FUNCTION_TYPE_CHAR_LENGTH,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .translateFunc = translateLength,
+    .translateFunc = translateCharLength,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = charLengthFunction,
@@ -3998,26 +4312,26 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "_stddev_state",
-    .type = FUNCTION_TYPE_STDDEV_STATE,
+    .name = "_std_state",
+    .type = FUNCTION_TYPE_STD_STATE,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
-    .translateFunc = translateStddevState,
-    .getEnvFunc   = getStddevFuncEnv,
-    .initFunc     = stddevFunctionSetup,
-    .processFunc  = stddevFunction,
-    .finalizeFunc = stddevPartialFinalize,
-    .pPartialFunc = "_stddev_partial",
-    .pMergeFunc   = "_stddev_state_merge",
+    .translateFunc = translateStdState,
+    .getEnvFunc   = getStdFuncEnv,
+    .initFunc     = stdFunctionSetup,
+    .processFunc  = stdFunction,
+    .finalizeFunc = stdPartialFinalize,
+    .pPartialFunc = "_std_partial",
+    .pMergeFunc   = "_std_state_merge",
   },
   {
-    .name = "_stddev_state_merge",
-    .type = FUNCTION_TYPE_STDDEV_STATE_MERGE,
+    .name = "_std_state_merge",
+    .type = FUNCTION_TYPE_STD_STATE_MERGE,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
-    .translateFunc = translateStddevStateMerge,
-    .getEnvFunc = getStddevFuncEnv,
-    .initFunc = stddevFunctionSetup,
-    .processFunc = stddevFunctionMerge,
-    .finalizeFunc = stddevPartialFinalize,
+    .translateFunc = translateStdStateMerge,
+    .getEnvFunc = getStdFuncEnv,
+    .initFunc = stdFunctionSetup,
+    .processFunc = stdFunctionMerge,
+    .finalizeFunc = stdPartialFinalize,
   },
   {
     .name = "_avg_state",
@@ -4151,6 +4465,268 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = groupConstValueFunction,
     .finalizeFunc = groupConstValueFinalize,
+  },
+  {
+    .name = "stddev_pop",
+    .type = FUNCTION_TYPE_STDDEV,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateInNumOutDou,
+    .getEnvFunc   = getStdFuncEnv,
+    .initFunc     = stdFunctionSetup,
+    .processFunc  = stdFunction,
+    .sprocessFunc = stdScalarFunction,
+    .finalizeFunc = stddevFinalize,
+  #ifdef BUILD_NO_CALL
+    .invertFunc   = stdInvertFunction,
+  #endif
+    .combineFunc  = stdCombine,
+    .pPartialFunc = "_std_partial",
+    .pStateFunc = "_std_state",
+    .pMergeFunc   = "_stddev_merge"
+  },
+  {
+    .name = "var_pop",
+    .type = FUNCTION_TYPE_STDVAR,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateInNumOutDou,
+    .getEnvFunc   = getStdFuncEnv,
+    .initFunc     = stdFunctionSetup,
+    .processFunc  = stdFunction,
+    .sprocessFunc = stdScalarFunction,
+    .finalizeFunc = stdvarFinalize,
+  #ifdef BUILD_NO_CALL
+    .invertFunc   = stdInvertFunction,
+  #endif
+    .combineFunc  = stdCombine,
+    .pPartialFunc = "_std_partial",
+    .pStateFunc = "_std_state",
+    .pMergeFunc   = "_stdvar_merge"
+  },
+  {
+    .name = "_stdvar_merge",
+    .type = FUNCTION_TYPE_STDVAR_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateStdMerge,
+    .getEnvFunc   = getStdFuncEnv,
+    .initFunc     = stdFunctionSetup,
+    .processFunc  = stdFunctionMerge,
+    .finalizeFunc = stdvarFinalize,
+  #ifdef BUILD_NO_CALL
+    .invertFunc   = stdInvertFunction,
+  #endif
+    .combineFunc  = stdCombine,
+    .pPartialFunc = "_std_state_merge",
+    .pMergeFunc = "_stdvar_merge",
+  },
+  {
+    .name = "pi",
+    .type = FUNCTION_TYPE_PI,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translatePi,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = piFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "exp",
+    .type = FUNCTION_TYPE_EXP,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateInNumOutDou,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = expFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "ln",
+    .type = FUNCTION_TYPE_LN,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateInNumOutDou,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = lnFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "mod",
+    .type = FUNCTION_TYPE_MOD,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateIn2NumOutDou,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = modFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "sign",
+    .type = FUNCTION_TYPE_SIGN,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateInOutNum,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = signFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "degrees",
+    .type = FUNCTION_TYPE_DEGREES,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateInNumOutDou,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = degreesFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "radians",
+    .type = FUNCTION_TYPE_RADIANS,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateInNumOutDou,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = radiansFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "truncate",
+    .type = FUNCTION_TYPE_TRUNCATE,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateTrunc,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = truncFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "trunc",
+    .type = FUNCTION_TYPE_TRUNCATE,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateTrunc,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = truncFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "substring",
+    .type = FUNCTION_TYPE_SUBSTR,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .translateFunc = translateSubstr,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = substrFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "substring_index",
+    .type = FUNCTION_TYPE_SUBSTR_IDX,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .translateFunc = translateSubstrIdx,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = substrIdxFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "char",
+    .type = FUNCTION_TYPE_CHAR,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .translateFunc = translateChar,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = charFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "ascii",
+    .type = FUNCTION_TYPE_ASCII,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .translateFunc = translateAscii,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = asciiFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "position",
+    .type = FUNCTION_TYPE_POSITION,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .translateFunc = translatePosition,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = positionFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "trim",
+    .type = FUNCTION_TYPE_TRIM,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .translateFunc = translateTrim,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = trimFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "replace",
+    .type = FUNCTION_TYPE_REPLACE,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .translateFunc = translateReplace,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = replaceFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "repeat",
+    .type = FUNCTION_TYPE_REPEAT,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .translateFunc = translateRepeat,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = repeatFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "weekday",
+    .type = FUNCTION_TYPE_WEEKDAY,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateWeekday,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = weekdayFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "dayofweek",
+    .type = FUNCTION_TYPE_DAYOFWEEK,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateWeekday,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = dayofweekFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "week",
+    .type = FUNCTION_TYPE_WEEK,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateWeek,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = weekFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "weekofyear",
+    .type = FUNCTION_TYPE_WEEKOFYEAR,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateWeekofyear,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = weekofyearFunction,
+    .finalizeFunc = NULL
   },
 };
 // clang-format on

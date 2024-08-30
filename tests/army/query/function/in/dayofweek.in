@@ -1,0 +1,18 @@
+select DAYOFWEEK('2020-01-01 00:00:00');
+select DAYOFWEEK('2020-01-01 00:00:00') from ts_4893.meters order by ts limit 10;
+select DAYOFWEEK('2021-01-01 00:00:00');
+select DAYOFWEEK('2021-01-01 00:00:00') from ts_4893.meters order by ts limit 10;
+select DAYOFWEEK('1998-01-01 00:00:00');
+select DAYOFWEEK('1998-01-01 00:00:00') from ts_4893.meters order by ts limit 10;
+select DAYOFWEEK('1998-12-31 00:00:00');
+select DAYOFWEEK('1998-12-31 00:00:00') from ts_4893.meters order by ts limit 10;
+select DAYOFWEEK('2000-01-06 00:00:00');
+select DAYOFWEEK('2000-01-06 00:00:00') from ts_4893.meters order by ts limit 10;
+select DAYOFWEEK(1725095657);
+select DAYOFWEEK(1725095657) from ts_4893.meters order by ts limit 10;
+select DAYOFWEEK(ts) from ts_4893.meters order by ts limit 10;
+select dayofweek('2020-01-01');
+select dayofweek(1721020666);
+select dayofweek(1721020666229);
+select dayofweek(ts) from ts_4893.d0 order by ts limit 10;
+select dayofweek(ts) from ts_4893.meters order by ts limit 10;

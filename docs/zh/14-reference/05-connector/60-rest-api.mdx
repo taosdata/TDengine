@@ -1,6 +1,7 @@
 ---
 title: REST API
 sidebar_label: REST API
+toc_max_heading_level: 4
 description: 详细介绍 TDengine 提供的 RESTful API.
 ---
 
@@ -443,6 +444,7 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 
   ```bash
   curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "select * from demo.d1001" 192.168.0.1:6041/rest/sql
+  curl -L -H "Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04" -d "select * from demo.d1001" 192.168.0.1:6041/rest/sql
   ```
 
   返回值：
@@ -494,6 +496,7 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 
   ```bash
   curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "create database demo" 192.168.0.1:6041/rest/sql
+  curl -L -H "Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04" -d "create database demo" 192.168.0.1:6041/rest/sql
   ```
 
   返回值：

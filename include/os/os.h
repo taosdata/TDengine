@@ -125,7 +125,9 @@ extern "C" {
 #include "taoserror.h"
 #include "tlog.h"
 
-extern int32_t tsRandErrChance;
+extern int32_t          tsRandErrChance;
+extern int64_t          tsRandErrDivisor;
+extern int64_t          tsRandErrScope;
 extern threadlocal bool tsEnableRandErr;
 
 #ifdef __cplusplus

@@ -38,7 +38,7 @@ static int32_t initBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
   for (int32_t i = 0; i < num; ++i) {
     char* p = taosMemoryCalloc(pBuf->numPerBucket, sizeof(STableBlockScanInfo));
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     void* px = taosArrayPush(pBuf->pData, &p);
@@ -50,7 +50,7 @@ static int32_t initBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
   if (remainder > 0) {
     char* p = taosMemoryCalloc(remainder, sizeof(STableBlockScanInfo));
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     void* px = taosArrayPush(pBuf->pData, &p);
     if (px == NULL) {
@@ -96,7 +96,7 @@ int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
   for (int32_t i = 0; i < num; ++i) {
     char* p = taosMemoryCalloc(pBuf->numPerBucket, sizeof(STableBlockScanInfo));
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     void* px = taosArrayPush(pBuf->pData, &p);
@@ -108,7 +108,7 @@ int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
   if (remainder > 0) {
     char* p = taosMemoryCalloc(remainder, sizeof(STableBlockScanInfo));
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     void* px = taosArrayPush(pBuf->pData, &p);
     if (px == NULL) {
@@ -139,7 +139,7 @@ int32_t getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index, STableBlockScan
   int32_t bucketIndex = index / pBuf->numPerBucket;
   char**  pBucket = taosArrayGet(pBuf->pData, bucketIndex);
   if (pBucket == NULL) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_NOT_FOUND;
   }
 
   *pInfo = (STableBlockScanInfo*)((*pBucket) + (index % pBuf->numPerBucket) * sizeof(STableBlockScanInfo));
@@ -194,7 +194,7 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
             break;
           }
           default:
-            ASSERT(0);
+            return TSDB_CODE_INVALID_PARA;
         }
       } else {
         switch (type) {
@@ -223,7 +223,7 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
             pKey->pks[0].val = UINT8_MAX;
             break;
           default:
-            ASSERT(0);
+            return TSDB_CODE_INVALID_PARA;
         }
       }
     } else {
@@ -231,7 +231,6 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
       pKey->pks[0].nData = 0;
 
       if (pKey->pks[0].pData == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
         return terrno;
       }
 
@@ -337,13 +336,14 @@ int32_t createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, c
   int64_t st = taosGetTimestampUs();
   code = initBlockScanInfoBuf(pBuf, numOfTables);
   if (code != TSDB_CODE_SUCCESS) {
+    tSimpleHashCleanup(pTableMap);
     return code;
   }
 
   pUidList->tableUidList = taosMemoryMalloc(numOfTables * sizeof(uint64_t));
   if (pUidList->tableUidList == NULL) {
     tSimpleHashCleanup(pTableMap);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pUidList->currentIndex = 0;
@@ -524,13 +524,13 @@ static void cleanupBlockOrderSupporter(SBlockOrderSupporter* pSup) {
 }
 
 static int32_t initBlockOrderSupporter(SBlockOrderSupporter* pSup, int32_t numOfTables) {
-  pSup->numOfBlocksPerTable = taosMemoryCalloc(1, sizeof(int32_t) * numOfTables);
-  pSup->indexPerTable = taosMemoryCalloc(1, sizeof(int32_t) * numOfTables);
   pSup->pDataBlockInfo = taosMemoryCalloc(1, POINTER_BYTES * numOfTables);
-
-  if (pSup->numOfBlocksPerTable == NULL || pSup->indexPerTable == NULL || pSup->pDataBlockInfo == NULL) {
+  pSup->indexPerTable = taosMemoryCalloc(1, sizeof(int32_t) * numOfTables);
+  pSup->numOfBlocksPerTable = taosMemoryCalloc(1, sizeof(int32_t) * numOfTables);
+  pSup->numOfTables = 0;
+  if (pSup->pDataBlockInfo == NULL || pSup->indexPerTable == NULL || pSup->numOfBlocksPerTable == NULL) {
     cleanupBlockOrderSupporter(pSup);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -740,7 +740,10 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     }
 
     numOfTotal += 1;
-    tMergeTreeAdjust(pTree, tMergeTreeGetAdjustIndex(pTree));
+    code = tMergeTreeAdjust(pTree, tMergeTreeGetAdjustIndex(pTree));
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
 
   for (int32_t i = 0; i < numOfTables; ++i) {
@@ -842,7 +845,10 @@ static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_
       continue;
     }
 
-    ASSERT(record.suid == pReader->info.suid && uid == record.uid);
+    if (!(record.suid == pReader->info.suid && uid == record.uid)) {
+      tsdbError("tsdb reader failed at: %s:%d", __func__, __LINE__);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
 
     if (record.version <= pReader->info.verRange.maxVer) {
       SDelData delData = {.version = record.version, .sKey = record.skey, .eKey = record.ekey};
@@ -876,7 +882,10 @@ static int32_t doLoadTombDataFromTombBlk(const TTombBlkArray* pTombBlkArray, STs
       break;
     }
 
-    ASSERT(pTombBlk->minTbid.suid <= pReader->info.suid && pTombBlk->maxTbid.suid >= pReader->info.suid);
+    if (!(pTombBlk->minTbid.suid <= pReader->info.suid && pTombBlk->maxTbid.suid >= pReader->info.suid)) {
+      tsdbError("tsdb reader failed at: %s:%d", __func__, __LINE__);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
     if (pTombBlk->maxTbid.suid == pReader->info.suid && pTombBlk->maxTbid.uid < pList->tableUidList[0]) {
       i += 1;
       continue;
@@ -1309,7 +1318,9 @@ static bool doCheckDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, const S
             return true;
           }
         } else {  // it must be the last point
-          ASSERT(p->version == 0);
+          if (!(p->version == 0)) {
+            tsdbError("unexpected version:%" PRId64, p->version);
+          }
         }
       }
     } else {  // (p->ts > pBlock->maxKey.ts) {

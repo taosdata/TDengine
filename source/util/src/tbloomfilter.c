@@ -78,7 +78,10 @@ _error:
 }
 
 int32_t tBloomFilterPutHash(SBloomFilter* pBF, uint64_t hash1, uint64_t hash2) {
-  ASSERT(!tBloomFilterIsFull(pBF));
+  if (tBloomFilterIsFull(pBF)) {
+    uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_INVALID_PARA));
+    return TSDB_CODE_FAILED;
+  }
   bool                    hasChange = false;
   const register uint64_t size = pBF->numBits;
   uint64_t                cbHash = hash1;
@@ -131,16 +134,16 @@ void tBloomFilterDestroy(SBloomFilter* pBF) {
 }
 
 int32_t tBloomFilterEncode(const SBloomFilter* pBF, SEncoder* pEncoder) {
-  if (tEncodeU32(pEncoder, pBF->hashFunctions) < 0) return -1;
-  if (tEncodeU64(pEncoder, pBF->expectedEntries) < 0) return -1;
-  if (tEncodeU64(pEncoder, pBF->numUnits) < 0) return -1;
-  if (tEncodeU64(pEncoder, pBF->numBits) < 0) return -1;
-  if (tEncodeU64(pEncoder, pBF->size) < 0) return -1;
+  TAOS_CHECK_RETURN(tEncodeU32(pEncoder, pBF->hashFunctions));
+  TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pBF->expectedEntries));
+  TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pBF->numUnits));
+  TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pBF->numBits));
+  TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pBF->size));
   for (uint64_t i = 0; i < pBF->numUnits; i++) {
     uint64_t* pUnits = (uint64_t*)pBF->buffer;
-    if (tEncodeU64(pEncoder, pUnits[i]) < 0) return -1;
+    TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pUnits[i]));
   }
-  if (tEncodeDouble(pEncoder, pBF->errorRate) < 0) return -1;
+  TAOS_CHECK_RETURN(tEncodeDouble(pEncoder, pBF->errorRate));
   return 0;
 }
 

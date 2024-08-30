@@ -46,7 +46,7 @@ import TabItem from "@theme/TabItem";
 
 从服务端配置的角度，要根据系统中磁盘的数量，磁盘的 I/O 能力，以及处理器能力在创建数据库时设置适当的 vgroups 数量以充分发挥系统性能。如果 vgroups 过少，则系统性能无法发挥；如果 vgroups 过多，会造成无谓的资源竞争。常规推荐 vgroups 数量为 CPU 核数的 2 倍，但仍然要结合具体的系统资源配置进行调优。
 
-更多调优参数，请参考 [数据库管理](../../../taos-sql/database) 和 [服务端配置](../../../reference/config)。
+更多调优参数，请参考 [数据库管理](../../reference/taos-sql/database) 和 [服务端配置](../../reference/components/taosd)。
 
 ## 高效写入示例 {#sample-code}
 

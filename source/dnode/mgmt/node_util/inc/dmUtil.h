@@ -83,12 +83,12 @@ extern "C" {
   }\
 }
 
-#define dGFatal(param, ...) {if (dDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dFatal(param ", gtid:%s", __VA_ARGS__, buf);}}
-#define dGError(param, ...) {if (dDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dError(param ", gtid:%s", __VA_ARGS__, buf);}}
-#define dGWarn(param, ...)  {if (dDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dWarn(param ", gtid:%s", __VA_ARGS__, buf);}}
-#define dGInfo(param, ...)  {if (dDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dInfo(param ", gtid:%s", __VA_ARGS__, buf);}}
-#define dGDebug(param, ...) {if (dDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dDebug(param ", gtid:%s", __VA_ARGS__, buf);}}
-#define dGTrace(param, ...) {if (dDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dTrace(param ", gtid:%s", __VA_ARGS__, buf);}}
+#define dGFatal(param, ...) {if (dDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dFatal(param ",QID:%s", __VA_ARGS__, buf);}}
+#define dGError(param, ...) {if (dDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dError(param ",QID:%s", __VA_ARGS__, buf);}}
+#define dGWarn(param, ...)  {if (dDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dWarn(param ",QID:%s", __VA_ARGS__, buf);}}
+#define dGInfo(param, ...)  {if (dDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dInfo(param ",QID:%s", __VA_ARGS__, buf);}}
+#define dGDebug(param, ...) {if (dDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dDebug(param ",QID:%s", __VA_ARGS__, buf);}}
+#define dGTrace(param, ...) {if (dDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dTrace(param ",QID:%s", __VA_ARGS__, buf);}}
 
 // clang-format on
 
@@ -121,6 +121,7 @@ typedef void (*GetVnodeLoadsFp)(SMonVloadInfo *pInfo);
 typedef void (*GetMnodeLoadsFp)(SMonMloadInfo *pInfo);
 typedef void (*GetQnodeLoadsFp)(SQnodeLoad *pInfo);
 typedef int32_t (*ProcessAlterNodeTypeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
+typedef void (*StopDnodeFp)();
 
 typedef struct {
   int32_t        dnodeId;
@@ -159,6 +160,7 @@ typedef struct {
   GetVnodeLoadsFp        getVnodeLoadsLiteFp;
   GetMnodeLoadsFp        getMnodeLoadsFp;
   GetQnodeLoadsFp        getQnodeLoadsFp;
+  StopDnodeFp            stopDnodeFp;
 } SMgmtInputOpt;
 
 typedef struct {
@@ -206,7 +208,7 @@ void        dmGetMonitorSystemInfo(SMonSysInfo *pInfo);
 int32_t dmReadFile(const char *path, const char *name, bool *pDeployed);
 int32_t dmWriteFile(const char *path, const char *name, bool deployed);
 int32_t dmCheckRunning(const char *dataDir, TdFilePtr *pFile);
-//int32_t dmCheckRunningWrapper(const char *dataDir, TdFilePtr *pFile);
+// int32_t dmCheckRunningWrapper(const char *dataDir, TdFilePtr *pFile);
 
 // dmodule.c
 int32_t dmInitDndInfo(SDnodeData *pData);

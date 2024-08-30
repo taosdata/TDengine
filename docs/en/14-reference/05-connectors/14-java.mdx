@@ -69,7 +69,7 @@ REST connection supports all platforms that can run Java.
 After an error is reported, the error message and error code can be obtained through SQLException.
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/JdbcBasicDemo.java:jdbc_exception}}
+{{#include docs/examples/java/src/main/java/com/taos/example/JdbcBasicDemo.java:jdbc_exception}}
 ```
 
 There are four types of error codes that the JDBC client library can report:
@@ -150,7 +150,7 @@ TDengine currently supports timestamp, number, character, Boolean type, and the 
 Due to historical reasons, the BINARY type data in TDengine is not truly binary data and is no longer recommended for use. Please use VARBINARY type instead.  
 GEOMETRY type is binary data in little endian byte order, which complies with the WKB specification. For detailed information, please refer to [Data Type](../../taos-sql/data-type/)
 For WKB specifications, please refer to [Well Known Binary (WKB)](https://libgeos.org/specifications/wkb/)
-For Java connector, the jts library can be used to easily create GEOMETRY type objects, serialize them, and write them to TDengine. Here is an example [Geometry example](https://github.com/taosdata/TDengine/blob/3.0/examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/GeometryDemo.java)
+For Java connector, the jts library can be used to easily create GEOMETRY type objects, serialize them, and write them to TDengine. Here is an example [Geometry example](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/GeometryDemo.java)
 
 
 ## Installation Steps
@@ -395,7 +395,7 @@ For example, if you specify the password as `taosdata` in the URL and specify th
 ### Create database and tables
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/JdbcBasicDemo.java:create_db_and_table}}
+{{#include docs/examples/java/src/main/java/com/taos/example/JdbcBasicDemo.java:create_db_and_table}}
 ```
 
 > **Note**: If you do not use `USE power` to specify the database, all subsequent operations on the table need to add the database name as a prefix, such as power.meters.
@@ -403,7 +403,7 @@ For example, if you specify the password as `taosdata` in the URL and specify th
 ### Insert data
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/JdbcBasicDemo.java:insert_data}}
+{{#include docs/examples/java/src/main/java/com/taos/example/JdbcBasicDemo.java:insert_data}}
 ```
 
 > NOW is an internal function. The default is the current time of the client's computer.
@@ -412,7 +412,7 @@ For example, if you specify the password as `taosdata` in the URL and specify th
 ### Querying data
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/JdbcBasicDemo.java:query_data}}
+{{#include docs/examples/java/src/main/java/com/taos/example/JdbcBasicDemo.java:query_data}}
 ```
 
 > The query is consistent with operating a relational database. When using subscripts to get the contents of the returned fields, you have to start from 1. However, we recommend using the field names to get the values of the fields in the result set.
@@ -422,7 +422,7 @@ For example, if you specify the password as `taosdata` in the URL and specify th
 <RequestId />
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/JdbcBasicDemo.java:with_reqid}}
+{{#include docs/examples/java/src/main/java/com/taos/example/JdbcBasicDemo.java:with_reqid}}
 ```
 
 ### Writing data via parameter binding
@@ -440,20 +440,20 @@ TDengine has significantly improved the bind APIs to support data writing (INSER
 <TabItem value="native" label="native connection">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/ParameterBindingBasicDemo.java:para_bind}}
+{{#include docs/examples/java/src/main/java/com/taos/example/ParameterBindingBasicDemo.java:para_bind}}
 ```
 
-This is the [Detailed Example](https://github.com/taosdata/TDengine/blob/main/examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/ParameterBindingFullDemo.java)  
+This is the [Detailed Example](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/ParameterBindingFullDemo.java)  
 
 
 </TabItem>
 <TabItem value="ws" label="WebSocket connection">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WSParameterBindingBasicDemo.java:para_bind}}
+{{#include docs/examples/java/src/main/java/com/taos/example/WSParameterBindingBasicDemo.java:para_bind}}
 ```
 
-This is the [Detailed Example](https://github.com/taosdata/TDengine/blob/main/examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WSParameterBindingFullDemo.java)  
+This is the [Detailed Example](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/WSParameterBindingFullDemo.java)  
 
 </TabItem>
 </Tabs>
@@ -503,14 +503,14 @@ TDengine supports schemaless writing. It is compatible with InfluxDB's Line Prot
 <TabItem value="native" label="native connection">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/SchemalessJniTest.java:schemaless}}
+{{#include docs/examples/java/src/main/java/com/taos/example/SchemalessJniTest.java:schemaless}}
 ```
 
 </TabItem>
 <TabItem value="ws" label="WebSocket connection">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/SchemalessWsTest.java:schemaless}}
+{{#include docs/examples/java/src/main/java/com/taos/example/SchemalessWsTest.java:schemaless}}
 ```
 
 </TabItem>
@@ -531,7 +531,7 @@ The TDengine Java client library supports subscription functionality with the fo
 #### Create a Topic
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/ConsumerLoopImp.java:create_topic}}
+{{#include docs/examples/java/src/main/java/com/taos/example/ConsumerLoopImp.java:create_topic}}
 ```
 
 The preceding example uses the SQL statement `SELECT ts, current, voltage, phase, groupid, location FROM meters` and creates a topic named `topic_meters`.
@@ -540,7 +540,7 @@ The preceding example uses the SQL statement `SELECT ts, current, voltage, phase
 #### Create a Consumer
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/AbsConsumerLoop.java:create_consumer}}
+{{#include docs/examples/java/src/main/java/com/taos/example/AbsConsumerLoop.java:create_consumer}}
 ```
 
 - bootstrap.servers: `ip:port` where the TDengine server is located, or `ip:port` where the taosAdapter is located if WebSocket connection is used.
@@ -561,7 +561,7 @@ For more information, see [Consumer Parameters](../../../develop/tmq/#create-a-c
 #### Subscribe to consume data
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/AbsConsumerLoop.java:poll_data}}
+{{#include docs/examples/java/src/main/java/com/taos/example/AbsConsumerLoop.java:poll_data}}
 ```
 
 The parameters of the subscribe method are defined as: a list of topics to subscribe, and it supports subscribing to multiple topics at the same time. 
@@ -588,7 +588,7 @@ void seekToEnd(Collection<TopicPartition> partitions) throws SQLException;
 Example usage is as follows.
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/ConsumerOffsetSeek.java:consumer_seek}}
+{{#include docs/examples/java/src/main/java/com/taos/example/ConsumerOffsetSeek.java:consumer_seek}}
 ```
 
 #### Commit offset
@@ -622,14 +622,14 @@ For more information, see [Data Subscription](../../../develop/tmq).
 In addition to the native connection, the Java client library also supports subscribing via websocket.
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/ConsumerLoopFull.java:consumer_demo}}
+{{#include docs/examples/java/src/main/java/com/taos/example/ConsumerLoopFull.java:consumer_demo}}
 ```
 
 </TabItem>
 <TabItem value="ws" label="WebSocket connection">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:consumer_demo}}
+{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:consumer_demo}}
 ```
 
 </TabItem>
@@ -644,7 +644,7 @@ In addition to the native connection, the Java client library also supports subs
 Example usage is as follows.
 
 ```java
-{{#include examples/JDBC/connectionPools/src/main/java/com/taosdata/example/HikariDemo.java:connection_pool}}
+{{#include docs/examples/java/src/main/java/com/taos/example/HikariDemo.java:connection_pool}}
 ```
 
 > getConnection(), you need to call the close() method after you finish using it. It doesn't close the connection. It just puts it back into the connection pool.
@@ -655,14 +655,14 @@ Example usage is as follows.
 Example usage is as follows.
 
 ```java
-{{#include examples/JDBC/connectionPools/src/main/java/com/taosdata/example/DruidDemo.java:connection_pool}}
+{{#include docs/examples/java/src/main/java/com/taos/example/DruidDemo.java:connection_pool}}
 ```
 
 > For more questions about using druid, please see [Official Instructions](https://github.com/alibaba/druid).
 
 ### More sample programs
 
-The source code of the sample application is under `TDengine/examples/JDBC`:
+The source code of the sample application is under `TDengine/docs/examples/JDBC`:
 
 - JDBCDemo: JDBC sample source code.
 - connectionPools: using taos-jdbcdriver in connection pools such as HikariCP, Druid, dbcp, c3p0, etc.
@@ -671,7 +671,7 @@ The source code of the sample application is under `TDengine/examples/JDBC`:
 - springbootdemo: using taos-jdbcdriver in Springboot.
 - consumer-demo: consumer TDengine data example, the consumption rate can be controlled by parameters.
 
-[JDBC example](https://github.com/taosdata/TDengine/tree/3.0/examples/JDBC)
+[JDBC example](https://github.com/taosdata/TDengine/tree/main/docs/examples/JDBC)
 
 ## Frequently Asked Questions
 

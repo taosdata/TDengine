@@ -707,7 +707,9 @@ static FORCE_INLINE SColCmprWrapper* tCloneSColCmprWrapper(const SColCmprWrapper
 }
 
 static FORCE_INLINE int32_t tInitDefaultSColCmprWrapperByCols(SColCmprWrapper* pCmpr, int32_t nCols) {
-  assert(!pCmpr->pColCmpr);
+  if (!(!pCmpr->pColCmpr)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   pCmpr->pColCmpr = (SColCmpr*)taosMemoryCalloc(nCols, sizeof(SColCmpr));
   if (pCmpr->pColCmpr == NULL) {
     return terrno;
@@ -718,7 +720,9 @@ static FORCE_INLINE int32_t tInitDefaultSColCmprWrapperByCols(SColCmprWrapper* p
 
 static FORCE_INLINE int32_t tInitDefaultSColCmprWrapper(SColCmprWrapper* pCmpr, SSchemaWrapper* pSchema) {
   pCmpr->nCols = pSchema->nCols;
-  assert(!pCmpr->pColCmpr);
+  if (!(!pCmpr->pColCmpr)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   pCmpr->pColCmpr = (SColCmpr*)taosMemoryCalloc(pCmpr->nCols, sizeof(SColCmpr));
   if (pCmpr->pColCmpr == NULL) {
     return terrno;
@@ -1547,6 +1551,8 @@ typedef struct {
   SDbCfgRsp*         cfgRsp;
   STableTSMAInfoRsp* pTsmaRsp;
   int32_t            dbTsmaVersion;
+  char               db[TSDB_DB_FNAME_LEN];
+  int64_t            dbId;
 } SDbHbRsp;
 
 typedef struct {
@@ -2811,8 +2817,8 @@ enum {
   TOPIC_SUB_TYPE__COLUMN,
 };
 
-#define DEFAULT_MAX_POLL_INTERVAL      3000000
-#define DEFAULT_SESSION_TIMEOUT        12000
+#define DEFAULT_MAX_POLL_INTERVAL 3000000
+#define DEFAULT_SESSION_TIMEOUT   12000
 
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];  // accout.topic
@@ -2837,6 +2843,8 @@ typedef struct {
   int64_t consumerId;
   char    cgroup[TSDB_CGROUP_LEN];
   char    clientId[TSDB_CLIENT_ID_LEN];
+  char    user[TSDB_USER_LEN];
+  char    fqdn[TSDB_FQDN_LEN];
   SArray* topicNames;  // SArray<char**>
 
   int8_t  withTbName;
@@ -2870,6 +2878,8 @@ static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubsc
   tlen += taosEncodeFixedI8(buf, pReq->enableBatchMeta);
   tlen += taosEncodeFixedI32(buf, pReq->sessionTimeoutMs);
   tlen += taosEncodeFixedI32(buf, pReq->maxPollIntervalMs);
+  tlen += taosEncodeString(buf, pReq->user);
+  tlen += taosEncodeString(buf, pReq->fqdn);
 
   return tlen;
 }
@@ -2904,6 +2914,8 @@ static FORCE_INLINE int32_t tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeR
   if ((char*)buf - (char*)start < len) {
     buf = taosDecodeFixedI32(buf, &pReq->sessionTimeoutMs);
     buf = taosDecodeFixedI32(buf, &pReq->maxPollIntervalMs);
+    buf = taosDecodeStringTo(buf, pReq->user);
+    buf = taosDecodeStringTo(buf, pReq->fqdn);
   } else {
     pReq->sessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
     pReq->maxPollIntervalMs = DEFAULT_MAX_POLL_INTERVAL;

@@ -41,7 +41,7 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
 
   reader[0] = taosMemoryCalloc(1, sizeof(*reader[0]));
   if (reader[0] == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   reader[0]->config[0] = config[0];
@@ -61,7 +61,9 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
 
   // // open each segment reader
   int64_t offset = config->file->size - sizeof(SSttFooter);
-  ASSERT(offset >= TSDB_FHDR_SIZE);
+  if (offset < TSDB_FHDR_SIZE) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
   int32_t encryptAlgoirthm = config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
   char   *encryptKey = config->tsdb->pVnode->config.tsdbCfg.encryptKey;
@@ -115,7 +117,9 @@ int32_t tsdbSttFileReaderClose(SSttFileReader **reader) {
 int32_t tsdbSttFileReadStatisBlk(SSttFileReader *reader, const TStatisBlkArray **statisBlkArray) {
   if (!reader->ctx->statisBlkLoaded) {
     if (reader->footer->statisBlkPtr->size > 0) {
-      ASSERT(reader->footer->statisBlkPtr->size % sizeof(SStatisBlk) == 0);
+      if (reader->footer->statisBlkPtr->size % sizeof(SStatisBlk) != 0) {
+        return TSDB_CODE_FILE_CORRUPTED;
+      }
 
       int32_t size = reader->footer->statisBlkPtr->size / sizeof(SStatisBlk);
       void   *data = taosMemoryMalloc(reader->footer->statisBlkPtr->size);
@@ -147,7 +151,9 @@ int32_t tsdbSttFileReadStatisBlk(SSttFileReader *reader, const TStatisBlkArray *
 int32_t tsdbSttFileReadTombBlk(SSttFileReader *reader, const TTombBlkArray **tombBlkArray) {
   if (!reader->ctx->tombBlkLoaded) {
     if (reader->footer->tombBlkPtr->size > 0) {
-      ASSERT(reader->footer->tombBlkPtr->size % sizeof(STombBlk) == 0);
+      if (reader->footer->tombBlkPtr->size % sizeof(STombBlk) != 0) {
+        return TSDB_CODE_FILE_CORRUPTED;
+      }
 
       int32_t size = reader->footer->tombBlkPtr->size / sizeof(STombBlk);
       void   *data = taosMemoryMalloc(reader->footer->tombBlkPtr->size);
@@ -179,7 +185,9 @@ int32_t tsdbSttFileReadTombBlk(SSttFileReader *reader, const TTombBlkArray **tom
 int32_t tsdbSttFileReadSttBlk(SSttFileReader *reader, const TSttBlkArray **sttBlkArray) {
   if (!reader->ctx->sttBlkLoaded) {
     if (reader->footer->sttBlkPtr->size > 0) {
-      ASSERT(reader->footer->sttBlkPtr->size % sizeof(SSttBlk) == 0);
+      if (reader->footer->sttBlkPtr->size % sizeof(SSttBlk) != 0) {
+        return TSDB_CODE_FILE_CORRUPTED;
+      }
 
       int32_t size = reader->footer->sttBlkPtr->size / sizeof(SSttBlk);
       void   *data = taosMemoryMalloc(reader->footer->sttBlkPtr->size);
@@ -256,7 +264,9 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
   TAOS_CHECK_GOTO(tGetDiskDataHdr(&br, &hdr), &lino, _exit);
 
-  ASSERT(hdr.delimiter == TSDB_FILE_DLMT);
+  if (hdr.delimiter != TSDB_FILE_DLMT) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
   // set data container
   tBlockDataReset(bData);
@@ -266,7 +276,9 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
 
   // key part
   TAOS_CHECK_GOTO(tBlockDataDecompressKeyPart(&hdr, &br, bData, assist), &lino, _exit);
-  ASSERT(br.offset == buffer0->size);
+  if (br.offset != buffer0->size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
   bool loadExtra = false;
   for (int i = 0; i < ncid; i++) {
@@ -309,7 +321,7 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
 
     if (cid < blockCol.cid) {
       const STColumn *tcol = tTSchemaSearchColumn(pTSchema, cid);
-      ASSERT(tcol);
+      TSDB_CHECK_NULL(tcol, code, lino, _exit, TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER);
       SBlockCol none = {
           .cid = cid,
           .type = tcol->type,
@@ -376,7 +388,10 @@ int32_t tsdbSttFileReadTombBlock(SSttFileReader *reader, const STombBlk *tombBlk
     br.offset += tombBlk->size[i];
   }
 
-  ASSERT(br.offset == tombBlk->dp->size);
+  if (br.offset != tombBlk->dp->size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
+
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, lino,
@@ -444,7 +459,9 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
     }
   }
 
-  ASSERT(br.offset == buffer0->size);
+  if (br.offset != buffer0->size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
 _exit:
   if (code) {
@@ -814,8 +831,6 @@ _exit:
 }
 
 static void tsdbSttFWriterDoClose(SSttFileWriter *writer) {
-  ASSERT(writer->fd == NULL);
-
   for (int32_t i = 0; i < ARRAY_SIZE(writer->local); ++i) {
     tBufferDestroy(writer->local + i);
   }
@@ -854,7 +869,6 @@ static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, TFileOpArray *o
 
   tsdbCloseFile(&writer->fd);
 
-  ASSERT(writer->file->size > 0);
   STFileOp op = (STFileOp){
       .optype = TSDB_FOP_CREATE,
       .fid = writer->config->fid,
@@ -883,7 +897,7 @@ static int32_t tsdbSttFWriterCloseAbort(SSttFileWriter *writer) {
 int32_t tsdbSttFileWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter **writer) {
   writer[0] = taosMemoryCalloc(1, sizeof(*writer[0]));
   if (writer[0] == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   writer[0]->config[0] = config[0];

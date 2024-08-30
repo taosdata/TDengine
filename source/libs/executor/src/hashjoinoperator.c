@@ -38,8 +38,6 @@ bool hJoinBlkReachThreshold(SHJoinOperatorInfo* pInfo, int64_t blkRows) {
 }
 
 int32_t hJoinHandleMidRemains(SHJoinOperatorInfo* pJoin, SHJoinCtx* pCtx) {
-  ASSERT(0 < pJoin->midBlk->info.rows);
-
   TSWAP(pJoin->midBlk, pJoin->finBlk);
 
   pCtx->midRemains = false;
@@ -991,13 +989,14 @@ void hJoinSetDone(struct SOperatorInfo* pOperator) {
   qDebug("hash Join done");  
 }
 
-static SSDataBlock* hJoinMainProcess(struct SOperatorInfo* pOperator) {
+static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SHJoinOperatorInfo* pJoin = pOperator->info;
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  int32_t code = TSDB_CODE_SUCCESS;
-  SSDataBlock* pRes = pJoin->finBlk;
-  int64_t st = 0;
+  SExecTaskInfo*      pTaskInfo = pOperator->pTaskInfo;
+  int32_t             code = TSDB_CODE_SUCCESS;
+  SSDataBlock*        pRes = pJoin->finBlk;
+  int64_t             st = 0;
 
+  QRY_OPTR_CHECK(pResBlock);
   if (pOperator->cost.openCost == 0) {
     st = taosGetTimestampUs();
   }
@@ -1006,7 +1005,7 @@ static SSDataBlock* hJoinMainProcess(struct SOperatorInfo* pOperator) {
     pRes->info.rows = 0;
     goto _return;
   }
-  
+
   if (!pJoin->keyHashBuilt) {
     pJoin->keyHashBuilt = true;
 
@@ -1014,7 +1013,7 @@ static SSDataBlock* hJoinMainProcess(struct SOperatorInfo* pOperator) {
     code = hJoinBuildHash(pOperator, &queryDone);
     if (code) {
       pTaskInfo->code = code;
-      T_LONG_JMP(pTaskInfo->env, code);
+      return code;
     }
 
     if (queryDone) {
@@ -1028,18 +1027,20 @@ static SSDataBlock* hJoinMainProcess(struct SOperatorInfo* pOperator) {
     code = (*pJoin->joinFp)(pOperator);
     if (code) {
       pTaskInfo->code = code;
-      T_LONG_JMP(pTaskInfo->env, code);
+      return pTaskInfo->code;
     }
-    
+
     if (pRes->info.rows > 0 && pJoin->pFinFilter != NULL) {
       code = doFilter(pRes, pJoin->pFinFilter, NULL);
       if (code) {
         pTaskInfo->code = code;
-        T_LONG_JMP(pTaskInfo->env, code);
+        return pTaskInfo->code;
       }
     }
+
     if (pRes->info.rows > 0) {
-      return pRes;
+      *pResBlock = pRes;
+      return code;
     }
   }
 
@@ -1052,39 +1053,41 @@ static SSDataBlock* hJoinMainProcess(struct SOperatorInfo* pOperator) {
 
     pJoin->execInfo.probeBlkNum++;
     pJoin->execInfo.probeBlkRows += pBlock->info.rows;
-    
+
     code = hJoinPrepareStart(pOperator, pBlock);
     if (code) {
       pTaskInfo->code = code;
-      T_LONG_JMP(pTaskInfo->env, code);
+      return pTaskInfo->code;
     }
 
     if (!hJoinBlkReachThreshold(pJoin, pRes->info.rows)) {
       continue;
     }
-    
+
     if (pRes->info.rows > 0 && pJoin->pFinFilter != NULL) {
       code = doFilter(pRes, pJoin->pFinFilter, NULL);
       if (code) {
         pTaskInfo->code = code;
-        T_LONG_JMP(pTaskInfo->env, code);
+        return pTaskInfo->code;
       }
     }
-    
+
     if (pRes->info.rows > 0) {
       break;
     }
   }
 
 _return:
-
   if (pOperator->cost.openCost == 0) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
-  
-  return (pRes->info.rows > 0) ? pRes : NULL;
-}
 
+  if (pRes->info.rows > 0) {
+    *pResBlock = pRes;
+  }
+
+  return code;
+}
 
 static void destroyHashJoinOperator(void* param) {
   SHJoinOperatorInfo* pJoinOperator = (SHJoinOperatorInfo*)param;
@@ -1153,7 +1156,6 @@ int32_t hJoinInitResBlocks(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinN
   if (NULL == pJoin->finBlk) {
     QRY_ERR_RET(terrno);
   }
-  ASSERT(pJoinNode->node.pOutputDataBlockDesc->totalRowSize > 0);
 
   int32_t code = blockDataEnsureCapacity(pJoin->finBlk, hJoinGetFinBlkCapacity(pJoin, pJoinNode));
   if (TSDB_CODE_SUCCESS != code) {
@@ -1226,15 +1228,14 @@ int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDow
   qDebug("create hash Join operator done");
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _return:
 
   if (pInfo != NULL) {
     destroyHashJoinOperator(pInfo);
   }
-
-  taosMemoryFree(pOperator);
+  destroyOperatorAndDownstreams(pOperator, pDownstream, numOfDownstream);
   pTaskInfo->code = code;
   return code;
 }

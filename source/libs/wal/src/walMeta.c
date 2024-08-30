@@ -357,7 +357,10 @@ static int32_t walLogEntriesComplete(const SWal* pWal) {
 
 static int32_t walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
   SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
-  ASSERT(pFileInfo != NULL);
+  if (!pFileInfo) {
+    TAOS_RETURN(TSDB_CODE_FAILED);
+  }
+
   char fnameStr[WAL_FILE_LEN];
   walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
 
@@ -414,7 +417,13 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
       SWalFileInfo fileInfo;
       (void)memset(&fileInfo, -1, sizeof(SWalFileInfo));
       (void)sscanf(name, "%" PRId64 ".log", &fileInfo.firstVer);
-      (void)taosArrayPush(actualLog, &fileInfo);
+      if (!taosArrayPush(actualLog, &fileInfo)) {
+        regfree(&logRegPattern);
+        regfree(&idxRegPattern);
+        (void)taosCloseDir(&pDir);
+
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      }
     }
   }
 
@@ -727,9 +736,12 @@ int32_t walRollFileInfo(SWal* pWal) {
   pNewInfo->closeTs = -1;
   pNewInfo->fileSize = 0;
   pNewInfo->syncedOffset = 0;
-  (void)taosArrayPush(pArray, pNewInfo);
-  taosMemoryFree(pNewInfo);
+  if (!taosArrayPush(pArray, pNewInfo)) {
+    taosMemoryFree(pNewInfo);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
+  taosMemoryFree(pNewInfo);
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -818,7 +830,10 @@ int32_t walMetaDeserialize(SWal* pWal, const char* bytes) {
   int sz = cJSON_GetArraySize(pFiles);
   // deserialize
   SArray* pArray = pWal->fileInfoSet;
-  (void)taosArrayEnsureCap(pArray, sz);
+  if (taosArrayEnsureCap(pArray, sz)) {
+    cJSON_Delete(pRoot);
+    return terrno;
+  }
 
   for (int i = 0; i < sz; i++) {
     pInfoJson = cJSON_GetArrayItem(pFiles, i);
@@ -841,7 +856,10 @@ int32_t walMetaDeserialize(SWal* pWal, const char* bytes) {
     pField = cJSON_GetObjectItem(pInfoJson, "fileSize");
     if (!pField) goto _err;
     info.fileSize = atoll(cJSON_GetStringValue(pField));
-    (void)taosArrayPush(pArray, &info);
+    if (!taosArrayPush(pArray, &info)) {
+      cJSON_Delete(pRoot);
+      return terrno;
+    }
   }
   pWal->fileInfoSet = pArray;
   pWal->writeCur = sz - 1;
@@ -860,8 +878,8 @@ static int walFindCurMetaVer(SWal* pWal) {
 
   TdDirPtr pDir = taosOpenDir(pWal->path);
   if (pDir == NULL) {
-    wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
-    return -1;
+    wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, tstrerror(terrno));
+    return terrno;
   }
 
   TdDirEntryPtr pDirEntry;

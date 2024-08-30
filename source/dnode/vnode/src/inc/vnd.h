@@ -32,12 +32,12 @@ extern "C" {
 #define vDebug(...) do { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ", DEBUG_DEBUG, vDebugFlag, __VA_ARGS__); }}    while(0)
 #define vTrace(...) do { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", DEBUG_TRACE, vDebugFlag, __VA_ARGS__); }}    while(0)
 
-#define vGTrace(param, ...) do { if (vDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vTrace(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
-#define vGFatal(param, ...) do { if (vDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vFatal(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
-#define vGError(param, ...) do { if (vDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vError(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
-#define vGWarn(param, ...)  do { if (vDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vWarn(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
-#define vGInfo(param, ...)  do { if (vDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vInfo(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
-#define vGDebug(param, ...) do { if (vDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vDebug(param ", gtid:%s", __VA_ARGS__, buf);}}    while(0)
+#define vGTrace(param, ...) do { if (vDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vTrace(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define vGFatal(param, ...) do { if (vDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vFatal(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define vGError(param, ...) do { if (vDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vError(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define vGWarn(param, ...)  do { if (vDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vWarn(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define vGInfo(param, ...)  do { if (vDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vInfo(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define vGDebug(param, ...) do { if (vDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vDebug(param ",QID:%s", __VA_ARGS__, buf);}}    while(0)
 
 // clang-format on
 

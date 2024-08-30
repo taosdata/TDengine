@@ -570,7 +570,7 @@ int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
 void qwCloseRef(void) {
   taosWLockLatch(&gQwMgmt.lock);
   if (atomic_load_32(&gQwMgmt.qwNum) <= 0 && gQwMgmt.qwRef >= 0) {
-    (void)taosCloseRef(gQwMgmt.qwRef);  // ignore error
+    taosCloseRef(gQwMgmt.qwRef);  // ignore error
     gQwMgmt.qwRef = -1;
   }
   taosWUnLockLatch(&gQwMgmt.lock);

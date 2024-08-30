@@ -141,12 +141,42 @@ class TDTestCase(TBase):
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 102)
 
+    def FIX_TD_31684(self):
+        tdLog.info("check bug TD_31684 ...\n")
+        sqls = [
+            "drop database if exists td_31684",
+            "create database td_31684 cachemodel 'both' stt_trigger 1;",
+            "use td_31684;",
+            "create table t1 (ts timestamp, id int, name int) ;",
+            "insert into t1 values(now, 1, 1);",
+            "insert into t1 values(now, 1, 2);",
+            "insert into t1 values(now, 2, 3);",
+            "insert into t1 values(now, 3, 4);"
+        ]
+        tdSql.executes(sqls)
+        sql1 = "select count(name) as total_name from t1 group by name"
+        sql2 = "select id as new_id, last(name) as last_name from t1 group by id order by new_id"
+        sql3 = "select id as new_id, count(id) as id from t1 group by id order by new_id"
+        tdSql.query(sql1)
+        tdSql.checkRows(4)
+
+        tdSql.query(sql2)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 1, 3)
+
+        tdSql.query(sql3)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(2, 1, 1)
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
 
         # TD BUGS
         self.FIX_TD_30686()
+        self.FIX_TD_31684()
 
         # TS BUGS
         self.FIX_TS_5105()

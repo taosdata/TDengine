@@ -768,7 +768,9 @@ void mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname) 
 }
 
 void mndTransAddArbGroupId(STrans *pTrans, int32_t groupId) {
-  (void)taosHashPut(pTrans->arbGroupIds, &groupId, sizeof(int32_t), NULL, 0);
+  if (taosHashPut(pTrans->arbGroupIds, &groupId, sizeof(int32_t), NULL, 0) != 0) {
+    mError("trans:%d, failed to put groupid into hash, groupId:%d", pTrans->id, groupId);
+  }
 }
 
 void mndTransSetSerial(STrans *pTrans) { pTrans->exec = TRN_EXEC_SERIAL; }
@@ -1569,6 +1571,7 @@ static int32_t mndTransExecuteUndoActionsSerial(SMnode *pMnode, STrans *pTrans, 
 bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   bool    continueExec = true;
   int32_t code = 0;
+  terrno = 0;
 
   int32_t numOfActions = taosArrayGetSize(pTrans->prepareActions);
   if (numOfActions == 0) goto _OVER;
@@ -1579,7 +1582,9 @@ bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans, bool topHalf) {
     STransAction *pAction = taosArrayGet(pTrans->prepareActions, action);
     code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf);
     if (code != 0) {
-      mError("trans:%d, failed to execute prepare action:%d, numOfActions:%d", pTrans->id, action, numOfActions);
+      terrno = code;
+      mError("trans:%d, failed to execute prepare action:%d, numOfActions:%d, since %s", pTrans->id, action,
+             numOfActions, tstrerror(code));
       return false;
     }
   }
@@ -1902,7 +1907,9 @@ void mndTransPullup(SMnode *pMnode) {
     STrans *pTrans = NULL;
     pIter = sdbFetch(pMnode->pSdb, SDB_TRANS, pIter, (void **)&pTrans);
     if (pIter == NULL) break;
-    (void)taosArrayPush(pArray, &pTrans->id);
+    if (taosArrayPush(pArray, &pTrans->id) == NULL) {
+      mError("failed to put trans into array, trans:%d, but pull up will continute", pTrans->id);
+    }
     sdbRelease(pSdb, pTrans);
   }
 
@@ -1990,5 +1997,5 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
 static void mndCancelGetNextTrans(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_TRANS);
 }

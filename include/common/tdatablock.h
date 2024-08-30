@@ -113,10 +113,8 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
 
   if (pColAgg != NULL && pColAgg->colId != -1) {
     if (pColAgg->numOfNull == totalRows) {
-      ASSERT(pColumnInfoData->nullbitmap == NULL);
       return true;
     } else if (pColAgg->numOfNull == 0) {
-      ASSERT(pColumnInfoData->nullbitmap == NULL);
       return false;
     }
   }
@@ -159,40 +157,32 @@ static FORCE_INLINE void colDataSetNNULL(SColumnInfoData* pColumnInfoData, uint3
 }
 
 static FORCE_INLINE void colDataSetInt8(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, int8_t* v) {
-  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_TINYINT ||
-         pColumnInfoData->info.type == TSDB_DATA_TYPE_UTINYINT || pColumnInfoData->info.type == TSDB_DATA_TYPE_BOOL);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(int8_t*)p = *(int8_t*)v;
 }
 
 static FORCE_INLINE void colDataSetInt16(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, int16_t* v) {
-  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_SMALLINT ||
-         pColumnInfoData->info.type == TSDB_DATA_TYPE_USMALLINT);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(int16_t*)p = *(int16_t*)v;
 }
 
 static FORCE_INLINE void colDataSetInt32(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, int32_t* v) {
-  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_INT || pColumnInfoData->info.type == TSDB_DATA_TYPE_UINT);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(int32_t*)p = *(int32_t*)v;
 }
 
 static FORCE_INLINE void colDataSetInt64(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, int64_t* v) {
   int32_t type = pColumnInfoData->info.type;
-  ASSERT(type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_UBIGINT || type == TSDB_DATA_TYPE_TIMESTAMP);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(int64_t*)p = *(int64_t*)v;
 }
 
 static FORCE_INLINE void colDataSetFloat(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, float* v) {
-  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_FLOAT);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(float*)p = *(float*)v;
 }
 
 static FORCE_INLINE void colDataSetDouble(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, double* v) {
-  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_DOUBLE);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(double*)p = *(double*)v;
 }
@@ -292,7 +282,7 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbName, uint64_t groupId, char* p
 
 int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
 
-void copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
+int32_t copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
 
 #ifdef __cplusplus
 }

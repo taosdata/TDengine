@@ -96,7 +96,7 @@ static void mndPullupTrans(SMnode *pMnode) {
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS_TIMER, .pCont = pReq, .contLen = contLen};
-    //TODO check return value
+    // TODO check return value
     (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
 }
@@ -107,7 +107,7 @@ static void mndPullupCompacts(SMnode *pMnode) {
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_COMPACT_TIMER, .pCont = pReq, .contLen = contLen};
-    //TODO check return value
+    // TODO check return value
     (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
 }
@@ -117,7 +117,7 @@ static void mndPullupTtl(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TTL_TIMER, .pCont = pReq, .contLen = contLen};
-  //TODO check return value
+  // TODO check return value
   (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
 }
 
@@ -125,7 +125,7 @@ static void mndPullupTrimDb(SMnode *pMnode) {
   mTrace("pullup s3migrate");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_S3MIGRATE_DB_TIMER, .pCont = pReq, .contLen = contLen};
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRIM_DB_TIMER, .pCont = pReq, .contLen = contLen};
   // TODO check return value
   (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
 }
@@ -134,8 +134,8 @@ static void mndPullupS3MigrateDb(SMnode *pMnode) {
   mTrace("pullup trim");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRIM_DB_TIMER, .pCont = pReq, .contLen = contLen};
   // TODO check return value
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_S3MIGRATE_DB_TIMER, .pCont = pReq, .contLen = contLen};
   (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
 }
 
@@ -477,7 +477,7 @@ static int32_t mndCreateDir(SMnode *pMnode, const char *path) {
 
 static int32_t mndInitWal(SMnode *pMnode) {
   int32_t code = 0;
-  char path[PATH_MAX + 20] = {0};
+  char    path[PATH_MAX + 20] = {0};
   (void)snprintf(path, sizeof(path), "%s%swal", pMnode->path, TD_DIRSEP);
   SWalCfg cfg = {.vgId = 1,
                  .fsyncPeriod = 0,
@@ -490,13 +490,12 @@ static int32_t mndInitWal(SMnode *pMnode) {
                  .encryptKey = {0}};
 
 #if defined(TD_ENTERPRISE)
-  if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL){
-    cfg.encryptAlgorithm = (tsiEncryptScope & DND_CS_MNODE_WAL)? tsiEncryptAlgorithm : 0;
-    if(tsEncryptKey[0] == '\0'){
+  if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL) {
+    cfg.encryptAlgorithm = (tsiEncryptScope & DND_CS_MNODE_WAL) ? tsiEncryptAlgorithm : 0;
+    if (tsEncryptKey[0] == '\0') {
       code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       TAOS_RETURN(code);
-    }
-    else{
+    } else {
       (void)strncpy(cfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
     }
   }
@@ -786,7 +785,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
 
   int32_t code = syncProcessMsg(pMgmt->sync, pMsg);
   if (code != 0) {
-    mGError("vgId:1, failed to process sync msg:%p type:%s, errno: %s, code:0x%x", pMsg, TMSG_INFO(pMsg->msgType),
+    mGError("vgId:1, failed to process sync msg:%p type:%s, reason: %s, code:0x%x", pMsg, TMSG_INFO(pMsg->msgType),
             tstrerror(code), code);
   }
 
@@ -911,7 +910,7 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo *pQueueInfo) {
   } else if (code == 0) {
     mGTrace("msg:%p, successfully processed", pMsg);
   } else {
-    //TODO removve this wrong set code
+    // TODO removve this wrong set code
     if (code == -1) {
       code = terrno;
     }
@@ -992,7 +991,9 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     } else {
       tstrncpy(desc.status, "offline", sizeof(desc.status));
     }
-    (void)taosArrayPush(pClusterInfo->dnodes, &desc);
+    if (taosArrayPush(pClusterInfo->dnodes, &desc) == NULL) {
+      mError("failed put dnode into array, but continue at this monitor report")
+    }
     sdbRelease(pSdb, pObj);
   }
 
@@ -1018,7 +1019,9 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
       tstrncpy(desc.role, syncStr(pObj->syncState), sizeof(desc.role));
       desc.syncState = pObj->syncState;
     }
-    (void)taosArrayPush(pClusterInfo->mnodes, &desc);
+    if (taosArrayPush(pClusterInfo->mnodes, &desc) == NULL) {
+      mError("failed to put mnode into array, but continue at this monitor report");
+    }
     sdbRelease(pSdb, pObj);
   }
 
@@ -1058,7 +1061,9 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
       pClusterInfo->vnodes_total++;
     }
 
-    (void)taosArrayPush(pVgroupInfo->vgroups, &desc);
+    if (taosArrayPush(pVgroupInfo->vgroups, &desc) == NULL) {
+      mError("failed to put vgroup into array, but continue at this monitor report")
+    }
     sdbRelease(pSdb, pVgroup);
   }
 
@@ -1079,7 +1084,9 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     (void)tNameFromString(&name2, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
     tstrncpy(desc.stb_name, tNameGetTableName(&name2), TSDB_TABLE_NAME_LEN);
 
-    (void)taosArrayPush(pStbInfo->stbs, &desc);
+    if (taosArrayPush(pStbInfo->stbs, &desc) == NULL) {
+      mError("failed to put stb into array, but continue at this monitor report");
+    }
     sdbRelease(pSdb, pStb);
   }
 

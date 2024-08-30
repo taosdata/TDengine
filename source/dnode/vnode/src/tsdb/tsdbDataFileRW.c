@@ -111,7 +111,7 @@ int32_t tsdbDataFileReaderOpen(const char *fname[], const SDataFileReaderConfig 
   int32_t lino = 0;
 
   if ((*reader = taosMemoryCalloc(1, sizeof(**reader))) == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->local); i++) {
@@ -283,7 +283,9 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
     }
   }
 
-  ASSERT(br.offset == br.buffer->size);
+  if (br.offset != br.buffer->size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
 _exit:
   if (code) {
@@ -313,7 +315,10 @@ int32_t tsdbDataFileReadBlockData(SDataFileReader *reader, const SBrinRecord *re
   // decompress
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer);
   TAOS_CHECK_GOTO(tBlockDataDecompress(&br, bData, assist), &lino, _exit);
-  ASSERT(br.offset == buffer->size);
+
+  if (br.offset != buffer->size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
 _exit:
   if (code) {
@@ -345,7 +350,9 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
   TAOS_CHECK_GOTO(tGetDiskDataHdr(&br, &hdr), &lino, _exit);
 
-  ASSERT(hdr.delimiter == TSDB_FILE_DLMT);
+  if (hdr.delimiter != TSDB_FILE_DLMT) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
   tBlockDataReset(bData);
   bData->suid = hdr.suid;
@@ -354,7 +361,9 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
 
   // Key part
   TAOS_CHECK_GOTO(tBlockDataDecompressKeyPart(&hdr, &br, bData, assist), &lino, _exit);
-  ASSERT(br.offset == buffer0->size);
+  if (br.offset != buffer0->size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
 
   int extraColIdx = -1;
   for (int i = 0; i < ncid; i++) {
@@ -463,7 +472,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
 
     if (cid < blockCol.cid) {
       const STColumn *tcol = tTSchemaSearchColumn(pTSchema, cid);
-      ASSERT(tcol);
+      TSDB_CHECK_NULL(tcol, code, lino, _exit, TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER);
       SBlockCol none = {
           .cid = cid,
           .type = tcol->type,
@@ -526,7 +535,9 @@ int32_t tsdbDataFileReadBlockSma(SDataFileReader *reader, const SBrinRecord *rec
       TAOS_CHECK_GOTO(tGetColumnDataAgg(&br, sma), &lino, _exit);
       TAOS_CHECK_GOTO(TARRAY2_APPEND_PTR(columnDataAggArray, sma), &lino, _exit);
     }
-    ASSERT(br.offset == record->smaSize);
+    if (br.offset != record->smaSize) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+    }
   }
 
 _exit:
@@ -661,7 +672,8 @@ struct SDataFileWriter {
 };
 
 static int32_t tsdbDataFileWriterCloseAbort(SDataFileWriter *writer) {
-  ASSERT(0);
+  tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, __LINE__,
+            "not implemented");
   return 0;
 }
 
@@ -980,7 +992,9 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
     return 0;
   }
 
-  ASSERT(bData->uid);
+  if (!bData->uid) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   int32_t  code = 0;
   int32_t  lino = 0;
@@ -1022,7 +1036,9 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
 
   code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, bData->suid != 0 ? bData->suid : bData->uid,
                         &cmprInfo.pColCmpr);
-  ASSERT(code == TSDB_CODE_SUCCESS);
+  if (code) {
+    tsdbWarn("vgId:%d failed to get column compress algrithm", TD_VID(writer->config->tsdb->pVnode));
+  }
 
   TAOS_CHECK_GOTO(tBlockDataCompress(bData, &cmprInfo, buffers, assist), &lino, _exit);
 
@@ -1234,7 +1250,6 @@ static int32_t tsdbDataFileWriteTableDataEnd(SDataFileWriter *writer) {
 
   if (writer->ctx->tbHasOldData) {
     TAOS_CHECK_GOTO(tsdbDataFileDoWriteTableOldData(writer, NULL /* as the largest key */), &lino, _exit);
-    ASSERT(writer->ctx->tbHasOldData == false);
   }
 
   TAOS_CHECK_GOTO(tsdbDataFileDoWriteBlockData(writer, writer->blockData), &lino, _exit);
@@ -1250,9 +1265,6 @@ _exit:
 static int32_t tsdbDataFileWriteTableDataBegin(SDataFileWriter *writer, const TABLEID *tbid) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  ASSERT(writer->ctx->blockDataIdx == writer->ctx->blockData->nRow);
-  ASSERT(writer->blockData->nRow == 0);
 
   SMetaInfo info;
   bool      drop = false;
@@ -1451,7 +1463,9 @@ int32_t tsdbFileWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFD
 }
 
 static int32_t tsdbDataFileDoWriteTombBlk(SDataFileWriter *writer) {
-  ASSERT(TARRAY2_SIZE(writer->tombBlkArray) > 0);
+  if (TARRAY2_SIZE(writer->tombBlkArray) <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   int32_t code = 0;
   int32_t lino = 0;
@@ -1523,7 +1537,9 @@ static int32_t tsdbDataFileDoWriteTombRecord(SDataFileWriter *writer, const STom
           TAOS_CHECK_GOTO(tsdbDataFileDoWriteTombBlock(writer), &lino, _exit);
         }
       } else {
-        ASSERT(0);
+        tsdbError("vgId:%d duplicate tomb record, cid:%" PRId64 ", suid:%" PRId64 ", uid:%" PRId64 ", version:%" PRId64,
+                  TD_VID(writer->config->tsdb->pVnode), writer->config->cid, record->suid, record->uid,
+                  record->version);
       }
     }
 
@@ -1566,7 +1582,9 @@ _exit:
 
 int32_t tsdbFileWriteBrinBlk(STsdbFD *fd, TBrinBlkArray *brinBlkArray, SFDataPtr *ptr, int64_t *fileSize,
                              int32_t encryptAlgorithm, char *encryptKey) {
-  ASSERT(TARRAY2_SIZE(brinBlkArray) > 0);
+  if (TARRAY2_SIZE(brinBlkArray) <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   ptr->offset = *fileSize;
   ptr->size = TARRAY2_DATA_LEN(brinBlkArray);
 
@@ -1785,7 +1803,7 @@ _exit:
 int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWriter **writer) {
   writer[0] = taosMemoryCalloc(1, sizeof(*writer[0]));
   if (!writer[0]) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   writer[0]->config[0] = config[0];
@@ -1852,7 +1870,9 @@ int32_t tsdbDataFileWriteBlockData(SDataFileWriter *writer, SBlockData *bData) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  ASSERT(bData->uid);
+  if (!bData->uid) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   if (!writer->ctx->opened) {
     TAOS_CHECK_GOTO(tsdbDataFileWriterDoOpen(writer), &lino, _exit);
@@ -1895,7 +1915,9 @@ _exit:
 }
 
 int32_t tsdbDataFileFlush(SDataFileWriter *writer) {
-  ASSERT(writer->ctx->opened);
+  if (!writer->ctx->opened) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   if (writer->blockData->nRow == 0) return 0;
   if (writer->ctx->tbHasOldData) return 0;
@@ -1909,8 +1931,6 @@ static int32_t tsdbDataFileWriterOpenTombFD(SDataFileWriter *writer) {
 
   char    fname[TSDB_FILENAME_LEN];
   int32_t ftype = TSDB_FTYPE_TOMB;
-
-  ASSERT(writer->files[ftype].size == 0);
 
   int32_t flag = (TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
 

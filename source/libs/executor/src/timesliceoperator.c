@@ -114,7 +114,6 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
         pLinearInfo->start.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
         char* p = colDataGetData(pColInfoData, rowIndex);
         if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
           memcpy(pLinearInfo->start.val, p, varDataTLen(p));
         } else {
           memcpy(pLinearInfo->start.val, p, pLinearInfo->bytes);
@@ -127,7 +126,6 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
 
         char* p = colDataGetData(pColInfoData, rowIndex);
         if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
           memcpy(pLinearInfo->end.val, p, varDataTLen(p));
         } else {
           memcpy(pLinearInfo->end.val, p, pLinearInfo->bytes);
@@ -143,7 +141,6 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
 
         char* p = colDataGetData(pColInfoData, rowIndex);
         if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
           memcpy(pLinearInfo->end.val, p, varDataTLen(p));
         } else {
           memcpy(pLinearInfo->end.val, p, pLinearInfo->bytes);
@@ -1088,12 +1085,6 @@ _finished:
   return code;
 }
 
-static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t code = doTimesliceNext(pOperator, &pRes);
-  return pRes;
-}
-
 static int32_t extractPkColumnFromFuncs(SNodeList* pFuncs, bool* pHasPk, SColumn* pPkColumn) {
   SNode* pNode;
   FOREACH(pNode, pFuncs) {
@@ -1192,7 +1183,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
 
   setOperatorInfo(pOperator, "TimeSliceOperator", QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTimeslice, NULL, destroyTimeSliceOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTimesliceNext, NULL, destroyTimeSliceOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   code = blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
@@ -1201,19 +1192,17 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   //  int32_t code = initKeeperInfo(pSliceInfo, pBlock, &pOperator->exprSupp);
 
   code = appendDownstream(pOperator, &downstream, 1);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   if (pInfo != NULL) destroyTimeSliceOperatorInfo(pInfo);
-  if (pOperator != NULL) {
-    pOperator->info = NULL;
-    destroyOperator(pOperator);
-  }
+  destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
   return code;
 }
@@ -1247,12 +1236,16 @@ void destroyTimeSliceOperatorInfo(void* param) {
     taosMemoryFree(pInfo->pPrevGroupKey->pData);
     taosMemoryFree(pInfo->pPrevGroupKey);
   }
+  if (pInfo->hasPk && IS_VAR_DATA_TYPE(pInfo->pkCol.type)) {
+    taosMemoryFreeClear(pInfo->prevKey.pks[0].pData);
+  }
 
   cleanupExprSupp(&pInfo->scalarSup);
-
-  for (int32_t i = 0; i < pInfo->pFillColInfo->numOfFillExpr; ++i) {
-    taosVariantDestroy(&pInfo->pFillColInfo[i].fillVal);
+  if (pInfo->pFillColInfo != NULL) {
+    for (int32_t i = 0; i < pInfo->pFillColInfo->numOfFillExpr; ++i) {
+      taosVariantDestroy(&pInfo->pFillColInfo[i].fillVal);
+    }
+    taosMemoryFree(pInfo->pFillColInfo);
   }
-  taosMemoryFree(pInfo->pFillColInfo);
   taosMemoryFreeClear(param);
 }

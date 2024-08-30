@@ -13,7 +13,7 @@ async fn main() -> anyhow::Result<()> {
     ]).await {
         Ok(afffected_rows) => println!("Create database power successfully, rowsAffected: {}", afffected_rows),
         Err(err) => {
-            eprintln!("Failed to create database power; ErrMessage: {}", err);
+            eprintln!("Failed to create database power, ErrMessage: {}", err);
             return Err(err.into());
         }
     }
@@ -25,7 +25,7 @@ async fn main() -> anyhow::Result<()> {
     ]).await {
         Ok(afffected_rows) => println!("Create stable power.meters successfully, rowsAffected: {}", afffected_rows),
         Err(err) => {
-            eprintln!("Failed to create stable power.meters; ErrMessage: {}", err);
+            eprintln!("Failed to create stable power.meters, ErrMessage: {}", err);
             return Err(err.into());
         }
     }

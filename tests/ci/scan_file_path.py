@@ -122,7 +122,7 @@ def scan_files_path(source_file_path):
         for file in files:
             if any(item in root for item in scan_dir_list):
                 file_path = os.path.join(root, file)
-                if (file_path.endswith(".c") or file_name.endswith(".h") or file_path.endswith(".cpp")) and all(item not in file_path for item in scan_skip_file_list):
+                if (file_path.endswith(".c") or file_path.endswith(".h") or file_path.endswith(".cpp")) and all(item not in file_path for item in scan_skip_file_list):
                     all_file_path.append(file_path)
     logger.info("Found %s files" % len(all_file_path))
 
@@ -134,7 +134,7 @@ def input_files(change_files):
         for line in file:
             file_name = line.strip()
             if any(dir_name in file_name for dir_name in scan_dir_list):
-                if (file_name.endswith(".c")  or line.endswith(".cpp")) and all(dir_name not in file_name for dir_name in scan_skip_file_list):
+                if (file_name.endswith(".c")  or file_name.endswith(".cpp")) and all(dir_name not in file_name for dir_name in scan_skip_file_list):
                     if "enterprise" in file_name:
                         file_name = os.path.join(TD_project_path, file_name)
                     else: 
@@ -184,12 +184,12 @@ if __name__ == "__main__":
     #     os.makedirs(scan_result_path)
 
     for file in all_file_path:
-        cmd = f"clang-query-10 -p {compile_commands_path} {file} -f {clang_scan_rules_path}"
+        cmd = f"clang-query-16 -p {compile_commands_path} {file} -f {clang_scan_rules_path}"
         logger.debug(f"cmd:{cmd}")
         try:
             stdout, stderr = command_executor.execute(cmd)
             #if "error" in stderr:
-            # print(stderr)
+            print(stderr)
             lines = stdout.split("\n")
             if lines[-2].endswith("matches.") or lines[-2].endswith("match."): 
                 match_num = int(lines[-2].split(" ")[0])

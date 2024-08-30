@@ -39,13 +39,14 @@ static int32_t vnodeMkDir(STfs *pTfs, const char *path) {
 }
 
 int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs *pTfs) {
+  int32_t    code = 0;
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
 
   // check config
-  if (vnodeCheckCfg(pCfg) < 0) {
-    vError("vgId:%d, failed to create vnode since:%s", pCfg->vgId, tstrerror(terrno));
-    return -1;
+  if ((code = vnodeCheckCfg(pCfg)) < 0) {
+    vError("vgId:%d, failed to create vnode since:%s", pCfg->vgId, tstrerror(code));
+    return code;
   }
 
   // create vnode env
@@ -72,9 +73,9 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs
   }
 
   vInfo("vgId:%d, save config while create", info.config.vgId);
-  if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir) < 0) {
-    vError("vgId:%d, failed to save vnode config since %s", pCfg ? pCfg->vgId : 0, tstrerror(terrno));
-    return -1;
+  if ((code = vnodeSaveInfo(dir, &info)) < 0 || (code = vnodeCommitInfo(dir)) < 0) {
+    vError("vgId:%d, failed to save vnode config since %s", pCfg ? pCfg->vgId : 0, tstrerror(code));
+    return code;
   }
 
   vInfo("vgId:%d, vnode is created", info.config.vgId);
@@ -93,7 +94,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
     vError("vgId:%d, failed to read vnode config from %s since %s", pReq->vgId, path, tstrerror(terrno));
-    return -1;
+    return ret;
   }
 
   SSyncCfg *pCfg = &info.config.syncCfg;
@@ -144,13 +145,13 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t
   ret = vnodeSaveInfo(dir, &info);
   if (ret < 0) {
     vError("vgId:%d, failed to save vnode config since %s", pReq->vgId, tstrerror(terrno));
-    return -1;
+    return ret;
   }
 
   ret = vnodeCommitInfo(dir);
   if (ret < 0) {
     vError("vgId:%d, failed to commit vnode config since %s", pReq->vgId, tstrerror(terrno));
-    return -1;
+    return ret;
   }
 
   vInfo("vgId:%d, vnode config is saved", info.config.vgId);
@@ -226,7 +227,7 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
     vError("vgId:%d, failed to read vnode config from %s since %s", pReq->srcVgId, srcPath, tstrerror(terrno));
-    return -1;
+    return ret;
   }
 
   vInfo("vgId:%d, alter hashrange from [%u, %u] to [%u, %u]", pReq->srcVgId, info.config.hashBegin, info.config.hashEnd,
@@ -256,13 +257,13 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
   ret = vnodeSaveInfo(dir, &info);
   if (ret < 0) {
     vError("vgId:%d, failed to save vnode config since %s", pReq->dstVgId, tstrerror(terrno));
-    return -1;
+    return ret;
   }
 
   ret = vnodeCommitInfo(dir);
   if (ret < 0) {
     vError("vgId:%d, failed to commit vnode config since %s", pReq->dstVgId, tstrerror(terrno));
-    return -1;
+    return ret;
   }
 
   vInfo("vgId:%d, rename %s to %s", pReq->dstVgId, srcPath, dstPath);
@@ -270,7 +271,7 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
   if (ret < 0) {
     vError("vgId:%d, failed to rename vnode from %s to %s since %s", pReq->dstVgId, srcPath, dstPath,
            tstrerror(terrno));
-    return -1;
+    return ret;
   }
 
   vInfo("vgId:%d, vnode hashrange is altered", info.config.vgId);
@@ -293,9 +294,9 @@ int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t s
   }
 
   (void)vnodeGetPrimaryDir(srcPath, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
-  if (vnodeLoadInfo(dir, &info) < 0) {
+  if ((code = vnodeLoadInfo(dir, &info)) < 0) {
     vError("vgId:%d, failed to read vnode config from %s since %s", srcVgId, srcPath, tstrerror(terrno));
-    return -1;
+    return code;
   }
 
   if (info.config.vgId == srcVgId) {
@@ -493,24 +494,6 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   snprintf(pVnode->monitor.strDnodeId, TSDB_NODE_ID_LEN, "%" PRId32, pVnode->config.syncCfg.nodeInfo[0].nodeId);
   snprintf(pVnode->monitor.strVgId, TSDB_VGROUP_ID_LEN, "%" PRId32, pVnode->config.vgId);
 
-  if (tsEnableMonitor && pVnode->monitor.insertCounter == NULL) {
-    taos_counter_t *counter = NULL;
-    int32_t         label_count = 7;
-    const char     *sample_labels[] = {VNODE_METRIC_TAG_NAME_SQL_TYPE,  VNODE_METRIC_TAG_NAME_CLUSTER_ID,
-                                       VNODE_METRIC_TAG_NAME_DNODE_ID,  VNODE_METRIC_TAG_NAME_DNODE_EP,
-                                       VNODE_METRIC_TAG_NAME_VGROUP_ID, VNODE_METRIC_TAG_NAME_USERNAME,
-                                       VNODE_METRIC_TAG_NAME_RESULT};
-    counter = taos_counter_new(VNODE_METRIC_SQL_COUNT, "counter for insert sql", label_count, sample_labels);
-    vInfo("vgId:%d, new metric:%p", TD_VID(pVnode), counter);
-    if (taos_collector_registry_register_metric(counter) == 1) {
-      (void)taos_counter_destroy(counter);
-      counter = taos_collector_registry_get_metric(VNODE_METRIC_SQL_COUNT);
-      vInfo("vgId:%d, get metric from registry:%p", TD_VID(pVnode), counter);
-    }
-    pVnode->monitor.insertCounter = counter;
-    vInfo("vgId:%d, succeed to set metric:%p", TD_VID(pVnode), counter);
-  }
-
   return pVnode;
 
 _err:
@@ -557,7 +540,9 @@ void vnodeClose(SVnode *pVnode) {
 
 // start the sync timer after the queue is ready
 int32_t vnodeStart(SVnode *pVnode) {
-  ASSERT(pVnode);
+  if (pVnode == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   return vnodeSyncStart(pVnode);
 }
 

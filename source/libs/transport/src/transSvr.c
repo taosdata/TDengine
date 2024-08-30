@@ -205,7 +205,6 @@ void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* b
   int32_t      code = transAllocBuffer(pBuf, buf);
   if (code < 0) {
     tError("conn %p failed to alloc buffer, since %s", conn, tstrerror(code));
-    // destroyConn(conn, true);
   }
 }
 
@@ -469,8 +468,8 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pTransInst), transMsg.info.handle, pConn,
           pConn->refId);
-  ASSERTS(transMsg.info.handle != NULL, "trans-svr failed to alloc handle to msg");
   if (transMsg.info.handle == NULL) {
+    tError("%s handle %p conn:%p handle failed to init" PRIu64, transLabel(pTransInst), transMsg.info.handle, pConn);
     return false;
   }
 
@@ -493,6 +492,8 @@ static bool uvHandleReq(SSvrConn* pConn) {
 void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   SSvrConn*  conn = cli->data;
   SWorkThrd* pThrd = conn->hostThrd;
+
+  STUB_RAND_NETWORK_ERR(nread);
 
   if (true == pThrd->quit) {
     tInfo("work thread received quit msg, destroy conn");
@@ -542,6 +543,9 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
 void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   buf->len = 2;
   buf->base = taosMemoryCalloc(1, sizeof(char) * buf->len);
+  if (buf->base == NULL) {
+    tError("failed to alloc conn read buffer since %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+  }
 }
 
 void uvOnTimeoutCb(uv_timer_t* handle) {
@@ -551,6 +555,7 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
 }
 
 void uvOnSendCb(uv_write_t* req, int status) {
+  STUB_RAND_NETWORK_ERR(status);
   SSvrConn* conn = transReqQueueRemove(req);
   if (conn == NULL) return;
 
@@ -600,6 +605,7 @@ void uvOnSendCb(uv_write_t* req, int status) {
   }
 }
 static void uvOnPipeWriteCb(uv_write_t* req, int status) {
+  STUB_RAND_NETWORK_ERR(status);
   if (status == 0) {
     tTrace("success to dispatch conn to work thread");
   } else {
@@ -947,6 +953,7 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
   }
 }
 void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
+  STUB_RAND_NETWORK_ERR(nread);
   if (nread < 0) {
     if (nread != UV_EOF) {
       tError("read error %s", uv_err_name(nread));
@@ -958,15 +965,19 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
   // free memory allocated by
-  ASSERTS(nread == strlen(notify), "trans-svr mem corrupted");
-  ASSERTS(buf->base[0] == notify[0], "trans-svr mem corrupted");
+  if (nread != strlen(notify) || strncmp(buf->base, notify, strlen(notify)) != 0) {
+    tError("failed to read pip ");
+    taosMemoryFree(buf->base);
+    uv_close((uv_handle_t*)q, NULL);
+  }
+
   taosMemoryFree(buf->base);
 
   SWorkThrd* pThrd = q->data;
 
   uv_pipe_t* pipe = (uv_pipe_t*)q;
   if (!uv_pipe_pending_count(pipe)) {
-    tError("No pending count");
+    tError("no pending count, unexpected error");
     uv_close((uv_handle_t*)q, NULL);
     return;
   }
@@ -1039,9 +1050,11 @@ void* transAcceptThread(void* arg) {
   return NULL;
 }
 void uvOnPipeConnectionCb(uv_connect_t* connect, int status) {
+  STUB_RAND_NETWORK_ERR(status);
   if (status != 0) {
     return;
-  }
+  };
+
   SWorkThrd* pThrd = container_of(connect, SWorkThrd, connect_req);
   (void)uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
 }
@@ -1342,25 +1355,32 @@ static void uvPipeListenCb(uv_stream_t* handle, int status) {
   uv_pipe_t*  pipe = &(srv->pipe[srv->numOfWorkerReady][0]);
 
   int ret = uv_pipe_init(srv->loop, pipe, 1);
-  ASSERTS(ret == 0, "trans-svr failed to init pipe");
-  if (ret != 0) return;
+  if (ret != 0) {
+    tError("trans-svr failed to init pipe, errmsg: %s", uv_err_name(ret));
+  }
 
   ret = uv_accept((uv_stream_t*)&srv->pipeListen, (uv_stream_t*)pipe);
-  ASSERTS(ret == 0, "trans-svr failed to accept pipe msg");
-  if (ret != 0) return;
+  if (ret != 0) {
+    tError("trans-svr failed to accept pipe, errmsg: %s", uv_err_name(ret));
+    return;
+  }
 
   ret = uv_is_readable((uv_stream_t*)pipe);
-  ASSERTS(ret == 1, "trans-svr pipe status corrupted");
-  if (ret != 1) return;
-
+  if (ret != 1) {
+    tError("trans-svr failed to check pipe, pip not readable");
+    return;
+  }
   ret = uv_is_writable((uv_stream_t*)pipe);
-  ASSERTS(ret == 1, "trans-svr pipe status corrupted");
-  if (ret != 1) return;
+  if (ret != 1) {
+    tError("trans-svr failed to check pipe, pip not writable");
+    return;
+  }
 
   ret = uv_is_closing((uv_handle_t*)pipe);
-  ASSERTS(ret == 0, "trans-svr pipe status corrupted");
-  if (ret != 0) return;
-
+  if (ret != 0) {
+    tError("trans-svr failed to check pipe, pip is closing");
+    return;
+  }
   srv->numOfWorkerReady++;
 }
 

@@ -307,7 +307,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
     - **参数说明**：
         - `topic`: 订阅的主题。
         - `vg_id`: vgroupid。
-        - `offset`:需要设置的的偏移量。
+        - `offset`:需要设置的偏移量。
     - **异常**：操作失败抛出 ConsumerException 异常。
 - `fn committed(&mut self, topic: &str, vg_id: i32) -> PyResult<i64>`
     - **接口说明**：获取订阅主题的vgroupid分区最后提交的偏移量。
@@ -489,7 +489,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `def seek(self, partition)`
     - **接口说明**：将给定分区的偏移量设置到指定的位置。
     - **参数说明**：
-        - `partition`: 需要设置的的偏移量。
+        - `partition`: 需要设置的偏移量。
             - `topic`: 订阅的主题
             - `partition`: 分区
             - `offset`: 偏移量
@@ -497,7 +497,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `def committed(self, partitions)`
     - **接口说明**：获取订阅主题的分区最后提交的偏移量。
     - **参数说明**：
-        - `partition`: 需要设置的的偏移量。
+        - `partition`: 需要设置的偏移量。
             - `topic`: 订阅的主题
             - `partition`: 分区
     - **返回值**：`partition`，分区最后提交的偏移量。
@@ -505,7 +505,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `def position(self, partitions)`
     - **接口说明**：获取给定分区当前的偏移量。
     - **参数说明**：
-        - `partition`: 需要设置的的偏移量。
+        - `partition`: 需要设置的偏移量。
             - `topic`: 订阅的主题
             - `partition`: 分区
     - **返回值**：`partition`，分区最后提交的偏移量。

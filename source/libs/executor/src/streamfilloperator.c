@@ -331,7 +331,7 @@ void setDeleteFillValueInfo(TSKEY start, TSKEY end, SStreamFillSupporter* pFillS
       pFillInfo->pLinearInfo->winIndex = 0;
     } break;
     default:
-      ASSERT(0);
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR));
       break;
   }
 }
@@ -419,7 +419,6 @@ void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillS
         pFillSup->next.pRowVal = pFillSup->cur.pRowVal;
         pFillInfo->preRowKey = INT64_MIN;
       } else {
-        ASSERT(hasNextWindow(pFillSup));
         setFillKeyInfo(ts, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
       }
@@ -447,7 +446,6 @@ void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillS
         pFillInfo->pResRow = &pFillSup->prev;
         pFillInfo->pLinearInfo->hasNext = false;
       } else {
-        ASSERT(hasNextWindow(pFillSup));
         setFillKeyInfo(ts, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
         pFillInfo->pLinearInfo->nextEnd = INT64_MIN;
@@ -458,10 +456,9 @@ void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillS
       }
     } break;
     default:
-      ASSERT(0);
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR));
       break;
   }
-  ASSERT(pFillInfo->pos != FILL_POS_INVALID);
 }
 
 static int32_t checkResult(SStreamFillSupporter* pFillSup, TSKEY ts, uint64_t groupId, bool* pRes) {
@@ -628,7 +625,9 @@ static void keepResultInDiscBuf(SOperatorInfo* pOperator, uint64_t groupId, SRes
   SWinKey key = {.groupId = groupId, .ts = pRow->key};
   int32_t code = pAPI->stateStore.streamStateFillPut(pOperator->pTaskInfo->streamInfo.pState, &key, pRow->pRowVal, len);
   qDebug("===stream===fill operator save key ts:%" PRId64 " group id:%" PRIu64 "  code:%d", key.ts, key.groupId, code);
-  ASSERT(code == TSDB_CODE_SUCCESS);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  }
 }
 
 static void doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* pFillSup, SSDataBlock* pRes) {
@@ -795,7 +794,6 @@ static int32_t buildDeleteRange(SOperatorInfo* pOp, TSKEY start, TSKEY end, uint
   if (winCode != TSDB_CODE_SUCCESS) {
     colDataSetNULL(pTableCol, pBlock->info.rows);
   } else {
-    ASSERT(tbname);
     char parTbName[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN];
     STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));
     code = colDataSetVal(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
@@ -1125,7 +1123,7 @@ static int32_t doStreamFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
           return code;
         } break;
         default:
-          ASSERTS(false, "invalid SSDataBlock type");
+          return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       }
     }
 
@@ -1166,12 +1164,6 @@ _end:
   return code;
 }
 
-static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = doStreamFillNext(pOperator, &pRes);
-  return pRes;
-}
-
 static int32_t initResultBuf(SStreamFillSupporter* pFillSup) {
   pFillSup->rowSize = sizeof(SResultCellData) * pFillSup->numOfAllCols;
   for (int i = 0; i < pFillSup->numOfAllCols; i++) {
@@ -1209,7 +1201,12 @@ static SStreamFillSupporter* initStreamFillSup(SStreamFillPhysiNode* pPhyFillNod
 
   pFillSup->pAllColInfo = createFillColInfo(pFillExprInfo, pFillSup->numOfFillCols, noFillExprInfo, numOfNotFillCols,
                                             (const SNodeListNode*)(pPhyFillNode->pValues));
-  QUERY_CHECK_NULL(pFillSup->pAllColInfo, code, lino, _end, terrno);
+  if (pFillSup->pAllColInfo == NULL) {
+    code = terrno;
+    lino = __LINE__;
+    destroyExprInfo(noFillExprInfo, numOfNotFillCols);
+    goto _end;
+  }
 
   pFillSup->type = convertFillType(pPhyFillNode->mode);
   pFillSup->numOfAllCols = pFillSup->numOfFillCols + numOfNotFillCols;
@@ -1370,6 +1367,9 @@ int32_t createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysi
   code = createExprInfo(pPhyFillNode->pFillExprs, NULL, &pFillExprInfo, &numOfFillCols);
   QUERY_CHECK_CODE(code, lino, _error);
 
+  code = initExprSupp(&pOperator->exprSupp, pFillExprInfo, numOfFillCols, &pTaskInfo->storageAPI.functionStore);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   pInfo->pFillSup = initStreamFillSup(pPhyFillNode, pInterval, pFillExprInfo, numOfFillCols, &pTaskInfo->storageAPI);
   if (!pInfo->pFillSup) {
     code = TSDB_CODE_FAILED;
@@ -1440,13 +1440,10 @@ int32_t createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysi
   code = filterInitFromNode((SNode*)pPhyFillNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  code = initExprSupp(&pOperator->exprSupp, pFillExprInfo, numOfFillCols, &pTaskInfo->storageAPI.functionStore);
-  QUERY_CHECK_CODE(code, lino, _error);
-
   pInfo->srcRowIndex = -1;
   setOperatorInfo(pOperator, "StreamFillOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamFill, NULL, destroyStreamFillOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamFillNext, NULL, destroyStreamFillOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamOpReleaseState, streamOpReloadState);
 
@@ -1454,17 +1451,13 @@ int32_t createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysi
   QUERY_CHECK_CODE(code, lino, _error);
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
-  }
+  qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+
   if (pInfo != NULL) destroyStreamFillOperatorInfo(pInfo);
-  if (pOperator != NULL) {
-    pOperator->info = NULL;
-    destroyOperator(pOperator);
-  }
+  destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
   return code;
 }

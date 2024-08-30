@@ -238,7 +238,7 @@ void nodesDestroyAllocatorSet() {
       (void)taosRemoveRef(g_allocatorReqRefPool, refId);
       pAllocator = taosIterateRef(g_allocatorReqRefPool, refId);
     }
-    (void)taosCloseRef(g_allocatorReqRefPool);
+    taosCloseRef(g_allocatorReqRefPool);
   }
 }
 
@@ -1090,7 +1090,7 @@ void nodesDestroyNode(SNode* pNode) {
         pStmt->destroyParseFileCxt(&pStmt->pParFileCxt);
       }
 
-      assert(TSDB_CODE_SUCCESS == taosCloseFile(&pStmt->fp));
+      (void)taosCloseFile(&pStmt->fp);
       break;
     }
     case QUERY_NODE_CREATE_DATABASE_STMT:

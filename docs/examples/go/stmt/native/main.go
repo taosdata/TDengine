@@ -23,22 +23,22 @@ func main() {
 	// prepare database and table
 	_, err = db.Exec("CREATE DATABASE IF NOT EXISTS power")
 	if err != nil {
-		log.Fatalln("Failed to create db, host: " + host + "; ErrMessage: " + err.Error())
+		log.Fatalln("Failed to create database power, ErrMessage: " + err.Error())
 	}
 	_, err = db.Exec("USE power")
 	if err != nil {
-		log.Fatalln("Failed to use db, host: " + host + "; ErrMessage: " + err.Error())
+		log.Fatalln("Failed to use database power, ErrMessage: " + err.Error())
 	}
 	_, err = db.Exec("CREATE STABLE IF NOT EXISTS meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))")
 	if err != nil {
-		log.Fatalln("Failed to create table, host: " + host + "; ErrMessage: " + err.Error())
+		log.Fatalln("Failed to create stable meters, ErrMessage: " + err.Error())
 	}
 	// prepare statement
 	sql := "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)"
 	stmt := db.Stmt()
 	err = stmt.Prepare(sql)
 	if err != nil {
-		log.Fatalln("Failed to prepare sql, host: " + host + "; ErrMessage: " + err.Error())
+		log.Fatalln("Failed to prepare sql, sql: " + sql + ", ErrMessage: " + err.Error())
 	}
 	for i := 1; i <= numOfSubTable; i++ {
 		tableName := fmt.Sprintf("d_bind_%d", i)
@@ -46,7 +46,7 @@ func main() {
 		// set tableName and tags
 		err = stmt.SetTableNameWithTags(tableName, tags)
 		if err != nil {
-			log.Fatalln("Failed to set table name and tags, host: " + host + "; ErrMessage: " + err.Error())
+			log.Fatalln("Failed to set table name and tags, tableName: " + tableName + "; ErrMessage: " + err.Error())
 		}
 		// bind column data
 		current := time.Now()
@@ -58,18 +58,18 @@ func main() {
 				AddFloat(rand.Float32())
 			err = stmt.BindRow(row)
 			if err != nil {
-				log.Fatalln("Failed to bind params, host: " + host + "; ErrMessage: " + err.Error())
+				log.Fatalln("Failed to bind params, ErrMessage: " + err.Error())
 			}
 		}
 		// add batch
 		err = stmt.AddBatch()
 		if err != nil {
-			log.Fatalln("Failed to add batch, host: " + host + "; ErrMessage: " + err.Error())
+			log.Fatalln("Failed to add batch, ErrMessage: " + err.Error())
 		}
 		// execute batch
 		err = stmt.Execute()
 		if err != nil {
-			log.Fatalln("Failed to exec, host: " + host + "; ErrMessage: " + err.Error())
+			log.Fatalln("Failed to exec, ErrMessage: " + err.Error())
 		}
 		// get affected rows
 		affected := stmt.GetAffectedRows()

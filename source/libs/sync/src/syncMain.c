@@ -50,7 +50,7 @@ static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer);
 static int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer);
 static int32_t syncNodeUpdateNewConfigIndex(SSyncNode* ths, SSyncCfg* pNewCfg);
 static bool    syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config);
-static void    syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex);
+static int32_t syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex);
 static bool    syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg);
 
 static bool    syncNodeCanChange(SSyncNode* pSyncNode);
@@ -182,7 +182,12 @@ int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
   }
 
   TAOS_CHECK_RETURN(syncNodeUpdateNewConfigIndex(pSyncNode, pNewCfg));
-  syncNodeDoConfigChange(pSyncNode, pNewCfg, pNewCfg->lastIndex);
+
+  if (syncNodeDoConfigChange(pSyncNode, pNewCfg, pNewCfg->lastIndex) != 0) {
+    code = TSDB_CODE_SYN_NEW_CONFIG_ERROR;
+    sError("vgId:%d, failed to reconfig since do change error", pSyncNode->vgId);
+    TAOS_RETURN(code);
+  }
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER || pSyncNode->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     // TODO check return value
@@ -264,8 +269,8 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
 
   syncNodeRelease(pSyncNode);
   if (code != 0) {
-    sDebug("vgId:%d, failed to process sync msg:%p type:%s since 0x%x", pSyncNode->vgId, pMsg, TMSG_INFO(pMsg->msgType),
-           code);
+    sDebug("vgId:%d, failed to process sync msg:%p type:%s since %s", pSyncNode->vgId, pMsg, TMSG_INFO(pMsg->msgType),
+           tstrerror(code));
   }
   TAOS_RETURN(code);
 }
@@ -721,7 +726,12 @@ int32_t syncUpdateArbTerm(int64_t rid, SyncTerm arbTerm) {
 }
 
 SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapshotLastApplyIndex) {
-  ASSERT(pSyncNode->raftCfg.configIndexCount >= 1);
+  if (!(pSyncNode->raftCfg.configIndexCount >= 1)) {
+    sError("vgId:%d, failed get snapshot config index, configIndexCount:%d", pSyncNode->vgId,
+           pSyncNode->raftCfg.configIndexCount);
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -2;
+  }
   SyncIndex lastIndex = (pSyncNode->raftCfg.configIndexArr)[0];
 
   for (int32_t i = 0; i < pSyncNode->raftCfg.configIndexCount; ++i) {
@@ -788,9 +798,11 @@ int32_t syncCheckMember(int64_t rid) {
   }
 
   if (pSyncNode->myNodeInfo.nodeRole == TAOS_SYNC_ROLE_LEARNER) {
+    syncNodeRelease(pSyncNode);
     return TSDB_CODE_SYN_WRONG_ROLE;
   }
 
+  syncNodeRelease(pSyncNode);
   return 0;
 }
 
@@ -981,9 +993,18 @@ static int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
 
 int32_t syncNodeLogStoreRestoreOnNeed(SSyncNode* pNode) {
   int32_t code = 0;
-  ASSERTS(pNode->pLogStore != NULL, "log store not created");
-  ASSERTS(pNode->pFsm != NULL, "pFsm not registered");
-  ASSERTS(pNode->pFsm->FpGetSnapshotInfo != NULL, "FpGetSnapshotInfo not registered");
+  if (pNode->pLogStore == NULL) {
+    sError("vgId:%d, log store not created", pNode->vgId);
+    return TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
+  if (pNode->pFsm == NULL) {
+    sError("vgId:%d, pFsm not registered", pNode->vgId);
+    return TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
+  if (pNode->pFsm->FpGetSnapshotInfo == NULL) {
+    sError("vgId:%d, FpGetSnapshotInfo not registered", pNode->vgId);
+    return TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
   SSnapshot snapshot = {0};
   // TODO check return value
   (void)pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot);
@@ -1013,7 +1034,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   if (!taosDirExist((char*)(pSyncInfo->path))) {
     if (taosMkDir(pSyncInfo->path) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
-      sError("failed to create dir:%s since %s", pSyncInfo->path, terrstr());
+      sError("vgId:%d, failed to create dir:%s since %s", pSyncInfo->vgId, pSyncInfo->path, terrstr());
       goto _error;
     }
   }
@@ -1106,37 +1127,6 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
     goto _error;
   }
 
-  // init internal
-  pSyncNode->myNodeInfo = pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex];
-  if (!syncUtilNodeInfo2RaftId(&pSyncNode->myNodeInfo, pSyncNode->vgId, &pSyncNode->myRaftId)) {
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-    sError("vgId:%d, failed to determine my raft member id", pSyncNode->vgId);
-    goto _error;
-  }
-
-  pSyncNode->arbTerm = -1;
-  (void)taosThreadMutexInit(&pSyncNode->arbTokenMutex, NULL);
-  syncUtilGenerateArbToken(pSyncNode->myNodeInfo.nodeId, pSyncInfo->vgId, pSyncNode->arbToken);
-  sInfo("vgId:%d, arb token:%s", pSyncNode->vgId, pSyncNode->arbToken);
-
-  // init peersNum, peers, peersId
-  pSyncNode->peersNum = pSyncNode->raftCfg.cfg.totalReplicaNum - 1;
-  int32_t j = 0;
-  for (int32_t i = 0; i < pSyncNode->raftCfg.cfg.totalReplicaNum; ++i) {
-    if (i != pSyncNode->raftCfg.cfg.myIndex) {
-      pSyncNode->peersNodeInfo[j] = pSyncNode->raftCfg.cfg.nodeInfo[i];
-      syncUtilNodeInfo2EpSet(&pSyncNode->peersNodeInfo[j], &pSyncNode->peersEpset[j]);
-      j++;
-    }
-  }
-  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
-    if (!syncUtilNodeInfo2RaftId(&pSyncNode->peersNodeInfo[i], pSyncNode->vgId, &pSyncNode->peersId[i])) {
-      terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-      sError("vgId:%d, failed to determine raft member id, peer:%d", pSyncNode->vgId, i);
-      goto _error;
-    }
-  }
-
   // init replicaNum, replicasId
   pSyncNode->replicaNum = pSyncNode->raftCfg.cfg.replicaNum;
   pSyncNode->totalReplicaNum = pSyncNode->raftCfg.cfg.totalReplicaNum;
@@ -1147,6 +1137,27 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
       goto _error;
     }
   }
+
+  // init internal
+  pSyncNode->myNodeInfo = pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex];
+  pSyncNode->myRaftId = pSyncNode->replicasId[pSyncNode->raftCfg.cfg.myIndex];
+
+  // init peersNum, peers, peersId
+  pSyncNode->peersNum = pSyncNode->raftCfg.cfg.totalReplicaNum - 1;
+  int32_t j = 0;
+  for (int32_t i = 0; i < pSyncNode->raftCfg.cfg.totalReplicaNum; ++i) {
+    if (i != pSyncNode->raftCfg.cfg.myIndex) {
+      pSyncNode->peersNodeInfo[j] = pSyncNode->raftCfg.cfg.nodeInfo[i];
+      pSyncNode->peersId[j] = pSyncNode->replicasId[i];
+      syncUtilNodeInfo2EpSet(&pSyncNode->peersNodeInfo[j], &pSyncNode->peersEpset[j]);
+      j++;
+    }
+  }
+
+  pSyncNode->arbTerm = -1;
+  (void)taosThreadMutexInit(&pSyncNode->arbTokenMutex, NULL);
+  syncUtilGenerateArbToken(pSyncNode->myNodeInfo.nodeId, pSyncInfo->vgId, pSyncNode->arbToken);
+  sInfo("vgId:%d, generate arb token:%s", pSyncNode->vgId, pSyncNode->arbToken);
 
   // init raft algorithm
   pSyncNode->pFsm = pSyncInfo->pFsm;
@@ -1387,8 +1398,14 @@ void syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode) {
 
 int32_t syncNodeRestore(SSyncNode* pSyncNode) {
   int32_t code = 0;
-  ASSERTS(pSyncNode->pLogStore != NULL, "log store not created");
-  ASSERTS(pSyncNode->pLogBuf != NULL, "ring log buffer not created");
+  if (pSyncNode->pLogStore == NULL) {
+    sError("vgId:%d, log store not created", pSyncNode->vgId);
+    return TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
+  if (pSyncNode->pLogBuf == NULL) {
+    sError("vgId:%d, ring log buffer not created", pSyncNode->vgId);
+    return TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
 
   (void)taosThreadMutexLock(&pSyncNode->pLogBuf->mutex);
   SyncIndex lastVer = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
@@ -1403,7 +1420,7 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
     TAOS_RETURN(code);
   }
 
-  ASSERT(endIndex == lastVer + 1);
+  if (endIndex != lastVer + 1) return TSDB_CODE_SYN_INTERNAL_ERROR;
   pSyncNode->commitIndex = TMAX(pSyncNode->commitIndex, commitIndex);
   sInfo("vgId:%d, restore sync until commitIndex:%" PRId64, pSyncNode->vgId, pSyncNode->commitIndex);
 
@@ -1465,9 +1482,18 @@ int32_t syncNodeStartStandBy(SSyncNode* pSyncNode) {
 #endif
 
 void syncNodePreClose(SSyncNode* pSyncNode) {
-  ASSERT(pSyncNode != NULL);
-  ASSERT(pSyncNode->pFsm != NULL);
-  ASSERT(pSyncNode->pFsm->FpApplyQueueItems != NULL);
+  if (pSyncNode == NULL) {
+    sError("failed to pre close sync node since sync node is null");
+    return;
+  }
+  if (pSyncNode->pFsm == NULL) {
+    sError("failed to pre close sync node since fsm is null");
+    return;
+  }
+  if (pSyncNode->pFsm->FpApplyQueueItems == NULL) {
+    sError("failed to pre close sync node since FpApplyQueueItems is null");
+    return;
+  }
 
   // stop elect timer
   (void)syncNodeStopElectTimer(pSyncNode);
@@ -1746,7 +1772,10 @@ inline bool syncNodeInConfig(SSyncNode* pNode, const SSyncCfg* pCfg) {
     }
   }
 
-  ASSERT(b1 == b2);
+  if (b1 != b2) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return false;
+  }
   return b1;
 }
 
@@ -1764,11 +1793,11 @@ static bool syncIsConfigChanged(const SSyncCfg* pOldCfg, const SSyncCfg* pNewCfg
   return false;
 }
 
-void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex lastConfigChangeIndex) {
+int32_t syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex lastConfigChangeIndex) {
   SSyncCfg oldConfig = pSyncNode->raftCfg.cfg;
   if (!syncIsConfigChanged(&oldConfig, pNewConfig)) {
     sInfo("vgId:1, sync not reconfig since not changed");
-    return;
+    return 0;
   }
 
   pSyncNode->raftCfg.cfg = *pNewConfig;
@@ -1807,7 +1836,15 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
   }
 
   // add last config index
-  (void)syncAddCfgIndex(pSyncNode, lastConfigChangeIndex);
+  SRaftCfg* pCfg = &pSyncNode->raftCfg;
+  if (pCfg->configIndexCount >= MAX_CONFIG_INDEX_COUNT) {
+    sNError(pSyncNode, "failed to add cfg index:%d since out of range", pCfg->configIndexCount);
+    terrno = TSDB_CODE_OUT_OF_RANGE;
+    return -1;
+  }
+
+  pCfg->configIndexArr[pCfg->configIndexCount] = lastConfigChangeIndex;
+  pCfg->configIndexCount++;
 
   if (IamInNew) {
     //-----------------------------------------
@@ -1922,6 +1959,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
 _END:
   // log end config change
   sNInfo(pSyncNode, "end do config change, from %d to %d", oldConfig.totalReplicaNum, pNewConfig->totalReplicaNum);
+  return 0;
 }
 
 // raft state change --------------
@@ -2056,7 +2094,10 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
     SyncIndex lastIndex;
     SyncTerm  lastTerm;
     int32_t   code = syncNodeGetLastIndexTerm(pSyncNode, &lastIndex, &lastTerm);
-    ASSERT(code == 0);
+    if (code != 0) {
+      sError("vgId:%d, failed to become leader since %s", pSyncNode->vgId, tstrerror(code));
+      return;
+    }
     pSyncNode->pNextIndex->index[i] = lastIndex + 1;
   }
 
@@ -2129,7 +2170,10 @@ void syncNodeBecomeAssignedLeader(SSyncNode* pSyncNode) {
     SyncIndex lastIndex;
     SyncTerm  lastTerm;
     int32_t   code = syncNodeGetLastIndexTerm(pSyncNode, &lastIndex, &lastTerm);
-    ASSERT(code == 0);
+    if (code != 0) {
+      sError("vgId:%d, failed to become assigned leader since %s", pSyncNode->vgId, tstrerror(code));
+      return;
+    }
     pSyncNode->pNextIndex->index[i] = lastIndex + 1;
   }
 
@@ -2172,7 +2216,10 @@ void syncNodeBecomeAssignedLeader(SSyncNode* pSyncNode) {
 }
 
 void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
-  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
+  if (pSyncNode->state != TAOS_SYNC_STATE_CANDIDATE) {
+    sError("vgId:%d, failed leader from candidate since node state is wrong:%d", pSyncNode->vgId, pSyncNode->state);
+    return;
+  }
   bool granted = voteGrantedMajority(pSyncNode->pVotesGranted);
   if (!granted) {
     sError("vgId:%d, not granted by majority.", pSyncNode->vgId);
@@ -2188,7 +2235,7 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   }
 
   SyncIndex lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
-  // ASSERT(lastIndex >= 0);
+
   sInfo("vgId:%d, become leader. term:%" PRId64 ", commit index:%" PRId64 ", last index:%" PRId64 "", pSyncNode->vgId,
         raftStoreGetTerm(pSyncNode), pSyncNode->commitIndex, lastIndex);
 }
@@ -2205,7 +2252,10 @@ int32_t syncNodePeerStateInit(SSyncNode* pSyncNode) {
 }
 
 void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
-  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER);
+  if (pSyncNode->state != TAOS_SYNC_STATE_FOLLOWER) {
+    sError("vgId:%d, failed candidate from follower since node state is wrong:%d", pSyncNode->vgId, pSyncNode->state);
+    return;
+  }
   pSyncNode->state = TAOS_SYNC_STATE_CANDIDATE;
   pSyncNode->roleTimeMs = taosGetTimestampMs();
   SyncIndex lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
@@ -2216,7 +2266,7 @@ void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
 }
 
 int32_t syncNodeAssignedLeader2Leader(SSyncNode* pSyncNode) {
-  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_ASSIGNED_LEADER);
+  if (pSyncNode->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) return TSDB_CODE_SYN_INTERNAL_ERROR;
   syncNodeBecomeLeader(pSyncNode, "assigned leader to leader");
 
   sNTrace(pSyncNode, "assigned leader to leader");
@@ -2235,11 +2285,17 @@ int32_t syncNodeAssignedLeader2Leader(SSyncNode* pSyncNode) {
 }
 
 // just called by syncNodeVoteForSelf
-// need assert
 void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId) {
-  ASSERT(term == raftStoreGetTerm(pSyncNode));
+  SyncTerm storeTerm = raftStoreGetTerm(pSyncNode);
+  if (term != storeTerm) {
+    sError("vgId:%d, failed to vote for term, term:%" PRId64 ", storeTerm:%" PRId64, pSyncNode->vgId, term, storeTerm);
+    return;
+  }
   bool voted = raftStoreHasVoted(pSyncNode);
-  ASSERT(!voted);
+  if (voted) {
+    sError("vgId:%d, failed to vote for term since not voted", pSyncNode->vgId);
+    return;
+  }
 
   raftStoreVote(pSyncNode, pRaftId);
 }
@@ -2383,7 +2439,7 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
                         .lastConfigIndex = SYNC_INDEX_INVALID};
 
   if (code == 0) {
-    ASSERT(pPreEntry != NULL);
+    if (pPreEntry == NULL) return -1;
     preTerm = pPreEntry->term;
 
     if (h) {
@@ -2446,6 +2502,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     (void)taosTmrReset(syncNodeEqPingTimer, pNode->pingTimerMS, (void*)pNode->rid, syncEnv()->pTimerManager,
                        &pNode->pPingTimer);
   }
+  syncNodeRelease(pNode);
 }
 
 static void syncNodeEqElectTimer(void* param, void* tmrId) {
@@ -2593,7 +2650,9 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
         pSyncTimer->timeStamp = tsNow;
 
         // send msg
-        sTrace("vgId:%d, send heartbeat to dnode:%d", pSyncNode->vgId, DID(&(pSyncMsg->destId)));
+        TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
+        STraceId* trace = &(rpcMsg.info.traceId);
+        sGTrace("vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId, DID(&(pSyncMsg->destId)));
         syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed, pData->execTime);
         (void)syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
       } else {
@@ -3213,7 +3272,6 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   // append to log buffer
   if ((code = syncLogBufferAppend(ths->pLogBuf, ths, pEntry)) < 0) {
     sError("vgId:%d, failed to enqueue sync log buffer, index:%" PRId64, ths->vgId, pEntry->index);
-    ASSERT(terrno != 0);
     (void)syncFsmExecute(ths, ths->pFsm, ths->state, raftStoreGetTerm(ths), pEntry, terrno, false);
     syncEntryDestroy(pEntry);
     goto _out;
@@ -3322,7 +3380,7 @@ static int32_t syncNodeAppendNoopOld(SSyncNode* ths) {
   SyncIndex       index = ths->pLogStore->syncLogWriteIndex(ths->pLogStore);
   SyncTerm        term = raftStoreGetTerm(ths);
   SSyncRaftEntry* pEntry = syncEntryBuildNoop(term, index, ths->vgId);
-  ASSERT(pEntry != NULL);
+  if (pEntry == NULL) return -1;
 
   LRUHandle* h = NULL;
 
@@ -3378,7 +3436,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pMsgReply->startTime = ths->startTime;
   pMsgReply->timeStamp = tsMs;
 
-  sTrace("vgId:%d, heartbeat msg from dnode:%d, cluster:%d, Msgterm:%" PRId64 " currentTerm:%" PRId64, ths->vgId,
+  sGTrace("vgId:%d, process sync-heartbeat msg from dnode:%d, cluster:%d, Msgterm:%" PRId64 " currentTerm:%" PRId64, ths->vgId,
          DID(&(pMsg->srcId)), CID(&(pMsg->srcId)), pMsg->term, currentTerm);
 
   if (pMsg->term > currentTerm && ths->state == TAOS_SYNC_STATE_LEARNER) {
@@ -3498,6 +3556,9 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       return 0;
     }
     SyncTerm matchTerm = syncLogBufferGetLastMatchTerm(ths->pLogBuf);
+    if (matchTerm < 0) {
+      return TSDB_CODE_SYN_INTERNAL_ERROR;
+    }
     if (pMsg->currentTerm == matchTerm) {
       (void)syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);
     }

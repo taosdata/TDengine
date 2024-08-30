@@ -55,7 +55,7 @@ void     taosIpPort2String(uint32_t ip, uint16_t port, char *str);
 
 void *tmemmem(const char *haystack, int hlen, const char *needle, int nlen);
 
-int32_t parseCfgReal(const char *str, double *out);
+int32_t parseCfgReal(const char *str, float *out);
 
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {
   T_MD5_CTX context;
@@ -138,6 +138,13 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
   } while (0)
 
 #define QUERY_CHECK_CODE TSDB_CHECK_CODE
+
+#define QUERY_CHECK_CONDITION(condition, CODE, LINO, LABEL, ERRNO) \
+  if (!condition) {                                                \
+    (CODE) = (ERRNO);                                              \
+    (LINO) = __LINE__;                                             \
+    goto LABEL;                                                    \
+  }
 
 #define TSDB_CHECK_NULL(ptr, CODE, LINO, LABEL, ERRNO) \
   if ((ptr) == NULL) {                                 \

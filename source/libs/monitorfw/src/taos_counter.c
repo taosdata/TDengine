@@ -20,7 +20,7 @@
 #include "taos_alloc.h"
 
 // Private
-#include "taos_assert.h"
+#include "taos_test.h"
 #include "taos_errors.h"
 #include "taos_log.h"
 #include "taos_metric_i.h"
@@ -33,7 +33,7 @@ taos_counter_t *taos_counter_new(const char *name, const char *help, size_t labe
 }
 
 int taos_counter_destroy(taos_counter_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 0;
   int r = 0;
   r = taos_metric_destroy(self);
@@ -42,7 +42,7 @@ int taos_counter_destroy(taos_counter_t *self) {
 }
 
 int taos_counter_inc(taos_counter_t *self, const char **label_values) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
   if (self->type != TAOS_COUNTER) {
     TAOS_LOG(TAOS_METRIC_INCORRECT_TYPE);
@@ -54,7 +54,7 @@ int taos_counter_inc(taos_counter_t *self, const char **label_values) {
 }
 
 int taos_counter_add(taos_counter_t *self, double r_value, const char **label_values) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
   if (self->type != TAOS_COUNTER) {
     TAOS_LOG(TAOS_METRIC_INCORRECT_TYPE);

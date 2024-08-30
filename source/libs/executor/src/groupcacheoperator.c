@@ -73,6 +73,10 @@ static int32_t initGroupColsInfo(SGroupColsInfo* pCols, bool grpColsMayBeNull, S
 }
 
 static void logGroupCacheExecInfo(SGroupCacheOperatorInfo* pGrpCacheOperator) {
+  if (pGrpCacheOperator->downstreamNum <= 0 || NULL == pGrpCacheOperator->execInfo.pDownstreamBlkNum) {
+    return;
+  }
+  
   char* buf = taosMemoryMalloc(pGrpCacheOperator->downstreamNum * 32 + 100);
   if (NULL == buf) {
     return;
@@ -688,39 +692,48 @@ _return:
   return code;
 }
 
-static FORCE_INLINE int32_t getBlkFromDownstreamOperator(struct SOperatorInfo* pOperator, int32_t downstreamIdx, SSDataBlock** ppRes) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SOperatorParam* pDownstreamParam = NULL;
-  SSDataBlock* pBlock = NULL;
+static FORCE_INLINE int32_t getBlkFromDownstreamOperator(struct SOperatorInfo* pOperator, int32_t downstreamIdx,
+                                                         SSDataBlock** ppRes) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  SOperatorParam*          pDownstreamParam = NULL;
+  SSDataBlock*             pBlock = NULL;
   SGroupCacheOperatorInfo* pGCache = pOperator->info;
+
   code = appendNewGroupToDownstream(pOperator, downstreamIdx, &pDownstreamParam);
   if (code) {
     return code;
   }
 
+  SOperatorInfo* pDownstream = pOperator->pDownstream[downstreamIdx];
   if (pDownstreamParam) {
-    code = pOperator->pDownstream[downstreamIdx]->fpSet.getNextExtFn(pOperator->pDownstream[downstreamIdx], pDownstreamParam, &pBlock);
+    code = pDownstream->fpSet.getNextExtFn(pDownstream, pDownstreamParam, &pBlock);
   } else {
-    pBlock = pOperator->pDownstream[downstreamIdx]->fpSet.getNextFn(pOperator->pDownstream[downstreamIdx]);
+    code = pDownstream->fpSet.getNextFn(pDownstream, &pBlock);
+  }
+
+  if (code) {
+    qError("failed to get block from downstream, code:%s %s", tstrerror(code), GET_TASKID(pOperator->pTaskInfo));
+    return code;
   }
 
   if (pBlock) {
-    qDebug("%s blk retrieved from group %" PRIu64, GET_TASKID(pOperator->pTaskInfo), pBlock->info.id.groupId);
-    
+    qDebug("%s res block retrieved from group %" PRIu64, GET_TASKID(pOperator->pTaskInfo), pBlock->info.id.groupId);
+
     pGCache->execInfo.pDownstreamBlkNum[downstreamIdx]++;
     if (NULL == pGCache->pDownstreams[downstreamIdx].pBaseBlock) {
       code = buildGroupCacheBaseBlock(&pGCache->pDownstreams[downstreamIdx].pBaseBlock, pBlock);
       if (code) {
         return code;
       }
-      if (NULL == taosArrayPush(pGCache->pDownstreams[downstreamIdx].pFreeBlock, &pGCache->pDownstreams[downstreamIdx].pBaseBlock)) {
+
+      if (NULL == taosArrayPush(pGCache->pDownstreams[downstreamIdx].pFreeBlock,
+                                &pGCache->pDownstreams[downstreamIdx].pBaseBlock)) {
         QRY_ERR_RET(terrno);
       }
     }
   }
 
   *ppRes = pBlock;
-  
   return code;
 }
 
@@ -1497,17 +1510,14 @@ int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfD
   qTrace("new group cache operator, maxCacheSize:%" PRId64 ", globalGrp:%d, batchFetch:%d", pInfo->maxCacheSize, pInfo->globalGrp, pInfo->batchFetch);
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (pInfo != NULL) {
     destroyGroupCacheOperator(pInfo);
   }
 
-  if (pOperator != NULL) {
-    pOperator->info = NULL;
-    destroyOperator(pOperator);
-  }
+  destroyOperatorAndDownstreams(pOperator, pDownstream, numOfDownstream);
   pTaskInfo->code = code;
   return code;
 }

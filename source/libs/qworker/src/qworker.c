@@ -808,11 +808,13 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   sql = NULL;
   if (code) {
     QW_TASK_ELOG("qCreateExecTask failed, code:%x - %s", code, tstrerror(code));
+    qDestroyTask(pTaskInfo);
     QW_ERR_JRET(code);
   }
 
   if (NULL == sinkHandle || NULL == pTaskInfo) {
     QW_TASK_ELOG("create task result error, taskHandle:%p, sinkHandle:%p", pTaskInfo, sinkHandle);
+    qDestroyTask(pTaskInfo);
     QW_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
@@ -1311,11 +1313,13 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
   
   if (code) {
     QW_TASK_ELOG("qCreateExecTask failed, code:%x - %s", code, tstrerror(code));
+    qDestroyTask(pTaskInfo);
     QW_ERR_JRET(code);
   }
 
   if (NULL == sinkHandle || NULL == pTaskInfo) {
     QW_TASK_ELOG("create task result error, taskHandle:%p, sinkHandle:%p", pTaskInfo, sinkHandle);
+    qDestroyTask(pTaskInfo);
     QW_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 

@@ -34,7 +34,7 @@ try:
     )
     print("Inserted data with schemaless successfully.");
 except Exception as err:
-    print(f"Failed to insert data with schemaless, addr: {host}:{port}  ErrMessage:{err}")
+    print(f"Failed to insert data with schemaless, ErrMessage:{err}")
 finally:
     if conn:
         conn.close()

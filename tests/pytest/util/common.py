@@ -555,6 +555,19 @@ class TDCom:
         cur = self.newcur(host=host,port=port,user=user,password=password, database=database)
         newTdSql.init(cur, False)
         return newTdSql
+    
+    def newcurWithTimezone(self,  timezone, host='localhost', port=6030,  user='root', password='taosdata'):
+        cfgPath = self.getClientCfgPath()
+        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port, timezone=timezone)
+        cur=con.cursor()
+        # print(cur)
+        return cur
+
+    def newTdSqlWithTimezone(self, timezone, host='localhost',port=6030,user='root',password='taosdata'):
+        newTdSql = TDSql()
+        cur = self.newcurWithTimezone(host=host,port=port,user=user,password=password, timezone=timezone)
+        newTdSql.init(cur, False)
+        return newTdSql
 
     ################################################################################################################
     # port from the common.py of new test frame
@@ -1896,6 +1909,8 @@ class TDCom:
             if latency < self.stream_timeout:
                 latency += 1
                 time.sleep(1)
+            else:
+                return False
         return tbname
 
     def get_group_id_from_stb(self, stbname):

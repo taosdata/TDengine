@@ -168,9 +168,7 @@ static STaskStateTrans* streamTaskFindTransform(ETaskStatus state, const EStream
   }
 
   if (isInvalidStateTransfer(state, event)) {
-    return NULL;
-  } else {
-    ASSERT(0);
+    stError("invalid state transfer %d, handle event:%s", state, GET_EVT_NAME(event));
   }
 
   return NULL;
@@ -181,8 +179,6 @@ static int32_t doHandleWaitingEvent(SStreamTaskSM* pSM, const char* pEventName, 
   int64_t el = (taosGetTimestampMs() - pSM->startTs);
   stDebug("s-task:%s handle event:%s completed, elapsed time:%" PRId64 "ms state:%s -> %s", pTask->id.idStr,
           pEventName, el, pSM->prev.state.name, pSM->current.name);
-
-  ASSERT(taosArrayGetSize(pSM->pWaitingEventList) == 1);
 
   SFutureHandleEventInfo* pEvtInfo = taosArrayGet(pSM->pWaitingEventList, 0);
   if (pEvtInfo == NULL) {
@@ -417,7 +413,8 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
       // no active event trans exists, handle this event directly
       pTrans = streamTaskFindTransform(pSM->current.state, event);
       if (pTrans == NULL) {
-        stDebug("s-task:%s failed to handle event:%s", pTask->id.idStr, GET_EVT_NAME(event));
+        stDebug("s-task:%s failed to handle event:%s, status:%s", pTask->id.idStr, GET_EVT_NAME(event),
+                pSM->current.name);
         streamMutexUnlock(&pTask->lock);
         return TSDB_CODE_STREAM_INVALID_STATETRANS;
       }
@@ -427,7 +424,7 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
         if (event == TASK_EVENT_INIT && pSM->pActiveTrans->event == TASK_EVENT_INIT) {
           streamMutexUnlock(&pTask->lock);
           stError("s-task:%s already in handling init procedure, handle this init event failed", pTask->id.idStr);
-          return TSDB_CODE_STREAM_INVALID_STATETRANS;
+          return TSDB_CODE_STREAM_CONFLICT_EVENT;
         }
 
         // currently in some state transfer procedure, not auto invoke transfer, abort it
@@ -501,8 +498,11 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
   STaskStateTrans* pTrans = pSM->pActiveTrans;
   if (pTrans == NULL) {
     ETaskStatus s = pSM->current.state;
-    ASSERT(s == TASK_STATUS__DROPPING || s == TASK_STATUS__PAUSE || s == TASK_STATUS__STOP ||
-           s == TASK_STATUS__UNINIT || s == TASK_STATUS__READY);
+
+    if (s != TASK_STATUS__DROPPING && s != TASK_STATUS__PAUSE && s != TASK_STATUS__STOP &&
+           s != TASK_STATUS__UNINIT && s != TASK_STATUS__READY) {
+      stError("s-task:%s invalid task status:%s on handling event:%s success", id, pSM->current.name, GET_EVT_NAME(pSM->prev.evt));
+    }
 
     // the pSM->prev.evt may be 0, so print string is not appropriate.
     stDebug("s-task:%s event:%s handled failed, current status:%s, trigger event:%s", id, GET_EVT_NAME(event),

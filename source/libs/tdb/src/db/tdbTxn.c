@@ -40,7 +40,6 @@ int tdbTxnCloseImpl(TXN *pTxn) {
 
     if (pTxn->jfd) {
       TAOS_UNUSED(tdbOsClose(pTxn->jfd));
-      ASSERT(pTxn->jfd == NULL);
     }
 
     tdbOsFree(pTxn);

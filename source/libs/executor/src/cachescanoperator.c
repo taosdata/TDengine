@@ -50,7 +50,7 @@ typedef struct SCacheRowsScanInfo {
   SColumnInfo     pkCol;
 } SCacheRowsScanInfo;
 
-static SSDataBlock* doScanCache(SOperatorInfo* pOperator);
+static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 static void    destroyCacheScanOperator(void* param);
 static int32_t extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo, int32_t** pSlotIds,
                                       int32_t** pDstSlotIds);
@@ -176,7 +176,10 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
   code = extractCacheScanSlotId(pInfo->matchInfo.pList, pTaskInfo, &pInfo->pSlotIds, &pInfo->pDstSlotIds);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  int32_t totalTables = tableListGetSize(pTableListInfo);
+  int32_t totalTables = 0;
+  code = tableListGetSize(pTableListInfo, &totalTables);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   int32_t capacity = 0;
 
   pInfo->pUidList = taosArrayInit(4, sizeof(int64_t));
@@ -232,7 +235,7 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
                   pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doScanCache, NULL, destroyCacheScanOperator, optrDefaultBufFn,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doScanCacheNext, NULL, destroyCacheScanOperator, optrDefaultBufFn,
                                          NULL, optrDefaultGetNextExtFn, NULL);
 
   pOperator->cost.openCost = 0;
@@ -256,7 +259,7 @@ _error:
   return code;
 }
 
-int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pOperator->status == OP_EXEC_DONE) {
@@ -271,7 +274,10 @@ int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SSDataBlock*        pBufRes = pInfo->pBufferedRes;
 
   uint64_t suid = tableListGetSuid(pTableList);
-  int32_t  size = tableListGetSize(pTableList);
+  int32_t  size = 0;
+  code = tableListGetSize(pTableList, &size);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   if (size == 0) {
     setOperatorCompleted(pOperator);
     (*ppRes) = NULL;
@@ -298,7 +304,11 @@ int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       int32_t resultRows = pBufRes->info.rows;
 
       // the results may be null, if last values are all null
-      ASSERT(resultRows == 0 || resultRows == taosArrayGetSize(pInfo->pUidList));
+      if (resultRows != 0 && resultRows != taosArrayGetSize(pInfo->pUidList)) {
+        pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(pTaskInfo->code));
+        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+      }
       pInfo->indexOfBufferedRes = 0;
     }
 
@@ -433,12 +443,6 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   return code;
-}
-
-static SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = doScanCacheNext(pOperator, &pRes);
-  return pRes;
 }
 
 void destroyCacheScanOperator(void* param) {

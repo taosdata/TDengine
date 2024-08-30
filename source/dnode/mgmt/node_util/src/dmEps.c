@@ -256,7 +256,9 @@ _OVER:
     SDnodeEp dnodeEp = {0};
     dnodeEp.isMnode = 1;
     (void)taosGetFqdnPortFromEp(tsFirst, &dnodeEp.ep);
-    (void)taosArrayPush(pData->dnodeEps, &dnodeEp);
+    if (taosArrayPush(pData->dnodeEps, &dnodeEp) == NULL) {
+      return terrno;
+    }
   }
 
   if ((code = dmReadDnodePairs(pData)) != 0) {
@@ -398,7 +400,11 @@ static void dmResetEps(SDnodeData *pData, SArray *dnodeEps) {
 
   for (int32_t i = 0; i < numOfEps; i++) {
     SDnodeEp *pDnodeEp = taosArrayGet(dnodeEps, i);
-    (void)taosHashPut(pData->dnodeHash, &pDnodeEp->id, sizeof(int32_t), pDnodeEp, sizeof(SDnodeEp));
+    int32_t   code = taosHashPut(pData->dnodeHash, &pDnodeEp->id, sizeof(int32_t), pDnodeEp, sizeof(SDnodeEp));
+    if (code) {
+      dError("dnode:%d, fqdn:%s port:%u isMnode:%d failed to put into hash, reason:%s", pDnodeEp->id, pDnodeEp->ep.fqdn,
+             pDnodeEp->ep.port, pDnodeEp->isMnode, tstrerror(code));
+    }
   }
 
   pData->validMnodeEps = true;

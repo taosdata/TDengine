@@ -163,7 +163,11 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
         return NULL;
       }
 
-      ASSERT(pResult->pageId == p1->pageId && pResult->offset == p1->offset);
+      if (pResult->pageId != p1->pageId || pResult->offset != p1->offset) {
+        terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        pTaskInfo->code = terrno;
+        return NULL;
+      }
     }
   } else {
     // In case of group by column query, the required SResultRow object must be existInCurrentResusltRowInfo in the
@@ -176,7 +180,11 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
         return NULL;
       }
 
-      ASSERT(pResult->pageId == p1->pageId && pResult->offset == p1->offset);
+      if (pResult->pageId != p1->pageId || pResult->offset != p1->offset) {
+        terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        pTaskInfo->code = terrno;
+        return NULL;
+      }
     }
   }
 
@@ -324,6 +332,7 @@ _end:
 static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
                                    bool createDummyCol) {
   int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
   SqlFunctionCtx* pCtx = pExprSup->pCtx;
 
   for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
@@ -363,7 +372,7 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
         if (hasPk && (j == pkParamIdx)) {
           pInput->pPrimaryKey = pInput->pData[j];
         }
-        ASSERT(pInput->pData[j] != NULL);
+        QUERY_CHECK_CONDITION((pInput->pData[j] != NULL), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
         // todo avoid case: top(k, 12), 12 is the value parameter.
         // sum(11), 11 is also the value parameter.
@@ -374,14 +383,16 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
           pInput->blankFill = pBlock->info.blankFill;
 
           code = doCreateConstantValColumnInfo(pInput, pFuncParam, j, pBlock->info.rows);
-          if (code != TSDB_CODE_SUCCESS) {
-            return code;
-          }
+          QUERY_CHECK_CODE(code, lino, _end);
         }
       }
     }
   }
 
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -1104,7 +1115,14 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
       pDeleterParam->suid = tableListGetSuid(pTableListInfo);
 
       // TODO extract uid list
-      int32_t numOfTables = tableListGetSize(pTableListInfo);
+      int32_t numOfTables = 0;
+      code = tableListGetSize(pTableListInfo, &numOfTables);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        taosMemoryFree(pDeleterParam);
+        return code;
+      }
+
       pDeleterParam->pUidList = taosArrayInit(numOfTables, sizeof(uint64_t));
       if (NULL == pDeleterParam->pUidList) {
         taosMemoryFree(pDeleterParam);
@@ -1273,12 +1291,8 @@ FORCE_INLINE int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOpera
     return code;
   }
 
-  *pResBlock = pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx]);
-  if (*pResBlock == NULL && terrno != 0) {
-    return terrno;
-  } else {
-    return code;
-  }
+  code = pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx], pResBlock);
+  return code;
 }
 
 bool compareVal(const char* v, const SStateKeys* pKey) {

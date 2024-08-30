@@ -343,7 +343,6 @@ typedef struct {
   rocksdb_readoptions_t               *readoptions;
   rocksdb_writebatch_t                *writebatch;
   rocksdb_writebatch_t                *rwritebatch;
-  TdThreadMutex                        rMutex;
   STSchema                            *pTSchema;
 } SRocksCache;
 
@@ -899,7 +898,7 @@ typedef struct SSttDataInfoForTable {
 
 int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoForTable *pTableInfo);
 void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
-bool    tMergeTreeNext(SMergeTree *pMTree);
+int32_t tMergeTreeNext(SMergeTree *pMTree, bool* pHasNext);
 void    tMergeTreePinSttBlock(SMergeTree *pMTree);
 void    tMergeTreeUnpinSttBlock(SMergeTree *pMTree);
 bool    tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
@@ -915,12 +914,20 @@ typedef enum {
   READER_EXEC_ROWS = 0x2,
 } EExecMode;
 
-#define LAST_COL_VERSION (0x1)
+#define LAST_COL_VERSION_1 (0x1) // add primary key, version
+#define LAST_COL_VERSION_2 (0x2) // add cache status
+#define LAST_COL_VERSION   LAST_COL_VERSION_2
+
+typedef enum {
+  TSDB_LAST_CACHE_VALID = 0, // last_cache has valid data
+  TSDB_LAST_CACHE_NO_CACHE,  // last_cache has no data, but tsdb may have data
+} ELastCacheStatus;
 
 typedef struct {
-  SRowKey rowKey;
-  int8_t  dirty;
-  SColVal colVal;
+  SRowKey          rowKey;
+  int8_t           dirty;
+  SColVal          colVal;
+  ELastCacheStatus cacheStatus;
 } SLastCol;
 
 typedef struct {

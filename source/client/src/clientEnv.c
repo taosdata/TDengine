@@ -26,6 +26,7 @@
 #include "qworker.h"
 #include "scheduler.h"
 #include "tcache.h"
+#include "tcompare.h"
 #include "tglobal.h"
 #include "thttp.h"
 #include "tmsg.h"
@@ -35,7 +36,6 @@
 #include "tsched.h"
 #include "ttime.h"
 #include "tversion.h"
-#include "tcompare.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -44,16 +44,16 @@
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
 
-#define ENV_JSON_FALSE_CHECK(c)                    \
-  do {                                             \
-    if (!c) {                                      \
-      tscError("faild to add item to JSON object");\
-      code = TSDB_CODE_TSC_FAIL_GENERATE_JSON;     \
-      goto _end;                                   \
-    }                                              \
+#define ENV_JSON_FALSE_CHECK(c)                     \
+  do {                                              \
+    if (!c) {                                       \
+      tscError("faild to add item to JSON object"); \
+      code = TSDB_CODE_TSC_FAIL_GENERATE_JSON;      \
+      goto _end;                                    \
+    }                                               \
   } while (0)
 
-#define ENV_ERR_RET(c,info)           \
+#define ENV_ERR_RET(c, info)          \
   do {                                \
     int32_t _code = c;                \
     if (_code != TSDB_CODE_SUCCESS) { \
@@ -94,109 +94,110 @@ static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
     int32_t total = atomic_add_fetch_64((int64_t *)&pSummary->totalRequests, 1);
     int32_t currentInst = atomic_add_fetch_64((int64_t *)&pSummary->currentRequests, 1);
     tscDebug("0x%" PRIx64 " new Request from connObj:0x%" PRIx64
-             ", current:%d, app current:%d, total:%d, reqId:0x%" PRIx64,
+             ", current:%d, app current:%d, total:%d,QID:0x%" PRIx64,
              pRequest->self, pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
   }
 
   return code;
 }
 
-static void concatStrings(SArray *list, char* buf, int size){
-  int  len = 0;
-  for(int i = 0; i < taosArrayGetSize(list); i++){
-    char* db = taosArrayGet(list, i);
+static void concatStrings(SArray *list, char *buf, int size) {
+  int len = 0;
+  for (int i = 0; i < taosArrayGetSize(list); i++) {
+    char *db = taosArrayGet(list, i);
     if (NULL == db) {
       tscError("get dbname failed, buf:%s", buf);
       break;
     }
-    char* dot = strchr(db, '.');
+    char *dot = strchr(db, '.');
     if (dot != NULL) {
       db = dot + 1;
     }
-    if (i != 0){
+    if (i != 0) {
       (void)strcat(buf, ",");
       len += 1;
     }
     int ret = snprintf(buf + len, size - len, "%s", db);
-    if (ret < 0)  {
+    if (ret < 0) {
       tscError("snprintf failed, buf:%s, ret:%d", buf, ret);
       break;
     }
     len += ret;
-    if (len >= size){
+    if (len >= size) {
       tscInfo("dbList is truncated, buf:%s, len:%d", buf, len);
       break;
     }
   }
 }
 
-static int32_t generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_t reqType, int64_t duration){
-  cJSON* json = cJSON_CreateObject();
+static int32_t generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_t reqType, int64_t duration) {
+  cJSON  *json = cJSON_CreateObject();
   int32_t code = TSDB_CODE_SUCCESS;
   if (json == NULL) {
     tscError("[monitor] cJSON_CreateObject failed");
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   char clusterId[32] = {0};
-  if (snprintf(clusterId, sizeof(clusterId), "%" PRId64, pTscObj->pAppInfo->clusterId) < 0){
+  if (snprintf(clusterId, sizeof(clusterId), "%" PRId64, pTscObj->pAppInfo->clusterId) < 0) {
     tscError("failed to generate clusterId:%" PRId64, pTscObj->pAppInfo->clusterId);
     code = TSDB_CODE_FAILED;
     goto _end;
   }
 
   char startTs[32] = {0};
-  if (snprintf(startTs, sizeof(startTs), "%" PRId64, pRequest->metric.start/1000) < 0){
-    tscError("failed to generate startTs:%" PRId64, pRequest->metric.start/1000);
+  if (snprintf(startTs, sizeof(startTs), "%" PRId64, pRequest->metric.start / 1000) < 0) {
+    tscError("failed to generate startTs:%" PRId64, pRequest->metric.start / 1000);
     code = TSDB_CODE_FAILED;
     goto _end;
   }
 
   char requestId[32] = {0};
-  if (snprintf(requestId, sizeof(requestId), "%" PRIu64, pRequest->requestId) < 0){
+  if (snprintf(requestId, sizeof(requestId), "%" PRIu64, pRequest->requestId) < 0) {
     tscError("failed to generate requestId:%" PRIu64, pRequest->requestId);
     code = TSDB_CODE_FAILED;
     goto _end;
   }
-  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "cluster_id",   cJSON_CreateString(clusterId)));
-  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "start_ts",     cJSON_CreateString(startTs)));
-  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "request_id",   cJSON_CreateString(requestId)));
-  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "query_time",   cJSON_CreateNumber(duration/1000)));
-  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "code",         cJSON_CreateNumber(pRequest->code)));
-  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "error_info",   cJSON_CreateString(tstrerror(pRequest->code))));
-  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "type",         cJSON_CreateNumber(reqType)));
-  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "rows_num",     cJSON_CreateNumber(pRequest->body.resInfo.numOfRows + pRequest->body.resInfo.totalRows)));
-  if(pRequest->sqlstr != NULL && strlen(pRequest->sqlstr) > pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen){
+  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "cluster_id", cJSON_CreateString(clusterId)));
+  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "start_ts", cJSON_CreateString(startTs)));
+  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "request_id", cJSON_CreateString(requestId)));
+  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "query_time", cJSON_CreateNumber(duration / 1000)));
+  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "code", cJSON_CreateNumber(pRequest->code)));
+  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "error_info", cJSON_CreateString(tstrerror(pRequest->code))));
+  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "type", cJSON_CreateNumber(reqType)));
+  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(
+      json, "rows_num", cJSON_CreateNumber(pRequest->body.resInfo.numOfRows + pRequest->body.resInfo.totalRows)));
+  if (pRequest->sqlstr != NULL && strlen(pRequest->sqlstr) > pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen) {
     char tmp = pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen];
     pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen] = '\0';
-    ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "sql",        cJSON_CreateString(pRequest->sqlstr)));
+    ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "sql", cJSON_CreateString(pRequest->sqlstr)));
     pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen] = tmp;
-  }else{
-    ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "sql",        cJSON_CreateString(pRequest->sqlstr)));
+  } else {
+    ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "sql", cJSON_CreateString(pRequest->sqlstr)));
   }
 
-  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "user",         cJSON_CreateString(pTscObj->user)));
+  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "user", cJSON_CreateString(pTscObj->user)));
   ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "process_name", cJSON_CreateString(appInfo.appName)));
-  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "ip",           cJSON_CreateString(tsLocalFqdn)));
+  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "ip", cJSON_CreateString(tsLocalFqdn)));
 
   char pid[32] = {0};
-  if (snprintf(pid, sizeof(pid), "%d", appInfo.pid) < 0){
+  if (snprintf(pid, sizeof(pid), "%d", appInfo.pid) < 0) {
     tscError("failed to generate pid:%d", appInfo.pid);
     code = TSDB_CODE_FAILED;
     goto _end;
   }
 
-  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "process_id",   cJSON_CreateString(pid)));
-  if(pRequest->dbList != NULL){
+  ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "process_id", cJSON_CreateString(pid)));
+  if (pRequest->dbList != NULL) {
     char dbList[1024] = {0};
     concatStrings(pRequest->dbList, dbList, sizeof(dbList) - 1);
     ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "db", cJSON_CreateString(dbList)));
-  }else if(pRequest->pDb != NULL){
+  } else if (pRequest->pDb != NULL) {
     ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "db", cJSON_CreateString(pRequest->pDb)));
-  }else{
+  } else {
     ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "db", cJSON_CreateString("")));
   }
 
-  char* value = cJSON_PrintUnformatted(json);
+  char              *value = cJSON_PrintUnformatted(json);
   MonitorSlowLogData data = {0};
   data.clusterId = pTscObj->pAppInfo->clusterId;
   data.type = SLOW_LOG_WRITE;
@@ -212,7 +213,7 @@ _end:
   return code;
 }
 
-static bool checkSlowLogExceptDb(SRequestObj *pRequest, char* exceptDb) {
+static bool checkSlowLogExceptDb(SRequestObj *pRequest, char *exceptDb) {
   if (pRequest->pDb != NULL) {
     return strcmp(pRequest->pDb, exceptDb) != 0;
   }
@@ -227,7 +228,7 @@ static bool checkSlowLogExceptDb(SRequestObj *pRequest, char* exceptDb) {
     if (dot != NULL) {
       db = dot + 1;
     }
-    if(strcmp(db, exceptDb) == 0){
+    if (strcmp(db, exceptDb) == 0) {
       return false;
     }
   }
@@ -248,15 +249,14 @@ static void deregisterRequest(SRequestObj *pRequest) {
   int32_t reqType = SLOW_LOG_TYPE_OTHERS;
 
   int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
-  tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", reqId:0x%" PRIx64
+  tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ",QID:0x%" PRIx64
            " elapsed:%.2f ms, "
            "current:%d, app current:%d",
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
 
   if (TSDB_CODE_SUCCESS == nodesSimAcquireAllocator(pRequest->allocatorRefId)) {
-    if ((pRequest->pQuery && pRequest->pQuery->pRoot &&
-         QUERY_NODE_VNODE_MODIFY_STMT == pRequest->pQuery->pRoot->type &&
-        (0 == ((SVnodeModifyOpStmt *)pRequest->pQuery->pRoot)->sqlNodeType)) ||
+    if ((pRequest->pQuery && pRequest->pQuery->pRoot && QUERY_NODE_VNODE_MODIFY_STMT == pRequest->pQuery->pRoot->type &&
+         (0 == ((SVnodeModifyOpStmt *)pRequest->pQuery->pRoot)->sqlNodeType)) ||
         QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType) {
       tscDebug("insert duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
                "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
@@ -279,7 +279,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
     }
   }
 
-  if(pTscObj->pAppInfo->monitorParas.tsEnableMonitor){
+  if (pTscObj->pAppInfo->monitorParas.tsEnableMonitor) {
     if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType || QUERY_NODE_INSERT_STMT == pRequest->stmtType) {
       sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEINSERT);
     } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
@@ -289,14 +289,15 @@ static void deregisterRequest(SRequestObj *pRequest) {
     }
   }
 
-  if ((duration >= pTscObj->pAppInfo->monitorParas.tsSlowLogThreshold * 1000000UL || duration >= pTscObj->pAppInfo->monitorParas.tsSlowLogThresholdTest * 1000000UL) &&
+  if ((duration >= pTscObj->pAppInfo->monitorParas.tsSlowLogThreshold * 1000000UL ||
+       duration >= pTscObj->pAppInfo->monitorParas.tsSlowLogThresholdTest * 1000000UL) &&
       checkSlowLogExceptDb(pRequest, pTscObj->pAppInfo->monitorParas.tsSlowLogExceptDb)) {
     (void)atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
     if (pTscObj->pAppInfo->monitorParas.tsSlowLogScope & reqType) {
-      taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 " us, Duration:%" PRId64 "us, SQL:%s",
+      taosPrintSlowLog("PID:%d, Conn:%u,QID:0x%" PRIx64 ", Start:%" PRId64 " us, Duration:%" PRId64 "us, SQL:%s",
                        taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration,
                        pRequest->sqlstr);
-      if(pTscObj->pAppInfo->monitorParas.tsEnableMonitor){
+      if (pTscObj->pAppInfo->monitorParas.tsEnableMonitor) {
         slowQueryLog(pTscObj->id, pRequest->killed, pRequest->code, duration);
         if (TSDB_CODE_SUCCESS != generateWriteSlowLog(pTscObj, pRequest, reqType, duration)) {
           tscError("failed to generate write slow log");
@@ -389,7 +390,7 @@ void destroyAllRequests(SHashObj *pRequests) {
     SRequestObj *pRequest = acquireRequest(*rid);
     if (pRequest) {
       destroyRequest(pRequest);
-      (void)releaseRequest(*rid); // ignore error
+      (void)releaseRequest(*rid);  // ignore error
     }
 
     pIter = taosHashIterate(pRequests, pIter);
@@ -404,7 +405,7 @@ void stopAllRequests(SHashObj *pRequests) {
     SRequestObj *pRequest = acquireRequest(*rid);
     if (pRequest) {
       taos_stop_query(pRequest);
-      (void)releaseRequest(*rid); // ignore error
+      (void)releaseRequest(*rid);  // ignore error
     }
 
     pIter = taosHashIterate(pRequests, pIter);
@@ -412,7 +413,7 @@ void stopAllRequests(SHashObj *pRequests) {
 }
 
 void destroyAppInst(void *info) {
-  SAppInstInfo* pAppInfo = *(SAppInstInfo**)info;
+  SAppInstInfo *pAppInfo = *(SAppInstInfo **)info;
   tscDebug("destroy app inst mgr %p", pAppInfo);
 
   int32_t code = taosThreadMutexLock(&appInfo.mutex);
@@ -476,7 +477,7 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
                      STscObj **pObj) {
   *pObj = (STscObj *)taosMemoryCalloc(1, sizeof(STscObj));
   if (NULL == *pObj) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pObj)->pRequests = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
@@ -555,7 +556,7 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   (*pRequest)->inCallback = false;
   (*pRequest)->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   if (NULL == (*pRequest)->msgBuf) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _return;
   }
   (*pRequest)->msgBufLen = ERROR_MSG_BUF_DEFAULT_SIZE;
@@ -597,28 +598,28 @@ int32_t releaseRequest(int64_t rid) { return taosReleaseRef(clientReqRefPool, ri
 int32_t removeRequest(int64_t rid) { return taosRemoveRef(clientReqRefPool, rid); }
 
 /// return the most previous req ref id
-int64_t removeFromMostPrevReq(SRequestObj* pRequest) {
-  int64_t mostPrevReqRefId = pRequest->self;
-  SRequestObj* pTmp = pRequest;
+int64_t removeFromMostPrevReq(SRequestObj *pRequest) {
+  int64_t      mostPrevReqRefId = pRequest->self;
+  SRequestObj *pTmp = pRequest;
   while (pTmp->relation.prevRefId) {
     pTmp = acquireRequest(pTmp->relation.prevRefId);
     if (pTmp) {
       mostPrevReqRefId = pTmp->self;
-      (void)releaseRequest(mostPrevReqRefId); // ignore error
+      (void)releaseRequest(mostPrevReqRefId);  // ignore error
     } else {
       break;
     }
   }
-  (void)removeRequest(mostPrevReqRefId); // ignore error
+  (void)removeRequest(mostPrevReqRefId);  // ignore error
   return mostPrevReqRefId;
 }
 
 void destroyNextReq(int64_t nextRefId) {
   if (nextRefId) {
-    SRequestObj* pObj = acquireRequest(nextRefId);
+    SRequestObj *pObj = acquireRequest(nextRefId);
     if (pObj) {
-      (void)releaseRequest(nextRefId); // ignore error
-      (void)releaseRequest(nextRefId); // ignore error
+      (void)releaseRequest(nextRefId);  // ignore error
+      (void)releaseRequest(nextRefId);  // ignore error
     }
   }
 }
@@ -638,7 +639,7 @@ void destroySubRequests(SRequestObj *pRequest) {
     pTmp = acquireRequest(tmpRefId);
     if (pTmp) {
       pReqList[++reqIdx] = pTmp;
-      (void)releaseRequest(tmpRefId); // ignore error
+      (void)releaseRequest(tmpRefId);  // ignore error
     } else {
       tscError("prev req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
@@ -646,7 +647,7 @@ void destroySubRequests(SRequestObj *pRequest) {
   }
 
   for (int32_t i = reqIdx; i >= 0; i--) {
-    (void)removeRequest(pReqList[i]->self); // ignore error
+    (void)removeRequest(pReqList[i]->self);  // ignore error
   }
 
   tmpRefId = pRequest->relation.nextRefId;
@@ -654,8 +655,8 @@ void destroySubRequests(SRequestObj *pRequest) {
     pTmp = acquireRequest(tmpRefId);
     if (pTmp) {
       tmpRefId = pTmp->relation.nextRefId;
-      (void)removeRequest(pTmp->self); // ignore error
-      (void)releaseRequest(pTmp->self); // ignore error
+      (void)removeRequest(pTmp->self);   // ignore error
+      (void)releaseRequest(pTmp->self);  // ignore error
     } else {
       tscError("next req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
@@ -758,7 +759,7 @@ void stopAllQueries(SRequestObj *pRequest) {
 
   for (int32_t i = reqIdx; i >= 0; i--) {
     taosStopQueryImpl(pReqList[i]);
-    (void)releaseRequest(pReqList[i]->self); // ignore error
+    (void)releaseRequest(pReqList[i]->self);  // ignore error
   }
 
   taosStopQueryImpl(pRequest);
@@ -769,7 +770,7 @@ void stopAllQueries(SRequestObj *pRequest) {
     if (pTmp) {
       tmpRefId = pTmp->relation.nextRefId;
       taosStopQueryImpl(pTmp);
-      (void)releaseRequest(pTmp->self); // ignore error
+      (void)releaseRequest(pTmp->self);  // ignore error
     } else {
       tscError("next req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
@@ -929,9 +930,10 @@ void taos_init_imp(void) {
   appInfo.pid = taosGetPId();
   appInfo.startTime = taosGetTimestampMs();
   appInfo.pInstMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  appInfo.pInstMapByClusterId = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  appInfo.pInstMapByClusterId =
+      taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (NULL == appInfo.pInstMap || NULL == appInfo.pInstMapByClusterId) {
-    tscError("failed to allocate memory when init appInfo");
+    (void)printf("failed to allocate memory when init appInfo\n");
     tscInitRes = TSDB_CODE_OUT_OF_MEMORY;
     return;
   }
@@ -959,7 +961,7 @@ void taos_init_imp(void) {
 
   if (InitRegexCache() != 0) {
     tscInitRes = -1;
-    tscError("failed to init regex cache");
+    (void)printf("failed to init regex cache\n");
     return;
   }
 
@@ -968,10 +970,6 @@ void taos_init_imp(void) {
   ENV_ERR_RET(schedulerInit(), "failed to init scheduler");
 
   tscDebug("starting to initialize TAOS driver");
-
-#ifndef WINDOWS
-  taosSetCoreDump(true);
-#endif
 
   ENV_ERR_RET(initTaskQueue(), "failed to init task queue");
   ENV_ERR_RET(fmFuncMgtInit(), "failed to init funcMgt");
@@ -993,8 +991,8 @@ int taos_init() {
   return tscInitRes;
 }
 
-const char* getCfgName(TSDB_OPTION option) {
-  const char* name = NULL;
+const char *getCfgName(TSDB_OPTION option) {
+  const char *name = NULL;
 
   switch (option) {
     case TSDB_OPTION_SHELL_ACTIVITY_TIMER:
@@ -1025,12 +1023,12 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
     char newstr[PATH_MAX];
     int  len = strlen(str);
     if (len > 1 && str[0] != '"' && str[0] != '\'') {
-        if (len + 2 >= PATH_MAX) {
+      if (len + 2 >= PATH_MAX) {
         tscError("Too long path %s", str);
         return -1;
       }
       newstr[0] = '"';
-      (void)memcpy(newstr+1, str, len);
+      (void)memcpy(newstr + 1, str, len);
       newstr[len + 1] = '"';
       newstr[len + 2] = '\0';
       str = newstr;

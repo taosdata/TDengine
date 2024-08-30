@@ -24,7 +24,7 @@
 #include "taos_collector_registry.h"
 
 // Private
-#include "taos_assert.h"
+#include "taos_test.h"
 #include "taos_collector_registry_t.h"
 #include "taos_collector_t.h"
 #include "taos_errors.h"
@@ -113,7 +113,7 @@ int taos_collector_registry_destroy(taos_collector_registry_t *self) {
 }
 
 int taos_collector_registry_register_metric(taos_metric_t *metric) {
-  TAOS_ASSERT(metric != NULL);
+  TAOS_TEST_PARA(metric != NULL);
 
   taos_collector_t *default_collector =
       (taos_collector_t *)taos_map_get(TAOS_COLLECTOR_REGISTRY_DEFAULT->collectors, "default");
@@ -126,7 +126,7 @@ int taos_collector_registry_register_metric(taos_metric_t *metric) {
 }
 
 int taos_collector_registry_deregister_metric(const char *key) {
-  TAOS_ASSERT(metric != NULL);
+  TAOS_TEST_PARA(key != NULL);
 
   taos_collector_t *default_collector =
       (taos_collector_t *)taos_map_get(TAOS_COLLECTOR_REGISTRY_DEFAULT->collectors, "default");
@@ -139,7 +139,7 @@ int taos_collector_registry_deregister_metric(const char *key) {
 }
 
 taos_metric_t *taos_collector_registry_get_metric(char* metric_name){
-  TAOS_ASSERT(metric != NULL);
+  TAOS_TEST_PARA_NULL(metric_name != NULL);
 
   taos_collector_t *default_collector =
       (taos_collector_t *)taos_map_get(TAOS_COLLECTOR_REGISTRY_DEFAULT->collectors, "default");
@@ -161,7 +161,7 @@ taos_metric_t *taos_collector_registry_must_register_metric(taos_metric_t *metri
 }
 
 int taos_collector_registry_register_collector(taos_collector_registry_t *self, taos_collector_t *collector) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
 
   int r = 0;

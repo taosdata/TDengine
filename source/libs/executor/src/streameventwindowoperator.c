@@ -43,6 +43,9 @@ typedef struct SEventWindowInfo {
 } SEventWindowInfo;
 
 void destroyStreamEventOperatorInfo(void* param) {
+  if (param == NULL) {
+    return;
+  }
   SStreamEventAggOperatorInfo* pInfo = (SStreamEventAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   destroyStreamAggSupporter(&pInfo->streamAggSup);
@@ -375,7 +378,6 @@ static void doStreamEventAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
                                  rows, i, pAggSup->pResultRows, pSeUpdated, pStDeleted, &rebuild, &winRows);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    ASSERT(winRows >= 1);
     if (rebuild) {
       uint64_t uid = 0;
       code = appendDataToSpecialBlock(pAggSup->pScanBlock, &curWin.winInfo.sessionWin.win.skey,
@@ -627,10 +629,15 @@ static int32_t doStreamEventAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
     QUERY_CHECK_NULL(pInfo->pSeUpdated, code, lino, _end, terrno);
   }
   while (1) {
-    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
+    SSDataBlock* pBlock = NULL;
+
+    code = downstream->fpSet.getNextFn(downstream, &pBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     if (pBlock == NULL) {
       break;
     }
+
     printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
     setStreamOperatorState(&pInfo->basic, pBlock->info.type);
 
@@ -657,7 +664,10 @@ static int32_t doStreamEventAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
       QUERY_CHECK_CODE(code, lino, _end);
       continue;
     } else {
-      ASSERTS(pBlock->info.type == STREAM_NORMAL || pBlock->info.type == STREAM_INVALID, "invalid SSDataBlock type");
+      if (pBlock->info.type != STREAM_NORMAL && pBlock->info.type != STREAM_INVALID) {
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
     }
 
     if (pInfo->scalarSupp.pExprInfo != NULL) {
@@ -729,12 +739,6 @@ _end:
   return code;
 }
 
-static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = doStreamEventAggNext(pOperator, &pRes);
-  return pRes;
-}
-
 void streamEventReleaseState(SOperatorInfo* pOperator) {
   SStreamEventAggOperatorInfo* pInfo = pOperator->info;
   int32_t                      winSize = taosArrayGetSize(pInfo->historyWins) * sizeof(SSessionKey);
@@ -776,7 +780,6 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
   int32_t num = (size - sizeof(TSKEY)) / sizeof(SSessionKey);
   qDebug("===stream=== event window operator reload state. get result count:%d", num);
   SSessionKey* pSeKeyBuf = (SSessionKey*)pBuf;
-  ASSERT(size == num * sizeof(SSessionKey) + sizeof(TSKEY));
 
   TSKEY ts = *(TSKEY*)((char*)pBuf + size - sizeof(TSKEY));
   pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, ts);
@@ -892,14 +895,16 @@ int32_t createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
   QUERY_CHECK_CODE(code, lino, _error);
 
+  SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
+  QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
+  pInfo->binfo.pRes = pResBlock;
+
   SExprSupp*   pExpSup = &pOperator->exprSupp;
   int32_t      numOfCols = 0;
   SExprInfo*   pExprInfo = NULL;
   code = createExprInfo(pEventNode->window.pFuncs, NULL, &pExprInfo, &numOfCols);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
-  QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
   code = initBasicInfoEx(&pInfo->binfo, pExpSup, pExprInfo, numOfCols, pResBlock, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -960,7 +965,7 @@ int32_t createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamEventAgg, NULL, destroyStreamEventOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamEventAggNext, NULL, destroyStreamEventOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamEventReleaseState, streamEventReloadState);
   code = initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex,
@@ -977,14 +982,11 @@ int32_t createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   QUERY_CHECK_CODE(code, lino, _error);
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (pInfo != NULL) destroyStreamEventOperatorInfo(pInfo);
-  if (pOperator != NULL) {
-    pOperator->info = NULL;
-    destroyOperator(pOperator);
-  }
+  destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;

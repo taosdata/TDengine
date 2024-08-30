@@ -498,7 +498,12 @@ int32_t mndCreateQnodeList(SMnode *pMnode, SArray **pList, int32_t limit) {
     nodeLoad.addr.epSet.eps[0].port = pObj->pDnode->port;
     nodeLoad.load = QNODE_LOAD_VALUE(pObj);
 
-    (void)taosArrayPush(qnodeList, &nodeLoad);
+    if (taosArrayPush(qnodeList, &nodeLoad) == NULL) {
+      sdbRelease(pSdb, pObj);
+      sdbCancelFetch(pSdb, pIter);
+      if (terrno != 0) code = terrno;
+      return code;
+    }
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
@@ -577,5 +582,5 @@ static int32_t mndRetrieveQnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
 static void mndCancelGetNextQnode(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_QNODE);
 }

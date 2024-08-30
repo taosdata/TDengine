@@ -53,7 +53,7 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VNODE_META_DIR);
 
   if ((pMeta = taosMemoryCalloc(1, sizeof(*pMeta) + strlen(path) + 1)) == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   (void)metaInitLock(pMeta);
@@ -332,6 +332,10 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
   } else if (!pTagIdxKey1->isNull && !pTagIdxKey2->isNull) {
     // all not NULL, compr tag vals
     __compar_fn_t func = getComparFunc(pTagIdxKey1->type, 0);
+    if (func == NULL) {
+      metaError("meta/open: %s", terrstr());
+      return TSDB_CODE_FAILED;
+    }
     c = func(pTagIdxKey1->data, pTagIdxKey2->data);
     if (c) return c;
   }

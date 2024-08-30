@@ -73,7 +73,10 @@ struct SVSnapReader {
 };
 
 static TFileSetRangeArray **vnodeSnapReaderGetTsdbRanges(SVSnapReader *pReader, int32_t tsdbTyp) {
-  ASSERTS(sizeof(pReader->pRsmaRanges) / sizeof(pReader->pRsmaRanges[0]) == 2, "Unexpected array size");
+  if (!(sizeof(pReader->pRsmaRanges) / sizeof(pReader->pRsmaRanges[0]) == 2)) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
   switch (tsdbTyp) {
     case SNAP_DATA_TSDB:
       return &pReader->pRanges;
@@ -147,7 +150,6 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
       pReader->tsdbRAWDone = true;
     }
 
-    ASSERT(pReader->tsdbDone != pReader->tsdbRAWDone);
     vInfo("vgId:%d, vnode snap writer enabled replication mode: %s", TD_VID(pVnode),
           (pReader->tsdbDone ? "raw" : "normal"));
   }
@@ -164,7 +166,7 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
 
   pReader = (SVSnapReader *)taosMemoryCalloc(1, sizeof(*pReader));
   if (pReader == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
   pReader->pVnode = pVnode;
@@ -177,7 +179,6 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
 
   // open tsdb snapshot raw reader
   if (!pReader->tsdbRAWDone) {
-    ASSERT(pReader->sver == 0);
     code = tsdbSnapRAWReaderOpen(pVnode->pTsdb, ever, SNAP_DATA_RAW, &pReader->pTsdbRAWReader);
     if (code) goto _exit;
   }
@@ -339,7 +340,6 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   if (!pReader->tsdbRAWDone) {
     // open if not
     if (pReader->pTsdbRAWReader == NULL) {
-      ASSERT(pReader->sver == 0);
       code = tsdbSnapRAWReaderOpen(pReader->pVnode->pTsdb, pReader->ever, SNAP_DATA_RAW, &pReader->pTsdbRAWReader);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -518,7 +518,6 @@ struct SVSnapWriter {
 };
 
 TFileSetRangeArray **vnodeSnapWriterGetTsdbRanges(SVSnapWriter *pWriter, int32_t tsdbTyp) {
-  ASSERTS(sizeof(pWriter->pRsmaRanges) / sizeof(pWriter->pRsmaRanges[0]) == 2, "Unexpected array size");
   switch (tsdbTyp) {
     case SNAP_DATA_TSDB:
       return &pWriter->pRanges;
@@ -618,7 +617,7 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapWriter
   // alloc
   pWriter = (SVSnapWriter *)taosMemoryCalloc(1, sizeof(*pWriter));
   if (pWriter == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
   pWriter->pVnode = pVnode;
   pWriter->sver = sver;
@@ -674,7 +673,6 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
 
   // commit json
   if (!rollback) {
-    ASSERT(pVnode->config.vgId == pWriter->info.config.vgId);
     pWriter->info.state.committed = pWriter->ever;
     pVnode->config = pWriter->info.config;
     pVnode->state = (SVState){.committed = pWriter->info.state.committed,
@@ -794,7 +792,9 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
   SSnapDataHdr *pHdr = (SSnapDataHdr *)pData;
   SVnode       *pVnode = pWriter->pVnode;
 
-  ASSERT(pHdr->size + sizeof(SSnapDataHdr) == nData);
+  if (!(pHdr->size + sizeof(SSnapDataHdr) == nData)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   if (pHdr->index != pWriter->index + 1) {
     vError("vgId:%d, unexpected vnode snapshot msg. index:%" PRId64 ", expected index:%" PRId64, TD_VID(pVnode),
@@ -837,7 +837,6 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
     case SNAP_DATA_RAW: {
       // tsdb
       if (pWriter->pTsdbSnapRAWWriter == NULL) {
-        ASSERT(pWriter->sver == 0);
         code = tsdbSnapRAWWriterOpen(pVnode->pTsdb, pWriter->ever, &pWriter->pTsdbSnapRAWWriter);
         TSDB_CHECK_CODE(code, lino, _exit);
       }

@@ -1,5 +1,5 @@
 ---
-sidebar_label: TDengine 错误码
+sidebar_label: 错误码
 title: TDengine 错误码
 description: TDengine 服务端的错误码列表和详细说明
 ---
@@ -122,7 +122,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000335 | Cluster cfg inconsistent                                                                     | 配置不一致                                    | 检查dnode节点与mnode节点配置是否一致。检查方式：1.节点启动时，在日志中输出 2.使用show variables |
 | 0x8000033B | Cluster id not match                                                                         | 节点配置数据不一致                            | 检查各节点data/dnode/dnodes.json文件中的clusterid                                               |
 | 0x80000340 | Account already exists                                                                       | （仅企业版）内部错误                          | 上报issue                                                                                       |
-| 0x80000342 | Invalid account options                                                                      | （仅企业版）操作不zh                          | 确认操作是否正确                                                                                |
+| 0x80000342 | Invalid account options                                                                      | （仅企业版）该操作不支持                          | 确认操作是否正确                                                                                |
 | 0x80000344 | Invalid account                                                                              | 账户不存在                                    | 确认账户是否正确                                                                                |
 | 0x80000350 | User already exists                                                                          | Create user, 重复创建                         | 确认操作是否正确                                                                                |
 | 0x80000351 | Invalid user                                                                                 | 用户不存在                                    | 确认操作是否正确                                                                                |
@@ -311,7 +311,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | ---------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | 0x80000903 | Sync timeout                 | 场景1：发生了切主；旧主节点上已经开始协商但尚未达成一致的请求将超时。 场景2：从节点响应超时，导致协商超时。 | 检查集群状态，例如：show vgroups；查看服务端日志，以及服务端节点之间的网络状况。           |
 | 0x8000090C | Sync leader is unreachable   | 场景1：选主过程中 场景2：客户端请求路由到了从节点，且重定向失败 场景3：客户端或服务端网络配置错误           | 检查集群状态、网络配置、应用程序访问状态等。查看服务端日志，以及服务端节点之间的网络状况。 |
-| 0x8000090F | Sync new config error        | 成员变更新配置错误                                                                                          | 预留                                                                                       |
+| 0x8000090F | Sync new config error        | 成员变更配置错误                                                                                          | 内部错误，用户无法干预                                                                                       |
 | 0x80000911 | Sync not ready to propose    | 场景1：恢复未完成                                                                                           | 检查集群状态，例如：show vgroups。查看服务端日志，以及服务端节点之间的网络状况。           |
 | 0x80000914 | Sync leader is restoring     | 场景1：发生了切主；选主后，日志重演中                                                                       | 检查集群状态，例如：show vgroups。查看服务端日志，观察恢复进度。                           |
 | 0x80000915 | Sync invalid snapshot msg    | 快照复制消息错误                                                                                            | 服务端内部错误                                                                             |

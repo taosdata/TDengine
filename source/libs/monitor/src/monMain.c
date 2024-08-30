@@ -21,11 +21,25 @@
 #include "thttp.h"
 #include "ttime.h"
 
+#define VNODE_METRIC_SQL_COUNT "taosd_sql_req:count"
+
+#define VNODE_METRIC_TAG_NAME_SQL_TYPE   "sql_type"
+#define VNODE_METRIC_TAG_NAME_CLUSTER_ID "cluster_id"
+#define VNODE_METRIC_TAG_NAME_DNODE_ID   "dnode_id"
+#define VNODE_METRIC_TAG_NAME_DNODE_EP   "dnode_ep"
+#define VNODE_METRIC_TAG_NAME_VGROUP_ID  "vgroup_id"
+#define VNODE_METRIC_TAG_NAME_USERNAME   "username"
+#define VNODE_METRIC_TAG_NAME_RESULT     "result"
+
+// #define VNODE_METRIC_TAG_VALUE_INSERT "insert"
+// #define VNODE_METRIC_TAG_VALUE_DELETE "delete"
+
 SMonitor tsMonitor = {0};
 char    *tsMonUri = "/report";
 char    *tsMonFwUri = "/general-metric";
 char    *tsMonSlowLogUri = "/slow-sql-detail-batch";
 char    *tsMonFwBasicUri = "/taosd-cluster-basic";
+taos_counter_t *tsInsertCounter = NULL;
 
 void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
   (void)taosThreadMutexLock(&tsMonitor.lock);
@@ -115,6 +129,29 @@ int32_t monInit(const SMonCfg *pCfg) {
   monInitMonitorFW();
 
   return 0;
+}
+
+void monInitVnode() {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+  if (tsInsertCounter == NULL) {
+    taos_counter_t *counter = NULL;
+    int32_t         label_count = 7;
+    const char     *sample_labels[] = {VNODE_METRIC_TAG_NAME_SQL_TYPE,  VNODE_METRIC_TAG_NAME_CLUSTER_ID,
+                                       VNODE_METRIC_TAG_NAME_DNODE_ID,  VNODE_METRIC_TAG_NAME_DNODE_EP,
+                                       VNODE_METRIC_TAG_NAME_VGROUP_ID, VNODE_METRIC_TAG_NAME_USERNAME,
+                                       VNODE_METRIC_TAG_NAME_RESULT};
+    counter = taos_counter_new(VNODE_METRIC_SQL_COUNT, "counter for insert sql", label_count, sample_labels);
+    uDebug("new metric:%p", counter);
+    if (taos_collector_registry_register_metric(counter) == 1) {
+      (void)taos_counter_destroy(counter);
+      uError("failed to register metric:%p", counter);
+    } else {
+      tsInsertCounter = counter;
+      uInfo("succeed to set inserted row metric:%p", tsInsertCounter);
+    }
+  } else {
+    uError("failed to set insert counter, already set");
+  }
 }
 
 void monCleanup() {

@@ -225,7 +225,10 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
     } else {
       concurrentlyLoadRemoteDataImpl(pOperator, pExchangeInfo, pTaskInfo);
     }
-
+    if (TSDB_CODE_SUCCESS != pOperator->pTaskInfo->code) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      T_LONG_JMP(pTaskInfo->env, pOperator->pTaskInfo->code);
+    }
     if (taosArrayGetSize(pExchangeInfo->pResultBlockList) == 0) {
       return NULL;
     } else {
@@ -300,12 +303,6 @@ _end:
   }
   (*ppRes) = NULL;
   return code;
-}
-
-static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = loadRemoteDataNext(pOperator, &pRes);
-  return pRes;
 }
 
 static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo, const char* id) {
@@ -444,10 +441,10 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
   code = filterInitFromNode((SNode*)pExNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, loadRemoteData, NULL, destroyExchangeOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, loadRemoteDataNext, NULL, destroyExchangeOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (code != TSDB_CODE_SUCCESS) {
@@ -462,7 +459,6 @@ _error:
     pOperator->info = NULL;
     destroyOperator(pOperator);
   }
-  pTaskInfo->code = code;
   return code;
 }
 
@@ -485,6 +481,9 @@ void freeSourceDataInfo(void* p) {
 }
 
 void doDestroyExchangeOperatorInfo(void* param) {
+  if (param == NULL) {
+    return;
+  }
   SExchangeInfo* pExInfo = (SExchangeInfo*)param;
   if (pExInfo->pFetchRpcHandles) {
     for (int32_t i = 0; i < pExInfo->pFetchRpcHandles->size; ++i) {
@@ -515,6 +514,7 @@ void doDestroyExchangeOperatorInfo(void* param) {
 int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SFetchRspHandleWrapper* pWrapper = (SFetchRspHandleWrapper*)param;
 
+  taosMemoryFreeClear(pMsg->pEpSet);
   SExchangeInfo* pExchangeInfo = taosAcquireRef(exchangeObjRefPool, pWrapper->exchangeId);
   if (pExchangeInfo == NULL) {
     qWarn("failed to acquire exchange operator, since it may have been released, %p", pExchangeInfo);
@@ -850,6 +850,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
+  SSDataBlock*       pb = NULL;
 
   char* pNextStart = pRetrieveRsp->data;
   char* pStart = pNextStart;
@@ -874,7 +875,6 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
   }
 
   while (index++ < pRetrieveRsp->numOfBlocks) {
-    SSDataBlock* pb = NULL;
     pStart = pNextStart;
 
     if (taosArrayGetSize(pExchangeInfo->pRecycledBlocks) > 0) {
@@ -890,27 +890,29 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
 
     int32_t rawLen = *(int32_t*)pStart;
     pStart += sizeof(int32_t);
-    ASSERT(compLen <= rawLen && compLen != 0);
+    QUERY_CHECK_CONDITION((compLen <= rawLen && compLen != 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
     pNextStart = pStart + compLen;
     if (pRetrieveRsp->compressed && (compLen < rawLen)) {
       int32_t t = tsDecompressString(pStart, compLen, 1, pDataInfo->decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
-      ASSERT(t == rawLen);
+      QUERY_CHECK_CONDITION((t == rawLen), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       pStart = pDataInfo->decompBuf;
     }
 
     code = extractDataBlockFromFetchRsp(pb, pStart, NULL, &pStart);
     if (code != 0) {
       taosMemoryFreeClear(pDataInfo->pRsp);
-      return code;
+      goto _end;
     }
 
     void* tmp = taosArrayPush(pExchangeInfo->pResultBlockList, &pb);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+    pb = NULL;
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pb);
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;

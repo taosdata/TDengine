@@ -16,6 +16,7 @@
 #include "streamMsg.h"
 #include "os.h"
 #include "tstream.h"
+#include "streamInt.h"
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamUpstreamEpInfo* pInfo) {
   if (tEncodeI32(pEncoder, pInfo->taskId) < 0) return -1;
@@ -229,8 +230,12 @@ int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* p
   if (tEncodeI32(pEncoder, pReq->upstreamRelTaskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->blockNum) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->totalLen) < 0) return -1;
-  ASSERT(taosArrayGetSize(pReq->data) == pReq->blockNum);
-  ASSERT(taosArrayGetSize(pReq->dataLen) == pReq->blockNum);
+
+  if (taosArrayGetSize(pReq->data) != pReq->blockNum || taosArrayGetSize(pReq->dataLen) != pReq->blockNum) {
+    stError("invalid dispatch req msg");
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   for (int32_t i = 0; i < pReq->blockNum; i++) {
     int32_t* pLen = taosArrayGet(pReq->dataLen, i);
     void*    data = taosArrayGetP(pReq->data, i);
@@ -261,7 +266,6 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
   if (tDecodeI32(pDecoder, &pReq->blockNum) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->totalLen) < 0) return -1;
 
-  ASSERT(pReq->blockNum > 0);
   pReq->data = taosArrayInit(pReq->blockNum, sizeof(void*));
   pReq->dataLen = taosArrayInit(pReq->blockNum, sizeof(int32_t));
   for (int32_t i = 0; i < pReq->blockNum; i++) {
@@ -270,7 +274,10 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
     void*    data;
     if (tDecodeI32(pDecoder, &len1) < 0) return -1;
     if (tDecodeBinaryAlloc(pDecoder, &data, &len2) < 0) return -1;
-    ASSERT(len1 == len2);
+
+    if (len1 != len2) {
+      return TSDB_CODE_INVALID_MSG;
+    }
 
     void* p = taosArrayPush(pReq->dataLen, &len1);
     if (p == NULL) {

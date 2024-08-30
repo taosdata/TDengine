@@ -74,7 +74,7 @@ void indexCleanup() {
   // refacto later
   taosCleanUpScheduler(indexQhandle);
   taosMemoryFreeClear(indexQhandle);
-  (void)taosCloseRef(indexRefMgt);
+  taosCloseRef(indexRefMgt);
 }
 
 typedef struct SIdxColInfo {
@@ -237,8 +237,7 @@ int32_t indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
     indexDebug("w suid:%" PRIu64 ", colName:%s, colType:%d", key.suid, key.colName, key.colType);
 
     IndexCache** cache = taosHashGet(index->colObj, buf, sz);
-    ASSERTS(*cache != NULL, "index-cache already release");
-    if (*cache == NULL) return -1;
+    if (*cache == NULL) return TSDB_CODE_INVALID_PTR;
 
     int ret = idxCachePut(*cache, p, uid);
     if (ret != 0) {
@@ -295,7 +294,9 @@ void indexMultiTermQueryDestroy(SIndexMultiTermQuery* pQuery) {
 };
 int32_t indexMultiTermQueryAdd(SIndexMultiTermQuery* pQuery, SIndexTerm* term, EIndexQueryType qType) {
   SIndexTermQuery q = {.qType = qType, .term = term};
-  (void)taosArrayPush(pQuery->query, &q);
+  if (taosArrayPush(pQuery->query, &q) == NULL) {
+    return terrno;
+  }
   return 0;
 }
 
@@ -303,6 +304,7 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
                             int32_t nColName, const char* colVal, int32_t nColVal) {
   SIndexTerm* tm = (SIndexTerm*)taosMemoryCalloc(1, (sizeof(SIndexTerm)));
   if (tm == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -311,6 +313,10 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
   tm->colType = colType;
 
   tm->colName = (char*)taosMemoryCalloc(1, nColName + 1);
+  if (tm->colName == NULL) {
+    taosMemoryFree(tm);
+    return NULL;
+  }
   memcpy(tm->colName, colName, nColName);
   tm->nColName = nColName;
 
@@ -326,8 +332,23 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
     buf = strndup(emptyStr, (int32_t)strlen(emptyStr));
     len = (int32_t)strlen(emptyStr);
   }
+
   tm->colVal = buf;
+  if (tm->colVal == NULL) {
+    taosMemoryFree(tm->colName);
+    taosMemoryFree(tm);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
   tm->nColVal = len;
+  if (tm->nColVal < 0) {
+    taosMemoryFree(tm->colName);
+    taosMemoryFree(tm->colVal);
+    taosMemoryFree(tm);
+    terrno = len;
+    return NULL;
+  }
 
   return tm;
 }
@@ -677,6 +698,7 @@ static int32_t idxGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   code = tfileWriterOpen(sIdx->path, cache->suid, version, cache->colName, cache->type, &tw);
   if (code != 0) {
     indexError("failed to open file to write since %s", tstrerror(code));
+    return code;
   }
 
   code = tfileWriterPut(tw, batch, true);

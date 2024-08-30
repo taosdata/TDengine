@@ -167,7 +167,6 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   SVnodeObj *pOld = NULL;
   (void)taosHashGetDup(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), (void *)&pOld);
   if (pOld) {
-    ASSERT(pOld->failed);
     vmFreeVnodeObj(&pOld);
   }
   int32_t code = taosHashPut(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), &pVnode, sizeof(SVnodeObj *));
@@ -190,7 +189,6 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
   vmReleaseVnode(pMgmt, pVnode);
 
   if (pVnode->failed) {
-    ASSERT(pVnode->pImpl == NULL);
     goto _closed;
   }
   dInfo("vgId:%d, pre close", pVnode->vgId);
@@ -624,8 +622,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     goto _OVER;
   }
   tmsgReportStartup("vnode-tfs", "initialized");
-
-  if ((code = walInit()) != 0) {
+  if ((code = walInit(pInput->stopDnodeFp)) != 0) {
     dError("failed to init wal since %s", tstrerror(code));
     goto _OVER;
   }
@@ -638,7 +635,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
   tmsgReportStartup("vnode-sync", "initialized");
 
-  if ((code = vnodeInit(tsNumOfCommitThreads)) != 0) {
+  if ((code = vnodeInit(tsNumOfCommitThreads, pInput->stopDnodeFp)) != 0) {
     dError("failed to init vnode since %s", tstrerror(code));
     goto _OVER;
   }
@@ -692,8 +689,6 @@ static void *vmRestoreVnodeInThread(void *param) {
       dError("vgId:%d, cannot restore a vnode in failed mode.", pVnode->vgId);
       continue;
     }
-
-    ASSERT(pVnode->pImpl);
 
     char stepDesc[TSDB_STEP_DESC_LEN] = {0};
     snprintf(stepDesc, TSDB_STEP_DESC_LEN, "vgId:%d, start to restore, %d of %d have been restored", pVnode->vgId,
@@ -765,7 +760,6 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
     (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
     if (taosThreadCreate(&pThread->thread, &thAttr, vmRestoreVnodeInThread, pThread) != 0) {
       dError("thread:%d, failed to create thread to restore vnode since %s", pThread->threadIndex, strerror(errno));
-      ASSERT(errno == 0);
     }
 
     (void)taosThreadAttrDestroy(&thAttr);

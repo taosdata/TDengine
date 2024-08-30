@@ -14,6 +14,7 @@
  */
 #include "os.h"
 
+#include "query.h"
 #include "taosdef.h"
 #include "thistogram.h"
 #include "tlosertree.h"
@@ -81,9 +82,9 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
 
 #if defined(USE_ARRAYLIST)
   int32_t idx = histoBinarySearch((*pHisto)->elems, (*pHisto)->numOfEntries, val);
-  if (ASSERTS(idx >= 0 && idx <= (*pHisto)->maxEntries && (*pHisto)->elems != NULL, "tHistogramAdd Error, idx:%d, maxEntries:%d, elems:%p",
-              idx, (*pHisto)->maxEntries, (*pHisto)->elems)) {
-    return TSDB_CODE_FAILED;
+  if (idx < 0 || idx > (*pHisto)->maxEntries || (*pHisto)->elems == NULL) {
+    qError("tHistogramAdd Error, idx:%d, maxEntries:%d, elems:%p", idx, (*pHisto)->maxEntries, (*pHisto)->elems);
+    return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
   }
 
   if ((*pHisto)->elems[idx].val == val && idx >= 0) {
@@ -95,21 +96,19 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
   } else { /* insert a new slot */
     if ((*pHisto)->numOfElems >= 1 && idx < (*pHisto)->numOfEntries) {
       if (idx > 0) {
-        if (ASSERTS((*pHisto)->elems[idx - 1].val <= val, "tHistogramAdd Error, elems[%d].val:%lf, val:%lf",
-                    idx - 1, (*pHisto)->elems[idx - 1].val, val)) {
-          return TSDB_CODE_FAILED;
+        if ((*pHisto)->elems[idx - 1].val > val) {
+          qError("tHistogramAdd Error, elems[%d].val:%lf, val:%lf", idx - 1, (*pHisto)->elems[idx - 1].val, val);
+          return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
         }
       } else {
-        if (ASSERTS((*pHisto)->elems[idx].val > val, "tHistogramAdd Error, elems[%d].val:%lf, val:%lf",
-                    idx, (*pHisto)->elems[idx].val, val)) {
-          return TSDB_CODE_FAILED;
+        if ((*pHisto)->elems[idx].val <= val) {
+          qError("tHistogramAdd Error, elems[%d].val:%lf, val:%lf", idx, (*pHisto)->elems[idx].val, val);
+          return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
         }
       }
-    } else if ((*pHisto)->numOfElems > 0) {
-      if (ASSERTS((*pHisto)->elems[(*pHisto)->numOfEntries].val <= val, "tHistogramAdd Error, elems[%d].val:%lf, val:%lf",
-                  (*pHisto)->numOfEntries, (*pHisto)->elems[idx].val, val)) {
-        return TSDB_CODE_FAILED;
-      }
+    } else if ((*pHisto)->numOfElems > 0 && (*pHisto)->elems[(*pHisto)->numOfEntries].val > val) {
+      qError("tHistogramAdd Error, elems[%d].val:%lf, val:%lf", (*pHisto)->numOfEntries, (*pHisto)->elems[idx].val, val);
+      return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
     }
 
     code = histogramCreateBin(*pHisto, idx, val);
@@ -225,9 +224,9 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
 
       tSkipListNode* pNext = pNode->pForward[0];
       SHistBin*      pNextEntry = (SHistBin*)pNext->pData;
-      if (ASSERTS(pNextEntry->val - pEntry->val == pEntry->delta, "tHistogramAdd Error, pNextEntry->val:%lf, pEntry->val:%lf, pEntry->delta:%lf",
-                  pNextEntry->val, pEntry->val, pEntry->delta)) {
-        return -1;
+      if (pNextEntry->val - pEntry->val != pEntry->delta) {
+        qError("tHistogramAdd Error, pNextEntry->val:%lf, pEntry->val:%lf, pEntry->delta:%lf", pNextEntry->val, pEntry->val, pEntry->delta);
+        return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
       }
 
       double newVal = (pEntry->val * pEntry->num + pNextEntry->val * pNextEntry->num) / (pEntry->num + pNextEntry->num);
@@ -278,8 +277,9 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
 
   } else {
     SHistBin* pEntry = (SHistBin*)pResNode->pData;
-    if (ASSERTS(pEntry->val == val, "tHistogramAdd Error, pEntry->val:%lf, val:%lf")) {
-      return -1;
+    if (pEntry->val != val) {
+      qError("tHistogramAdd Error, pEntry->val:%lf, val:%lf", pEntry->val, val);
+      return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
     }
     pEntry->num += 1;
   }
@@ -356,9 +356,9 @@ int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t index, double val) {
     (void)memmove(&pHisto->elems[index + 1], &pHisto->elems[index], sizeof(SHistBin) * remain);
   }
 
-  if (ASSERTS(index >= 0 && index <= pHisto->maxEntries, "histogramCreateBin Error, index:%d, maxEntries:%d",
-              index, pHisto->maxEntries)) {
-    return TSDB_CODE_FAILED;
+  if (index < 0 || index > pHisto->maxEntries) {
+    qError("histogramCreateBin Error, index:%d, maxEntries:%d", index, pHisto->maxEntries);
+    return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
   }
 
   pHisto->elems[index].num = 1;
@@ -373,9 +373,9 @@ int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t index, double val) {
     pHisto->elems[pHisto->maxEntries].num = 0;
   }
 #endif
-  if (ASSERTS(pHisto->numOfEntries <= pHisto->maxEntries, "histogramCreateBin Error, numOfEntries:%d, maxEntries:%d",
-              pHisto->numOfEntries, pHisto->maxEntries)) {
-    return TSDB_CODE_FAILED;
+  if (pHisto->numOfEntries > pHisto->maxEntries) {
+    qError("histogramCreateBin Error, numOfEntries:%d, maxEntries:%d", pHisto->numOfEntries, pHisto->maxEntries);
+    return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -411,8 +411,9 @@ void tHistogramPrint(SHistogramInfo* pHisto) {
  * Estimated number of points in the interval (−inf,b].
  * @param pHisto
  * @param v
+ * @param res
  */
-int64_t tHistogramSum(SHistogramInfo* pHisto, double v) {
+int32_t tHistogramSum(SHistogramInfo* pHisto, double v, int64_t *res) {
 #if defined(USE_ARRAYLIST)
   int32_t slotIdx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, v);
   if (pHisto->elems[slotIdx].val != v) {
@@ -420,14 +421,18 @@ int64_t tHistogramSum(SHistogramInfo* pHisto, double v) {
 
     if (slotIdx < 0) {
       slotIdx = 0;
-      ASSERTS(v <= pHisto->elems[slotIdx].val, "tHistogramSum Error, elems[%d].val:%lf, v:%lf",
-              slotIdx, pHisto->elems[slotIdx].val, v);
+      if (v > pHisto->elems[slotIdx].val) {
+        qError("tHistogramSum Error, elems[%d].val:%lf, v:%lf", slotIdx, pHisto->elems[slotIdx].val, v);
+        return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
+      }
     } else {
-      ASSERTS(v >= pHisto->elems[slotIdx].val, "tHistogramSum Error, elems[%d].val:%lf, v:%lf",
-              slotIdx, pHisto->elems[slotIdx].val, v);
-      if (slotIdx + 1 < pHisto->numOfEntries) {
-        ASSERTS(v < pHisto->elems[slotIdx + 1].val, "tHistogramSum Error, elems[%d].val:%lf, v:%lf",
-                slotIdx + 1, pHisto->elems[slotIdx + 1].val, v);
+      if (v < pHisto->elems[slotIdx].val) {
+        qError("tHistogramSum Error, elems[%d].val:%lf, v:%lf", slotIdx, pHisto->elems[slotIdx].val, v);
+        return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
+      }
+      if (slotIdx + 1 < pHisto->numOfEntries && v >= pHisto->elems[slotIdx + 1].val) {
+        qError("tHistogramSum Error, elems[%d].val:%lf, v:%lf", slotIdx + 1, pHisto->elems[slotIdx + 1].val, v);
+        return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
       }
     }
   }
@@ -447,8 +452,9 @@ int64_t tHistogramSum(SHistogramInfo* pHisto, double v) {
 
   s1 = s1 + m1 / 2;
 
-  return (int64_t)s1;
+  *res = (int64_t)s1;
 #endif
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num, double** pVal) {
@@ -484,9 +490,11 @@ int32_t tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num, do
       j += 1;
     }
 
-    ASSERTS(total <= numOfElem && total + pHisto->elems[j + 1].num > numOfElem,
-            "tHistogramUniform Error, total:%ld, numOfElem:%ld, elems[%d].num:%ld",
-            total, (int64_t)numOfElem, j + 1, pHisto->elems[j + 1].num);
+    if (total > numOfElem || total + pHisto->elems[j + 1].num <= numOfElem) {
+      qError("tHistogramUniform Error, total:%d, numOfElem:%d, elems[%d].num:%d",
+             (int32_t)total, (int32_t)numOfElem, j + 1, (int32_t)pHisto->elems[j + 1].num);
+      return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
+    }
 
     double delta = numOfElem - total;
     if (fabs(delta) < FLT_EPSILON) {
@@ -545,9 +553,10 @@ int32_t tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num, do
       j += 1;
     }
 
-    ASSERTS(total <= numOfElem && total + pEntry->num > numOfElem,
-            "tHistogramUniform Error, total:%d, numOfElem:%d, pEntry->num:%d",
-            total, numOfElem, pEntry->num);
+    if (total > numOfElem || total + pEntry->num <= numOfElem) {
+      qError("tHistogramUniform Error, total:%d, numOfElem:%d, pEntry->num:%d", (int32_t)total, (int32_t)numOfElem, (int32_t)pEntry->num);
+      return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
+    }
 
     double delta = numOfElem - total;
     if (fabs(delta) < FLT_EPSILON) {

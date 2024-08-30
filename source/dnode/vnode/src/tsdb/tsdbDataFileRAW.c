@@ -23,7 +23,7 @@ int32_t tsdbDataFileRAWReaderOpen(const char *fname, const SDataFileRAWReaderCon
 
   reader[0] = taosMemoryCalloc(1, sizeof(SDataFileRAWReader));
   if (reader[0] == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   reader[0]->config[0] = config[0];
@@ -94,7 +94,7 @@ int32_t tsdbDataFileRAWWriterOpen(const SDataFileRAWWriterConfig *config, SDataF
 
   SDataFileRAWWriter *writer = taosMemoryCalloc(1, sizeof(SDataFileRAWWriter));
   if (!writer) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   writer->config[0] = config[0];
@@ -113,7 +113,7 @@ _exit:
 }
 
 static int32_t tsdbDataFileRAWWriterCloseAbort(SDataFileRAWWriter *writer) {
-  ASSERT(0);
+  tsdbError("vgId:%d %s failed since not implemented", TD_VID(writer->config->tsdb->pVnode), __func__);
   return 0;
 }
 
@@ -122,8 +122,6 @@ static int32_t tsdbDataFileRAWWriterDoClose(SDataFileRAWWriter *writer) { return
 static int32_t tsdbDataFileRAWWriterCloseCommit(SDataFileRAWWriter *writer, TFileOpArray *opArr) {
   int32_t code = 0;
   int32_t lino = 0;
-  ASSERT(writer->ctx->offset <= writer->file.size);
-  ASSERT(writer->config->fid == writer->file.fid);
 
   STFileOp op = (STFileOp){
       .optype = TSDB_FOP_CREATE,

@@ -20,7 +20,7 @@
 #include "taos_alloc.h"
 
 // Private
-#include "taos_assert.h"
+#include "taos_test.h"
 #include "taos_errors.h"
 #include "taos_log.h"
 #include "taos_metric_i.h"
@@ -33,7 +33,7 @@ taos_gauge_t *taos_gauge_new(const char *name, const char *help, size_t label_ke
 }
 
 int taos_gauge_destroy(taos_gauge_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   int r = 0;
   r = taos_metric_destroy(self);
   self = NULL;
@@ -41,7 +41,7 @@ int taos_gauge_destroy(taos_gauge_t *self) {
 }
 /*
 int taos_gauge_inc(taos_gauge_t *self, const char **label_values) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
   if (self->type != TAOS_GAUGE) {
     TAOS_LOG(TAOS_METRIC_INCORRECT_TYPE);
@@ -53,7 +53,7 @@ int taos_gauge_inc(taos_gauge_t *self, const char **label_values) {
 }
 
 int taos_gauge_dec(taos_gauge_t *self, const char **label_values) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
   if (self->type != TAOS_GAUGE) {
     TAOS_LOG(TAOS_METRIC_INCORRECT_TYPE);
@@ -65,7 +65,7 @@ int taos_gauge_dec(taos_gauge_t *self, const char **label_values) {
 }
 
 int taos_gauge_add(taos_gauge_t *self, double r_value, const char **label_values) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
   if (self->type != TAOS_GAUGE) {
     TAOS_LOG(TAOS_METRIC_INCORRECT_TYPE);
@@ -77,7 +77,7 @@ int taos_gauge_add(taos_gauge_t *self, double r_value, const char **label_values
 }
 
 int taos_gauge_sub(taos_gauge_t *self, double r_value, const char **label_values) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
   if (self->type != TAOS_GAUGE) {
     TAOS_LOG(TAOS_METRIC_INCORRECT_TYPE);
@@ -89,7 +89,7 @@ int taos_gauge_sub(taos_gauge_t *self, double r_value, const char **label_values
 }
 */
 int taos_gauge_set(taos_gauge_t *self, double r_value, const char **label_values) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
   if (self->type != TAOS_GAUGE) {
     TAOS_LOG(TAOS_METRIC_INCORRECT_TYPE);

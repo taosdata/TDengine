@@ -278,7 +278,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   for (int32_t i = 0; i < pStb->numOfFuncs; ++i) {
     char funcName[TSDB_FUNC_NAME_LEN] = {0};
     SDB_GET_BINARY(pRaw, dataPos, funcName, TSDB_FUNC_NAME_LEN, _OVER)
-    (void)taosArrayPush(pStb->pFuncs, funcName);
+    if (taosArrayPush(pStb->pFuncs, funcName) == NULL) goto _OVER;
   }
 
   if (pStb->commentLen > 0) {
@@ -1774,7 +1774,7 @@ static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *
                                                  int32_t nCols) {
   // if (pColCmpr == NULL || colName == NULL) return -1;
 
-  ASSERT(taosArrayGetSize(pField) == nCols);
+  if (taosArrayGetSize(pField) != nCols) return TSDB_CODE_FAILED;
   TAOS_FIELD *p = taosArrayGet(pField, 0);
 
   int32_t code = 0;
@@ -3069,7 +3069,10 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
       tstrncpy(metaRsp.dbFName, pStbVersion->dbFName, sizeof(metaRsp.dbFName));
       tstrncpy(metaRsp.tbName, pStbVersion->stbName, sizeof(metaRsp.tbName));
       tstrncpy(metaRsp.stbName, pStbVersion->stbName, sizeof(metaRsp.stbName));
-      (void)taosArrayPush(hbRsp.pMetaRsp, &metaRsp);
+      if (taosArrayPush(hbRsp.pMetaRsp, &metaRsp) == NULL) {
+        code = terrno;
+        return code;
+      }
       continue;
     }
 
@@ -3082,11 +3085,17 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
         tstrncpy(metaRsp.dbFName, pStbVersion->dbFName, sizeof(metaRsp.dbFName));
         tstrncpy(metaRsp.tbName, pStbVersion->stbName, sizeof(metaRsp.tbName));
         tstrncpy(metaRsp.stbName, pStbVersion->stbName, sizeof(metaRsp.stbName));
-        (void)taosArrayPush(hbRsp.pMetaRsp, &metaRsp);
+        if (taosArrayPush(hbRsp.pMetaRsp, &metaRsp) == NULL) {
+          code = terrno;
+          return code;
+        }
         continue;
       }
 
-      (void)taosArrayPush(hbRsp.pMetaRsp, &metaRsp);
+      if (taosArrayPush(hbRsp.pMetaRsp, &metaRsp) == NULL) {
+        code = terrno;
+        return code;
+      }
     }
 
     if (sma) {
@@ -3110,7 +3119,10 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
       strcpy(indexRsp.dbFName, pStbVersion->dbFName);
       strcpy(indexRsp.tbName, pStbVersion->stbName);
 
-      (void)taosArrayPush(hbRsp.pIndexRsp, &indexRsp);
+      if (taosArrayPush(hbRsp.pIndexRsp, &indexRsp) == NULL) {
+        code = terrno;
+        return code;
+      }
     }
   }
 
@@ -3820,7 +3832,7 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
 static void mndCancelGetNextStb(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_STB);
 }
 
 const char *mndGetStbStr(const char *src) {
@@ -4313,7 +4325,12 @@ static int32_t mndDropTbAddTsmaResTbsForSingleVg(SMnode *pMnode, SMndDropTbsWith
       } else {
         info.dbInfo = *pDbInfo;
       }
-      (void)taosArrayPush(pInfos->pTsmaInfos, &info);
+      if (taosArrayPush(pInfos->pTsmaInfos, &info) == NULL) {
+        code = terrno;
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        sdbRelease(pMnode->pSdb, pSma);
+        goto _end;
+      }
     }
     sdbRelease(pMnode->pSdb, pSma);
   }
@@ -4333,7 +4350,10 @@ static int32_t mndDropTbAddTsmaResTbsForSingleVg(SMnode *pMnode, SMndDropTbsWith
           taosGetTbHashVal(buf, len, pInfo->dbInfo.hashMethod, pInfo->dbInfo.hashPrefix, pInfo->dbInfo.hashSuffix);
       const SVgroupInfo *pVgInfo = taosArraySearch(pInfo->dbInfo.dbVgInfos, &hashVal, vgHashValCmp, TD_EQ);
       void              *p = taosStrdup(buf + strlen(pInfo->tsmaResTbDbFName) + TSDB_NAME_DELIMITER_LEN);
-      (void)taosArrayPush(pCtx->pResTbNames, &p);
+      if (taosArrayPush(pCtx->pResTbNames, &p) == NULL) {
+        code = terrno;
+        goto _end;
+      }
       TAOS_CHECK_GOTO(mndDropTbAdd(pMnode, pCtx->pVgMap, pVgInfo, p, pInfo->suid, true), NULL, _end);
     }
   }

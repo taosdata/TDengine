@@ -65,6 +65,7 @@ int32_t doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC
   p->id.taskId = taskId;
   p->id.str = taosMemoryMalloc(64);
   if (p->id.str == NULL) {
+    doDestroyTask(p);
     return terrno;
   }
 
@@ -83,7 +84,7 @@ bool isTaskKilled(void* pTaskInfo) { return (0 != ((SExecTaskInfo*)pTaskInfo)->c
 
 void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode) {
   pTaskInfo->code = rspCode;
-  (void) stopTableScanOperator(pTaskInfo->pRoot, pTaskInfo->id.str, &pTaskInfo->storageAPI);
+  (void)stopTableScanOperator(pTaskInfo->pRoot, pTaskInfo->id.str, &pTaskInfo->storageAPI);
 }
 
 void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status) {
@@ -100,6 +101,7 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
                            int32_t vgId, char* sql, EOPTR_EXEC_MODEL model) {
   int32_t code = doCreateTask(pPlan->id.queryId, taskId, vgId, model, &pHandle->api, pTaskInfo);
   if (*pTaskInfo == NULL || code != 0) {
+    nodesDestroyNode((SNode*)pPlan);
     taosMemoryFree(sql);
     return code;
   }
@@ -126,14 +128,15 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
 
 void cleanupQueriedTableScanInfo(void* p) {
   SSchemaInfo* pSchemaInfo = p;
-  
+
   taosMemoryFreeClear(pSchemaInfo->dbname);
   taosMemoryFreeClear(pSchemaInfo->tablename);
   tDeleteSchemaWrapper(pSchemaInfo->sw);
   tDeleteSchemaWrapper(pSchemaInfo->qsw);
 }
 
-int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, const char* dbName, SExecTaskInfo* pTaskInfo) {
+int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, const char* dbName,
+                                   SExecTaskInfo* pTaskInfo) {
   SMetaReader mr = {0};
   if (pHandle == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -284,7 +287,7 @@ void buildTaskId(uint64_t taskId, uint64_t queryId, char* dst) {
   memcpy(p, "TID:0x", offset);
   offset += tintToHex(taskId, &p[offset]);
 
-  memcpy(&p[offset], " QID:0x", 7);
+  memcpy(&p[offset], "QID:0x", 7);
   offset += 7;
   offset += tintToHex(queryId, &p[offset]);
 

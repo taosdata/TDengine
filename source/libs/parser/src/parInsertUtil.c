@@ -745,7 +745,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
 
       taosArraySort(pTableCxt->pData->aCol, insColDataComp);
 
-      tColDataSortMerge(pTableCxt->pData->aCol);
+      code = tColDataSortMerge(&pTableCxt->pData->aCol);
     } else {
       // skip the table has no data to insert
       // eg: import a csv without valid data
@@ -883,6 +883,10 @@ static bool findFileds(SSchema* pSchema, TAOS_FIELD* fields, int numFields) {
 
 int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq** pCreateTb, TAOS_FIELD* tFields,
                      int numFields, bool needChangeLength, char* errstr, int32_t errstrLen) {
+  if(data == NULL) {
+    uError("rawBlockBindData, data is NULL");
+    return TSDB_CODE_APP_ERROR;
+  }
   void* tmp =
       taosHashGet(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid, sizeof(pTableMeta->uid));
   STableDataCxt* pTableCxt = NULL;

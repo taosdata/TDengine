@@ -32,7 +32,7 @@ int32_t transCompressMsg(char* msg, int32_t len) {
 
   char* buf = taosMemoryMalloc(len + compHdr + 8);  // 8 extra bytes
   if (buf == NULL) {
-    tError("failed to allocate memory for rpc msg compression, contLen:%d", len);
+    tWarn("failed to allocate memory for rpc msg compression, contLen:%d", len);
     ret = len;
     return ret;
   }
@@ -183,7 +183,7 @@ int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf) {
       }
     }
   } else {
-    ASSERTS(0, "invalid read from sock buf");
+    tError("failed to reset buffer, total:%d, len:%d, reason:%s", p->total, p->len, tstrerror(TSDB_CODE_INVALID_MSG));
     return TSDB_CODE_INVALID_MSG;
   }
   return 0;
@@ -206,6 +206,8 @@ int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
       p->cap = p->left + p->len;
       p->buf = taosMemoryRealloc(p->buf, p->cap);
       if (p->buf == NULL) {
+        uvBuf->base = NULL;
+        uvBuf->len = 0;
         return TSDB_CODE_OUT_OF_MEMORY;
       }
       uvBuf->base = p->buf + p->len;
@@ -440,11 +442,11 @@ void transReqQueueClear(queue* q) {
 
 int32_t transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg)) {
   queue->q = taosArrayInit(2, sizeof(void*));
-  queue->freeFunc = (void (*)(const void*))freeFunc;
-
   if (queue->q == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  queue->freeFunc = (void (*)(const void*))freeFunc;
+
   return 0;
 }
 bool transQueuePush(STransQueue* queue, void* arg) {
@@ -734,7 +736,7 @@ int32_t transOpenRefMgt(int size, void (*func)(void*)) {
 }
 void transCloseRefMgt(int32_t mgt) {
   // close ref
-  (void)taosCloseRef(mgt);
+  taosCloseRef(mgt);
 }
 int64_t transAddExHandle(int32_t refMgt, void* p) {
   // acquire extern handle
@@ -867,3 +869,8 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
   *ppBuf = pBuf;
   return len;
 }
+
+// int32_t transGenRandomError(int32_t status) {
+//   STUB_RAND_NETWORK_ERR(status)
+//   return status;
+// }

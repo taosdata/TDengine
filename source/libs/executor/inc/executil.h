@@ -24,15 +24,14 @@
 #include "tpagedbuf.h"
 #include "tsimplehash.h"
 
-#define T_LONG_JMP(_obj, _c) \
-  do {                       \
-    ASSERT(1);               \
-    longjmp((_obj), (_c));   \
+#define T_LONG_JMP(_obj, _c)                                                              \
+  do {                                                                                    \
+    qError("error happens at %s, line:%d, code:%s", __func__, __LINE__, tstrerror((_c))); \
+    longjmp((_obj), (_c));                                                                \
   } while (0)
 
 #define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)           \
   do {                                                     \
-    assert(sizeof(_uid) == sizeof(uint64_t));              \
     *(uint64_t*)(_k) = (_uid);                             \
     (void)memcpy((_k) + sizeof(uint64_t), (_ori), (_len)); \
   } while (0)
@@ -126,7 +125,7 @@ uint64_t        tableListGetTableGroupId(const STableListInfo* pTableList, uint6
 int32_t         tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid);
 int32_t         tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo,
                                       int32_t* num);
-uint64_t        tableListGetSize(const STableListInfo* pTableList);
+int32_t         tableListGetSize(const STableListInfo* pTableList, int32_t* pRes);
 uint64_t        tableListGetSuid(const STableListInfo* pTableList);
 STableKeyInfo*  tableListGetInfo(const STableListInfo* pTableList, int32_t index);
 int32_t         tableListFind(const STableListInfo* pTableList, uint64_t uid, int32_t startIndex);

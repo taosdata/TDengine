@@ -42,7 +42,7 @@ static const char *gCurrentFname[] = {
 static int32_t create_fs(STsdb *pTsdb, STFileSystem **fs) {
   fs[0] = taosMemoryCalloc(1, sizeof(*fs[0]));
   if (fs[0] == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   fs[0]->tsdb = pTsdb;
@@ -208,7 +208,9 @@ static int32_t load_fs(STsdb *pTsdb, const char *fname, TFileSetArray *arr) {
   /* fmtv */
   item1 = cJSON_GetObjectItem(json, "fmtv");
   if (cJSON_IsNumber(item1)) {
-    ASSERT(item1->valuedouble == 1);
+    if (item1->valuedouble != 1) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+    }
   } else {
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
@@ -415,7 +417,7 @@ static int32_t tsdbFSCreateFileObjHash(STFileSystem *fs, STFileHash *hash) {
   hash->numBucket = 4096;
   hash->buckets = taosMemoryCalloc(hash->numBucket, sizeof(STFileHashEntry *));
   if (hash->buckets == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   // vnode.json
@@ -892,7 +894,6 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
 
   // commit
   code = commit_edit(fs);
-  ASSERT(code == 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // schedule merge
@@ -1012,7 +1013,7 @@ int32_t tsdbFSCreateRefSnapshotWithoutLock(STFileSystem *fs, TFileSetArray **fse
   STFileSet *fset, *fset1;
 
   fsetArr[0] = taosMemoryCalloc(1, sizeof(*fsetArr[0]));
-  if (fsetArr[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (fsetArr[0] == NULL) return terrno;
 
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     code = tsdbTFileSetInitRef(fs->tsdb, fset, &fset1);
@@ -1024,6 +1025,7 @@ int32_t tsdbFSCreateRefSnapshotWithoutLock(STFileSystem *fs, TFileSetArray **fse
 
   if (code) {
     TARRAY2_DESTROY(fsetArr[0], tsdbTFileSetClear);
+    taosMemoryFree(fsetArr[0]);
     fsetArr[0] = NULL;
   }
   return code;
@@ -1050,7 +1052,6 @@ static SHashObj *tsdbFSetRangeArrayToHash(TFileSetRangeArray *pRanges) {
     STFileSetRange *u = TARRAY2_GET(pRanges, i);
     int32_t         fid = u->fid;
     int32_t         code = taosHashPut(pHash, &fid, sizeof(fid), u, sizeof(*u));
-    ASSERT(code == 0);
     tsdbDebug("range diff hash fid:%d, sver:%" PRId64 ", ever:%" PRId64, u->fid, u->sver, u->ever);
   }
   return pHash;
@@ -1118,7 +1119,7 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
 
   fsrArr[0] = taosMemoryCalloc(1, sizeof(*fsrArr[0]));
   if (fsrArr[0] == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _out;
   }
 
@@ -1190,10 +1191,8 @@ int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset) {
         (void)taosThreadCondWait(&(*fset)->beginTask, &tsdb->mutex);
 
         (void)tsdbFSGetFSet(tsdb->pFS, fid, fset);
-        ASSERT(fset != NULL);
 
         (*fset)->numWaitTask--;
-        ASSERT((*fset)->numWaitTask >= 0);
       } else {
         (*fset)->taskRunning = true;
         break;
