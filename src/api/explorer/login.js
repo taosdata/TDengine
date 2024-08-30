@@ -90,5 +90,6 @@ export function importTaosInfo(data) {
         url: `/import`,
         method: "post",
         data,
+        timeout: 10000,
     })
 }

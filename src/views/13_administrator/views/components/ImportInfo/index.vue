@@ -1,5 +1,5 @@
 <template>
-  <div v-loading="loading">
+  <div>
     <el-form
       :model="ruleForm"
       :rules="rules"
@@ -68,6 +68,7 @@
           @click="createUser"
           class="w100"
           type="primary"
+          :loading="loading"
           >{{ $t("confirm") }}</el-button
         >
       </el-col>
@@ -186,6 +187,7 @@ export default {
     createUser() {
       this.$refs["ruleForm"].validate(async(valid) => {
         if (valid) {
+          this.loading = true;
           let params = {
             server: this.getServer(),
             passwords: this.getSelectItem('passwords'),
@@ -200,10 +202,11 @@ export default {
             }
             this.importReason = res
             this.showAlert = true
+            this.loading = false;
             this.$emit("refresh")
             Message.success(this.$t("operateSucc"));
           } catch (error) {
-            this.$error(error?.message);
+            this.loading = false;
             console.log(error);
           }
         } else {
