@@ -593,8 +593,9 @@ impl DataSourceDefinition {
                         connect_timeout,
                     } => {
                         match dsn.driver.as_str() {
-                            "tmq" => {
+                            "tmq" | "sync" => {
                                 let mut dsn = dsn.clone();
+                                dsn.driver = "tmq".to_string();
                                 for group in self.groups.as_mut_slice() {
                                     for param in &mut group.params {
                                         dsn.remove(&param.name);

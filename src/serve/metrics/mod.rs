@@ -77,7 +77,7 @@ pub async fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<C
     let task_id = task.task.id;
     match dsn.driver.as_str() {
         "taos" => try_get_metrics::<LegacyToTaosMetrics>(task_id).await,
-        "tmq" => try_get_metrics::<TmqMetrics>(task_id).await,
+        "tmq" | "sync" => try_get_metrics::<TmqMetrics>(task_id).await,
         "opc"
         | "opcua"
         | "opcda"

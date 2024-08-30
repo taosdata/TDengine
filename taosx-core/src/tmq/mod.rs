@@ -752,7 +752,7 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
     let mut dsn = dsn.clone();
     if dsn.subject.is_none() {
         return DataSourceValidation::invalid(
-            "tmq".to_string(),
+            dsn.driver.clone(),
             format!(
                 "invalid dsn: {}, cause: subject is required in tmq dsn",
                 dsn.to_string()
@@ -767,7 +767,7 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
     let validation = check_tmq_dsn(dsn.clone()).await;
     match validation {
         Err(err) => DataSourceValidation::invalid(
-            "tmq".to_string(),
+            dsn.driver.clone(),
             format!(
                 "failed to check dsn: {}, cause: {}",
                 dsn.to_string(),
@@ -778,13 +778,13 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
             let version = builder.server_version().await;
             match version {
                 Err(err) => DataSourceValidation::invalid(
-                    "tmq".to_string(),
+                    dsn.driver.clone(),
                     format!("failed to get server version, cause: {}", err.to_string()),
                 ),
                 Ok(version) => DataSourceValidation {
                     valid: true,
                     support: true,
-                    data_source: "tmq".to_string(),
+                    data_source: dsn.driver,
                     version: Some(version.to_string()),
                     message: None,
                     namespaces: None,
