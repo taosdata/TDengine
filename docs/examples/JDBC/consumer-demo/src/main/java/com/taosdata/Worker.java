@@ -42,7 +42,7 @@ public class Worker implements Runnable {
     }
 
     public static void logAlert(AlertConfig alertConfig, String message) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(alertConfig.getAlertFile()))) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(alertConfig.getAlertFile(), true))) {
             writer.write(message);
             writer.newLine();
             System.out.println(message);
