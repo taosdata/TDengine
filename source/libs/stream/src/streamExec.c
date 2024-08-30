@@ -133,7 +133,7 @@ void streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* to
         const SStreamDataBlock* pRetrieveBlock = (const SStreamDataBlock*)pItem;
         int32_t                 num = taosArrayGetSize(pRetrieveBlock->blocks);
         if (num != 1) {
-          stError("s-task:%s invalid retrieve block, ignore", pTask->id.idStr, num);
+          stError("s-task:%s invalid retrieve block number:%d, ignore", pTask->id.idStr, num);
           continue;
         }
 
