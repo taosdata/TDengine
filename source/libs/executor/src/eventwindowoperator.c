@@ -140,20 +140,14 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   }
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (pInfo != NULL) {
     destroyEWindowOperatorInfo(pInfo);
   }
 
-  if (pOperator != NULL) {
-    pOperator->info = NULL;
-    if (pOperator->pDownstream == NULL && downstream != NULL) {
-      destroyOperator(downstream);
-    }
-    destroyOperator(pOperator);
-  }
+  destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
   return code;
 }

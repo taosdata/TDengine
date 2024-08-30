@@ -374,6 +374,7 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
   LRUStatus status = TAOS_LRU_STATUS_OK;
   SArray   *lastReferenceList = taosArrayInit(16, POINTER_BYTES);
   if (!lastReferenceList) {
+    taosLRUEntryFree(e);
     return TAOS_LRU_STATUS_FAIL;
   }
 
@@ -385,13 +386,12 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
     TAOS_LRU_ENTRY_SET_IN_CACHE(e, false);
     if (handle == NULL) {
       if (!taosArrayPush(lastReferenceList, &e)) {
-        (void)taosThreadMutexUnlock(&shard->mutex);
         taosLRUEntryFree(e);
-        return status;
+        goto _exit;
       }
     } else {
       if (freeOnFail) {
-        taosMemoryFree(e);
+        taosLRUEntryFree(e);
 
         *handle = NULL;
       }
@@ -410,9 +410,9 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
         shard->usage -= old->totalCharge;
 
         if (!taosArrayPush(lastReferenceList, &old)) {
-          (void)taosThreadMutexUnlock(&shard->mutex);
+          taosLRUEntryFree(e);
           taosLRUEntryFree(old);
-          return status;
+          goto _exit;
         }
       }
     }
@@ -427,6 +427,7 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
     }
   }
 
+_exit:
   (void)taosThreadMutexUnlock(&shard->mutex);
 
   for (int i = 0; i < taosArrayGetSize(lastReferenceList); ++i) {

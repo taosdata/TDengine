@@ -970,6 +970,10 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
 
   int32_t numOfRows = blockDataGetCapacityInRow(pHandle->pDataBlock, pHandle->pageSize,
                                                 blockDataGetSerialMetaSize(taosArrayGetSize(pHandle->pDataBlock->pDataBlock)));
+  if (numOfRows < 0) {
+    return terrno;
+  }
+  
   int32_t code = blockDataEnsureCapacity(pHandle->pDataBlock, numOfRows);
   if (code) {
     return code;
@@ -1999,6 +2003,9 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t pageHeaderSize = sizeof(int32_t) + sizeof(int32_t) * blockDataGetNumOfCols(pHandle->pDataBlock);
   int32_t rowCap = blockDataGetCapacityInRow(pHandle->pDataBlock, pHandle->pageSize, pageHeaderSize);
+  if (rowCap < 0) {
+    return terrno;
+  }
   
   code = blockDataEnsureCapacity(pHandle->pDataBlock, rowCap);
   if (code) {
