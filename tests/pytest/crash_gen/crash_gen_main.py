@@ -2295,6 +2295,15 @@ class TdSuperTable:
         return ret
 
     def _getCols(self, dbc) -> dict:
+        """
+        Retrieve the columns of a table from the database.
+
+        Args:
+            dbc: The database connection object.
+
+        Returns:
+            A dictionary containing the column names as keys and their corresponding types as values.
+        """
         dbc.query("DESCRIBE {}.{}".format(self._dbName, self._stName))
         stCols = dbc.getQueryResult()
         ret = {row[0]: row[1] for row in stCols if row[3] != 'TAG'}  # name:type
@@ -2425,24 +2434,63 @@ class TdSuperTable:
     #     return ret
 
     def formatTimediff(self, expr1):
+        """
+        Formats the timedifference between two expressions.
+
+        Args:
+            expr1 (str): The first expression.
+
+        Returns:
+            str: The formatted timedifference expression.
+
+        """
         # 1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)
         time_unit = random.choice(DataBoundary.TIME_UNIT.value)
         expr2 = f'{expr1}+1{time_unit}'
         return f"TIMEDIFF({expr1}, {expr2})"
 
     def formatDiff(self, expr1):
-        ignore_val = random.choice(DataBoundary.DIFF_IGNORE_BOUNDARY.value)
-        if ignore_val == 0:
-            return f"DIFF({expr1})"
-        else:
-            return f"DIFF({expr1}, {ignore_val})"
+            """
+            Formats the difference between the given expression and a randomly chosen ignore value.
+
+            Args:
+                expr1 (str): The expression to calculate the difference for.
+
+            Returns:
+                str: The formatted difference string.
+
+            """
+            ignore_val = random.choice(DataBoundary.DIFF_IGNORE_BOUNDARY.value)
+            if ignore_val == 0:
+                return f"DIFF({expr1})"
+            else:
+                return f"DIFF({expr1}, {ignore_val})"
 
     def formatTimeTruncate(self, expr):
+        """
+        Formats the given expression by truncating the time to a specified unit.
+
+        Args:
+            expr (str): The expression to be formatted.
+
+        Returns:
+            str: The formatted expression using the TIMETRUNCATE function.
+        """
         time_unit = random.choice(DataBoundary.TIME_UNIT.value[2:])
         use_current_timezone = random.choice(DataBoundary.TIMEZONE_BOUNDARY.value)
         return f'TIMETRUNCATE({expr}, 1{time_unit}, {use_current_timezone})'
 
     def formatHistogram(self, expr):
+        """
+        Formats the histogram expression.
+
+        Args:
+            expr (str): The expression to be formatted.
+
+        Returns:
+            str: The formatted histogram expression.
+
+        """
         user_input1 = [f'HISTOGRAM({expr}, "user_input", "[1, 3, 5, 7]", {random.choice([0, 1])})']
         linear_bin  = [f'HISTOGRAM({expr}, "linear_bin", \'{{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}}\', {random.choice(DataBoundary.HISTOGRAM_BOUNDARY.value)})']
         user_input2 = [f'HISTOGRAM({expr}, "user_input", \'{{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}}\', {random.choice(DataBoundary.HISTOGRAM_BOUNDARY.value)})']
@@ -2450,28 +2498,64 @@ class TdSuperTable:
         return random.choice(funcList)
 
     def formatPercentile(self, expr):
+        """
+        Formats the given expression with random percentiles.
+
+        Args:
+            expr (str): The expression to be formatted.
+
+        Returns:
+            str: The formatted expression with random percentiles.
+        """
         rcnt = random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1])
         p = random.sample(range(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1]*10), rcnt)
         return f'PERCENTILE({expr},{",".join(map(str, p))})'
 
     def formatStatecount(self, expr):
+        """
+        Formats the state count expression.
+
+        Args:
+            expr (str): The expression to be formatted.
+
+        Returns:
+            str: The formatted state count expression.
+
+        """
         val = random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1])
         oper = random.choice(DataBoundary.STATECOUNT_UNIT.value)
         return f'STATECOUNT({expr}, "{oper}", {val})'
 
     def formatStateduration(self, expr):
+        """
+        Formats the stateduration expression with random values.
+
+        Args:
+            expr (str): The expression to be formatted.
+
+        Returns:
+            str: The formatted stateduration expression.
+
+        """
         val = random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1])
         oper = random.choice(DataBoundary.STATECOUNT_UNIT.value)
         unit = random.choice(DataBoundary.TIME_UNIT.value)
         return f'STATEDURATION({expr}, "{oper}", {val}, 1{unit})'
 
     def formatConcat(self, expr, *args):
-        print("---1args:", *args)
-        print("---2args:", args)
+        """
+        Formats and concatenates the given expression and arguments.
+
+        Args:
+            expr (str): The expression to be formatted and concatenated.
+            *args: Variable number of arguments to be concatenated.
+
+        Returns:
+            str: The formatted and concatenated string.
+        """
         base = f'CONCAT("pre_", cast({expr} as nchar({DataBoundary.CONCAT_BOUNDARY.value[1]})))'
         argsVals = list()
         for i in range(len(args[:DataBoundary.CONCAT_BOUNDARY.value[1]-1])):
-            print("---args[i]:", args[i])
             argsVals.append(f'cast({args[i]} as nchar({DataBoundary.CONCAT_BOUNDARY.value[1]}))')
         if len(argsVals) == 0:
             return base
@@ -2479,27 +2563,73 @@ class TdSuperTable:
             return f'CONCAT({base}, {", ".join(argsVals)})'
 
     def formatConcatWs(self, expr, *args):
+        """
+        Formats the given expression and arguments into a concatenated string using CONCAT_WS function.
+
+        Args:
+            expr (str): The expression to be formatted.
+            *args (str): Variable number of arguments to be concatenated.
+
+        Returns:
+            str: The formatted concatenated string.
+
+        Example:
+            >>> formatConcatWs("column1", "column2", "column3")
+            'CONCAT_WS(",", CONCAT_WS("_", "pre_", cast(column1 as nchar(10))), cast(column2 as nchar(10)), cast(column3 as nchar(10)))'
+        """
         separator_expr = random.choice([",", ":", ";", "_", "-"])
         base = f'CONCAT_WS("{separator_expr}", "pre_", cast({expr} as nchar({DataBoundary.CONCAT_BOUNDARY.value[1]})))'
-        print("----base", base)
         argsVals = list()
         for i in range(len(args[:DataBoundary.CONCAT_BOUNDARY.value[1]-1])):
             argsVals.append(f'cast({args[i]} as nchar({DataBoundary.CONCAT_BOUNDARY.value[1]}))')
-            print("----argsVals", argsVals)
         if len(argsVals) == 0:
             return base
         else:
             return f'CONCAT_WS("{separator_expr}", {base}, {", ".join(argsVals)})'
 
     def formatSubstr(self, expr):
+        """
+        Formats the given expression as a SUBSTR function with random position and length.
+
+        Args:
+            expr (str): The expression to be formatted.
+
+        Returns:
+            str: The formatted SUBSTR function.
+
+        """
         pos = random.choice(DataBoundary.SUBSTR_BOUNDARY.value)
         length = random.choice(DataBoundary.SUBSTR_BOUNDARY.value)
         return f'SUBSTR({expr}, {pos}, {length})'
 
     def formatCast(self, expr, castTypeList):
+        """
+        Formats the given expression with a random cast type from the provided list.
+
+        Args:
+            expr (str): The expression to be casted.
+            castTypeList (list): A list of cast types to choose from.
+
+        Returns:
+            str: The formatted expression with a random cast type.
+
+        """
         return f'CAST({expr} AS {random.choice(castTypeList)})'
 
     def formatFunc(self, func, colname, castTypeList="nchar", *args, **kwarg):
+        """
+        Format the function based on the given parameters.
+
+        Args:
+            func (str): The function name.
+            colname (str): The column name.
+            castTypeList (str, optional): The cast type list. Defaults to "nchar".
+            *args: Variable length argument list.
+            **kwarg: Arbitrary keyword arguments.
+
+        Returns:
+            str: The formatted function string.
+        """
         if func in ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'ROUND', 'SIN', 'SQRT', 'TAN'] + \
                     ['AVG', 'COUNT', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG'] + \
                     ['FIRST', 'LAST', 'LAST_ROW', 'MAX', 'MIN', 'MODE', 'UNIQUE'] + \
@@ -2560,6 +2690,17 @@ class TdSuperTable:
             pass
 
     def getShowSql(self, dbname, tbname, ctbname):
+        """
+        Returns a SQL query for showing information about a database, table, or tag.
+
+        Args:
+            dbname (str): The name of the database.
+            tbname (str): The name of the table.
+            ctbname (str): The name of the child table.
+
+        Returns:
+            str: The SQL query for showing the requested information.
+        """
         showSql = random.choice(DataBoundary.SHOW_UNIT.value)
         if "DISTRIBUTED" in showSql:
             return f'{showSql} {tbname};'
@@ -2588,6 +2729,16 @@ class TdSuperTable:
         return "select * from information_schema.ins_stables;"
 
     def getSlimitValue(self, rand=None):
+        """
+        Returns a slimit value.
+
+        Parameters:
+        - rand (bool): If True, a random slimit value will be generated. If False or None, an empty string will be returned.
+
+        Returns:
+        - str: The generated slimit value.
+
+        """
         useTag = random.choice([True, False]) if rand is None else True
         if useTag:
             slimitValList = [f'SLIMIT({random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)})', f'SLIMIT {random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)}, {random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)}']
@@ -2617,6 +2768,19 @@ class TdSuperTable:
             return False
 
     def selectFuncsFromType(self, fm, colname, column_type, doAggr):
+        """
+        Selects functions based on the given parameters.
+
+        Args:
+            fm (dict): A dictionary containing function categories as keys and lists of functions as values.
+            colname (str): The name of the column.
+            column_type (str): The type of the column.
+            doAggr (int): An integer representing the type of aggregation to perform.
+
+        Returns:
+            tuple: A tuple containing the selected functions as a comma-separated string and the group key.
+
+        """
         if doAggr == 0:
             categoryList = ['aggFuncs']
         elif doAggr == 1:
@@ -2627,6 +2791,7 @@ class TdSuperTable:
             categoryList = ['specialFuncs']
         else:
             return
+
         funcList = list()
         print("----categoryList", categoryList)
         print("----fm", fm)
@@ -2634,13 +2799,16 @@ class TdSuperTable:
         for category in categoryList:
             funcList += fm[category]
         print("----funcList", funcList)
+
         selectItems = random.sample(funcList, random.randint(1, len(funcList))) if len(funcList) > 0 else list()
         funcStrList = list()
+
         for func in selectItems:
             print("----func", func)
             funcStr = self.formatFunc(func, colname, fm["castTypes"])
             print("----funcStr", funcStr)
             funcStrList.append(funcStr)
+
         print("-------funcStrList:", funcStrList)
         print("-------funcStr:", ",".join(funcStrList))
         print("----selectItems", selectItems)
@@ -2649,44 +2817,11 @@ class TdSuperTable:
             groupKey = colname if self.setGroupTag(fm, funcList) else ""
         else:
             groupKey = colname if self.setGroupTag(fm, funcList) else ""
+
         if doAggr == 2:
             return ",".join([random.choice(funcStrList)]), groupKey
+
         return ",".join(funcStrList), groupKey
-
-
-        # # colTypes = ['NUMERIC', 'TEXT', 'BINARY', 'BOOLEAN', 'TIMESTAMP'...]
-        # colTypes = [member.name for member in FunctionMap]
-        # # cateDict = {'NUMERIC': '......', 'TEXT': '......', 'BINARY': '......', 'BOOLEAN': '......', 'TIMESTAMP': '......'...}
-        # print(fm)
-        # cateDict = fm.value
-        # # categories = ['mathFuncs', 'strFuncs', 'timeFuncs', 'aggFuncs', 'selectFuncs', 'specialFuncs']
-        # categories = [key for key in cateDict.keys() if "Funcs" in key]
-        # for category in categories:
-        #     if FunctionMap[category]:
-        #         func = random.choice()
-        #         pass
-        '''
-    fm:
-        {
-            'types': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE'],
-            'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
-            'strFuncs': [],
-            'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMEZONE', 'TODAY'],
-            'aggFuncs': ['APERCENTILE', 'AVG', 'COUNT', 'LEASTSQUARES', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG', 'HISTOGRAM', 'PERCENTILE'],
-            'selectFuncs': ['BOTTOM', 'FIRST', 'INTERP', 'LAST', 'LAST_ROW', 'MAX', 'MIN', 'MODE', 'SAMPLE', 'TAIL', 'TOP', 'UNIQUE'],
-            'specialFuncs': ['CSUM', 'DERIVATIVE', 'DIFF', 'IRATE', 'MAVG', 'STATECOUNT', 'STATEDURATION', 'TWA'],
-            'castFuncs': ['CAST', 'TO_ISO8601'],
-            'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP']
-        }
-        '''
-        # for category in categories:
-        #     if fm[category]:
-        #         func = random.choice(fm[category])
-        #         if func == 'CAST':
-        #             cast_type = random.choice(fm['castTypes'])
-        #             return f"{func}({colname} AS {cast_type})"
-        #         return f"{func}({colname})"
-        # return f"COUNT({colname})"  # Default fallback
 
     def getFuncCategory(self, doAggr):
         if doAggr == 0:
@@ -2743,6 +2878,16 @@ class TdSuperTable:
         return slidingVal
 
     def getOrderByValue(self, col, rand=None):
+        """
+        Returns the ORDER BY clause for a given column.
+
+        Args:
+            col (str): The name of the column to order by.
+            rand (bool, optional): If True, a random order type will be used. Defaults to None.
+
+        Returns:
+            str: The ORDER BY clause for the given column.
+        """
         useTag = random.choice([True, False]) if rand is None else True
         orderType = random.choice(["ASC", "DESC", ""]) if useTag else ""
         orderVal = f'ORDER BY {col} {orderType}' if useTag else ""
@@ -2769,6 +2914,21 @@ class TdSuperTable:
         return [res[0][0], res[1][0]]
 
     def getTimeRangeFilter(self, tbname, tsCol, rand=None):
+        """
+        Returns a time range filter based on the given table name and timestamp column.
+
+        Parameters:
+        - tbname (str): The name of the table.
+        - tsCol (str): The name of the timestamp column.
+        - rand (bool, optional): If True, a random time range filter will be generated. 
+                                    If False, an empty string will be returned. 
+                                    If None, a random choice will be made between generating a time range filter or returning an empty string. 
+                                    Default is None.
+
+        Returns:
+        - timeRangeFilter (str): The generated time range filter.
+        """
+        
         useTag = random.choice([True, False]) if rand is None else True
         if useTag:
             start_time, end_time = self.getTimeRange(tbname, tsCol)
@@ -2778,16 +2938,46 @@ class TdSuperTable:
         return timeRangeFilter
 
     def getPartitionValue(self, col, rand=None):
-        useTag = random.choice([True, False]) if rand is None else True
-        partitionVal = f'PARTITION BY {col}' if useTag else ""
-        return partitionVal
+            """
+            Returns the partition value based on the given column.
+
+            Args:
+                col (str): The column to partition by.
+                rand (bool, optional): If True, a random partition value will be used. Defaults to None.
+
+            Returns:
+                str: The partition value.
+
+            """
+            useTag = random.choice([True, False]) if rand is None else True
+            partitionVal = f'PARTITION BY {col}' if useTag else ""
+            return partitionVal
 
     def getPartitionObj(self, rand=None):
+        """
+        Returns a partition object based on a random choice.
+
+        Args:
+            rand (bool, optional): If True, always uses a random choice. If False, does not use a random choice. Defaults to None.
+
+        Returns:
+            str: The partition object. If `useTag` is True, returns a string in the format 'PARTITION BY {random_choice}'. If `useTag` is False, returns an empty string.
+        """
         useTag = random.choice([True, False]) if rand is None else True
         partitionObj = f'PARTITION BY {random.choice(DataBoundary.ALL_TYPE_UNIT.value)}' if useTag else ""
         return partitionObj
 
     def getEventWindowCondition(self, colDict):
+        """
+        Generates a random event window condition based on the column dictionary provided.
+
+        Args:
+            colDict (dict): A dictionary containing column names as keys and column types as values.
+
+        Returns:
+            str: A randomly generated event window condition.
+
+        """
         conditionList = list()
         lteList = ["<", "<="]
         gteList = [">", ">="]
@@ -2818,6 +3008,20 @@ class TdSuperTable:
         return random.choice(conditionList)
 
     def getWindowStr(self, window, colDict, tsCol="ts", stateUnit="1", countUnit="2"):
+        """
+        Returns a string representation of the window based on the given parameters.
+
+        Parameters:
+        - window (str): The type of window. Possible values are "INTERVAL", "SESSION", "STATE_WINDOW", "COUNT_WINDOW", and "EVENT_WINDOW".
+        - colDict (dict): A dictionary containing column names and their corresponding values.
+        - tsCol (str): The name of the timestamp column. Default is "ts".
+        - stateUnit (str): The unit for the state window. Default is "1".
+        - countUnit (str): The unit for the count window. Default is "2".
+
+        Returns:
+        - str: A string representation of the window.
+
+        """
         if window == "INTERVAL":
             return f"{window}({self.getRandomTimeUnitStr()}{self.getOffsetValue()})"
         elif window == "SESSION":
@@ -2832,9 +3036,21 @@ class TdSuperTable:
             return ""
 
     def generateRandomSql(self, colDict, tbname):
+        """
+        Generates a random SQL query based on the given column dictionary and table name.
+
+        Args:
+            colDict (dict): A dictionary containing column names as keys and column types as values.
+            tbname (str): The name of the table.
+
+        Returns:
+            str: The generated SQL query.
+
+        Raises:
+            None
+        """
         selectPartList = []
         groupKeyList = []
-        # colTypes = ['NUMERIC', 'TEXT', 'BINARY', 'BOOLEAN', 'TIMESTAMP'...]
         colTypes = [member.name for member in FunctionMap]
         print("-----colDict", colDict)
         print("-----colTypes", colTypes)
@@ -2850,15 +3066,6 @@ class TdSuperTable:
                 tsCol = column_name
             for fm in FunctionMap:
                 if column_type in fm.value['types']:
-                    # cateDict = {'NUMERIC': '......', 'TEXT': '......', 'BINARY': '......', 'BOOLEAN': '......', 'TIMESTAMP': '......'...}
-                    # cateDict = fm.value
-                    # print("-----cateDict", cateDict)
-                    # categories = ['mathFuncs', 'strFuncs', 'timeFuncs', 'aggFuncs', 'selectFuncs', 'specialFuncs']
-                    # categories = [key for key in cateDict.keys() if "Funcs" in key]
-                    # print("-----categories", categories)
-                    # / selectCate = 'mathFuncs'
-                    # selectCate = random.choice(categories)
-                    # print("-----selectCate", selectCate)
                     selectStrs, groupKey = self.selectFuncsFromType(fm.value, column_name, column_type, doAggr)
                     print("-----selectStrs", selectStrs)
                     if len(selectStrs) > 0:
@@ -2867,20 +3074,7 @@ class TdSuperTable:
                     if len(groupKey) > 0:
                         groupKeyList.append(groupKey)
 
-                    # / funcs = ['ABS', 'ACOS', 'ASIN'....]
-                    # funcs = random.sample(fm.value[selectFunc], random.randint(1, len(fm.value[selectFunc])))
-                    # print("-----funcs", funcs)
                     print("\n")
-                    # if func == 'CAST':
-                    #     cast_type = random.choice(FunctionMap['castTypes'])
-                    #     func_expression = f"{func}({column_name} AS {cast_type})"
-                    #     select_parts.append(func_expression)
-                    # else:
-                    #     func_expression = f"{func}({column_name})"
-                    #     select_parts.append(func_expression)
-                    # pass
-                    # func_expression = self.selectFuncsFromType(fm.value, column_name)
-                    # select_parts.append(func_expression)
 
         if doAggr == 2:
             selectPartList = [random.choice(selectPartList)]
@@ -2895,111 +3089,25 @@ class TdSuperTable:
 
 
     def generateQueries_n(self, dbc: DbConn, selectItems) -> List[SqlQuery]:
-        ''' Generate queries to test/exercise this super table '''
+        ''' 
+        Generate queries to test/exercise this super table 
+
+        Args:
+            dbc (DbConn): The database connection object.
+            selectItems: The select items for the SQL query.
+
+        Returns:
+            List[SqlQuery]: A list of generated SQL queries.
+        '''
         ret = []  # type: List[SqlQuery]
 
-
         for rTbName in self.getRegTables(dbc):  # regular tables
-
             filterExpr = Dice.choice([  # TODO: add various kind of WHERE conditions
                 None
             ])
             sql = self.generateRandomSql(selectItems, rTbName)
             print("-----sql", sql)
             ret.append(SqlQuery(sql))
-            # # Run the query against the regular table first
-            # doAggr = (Dice.throw(2) == 0)  # 1 in 2 chance
-            # if not doAggr:  # don't do aggregate query, just simple one
-            #     query_parts = []
-            #     for colName, colType in selectItems.items():
-            #         for groupKey, group in FunctionMap:
-            #             query_parts.append(colName)
-
-            #     commonExpr = Dice.choice([
-            #         '*',
-            #         'abs(speed)',
-            #         'acos(speed)',
-            #         'asin(speed)',
-            #         'atan(speed)',
-            #         'ceil(speed)',
-            #         'cos(speed)',
-            #         'cos(speed)',
-            #         'floor(speed)',
-            #         'log(speed,2)',
-            #         'pow(speed,2)',
-            #         'round(speed)',
-            #         'sin(speed)',
-            #         'sqrt(speed)',
-            #         'char_length(color)',
-            #         'concat(color,color)',
-            #         'concat_ws(" ", color,color," ")',
-            #         'length(color)',
-            #         'lower(color)',
-            #         'ltrim(color)',
-            #         'substr(color , 2)',
-            #         'upper(color)',
-            #         'cast(speed as double)',
-            #         'cast(ts as bigint)',
-            #         # 'TO_ISO8601(color)',
-            #         # 'TO_UNIXTIMESTAMP(ts)',
-            #         'now()',
-            #         'timediff(ts,now)',
-            #         'timezone()',
-            #         'TIMETRUNCATE(ts,1s)',
-            #         'TIMEZONE()',
-            #         'TODAY()',
-            #         'distinct(color)'
-            #     ]
-            #     )
-            #     ret.append(SqlQuery(  # reg table
-            #         "select {} from {}.{}".format(commonExpr, self._dbName, rTbName)))
-            #     ret.append(SqlQuery(  # super table
-            #         "select {} from {}.{}".format(commonExpr, self._dbName, self.getName())))
-            # else:  # Aggregate query
-            #     aggExpr = Dice.choice([
-            #         'count(*)',
-            #         'avg(speed)',
-            #         # 'twa(speed)', # TODO: this one REQUIRES a where statement, not reasonable
-            #         'sum(speed)',
-            #         'stddev(speed)',
-            #         # SELECTOR functions
-            #         'min(speed)',
-            #         'max(speed)',
-            #         'first(speed)',
-            #         'last(speed)',
-            #         'top(speed, 50)',  # TODO: not supported?
-            #         'bottom(speed, 50)',  # TODO: not supported?
-            #         'apercentile(speed, 10)',  # TODO: TD-1316
-            #         'last_row(*)',  # TODO: commented out per TD-3231, we should re-create
-            #         # Transformation Functions
-            #         # 'diff(speed)', # TODO: no supported?!
-            #         'spread(speed)',
-            #         'elapsed(ts)',
-            #         'mode(speed)',
-            #         'bottom(speed,1)',
-            #         'top(speed,1)',
-            #         'tail(speed,1)',
-            #         'unique(color)',
-            #         'csum(speed)',
-            #         'DERIVATIVE(speed,1s,1)',
-            #         'diff(speed,1)',
-            #         'irate(speed)',
-            #         'mavg(speed,3)',
-            #         'sample(speed,5)',
-            #         'STATECOUNT(speed,"LT",1)',
-            #         'STATEDURATION(speed,"LT",1)',
-            #         'twa(speed)'
-
-            #     ])  # TODO: add more from 'top'
-
-            #     # if aggExpr not in ['stddev(speed)']: # STDDEV not valid for super tables?! (Done in TD-1049)
-            #     sql = "select {} from {}.{}".format(aggExpr, self._dbName, self.getName())
-            #     if Dice.throw(3) == 0:  # 1 in X chance
-            #         partion_expr = Dice.choice(['color', 'tbname'])
-            #         sql = sql + ' partition BY ' + partion_expr + ' order by ' + partion_expr
-            #         Progress.emit(Progress.QUERY_GROUP_BY)
-            #         # Logging.info("Executing GROUP-BY query: " + sql)
-            #     ret.append(SqlQuery(sql))
 
         return ret
 
