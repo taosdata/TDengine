@@ -585,12 +585,18 @@ void getCheckRspStatus(STaskCheckInfo* pInfo, int64_t el, int32_t* numOfReady, i
     } else {                                 // TASK_DOWNSTREAM_NOT_READY
       if (p->rspTs == 0) {                   // not response yet
         if (el >= CHECK_NOT_RSP_DURATION) {  // not receive info for 10 sec.
-          (void)taosArrayPush(pTimeoutList, &p->taskId);
+          void* px = taosArrayPush(pTimeoutList, &p->taskId);
+          if (px == NULL) {
+            stError("s-task:%s failed to record time out task:0x%x", id, p->taskId);
+          }
         } else {                // el < CHECK_NOT_RSP_DURATION
           (*numOfNotRsp) += 1;  // do nothing and continue waiting for their rsp
         }
       } else {
-        (void)taosArrayPush(pNotReadyList, &p->taskId);
+        void* px = taosArrayPush(pNotReadyList, &p->taskId);
+        if (px == NULL) {
+          stError("s-task:%s failed to record not ready task:0x%x", id, p->taskId);
+        }
       }
     }
   }

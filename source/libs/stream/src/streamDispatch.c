@@ -474,7 +474,10 @@ static void addDispatchEntry(SDispatchMsgInfo* pMsgInfo, int32_t nodeId, int64_t
     streamMutexLock(&pMsgInfo->lock);
   }
 
-  (void)taosArrayPush(pMsgInfo->pSendInfo, &entry);
+  void* p = taosArrayPush(pMsgInfo->pSendInfo, &entry);
+  if (p == NULL) {
+    stError("failed to add dispatch info");
+  }
 
   if (lock) {
     streamMutexUnlock(&pMsgInfo->lock);
@@ -671,8 +674,8 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     memcpy(bln.parTbName, pDataBlock->info.parTbName, strlen(pDataBlock->info.parTbName));
 
     // failed to put into name buffer, no need to do anything
-    if (tSimpleHashGetSize(pTask->pNameMap) < MAX_BLOCK_NAME_NUM) {
-      (void)tSimpleHashPut(pTask->pNameMap, &groupId, sizeof(int64_t), &bln, sizeof(SBlockName));
+    if (tSimpleHashGetSize(pTask->pNameMap) < MAX_BLOCK_NAME_NUM) { // allow error, and do nothing
+       int32_t code = tSimpleHashPut(pTask->pNameMap, &groupId, sizeof(int64_t), &bln, sizeof(SBlockName));
     }
   }
 
@@ -914,9 +917,13 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
       continue;
     }
 
-    (void)taosArrayPush(pNotRspList, &pInfo->upstreamTaskId);
-    stDebug("s-task:%s vgId:%d level:%d checkpoint-ready rsp from upstream:0x%x not confirmed yet", id, vgId,
-            pTask->info.taskLevel, pInfo->upstreamTaskId);
+    void* p = taosArrayPush(pNotRspList, &pInfo->upstreamTaskId);
+    if (p == NULL) {
+      stError("s-task:%s vgId:%d failed to record not rsp task, code: out of memory", id, vgId);
+    } else {
+      stDebug("s-task:%s vgId:%d level:%d checkpoint-ready rsp from upstream:0x%x not confirmed yet", id, vgId,
+              pTask->info.taskLevel, pInfo->upstreamTaskId);
+    }
   }
 
   int32_t checkpointId = pActiveInfo->activeId;
@@ -1100,8 +1107,17 @@ int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatch
 
   payloadLen += sizeof(SRetrieveTableRsp);
 
-  (void)taosArrayPush(pReq->dataLen, &payloadLen);
-  (void)taosArrayPush(pReq->data, &buf);
+  void* px = taosArrayPush(pReq->dataLen, &payloadLen);
+  if (px == NULL) {
+    taosMemoryFree(buf);
+    return terrno;
+  }
+
+  px = taosArrayPush(pReq->data, &buf);
+  if (px == NULL) {
+    taosMemoryFree(buf);
+    return terrno;
+  }
 
   pReq->totalLen += dataStrLen;
   return 0;
@@ -1221,8 +1237,12 @@ int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHa
               pTask->id.idStr, pReady->checkpointId, pReady->transId, pReq->transId, pReq->checkpointId);
     }
   } else {
-    (void)taosArrayPush(pActiveInfo->pReadyMsgList, &info);
-    stDebug("s-task:%s add checkpoint source rsp msg, total:%d", pTask->id.idStr, size + 1);
+    void* px = taosArrayPush(pActiveInfo->pReadyMsgList, &info);
+    if (px != NULL) {
+      stDebug("s-task:%s add checkpoint source rsp msg, total:%d", pTask->id.idStr, size + 1);
+    } else {
+      stError("s-task:%s failed to add readyMsg, code: out of memory", pTask->id.idStr);
+    }
   }
 
   streamMutexUnlock(&pActiveInfo->lock);
@@ -1259,7 +1279,12 @@ int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamTaskId, 
   SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
 
   streamMutexLock(&pActiveInfo->lock);
-  (void)taosArrayPush(pActiveInfo->pReadyMsgList, &info);
+  void* px = taosArrayPush(pActiveInfo->pReadyMsgList, &info);
+  if (px == NULL) {
+    streamMutexUnlock(&pActiveInfo->lock);
+    stError("s-task:%s failed to add readyMsg info, code: out of memory", pTask->id.idStr);
+    return terrno;
+  }
 
   int32_t numOfRecv = taosArrayGetSize(pActiveInfo->pReadyMsgList);
   int32_t total = streamTaskGetNumOfUpstream(pTask);
