@@ -1680,7 +1680,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
 _exit:
   if (TSDB_CODE_SUCCESS != code) {
-    (void)printf("failed to create log at %d since %s:", lino, tstrerror(code));
+    (void)printf("failed to create log at %d since %s\n", lino, tstrerror(code));
   }
 
   cfgCleanup(pCfg);
@@ -1769,14 +1769,14 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
   TAOS_CHECK_GOTO(taosAddSystemCfg(tsCfg), &lino, _exit);
 
   if ((code = taosLoadCfg(tsCfg, envCmd, cfgDir, envFile, apolloUrl)) != 0) {
-    printf("failed to load cfg since %s\n", tstrerror(code));
+    (void)printf("failed to load cfg since %s\n", tstrerror(code));
     cfgCleanup(tsCfg);
     tsCfg = NULL;
     TAOS_RETURN(code);
   }
 
   if ((code = cfgLoadFromArray(tsCfg, pArgs)) != 0) {
-    printf("failed to load cfg from array since %s\n", tstrerror(code));
+    (void)printf("failed to load cfg from array since %s\n", tstrerror(code));
     cfgCleanup(tsCfg);
     tsCfg = NULL;
     TAOS_RETURN(code);
@@ -1798,7 +1798,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
 
   SConfigItem *pItem = cfgGetItem(tsCfg, "debugFlag");
   if (NULL == pItem) {
-    printf("debugFlag not found in cfg\n");
+    (void)printf("debugFlag not found in cfg\n");
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
   TAOS_CHECK_GOTO(taosSetAllDebugFlag(tsCfg, pItem->i32), &lino, _exit);
@@ -1811,7 +1811,7 @@ _exit:
   if (TSDB_CODE_SUCCESS != code) {
     cfgCleanup(tsCfg);
     tsCfg = NULL;
-    printf("failed to init cfg at %d since %s\n", lino, tstrerror(code));
+    (void)printf("failed to init cfg at %d since %s\n", lino, tstrerror(code));
   }
 
   TAOS_RETURN(code);
