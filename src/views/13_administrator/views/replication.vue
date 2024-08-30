@@ -191,7 +191,7 @@ export default {
       let url = splitArr[0] + "//" + splitArr[1]
       const type = this.isLessThen3_3_3_0 ? 'tmq' : 'sync';
       return (
-        splitArr[0].startsWith('sstaos')
+        splitArr[0].startsWith('taos')
           ? type + ":" + "//" + splitArr[1]
           : type + "+" + url 
       );
