@@ -77,3 +77,17 @@ select substring_index(nch1, '123', id) from ts_4893.meters where position('123'
 select substring_index(var1, '123', 1) from ts_4893.meters where position('123' in var1) > 1 order by ts limit 5;
 select substring_index(var1, '123', -1) from ts_4893.meters where position('123' in var1) > 1 order by ts limit 5;
 select substring_index(var1, '123', id) from ts_4893.meters where position('123' in var1) > 1 order by ts limit 5;
+select substring_index('www.taosdata.com', '.', 2);
+select substring_index('www.taosdata.com', '.', -2);
+select substring_index('中国.科学.www.taosdata.com', '.', 2);
+select substring_index('北京。涛思。数据。科技', '。', 2);
+select substring_index(nch1, 'a', 2) from ts_4893.d0 order by ts limit 10;
+select substring_index(nch1, 'a', 2) from ts_4893.meters order by ts limit 10;
+select substring_index(nch1, nch2, 2) from ts_4893.d0 order by ts limit 10;
+select substring_index(nch1, nch2, 2) from ts_4893.meters order by ts limit 10;
+select substring_index(nch1, var2, 2) from ts_4893.d0 order by ts limit 10;
+select substring_index(nch1, var2, 2) from ts_4893.meters order by ts limit 10;
+select substring_index(var1, nch2, 2) from ts_4893.d0 order by ts limit 10;
+select substring_index(var1, nch2, 2) from ts_4893.meters order by ts limit 10;
+select substring_index(var1, var2, 2) from ts_4893.d0 order by ts limit 10;
+select substring_index(var1, var2, 2) from ts_4893.meters order by ts limit 10;

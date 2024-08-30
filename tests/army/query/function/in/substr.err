@@ -1,0 +1,3 @@
+select substring();
+select substring('abc');
+select substring(10, 1);

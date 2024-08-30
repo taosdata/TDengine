@@ -11,3 +11,8 @@ select WEEKOFYEAR('2000-01-06 00:00:00') from ts_4893.meters order by ts limit 1
 select WEEKOFYEAR(1725095657);
 select WEEKOFYEAR(1725095657) from ts_4893.meters order by ts limit 10;
 select WEEKOFYEAR(ts) from ts_4893.meters order by ts limit 10;
+select weekofyear('2020-01-01');
+select weekofyear(1721020666);
+select weekofyear(1721020666229);
+select weekofyear(ts) from ts_4893.d0 order by ts limit 10;
+select weekofyear(ts) from ts_4893.meters order by ts limit 10;
