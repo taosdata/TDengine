@@ -379,13 +379,13 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
 
   code = tsortOpen(pInfo->pSortHandle);
   if (code != TSDB_CODE_SUCCESS) {
-    T_LONG_JMP(pTaskInfo->env, code);
+    pTaskInfo->code = code;
+  } else {
+    pOperator->cost.openCost = (taosGetTimestampUs() - pInfo->startTs) / 1000.0;
+    pOperator->status = OP_RES_TO_RETURN;
+    OPTR_SET_OPENED(pOperator);
   }
 
-  pOperator->cost.openCost = (taosGetTimestampUs() - pInfo->startTs) / 1000.0;
-  pOperator->status = OP_RES_TO_RETURN;
-
-  OPTR_SET_OPENED(pOperator);
   return code;
 }
 
