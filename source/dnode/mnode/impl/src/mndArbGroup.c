@@ -1316,7 +1316,7 @@ static int32_t mndRetrieveArbGroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 
 static void mndCancelGetNextArbGroup(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_ARBGROUP);
 }
 
 int32_t mndGetArbGroupSize(SMnode *pMnode) {
