@@ -82,36 +82,6 @@ export default {
     },
   },
   data() {
-    var checkEmail = async (_, value, callback) => {
-      if (!value || !validEmail(value)) {
-        return callback(new Error(this.$t("emailError")));
-      }
-    };
-    var validateOldPwd = async (_, value, callback) => {
-      if (!value) {
-        return callback(new Error("Old password is required."));
-      } else {
-        if (value != decrypt(localStorage.getItem("pwd"))) {
-          return callback(new Error("Old password is wrong."));
-        } else {
-          return callback();
-        }
-      }
-    };
-    var checkPassword = async (_, value, callback) => {
-      this.err_msg = "";
-      callback(
-        validPassword(value) ? undefined : new Error(this.$t("passwordError"))
-      );
-    };
-    let cheakConfirmPassword = async (_, value, callback) => {
-      this.err_msg = "";
-      callback(
-        value == this.changeForm.new_password
-          ? undefined
-          : new Error(this.$t("twoPassError"))
-      );
-    };
     return {
       changeForm: {
         // old_password: process.env.VUE_APP_PASSWORD,
@@ -121,7 +91,43 @@ export default {
         new_password: "",
         confirm_password: "",
       },
-      rules: {
+      err_msg: "",
+      requestIng: false,
+    };
+  },
+  computed: {
+    rules() {
+      const checkEmail = async (_, value, callback) => {
+        if (!value || !validEmail(value)) {
+          return callback(new Error(this.$t("emailError")));
+        }
+      };
+      const validateOldPwd = async (_, value, callback) => {
+        if (!value) {
+          return callback(new Error(this.$t("oldPass") + this.$t("requiredMessage")));
+        } else {
+          if (value != decrypt(localStorage.getItem("pwd"))) {
+            return callback(new Error(this.$t('oldPassError')));
+          } else {
+            return callback();
+          }
+        }
+      };
+      const checkPassword = async (_, value, callback) => {
+        this.err_msg = "";
+        callback(
+          validPassword(value) ? undefined : new Error(this.$t("passwordError"))
+        );
+      };
+      const cheakConfirmPassword = async (_, value, callback) => {
+        this.err_msg = "";
+        callback(
+          value == this.changeForm.new_password
+            ? undefined
+            : new Error(this.$t("twoPassError"))
+        );
+      };
+      return {
         email: [{ validator: checkEmail, trigger: "blur" }],
         old_password: [
           {
@@ -147,10 +153,8 @@ export default {
           },
           { validator: cheakConfirmPassword, trigger: "blur" },
         ],
-      },
-      err_msg: "",
-      requestIng: false,
-    };
+      }
+    },
   },
   methods: {
     change() {

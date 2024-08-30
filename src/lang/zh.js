@@ -118,6 +118,7 @@ export default {
   phoneError: "手机号格式有误!",
   oldPass: "旧密码",
   newPass: "新密码",
+  oldPassError: "旧密码错误",
   requiredMessage: "是必填的",
   passwordError: "密码格式错误",
   passwordTip: `<div>密码长度必须为8到16位，并且至少包含以下4类中的3类:</div><ul><li><el-icon class='el-icon-circle-check'></el-icon> 大写字母</li><li><el-icon class='el-icon-circle-check'></el-icon> 小写字母</li><li><el-icon class='el-icon-circle-check'></el-icon> 数字</li><li><el-icon class='el-icon-circle-check'></el-icon> 特殊字符</li></ul>`,

@@ -125,6 +125,7 @@ export default {
   phoneError: "Malformed phone number!",
   oldPass: "Old Password",
   newPass: "New Password",
+  oldPassError: "Old password is wrong",
   passwordError: "Wrong password format",
   passwordTip: `<div>Password must be 8 to 16 characters long and contain at least 3 of the following characters:</div><ul><li><el-icon class='el-icon-circle-check'></el-icon> Uppercase letters</li><li><el-icon class='el-icon-circle-check'></el-icon> Lowercase letters</li><li><el-icon class='el-icon-circle-check'></el-icon> Numbers</li><li><el-icon class='el-icon-circle-check'></el-icon> Special characters</li></ul>`,
   yesterday: "Yesterday",
