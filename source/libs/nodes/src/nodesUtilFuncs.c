@@ -1089,6 +1089,8 @@ void nodesDestroyNode(SNode* pNode) {
       if (pStmt->destroyParseFileCxt) {
         pStmt->destroyParseFileCxt(&pStmt->pParFileCxt);
       }
+
+      (void)taosCloseFile(&pStmt->fp);
       break;
     }
     case QUERY_NODE_CREATE_DATABASE_STMT:
