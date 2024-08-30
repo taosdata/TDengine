@@ -1,0 +1,10 @@
+army,python3 ./test.py -f query/query_basic.py -N 3
+system-test,python3 ./test.py -f 1-insert/insert_column_value.py
+system-test,python3 ./test.py -f 2-query/primary_ts_base_5.py
+system-test,python3 ./test.py -f 2-query/case_when.py
+system-test,python3 ./test.py -f 2-query/partition_limit_interval.py
+system-test,python3 ./test.py -f 2-query/join.py
+system-test,python3 ./test.py -f 2-query/fill.py
+system-test,python3 ./test.py -f 7-tmq/basic5.py
+system-test,python3 ./test.py -f 8-stream/stream_basic.py
+system-test,python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
