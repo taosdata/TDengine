@@ -661,12 +661,16 @@ int32_t idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
   }
 
   SArray* result = taosArrayInit(1024, sizeof(void*));
+  if (result == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+  }
 
   bool cn = cacheIter ? cacheIter->next(cacheIter) : false;
   bool tn = tfileIter ? tfileIter->next(tfileIter) : false;
 
   SIdxTRslt* tr = idxTRsltCreate();
   if (tr == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
   }
   while (cn == true || tn == true) {
     IterateValue* cv = (cn == true) ? cacheIter->getValue(cacheIter) : NULL;
@@ -682,33 +686,41 @@ int32_t idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
     }
     if (comp == 0) {
       code = idxMergeCacheAndTFile(result, cv, tv, tr);
-      if (code != 0) return code;
+      if (code != 0) {
+        TAOS_CHECK_GOTO(code, NULL, _exception);
+      }
 
       cn = cacheIter->next(cacheIter);
       tn = tfileIter->next(tfileIter);
     } else if (comp < 0) {
       code = idxMergeCacheAndTFile(result, cv, NULL, tr);
-      if (code != 0) return code;
+      if (code != 0) {
+        TAOS_CHECK_GOTO(code, NULL, _exception);
+      }
       cn = cacheIter->next(cacheIter);
     } else {
       code = idxMergeCacheAndTFile(result, NULL, tv, tr);
-      if (code != 0) return code;
+      if (code != 0) {
+        TAOS_CHECK_GOTO(code, NULL, _exception);
+      }
       tn = tfileIter->next(tfileIter);
     }
   }
   if ((code = idxMayMergeTempToFinalRslt(result, NULL, tr)) != 0) {
     idxTRsltDestroy(tr);
-    return code;
+    TAOS_CHECK_GOTO(code, NULL, _exception);
   }
   idxTRsltDestroy(tr);
 
-  int ret = idxGenTFile(sIdx, pCache, result);
-  if (ret != 0) {
-    indexError("failed to merge");
+  code = idxGenTFile(sIdx, pCache, result);
+  if (code != 0) {
+    indexError("failed to merge since %s", tstrerror(code));
   } else {
     int64_t cost = taosGetTimestampUs() - st;
     indexInfo("success to merge , time cost: %" PRId64 "ms", cost / 1000);
   }
+
+_exception:
   idxDestroyFinalRslt(result);
 
   idxCacheDestroyImm(pCache);
@@ -725,7 +737,7 @@ int32_t idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
   }
   idxReleaseRef(sIdx->refId);
 
-  return ret;
+  return code;
 }
 void iterateValueDestroy(IterateValue* value, bool destroy) {
   if (destroy) {
