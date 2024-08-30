@@ -4809,7 +4809,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
   return code;
 
 _err:
-  tsdbError("failed to create data reader, error at:%d code:%s %s", tstrerror(code), lino, idstr);
+  tsdbError("failed to create data reader, error at:%d code:%s %s", lino, tstrerror(code), idstr);
   tsdbReaderClose2(*ppReader);
   *ppReader = NULL;  // reset the pointer value.
   return code;
