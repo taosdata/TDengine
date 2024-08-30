@@ -165,7 +165,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
   pReq = taosMemoryCalloc(1, sizeof(SSubmitReq2));
 
   if (!tagArray || !pReq) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
 
   pReq->aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData));

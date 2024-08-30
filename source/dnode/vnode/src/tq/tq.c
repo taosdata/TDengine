@@ -66,7 +66,7 @@ static bool tqOffsetEqual(const STqOffset* pLeft, const STqOffset* pRight) {
 int32_t tqOpen(const char* path, SVnode* pVnode) {
   STQ* pTq = taosMemoryCalloc(1, sizeof(STQ));
   if (pTq == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pVnode->pTq = pTq;
   pTq->path = taosStrdup(path);
@@ -173,7 +173,7 @@ void tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId) {
   dataRsp.common.blockNum = 0;
   char buf[TSDB_OFFSET_LEN] = {0};
   (void)tFormatOffset(buf, TSDB_OFFSET_LEN, &dataRsp.common.reqOffset);
-  tqInfo("tqPushEmptyDataRsp to consumer:0x%" PRIx64 " vgId:%d, offset:%s, qid:0x%" PRIx64, req.consumerId, vgId, buf,
+  tqInfo("tqPushEmptyDataRsp to consumer:0x%" PRIx64 " vgId:%d, offset:%s,QID:0x%" PRIx64, req.consumerId, vgId, buf,
          req.reqId);
 
   code = tqSendDataRsp(pHandle, pHandle->msg, &req, &dataRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
@@ -193,7 +193,7 @@ int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq*
   (void)tFormatOffset(buf1, TSDB_OFFSET_LEN, &((SMqDataRspCommon*)pRsp)->reqOffset);
   (void)tFormatOffset(buf2, TSDB_OFFSET_LEN, &((SMqDataRspCommon*)pRsp)->rspOffset);
 
-  tqDebug("tmq poll vgId:%d consumer:0x%" PRIx64 " (epoch %d) send rsp, block num:%d, req:%s, rsp:%s, qid:0x%" PRIx64,
+  tqDebug("tmq poll vgId:%d consumer:0x%" PRIx64 " (epoch %d) send rsp, block num:%d, req:%s, rsp:%s,QID:0x%" PRIx64,
           vgId, pReq->consumerId, pReq->epoch, ((SMqDataRspCommon*)pRsp)->blockNum, buf1, buf2, pReq->reqId);
 
   return tqDoSendDataRsp(&pMsg->info, pRsp, pReq->epoch, pReq->consumerId, type, sver, ever);
@@ -421,7 +421,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 
   char buf[TSDB_OFFSET_LEN] = {0};
   (void)tFormatOffset(buf, TSDB_OFFSET_LEN, &reqOffset);
-  tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, recv poll req vgId:%d, req:%s, qid:0x%" PRIx64,
+  tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, recv poll req vgId:%d, req:%s,QID:0x%" PRIx64,
           consumerId, req.epoch, pHandle->subKey, vgId, buf, req.reqId);
 
   code = tqExtractDataForMq(pTq, pHandle, &req, pMsg);

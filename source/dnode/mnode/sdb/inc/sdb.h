@@ -334,9 +334,18 @@ void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStat
  * @brief Cancel a traversal
  *
  * @param pSdb The sdb object.
- * @param type The initial iterator of table.
+ * @param pIter The initial iterator of table.
  */
 void sdbCancelFetch(SSdb *pSdb, void *pIter);
+
+/**
+ * @brief Cancel a traversal
+ *
+ * @param pSdb The sdb object.
+ * @param pIter The initial iterator of table.
+ * @param type The type of table.
+ */
+void sdbCancelFetchByType(SSdb *pSdb, void *pIter, ESdbType type);
 
 /**
  * @brief Traverse a sdb

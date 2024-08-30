@@ -165,7 +165,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
 
   setOperatorInfo(pOperator, "ProjectOperator", QUERY_NODE_PHYSICAL_PLAN_PROJECT, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doProjectOperation1, NULL, destroyProjectOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doProjectOperation, NULL, destroyProjectOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamOperatorReleaseState, streamOperatorReloadState);
 
@@ -177,17 +177,11 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   }
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (pInfo != NULL) destroyProjectOperatorInfo(pInfo);
-  if (pOperator != NULL) {
-    pOperator->info = NULL;
-    if (pOperator->pDownstream == NULL && downstream != NULL) {
-      destroyOperator(downstream);
-    }
-    destroyOperator(pOperator);
-  }
+  destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
   return code;
 }
@@ -445,16 +439,6 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   return code;
 }
 
-SSDataBlock* doProjectOperation1(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t code = doProjectOperation(pOperator, &pRes);
-  if (code && pOperator->pTaskInfo->code == 0) {
-    pOperator->pTaskInfo->code = code;
-  }
-
-  return pRes;
-}
-
 int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pNode,
                                                  SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_OPTR_CHECK(pOptrInfo);
@@ -526,7 +510,7 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
 
   setOperatorInfo(pOperator, "IndefinitOperator", QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doApplyIndefinitFunction1, NULL, destroyIndefinitOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doApplyIndefinitFunction, NULL, destroyIndefinitOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
@@ -535,17 +519,11 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   }
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (pInfo != NULL) destroyIndefinitOperatorInfo(pInfo);
-  if (pOperator != NULL) {
-    pOperator->info = NULL;
-    if (pOperator->pDownstream == NULL && downstream != NULL) {
-      destroyOperator(downstream);
-    }
-    destroyOperator(pOperator);
-  }
+  destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
   return code;
 }

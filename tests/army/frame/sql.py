@@ -47,6 +47,7 @@ class TDSql:
         self.queryRows = 0
         self.queryCols = 0
         self.affectedRows = 0
+        self.csvLine = 0
 
     def init(self, cursor, log=False):
         self.cursor = cursor
@@ -537,6 +538,50 @@ class TDSql:
 
         tdLog.info("read csvfile read successfully")
         self.checkDataMem(sql, data)
+
+    def checkDataMemByLine(self, sql, mem):
+        if not isinstance(mem, list):
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql)
+            tdLog.exit("%s(%d) failed: sql:%s, expect data is error, must is array[][]" % args)
+
+        if len(mem) != self.queryRows:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, len(mem), self.queryRows)
+            tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
+        # row, col, data
+        for row, rowData in enumerate(mem):
+            for col, colData in enumerate(rowData):
+                self.checkData(row, col, colData)
+        tdLog.info("check %s successfully" %sql)
+
+    def checkDataCsvByLine(self, sql, csvfilePath):
+        if not isinstance(csvfilePath, str) or len(csvfilePath) == 0:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, csvfilePath)
+            tdLog.exit("%s(%d) failed: sql:%s, expect csvfile path error:%s" % args)
+        self.query(sql)
+        data = []
+        tdLog.info("check line %d start" %self.csvLine)
+        try:
+            with open(csvfilePath) as csvfile:
+                skip_rows = self.csvLine
+                # 计算需要读取的行数
+                num_rows = self.queryRows
+                # 读取指定范围的行
+                df = pd.read_csv(csvfilePath, skiprows=skip_rows, nrows=num_rows, header=None)
+                for index, row in df.iterrows():
+                    data.append(row)
+                self.csvLine += self.queryRows
+        except FileNotFoundError:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, csvfilePath)
+            tdLog.exit("%s(%d) failed: sql:%s, expect csvfile not find error:%s" % args)
+        except Exception as e:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, csvfilePath, str(e))
+            tdLog.exit("%s(%d) failed: sql:%s, expect csvfile path:%s, read error:%s" % args)
+        self.checkDataMemByLine(sql, data)
 
     # return true or false replace exit, no print out
     def checkRowColNoExit(self, row, col):

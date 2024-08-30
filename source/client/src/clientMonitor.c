@@ -696,7 +696,7 @@ static void monitorSendAllSlowLogFromTempDir(int64_t clusterId) {
       continue;
     }
     if (taosLockFile(pFile) < 0) {
-      tscError("failed to lock file:%s since %s, maybe used by other process", filename, terrstr());
+      tscInfo("failed to lock file:%s since %s, maybe used by other process", filename, terrstr());
       (void)taosCloseFile(&pFile);
       continue;
     }

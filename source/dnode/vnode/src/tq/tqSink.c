@@ -549,7 +549,7 @@ int32_t buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t n
 
   SVCreateTbReq* pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
   if (pCreateTbReq == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   taosArrayClear(pTagArray);
@@ -802,7 +802,7 @@ int32_t doCreateSinkInfo(const char* pDstTableName, STableSinkInfo** pInfo) {
   int32_t nameLen = strlen(pDstTableName);
   (*pInfo) = taosMemoryCalloc(1, sizeof(STableSinkInfo) + nameLen + 1);
   if (*pInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pInfo)->name.len = nameLen;

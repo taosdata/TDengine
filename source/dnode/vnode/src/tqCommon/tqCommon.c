@@ -582,7 +582,7 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   SStreamTask* pTask = taosMemoryCalloc(1, size);
   if (pTask == NULL) {
     tqError("vgId:%d failed to create stream task due to out of memory, alloc size:%d", vgId, size);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SDecoder decoder;

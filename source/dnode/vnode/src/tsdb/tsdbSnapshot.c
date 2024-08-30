@@ -416,7 +416,7 @@ int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type,
   int32_t lino = 0;
 
   reader[0] = (STsdbSnapReader*)taosMemoryCalloc(1, sizeof(*reader[0]));
-  if (reader[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (reader[0] == NULL) return terrno;
 
   reader[0]->tsdb = tsdb;
   reader[0]->sver = sver;
@@ -1047,7 +1047,7 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, void* pRang
 
   // start to write
   writer[0] = taosMemoryCalloc(1, sizeof(*writer[0]));
-  if (writer[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (writer[0] == NULL) return terrno;
 
   writer[0]->tsdb = pTsdb;
   writer[0]->sver = sver;

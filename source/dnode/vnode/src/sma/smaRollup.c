@@ -123,7 +123,7 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo) {
 static FORCE_INLINE int32_t tdUidStoreInit(STbUidStore **pStore) {
   *pStore = taosMemoryCalloc(1, sizeof(STbUidStore));
   if (*pStore == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    return terrno;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -285,7 +285,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
 
     SStreamTask *pStreamTask = taosMemoryCalloc(1, sizeof(*pStreamTask));
     if (!pStreamTask) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      return terrno;
     }
     pItem->pStreamTask = pStreamTask;
     pStreamTask->id.taskId = 0;
@@ -389,7 +389,7 @@ int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
   // from write queue: single thead
   pRSmaInfo = (SRSmaInfo *)taosMemoryCalloc(1, sizeof(SRSmaInfo));
   if (!pRSmaInfo) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    return terrno;
   }
 
   STSchema *pTSchema = metaGetTbTSchema(SMA_META(pSma), suid, -1, 1);

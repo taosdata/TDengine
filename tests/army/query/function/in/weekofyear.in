@@ -1,0 +1,13 @@
+select WEEKOFYEAR('2020-01-01 00:00:00');
+select WEEKOFYEAR('2020-01-01 00:00:00') from ts_4893.meters order by ts limit 10;
+select WEEKOFYEAR('2021-01-01 00:00:00');
+select WEEKOFYEAR('2021-01-01 00:00:00') from ts_4893.meters order by ts limit 10;
+select WEEKOFYEAR('1998-01-01 00:00:00');
+select WEEKOFYEAR('1998-01-01 00:00:00') from ts_4893.meters order by ts limit 10;
+select WEEKOFYEAR('1998-12-31 00:00:00');
+select WEEKOFYEAR('1998-12-31 00:00:00') from ts_4893.meters order by ts limit 10;
+select WEEKOFYEAR('2000-01-06 00:00:00');
+select WEEKOFYEAR('2000-01-06 00:00:00') from ts_4893.meters order by ts limit 10;
+select WEEKOFYEAR(1725095657);
+select WEEKOFYEAR(1725095657) from ts_4893.meters order by ts limit 10;
+select WEEKOFYEAR(ts) from ts_4893.meters order by ts limit 10;

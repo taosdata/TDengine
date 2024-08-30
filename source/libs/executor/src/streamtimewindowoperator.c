@@ -49,6 +49,8 @@
 #define STREAM_SESSION_OP_CHECKPOINT_NAME  "StreamSessionOperator_Checkpoint"
 #define STREAM_STATE_OP_CHECKPOINT_NAME    "StreamStateOperator_Checkpoint"
 
+#define MAX_STREAM_HISTORY_RESULT          100000000
+
 typedef struct SStateWindowInfo {
   SResultWindowInfo winInfo;
   SStateKeys*       pStateKey;
@@ -60,7 +62,7 @@ typedef struct SPullWindowInfo {
   STimeWindow calWin;
 } SPullWindowInfo;
 
-static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator);
+static int32_t doStreamMidIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 
 typedef int32_t (*__compare_fn_t)(void* pKey, void* data, int32_t index);
 
@@ -161,11 +163,19 @@ static int32_t savePullWindow(SPullWindowInfo* pPullInfo, SArray* pPullWins) {
 }
 
 int32_t saveResult(SResultWindowInfo winInfo, SSHashObj* pStUpdated) {
+  if (tSimpleHashGetSize(pStUpdated) > MAX_STREAM_HISTORY_RESULT) {
+    qError("%s failed at line %d since too many history result. ", __func__, __LINE__);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
   winInfo.sessionWin.win.ekey = winInfo.sessionWin.win.skey;
   return tSimpleHashPut(pStUpdated, &winInfo.sessionWin, sizeof(SSessionKey), &winInfo, sizeof(SResultWindowInfo));
 }
 
 static int32_t saveWinResult(SWinKey* pKey, SRowBuffPos* pPos, SSHashObj* pUpdatedMap) {
+  if (tSimpleHashGetSize(pUpdatedMap) > MAX_STREAM_HISTORY_RESULT) {
+    qError("%s failed at line %d since too many history result. ", __func__, __LINE__);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
   return tSimpleHashPut(pUpdatedMap, pKey, sizeof(SWinKey), &pPos, POINTER_BYTES);
 }
 
@@ -481,6 +491,12 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   blockDataDestroy(pInfo->pDelRes);
   blockDataDestroy(pInfo->pMidRetriveRes);
   blockDataDestroy(pInfo->pMidPulloverRes);
+  if (pInfo->pUpdatedMap != NULL) {
+    tSimpleHashSetFreeFp(pInfo->pUpdatedMap, destroyFlusedppPos);
+    tSimpleHashCleanup(pInfo->pUpdatedMap);
+    pInfo->pUpdatedMap = NULL;
+  }
+
   if (pInfo->stateStore.streamFileStateDestroy != NULL) {
     pInfo->stateStore.streamFileStateDestroy(pInfo->pState->pFileState);
   }
@@ -495,11 +511,6 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   nodesDestroyNode((SNode*)pInfo->pPhyNode);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   cleanupExprSupp(&pInfo->scalarSupp);
-  if (pInfo->pUpdatedMap != NULL) {
-    tSimpleHashSetFreeFp(pInfo->pUpdatedMap, destroyFlusedppPos);
-    tSimpleHashCleanup(pInfo->pUpdatedMap);
-    pInfo->pUpdatedMap = NULL;
-  }
   tSimpleHashCleanup(pInfo->pDeletedMap);
 
   blockDataDestroy(pInfo->pCheckpointRes);
@@ -994,7 +1005,7 @@ static int32_t getNextQualifiedFinalWindow(SInterval* pInterval, STimeWindow* pN
 
 bool hasSrcPrimaryKeyCol(SSteamOpBasicInfo* pInfo) { return pInfo->primaryPkIndex != -1; }
 
-static void doStreamIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBlock, uint64_t groupId,
+static int32_t doStreamIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBlock, uint64_t groupId,
                                     SSHashObj* pUpdatedMap, SSHashObj* pDeletedMap) {
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
@@ -1166,6 +1177,7 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   }
+  return code;
 }
 
 static inline int winPosCmprImpl(const void* pKey1, const void* pKey2) {
@@ -1606,7 +1618,10 @@ static int32_t doStreamFinalIntervalAggNext(SOperatorInfo* pOperator, SSDataBloc
       return code;
     }
 
-    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
+    SSDataBlock* pBlock = NULL;
+    code = downstream->fpSet.getNextFn(downstream, &pBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     if (pBlock == NULL) {
       pOperator->status = OP_RES_TO_RETURN;
       qDebug("===stream===return data:%s. recv datablock num:%" PRIu64, getStreamOpName(pOperator->operatorType),
@@ -1614,6 +1629,7 @@ static int32_t doStreamFinalIntervalAggNext(SOperatorInfo* pOperator, SSDataBloc
       pInfo->numOfDatapack = 0;
       break;
     }
+
     pInfo->numOfDatapack++;
     printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
     setStreamOperatorState(&pInfo->basic, pBlock->info.type);
@@ -1714,7 +1730,12 @@ static int32_t doStreamFinalIntervalAggNext(SOperatorInfo* pOperator, SSDataBloc
     code = setInputDataBlock(pSup, pBlock, TSDB_ORDER_ASC, MAIN_SCAN, true);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    doStreamIntervalAggImpl(pOperator, pBlock, pBlock->info.id.groupId, pInfo->pUpdatedMap, pInfo->pDeletedMap);
+    code = doStreamIntervalAggImpl(pOperator, pBlock, pBlock->info.id.groupId, pInfo->pUpdatedMap, pInfo->pDeletedMap);
+    if (code == TSDB_CODE_STREAM_INTERNAL_ERROR) {
+      code = TSDB_CODE_SUCCESS;
+      pOperator->status = OP_RES_TO_RETURN;
+      break;
+    }
     pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, pBlock->info.window.ekey);
     pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, pBlock->info.watermark);
     pInfo->twAggSup.minTs = TMIN(pInfo->twAggSup.minTs, pBlock->info.window.skey);
@@ -1766,12 +1787,6 @@ _end:
   setStreamOperatorCompleted(pOperator);
   (*ppRes) = NULL;
   return code;
-}
-
-static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = doStreamFinalIntervalAggNext(pOperator, &pRes);
-  return pRes;
 }
 
 int64_t getDeleteMark(SWindowPhysiNode* pWinPhyNode, int64_t interval) {
@@ -2000,10 +2015,10 @@ int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiN
   pOperator->info = pInfo;
 
   if (pPhyNode->type == QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL) {
-    pOperator->fpSet = createOperatorFpSet(NULL, doStreamMidIntervalAgg, NULL, destroyStreamFinalIntervalOperatorInfo,
+    pOperator->fpSet = createOperatorFpSet(NULL, doStreamMidIntervalAggNext, NULL, destroyStreamFinalIntervalOperatorInfo,
                                            optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   } else {
-    pOperator->fpSet = createOperatorFpSet(NULL, doStreamFinalIntervalAgg, NULL, destroyStreamFinalIntervalOperatorInfo,
+    pOperator->fpSet = createOperatorFpSet(NULL, doStreamFinalIntervalAggNext, NULL, destroyStreamFinalIntervalOperatorInfo,
                                            optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   }
   setOperatorStreamStateFn(pOperator, streamIntervalReleaseState, streamIntervalReloadState);
@@ -2026,17 +2041,11 @@ int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiN
   }
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (pInfo != NULL) destroyStreamFinalIntervalOperatorInfo(pInfo);
-  if (pOperator != NULL) {
-    pOperator->info = NULL;
-    if (pOperator->pDownstream == NULL && downstream != NULL) {
-      destroyOperator(downstream);
-    }
-    destroyOperator(pOperator);
-  }
+  destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
   return code;
 }
@@ -3400,7 +3409,10 @@ static int32_t doStreamSessionAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
     QUERY_CHECK_NULL(pInfo->pStUpdated, code, lino, _end, terrno);
   }
   while (1) {
-    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
+    SSDataBlock* pBlock = NULL;
+    code = downstream->fpSet.getNextFn(downstream, &pBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     if (pBlock == NULL) {
       break;
     }
@@ -3843,7 +3855,7 @@ int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode
       QUERY_CHECK_CODE(code, lino, _error);
     }
   }
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamSessionAgg, NULL, destroyStreamSessionAggOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamSessionAggNext, NULL, destroyStreamSessionAggOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamSessionReleaseState, streamSessionReloadState);
 
@@ -3857,20 +3869,13 @@ int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   }
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (pInfo != NULL) {
     destroyStreamSessionAggOperatorInfo(pInfo);
   }
-
-  if (pOperator != NULL) {
-    pOperator->info = NULL;
-    if (pOperator->pDownstream == NULL && downstream != NULL) {
-      destroyOperator(downstream);
-    }
-    destroyOperator(pOperator);
-  }
+  destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;
@@ -3969,7 +3974,10 @@ static int32_t doStreamSessionSemiAggNext(SOperatorInfo* pOperator, SSDataBlock*
     QUERY_CHECK_NULL(pInfo->pStUpdated, code, lino, _end, terrno);
   }
   while (1) {
-    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
+    SSDataBlock* pBlock = NULL;
+    code = downstream->fpSet.getNextFn(downstream, &pBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     if (pBlock == NULL) {
       pOperator->status = OP_RES_TO_RETURN;
       break;
@@ -4070,6 +4078,7 @@ int32_t createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream, SPhys
   SOperatorInfo* pOperator = NULL;
   code = createStreamSessionAggOperatorInfo(downstream, pPhyNode, pTaskInfo, pHandle, &pOperator);
   if (pOperator == NULL || code != 0) {
+    downstream =  NULL;
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
@@ -4079,7 +4088,7 @@ int32_t createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream, SPhys
 
   if (pPhyNode->type != QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
     pOperator->fpSet =
-        createOperatorFpSet(optrDummyOpenFn, doStreamSessionSemiAgg, NULL, destroyStreamSessionAggOperatorInfo,
+        createOperatorFpSet(optrDummyOpenFn, doStreamSessionSemiAggNext, NULL, destroyStreamSessionAggOperatorInfo,
                             optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
     setOperatorStreamStateFn(pOperator, streamSessionReleaseState, streamSessionSemiReloadState);
   }
@@ -4131,9 +4140,6 @@ _error:
   }
   if (pOperator != NULL) {
     pOperator->info = NULL;
-    if (pOperator->pDownstream == NULL && downstream != NULL) {
-      destroyOperator(downstream);
-    }
     destroyOperator(pOperator);
   }
   pTaskInfo->code = code;
@@ -4696,7 +4702,10 @@ static int32_t doStreamStateAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
     QUERY_CHECK_NULL(pInfo->pSeUpdated, code, lino, _end, terrno);
   }
   while (1) {
-    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
+    SSDataBlock* pBlock = NULL;
+    code = downstream->fpSet.getNextFn(downstream, &pBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     if (pBlock == NULL) {
       break;
     }
@@ -5017,7 +5026,7 @@ int32_t createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamStateAgg, NULL, destroyStreamStateOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamStateAggNext, NULL, destroyStreamStateOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamStateReleaseState, streamStateReloadState);
   code = initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex,
@@ -5028,17 +5037,11 @@ int32_t createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   QUERY_CHECK_CODE(code, lino, _error);
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (pInfo != NULL) destroyStreamStateOperatorInfo(pInfo);
-  if (pOperator != NULL) {
-    pOperator->info = NULL;
-    if (pOperator->pDownstream == NULL && downstream != NULL) {
-      destroyOperator(downstream);
-    }
-    destroyOperator(pOperator);
-  }
+  destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;
@@ -5111,7 +5114,10 @@ static int32_t doStreamIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** p
   }
 
   while (1) {
-    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
+    SSDataBlock* pBlock = NULL;
+    code = downstream->fpSet.getNextFn(downstream, &pBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     if (pBlock == NULL) {
       qDebug("===stream===return data:%s. recv datablock num:%" PRIu64, getStreamOpName(pOperator->operatorType),
              pInfo->numOfDatapack);
@@ -5174,7 +5180,12 @@ static int32_t doStreamIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** p
     }
 #endif
 
-    doStreamIntervalAggImpl(pOperator, pBlock, pBlock->info.id.groupId, pInfo->pUpdatedMap, pInfo->pDeletedMap);
+    code = doStreamIntervalAggImpl(pOperator, pBlock, pBlock->info.id.groupId, pInfo->pUpdatedMap, pInfo->pDeletedMap);
+    if (code == TSDB_CODE_STREAM_INTERNAL_ERROR) {
+      pOperator->status = OP_RES_TO_RETURN;
+      code = TSDB_CODE_SUCCESS;
+      break;
+    }
     pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, pBlock->info.window.ekey);
     pInfo->twAggSup.minTs = TMIN(pInfo->twAggSup.minTs, pBlock->info.window.skey);
   }
@@ -5223,12 +5234,6 @@ _end:
   setStreamOperatorCompleted(pOperator);
   (*ppRes) = NULL;
   return code;
-}
-
-static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = doStreamIntervalAggNext(pOperator, &pRes);
-  return pRes;
 }
 
 int32_t createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
@@ -5341,7 +5346,7 @@ int32_t createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   setOperatorInfo(pOperator, "StreamIntervalOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   pOperator->fpSet =
-      createOperatorFpSet(optrDummyOpenFn, doStreamIntervalAgg, NULL, destroyStreamFinalIntervalOperatorInfo,
+      createOperatorFpSet(optrDummyOpenFn, doStreamIntervalAggNext, NULL, destroyStreamFinalIntervalOperatorInfo,
                           optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamIntervalReleaseState, streamIntervalReloadState);
 
@@ -5372,17 +5377,11 @@ int32_t createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   QUERY_CHECK_CODE(code, lino, _error);
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (pInfo != NULL) destroyStreamFinalIntervalOperatorInfo(pInfo);
-  if (pOperator != NULL) {
-    pOperator->info = NULL;
-    if (pOperator->pDownstream == NULL && downstream != NULL) {
-      destroyOperator(downstream);
-    }
-    destroyOperator(pOperator);
-  }
+  destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
   return code;
 }
@@ -5606,7 +5605,10 @@ static int32_t doStreamMidIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock*
       return code;
     }
 
-    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
+    SSDataBlock* pBlock = NULL;
+    code = downstream->fpSet.getNextFn(downstream, &pBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     if (pBlock == NULL) {
       pOperator->status = OP_RES_TO_RETURN;
       qDebug("===stream===return data:%s. recv datablock num:%" PRIu64, getStreamOpName(pOperator->operatorType),

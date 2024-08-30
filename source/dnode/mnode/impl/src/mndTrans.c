@@ -768,7 +768,9 @@ void mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname) 
 }
 
 void mndTransAddArbGroupId(STrans *pTrans, int32_t groupId) {
-  (void)taosHashPut(pTrans->arbGroupIds, &groupId, sizeof(int32_t), NULL, 0);
+  if (taosHashPut(pTrans->arbGroupIds, &groupId, sizeof(int32_t), NULL, 0) != 0) {
+    mError("trans:%d, failed to put groupid into hash, groupId:%d", pTrans->id, groupId);
+  }
 }
 
 void mndTransSetSerial(STrans *pTrans) { pTrans->exec = TRN_EXEC_SERIAL; }
@@ -1905,7 +1907,9 @@ void mndTransPullup(SMnode *pMnode) {
     STrans *pTrans = NULL;
     pIter = sdbFetch(pMnode->pSdb, SDB_TRANS, pIter, (void **)&pTrans);
     if (pIter == NULL) break;
-    (void)taosArrayPush(pArray, &pTrans->id);
+    if (taosArrayPush(pArray, &pTrans->id) == NULL) {
+      mError("failed to put trans into array, trans:%d, but pull up will continute", pTrans->id);
+    }
     sdbRelease(pSdb, pTrans);
   }
 

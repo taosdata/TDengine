@@ -432,7 +432,7 @@ static int32_t tsdbCommitInfoInit(STsdb *pTsdb) {
 
   pTsdb->commitInfo = taosMemoryCalloc(1, sizeof(*pTsdb->commitInfo));
   if (pTsdb->commitInfo == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   TAOS_CHECK_GOTO(vHashInit(&pTsdb->commitInfo->ht, tFileSetCommitInfoHash, tFileSetCommitInfoCompare), &lino, _exit);

@@ -1,0 +1,13 @@
+select WEEKDAY('2020-01-01 00:00:00');
+select WEEKDAY('2020-01-01 00:00:00') from ts_4893.meters order by ts limit 10;
+select WEEKDAY('2021-01-01 00:00:00');
+select WEEKDAY('2021-01-01 00:00:00') from ts_4893.meters order by ts limit 10;
+select WEEKDAY('1998-01-01 00:00:00');
+select WEEKDAY('1998-01-01 00:00:00') from ts_4893.meters order by ts limit 10;
+select WEEKDAY('1998-12-31 00:00:00');
+select WEEKDAY('1998-12-31 00:00:00') from ts_4893.meters order by ts limit 10;
+select WEEKDAY('2000-01-06 00:00:00');
+select WEEKDAY('2000-01-06 00:00:00') from ts_4893.meters order by ts limit 10;
+select WEEKDAY(1725095657);
+select WEEKDAY(1725095657) from ts_4893.meters order by ts limit 10;
+select WEEKDAY(ts) from ts_4893.meters order by ts limit 10;

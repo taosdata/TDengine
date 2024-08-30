@@ -334,9 +334,21 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
         }
       }
       SMqSubVgEp vgEp = {.epSet = pVgEp->epSet, .vgId = pVgEp->vgId, .offset = -1};
-      (void)taosArrayPush(topicEp.vgs, &vgEp);
+      if (taosArrayPush(topicEp.vgs, &vgEp) == NULL) {
+        taosArrayDestroy(topicEp.vgs);
+        taosRUnLockLatch(&pConsumer->lock);
+        taosRUnLockLatch(&pSub->lock);
+        mndReleaseSubscribe(pMnode, pSub);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
     }
-    (void)taosArrayPush(rsp->topics, &topicEp);
+    if (taosArrayPush(rsp->topics, &topicEp) == NULL) {
+      taosArrayDestroy(topicEp.vgs);
+      taosRUnLockLatch(&pConsumer->lock);
+      taosRUnLockLatch(&pSub->lock);
+      mndReleaseSubscribe(pMnode, pSub);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     taosRUnLockLatch(&pSub->lock);
     mndReleaseSubscribe(pMnode, pSub);
   }
