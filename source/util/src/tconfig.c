@@ -1111,10 +1111,10 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
       }
 
       code = cfgSetItem(pConfig, name, newValue, CFG_STYPE_CFG_FILE, true);
-      if (code != 0){
+      if (TSDB_CODE_SUCCESS != code && TSDB_CODE_CFG_NOT_FOUND != code) {
         (void)printf("cfg:%s, value:%s failed since %s\n", name,newValue, tstrerror(code));
+        break;
       }
-      if (TSDB_CODE_SUCCESS != code && TSDB_CODE_CFG_NOT_FOUND != code) break;
     } else {
       (void)paGetToken(value + vlen + 1, &value2, &vlen2);
       if (vlen2 != 0) {
@@ -1128,10 +1128,10 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
       }
 
       code = cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE, true);
-      if (code != 0){
+      if (TSDB_CODE_SUCCESS != code && TSDB_CODE_CFG_NOT_FOUND != code) {
         (void)printf("cfg:%s, value:%s failed since %s\n", name, value, tstrerror(code));
+        break;
       }
-      if (TSDB_CODE_SUCCESS != code && TSDB_CODE_CFG_NOT_FOUND != code) break;
     }
 
     if (strcasecmp(name, "dataDir") == 0) {
