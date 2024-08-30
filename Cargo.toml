@@ -236,6 +236,7 @@ tokio-tracing = ["tokio/tracing", "console-subscriber"]
 
 [profile.sani]
 inherits = "release"
+debug = 2
 
 [profile.production]
 inherits = "release"
