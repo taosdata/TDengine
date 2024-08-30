@@ -169,6 +169,11 @@ export default {
       requesting: false,
     };
   },
+  props: {
+    isLessThen3_3_3_0: {
+      type: Boolean,
+    },
+  },
   computed: {
     confirmStatus() {
       if (!this.ruleForm.source) {
@@ -178,6 +183,18 @@ export default {
         return true;
       }
       return false;
+    },
+    fromUrl() {
+      let native_url = localStorage.getItem("native_url")
+      let base_url = native_url || localStorage.getItem("base_url")
+      let splitArr = base_url.split('//')
+      let url = splitArr[0] + "//" + splitArr[1]
+      const type = this.isLessThen3_3_3_0 ? 'tmq' : 'sync';
+      return (
+        splitArr[0].startsWith('taos')
+          ? type + ":" + "//" + splitArr[1]
+          : type + "+" + url 
+      );
     },
   },
   methods: {
@@ -222,7 +239,6 @@ export default {
       this.getReplication();
     },
     async addReplication() {
-      console.log('8888888');
       try {
         this.requesting = true;
         let id = localStorage.getItem("local_clusterID");
@@ -232,8 +248,7 @@ export default {
             `cluster-id::${localStorage.getItem("local_clusterID")}`,
           ],
           to: `${this.ruleForm.target}`,
-          from: `tmq+${localStorage.getItem("base_url")}/${this.ruleForm.source
-            }?timeout=never`,
+          from: `${this.fromUrl}/${this.ruleForm.source}?timeout=never`,
         };
         let res = await addReplicationData(id, params);
         console.log(res);
