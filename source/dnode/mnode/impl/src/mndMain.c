@@ -662,7 +662,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
   SMnode *pMnode = taosMemoryCalloc(1, sizeof(SMnode));
   if (pMnode == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    terrno = terrno;
     mError("failed to open mnode since %s", terrstr());
     return NULL;
   }

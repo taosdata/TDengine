@@ -1715,7 +1715,7 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
   createStreamRedoAction.contLen = tSerializeSCMCreateStreamReq(0, 0, pCxt->pCreateStreamReq);
   createStreamRedoAction.pCont = taosMemoryCalloc(1, createStreamRedoAction.contLen);
   if (!createStreamRedoAction.pCont) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
   if (createStreamRedoAction.contLen != tSerializeSCMCreateStreamReq(createStreamRedoAction.pCont, createStreamRedoAction.contLen, pCxt->pCreateStreamReq)) {
@@ -1730,7 +1730,7 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
   createStreamUndoAction.contLen = tSerializeSMDropStreamReq(0, 0, pCxt->pDropStreamReq);
   createStreamUndoAction.pCont = taosMemoryCalloc(1, createStreamUndoAction.contLen);
   if (!createStreamUndoAction.pCont) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
   if (createStreamUndoAction.contLen != tSerializeSMDropStreamReq(createStreamUndoAction.pCont, createStreamUndoAction.contLen, pCxt->pDropStreamReq)) {
@@ -1748,7 +1748,7 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
   dropStbUndoAction.contLen = tSerializeSMDropStbReq(0, 0, &dropStbReq);
   dropStbUndoAction.pCont = taosMemoryCalloc(1, dropStbUndoAction.contLen);
   if (!dropStbUndoAction.pCont) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
   if (dropStbUndoAction.contLen != tSerializeSMDropStbReq(dropStbUndoAction.pCont, dropStbUndoAction.contLen, &dropStbReq)) {
@@ -1993,7 +1993,7 @@ static int32_t mndDropTSMA(SCreateTSMACxt* pCxt) {
   dropStreamRedoAction.contLen = tSerializeSMDropStreamReq(0, 0, pCxt->pDropStreamReq);
   dropStreamRedoAction.pCont = taosMemoryCalloc(1, dropStreamRedoAction.contLen);
   if (!dropStreamRedoAction.pCont) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
   if (dropStreamRedoAction.contLen !=
@@ -2017,7 +2017,7 @@ static int32_t mndDropTSMA(SCreateTSMACxt* pCxt) {
   dropStbRedoAction.contLen = tSerializeSMDropStbReq(0, 0, &dropStbReq);
   dropStbRedoAction.pCont = taosMemoryCalloc(1, dropStbRedoAction.contLen);
   if (!dropStbRedoAction.pCont) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
   if (dropStbRedoAction.contLen != tSerializeSMDropStbReq(dropStbRedoAction.pCont, dropStbRedoAction.contLen, &dropStbReq)) {
@@ -2420,7 +2420,7 @@ static int32_t mndGetTSMA(SMnode *pMnode, char *tsmaFName, STableTSMAInfoRsp *rs
 
     STableTSMAInfo *pTsma = taosMemoryCalloc(1, sizeof(STableTSMAInfo));
     if (!pTsma) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       sdbRelease(pMnode->pSdb, pSma);
       mndReleaseStb(pMnode, pDstStb);
       TAOS_RETURN(code);
@@ -2503,7 +2503,7 @@ static int32_t mndGetSomeTsmas(SMnode* pMnode, STableTSMAInfoRsp* pRsp, tsmaFilt
 
     STableTSMAInfo *pTsma = taosMemoryCalloc(1, sizeof(STableTSMAInfo));
     if (!pTsma) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       mndReleaseStb(pMnode, pStb);
       sdbRelease(pSdb, pSma);
       sdbCancelFetch(pSdb, pIter);

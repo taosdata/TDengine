@@ -563,14 +563,14 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
       funcInfo.codeSize = pFunc->codeSize;
       funcInfo.pCode = taosMemoryCalloc(1, funcInfo.codeSize);
       if (funcInfo.pCode == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        // terrno = TSDB_CODE_OUT_OF_MEMORY;
         goto RETRIEVE_FUNC_OVER;
       }
       (void)memcpy(funcInfo.pCode, pFunc->pCode, pFunc->codeSize);
       if (funcInfo.commentSize > 0) {
         funcInfo.pComment = taosMemoryCalloc(1, funcInfo.commentSize);
         if (funcInfo.pComment == NULL) {
-          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          // terrno = TSDB_CODE_OUT_OF_MEMORY;
           goto RETRIEVE_FUNC_OVER;
         }
         (void)memcpy(funcInfo.pComment, pFunc->pComment, pFunc->commentSize);

@@ -664,8 +664,7 @@ int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len) {
   int32_t maxlen = 4096;
   void   *pBuf = taosMemoryCalloc(1, maxlen);
   if (pBuf == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TAOS_RETURN(code);
+    return errno;
   }
 
   int32_t readlen = taosReadFile(pIter->file, pBuf, maxlen);
