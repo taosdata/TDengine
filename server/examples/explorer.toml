@@ -11,13 +11,19 @@ port = 6060
 # Default is 0.0.0.0
 addr = "0.0.0.0"
 
+# explorer server instance id
+# 
+# The instanceId of each instance is unique on the host
+instanceId = 31
+
 # IPv6 listen address.
 
 # ipv6 = "::1"
 
 # Explorer server log level.
 # Default is "info"
-#
+# 
+# Deprecated: use log.level instead
 log_level = "info"
 
 # All data files are stored in this directory
@@ -69,3 +75,30 @@ cors = true
 #
 # certificate_key = "/path/to/key.file" # on linux/macOS
 # certificate_key = "C:\\path\\to\\key.file" # on windows
+
+# log configuration
+[log]
+# All log files are stored in this directory
+# 
+# path = "/var/log/taos" # on linux/macOS
+# path = "C:\\TDengine\\log" # on windows
+
+# log filter level
+#
+# level = "info"
+
+# Compress archived log files or not
+# 
+# compress = true
+
+# The number of log files retained by the current explorer server instance in the `path` directory
+# 
+# rotationCount = 30
+
+# Rotate when the log file reaches this size
+# 
+# rotationSize = "1GB"
+
+# Log downgrade when the remaining disk space reaches this size, only logging `ERROR` level logs
+# 
+# reservedDiskSize = "20GB"
