@@ -343,7 +343,7 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
       // todo remove this
       void* pGpIdData = colDataGetData(pGpIdColInfo, rowId);
       if (gid != *(int64_t*)pGpIdData) {
-        tqError("s-task:%s vgId:%d invalid groupId:%d" PRId64 ":%" PRId64 " in sink task", id, vgId, gid,
+        tqError("s-task:%s vgId:%d invalid groupId:%" PRId64 " actual:%" PRId64 " in sink task", id, vgId, gid,
                 *(int64_t*)pGpIdData);
       }
     }
