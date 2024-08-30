@@ -863,6 +863,7 @@ int32_t streamSendChkptReportMsg(SStreamTask* pTask, SCheckpointInfo* pCheckpoin
   tEncoderInit(&encoder, buf, tlen);
   if ((code = tEncodeStreamTaskChkptReport(&encoder, &req)) < 0) {
     rpcFreeCont(buf);
+    tEncoderClear(&encoder);
     stError("s-task:%s vgId:%d encode stream task checkpoint-report msg failed, code:%s", id, vgId, tstrerror(code));
     return -1;
   }
@@ -1016,6 +1017,7 @@ int32_t streamTaskSendCheckpointReq(SStreamTask* pTask) {
   tEncoderInit(&encoder, buf, tlen);
   if ((code = tEncodeStreamTaskCheckpointReq(&encoder, &req)) < 0) {
     rpcFreeCont(buf);
+    tEncoderClear(&encoder);
     stError("s-task:%s vgId:%d encode stream task req checkpoint msg failed, code:%s", id, vgId, tstrerror(code));
     return -1;
   }

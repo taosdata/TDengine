@@ -91,6 +91,7 @@ SRpcMsg buildHbReq() {
   tEncoderInit(&encoder, (uint8_t*)buf, tlen);
   if ((code = tEncodeStreamHbMsg(&encoder, &msg)) < 0) {
     rpcFreeCont(buf);
+    tEncoderClear(&encoder);
     goto _end;
   }
   tEncoderClear(&encoder);
