@@ -2250,6 +2250,7 @@ typedef struct SCollectColumnsCxt {
   ECollectColType collectType;
   SNodeList*      pCols;
   SHashObj*       pColHash;
+  bool            collectForTarget;
 } SCollectColumnsCxt;
 
 static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pNode) {
@@ -2267,6 +2268,7 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
       pCxt->errCode = nodesCloneNode(pNode, &pNew);
       if (TSDB_CODE_SUCCESS == pCxt->errCode) {
         //((SColumnNode*)pNew)->projRefIdx = pCol->node.projIdx;
+        if (pCxt->collectForTarget) ((SColumnNode*)pNew)->resIdx = pCol->projRefIdx;
         pCxt->errCode = nodesListStrictAppend(pCxt->pCols, pNew);
       }
     }
@@ -2305,6 +2307,43 @@ static EDealRes collectColumnsExt(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+int32_t nodesCollectColumnsForTargets(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
+                            SNodeList** pCols) {
+  if (NULL == pSelect || NULL == pCols) {
+    return TSDB_CODE_FAILED;
+  }
+  SNodeList * pList = NULL;
+  if (!*pCols) {
+    int32_t code = nodesMakeList(&pList);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+  SCollectColumnsCxt cxt = {
+      .errCode = TSDB_CODE_SUCCESS,
+      .pTableAlias = pTableAlias,
+      .collectForTarget = true,
+      .collectType = type,
+      .pCols = (NULL == *pCols ? pList : *pCols),
+      .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
+  if (NULL == cxt.pCols || NULL == cxt.pColHash) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  *pCols = NULL;
+  nodesWalkSelectStmt(pSelect, clause, collectColumns, &cxt);
+  taosHashCleanup(cxt.pColHash);
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    nodesDestroyList(cxt.pCols);
+    return cxt.errCode;
+  }
+  if (LIST_LENGTH(cxt.pCols) > 0) {
+    *pCols = cxt.pCols;
+  } else {
+    nodesDestroyList(cxt.pCols);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
                             SNodeList** pCols) {

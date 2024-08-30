@@ -721,3 +721,11 @@ bool isColRefExpr(const SColumnNode* pCol, const SExprNode* pExpr) {
 
   return 0 == strcmp(pCol->colName, pExpr->aliasName);
 }
+
+void rewriteTargetsWithResId(SNodeList* pTargets) {
+  SNode* pNode;
+  FOREACH(pNode, pTargets) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    pCol->resIdx = pCol->projRefIdx;
+  }
+}

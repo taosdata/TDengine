@@ -1379,12 +1379,14 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
           return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, pCol->colName);
         }
         code = setColumnInfoByExpr(pTempTable, pExpr, pColRef);
+        //(*pColRef)->projRefIdx = pExpr->projIdx;
         if (TSDB_CODE_SUCCESS != code) {
           break;
         }
         *pFound = true;
       } else if (isPrimaryKeyImpl(pNode) && isInternalPrimaryKey(pCol)) {
         code = setColumnInfoByExpr(pTempTable, pExpr, pColRef);
+        //(*pColRef)->projRefIdx = pExpr->projIdx;
         if (TSDB_CODE_SUCCESS != code) break;
         pCol->isPrimTs = true;
         *pFound = true;

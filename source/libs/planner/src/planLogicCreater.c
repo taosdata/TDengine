@@ -638,6 +638,10 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     }
     nodesDestroyList(pColList);
   }
+  
+  if (TSDB_CODE_SUCCESS == code) {
+    rewriteTargetsWithResId(pJoin->node.pTargets);
+  }
 
   if (NULL == pJoin->node.pTargets && NULL != pLeft) {
     code = nodesCloneList(pLeft->pTargets, &pJoin->node.pTargets);
@@ -1342,7 +1346,7 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pSort->node.resultDataOrder = isPrimaryKeySort(pSelect->pOrderByList)
                                     ? (pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
                                     : DATA_ORDER_LEVEL_NONE;
-  code = nodesCollectColumns(pSelect, SQL_CLAUSE_ORDER_BY, NULL, COLLECT_COL_TYPE_ALL, &pSort->node.pTargets);
+  code = nodesCollectColumnsForTargets(pSelect, SQL_CLAUSE_ORDER_BY, NULL, COLLECT_COL_TYPE_ALL, &pSort->node.pTargets);
   if (TSDB_CODE_SUCCESS == code && NULL == pSort->node.pTargets) {
     SNode* pNew = NULL;
     code = nodesCloneNode(nodesListGetNode(pCxt->pCurrRoot->pTargets, 0), &pNew);
