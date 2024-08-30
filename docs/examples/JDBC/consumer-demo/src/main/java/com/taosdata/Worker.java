@@ -59,7 +59,7 @@ public class Worker implements Runnable {
 
     public static void logAlertBoolMsg(AlertConfig alertConfig, String tbName, Timestamp ts, String column, Boolean value, String alertLevel) {
         String alertInfo = "[" + LocalDateTime.now() + "] alert: table_name = " + tbName + ", ts = " + ts;
-        alertInfo += ", column = " + column + ", value change to " + value +  ", alert_level = " + alertLevel;
+        alertInfo += ", column = " + column + ", value changed to " + value +  ", alert_level = " + alertLevel;
         logAlert(alertConfig, alertInfo);
     }
 
