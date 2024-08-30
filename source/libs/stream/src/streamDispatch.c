@@ -308,7 +308,7 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
   int32_t numOfBlocks = taosArrayGetSize(pData->blocks);
 
   if (!(numOfBlocks != 0 && pTask->msgInfo.pData == NULL)) {
-    stError("s-task:0x%x dispatch block number:%d, exist not rsp dispatch msg:%p, abort build new dispatch msg",
+    stError("s-task:%s dispatch block number:%d, exist not rsp dispatch msg:%p, abort build new dispatch msg",
             pTask->id.idStr, numOfBlocks, pTask->msgInfo.pData);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
