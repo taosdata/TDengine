@@ -845,7 +845,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
       (void)atomic_sub_fetch_32(&pMeta->numOfStreamTasks, 1);
     }
 
-    (void)taosHashRemove(pMeta->pTasksMap, &id, sizeof(id));
+    int32_t code = taosHashRemove(pMeta->pTasksMap, &id, sizeof(id));
     doRemoveIdFromList(pMeta->pTaskList, (int32_t)taosArrayGetSize(pMeta->pTaskList), &pTask->id);
     (void)streamMetaRemoveTask(pMeta, &id);
 
@@ -1013,7 +1013,10 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       tFreeStreamTask(pTask);
 
       STaskId id = streamTaskGetTaskId(pTask);
-      (void)taosArrayPush(pRecycleList, &id);
+      void* px = taosArrayPush(pRecycleList, &id);
+      if (px == NULL) {
+        stError("s-task:0x%x failed record the task into recycle list due to out of memory", taskId);
+      }
 
       int32_t total = taosArrayGetSize(pRecycleList);
       stDebug("s-task:0x%x is already dropped, add into recycle list, total:%d", taskId, total);
@@ -1034,7 +1037,10 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
         continue;
       }
 
-      (void)taosArrayPush(pMeta->pTaskList, &pTask->id);
+      void* px = taosArrayPush(pMeta->pTaskList, &pTask->id);
+      if (px == NULL) {
+        stFatal("s-task:0x%x failed to add into task list due to out of memory", pTask->id.taskId);
+      }
     } else {
       // todo this should replace the existed object put by replay creating stream task msg from mnode
       stError("s-task:0x%x already added into table meta by replaying WAL, need check", pTask->id.taskId);
@@ -1044,7 +1050,7 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
 
     if (taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask, POINTER_BYTES) != 0) {
       stError("s-task:0x%x failed to put into hashTable, code:%s, continue", pTask->id.taskId, tstrerror(terrno));
-      (void)taosArrayPop(pMeta->pTaskList);
+      void* px = taosArrayPop(pMeta->pTaskList);
       tFreeStreamTask(pTask);
       continue;
     }

@@ -17,3 +17,4 @@ select abs(pi());
 select pow(pi(), 2);
 select sqrt(pi());
 select cast(pi() as int);
+select pi();

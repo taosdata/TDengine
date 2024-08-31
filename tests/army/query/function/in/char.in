@@ -9,3 +9,7 @@ select cast(CHAR(49) as int);
 select CHAR(id + 77) from ts_4893.meters order by ts limit 5;;
 select CONCAT(CHAR(id + 77),CHAR(id + 77),CHAR(id + 77)) from ts_4893.meters limit 5;
 select CHAR(id+77, id+77, id+77, id+77, id+77) from ts_4893.meters limit 5;
+select char(77);
+select char(77 * 256 + 77);
+select char('123');
+select char(77, NULL, '123');

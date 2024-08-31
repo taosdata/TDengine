@@ -933,7 +933,7 @@ void taos_init_imp(void) {
   appInfo.pInstMapByClusterId =
       taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (NULL == appInfo.pInstMap || NULL == appInfo.pInstMapByClusterId) {
-    tscError("failed to allocate memory when init appInfo");
+    (void)printf("failed to allocate memory when init appInfo\n");
     tscInitRes = TSDB_CODE_OUT_OF_MEMORY;
     return;
   }
@@ -961,7 +961,7 @@ void taos_init_imp(void) {
 
   if (InitRegexCache() != 0) {
     tscInitRes = -1;
-    tscError("failed to init regex cache");
+    (void)printf("failed to init regex cache\n");
     return;
   }
 

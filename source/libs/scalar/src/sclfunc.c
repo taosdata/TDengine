@@ -766,6 +766,9 @@ static int32_t tlrtrim(char *input, char *remInput, char *output, int32_t inputT
   if (remLen == 0 || remLen > orgLen) {
     (void)memcpy(varDataVal(output), orgStr, orgLen);
     varDataSetLen(output, orgLen);
+    if (needFree) {
+      taosMemoryFree(remStr);
+    }
     return TSDB_CODE_SUCCESS;
   }
 

@@ -455,9 +455,7 @@ static void taosLockList(int64_t *lockedBy) {
 
 static void taosUnlockList(int64_t *lockedBy) {
   int64_t tid = taosGetSelfPthreadId();
-  if (atomic_val_compare_exchange_64(lockedBy, tid, 0) != tid) {
-    ASSERTS(false, "atomic_val_compare_exchange_64 tid failed");
-  }
+  (void)atomic_val_compare_exchange_64(lockedBy, tid, 0);
 }
 
 static void taosInitRefModule(void) { (void)taosThreadMutexInit(&tsRefMutex, NULL); }
