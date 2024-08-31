@@ -2376,10 +2376,7 @@ _exit:
   return numOfRows;
 }
 
-static void mndCancelGetNextGrant(SMnode *pMnode, void *pIter) {
-  SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetchByType(pSdb, pIter, SDB_GRANT);
-}
+static void mndCancelGetNextGrant(SMnode *pMnode, void *pIter) {}
 
 static int32_t mndRetrieveGrantFullItem(SSDataBlock *pBlock, int32_t *numOfRows, const char *name, const char *display,
                                         int64_t expire, int64_t curVal, int64_t limit, bool isDataIn, bool optional) {
@@ -2547,10 +2544,7 @@ _exit:
   return numOfRows;
 }
 
-static void mndCancelGetNextGrantFull(SMnode *pMnode, void *pIter) {
-  SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetchByType(pSdb, pIter, SDB_GRANT);
-}
+static void mndCancelGetNextGrantFull(SMnode *pMnode, void *pIter) {}
 
 static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->info.node;
@@ -2754,7 +2748,7 @@ _exit:
 
 static void mndCancelGetNextMachines(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetchByType(pSdb, pIter, SDB_GRANT);
+  sdbCancelFetchByType(pSdb, pIter, SDB_DNODE);
 }
 
 static int32_t tDeserializeGrantNotify(void *buf, int32_t bufLen, GrantNotify *pNotify) {
@@ -3009,5 +3003,5 @@ _exit:
 
 static void mndCancelGetNextEncryptions(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetchByType(pSdb, pIter, SDB_GRANT);
+  sdbCancelFetchByType(pSdb, pIter, SDB_DNODE);
 }
