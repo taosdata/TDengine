@@ -613,6 +613,7 @@ static int32_t idxMergeCacheAndTFile(SArray* result, IterateValue* cv, IterateVa
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
+  tfileValueDestroy(tfv);
   return 0;
 }
 static void idxDestroyFinalRslt(SArray* result) {
