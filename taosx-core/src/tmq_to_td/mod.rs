@@ -1,6 +1,11 @@
 mod worker;
 
-use std::{collections::BTreeMap, ops::Deref, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, HashMap},
+    ops::Deref,
+    sync::{atomic::AtomicUsize, Arc},
+    time::Duration,
+};
 
 use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
@@ -12,6 +17,7 @@ use crate::{
 };
 use anyhow::{anyhow, bail, Context, Result};
 use faststr::FastStr;
+use humantime::parse_duration;
 use linked_hash_map::LinkedHashMap;
 use serde::Serialize;
 use std::sync::atomic::Ordering::SeqCst;
@@ -19,7 +25,7 @@ use taos::taos_query::tmq::Assignment;
 use taos::*;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
-use worker::{parse_message, Worker, WriteOptions};
+use worker::{Worker, WriteOptions};
 
 use worker::*;
 
@@ -836,23 +842,25 @@ async fn sync(
     Ok(consumer)
 }
 
+enum InterlaceItem {
+    Message(RawMessage),
+    Block(RawBlock),
+    Commit,
+}
 #[instrument(skip_all, fields(consumer.id = id, table))]
-async fn sync_concurrently(
+async fn sync_interlace(
     topic: &Arc<Topic>,
     id: usize,
     consumer: Consumer,
     source_pool: &TaosPool,
     target_pool: &TaosPool,
     table: Option<&str>,
-    actions: &[Action],
     cancel: CancellationToken,
     metrics_arc: Arc<CoreMetrics>,
-    with_meta_delete: bool,
-    with_meta_drop: bool,
-    concurrency: usize,
+    options: &WriteOptions,
 ) -> Result<Consumer> {
     tracing::info!("Task start");
-    let mut stream = consumer.stream();
+    // let mut stream = consumer.stream_with_timeout(Timeout::from_secs(5).into());
     let taos = target_pool.get().await?;
     let _target_is_v3 = taos
         .exec("desc information_schema.ins_databases")
@@ -865,22 +873,14 @@ async fn sync_concurrently(
         .and_then(|s| s.parse().ok())
         .unwrap_or(128);
     let mut last_type = 0;
-    let actions = Arc::new(actions.to_owned());
-    let strategy = WriteStrategy::from_env();
-    let options = WriteOptions {
-        with_meta_delete,
-        with_meta_drop,
-        strategy,
-        actions,
-    };
 
     use std::str::FromStr;
     let mut join_set = tokio::task::JoinSet::new();
-    let (msg_tx, msg_rx) = flume::bounded::<RawMessage>(concurrency * 2);
+    let (msg_tx, msg_rx) = flume::bounded::<InterlaceItem>(1024 * 8);
     let (res_tx, res_rx) = flume::bounded(chunk_size);
 
     let table = table.map(|str| FastStr::from_str(str).unwrap());
-    for wid in 0..concurrency {
+    for wid in 0..options.concurrency {
         let worker = Worker {
             source: source_pool.clone(),
             target: target_pool.clone(),
@@ -896,15 +896,238 @@ async fn sync_concurrently(
             async move {
                 let mut worker = worker;
                 let mut mid = 0;
+                let mut last_error = None;
+                while let Ok(message) = msg_rx.recv_async().await {
+                    match message {
+                        InterlaceItem::Message(mut message) => {
+                            mid += 1;
+                            let rows = message.rows();
+                            let bytes = message.raw.raw_len();
+                            tracing::debug!(mid, rows, bytes, "Received message");
+                            let res = worker
+                                .write(&mut message)
+                                .instrument(tracing::debug_span!("write", mid))
+                                .await;
+                            let _ = worker.sender.send_async(res).await;
+                        }
+                        InterlaceItem::Block(mut block) => {
+                            mid += 1;
+                            tracing::debug!(mid, rows = block.nrows(), "Received block");
+                            let res = worker
+                                .write_block(&mut block)
+                                .instrument(tracing::debug_span!("write_block", mid))
+                                .await;
+                            // let _ = worker.sender.send_async(res).await;
+                            if let Err(err) = res {
+                                last_error.replace(err);
+                            }
+                        }
+                        InterlaceItem::Commit => {
+                            tracing::debug!("Received commit item");
+                            let res = last_error.take().map_or_else(|| Ok(()), |err| Err(err));
+                            let _ = worker.sender.send_async(res).await;
+                        }
+                    }
+                }
+                tracing::info!("Worker done");
+            }
+            .instrument(tracing::info_span!("worker", wid)),
+        );
+    }
+
+    let mut last_offset = None;
+    let mut chunk_len = 0;
+    let mut table_blocks: HashMap<String, RawBlock> = HashMap::with_capacity(1024);
+
+    macro_rules! clean_cache {
+        () => {
+            for (_, raw) in table_blocks.drain() {
+                msg_tx.send_async(InterlaceItem::Block(raw)).await?;
+            }
+            msg_tx.send_async(InterlaceItem::Commit).await?;
+            res_rx.recv_async().await??;
+
+            #[allow(unused_assignments)]
+            {
+                chunk_len = 0;
+            }
+        };
+    }
+
+    let now = std::time::Instant::now();
+    println!("# [{id}] Start consuming at {}", chrono::Local::now());
+    tracing::info!("Start consuming");
+    // For message timeout
+    let mut last_message = std::time::Instant::now();
+    // For commit timeout
+    let mut last_commit = std::time::Instant::now();
+    let max_interlace_rows = 1024;
+    // let mut blocks
+    loop {
+        if cancel.is_cancelled() {
+            tracing::info!("Sync cancelled");
+            break;
+        }
+        if let Some((offset, message)) = consumer.recv_timeout(Timeout::from_secs(1)).await? {
+            let message_type = match &message {
+                MessageSet::Meta(_) => 1,
+                MessageSet::Data(_) => 2,
+                MessageSet::MetaData(_, _) => 3,
+            };
+            metrics.add_messages(1);
+            let message = options
+                .parse_message(&message, metrics)
+                .in_current_span()
+                .await?;
+            if message_type == 1 {
+                clean_cache!();
+                // meta only, sync immediately.
+                msg_tx.send_async(InterlaceItem::Message(message)).await?;
+                res_rx.recv_async().await??;
+                consumer.commit(offset).await?;
+                println!("{}", metrics);
+                last_commit = std::time::Instant::now();
+                last_message = std::time::Instant::now();
+                continue;
+            }
+
+            if (last_type != 0 && last_type != message_type)
+                || last_commit.elapsed() > Duration::from_secs(15)
+            {
+                clean_cache!();
+                // meta only, sync immediately.
+                msg_tx.send_async(InterlaceItem::Message(message)).await?;
+                res_rx.recv_async().await??;
+                consumer.commit(offset).await?;
+                last_commit = std::time::Instant::now();
+            } else {
+                let data = message
+                    .data
+                    .ok_or_else(|| anyhow::anyhow!("No blocks found in data message"))?;
+                for raw in data {
+                    let table = raw.table_name().ok_or_else(|| {
+                        anyhow::anyhow!("Query topic does not support interlace mode")
+                    })?;
+
+                    if raw.nrows() >= max_interlace_rows {
+                        // todo: send block to worker
+                        msg_tx.send_async(InterlaceItem::Block(raw)).await?;
+                        chunk_len += 1;
+                        continue; // next block
+                    }
+
+                    if !table_blocks.contains_key(table) {
+                        table_blocks.insert(table.to_string(), raw);
+                        continue; // next block
+                    }
+
+                    let (name, lhs) = table_blocks.remove_entry(table).unwrap();
+                    let raw = lhs.concat(&raw);
+                    if raw.nrows() >= max_interlace_rows {
+                        // todo: send block to worker
+
+                        msg_tx.send_async(InterlaceItem::Block(raw)).await?;
+                        chunk_len += 1;
+                        continue; // next block
+                    } else {
+                        table_blocks.insert(name, raw);
+                    }
+                }
+                last_offset.replace(offset);
+            }
+            last_type = message_type;
+            last_message = std::time::Instant::now();
+        } else {
+            if last_message.elapsed() > Duration::from_secs(5) {
+                clean_cache!();
+            }
+            if last_commit.elapsed() > Duration::from_secs(5) {
+                tracing::info!("Polling timeout, commit immediately");
+                break;
+            }
+        }
+    }
+    println!(
+        "# [{id}] Consume done after {:?}, waiting for writers to finish",
+        now.elapsed()
+    );
+    tracing::info!(elapse = ?now.elapsed(), "Consume done, waiting for writers to finish");
+    if chunk_len > 0 {
+        clean_cache!();
+        consumer.commit(last_offset.unwrap()).await?;
+    }
+    update_progress(&consumer, &metrics).await;
+    tracing::info!("Task done");
+
+    // do not drop consumer when single task done.
+    // drop(stream);
+    // let _ = sender.send(consumer); // tokio send
+    Ok(consumer)
+}
+
+#[instrument(skip_all, fields(consumer.id = id, table))]
+async fn sync_concurrently(
+    topic: &Arc<Topic>,
+    id: usize,
+    consumer: Consumer,
+    source_pool: &TaosPool,
+    target_pool: &TaosPool,
+    table: Option<&str>,
+    cancel: CancellationToken,
+    metrics_arc: Arc<CoreMetrics>,
+    options: &WriteOptions,
+) -> Result<Consumer> {
+    tracing::info!("Task start");
+    let taos = target_pool.get().await?;
+    let _target_is_v3 = taos
+        .exec("desc information_schema.ins_databases")
+        .await
+        .is_ok();
+    let metrics = metrics_arc.tmq();
+
+    let chunk_size = options.commit_chunk_size;
+    let mut last_type = 0;
+
+    use std::str::FromStr;
+    let mut join_set = tokio::task::JoinSet::new();
+    let (msg_tx, msg_rx) = flume::bounded::<RawMessage>(options.concurrency * 2);
+    let (res_tx, res_rx) = flume::bounded(chunk_size);
+
+    let table = table.map(|str| FastStr::from_str(str).unwrap());
+    for wid in 0..options.concurrency {
+        let worker = Worker {
+            source: source_pool.clone(),
+            target: target_pool.clone(),
+            target_connection: None,
+            table: table.clone(),
+            sender: res_tx.clone(),
+            options: options.clone(),
+            metrics: metrics_arc.clone(),
+            topic: topic.clone(),
+        };
+        let msg_rx = msg_rx.clone();
+        join_set.spawn(
+            async move {
+                let mut worker = worker;
+
                 while let Ok(mut message) = msg_rx.recv_async().await {
-                    mid += 1;
                     let rows = message.rows();
                     let bytes = message.raw.raw_len();
-                    tracing::debug!(mid, rows, bytes, "Received message");
-                    let res = worker
-                        .write(&mut message)
-                        .instrument(tracing::debug_span!("write", mid))
-                        .await;
+                    tracing::debug!(
+                        mid = message.mid,
+                        metadata = message.meta.is_some() && message.data.is_some(),
+                        rows,
+                        bytes,
+                        "Received message"
+                    );
+                    let now = std::time::Instant::now();
+                    let res = worker.write(&mut message).in_current_span().await;
+                    let elapse = now.elapsed();
+                    worker
+                        .metrics
+                        .as_ref()
+                        .tmq()
+                        .add_write_cost_ms(elapse.as_millis() as _);
                     let _ = worker.sender.send_async(res).await;
                 }
                 tracing::info!("Worker done");
@@ -932,42 +1155,78 @@ async fn sync_concurrently(
     let now = std::time::Instant::now();
     println!("# [{id}] Start consuming at {}", chrono::Local::now());
     tracing::info!("Start consuming");
-    while let Some((offset, message)) = stream.try_next().await? {
+    let mut per_message_instant = std::time::Instant::now();
+
+    const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(1);
+    let poll_interval = if options.max_polling_timeout < DEFAULT_POLL_INTERVAL {
+        options.max_polling_timeout
+    } else {
+        DEFAULT_POLL_INTERVAL
+    };
+    loop {
         if cancel.is_cancelled() {
             tracing::info!("Sync cancelled");
             break;
         }
-        let message_type = match &message {
-            MessageSet::Meta(_) => 1,
-            MessageSet::Data(_) => 2,
-            MessageSet::MetaData(_, _) => 3,
-        };
-        metrics.add_messages(1);
-        let message = parse_message(&message, &options.actions, metrics)
-            .in_current_span()
-            .await?;
-        if message_type == 1 {
-            clean_cache!();
-            // meta only, sync immediately.
-            msg_tx.send_async(message).await?;
-            res_rx.recv_async().await??;
-            consumer.commit(offset).await?;
-            continue;
-        }
+        if let Some((offset, message)) = consumer
+            .recv_timeout(Timeout::from_millis(poll_interval.as_millis() as _))
+            .await?
+        {
+            metrics.add_consume_cost_ms(per_message_instant.elapsed().as_millis() as _);
 
-        if (last_type != 0 && last_type != message_type) || chunk_len >= chunk_size {
-            clean_cache!();
+            let message_type = match &message {
+                MessageSet::Meta(_) => 1,
+                MessageSet::Data(_) => 2,
+                MessageSet::MetaData(_, _) => 3,
+            };
+            metrics.add_messages(1);
+            let message = options
+                .parse_message(&message, metrics)
+                .in_current_span()
+                .await?;
+            if message_type == 1 {
+                clean_cache!();
+                // meta only, sync immediately.
+                msg_tx.send_async(message).await?;
+                res_rx.recv_async().await??;
+                consumer.commit(offset).await?;
+                per_message_instant = std::time::Instant::now();
+                continue;
+            }
 
-            // meta only, sync immediately.
-            msg_tx.send_async(message).await?;
-            res_rx.recv_async().await??;
-            consumer.commit(offset).await?;
+            if (last_type != 0 && last_type != message_type) || chunk_len >= chunk_size {
+                clean_cache!();
+
+                // meta only, sync immediately.
+                msg_tx.send_async(message).await?;
+                res_rx.recv_async().await??;
+                consumer.commit(offset).await?;
+            } else {
+                msg_tx.send_async(message).await?;
+                chunk_len += 1;
+                last_offset.replace(offset);
+            }
+            last_type = message_type;
+            per_message_instant = std::time::Instant::now();
         } else {
-            msg_tx.send_async(message).await?;
-            chunk_len += 1;
-            last_offset.replace(offset);
+            // No message received
+            let elapsed = per_message_instant.elapsed();
+            if elapsed.as_millis() as u64 >= options.commit_interval_ms {
+                clean_cache!();
+                if let Some(offset) = last_offset.take() {
+                    consumer.commit(offset).await?;
+                }
+            }
+
+            if elapsed > options.max_polling_timeout {
+                tracing::info!(
+                    "Polling timeout ({:?} > {:?}), commit immediately",
+                    elapsed,
+                    options.max_polling_timeout
+                );
+                break;
+            }
         }
-        last_type = message_type;
     }
     println!(
         "# [{id}] Consume done after {:?}, waiting for writers to finish",
@@ -980,9 +1239,6 @@ async fn sync_concurrently(
     }
     update_progress(&consumer, &metrics).await;
     tracing::info!("Task done");
-
-    // do not drop consumer when single task done.
-    drop(stream);
     // let _ = sender.send(consumer); // tokio send
     Ok(consumer)
 }
@@ -1012,6 +1268,66 @@ pub async fn tmq_to_td(
     notify: crate::TaskNotifySender,
 ) -> Result<()> {
     let (mut from, builder, topics, with_meta_delete, with_meta_drop) = check_tmq_dsn(from).await?;
+
+    let jobs = from
+        .remove("read_concurrency")
+        .or(from.remove("num.of.consumers"))
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(jobs);
+    let strategy = from
+        .remove("prefer")
+        .map(|s| s.into())
+        .unwrap_or_else(|| WriteStrategy::from_env());
+    let concurrency = from
+        .remove("write_concurrency")
+        .or(from.remove("num.of.writers"))
+        .or(std::env::var("TMQ_WRITE_CONCURRENCY").ok())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_else(|| {
+            std::thread::available_parallelism()
+                .map_or_else(|_| 8, |n| n.get() * 2 / jobs)
+                .max(2)
+        });
+    let commit_chunk_size = from
+        .remove("commit.chunk.size")
+        .or(std::env::var("TMQ_COMMIT_CHUNK_SIZE").ok())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(512);
+    let commit_interval_ms = from
+        .remove("commit.interval.ms")
+        .or(std::env::var("TMQ_COMMIT_INTERVAL_MS").ok())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(5000);
+
+    let max_polling_timeout = from
+        .remove("max.polling.timeout")
+        .or(from.remove("timeout")) // for compatibility
+        .or(std::env::var("TMQ_MAX_POLLING_TIMEOUT").ok())
+        .map(|s| {
+            parse_duration(&s).map_err(|e| {
+                tracing::warn!(
+                    key = "max.polling.timeout",
+                    value = s,
+                    "parse max.polling.timeout error: {}",
+                    e
+                );
+                anyhow::anyhow!("parse max.polling.timeout error: {e:#}")
+            })
+        })
+        .transpose()?
+        .unwrap_or_else(|| Duration::from_secs(5));
+    let options = WriteOptions {
+        with_meta_delete,
+        with_meta_drop,
+        strategy,
+        concurrency,
+        commit_chunk_size,
+        commit_interval_ms,
+        max_polling_timeout,
+        actions: Arc::new(actions.to_owned()),
+        mid: Arc::new(AtomicUsize::new(0)),
+    };
+
     let version = builder.server_version().await?.to_owned();
     tracing::debug!("Source version: {version}");
     // auto generate group.id if not exists
@@ -1225,14 +1541,6 @@ pub async fn tmq_to_td(
 
         let tmq = Arc::new(tmq);
         let topic = Arc::new(topic);
-        let concurrency = std::env::var("TMQ_CONSUMER_CONCURRENCY")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| {
-                std::thread::available_parallelism()
-                    .map_or_else(|_| 8, |n| n.get() * 2 / jobs)
-                    .max(2)
-            });
         for _ in 0..jobs {
             let tmq = tmq.clone();
             let topic = topic.clone();
@@ -1253,6 +1561,7 @@ pub async fn tmq_to_td(
             let metrics_arc = metrics_arc.clone();
             let notify = notify.clone();
             let target = target.clone();
+            let options = options.clone();
             join_set.spawn(
                 async move {
                     let mut consumer = consumer;
@@ -1261,7 +1570,20 @@ pub async fn tmq_to_td(
                     let tick = IntervalLimit::new(Duration::from_secs(60));
                     loop {
                         // let taos = target.get().await?;
-                        match if actions.is_empty() {
+                        match if strategy.prefer_interlace() {
+                            sync_interlace(
+                                &topic,
+                                consumer_task_id,
+                                consumer,
+                                &source_pool,
+                                &target,
+                                table.as_deref(),
+                                cancellation.clone(),
+                                metrics_arc.clone(),
+                                &options,
+                            )
+                            .await
+                        } else if actions.is_empty() {
                             sync_concurrently(
                                 &topic,
                                 consumer_task_id,
@@ -1269,12 +1591,9 @@ pub async fn tmq_to_td(
                                 &source_pool,
                                 &target,
                                 table.as_deref(),
-                                &actions,
                                 cancellation.clone(),
                                 metrics_arc.clone(),
-                                with_meta_delete,
-                                with_meta_drop,
-                                concurrency,
+                                &options,
                             )
                             .await
                         } else {
@@ -1342,6 +1661,7 @@ pub async fn tmq_to_td(
         if let Err(err) = res.map_err(anyhow::Error::from).and_then(|r| r) {
             tracing::error!("Task error: {err:#}");
             join_set.abort_all();
+            println!("{}", metrics);
             return Err(err);
         }
     }
