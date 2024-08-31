@@ -569,6 +569,7 @@ static int32_t idxMayMergeTempToFinalRslt(SArray* result, TFileValue* tfv, SIdxT
         indexFatal("failed to merge result since %s", tstrerror(code));
       }
     } else {
+      tfileValueDestroy(tfv);
       return 0;
     }
   } else {
@@ -591,6 +592,7 @@ static int32_t idxMergeCacheAndTFile(SArray* result, IterateValue* cv, IterateVa
     tfileValueDestroy(tfv);
     return code;
   }
+  tfv = NULL;
 
   if (cv != NULL) {
     uint64_t id = *(uint64_t*)taosArrayGet(cv->val, 0);
@@ -601,19 +603,11 @@ static int32_t idxMergeCacheAndTFile(SArray* result, IterateValue* cv, IterateVa
       INDEX_MERGE_ADD_DEL(tr->add, tr->del, id)
     }
   }
-
-  if (code != 0) {
-    tfileValueDestroy(tfv);
-    return code;
-  }
-
   if (tv != NULL) {
     if (taosArrayAddAll(tr->total, tv->val) == NULL) {
-      tfileValueDestroy(tfv);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
-  tfileValueDestroy(tfv);
   return 0;
 }
 static void idxDestroyFinalRslt(SArray* result) {
