@@ -719,9 +719,13 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
 }
 
 int32_t streamMetaGetNumOfTasks(SStreamMeta* pMeta) {
-  size_t size = taosHashGetSize(pMeta->pTasksMap);
-  ASSERT(taosArrayGetSize(pMeta->pTaskList) == taosHashGetSize(pMeta->pTasksMap));
-  return (int32_t)size;
+  int32_t size = (int32_t)taosHashGetSize(pMeta->pTasksMap);
+  int32_t sizeInList = taosArrayGetSize(pMeta->pTaskList);
+  if (sizeInList != size) {
+    stError("vgId:%d tasks number not consistent in list:%d and map:%d, ", pMeta->vgId, sizeInList, size);
+  }
+
+  return size;
 }
 
 int32_t streamMetaAcquireTaskNoLock(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, SStreamTask** pTask) {
@@ -775,7 +779,10 @@ static void doRemoveIdFromList(SArray* pTaskList, int32_t num, SStreamTaskId* id
       break;
     }
   }
-  ASSERT(remove);
+
+  if (!remove) {
+    stError("s-task:0x%x not in meta task list, internal error", id->taskId);
+  }
 }
 
 static int32_t streamTaskSendTransSuccessMsg(SStreamTask* pTask, void* param) {
@@ -787,6 +794,7 @@ static int32_t streamTaskSendTransSuccessMsg(SStreamTask* pTask, void* param) {
 
 int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
   SStreamTask* pTask = NULL;
+  int32_t      vgId = pMeta->vgId;
 
   // pre-delete operation
   streamMetaWLock(pMeta);
@@ -799,19 +807,19 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
     // desc the paused task counter
     if (streamTaskShouldPause(pTask)) {
       int32_t num = atomic_sub_fetch_32(&pMeta->numOfPausedTasks, 1);
-      stInfo("vgId:%d s-task:%s drop stream task. pause task num:%d", pMeta->vgId, pTask->id.idStr, num);
+      stInfo("vgId:%d s-task:%s drop stream task. pause task num:%d", vgId, pTask->id.idStr, num);
     }
 
     // handle the dropping event
     (void)streamTaskHandleEventAsync(pTask->status.pSM, TASK_EVENT_DROPPING, streamTaskSendTransSuccessMsg, NULL);
   } else {
-    stDebug("vgId:%d failed to find the task:0x%x, it may be dropped already", pMeta->vgId, taskId);
+    stDebug("vgId:%d failed to find the task:0x%x, it may be dropped already", vgId, taskId);
     streamMetaWUnLock(pMeta);
     return 0;
   }
   streamMetaWUnLock(pMeta);
 
-  stDebug("s-task:0x%x vgId:%d set task status:dropping and start to unregister it", taskId, pMeta->vgId);
+  stDebug("s-task:0x%x vgId:%d set task status:dropping and start to unregister it", taskId, vgId);
 
   while (1) {
     int32_t timerActive = 0;
@@ -849,10 +857,18 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
     doRemoveIdFromList(pMeta->pTaskList, (int32_t)taosArrayGetSize(pMeta->pTaskList), &pTask->id);
     (void)streamMetaRemoveTask(pMeta, &id);
 
-    ASSERT(taosHashGetSize(pMeta->pTasksMap) == taosArrayGetSize(pMeta->pTaskList));
+    int32_t size = (int32_t) taosHashGetSize(pMeta->pTasksMap);
+    int32_t sizeInList = taosArrayGetSize(pMeta->pTaskList);
+    if (sizeInList != size) {
+      stError("vgId:%d tasks number not consistent in list:%d and map:%d, ", vgId, sizeInList, size);
+    }
     streamMetaWUnLock(pMeta);
 
-    ASSERT(pTask->status.timerActive == 0);
+    int32_t numOfTmr = pTask->status.timerActive;
+    if (numOfTmr != 0) {
+      stError("s-task:%s vgId:%d invalid timer Active record:%d, internal error", pTask->id.idStr, vgId, numOfTmr);
+    }
+
     if (pTask->info.delaySchedParam != 0 && pTask->info.fillHistory == 0) {
       stDebug("s-task:%s stop schedTimer, and (before) desc ref:%d", pTask->id.idStr, pTask->refCnt);
       (void)taosTmrStop(pTask->schedInfo.pDelayTimer);
@@ -862,7 +878,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
 
     streamMetaReleaseTask(pMeta, pTask);
   } else {
-    stDebug("vgId:%d failed to find the task:0x%x, it may have been dropped already", pMeta->vgId, taskId);
+    stDebug("vgId:%d failed to find the task:0x%x, it may have been dropped already", vgId, taskId);
     streamMetaWUnLock(pMeta);
   }
 
@@ -1062,8 +1078,6 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
     if (streamTaskShouldPause(pTask)) {
       (void)atomic_add_fetch_32(&pMeta->numOfPausedTasks, 1);
     }
-
-    ASSERT(pTask->status.downstreamReady == 0);
   }
 
   tdbFree(pKey);
@@ -1081,7 +1095,6 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   }
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
-  ASSERT(pMeta->numOfStreamTasks <= numOfTasks && pMeta->numOfPausedTasks <= numOfTasks);
   stDebug("vgId:%d load %d tasks into meta from disk completed, streamTask:%d, paused:%d", pMeta->vgId, numOfTasks,
           pMeta->numOfStreamTasks, pMeta->numOfPausedTasks);
 

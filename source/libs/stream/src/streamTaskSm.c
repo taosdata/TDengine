@@ -194,7 +194,6 @@ static int32_t doHandleWaitingEvent(SStreamTaskSM* pSM, const char* pEventName, 
     void* px = taosArrayPop(pSM->pWaitingEventList);
 
     STaskStateTrans* pNextTrans = streamTaskFindTransform(pSM->current.state, pEvtInfo->event);
-    ASSERT(pSM->pActiveTrans == NULL && pNextTrans != NULL);
 
     pSM->pActiveTrans = pNextTrans;
     pSM->startTs = taosGetTimestampMs();

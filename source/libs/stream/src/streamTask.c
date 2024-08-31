@@ -134,8 +134,9 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
     return code;
   }
 
-  if (fillHistory) {
-    ASSERT(hasFillhistory);
+  if (fillHistory && !hasFillhistory) {
+    stError("s-task:0x%x create task failed, due to inconsistent fill-history flag", pTask->id.taskId);
+    return TSDB_CODE_INVALID_PARA;
   }
 
   epsetAssign(&(pTask->info.mnodeEpset), pEpset);
@@ -728,8 +729,11 @@ void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
 
   if ((pInfo != NULL) && pInfo->dataAllowed) {
     pInfo->dataAllowed = false;
-    int32_t t = atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
-    ASSERT(t <= streamTaskGetNumOfUpstream(pTask));
+    if (pTask->upstreamInfo.numOfClosed < streamTaskGetNumOfUpstream(pTask)) {
+      int32_t t = atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
+    } else {
+      stError("s-task:%s not inc closed input, since they have been all closed already", pTask->id.idStr);
+    }
   }
 }
 
@@ -739,7 +743,7 @@ void streamTaskOpenUpstreamInput(SStreamTask* pTask, int32_t taskId) {
 
   if (pInfo != NULL && (!pInfo->dataAllowed)) {
     int32_t t = atomic_sub_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
-    ASSERT(t >= 0);
+    stDebug("s-task:%s open inputQ for upstream:0x%x, remain closed:%d", pTask->id.idStr, taskId, t);
     pInfo->dataAllowed = true;
   }
 }
@@ -775,8 +779,6 @@ int8_t streamTaskSetSchedStatusActive(SStreamTask* pTask) {
 int8_t streamTaskSetSchedStatusInactive(SStreamTask* pTask) {
   streamMutexLock(&pTask->lock);
   int8_t status = pTask->status.schedStatus;
-  ASSERT(status == TASK_SCHED_STATUS__WAITING || status == TASK_SCHED_STATUS__ACTIVE ||
-         status == TASK_SCHED_STATUS__INACTIVE);
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
   streamMutexUnlock(&pTask->lock);
 
@@ -892,8 +894,6 @@ void streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo) {
 }
 
 void streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo) {
-  ASSERT(pInfo->tickCount == 0);
-
   pInfo->waitInterval *= RETRY_LAUNCH_INTERVAL_INC_RATE;
   pInfo->tickCount = ceil(pInfo->waitInterval / WAIT_FOR_MINIMAL_INTERVAL);
   pInfo->retryTimes += 1;
