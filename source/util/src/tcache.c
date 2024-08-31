@@ -787,9 +787,6 @@ void taosTrashcanEmpty(SCacheObj *pCacheObj, bool force) {
 
   STrashElem *pElem = pCacheObj->pTrash;
   while (pElem) {
-    T_REF_VAL_CHECK(pElem->pData);
-    // A S S E R T(pElem->next != pElem && pElem->prev != pElem);
-
     if (force || (T_REF_VAL_GET(pElem->pData) == 0)) {
       uDebug("cache:%s, key:%p, %p removed from trashcan. numOfElem in trashcan:%d", pCacheObj->name, pElem->pData->key,
              pElem->pData->data, pCacheObj->numOfElemsInTrash - 1);
