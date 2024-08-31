@@ -37,6 +37,12 @@ pub struct TmqMetrics {
     pub write_raw_fails: AtomicU64,
     #[serde(default)]
     pub success_blocks: AtomicU64,
+    #[serde(default)]
+    pub total_consume_cost_ms: AtomicU64,
+    #[serde(default)]
+    pub total_write_raw_cost_ms: AtomicU64,
+    #[serde(default)]
+    pub total_write_cost_ms: AtomicU64,
     // Topic Name -> Vgroup ID -> Assignment
     #[serde(skip)]
     pub progress: DashMap<String, DashMap<i32, Assignment>>,
@@ -66,6 +72,9 @@ impl Default for TmqMetrics {
             messages_of_data: AtomicU64::new(0),
             write_raw_fails: AtomicU64::new(0),
             success_blocks: AtomicU64::new(0),
+            total_consume_cost_ms: AtomicU64::new(0),
+            total_write_raw_cost_ms: AtomicU64::new(0),
+            total_write_cost_ms: AtomicU64::new(0),
             progress: DashMap::new(),
         }
     }
@@ -75,19 +84,7 @@ impl TmqMetrics {
     pub fn new(stable: String, task_id: i64, task_name: Option<String>) -> Self {
         Self {
             com: CommonMetrics::new(stable, task_id, task_name),
-            topics: AtomicU16::new(0),
-            consumers: AtomicU16::new(0),
-            total_messages: AtomicU64::new(0),
-            total_messages_of_meta: AtomicU64::new(0),
-            total_messages_of_data: AtomicU64::new(0),
-            total_write_raw_fails: AtomicU64::new(0),
-            total_success_blocks: AtomicU64::new(0),
-            messages: AtomicU64::new(0),
-            messages_of_meta: AtomicU64::new(0),
-            messages_of_data: AtomicU64::new(0),
-            write_raw_fails: AtomicU64::new(0),
-            success_blocks: AtomicU64::new(0),
-            progress: DashMap::new(),
+            ..Default::default()
         }
     }
 
@@ -153,6 +150,18 @@ impl TmqMetrics {
         });
         serde_json::to_string(&json_value).unwrap()
     }
+
+    pub fn add_consume_cost_ms(&self, n: u64) {
+        self.total_consume_cost_ms.fetch_add(n, SeqCst);
+    }
+
+    pub fn add_write_cost_ms(&self, n: u64) {
+        self.total_write_cost_ms.fetch_add(n, SeqCst);
+    }
+
+    pub fn add_write_raw_cost_ms(&self, n: u64) {
+        self.total_write_raw_cost_ms.fetch_add(n, SeqCst);
+    }
 }
 
 impl TaskMetrics for TmqMetrics {
@@ -214,6 +223,17 @@ impl Display for TmqMetrics {
             self.messages_of_data
                 .load(std::sync::atomic::Ordering::SeqCst),
         )?;
+
+        if self.messages.load(std::sync::atomic::Ordering::SeqCst) > 0 {
+            write!(
+                f,
+                "consume poll ms: {}\n\
+                write cost ms: {}(api cost: {})\n",
+                self.total_consume_cost_ms.load(SeqCst),
+                self.total_write_cost_ms.load(SeqCst),
+                self.total_write_raw_cost_ms.load(SeqCst),
+            )?;
+        }
 
         let blocks = self.success_blocks.load(SeqCst);
         if blocks > 0 {
