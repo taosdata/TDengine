@@ -2209,7 +2209,7 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
 
 static int32_t parseDataFromFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SToken* pFilePath,
                                  SRowsDataContext rowsDataCxt) {
-  char filePathStr[TSDB_FILENAME_LEN] = {0};
+  char filePathStr[PATH_MAX] = {0};
   if (TK_NK_STRING == pFilePath->type) {
     trimString(pFilePath->z, pFilePath->n, filePathStr, sizeof(filePathStr));
   } else {
