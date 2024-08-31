@@ -2804,29 +2804,28 @@ static EDealRes mergeProjectionsExpr(SNode** pNode, void* pContext) {
   SMergeProjectionsContext* pCxt = pContext;
   SProjectLogicNode*        pChildProj = pCxt->pChildProj;
   if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
-    SNode* pTarget;
-    FOREACH(pTarget, ((SLogicNode*)pChildProj)->pTargets) {
-      if (nodesEqualNode(pTarget, *pNode)) {
-        SNode* pProjection;
-        FOREACH(pProjection, pChildProj->pProjections) {
-          if (0 == strcmp(((SColumnNode*)pTarget)->colName, ((SExprNode*)pProjection)->aliasName)) {
-            SNode* pExpr = nodesCloneNode(pProjection);
-            if (pExpr == NULL) {
-              pCxt->errCode = terrno;
-              return DEAL_RES_ERROR;
-            }
-            snprintf(((SExprNode*)pExpr)->aliasName, sizeof(((SExprNode*)pExpr)->aliasName), "%s",
-                     ((SExprNode*)*pNode)->aliasName);
-            nodesDestroyNode(*pNode);
-            *pNode = pExpr;
-            return DEAL_RES_IGNORE_CHILD;
-          }
+    SColumnNode* pProjCol = (SColumnNode*)(*pNode);
+    SNode* pProjection;
+    int32_t projIdx = 1;
+    FOREACH(pProjection, pChildProj->pProjections) {
+      if (isColRefExpr(pProjCol, (SExprNode*)pProjection)) {
+        SNode* pExpr = NULL;
+        pExpr = nodesCloneNode(pProjection);
+        if (pExpr == NULL) {
+          pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+          return DEAL_RES_ERROR;
         }
+        snprintf(((SExprNode*)pExpr)->aliasName, sizeof(((SExprNode*)pExpr)->aliasName), "%s",
+            ((SExprNode*)*pNode)->aliasName);
+        nodesDestroyNode(*pNode);
+        *pNode = pExpr;
+        return DEAL_RES_IGNORE_CHILD;
       }
     }
   }
   return DEAL_RES_CONTINUE;
 }
+
 
 static int32_t mergeProjectsOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SLogicNode* pSelfNode) {
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pSelfNode->pChildren, 0);
