@@ -35,17 +35,18 @@ typedef struct SPhysiPlanContext {
   int32_t       errCode;
   int16_t       nextDataBlockId;
   SArray*       pLocationHelper;
+  SArray*       pProjIdxLocHelper;
   bool          hasScan;
   bool          hasSysScan;
 } SPhysiPlanContext;
 
-static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int32_t *pLen) {
+static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int32_t *pLen, uint16_t extraBufLen) {
   int32_t code = 0;
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
     if (NULL != pStmtName) {
       if ('\0' != pStmtName[0]) {
-        *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1);
+        *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
         if (!*ppKey) {
           return terrno;
         }
@@ -55,7 +56,7 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
         *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
         return code;
       } else {
-        *ppKey = taosMemoryCalloc(1, TSDB_COL_NAME_LEN + 1);
+        *ppKey = taosMemoryCalloc(1, TSDB_COL_NAME_LEN + 1 + extraBufLen);
         if (!*ppKey) {
           return terrno;
         }
@@ -65,7 +66,7 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
       }
     }
     if ('\0' == pCol->tableAlias[0]) {
-      *ppKey = taosMemoryCalloc(1, TSDB_COL_NAME_LEN + 1);
+      *ppKey = taosMemoryCalloc(1, TSDB_COL_NAME_LEN + 1 + extraBufLen);
       if (!*ppKey) {
         return terrno;
       }
@@ -74,7 +75,7 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
       return code;
     }
 
-    *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1);
+    *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
     if (!*ppKey) {
       return terrno;
     }
@@ -89,7 +90,7 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
       SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
       if (pVal) {
         if (NULL != pStmtName && '\0' != pStmtName[0]) {
-          *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1);
+          *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
           if (!*ppKey) {
             return terrno;
           }
@@ -99,7 +100,7 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
           *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
           return code;
         }
-        *ppKey = taosMemoryCalloc(1, strlen(pVal->literal) + 1 + TSDB_COL_NAME_LEN + 1);
+        *ppKey = taosMemoryCalloc(1, strlen(pVal->literal) + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
         if (!*ppKey) {
           return terrno;
         }
@@ -113,7 +114,7 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
   }
 
   if (NULL != pStmtName && '\0' != pStmtName[0]) {
-    *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1);
+    *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
     if (!*ppKey) {
       return terrno;
     }
@@ -124,7 +125,7 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
     return code;
   }
 
-  *ppKey = taosMemoryCalloc(1, TSDB_COL_NAME_LEN + 1);
+  *ppKey = taosMemoryCalloc(1, TSDB_COL_NAME_LEN + 1 + extraBufLen);
   if (!*ppKey) {
     return terrno;
   }
@@ -183,22 +184,34 @@ static int32_t putSlotToHash(const char* pName, int32_t len, int16_t dataBlockId
 }
 
 static int32_t createDataBlockDescHash(SPhysiPlanContext* pCxt, int32_t capacity, int16_t dataBlockId,
-                                       SHashObj** pDescHash) {
+                                       SHashObj** pDescHash, SHashObj** ppProjIdxDescHash) {
   SHashObj* pHash = taosHashInit(capacity, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (NULL == pHash) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  SHashObj* pProjIdxHash = taosHashInit(capacity, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (!pProjIdxHash) {
+    taosHashCleanup(pHash);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   if (NULL == taosArrayInsert(pCxt->pLocationHelper, dataBlockId, &pHash)) {
     taosHashCleanup(pHash);
+    taosHashCleanup(pProjIdxHash);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (NULL == taosArrayInsert(pCxt->pProjIdxLocHelper, dataBlockId, &pProjIdxHash)) {
+    taosHashCleanup(pHash);
+    taosHashCleanup(pProjIdxHash);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   *pDescHash = pHash;
+  *ppProjIdxDescHash = pProjIdxHash;
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t buildDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc,
-                                   SHashObj* pHash) {
+                                   SHashObj* pHash, SHashObj* pProjIdxDescHash) {
   pDataBlockDesc->pSlots = nodesMakeList();
   if (NULL == pDataBlockDesc->pSlots) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -210,12 +223,18 @@ static int32_t buildDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SD
   FOREACH(pNode, pList) {
     char* name = NULL;
     int32_t len = 0;
-    code = getSlotKey(pNode, NULL, &name, &len);
+    code = getSlotKey(pNode, NULL, &name, &len, 16);
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListStrictAppend(pDataBlockDesc->pSlots, createSlotDesc(pCxt, name, pNode, slotId, true, false));
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = putSlotToHash(name, len, pDataBlockDesc->dataBlockId, slotId, pNode, pHash);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      if (nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->resIdx > 0) {
+        sprintf(name + strlen(name), "_%d", ((SColumnNode*)pNode)->resIdx);
+        code = putSlotToHash(name, strlen(name), pDataBlockDesc->dataBlockId, slotId, pNode, pProjIdxDescHash);
+      }
     }
     taosMemoryFree(name);
     if (TSDB_CODE_SUCCESS == code) {
@@ -237,9 +256,10 @@ static int32_t createDataBlockDesc(SPhysiPlanContext* pCxt, SNodeList* pList, SD
   pDesc->dataBlockId = pCxt->nextDataBlockId++;
 
   SHashObj* pHash = NULL;
-  int32_t   code = createDataBlockDescHash(pCxt, LIST_LENGTH(pList), pDesc->dataBlockId, &pHash);
+  SHashObj* pProjIdxHash = NULL;
+  int32_t code = createDataBlockDescHash(pCxt, LIST_LENGTH(pList), pDesc->dataBlockId, &pHash, &pProjIdxHash);
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildDataBlockSlots(pCxt, pList, pDesc, pHash);
+    code = buildDataBlockSlots(pCxt, pList, pDesc, pHash, pProjIdxHash);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -277,7 +297,7 @@ static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, 
     SNode*      pExpr = QUERY_NODE_ORDER_BY_EXPR == nodeType(pNode) ? ((SOrderByExprNode*)pNode)->pExpr : pNode;
     char        *name = NULL;
     int32_t     len = 0;
-    code = getSlotKey(pExpr, pStmtName, &name, &len);
+    code = getSlotKey(pExpr, pStmtName, &name, &len, 0);
     if (TSDB_CODE_SUCCESS == code) {
       SSlotIndex* pIndex = taosHashGet(pHash, name, len);
       if (NULL == pIndex) {
@@ -346,7 +366,9 @@ static int32_t pushdownDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList,
 typedef struct SSetSlotIdCxt {
   int32_t   errCode;
   SHashObj* pLeftHash;
+  SHashObj* pLeftProjIdxHash;
   SHashObj* pRightHash;
+  SHashObj* pRightProdIdxHash;
 } SSetSlotIdCxt;
 
 static void dumpSlots(const char* pName, SHashObj* pHash) {
@@ -370,13 +392,22 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     SSetSlotIdCxt* pCxt = (SSetSlotIdCxt*)pContext;
     char           *name = NULL;
     int32_t        len = 0;
-    pCxt->errCode = getSlotKey(pNode, NULL, &name, &len);
+    pCxt->errCode = getSlotKey(pNode, NULL, &name, &len, 16);
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
       return DEAL_RES_ERROR;
     }
-    SSlotIndex*    pIndex = taosHashGet(pCxt->pLeftHash, name, len);
-    if (NULL == pIndex) {
-      pIndex = taosHashGet(pCxt->pRightHash, name, len);
+    SSlotIndex *pIndex = NULL;
+    if (((SColumnNode*)pNode)->projRefIdx > 0) {
+      sprintf(name + strlen(name), "_%d", ((SColumnNode*)pNode)->projRefIdx);
+      pIndex = taosHashGet(pCxt->pLeftProjIdxHash, name, strlen(name));
+      if (!pIndex) {
+        pIndex = taosHashGet(pCxt->pRightProdIdxHash, name, strlen(name));
+      }
+    } else {
+      pIndex = taosHashGet(pCxt->pLeftHash, name, len);
+      if (NULL == pIndex) {
+        pIndex = taosHashGet(pCxt->pRightHash, name, len);
+      }
     }
     // pIndex is definitely not NULL, otherwise it is a bug
     if (NULL == pIndex) {
@@ -409,7 +440,9 @@ static int32_t setNodeSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, i
   SSetSlotIdCxt cxt = {
       .errCode = TSDB_CODE_SUCCESS,
       .pLeftHash = taosArrayGetP(pCxt->pLocationHelper, leftDataBlockId),
-      .pRightHash = (rightDataBlockId < 0 ? NULL : taosArrayGetP(pCxt->pLocationHelper, rightDataBlockId))};
+      .pLeftProjIdxHash = taosArrayGetP(pCxt->pProjIdxLocHelper, leftDataBlockId),
+      .pRightHash = (rightDataBlockId < 0 ? NULL : taosArrayGetP(pCxt->pLocationHelper, rightDataBlockId)),
+      .pRightProdIdxHash = (rightDataBlockId < 0 ? NULL : taosArrayGetP(pCxt->pProjIdxLocHelper, rightDataBlockId))};
   nodesWalkExpr(pRes, doSetSlotId, &cxt);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyNode(pRes);
@@ -434,7 +467,9 @@ static int32_t setListSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, i
   SSetSlotIdCxt cxt = {
       .errCode = TSDB_CODE_SUCCESS,
       .pLeftHash = taosArrayGetP(pCxt->pLocationHelper, leftDataBlockId),
-      .pRightHash = (rightDataBlockId < 0 ? NULL : taosArrayGetP(pCxt->pLocationHelper, rightDataBlockId))};
+      .pLeftProjIdxHash = taosArrayGetP(pCxt->pProjIdxLocHelper, leftDataBlockId),
+      .pRightHash = (rightDataBlockId < 0 ? NULL : taosArrayGetP(pCxt->pLocationHelper, rightDataBlockId)),
+      .pRightProdIdxHash = (rightDataBlockId < 0 ? NULL : taosArrayGetP(pCxt->pProjIdxLocHelper, rightDataBlockId))};
   nodesWalkExprs(pRes, doSetSlotId, &cxt);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(pRes);
@@ -1159,7 +1194,7 @@ static int32_t sortHashJoinTargets(int16_t lBlkId, int16_t rBlkId, SHashJoinPhys
     SColumnNode* pCol = (SColumnNode*)pNode;
     int32_t len = 0;
     char* pName = NULL;
-    code = getSlotKey(pNode, NULL, &pName, &len);
+    code = getSlotKey(pNode, NULL, &pName, &len, 0);
     if (TSDB_CODE_SUCCESS == code)
       code = tSimpleHashPut(pHash, pName, len, &pCol, POINTER_BYTES);
     taosMemoryFree(pName);
@@ -1180,7 +1215,7 @@ static int32_t sortHashJoinTargets(int16_t lBlkId, int16_t rBlkId, SHashJoinPhys
     SColumnNode* pCol = (SColumnNode*)pNode;
     int32_t len = 0;
     char* pName = NULL;
-    code = getSlotKey(pNode, NULL, &pName, &len);
+    code = getSlotKey(pNode, NULL, &pName, &len, 0);
     if (TSDB_CODE_SUCCESS == code) {
       SNode** p = tSimpleHashGet(pHash, pName, len);
       if (p) {
@@ -1204,7 +1239,7 @@ static int32_t sortHashJoinTargets(int16_t lBlkId, int16_t rBlkId, SHashJoinPhys
     SColumnNode* pCol = (SColumnNode*)pNode;
     int32_t len = 0;
     char* name = NULL;
-    code = getSlotKey(pNode, NULL, &name, &len);
+    code = getSlotKey(pNode, NULL, &name, &len, 0);
     if (TSDB_CODE_SUCCESS == code) {
       SNode** p = tSimpleHashGet(pHash, name, len);
       if (p) {
@@ -2880,6 +2915,7 @@ static void destoryLocationHash(void* p) {
 
 static void destoryPhysiPlanContext(SPhysiPlanContext* pCxt) {
   taosArrayDestroyEx(pCxt->pLocationHelper, destoryLocationHash);
+  taosArrayDestroyEx(pCxt->pProjIdxLocHelper, destoryLocationHash);
 }
 
 static void setExplainInfo(SPlanContext* pCxt, SQueryPlan* pPlan) {
@@ -2908,9 +2944,12 @@ int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryP
                            .errCode = TSDB_CODE_SUCCESS,
                            .nextDataBlockId = 0,
                            .pLocationHelper = taosArrayInit(32, POINTER_BYTES),
+                           .pProjIdxLocHelper = taosArrayInit(32, POINTER_BYTES),
                            .hasScan = false,
                            .hasSysScan = false};
-  if (NULL == cxt.pLocationHelper) {
+  if (NULL == cxt.pLocationHelper || !cxt.pProjIdxLocHelper) {
+    taosArrayDestroy(cxt.pLocationHelper);
+    taosArrayDestroy(cxt.pProjIdxLocHelper);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
