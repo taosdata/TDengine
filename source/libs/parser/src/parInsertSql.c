@@ -1849,7 +1849,7 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
 
 static int32_t parseDataFromFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SToken* pFilePath,
                                  STableDataCxt* pTableCxt) {
-  char filePathStr[TSDB_FILENAME_LEN] = {0};
+  char filePathStr[PATH_MAX] = {0};
   if (TK_NK_STRING == pFilePath->type) {
     trimString(pFilePath->z, pFilePath->n, filePathStr, sizeof(filePathStr));
   } else {
@@ -2002,7 +2002,7 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
   pStmt->pVgDataBlocks = NULL;
   bool fileOnly = (pStmt->insertType == TSDB_QUERY_TYPE_FILE_INSERT);
   if (fileOnly) {
-    // none data, skip merge, buildvgdata 
+    // none data, skip merge, buildvgdata
     if (0 == taosHashGetSize(pStmt->pTableCxtHashObj)) {
       pCxt->needRequest = false;
       return TSDB_CODE_SUCCESS;
@@ -2061,7 +2061,7 @@ static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, S
   pStmt->pSql = pCxt->pComCxt->pSql;
   pStmt->freeHashFunc = insDestroyTableDataCxtHashMap;
   pStmt->freeArrayFunc = insDestroyVgroupDataCxtList;
-  
+
   if (!reentry) {
     pStmt->pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
     if (pCxt->pComCxt->pStmtCb) {
