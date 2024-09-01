@@ -60,6 +60,7 @@ typedef struct SExprNode {
   bool      orderAlias;
   bool      asAlias;
   bool      asParam;
+  int32_t   projIdx;
 } SExprNode;
 
 typedef enum EColumnType {
@@ -90,6 +91,8 @@ typedef struct SColumnNode {
   int16_t     numOfPKs;
   bool        tableHasPk;
   bool        isPk;
+  int32_t     projRefIdx;
+  int32_t     resIdx;
 } SColumnNode;
 
 typedef struct SColumnRefNode {
