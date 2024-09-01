@@ -1270,7 +1270,7 @@ static void setColumnPrimTs(STranslateContext* pCxt, SColumnNode* pCol, const ST
   }
 }
 
-static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* pTable, bool igTags, SNodeList* pList) {
+static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* pTable, bool igTags, SNodeList* pList, bool skipProjRef) {
   int32_t code = 0;
   if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
     const STableMeta* pMeta = ((SRealTableNode*)pTable)->pMeta;
@@ -1305,7 +1305,11 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
         SListCell* pCell = nodesListGetCell(pList, LIST_LENGTH(pList) - 1);
         code = setColumnInfoByExpr(pTempTable, (SExprNode*)pNode, (SColumnNode**)&pCell->pNode);
       }
-      if (TSDB_CODE_SUCCESS != code) break;
+      if (TSDB_CODE_SUCCESS == code) {
+        if (!skipProjRef) pCol->projRefIdx = ((SExprNode*)pNode)->projIdx; // only set proj ref when select * from (select ...)
+      } else {
+        break;
+      }
     }
   }
   return code;
@@ -4770,7 +4774,7 @@ static int32_t createAllColumns(STranslateContext* pCxt, bool igTags, SNodeList*
   size_t  nums = taosArrayGetSize(pTables);
   for (size_t i = 0; i < nums; ++i) {
     STableNode* pTable = taosArrayGetP(pTables, i);
-    int32_t     code = createColumnsByTable(pCxt, pTable, igTags, *pCols);
+    int32_t     code = createColumnsByTable(pCxt, pTable, igTags, *pCols, nums > 1);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
@@ -4833,7 +4837,7 @@ static int32_t createTableAllCols(STranslateContext* pCxt, SColumnNode* pCol, bo
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnsByTable(pCxt, pTable, igTags, *pOutput);
+    code = createColumnsByTable(pCxt, pTable, igTags, *pOutput, false);
   }
   return code;
 }
@@ -5175,6 +5179,11 @@ static int32_t translateProjectionList(STranslateContext* pCxt, SSelectStmt* pSe
   if (!pSelect->isSubquery) {
     return rewriteProjectAlias(pSelect->pProjectionList);
   } else {
+    SNode* pNode;
+    int32_t projIdx = 1;
+    FOREACH(pNode, pSelect->pProjectionList) {
+      ((SExprNode*)pNode)->projIdx = projIdx++;
+    }
     return TSDB_CODE_SUCCESS;
   }
 }
