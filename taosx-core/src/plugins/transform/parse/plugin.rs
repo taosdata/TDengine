@@ -29,6 +29,10 @@ use arrow::{
     },
     record_batch::RecordBatch,
 };
+
+use super::super::super::runners::get_plugins_home_dir;
+
+
 use arrow_schema::{Field, Fields};
 use itertools::Itertools;
 use serde_json::Value as JsonValue;
@@ -117,7 +121,9 @@ lazy_static! {
         let mut plugin_map = HashMap::new();
 
         // FIXME: 需要从配置文件中加载配置目录
-        let lib_path = "D:\\tmp1\\plugins\\";
+        let plugin_path = get_plugins_home_dir();
+        let lib_path = plugin_path.join("parsers");
+
         if let Ok(entries) = fs::read_dir(lib_path) {
             for entry in entries {
                 if let Ok(entry) = entry {
@@ -989,6 +995,7 @@ impl ParserPlugin {
     }
 }
 
+
 // #[cfg(test)]
 // mod tests {
 //     use super::*;
@@ -997,7 +1004,7 @@ impl ParserPlugin {
 //     fn test_list_all_plugins() {
 //         let plugin_list = ParserPlugin::list_all_plugins();
 //         println!("plugin_list====: {:?}", plugin_list);
-//         assert_eq!(plugin_list.len(), 1);
+//         // assert_eq!(plugin_list.len(), 1);
 //         // assert_eq!(plugin_list[0], "hebeipower");
 //     }
 
