@@ -251,7 +251,7 @@ int32_t schUpdateHbConnection(SQueryNodeEpId *epId, SSchTrans *trans) {
   hb = taosHashGet(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId));
   if (NULL == hb) {
     SCH_UNLOCK(SCH_READ, &schMgmt.hbLock);
-    atomic_add_fetch_64(&schMgmt.stat.runtime.hbConnNotFound, 1);
+    (void)atomic_add_fetch_64(&schMgmt.stat.runtime.hbConnNotFound, 1);
     return TSDB_CODE_SUCCESS;
   }
 
