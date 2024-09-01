@@ -113,6 +113,7 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
           strcpy(pCol->node.aliasName, pToBeRewrittenExpr->aliasName);
           strcpy(pCol->node.userAlias, ((SExprNode*)pExpr)->userAlias);
           strcpy(pCol->colName, ((SExprNode*)pExpr)->aliasName);
+          pCol->node.projIdx = ((SExprNode*)(*pNode))->projIdx;
           if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
             setColumnInfo((SFunctionNode*)pExpr, pCol, pCxt->isPartitionBy);
           }
@@ -588,6 +589,10 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     if (TSDB_CODE_SUCCESS == code && NULL != pColList) {
       code = createColumnByRewriteExprs(pColList, &pJoin->node.pTargets);
     }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    rewriteTargetsWithResId(pJoin->node.pTargets);
   }
 
   if (NULL == pJoin->node.pTargets && NULL != pLeft) {
@@ -1146,6 +1151,9 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
                                     ? (pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
                                     : DATA_ORDER_LEVEL_NONE;
   int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_ORDER_BY, NULL, COLLECT_COL_TYPE_ALL, &pSort->node.pTargets);
+  if (TSDB_CODE_SUCCESS == code) {
+    rewriteTargetsWithResId(pSort->node.pTargets);
+  }
   if (TSDB_CODE_SUCCESS == code && NULL == pSort->node.pTargets) {
     code = nodesListMakeStrictAppend(&pSort->node.pTargets,
                                      nodesCloneNode(nodesListGetNode(pCxt->pCurrRoot->pTargets, 0)));
@@ -1189,11 +1197,15 @@ static int32_t createColumnByProjections(SLogicPlanContext* pCxt, const char* pS
   }
 
   SNode* pNode;
+  int32_t projIdx = 1;
+  int32_t code = 0;
   FOREACH(pNode, pExprs) {
-    if (TSDB_CODE_SUCCESS != nodesListAppend(pList, (SNode*)createColumnByExpr(pStmtName, (SExprNode*)pNode))) {
+    SColumnNode* pCol = createColumnByExpr(pStmtName, (SExprNode*)pNode);
+    if (TSDB_CODE_SUCCESS != (code = nodesListStrictAppend(pList, (SNode*)pCol))) {
       nodesDestroyList(pList);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return code;
     }
+    pCol->resIdx = ((SExprNode*)pNode)->projIdx;
   }
 
   *pCols = pList;
@@ -1254,6 +1266,9 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
   if (TSDB_CODE_SUCCESS == code && NULL == pPartition->node.pTargets) {
     code = nodesListMakeStrictAppend(&pPartition->node.pTargets,
                                      nodesCloneNode(nodesListGetNode(pCxt->pCurrRoot->pTargets, 0)));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    rewriteTargetsWithResId(pPartition->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

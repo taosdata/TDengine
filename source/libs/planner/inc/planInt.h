@@ -56,6 +56,8 @@ bool isPartTableWinodw(SWindowLogicNode* pWindow);
 #define CLONE_SLIMIT 1 << 1
 #define CLONE_LIMIT_SLIMIT (CLONE_LIMIT | CLONE_SLIMIT)
 bool cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat);
+bool isColRefExpr(const SColumnNode* pCol, const SExprNode* pExpr);
+void rewriteTargetsWithResId(SNodeList* pTargets);
 
 #ifdef __cplusplus
 }

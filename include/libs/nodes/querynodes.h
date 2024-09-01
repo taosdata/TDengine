@@ -53,6 +53,7 @@ typedef struct SExprNode {
   bool      orderAlias;
   bool      asAlias;
   bool      asParam;
+  int32_t   projIdx;
 } SExprNode;
 
 typedef enum EColumnType {
@@ -79,6 +80,8 @@ typedef struct SColumnNode {
   char        colName[TSDB_COL_NAME_LEN];
   int16_t     dataBlockId;
   int16_t     slotId;
+  int32_t     projRefIdx;
+  int32_t     resIdx;
 } SColumnNode;
 
 typedef struct SColumnRefNode {

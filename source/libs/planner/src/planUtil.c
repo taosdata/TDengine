@@ -502,3 +502,17 @@ bool cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat) {
   }
   return cloned;
 }
+
+bool isColRefExpr(const SColumnNode* pCol, const SExprNode* pExpr) {
+  if (pCol->projRefIdx > 0) return pCol->projRefIdx == pExpr->projIdx;
+
+  return 0 == strcmp(pCol->colName, pExpr->aliasName);
+}
+
+void rewriteTargetsWithResId(SNodeList* pTargets) {
+  SNode* pNode;
+  FOREACH(pNode, pTargets) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (pCol->resIdx <= 0)pCol->resIdx = pCol->projRefIdx;
+  }
+}
