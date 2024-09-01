@@ -23,6 +23,7 @@ use taosx_core::{dsv::DataSourceValidation, utils::license, QueryDataSourceReq};
 use taosx_core::{get_data_dir, list_datasets_from, plugins, validate_dsn, DataSetsReq};
 use taosx_core::{
     plugins::transform::sample::DsSampleIn,
+    plugins::transform::parse::plugin::ParserPlugin,
     runners::pi::{
         parse_query_datasource_params,
         transform::{PIElementModelConfig, PIPointModelConfig},
@@ -232,30 +233,22 @@ pub(super) async fn data_source_sample(
             message: format!("{:#}", err),
         }),
     }
-    // let schema = Arc::new(arrow::datatypes::Schema::new(
-    //     sample_in.input[0]
-    //         .iter()
-    //         .map(|(name, value)| {
-    //             let dt = match value {
-    //                 serde_json::Value::Null
-    //                 | serde_json::Value::String(_)
-    //                 | serde_json::Value::Object(_)
-    //                 | serde_json::Value::Array(_) => DataType::Utf8,
-    //                 serde_json::Value::Bool(_) => DataType::Boolean,
-    //                 serde_json::Value::Number(num) => {
-    //                     if num.is_u64() {
-    //                         DataType::UInt64
-    //                     } else if num.is_f64() {
-    //                         DataType::Float64
-    //                     } else {
-    //                         DataType::Int64
-    //                     }
-    //                 }
-    //             };
-    //             Field::new(name, dt, true)
-    //         })
-    //         .collect_vec(),
-    // ));
+}
+
+#[utoipa::path(
+    tag = "transform parser plugins",
+    responses(
+        (status = 200, description = "list all the parser plugins", body = Vec<String>),
+    )
+)]
+#[get("/transform/parser/plugins")]
+pub(super) async fn list_all_parser_plugins() -> impl Responder {
+    let plugins = ParserPlugin::list_all_plugins();
+    // let plugins = vec!["hebeipower".to_string(), "taos".to_string()];
+    HttpResponse::Ok()
+            .content_type(ContentType::json())
+            .json(plugins) 
+
 }
 
 #[test]
