@@ -107,7 +107,7 @@ void streamTaskSendCheckMsg(SStreamTask* pTask) {
     streamTaskAddReqInfo(&pTask->taskCheckInfo, req.reqId, pDispatch->taskId, pDispatch->nodeId, idstr);
 
     stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " check single downstream task:0x%x(vgId:%d) ver:%" PRId64 "-%" PRId64
-            " window:%" PRId64 "-%" PRId64 " qid:0x%" PRIx64,
+            " window:%" PRId64 "-%" PRId64 "QID:0x%" PRIx64,
             idstr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, pRange->range.minVer,
             pRange->range.maxVer, pWindow->skey, pWindow->ekey, req.reqId);
 
@@ -133,7 +133,7 @@ void streamTaskSendCheckMsg(SStreamTask* pTask) {
       streamTaskAddReqInfo(&pTask->taskCheckInfo, req.reqId, pVgInfo->taskId, pVgInfo->vgId, idstr);
 
       stDebug("s-task:%s (vgId:%d) stage:%" PRId64
-              " check downstream task:0x%x (vgId:%d) (shuffle), idx:%d, qid:0x%" PRIx64,
+              " check downstream task:0x%x (vgId:%d) (shuffle), idx:%d,QID:0x%" PRIx64,
               idstr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i, req.reqId);
       (void)streamSendCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
@@ -432,7 +432,7 @@ int32_t streamTaskUpdateCheckInfo(STaskCheckInfo* pInfo, int32_t taskId, int32_t
   findCheckRspStatus(pInfo, taskId, &p);
   if (p != NULL) {
     if (reqId != p->reqId) {
-      stError("s-task:%s qid:0x%" PRIx64 " expected:0x%" PRIx64
+      stError("s-task:%sQID:0x%" PRIx64 " expected:0x%" PRIx64
               " expired check-rsp recv from downstream task:0x%x, discarded",
               id, reqId, p->reqId, taskId);
       streamMutexUnlock(&pInfo->checkInfoLock);
@@ -454,7 +454,7 @@ int32_t streamTaskUpdateCheckInfo(STaskCheckInfo* pInfo, int32_t taskId, int32_t
   }
 
   streamMutexUnlock(&pInfo->checkInfoLock);
-  stError("s-task:%s unexpected check rsp msg, invalid downstream task:0x%x, qid:%" PRIx64 " discarded", id, taskId,
+  stError("s-task:%s unexpected check rsp msg, invalid downstream task:0x%x,QID:%" PRIx64 " discarded", id, taskId,
           reqId);
   return TSDB_CODE_FAILED;
 }
@@ -541,7 +541,7 @@ void doSendCheckMsg(SStreamTask* pTask, SDownstreamStatusInfo* p) {
     STaskDispatcherFixed* pDispatch = &pOutputInfo->fixedDispatcher;
     setCheckDownstreamReqInfo(&req, p->reqId, pDispatch->taskId, pDispatch->nodeId);
 
-    stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " re-send check downstream task:0x%x(vgId:%d) qid:0x%" PRIx64, id,
+    stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " re-send check downstream task:0x%x(vgId:%d)QID:0x%" PRIx64, id,
             pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, req.reqId);
 
     (void)streamSendCheckMsg(pTask, &req, pOutputInfo->fixedDispatcher.nodeId, &pOutputInfo->fixedDispatcher.epSet);
@@ -559,7 +559,7 @@ void doSendCheckMsg(SStreamTask* pTask, SDownstreamStatusInfo* p) {
         setCheckDownstreamReqInfo(&req, p->reqId, pVgInfo->taskId, pVgInfo->vgId);
 
         stDebug("s-task:%s (vgId:%d) stage:%" PRId64
-                " re-send check downstream task:0x%x(vgId:%d) (shuffle), idx:%d qid:0x%" PRIx64,
+                " re-send check downstream task:0x%x(vgId:%d) (shuffle), idx:%dQID:0x%" PRIx64,
                 id, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i, p->reqId);
         (void)streamSendCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
         break;
@@ -585,12 +585,18 @@ void getCheckRspStatus(STaskCheckInfo* pInfo, int64_t el, int32_t* numOfReady, i
     } else {                                 // TASK_DOWNSTREAM_NOT_READY
       if (p->rspTs == 0) {                   // not response yet
         if (el >= CHECK_NOT_RSP_DURATION) {  // not receive info for 10 sec.
-          (void)taosArrayPush(pTimeoutList, &p->taskId);
+          void* px = taosArrayPush(pTimeoutList, &p->taskId);
+          if (px == NULL) {
+            stError("s-task:%s failed to record time out task:0x%x", id, p->taskId);
+          }
         } else {                // el < CHECK_NOT_RSP_DURATION
           (*numOfNotRsp) += 1;  // do nothing and continue waiting for their rsp
         }
       } else {
-        (void)taosArrayPush(pNotReadyList, &p->taskId);
+        void* px = taosArrayPush(pNotReadyList, &p->taskId);
+        if (px == NULL) {
+          stError("s-task:%s failed to record not ready task:0x%x", id, p->taskId);
+        }
       }
     }
   }

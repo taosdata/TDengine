@@ -94,7 +94,7 @@ static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
     int32_t total = atomic_add_fetch_64((int64_t *)&pSummary->totalRequests, 1);
     int32_t currentInst = atomic_add_fetch_64((int64_t *)&pSummary->currentRequests, 1);
     tscDebug("0x%" PRIx64 " new Request from connObj:0x%" PRIx64
-             ", current:%d, app current:%d, total:%d, qid:0x%" PRIx64,
+             ", current:%d, app current:%d, total:%d,QID:0x%" PRIx64,
              pRequest->self, pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
   }
 
@@ -249,7 +249,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
   int32_t reqType = SLOW_LOG_TYPE_OTHERS;
 
   int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
-  tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", qid:0x%" PRIx64
+  tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ",QID:0x%" PRIx64
            " elapsed:%.2f ms, "
            "current:%d, app current:%d",
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
@@ -294,7 +294,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
       checkSlowLogExceptDb(pRequest, pTscObj->pAppInfo->monitorParas.tsSlowLogExceptDb)) {
     (void)atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
     if (pTscObj->pAppInfo->monitorParas.tsSlowLogScope & reqType) {
-      taosPrintSlowLog("PID:%d, Conn:%u, qid:0x%" PRIx64 ", Start:%" PRId64 " us, Duration:%" PRId64 "us, SQL:%s",
+      taosPrintSlowLog("PID:%d, Conn:%u,QID:0x%" PRIx64 ", Start:%" PRId64 " us, Duration:%" PRId64 "us, SQL:%s",
                        taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration,
                        pRequest->sqlstr);
       if (pTscObj->pAppInfo->monitorParas.tsEnableMonitor) {
@@ -933,7 +933,7 @@ void taos_init_imp(void) {
   appInfo.pInstMapByClusterId =
       taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (NULL == appInfo.pInstMap || NULL == appInfo.pInstMapByClusterId) {
-    tscError("failed to allocate memory when init appInfo");
+    (void)printf("failed to allocate memory when init appInfo\n");
     tscInitRes = TSDB_CODE_OUT_OF_MEMORY;
     return;
   }
@@ -961,7 +961,7 @@ void taos_init_imp(void) {
 
   if (InitRegexCache() != 0) {
     tscInitRes = -1;
-    tscError("failed to init regex cache");
+    (void)printf("failed to init regex cache\n");
     return;
   }
 

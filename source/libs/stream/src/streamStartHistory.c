@@ -111,11 +111,15 @@ void streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) {
 }
 
 int32_t streamTaskStartScanHistory(SStreamTask* pTask) {
-  int32_t     level = pTask->info.taskLevel;
-  ETaskStatus status = streamTaskGetStatus(pTask).state;
+  int32_t          level = pTask->info.taskLevel;
+  SStreamTaskState state = streamTaskGetStatus(pTask);
 
-  ASSERT((pTask->status.downstreamReady == 1) && (status == TASK_STATUS__SCAN_HISTORY) &&
-         (pTask->info.fillHistory == 1));
+  if (((pTask->status.downstreamReady != 1) || (state.state != TASK_STATUS__SCAN_HISTORY) ||
+       (pTask->info.fillHistory != 1))) {
+    stFatal("s-task:%s invalid status:%s to start fill-history task, downReady:%d, is-fill-history task:%d",
+            pTask->id.idStr, state.name, pTask->status.downstreamReady, pTask->info.fillHistory);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
 
   if (level == TASK_LEVEL__SOURCE) {
     return doStartScanHistoryTask(pTask);
@@ -144,7 +148,6 @@ int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask) {
   }
 
   SStreamTaskState p = streamTaskGetStatus(pTask);
-  ASSERT(p.state == TASK_STATUS__READY);
 
   int8_t schedStatus = pTask->status.schedStatus;
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
@@ -171,8 +174,6 @@ int32_t streamTaskOnScanHistoryTaskReady(SStreamTask* pTask) {
 
   if (code == 0) {
     SStreamTaskState p = streamTaskGetStatus(pTask);
-    ASSERT((p.state == TASK_STATUS__SCAN_HISTORY) && (pTask->info.fillHistory == 1));
-
     stDebug("s-task:%s fill-history task enters into scan-history data stage, status:%s", pTask->id.idStr, p.name);
     code = streamTaskStartScanHistory(pTask);
   }
@@ -348,8 +349,6 @@ void tryLaunchHistoryTask(void* param, void* tmrId) {
   }
 
   if (streamTaskShouldStop(*ppTask)) {
-    ASSERT((*ppTask)->status.timerActive >= 1);
-
     char*   p = streamTaskGetStatus(*ppTask).name;
     int32_t ref = atomic_sub_fetch_32(&(*ppTask)->status.timerActive, 1);
     stDebug("s-task:%s status:%s should stop, quit launch fill-history task timer, retry:%d, ref:%d",
@@ -385,7 +384,10 @@ void tryLaunchHistoryTask(void* param, void* tmrId) {
       notRetryLaunchFillHistoryTask(pTask, pInfo, now);
     } else {  // not reach the limitation yet, let's continue retrying launch related fill-history task.
       streamTaskSetRetryInfoForLaunch(pHTaskInfo);
-      ASSERT(pTask->status.timerActive >= 1);
+      if (pTask->status.timerActive < 1) {
+        stError("s-task:%s invalid timerActive recorder:%d, abort timer", pTask->id.idStr, pTask->status.timerActive);
+        return;
+      }
 
       // abort the timer if intend to stop task
       SStreamTask* pHTask = NULL;
@@ -451,8 +453,6 @@ int32_t launchNotBuiltFillHistoryTask(SStreamTask* pTask) {
   int32_t              hTaskId = pTask->hTaskInfo.id.taskId;
   SLaunchHTaskInfo*    pInfo = NULL;
 
-  ASSERT(hTaskId != 0);
-
   stWarn("s-task:%s vgId:%d failed to launch history task:0x%x, since not built yet", idStr, pMeta->vgId, hTaskId);
 
   STaskId id = streamTaskGetTaskId(pTask);
@@ -480,11 +480,18 @@ int32_t launchNotBuiltFillHistoryTask(SStreamTask* pTask) {
       return terrno;
     }
 
-    ASSERT(ref >= 1);
+    if (ref < 1) {
+      stError("s-task:%s invalid timerActive recorder:%d, abort timer", pTask->id.idStr, pTask->status.timerActive);
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
 
     stDebug("s-task:%s set timer active flag, ref:%d", idStr, ref);
   } else {  // timer exists
-    ASSERT(pTask->status.timerActive >= 1);
+    if (pTask->status.timerActive < 1) {
+      stError("s-task:%s invalid timerActive recorder:%d, abort timer", pTask->id.idStr, pTask->status.timerActive);
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
+
     stDebug("s-task:%s set timer active flag, task timer not null", idStr);
     streamTmrReset(tryLaunchHistoryTask, WAIT_FOR_MINIMAL_INTERVAL, pInfo, streamTimer, &pTask->hTaskInfo.pTimer,
                    pTask->pMeta->vgId, " start-history-task-tmr");
@@ -500,7 +507,11 @@ int32_t streamTaskResetTimewindowFilter(SStreamTask* pTask) {
 
 bool streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t nextProcessVer) {
   SVersionRange* pRange = &pTask->dataRange.range;
-  ASSERT(nextProcessVer >= pRange->maxVer);
+  if (nextProcessVer < pRange->maxVer) {
+    stError("s-task:%s next processdVer:%"PRId64" is less than range max ver:%"PRId64, pTask->id.idStr, nextProcessVer,
+        pRange->maxVer);
+    return true;
+  }
 
   // maxVer for fill-history task is the version, where the last timestamp is acquired.
   // it's also the maximum version to scan data in tsdb.
@@ -538,7 +549,11 @@ int32_t streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
 
     return TSDB_CODE_SUCCESS;
   } else {
-    ASSERT(pTask->info.fillHistory == 0);
+    if (pTask->info.fillHistory != 0) {
+      stError("s-task:%s task should not be fill-history task, internal error", pTask->id.idStr);
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
+
     if (pTask->info.taskLevel >= TASK_LEVEL__AGG) {
       return TSDB_CODE_SUCCESS;
     }

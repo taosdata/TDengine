@@ -6007,6 +6007,7 @@ int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
 
   pInfo->buf = taosMemoryMalloc(pInfo->colBytes);
   if (NULL == pInfo->buf) {
+    taosHashCleanup(pInfo->pHash);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -6114,6 +6115,7 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData*     pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   int32_t              currentRow = pBlock->info.rows;
   if (NULL == pCol) {
+    modeFunctionCleanup(pInfo);
     return TSDB_CODE_OUT_OF_RANGE;
   }
 
@@ -6145,6 +6147,7 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
     code = colDataSetVal(pCol, currentRow, pData, false);
     if (TSDB_CODE_SUCCESS != code) {
+      modeFunctionCleanup(pInfo);
      return code;
     }
     code = setSelectivityValue(pCtx, pBlock, &resTuplePos, currentRow);

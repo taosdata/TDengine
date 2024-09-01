@@ -120,7 +120,8 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
         stError("vgId:%d failed to handle event:%d", pMeta->vgId, TASK_EVENT_INIT);
         code = ret;
 
-        if (code != TSDB_CODE_STREAM_INVALID_STATETRANS) {
+        // do no added into result hashmap if it is failed due to concurrently starting of this stream task.
+        if (code != TSDB_CODE_STREAM_CONFLICT_EVENT) {
           streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
         }
       }
@@ -195,9 +196,9 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
   }
 
   // clear the send consensus-checkpointId flag
-  streamMutexLock(&(*p)->lock);
-  (*p)->status.sendConsensusChkptId = false;
-  streamMutexUnlock(&(*p)->lock);
+//  streamMutexLock(&(*p)->lock);
+//  (*p)->status.sendConsensusChkptId = false;
+//  streamMutexUnlock(&(*p)->lock);
 
   if (pStartInfo->startAllTasks != 1) {
     int64_t el = endTs - startTs;
@@ -385,11 +386,11 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
   if (code == TSDB_CODE_SUCCESS) {
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
     if (code != TSDB_CODE_SUCCESS) {
-      stError("s-task:%s vgId:%d failed to handle event:%d, code:%s", pTask->id.idStr, pMeta->vgId, TASK_EVENT_INIT,
+      stError("s-task:%s vgId:%d failed to handle event:init-task, code:%s", pTask->id.idStr, pMeta->vgId,
               tstrerror(code));
 
       // do no added into result hashmap if it is failed due to concurrently starting of this stream task.
-      if (code != TSDB_CODE_STREAM_INVALID_STATETRANS) {
+      if (code != TSDB_CODE_STREAM_CONFLICT_EVENT) {
         streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
       }
     }
@@ -443,4 +444,47 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
   return 0;
 }
 
+int32_t streamTaskCheckIfReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
+  SConsenChkptInfo* pConChkptInfo = &pTask->status.consenChkptInfo;
 
+  int32_t vgId = pTask->pMeta->vgId;
+  if (pConChkptInfo->status == TASK_CONSEN_CHKPT_REQ) {
+    pConChkptInfo->status = TASK_CONSEN_CHKPT_SEND;
+    pConChkptInfo->statusTs = ts;
+    stDebug("s-task:%s vgId:%d set requiring consensus-chkptId in hbMsg, ts:%" PRId64, pTask->id.idStr,
+            vgId, pConChkptInfo->statusTs);
+    return 1;
+  } else {
+    int32_t el = (ts - pConChkptInfo->statusTs) / 1000;
+    if ((pConChkptInfo->status == TASK_CONSEN_CHKPT_SEND) && el > 60) {
+      pConChkptInfo->statusTs = ts;
+
+      stWarn(
+          "s-task:%s vgId:%d not recv consensus-chkptId for %ds(more than 60s), set requiring in Hb again, ts:%" PRId64,
+          pTask->id.idStr, vgId, el, pConChkptInfo->statusTs);
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
+void streamTaskSetConsenChkptIdRecv(SStreamTask* pTask, int32_t transId, int64_t ts) {
+  SConsenChkptInfo* pInfo = &pTask->status.consenChkptInfo;
+  pInfo->consenChkptTransId = transId;
+  pInfo->status = TASK_CONSEN_CHKPT_RECV;
+  pInfo->statusTs = ts;
+
+  stDebug("s-task:%s set recv consen-checkpointId, transId:%d", pTask->id.idStr, transId);
+}
+
+void streamTaskSetReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
+  SConsenChkptInfo* pInfo = &pTask->status.consenChkptInfo;
+  int32_t           prevTrans = pInfo->consenChkptTransId;
+
+  pInfo->status = TASK_CONSEN_CHKPT_REQ;
+  pInfo->statusTs = ts;
+  pInfo->consenChkptTransId = 0;
+
+  stDebug("s-task:%s set req consen-checkpointId flag, prev transId:%d, ts:%" PRId64, pTask->id.idStr, prevTrans, ts);
+}

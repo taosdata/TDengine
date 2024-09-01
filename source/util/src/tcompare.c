@@ -1253,6 +1253,9 @@ void regexCacheFree(void *ppUsingRegex) {
 }
 
 int32_t InitRegexCache() {
+  #ifdef WINDOWS
+    return 0;
+  #endif
   sRegexCache.regexHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (sRegexCache.regexHash == NULL) {
     uError("failed to create RegexCache");
@@ -1277,6 +1280,9 @@ int32_t InitRegexCache() {
 }
 
 void DestroyRegexCache(){
+  #ifdef WINDOWS
+    return;
+  #endif
   int32_t code = 0;
   uInfo("[regex cache] destory regex cache");
   (void)taosTmrStopA(&sRegexCache.timer);
@@ -1359,6 +1365,46 @@ void releaseRegComp(UsingRegex  **regex){
 static threadlocal UsingRegex ** ppUsingRegex;
 static threadlocal regex_t * pRegex;
 static threadlocal char    *pOldPattern = NULL;
+
+#ifdef WINDOWS
+static threadlocal regex_t gRegex;
+
+void DestoryThreadLocalRegComp() {
+  if (NULL != pOldPattern) {
+    regfree(&gRegex);
+    taosMemoryFree(pOldPattern);
+    pOldPattern = NULL;
+  }
+}
+
+int32_t threadGetRegComp(regex_t **regex, const char *pPattern) {
+  if (NULL != pOldPattern) {
+    if (strcmp(pOldPattern, pPattern) == 0) {
+      *regex = &gRegex;
+      return 0;
+    } else {
+      DestoryThreadLocalRegComp();
+    }
+  }
+  pOldPattern = taosStrdup(pPattern);
+  if (NULL == pOldPattern) {
+    uError("Failed to Malloc when compile regex pattern %s.", pPattern);
+    return terrno;
+  }
+  int32_t cflags = REG_EXTENDED;
+  int32_t ret = regcomp(&gRegex, pPattern, cflags);
+  if (ret != 0) {
+    char msgbuf[256] = {0};
+    (void)regerror(ret, &gRegex, msgbuf, tListLen(msgbuf));
+    uError("Failed to compile regex pattern %s. reason %s", pPattern, msgbuf);
+    taosMemoryFree(pOldPattern);
+    pOldPattern = NULL;
+    return TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+  }
+  *regex = &gRegex;
+  return 0;
+}
+#else
 void DestoryThreadLocalRegComp() {
   if (NULL != pOldPattern) {
     releaseRegComp(ppUsingRegex);
@@ -1390,10 +1436,11 @@ int32_t threadGetRegComp(regex_t **regex, const char *pPattern) {
     return terrno;
   }
   ppUsingRegex = ppRegex;
-  pRegex  = &((*ppUsingRegex)->pRegex);
+  pRegex = &((*ppUsingRegex)->pRegex);
   *regex = &(*ppRegex)->pRegex;
   return 0;
 }
+#endif
 
 static int32_t doExecRegexMatch(const char *pString, const char *pPattern) {
   int32_t ret = 0;

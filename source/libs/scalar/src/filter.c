@@ -5113,7 +5113,7 @@ int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat)
   FLT_ERR_JRET(fltSclCollectOperators(*pNode, sclOpList));
   SArray *colRangeList = taosArrayInit(16, sizeof(SFltSclColumnRange));
   if (NULL == colRangeList) {
-    FLT_ERR_RET(terrno);
+    FLT_ERR_JRET(terrno);
   }
   FLT_ERR_JRET(fltSclProcessCNF(sclOpList, colRangeList));
   pInfo->sclCtx.fltSclRange = colRangeList;
@@ -5221,7 +5221,7 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) 
     FLT_ERR_JRET(fltOptimizeNodes(info, &info->sclCtx.node, &stat));
   }
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _return:
 

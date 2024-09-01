@@ -485,27 +485,27 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
   }
 
   if ((code = cfgLoad(pCfg, CFG_STYPE_APOLLO_URL, apolloUrl)) != 0) {
-    uError("failed to load from apollo url:%s since %s", apolloUrl, tstrerror(code));
+    (void)printf("failed to load from apollo url:%s since %s\n", apolloUrl, tstrerror(code));
     TAOS_RETURN(code);
   }
 
   if ((code = cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgFile)) != 0) {
-    uError("failed to load from cfg file:%s since %s", cfgFile, tstrerror(code));
+    (void)printf("failed to load from cfg file:%s since %s\n", cfgFile, tstrerror(code));
     TAOS_RETURN(code);
   }
 
   if ((code = cfgLoad(pCfg, CFG_STYPE_ENV_FILE, envFile)) != 0) {
-    uError("failed to load from env file:%s since %s", envFile, tstrerror(code));
+    (void)printf("failed to load from env file:%s since %s\n", envFile, tstrerror(code));
     TAOS_RETURN(code);
   }
 
   if ((code = cfgLoad(pCfg, CFG_STYPE_ENV_VAR, NULL)) != 0) {
-    uError("failed to load from global env variables since %s", tstrerror(code));
+    (void)printf("failed to load from global env variables since %s\n", tstrerror(code));
     TAOS_RETURN(code);
   }
 
   if ((code = cfgLoad(pCfg, CFG_STYPE_ENV_CMD, envCmd)) != 0) {
-    uError("failed to load from cmd env variables since %s", tstrerror(code));
+    (void)printf("failed to load from cmd env variables since %s\n", tstrerror(code));
     TAOS_RETURN(code);
   }
 
@@ -515,7 +515,7 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
 int32_t taosAddClientLogCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "configDir", configDir, CFG_SCOPE_BOTH, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "scriptDir", configDir, CFG_SCOPE_BOTH, CFG_DYN_NONE));
-  TAOS_CHECK_RETURN(cfgAddDir(pCfg, "logDir", tsLogDir, CFG_SCOPE_BOTH, CFG_DYN_CLIENT));
+  TAOS_CHECK_RETURN(cfgAddDir(pCfg, "logDir", tsLogDir, CFG_SCOPE_BOTH, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddFloat(pCfg, "minimalLogDirGB", 1.0f, 0.001f, 10000000, CFG_SCOPE_BOTH, CFG_DYN_CLIENT));
   TAOS_CHECK_RETURN(
       cfgAddInt32(pCfg, "numOfLogLines", tsNumOfLogLines, 1000, 2000000000, CFG_SCOPE_BOTH, CFG_DYN_ENT_BOTH));
@@ -1648,12 +1648,12 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   }
 
   if ((code = taosLoadCfg(pCfg, envCmd, cfgDir, envFile, apolloUrl)) != TSDB_CODE_SUCCESS) {
-    printf("failed to load cfg since %s\n", tstrerror(code));
+    (void)printf("failed to load cfg since %s\n", tstrerror(code));
     goto _exit;
   }
 
   if ((code = cfgLoadFromArray(pCfg, pArgs)) != TSDB_CODE_SUCCESS) {
-    printf("failed to load cfg from array since %s\n", tstrerror(code));
+    (void)printf("failed to load cfg from array since %s\n", tstrerror(code));
     goto _exit;
   }
 
@@ -1669,18 +1669,18 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   TAOS_CHECK_GOTO(taosSetAllDebugFlag(pCfg, pDebugItem->i32), &lino, _exit);
 
   if ((code = taosMulModeMkDir(tsLogDir, 0777, true)) != TSDB_CODE_SUCCESS) {
-    printf("failed to create dir:%s since %s\n", tsLogDir, tstrerror(code));
+    (void)printf("failed to create dir:%s since %s\n", tsLogDir, tstrerror(code));
     goto _exit;
   }
 
   if ((code = taosInitLog(logname, logFileNum, tsc)) != 0) {
-    printf("failed to init log file since %s\n", tstrerror(code));
+    (void)printf("failed to init log file since %s\n", tstrerror(code));
     goto _exit;
   }
 
 _exit:
   if (TSDB_CODE_SUCCESS != code) {
-    printf("failed to create log at %d since %s:", lino, tstrerror(code));
+    (void)printf("failed to create log at %d since %s\n", lino, tstrerror(code));
   }
 
   cfgCleanup(pCfg);
@@ -1700,12 +1700,12 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
   TAOS_CHECK_GOTO(cfgAddInt32(pCfg, "dDebugFlag", dDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER) ,NULL, _exit);
 
   if ((code = taosLoadCfg(pCfg, envCmd, cfgDir, envFile, apolloUrl)) != 0) {
-    printf("failed to load cfg since %s\n", tstrerror(code));
+    (void)printf("failed to load cfg since %s\n", tstrerror(code));
     goto _exit;
   }
 
   if ((code = cfgLoadFromArray(pCfg, pArgs)) != 0) {
-    printf("failed to load cfg from array since %s\n", tstrerror(code));
+    (void)printf("failed to load cfg from array since %s\n", tstrerror(code));
     goto _exit;
   }
 
@@ -1769,14 +1769,14 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
   TAOS_CHECK_GOTO(taosAddSystemCfg(tsCfg), &lino, _exit);
 
   if ((code = taosLoadCfg(tsCfg, envCmd, cfgDir, envFile, apolloUrl)) != 0) {
-    uError("failed to load cfg since %s", tstrerror(code));
+    (void)printf("failed to load cfg since %s\n", tstrerror(code));
     cfgCleanup(tsCfg);
     tsCfg = NULL;
     TAOS_RETURN(code);
   }
 
   if ((code = cfgLoadFromArray(tsCfg, pArgs)) != 0) {
-    uError("failed to load cfg from array since %s", tstrerror(code));
+    (void)printf("failed to load cfg from array since %s\n", tstrerror(code));
     cfgCleanup(tsCfg);
     tsCfg = NULL;
     TAOS_RETURN(code);
@@ -1798,7 +1798,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
 
   SConfigItem *pItem = cfgGetItem(tsCfg, "debugFlag");
   if (NULL == pItem) {
-    uError("debugFlag not found in cfg");
+    (void)printf("debugFlag not found in cfg\n");
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
   TAOS_CHECK_GOTO(taosSetAllDebugFlag(tsCfg, pItem->i32), &lino, _exit);
@@ -1811,7 +1811,7 @@ _exit:
   if (TSDB_CODE_SUCCESS != code) {
     cfgCleanup(tsCfg);
     tsCfg = NULL;
-    uError("failed to init cfg at %d since %s", lino, tstrerror(code));
+    (void)printf("failed to init cfg at %d since %s\n", lino, tstrerror(code));
   }
 
   TAOS_RETURN(code);
@@ -2094,11 +2094,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         TAOS_CHECK_GOTO(taosSetSystemLocale(locale, charset), &lino, _out);
         osSetSystemLocale(locale, charset);
         uInfo("locale set to '%s', charset set to '%s'", locale, charset);
-        matched = true;
-      } else if (strcasecmp("logDir", name) == 0) {
-        uInfo("%s set from '%s' to '%s'", name, tsLogDir, pItem->str);
-        tstrncpy(tsLogDir, pItem->str, PATH_MAX);
-        TAOS_CHECK_GOTO(taosExpandDir(tsLogDir, tsLogDir, PATH_MAX), &lino, _out);
         matched = true;
       }
       break;

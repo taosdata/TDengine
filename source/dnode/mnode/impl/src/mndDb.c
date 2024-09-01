@@ -1710,7 +1710,9 @@ void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
         }
       }
       vindex++;
-      (void)taosArrayPush(pVgList, &vgInfo);
+      if (taosArrayPush(pVgList, &vgInfo) == NULL) {
+        mError("db:%s, failed to push vgInfo to array, vgId:%d, but continue next", pDb->name, vgInfo.vgId);
+      }
     }
 
     sdbRelease(pSdb, pVgroup);
@@ -1856,7 +1858,10 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
 
       rsp.useDbRsp->vgNum = taosArrayGetSize(rsp.useDbRsp->pVgroupInfos);
 
-      (void)taosArrayPush(batchRsp.pArray, &rsp);
+      if (taosArrayPush(batchRsp.pArray, &rsp) == NULL) {
+        if (terrno != 0) code = terrno;
+        return code;
+      }
 
       continue;
     }
@@ -1868,7 +1873,10 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       (void)memcpy(rsp.useDbRsp->db, pDbCacheInfo->dbFName, TSDB_DB_FNAME_LEN);
       rsp.useDbRsp->uid = pDbCacheInfo->dbId;
       rsp.useDbRsp->vgVersion = -1;
-      (void)taosArrayPush(batchRsp.pArray, &rsp);
+      if (taosArrayPush(batchRsp.pArray, &rsp) == NULL) {
+        if (terrno != 0) code = terrno;
+        return code;
+      }
       continue;
     }
 
@@ -1940,7 +1948,11 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       rsp.useDbRsp->hashSuffix = pDb->cfg.hashSuffix;
     }
 
-    (void)taosArrayPush(batchRsp.pArray, &rsp);
+    if (taosArrayPush(batchRsp.pArray, &rsp) == NULL) {
+      mndReleaseDb(pMnode, pDb);
+      if (terrno != 0) code = terrno;
+      return code;
+    }
     mndReleaseDb(pMnode, pDb);
   }
 
@@ -2510,5 +2522,5 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
 static void mndCancelGetNextDb(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_DB);
 }

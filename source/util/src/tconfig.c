@@ -193,15 +193,15 @@ static int32_t cfgSetInt64(SConfigItem *pItem, const char *value, ECfgSrcType st
 }
 
 static int32_t cfgSetFloat(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  double dval;
+  float dval = 0;
   TAOS_CHECK_RETURN(parseCfgReal(value, &dval));
   if (dval < pItem->fmin || dval > pItem->fmax) {
-    uError("cfg:%s, type:%s src:%s value:%f out of range[%f, %f]", pItem->name, cfgDtypeStr(pItem->dtype),
+    uError("cfg:%s, type:%s src:%s value:%g out of range[%g, %g]", pItem->name, cfgDtypeStr(pItem->dtype),
            cfgStypeStr(stype), dval, pItem->fmin, pItem->fmax);
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
-  pItem->fval = (float)dval;
+  pItem->fval = dval;
   pItem->stype = stype;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -475,14 +475,14 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
     } break;
     case CFG_DTYPE_FLOAT:
     case CFG_DTYPE_DOUBLE: {
-      double  dval;
+      float  dval = 0;
       int32_t code = parseCfgReal(pVal, &dval);
       if (code != TSDB_CODE_SUCCESS) {
         cfgUnLock(pCfg);
         TAOS_RETURN(code);
       }
       if (dval < pItem->fmin || dval > pItem->fmax) {
-        uError("cfg:%s, type:%s value:%f out of range[%f, %f]", pItem->name, cfgDtypeStr(pItem->dtype), dval,
+        uError("cfg:%s, type:%s value:%g out of range[%g, %g]", pItem->name, cfgDtypeStr(pItem->dtype), dval,
                pItem->fmin, pItem->fmax);
         cfgUnLock(pCfg);
         TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
@@ -996,7 +996,7 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile) {
   const char *filepath = ".env";
   if (envFile != NULL && strlen(envFile) > 0) {
     if (!taosCheckExistFile(envFile)) {
-      uError("failed to load env file:%s", envFile);
+      (void)printf("failed to load env file:%s\n", envFile);
       TAOS_RETURN(TSDB_CODE_NOT_FOUND);
     }
     filepath = envFile;
@@ -1071,7 +1071,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
       uInfo("failed to load from cfg file %s since %s, use default parameters", filepath, tstrerror(code));
       TAOS_RETURN(TSDB_CODE_SUCCESS);
     } else {
-      uError("failed to load from cfg file %s since %s", filepath, tstrerror(code));
+      (void)printf("failed to load from cfg file %s since %s\n", filepath, tstrerror(code));
       TAOS_RETURN(code);
     }
   }
@@ -1113,7 +1113,10 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
       }
 
       code = cfgSetItem(pConfig, name, newValue, CFG_STYPE_CFG_FILE, true);
-      if (TSDB_CODE_SUCCESS != code && TSDB_CODE_CFG_NOT_FOUND != code) break;
+      if (TSDB_CODE_SUCCESS != code && TSDB_CODE_CFG_NOT_FOUND != code) {
+        (void)printf("cfg:%s, value:%s failed since %s\n", name,newValue, tstrerror(code));
+        break;
+      }
     } else {
       (void)paGetToken(value + vlen + 1, &value2, &vlen2);
       if (vlen2 != 0) {
@@ -1127,7 +1130,10 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
       }
 
       code = cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE, true);
-      if (TSDB_CODE_SUCCESS != code && TSDB_CODE_CFG_NOT_FOUND != code) break;
+      if (TSDB_CODE_SUCCESS != code && TSDB_CODE_CFG_NOT_FOUND != code) {
+        (void)printf("cfg:%s, value:%s failed since %s\n", name, value, tstrerror(code));
+        break;
+      }
     }
 
     if (strcasecmp(name, "dataDir") == 0) {
@@ -1150,7 +1156,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
     uInfo("load from cfg file %s success", filepath);
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   } else {
-    uError("failed to load from cfg file %s since %s", filepath, tstrerror(code));
+    (void)printf("failed to load from cfg file %s since %s\n", filepath, tstrerror(code));
     TAOS_RETURN(code);
   }
 }
@@ -1232,7 +1238,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
 
   char *p = strchr(url, ':');
   if (p == NULL) {
-    uError("fail to load apoll url: %s, unknown format", url);
+    (void)printf("fail to load apoll url: %s, unknown format\n", url);
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
   p++;
@@ -1240,7 +1246,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   if (strncmp(url, "jsonFile", 8) == 0) {
     char *filepath = p;
     if (!taosCheckExistFile(filepath)) {
-      uError("failed to load json file:%s", filepath);
+      (void)printf("failed to load json file:%s\n", filepath);
       TAOS_RETURN(TSDB_CODE_NOT_FOUND);
     }
 
@@ -1252,7 +1258,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
     char  *buf = taosMemoryMalloc(fileSize + 1);
     if (!buf) {
       (void)taosCloseFile(&pFile);
-      uError("load json file error: %s, failed to alloc memory", filepath);
+      (void)printf("load json file error: %s, failed to alloc memory\n", filepath);
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
 
@@ -1260,7 +1266,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
     (void)taosLSeekFile(pFile, 0, SEEK_SET);
     if (taosReadFile(pFile, buf, fileSize) <= 0) {
       (void)taosCloseFile(&pFile);
-      uError("load json file error: %s", filepath);
+      (void)printf("load json file error: %s\n", filepath);
       taosMemoryFreeClear(buf);
       TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
     }
@@ -1269,7 +1275,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
     if (NULL == pJson) {
       const char *jsonParseError = tjsonGetError();
       if (jsonParseError != NULL) {
-        uError("load json file parse error: %s", jsonParseError);
+        (void)printf("load json file parse error: %s\n", jsonParseError);
       }
       taosMemoryFreeClear(buf);
       TAOS_CHECK_EXIT(TSDB_CODE_INVALID_DATA_FMT);
@@ -1337,7 +1343,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
     // } else if (strncmp(url, "jsonUrl", 7) == 0) {
     // } else if (strncmp(url, "etcdUrl", 7) == 0) {
   } else {
-    uError("Unsupported url: %s", url);
+    (void)printf("Unsupported url: %s\n", url);
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
@@ -1349,7 +1355,7 @@ _exit:
   taosMemoryFree(cfgLineBuf);
   tjsonDelete(pJson);
   if (code != 0) {
-    uError("failed to load from apollo url:%s at line %d since %s", url, lino, tstrerror(code));
+    (void)printf("failed to load from apollo url:%s at line %d since %s\n", url, lino, tstrerror(code));
   }
   TAOS_RETURN(code);
 }

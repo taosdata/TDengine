@@ -68,6 +68,8 @@ int32_t tagScanSetExecutionMode(SScanLogicNode* pScan);
 int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, bool* pCloned);
 int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, SSortLogicNode* pSort,
                                                    bool* pNotOptimize, SNodeList** pSequencingNodes, bool* keepSort);
+bool isColRefExpr(const SColumnNode* pCol, const SExprNode* pExpr);
+void rewriteTargetsWithResId(SNodeList* pTargets);
 
 
 #ifdef __cplusplus

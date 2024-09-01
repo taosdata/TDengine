@@ -134,8 +134,9 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
     return code;
   }
 
-  if (fillHistory) {
-    ASSERT(hasFillhistory);
+  if (fillHistory && !hasFillhistory) {
+    stError("s-task:0x%x create task failed, due to inconsistent fill-history flag", pTask->id.taskId);
+    return TSDB_CODE_INVALID_PARA;
   }
 
   epsetAssign(&(pTask->info.mnodeEpset), pEpset);
@@ -310,6 +311,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
 }
 
 void streamFreeTaskState(SStreamTask* pTask, int8_t remove) {
+  stDebug("s-task:0x%x start to free task state/backend", pTask->id.taskId);
   if (pTask->pState != NULL) {
     stDebug("s-task:0x%x start to free task state", pTask->id.taskId);
     streamStateClose(pTask->pState, remove);
@@ -319,8 +321,11 @@ void streamFreeTaskState(SStreamTask* pTask, int8_t remove) {
     pTask->pBackend = NULL;
     pTask->pState = NULL;
   } else {
+    stDebug("s-task:0x%x task state is NULL, may del backend:%s", pTask->id.taskId,
+            pTask->backendPath ? pTask->backendPath : "NULL");
     if (remove) {
       if (pTask->backendPath != NULL) {
+        stDebug("s-task:0x%x task state is NULL, do del backend:%s", pTask->id.taskId, pTask->backendPath);
         taosRemoveDir(pTask->backendPath);
       }
     }
@@ -373,11 +378,11 @@ int32_t streamTaskSetBackendPath(SStreamTask* pTask) {
   int32_t taskId = 0;
 
   if (pTask->info.fillHistory) {
-    streamId = pTask->hTaskInfo.id.taskId;
-    taskId = pTask->hTaskInfo.id.taskId;
-  } else {
-    streamId = pTask->streamTaskId.taskId;
+    streamId = pTask->streamTaskId.streamId;
     taskId = pTask->streamTaskId.taskId;
+  } else {
+    streamId = pTask->id.streamId;
+    taskId = pTask->id.taskId;
   }
 
   char    id[128] = {0};
@@ -393,6 +398,7 @@ int32_t streamTaskSetBackendPath(SStreamTask* pTask) {
   }
 
   (void)sprintf(pTask->backendPath, "%s%s%s", pTask->pMeta->path, TD_DIRSEP, id);
+  stDebug("s-task:%s set backend path:%s", pTask->id.idStr, pTask->backendPath);
 
   return 0;
 }
@@ -723,8 +729,11 @@ void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
 
   if ((pInfo != NULL) && pInfo->dataAllowed) {
     pInfo->dataAllowed = false;
-    int32_t t = atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
-    ASSERT(t <= streamTaskGetNumOfUpstream(pTask));
+    if (pTask->upstreamInfo.numOfClosed < streamTaskGetNumOfUpstream(pTask)) {
+      int32_t t = atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
+    } else {
+      stError("s-task:%s not inc closed input, since they have been all closed already", pTask->id.idStr);
+    }
   }
 }
 
@@ -734,7 +743,7 @@ void streamTaskOpenUpstreamInput(SStreamTask* pTask, int32_t taskId) {
 
   if (pInfo != NULL && (!pInfo->dataAllowed)) {
     int32_t t = atomic_sub_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
-    ASSERT(t >= 0);
+    stDebug("s-task:%s open inputQ for upstream:0x%x, remain closed:%d", pTask->id.idStr, taskId, t);
     pInfo->dataAllowed = true;
   }
 }
@@ -770,8 +779,6 @@ int8_t streamTaskSetSchedStatusActive(SStreamTask* pTask) {
 int8_t streamTaskSetSchedStatusInactive(SStreamTask* pTask) {
   streamMutexLock(&pTask->lock);
   int8_t status = pTask->status.schedStatus;
-  ASSERT(status == TASK_SCHED_STATUS__WAITING || status == TASK_SCHED_STATUS__ACTIVE ||
-         status == TASK_SCHED_STATUS__INACTIVE);
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
   streamMutexUnlock(&pTask->lock);
 
@@ -887,8 +894,6 @@ void streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo) {
 }
 
 void streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo) {
-  ASSERT(pInfo->tickCount == 0);
-
   pInfo->waitInterval *= RETRY_LAUNCH_INTERVAL_INC_RATE;
   pInfo->tickCount = ceil(pInfo->waitInterval / WAIT_FOR_MINIMAL_INTERVAL);
   pInfo->retryTimes += 1;
@@ -941,7 +946,7 @@ STaskStatusEntry streamTaskGetStatusEntry(SStreamTask* pTask) {
       .checkpointInfo.latestSize = 0,
       .checkpointInfo.remoteBackup = 0,
       .checkpointInfo.consensusChkptId = 0,
-      .checkpointInfo.consensusTs = taosGetTimestampMs(),
+      .checkpointInfo.consensusTs = 0,
       .hTaskId = pTask->hTaskInfo.id.taskId,
       .procsTotal = SIZE_IN_MiB(pExecInfo->inputDataSize),
       .outputTotal = SIZE_IN_MiB(pExecInfo->outputDataSize),
@@ -1092,7 +1097,7 @@ static int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq*
   }
 
   // enqueue
-  stDebug("s-task:%s (vgId:%d level:%d) recv retrieve req from task:0x%x(vgId:%d), qid:0x%" PRIx64, pTask->id.idStr,
+  stDebug("s-task:%s (vgId:%d level:%d) recv retrieve req from task:0x%x(vgId:%d),QID:0x%" PRIx64, pTask->id.idStr,
           pTask->pMeta->vgId, pTask->info.taskLevel, pReq->srcTaskId, pReq->srcNodeId, pReq->reqId);
 
   pData->type = STREAM_INPUT__DATA_RETRIEVE;
