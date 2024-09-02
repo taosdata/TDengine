@@ -2183,6 +2183,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
         taosWUnLockLatch(&tmq->lock);
       }
       setVgIdle(tmq, pollRspWrapper->topicName, pollRspWrapper->vgId);
+      taosMemoryFreeClear(pollRspWrapper->pEpset);
       tmqFreeRspWrapper(pRspWrapper);
       taosFreeQitem(pRspWrapper);
     } else if (pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_DATA_RSP) {
@@ -2247,6 +2248,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
                    ", vg total:%" PRId64 ", total:%" PRId64 ",QID:0x%" PRIx64,
                    tmq->consumerId, pVg->vgId, buf, pDataRsp->blockNum, numOfRows, pVg->numOfRows, tmq->totalRows,
                    pollRspWrapper->reqId);
+          taosMemoryFreeClear(pollRspWrapper->pEpset);
           taosFreeQitem(pRspWrapper);
           taosWUnLockLatch(&tmq->lock);
           return pRsp;
@@ -2284,6 +2286,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
         // build rsp
         SMqMetaRspObj* pRsp = NULL;
         (void)tmqBuildMetaRspFromWrapper(pollRspWrapper, &pRsp);
+        taosMemoryFreeClear(pollRspWrapper->pEpset);
         taosFreeQitem(pRspWrapper);
         taosWUnLockLatch(&tmq->lock);
         return pRsp;
@@ -2321,6 +2324,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
                      tmq->consumerId, true);
         SMqBatchMetaRspObj* pRsp = NULL;
         (void)tmqBuildBatchMetaRspFromWrapper(pollRspWrapper, &pRsp);
+        taosMemoryFreeClear(pollRspWrapper->pEpset);
         taosFreeQitem(pRspWrapper);
         taosWUnLockLatch(&tmq->lock);
         return pRsp;
@@ -2381,6 +2385,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
                  tmq->consumerId, pVg->vgId, buf, pDataRsp->blockNum, numOfRows, pVg->numOfRows, tmq->totalRows,
                  pollRspWrapper->reqId);
 
+        taosMemoryFreeClear(pollRspWrapper->pEpset);
         taosFreeQitem(pRspWrapper);
         taosWUnLockLatch(&tmq->lock);
         return pRsp;

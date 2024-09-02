@@ -95,6 +95,7 @@ static int32_t doSendHbMsgInfo(SStreamHbMsg* pMsg, SStreamMeta* pMeta, SEpSet* p
   tEncoderInit(&encoder, buf, tlen);
   if ((code = tEncodeStreamHbMsg(&encoder, pMsg)) < 0) {
     rpcFreeCont(buf);
+    tEncoderClear(&encoder);
     stError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
     return TSDB_CODE_FAILED;
   }

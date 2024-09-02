@@ -507,6 +507,7 @@ static bool httpFailFastShoudIgnoreMsg(SHashObj* pTable, char* server, int16_t p
   }
 }
 static void httpFailFastMayUpdate(SHashObj* pTable, char* server, int16_t port, int8_t succ) {
+  int32_t code = 0;
   char buf[256] = {0};
   sprintf(buf, "%s:%d", server, port);
 
@@ -514,7 +515,9 @@ static void httpFailFastMayUpdate(SHashObj* pTable, char* server, int16_t port, 
     (void)taosHashRemove(pTable, buf, strlen(buf));
   } else {
     int32_t st = taosGetTimestampSec();
-    (void)taosHashPut(pTable, buf, strlen(buf), &st, sizeof(st));
+    if ((code = taosHashPut(pTable, buf, strlen(buf), &st, sizeof(st))) != 0) {
+      tError("http-report failed to update conn status, dst:%s, reason:%s", buf, tstrerror(code));   
+    }
   }
   return;
 }
