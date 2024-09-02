@@ -3163,6 +3163,10 @@ static int32_t doSaveLastrow(SqlFunctionCtx* pCtx, char* pData, int32_t rowIndex
   }
 
   if (pCtx->hasPrimaryKey) {
+    if (colDataIsNull_s(pkCol, rowIndex)) {
+      qError("primary key is null, rowIndex:%d", rowIndex);
+      return TSDB_CODE_FUNC_FUNTION_ERROR;
+    }
     char* pkData = colDataGetData(pkCol, rowIndex);
     if (IS_VAR_DATA_TYPE(pInfo->pkType)) {
       pInfo->pkBytes = varDataTLen(pkData);
