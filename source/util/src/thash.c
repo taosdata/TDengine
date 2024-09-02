@@ -285,6 +285,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
   }
 
   if (taosArrayPush(pHashObj->pMemBlock, &p) == NULL) {
+    taosMemoryFree(p);
     taosArrayDestroy(pHashObj->pMemBlock);
     taosMemoryFree(pHashObj->hashList);
     taosMemoryFree(pHashObj);
