@@ -996,8 +996,7 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
     pTask->lastMsgType = msgType;
   }
 
-  int64_t transporterId = 0;
-  code = asyncSendMsgToServerExt(trans->pTrans, epSet, &transporterId, pMsgSendInfo, persistHandle, ctx);
+  code = asyncSendMsgToServerExt(trans->pTrans, epSet, NULL, pMsgSendInfo, persistHandle, ctx);
   pMsgSendInfo = NULL;
   if (code) {
     SCH_ERR_JRET(code);
