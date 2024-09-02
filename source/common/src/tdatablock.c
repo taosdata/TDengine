@@ -3096,7 +3096,7 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     colLen[i] = htonl(colLen[i]);
-    if (colLen[i] <= 0) {
+    if (colLen[i] < 0) {
       uError("block decode colLen:%d error, colIdx:%d", colLen[i], i);
       ASSERT(0);
       terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -3130,6 +3130,11 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
 
     if (colLen[i] > 0) {
       memcpy(pColInfoData->pData, pStart, colLen[i]);
+    } else if (!colDataIsNull_s(pColInfoData, 0)) {
+      uError("block decode colLen:%d error, colIdx:%d", colLen[i], i);
+      ASSERT(0);
+      terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      return terrno;
     }
 
     // TODO
