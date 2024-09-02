@@ -1724,34 +1724,57 @@ SNode* createDefaultColumnOptions(SAstCreateContext* pCxt) {
   return (SNode*)pOptions;
 }
 
-SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, EColumnOptionType type, void* pVal) {
+EColumnOptionType getColumnOptionType(const char* optionType) {
+  if (0 == strcasecmp(optionType, "ENCODE")) {
+    return COLUMN_OPTION_ENCODE;
+  } else if (0 == strcasecmp(optionType, "COMPRESS")) {
+    return COLUMN_OPTION_COMPRESS;
+  } else if (0 == strcasecmp(optionType, "LEVEL")) {
+    return COLUMN_OPTION_LEVEL;
+  }
+  return 0;
+}
+SNode* setColumnOptionsPK(SAstCreateContext* pCxt, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
+  ((SColumnOptions*)pOptions)->bPrimaryKey = true;
+  return pOptions;
+}
+
+SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal1, void* pVal2) {
+  CHECK_PARSER_STATUS(pCxt);
+  char      optionType[TSDB_CL_OPTION_LEN];
+
+  memset(optionType, 0, TSDB_CL_OPTION_LEN);
+  strncpy(optionType, pVal1->z, TMIN(pVal1->n, TSDB_CL_OPTION_LEN));
+  if (0 == strlen(optionType)) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    return pOptions;
+  }
+  EColumnOptionType type = getColumnOptionType(optionType);
   switch (type) {
     case COLUMN_OPTION_ENCODE:
       memset(((SColumnOptions*)pOptions)->encode, 0, TSDB_CL_COMPRESS_OPTION_LEN);
-      COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->encode, (SToken*)pVal);
+      COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->encode, (SToken*)pVal2);
       if (0 == strlen(((SColumnOptions*)pOptions)->encode)) {
         pCxt->errCode = TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
       }
       break;
     case COLUMN_OPTION_COMPRESS:
       memset(((SColumnOptions*)pOptions)->compress, 0, TSDB_CL_COMPRESS_OPTION_LEN);
-      COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->compress, (SToken*)pVal);
+      COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->compress, (SToken*)pVal2);
       if (0 == strlen(((SColumnOptions*)pOptions)->compress)) {
         pCxt->errCode = TSDB_CODE_TSC_COMPRESS_PARAM_ERROR;
       }
       break;
     case COLUMN_OPTION_LEVEL:
       memset(((SColumnOptions*)pOptions)->compressLevel, 0, TSDB_CL_COMPRESS_OPTION_LEN);
-      COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->compressLevel, (SToken*)pVal);
+      COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->compressLevel, (SToken*)pVal2);
       if (0 == strlen(((SColumnOptions*)pOptions)->compressLevel)) {
         pCxt->errCode = TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
       }
       break;
-    case COLUMN_OPTION_PRIMARYKEY:
-      ((SColumnOptions*)pOptions)->bPrimaryKey = true;
-      break;
     default:
+      pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
       break;
   }
   return pOptions;
