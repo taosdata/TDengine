@@ -982,6 +982,7 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
       SCH_ERR_JRET(code);
     }
     trans->pHandle = (void *)refId;
+    pMsgSendInfo->msgInfo.handle =trans->pHandle;
   } 
 
   if (pJob && pTask) {
