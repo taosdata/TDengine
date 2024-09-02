@@ -33,7 +33,6 @@ fi
 INTERNAL_REPDIR=$WORKDIR/TDinternal
 REPDIR_DEBUG=$WORKDIR/debugNoSan/
 
-REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/home/TDinternal/debug/"
 REP_MOUNT_PARAM="$INTERNAL_REPDIR:/home/TDinternal"
 
 CONTAINER_TESTDIR=/home/TDinternal/community
@@ -44,12 +43,10 @@ ulimit -c unlimited
 cat << EOF
 docker run \
     -v $REP_MOUNT_PARAM \
-    -v $REP_MOUNT_DEBUG \
     --rm --ulimit core=-1 taos_test:v1.0 python3  $check_assert_scripts
 EOF
 docker run \
     -v $REP_MOUNT_PARAM \
-    -v $REP_MOUNT_DEBUG \
     --rm --ulimit core=-1 taos_test:v1.0 python3  $check_assert_scripts
 
 ret=$?
