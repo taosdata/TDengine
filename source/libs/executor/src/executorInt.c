@@ -551,6 +551,8 @@ int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t n
         if (code != TSDB_CODE_SUCCESS && fmIsUserDefinedFunc(pCtx[i].functionId)) {
           pResInfo->initialized = false;
           return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
+        } else if (code != TSDB_CODE_SUCCESS) {
+          return code;
         }
       } else {
         pResInfo->initialized = true;
