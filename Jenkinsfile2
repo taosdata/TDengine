@@ -423,8 +423,8 @@ pipeline {
                                     echo "''' + env.FILE_CHANGED + '''" > ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
                                     '''
                                     sh '''
-                                       cd ${WKC}/tests/parallel_test
-                                       python3 count_assert.py 
+                                       cd ${WKC}/tests/ci
+                                       python3 count_assert.py
                                     '''
                                     sh '''
                                         date
