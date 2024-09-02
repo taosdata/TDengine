@@ -33,7 +33,7 @@ static int32_t loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx, SFi
   *buffer =
       (SFilePage *)taosMemoryCalloc(1, pMemBucket->bytes * pMemBucket->pSlots[slotIdx].info.size + sizeof(SFilePage));
   if (NULL == *buffer) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t groupId = getGroupId(pMemBucket->numOfSlots, slotIdx, pMemBucket->times);
@@ -271,7 +271,7 @@ int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, dou
                          tMemBucket **pBucket) {
   *pBucket = (tMemBucket *)taosMemoryCalloc(1, sizeof(tMemBucket));
   if (*pBucket == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (hasWindowOrGroup) {
@@ -313,7 +313,7 @@ int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, dou
   (*pBucket)->pSlots = (tMemBucketSlot *)taosMemoryCalloc((*pBucket)->numOfSlots, sizeof(tMemBucketSlot));
   if ((*pBucket)->pSlots == NULL) {
     tMemBucketDestroy(*pBucket);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   resetSlotInfo((*pBucket));
