@@ -22,6 +22,7 @@ use std::{
 };
 use taos::*;
 use taos_query::Manager;
+use tokio::sync::Mutex;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{error, info, instrument, Level};
 use tracing_actix_web::TracingLogger;
@@ -56,7 +57,21 @@ fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
     }
 }
 
-static TAOS_POOL: OnceLock<deadpool::managed::Pool<Manager<TaosBuilder>>> = OnceLock::new();
+static TAOS_POOL: OnceLock<Mutex<HashMap<String, deadpool::managed::Pool<Manager<TaosBuilder>>>>> =
+    OnceLock::new();
+
+async fn global_pool(dsn: &Dsn) -> deadpool::managed::Pool<Manager<TaosBuilder>> {
+    let map = TAOS_POOL.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut map = map.lock().await;
+    if let Some(pool) = map.get(&dsn.to_string()) {
+        pool.clone()
+    } else {
+        let builder = taos::TaosBuilder::from_dsn(dsn).expect("Failed to create TaosBuilder");
+        let pool = builder.pool().expect("Failed to create Taos pool");
+        map.insert(dsn.to_string(), pool);
+        map.get(&dsn.to_string()).unwrap().clone()
+    }
+}
 
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {
@@ -1125,10 +1140,7 @@ impl Args {
         log::info!("SQL: {}, TZ: {:?}", sql, tz);
 
         // taos connection pool
-        let pool = TAOS_POOL.get_or_init(|| {
-            let builder = taos::TaosBuilder::from_dsn(dsn).expect("Failed to create TaosBuilder");
-            builder.pool().expect("Failed to create Taos pool")
-        });
+        let pool = global_pool(&dsn).await;
         let conn = pool.get().await.expect("Failed to get connection");
 
         let tz = if let Some(tz) = tz {
@@ -1219,10 +1231,7 @@ impl Args {
     ) -> Result<RestOkResponse, RestErrResponse> {
         let dsn = self.build_dsn(header)?;
         // taos connection pool
-        let pool = TAOS_POOL.get_or_init(|| {
-            let builder = taos::TaosBuilder::from_dsn(dsn).expect("Failed to create TaosBuilder");
-            builder.pool().expect("Failed to create Taos pool")
-        });
+        let pool = global_pool(&dsn).await;
         let conn = pool.get().await.expect("Failed to get connection");
         // server version
         let server_version = conn.server_version().await;
