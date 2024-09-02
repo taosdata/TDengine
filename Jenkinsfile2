@@ -424,7 +424,7 @@ pipeline {
                                     '''
                                     sh '''
                                        cd ${WKC}/tests/parallel_test
-                                       ./run_check_assert_container.sh -d ${WKDIR}
+                                       python3 count_assert.py 
                                     '''
                                     sh '''
                                         date
