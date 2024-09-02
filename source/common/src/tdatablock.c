@@ -3009,7 +3009,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
       data += colSizes[col];
     }
 
-    if (colSizes[col] <= 0) {
+    if (colSizes[col] <= 0 && !colDataIsNull_s(pColRes, 0)) {
       uError("Invalid colSize:%d while encoding block", colSizes[col]);
       ASSERT(0);
       terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
