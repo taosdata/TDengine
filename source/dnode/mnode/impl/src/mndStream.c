@@ -533,7 +533,7 @@ int32_t mndPersistTaskDeployReq(STrans *pTrans, SStreamTask *pTask) {
 
   void *buf = taosMemoryCalloc(1, tlen);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   ((SMsgHead *)buf)->vgId = htonl(pTask->info.nodeId);

@@ -585,7 +585,7 @@ def process(block):
     return result
 ```
 
-Crate and test the UDF:
+Create and test the UDF:
 
 ```sql
 create function nsum as '/root/udf/nsum.py' outputtype double language 'Python';
