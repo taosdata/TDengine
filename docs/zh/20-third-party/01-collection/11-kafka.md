@@ -398,4 +398,4 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 
 ## 参考
 
-1. \<https://kafka.apache.org/documentation/\>
+1. <https://kafka.apache.org/documentation/>
