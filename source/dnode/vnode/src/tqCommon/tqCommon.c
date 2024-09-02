@@ -19,44 +19,43 @@
 
 typedef struct SMStreamCheckpointReadyRspMsg {
   SMsgHead head;
+  int64_t  streamId;
+  int32_t  upstreamTaskId;
+  int32_t  upstreamNodeId;
+  int32_t  downstreamTaskId;
+  int32_t  downstreamNodeId;
+  int64_t  checkpointId;
+  int32_t  transId;
 } SMStreamCheckpointReadyRspMsg;
 
 static int32_t doProcessDummyRspMsg(SStreamMeta* pMeta, SRpcMsg* pMsg);
 
-static STaskId replaceStreamTaskId(SStreamTask* pTask) {
-  ASSERT(pTask->info.fillHistory);
-  STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
+int32_t tqExpandStreamTask(SStreamTask* pTask) {
+  SStreamMeta* pMeta = pTask->pMeta;
+  int32_t      vgId = pMeta->vgId;
+  int64_t      st = taosGetTimestampMs();
+  int64_t      streamId = 0;
+  int32_t      taskId = 0;
 
-  pTask->id.streamId = pTask->streamTaskId.streamId;
-  pTask->id.taskId = pTask->streamTaskId.taskId;
-
-  return id;
-}
-
-static void restoreStreamTaskId(SStreamTask* pTask, STaskId* pId) {
-  ASSERT(pTask->info.fillHistory);
-  pTask->id.taskId = pId->taskId;
-  pTask->id.streamId = pId->streamId;
-}
-
-int32_t tqExpandStreamTask(SStreamTask* pTask, SStreamMeta* pMeta, void* pVnode) {
-  int32_t vgId = pMeta->vgId;
-  STaskId taskId = {0};
+  tqDebug("s-task:%s vgId:%d start to expand stream task", pTask->id.idStr, vgId);
 
   if (pTask->info.fillHistory) {
-    taskId = replaceStreamTaskId(pTask);
-  }
-
-  pTask->pState = streamStateOpen(pMeta->path, pTask, false, -1, -1);
-  if (pTask->pState == NULL) {
-    tqError("s-task:%s (vgId:%d) failed to open state for task, expand task failed", pTask->id.idStr, vgId);
-    return -1;
+    streamId = pTask->streamTaskId.streamId;
+    taskId = pTask->streamTaskId.taskId;
   } else {
-    tqDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
+    streamId = pTask->id.streamId;
+    taskId = pTask->id.taskId;
   }
 
-  if (pTask->info.fillHistory) {
-    restoreStreamTaskId(pTask, &taskId);
+  // sink task does not need the pState
+  if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
+    pTask->pState = streamStateOpen(pMeta->path, pTask, streamId, taskId);
+    if (pTask->pState == NULL) {
+      tqError("s-task:%s (vgId:%d) failed to open state for task, expand task failed", pTask->id.idStr, vgId);
+      return -1;
+    } else {
+      tqDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
+    }
   }
 
   SReadHandle handle = {
@@ -65,8 +64,9 @@ int32_t tqExpandStreamTask(SStreamTask* pTask, SStreamMeta* pMeta, void* pVnode)
       .fillHistory = pTask->info.fillHistory,
       .winRange = pTask->dataRange.window,
   };
+
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    handle.vnode = pVnode;
+    handle.vnode = ((STQ*)pMeta->ahandle)->pVnode;
     handle.initTqReader = 1;
   } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
     handle.numOfVgroups = (int32_t)taosArrayGetSize(pTask->upstreamInfo.pList);
@@ -82,6 +82,9 @@ int32_t tqExpandStreamTask(SStreamTask* pTask, SStreamMeta* pMeta, void* pVnode)
     }
     qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
   }
+
+  double el = (taosGetTimestampMs() - st) / 1000.0;
+  tqDebug("s-task:%s vgId:%d expand stream task completed, elapsed time:%.2fsec", pTask->id.idStr, vgId, el);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -118,7 +121,6 @@ int32_t tqStreamTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, bool restart) {
 
 int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t streamId, int32_t taskId) {
   int32_t vgId = pMeta->vgId;
-
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
   if (numOfTasks == 0) {
     tqDebug("vgId:%d no stream tasks existed to run", vgId);
@@ -129,6 +131,7 @@ int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t stream
   return streamTaskSchedTask(cb, vgId, streamId, taskId, STREAM_EXEC_T_START_ONE_TASK);
 }
 
+// this is to process request from transaction, always return true.
 int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored) {
   int32_t vgId = pMeta->vgId;
   char*   msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
@@ -136,6 +139,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   SRpcMsg rsp = {.info = pMsg->info, .code = TSDB_CODE_SUCCESS};
   int64_t st = taosGetTimestampMs();
   bool    updated = false;
+  int32_t code = 0;
 
   SStreamTaskNodeUpdateMsg req = {0};
 
@@ -157,10 +161,10 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   STaskId       id = {.streamId = req.streamId, .taskId = req.taskId};
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask == NULL || *ppTask == NULL) {
-    tqError("vgId:%d failed to acquire task:0x%x when handling update, it may have been dropped", vgId, req.taskId);
+    tqError("vgId:%d failed to acquire task:0x%x when handling update task epset, it may have been dropped", vgId,
+            req.taskId);
     rsp.code = TSDB_CODE_SUCCESS;
     streamMetaWUnLock(pMeta);
-
     taosArrayDestroy(req.pNodeList);
     return rsp.code;
   }
@@ -168,25 +172,23 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   SStreamTask* pTask = *ppTask;
   const char*  idstr = pTask->id.idStr;
 
-  if (pMeta->updateInfo.transId != req.transId) {
-    if (req.transId < pMeta->updateInfo.transId) {
-      tqError("s-task:%s vgId:%d disorder update nodeEp msg recv, discarded, newest transId:%d, recv:%d", idstr, vgId,
-              pMeta->updateInfo.transId, req.transId);
-      rsp.code = TSDB_CODE_SUCCESS;
-      streamMetaWUnLock(pMeta);
+  if (req.transId <= 0) {
+    tqError("vgId:%d invalid update nodeEp task, transId:%d, discard", vgId, req.taskId);
+    rsp.code = TSDB_CODE_SUCCESS;
+    streamMetaWUnLock(pMeta);
 
-      taosArrayDestroy(req.pNodeList);
-      return rsp.code;
-    } else {
-      tqInfo("s-task:%s vgId:%d receive new trans to update nodeEp msg from mnode, transId:%d, prev transId:%d", idstr,
-             vgId, req.transId, pMeta->updateInfo.transId);
+    taosArrayDestroy(req.pNodeList);
+    return rsp.code;
+  }
 
-      // info needs to be kept till the new trans to update the nodeEp arrived.
-      taosHashClear(pMeta->updateInfo.pTasks);
-      pMeta->updateInfo.transId = req.transId;
-    }
-  } else {
-    tqDebug("s-task:%s vgId:%d recv trans to update nodeEp from mnode, transId:%d", idstr, vgId, req.transId);
+  // info needs to be kept till the new trans to update the nodeEp arrived.
+  bool update = streamMetaInitUpdateTaskList(pMeta, req.transId);
+  if (!update) {
+    rsp.code = TSDB_CODE_SUCCESS;
+    streamMetaWUnLock(pMeta);
+
+    taosArrayDestroy(req.pNodeList);
+    return rsp.code;
   }
 
   // duplicate update epset msg received, discard this redundant message
@@ -194,7 +196,8 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
 
   void* pReqTask = taosHashGet(pMeta->updateInfo.pTasks, &entry, sizeof(STaskUpdateEntry));
   if (pReqTask != NULL) {
-    tqDebug("s-task:%s (vgId:%d) already update in transId:%d, discard the nodeEp update msg", idstr, vgId, req.transId);
+    tqDebug("s-task:%s (vgId:%d) already update in transId:%d, discard the nodeEp update msg", idstr, vgId,
+            req.transId);
     rsp.code = TSDB_CODE_SUCCESS;
     streamMetaWUnLock(pMeta);
     taosArrayDestroy(req.pNodeList);
@@ -202,6 +205,9 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   }
 
   updated = streamTaskUpdateEpsetInfo(pTask, req.pNodeList);
+
+  // send the checkpoint-source-rsp for source task to end the checkpoint trans in mnode
+  (void)streamTaskSendCheckpointsourceRsp(pTask);
   streamTaskResetStatus(pTask);
 
   streamTaskStopMonitorCheckRsp(&pTask->taskCheckInfo, pTask->id.idStr);
@@ -227,33 +233,49 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     }
   }
 
-  // save
+  // stream do update the nodeEp info, write it into stream meta.
   if (updated) {
     tqDebug("s-task:%s vgId:%d save task after update epset, and stop task", idstr, vgId);
-    streamMetaSaveTask(pMeta, pTask);
+    code = streamMetaSaveTask(pMeta, pTask);
+    if (code) {
+      tqError("s-task:%s vgId:%d failed to save task, code:%s", idstr, vgId, tstrerror(code));
+    }
+
     if (ppHTask != NULL) {
-      streamMetaSaveTask(pMeta, *ppHTask);
+      code = streamMetaSaveTask(pMeta, *ppHTask);
+      if (code) {
+        tqError("s-task:%s vgId:%d failed to save related history task, code:%s", idstr, vgId, tstrerror(code));
+      }
     }
   } else {
     tqDebug("s-task:%s vgId:%d not save task since not update epset actually, stop task", idstr, vgId);
   }
 
-  // stop
-  streamTaskStop(pTask);
+  code = streamTaskStop(pTask);
+  if (code) {
+    tqError("s-task:%s vgId:%d failed to stop task, code:%s", idstr, vgId, tstrerror(code));
+  }
+
   if (ppHTask != NULL) {
-    streamTaskStop(*ppHTask);
+    code = streamTaskStop(*ppHTask);
+    if (code) {
+      tqError("s-task:%s vgId:%d failed to stop related history task, code:%s", idstr, vgId, tstrerror(code));
+    }
   }
 
   // keep info
   streamMetaAddIntoUpdateTaskList(pMeta, pTask, (ppHTask != NULL) ? (*ppHTask) : NULL, req.transId, st);
 
-  rsp.code = 0;
+  rsp.code = TSDB_CODE_SUCCESS;
 
   // possibly only handle the stream task.
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
   int32_t updateTasks = taosHashGetSize(pMeta->updateInfo.pTasks);
 
-  pMeta->startInfo.tasksWillRestart = 1;
+  if (restored) {
+    tqDebug("vgId:%d s-task:0x%x update epset transId:%d, set the restart flag", vgId, req.taskId, req.transId);
+    pMeta->startInfo.tasksWillRestart = 1;
+  }
 
   if (updateTasks < numOfTasks) {
     tqDebug("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
@@ -263,21 +285,25 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
       //     persist to disk
     }
 
+    streamMetaClearSetUpdateTaskListComplete(pMeta);
+
     if (!restored) {
-      tqDebug("vgId:%d vnode restore not completed, not start the tasks, clear the start after nodeUpdate flag", vgId);
-      pMeta->startInfo.tasksWillRestart = 0;
+      tqDebug("vgId:%d vnode restore not completed, not start all tasks", vgId);
     } else {
       tqDebug("vgId:%d all %d task(s) nodeEp updated and closed, transId:%d", vgId, numOfTasks, req.transId);
 #if 0
       taosMSleep(5000);// for test purpose, to trigger the leader election
 #endif
-      tqStreamTaskStartAsync(pMeta, cb, true);
+      code = tqStreamTaskStartAsync(pMeta, cb, true);
+      if (code) {
+        tqError("vgId:%d async start all tasks, failed, code:%s", vgId, tstrerror(code));
+      }
     }
   }
 
   streamMetaWUnLock(pMeta);
   taosArrayDestroy(req.pNodeList);
-  return rsp.code;
+  return rsp.code;  // always return true
 }
 
 int32_t tqStreamTaskProcessDispatchReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
@@ -297,8 +323,9 @@ int32_t tqStreamTaskProcessDispatchReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 
   tqDebug("s-task:0x%x recv dispatch msg from 0x%x(vgId:%d)", req.taskId, req.upstreamTaskId, req.upstreamNodeId);
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.taskId);
-  if (pTask) {
+  SStreamTask* pTask = NULL;
+  int32_t      code = streamMetaAcquireTask(pMeta, req.streamId, req.taskId, &pTask);
+  if (pTask && (code == 0)) {
     SRpcMsg rsp = {.info = pMsg->info, .code = 0};
     if (streamProcessDispatchMsg(pTask, &req, &rsp) != 0) {
       return -1;
@@ -312,13 +339,15 @@ int32_t tqStreamTaskProcessDispatchReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 
     SMsgHead* pRspHead = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamDispatchRsp));
     if (pRspHead == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       tqError("s-task:0x%x send dispatch error rsp, out of memory", req.taskId);
-      return -1;
+      return terrno;
     }
 
     pRspHead->vgId = htonl(req.upstreamNodeId);
-    ASSERT(pRspHead->vgId != 0);
+    if(pRspHead->vgId == 0) {
+      tqError("vgId:%d invalid dispatch msg from upstream to task:0x%x", pMeta->vgId, req.taskId);
+      return TSDB_CODE_INVALID_MSG;
+    }
 
     SStreamDispatchRsp* pRsp = POINTER_SHIFT(pRspHead, sizeof(SMsgHead));
     pRsp->streamId = htobe64(req.streamId);
@@ -345,6 +374,7 @@ int32_t tqStreamTaskProcessDispatchRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   SStreamDispatchRsp* pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
 
   int32_t vgId = pMeta->vgId;
+  pRsp->upstreamNodeId = htonl(pRsp->upstreamNodeId);
   pRsp->upstreamTaskId = htonl(pRsp->upstreamTaskId);
   pRsp->streamId = htobe64(pRsp->streamId);
   pRsp->downstreamTaskId = htonl(pRsp->downstreamTaskId);
@@ -352,15 +382,18 @@ int32_t tqStreamTaskProcessDispatchRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   pRsp->stage = htobe64(pRsp->stage);
   pRsp->msgId = htonl(pRsp->msgId);
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pRsp->streamId, pRsp->upstreamTaskId);
-  if (pTask) {
-    streamProcessDispatchRsp(pTask, pRsp, pMsg->code);
+  tqDebug("s-task:0x%x vgId:%d recv dispatch-rsp from 0x%x vgId:%d", pRsp->upstreamTaskId, pRsp->upstreamNodeId,
+          pRsp->downstreamTaskId, pRsp->downstreamNodeId);
+
+  SStreamTask* pTask = NULL;
+  int32_t      code = streamMetaAcquireTask(pMeta, pRsp->streamId, pRsp->upstreamTaskId, &pTask);
+  if (pTask && (code == 0)) {
+    code = streamProcessDispatchRsp(pTask, pRsp, pMsg->code);
     streamMetaReleaseTask(pMeta, pTask);
-    return TSDB_CODE_SUCCESS;
+    return code;
   } else {
     tqDebug("vgId:%d failed to handle the dispatch rsp, since find task:0x%x failed", vgId, pRsp->upstreamTaskId);
-    terrno = TSDB_CODE_STREAM_TASK_NOT_EXIST;
-    return terrno;
+    return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 }
 
@@ -368,22 +401,28 @@ int32_t tqStreamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   char*    msgStr = pMsg->pCont;
   char*    msgBody = POINTER_SHIFT(msgStr, sizeof(SMsgHead));
   int32_t  msgLen = pMsg->contLen - sizeof(SMsgHead);
+  int32_t  code = 0;
   SDecoder decoder;
 
   SStreamRetrieveReq req;
   tDecoderInit(&decoder, (uint8_t*)msgBody, msgLen);
-  tDecodeStreamRetrieveReq(&decoder, &req);
+  code = tDecodeStreamRetrieveReq(&decoder, &req);
   tDecoderClear(&decoder);
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.dstTaskId);
-  if (pTask == NULL) {
+  if (code) {
+    tqError("vgId:%d failed to decode retrieve msg, quit handling it", pMeta->vgId);
+    return code;
+  }
+
+  SStreamTask* pTask = NULL;
+  code = streamMetaAcquireTask(pMeta, req.streamId, req.dstTaskId, &pTask);
+  if (pTask == NULL || code != 0) {
     tqError("vgId:%d process retrieve req, failed to acquire task:0x%x, it may have been dropped already", pMeta->vgId,
             req.dstTaskId);
     tCleanupStreamRetrieveReq(&req);
     return -1;
   }
 
-  int32_t code = 0;
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     code = streamProcessRetrieveReq(pTask, &req);
   } else {
@@ -397,13 +436,16 @@ int32_t tqStreamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 
   streamMetaReleaseTask(pMeta, pTask);
   tCleanupStreamRetrieveReq(&req);
-  return code;
+
+  // always return success, to disable the auto rsp
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tqStreamTaskProcessCheckReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   char*   msgStr = pMsg->pCont;
   char*   msgBody = POINTER_SHIFT(msgStr, sizeof(SMsgHead));
   int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
+  int32_t code = 0;
 
   SStreamTaskCheckReq req;
   SStreamTaskCheckRsp rsp = {0};
@@ -411,8 +453,13 @@ int32_t tqStreamTaskProcessCheckReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   SDecoder decoder;
 
   tDecoderInit(&decoder, (uint8_t*)msgBody, msgLen);
-  tDecodeStreamTaskCheckReq(&decoder, &req);
+  code = tDecodeStreamTaskCheckReq(&decoder, &req);
   tDecoderClear(&decoder);
+
+  if (code) {
+    tqError("vgId:%d decode check msg failed, not handle this msg", pMeta->vgId);
+    return code;
+  }
 
   streamTaskProcessCheckMsg(pMeta, &req, &rsp);
   return streamTaskSendCheckRsp(pMeta, req.upstreamNodeId, &rsp, &pMsg->info, req.upstreamTaskId);
@@ -437,8 +484,8 @@ int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLe
   }
 
   tDecoderClear(&decoder);
-  tqDebug("tq task:0x%x (vgId:%d) recv check rsp(reqId:0x%" PRIx64 ") from 0x%x (vgId:%d) status %d",
-          rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.reqId, rsp.downstreamTaskId, rsp.downstreamNodeId, rsp.status);
+  tqDebug("tq task:0x%x (vgId:%d) recv check rsp(qid:0x%" PRIx64 ") from 0x%x (vgId:%d) status %d", rsp.upstreamTaskId,
+          rsp.upstreamNodeId, rsp.reqId, rsp.downstreamTaskId, rsp.downstreamNodeId, rsp.status);
 
   if (!isLeader) {
     tqError("vgId:%d not leader, task:0x%x not handle the check rsp, downstream:0x%x (vgId:%d)", vgId,
@@ -446,8 +493,9 @@ int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLe
     return streamMetaAddFailedTask(pMeta, rsp.streamId, rsp.upstreamTaskId);
   }
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, rsp.streamId, rsp.upstreamTaskId);
-  if (pTask == NULL) {
+  SStreamTask* pTask = NULL;
+  code = streamMetaAcquireTask(pMeta, rsp.streamId, rsp.upstreamTaskId, &pTask);
+  if ((pTask == NULL) || (code != 0)) {
     return streamMetaAddFailedTask(pMeta, rsp.streamId, rsp.upstreamTaskId);
   }
 
@@ -473,24 +521,44 @@ int32_t tqStreamTaskProcessCheckpointReadyMsg(SStreamMeta* pMeta, SRpcMsg* pMsg)
   }
   tDecoderClear(&decoder);
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.upstreamTaskId);
-  if (pTask == NULL) {
+  SStreamTask* pTask = NULL;
+  code = streamMetaAcquireTask(pMeta, req.streamId, req.upstreamTaskId, &pTask);
+  if (code != 0) {
     tqError("vgId:%d failed to find s-task:0x%x, it may have been destroyed already", vgId, req.downstreamTaskId);
     return code;
   }
 
-  tqDebug("vgId:%d s-task:%s received the checkpoint ready msg from task:0x%x (vgId:%d), handle it", vgId,
-          pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId);
+  if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
+    tqDebug("vgId:%d s-task:%s recv invalid the checkpoint-ready msg from task:0x%x (vgId:%d), discard", vgId,
+            pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId);
+    streamMetaReleaseTask(pMeta, pTask);
+    return TSDB_CODE_INVALID_MSG;
+  } else {
+    tqDebug("vgId:%d s-task:%s received the checkpoint-ready msg from task:0x%x (vgId:%d), handle it", vgId,
+            pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId);
+  }
 
-  streamProcessCheckpointReadyMsg(pTask);
+  code = streamProcessCheckpointReadyMsg(pTask, req.checkpointId, req.downstreamNodeId, req.downstreamTaskId);
   streamMetaReleaseTask(pMeta, pTask);
+  if (code) {
+    return code;
+  }
 
   {  // send checkpoint ready rsp
-    SRpcMsg rsp = {.code = 0, .info = pMsg->info, .contLen = sizeof(SMStreamCheckpointReadyRspMsg)};
-    rsp.pCont = rpcMallocCont(rsp.contLen);
-    SMsgHead* pHead = rsp.pCont;
-    pHead->vgId = htonl(req.downstreamNodeId);
+    SMStreamCheckpointReadyRspMsg* pReadyRsp = rpcMallocCont(sizeof(SMStreamCheckpointReadyRspMsg));
+    if (pReadyRsp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
 
+    pReadyRsp->upstreamTaskId = req.upstreamTaskId;
+    pReadyRsp->upstreamNodeId = req.upstreamNodeId;
+    pReadyRsp->downstreamTaskId = req.downstreamTaskId;
+    pReadyRsp->downstreamNodeId = req.downstreamNodeId;
+    pReadyRsp->checkpointId = req.checkpointId;
+    pReadyRsp->streamId = req.streamId;
+    pReadyRsp->head.vgId = htonl(req.downstreamNodeId);
+
+    SRpcMsg rsp = {.code = 0, .info = pMsg->info, .pCont = pReadyRsp, .contLen = sizeof(SMStreamCheckpointReadyRspMsg)};
     tmsgSendRsp(&rsp);
 
     pMsg->info.handle = NULL;  // disable auto rsp
@@ -516,7 +584,7 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   SStreamTask* pTask = taosMemoryCalloc(1, size);
   if (pTask == NULL) {
     tqError("vgId:%d failed to create stream task due to out of memory, alloc size:%d", vgId, size);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SDecoder decoder;
@@ -554,9 +622,10 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
       tqDebug("vgId:%d s-task:0x%x is deployed and add into meta, numOfTasks:%d", vgId, taskId, numOfTasks);
 
       if (restored) {
-        SStreamTask* p = streamMetaAcquireTask(pMeta, streamId, taskId);
-        if ((p != NULL) && (p->info.fillHistory == 0)) {
-          tqStreamStartOneTaskAsync(pMeta, cb, streamId, taskId);
+        SStreamTask* p = NULL;
+        code = streamMetaAcquireTask(pMeta, streamId, taskId, &p);
+        if ((p != NULL) && (code == 0) && (p->info.fillHistory == 0)) {
+          code = tqStreamStartOneTaskAsync(pMeta, cb, streamId, taskId);
         }
 
         if (p != NULL) {
@@ -577,22 +646,12 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   return code;
 }
 
-void tqStreamRmTaskBackend(SStreamMeta* pMeta, STaskId* id) {
-  char taskKey[128] = {0};
-  sprintf(taskKey, "0x%" PRIx64 "-0x%x", id->streamId, (int32_t)id->taskId);
-
-  char* path = taosMemoryCalloc(1, strlen(pMeta->path) + 128);
-  sprintf(path, "%s%s%s", pMeta->path, TD_DIRSEP, taskKey);
-  taosRemoveDir(path);
-  taosMemoryFree(path);
-  // do nothing
-}
-
 int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
-  int32_t              vgId = pMeta->vgId;
-  STaskId              hTaskId = {0};
 
+  int32_t code = 0;
+  int32_t vgId = pMeta->vgId;
+  STaskId hTaskId = {0};
   tqDebug("vgId:%d receive msg to drop s-task:0x%x", vgId, pReq->taskId);
 
   streamMetaWLock(pMeta);
@@ -608,20 +667,32 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
       hTaskId.taskId = pTask->hTaskInfo.id.taskId;
     }
 
-    streamTaskClearHTaskAttr(pTask, pReq->resetRelHalt);
+    streamTaskSetRemoveBackendFiles(pTask);
+    code = streamTaskClearHTaskAttr(pTask, pReq->resetRelHalt);
     streamMetaReleaseTask(pMeta, pTask);
+
+    if (code) {
+      tqError("s-task:0x%x failed to clear related fill-history info, still exists", pReq->taskId);
+    }
   }
 
   streamMetaWUnLock(pMeta);
 
   // drop the related fill-history task firstly
   if (hTaskId.taskId != 0 && hTaskId.streamId != 0) {
-    streamMetaUnregisterTask(pMeta, hTaskId.streamId, hTaskId.taskId);
     tqDebug("s-task:0x%x vgId:%d drop rel fill-history task:0x%x firstly", pReq->taskId, vgId, (int32_t)hTaskId.taskId);
+    code = streamMetaUnregisterTask(pMeta, hTaskId.streamId, hTaskId.taskId);
+    if (code) {
+      tqDebug("s-task:0x%x vgId:%d drop rel fill-history task:0x%x failed", pReq->taskId, vgId,
+              (int32_t)hTaskId.taskId);
+    }
   }
 
   // drop the stream task now
-  streamMetaUnregisterTask(pMeta, pReq->streamId, pReq->taskId);
+  code = streamMetaUnregisterTask(pMeta, pReq->streamId, pReq->taskId);
+  if (code) {
+    tqDebug("s-task:0x%x vgId:%d drop task failed", pReq->taskId, vgId);
+  }
 
   // commit the update
   streamMetaWLock(pMeta);
@@ -633,9 +704,34 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
   }
 
   streamMetaWUnLock(pMeta);
+  return 0;  // always return success
+}
 
-  tqStreamRmTaskBackend(pMeta, &id);
-  return 0;
+int32_t tqStreamTaskProcessUpdateCheckpointReq(SStreamMeta* pMeta, bool restored, char* msg) {
+  SVUpdateCheckpointInfoReq* pReq = (SVUpdateCheckpointInfoReq*)msg;
+
+  int32_t code = 0;
+  int32_t vgId = pMeta->vgId;
+  tqDebug("vgId:%d receive msg to update-checkpoint-info for s-task:0x%x", vgId, pReq->taskId);
+
+  streamMetaWLock(pMeta);
+
+  STaskId       id = {.streamId = pReq->streamId, .taskId = pReq->taskId};
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
+
+  if (ppTask != NULL && (*ppTask) != NULL) {
+    code = streamTaskUpdateTaskCheckpointInfo(*ppTask, restored, pReq);
+  } else {  // failed to get the task.
+    int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
+    tqError(
+        "vgId:%d failed to locate the s-task:0x%x to update the checkpoint info, numOfTasks:%d, it may have been "
+        "dropped already",
+        vgId, pReq->taskId, numOfTasks);
+  }
+
+  streamMetaWUnLock(pMeta);
+  // always return success when handling the requirement issued by mnode during transaction.
+  return code;
 }
 
 static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
@@ -656,8 +752,8 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   streamMetaWUnLock(pMeta);
 
   terrno = 0;
-  tqInfo("vgId:%d tasks are all updated and stopped, restart all tasks, triggered by transId:%d", vgId,
-         pMeta->updateInfo.transId);
+  tqInfo("vgId:%d tasks are all updated and stopped, restart all tasks, triggered by transId:%d, ts:%" PRId64, vgId,
+         pMeta->updateInfo.completeTransId, pMeta->updateInfo.completeTs);
 
   while (streamMetaTaskInTimer(pMeta)) {
     tqDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
@@ -680,12 +776,11 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   }
 
   if (isLeader && !tsDisableStream) {
-    streamMetaResetTaskStatus(pMeta);
     streamMetaWUnLock(pMeta);
-
-    streamMetaStartAllTasks(pMeta);
+    code = streamMetaStartAllTasks(pMeta);
   } else {
-    streamMetaResetStartInfo(&pMeta->startInfo);
+    streamMetaResetStartInfo(&pMeta->startInfo, pMeta->vgId);
+    pMeta->startInfo.restartCount = 0;
     streamMetaWUnLock(pMeta);
     tqInfo("vgId:%d, follower node not start stream tasks or stream is disabled", vgId);
   }
@@ -701,24 +796,25 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
   int32_t vgId = pMeta->vgId;
 
   if (type == STREAM_EXEC_T_START_ONE_TASK) {
-    streamMetaStartOneTask(pMeta, pReq->streamId, pReq->taskId);
+    (void)streamMetaStartOneTask(pMeta, pReq->streamId, pReq->taskId);
     return 0;
   } else if (type == STREAM_EXEC_T_START_ALL_TASKS) {
-    streamMetaStartAllTasks(pMeta);
+    (void)streamMetaStartAllTasks(pMeta);
     return 0;
   } else if (type == STREAM_EXEC_T_RESTART_ALL_TASKS) {
-    restartStreamTasks(pMeta, isLeader);
+    (void)restartStreamTasks(pMeta, isLeader);
     return 0;
   } else if (type == STREAM_EXEC_T_STOP_ALL_TASKS) {
-    streamMetaStopAllTasks(pMeta);
+    (void)streamMetaStopAllTasks(pMeta);
     return 0;
   } else if (type == STREAM_EXEC_T_ADD_FAILED_TASK) {
     int32_t code = streamMetaAddFailedTask(pMeta, pReq->streamId, pReq->taskId);
     return code;
   } else if (type == STREAM_EXEC_T_RESUME_TASK) {  // task resume to run after idle for a while
-    SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
+    SStreamTask* pTask = NULL;
+    int32_t      code = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId, &pTask);
 
-    if (pTask != NULL) {
+    if (pTask != NULL && (code == 0)) {
       char* pStatus = NULL;
       if (streamTaskReadyToRun(pTask, &pStatus)) {
         int64_t execTs = pTask->status.lastExecTs;
@@ -737,13 +833,14 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
     return 0;
   }
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
-  if (pTask != NULL) {  // even in halt status, the data in inputQ must be processed
+  SStreamTask* pTask = NULL;
+  int32_t      code = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId, &pTask);
+  if ((pTask != NULL) && (code == 0)) {  // even in halt status, the data in inputQ must be processed
     char* p = NULL;
     if (streamTaskReadyToRun(pTask, &p)) {
       tqDebug("vgId:%d s-task:%s status:%s start to process block from inputQ, next checked ver:%" PRId64, vgId,
               pTask->id.idStr, p, pTask->chkInfo.nextProcessVer);
-      streamExecTask(pTask);
+      (void)streamExecTask(pTask);
     } else {
       int8_t status = streamTaskSetSchedStatusInactive(pTask);
       tqDebug("vgId:%d s-task:%s ignore run req since not in ready state, status:%s, sched-status:%d", vgId,
@@ -763,6 +860,7 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
   STaskStartInfo* pStartInfo = &pMeta->startInfo;
   int32_t         vgId = pMeta->vgId;
   bool            scanWal = false;
+  int32_t         code = 0;
 
   streamMetaWLock(pMeta);
   if (pStartInfo->startAllTasks == 1) {
@@ -778,11 +876,10 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
               pStartInfo->restartCount);
       streamMetaWUnLock(pMeta);
 
-      restartStreamTasks(pMeta, (pMeta->role == NODE_ROLE_LEADER));
-      return TSDB_CODE_SUCCESS;
+      return restartStreamTasks(pMeta, (pMeta->role == NODE_ROLE_LEADER));
     } else {
       if (pStartInfo->restartCount == 0) {
-        tqDebug("vgId:%d start all tasks completed in callbackFn, restartCount is 0", pMeta->vgId);
+        tqDebug("vgId:%d start all tasks completed in callbackFn, restartCounter is 0", pMeta->vgId);
       } else if (allReady) {
         pStartInfo->restartCount = 0;
         tqDebug("vgId:%d all tasks are ready, reset restartCounter 0, not restart tasks", vgId);
@@ -796,17 +893,18 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
 
   if (scanWal && (vgId != SNODE_HANDLE)) {
     tqDebug("vgId:%d start scan wal for executing tasks", vgId);
-    tqScanWalAsync(pMeta->ahandle, true);
+    code = tqScanWalAsync(pMeta->ahandle, true);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
-int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
-  SVPauseStreamTaskReq* pReq = (SVPauseStreamTaskReq*)pMsg->pCont;
+int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, char* pMsg) {
+  SVPauseStreamTaskReq* pReq = (SVPauseStreamTaskReq*)pMsg;
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
-  if (pTask == NULL) {
+  SStreamTask* pTask = NULL;
+  int32_t      code = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId, &pTask);
+  if (pTask == NULL || (code != 0)) {
     tqError("vgId:%d process task-reset req, failed to acquire task:0x%x, it may have been dropped already",
             pMeta->vgId, pReq->taskId);
     return TSDB_CODE_SUCCESS;
@@ -814,34 +912,139 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 
   tqDebug("s-task:%s receive task-reset msg from mnode, reset status and ready for data processing", pTask->id.idStr);
 
-  taosThreadMutexLock(&pTask->lock);
+  streamMutexLock(&pTask->lock);
   streamTaskClearCheckInfo(pTask, true);
 
   // clear flag set during do checkpoint, and open inputQ for all upstream tasks
-  SStreamTaskState *pState = streamTaskGetStatus(pTask);
-  if (pState->state == TASK_STATUS__CK) {
+  SStreamTaskState pState = streamTaskGetStatus(pTask);
+  if (pState.state == TASK_STATUS__CK) {
+    int32_t tranId = 0;
+    int64_t activeChkId = 0;
+    streamTaskGetActiveCheckpointInfo(pTask, &tranId, &activeChkId);
+
     tqDebug("s-task:%s reset task status from checkpoint, current checkpointingId:%" PRId64 ", transId:%d",
-            pTask->id.idStr, pTask->chkInfo.checkpointingId, pTask->chkInfo.transId);
+            pTask->id.idStr, activeChkId, tranId);
+
     streamTaskSetStatusReady(pTask);
-  } else if (pState->state == TASK_STATUS__UNINIT) {
-    tqDebug("s-task:%s start task by checking downstream tasks", pTask->id.idStr);
-    ASSERT(pTask->status.downstreamReady == 0);
-    /*int32_t ret = */ streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
+  } else if (pState.state == TASK_STATUS__UNINIT) {
+    //    tqDebug("s-task:%s start task by checking downstream tasks", pTask->id.idStr);
+    //    tqStreamTaskRestoreCheckpoint(pMeta, pTask->id.streamId, pTask->id.taskId);
+    tqDebug("s-task:%s status:%s do nothing after receiving reset-task from mnode", pTask->id.idStr, pState.name);
   } else {
-    tqDebug("s-task:%s status:%s do nothing after receiving reset-task from mnode", pTask->id.idStr, pState->name);
+    tqDebug("s-task:%s status:%s do nothing after receiving reset-task from mnode", pTask->id.idStr, pState.name);
   }
 
-  taosThreadMutexUnlock(&pTask->lock);
+  streamMutexUnlock(&pTask->lock);
 
   streamMetaReleaseTask(pMeta, pTask);
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t tqStreamTaskProcessRetrieveTriggerReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
+  SRetrieveChkptTriggerReq* pReq = (SRetrieveChkptTriggerReq*)pMsg->pCont;
+
+  SStreamTask* pTask = NULL;
+  int32_t      code = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->upstreamTaskId, &pTask);
+  if (pTask == NULL || (code != 0)) {
+    tqError("vgId:%d process retrieve checkpoint trigger, checkpointId:%" PRId64
+            " from s-task:0x%x, failed to acquire task:0x%x, it may have been dropped already",
+            pMeta->vgId, pReq->checkpointId, (int32_t)pReq->downstreamTaskId, pReq->upstreamTaskId);
+    return TSDB_CODE_STREAM_TASK_NOT_EXIST;
+  }
+
+  tqDebug("s-task:0x%x recv retrieve checkpoint-trigger msg from downstream s-task:0x%x, checkpointId:%" PRId64,
+          pReq->upstreamTaskId, (int32_t)pReq->downstreamTaskId, pReq->checkpointId);
+
+  if (pTask->status.downstreamReady != 1) {
+    tqError("s-task:%s not ready for checkpoint-trigger retrieve from 0x%x, since downstream not ready",
+            pTask->id.idStr, (int32_t)pReq->downstreamTaskId);
+
+    code = streamTaskSendCheckpointTriggerMsg(pTask, pReq->downstreamTaskId, pReq->downstreamNodeId, &pMsg->info,
+                                              TSDB_CODE_STREAM_TASK_IVLD_STATUS);
+    streamMetaReleaseTask(pMeta, pTask);
+    return code;
+  }
+
+  SStreamTaskState pState = streamTaskGetStatus(pTask);
+  if (pState.state == TASK_STATUS__CK) {  // recv the checkpoint-source/trigger already
+    int32_t transId = 0;
+    int64_t checkpointId = 0;
+
+    streamTaskGetActiveCheckpointInfo(pTask, &transId, &checkpointId);
+    if (checkpointId != pReq->checkpointId) {
+      tqError("s-task:%s invalid checkpoint-trigger retrieve msg from 0x%" PRIx64 ", current checkpointId:%" PRId64
+              " req:%" PRId64,
+              pTask->id.idStr, pReq->downstreamTaskId, checkpointId, pReq->checkpointId);
+      streamMetaReleaseTask(pMeta, pTask);
+      return TSDB_CODE_INVALID_MSG;
+    }
+
+    if (streamTaskAlreadySendTrigger(pTask, pReq->downstreamNodeId)) {
+      // re-send the lost checkpoint-trigger msg to downstream task
+      tqDebug("s-task:%s re-send checkpoint-trigger to:0x%x, checkpointId:%" PRId64 ", transId:%d", pTask->id.idStr,
+              (int32_t)pReq->downstreamTaskId, checkpointId, transId);
+      code = streamTaskSendCheckpointTriggerMsg(pTask, pReq->downstreamTaskId, pReq->downstreamNodeId, &pMsg->info,
+                                                TSDB_CODE_SUCCESS);
+    } else {  // not send checkpoint-trigger yet, wait
+      int32_t recv = 0, total = 0;
+      streamTaskGetTriggerRecvStatus(pTask, &recv, &total);
+
+      if (recv == total) {  // add the ts info
+        tqWarn("s-task:%s all upstream send checkpoint-source/trigger, but not processed yet, wait", pTask->id.idStr);
+      } else {
+        tqWarn(
+            "s-task:%s not all upstream send checkpoint-source/trigger, total recv:%d/%d, wait for all upstream "
+            "sending checkpoint-source/trigger",
+            pTask->id.idStr, recv, total);
+      }
+      code = streamTaskSendCheckpointTriggerMsg(pTask, pReq->downstreamTaskId, pReq->downstreamNodeId, &pMsg->info,
+                                                TSDB_CODE_ACTION_IN_PROGRESS);
+    }
+  } else {  // upstream not recv the checkpoint-source/trigger till now
+    if (!(pState.state == TASK_STATUS__READY || pState.state == TASK_STATUS__HALT)) {
+      tqFatal("s-task:%s invalid task status:%s", pTask->id.idStr, pState.name);
+    }
+
+    tqWarn(
+        "s-task:%s not recv checkpoint-source from mnode or checkpoint-trigger from upstream yet, wait for all "
+        "upstream sending checkpoint-source/trigger",
+        pTask->id.idStr);
+    code = streamTaskSendCheckpointTriggerMsg(pTask, pReq->downstreamTaskId, pReq->downstreamNodeId, &pMsg->info,
+                                              TSDB_CODE_ACTION_IN_PROGRESS);
+  }
+
+  streamMetaReleaseTask(pMeta, pTask);
+  return code;
+}
+
+int32_t tqStreamTaskProcessRetrieveTriggerRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
+  SCheckpointTriggerRsp* pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+
+  SStreamTask* pTask = NULL;
+  int32_t      code = streamMetaAcquireTask(pMeta, pRsp->streamId, pRsp->taskId, &pTask);
+  if (pTask == NULL || (code != 0)) {
+    tqError(
+        "vgId:%d process retrieve checkpoint-trigger, failed to acquire task:0x%x, it may have been dropped already",
+        pMeta->vgId, pRsp->taskId);
+    return code;
+  }
+
+  tqDebug(
+      "s-task:%s recv re-send checkpoint-trigger msg from through retrieve/rsp channel, upstream:0x%x, "
+      "checkpointId:%" PRId64 ", transId:%d",
+      pTask->id.idStr, pRsp->upstreamTaskId, pRsp->checkpointId, pRsp->transId);
+
+  code = streamTaskProcessCheckpointTriggerRsp(pTask, pRsp);
+  streamMetaReleaseTask(pMeta, pTask);
+  return code;
+}
+
 int32_t tqStreamTaskProcessTaskPauseReq(SStreamMeta* pMeta, char* pMsg) {
   SVPauseStreamTaskReq* pReq = (SVPauseStreamTaskReq*)pMsg;
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
-  if (pTask == NULL) {
+  SStreamTask* pTask = NULL;
+  int32_t      code = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId, &pTask);
+  if (pTask == NULL || (code != 0)) {
     tqError("vgId:%d process pause req, failed to acquire task:0x%x, it may have been dropped already", pMeta->vgId,
             pReq->taskId);
     // since task is in [STOP|DROPPING] state, it is safe to assume the pause is active
@@ -853,8 +1056,9 @@ int32_t tqStreamTaskProcessTaskPauseReq(SStreamMeta* pMeta, char* pMsg) {
 
   SStreamTask* pHistoryTask = NULL;
   if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
-    pHistoryTask = streamMetaAcquireTask(pMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId);
-    if (pHistoryTask == NULL) {
+    pHistoryTask = NULL;
+    code = streamMetaAcquireTask(pMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId, &pHistoryTask);
+    if (pHistoryTask == NULL || (code != 0)) {
       tqError("vgId:%d process pause req, failed to acquire fill-history task:0x%" PRIx64
               ", it may have been dropped already",
               pMeta->vgId, pTask->hTaskInfo.id.taskId);
@@ -878,21 +1082,16 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
                                        bool fromVnode) {
   SStreamMeta* pMeta = fromVnode ? ((STQ*)handle)->pStreamMeta : handle;
   int32_t      vgId = pMeta->vgId;
+  int32_t      code = 0;
+
   if (pTask == NULL) {
     return -1;
   }
 
   streamTaskResume(pTask);
-  ETaskStatus status = streamTaskGetStatus(pTask)->state;
+  ETaskStatus status = streamTaskGetStatus(pTask).state;
 
   int32_t level = pTask->info.taskLevel;
-  if (level == TASK_LEVEL__SINK) {
-    if (status == TASK_STATUS__UNINIT) {
-    }
-    streamMetaReleaseTask(pMeta, pTask);
-    return 0;
-  }
-
   if (status == TASK_STATUS__READY || status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__CK) {
     // no lock needs to secure the access of the version
     if (igUntreated && level == TASK_LEVEL__SOURCE && !pTask->info.fillHistory) {
@@ -908,36 +1107,50 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
 
     if (level == TASK_LEVEL__SOURCE && pTask->info.fillHistory && status == TASK_STATUS__SCAN_HISTORY) {
       pTask->hTaskInfo.operatorOpen = false;
-      streamStartScanHistoryAsync(pTask, igUntreated);
+      code = streamStartScanHistoryAsync(pTask, igUntreated);
     } else if (level == TASK_LEVEL__SOURCE && (streamQueueGetNumOfItems(pTask->inputq.queue) == 0)) {
-      tqScanWalAsync((STQ*)handle, false);
+      code = tqScanWalAsync((STQ*)handle, false);
     } else {
-      streamTrySchedExec(pTask);
-    }
-  } else if (status == TASK_STATUS__UNINIT) {
-    // todo: fill-history task init ?
-    if (pTask->info.fillHistory == 0) {
-      streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
+      code = streamTrySchedExec(pTask);
     }
   }
 
   streamMetaReleaseTask(pMeta, pTask);
-  return 0;
+  return code;
 }
 
 int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* msg, bool fromVnode) {
   SVResumeStreamTaskReq* pReq = (SVResumeStreamTaskReq*)msg;
-  SStreamMeta*           pMeta = fromVnode ? ((STQ*)handle)->pStreamMeta : handle;
-  SStreamTask*           pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
-  int32_t                code = tqProcessTaskResumeImpl(handle, pTask, sversion, pReq->igUntreated, fromVnode);
+
+  SStreamMeta* pMeta = fromVnode ? ((STQ*)handle)->pStreamMeta : handle;
+
+  SStreamTask* pTask = NULL;
+  int32_t      code = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId, &pTask);
+  if (pTask == NULL || (code != 0)) {
+    tqError("s-task:0x%x failed to acquire task to resume, it may have been dropped or stopped", pReq->taskId);
+    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+  }
+
+  streamMutexLock(&pTask->lock);
+  SStreamTaskState pState = streamTaskGetStatus(pTask);
+  tqDebug("s-task:%s start to resume from paused, current status:%s", pTask->id.idStr, pState.name);
+  streamMutexUnlock(&pTask->lock);
+
+  code = tqProcessTaskResumeImpl(handle, pTask, sversion, pReq->igUntreated, fromVnode);
   if (code != 0) {
     return code;
   }
 
   STaskId*     pHTaskId = &pTask->hTaskInfo.id;
-  SStreamTask* pHistoryTask = streamMetaAcquireTask(pMeta, pHTaskId->streamId, pHTaskId->taskId);
-  if (pHistoryTask) {
-    code = tqProcessTaskResumeImpl(handle, pHistoryTask, sversion, pReq->igUntreated, fromVnode);
+  SStreamTask* pHTask = NULL;
+  code = streamMetaAcquireTask(pMeta, pHTaskId->streamId, pHTaskId->taskId, &pHTask);
+  if (pHTask && (code == 0)) {
+    streamMutexLock(&pHTask->lock);
+    SStreamTaskState p = streamTaskGetStatus(pHTask);
+    tqDebug("s-task:%s related history task start to resume from paused, current status:%s", pHTask->id.idStr, p.name);
+    streamMutexUnlock(&pHTask->lock);
+
+    code = tqProcessTaskResumeImpl(handle, pHTask, sversion, pReq->igUntreated, fromVnode);
   }
 
   return code;
@@ -951,10 +1164,115 @@ int32_t doProcessDummyRspMsg(SStreamMeta* UNUSED_PARAM(pMeta), SRpcMsg* pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tqStreamProcessStreamHbRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) { return doProcessDummyRspMsg(pMeta, pMsg); }
+int32_t tqStreamProcessStreamHbRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
+  return streamProcessHeartbeatRsp(pMeta, pMsg->pCont);
+}
 
 int32_t tqStreamProcessReqCheckpointRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) { return doProcessDummyRspMsg(pMeta, pMsg); }
 
-int32_t tqStreamProcessCheckpointReadyRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
+int32_t tqStreamProcessChkptReportRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) { return doProcessDummyRspMsg(pMeta, pMsg); }
+
+int32_t tqStreamProcessConsensusChkptRsp2(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   return doProcessDummyRspMsg(pMeta, pMsg);
+}
+
+int32_t tqStreamProcessCheckpointReadyRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
+  SMStreamCheckpointReadyRspMsg* pRsp = pMsg->pCont;
+
+  SStreamTask* pTask = NULL;
+  int32_t      code = streamMetaAcquireTask(pMeta, pRsp->streamId, pRsp->downstreamTaskId, &pTask);
+  if (pTask == NULL || (code != 0)) {
+    tqError("vgId:%d failed to acquire task:0x%x when handling checkpoint-ready msg, it may have been dropped",
+            pRsp->downstreamNodeId, pRsp->downstreamTaskId);
+    return code;
+  }
+
+  code = streamTaskProcessCheckpointReadyRsp(pTask, pRsp->upstreamTaskId, pRsp->checkpointId);
+  streamMetaReleaseTask(pMeta, pTask);
+  return code;
+}
+
+int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
+  int32_t                vgId = pMeta->vgId;
+  int32_t                code = 0;
+  SStreamTask*           pTask = NULL;
+  SRestoreCheckpointInfo req = {0};
+  char*                  msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t                len = pMsg->contLen - sizeof(SMsgHead);
+  int64_t                now = taosGetTimestampMs();
+
+  SDecoder decoder;
+  tDecoderInit(&decoder, (uint8_t*)msg, len);
+
+  if (tDecodeRestoreCheckpointInfo(&decoder, &req) < 0) {
+    tqError("vgId:%d failed to decode set consensus checkpointId req, code:%s", vgId, tstrerror(code));
+    tDecoderClear(&decoder);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  tDecoderClear(&decoder);
+
+  code = streamMetaAcquireTask(pMeta, req.streamId, req.taskId, &pTask);
+  if (pTask == NULL || (code != 0)) {
+    tqError(
+        "vgId:%d process set consensus checkpointId req, failed to acquire task:0x%x, it may have been dropped already",
+        pMeta->vgId, req.taskId);
+    (void)streamMetaAddFailedTask(pMeta, req.streamId, req.taskId);
+    return code;
+  }
+
+  // discard the rsp, since it is expired.
+  if (req.startTs < pTask->execInfo.created) {
+    tqWarn("s-task:%s vgId:%d create time:%" PRId64 " recv expired consensus checkpointId:%" PRId64
+           " from task createTs:%" PRId64 " < task createTs:%" PRId64 ", discard",
+           pTask->id.idStr, pMeta->vgId, pTask->execInfo.created, req.checkpointId, req.startTs,
+           pTask->execInfo.created);
+    streamMetaAddFailedTaskSelf(pTask, now);
+    streamMetaReleaseTask(pMeta, pTask);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  tqDebug("s-task:%s vgId:%d checkpointId:%" PRId64 " restore to consensus-checkpointId:%" PRId64 " from mnode",
+          pTask->id.idStr, vgId, pTask->chkInfo.checkpointId, req.checkpointId);
+
+  streamMutexLock(&pTask->lock);
+  if (pTask->chkInfo.checkpointId < req.checkpointId) {
+    tqFatal("s-task:%s vgId:%d invalid consensus-checkpointId:%" PRId64 ", greater than existed checkpointId:%"PRId64,
+            pTask->id.idStr, vgId, req.checkpointId, pTask->chkInfo.checkpointId);
+
+    streamMutexUnlock(&pTask->lock);
+    streamMetaReleaseTask(pMeta, pTask);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+  SConsenChkptInfo* pConsenInfo = &pTask->status.consenChkptInfo;
+  if (pConsenInfo->consenChkptTransId >= req.transId) {
+    tqDebug("s-task:%s vgId:%d latest consensus transId:%d, expired consensus trans:%d, discard", pTask->id.idStr, vgId,
+            pConsenInfo->consenChkptTransId, req.transId);
+    streamMutexUnlock(&pTask->lock);
+    streamMetaReleaseTask(pMeta, pTask);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pTask->chkInfo.checkpointId != req.checkpointId) {
+    tqDebug("s-task:%s vgId:%d update the checkpoint from %" PRId64 " to %" PRId64 " transId:%d", pTask->id.idStr, vgId,
+            pTask->chkInfo.checkpointId, req.checkpointId, req.transId);
+    pTask->chkInfo.checkpointId = req.checkpointId;
+    tqSetRestoreVersionInfo(pTask);
+  } else {
+    tqDebug("s-task:%s vgId:%d consensus-checkpointId:%" PRId64 " equals to current id, transId:%d not update",
+            pTask->id.idStr, vgId, req.checkpointId, req.transId);
+  }
+
+  streamTaskSetConsenChkptIdRecv(pTask, req.transId, now);
+  streamMutexUnlock(&pTask->lock);
+
+  if (pMeta->role == NODE_ROLE_LEADER) {
+    code = tqStreamStartOneTaskAsync(pMeta, pTask->pMsgCb, req.streamId, req.taskId);
+  } else {
+    tqDebug("vgId:%d follower not start task:%s", vgId, pTask->id.idStr);
+  }
+
+  streamMetaReleaseTask(pMeta, pTask);
+  return code;
 }

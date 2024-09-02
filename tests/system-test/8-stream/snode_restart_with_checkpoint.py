@@ -51,7 +51,9 @@ class TDTestCase:
         for i in range(rowCnt):
             results.append(tdSql.getData(i,1))
 
-        tdSql.query("select * from st1 order by groupid,_wstart")
+        sql = "select * from st1 order by groupid,_wstart"
+        tdSql.check_rows_loop(rowCnt, sql, loopCount=100, waitTime=0.5)
+
         tdSql.checkRows(rowCnt)
         for i in range(rowCnt):
             data1 = tdSql.getData(i,1)

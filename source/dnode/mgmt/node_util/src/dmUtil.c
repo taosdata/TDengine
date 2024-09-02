@@ -57,8 +57,8 @@ void *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, void *nodeMsgFp, bool need
 void dmGetMonitorSystemInfo(SMonSysInfo *pInfo) {
   taosGetCpuUsage(&pInfo->cpu_system, &pInfo->cpu_engine);
   taosGetCpuCores(&pInfo->cpu_cores, false);
-  taosGetProcMemory(&pInfo->mem_engine);
-  taosGetSysMemory(&pInfo->mem_system);
+  (void)taosGetProcMemory(&pInfo->mem_engine);
+  (void)taosGetSysMemory(&pInfo->mem_system);
   pInfo->mem_total = tsTotalMemoryKB;
   pInfo->disk_engine = 0;
   pInfo->disk_used = tsDataSpace.size.used;

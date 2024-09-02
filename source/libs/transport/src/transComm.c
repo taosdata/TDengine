@@ -32,7 +32,7 @@ int32_t transCompressMsg(char* msg, int32_t len) {
 
   char* buf = taosMemoryMalloc(len + compHdr + 8);  // 8 extra bytes
   if (buf == NULL) {
-    tError("failed to allocate memory for rpc msg compression, contLen:%d", len);
+    tWarn("failed to allocate memory for rpc msg compression, contLen:%d", len);
     ret = len;
     return ret;
   }
@@ -67,7 +67,11 @@ int32_t transDecompressMsg(char** msg, int32_t len) {
   STransCompMsg* pComp = (STransCompMsg*)pCont;
   int32_t        oriLen = htonl(pComp->contLen);
 
-  char*          buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
+  char* buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
+  if (buf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
   int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), (char*)pNewHead->content,
                                                  len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
@@ -78,7 +82,7 @@ int32_t transDecompressMsg(char** msg, int32_t len) {
   taosMemoryFree(pHead);
   *msg = buf;
   if (decompLen != oriLen) {
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
   return 0;
 }
@@ -98,26 +102,33 @@ int transSockInfo2Str(struct sockaddr* sockname, char* dst) {
   sprintf(dst, "%s:%d", buf, ntohs(addr.sin_port));
   return r;
 }
-int transInitBuffer(SConnBuffer* buf) {
-  buf->cap = BUFFER_CAP;
+int32_t transInitBuffer(SConnBuffer* buf) {
   buf->buf = taosMemoryCalloc(1, BUFFER_CAP);
+  if (buf->buf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  buf->cap = BUFFER_CAP;
   buf->left = -1;
   buf->len = 0;
   buf->total = 0;
   buf->invalid = 0;
   return 0;
 }
-int transDestroyBuffer(SConnBuffer* p) {
+int32_t transDestroyBuffer(SConnBuffer* p) {
   taosMemoryFree(p->buf);
   p->buf = NULL;
   return 0;
 }
 
-int transClearBuffer(SConnBuffer* buf) {
+int32_t transClearBuffer(SConnBuffer* buf) {
   SConnBuffer* p = buf;
   if (p->cap > BUFFER_CAP) {
     p->cap = BUFFER_CAP;
     p->buf = taosMemoryRealloc(p->buf, BUFFER_CAP);
+    if (p->buf == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
   p->left = -1;
   p->len = 0;
@@ -126,27 +137,31 @@ int transClearBuffer(SConnBuffer* buf) {
   return 0;
 }
 
-int transDumpFromBuffer(SConnBuffer* connBuf, char** buf) {
+int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf) {
   static const int HEADSIZE = sizeof(STransMsgHead);
-
-  SConnBuffer* p = connBuf;
+  int32_t          code = 0;
+  SConnBuffer*     p = connBuf;
   if (p->left != 0 || p->total <= 0) {
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
   int total = p->total;
   if (total >= HEADSIZE && !p->invalid) {
     *buf = taosMemoryCalloc(1, total);
+    if (*buf == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     memcpy(*buf, p->buf, total);
-    if (transResetBuffer(connBuf) < 0) {
-      return -1;
+    if ((code = transResetBuffer(connBuf, resetBuf)) < 0) {
+      return code;
     }
   } else {
     total = -1;
+    return TSDB_CODE_INVALID_MSG;
   }
   return total;
 }
 
-int transResetBuffer(SConnBuffer* connBuf) {
+int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf) {
   SConnBuffer* p = connBuf;
   if (p->total < p->len) {
     int left = p->len - p->total;
@@ -159,16 +174,21 @@ int transResetBuffer(SConnBuffer* connBuf) {
     p->total = 0;
     p->len = 0;
     if (p->cap > BUFFER_CAP) {
-      p->cap = BUFFER_CAP;
-      p->buf = taosMemoryRealloc(p->buf, p->cap);
+      if (resetBuf) {
+        p->cap = BUFFER_CAP;
+        p->buf = taosMemoryRealloc(p->buf, p->cap);
+        if (p->buf == NULL) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }
     }
   } else {
-    ASSERTS(0, "invalid read from sock buf");
-    return -1;
+    tError("failed to reset buffer, total:%d, len:%d, reason:%s", p->total, p->len, tstrerror(TSDB_CODE_INVALID_MSG));
+    return TSDB_CODE_INVALID_MSG;
   }
   return 0;
 }
-int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
+int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
   /*
    * formate of data buffer:
    * |<--------------------------data from socket------------------------------->|
@@ -185,6 +205,11 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
     } else {
       p->cap = p->left + p->len;
       p->buf = taosMemoryRealloc(p->buf, p->cap);
+      if (p->buf == NULL) {
+        uvBuf->base = NULL;
+        uvBuf->len = 0;
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       uvBuf->base = p->buf + p->len;
       uvBuf->len = p->left;
     }
@@ -211,33 +236,48 @@ bool transReadComplete(SConnBuffer* connBuf) {
   return (p->left == 0 || p->invalid) ? true : false;
 }
 
-int transSetConnOption(uv_tcp_t* stream, int keepalive) {
+int32_t transSetConnOption(uv_tcp_t* stream, int keepalive) {
 #if defined(WINDOWS) || defined(DARWIN)
 #else
-  uv_tcp_keepalive(stream, 1, keepalive);
+  return uv_tcp_keepalive(stream, 1, keepalive);
 #endif
   return uv_tcp_nodelay(stream, 1);
   // int ret = uv_tcp_keepalive(stream, 5, 60);
 }
 
-SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
+int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAsyncPool** pPool) {
   SAsyncPool* pool = taosMemoryCalloc(1, sizeof(SAsyncPool));
+  if (pool == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+    // return NULL;
+  }
+  int32_t code = 0;
+
   pool->nAsync = sz;
   pool->asyncs = taosMemoryCalloc(1, sizeof(uv_async_t) * pool->nAsync);
+  if (pool->asyncs == NULL) {
+    taosMemoryFree(pool);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   int i = 0, err = 0;
   for (i = 0; i < pool->nAsync; i++) {
     uv_async_t* async = &(pool->asyncs[i]);
 
     SAsyncItem* item = taosMemoryCalloc(1, sizeof(SAsyncItem));
+    if (item == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      break;
+    }
     item->pThrd = arg;
     QUEUE_INIT(&item->qmsg);
-    taosThreadMutexInit(&item->mtx, NULL);
+    (void)taosThreadMutexInit(&item->mtx, NULL);
 
     async->data = item;
     err = uv_async_init(loop, async, cb);
     if (err != 0) {
       tError("failed to init async, reason:%s", uv_err_name(err));
+      code = TSDB_CODE_THIRDPARTY_ERROR;
       break;
     }
   }
@@ -247,16 +287,20 @@ SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
     pool = NULL;
   }
 
-  return pool;
+  *pPool = pool;
+  return 0;
+  // return pool;
 }
 
 void transAsyncPoolDestroy(SAsyncPool* pool) {
+  if (pool == NULL) return;
+
   for (int i = 0; i < pool->nAsync; i++) {
     uv_async_t* async = &(pool->asyncs[i]);
     SAsyncItem* item = async->data;
     if (item == NULL) continue;
 
-    taosThreadMutexDestroy(&item->mtx);
+    (void)taosThreadMutexDestroy(&item->mtx);
     taosMemoryFree(item);
   }
   taosMemoryFree(pool->asyncs);
@@ -272,7 +316,7 @@ bool transAsyncPoolIsEmpty(SAsyncPool* pool) {
 }
 int transAsyncSend(SAsyncPool* pool, queue* q) {
   if (atomic_load_8(&pool->stop) == 1) {
-    return -1;
+    return TSDB_CODE_RPC_ASYNC_MODULE_QUIT;
   }
   int idx = pool->index % pool->nAsync;
 
@@ -283,10 +327,15 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   uv_async_t* async = &(pool->asyncs[idx]);
   SAsyncItem* item = async->data;
 
-  taosThreadMutexLock(&item->mtx);
+  (void)taosThreadMutexLock(&item->mtx);
   QUEUE_PUSH(&item->qmsg, q);
-  taosThreadMutexUnlock(&item->mtx);
-  return uv_async_send(async);
+  (void)taosThreadMutexUnlock(&item->mtx);
+  int ret = uv_async_send(async);
+  if (ret != 0) {
+    tError("failed to send async,reason:%s", uv_err_name(ret));
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+  return 0;
 }
 
 void transCtxInit(STransCtx* ctx) {
@@ -303,7 +352,7 @@ void transCtxCleanup(STransCtx* ctx) {
     ctx->freeFunc(iter->val);
     iter = taosHashIterate(ctx->args, iter);
   }
-  ctx->freeFunc(ctx->brokenVal.val);
+  if (ctx->freeFunc) ctx->freeFunc(ctx->brokenVal.val);
   taosHashCleanup(ctx->args);
   ctx->args = NULL;
 }
@@ -326,11 +375,10 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
     STransCtxVal* sVal = (STransCtxVal*)iter;
     key = taosHashGetKey(sVal, &klen);
 
-    // STransCtxVal* dVal = taosHashGet(dst->args, key, klen);
-    // if (dVal) {
-    //   dst->freeFunc(dVal->val);
-    // }
-    taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
+    int32_t code = taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
+    if (code != 0) {
+      tError("failed to put val to hash, reason:%s", tstrerror(code));
+    }
     iter = taosHashIterate(src->args, iter);
   }
   taosHashCleanup(src->args);
@@ -344,7 +392,7 @@ void* transCtxDumpVal(STransCtx* ctx, int32_t key) {
     return NULL;
   }
   void* ret = NULL;
-  (*cVal->clone)(cVal->val, &ret);
+  (void)(*cVal->clone)(cVal->val, &ret);
   return ret;
 }
 void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
@@ -352,7 +400,7 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
   if (ctx->brokenVal.clone == NULL) {
     return ret;
   }
-  (*ctx->brokenVal.clone)(ctx->brokenVal.val, &ret);
+  (void)(*ctx->brokenVal.clone)(ctx->brokenVal.val, &ret);
 
   *msgType = ctx->brokenVal.msgType;
 
@@ -391,15 +439,22 @@ void transReqQueueClear(queue* q) {
   }
 }
 
-void transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg)) {
+int32_t transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg)) {
   queue->q = taosArrayInit(2, sizeof(void*));
+  if (queue->q == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   queue->freeFunc = (void (*)(const void*))freeFunc;
+
+  return 0;
 }
 bool transQueuePush(STransQueue* queue, void* arg) {
   if (queue->q == NULL) {
     return true;
   }
-  taosArrayPush(queue->q, &arg);
+  if (taosArrayPush(queue->q, &arg) == NULL) {
+    return false;
+  }
   if (taosArrayGetSize(queue->q) > 1) {
     return false;
   }
@@ -493,23 +548,47 @@ static void transDQTimeout(uv_timer_t* timer) {
     }
   } while (1);
   if (timeout != 0) {
-    uv_timer_start(queue->timer, transDQTimeout, timeout, 0);
+    (void)uv_timer_start(queue->timer, transDQTimeout, timeout, 0);
   }
 }
-int transDQCreate(uv_loop_t* loop, SDelayQueue** queue) {
-  uv_timer_t* timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
-  uv_timer_init(loop, timer);
+int32_t transDQCreate(uv_loop_t* loop, SDelayQueue** queue) {
+  int32_t      code = 0;
+  Heap*        heap = NULL;
+  uv_timer_t*  timer = NULL;
+  SDelayQueue* q = NULL;
 
-  Heap* heap = heapCreate(timeCompare);
+  timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
+  if (timer == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
-  SDelayQueue* q = taosMemoryCalloc(1, sizeof(SDelayQueue));
+  heap = heapCreate(timeCompare);
+  if (heap == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _return1);
+  }
+
+  q = taosMemoryCalloc(1, sizeof(SDelayQueue));
+  if (q == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _return1);
+  }
   q->heap = heap;
   q->timer = timer;
   q->loop = loop;
   q->timer->data = q;
 
+  int err = uv_timer_init(loop, timer);
+  if (err != 0) {
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _return1);
+  }
+
   *queue = q;
   return 0;
+
+_return1:
+  taosMemoryFree(timer);
+  heapDestroy(heap);
+  taosMemoryFree(q);
+  return TSDB_CODE_OUT_OF_MEMORY;
 }
 
 void transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg)) {
@@ -534,7 +613,7 @@ void transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg)) {
   taosMemoryFree(queue);
 }
 void transDQCancel(SDelayQueue* queue, SDelayTask* task) {
-  uv_timer_stop(queue->timer);
+  (void)uv_timer_stop(queue->timer);
 
   if (heapSize(queue->heap) <= 0) {
     taosMemoryFree(task->arg);
@@ -554,13 +633,17 @@ void transDQCancel(SDelayQueue* queue, SDelayTask* task) {
     SDelayTask* task = container_of(minNode, SDelayTask, node);
     uint64_t    timeout = now > task->execTime ? now - task->execTime : 0;
 
-    uv_timer_start(queue->timer, transDQTimeout, timeout, 0);
+    (void)uv_timer_start(queue->timer, transDQTimeout, timeout, 0);
   }
 }
 
 SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs) {
   uint64_t    now = taosGetTimestampMs();
   SDelayTask* task = taosMemoryCalloc(1, sizeof(SDelayTask));
+  if (task == NULL) {
+    return NULL;
+  }
+
   task->func = func;
   task->arg = arg;
   task->execTime = now + timeoutMs;
@@ -575,7 +658,7 @@ SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg,
 
   tTrace("timer %p put task into delay queue, timeoutMs:%" PRIu64, queue->timer, timeoutMs);
   heapInsert(queue->heap, &task->node);
-  uv_timer_start(queue->timer, transDQTimeout, timeoutMs, 0);
+  (void)uv_timer_start(queue->timer, transDQTimeout, timeoutMs, 0);
   return task;
 }
 
@@ -623,7 +706,7 @@ static void transInitEnv() {
   refMgt = transOpenRefMgt(50000, transDestroyExHandle);
   instMgt = taosOpenRef(50, rpcCloseImpl);
   transSyncMsgMgt = taosOpenRef(50, transDestroySyncMsg);
-  uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1");
+  (void)uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1");
 }
 static void transDestroyEnv() {
   transCloseRefMgt(refMgt);
@@ -631,9 +714,13 @@ static void transDestroyEnv() {
   transCloseRefMgt(transSyncMsgMgt);
 }
 
-void transInit() {
+int32_t transInit() {
   // init env
-  taosThreadOnce(&transModuleInit, transInitEnv);
+  int32_t code = taosThreadOnce(&transModuleInit, transInitEnv);
+  if (code != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+  }
+  return code;
 }
 
 int32_t transGetRefMgt() { return refMgt; }
@@ -661,8 +748,7 @@ int32_t transRemoveExHandle(int32_t refMgt, int64_t refId) {
   return taosRemoveRef(refMgt, refId);
 }
 
-void* transAcquireExHandle(int32_t refMgt, int64_t refId) {
-  // acquire extern handle
+void* transAcquireExHandle(int32_t refMgt, int64_t refId) {  // acquire extern handle
   return (void*)taosAcquireRef(refMgt, refId);
 }
 
@@ -674,6 +760,10 @@ void transDestroyExHandle(void* handle) {
   if (handle == NULL) {
     return;
   }
+  SExHandle* eh = handle;
+  if (!QUEUE_IS_EMPTY(&eh->q)) {
+    tDebug("handle %p mem leak", handle);
+  }
   taosMemoryFree(handle);
 }
 
@@ -681,35 +771,12 @@ void transDestroySyncMsg(void* msg) {
   if (msg == NULL) return;
 
   STransSyncMsg* pSyncMsg = msg;
-  tsem_destroy(pSyncMsg->pSem);
+  (void)tsem2_destroy(pSyncMsg->pSem);
   taosMemoryFree(pSyncMsg->pSem);
   transFreeMsg(pSyncMsg->pRsp->pCont);
   taosMemoryFree(pSyncMsg->pRsp);
   taosMemoryFree(pSyncMsg);
 }
-
-// void subnetIp2int(const char* const ip_addr, uint8_t* dst) {
-//   char ip_addr_cpy[20];
-//   char ip[5];
-
-//   tstrncpy(ip_addr_cpy, ip_addr, sizeof(ip_addr_cpy));
-
-//   char *s_start, *s_end;
-//   s_start = ip_addr_cpy;
-//   s_end = ip_addr_cpy;
-
-//   int32_t k = 0;
-
-//   for (k = 0; *s_start != '\0'; s_start = s_end) {
-//     for (s_end = s_start; *s_end != '.' && *s_end != '\0'; s_end++) {
-//     }
-//     if (*s_end == '.') {
-//       *s_end = '\0';
-//       s_end++;
-//     }
-//     dst[k++] = (char)atoi(s_start);
-//   }
-// }
 
 uint32_t subnetIpRang2Int(SIpV4Range* pRange) {
   uint32_t ip = pRange->ip;
@@ -757,7 +824,11 @@ int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) {
   struct in_addr addr;
   addr.s_addr = pRange->ip;
 
-  uv_inet_ntop(AF_INET, &addr, buf, 32);
+  int32_t err = uv_inet_ntop(AF_INET, &addr, buf, 32);
+  if (err != 0) {
+    tError("failed to convert ip to string, reason:%s", uv_strerror(err));
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
 
   len = strlen(buf);
 
@@ -773,14 +844,23 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
     *ppBuf = NULL;
     return 0;
   }
+
   int32_t len = 0;
   char*   pBuf = taosMemoryCalloc(1, pList->num * 36);
+  if (pBuf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   for (int i = 0; i < pList->num; i++) {
     SIpV4Range* pRange = &pList->pIpRange[i];
 
     char tbuf[32] = {0};
     int  tlen = transUtilSIpRangeToStr(pRange, tbuf);
+    if (tlen < 0) {
+      taosMemoryFree(pBuf);
+      return tlen;
+    }
+
     len += sprintf(pBuf + len, "%s,", tbuf);
   }
   if (len > 0) {
@@ -790,3 +870,8 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
   *ppBuf = pBuf;
   return len;
 }
+
+// int32_t transGenRandomError(int32_t status) {
+//   STUB_RAND_NETWORK_ERR(status)
+//   return status;
+// }

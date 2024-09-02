@@ -1,3 +1,5 @@
+./test.sh -f tsim/query/timeline.sim
+./test.sh -f tsim/join/join.sim
 ./test.sh -f tsim/tmq/basic2Of2ConsOverlap.sim
 ./test.sh -f tsim/parser/where.sim
 ./test.sh -f tsim/parser/join_manyblocks.sim
@@ -150,6 +152,7 @@
 ./test.sh -f tsim/parser/join_multivnode.sim
 ./test.sh -f tsim/parser/join.sim
 ./test.sh -f tsim/parser/last_cache.sim
+./test.sh -f tsim/parser/last_both.sim
 ./test.sh -f tsim/parser/last_groupby.sim
 ./test.sh -f tsim/parser/lastrow.sim
 ./test.sh -f tsim/parser/lastrow2.sim
@@ -192,6 +195,7 @@
 ./test.sh -f tsim/query/session.sim
 ./test.sh -f tsim/query/join_interval.sim
 ./test.sh -f tsim/query/join_pk.sim
+./test.sh -f tsim/query/join_order.sim
 ./test.sh -f tsim/query/count_spread.sim
 ./test.sh -f tsim/query/unionall_as_table.sim
 ./test.sh -f tsim/query/multi_order_by.sim
@@ -214,6 +218,9 @@
 ./test.sh -f tsim/query/bug3398.sim
 ./test.sh -f tsim/query/explain_tsorder.sim
 ./test.sh -f tsim/query/apercentile.sim
+./test.sh -f tsim/query/query_count0.sim
+./test.sh -f tsim/query/query_count_sliding0.sim
+./test.sh -f tsim/query/union_precision.sim
 ./test.sh -f tsim/qnode/basic1.sim
 ./test.sh -f tsim/snode/basic1.sim
 ./test.sh -f tsim/mnode/basic1.sim
@@ -287,9 +294,6 @@
 ./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
 ./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 ./test.sh -f tsim/sma/rsmaCreateInsertQueryDelete.sim
-
-### refactor stream backend, open case after rsma refactored
-#./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
 ./test.sh -f tsim/sync/vnodesnapshot-rsma-test.sim
 ./test.sh -f tsim/valgrind/checkError1.sim
 ./test.sh -f tsim/valgrind/checkError2.sim
@@ -326,6 +330,7 @@
 ./test.sh -f tsim/compress/commitlog.sim
 ./test.sh -f tsim/compress/compress2.sim
 ./test.sh -f tsim/compress/compress.sim
+./test.sh -f tsim/compress/compress_col.sim
 ./test.sh -f tsim/compress/uncompress.sim
 ./test.sh -f tsim/compute/avg.sim
 ./test.sh -f tsim/compute/block_dist.sim
@@ -402,6 +407,8 @@
 ./test.sh -f tmp/monitor.sim
 ./test.sh -f tsim/tagindex/add_index.sim
 ./test.sh -f tsim/tagindex/sma_and_tag_index.sim
+./test.sh -f tsim/tagindex/indexOverflow.sim
 ./test.sh -f tsim/view/view.sim
 ./test.sh -f tsim/query/cache_last.sim
 ./test.sh -f tsim/query/const.sim
+./test.sh -f tsim/query/nestedJoinView.sim

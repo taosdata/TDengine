@@ -88,6 +88,8 @@ int32_t mndInitDb(SMnode *pMnode) {
 void mndCleanupDb(SMnode *pMnode) {}
 
 SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t  size = sizeof(SDbObj) + pDb->cfg.numOfRetensions * sizeof(SRetention) + DB_RESERVE_SIZE;
@@ -166,6 +168,8 @@ _OVER:
 }
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow *pRow = NULL;
   SDbObj  *pDb = NULL;
@@ -290,14 +294,24 @@ static int32_t mndNewDbActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw *p
   int      code = -1;
 
   pRow = mndDbActionDecode(pRaw);
-  if (pRow == NULL) goto _OVER;
+  if (pRow == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    goto _OVER;
+  }
   pNewDb = sdbGetRowObj(pRow);
-  if (pNewDb == NULL) goto _OVER;
+  if (pNewDb == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    goto _OVER;
+  }
 
   SDbObj *pOldDb = sdbAcquire(pMnode->pSdb, SDB_DB, pNewDb->name);
   if (pOldDb != NULL) {
     mError("trans:%d, db name already in use. name: %s", pTrans->id, pNewDb->name);
     sdbRelease(pMnode->pSdb, pOldDb);
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     goto _OVER;
   }
 
@@ -384,134 +398,155 @@ void mndReleaseDb(SMnode *pMnode, SDbObj *pDb) {
   sdbRelease(pSdb, pDb);
 }
 
+bool mndDbIsExist(SMnode *pMnode, const char *db) {
+  SDbObj *pDb = mndAcquireDb(pMnode, db);
+  if (pDb == NULL) {
+    return false;
+  } else {
+    mndReleaseDb(pMnode, pDb);
+    pDb = NULL;
+    return true;
+  }
+}
+
 static int32_t mndCheckDbName(const char *dbName, SUserObj *pUser) {
   char *pos = strstr(dbName, TS_PATH_DELIMITER);
   if (pos == NULL) {
-    terrno = TSDB_CODE_MND_INVALID_DB;
-    return -1;
+    return TSDB_CODE_MND_INVALID_DB;
   }
 
   int32_t acctId = atoi(dbName);
   if (acctId != pUser->acctId) {
-    terrno = TSDB_CODE_MND_INVALID_DB_ACCT;
-    return -1;
+    return TSDB_CODE_MND_INVALID_DB_ACCT;
   }
 
   return 0;
 }
 
 static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
-  terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+  int32_t code = TSDB_CODE_MND_INVALID_DB_OPTION;
 
-  if (pCfg->numOfVgroups < TSDB_MIN_VNODES_PER_DB || pCfg->numOfVgroups > TSDB_MAX_VNODES_PER_DB) return -1;
-  if (pCfg->numOfStables < TSDB_DB_STREAM_MODE_OFF || pCfg->numOfStables > TSDB_DB_STREAM_MODE_ON) return -1;
-  if (pCfg->buffer < TSDB_MIN_BUFFER_PER_VNODE || pCfg->buffer > TSDB_MAX_BUFFER_PER_VNODE) return -1;
-  if (pCfg->pageSize < TSDB_MIN_PAGESIZE_PER_VNODE || pCfg->pageSize > TSDB_MAX_PAGESIZE_PER_VNODE) return -1;
-  if (pCfg->pages < TSDB_MIN_PAGES_PER_VNODE || pCfg->pages > TSDB_MAX_PAGES_PER_VNODE) return -1;
-  if (pCfg->cacheLastSize < TSDB_MIN_DB_CACHE_SIZE || pCfg->cacheLastSize > TSDB_MAX_DB_CACHE_SIZE) return -1;
-  if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) return -1;
-  if (pCfg->daysToKeep0 < TSDB_MIN_KEEP || pCfg->daysToKeep0 > TSDB_MAX_KEEP) return -1;
-  if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > TSDB_MAX_KEEP) return -1;
-  if (pCfg->daysToKeep2 < TSDB_MIN_KEEP || pCfg->daysToKeep2 > TSDB_MAX_KEEP) return -1;
-  if (pCfg->daysToKeep0 < pCfg->daysPerFile) return -1;
-  if (pCfg->daysToKeep0 > pCfg->daysToKeep1) return -1;
-  if (pCfg->daysToKeep1 > pCfg->daysToKeep2) return -1;
-  if (pCfg->keepTimeOffset < TSDB_MIN_KEEP_TIME_OFFSET || pCfg->keepTimeOffset > TSDB_MAX_KEEP_TIME_OFFSET) return -1;
-  if (pCfg->minRows < TSDB_MIN_MINROWS_FBLOCK || pCfg->minRows > TSDB_MAX_MINROWS_FBLOCK) return -1;
-  if (pCfg->maxRows < TSDB_MIN_MAXROWS_FBLOCK || pCfg->maxRows > TSDB_MAX_MAXROWS_FBLOCK) return -1;
-  if (pCfg->minRows > pCfg->maxRows) return -1;
-  if (pCfg->walFsyncPeriod < TSDB_MIN_FSYNC_PERIOD || pCfg->walFsyncPeriod > TSDB_MAX_FSYNC_PERIOD) return -1;
-  if (pCfg->walLevel < TSDB_MIN_WAL_LEVEL || pCfg->walLevel > TSDB_MAX_WAL_LEVEL) return -1;
-  if (pCfg->precision < TSDB_MIN_PRECISION && pCfg->precision > TSDB_MAX_PRECISION) return -1;
-  if (pCfg->compression < TSDB_MIN_COMP_LEVEL || pCfg->compression > TSDB_MAX_COMP_LEVEL) return -1;
-  if (pCfg->replications < TSDB_MIN_DB_REPLICA || pCfg->replications > TSDB_MAX_DB_REPLICA) return -1;
+  if (pCfg->numOfVgroups < TSDB_MIN_VNODES_PER_DB || pCfg->numOfVgroups > TSDB_MAX_VNODES_PER_DB) return code;
+  if (pCfg->numOfStables < TSDB_DB_STREAM_MODE_OFF || pCfg->numOfStables > TSDB_DB_STREAM_MODE_ON) return code;
+  if (pCfg->buffer < TSDB_MIN_BUFFER_PER_VNODE || pCfg->buffer > TSDB_MAX_BUFFER_PER_VNODE) return code;
+  if (pCfg->pageSize < TSDB_MIN_PAGESIZE_PER_VNODE || pCfg->pageSize > TSDB_MAX_PAGESIZE_PER_VNODE) return code;
+  if (pCfg->pages < TSDB_MIN_PAGES_PER_VNODE || pCfg->pages > TSDB_MAX_PAGES_PER_VNODE) return code;
+  if (pCfg->cacheLastSize < TSDB_MIN_DB_CACHE_SIZE || pCfg->cacheLastSize > TSDB_MAX_DB_CACHE_SIZE) return code;
+  if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) return code;
+  if (pCfg->daysToKeep0 < TSDB_MIN_KEEP || pCfg->daysToKeep0 > TSDB_MAX_KEEP) return code;
+  if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > TSDB_MAX_KEEP) return code;
+  if (pCfg->daysToKeep2 < TSDB_MIN_KEEP || pCfg->daysToKeep2 > TSDB_MAX_KEEP) return code;
+  if (pCfg->daysToKeep0 < pCfg->daysPerFile) return code;
+  if (pCfg->daysToKeep0 > pCfg->daysToKeep1) return code;
+  if (pCfg->daysToKeep1 > pCfg->daysToKeep2) return code;
+  if (pCfg->keepTimeOffset < TSDB_MIN_KEEP_TIME_OFFSET || pCfg->keepTimeOffset > TSDB_MAX_KEEP_TIME_OFFSET) return code;
+  if (pCfg->minRows < TSDB_MIN_MINROWS_FBLOCK || pCfg->minRows > TSDB_MAX_MINROWS_FBLOCK) return code;
+  if (pCfg->maxRows < TSDB_MIN_MAXROWS_FBLOCK || pCfg->maxRows > TSDB_MAX_MAXROWS_FBLOCK) return code;
+  if (pCfg->minRows > pCfg->maxRows) return code;
+  if (pCfg->walFsyncPeriod < TSDB_MIN_FSYNC_PERIOD || pCfg->walFsyncPeriod > TSDB_MAX_FSYNC_PERIOD) return code;
+  if (pCfg->walLevel < TSDB_MIN_WAL_LEVEL || pCfg->walLevel > TSDB_MAX_WAL_LEVEL) return code;
+  if (pCfg->precision < TSDB_MIN_PRECISION && pCfg->precision > TSDB_MAX_PRECISION) return code;
+  if (pCfg->compression < TSDB_MIN_COMP_LEVEL || pCfg->compression > TSDB_MAX_COMP_LEVEL) return code;
+  if (pCfg->replications < TSDB_MIN_DB_REPLICA || pCfg->replications > TSDB_MAX_DB_REPLICA) return code;
 #ifdef TD_ENTERPRISE
-  if ((pCfg->replications == 2) ^ (pCfg->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR)) return -1;
-  if (pCfg->encryptAlgorithm < TSDB_MIN_ENCRYPT_ALGO || pCfg->encryptAlgorithm > TSDB_MAX_ENCRYPT_ALGO) return -1;
+  if ((pCfg->replications == 2) ^ (pCfg->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR)) return code;
+  if (pCfg->encryptAlgorithm < TSDB_MIN_ENCRYPT_ALGO || pCfg->encryptAlgorithm > TSDB_MAX_ENCRYPT_ALGO) return code;
 #else
-  if (pCfg->replications != 1 && pCfg->replications != 3) return -1;
-  if (pCfg->encryptAlgorithm != TSDB_DEFAULT_ENCRYPT_ALGO) return -1;
+  if (pCfg->replications != 1 && pCfg->replications != 3) return code;
+  if (pCfg->encryptAlgorithm != TSDB_DEFAULT_ENCRYPT_ALGO) return code;
 #endif
 
-  if (pCfg->strict < TSDB_DB_STRICT_OFF || pCfg->strict > TSDB_DB_STRICT_ON) return -1;
-  if (pCfg->schemaless < TSDB_DB_SCHEMALESS_OFF || pCfg->schemaless > TSDB_DB_SCHEMALESS_ON) return -1;
-  if (pCfg->cacheLast < TSDB_CACHE_MODEL_NONE || pCfg->cacheLast > TSDB_CACHE_MODEL_BOTH) return -1;
-  if (pCfg->hashMethod != 1) return -1;
+  if (pCfg->strict < TSDB_DB_STRICT_OFF || pCfg->strict > TSDB_DB_STRICT_ON) return code;
+  if (pCfg->schemaless < TSDB_DB_SCHEMALESS_OFF || pCfg->schemaless > TSDB_DB_SCHEMALESS_ON) return code;
+  if (pCfg->cacheLast < TSDB_CACHE_MODEL_NONE || pCfg->cacheLast > TSDB_CACHE_MODEL_BOTH) return code;
+  if (pCfg->hashMethod != 1) return code;
   if (pCfg->replications > mndGetDnodeSize(pMnode)) {
     terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
-    return -1;
+    return code;
   }
-  if (pCfg->walRetentionPeriod < TSDB_DB_MIN_WAL_RETENTION_PERIOD) return -1;
-  if (pCfg->walRetentionSize < TSDB_DB_MIN_WAL_RETENTION_SIZE) return -1;
-  if (pCfg->walRollPeriod < TSDB_DB_MIN_WAL_ROLL_PERIOD) return -1;
-  if (pCfg->walSegmentSize < TSDB_DB_MIN_WAL_SEGMENT_SIZE) return -1;
-  if (pCfg->sstTrigger < TSDB_MIN_STT_TRIGGER || pCfg->sstTrigger > TSDB_MAX_STT_TRIGGER) return -1;
-  if (pCfg->hashPrefix < TSDB_MIN_HASH_PREFIX || pCfg->hashPrefix > TSDB_MAX_HASH_PREFIX) return -1;
-  if (pCfg->hashSuffix < TSDB_MIN_HASH_SUFFIX || pCfg->hashSuffix > TSDB_MAX_HASH_SUFFIX) return -1;
-  if ((pCfg->hashSuffix * pCfg->hashPrefix) < 0) return -1;
-  if ((pCfg->hashPrefix + pCfg->hashSuffix) >= (TSDB_TABLE_NAME_LEN - 1)) return -1;
-  if (pCfg->tsdbPageSize < TSDB_MIN_TSDB_PAGESIZE || pCfg->tsdbPageSize > TSDB_MAX_TSDB_PAGESIZE) return -1;
-  if (taosArrayGetSize(pCfg->pRetensions) != pCfg->numOfRetensions) return -1;
+  if (pCfg->walRetentionPeriod < TSDB_DB_MIN_WAL_RETENTION_PERIOD) return code;
+  if (pCfg->walRetentionSize < TSDB_DB_MIN_WAL_RETENTION_SIZE) return code;
+  if (pCfg->walRollPeriod < TSDB_DB_MIN_WAL_ROLL_PERIOD) return code;
+  if (pCfg->walSegmentSize < TSDB_DB_MIN_WAL_SEGMENT_SIZE) return code;
+  if (pCfg->sstTrigger < TSDB_MIN_STT_TRIGGER || pCfg->sstTrigger > TSDB_MAX_STT_TRIGGER) return code;
+  if (pCfg->hashPrefix < TSDB_MIN_HASH_PREFIX || pCfg->hashPrefix > TSDB_MAX_HASH_PREFIX) return code;
+  if (pCfg->hashSuffix < TSDB_MIN_HASH_SUFFIX || pCfg->hashSuffix > TSDB_MAX_HASH_SUFFIX) return code;
+  if ((pCfg->hashSuffix * pCfg->hashPrefix) < 0) return code;
+  if ((pCfg->hashPrefix + pCfg->hashSuffix) >= (TSDB_TABLE_NAME_LEN - 1)) return code;
+  if (pCfg->tsdbPageSize < TSDB_MIN_TSDB_PAGESIZE || pCfg->tsdbPageSize > TSDB_MAX_TSDB_PAGESIZE) return code;
+  if (taosArrayGetSize(pCfg->pRetensions) != pCfg->numOfRetensions) return code;
 
-  if (pCfg->s3ChunkSize < TSDB_MIN_S3_CHUNK_SIZE || pCfg->s3ChunkSize > TSDB_MAX_S3_CHUNK_SIZE) return -1;
-  if (pCfg->s3KeepLocal < TSDB_MIN_S3_KEEP_LOCAL || pCfg->s3KeepLocal > TSDB_MAX_S3_KEEP_LOCAL) return -1;
-  if (pCfg->s3Compact < TSDB_MIN_S3_COMPACT || pCfg->s3Compact > TSDB_MAX_S3_COMPACT) return -1;
+  if (pCfg->s3ChunkSize < TSDB_MIN_S3_CHUNK_SIZE || pCfg->s3ChunkSize > TSDB_MAX_S3_CHUNK_SIZE) return code;
+  if (pCfg->s3KeepLocal < TSDB_MIN_S3_KEEP_LOCAL || pCfg->s3KeepLocal > TSDB_MAX_S3_KEEP_LOCAL) return code;
+  if (pCfg->s3Compact < TSDB_MIN_S3_COMPACT || pCfg->s3Compact > TSDB_MAX_S3_COMPACT) return code;
 
-  terrno = 0;
-  return terrno;
+  code = 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pNewCfg) {
-  terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
-  if (pNewCfg->buffer < TSDB_MIN_BUFFER_PER_VNODE || pNewCfg->buffer > TSDB_MAX_BUFFER_PER_VNODE) return -1;
-  if (pNewCfg->pages < TSDB_MIN_PAGES_PER_VNODE || pNewCfg->pages > TSDB_MAX_PAGES_PER_VNODE) return -1;
-  if (pNewCfg->pageSize < TSDB_MIN_PAGESIZE_PER_VNODE || pNewCfg->pageSize > TSDB_MAX_PAGESIZE_PER_VNODE) return -1;
-  if (pNewCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pNewCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) return -1;
-  if (pNewCfg->daysToKeep0 < TSDB_MIN_KEEP || pNewCfg->daysToKeep0 > TSDB_MAX_KEEP) return -1;
-  if (pNewCfg->daysToKeep1 < TSDB_MIN_KEEP || pNewCfg->daysToKeep1 > TSDB_MAX_KEEP) return -1;
-  if (pNewCfg->daysToKeep2 < TSDB_MIN_KEEP || pNewCfg->daysToKeep2 > TSDB_MAX_KEEP) return -1;
-  if (pNewCfg->daysToKeep0 < pNewCfg->daysPerFile) return -1;
-  if (pNewCfg->daysToKeep0 > pNewCfg->daysToKeep1) return -1;
-  if (pNewCfg->daysToKeep1 > pNewCfg->daysToKeep2) return -1;
+  int32_t code = TSDB_CODE_MND_INVALID_DB_OPTION;
+  if (pNewCfg->buffer < TSDB_MIN_BUFFER_PER_VNODE || pNewCfg->buffer > TSDB_MAX_BUFFER_PER_VNODE) return code;
+  if (pNewCfg->pages < TSDB_MIN_PAGES_PER_VNODE || pNewCfg->pages > TSDB_MAX_PAGES_PER_VNODE) return code;
+  if (pNewCfg->pageSize < TSDB_MIN_PAGESIZE_PER_VNODE || pNewCfg->pageSize > TSDB_MAX_PAGESIZE_PER_VNODE) return code;
+  if (pNewCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pNewCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) return code;
+  if (pNewCfg->daysToKeep0 < TSDB_MIN_KEEP || pNewCfg->daysToKeep0 > TSDB_MAX_KEEP) return code;
+  if (pNewCfg->daysToKeep1 < TSDB_MIN_KEEP || pNewCfg->daysToKeep1 > TSDB_MAX_KEEP) return code;
+  if (pNewCfg->daysToKeep2 < TSDB_MIN_KEEP || pNewCfg->daysToKeep2 > TSDB_MAX_KEEP) return code;
+  if (pNewCfg->daysToKeep0 < pNewCfg->daysPerFile) return code;
+  if (pNewCfg->daysToKeep0 > pNewCfg->daysToKeep1) return code;
+  if (pNewCfg->daysToKeep1 > pNewCfg->daysToKeep2) return code;
   if (pNewCfg->keepTimeOffset < TSDB_MIN_KEEP_TIME_OFFSET || pNewCfg->keepTimeOffset > TSDB_MAX_KEEP_TIME_OFFSET)
-    return -1;
-  if (pNewCfg->walFsyncPeriod < TSDB_MIN_FSYNC_PERIOD || pNewCfg->walFsyncPeriod > TSDB_MAX_FSYNC_PERIOD) return -1;
-  if (pNewCfg->walLevel < TSDB_MIN_WAL_LEVEL || pNewCfg->walLevel > TSDB_MAX_WAL_LEVEL) return -1;
-  if (pNewCfg->cacheLast < TSDB_CACHE_MODEL_NONE || pNewCfg->cacheLast > TSDB_CACHE_MODEL_BOTH) return -1;
-  if (pNewCfg->cacheLastSize < TSDB_MIN_DB_CACHE_SIZE || pNewCfg->cacheLastSize > TSDB_MAX_DB_CACHE_SIZE) return -1;
-  if (pNewCfg->replications < TSDB_MIN_DB_REPLICA || pNewCfg->replications > TSDB_MAX_DB_REPLICA) return -1;
+    return code;
+  if (pNewCfg->walFsyncPeriod < TSDB_MIN_FSYNC_PERIOD || pNewCfg->walFsyncPeriod > TSDB_MAX_FSYNC_PERIOD) return code;
+  if (pNewCfg->walLevel < TSDB_MIN_WAL_LEVEL || pNewCfg->walLevel > TSDB_MAX_WAL_LEVEL) return code;
+  if (pNewCfg->cacheLast < TSDB_CACHE_MODEL_NONE || pNewCfg->cacheLast > TSDB_CACHE_MODEL_BOTH) return code;
+  if (pNewCfg->cacheLastSize < TSDB_MIN_DB_CACHE_SIZE || pNewCfg->cacheLastSize > TSDB_MAX_DB_CACHE_SIZE) return code;
+  if (pNewCfg->replications < TSDB_MIN_DB_REPLICA || pNewCfg->replications > TSDB_MAX_DB_REPLICA) return code;
 #ifdef TD_ENTERPRISE
-  if ((pNewCfg->replications == 2) ^ (pNewCfg->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR)) return -1;
+  if ((pNewCfg->replications == 2) ^ (pNewCfg->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR)) return code;
   if (pNewCfg->replications == 2 && pNewCfg->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR) {
     if (pOldCfg->replications != 1 && pOldCfg->replications != 2) {
       terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-      return -1;
+      return code;
     }
   }
   if (pNewCfg->replications != 2 && pOldCfg->replications == 2) {
     terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-    return -1;
+    return code;
   }
 #else
-  if (pNewCfg->replications != 1 && pNewCfg->replications != 3) return -1;
+  if (pNewCfg->replications != 1 && pNewCfg->replications != 3) return code;
 #endif
-  if (pNewCfg->sstTrigger < TSDB_MIN_STT_TRIGGER || pNewCfg->sstTrigger > TSDB_MAX_STT_TRIGGER) return -1;
-  if (pNewCfg->minRows < TSDB_MIN_MINROWS_FBLOCK || pNewCfg->minRows > TSDB_MAX_MINROWS_FBLOCK) return -1;
-  if (pNewCfg->maxRows < TSDB_MIN_MAXROWS_FBLOCK || pNewCfg->maxRows > TSDB_MAX_MAXROWS_FBLOCK) return -1;
-  if (pNewCfg->minRows > pNewCfg->maxRows) return -1;
-  if (pNewCfg->walRetentionPeriod < TSDB_DB_MIN_WAL_RETENTION_PERIOD) return -1;
-  if (pNewCfg->walRetentionSize < TSDB_DB_MIN_WAL_RETENTION_SIZE) return -1;
-  if (pNewCfg->strict < TSDB_DB_STRICT_OFF || pNewCfg->strict > TSDB_DB_STRICT_ON) return -1;
+
+  if (pNewCfg->walLevel == 0 && pOldCfg->replications > 1) {
+    terrno = TSDB_CODE_MND_INVALID_WAL_LEVEL;
+    return code;
+  }
+  if (pNewCfg->replications > 1 && pOldCfg->walLevel == 0) {
+    terrno = TSDB_CODE_MND_INVALID_WAL_LEVEL;
+    return code;
+  }
+
+  if (pNewCfg->sstTrigger != pOldCfg->sstTrigger &&
+      (pNewCfg->sstTrigger < TSDB_MIN_STT_TRIGGER || pNewCfg->sstTrigger > TSDB_MAX_STT_TRIGGER))
+    return code;
+  if (pNewCfg->minRows < TSDB_MIN_MINROWS_FBLOCK || pNewCfg->minRows > TSDB_MAX_MINROWS_FBLOCK) return code;
+  if (pNewCfg->maxRows < TSDB_MIN_MAXROWS_FBLOCK || pNewCfg->maxRows > TSDB_MAX_MAXROWS_FBLOCK) return code;
+  if (pNewCfg->minRows > pNewCfg->maxRows) return code;
+  if (pNewCfg->walRetentionPeriod < TSDB_DB_MIN_WAL_RETENTION_PERIOD) return code;
+  if (pNewCfg->walRetentionSize < TSDB_DB_MIN_WAL_RETENTION_SIZE) return code;
+  if (pNewCfg->strict < TSDB_DB_STRICT_OFF || pNewCfg->strict > TSDB_DB_STRICT_ON) return code;
   if (pNewCfg->replications > mndGetDnodeSize(pMnode)) {
     terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
-    return -1;
+    return code;
   }
-  if (pNewCfg->s3ChunkSize < TSDB_MIN_S3_CHUNK_SIZE || pNewCfg->s3ChunkSize > TSDB_MAX_S3_CHUNK_SIZE) return -1;
-  if (pNewCfg->s3KeepLocal < TSDB_MIN_S3_KEEP_LOCAL || pNewCfg->s3KeepLocal > TSDB_MAX_S3_KEEP_LOCAL) return -1;
-  if (pNewCfg->s3Compact < TSDB_MIN_S3_COMPACT || pNewCfg->s3Compact > TSDB_MAX_S3_COMPACT) return -1;
+  if (pNewCfg->s3ChunkSize < TSDB_MIN_S3_CHUNK_SIZE || pNewCfg->s3ChunkSize > TSDB_MAX_S3_CHUNK_SIZE) return code;
+  if (pNewCfg->s3KeepLocal < TSDB_MIN_S3_KEEP_LOCAL || pNewCfg->s3KeepLocal > TSDB_MAX_S3_KEEP_LOCAL) return code;
+  if (pNewCfg->s3Compact < TSDB_MIN_S3_COMPACT || pNewCfg->s3Compact > TSDB_MAX_S3_COMPACT) return code;
 
-  terrno = 0;
-  return terrno;
+  code = 0;
+  TAOS_RETURN(code);
 }
 
 static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
@@ -569,129 +604,160 @@ static int32_t mndSetNewVgPrepareActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 }
 
 static int32_t mndSetCreateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
+  int32_t  code = 0;
   SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
-  if (pDbRaw == NULL) return -1;
-  if (mndTransAppendRedolog(pTrans, pDbRaw) != 0) return -1;
-  if (sdbSetRawStatus(pDbRaw, SDB_STATUS_UPDATE) != 0) return -1;
+  if (pDbRaw == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+  TAOS_CHECK_RETURN(mndTransAppendRedolog(pTrans, pDbRaw));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pDbRaw, SDB_STATUS_UPDATE));
 
   for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
     SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroups + v);
-    if (pVgRaw == NULL) return -1;
-    if (mndTransAppendRedolog(pTrans, pVgRaw) != 0) return -1;
-    if (sdbSetRawStatus(pVgRaw, SDB_STATUS_UPDATE) != 0) return -1;
+    if (pVgRaw == NULL) {
+      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+      if (terrno != 0) code = terrno;
+      TAOS_RETURN(code);
+    }
+    TAOS_CHECK_RETURN(mndTransAppendRedolog(pTrans, pVgRaw));
+    TAOS_CHECK_RETURN(sdbSetRawStatus(pVgRaw, SDB_STATUS_UPDATE));
   }
 
   if (pDb->cfg.withArbitrator) {
     for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
       SVgObj   *pVgObj = pVgroups + v;
       SArbGroup arbGroup = {0};
-      mndArbGroupInitFromVgObj(pVgObj, &arbGroup);
-      if (mndSetCreateArbGroupRedoLogs(pTrans, &arbGroup) != 0) return -1;
+      TAOS_CHECK_RETURN(mndArbGroupInitFromVgObj(pVgObj, &arbGroup));
+      TAOS_CHECK_RETURN(mndSetCreateArbGroupRedoLogs(pTrans, &arbGroup));
     }
   }
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndSetCreateDbUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
+  int32_t  code = 0;
   SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
-  if (pDbRaw == NULL) return -1;
-  if (mndTransAppendUndolog(pTrans, pDbRaw) != 0) return -1;
-  if (sdbSetRawStatus(pDbRaw, SDB_STATUS_DROPPED) != 0) return -1;
+  if (pDbRaw == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+  TAOS_CHECK_RETURN(mndTransAppendUndolog(pTrans, pDbRaw));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pDbRaw, SDB_STATUS_DROPPED));
 
   for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
     SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroups + v);
-    if (pVgRaw == NULL) return -1;
-    if (mndTransAppendUndolog(pTrans, pVgRaw) != 0) return -1;
-    if (sdbSetRawStatus(pVgRaw, SDB_STATUS_DROPPED) != 0) return -1;
+    if (pVgRaw == NULL) {
+      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+      if (terrno != 0) code = terrno;
+      TAOS_RETURN(code);
+    }
+    TAOS_CHECK_RETURN(mndTransAppendUndolog(pTrans, pVgRaw));
+    TAOS_CHECK_RETURN(sdbSetRawStatus(pVgRaw, SDB_STATUS_DROPPED));
   }
 
   if (pDb->cfg.withArbitrator) {
     for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
       SVgObj   *pVgObj = pVgroups + v;
       SArbGroup arbGroup = {0};
-      mndArbGroupInitFromVgObj(pVgObj, &arbGroup);
-      if (mndSetCreateArbGroupUndoLogs(pTrans, &arbGroup) != 0) return -1;
+      TAOS_CHECK_RETURN(mndArbGroupInitFromVgObj(pVgObj, &arbGroup));
+      TAOS_CHECK_RETURN(mndSetCreateArbGroupUndoLogs(pTrans, &arbGroup));
     }
   }
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups,
                                         SUserObj *pUserDuped) {
+  int32_t  code = 0;
   SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
-  if (pDbRaw == NULL) return -1;
-  if (mndTransAppendCommitlog(pTrans, pDbRaw) != 0) return -1;
-  if (sdbSetRawStatus(pDbRaw, SDB_STATUS_READY) != 0) return -1;
+  if (pDbRaw == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+  TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pDbRaw));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pDbRaw, SDB_STATUS_READY));
 
   for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
     SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroups + v);
-    if (pVgRaw == NULL) return -1;
-    if (mndTransAppendCommitlog(pTrans, pVgRaw) != 0) return -1;
-    if (sdbSetRawStatus(pVgRaw, SDB_STATUS_READY) != 0) return -1;
+    if (pVgRaw == NULL) {
+      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+      if (terrno != 0) code = terrno;
+      TAOS_RETURN(code);
+    }
+    TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pVgRaw));
+    TAOS_CHECK_RETURN(sdbSetRawStatus(pVgRaw, SDB_STATUS_READY));
   }
 
   if (pDb->cfg.withArbitrator) {
     for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
       SVgObj   *pVgObj = pVgroups + v;
       SArbGroup arbGroup = {0};
-      mndArbGroupInitFromVgObj(pVgObj, &arbGroup);
-      if (mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup) != 0) return -1;
+      TAOS_CHECK_RETURN(mndArbGroupInitFromVgObj(pVgObj, &arbGroup));
+      TAOS_CHECK_RETURN(mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup));
     }
   }
 
   if (pUserDuped) {
     SSdbRaw *pUserRaw = mndUserActionEncode(pUserDuped);
-    if (pUserRaw == NULL) return -1;
-    if (mndTransAppendCommitlog(pTrans, pUserRaw) != 0) return -1;
-    if (sdbSetRawStatus(pUserRaw, SDB_STATUS_READY) != 0) return -1;
+    if (pUserRaw == NULL) {
+      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+      if (terrno != 0) code = terrno;
+      TAOS_RETURN(code);
+    }
+    TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pUserRaw));
+    TAOS_CHECK_RETURN(sdbSetRawStatus(pUserRaw, SDB_STATUS_READY));
   }
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndSetCreateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
+  int32_t code = 0;
   for (int32_t vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
     SVgObj *pVgroup = pVgroups + vg;
 
     for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
       SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
-      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid) != 0) {
-        return -1;
-      }
+      TAOS_CHECK_RETURN(mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid));
     }
   }
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
+  int32_t code = 0;
   for (int32_t vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
     SVgObj *pVgroup = pVgroups + vg;
 
     for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
       SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
-      if (mndAddDropVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid, false) != 0) {
-        return -1;
-      }
+      TAOS_CHECK_RETURN(mndAddDropVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid, false));
     }
   }
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser) {
-  SDbObj dbObj = {0};
-  memcpy(dbObj.name, pCreate->db, TSDB_DB_FNAME_LEN);
-  memcpy(dbObj.acct, pUser->acct, TSDB_USER_LEN);
+  int32_t  code = 0;
+  SUserObj newUserObj = {0};
+  SDbObj   dbObj = {0};
+  (void)memcpy(dbObj.name, pCreate->db, TSDB_DB_FNAME_LEN);
+  (void)memcpy(dbObj.acct, pUser->acct, TSDB_USER_LEN);
   dbObj.createdTime = taosGetTimestampMs();
   dbObj.updateTime = dbObj.createdTime;
   dbObj.uid = mndGenerateUid(dbObj.name, TSDB_DB_FNAME_LEN);
   dbObj.cfgVersion = 1;
   dbObj.vgVersion = 1;
   dbObj.tsmaVersion = 1;
-  memcpy(dbObj.createUser, pUser->user, TSDB_USER_LEN);
+  (void)memcpy(dbObj.createUser, pUser->user, TSDB_USER_LEN);
   dbObj.cfg = (SDbCfg){
       .numOfVgroups = pCreate->numOfVgroups,
       .numOfStables = pCreate->numOfStables,
@@ -735,14 +801,14 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
 
   mndSetDefaultDbCfg(&dbObj.cfg);
 
-  if (mndCheckDbName(dbObj.name, pUser) != 0) {
-    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
-    return -1;
+  if ((code = mndCheckDbName(dbObj.name, pUser)) != 0) {
+    mError("db:%s, failed to create, check db name failed, since %s", pCreate->db, terrstr());
+    TAOS_RETURN(code);
   }
 
-  if (mndCheckDbCfg(pMnode, &dbObj.cfg) != 0) {
-    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
-    return -1;
+  if ((code = mndCheckDbCfg(pMnode, &dbObj.cfg)) != 0) {
+    mError("db:%s, failed to create, check db cfg failed, since %s", pCreate->db, terrstr());
+    TAOS_RETURN(code);
   }
 
   if (dbObj.cfg.hashPrefix > 0) {
@@ -756,60 +822,63 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   }
 
   SVgObj *pVgroups = NULL;
-  if (mndAllocVgroup(pMnode, &dbObj, &pVgroups) != 0) {
-    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
-    return -1;
+  if ((code = mndAllocVgroup(pMnode, &dbObj, &pVgroups)) != 0) {
+    mError("db:%s, failed to create, alloc vgroup failed, since %s", pCreate->db, terrstr());
+    TAOS_RETURN(code);
   }
 
   // add database privileges for user
-  SUserObj newUserObj = {0}, *pNewUserDuped = NULL;
+  SUserObj *pNewUserDuped = NULL;
   if (!pUser->superUser) {
-    if (mndUserDupObj(pUser, &newUserObj) != 0) goto _OVER;
-    taosHashPut(newUserObj.readDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN);
-    taosHashPut(newUserObj.writeDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN);
+    TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUserObj), NULL, _OVER);
+    TAOS_CHECK_GOTO(taosHashPut(newUserObj.readDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN),
+                    NULL, _OVER);
+    TAOS_CHECK_GOTO(taosHashPut(newUserObj.writeDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN),
+                    NULL, _OVER);
     pNewUserDuped = &newUserObj;
   }
 
-  int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-db");
-  if (pTrans == NULL) goto _OVER;
+  if (pTrans == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    goto _OVER;
+  }
   // mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
 
   mndTransSetDbName(pTrans, dbObj.name, NULL);
-  if (mndTransCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+  TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
 
   mndTransSetOper(pTrans, MND_OPER_CREATE_DB);
-  if (mndSetCreateDbPrepareAction(pMnode, pTrans, &dbObj) != 0) goto _OVER;
-  if (mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
-  if (mndSetNewVgPrepareActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
-  if (mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
-  if (mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups, pNewUserDuped) != 0) goto _OVER;
-  if (mndSetCreateDbUndoActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
-  if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
-
-  code = 0;
+  TAOS_CHECK_GOTO(mndSetCreateDbPrepareAction(pMnode, pTrans, &dbObj), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetNewVgPrepareActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups, pNewUserDuped), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateDbUndoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
 _OVER:
   taosMemoryFree(pVgroups);
   mndUserFreeObj(&newUserObj);
   mndTransDrop(pTrans);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static void mndBuildAuditDetailInt32(char *detail, char *tmp, char *format, int32_t para) {
   if (para > 0) {
-    if (strlen(detail) > 0) strcat(detail, ", ");
-    sprintf(tmp, format, para);
-    strcat(detail, tmp);
+    if (strlen(detail) > 0) (void)strcat(detail, ", ");
+    (void)sprintf(tmp, format, para);
+    (void)strcat(detail, tmp);
   }
 }
 
 static void mndBuildAuditDetailInt64(char *detail, char *tmp, char *format, int64_t para) {
   if (para > 0) {
-    if (strlen(detail) > 0) strcat(detail, ", ");
-    sprintf(tmp, format, para);
-    strcat(detail, tmp);
+    if (strlen(detail) > 0) (void)strcat(detail, ", ");
+    (void)sprintf(tmp, format, para);
+    (void)strcat(detail, tmp);
   }
 }
 
@@ -821,6 +890,7 @@ static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
 
 #ifdef TD_ENTERPRISE
   if (pReq->encryptAlgorithm == TSDB_ENCRYPT_ALGO_NONE) goto _exit;
+  TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DB_ENCRYPTION), NULL, _exit);
   if (tsEncryptionKeyStat != ENCRYPT_KEY_STAT_LOADED) {
     code = TSDB_CODE_MND_INVALID_ENCRYPT_KEY;
     mError("db:%s, failed to check encryption key:%" PRIi8 " in mnode leader since it's not loaded", pReq->db,
@@ -838,6 +908,7 @@ static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
              "-%u in dnode:%d since it's inconsitent with mnode leader:%" PRIi8 "-%u",
              pReq->db, pDnode->encryptionKeyStat, pDnode->encryptionKeyChksum, pDnode->id, tsEncryptionKeyStat,
              tsEncryptionKeyChksum);
+      sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pDnode);
       break;
     }
@@ -850,20 +921,18 @@ static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
   }
 #endif
 _exit:
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
+  int32_t      lino = 0;
   SDbObj      *pDb = NULL;
   SUserObj    *pUser = NULL;
   SCreateDbReq createReq = {0};
 
-  if (tDeserializeSCreateDbReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(tDeserializeSCreateDbReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 #ifdef WINDOWS
   if (taosArrayGetSize(createReq.pRetensions) > 0) {
     terrno = TSDB_CODE_MND_INVALID_PLATFORM;
@@ -871,9 +940,6 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   }
 #endif
   mInfo("db:%s, start to create, vgroups:%d", createReq.db, createReq.numOfVgroups);
-  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL) != 0) {
-    goto _OVER;
-  }
 
   pDb = mndAcquireDb(pMnode, createReq.db);
   if (pDb != NULL) {
@@ -882,7 +948,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
       code = 0;
       goto _OVER;
     } else {
-      terrno = TSDB_CODE_MND_DB_ALREADY_EXIST;
+      code = TSDB_CODE_MND_DB_ALREADY_EXIST;
       goto _OVER;
     }
   } else {
@@ -898,172 +964,174 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     }
   }
 
-  if ((terrno = grantCheck(TSDB_GRANT_DB)) != 0) {
-    code = terrno;
-    goto _OVER;
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL), &lino, _OVER);
+
+  TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DB), &lino, _OVER);
+
+  if (createReq.replications == 2) {
+    TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DUAL_REPLICA_HA), &lino, _OVER);
   }
 
-  if ((code = mndCheckDbEncryptKey(pMnode, &createReq)) != 0) {
-    terrno = code;
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(mndCheckDbEncryptKey(pMnode, &createReq), &lino, _OVER);
 
-  pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _OVER);
 
-  code = mndCreateDb(pMnode, pReq, &createReq, pUser);
+  TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser), &lino, _OVER);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
-  tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB);
+  (void)tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB);
 
   auditRecord(pReq, pMnode->clusterId, "createDB", name.dbname, "", createReq.sql, createReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("db:%s, failed to create since %s", createReq.db, terrstr());
+    mError("db:%s, failed to create at line:%d since %s", createReq.db, lino, tstrerror(code));
   }
 
   mndReleaseDb(pMnode, pDb);
   mndReleaseUser(pMnode, pUser);
   tFreeSCreateDbReq(&createReq);
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
-  terrno = TSDB_CODE_MND_DB_OPTION_UNCHANGED;
+  int32_t code = TSDB_CODE_MND_DB_OPTION_UNCHANGED;
 
   if (pAlter->buffer > 0 && pAlter->buffer != pDb->cfg.buffer) {
     pDb->cfg.buffer = pAlter->buffer;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->pages > 0 && pAlter->pages != pDb->cfg.pages) {
     pDb->cfg.pages = pAlter->pages;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->pageSize > 0 && pAlter->pageSize != pDb->cfg.pageSize) {
     pDb->cfg.pageSize = pAlter->pageSize;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->daysPerFile > 0 && pAlter->daysPerFile != pDb->cfg.daysPerFile) {
     pDb->cfg.daysPerFile = pAlter->daysPerFile;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->daysToKeep0 > 0 && pAlter->daysToKeep0 != pDb->cfg.daysToKeep0) {
     pDb->cfg.daysToKeep0 = pAlter->daysToKeep0;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->daysToKeep1 > 0 && pAlter->daysToKeep1 != pDb->cfg.daysToKeep1) {
     pDb->cfg.daysToKeep1 = pAlter->daysToKeep1;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->daysToKeep2 > 0 && pAlter->daysToKeep2 != pDb->cfg.daysToKeep2) {
     pDb->cfg.daysToKeep2 = pAlter->daysToKeep2;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->keepTimeOffset >= 0 && pAlter->keepTimeOffset != pDb->cfg.keepTimeOffset) {
     pDb->cfg.keepTimeOffset = pAlter->keepTimeOffset;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->walFsyncPeriod >= 0 && pAlter->walFsyncPeriod != pDb->cfg.walFsyncPeriod) {
     pDb->cfg.walFsyncPeriod = pAlter->walFsyncPeriod;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->walLevel >= 0 && pAlter->walLevel != pDb->cfg.walLevel) {
     pDb->cfg.walLevel = pAlter->walLevel;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->strict >= 0 && pAlter->strict != pDb->cfg.strict) {
 #if 1
-    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    code = TSDB_CODE_OPS_NOT_SUPPORT;
 #else
     pDb->cfg.strict = pAlter->strict;
-    terrno = 0;
+    code = 0;
 #endif
   }
 
   if (pAlter->cacheLast >= 0 && pAlter->cacheLast != pDb->cfg.cacheLast) {
     pDb->cfg.cacheLast = pAlter->cacheLast;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->cacheLastSize > 0 && pAlter->cacheLastSize != pDb->cfg.cacheLastSize) {
     pDb->cfg.cacheLastSize = pAlter->cacheLastSize;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->replications > 0 && pAlter->replications != pDb->cfg.replications) {
     pDb->cfg.replications = pAlter->replications;
     pDb->vgVersion++;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->sstTrigger > 0 && pAlter->sstTrigger != pDb->cfg.sstTrigger) {
     pDb->cfg.sstTrigger = pAlter->sstTrigger;
     pDb->vgVersion++;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->minRows > 0 && pAlter->minRows != pDb->cfg.minRows) {
     pDb->cfg.minRows = pAlter->minRows;
     pDb->vgVersion++;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->walRetentionPeriod > TSDB_DB_MIN_WAL_RETENTION_PERIOD &&
       pAlter->walRetentionPeriod != pDb->cfg.walRetentionPeriod) {
     pDb->cfg.walRetentionPeriod = pAlter->walRetentionPeriod;
     pDb->vgVersion++;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->walRetentionSize > TSDB_DB_MIN_WAL_RETENTION_SIZE &&
       pAlter->walRetentionSize != pDb->cfg.walRetentionSize) {
     pDb->cfg.walRetentionSize = pAlter->walRetentionSize;
     pDb->vgVersion++;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->s3KeepLocal > TSDB_MIN_S3_KEEP_LOCAL && pAlter->s3KeepLocal != pDb->cfg.s3KeepLocal) {
     pDb->cfg.s3KeepLocal = pAlter->s3KeepLocal;
     pDb->vgVersion++;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->s3Compact > TSDB_MIN_S3_COMPACT && pAlter->s3Compact != pDb->cfg.s3Compact) {
     pDb->cfg.s3Compact = pAlter->s3Compact;
     pDb->vgVersion++;
-    terrno = 0;
+    code = 0;
   }
 
   if (pAlter->withArbitrator >= TSDB_MIN_DB_WITH_ARBITRATOR && pAlter->withArbitrator != pDb->cfg.withArbitrator) {
     pDb->cfg.withArbitrator = pAlter->withArbitrator;
     pDb->vgVersion++;
-    terrno = 0;
+    code = 0;
   }
 
-  return terrno;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndSetAlterDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
+  int32_t  code = 0;
   SSdbRaw *pRedoRaw = mndDbActionEncode(pOld);
-  if (pRedoRaw == NULL) return -1;
-  if (mndTransAppendPrepareLog(pTrans, pRedoRaw) != 0) {
+  if (pRedoRaw == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+  if ((code = mndTransAppendPrepareLog(pTrans, pRedoRaw)) != 0) {
     sdbFreeRaw(pRedoRaw);
-    return -1;
+    TAOS_RETURN(code);
   }
 
   (void)sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
@@ -1071,44 +1139,47 @@ static int32_t mndSetAlterDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *
 }
 
 static int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
+  int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndDbActionEncode(pNew);
-  if (pCommitRaw == NULL) return -1;
-  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+  if (pCommitRaw == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
     sdbFreeRaw(pCommitRaw);
-    return -1;
+    TAOS_RETURN(code);
   }
 
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) {
+  int32_t code = 0, lino = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
+  SVgObj *pVgroup = NULL;
   SArray *pArray = mndBuildDnodesArray(pMnode, 0);
 
   while (1) {
-    SVgObj *pVgroup = NULL;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
     if (mndVgroupInDb(pVgroup, pNewDb->uid)) {
       SVgObj newVgroup = {0};
-      if (mndBuildAlterVgroupAction(pMnode, pTrans, pOldDb, pNewDb, pVgroup, pArray, &newVgroup) != 0) {
-        sdbCancelFetch(pSdb, pIter);
-        sdbRelease(pSdb, pVgroup);
-        taosArrayDestroy(pArray);
-        return -1;
-      }
+      TAOS_CHECK_GOTO(mndBuildAlterVgroupAction(pMnode, pTrans, pOldDb, pNewDb, pVgroup, pArray, &newVgroup), &lino,
+                      _err);
+
       if (pNewDb->cfg.withArbitrator != pOldDb->cfg.withArbitrator) {
         if (pNewDb->cfg.withArbitrator) {
           SArbGroup arbGroup = {0};
-          mndArbGroupInitFromVgObj(&newVgroup, &arbGroup);
-          if (mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup) != 0) return -1;
+          TAOS_CHECK_GOTO(mndArbGroupInitFromVgObj(&newVgroup, &arbGroup), &lino, _err);
+          TAOS_CHECK_GOTO(mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup), &lino, _err);
         } else {
           SArbGroup arbGroup = {0};
-          mndArbGroupInitFromVgObj(pVgroup, &arbGroup);
-          if (mndSetDropArbGroupCommitLogs(pTrans, &arbGroup) != 0) return -1;
+          TAOS_CHECK_GOTO(mndArbGroupInitFromVgObj(pVgroup, &arbGroup), &lino, _err);
+          TAOS_CHECK_GOTO(mndSetDropArbGroupCommitLogs(pTrans, &arbGroup), &lino, _err);
         }
       }
     }
@@ -1117,27 +1188,39 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
   }
 
   taosArrayDestroy(pArray);
-  return 0;
+  TAOS_RETURN(code);
+
+_err:
+  mError("db:%s, %s failed at %d since %s", pNewDb->name, __func__, lino, tstrerror(code));
+
+  sdbCancelFetch(pSdb, pIter);
+  sdbRelease(pSdb, pVgroup);
+  taosArrayDestroy(pArray);
+  TAOS_RETURN(code);
 }
 
 static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
+  int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "alter-db");
-  if (pTrans == NULL) return -1;
+  if (pTrans == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
   mInfo("trans:%d, used to alter db:%s", pTrans->id, pOld->name);
 
-  int32_t code = -1;
   mndTransSetDbName(pTrans, pOld->name, NULL);
-  if (mndTransCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+  TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
 
-  if (mndSetAlterDbPrepareLogs(pMnode, pTrans, pOld, pNew) != 0) goto _OVER;
-  if (mndSetAlterDbCommitLogs(pMnode, pTrans, pOld, pNew) != 0) goto _OVER;
-  if (mndSetAlterDbRedoActions(pMnode, pTrans, pOld, pNew) != 0) goto _OVER;
-  if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+  TAOS_CHECK_GOTO(mndSetAlterDbPrepareLogs(pMnode, pTrans, pOld, pNew), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetAlterDbCommitLogs(pMnode, pTrans, pOld, pNew), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetAlterDbRedoActions(pMnode, pTrans, pOld, pNew), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
 
 _OVER:
   mndTransDrop(pTrans);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
@@ -1147,35 +1230,34 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   SAlterDbReq alterReq = {0};
   SDbObj      dbObj = {0};
 
-  if (tDeserializeSAlterDbReq(pReq->pCont, pReq->contLen, &alterReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(tDeserializeSAlterDbReq(pReq->pCont, pReq->contLen, &alterReq), NULL, _OVER);
 
   mInfo("db:%s, start to alter", alterReq.db);
 
   pDb = mndAcquireDb(pMnode, alterReq.db);
   if (pDb == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     goto _OVER;
   }
 
-  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_DB, pDb) != 0) {
-    goto _OVER;
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_DB, pDb), NULL, _OVER);
+
+  if (alterReq.replications == 2) {
+    TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DUAL_REPLICA_HA), NULL, _OVER);
   }
 
   int32_t numOfTopics = 0;
-  if (mndGetNumOfTopics(pMnode, pDb->name, &numOfTopics) != 0) {
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(mndGetNumOfTopics(pMnode, pDb->name, &numOfTopics), NULL, _OVER);
 
   if (numOfTopics != 0 && alterReq.walRetentionPeriod == 0) {
-    terrno = TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO;
+    code = TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO;
     mError("db:%s, not allowed to set WAL_RETENTION_PERIOD 0 when there are topics defined. numOfTopics:%d", pDb->name,
            numOfTopics);
     goto _OVER;
   }
 
-  memcpy(&dbObj, pDb, sizeof(SDbObj));
+  (void)memcpy(&dbObj, pDb, sizeof(SDbObj));
   if (dbObj.cfg.pRetensions != NULL) {
     dbObj.cfg.pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);
     if (dbObj.cfg.pRetensions == NULL) goto _OVER;
@@ -1187,8 +1269,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndCheckInChangeDbCfg(pMnode, &pDb->cfg, &dbObj.cfg);
-  if (code != 0) goto _OVER;
+  TAOS_CHECK_GOTO(mndCheckInChangeDbCfg(pMnode, &pDb->cfg, &dbObj.cfg), NULL, _OVER);
 
   dbObj.cfgVersion++;
   dbObj.updateTime = taosGetTimestampMs();
@@ -1202,26 +1283,25 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   }
 
   SName name = {0};
-  tNameFromString(&name, alterReq.db, T_NAME_ACCT | T_NAME_DB);
+  (void)tNameFromString(&name, alterReq.db, T_NAME_ACCT | T_NAME_DB);
 
   auditRecord(pReq, pMnode->clusterId, "alterDB", name.dbname, "", alterReq.sql, alterReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     if (terrno != 0) code = terrno;
-    mError("db:%s, failed to alter since %s", alterReq.db, terrstr());
+    mError("db:%s, failed to alter since %s", alterReq.db, tstrerror(code));
   }
 
   mndReleaseDb(pMnode, pDb);
   taosArrayDestroy(dbObj.cfg.pRetensions);
   tFreeSAlterDbReq(&alterReq);
 
-  terrno = code;
-  return code;
+  TAOS_RETURN(code);
 }
 
 static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
-  strcpy(cfgRsp->db, pDb->name);
+  (void)strcpy(cfgRsp->db, pDb->name);
   cfgRsp->dbId = pDb->uid;
   cfgRsp->cfgVersion = pDb->cfgVersion;
   cfgRsp->numOfVgroups = pDb->cfg.numOfVgroups;
@@ -1269,14 +1349,13 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
   SDbCfgReq cfgReq = {0};
   SDbCfgRsp cfgRsp = {0};
 
-  if (tDeserializeSDbCfgReq(pReq->pCont, pReq->contLen, &cfgReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(tDeserializeSDbCfgReq(pReq->pCont, pReq->contLen, &cfgReq), NULL, _OVER);
 
   if (strcasecmp(cfgReq.db, TSDB_INFORMATION_SCHEMA_DB) && strcasecmp(cfgReq.db, TSDB_PERFORMANCE_SCHEMA_DB)) {
     pDb = mndAcquireDb(pMnode, cfgReq.db);
     if (pDb == NULL) {
+      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+      if (terrno != 0) code = terrno;
       goto _OVER;
     }
 
@@ -1286,12 +1365,12 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
   int32_t contLen = tSerializeSDbCfgRsp(NULL, 0, &cfgRsp);
   void   *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    code = -1;
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     goto _OVER;
   }
 
-  tSerializeSDbCfgRsp(pRsp, contLen, &cfgRsp);
+  (void)tSerializeSDbCfgRsp(pRsp, contLen, &cfgRsp);
 
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = contLen;
@@ -1308,14 +1387,19 @@ _OVER:
 
   mndReleaseDb(pMnode, pDb);
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndSetDropDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+  int32_t  code = 0;
   SSdbRaw *pRedoRaw = mndDbActionEncode(pDb);
-  if (pRedoRaw == NULL) return -1;
-  if (mndTransAppendPrepareLog(pTrans, pRedoRaw) != 0) return -1;
-  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING) != 0) return -1;
+  if (pRedoRaw == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    return -1;
+  }
+  TAOS_CHECK_RETURN(mndTransAppendPrepareLog(pTrans, pRedoRaw));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING));
 
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
@@ -1326,24 +1410,29 @@ static int32_t mndSetDropDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
     if (pIter == NULL) break;
 
     if (pArbGroup->dbUid == pDb->uid) {
-      if (mndSetDropArbGroupPrepareLogs(pTrans, pArbGroup) != 0) {
+      if ((code = mndSetDropArbGroupPrepareLogs(pTrans, pArbGroup)) != 0) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pArbGroup);
-        return -1;
+        TAOS_RETURN(code);
       }
     }
 
     sdbRelease(pSdb, pArbGroup);
   }
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+  int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndDbActionEncode(pDb);
-  if (pCommitRaw == NULL) return -1;
-  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
-  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) != 0) return -1;
+  if (pCommitRaw == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    return -1;
+  }
+  TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pCommitRaw));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED));
 
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
@@ -1354,10 +1443,10 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
     if (pIter == NULL) break;
 
     if (pArbGroup->dbUid == pDb->uid) {
-      if (mndSetDropArbGroupCommitLogs(pTrans, pArbGroup) != 0) {
+      if ((code = mndSetDropArbGroupCommitLogs(pTrans, pArbGroup)) != 0) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pArbGroup);
-        return -1;
+        TAOS_RETURN(code);
       }
     }
 
@@ -1371,10 +1460,17 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
 
     if (pVgroup->dbUid == pDb->uid) {
       SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroup);
-      if (pVgRaw == NULL || mndTransAppendCommitlog(pTrans, pVgRaw) != 0) {
+      if (pVgRaw == NULL) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pVgroup);
-        return -1;
+        code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+        if (terrno != 0) code = terrno;
+        TAOS_RETURN(code);
+      }
+      if ((code = mndTransAppendCommitlog(pTrans, pVgRaw)) != 0) {
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pVgroup);
+        TAOS_RETURN(code);
       }
       (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_DROPPED);
     }
@@ -1389,7 +1485,14 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
 
     if (pStb->dbUid == pDb->uid) {
       SSdbRaw *pStbRaw = mndStbActionEncode(pStb);
-      if (pStbRaw == NULL || mndTransAppendCommitlog(pTrans, pStbRaw) != 0) {
+      if (pStbRaw == NULL) {
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pStbRaw);
+        code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+        if (terrno != 0) code = terrno;
+        return -1;
+      }
+      if ((code = mndTransAppendCommitlog(pTrans, pStbRaw)) != 0) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pStbRaw);
         return -1;
@@ -1400,21 +1503,21 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
     sdbRelease(pSdb, pStb);
   }
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup) {
+  int32_t code = 0;
   for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
     SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
-    if (mndAddDropVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid, true) != 0) {
-      return -1;
-    }
+    TAOS_CHECK_RETURN(mndAddDropVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid, true));
   }
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+  int32_t code = 0;
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
 
@@ -1424,23 +1527,24 @@ static int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
     if (pIter == NULL) break;
 
     if (pVgroup->dbUid == pDb->uid) {
-      if (mndBuildDropVgroupAction(pMnode, pTrans, pDb, pVgroup) != 0) {
+      if ((code = mndBuildDropVgroupAction(pMnode, pTrans, pDb, pVgroup)) != 0) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pVgroup);
-        return -1;
+        TAOS_RETURN(code);
       }
     }
 
     sdbRelease(pSdb, pVgroup);
   }
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc) {
+  int32_t    code = 0;
   SDropDbRsp dropRsp = {0};
   if (pDb != NULL) {
-    memcpy(dropRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
+    (void)memcpy(dropRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
     dropRsp.uid = pDb->uid;
   }
 
@@ -1453,14 +1557,14 @@ static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bo
   }
 
   if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_RETURN(code);
   }
 
-  tSerializeSDropDbRsp(pRsp, rspLen, &dropRsp);
+  (void)tSerializeSDropDbRsp(pRsp, rspLen, &dropRsp);
   *pRspLen = rspLen;
   *ppRsp = pRsp;
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
@@ -1468,46 +1572,46 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "drop-db");
   if (pTrans == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     goto _OVER;
   }
 
   mInfo("trans:%d start to drop db:%s", pTrans->id, pDb->name);
 
   mndTransSetDbName(pTrans, pDb->name, NULL);
-  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
 
   if (mndTopicExistsForDb(pMnode, pDb)) {
-    terrno = TSDB_CODE_MND_TOPIC_MUST_BE_DELETED;
+    code = TSDB_CODE_MND_TOPIC_MUST_BE_DELETED;
     goto _OVER;
   }
 
-  if (mndSetDropDbPrepareLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
-  if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
+  TAOS_CHECK_GOTO(mndSetDropDbPrepareLogs(pMnode, pTrans, pDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetDropDbCommitLogs(pMnode, pTrans, pDb), NULL, _OVER);
   /*if (mndDropOffsetByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
   /*if (mndDropSubByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
   /*if (mndDropTopicByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
-  if (mndDropStreamByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
+  TAOS_CHECK_GOTO(mndDropStreamByDb(pMnode, pTrans, pDb), NULL, _OVER);
 #ifdef TD_ENTERPRISE
-  if (mndDropViewByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
+  TAOS_CHECK_GOTO(mndDropViewByDb(pMnode, pTrans, pDb), NULL, _OVER);
 #endif
-  if (mndDropSmasByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
-  if (mndDropIdxsByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
-  if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto _OVER;
-  if (mndUserRemoveDb(pMnode, pTrans, pDb->name) != 0) goto _OVER;
+  TAOS_CHECK_GOTO(mndDropSmasByDb(pMnode, pTrans, pDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDropIdxsByDb(pMnode, pTrans, pDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetDropDbRedoActions(pMnode, pTrans, pDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndUserRemoveDb(pMnode, pTrans, pDb->name), NULL, _OVER);
 
   int32_t rspLen = 0;
   void   *pRsp = NULL;
-  if (mndBuildDropDbRsp(pDb, &rspLen, &pRsp, false) < 0) goto _OVER;
+  TAOS_CHECK_GOTO(mndBuildDropDbRsp(pDb, &rspLen, &pRsp, false), NULL, _OVER);
   mndTransSetRpcRsp(pTrans, pRsp, rspLen);
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
 
 _OVER:
   mndTransDrop(pTrans);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
@@ -1516,24 +1620,21 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   SDbObj    *pDb = NULL;
   SDropDbReq dropReq = {0};
 
-  if (tDeserializeSDropDbReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(tDeserializeSDropDbReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
   mInfo("db:%s, start to drop", dropReq.db);
 
   pDb = mndAcquireDb(pMnode, dropReq.db);
   if (pDb == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     if (dropReq.ignoreNotExists) {
       code = mndBuildDropDbRsp(pDb, &pReq->info.rspLen, &pReq->info.rsp, true);
     }
     goto _OVER;
   }
 
-  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, pDb) != 0) {
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, pDb), NULL, _OVER);
 
   code = mndDropDb(pMnode, pReq, pDb);
   if (code == TSDB_CODE_SUCCESS) {
@@ -1541,7 +1642,7 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   }
 
   SName name = {0};
-  tNameFromString(&name, dropReq.db, T_NAME_ACCT | T_NAME_DB);
+  (void)tNameFromString(&name, dropReq.db, T_NAME_ACCT | T_NAME_DB);
 
   auditRecord(pReq, pMnode->clusterId, "dropDB", name.dbname, "", dropReq.sql, dropReq.sqlLen);
 
@@ -1552,7 +1653,7 @@ _OVER:
 
   mndReleaseDb(pMnode, pDb);
   tFreeSDropDbReq(&dropReq);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndGetDBTableNum(SDbObj *pDb, SMnode *pMnode) {
@@ -1600,7 +1701,7 @@ void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
         SEp       *pEp = &vgInfo.epSet.eps[gid];
         SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
         if (pDnode != NULL) {
-          memcpy(pEp->fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+          (void)memcpy(pEp->fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
           pEp->port = pDnode->port;
         }
         mndReleaseDnode(pMnode, pDnode);
@@ -1609,7 +1710,9 @@ void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
         }
       }
       vindex++;
-      taosArrayPush(pVgList, &vgInfo);
+      if (taosArrayPush(pVgList, &vgInfo) == NULL) {
+        mError("db:%s, failed to push vgInfo to array, vgId:%d, but continue next", pDb->name, vgInfo.vgId);
+      }
     }
 
     sdbRelease(pSdb, pVgroup);
@@ -1622,10 +1725,11 @@ void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
 }
 
 int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUseDbReq *pReq) {
+  int32_t code = 0;
   pRsp->pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
   if (pRsp->pVgroupInfos == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_RETURN(code);
   }
 
   int32_t numOfTable = mndGetDBTableNum(pDb, pMnode);
@@ -1635,7 +1739,7 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
     mndBuildDBVgroupInfo(pDb, pMnode, pRsp->pVgroupInfos);
   }
 
-  memcpy(pRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
+  (void)memcpy(pRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
   pRsp->uid = pDb->uid;
   pRsp->vgVersion = pDb->vgVersion;
   pRsp->stateTs = pDb->stateTs;
@@ -1643,7 +1747,7 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
   pRsp->hashMethod = pDb->cfg.hashMethod;
   pRsp->hashPrefix = pDb->cfg.hashPrefix;
   pRsp->hashSuffix = pDb->cfg.hashSuffix;
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
@@ -1653,14 +1757,11 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
   SUseDbReq usedbReq = {0};
   SUseDbRsp usedbRsp = {0};
 
-  if (tDeserializeSUseDbReq(pReq->pCont, pReq->contLen, &usedbReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(tDeserializeSUseDbReq(pReq->pCont, pReq->contLen, &usedbReq), NULL, _OVER);
 
   char *p = strchr(usedbReq.db, '.');
   if (p && ((0 == strcmp(p + 1, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcmp(p + 1, TSDB_PERFORMANCE_SCHEMA_DB))))) {
-    memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
+    (void)memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
     int32_t vgVersion = mndGetGlobalVgroupVersion(pMnode);
     if (usedbReq.vgVersion < vgVersion) {
       usedbRsp.pVgroupInfos = taosArrayInit(10, sizeof(SVgroupInfo));
@@ -1676,23 +1777,18 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
   } else {
     pDb = mndAcquireDb(pMnode, usedbReq.db);
     if (pDb == NULL) {
-      memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
+      (void)memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
       usedbRsp.uid = usedbReq.dbId;
       usedbRsp.vgVersion = usedbReq.vgVersion;
       usedbRsp.errCode = terrno;
 
-      if (terrno == TSDB_CODE_MND_DB_IN_CREATING) {
-        code = terrno;
-        goto _OVER;
-      }
+      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+      if (terrno != 0) code = terrno;
+      goto _OVER;
     } else {
-      if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb) != 0) {
-        goto _OVER;
-      }
+      TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb), NULL, _OVER);
 
-      if (mndExtractDbInfo(pMnode, pDb, &usedbRsp, &usedbReq) < 0) {
-        goto _OVER;
-      }
+      TAOS_CHECK_GOTO(mndExtractDbInfo(pMnode, pDb, &usedbRsp, &usedbReq), NULL, _OVER);
 
       mDebug("db:%s, process usedb req vgVersion:%d stateTs:%" PRId64 ", rsp vgVersion:%d stateTs:%" PRId64,
              usedbReq.db, usedbReq.vgVersion, usedbReq.stateTs, usedbRsp.vgVersion, usedbRsp.stateTs);
@@ -1708,7 +1804,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  tSerializeSUseDbRsp(pRsp, contLen, &usedbRsp);
+  (void)tSerializeSUseDbRsp(pRsp, contLen, &usedbRsp);
 
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = contLen;
@@ -1721,15 +1817,16 @@ _OVER:
   mndReleaseDb(pMnode, pDb);
   tFreeSUsedbRsp(&usedbRsp);
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, void **ppRsp, int32_t *pRspLen) {
+  int32_t       code = 0;
   SDbHbBatchRsp batchRsp = {0};
   batchRsp.pArray = taosArrayInit(numOfDbs, sizeof(SDbHbRsp));
   if (batchRsp.pArray == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    TAOS_RETURN(code);
   }
 
   for (int32_t i = 0; i < numOfDbs; ++i) {
@@ -1742,6 +1839,8 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
     pDbCacheInfo->tsmaVersion = htonl(pDbCacheInfo->tsmaVersion);
 
     SDbHbRsp rsp = {0};
+    (void)memcpy(rsp.db, pDbCacheInfo->dbFName, TSDB_DB_FNAME_LEN);
+    rsp.dbId = pDbCacheInfo->dbId;
 
     if ((0 == strcasecmp(pDbCacheInfo->dbFName, TSDB_INFORMATION_SCHEMA_DB) ||
          (0 == strcasecmp(pDbCacheInfo->dbFName, TSDB_PERFORMANCE_SCHEMA_DB)))) {
@@ -1751,7 +1850,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       }
 
       rsp.useDbRsp = taosMemoryCalloc(1, sizeof(SUseDbRsp));
-      memcpy(rsp.useDbRsp->db, pDbCacheInfo->dbFName, TSDB_DB_FNAME_LEN);
+      (void)memcpy(rsp.useDbRsp->db, pDbCacheInfo->dbFName, TSDB_DB_FNAME_LEN);
       rsp.useDbRsp->pVgroupInfos = taosArrayInit(10, sizeof(SVgroupInfo));
 
       mndBuildDBVgroupInfo(NULL, pMnode, rsp.useDbRsp->pVgroupInfos);
@@ -1759,7 +1858,10 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
 
       rsp.useDbRsp->vgNum = taosArrayGetSize(rsp.useDbRsp->pVgroupInfos);
 
-      taosArrayPush(batchRsp.pArray, &rsp);
+      if (taosArrayPush(batchRsp.pArray, &rsp) == NULL) {
+        if (terrno != 0) code = terrno;
+        return code;
+      }
 
       continue;
     }
@@ -1768,10 +1870,13 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
     if (pDb == NULL) {
       mTrace("db:%s, no exist", pDbCacheInfo->dbFName);
       rsp.useDbRsp = taosMemoryCalloc(1, sizeof(SUseDbRsp));
-      memcpy(rsp.useDbRsp->db, pDbCacheInfo->dbFName, TSDB_DB_FNAME_LEN);
+      (void)memcpy(rsp.useDbRsp->db, pDbCacheInfo->dbFName, TSDB_DB_FNAME_LEN);
       rsp.useDbRsp->uid = pDbCacheInfo->dbId;
       rsp.useDbRsp->vgVersion = -1;
-      taosArrayPush(batchRsp.pArray, &rsp);
+      if (taosArrayPush(batchRsp.pArray, &rsp) == NULL) {
+        if (terrno != 0) code = terrno;
+        return code;
+      }
       continue;
     }
 
@@ -1787,7 +1892,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       mndReleaseDb(pMnode, pDb);
       continue;
     } else {
-      mInfo("db:%s, valid dbinfo, vgVersion:%d cfgVersion:%d stateTs:%" PRId64
+      mTrace("db:%s, valid dbinfo, vgVersion:%d cfgVersion:%d stateTs:%" PRId64
             " numOfTables:%d, changed to vgVersion:%d cfgVersion:%d stateTs:%" PRId64 " numOfTables:%d",
             pDbCacheInfo->dbFName, pDbCacheInfo->vgVersion, pDbCacheInfo->cfgVersion, pDbCacheInfo->stateTs,
             pDbCacheInfo->numOfTable, pDb->vgVersion, pDb->cfgVersion, pDb->stateTs, numOfTable);
@@ -1802,9 +1907,21 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       rsp.pTsmaRsp = taosMemoryCalloc(1, sizeof(STableTSMAInfoRsp));
       if (rsp.pTsmaRsp) rsp.pTsmaRsp->pTsmas = taosArrayInit(4, POINTER_BYTES);
       if (rsp.pTsmaRsp && rsp.pTsmaRsp->pTsmas) {
-        rsp.dbTsmaVersion = pDb->tsmaVersion;
         bool exist = false;
-        mndGetDbTsmas(pMnode, 0, pDb->uid, rsp.pTsmaRsp, &exist);
+        int32_t code = mndGetDbTsmas(pMnode, 0, pDb->uid, rsp.pTsmaRsp, &exist);
+        if (TSDB_CODE_SUCCESS != code) {
+          mndReleaseDb(pMnode, pDb);
+          if (code != TSDB_CODE_NEED_RETRY) {
+            mError("db:%s, failed to get db tsmas", pDb->name);
+          } else {
+            mWarn("db:%s, need retry to get db tsmas", pDb->name);
+          }
+          taosArrayDestroyP(rsp.pTsmaRsp->pTsmas, tFreeAndClearTableTSMAInfo);
+          taosMemoryFreeClear(rsp.pTsmaRsp);
+          continue;
+        }
+        rsp.dbTsmaVersion = pDb->tsmaVersion;
+        mDebug("update tsma version to %d, got tsma num: %ld", pDb->tsmaVersion, rsp.pTsmaRsp->pTsmas->size);
       }
     }
 
@@ -1815,11 +1932,13 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       if (rsp.useDbRsp->pVgroupInfos == NULL) {
         mndReleaseDb(pMnode, pDb);
         mError("db:%s, failed to malloc usedb response", pDb->name);
+        taosArrayDestroyP(rsp.pTsmaRsp->pTsmas, tFreeAndClearTableTSMAInfo);
+        taosMemoryFreeClear(rsp.pTsmaRsp);
         continue;
       }
 
       mndBuildDBVgroupInfo(pDb, pMnode, rsp.useDbRsp->pVgroupInfos);
-      memcpy(rsp.useDbRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
+      (void)memcpy(rsp.useDbRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
       rsp.useDbRsp->uid = pDb->uid;
       rsp.useDbRsp->vgVersion = pDb->vgVersion;
       rsp.useDbRsp->stateTs = pDb->stateTs;
@@ -1829,7 +1948,11 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       rsp.useDbRsp->hashSuffix = pDb->cfg.hashSuffix;
     }
 
-    taosArrayPush(batchRsp.pArray, &rsp);
+    if (taosArrayPush(batchRsp.pArray, &rsp) == NULL) {
+      mndReleaseDb(pMnode, pDb);
+      if (terrno != 0) code = terrno;
+      return code;
+    }
     mndReleaseDb(pMnode, pDb);
   }
 
@@ -1840,13 +1963,13 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
     tFreeSDbHbBatchRsp(&batchRsp);
     return -1;
   }
-  tSerializeSDbHbBatchRsp(pRsp, rspLen, &batchRsp);
+  (void)tSerializeSDbHbBatchRsp(pRsp, rspLen, &batchRsp);
 
   *ppRsp = pRsp;
   *pRspLen = rspLen;
 
   tFreeSDbHbBatchRsp(&batchRsp);
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
@@ -1869,7 +1992,7 @@ static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
     }
     pHead->contLen = htonl(contLen);
     pHead->vgId = htonl(pVgroup->vgId);
-    tSerializeSVTrimDbReq((char *)pHead + sizeof(SMsgHead), contLen, &trimReq);
+    (void)tSerializeSVTrimDbReq((char *)pHead + sizeof(SMsgHead), contLen, &trimReq);
 
     SRpcMsg rpcMsg = {.msgType = TDMT_VND_TRIM, .pCont = pHead, .contLen = contLen};
     SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
@@ -1891,21 +2014,18 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
   SDbObj    *pDb = NULL;
   STrimDbReq trimReq = {0};
 
-  if (tDeserializeSTrimDbReq(pReq->pCont, pReq->contLen, &trimReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(tDeserializeSTrimDbReq(pReq->pCont, pReq->contLen, &trimReq), NULL, _OVER);
 
   mInfo("db:%s, start to trim", trimReq.db);
 
   pDb = mndAcquireDb(pMnode, trimReq.db);
   if (pDb == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     goto _OVER;
   }
 
-  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb) != 0) {
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb), NULL, _OVER);
 
   code = mndTrimDb(pMnode, pDb);
 
@@ -1915,7 +2035,7 @@ _OVER:
   }
 
   mndReleaseDb(pMnode, pDb);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndS3MigrateDb(SMnode *pMnode, SDbObj *pDb) {
@@ -1940,7 +2060,7 @@ static int32_t mndS3MigrateDb(SMnode *pMnode, SDbObj *pDb) {
     }
     pHead->contLen = htonl(contLen);
     pHead->vgId = htonl(pVgroup->vgId);
-    tSerializeSVS3MigrateDbReq((char *)pHead + sizeof(SMsgHead), contLen, &s3migrateReq);
+    (void)tSerializeSVS3MigrateDbReq((char *)pHead + sizeof(SMsgHead), contLen, &s3migrateReq);
 
     SRpcMsg rpcMsg = {.msgType = TDMT_VND_S3MIGRATE, .pCont = pHead, .contLen = contLen};
     SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
@@ -1962,21 +2082,18 @@ static int32_t mndProcessS3MigrateDbReq(SRpcMsg *pReq) {
   SDbObj         *pDb = NULL;
   SS3MigrateDbReq s3migrateReq = {0};
 
-  if (tDeserializeSS3MigrateDbReq(pReq->pCont, pReq->contLen, &s3migrateReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(tDeserializeSS3MigrateDbReq(pReq->pCont, pReq->contLen, &s3migrateReq), NULL, _OVER);
 
   mInfo("db:%s, start to s3migrate", s3migrateReq.db);
 
   pDb = mndAcquireDb(pMnode, s3migrateReq.db);
   if (pDb == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     goto _OVER;
   }
 
-  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb) != 0) {
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb), NULL, _OVER);
 
   code = mndS3MigrateDb(pMnode, pDb);
 
@@ -1986,7 +2103,7 @@ _OVER:
   }
 
   mndReleaseDb(pMnode, pDb);
-  return code;
+  TAOS_RETURN(code);
 }
 
 const char *mndGetDbStr(const char *src) {
@@ -2168,46 +2285,46 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     for (int32_t i = 0; i < pShow->numOfColumns; ++i) {
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, i);
       if (i == 0) {
-        colDataSetVal(pColInfo, rows, buf, false);
+        (void)colDataSetVal(pColInfo, rows, buf, false);
       } else if (i == 1) {
-        colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false);
+        (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false);
       } else if (i == 3) {
-        colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false);
+        (void)colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false);
       } else if (i == 14) {
-        colDataSetVal(pColInfo, rows, precVstr, false);
+        (void)colDataSetVal(pColInfo, rows, precVstr, false);
       } else if (i == 15) {
-        colDataSetVal(pColInfo, rows, statusVstr, false);
+        (void)colDataSetVal(pColInfo, rows, statusVstr, false);
       } else {
         colDataSetNULL(pColInfo, rows);
       }
     }
   } else {
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, buf, false);
+    (void)colDataSetVal(pColInfo, rows, buf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfVgroups, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfVgroups, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
 
     const char *strictStr = pDb->cfg.strict ? "on" : "off";
     char        strictVstr[24] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(strictVstr, strictStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)strictVstr, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)strictVstr, false);
 
     char    durationVstr[128] = {0};
     int32_t len = sprintf(&durationVstr[VARSTR_HEADER_SIZE], "%dm", pDb->cfg.daysPerFile);
     varDataSetLen(durationVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)durationVstr, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)durationVstr, false);
 
     char keepVstr[128] = {0};
     if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
@@ -2219,67 +2336,67 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     }
     varDataSetLen(keepVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)keepVstr, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)keepVstr, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.buffer, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.buffer, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pageSize, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pageSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pages, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pages, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.minRows, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.minRows, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.maxRows, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.maxRows, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)precVstr, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)precVstr, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)statusVstr, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)statusVstr, false);
 
     char *rentensionVstr = buildRetension(pDb->cfg.pRetensions);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (rentensionVstr == NULL) {
       colDataSetNULL(pColInfo, rows);
     } else {
-      colDataSetVal(pColInfo, rows, (const char *)rentensionVstr, false);
+      (void)colDataSetVal(pColInfo, rows, (const char *)rentensionVstr, false);
       taosMemoryFree(rentensionVstr);
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
 
     const char *cacheModelStr = getCacheModelStr(pDb->cfg.cacheLast);
     char        cacheModelVstr[24] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(cacheModelVstr, cacheModelStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)cacheModelVstr, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)cacheModelVstr, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.cacheLastSize, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.cacheLastSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walFsyncPeriod, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walFsyncPeriod, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionPeriod, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionPeriod, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionSize, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.sstTrigger, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.sstTrigger, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int16_t hashPrefix = pDb->cfg.hashPrefix;
@@ -2288,37 +2405,37 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     } else if (hashPrefix < 0) {
       hashPrefix = pDb->cfg.hashPrefix + strlen(pDb->name) + 1;
     }
-    colDataSetVal(pColInfo, rows, (const char *)&hashPrefix, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&hashPrefix, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.hashSuffix, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.hashSuffix, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.tsdbPageSize, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.tsdbPageSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.keepTimeOffset, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.keepTimeOffset, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3ChunkSize, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3ChunkSize, false);
 
     char keeplocalVstr[128] = {0};
     len = sprintf(&keeplocalVstr[VARSTR_HEADER_SIZE], "%dm", pDb->cfg.s3KeepLocal);
     varDataSetLen(keeplocalVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)keeplocalVstr, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)keeplocalVstr, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3Compact, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3Compact, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.withArbitrator, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.withArbitrator, false);
 
     const char *encryptAlgorithmStr = getEncryptAlgorithmStr(pDb->cfg.encryptAlgorithm);
     char        encryptAlgorithmVStr[24] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(encryptAlgorithmVStr, encryptAlgorithmStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)encryptAlgorithmVStr, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)encryptAlgorithmVStr, false);
   }
 
   taosMemoryFree(buf);
@@ -2357,9 +2474,10 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
   SDbObj    *pDb = NULL;
+  SUserObj  *pUser = NULL;
   ESdbStatus objStatus = 0;
 
-  SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
+  (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
   if (pUser == NULL) return 0;
   bool sysinfo = pUser->sysInfo;
 
@@ -2404,5 +2522,5 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
 static void mndCancelGetNextDb(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_DB);
 }

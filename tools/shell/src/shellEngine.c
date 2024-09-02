@@ -164,11 +164,13 @@ int32_t shellRunCommand(char *command, bool recordHistory) {
   }
 
   // add help or help;
-  if (strncasecmp(command, "help;", 5) == 0) {
-    showHelp();
-    return 0;
+  if (strncasecmp(command, "help", 4) == 0) {
+    if(command[4] == ';' || command[4] == ' ' || command[4] == 0) {
+       showHelp();
+       return 0;
+    }
   }
-
+  
   if (recordHistory) shellRecordCommandToHistory(command);
 
   char quote = 0, *cmd = command;
@@ -611,14 +613,14 @@ void shellPrintGeometry(const unsigned char *val, int32_t length, int32_t width)
 
   code = initCtxAsText();
   if (code != TSDB_CODE_SUCCESS) {
-    shellPrintString(getThreadLocalGeosCtx()->errMsg, width);
+    shellPrintString(getGeosErrMsg(code), width);
     return;
   }
 
   char *outputWKT = NULL;
   code = doAsText(val, length, &outputWKT);
   if (code != TSDB_CODE_SUCCESS) {
-    shellPrintString(getThreadLocalGeosCtx()->errMsg, width);  // should NOT happen
+    shellPrintString(getGeosErrMsg(code), width);  // should NOT happen
     return;
   }
 
@@ -1118,7 +1120,7 @@ void shellSourceFile(const char *file) {
   }
 
   char *line = taosMemoryMalloc(TSDB_MAX_ALLOWED_SQL_LEN + 1);
-  while ((read_len = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) != -1) {
+  while ((read_len = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) > 0) {
     if ( cmd_len + read_len >= TSDB_MAX_ALLOWED_SQL_LEN) {
       printf("read command line too long over 1M, ignore this line. cmd_len = %d read_len=%d \n", (int32_t)cmd_len, read_len);
       cmd_len = 0;
@@ -1170,6 +1172,7 @@ bool shellGetGrantInfo(char* buf) {
         code != TSDB_CODE_PAR_PERMISSION_DENIED) {
       fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\r\n\r\n", code, taos_errstr(tres));
     }
+    taos_free_result(tres);
     return community;
   }
 
@@ -1189,12 +1192,11 @@ bool shellGetGrantInfo(char* buf) {
       fprintf(stderr, "\r\nFailed to get grant information from server. Abort.\r\n");
       exit(0);
     }
-
-    char serverVersion[32] = {0};
+    char serverVersion[64] = {0};
     char expiretime[32] = {0};
     char expired[32] = {0};
 
-    memcpy(serverVersion, row[0], fields[0].bytes);
+    tstrncpy(serverVersion, row[0], 64);
     memcpy(expiretime, row[1], fields[1].bytes);
     memcpy(expired, row[2], fields[2].bytes);
 
@@ -1202,10 +1204,10 @@ bool shellGetGrantInfo(char* buf) {
       community = true;
     } else if (strcmp(expiretime, "unlimited") == 0) {
       community = false;
-      sprintf(buf, "Server is Enterprise %s Edition, %s and will never expire.\r\n", serverVersion, sinfo);
+      sprintf(buf, "Server is %s, %s and will never expire.\r\n", serverVersion, sinfo);
     } else {
       community = false;
-      sprintf(buf, "Server is Enterprise %s Edition, %s and will expire at %s.\r\n", serverVersion, sinfo,
+      sprintf(buf, "Server is %s, %s and will expire at %s.\r\n", serverVersion, sinfo,
               expiretime);
     }
 
@@ -1282,7 +1284,6 @@ void *shellThreadLoop(void *arg) {
       taosResetTerminalMode();
     } while (shellRunCommand(command, true) == 0);
 
-    destroyThreadLocalGeosCtx();
     taosMemoryFreeClear(command);
     shellWriteHistory();
     shellExit();

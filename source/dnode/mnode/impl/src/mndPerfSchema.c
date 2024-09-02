@@ -19,10 +19,11 @@
 
 // connection/application/
 int32_t mndInitPerfsTableSchema(const SSysDbTableSchema *pSrc, int32_t colNum, SSchema **pDst) {
+  int32_t  code = 0;
   SSchema *schema = taosMemoryCalloc(colNum, sizeof(SSchema));
   if (NULL == schema) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_RETURN(code);
   }
 
   for (int32_t i = 0; i < colNum; ++i) {
@@ -34,10 +35,11 @@ int32_t mndInitPerfsTableSchema(const SSysDbTableSchema *pSrc, int32_t colNum, S
   }
 
   *pDst = schema;
-  return TSDB_CODE_SUCCESS;
+  TAOS_RETURN(code);
 }
 
 int32_t mndPerfsInitMeta(SHashObj *hash) {
+  int32_t       code = 0;
   STableMetaRsp meta = {0};
 
   tstrncpy(meta.dbFName, TSDB_INFORMATION_SCHEMA_DB, sizeof(meta.dbFName));
@@ -53,56 +55,56 @@ int32_t mndPerfsInitMeta(SHashObj *hash) {
     tstrncpy(meta.tbName, pSysDbTableMeta[i].name, sizeof(meta.tbName));
     meta.numOfColumns = pSysDbTableMeta[i].colNum;
 
-    if (mndInitPerfsTableSchema(pSysDbTableMeta[i].schema, pSysDbTableMeta[i].colNum, &meta.pSchemas)) {
-      return -1;
-    }
+    TAOS_CHECK_RETURN(mndInitPerfsTableSchema(pSysDbTableMeta[i].schema, pSysDbTableMeta[i].colNum, &meta.pSchemas));
 
     if (taosHashPut(hash, meta.tbName, strlen(meta.tbName), &meta, sizeof(meta))) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TAOS_RETURN(code);
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+  TAOS_RETURN(code);
 }
 
 int32_t mndBuildPerfsTableSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp) {
+  int32_t code = 0;
   if (NULL == pMnode->perfsMeta) {
-    terrno = TSDB_CODE_APP_ERROR;
-    return -1;
+    code = TSDB_CODE_APP_ERROR;
+    TAOS_RETURN(code);
   }
 
   STableMetaRsp *meta = (STableMetaRsp *)taosHashGet(pMnode->perfsMeta, tbName, strlen(tbName));
   if (NULL == meta) {
     mError("invalid performance schema table name:%s", tbName);
-    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-    return -1;
+    code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    TAOS_RETURN(code);
   }
 
   *pRsp = *meta;
 
   pRsp->pSchemas = taosMemoryCalloc(meta->numOfColumns, sizeof(SSchema));
   if (pRsp->pSchemas == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     pRsp->pSchemas = NULL;
-    return -1;
+    TAOS_RETURN(code);
   }
 
   memcpy(pRsp->pSchemas, meta->pSchemas, meta->numOfColumns * sizeof(SSchema));
-  return 0;
+  TAOS_RETURN(code);
 }
 
 int32_t mndBuildPerfsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbName, STableCfgRsp *pRsp) {
+  int32_t code = 0;
   if (NULL == pMnode->perfsMeta) {
-    terrno = TSDB_CODE_APP_ERROR;
-    return -1;
+    code = TSDB_CODE_APP_ERROR;
+    TAOS_RETURN(code);
   }
 
   STableMetaRsp *pMeta = taosHashGet(pMnode->perfsMeta, tbName, strlen(tbName));
   if (NULL == pMeta) {
     mError("invalid performance schema table name:%s", tbName);
-    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-    return -1;
+    code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    TAOS_RETURN(code);
   }
 
   strcpy(pRsp->tbName, pMeta->tbName);
@@ -114,20 +116,21 @@ int32_t mndBuildPerfsTableCfg(SMnode *pMnode, const char *dbFName, const char *t
 
   pRsp->pSchemas = taosMemoryCalloc(pMeta->numOfColumns, sizeof(SSchema));
   if (pRsp->pSchemas == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     pRsp->pSchemas = NULL;
-    return -1;
+    TAOS_RETURN(code);
   }
 
   memcpy(pRsp->pSchemas, pMeta->pSchemas, pMeta->numOfColumns * sizeof(SSchema));
-  return 0;
+  TAOS_RETURN(code);
 }
 
 int32_t mndInitPerfs(SMnode *pMnode) {
+  int32_t code = 0;
   pMnode->perfsMeta = taosHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (pMnode->perfsMeta == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_RETURN(code);
   }
 
   return mndPerfsInitMeta(pMnode->perfsMeta);

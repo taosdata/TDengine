@@ -36,7 +36,7 @@ if $data(3)[4] != ready then
   goto step1
 endi
 
-print =============== step2: create mnode 2
+print =============== step2: create mnode 2 3
 sql create mnode on dnode 2
 sql create mnode on dnode 3
 sql_error create mnode on dnode 4
@@ -115,7 +115,7 @@ if $data(3)[4] != ready then
   goto step41
 endi
 
-print =============== step5: stop dnode1
+print =============== step5: stop dnode2
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s stop
 
@@ -154,7 +154,7 @@ if $data(3)[4] != ready then
   goto step51
 endi
 
-print =============== step6: stop dnode1
+print =============== step6: stop dnode3
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s stop
 

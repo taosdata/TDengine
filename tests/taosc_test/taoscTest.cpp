@@ -30,7 +30,7 @@
 #include "taos.h"
 
 class taoscTest : public ::testing::Test {
- protected:
+protected:
   static void SetUpTestCase() {
     printf("start test setup.\n");
     TAOS* taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -188,7 +188,7 @@ TEST_F(taoscTest, taos_query_test) {
 void queryCallback2(void* param, void* res, int32_t code) {
   ASSERT_TRUE(code == 0);
   ASSERT_TRUE(param == pUserParam);
-  // After using taos_query_a to query, using taos_fetch_row in the callback will cause blocking. 
+  // After using taos_query_a to query, using taos_fetch_row in the callback will cause blocking.
   // Reason: schProcessOnCbBegin SCH_LOCK_TASK(pTask)
   TAOS_ROW row;
   row = taos_fetch_row(res);
@@ -254,7 +254,7 @@ TEST_F(taoscTest, taos_query_a_fetch_row) {
   printf("taos_query_a_fetch_row  taos_fetch_row start...\n");
 
   while ((row = taos_fetch_row(*pres))) {
-     getRecordCounts++;
+    getRecordCounts++;
   }
   printf("taos_query_a_fetch_row  taos_fetch_row end. %p record count:%d.\n", *pres, getRecordCounts);
   taos_free_result(*pres);
@@ -264,4 +264,3 @@ TEST_F(taoscTest, taos_query_a_fetch_row) {
 
   printf("taos_query_a_fetch_row test finished.\n");
 }
-

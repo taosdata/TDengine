@@ -192,8 +192,9 @@ TEST_F(ParserInitialCTest, createDatabase) {
     retention.keepUnit = keepUnit;
     if (NULL == expect.pRetensions) {
       expect.pRetensions = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SRetention));
+      ASSERT_TRUE(expect.pRetensions);
     }
-    taosArrayPush(expect.pRetensions, &retention);
+    ASSERT_TRUE(taosArrayPush(expect.pRetensions, &retention) != nullptr);
     ++expect.numOfRetensions;
   };
   auto setDbSchemaless = [&](int8_t schemaless) { expect.schemaless = schemaless; };
@@ -449,7 +450,7 @@ TEST_F(ParserInitialCTest, createFunction) {
       file << 123 << "abc" << '\n';
       file.close();
     }
-    ~udfFile() { remove(path_.c_str()); }
+    ~udfFile() { assert(0 == remove(path_.c_str())); }
     std::string path_;
   } udffile("udf");
 
@@ -506,7 +507,7 @@ TEST_F(ParserInitialCTest, createView) {
     if (NULL == expect.pTags) {
       expect.pTags = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SField));
     }
-    taosArrayPush(expect.pTags, &field);
+    ASSERT_TRUE(nullptr != taosArrayPush(expect.pTags, &field));
     expect.numOfTags += 1;
   };
 
@@ -684,7 +685,7 @@ TEST_F(ParserInitialCTest, createSmaIndex) {
     pCmdMsg->msgLen = tSerializeSMCreateSmaReq(NULL, 0, pStmt->pReq);
     pCmdMsg->pMsg = taosMemoryMalloc(pCmdMsg->msgLen);
     if (!pCmdMsg->pMsg) FAIL();
-    tSerializeSMCreateSmaReq(pCmdMsg->pMsg, pCmdMsg->msgLen, pStmt->pReq);
+    ASSERT_TRUE(0 < tSerializeSMCreateSmaReq(pCmdMsg->pMsg, pCmdMsg->msgLen, pStmt->pReq));
     ((SQuery*)pQuery)->pCmdMsg = pCmdMsg;
     ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
 
@@ -797,13 +798,13 @@ TEST_F(ParserInitialCTest, createStable) {
       if (NULL == expect.pColumns) {
         expect.pColumns = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SField));
       }
-      taosArrayPush(expect.pColumns, &field);
+      ASSERT_TRUE(nullptr != taosArrayPush(expect.pColumns, &field));
       expect.numOfColumns += 1;
     } else {
       if (NULL == expect.pTags) {
         expect.pTags = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SField));
       }
-      taosArrayPush(expect.pTags, &field);
+      ASSERT_TRUE(taosArrayPush(expect.pTags, &field) != nullptr);
       expect.numOfTags += 1;
     }
   };
@@ -983,7 +984,7 @@ TEST_F(ParserInitialCTest, createStream) {
     if (NULL == expect.pTags) {
       expect.pTags = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SField));
     }
-    taosArrayPush(expect.pTags, &field);
+    ASSERT_TRUE(taosArrayPush(expect.pTags, &field) != nullptr);
     expect.numOfTags += 1;
   };
 
@@ -1123,8 +1124,9 @@ TEST_F(ParserInitialCTest, createTable) {
     ++expect.nReqs;
     if (nullptr == expect.pArray) {
       expect.pArray = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SVCreateTbReq));
+      ASSERT_TRUE(expect.pArray != nullptr);
     }
-    taosArrayPush(expect.pArray, &req);
+    ASSERT_TRUE(taosArrayPush(expect.pArray, &req) != nullptr);
   };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
@@ -1200,11 +1202,11 @@ TEST_F(ParserInitialCTest, createTableSemanticCheck) {
   string sql = "CREATE TABLE st1(ts TIMESTAMP, ";
   for (int32_t i = 1; i < 4096; ++i) {
     if (i > 1) {
-      sql.append(", ");
+      (void)sql.append(", ");
     }
-    sql.append("c" + to_string(i) + " INT");
+    (void)sql.append("c" + to_string(i) + " INT");
   }
-  sql.append(") TAGS (t1 int)");
+  (void)sql.append(") TAGS (t1 int)");
 
   run(sql, TSDB_CODE_PAR_TOO_MANY_COLUMNS);
 }

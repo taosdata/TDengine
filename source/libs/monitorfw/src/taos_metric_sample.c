@@ -1,16 +1,17 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+/**
+ * Copyright 2019-2020 DigitalOcean Inc.
  *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 
@@ -19,11 +20,11 @@
 #include "taos_alloc.h"
 
 // Private
-#include "taos_assert.h"
 #include "taos_errors.h"
 #include "taos_log.h"
 #include "taos_metric_sample_i.h"
 #include "taos_metric_sample_t.h"
+#include "taos_test.h"
 
 #ifdef C11_ATOMIC
 #include <stdatomic.h>
@@ -42,7 +43,7 @@ taos_metric_sample_t *taos_metric_sample_new(taos_metric_type_t type, const char
 }
 
 int taos_metric_sample_destroy(taos_metric_sample_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 0;
   taos_free((void *)self->l_value);
   self->l_value = NULL;
@@ -62,11 +63,11 @@ int taos_metric_sample_destroy_generic(void *gen) {
 
 void taos_metric_sample_free_generic(void *gen) {
   taos_metric_sample_t *self = (taos_metric_sample_t *)gen;
-  taos_metric_sample_destroy(self);
+  (void)taos_metric_sample_destroy(self);
 }
 
 int taos_metric_sample_add(taos_metric_sample_t *self, double r_value) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (r_value < 0) {
     return 1;
   }
@@ -93,14 +94,14 @@ int taos_metric_sample_add(taos_metric_sample_t *self, double r_value) {
 
 /*
 int taos_metric_sample_sub(taos_metric_sample_t *self, double r_value) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self->type != TAOS_GAUGE) {
     TAOS_LOG(TAOS_METRIC_INCORRECT_TYPE);
     return 1;
   }
 
 #ifdef C11_ATOMIC
-  ///_Atomic/ 
+  ///_Atomic/
   double old = atomic_load(&self->r_value);
   for (;;) {
     _Atomic double new = ATOMIC_VAR_INIT(old - r_value);

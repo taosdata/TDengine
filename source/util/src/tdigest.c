@@ -30,7 +30,7 @@
 #include "tlog.h"
 
 #define INTERPOLATE(x, x0, x1) (((x) - (x0)) / ((x1) - (x0)))
-//#define INTEGRATED_LOCATION(compression, q)   ((compression) * (asin(2 * (q) - 1) + M_PI / 2) / M_PI)
+// #define INTEGRATED_LOCATION(compression, q)   ((compression) * (asin(2 * (q) - 1) + M_PI / 2) / M_PI)
 #define INTEGRATED_LOCATION(compression, q) ((compression) * (asin(2 * (double)(q)-1) / M_PI + (double)1 / 2))
 #define FLOAT_EQ(f1, f2)                    (fabs((f1) - (f2)) <= FLT_EPSILON)
 
@@ -99,16 +99,19 @@ static void mergeCentroid(SMergeArgs *args, SCentroid *merge) {
   }
 }
 
-void tdigestCompress(TDigest *t) {
+int32_t tdigestCompress(TDigest *t) {
   SCentroid *unmerged_centroids;
   int64_t    unmerged_weight = 0;
   int32_t    num_unmerged = t->num_buffered_pts;
   int32_t    i, j;
   SMergeArgs args;
 
-  if (t->num_buffered_pts <= 0) return;
+  if (t->num_buffered_pts <= 0) return 0;
 
   unmerged_centroids = (SCentroid *)taosMemoryMalloc(sizeof(SCentroid) * t->num_buffered_pts);
+  if (unmerged_centroids == NULL) {
+    return terrno;
+  }
   for (i = 0; i < num_unmerged; i++) {
     SPt       *p = t->buffered_pts + i;
     SCentroid *c = &unmerged_centroids[i];
@@ -122,6 +125,10 @@ void tdigestCompress(TDigest *t) {
   taosSort(unmerged_centroids, num_unmerged, sizeof(SCentroid), cmpCentroid);
   memset(&args, 0, sizeof(SMergeArgs));
   args.centroids = (SCentroid *)taosMemoryMalloc((size_t)(sizeof(SCentroid) * t->size));
+  if (args.centroids == NULL) {
+    taosMemoryFree((void *)unmerged_centroids);
+    return terrno;
+  }
   memset(args.centroids, 0, (size_t)(sizeof(SCentroid) * t->size));
 
   args.t = t;
@@ -136,24 +143,20 @@ void tdigestCompress(TDigest *t) {
 
     if (a->mean <= b->mean) {
       mergeCentroid(&args, a);
-      ASSERTS(args.idx < t->size, "idx over size");
       i++;
     } else {
       mergeCentroid(&args, b);
-      ASSERTS(args.idx < t->size, "idx over size");
       j++;
     }
   }
 
   while (i < num_unmerged) {
     mergeCentroid(&args, &unmerged_centroids[i++]);
-    ASSERTS(args.idx < t->size, "idx over size");
   }
   taosMemoryFree((void *)unmerged_centroids);
 
   while (j < t->num_centroids) {
     mergeCentroid(&args, &t->centroids[j++]);
-    ASSERTS(args.idx < t->size, "idx over size");
   }
 
   if (t->total_weight > 0) {
@@ -167,10 +170,11 @@ void tdigestCompress(TDigest *t) {
 
   memcpy(t->centroids, args.centroids, sizeof(SCentroid) * t->num_centroids);
   taosMemoryFree((void *)args.centroids);
+  return 0;
 }
 
-void tdigestAdd(TDigest *t, double x, int64_t w) {
-  if (w == 0) return;
+int32_t tdigestAdd(TDigest *t, double x, int64_t w) {
+  if (w == 0) return 0;
 
   int32_t i = t->num_buffered_pts;
   if (i > 0 && t->buffered_pts[i - 1].value == x) {
@@ -181,7 +185,10 @@ void tdigestAdd(TDigest *t, double x, int64_t w) {
     t->num_buffered_pts++;
   }
 
-  if (t->num_buffered_pts >= t->threshold) tdigestCompress(t);
+  if (t->num_buffered_pts >= t->threshold) {
+    return tdigestCompress(t);
+  }
+  return 0;
 }
 
 #if 0
@@ -245,7 +252,7 @@ double tdigestQuantile(TDigest *t, double q) {
   int64_t    weight_so_far;
   SCentroid *a, *b, tmp;
 
-  tdigestCompress(t);
+  (void)tdigestCompress(t);
   if (t->num_centroids == 0) return NAN;
   if (t->num_centroids == 1) return t->centroids[0].mean;
   if (FLOAT_EQ(q, 0.0)) return t->min;
@@ -284,16 +291,21 @@ double tdigestQuantile(TDigest *t, double q) {
   return t->max;
 }
 
-void tdigestMerge(TDigest *t1, TDigest *t2) {
+int32_t tdigestMerge(TDigest *t1, TDigest *t2) {
+  int32_t code = 0;
   // SPoints
   int32_t num_pts = t2->num_buffered_pts;
   for (int32_t i = num_pts - 1; i >= 0; i--) {
     SPt *p = t2->buffered_pts + i;
-    tdigestAdd(t1, p->value, p->weight);
+    code = tdigestAdd(t1, p->value, p->weight);
+    if (code) return code;
     t2->num_buffered_pts--;
   }
   // centroids
   for (int32_t i = 0; i < t2->num_centroids; i++) {
-    tdigestAdd(t1, t2->centroids[i].mean, t2->centroids[i].weight);
+    code = tdigestAdd(t1, t2->centroids[i].mean, t2->centroids[i].weight);
+    if (code) return code;
   }
+
+  return 0;
 }

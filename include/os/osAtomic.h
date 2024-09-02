@@ -114,6 +114,12 @@ int32_t atomic_fetch_xor_32(int32_t volatile *ptr, int32_t val);
 int64_t atomic_fetch_xor_64(int64_t volatile *ptr, int64_t val);
 void   *atomic_fetch_xor_ptr(void *ptr, void *val);
 
+#ifdef _MSC_VER
+#define tmemory_barrier(order) MemoryBarrier()
+#else
+#define tmemory_barrier(order) __sync_synchronize()
+#endif
+
 #ifdef __cplusplus
 }
 #endif

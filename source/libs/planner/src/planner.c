@@ -19,22 +19,28 @@
 #include "scalar.h"
 #include "tglobal.h"
 
-static void debugPrintNode(SNode* pNode) {
-  char* pStr = NULL;
-  nodesNodeToString(pNode, false, &pStr, NULL);
-  printf("%s\n", pStr);
-  taosMemoryFree(pStr);
-  return;
+static int32_t debugPrintNode(SNode* pNode) {
+  char*   pStr = NULL;
+  int32_t code = nodesNodeToString(pNode, false, &pStr, NULL);
+  if (TSDB_CODE_SUCCESS == code) {
+    (void)printf("%s\n", pStr);
+    taosMemoryFree(pStr);
+  }
+  return code;
 }
 
-static void dumpQueryPlan(SQueryPlan* pPlan) {
+static int32_t dumpQueryPlan(SQueryPlan* pPlan) {
+  int32_t code = 0;
   if (!tsQueryPlannerTrace) {
-    return;
+    return code;
   }
   char* pStr = NULL;
-  nodesNodeToString((SNode*)pPlan, false, &pStr, NULL);
-  planDebugL("QID:0x%" PRIx64 " Query Plan, JsonPlan: %s", pPlan->queryId, pStr);
-  taosMemoryFree(pStr);
+  code = nodesNodeToString((SNode*)pPlan, false, &pStr, NULL);
+  if (TSDB_CODE_SUCCESS == code) {
+    planDebugL("qid:0x%" PRIx64 " Query Plan, JsonPlan: %s", pPlan->queryId, pStr);
+    taosMemoryFree(pStr);
+  }
+  return code;
 }
 
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
@@ -61,9 +67,9 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
     code = validateQueryPlan(pCxt, *pPlan);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    dumpQueryPlan(*pPlan);
+    code = dumpQueryPlan(*pPlan);
   }
-  nodesReleaseAllocator(pCxt->allocatorId);
+  (void)nodesReleaseAllocator(pCxt->allocatorId);
 
   nodesDestroyNode((SNode*)pLogicSubplan);
   nodesDestroyNode((SNode*)pLogicPlan);
@@ -72,10 +78,15 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 }
 
 static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDownstreamSourceNode* pSource) {
+  int32_t code = 0;
   if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pNode)) {
     SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pNode;
     if (groupId >= pExchange->srcStartGroupId && groupId <= pExchange->srcEndGroupId) {
-      return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, nodesCloneNode((SNode*)pSource));
+      SNode* pNew = NULL;
+      code = nodesCloneNode((SNode*)pSource, &pNew);
+      if (TSDB_CODE_SUCCESS == code) {
+        return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, pNew);
+      }
     }
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == nodeType(pNode)) {
     SMergePhysiNode* pMerge = (SMergePhysiNode*)pNode;
@@ -87,27 +98,32 @@ static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDown
       } else {
         --(pMerge->numOfChannels);
       }
-      return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, nodesCloneNode((SNode*)pSource));
+      SNode* pNew = NULL;
+      code = nodesCloneNode((SNode*)pSource, &pNew);
+      if (TSDB_CODE_SUCCESS == code) {
+        return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, pNew);
+      }
     }
   }
 
   SNode* pChild = NULL;
-  FOREACH(pChild, pNode->pChildren) {
-    if (TSDB_CODE_SUCCESS != setSubplanExecutionNode((SPhysiNode*)pChild, groupId, pSource)) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+  if (TSDB_CODE_SUCCESS == code) {
+    FOREACH(pChild, pNode->pChildren) {
+      if (TSDB_CODE_SUCCESS != (code = setSubplanExecutionNode((SPhysiNode*)pChild, groupId, pSource))) {
+        return code;
+      }
     }
   }
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
-int32_t qContinuePlanPostQuery(void *pPostPlan) {
-  //TODO
+int32_t qContinuePlanPostQuery(void* pPostPlan) {
+  // TODO
   return TSDB_CODE_SUCCESS;
 }
-
 
 int32_t qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstreamSourceNode* pSource) {
-  planDebug("QID:0x%" PRIx64 " set subplan execution node, groupId:%d", subplan->id.queryId, groupId);
+  planDebug("qid:0x%" PRIx64 " set subplan execution node, groupId:%d", subplan->id.queryId, groupId);
   return setSubplanExecutionNode(subplan->pNode, groupId, pSource);
 }
 
@@ -127,7 +143,7 @@ static void clearSubplanExecutionNode(SPhysiNode* pNode) {
 }
 
 void qClearSubplanExecutionNode(SSubplan* pSubplan) {
-  planDebug("QID:0x%" PRIx64 " clear subplan execution node, groupId:%d", pSubplan->id.queryId, pSubplan->id.groupId);
+  planDebug("qid:0x%" PRIx64 " clear subplan execution node, groupId:%d", pSubplan->id.queryId, pSubplan->id.groupId);
   clearSubplanExecutionNode(pSubplan->pNode);
 }
 

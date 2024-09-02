@@ -9,3 +9,4 @@ requests
 pexpect
 faker
 pyopenssl
+hyperloglog

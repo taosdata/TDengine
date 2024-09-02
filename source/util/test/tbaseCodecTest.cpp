@@ -19,14 +19,16 @@ using namespace std;
 
 static void checkBase58Codec(uint8_t *pRaw, int32_t rawLen, int32_t index) {
   int64_t start = taosGetTimestampUs();
-  char   *pEnc = base58_encode((const uint8_t *)pRaw, rawLen);
+  char   *pEnc = NULL;
+  (void)base58_encode((const uint8_t *)pRaw, rawLen, &pEnc);
   ASSERT_NE(nullptr, pEnc);
 
   int32_t encLen = strlen(pEnc);
   int64_t endOfEnc = taosGetTimestampUs();
   std::cout << "index:" << index << ", encLen is " << encLen << ", cost:" << endOfEnc - start << " us" << std::endl;
   int32_t decLen = 0;
-  char   *pDec = (char *)base58_decode((const char *)pEnc, encLen, &decLen);
+  char   *pDec = NULL;
+  (void)base58_decode((const char *)pEnc, encLen, &decLen, (uint8_t**)&pDec);
   std::cout << "index:" << index << ", decLen is " << decLen << ", cost:" << taosGetTimestampUs() - endOfEnc << " us"
             << std::endl;
   ASSERT_NE(nullptr, pDec);
@@ -68,9 +70,11 @@ TEST(TD_BASE_CODEC_TEST, tbase58_test) {
 
   // 2. overflow case
   char  tmp[1];
-  char *pEnc = base58_encode((const uint8_t *)tmp, TBASE_MAX_ILEN + 1);
+  char *pEnc = NULL;
+  (void)base58_encode((const uint8_t *)tmp, TBASE_MAX_ILEN + 1, &pEnc);
   ASSERT_EQ(nullptr, pEnc);
-  char *pDec = (char *)base58_decode((const char *)tmp, TBASE_MAX_OLEN + 1, NULL);
+  char *pDec = NULL;
+  (void)base58_decode((const char *)tmp, TBASE_MAX_OLEN + 1, NULL, (uint8_t**)&pDec);
   ASSERT_EQ(nullptr, pDec);
 
   taosMemoryFreeClear(pRaw);

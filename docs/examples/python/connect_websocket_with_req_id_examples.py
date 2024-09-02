@@ -14,7 +14,6 @@ conn.execute("insert into tb1 values (now, 1)", req_id=6)
 conn.execute("insert into tb1 values (now, 2)", req_id=7)
 conn.execute("insert into tb1 values (now, 3)", req_id=8)
 
-r = conn.execute("select * from stb", req_id=9)
 result = conn.query("select * from stb", req_id=10)
 num_of_fields = result.field_count
 print(num_of_fields)

@@ -29,7 +29,7 @@ enum TdTimezone tsTimezone = TdZeroZone;
 char            tsLocale[TD_LOCALE_LEN] = {0};
 char            tsCharset[TD_CHARSET_LEN] = {0};
 int8_t          tsDaylight = 0;
-bool            tsEnableCoreFile = 0;
+bool            tsEnableCoreFile = 1;
 int64_t         tsPageSizeKB = 0;
 int64_t         tsOpenMax = 0;
 int64_t         tsStreamMax = 0;
@@ -38,17 +38,24 @@ int64_t         tsTotalMemoryKB = 0;
 char           *tsProcPath = NULL;
 
 char tsSIMDEnable = 0;
-char tsSSE42Enable = 0;
-char tsAVXEnable = 0;
-char tsAVX2Enable = 0;
-char tsFMAEnable = 0;
 char tsAVX512Enable = 0;
+char tsSSE42Supported = 0;
+char tsAVXSupported = 0;
+char tsAVX2Supported = 0;
+char tsFMASupported = 0;
+char tsAVX512Supported = 0;
 
-void osDefaultInit() {
+int32_t osDefaultInit() {
+  int32_t code = TSDB_CODE_SUCCESS;
+
   taosSeedRand(taosSafeRand());
   taosGetSystemLocale(tsLocale, tsCharset);
   taosGetSystemTimezone(tsTimezoneStr, &tsTimezone);
-  taosSetSystemTimezone(tsTimezoneStr, tsTimezoneStr, &tsDaylight, &tsTimezone);
+  if (strlen(tsTimezoneStr) > 0) { // ignore empty timezone
+    if ((code = taosSetSystemTimezone(tsTimezoneStr, tsTimezoneStr, &tsDaylight, &tsTimezone)) != TSDB_CODE_SUCCESS)
+      return code;
+  }
+
   taosGetSystemInfo();
 
   // deadlock in query
@@ -64,31 +71,35 @@ void osDefaultInit() {
     tmpDir = getenv("temp");
   }
   if (tmpDir != NULL) {
-    strcpy(tsTempDir, tmpDir);
+    (void)strcpy(tsTempDir, tmpDir);
   }
-  strcpy(tsOsName, "Windows");
+  (void)strcpy(tsOsName, "Windows");
 #elif defined(_TD_DARWIN_64)
-  strcpy(tsOsName, "Darwin");
+  (void)strcpy(tsOsName, "Darwin");
 #else
-  strcpy(tsOsName, "Linux");
+  (void)strcpy(tsOsName, "Linux");
 #endif
   if (configDir[0] == 0) {
-    strcpy(configDir, TD_CFG_DIR_PATH);
+    (void)strcpy(configDir, TD_CFG_DIR_PATH);
   }
-  strcpy(tsDataDir, TD_DATA_DIR_PATH);
-  strcpy(tsLogDir, TD_LOG_DIR_PATH);
-  strcpy(tsTempDir, TD_TMP_DIR_PATH);
+  (void)strcpy(tsDataDir, TD_DATA_DIR_PATH);
+  (void)strcpy(tsLogDir, TD_LOG_DIR_PATH);
+  if(strlen(tsTempDir) == 0){
+    (void)strcpy(tsTempDir, TD_TMP_DIR_PATH);
+  }
+
+  return code;
 }
 
 void osUpdate() {
   if (tsLogDir[0] != 0) {
-    taosGetDiskSize(tsLogDir, &tsLogSpace.size);
+    (void)taosGetDiskSize(tsLogDir, &tsLogSpace.size);
   }
   if (tsDataDir[0] != 0) {
-    taosGetDiskSize(tsDataDir, &tsDataSpace.size);
+    (void)taosGetDiskSize(tsDataDir, &tsDataSpace.size);
   }
   if (tsTempDir[0] != 0) {
-    taosGetDiskSize(tsTempDir, &tsTempSpace.size);
+    (void)taosGetDiskSize(tsTempDir, &tsTempSpace.size);
   }
 }
 
@@ -106,11 +117,11 @@ bool osDataSpaceSufficient() { return tsDataSpace.size.avail > tsDataSpace.reser
 
 bool osTempSpaceSufficient() { return tsTempSpace.size.avail > tsTempSpace.reserved; }
 
-void osSetTimezone(const char *tz) { taosSetSystemTimezone(tz, tsTimezoneStr, &tsDaylight, &tsTimezone); }
+int32_t osSetTimezone(const char *tz) { return taosSetSystemTimezone(tz, tsTimezoneStr, &tsDaylight, &tsTimezone); }
 
 void osSetSystemLocale(const char *inLocale, const char *inCharSet) {
-  memcpy(tsLocale, inLocale, strlen(inLocale) + 1);
-  memcpy(tsCharset, inCharSet, strlen(inCharSet) + 1);
+  (void)memcpy(tsLocale, inLocale, strlen(inLocale) + 1);
+  (void)memcpy(tsCharset, inCharSet, strlen(inCharSet) + 1);
 }
 
 void osSetProcPath(int32_t argc, char **argv) { tsProcPath = argv[0]; }

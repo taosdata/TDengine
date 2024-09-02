@@ -64,10 +64,10 @@ typedef struct TDigest {
 } TDigest;
 
 TDigest *tdigestNewFrom(void *pBuf, int32_t compression);
-void     tdigestAdd(TDigest *t, double x, int64_t w);
-void     tdigestMerge(TDigest *t1, TDigest *t2);
+int32_t  tdigestAdd(TDigest *t, double x, int64_t w);
+int32_t  tdigestMerge(TDigest *t1, TDigest *t2);
 double   tdigestQuantile(TDigest *t, double q);
-void     tdigestCompress(TDigest *t);
+int32_t  tdigestCompress(TDigest *t);
 void     tdigestFreeFrom(TDigest *t);
 void     tdigestAutoFill(TDigest *t, int32_t compression);
 

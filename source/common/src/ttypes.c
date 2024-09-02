@@ -175,7 +175,7 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
       break;
     default: {
       if (len > 0) {
-        memcpy(val, src, len);
+        (void)memcpy(val, src, len);
       }
 
       break;

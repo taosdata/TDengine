@@ -22,6 +22,10 @@
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
+#else
+#ifndef CUS_PROMPT
+#define CUS_PROMPT "taos"
+#endif
 #endif
 
 #define TAOS_CONSOLE_PROMPT_CONTINUE "   -> "
@@ -57,7 +61,7 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg);
 
 void shellPrintHelp() {
   char indent[] = "  ";
-  printf("Usage: taos [OPTION...] \r\n\r\n");
+  printf("Usage: %s [OPTION...] \r\n\r\n", CUS_PROMPT);
   printf("%s%s%s%s\r\n", indent, "-a,", indent, SHELL_AUTH);
   printf("%s%s%s%s\r\n", indent, "-A,", indent, SHELL_GEN_AUTH);
   printf("%s%s%s%s\r\n", indent, "-B,", indent, SHELL_BI_MODE);
@@ -311,7 +315,7 @@ static void shellInitArgs(int argc, char *argv[]) {
       if (strlen(argv[i]) == 2) {
         printf("Enter password: ");
         taosSetConsoleEcho(false);
-        if (scanf("%20s", shell.args.password) > 1) {
+        if (scanf("%128s", shell.args.password) > 1) {
           fprintf(stderr, "password reading error\n");
         }
         taosSetConsoleEcho(true);
@@ -435,12 +439,12 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shell.info.promptSize = strlen(shell.info.promptHeader);
 #ifdef TD_ENTERPRISE
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
-           "version: %s compatible_version: %s\ngitinfo: %s\ngitinfoOfInternal: %s\nbuildInfo: %s", version,
-           compatible_version, gitinfo, gitinfoOfInternal, buildinfo);
+           "%s\n%s version: %s compatible_version: %s\ngit: %s\ngitOfInternal: %s\nbuild: %s", TD_PRODUCT_NAME,
+           CUS_PROMPT, version, compatible_version, gitinfo, gitinfoOfInternal, buildinfo);
 #else
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
-           "version: %s compatible_version: %s\ngitinfo: %s\nbuildInfo: %s", version, compatible_version, gitinfo,
-           buildinfo);
+           "%s\n%s version: %s compatible_version: %s\ngit: %s\nbuild: %s", TD_PRODUCT_NAME, CUS_PROMPT, version,
+           compatible_version, gitinfo, buildinfo);
 #endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)

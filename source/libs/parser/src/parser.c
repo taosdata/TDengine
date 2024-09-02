@@ -48,6 +48,74 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
   return false;
 }
 
+bool qIsCreateTbFromFileSql(const char* pStr, size_t length) {
+  if (NULL == pStr) {
+    return false;
+  }
+
+  const char* pSql = pStr;
+
+  int32_t index = 0;
+  SToken  t = tStrGetToken((char*)pStr, &index, false, NULL);
+  if (TK_CREATE != t.type) {
+    return false;
+  }
+
+  do {
+    pStr += index;
+    index = 0;
+    t = tStrGetToken((char*)pStr, &index, false, NULL);
+    if (TK_FILE == t.type) {
+      return true;
+    }
+    if (0 == t.type || 0 == t.n) {
+      break;
+    }
+  } while (pStr - pSql < length);
+  return false;
+}
+
+bool qParseDbName(const char* pStr, size_t length, char** pDbName) {
+  (void) length;
+  int32_t index = 0;
+  SToken t;
+
+  if (NULL == pStr) {
+    *pDbName = NULL;
+    return false;
+  }
+
+  t = tStrGetToken((char *) pStr, &index, false, NULL);
+  if (TK_INSERT != t.type && TK_IMPORT != t.type) {
+    *pDbName = NULL;
+    return false;
+  }
+
+  t = tStrGetToken((char *) pStr, &index, false, NULL);
+  if (TK_INTO != t.type) {
+    *pDbName = NULL;
+    return false;
+  }
+
+  t = tStrGetToken((char *) pStr, &index, false, NULL);
+  if (t.n == 0 || t.z == NULL) {
+    *pDbName = NULL;
+    return false;
+  }
+  char *dotPos = strnchr(t.z, '.', t.n, true);
+  if (dotPos != NULL) {
+    int dbNameLen = dotPos - t.z;
+    *pDbName = taosMemoryMalloc(dbNameLen + 1);
+    if (*pDbName == NULL) {
+      return false;
+    }
+    strncpy(*pDbName, t.z, dbNameLen);
+    (*pDbName)[dbNameLen] = '\0';
+    return true;
+  }
+  return false;
+}
+
 static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
   int32_t code = authenticate(pCxt, pQuery, pMetaCache);
 
@@ -198,16 +266,24 @@ static int32_t parseQuerySyntax(SParseContext* pCxt, SQuery** pQuery, struct SCa
   return code;
 }
 
+static int32_t parseCreateTbFromFileSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq) {
+  if (NULL == *pQuery) return parseQuerySyntax(pCxt, pQuery, pCatalogReq);
+
+  return continueCreateTbFromFile(pCxt, pQuery);
+}
+
 int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq) {
   int32_t code = nodesAcquireAllocator(pCxt->allocatorId);
   if (TSDB_CODE_SUCCESS == code) {
     if (qIsInsertValuesSql(pCxt->pSql, pCxt->sqlLen)) {
       code = parseInsertSql(pCxt, pQuery, pCatalogReq, NULL);
+    } else if (qIsCreateTbFromFileSql(pCxt->pSql, pCxt->sqlLen)) {
+      code = parseCreateTbFromFileSyntax(pCxt, pQuery, pCatalogReq);
     } else {
       code = parseQuerySyntax(pCxt, pQuery, pCatalogReq);
     }
   }
-  nodesReleaseAllocator(pCxt->allocatorId);
+  (void)nodesReleaseAllocator(pCxt->allocatorId);
   terrno = code;
   return code;
 }
@@ -222,7 +298,7 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
   if (TSDB_CODE_SUCCESS == code) {
     code = analyseSemantic(pCxt, pQuery, &metaCache);
   }
-  nodesReleaseAllocator(pCxt->allocatorId);
+  (void)nodesReleaseAllocator(pCxt->allocatorId);
   destoryParseMetaCache(&metaCache, false);
   terrno = code;
   return code;
@@ -281,7 +357,7 @@ void destoryCatalogReq(SCatalogReq *pCatalogReq) {
     taosArrayDestroyEx(pCatalogReq->pTableHash, destoryTablesReq);
 #ifdef TD_ENTERPRISE
     taosArrayDestroyEx(pCatalogReq->pView, destoryTablesReq);
-#endif  
+#endif
     taosArrayDestroyEx(pCatalogReq->pTableTSMAs, destoryTablesReq);
     taosArrayDestroyEx(pCatalogReq->pTSMAs, destoryTablesReq);
   }
@@ -334,6 +410,10 @@ int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid) {
   return TSDB_CODE_FAILED;
 }
 
+int32_t qInitKeywordsTable() {
+  return taosInitKeywordsTable();
+}
+
 void qCleanupKeywordsTable() { taosCleanupKeywordsTable(); }
 
 int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx) {
@@ -353,9 +433,10 @@ int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx
 
   if (TSDB_CODE_SUCCESS == code && (colIdx < 0 || colIdx + 1 == pQuery->placeholderNum)) {
     nodesDestroyNode(pQuery->pRoot);
-    pQuery->pRoot = nodesCloneNode(pQuery->pPrepareRoot);
+    pQuery->pRoot = NULL;
+    code = nodesCloneNode(pQuery->pPrepareRoot, &pQuery->pRoot);
     if (NULL == pQuery->pRoot) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = code;
     }
   }
   if (TSDB_CODE_SUCCESS == code) {

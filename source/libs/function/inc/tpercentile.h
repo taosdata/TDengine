@@ -21,17 +21,16 @@ extern "C" {
 #endif
 
 #include "tpagedbuf.h"
-#include "ttszip.h"
 
 typedef struct MinMaxEntry {
   union {
-    double   dMinVal;
-    //double   i64MinVal;
+    double dMinVal;
+    // double   i64MinVal;
     uint64_t u64MinVal;
   };
   union {
-    double  dMaxVal;
-    //double  i64MaxVal;
+    double dMaxVal;
+    // double  i64MaxVal;
     int64_t u64MaxVal;
   };
 } MinMaxEntry;
@@ -48,7 +47,7 @@ typedef struct tMemBucketSlot {
 } tMemBucketSlot;
 
 struct tMemBucket;
-typedef int32_t (*__perc_hash_func_t)(struct tMemBucket *pBucket, const void *value);
+typedef int32_t (*__perc_hash_func_t)(struct tMemBucket *pBucket, const void *value, int32_t *index);
 
 typedef struct tMemBucket {
   int16_t            numOfSlots;
@@ -67,7 +66,8 @@ typedef struct tMemBucket {
   SHashObj          *groupPagesMap;  // disk page map for different groups;
 } tMemBucket;
 
-tMemBucket *tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, double maxval);
+int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, double maxval, bool hasWindowOrGroup,
+                         tMemBucket **pBucket);
 
 void tMemBucketDestroy(tMemBucket *pBucket);
 

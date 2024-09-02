@@ -87,35 +87,34 @@ class TDTestCase:
         tdSql.execute(f'insert into t2 using st tags(2) values(now, 1) (now+1s, 2)')
         tdSql.execute(f'insert into t3 using st tags(3) values(now, 1) (now+1s, 2)')
 
-        tdSql.execute("create stream stream1 fill_history 1 into sta subtable(concat('new-', tname)) AS SELECT "
+        tdSql.execute("create stream stream1 fill_history 1 into sta subtable(concat('nee.w-', tname)) AS SELECT "
                       "_wstart, count(*), avg(i) FROM st PARTITION BY tbname tname INTERVAL(1m)", show=True)
 
         tdSql.execute("create stream stream2 fill_history 1 into stb subtable(concat('new-', tname)) AS SELECT "
                       "_wstart, count(*), avg(i) FROM st PARTITION BY tbname tname INTERVAL(1m)", show=True)
 
-        time.sleep(2)
-        tdSql.query("select * from sta")
-        tdSql.checkRows(3)
+        sql= "select * from sta"
+        tdSql.check_rows_loop(3, sql, loopCount=100, waitTime=0.5)
         tdSql.query("select tbname from sta order by tbname")
-        if not tdSql.getData(0, 0).startswith('new-t1_1.d1.sta_'):
+        if not tdSql.getData(0, 0).startswith('nee_w-t1_sta_'):
             tdLog.exit("error1")
 
-        if not tdSql.getData(1, 0).startswith('new-t2_1.d1.sta_'):
+        if not tdSql.getData(1, 0).startswith('nee_w-t2_sta_'):
             tdLog.exit("error2")
 
-        if not tdSql.getData(2, 0).startswith('new-t3_1.d1.sta_'):
+        if not tdSql.getData(2, 0).startswith('nee_w-t3_sta_'):
             tdLog.exit("error3")
 
-        tdSql.query("select * from stb")
-        tdSql.checkRows(3)
+        sql= "select * from stb"
+        tdSql.check_rows_loop(3, sql, loopCount=100, waitTime=0.5)
         tdSql.query("select tbname from stb order by tbname")
-        if not tdSql.getData(0, 0).startswith('new-t1_1.d1.stb_'):
+        if not tdSql.getData(0, 0).startswith('new-t1_stb_'):
             tdLog.exit("error4")
 
-        if not tdSql.getData(1, 0).startswith('new-t2_1.d1.stb_'):
+        if not tdSql.getData(1, 0).startswith('new-t2_stb_'):
             tdLog.exit("error5")
 
-        if not tdSql.getData(2, 0).startswith('new-t3_1.d1.stb_'):
+        if not tdSql.getData(2, 0).startswith('new-t3_stb_'):
             tdLog.exit("error6")
 
     # run

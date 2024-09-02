@@ -101,13 +101,15 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
  */
 int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
 
+int64_t mndGetRoleTimeMs(SMnode *pMnode);
+
 /**
  * @brief Process the rpc, sync request.
  *
  * @param pMsg The request msg.
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t mndProcessRpcMsg(SRpcMsg *pMsg);
+int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo* pQueueInfo);
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg);
 int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg);
 void    mndPostProcessQueryMsg(SRpcMsg *pMsg);

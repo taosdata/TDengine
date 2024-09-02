@@ -28,6 +28,11 @@ typedef enum { HTTP_GZIP, HTTP_FLAT } EHttpCompFlag;
 int32_t taosSendHttpReport(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
                            EHttpCompFlag flag);
 
+int64_t taosInitHttpChan();
+int32_t taosSendHttpReportByChan(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                                 EHttpCompFlag flag, int64_t chanId);
+void    taosDestroyHttpChan(int64_t chanId);
+
 #ifdef __cplusplus
 }
 #endif

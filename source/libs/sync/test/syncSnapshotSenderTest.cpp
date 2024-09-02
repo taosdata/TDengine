@@ -39,7 +39,8 @@ SSyncSnapshotSender* createSender() {
   pSyncNode->pFsm->FpGetSnapshotInfo = GetSnapshot;
 #endif
 
-  SSyncSnapshotSender* pSender = snapshotSenderCreate(pSyncNode, 2);
+  SSyncSnapshotSender* pSender = NULL;
+  (void)snapshotSenderCreate(pSyncNode, 2, &pSender);
   pSender->start = true;
   pSender->seq = 10;
   pSender->ack = 20;

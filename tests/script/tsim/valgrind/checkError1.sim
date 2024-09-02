@@ -120,7 +120,7 @@ if $rows != 3 then
 endi
 
 sql show variables;
-if $rows != 4 then
+if $rows != 9 then
   return -1
 endi
 

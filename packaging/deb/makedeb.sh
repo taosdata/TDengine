@@ -76,11 +76,11 @@ if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
     cp ${compile_dir}/test/cfg/taosadapter.service	${pkg_dir}${install_home_path}/cfg || :
 fi
 
-if [ -f "%{_compiledir}/../../../explorer/target/taos-explorer.service" ]; then
-    cp %{_compiledir}/../../../explorer/target/taos-explorer.service ${pkg_dir}${install_home_path}/cfg || :
+if [ -f "${compile_dir}/../../../explorer/target/taos-explorer.service" ]; then
+    cp ${compile_dir}/../../../explorer/target/taos-explorer.service ${pkg_dir}${install_home_path}/cfg || :
 fi
-if [ -f "%{_compiledir}/../../../explorer/server/example/explorer.toml" ]; then
-    cp %{_compiledir}/../../../explorer/server/example/explorer.toml	${pkg_dir}${install_home_path}/cfg || :
+if [ -f "${compile_dir}/../../../explorer/server/example/explorer.toml" ]; then
+    cp ${compile_dir}/../../../explorer/server/example/explorer.toml	${pkg_dir}${install_home_path}/cfg || :
 fi
 
 cp ${taoskeeper_binary}                      ${pkg_dir}${install_home_path}/bin
@@ -90,6 +90,11 @@ cp ${compile_dir}/../packaging/tools/preun.sh       ${pkg_dir}${install_home_pat
 cp ${compile_dir}/../packaging/tools/startPre.sh    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/../packaging/tools/set_core.sh    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/../packaging/tools/taosd-dump-cfg.gdb    ${pkg_dir}${install_home_path}/bin
+cp ${top_dir}/../enterprise/packaging/start-all.sh  ${pkg_dir}${install_home_path}/bin
+cp ${top_dir}/../enterprise/packaging/stop-all.sh  ${pkg_dir}${install_home_path}/bin
+sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" ${pkg_dir}${install_home_path}/bin/start-all.sh
+sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" ${pkg_dir}${install_home_path}/bin/stop-all.sh
+
 
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/udfd                   ${pkg_dir}${install_home_path}/bin

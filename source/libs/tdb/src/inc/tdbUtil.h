@@ -13,17 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tdbInt.h"
+
 #ifndef _TDB_UTIL_H_
 #define _TDB_UTIL_H_
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-#if __STDC_VERSION__ >= 201112LL
-#define TDB_STATIC_ASSERT(op, info) static_assert(op, info)
-#else
-#define TDB_STATIC_ASSERT(op, info)
 #endif
 
 #define TDB_ROUND8(x) (((x) + 7) & ~7)
@@ -56,8 +52,6 @@ static inline int tdbPutVarInt(u8 *p, int v) {
     v >>= 7;
   }
 
-  ASSERT(n < 6);
-
   return n;
 }
 
@@ -78,8 +72,6 @@ static inline int tdbGetVarInt(const u8 *p, int *v) {
     tv |= (t << (7 * n));
     n++;
   }
-
-  ASSERT(n < 6);
 
   *v = tv;
   return n;

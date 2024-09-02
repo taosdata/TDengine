@@ -15,6 +15,8 @@ sql use test;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 sql create stream streams0 trigger at_once ignore expired 0 ignore update 0  into streamt as select  _wstart, count(*) c1 from t1 interval(1s);
 
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1 values(1648791211000,1,2,3,1.0);
 sql insert into t1 values(1648791212001,2,2,3,1.1);
 sql insert into t1 values(1648791213002,3,2,3,2.1);
@@ -80,7 +82,8 @@ sql use test2;
 sql create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create stream streams2 trigger at_once ignore expired 0 ignore update 0 waterMark 200s  into streamt2 as select  _wstart, count(*) c1 from t1 interval(1s);
-sleep 1000
+
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791211000,1,2,3,1.0);
 sql insert into t1 values(1648791212001,2,2,3,1.1);
@@ -146,6 +149,8 @@ sql create database test1  vgroups 1;
 sql use test1;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 sql create stream streams1 trigger at_once ignore expired 0 ignore update 0 into streamt1 as select  _wstart, count(*) c1 from t1 session(ts, 1s);
+
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791211000,1,2,3,1.0);
 sql insert into t1 values(1648791213000,1,2,3,1.1);

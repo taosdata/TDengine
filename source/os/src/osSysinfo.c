@@ -19,6 +19,10 @@
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
+#else
+#ifndef CUS_PROMPT
+#define CUS_PROMPT "taos"
+#endif
 #endif
 
 #define PROCESS_ITEM 12
@@ -29,6 +33,12 @@ typedef struct {
   uint64_t nice;
   uint64_t system;
   uint64_t idle;
+  uint64_t wa;
+  uint64_t hi;
+  uint64_t si;
+  uint64_t st;
+  uint64_t guest;
+  uint64_t guest_nice;
 } SysCpuInfo;
 
 typedef struct {
@@ -133,13 +143,14 @@ static void taosGetProcIOnfos() {
   tsStreamMax = TMAX(sysconf(_SC_STREAM_MAX), 0);
   tsProcId = (pid_t)syscall(SYS_gettid);
 
-  snprintf(tsProcMemFile, sizeof(tsProcMemFile), "/proc/%d/status", tsProcId);
-  snprintf(tsProcCpuFile, sizeof(tsProcCpuFile), "/proc/%d/stat", tsProcId);
-  snprintf(tsProcIOFile, sizeof(tsProcIOFile), "/proc/%d/io", tsProcId);
+  (void)snprintf(tsProcMemFile, sizeof(tsProcMemFile), "/proc/%d/status", tsProcId);
+  (void)snprintf(tsProcCpuFile, sizeof(tsProcCpuFile), "/proc/%d/stat", tsProcId);
+  (void)snprintf(tsProcIOFile, sizeof(tsProcIOFile), "/proc/%d/io", tsProcId);
 }
 #endif
 
 static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
+  int32_t code = 0;
 #ifdef WINDOWS
   FILETIME pre_idleTime = {0};
   FILETIME pre_kernelTime = {0};
@@ -162,26 +173,38 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
 #else
   TdFilePtr pFile = taosOpenFile(tsSysCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
-    return -1;
+    return terrno;
   }
 
   char    line[1024];
   ssize_t bytes = taosGetsFile(pFile, sizeof(line), line);
   if (bytes < 0) {
-    taosCloseFile(&pFile);
-    return -1;
+    code = terrno;
+    (void)taosCloseFile(&pFile);
+    terrno = code;
+    return code;
   }
 
   char cpu[10] = {0};
-  sscanf(line, "%s %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system,
-         &cpuInfo->idle);
-
-  taosCloseFile(&pFile);
+  code = sscanf(line,
+         "%s %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64
+         " %" PRIu64,
+         cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system, &cpuInfo->idle, &cpuInfo->wa, &cpuInfo->hi,
+         &cpuInfo->si, &cpuInfo->st, &cpuInfo->guest, &cpuInfo->guest_nice);
+  if (EOF == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+  
+  (void)taosCloseFile(&pFile);
 #endif
+
   return 0;
 }
 
 static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
+  int32_t code = 0;
+
 #ifdef WINDOWS
   FILETIME pre_krnlTm = {0};
   FILETIME pre_usrTm = {0};
@@ -201,27 +224,35 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
 #else
   TdFilePtr pFile = taosOpenFile(tsProcCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
-    return -1;
+    return terrno;
   }
 
   char    line[1024] = {0};
   ssize_t bytes = taosGetsFile(pFile, sizeof(line), line);
   if (bytes < 0) {
-    taosCloseFile(&pFile);
-    return -1;
+    code = terrno;
+    (void)taosCloseFile(&pFile);
+    terrno = code;
+    return code;
   }
 
   for (int i = 0, blank = 0; line[i] != 0; ++i) {
     if (line[i] == ' ') blank++;
     if (blank == PROCESS_ITEM) {
-      sscanf(line + i + 1, "%" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, &cpuInfo->utime, &cpuInfo->stime,
+      code = sscanf(line + i + 1, "%" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, &cpuInfo->utime, &cpuInfo->stime,
              &cpuInfo->cutime, &cpuInfo->cstime);
+      if (EOF == code) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        return terrno;
+      }
+             
       break;
     }
   }
 
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
 #endif
+
   return 0;
 }
 
@@ -247,16 +278,16 @@ void taosGetSystemInfo() {
   tsNumOfCores = sysconf(_SC_NPROCESSORS_ONLN);
 #else
   taosGetProcIOnfos();
-  taosGetCpuCores(&tsNumOfCores, false);
-  taosGetTotalMemory(&tsTotalMemoryKB);
-  taosGetCpuUsage(NULL, NULL);
-  taosGetCpuInstructions(&tsSSE42Enable, &tsAVXEnable, &tsAVX2Enable, &tsFMAEnable, &tsAVX512Enable);
+  (void)taosGetCpuCores(&tsNumOfCores, false);
+  (void)taosGetTotalMemory(&tsTotalMemoryKB);
+  (void)taosGetCpuUsage(NULL, NULL);
+  (void)taosGetCpuInstructions(&tsSSE42Supported, &tsAVXSupported, &tsAVX2Supported, &tsFMASupported, &tsAVX512Supported);
 #endif
 }
 
 int32_t taosGetEmail(char *email, int32_t maxLen) {
 #ifdef WINDOWS
-  // ASSERT(0);
+  return 0;
 #elif defined(_TD_DARWIN_64)
 #ifdef CUS_PROMPT
   const char *filepath = "/usr/local/"CUS_PROMPT"/email";
@@ -282,14 +313,16 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
 #endif  // CUS_PROMPT
 
   TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ);
-  if (pFile == NULL) return false;
+  if (pFile == NULL) return terrno;
 
   if (taosReadFile(pFile, (void *)email, maxLen) < 0) {
-    taosCloseFile(&pFile);
-    return -1;
+    int32_t code = terrno;
+    (void)taosCloseFile(&pFile);
+    return code;
   }
 
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
+  
   return 0;
 #endif
 }
@@ -363,13 +396,15 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
   char    line[1024];
   char   *dest = NULL;
   size_t  size = 0;
-  int32_t code = -1;
+  int32_t code = 0;
   int32_t cnt = 0;
 
   TdFilePtr pFile = taosOpenFile("/etc/os-release", TD_FILE_READ | TD_FILE_STREAM);
-  if (pFile == NULL) return code;
+  if (pFile == NULL) {
+    return terrno;
+  }
 
-  while ((size = taosGetsFile(pFile, sizeof(line), line)) != -1) {
+  while ((size = taosGetsFile(pFile, sizeof(line), line)) > 0) {
     line[size - 1] = '\0';
     if (strncmp(line, "NAME", 4) == 0) {
       dest = sName;
@@ -392,7 +427,7 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
     if (++cnt >= 3) break;
   }
 
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
   return code;
 #endif
 }
@@ -441,13 +476,13 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   char    line[1024] = {0};
   size_t  size = 0;
   int32_t done = 0;
-  int32_t code = -1;
+  int32_t code = 0;
   float   coreCount = 0;
 
   TdFilePtr pFile = taosOpenFile("/proc/cpuinfo", TD_FILE_READ | TD_FILE_STREAM);
-  if (pFile == NULL) return code;
+  if (pFile == NULL) return terrno;
 
-  while (done != 3 && (size = taosGetsFile(pFile, sizeof(line), line)) != -1) {
+  while (done != 3 && (size = taosGetsFile(pFile, sizeof(line), line)) > 0) {
     line[size - 1] = '\0';
     if (((done & 1) == 0) && strncmp(line, "model name", 10) == 0) {
       const char *v = strchr(line, ':') + 2;
@@ -462,13 +497,13 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
     if (strncmp(line, "processor", 9) == 0) coreCount += 1;
   }
 
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
 
   if (code != 0 && (done & 1) == 0) {
     TdFilePtr pFile1 = taosOpenFile("/proc/device-tree/model", TD_FILE_READ | TD_FILE_STREAM);
     if (pFile1 != NULL) {
       ssize_t bytes = taosGetsFile(pFile1, maxLen, cpuModel);
-      taosCloseFile(&pFile);
+      (void)taosCloseFile(&pFile);
       if (bytes > 0) {
         code = 0;
         done |= 1;
@@ -478,7 +513,9 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
 
   if (code != 0 && (done & 1) == 0) {
     TdCmdPtr pCmd = taosOpenCmd("uname -a");
-    if (pCmd == NULL) return code;
+    if (pCmd == NULL) {
+      return terrno;
+    }
     if (taosGetsCmd(pCmd, maxLen, cpuModel) > 0) {
       code = 0;
       done |= 1;
@@ -507,11 +544,12 @@ static int32_t taosCntrGetCpuCores(float *numOfCores) {
     goto _sys;
   }
   char qline[32] = {0};
-  if (taosGetsFile(pFile, sizeof(qline), qline) < 0) {
-    taosCloseFile(&pFile);
+  if (taosGetsFile(pFile, sizeof(qline), qline) <= 0) {
+    (void)taosCloseFile(&pFile);
     goto _sys;
   }
-  taosCloseFile(&pFile);
+  
+  (void)taosCloseFile(&pFile);
   float quota = taosStr2Float(qline, NULL);
   if (quota < 0) {
     goto _sys;
@@ -520,12 +558,14 @@ static int32_t taosCntrGetCpuCores(float *numOfCores) {
   if (!(pFile = taosOpenFile(tsCpuPeriodFile, TD_FILE_READ | TD_FILE_STREAM))) {
     goto _sys;
   }
+  
   char pline[32] = {0};
-  if (taosGetsFile(pFile, sizeof(pline), pline) < 0) {
-    taosCloseFile(&pFile);
+  if (taosGetsFile(pFile, sizeof(pline), pline) <= 0) {
+    (void)taosCloseFile(&pFile);
     goto _sys;
   }
-  taosCloseFile(&pFile);
+  
+  (void)taosCloseFile(&pFile);
 
   float period = taosStr2Float(pline, NULL);
   float quotaCores = quota / period;
@@ -536,29 +576,32 @@ static int32_t taosCntrGetCpuCores(float *numOfCores) {
     *numOfCores = sysCores;
   }
   goto _end;
+  
 _sys:
   *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
+  
 _end:
   return 0;
+  
 #endif
 }
 
-int32_t taosGetCpuCores(float *numOfCores, bool physical) {
+void taosGetCpuCores(float *numOfCores, bool physical) {
 #ifdef WINDOWS
   SYSTEM_INFO info;
   GetSystemInfo(&info);
   *numOfCores = info.dwNumberOfProcessors;
-  return 0;
+  return;
 #elif defined(_TD_DARWIN_64)
   *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
-  return 0;
+  return;
 #else
   if (physical) {
     *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
   } else {
-    taosCntrGetCpuCores(numOfCores);
+    (void)taosCntrGetCpuCores(numOfCores);
   }
-  return 0;
+  return;
 #endif
 }
 
@@ -576,7 +619,8 @@ void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
   SysCpuInfo  sysCpu = {0};
   ProcCpuInfo procCpu = {0};
   if (taosGetSysCpuInfo(&sysCpu) == 0 && taosGetProcCpuInfo(&procCpu) == 0) {
-    curSysUsed = sysCpu.user + sysCpu.nice + sysCpu.system;
+    curSysUsed = sysCpu.user + sysCpu.nice + sysCpu.system + sysCpu.wa + sysCpu.hi + sysCpu.si + sysCpu.st +
+                 sysCpu.guest + sysCpu.guest_nice;
     curSysTotal = curSysUsed + sysCpu.idle;
     curProcTotal = procCpu.utime + procCpu.stime + procCpu.cutime + procCpu.cstime;
 
@@ -674,14 +718,14 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
   TdFilePtr pFile = taosOpenFile(tsProcMemFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     // printf("open file:%s failed", tsProcMemFile);
-    return -1;
+    return terrno;
   }
 
   ssize_t bytes = 0;
   char    line[1024] = {0};
   while (!taosEOFFile(pFile)) {
     bytes = taosGetsFile(pFile, sizeof(line), line);
-    if (bytes < 0) {
+    if (bytes <= 0) {
       break;
     }
     if (strstr(line, "VmRSS:") != NULL) {
@@ -690,9 +734,10 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
   }
 
   char tmp[10];
-  sscanf(line, "%s %" PRId64, tmp, usedKB);
+  (void)sscanf(line, "%s %" PRId64, tmp, usedKB);
 
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
+  
   return 0;
 #endif
 }
@@ -751,13 +796,14 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
   }
 #else
   struct statvfs info;
-  if (statvfs(dataDir, &info)) {
-    // terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+  if (-1 == statvfs(dataDir, &info)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   } else {
     diskSize->total = info.f_blocks * info.f_frsize;
     diskSize->avail = info.f_bavail * info.f_frsize;
     diskSize->used = diskSize->total - diskSize->avail;
+    
     return 0;
   }
 #endif
@@ -782,7 +828,9 @@ int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int
   return 0;
 #else
   TdFilePtr pFile = taosOpenFile(tsProcIOFile, TD_FILE_READ | TD_FILE_STREAM);
-  if (pFile == NULL) return -1;
+  if (pFile == NULL) {
+    return terrno;
+  }
 
   ssize_t bytes = 0;
   char    line[1024] = {0};
@@ -795,16 +843,16 @@ int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int
       break;
     }
     if (strstr(line, "rchar:") != NULL) {
-      sscanf(line, "%s %" PRId64, tmp, rchars);
+      (void)sscanf(line, "%s %" PRId64, tmp, rchars);
       readIndex++;
     } else if (strstr(line, "wchar:") != NULL) {
-      sscanf(line, "%s %" PRId64, tmp, wchars);
+      (void)sscanf(line, "%s %" PRId64, tmp, wchars);
       readIndex++;
     } else if (strstr(line, "read_bytes:") != NULL) {  // read_bytes
-      sscanf(line, "%s %" PRId64, tmp, read_bytes);
+      (void)sscanf(line, "%s %" PRId64, tmp, read_bytes);
       readIndex++;
     } else if (strstr(line, "write_bytes:") != NULL) {  // write_bytes
-      sscanf(line, "%s %" PRId64, tmp, write_bytes);
+      (void)sscanf(line, "%s %" PRId64, tmp, write_bytes);
       readIndex++;
     } else {
     }
@@ -812,7 +860,7 @@ int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int
     if (readIndex >= 4) break;
   }
 
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
 
   if (readIndex < 4) {
     return -1;
@@ -866,7 +914,9 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
   return 0;
 #else
   TdFilePtr pFile = taosOpenFile(tsSysNetFile, TD_FILE_READ | TD_FILE_STREAM);
-  if (pFile == NULL) return -1;
+  if (pFile == NULL) {
+    return terrno;
+  }
 
   ssize_t _bytes = 0;
   char    line[1024];
@@ -885,7 +935,7 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
     char    nouse0[200] = {0};
 
     _bytes = taosGetsFile(pFile, sizeof(line), line);
-    if (_bytes < 0) {
+    if (_bytes <= 0) {
       break;
     }
 
@@ -895,7 +945,7 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
       continue;
     }
 
-    sscanf(line,
+    (void)sscanf(line,
            "%s %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64
            " %" PRId64,
            nouse0, &o_rbytes, &rpackts, &nouse1, &nouse2, &nouse3, &nouse4, &nouse5, &nouse6, &o_tbytes, &tpackets);
@@ -903,7 +953,7 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
     *transmit_bytes += o_tbytes;
   }
 
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
 
   return 0;
 #endif
@@ -941,8 +991,8 @@ void taosKillSystem() {
   exit(0);
 #else
   // SIGINT
-  printf("taosd will shut down soon");
-  kill(tsProcId, 2);
+  (void)printf("%sd will shut down soon", CUS_PROMPT);
+  (void)kill(tsProcId, 2);
 #endif
 }
 
@@ -963,10 +1013,6 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
   // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
   uuid_unparse_lower(uuid, buf);
   int n = snprintf(uid, uidlen, "%.*s", (int)sizeof(buf), buf);  // though less performance, much safer
-  if (n >= uidlen) {
-    // target buffer is too small
-    return -1;
-  }
   return 0;
 #else
   int len = 0;
@@ -974,10 +1020,13 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
   // fd = open("/proc/sys/kernel/random/uuid", 0);
   TdFilePtr pFile = taosOpenFile("/proc/sys/kernel/random/uuid", TD_FILE_READ);
   if (pFile == NULL) {
-    return -1;
+    return terrno;
   } else {
     len = taosReadFile(pFile, uid, uidlen);
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
+    if (len < 0) {
+      return len;
+    }
   }
 
   if (len >= 36) {
@@ -991,7 +1040,6 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
 
 char *taosGetCmdlineByPID(int pid) {
 #ifdef WINDOWS
-  ASSERT(0);
   return "";
 #elif defined(_TD_DARWIN_64)
   static char cmdline[1024];
@@ -1005,7 +1053,7 @@ char *taosGetCmdlineByPID(int pid) {
   return cmdline;
 #else
   static char cmdline[1024];
-  sprintf(cmdline, "/proc/%d/cmdline", pid);
+  (void)sprintf(cmdline, "/proc/%d/cmdline", pid);
 
   // int fd = open(cmdline, O_RDONLY);
   TdFilePtr pFile = taosOpenFile(cmdline, TD_FILE_READ);
@@ -1017,7 +1065,7 @@ char *taosGetCmdlineByPID(int pid) {
 
     cmdline[n] = 0;
 
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
   } else {
     cmdline[0] = 0;
   }
@@ -1031,9 +1079,13 @@ int64_t taosGetOsUptime() {
 #elif defined(_TD_DARWIN_64)
 #else
   struct sysinfo info;
-  if (0 == sysinfo(&info)) {
-    return (int64_t)info.uptime * 1000;
+  if (-1 == sysinfo(&info)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
+  
+  return (int64_t)info.uptime * 1000;
+  
 #endif
   return 0;
 }
@@ -1083,7 +1135,7 @@ void taosSetCoreDump(bool enable) {
 
   int name[] = {CTL_KERN, KERN_CORE_USES_PID};
 
-  memset(&args, 0, sizeof(struct __sysctl_args));
+  (void)memset(&args, 0, sizeof(struct __sysctl_args));
   args.name = name;
   args.nlen = sizeof(name) / sizeof(name[0]);
   args.oldval = &old_usespid;
@@ -1103,7 +1155,7 @@ void taosSetCoreDump(bool enable) {
 
   old_usespid = 0;
   old_len = 0;
-  memset(&args, 0, sizeof(struct __sysctl_args));
+  (void)memset(&args, 0, sizeof(struct __sysctl_args));
   args.name = name;
   args.nlen = sizeof(name) / sizeof(name[0]);
   args.oldval = &old_usespid;
@@ -1166,6 +1218,8 @@ SysNameInfo taosGetSysNameInfo() {
     tstrncpy(info.release, uts.release, sizeof(info.release));
     tstrncpy(info.version, uts.version, sizeof(info.version));
     tstrncpy(info.machine, uts.machine, sizeof(info.machine));
+  } else {
+    terrno = TAOS_SYSTEM_ERROR(errno);
   }
 
   return info;
@@ -1230,6 +1284,11 @@ int taosGetlocalhostname(char *hostname, size_t maxLen) {
     return 0;
   }
 #else
-  return gethostname(hostname, maxLen);
+  int r = gethostname(hostname, maxLen);
+  if (-1 == r) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+  return r;
 #endif
 }

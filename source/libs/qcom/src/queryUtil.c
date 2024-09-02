@@ -19,9 +19,15 @@
 #include "tmsg.h"
 #include "trpc.h"
 #include "tsched.h"
+#include "tworker.h"
 // clang-format off
 #include "cJSON.h"
 #include "queryInt.h"
+
+typedef struct STaskQueue {
+  SQueryAutoQWorkerPool wrokrerPool;
+  STaosQueue* pTaskQueue;
+} STaskQueue;
 
 int32_t getAsofJoinReverseOp(EOperatorType op) {
   switch (op) {
@@ -118,12 +124,26 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
   return true;
 }
 
-static SSchedQueue pTaskQueue = {0};
+static STaskQueue taskQueue = {0};
+
+static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
+  __async_exec_fn_t execFn = (__async_exec_fn_t)pSchedMsg->ahandle;
+  (void)execFn(pSchedMsg->thandle);
+  taosFreeQitem(pSchedMsg);
+}
 
 int32_t initTaskQueue() {
-  int32_t queueSize = tsMaxShellConns * 2;
-  void *p = taosInitScheduler(queueSize, tsNumOfTaskQueueThreads, "tsc", &pTaskQueue);
-  if (NULL == p) {
+  taskQueue.wrokrerPool.name = "taskWorkPool";
+  taskQueue.wrokrerPool.min = tsNumOfTaskQueueThreads;
+  taskQueue.wrokrerPool.max = tsNumOfTaskQueueThreads;
+  int32_t coce = tQueryAutoQWorkerInit(&taskQueue.wrokrerPool);
+  if (TSDB_CODE_SUCCESS != coce) {
+    qError("failed to init task thread pool");
+    return -1;
+  }
+
+  taskQueue.pTaskQueue = tQueryAutoQWorkerAllocQueue(&taskQueue.wrokrerPool, NULL, (FItem)processTaskQueue);
+  if (NULL == taskQueue.pTaskQueue) {
     qError("failed to init task queue");
     return -1;
   }
@@ -133,26 +153,36 @@ int32_t initTaskQueue() {
 }
 
 int32_t cleanupTaskQueue() {
-  taosCleanUpScheduler(&pTaskQueue);
+  tQueryAutoQWorkerCleanup(&taskQueue.wrokrerPool);
   return 0;
 }
 
-static void execHelper(struct SSchedMsg* pSchedMsg) {
-  __async_exec_fn_t execFn = (__async_exec_fn_t)pSchedMsg->ahandle;
-  int32_t           code = execFn(pSchedMsg->thandle);
-  if (code != 0 && pSchedMsg->msg != NULL) {
-    *(int32_t*)pSchedMsg->msg = code;
-  }
+int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) {
+  SSchedMsg* pSchedMsg; 
+  int32_t rc = taosAllocateQitem(sizeof(SSchedMsg), DEF_QITEM, 0, (void **)&pSchedMsg);
+  if (rc) return rc;
+  pSchedMsg->fp = NULL;
+  pSchedMsg->ahandle = execFn;
+  pSchedMsg->thandle = execParam;
+  pSchedMsg->msg = code;
+
+  return taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
 }
 
-int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) {
-  SSchedMsg schedMsg = {0};
-  schedMsg.fp = execHelper;
-  schedMsg.ahandle = execFn;
-  schedMsg.thandle = execParam;
-  schedMsg.msg = code;
+int32_t taosAsyncWait() {
+  if (!taskQueue.wrokrerPool.pCb) {
+    qError("query task thread pool callback function is null");
+    return -1;
+  }
+  return taskQueue.wrokrerPool.pCb->beforeBlocking(&taskQueue.wrokrerPool);
+}
 
-  return taosScheduleTask(&pTaskQueue, &schedMsg);
+int32_t taosAsyncRecover() {
+  if (!taskQueue.wrokrerPool.pCb) {
+    qError("query task thread pool callback function is null");
+    return -1;
+  }
+  return taskQueue.wrokrerPool.pCb->afterRecoverFromBlocking(&taskQueue.wrokrerPool);
 }
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
@@ -195,6 +225,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
     .code = 0
   };
   TRACE_SET_ROOTID(&rpcMsg.info.traceId, pInfo->requestId);
+
   int code = rpcSendRequestWithCtx(pTransporter, epSet, &rpcMsg, pTransporterId, rpcCtx);
   if (code) {
     destroySendMsgInfo(pInfo);
@@ -204,6 +235,9 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
 
 int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo) {
   return asyncSendMsgToServerExt(pTransporter, epSet, pTransporterId, pInfo, false, NULL);
+}
+int32_t asyncFreeConnById(void* pTransporter, int64_t pid) {
+  return rpcFreeConnById(pTransporter, pid);
 }
 
 char* jobTaskStatusStr(int32_t status) {
@@ -387,7 +421,7 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
-char* parseTagDatatoJson(void* p) {
+void parseTagDatatoJson(void* p, char** jsonStr) {
   char*   string = NULL;
   SArray* pTagVals = NULL;
   cJSON*  json = NULL;
@@ -406,6 +440,9 @@ char* parseTagDatatoJson(void* p) {
   }
   for (int j = 0; j < nCols; ++j) {
     STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
+    if (pTagVal == NULL) {
+      continue;
+    }
     // json key  encode by binary
     tstrncpy(tagJsonKey, pTagVal->pKey, sizeof(tagJsonKey));
     // json value
@@ -415,11 +452,16 @@ char* parseTagDatatoJson(void* p) {
       if (value == NULL) {
         goto end;
       }
-      cJSON_AddItemToObject(json, tagJsonKey, value);
+      if (!cJSON_AddItemToObject(json, tagJsonKey, value)) {
+        goto end;
+      }
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
       cJSON* value = NULL;
       if (pTagVal->nData > 0) {
-        char*   tagJsonValue = taosMemoryCalloc(pTagVal->nData, 1);
+        char* tagJsonValue = taosMemoryCalloc(pTagVal->nData, 1);
+        if (tagJsonValue == NULL) {
+          goto end;
+        }
         int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue);
         if (length < 0) {
           qError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
@@ -434,25 +476,34 @@ char* parseTagDatatoJson(void* p) {
         }
       } else if (pTagVal->nData == 0) {
         value = cJSON_CreateString("");
+        if (value == NULL) {
+          goto end;
+        }
       } else {
         goto end;
       }
 
-      cJSON_AddItemToObject(json, tagJsonKey, value);
+      if (!cJSON_AddItemToObject(json, tagJsonKey, value)) {
+        goto end;
+      }
     } else if (type == TSDB_DATA_TYPE_DOUBLE) {
       double jsonVd = *(double*)(&pTagVal->i64);
       cJSON* value = cJSON_CreateNumber(jsonVd);
       if (value == NULL) {
         goto end;
       }
-      cJSON_AddItemToObject(json, tagJsonKey, value);
+      if (!cJSON_AddItemToObject(json, tagJsonKey, value)) {
+        goto end;
+      }
     } else if (type == TSDB_DATA_TYPE_BOOL) {
       char   jsonVd = *(char*)(&pTagVal->i64);
       cJSON* value = cJSON_CreateBool(jsonVd);
       if (value == NULL) {
         goto end;
       }
-      cJSON_AddItemToObject(json, tagJsonKey, value);
+      if (!cJSON_AddItemToObject(json, tagJsonKey, value)) {
+        goto end;
+      }
     } else {
       goto end;
     }
@@ -464,7 +515,7 @@ end:
   if (string == NULL) {
     string = taosStrdup(TSDB_DATA_NULL_STR_L);
   }
-  return string;
+  *jsonStr = string;
 }
 
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
@@ -534,6 +585,8 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(*pDst, pSrc, sizeof(*pSrc));
+  (*pDst)->vgArray = NULL;
+  
   if (pSrc->vgHash) {
     (*pDst)->vgHash = taosHashInit(taosHashGetSize(pSrc->vgHash), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true,
                                    HASH_ENTRY_LOCK);

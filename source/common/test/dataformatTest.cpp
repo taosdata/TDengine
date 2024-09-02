@@ -20,6 +20,7 @@
 #include <tglobal.h>
 #include <tmsg.h>
 #include <iostream>
+#include <tdatablock.h>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -473,6 +474,45 @@ TEST(testCase, AllNormTest) {
   taosMemoryFreeClear(row);
   taosArrayDestroy(pArray);
   taosMemoryFree(pTSchema);
+}
+
+TEST(testCase, StreamAllNormTest) {
+  char ctbName[TSDB_TABLE_NAME_LEN] = {0};
+  uint64_t groupId = 12345;
+
+  buildCtbNameAddGroupId(NULL, ctbName, groupId);
+
+  ASSERT_STREQ("_12345", ctbName);
+}
+
+TEST(testCase, StreamWithStbName) {
+  char stbName[] = "1.table.stb";
+  char ctbName[TSDB_TABLE_NAME_LEN] = {0};
+  uint64_t groupId = 12345;
+
+  buildCtbNameAddGroupId(stbName, ctbName, groupId);
+
+  ASSERT_STREQ("_stb_12345", ctbName);
+}
+
+TEST(testCase, StreamWithoutDotInStbName) {
+  char stbName[] = "table";
+  char ctbName[TSDB_TABLE_NAME_LEN] = {0};
+  uint64_t groupId = 12345;
+
+  buildCtbNameAddGroupId(stbName, ctbName, groupId);
+
+  ASSERT_STREQ("_table_12345", ctbName);
+}
+
+TEST(testCase, StreamWithoutDotInStbName2) {
+  char stbName[] = "";
+  char ctbName[TSDB_TABLE_NAME_LEN] = {0};
+  uint64_t groupId = 12345;
+
+  buildCtbNameAddGroupId(stbName, ctbName, groupId);
+
+  ASSERT_STREQ("__12345", ctbName);
 }
 
 #if 1

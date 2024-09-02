@@ -98,6 +98,7 @@ SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType nType);
 int32_t       dmMarkWrapper(SMgmtWrapper *pWrapper);
 void          dmReleaseWrapper(SMgmtWrapper *pWrapper);
 int32_t       dmInitVars(SDnode *pDnode);
+int32_t       dmInitVarsWrapper(SDnode *pDnode);
 void          dmClearVars(SDnode *pDnode);
 int32_t       dmInitModule(SDnode *pDnode);
 SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper);
@@ -128,7 +129,6 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 // dmMonitor.c
 void dmSendMonitorReport();
 void dmSendAuditRecords();
-void dmSendMonitorReportBasic();
 void dmGetVnodeLoads(SMonVloadInfo *pInfo);
 void dmGetVnodeLoadsLite(SMonVloadInfo *pInfo);
 void dmGetMnodeLoads(SMonMloadInfo *pInfo);

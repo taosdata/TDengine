@@ -61,6 +61,7 @@ typedef struct SQWMsgInfo {
   int8_t taskType;
   int8_t explain;
   int8_t needFetch;
+  int8_t compressMsg;
 } SQWMsgInfo;
 
 typedef struct SQWMsg {

@@ -72,6 +72,9 @@ TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions);
 #define TD_FILE_ACCESS_EXIST_OK 0x1
 #define TD_FILE_ACCESS_READ_OK  0x2
 #define TD_FILE_ACCESS_WRITE_OK 0x4
+
+#define TD_TMP_FILE_PREFIX "tdengine-"
+
 bool taosCheckAccessFile(const char *pathname, int mode);
 
 int32_t taosLockFile(TdFilePtr pFile);
@@ -111,22 +114,34 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 
 bool taosValidFile(TdFilePtr pFile);
 
-int32_t taosGetErrorFile(TdFilePtr pFile);
-
 int32_t taosCompressFile(char *srcFileName, char *destFileName);
 
 int32_t taosSetFileHandlesLimit();
 
 int32_t taosLinkFile(char *src, char *dst);
 
-FILE*  taosOpenCFile(const char* filename, const char* mode);
-int    taosSeekCFile(FILE* file, int64_t offset, int whence);
-size_t taosReadFromCFile(void *buffer, size_t size, size_t count, FILE *stream );
-size_t taosWriteToCFile(const void* ptr, size_t size, size_t nitems, FILE* stream);
-int	 taosCloseCFile(FILE *);
-int taosSetAutoDelFile(char* path);
+FILE  *taosOpenCFile(const char *filename, const char *mode);
+int    taosSeekCFile(FILE *file, int64_t offset, int whence);
+size_t taosReadFromCFile(void *buffer, size_t size, size_t count, FILE *stream);
+size_t taosWriteToCFile(const void *ptr, size_t size, size_t nitems, FILE *stream);
+int    taosCloseCFile(FILE *);
+int    taosSetAutoDelFile(char *path);
 
 bool lastErrorIsFileNotExist();
+
+#ifdef BUILD_WITH_RAND_ERR
+#define STUB_RAND_NETWORK_ERR(status)                             \
+  do {                                                            \
+    if (tsEnableRandErr && (tsRandErrScope & RAND_ERR_NETWORK)) { \
+      uint32_t r = taosRand() % tsRandErrDivisor;                 \
+      if ((r + 1) <= tsRandErrChance) {                           \
+        status = TSDB_CODE_RPC_NETWORK_UNAVAIL;                   \
+      }                                                           \
+    }                                                             \
+    while (0)
+#else
+#define STUB_RAND_NETWORK_ERR(status)
+#endif
 
 #ifdef __cplusplus
 }

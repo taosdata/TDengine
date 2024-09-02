@@ -47,37 +47,37 @@
     }                                              \
   } while (0)
 
-#define CLONE_NODE_FIELD(fldname)                      \
-  do {                                                 \
-    if (NULL == (pSrc)->fldname) {                     \
-      break;                                           \
-    }                                                  \
-    (pDst)->fldname = nodesCloneNode((pSrc)->fldname); \
-    if (NULL == (pDst)->fldname) {                     \
-      return TSDB_CODE_OUT_OF_MEMORY;                  \
-    }                                                  \
+#define CLONE_NODE_FIELD(fldname)                                       \
+  do {                                                                  \
+    if (NULL == (pSrc)->fldname) {                                      \
+      break;                                                            \
+    }                                                                   \
+    int32_t code = nodesCloneNode((pSrc)->fldname, &((pDst)->fldname)); \
+    if (NULL == (pDst)->fldname) {                                      \
+      return code;                                                      \
+    }                                                                   \
   } while (0)
 
-#define CLONE_NODE_FIELD_EX(fldname, nodePtrType)                           \
-  do {                                                                      \
-    if (NULL == (pSrc)->fldname) {                                          \
-      break;                                                                \
-    }                                                                       \
-    (pDst)->fldname = (nodePtrType)nodesCloneNode((SNode*)(pSrc)->fldname); \
-    if (NULL == (pDst)->fldname) {                                          \
-      return TSDB_CODE_OUT_OF_MEMORY;                                       \
-    }                                                                       \
+#define CLONE_NODE_FIELD_EX(fldname, nodePtrType)                                        \
+  do {                                                                                   \
+    if (NULL == (pSrc)->fldname) {                                                       \
+      break;                                                                             \
+    }                                                                                    \
+    int32_t code = nodesCloneNode((SNode*)(pSrc)->fldname, (SNode**)&((pDst)->fldname)); \
+    if (NULL == (pDst)->fldname) {                                                       \
+      return code;                                                                       \
+    }                                                                                    \
   } while (0)
 
-#define CLONE_NODE_LIST_FIELD(fldname)                 \
-  do {                                                 \
-    if (NULL == (pSrc)->fldname) {                     \
-      break;                                           \
-    }                                                  \
-    (pDst)->fldname = nodesCloneList((pSrc)->fldname); \
-    if (NULL == (pDst)->fldname) {                     \
-      return TSDB_CODE_OUT_OF_MEMORY;                  \
-    }                                                  \
+#define CLONE_NODE_LIST_FIELD(fldname)                                  \
+  do {                                                                  \
+    if (NULL == (pSrc)->fldname) {                                      \
+      break;                                                            \
+    }                                                                   \
+    int32_t code = nodesCloneList((pSrc)->fldname, &((pDst)->fldname)); \
+    if (NULL == (pDst)->fldname) {                                      \
+      return code;                                                      \
+    }                                                                   \
   } while (0)
 
 #define CLONE_OBJECT_FIELD(fldname, cloneFunc)    \
@@ -103,6 +103,7 @@ static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(aliasName);
   COPY_CHAR_ARRAY_FIELD(userAlias);
   COPY_SCALAR_FIELD(orderAlias);
+  COPY_SCALAR_FIELD(projIdx);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -124,6 +125,8 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_SCALAR_FIELD(tableHasPk);
   COPY_SCALAR_FIELD(isPk);
   COPY_SCALAR_FIELD(numOfPKs);
+  COPY_SCALAR_FIELD(projRefIdx);
+  COPY_SCALAR_FIELD(resIdx);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -843,8 +846,10 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   CLONE_NODE_FIELD_EX(pLimit, SLimitNode*);
   COPY_CHAR_ARRAY_FIELD(stmtName);
   COPY_SCALAR_FIELD(precision);
+  COPY_SCALAR_FIELD(isSubquery);
   COPY_SCALAR_FIELD(isEmptyResult);
   COPY_SCALAR_FIELD(timeLineResMode);
+  COPY_SCALAR_FIELD(timeLineFromOrderBy);
   COPY_SCALAR_FIELD(timeLineCurMode);
   COPY_SCALAR_FIELD(hasAggFuncs);
   COPY_SCALAR_FIELD(hasRepeatScanFuncs);
@@ -862,21 +867,22 @@ static int32_t setOperatorCopy(const SSetOperator* pSrc, SSetOperator* pDst) {
   COPY_CHAR_ARRAY_FIELD(stmtName);
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(timeLineResMode);
+  COPY_SCALAR_FIELD(timeLineFromOrderBy);
+  
   return TSDB_CODE_SUCCESS;
 }
 
-SNode* nodesCloneNode(const SNode* pNode) {
+int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
   if (NULL == pNode) {
-    return NULL;
+    return TSDB_CODE_SUCCESS;
   }
 
-  SNode* pDst = nodesMakeNode(nodeType(pNode));
-  if (NULL == pDst) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+  SNode* pDst = NULL;
+  int32_t code = nodesMakeNode(nodeType(pNode), &pDst);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
   }
 
-  int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN:
       code = columnNodeCopy((const SColumnNode*)pNode, (SColumnNode*)pDst);
@@ -1054,25 +1060,32 @@ SNode* nodesCloneNode(const SNode* pNode) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     nodesDestroyNode(pDst);
     nodesError("nodesCloneNode failed node = %s", nodesNodeName(nodeType(pNode)));
-    return NULL;
+    return code;
   }
-  return pDst;
+  *ppNode = pDst;
+  return code;
 }
 
-SNodeList* nodesCloneList(const SNodeList* pList) {
+int32_t nodesCloneList(const SNodeList* pList, SNodeList** ppList) {
   if (NULL == pList) {
-    return NULL;
+    return TSDB_CODE_SUCCESS;
   }
 
   SNodeList* pDst = NULL;
   SNode*     pNode;
   FOREACH(pNode, pList) {
-    int32_t code = nodesListMakeStrictAppend(&pDst, nodesCloneNode(pNode));
+    SNode* pNew = NULL;
+    int32_t code = nodesCloneNode(pNode, &pNew);
     if (TSDB_CODE_SUCCESS != code) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       nodesDestroyList(pDst);
-      return NULL;
+      return code;
+    }
+    code = nodesListMakeStrictAppend(&pDst, pNew);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyList(pDst);
+      return code;
     }
   }
-  return pDst;
+  *ppList = pDst;
+  return TSDB_CODE_SUCCESS;
 }

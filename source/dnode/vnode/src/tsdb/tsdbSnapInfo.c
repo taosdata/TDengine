@@ -42,7 +42,6 @@ static int32_t tsdbTFileSetRangeCmprFn(STFileSetRange* x, STFileSetRange* y) {
 STsdbFSetPartition* tsdbFSetPartitionCreate() {
   STsdbFSetPartition* pSP = taosMemoryCalloc(1, sizeof(STsdbFSetPartition));
   if (pSP == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   for (int32_t i = 0; i < TSDB_FSET_RANGE_TYP_MAX; i++) {
@@ -81,7 +80,7 @@ static int32_t tsdbFTypeToFRangeType(tsdb_ftype_t ftype) {
 static int32_t tsdbTFileSetToFSetPartition(STFileSet* fset, STsdbFSetPartition** ppSP) {
   STsdbFSetPartition* p = tsdbFSetPartitionCreate();
   if (p == NULL) {
-    goto _err;
+    return terrno;
   }
 
   p->fid = fset->fid;
@@ -93,7 +92,6 @@ static int32_t tsdbTFileSetToFSetPartition(STFileSet* fset, STsdbFSetPartition**
   for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
     if (fset->farr[ftype] == NULL) continue;
     typ = tsdbFTypeToFRangeType(ftype);
-    ASSERT(typ < TSDB_FSET_RANGE_TYP_MAX);
     STFile* f = fset->farr[ftype]->f;
     if (f->maxVer > fset->maxVerValid) {
       corrupt = true;
@@ -104,8 +102,7 @@ static int32_t tsdbTFileSetToFSetPartition(STFileSet* fset, STsdbFSetPartition**
     }
     count++;
     SVersionRange vr = {.minVer = f->minVer, .maxVer = f->maxVer};
-    code = TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
-    ASSERT(code == 0);
+    (void)TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
   }
 
   typ = TSDB_FSET_RANGE_TYP_STT;
@@ -123,28 +120,21 @@ static int32_t tsdbTFileSetToFSetPartition(STFileSet* fset, STsdbFSetPartition**
       }
       count++;
       SVersionRange vr = {.minVer = f->minVer, .maxVer = f->maxVer};
-      code = TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
-      ASSERT(code == 0);
+      (void)TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
     }
   }
   if (corrupt && count == 0) {
     SVersionRange vr = {.minVer = VERSION_MIN, .maxVer = fset->maxVerValid};
-    code = TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
-    ASSERT(code == 0);
+    (void)TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
   }
   ppSP[0] = p;
   return 0;
-
-_err:
-  tsdbFSetPartitionClear(&p);
-  return -1;
 }
 
 // fset partition list
 STsdbFSetPartList* tsdbFSetPartListCreate() {
   STsdbFSetPartList* pList = taosMemoryCalloc(1, sizeof(STsdbFSetPartList));
   if (pList == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   TARRAY2_INIT(pList);
@@ -160,9 +150,11 @@ void tsdbFSetPartListDestroy(STsdbFSetPartList** ppList) {
 }
 
 int32_t tsdbFSetPartListToRangeDiff(STsdbFSetPartList* pList, TFileSetRangeArray** ppRanges) {
+  int32_t code = 0;
+
   TFileSetRangeArray* pDiff = taosMemoryCalloc(1, sizeof(TFileSetRangeArray));
   if (pDiff == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
   TARRAY2_INIT(pDiff);
@@ -171,7 +163,7 @@ int32_t tsdbFSetPartListToRangeDiff(STsdbFSetPartList* pList, TFileSetRangeArray
   TARRAY2_FOREACH(pList, part) {
     STFileSetRange* r = taosMemoryCalloc(1, sizeof(STFileSetRange));
     if (r == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _err;
     }
     int64_t maxVerValid = -1;
@@ -190,8 +182,7 @@ int32_t tsdbFSetPartListToRangeDiff(STsdbFSetPartList* pList, TFileSetRangeArray
     r->sver = maxVerValid + 1;
     r->ever = VERSION_MAX;
     tsdbDebug("range diff fid:%" PRId64 ", sver:%" PRId64 ", ever:%" PRId64, part->fid, r->sver, r->ever);
-    int32_t code = TARRAY2_SORT_INSERT(pDiff, r, tsdbTFileSetRangeCmprFn);
-    ASSERT(code == 0);
+    (void)TARRAY2_SORT_INSERT(pDiff, r, tsdbTFileSetRangeCmprFn);
   }
   ppRanges[0] = pDiff;
 
@@ -200,9 +191,9 @@ int32_t tsdbFSetPartListToRangeDiff(STsdbFSetPartList* pList, TFileSetRangeArray
 
 _err:
   if (pDiff) {
-    tsdbTFileSetRangeArrayDestroy(&pDiff);
+    (void)tsdbTFileSetRangeArrayDestroy(&pDiff);
   }
-  return -1;
+  return code;
 }
 
 // serialization
@@ -235,96 +226,103 @@ int32_t tTsdbFSetPartListDataLenCalc(STsdbFSetPartList* pList) {
   return datLen;
 }
 
-int32_t tSerializeTsdbFSetPartList(void* buf, int32_t bufLen, STsdbFSetPartList* pList) {
+static int32_t tSerializeTsdbFSetPartList(void* buf, int32_t bufLen, STsdbFSetPartList* pList, int32_t* encodeSize) {
   SEncoder encoder = {0};
+  int8_t   reserved8 = 0;
+  int16_t  reserved16 = 0;
+  int64_t  reserved64 = 0;
+  int8_t   msgVer = TSDB_SNAP_MSG_VER;
+  int32_t  len = TARRAY2_SIZE(pList);
+  int32_t  code = 0;
+
   tEncoderInit(&encoder, buf, bufLen);
-
-  int8_t  reserved8 = 0;
-  int16_t reserved16 = 0;
-  int64_t reserved64 = 0;
-
-  int8_t  msgVer = TSDB_SNAP_MSG_VER;
-  int32_t len = TARRAY2_SIZE(pList);
-
-  if (tStartEncode(&encoder) < 0) goto _err;
-  if (tEncodeI8(&encoder, msgVer) < 0) goto _err;
-  if (tEncodeI32(&encoder, len) < 0) goto _err;
+  if ((code = tStartEncode(&encoder))) goto _exit;
+  if ((code = tEncodeI8(&encoder, msgVer))) goto _exit;
+  if ((code = tEncodeI32(&encoder, len))) goto _exit;
 
   for (int32_t u = 0; u < len; u++) {
     STsdbFSetPartition* p = TARRAY2_GET(pList, u);
-    if (tEncodeI64(&encoder, p->fid) < 0) goto _err;
-    if (tEncodeI8(&encoder, p->stat) < 0) goto _err;
-    if (tEncodeI8(&encoder, reserved8) < 0) goto _err;
-    if (tEncodeI16(&encoder, reserved16) < 0) goto _err;
+    if ((code = tEncodeI64(&encoder, p->fid))) goto _exit;
+    if ((code = tEncodeI8(&encoder, p->stat))) goto _exit;
+    if ((code = tEncodeI8(&encoder, reserved8))) goto _exit;
+    if ((code = tEncodeI16(&encoder, reserved16))) goto _exit;
 
     int32_t typMax = TSDB_FSET_RANGE_TYP_MAX;
-    if (tEncodeI32(&encoder, typMax) < 0) goto _err;
+    if ((code = tEncodeI32(&encoder, typMax))) goto _exit;
 
     for (int32_t i = 0; i < typMax; i++) {
       SVerRangeList* iList = &p->verRanges[i];
       int32_t        iLen = TARRAY2_SIZE(iList);
 
-      if (tEncodeI32(&encoder, iLen) < 0) goto _err;
+      if ((code = tEncodeI32(&encoder, iLen))) goto _exit;
       for (int32_t j = 0; j < iLen; j++) {
         SVersionRange r = TARRAY2_GET(iList, j);
-        if (tEncodeI64(&encoder, r.minVer) < 0) goto _err;
-        if (tEncodeI64(&encoder, r.maxVer) < 0) goto _err;
-        if (tEncodeI64(&encoder, reserved64) < 0) goto _err;
+        if ((code = tEncodeI64(&encoder, r.minVer))) goto _exit;
+        if ((code = tEncodeI64(&encoder, r.maxVer))) goto _exit;
+        if ((code = tEncodeI64(&encoder, reserved64))) goto _exit;
       }
     }
   }
 
   tEndEncode(&encoder);
-  int32_t tlen = encoder.pos;
-  tEncoderClear(&encoder);
-  return tlen;
 
-_err:
+  if (encodeSize) {
+    encodeSize[0] = encoder.pos;
+  }
+
+_exit:
   tEncoderClear(&encoder);
-  return -1;
+  return code;
 }
 
 int32_t tDeserializeTsdbFSetPartList(void* buf, int32_t bufLen, STsdbFSetPartList* pList) {
   SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
-
-  int8_t  reserved8 = 0;
-  int16_t reserved16 = 0;
-  int64_t reserved64 = 0;
+  int8_t   reserved8 = 0;
+  int16_t  reserved16 = 0;
+  int64_t  reserved64 = 0;
+  int32_t  code = 0;
 
   STsdbFSetPartition* p = NULL;
 
+  tDecoderInit(&decoder, buf, bufLen);
   int8_t  msgVer = 0;
   int32_t len = 0;
-  if (tStartDecode(&decoder) < 0) goto _err;
-  if (tDecodeI8(&decoder, &msgVer) < 0) goto _err;
-  if (msgVer != TSDB_SNAP_MSG_VER) goto _err;
-  if (tDecodeI32(&decoder, &len) < 0) goto _err;
+  if ((code = tStartDecode(&decoder))) goto _err;
+  if ((code = tDecodeI8(&decoder, &msgVer))) goto _err;
+  if (msgVer != TSDB_SNAP_MSG_VER) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _err;
+  }
+  if ((code = tDecodeI32(&decoder, &len))) goto _err;
 
   for (int32_t u = 0; u < len; u++) {
     p = tsdbFSetPartitionCreate();
-    if (p == NULL) goto _err;
-    if (tDecodeI64(&decoder, &p->fid) < 0) goto _err;
-    if (tDecodeI8(&decoder, &p->stat) < 0) goto _err;
-    if (tDecodeI8(&decoder, &reserved8) < 0) goto _err;
-    if (tDecodeI16(&decoder, &reserved16) < 0) goto _err;
+    if (p == NULL) {
+      code = terrno;
+      goto _err;
+    }
+
+    if ((code = tDecodeI64(&decoder, &p->fid))) goto _err;
+    if ((code = tDecodeI8(&decoder, &p->stat))) goto _err;
+    if ((code = tDecodeI8(&decoder, &reserved8))) goto _err;
+    if ((code = tDecodeI16(&decoder, &reserved16))) goto _err;
 
     int32_t typMax = 0;
-    if (tDecodeI32(&decoder, &typMax) < 0) goto _err;
+    if ((code = tDecodeI32(&decoder, &typMax))) goto _err;
 
     for (int32_t i = 0; i < typMax; i++) {
       SVerRangeList* iList = &p->verRanges[i];
       int32_t        iLen = 0;
-      if (tDecodeI32(&decoder, &iLen) < 0) goto _err;
+      if ((code = tDecodeI32(&decoder, &iLen))) goto _err;
       for (int32_t j = 0; j < iLen; j++) {
         SVersionRange r = {0};
-        if (tDecodeI64(&decoder, &r.minVer) < 0) goto _err;
-        if (tDecodeI64(&decoder, &r.maxVer) < 0) goto _err;
-        if (tDecodeI64(&decoder, &reserved64) < 0) goto _err;
-        TARRAY2_APPEND(iList, r);
+        if ((code = tDecodeI64(&decoder, &r.minVer))) goto _err;
+        if ((code = tDecodeI64(&decoder, &r.maxVer))) goto _err;
+        if ((code = tDecodeI64(&decoder, &reserved64))) goto _err;
+        if ((code = TARRAY2_APPEND(iList, r))) goto _err;
       }
     }
-    TARRAY2_APPEND(pList, p);
+    if ((code = TARRAY2_APPEND(pList, p))) goto _err;
     p = NULL;
   }
 
@@ -337,7 +335,7 @@ _err:
     tsdbFSetPartitionClear(&p);
   }
   tDecoderClear(&decoder);
-  return -1;
+  return code;
 }
 
 // fs state
@@ -348,19 +346,18 @@ static STsdbFSetPartList* tsdbSnapGetFSetPartList(STFileSystem* fs) {
   }
 
   int32_t code = 0;
-  taosThreadMutexLock(&fs->tsdb->mutex);
+  (void)taosThreadMutexLock(&fs->tsdb->mutex);
   STFileSet* fset;
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     STsdbFSetPartition* pItem = NULL;
-    if (tsdbTFileSetToFSetPartition(fset, &pItem) < 0) {
-      code = -1;
+    code = tsdbTFileSetToFSetPartition(fset, &pItem);
+    if (code) {
+      terrno = code;
       break;
     }
-    ASSERT(pItem != NULL);
-    code = TARRAY2_SORT_INSERT(pList, pItem, tsdbFSetPartCmprFn);
-    ASSERT(code == 0);
+    (void)TARRAY2_SORT_INSERT(pList, pItem, tsdbFSetPartCmprFn);
   }
-  taosThreadMutexUnlock(&fs->tsdb->mutex);
+  (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
 
   if (code) {
     TARRAY2_DESTROY(pList, tsdbFSetPartitionClear);
@@ -396,7 +393,9 @@ static int32_t tsdbPartitionInfoInit(SVnode* pVnode, STsdbPartitionInfo* pInfo) 
   pInfo->vgId = TD_VID(pVnode);
   pInfo->tsdbMaxCnt = (!VND_IS_RSMA(pVnode) ? 1 : TSDB_RETENTION_MAX);
 
-  ASSERT(sizeof(pInfo->subTyps) == sizeof(subTyps));
+  if (!(sizeof(pInfo->subTyps) == sizeof(subTyps))) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   memcpy(pInfo->subTyps, (char*)subTyps, sizeof(subTyps));
 
   // fset partition list
@@ -404,7 +403,9 @@ static int32_t tsdbPartitionInfoInit(SVnode* pVnode, STsdbPartitionInfo* pInfo) 
   for (int32_t j = 0; j < pInfo->tsdbMaxCnt; ++j) {
     STsdb* pTsdb = SMA_RSMA_GET_TSDB(pVnode, j);
     pInfo->pLists[j] = tsdbSnapGetFSetPartList(pTsdb->pFS);
-    if (pInfo->pLists[j] == NULL) return -1;
+    if (pInfo->pLists[j] == NULL) {
+      return terrno;
+    }
   }
   return 0;
 }
@@ -431,10 +432,10 @@ static int32_t tsdbPartitionInfoSerialize(STsdbPartitionInfo* pInfo, uint8_t* bu
   for (int32_t j = 0; j < pInfo->tsdbMaxCnt; ++j) {
     SSyncTLV* pSubHead = (void*)((char*)buf + offset);
     int32_t   valOffset = offset + sizeof(*pSubHead);
-    ASSERT(pSubHead->val == (char*)buf + valOffset);
-    if ((tlen = tSerializeTsdbFSetPartList(pSubHead->val, bufLen - valOffset, pInfo->pLists[j])) < 0) {
+    int32_t   code = tSerializeTsdbFSetPartList(pSubHead->val, bufLen - valOffset, pInfo->pLists[j], &tlen);
+    if (code) {
       tsdbError("vgId:%d, failed to serialize fset partition list of tsdb %d since %s", pInfo->vgId, j, terrstr());
-      return -1;
+      return code;
     }
     pSubHead->typ = pInfo->subTyps[j];
     pSubHead->len = tlen;
@@ -460,17 +461,18 @@ static int32_t tTsdbRepOptsDataLenCalc(STsdbRepOpts* pInfo) {
 }
 
 int32_t tSerializeTsdbRepOpts(void* buf, int32_t bufLen, STsdbRepOpts* pOpts) {
+  int32_t  code = 0;
   SEncoder encoder = {0};
+  int64_t  reserved64 = 0;
+  int8_t   msgVer = TSDB_SNAP_MSG_VER;
+
   tEncoderInit(&encoder, buf, bufLen);
 
-  int64_t reserved64 = 0;
-  int8_t  msgVer = TSDB_SNAP_MSG_VER;
-
-  if (tStartEncode(&encoder) < 0) goto _err;
-  if (tEncodeI8(&encoder, msgVer) < 0) goto _err;
+  if ((code = tStartEncode(&encoder))) goto _err;
+  if ((code = tEncodeI8(&encoder, msgVer))) goto _err;
   int16_t format = pOpts->format;
-  if (tEncodeI16(&encoder, format) < 0) goto _err;
-  if (tEncodeI64(&encoder, reserved64) < 0) goto _err;
+  if ((code = tEncodeI16(&encoder, format))) goto _err;
+  if ((code = tEncodeI64(&encoder, reserved64))) goto _err;
 
   tEndEncode(&encoder);
   int32_t tlen = encoder.pos;
@@ -479,23 +481,24 @@ int32_t tSerializeTsdbRepOpts(void* buf, int32_t bufLen, STsdbRepOpts* pOpts) {
 
 _err:
   tEncoderClear(&encoder);
-  return -1;
+  return code;
 }
 
 int32_t tDeserializeTsdbRepOpts(void* buf, int32_t bufLen, STsdbRepOpts* pOpts) {
+  int32_t  code;
   SDecoder decoder = {0};
+  int64_t  reserved64 = 0;
+  int8_t   msgVer = 0;
+
   tDecoderInit(&decoder, buf, bufLen);
 
-  int64_t reserved64 = 0;
-  int8_t  msgVer = 0;
-
-  if (tStartDecode(&decoder) < 0) goto _err;
-  if (tDecodeI8(&decoder, &msgVer) < 0) goto _err;
+  if ((code = tStartDecode(&decoder))) goto _err;
+  if ((code = tDecodeI8(&decoder, &msgVer))) goto _err;
   if (msgVer != TSDB_SNAP_MSG_VER) goto _err;
   int16_t format = 0;
-  if (tDecodeI16(&decoder, &format) < 0) goto _err;
+  if ((code = tDecodeI16(&decoder, &format))) goto _err;
   pOpts->format = format;
-  if (tDecodeI64(&decoder, &reserved64) < 0) goto _err;
+  if ((code = tDecodeI64(&decoder, &reserved64))) goto _err;
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
@@ -503,7 +506,7 @@ int32_t tDeserializeTsdbRepOpts(void* buf, int32_t bufLen, STsdbRepOpts* pOpts) 
 
 _err:
   tDecoderClear(&decoder);
-  return -1;
+  return code;
 }
 
 static int32_t tsdbRepOptsEstSize(STsdbRepOpts* pOpts) {
@@ -518,7 +521,7 @@ static int32_t tsdbRepOptsSerialize(STsdbRepOpts* pOpts, void* buf, int32_t bufL
   int32_t   offset = 0;
   int32_t   tlen = 0;
   if ((tlen = tSerializeTsdbRepOpts(pSubHead->val, bufLen, pOpts)) < 0) {
-    return -1;
+    return tlen;
   }
   pSubHead->typ = SNAP_DATA_RAW;
   pSubHead->len = tlen;
@@ -528,8 +531,10 @@ static int32_t tsdbRepOptsSerialize(STsdbRepOpts* pOpts, void* buf, int32_t bufL
 
 // snap info
 static int32_t tsdbSnapPrepDealWithSnapInfo(SVnode* pVnode, SSnapshot* pSnap, STsdbRepOpts* pInfo) {
-  if (!pSnap->data) return 0;
-  int32_t code = -1;
+  if (!pSnap->data) {
+    return 0;
+  }
+  int32_t code = 0;
 
   SSyncTLV* pHead = (void*)pSnap->data;
   int32_t   offset = 0;
@@ -546,30 +551,29 @@ static int32_t tsdbSnapPrepDealWithSnapInfo(SVnode* pVnode, SSnapshot* pSnap, ST
       case SNAP_DATA_RSMA2: {
       } break;
       case SNAP_DATA_RAW: {
-        if (tDeserializeTsdbRepOpts(buf, bufLen, pInfo) < 0) {
-          terrno = TSDB_CODE_INVALID_DATA_FMT;
+        code = tDeserializeTsdbRepOpts(buf, bufLen, pInfo);
+        if (code < 0) {
           tsdbError("vgId:%d, failed to deserialize tsdb rep opts since %s", TD_VID(pVnode), terrstr());
-          goto _out;
+          return code;
         }
       } break;
       default:
+        code = TSDB_CODE_INVALID_MSG;
         tsdbError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), pField->typ);
-        goto _out;
+        return code;
     }
   }
 
-  code = 0;
-_out:
   return code;
 }
 
 int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
-  ASSERT(pSnap->type == TDMT_SYNC_PREP_SNAPSHOT || pSnap->type == TDMT_SYNC_PREP_SNAPSHOT_REPLY);
   STsdbPartitionInfo  partitionInfo = {0};
-  int                 code = -1;
+  int                 code = 0;
   STsdbPartitionInfo* pInfo = &partitionInfo;
 
-  if (tsdbPartitionInfoInit(pVnode, pInfo) != 0) {
+  code = tsdbPartitionInfoInit(pVnode, pInfo);
+  if (code) {
     goto _out;
   }
 
@@ -577,7 +581,7 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
   STsdbRepOpts opts = {.format = TSDB_SNAP_REP_FMT_RAW};
   if (pSnap->type == TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
     STsdbRepOpts leaderOpts = {0};
-    if (tsdbSnapPrepDealWithSnapInfo(pVnode, pSnap, &leaderOpts) < 0) {
+    if ((code = tsdbSnapPrepDealWithSnapInfo(pVnode, pSnap, &leaderOpts)) < 0) {
       tsdbError("vgId:%d, failed to deal with snap info for reply since %s", TD_VID(pVnode), terrstr());
       goto _out;
     }
@@ -589,7 +593,7 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
   int32_t       bufLen = headLen;
   bufLen += tsdbPartitionInfoEstSize(pInfo);
   bufLen += tsdbRepOptsEstSize(&opts);
-  if (syncSnapInfoDataRealloc(pSnap, bufLen) != 0) {
+  if ((code = syncSnapInfoDataRealloc(pSnap, bufLen)) != 0) {
     tsdbError("vgId:%d, failed to realloc memory for data of snap info. bytes:%d", TD_VID(pVnode), bufLen);
     goto _out;
   }
@@ -599,19 +603,19 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
   int32_t offset = headLen;
   int32_t tlen = 0;
 
-  if ((tlen = tsdbPartitionInfoSerialize(pInfo, buf + offset, bufLen - offset)) < 0) {
+  if ((tlen = tsdbPartitionInfoSerialize(pInfo, (uint8_t*)(buf + offset), bufLen - offset)) < 0) {
+    code = tlen;
     tsdbError("vgId:%d, failed to serialize tsdb partition info since %s", TD_VID(pVnode), terrstr());
     goto _out;
   }
   offset += tlen;
-  ASSERT(offset <= bufLen);
 
   if ((tlen = tsdbRepOptsSerialize(&opts, buf + offset, bufLen - offset)) < 0) {
+    code = tlen;
     tsdbError("vgId:%d, failed to serialize tsdb rep opts since %s", TD_VID(pVnode), terrstr());
     goto _out;
   }
   offset += tlen;
-  ASSERT(offset <= bufLen);
 
   // set header of info data
   SSyncTLV* pHead = pSnap->data;
@@ -620,7 +624,7 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
 
   tsdbInfo("vgId:%d, tsdb snap info prepared. type:%s, val length:%d", TD_VID(pVnode), TMSG_INFO(pHead->typ),
            pHead->len);
-  code = 0;
+
 _out:
   tsdbPartitionInfoClear(pInfo);
   return code;

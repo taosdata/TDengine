@@ -150,6 +150,12 @@ typedef struct TAOS_DB_ROUTE_INFO {
   TAOS_VGROUP_HASH_INFO *vgHash;
 } TAOS_DB_ROUTE_INFO;
 
+typedef struct TAOS_STMT_OPTIONS {
+  int64_t reqId;
+  bool    singleStbInsert;
+  bool    singleTableBindOnce;
+} TAOS_STMT_OPTIONS;
+
 DLL_EXPORT void       taos_cleanup(void);
 DLL_EXPORT int        taos_options(TSDB_OPTION option, const void *arg, ...);
 DLL_EXPORT setConfRet taos_set_config(const char *config);
@@ -162,6 +168,7 @@ DLL_EXPORT const char *taos_data_type(int type);
 
 DLL_EXPORT TAOS_STMT *taos_stmt_init(TAOS *taos);
 DLL_EXPORT TAOS_STMT *taos_stmt_init_with_reqid(TAOS *taos, int64_t reqid);
+DLL_EXPORT TAOS_STMT *taos_stmt_init_with_options(TAOS *taos, TAOS_STMT_OPTIONS* options);
 DLL_EXPORT int        taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length);
 DLL_EXPORT int        taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_MULTI_BIND *tags);
 DLL_EXPORT int        taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name);
@@ -203,6 +210,7 @@ DLL_EXPORT int         taos_select_db(TAOS *taos, const char *db);
 DLL_EXPORT int         taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields);
 DLL_EXPORT void        taos_stop_query(TAOS_RES *res);
 DLL_EXPORT bool        taos_is_null(TAOS_RES *res, int32_t row, int32_t col);
+DLL_EXPORT int         taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *rows);
 DLL_EXPORT bool        taos_is_update_query(TAOS_RES *res);
 DLL_EXPORT int         taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows);
 DLL_EXPORT int         taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows);
@@ -263,7 +271,10 @@ DLL_EXPORT TAOS_RES *taos_schemaless_insert_raw_ttl(TAOS *taos, char *lines, int
                                                     int precision, int32_t ttl);
 DLL_EXPORT TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows,
                                                                int protocol, int precision, int32_t ttl, int64_t reqid);
-
+DLL_EXPORT TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid_tbname_key(TAOS *taos, char *lines, int len, int32_t *totalRows,
+                                                               int protocol, int precision, int32_t ttl, int64_t reqid, char *tbnameKey);
+DLL_EXPORT TAOS_RES *taos_schemaless_insert_ttl_with_reqid_tbname_key(TAOS *taos, char *lines[], int numLines, int protocol,
+                                                           int precision, int32_t ttl, int64_t reqid, char *tbnameKey);
 /* --------------------------TMQ INTERFACE------------------------------- */
 
 typedef struct tmq_t      tmq_t;
@@ -282,7 +293,7 @@ typedef enum tmq_res_t {
   TMQ_RES_INVALID = -1,
   TMQ_RES_DATA = 1,
   TMQ_RES_TABLE_META = 2,
-  TMQ_RES_METADATA = 3,
+  TMQ_RES_METADATA = 3
 } tmq_res_t;
 
 typedef struct tmq_topic_assignment {
@@ -359,7 +370,7 @@ typedef enum {
 } TSDB_SERVER_STATUS;
 
 DLL_EXPORT TSDB_SERVER_STATUS taos_check_server_status(const char *fqdn, int port, char *details, int maxlen);
-
+DLL_EXPORT char* getBuildInfo();
 #ifdef __cplusplus
 }
 #endif

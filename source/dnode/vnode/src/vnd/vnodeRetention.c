@@ -15,20 +15,15 @@
 
 #include "vnd.h"
 
-int32_t vnodeDoRetention(SVnode *pVnode, int64_t now) {
-  int32_t code = TSDB_CODE_SUCCESS;
+extern int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now);
+extern int32_t tsdbAsyncS3Migrate(STsdb *tsdb, int64_t now);
 
-  code = tsdbRetention(pVnode->pTsdb, now, pVnode->config.sttTrigger == 1);
-
-  if (TSDB_CODE_SUCCESS == code) code = smaRetention(pVnode->pSma, now);
-
-  return code;
+int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now) {
+  // async retention
+  return tsdbAsyncRetention(pVnode->pTsdb, now);
 }
 
-int32_t vnodeDoS3Migrate(SVnode *pVnode, int64_t now) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  code = tsdbS3Migrate(pVnode->pTsdb, now, pVnode->config.sttTrigger == 1);
-
-  return code;
+int32_t vnodeAsyncS3Migrate(SVnode *pVnode, int64_t now) {
+  // async migration
+  return tsdbAsyncS3Migrate(pVnode->pTsdb, now);
 }

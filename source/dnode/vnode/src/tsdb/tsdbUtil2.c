@@ -16,34 +16,31 @@
 #include "tsdbUtil2.h"
 
 // SDelBlock ----------
-int32_t tTombBlockInit(STombBlock *tombBlock) {
+void tTombBlockInit(STombBlock *tombBlock) {
   tombBlock->numOfRecords = 0;
   for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
     tBufferInit(&tombBlock->buffers[i]);
   }
-  return 0;
+  return;
 }
 
-int32_t tTombBlockDestroy(STombBlock *tombBlock) {
+void tTombBlockDestroy(STombBlock *tombBlock) {
   tombBlock->numOfRecords = 0;
   for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
     tBufferDestroy(&tombBlock->buffers[i]);
   }
-  return 0;
 }
 
-int32_t tTombBlockClear(STombBlock *tombBlock) {
+void tTombBlockClear(STombBlock *tombBlock) {
   tombBlock->numOfRecords = 0;
   for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
     tBufferClear(&tombBlock->buffers[i]);
   }
-  return 0;
 }
 
 int32_t tTombBlockPut(STombBlock *tombBlock, const STombRecord *record) {
   for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
-    int32_t code = tBufferPutI64(&tombBlock->buffers[i], record->data[i]);
-    if (code) return code;
+    TAOS_CHECK_RETURN(tBufferPutI64(&tombBlock->buffers[i], record->data[i]));
   }
   tombBlock->numOfRecords++;
   return 0;
@@ -56,7 +53,7 @@ int32_t tTombBlockGet(STombBlock *tombBlock, int32_t idx, STombRecord *record) {
 
   for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
     SBufferReader br = BUFFER_READER_INITIALIZER(sizeof(int64_t) * idx, &tombBlock->buffers[i]);
-    tBufferGetI64(&br, &record->data[i]);
+    TAOS_CHECK_RETURN(tBufferGetI64(&br, &record->data[i]));
   }
   return 0;
 }
@@ -73,27 +70,34 @@ int32_t tTombRecordCompare(const STombRecord *r1, const STombRecord *r2) {
 
 // STbStatisBlock ----------
 int32_t tStatisBlockInit(STbStatisBlock *statisBlock) {
+  int32_t code = 0;
+
   statisBlock->numOfPKs = 0;
   statisBlock->numOfRecords = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->buffers); ++i) {
     tBufferInit(&statisBlock->buffers[i]);
   }
   for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
-    tValueColumnInit(&statisBlock->firstKeyPKs[i]);
-    tValueColumnInit(&statisBlock->lastKeyPKs[i]);
+    TAOS_CHECK_GOTO(tValueColumnInit(&statisBlock->firstKeyPKs[i]), NULL, _exit);
+    TAOS_CHECK_GOTO(tValueColumnInit(&statisBlock->lastKeyPKs[i]), NULL, _exit);
   }
-  return 0;
+
+_exit:
+  if (code) {
+    TAOS_UNUSED(tStatisBlockDestroy(statisBlock));
+  }
+  return code;
 }
 
 int32_t tStatisBlockDestroy(STbStatisBlock *statisBlock) {
   statisBlock->numOfPKs = 0;
   statisBlock->numOfRecords = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->buffers); ++i) {
-    tBufferDestroy(&statisBlock->buffers[i]);
+    TAOS_UNUSED(tBufferDestroy(&statisBlock->buffers[i]));
   }
   for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
-    tValueColumnDestroy(&statisBlock->firstKeyPKs[i]);
-    tValueColumnDestroy(&statisBlock->lastKeyPKs[i]);
+    TAOS_UNUSED(tValueColumnDestroy(&statisBlock->firstKeyPKs[i]));
+    TAOS_UNUSED(tValueColumnDestroy(&statisBlock->lastKeyPKs[i]));
   }
   return 0;
 }
@@ -102,17 +106,16 @@ int32_t tStatisBlockClear(STbStatisBlock *statisBlock) {
   statisBlock->numOfPKs = 0;
   statisBlock->numOfRecords = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->buffers); ++i) {
-    tBufferClear(&statisBlock->buffers[i]);
+    TAOS_UNUSED(tBufferClear(&statisBlock->buffers[i]));
   }
   for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
-    tValueColumnClear(&statisBlock->firstKeyPKs[i]);
-    tValueColumnClear(&statisBlock->lastKeyPKs[i]);
+    TAOS_UNUSED(tValueColumnClear(&statisBlock->firstKeyPKs[i]));
+    TAOS_UNUSED(tValueColumnClear(&statisBlock->lastKeyPKs[i]));
   }
   return 0;
 }
 
 static int32_t tStatisBlockAppend(STbStatisBlock *block, SRowInfo *row) {
-  int32_t     code;
   STsdbRowKey key;
 
   tsdbRowGetKey(&row->row, &key);
@@ -128,14 +131,14 @@ static int32_t tStatisBlockAppend(STbStatisBlock *block, SRowInfo *row) {
     }
   }
 
-  if ((code = tBufferPutI64(&block->suids, row->suid))) return code;
-  if ((code = tBufferPutI64(&block->uids, row->uid))) return code;
-  if ((code = tBufferPutI64(&block->firstKeyTimestamps, key.key.ts))) return code;
-  if ((code = tBufferPutI64(&block->lastKeyTimestamps, key.key.ts))) return code;
-  if ((code = tBufferPutI64(&block->counts, 1))) return code;
+  TAOS_CHECK_RETURN(tBufferPutI64(&block->suids, row->suid));
+  TAOS_CHECK_RETURN(tBufferPutI64(&block->uids, row->uid));
+  TAOS_CHECK_RETURN(tBufferPutI64(&block->firstKeyTimestamps, key.key.ts));
+  TAOS_CHECK_RETURN(tBufferPutI64(&block->lastKeyTimestamps, key.key.ts));
+  TAOS_CHECK_RETURN(tBufferPutI64(&block->counts, 1));
   for (int32_t i = 0; i < block->numOfPKs; ++i) {
-    if ((code = tValueColumnAppend(block->firstKeyPKs + i, key.key.pks + i))) return code;
-    if ((code = tValueColumnAppend(block->lastKeyPKs + i, key.key.pks + i))) return code;
+    TAOS_CHECK_RETURN(tValueColumnAppend(block->firstKeyPKs + i, key.key.pks + i));
+    TAOS_CHECK_RETURN(tValueColumnAppend(block->lastKeyPKs + i, key.key.pks + i));
   }
 
   block->numOfRecords++;
@@ -146,9 +149,8 @@ static int32_t tStatisBlockUpdate(STbStatisBlock *block, SRowInfo *row) {
   STbStatisRecord record;
   STsdbRowKey     key;
   int32_t         c;
-  int32_t         code;
 
-  tStatisBlockGet(block, block->numOfRecords - 1, &record);
+  TAOS_CHECK_RETURN(tStatisBlockGet(block, block->numOfRecords - 1, &record));
   tsdbRowGetKey(&row->row, &key);
 
   c = tRowKeyCompare(&record.lastKey, &key.key);
@@ -156,23 +158,20 @@ static int32_t tStatisBlockUpdate(STbStatisBlock *block, SRowInfo *row) {
     return 0;
   } else if (c < 0) {
     // last ts
-    code = tBufferPutAt(&block->lastKeyTimestamps, (block->numOfRecords - 1) * sizeof(record.lastKey.ts), &key.key.ts,
-                        sizeof(key.key.ts));
-    if (code) return code;
+    TAOS_CHECK_RETURN(tBufferPutAt(&block->lastKeyTimestamps, (block->numOfRecords - 1) * sizeof(record.lastKey.ts),
+                                   &key.key.ts, sizeof(key.key.ts)));
 
     // last primary keys
     for (int i = 0; i < block->numOfPKs; i++) {
-      code = tValueColumnUpdate(&block->lastKeyPKs[i], block->numOfRecords - 1, &key.key.pks[i]);
-      if (code) return code;
+      TAOS_CHECK_RETURN(tValueColumnUpdate(&block->lastKeyPKs[i], block->numOfRecords - 1, &key.key.pks[i]));
     }
 
     // count
     record.count++;
-    code = tBufferPutAt(&block->counts, (block->numOfRecords - 1) * sizeof(record.count), &record.count,
-                        sizeof(record.count));
-    if (code) return code;
+    TAOS_CHECK_RETURN(tBufferPutAt(&block->counts, (block->numOfRecords - 1) * sizeof(record.count), &record.count,
+                                   sizeof(record.count)));
   } else {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_PARA;
   }
 
   return 0;
@@ -182,7 +181,7 @@ int32_t tStatisBlockPut(STbStatisBlock *block, SRowInfo *row, int32_t maxRecords
   if (block->numOfRecords > 0) {
     int64_t       lastUid;
     SBufferReader br = BUFFER_READER_INITIALIZER(sizeof(int64_t) * (block->numOfRecords - 1), &block->uids);
-    tBufferGetI64(&br, &lastUid);
+    TAOS_CHECK_RETURN(tBufferGetI64(&br, &lastUid));
 
     if (lastUid == row->uid) {
       return tStatisBlockUpdate(block, row);
@@ -194,7 +193,6 @@ int32_t tStatisBlockPut(STbStatisBlock *block, SRowInfo *row, int32_t maxRecords
 }
 
 int32_t tStatisBlockGet(STbStatisBlock *statisBlock, int32_t idx, STbStatisRecord *record) {
-  int32_t       code;
   SBufferReader reader;
 
   if (idx < 0 || idx >= statisBlock->numOfRecords) {
@@ -202,36 +200,29 @@ int32_t tStatisBlockGet(STbStatisBlock *statisBlock, int32_t idx, STbStatisRecor
   }
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(record->suid), &statisBlock->suids);
-  code = tBufferGetI64(&reader, &record->suid);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI64(&reader, &record->suid));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(record->uid), &statisBlock->uids);
-  code = tBufferGetI64(&reader, &record->uid);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI64(&reader, &record->uid));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(record->firstKey.ts), &statisBlock->firstKeyTimestamps);
-  code = tBufferGetI64(&reader, &record->firstKey.ts);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI64(&reader, &record->firstKey.ts));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(record->lastKey.ts), &statisBlock->lastKeyTimestamps);
-  code = tBufferGetI64(&reader, &record->lastKey.ts);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI64(&reader, &record->lastKey.ts));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(record->count), &statisBlock->counts);
-  code = tBufferGetI64(&reader, &record->count);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI64(&reader, &record->count));
 
   // primary keys
   for (record->firstKey.numOfPKs = 0; record->firstKey.numOfPKs < statisBlock->numOfPKs; record->firstKey.numOfPKs++) {
-    code = tValueColumnGet(&statisBlock->firstKeyPKs[record->firstKey.numOfPKs], idx,
-                           &record->firstKey.pks[record->firstKey.numOfPKs]);
-    if (code) return code;
+    TAOS_CHECK_RETURN(tValueColumnGet(&statisBlock->firstKeyPKs[record->firstKey.numOfPKs], idx,
+                                      &record->firstKey.pks[record->firstKey.numOfPKs]));
   }
 
   for (record->lastKey.numOfPKs = 0; record->lastKey.numOfPKs < statisBlock->numOfPKs; record->lastKey.numOfPKs++) {
-    code = tValueColumnGet(&statisBlock->lastKeyPKs[record->lastKey.numOfPKs], idx,
-                           &record->lastKey.pks[record->lastKey.numOfPKs]);
-    if (code) return code;
+    TAOS_CHECK_RETURN(tValueColumnGet(&statisBlock->lastKeyPKs[record->lastKey.numOfPKs], idx,
+                                      &record->lastKey.pks[record->lastKey.numOfPKs]));
   }
 
   return 0;
@@ -239,27 +230,34 @@ int32_t tStatisBlockGet(STbStatisBlock *statisBlock, int32_t idx, STbStatisRecor
 
 // SBrinRecord ----------
 int32_t tBrinBlockInit(SBrinBlock *brinBlock) {
+  int32_t code;
+
   brinBlock->numOfPKs = 0;
   brinBlock->numOfRecords = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->buffers); ++i) {
     tBufferInit(&brinBlock->buffers[i]);
   }
   for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
-    tValueColumnInit(&brinBlock->firstKeyPKs[i]);
-    tValueColumnInit(&brinBlock->lastKeyPKs[i]);
+    TAOS_CHECK_GOTO(tValueColumnInit(&brinBlock->firstKeyPKs[i]), NULL, _exit);
+    TAOS_CHECK_GOTO(tValueColumnInit(&brinBlock->lastKeyPKs[i]), NULL, _exit);
   }
-  return 0;
+
+_exit:
+  if (code) {
+    (void)tBrinBlockDestroy(brinBlock);
+  }
+  return code;
 }
 
 int32_t tBrinBlockDestroy(SBrinBlock *brinBlock) {
   brinBlock->numOfPKs = 0;
   brinBlock->numOfRecords = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->buffers); ++i) {
-    tBufferDestroy(&brinBlock->buffers[i]);
+    TAOS_UNUSED(tBufferDestroy(&brinBlock->buffers[i]));
   }
   for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
-    tValueColumnDestroy(&brinBlock->firstKeyPKs[i]);
-    tValueColumnDestroy(&brinBlock->lastKeyPKs[i]);
+    TAOS_UNUSED(tValueColumnDestroy(&brinBlock->firstKeyPKs[i]));
+    TAOS_UNUSED(tValueColumnDestroy(&brinBlock->lastKeyPKs[i]));
   }
   return 0;
 }
@@ -268,19 +266,19 @@ int32_t tBrinBlockClear(SBrinBlock *brinBlock) {
   brinBlock->numOfPKs = 0;
   brinBlock->numOfRecords = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->buffers); ++i) {
-    tBufferClear(&brinBlock->buffers[i]);
+    TAOS_UNUSED(tBufferClear(&brinBlock->buffers[i]));
   }
   for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
-    tValueColumnClear(&brinBlock->firstKeyPKs[i]);
-    tValueColumnClear(&brinBlock->lastKeyPKs[i]);
+    TAOS_UNUSED(tValueColumnClear(&brinBlock->firstKeyPKs[i]));
+    TAOS_UNUSED(tValueColumnClear(&brinBlock->lastKeyPKs[i]));
   }
   return 0;
 }
 
 int32_t tBrinBlockPut(SBrinBlock *brinBlock, const SBrinRecord *record) {
-  int32_t code;
-
-  ASSERT(record->firstKey.key.numOfPKs == record->lastKey.key.numOfPKs);
+  if (record->firstKey.key.numOfPKs != record->lastKey.key.numOfPKs) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   if (brinBlock->numOfRecords == 0) {  // the first row
     brinBlock->numOfPKs = record->firstKey.key.numOfPKs;
@@ -296,60 +294,29 @@ int32_t tBrinBlockPut(SBrinBlock *brinBlock, const SBrinRecord *record) {
     }
   }
 
-  code = tBufferPutI64(&brinBlock->suids, record->suid);
-  if (code) return code;
-
-  code = tBufferPutI64(&brinBlock->uids, record->uid);
-  if (code) return code;
-
-  code = tBufferPutI64(&brinBlock->firstKeyTimestamps, record->firstKey.key.ts);
-  if (code) return code;
-
-  code = tBufferPutI64(&brinBlock->firstKeyVersions, record->firstKey.version);
-  if (code) return code;
-
-  code = tBufferPutI64(&brinBlock->lastKeyTimestamps, record->lastKey.key.ts);
-  if (code) return code;
-
-  code = tBufferPutI64(&brinBlock->lastKeyVersions, record->lastKey.version);
-  if (code) return code;
-
-  code = tBufferPutI64(&brinBlock->minVers, record->minVer);
-  if (code) return code;
-
-  code = tBufferPutI64(&brinBlock->maxVers, record->maxVer);
-  if (code) return code;
-
-  code = tBufferPutI64(&brinBlock->blockOffsets, record->blockOffset);
-  if (code) return code;
-
-  code = tBufferPutI64(&brinBlock->smaOffsets, record->smaOffset);
-  if (code) return code;
-
-  code = tBufferPutI32(&brinBlock->blockSizes, record->blockSize);
-  if (code) return code;
-
-  code = tBufferPutI32(&brinBlock->blockKeySizes, record->blockKeySize);
-  if (code) return code;
-
-  code = tBufferPutI32(&brinBlock->smaSizes, record->smaSize);
-  if (code) return code;
-
-  code = tBufferPutI32(&brinBlock->numRows, record->numRow);
-  if (code) return code;
-
-  code = tBufferPutI32(&brinBlock->counts, record->count);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferPutI64(&brinBlock->suids, record->suid));
+  TAOS_CHECK_RETURN(tBufferPutI64(&brinBlock->uids, record->uid));
+  TAOS_CHECK_RETURN(tBufferPutI64(&brinBlock->firstKeyTimestamps, record->firstKey.key.ts));
+  TAOS_CHECK_RETURN(tBufferPutI64(&brinBlock->firstKeyVersions, record->firstKey.version));
+  TAOS_CHECK_RETURN(tBufferPutI64(&brinBlock->lastKeyTimestamps, record->lastKey.key.ts));
+  TAOS_CHECK_RETURN(tBufferPutI64(&brinBlock->lastKeyVersions, record->lastKey.version));
+  TAOS_CHECK_RETURN(tBufferPutI64(&brinBlock->minVers, record->minVer));
+  TAOS_CHECK_RETURN(tBufferPutI64(&brinBlock->maxVers, record->maxVer));
+  TAOS_CHECK_RETURN(tBufferPutI64(&brinBlock->blockOffsets, record->blockOffset));
+  TAOS_CHECK_RETURN(tBufferPutI64(&brinBlock->smaOffsets, record->smaOffset));
+  TAOS_CHECK_RETURN(tBufferPutI32(&brinBlock->blockSizes, record->blockSize));
+  TAOS_CHECK_RETURN(tBufferPutI32(&brinBlock->blockKeySizes, record->blockKeySize));
+  TAOS_CHECK_RETURN(tBufferPutI32(&brinBlock->smaSizes, record->smaSize));
+  TAOS_CHECK_RETURN(tBufferPutI32(&brinBlock->numRows, record->numRow));
+  TAOS_CHECK_RETURN(tBufferPutI32(&brinBlock->counts, record->count));
 
   if (brinBlock->numOfPKs > 0) {
     for (int32_t i = 0; i < brinBlock->numOfPKs; ++i) {
-      code = tValueColumnAppend(&brinBlock->firstKeyPKs[i], &record->firstKey.key.pks[i]);
-      if (code) return code;
+      TAOS_CHECK_RETURN(tValueColumnAppend(&brinBlock->firstKeyPKs[i], &record->firstKey.key.pks[i]));
     }
 
     for (int32_t i = 0; i < brinBlock->numOfPKs; ++i) {
-      code = tValueColumnAppend(&brinBlock->lastKeyPKs[i], &record->lastKey.key.pks[i]);
-      if (code) return code;
+      TAOS_CHECK_RETURN(tValueColumnAppend(&brinBlock->lastKeyPKs[i], &record->lastKey.key.pks[i]));
     }
   }
 
@@ -359,7 +326,6 @@ int32_t tBrinBlockPut(SBrinBlock *brinBlock, const SBrinRecord *record) {
 }
 
 int32_t tBrinBlockGet(SBrinBlock *brinBlock, int32_t idx, SBrinRecord *record) {
-  int32_t       code;
   SBufferReader reader;
 
   if (idx < 0 || idx >= brinBlock->numOfRecords) {
@@ -367,78 +333,61 @@ int32_t tBrinBlockGet(SBrinBlock *brinBlock, int32_t idx, SBrinRecord *record) {
   }
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int64_t), &brinBlock->suids);
-  code = tBufferGetI64(&reader, &record->suid);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI64(&reader, &record->suid));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int64_t), &brinBlock->uids);
-  code = tBufferGetI64(&reader, &record->uid);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI64(&reader, &record->uid));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int64_t), &brinBlock->firstKeyTimestamps);
-  code = tBufferGetI64(&reader, &record->firstKey.key.ts);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI64(&reader, &record->firstKey.key.ts));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int64_t), &brinBlock->firstKeyVersions);
-  code = tBufferGetI64(&reader, &record->firstKey.version);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI64(&reader, &record->firstKey.version));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int64_t), &brinBlock->lastKeyTimestamps);
-  code = tBufferGetI64(&reader, &record->lastKey.key.ts);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI64(&reader, &record->lastKey.key.ts));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int64_t), &brinBlock->lastKeyVersions);
-  code = tBufferGetI64(&reader, &record->lastKey.version);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI64(&reader, &record->lastKey.version));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int64_t), &brinBlock->minVers);
-  code = tBufferGetI64(&reader, &record->minVer);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI64(&reader, &record->minVer));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int64_t), &brinBlock->maxVers);
-  code = tBufferGetI64(&reader, &record->maxVer);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI64(&reader, &record->maxVer));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int64_t), &brinBlock->blockOffsets);
-  code = tBufferGetI64(&reader, &record->blockOffset);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI64(&reader, &record->blockOffset));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int64_t), &brinBlock->smaOffsets);
-  code = tBufferGetI64(&reader, &record->smaOffset);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI64(&reader, &record->smaOffset));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int32_t), &brinBlock->blockSizes);
-  code = tBufferGetI32(&reader, &record->blockSize);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI32(&reader, &record->blockSize));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int32_t), &brinBlock->blockKeySizes);
-  code = tBufferGetI32(&reader, &record->blockKeySize);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI32(&reader, &record->blockKeySize));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int32_t), &brinBlock->smaSizes);
-  code = tBufferGetI32(&reader, &record->smaSize);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI32(&reader, &record->smaSize));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int32_t), &brinBlock->numRows);
-  code = tBufferGetI32(&reader, &record->numRow);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI32(&reader, &record->numRow));
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int32_t), &brinBlock->counts);
-  code = tBufferGetI32(&reader, &record->count);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tBufferGetI32(&reader, &record->count));
 
   // primary keys
   for (record->firstKey.key.numOfPKs = 0; record->firstKey.key.numOfPKs < brinBlock->numOfPKs;
        record->firstKey.key.numOfPKs++) {
-    code = tValueColumnGet(&brinBlock->firstKeyPKs[record->firstKey.key.numOfPKs], idx,
-                           &record->firstKey.key.pks[record->firstKey.key.numOfPKs]);
-    if (code) return code;
+    TAOS_CHECK_RETURN(tValueColumnGet(&brinBlock->firstKeyPKs[record->firstKey.key.numOfPKs], idx,
+                                      &record->firstKey.key.pks[record->firstKey.key.numOfPKs]));
   }
 
   for (record->lastKey.key.numOfPKs = 0; record->lastKey.key.numOfPKs < brinBlock->numOfPKs;
        record->lastKey.key.numOfPKs++) {
-    code = tValueColumnGet(&brinBlock->lastKeyPKs[record->lastKey.key.numOfPKs], idx,
-                           &record->lastKey.key.pks[record->lastKey.key.numOfPKs]);
-    if (code) return code;
+    TAOS_CHECK_RETURN(tValueColumnGet(&brinBlock->lastKeyPKs[record->lastKey.key.numOfPKs], idx,
+                                      &record->lastKey.key.pks[record->lastKey.key.numOfPKs]));
   }
 
   return 0;

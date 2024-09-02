@@ -31,17 +31,18 @@ static bool      mndCheckRetrieveFinished(SShowObj *pShow);
 static int32_t   mndProcessRetrieveSysTableReq(SRpcMsg *pReq);
 
 int32_t mndInitShow(SMnode *pMnode) {
+  int32_t    code = 0;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
 
   pMgmt->cache = taosCacheInit(TSDB_DATA_TYPE_INT, 5000, true, (__cache_free_fn_t)mndFreeShowObj, "show");
   if (pMgmt->cache == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("failed to alloc show cache since %s", terrstr());
-    return -1;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    mError("failed to alloc show cache since %s", tstrerror(code));
+    TAOS_RETURN(code);
   }
 
   mndSetMsgHandle(pMnode, TDMT_MND_SYSTABLE_RETRIEVE, mndProcessRetrieveSysTableReq);
-  return 0;
+  TAOS_RETURN(code);
 }
 
 void mndCleanupShow(SMnode *pMnode) {
@@ -89,6 +90,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     //    type = TSDB_MGMT_TABLE_DIST;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USERS, len) == 0) {
     type = TSDB_MGMT_TABLE_USER;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USERS_FULL, len) == 0) {
+    type = TSDB_MGMT_TABLE_USER_FULL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_LICENCES, len) == 0) {
     type = TSDB_MGMT_TABLE_GRANTS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VGROUPS, len) == 0) {
@@ -155,7 +158,7 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   showObj.id = showId;
   showObj.pMnode = pMnode;
   showObj.type = convertToRetrieveType(pReq->tb, tListLen(pReq->tb));
-  memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
+  (void)memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
   tstrncpy(showObj.filterTb, pReq->filterTb, TSDB_TABLE_NAME_LEN);
 
   int32_t   keepTime = tsShellActivityTimer * 6 * 1000;
@@ -177,7 +180,11 @@ static void mndFreeShowObj(SShowObj *pShow) {
   ShowFreeIterFp freeFp = pMgmt->freeIterFps[pShow->type];
   if (freeFp != NULL) {
     if (pShow->pIter != NULL) {
+      mTrace("show:0x%" PRIx64 ", is destroying, data:%p, pIter:%p, ", pShow->id, pShow, pShow->pIter);
+
       (*freeFp)(pMnode, pShow->pIter);
+
+      pShow->pIter = NULL;
     }
   }
 
@@ -210,6 +217,7 @@ static void mndReleaseShowObj(SShowObj *pShow, bool forceRemove) {
 }
 
 static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
+  int32_t    code = 0;
   SMnode    *pMnode = pReq->info.node;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   SShowObj  *pShow = NULL;
@@ -218,10 +226,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   int32_t    rowsRead = 0;
   mDebug("mndProcessRetrieveSysTableReq start");
   SRetrieveTableReq retrieveReq = {0};
-  if (tDeserializeSRetrieveTableReq(pReq->pCont, pReq->contLen, &retrieveReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
+  TAOS_CHECK_RETURN(tDeserializeSRetrieveTableReq(pReq->pCont, pReq->contLen, &retrieveReq));
 
   mDebug("process to retrieve systable req db:%s, tb:%s", retrieveReq.db, retrieveReq.tb);
 
@@ -230,17 +235,17 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     if (pMeta == NULL) {
       pMeta = taosHashGet(pMnode->perfsMeta, retrieveReq.tb, strlen(retrieveReq.tb));
       if (pMeta == NULL) {
-        terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-        mError("failed to process show-retrieve req:%p since %s", pShow, terrstr());
-        return -1;
+        code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+        mError("failed to process show-retrieve req:%p since %s", pShow, tstrerror(code));
+        TAOS_RETURN(code);
       }
     }
 
     pShow = mndCreateShowObj(pMnode, &retrieveReq);
     if (pShow == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      mError("failed to process show-meta req since %s", terrstr());
-      return -1;
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      mError("failed to process show-meta req since %s", tstrerror(code));
+      TAOS_RETURN(code);
     }
 
     pShow->pMeta = pMeta;
@@ -248,9 +253,9 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   } else {
     pShow = mndAcquireShowObj(pMnode, retrieveReq.showId);
     if (pShow == NULL) {
-      terrno = TSDB_CODE_MND_INVALID_SHOWOBJ;
-      mError("failed to process show-retrieve req:%p since %s", pShow, terrstr());
-      return -1;
+      code = TSDB_CODE_MND_INVALID_SHOWOBJ;
+      mError("failed to process show-retrieve req:%p since %s", pShow, tstrerror(code));
+      TAOS_RETURN(code);
     }
   }
 
@@ -262,24 +267,38 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   ShowRetrieveFp retrieveFp = pMgmt->retrieveFps[pShow->type];
   if (retrieveFp == NULL) {
     mndReleaseShowObj(pShow, false);
-    terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, terrstr());
-    return -1;
+    code = TSDB_CODE_MSG_NOT_PROCESSED;
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
+    TAOS_RETURN(code);
   }
 
   mDebug("show:0x%" PRIx64 ", start retrieve data, type:%d", pShow->id, pShow->type);
   if (retrieveReq.user[0] != 0) {
-    memcpy(pReq->info.conn.user, retrieveReq.user, TSDB_USER_LEN);
+    (void)memcpy(pReq->info.conn.user, retrieveReq.user, TSDB_USER_LEN);
   } else {
-    memcpy(pReq->info.conn.user, TSDB_DEFAULT_USER, strlen(TSDB_DEFAULT_USER) + 1);
+    (void)memcpy(pReq->info.conn.user, TSDB_DEFAULT_USER, strlen(TSDB_DEFAULT_USER) + 1);
   }
-  if (retrieveReq.db[0] && mndCheckShowPrivilege(pMnode, pReq->info.conn.user, pShow->type, retrieveReq.db) != 0) {
-    return -1;
+  code = -1;
+  if (retrieveReq.db[0] &&
+      (code = mndCheckShowPrivilege(pMnode, pReq->info.conn.user, pShow->type, retrieveReq.db)) != 0) {
+    TAOS_RETURN(code);
+  }
+  if (pShow->type == TSDB_MGMT_TABLE_USER_FULL) {
+    if(strcmp(pReq->info.conn.user, "root") != 0){
+      mError("The operation is not permitted, user:%s, pShow->type:%d", pReq->info.conn.user, pShow->type);
+      code = TSDB_CODE_MND_NO_RIGHTS;
+      TAOS_RETURN(code);
+    }
   }
 
   int32_t numOfCols = pShow->pMeta->numOfColumns;
 
-  SSDataBlock *pBlock = createDataBlock();
+  SSDataBlock *pBlock = NULL;
+  code = createDataBlock(&pBlock);
+  if (code) {
+    TAOS_RETURN(code);
+  }
+
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {0};
 
@@ -288,10 +307,10 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     idata.info.bytes = p->bytes;
     idata.info.type = p->type;
     idata.info.colId = p->colId;
-    blockDataAppendColInfo(pBlock, &idata);
+    TAOS_CHECK_RETURN(blockDataAppendColInfo(pBlock, &idata));
   }
 
-  blockDataEnsureCapacity(pBlock, rowsToRead);
+  TAOS_CHECK_RETURN(blockDataEnsureCapacity(pBlock, rowsToRead));
 
   if (mndCheckRetrieveFinished(pShow)) {
     mDebug("show:0x%" PRIx64 ", read finished, numOfRows:%d", pShow->id, pShow->numOfRows);
@@ -299,11 +318,11 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   } else {
     rowsRead = (*retrieveFp)(pReq, pShow, pBlock, rowsToRead);
     if (rowsRead < 0) {
-      terrno = rowsRead;
+      code = rowsRead;
       mDebug("show:0x%" PRIx64 ", retrieve completed", pShow->id);
       mndReleaseShowObj(pShow, true);
       blockDataDestroy(pBlock);
-      return -1;
+      TAOS_RETURN(code);
     }
 
     pBlock->info.rows = rowsRead;
@@ -315,11 +334,9 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
-    mndReleaseShowObj(pShow, false);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, terrstr());
-    blockDataDestroy(pBlock);
-    return -1;
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
+    code = terrno;
+    goto _exit;
   }
 
   pRsp->handle = htobe64(pShow->id);
@@ -341,6 +358,11 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
 
     int32_t len = blockEncode(pBlock, pStart, pShow->pMeta->numOfColumns);
+    if(len < 0){
+      mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
+      code =  terrno;
+      return code;
+    }
   }
 
   pRsp->numOfRows = htonl(rowsRead);
@@ -359,6 +381,13 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
   blockDataDestroy(pBlock);
   return TSDB_CODE_SUCCESS;
+_exit:
+  mndReleaseShowObj(pShow, false);
+  blockDataDestroy(pBlock);
+  if(pRsp) {
+    rpcFreeCont(pRsp);
+  }
+  return code;
 }
 
 static bool mndCheckRetrieveFinished(SShowObj *pShow) {

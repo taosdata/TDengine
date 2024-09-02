@@ -52,7 +52,7 @@ typedef int32_t (*__ext_compar_fn_t)(const void *p1, const void *p2, const void 
  * @param param
  * @param comparFn
  */
-void taosqsort(void *src, int64_t numOfElem, int64_t size, const void *param, __ext_compar_fn_t comparFn);
+int32_t taosqsort(void *src, int64_t numOfElem, int64_t size, const void *param, __ext_compar_fn_t comparFn);
 
 /**
  * Non-recursive quick sort.
@@ -98,8 +98,8 @@ void *taosbsearch(const void *key, const void *base, int32_t nmemb, int32_t size
  * @param maxroot: if heap is max root heap
  * @return
  */
-void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const void *parcompar,
-                    __ext_compar_fn_t compar, char *buf, bool maxroot);
+int32_t taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const void *parcompar,
+                       __ext_compar_fn_t compar, char *buf, bool maxroot);
 
 /**
  * sort heap to make sure it is a max/min root heap
@@ -114,7 +114,8 @@ void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const 
  * @param maxroot: if heap is max root heap
  * @return
  */
-void taosheapsort(void *base, int32_t size, int32_t len, const void *parcompar, __ext_compar_fn_t compar, bool maxroot);
+int32_t taosheapsort(void *base, int32_t size, int32_t len, const void *parcompar, __ext_compar_fn_t compar,
+                     bool maxroot);
 
 #ifdef __cplusplus
 }

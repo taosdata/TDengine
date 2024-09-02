@@ -585,7 +585,7 @@ void showHelp() {
     balance vgroup ;\n\
     balance vgroup leader on <vgroup_id> \n\
     compact database <db_name>; \n\
-    crate view <view_name> as select ...\n\
+    create view <view_name> as select ...\n\
     redistribute vgroup <vgroup_id> dnode <dnode_id> ;\n\
     split vgroup <vgroup_id>;\n\
     show compacts;\n\

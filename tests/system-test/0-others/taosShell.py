@@ -5,6 +5,7 @@ import time
 import socket
 import os
 import platform
+import re
 if platform.system().lower() == 'windows':
     import wexpect as taosExpect
 else:
@@ -14,6 +15,9 @@ from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
+
+import subprocess
+import threading
 
 def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key1='', value1=''):
     if len(key) == 0:
@@ -107,7 +111,7 @@ class TDTestCase:
     updatecfgDict["fqdn"] = hostname
 
     print ("===================: ", updatecfgDict)
-
+    taos_output = []
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
@@ -115,7 +119,6 @@ class TDTestCase:
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
-
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
@@ -128,11 +131,35 @@ class TDTestCase:
                     buildPath = root[:len(root) - len("/build/bin")]
                     break
         return buildPath
+    def run_command(self, commands):
+        
+        count = 0
+        while count < 2:
+            # print(f"count: {count}")
+            value = subprocess.getoutput(f"nohup {commands} &")
+            # print(f"value: {value}")
+            self.taos_output.append(value)
+            count += 1
+            
+    def taos_thread_repeat_k(self, run_command, commands, threads_num=10, output=[]):
+        threads = []
+        taos_output = self.taos_output        
+        for id in range(threads_num):
+            #threads.append(Process(target=cloud_consumer, args=(id,)))
+            threads.append(threading.Thread(target=run_command, args=(commands,)))
+        for tr in threads:
+            tr.start()
+        for tr in threads:
+            tr.join()
+        for value in taos_output:
+            if "crash" in value:
+                tdLog.exit(f"command: {commands} crash") 
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
         # time.sleep(2)
         tdSql.query("create user testpy pass 'testpy'")
+        tdSql.query("alter user testpy createdb 1")
 
         #hostname = socket.gethostname()
         #tdLog.info ("hostname: %s" % hostname)
@@ -370,10 +397,11 @@ class TDTestCase:
         if retCode != "TAOS_OK":
             tdLog.exit("taos -V fail")
 
-        version = 'version: ' + version
-        retVal = retVal.replace("\n", "")
-        retVal = retVal.replace("\r", "")
-        if retVal.startswith(version) == False:
+        version = 'taos version: ' + version
+        # retVal = retVal.replace("\n", "")
+        # retVal = retVal.replace("\r", "")
+        taosVersion = re.findall((f'^%s'%(version)), retVal,re.M)
+        if len(taosVersion) == 0:
             print ("return version: [%s]"%retVal)
             print ("dict version: [%s]"%version)
             tdLog.exit("taos -V version not match")
@@ -441,6 +469,12 @@ class TDTestCase:
             tdLog.exit("taos -w insert data fail")
 
         tdSql.query('drop database %s'%newDbName)
+
+        commands = f"{buildPath}/taos -k -c {cfgPath}"
+        output = self.run_command(commands)
+        os.sys
+        self.taos_thread_repeat_k(self.run_command, commands, 100, output)
+        # os.system("python 0-others/repeat_taos_k.py")
 
     def stop(self):
         tdSql.close()

@@ -39,9 +39,9 @@ typedef struct SMetaCache SMetaCache;
 // clang-format on
 
 // metaOpen ==================
-int32_t metaRLock(SMeta* pMeta);
-int32_t metaWLock(SMeta* pMeta);
-int32_t metaULock(SMeta* pMeta);
+void metaRLock(SMeta* pMeta);
+void metaWLock(SMeta* pMeta);
+void metaULock(SMeta* pMeta);
 
 // metaEntry ==================
 int metaEncodeEntry(SEncoder* pCoder, const SMetaEntry* pME);

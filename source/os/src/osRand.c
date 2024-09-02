@@ -69,7 +69,7 @@ uint32_t taosSafeRand(void) {
     if (len < 0) {
       seed = (int)taosGetTimestampSec();
     }
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
   }
 
   return (uint32_t)seed;

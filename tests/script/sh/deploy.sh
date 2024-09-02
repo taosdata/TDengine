@@ -121,7 +121,7 @@ echo "tmrDebugFlag           131"                >> $TAOS_CFG
 echo "uDebugFlag             131"                >> $TAOS_CFG
 echo "rpcDebugFlag           135"                >> $TAOS_CFG
 echo "jniDebugFlag           131"                >> $TAOS_CFG
-echo "qDebugFlag             131"                >> $TAOS_CFG
+echo "qDebugFlag             135"                >> $TAOS_CFG
 echo "cDebugFlag             135"                >> $TAOS_CFG
 echo "dDebugFlag             131"                >> $TAOS_CFG
 echo "vDebugFlag             131"                >> $TAOS_CFG
@@ -136,7 +136,7 @@ echo "idxDebugFlag           135"                >> $TAOS_CFG
 echo "udfDebugFlag           135"                >> $TAOS_CFG
 echo "smaDebugFlag           135"                >> $TAOS_CFG
 echo "metaDebugFlag          135"                >> $TAOS_CFG
-echo "stDebugFlag            135"                >> $TAOS_CFG
+echo "stDebugFlag            143"                >> $TAOS_CFG
 echo "numOfLogLines          20000000"           >> $TAOS_CFG
 echo "asyncLog               0"                  >> $TAOS_CFG
 echo "locale                 en_US.UTF-8"        >> $TAOS_CFG

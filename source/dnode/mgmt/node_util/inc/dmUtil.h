@@ -53,12 +53,42 @@ extern "C" {
 #define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ",       DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ",       DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
 
-#define dGFatal(param, ...) {if (dDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dFatal(param ", gtid:%s", __VA_ARGS__, buf);}}
-#define dGError(param, ...) {if (dDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dError(param ", gtid:%s", __VA_ARGS__, buf);}}
-#define dGWarn(param, ...)  {if (dDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dWarn(param ", gtid:%s", __VA_ARGS__, buf);}}
-#define dGInfo(param, ...)  {if (dDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dInfo(param ", gtid:%s", __VA_ARGS__, buf);}}
-#define dGDebug(param, ...) {if (dDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dDebug(param ", gtid:%s", __VA_ARGS__, buf);}}
-#define dGTrace(param, ...) {if (dDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dTrace(param ", gtid:%s", __VA_ARGS__, buf);}}
+#define encryptDebug(...) { \
+  if (toLogFile) { \
+    if (dDebugFlag & DEBUG_DEBUG) {taosPrintLog("DND ", DEBUG_DEBUG, dDebugFlag, __VA_ARGS__);} \
+  } else { \
+    /*if (dDebugFlag & DEBUG_DEBUG) {taosPrintLog("DND ", DEBUG_SCREEN, dDebugFlag, __VA_ARGS__);}*/ \
+    if (dDebugFlag & DEBUG_DEBUG) {printf(__VA_ARGS__); printf("\n");} \
+  } \
+}
+
+#define encryptInfo(...) { \
+  if (toLogFile) { \
+    taosPrintLog("DND ",       DEBUG_INFO,  255,        __VA_ARGS__); \
+  } else { \
+    /*if (dDebugFlag & DEBUG_DEBUG) {taosPrintLog("DND ", DEBUG_SCREEN, dDebugFlag, __VA_ARGS__);}*/ \
+    printf(__VA_ARGS__); \
+    printf("\n"); \
+  } \
+}
+
+#define encryptError(...) { \
+  if (toLogFile) { \
+    taosPrintLog("DND ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); \
+  }\
+  else{ \
+    /*taosPrintLog("DND ", DEBUG_SCREEN, 255,        __VA_ARGS__); */\
+    printf("ERROR: " __VA_ARGS__); \
+    printf("\n"); \
+  }\
+}
+
+#define dGFatal(param, ...) {if (dDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dFatal(param ",QID:%s", __VA_ARGS__, buf);}}
+#define dGError(param, ...) {if (dDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dError(param ",QID:%s", __VA_ARGS__, buf);}}
+#define dGWarn(param, ...)  {if (dDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dWarn(param ",QID:%s", __VA_ARGS__, buf);}}
+#define dGInfo(param, ...)  {if (dDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dInfo(param ",QID:%s", __VA_ARGS__, buf);}}
+#define dGDebug(param, ...) {if (dDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dDebug(param ",QID:%s", __VA_ARGS__, buf);}}
+#define dGTrace(param, ...) {if (dDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dTrace(param ",QID:%s", __VA_ARGS__, buf);}}
 
 // clang-format on
 
@@ -91,6 +121,7 @@ typedef void (*GetVnodeLoadsFp)(SMonVloadInfo *pInfo);
 typedef void (*GetMnodeLoadsFp)(SMonMloadInfo *pInfo);
 typedef void (*GetQnodeLoadsFp)(SQnodeLoad *pInfo);
 typedef int32_t (*ProcessAlterNodeTypeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
+typedef void (*StopDnodeFp)();
 
 typedef struct {
   int32_t        dnodeId;
@@ -115,21 +146,21 @@ typedef struct {
 } SDnodeData;
 
 typedef struct {
-  const char         *path;
-  const char         *name;
-  STfs               *pTfs;
-  SDnodeData         *pData;
-  SMsgCb              msgCb;
-  ProcessCreateNodeFp processCreateNodeFp;
+  const char            *path;
+  const char            *name;
+  STfs                  *pTfs;
+  SDnodeData            *pData;
+  SMsgCb                 msgCb;
+  ProcessCreateNodeFp    processCreateNodeFp;
   ProcessAlterNodeTypeFp processAlterNodeTypeFp;
-  ProcessDropNodeFp   processDropNodeFp;
-  SendMonitorReportFp sendMonitorReportFp;
-  SendAuditRecordsFp  sendAuditRecordFp;
-  SendMonitorReportFp sendMonitorReportFpBasic;
-  GetVnodeLoadsFp     getVnodeLoadsFp;
-  GetVnodeLoadsFp     getVnodeLoadsLiteFp;
-  GetMnodeLoadsFp     getMnodeLoadsFp;
-  GetQnodeLoadsFp     getQnodeLoadsFp;
+  ProcessDropNodeFp      processDropNodeFp;
+  SendMonitorReportFp    sendMonitorReportFp;
+  SendAuditRecordsFp     sendAuditRecordFp;
+  GetVnodeLoadsFp        getVnodeLoadsFp;
+  GetVnodeLoadsFp        getVnodeLoadsLiteFp;
+  GetMnodeLoadsFp        getMnodeLoadsFp;
+  GetQnodeLoadsFp        getQnodeLoadsFp;
+  StopDnodeFp            stopDnodeFp;
 } SMgmtInputOpt;
 
 typedef struct {
@@ -174,9 +205,10 @@ void       *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, void *nodeMsgFp, boo
 void        dmGetMonitorSystemInfo(SMonSysInfo *pInfo);
 
 // dmFile.c
-int32_t   dmReadFile(const char *path, const char *name, bool *pDeployed);
-int32_t   dmWriteFile(const char *path, const char *name, bool deployed);
-TdFilePtr dmCheckRunning(const char *dataDir);
+int32_t dmReadFile(const char *path, const char *name, bool *pDeployed);
+int32_t dmWriteFile(const char *path, const char *name, bool deployed);
+int32_t dmCheckRunning(const char *dataDir, TdFilePtr *pFile);
+// int32_t dmCheckRunningWrapper(const char *dataDir, TdFilePtr *pFile);
 
 // dmodule.c
 int32_t dmInitDndInfo(SDnodeData *pData);
@@ -194,7 +226,7 @@ void    dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
 bool    dmUpdateDnodeInfo(void *pData, int32_t *dnodeId, int64_t *clusterId, char *fqdn, uint16_t *port);
 void    dmRemoveDnodePairs(SDnodeData *pData);
 void    dmGetDnodeEp(void *pData, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
-int32_t dmUpdateEncryptKey(char *key);
+int32_t dmUpdateEncryptKey(char *key, bool toLogFile);
 int32_t dmGetEncryptKey();
 #ifdef __cplusplus
 }

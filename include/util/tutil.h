@@ -16,7 +16,6 @@
 #ifndef _TD_UTIL_UTIL_H_
 #define _TD_UTIL_UTIL_H_
 
-#include "os.h"
 #include "tcrc32c.h"
 #include "tdef.h"
 #include "thash.h"
@@ -56,14 +55,14 @@ void     taosIpPort2String(uint32_t ip, uint16_t port, char *str);
 
 void *tmemmem(const char *haystack, int hlen, const char *needle, int nlen);
 
-int32_t parseCfgReal(const char* str, double* out);
+int32_t parseCfgReal(const char *str, float *out);
 
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {
   T_MD5_CTX context;
   tMD5Init(&context);
   tMD5Update(&context, inBuf, (uint32_t)inLen);
   tMD5Final(&context);
-  memcpy(target, context.digest, tListLen(context.digest));
+  (void)memcpy(target, context.digest, tListLen(context.digest));
 }
 
 static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *target) {
@@ -74,25 +73,29 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
   char buf[TSDB_PASSWORD_LEN + 1];
 
   buf[TSDB_PASSWORD_LEN] = 0;
-  sprintf(buf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0], context.digest[1],
+  (void)sprintf(buf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0], context.digest[1],
           context.digest[2], context.digest[3], context.digest[4], context.digest[5], context.digest[6],
           context.digest[7], context.digest[8], context.digest[9], context.digest[10], context.digest[11],
           context.digest[12], context.digest[13], context.digest[14], context.digest[15]);
-  memcpy(target, buf, TSDB_PASSWORD_LEN);
+  (void)memcpy(target, buf, TSDB_PASSWORD_LEN);
+}
+
+static FORCE_INLINE int32_t taosHashBinary(char* pBuf, int32_t len) {
+  uint64_t hashVal = MurmurHash3_64(pBuf, len);
+  return sprintf(pBuf, "%" PRIu64, hashVal);
 }
 
 static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len) {
   T_MD5_CTX ctx;
   tMD5Init(&ctx);
-  tMD5Update(&ctx, (uint8_t*)pBuf, len);
+  tMD5Update(&ctx, (uint8_t *)pBuf, len);
   tMD5Final(&ctx);
-  char* p = pBuf;
+  char   *p = pBuf;
   int32_t resLen = 0;
-  for (uint8_t i = 0; i < tListLen(ctx.digest); ++i) {
-    resLen += snprintf(p, 3, "%02x", ctx.digest[i]);
-    p += 2;
-  }
-  return resLen;
+  return sprintf(pBuf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", ctx.digest[0], ctx.digest[1],
+                 ctx.digest[2], ctx.digest[3], ctx.digest[4], ctx.digest[5], ctx.digest[6], ctx.digest[7],
+                 ctx.digest[8], ctx.digest[9], ctx.digest[10], ctx.digest[11], ctx.digest[12], ctx.digest[13],
+                 ctx.digest[14], ctx.digest[15]);
 }
 
 static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, int32_t method, int32_t prefix,
@@ -107,23 +110,41 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     int32_t offset = 0;
     if (prefix < 0) {
       offset = -1 * prefix;
-      strncpy(tbName, tbname, offset);
+      (void)strncpy(tbName, tbname, offset);
     }
     if (suffix < 0) {
-      strncpy(tbName + offset, tbname + tblen + suffix, -1 * suffix);
+      (void)strncpy(tbName + offset, tbname + tblen + suffix, -1 * suffix);
       offset += -1 * suffix;
     }
     return MurmurHash3_32(tbName, offset);
   }
 }
 
+#define TAOS_CHECK_ERRNO(CODE)         \
+  do {                                 \
+    terrno = (CODE);                   \
+    if (terrno != TSDB_CODE_SUCCESS) { \
+      terrln = __LINE__;               \
+      goto _exit;                      \
+    }                                  \
+  } while (0)
+
 #define TSDB_CHECK_CODE(CODE, LINO, LABEL) \
   do {                                     \
-    if ((CODE)) {                          \
+    if (TSDB_CODE_SUCCESS != (CODE)) {     \
       LINO = __LINE__;                     \
       goto LABEL;                          \
     }                                      \
   } while (0)
+
+#define QUERY_CHECK_CODE TSDB_CHECK_CODE
+
+#define QUERY_CHECK_CONDITION(condition, CODE, LINO, LABEL, ERRNO) \
+  if (!condition) {                                                \
+    (CODE) = (ERRNO);                                              \
+    (LINO) = __LINE__;                                             \
+    goto LABEL;                                                    \
+  }
 
 #define TSDB_CHECK_NULL(ptr, CODE, LINO, LABEL, ERRNO) \
   if ((ptr) == NULL) {                                 \
@@ -132,11 +153,51 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     goto LABEL;                                        \
   }
 
+#define QUERY_CHECK_NULL TSDB_CHECK_NULL
+
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
 #define VND_CHECK_CODE(CODE, LINO, LABEL) TSDB_CHECK_CODE(CODE, LINO, LABEL)
 
 #define TCONTAINER_OF(ptr, type, member) ((type *)((char *)(ptr)-offsetof(type, member)))
+
+#define TAOS_GET_TERRNO(code) \
+ (terrno == 0 ? code : terrno)
+
+#define TAOS_RETURN(CODE)     \
+  do {                        \
+    return (terrno = (CODE)); \
+  } while (0)
+
+#define TAOS_CHECK_RETURN(CMD)      \
+  do {                              \
+    int32_t __c = (CMD);            \
+    if (__c != TSDB_CODE_SUCCESS) { \
+      TAOS_RETURN(__c);             \
+    }                               \
+  } while (0)
+
+#define TAOS_CHECK_GOTO(CMD, LINO, LABEL) \
+  do {                                    \
+    code = (CMD);                         \
+    if (code != TSDB_CODE_SUCCESS) {      \
+      if (LINO) {                         \
+        *((int32_t *)(LINO)) = __LINE__;  \
+      }                                   \
+      goto LABEL;                         \
+    }                                     \
+  } while (0)
+
+#define TAOS_CHECK_EXIT(CMD)        \
+  do {                              \
+    code = (CMD);                   \
+    if (code < TSDB_CODE_SUCCESS) { \
+      lino = __LINE__;              \
+      goto _exit;                   \
+    }                               \
+  } while (0)
+
+#define TAOS_UNUSED(expr) (void)(expr)
 
 #ifdef __cplusplus
 }

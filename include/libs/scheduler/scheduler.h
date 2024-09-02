@@ -23,8 +23,6 @@ extern "C" {
 #include "catalog.h"
 #include "planner.h"
 
-extern tsem_t schdRspSem;
-
 typedef struct SQueryProfileSummary {
   int64_t startTs;  // Object created and added into the message queue
   int64_t endTs;    // the timestamp when the task is completed
@@ -47,16 +45,6 @@ typedef struct SQueryProfileSummary {
   uint32_t skipBlocks;
   uint64_t resultSize;  // generated result size in Kb.
 } SQueryProfileSummary;
-
-typedef struct STaskInfo {
-  SQueryNodeAddr addr;
-  SSubQueryMsg*  msg;
-} STaskInfo;
-
-typedef struct SSchdFetchParam {
-  void**   pData;
-  int32_t* code;
-} SSchdFetchParam;
 
 typedef void (*schedulerExecFp)(SExecResult* pResult, void* param, int32_t code);
 typedef void (*schedulerFetchFp)(void* pResult, void* param, int32_t code);
@@ -110,8 +98,6 @@ int32_t schedulerEnableReSchedule(bool enableResche);
 void schedulerFreeJob(int64_t* job, int32_t errCode);
 
 void schedulerDestroy(void);
-
-void schdExecCallback(SExecResult* pResult, void* param, int32_t code);
 
 #ifdef __cplusplus
 }

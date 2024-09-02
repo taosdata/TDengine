@@ -263,7 +263,6 @@ static void rbtree_delete_fixup(rbtree_t *rbtree, rbnode_t *child, rbnode_t *chi
     child_parent->color = BLACK;
     return;
   }
-  ASSERTS(sibling != RBTREE_NULL, "sibling is NULL");
 
   /* get a new sibling, by rotating at sibling. See which child
      of sibling is red */
@@ -293,11 +292,9 @@ static void rbtree_delete_fixup(rbtree_t *rbtree, rbnode_t *child, rbnode_t *chi
   sibling->color = child_parent->color;
   child_parent->color = BLACK;
   if (child_parent->right == child) {
-    ASSERTS(sibling->left->color == RED, "slibing->left->color=%d not equal RED", sibling->left->color);
     sibling->left->color = BLACK;
     rbtree_rotate_right(rbtree, child_parent);
   } else {
-    ASSERTS(sibling->right->color == RED, "slibing->right->color=%d not equal RED", sibling->right->color);
     sibling->right->color = BLACK;
     rbtree_rotate_left(rbtree, child_parent);
   }
@@ -320,18 +317,15 @@ static void swap_np(rbnode_t **x, rbnode_t **y) {
 /** Update parent pointers of child trees of 'parent' */
 static void change_parent_ptr(rbtree_t *rbtree, rbnode_t *parent, rbnode_t *old, rbnode_t *new) {
   if (parent == RBTREE_NULL) {
-    ASSERTS(rbtree->root == old, "root not equal old");
     if (rbtree->root == old) rbtree->root = new;
     return;
   }
-  ASSERT(parent->left == old || parent->right == old || parent->left == new || parent->right == new);
   if (parent->left == old) parent->left = new;
   if (parent->right == old) parent->right = new;
 }
 /** Update parent pointer of a node 'child' */
 static void change_child_ptr(rbtree_t *rbtree, rbnode_t *child, rbnode_t *old, rbnode_t *new) {
   if (child == RBTREE_NULL) return;
-  ASSERT(child->parent == old || child->parent == new);
   if (child->parent == old) child->parent = new;
 }
 
@@ -376,7 +370,6 @@ rbnode_t *rbtree_delete(rbtree_t *rbtree, void *key) {
 
     /* now delete to_delete (which is at the location where the smright previously was) */
   }
-  ASSERT(to_delete->left == RBTREE_NULL || to_delete->right == RBTREE_NULL);
 
   if (to_delete->left != RBTREE_NULL)
     child = to_delete->left;
@@ -412,7 +405,7 @@ void tRBTreeDrop(SRBTree *pTree, SRBTreeNode *z) {
     pTree->max = tRBTreePredecessor(pTree, pTree->max);
   }
 
-  rbtree_delete(pTree, z);
+  (void)rbtree_delete(pTree, z);
 
   pTree->n--;
 }

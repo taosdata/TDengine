@@ -84,8 +84,7 @@ static int32_t smlProcessTagTelnet(SSmlHandle *info, char *data, char *sqlEnd){
     while (sql < sqlEnd) {
       if (unlikely(*sql == SPACE)) {
         smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", sql);
-        terrno = TSDB_CODE_SML_INVALID_DATA;
-        return -1;
+        return TSDB_CODE_SML_INVALID_DATA;
       }
       if (unlikely(*sql == EQUAL)) {
         keyLen = sql - key;
@@ -97,8 +96,7 @@ static int32_t smlProcessTagTelnet(SSmlHandle *info, char *data, char *sqlEnd){
 
     if (unlikely(IS_INVALID_COL_LEN(keyLen))) {
       smlBuildInvalidDataMsg(&info->msgBuf, "invalid key or key is too long than 64", key);
-      terrno = TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
-      return -1;
+      return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
 
     // parse value
@@ -111,8 +109,7 @@ static int32_t smlProcessTagTelnet(SSmlHandle *info, char *data, char *sqlEnd){
       }
       if (unlikely(*sql == EQUAL)) {
         smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", sql);
-        terrno = TSDB_CODE_SML_INVALID_DATA;
-        return -1;
+        return TSDB_CODE_SML_INVALID_DATA;
       }
       sql++;
     }
@@ -120,13 +117,11 @@ static int32_t smlProcessTagTelnet(SSmlHandle *info, char *data, char *sqlEnd){
 
     if (unlikely(valueLen == 0)) {
       smlBuildInvalidDataMsg(&info->msgBuf, "invalid value", value);
-      terrno = TSDB_CODE_TSC_INVALID_VALUE;
-      return -1;
+      return TSDB_CODE_TSC_INVALID_VALUE;
     }
 
     if (unlikely(valueLen > (TSDB_MAX_TAGS_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE)) {
-      terrno = TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
-      return -1;
+      return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
     }
 
     SSmlKv kv = {.key = key,
@@ -136,14 +131,15 @@ static int32_t smlProcessTagTelnet(SSmlHandle *info, char *data, char *sqlEnd){
         .length = valueLen,
         .keyEscaped = false,
         .valueEscaped = false};
-    taosArrayPush(preLineKV, &kv);
+    if (taosArrayPush(preLineKV, &kv) == NULL){
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     if (info->dataFormat && !isSmlTagAligned(info, cnt, &kv)) {
-      terrno = TSDB_CODE_SUCCESS;
-      return -1;
+      return TSDB_CODE_SML_INVALID_DATA;
     }
     cnt++;
   }
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SSmlLineInfo *elements) {
@@ -156,13 +152,19 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
   if(info->dataFormat){
     ret = smlProcessSuperTable(info, elements);
     if(ret != 0){
-      return terrno;
+      if(info->reRun){
+        return TSDB_CODE_SUCCESS;
+      }
+      return ret;
     }
   }
 
   ret = smlProcessTagTelnet(info, data, sqlEnd);
   if(ret != 0){
-    return terrno;
+    if (info->reRun){
+      return TSDB_CODE_SUCCESS;
+    }
+    return ret;
   }
 
   ret = smlJoinMeasureTag(elements);
@@ -233,7 +235,7 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
 
   SSmlKv kvTs = {0};
   smlBuildTsKv(&kvTs, ts);
-  if (needConverTime) {
+  if (needConverTime && info->currSTableMeta != NULL) {
     kvTs.i = convertTimePrecision(kvTs.i, TSDB_TIME_PRECISION_NANO, info->currSTableMeta->tableInfo.precision);
   }
 

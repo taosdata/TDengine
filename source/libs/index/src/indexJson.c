@@ -15,11 +15,11 @@
 #include "index.h"
 #include "indexInt.h"
 
-int indexJsonOpen(SIndexJsonOpts *opts, const char *path, SIndexJson **index) {
+int32_t indexJsonOpen(SIndexJsonOpts *opts, const char *path, SIndexJson **index) {
   // handle
   return indexOpen(opts, path, index);
 }
-int indexJsonPut(SIndexJson *index, SIndexJsonMultiTerm *terms, uint64_t uid) {
+int32_t indexJsonPut(SIndexJson *index, SIndexJsonMultiTerm *terms, uint64_t uid) {
   for (int i = 0; i < taosArrayGetSize(terms); i++) {
     SIndexJsonTerm *p = taosArrayGetP(terms, i);
     if (p->colType == TSDB_DATA_TYPE_BOOL) {
@@ -36,7 +36,7 @@ int indexJsonPut(SIndexJson *index, SIndexJsonMultiTerm *terms, uint64_t uid) {
   return indexPut(index, terms, uid);
 }
 
-int indexJsonSearch(SIndexJson *index, SIndexJsonMultiTermQuery *tq, SArray *result) {
+int32_t indexJsonSearch(SIndexJson *index, SIndexJsonMultiTermQuery *tq, SArray *result) {
   SArray *terms = tq->query;
   for (int i = 0; i < taosArrayGetSize(terms); i++) {
     SIndexJsonTerm *p = taosArrayGetP(terms, i);

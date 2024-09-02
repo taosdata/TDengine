@@ -31,7 +31,7 @@ Testbase MndTestTopic::test;
 
 void* MndTestTopic::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
   SCreateDbReq createReq = {0};
-  strcpy(createReq.db, dbname);
+  (void)strcpy(createReq.db, dbname);
   createReq.numOfVgroups = 2;
   createReq.buffer = -1;
   createReq.pageSize = -1;
@@ -53,7 +53,7 @@ void* MndTestTopic::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
 
   int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
   void*   pReq = rpcMallocCont(contLen);
-  tSerializeSCreateDbReq(pReq, contLen, &createReq);
+  (void)tSerializeSCreateDbReq(pReq, contLen, &createReq);
 
   *pContLen = contLen;
   return pReq;
@@ -61,14 +61,14 @@ void* MndTestTopic::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
 
 void* MndTestTopic::BuildCreateTopicReq(const char* topicName, const char* sql, int32_t* pContLen) {
   SCMCreateTopicReq createReq = {0};
-  strcpy(createReq.name, topicName);
+  (void)strcpy(createReq.name, topicName);
   createReq.igExists = 0;
   createReq.sql = (char*)sql;
   createReq.ast = NULL;
 
   int32_t contLen = tSerializeSCMCreateTopicReq(NULL, 0, &createReq);
   void*   pReq = rpcMallocCont(contLen);
-  tSerializeSCMCreateTopicReq(pReq, contLen, &createReq);
+  (void)tSerializeSCMCreateTopicReq(pReq, contLen, &createReq);
 
   *pContLen = contLen;
   return pReq;
@@ -76,11 +76,11 @@ void* MndTestTopic::BuildCreateTopicReq(const char* topicName, const char* sql, 
 
 void* MndTestTopic::BuildDropTopicReq(const char* topicName, int32_t* pContLen) {
   SMDropTopicReq dropReq = {0};
-  strcpy(dropReq.name, topicName);
+  (void)strcpy(dropReq.name, topicName);
 
   int32_t contLen = tSerializeSMDropTopicReq(NULL, 0, &dropReq);
   void*   pReq = rpcMallocCont(contLen);
-  tSerializeSMDropTopicReq(pReq, contLen, &dropReq);
+  (void)tSerializeSMDropTopicReq(pReq, contLen, &dropReq);
 
   *pContLen = contLen;
   return pReq;

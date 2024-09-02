@@ -94,7 +94,7 @@ The output as bellow:
 
 The role of the TDengine Sink Connector is to synchronize the data of the specified topic to TDengine. Users do not need to create databases and super tables in advance. The name of the target database can be specified manually (see the configuration parameter connection.database), or it can be generated according to specific rules (see the configuration parameter connection.database.prefix).
 
-TDengine Sink Connector internally uses TDengine [modeless write interface](../../client-libraries/cpp#modeless write-api) to write data to TDengine, currently supports data in three formats: [InfluxDB line protocol format](../../develop/insert-data/influxdb-line), [OpenTSDB Telnet protocol format](../../develop/insert-data/opentsdb-telnet), and [OpenTSDB JSON protocol format](../../develop/insert-data/opentsdb-json).
+TDengine Sink Connector internally uses TDengine [modeless write interface](../../reference/connectors/cpp/#schemaless-writing-api) to write data to TDengine, currently supports data in three formats: [InfluxDB line protocol format](../../develop/insert-data/influxdb-line), [OpenTSDB Telnet protocol format](../../develop/insert-data/opentsdb-telnet), and [OpenTSDB JSON protocol format](../../develop/insert-data/opentsdb-json).
 
 The following example synchronizes the data of the topic meters to the target database power. The data format is the InfluxDB Line protocol format.
 

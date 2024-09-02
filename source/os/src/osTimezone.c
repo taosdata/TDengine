@@ -742,12 +742,20 @@ char *tz_win[554][2] = {{"Asia/Shanghai", "China Standard Time"},
 
 static int isdst_now = 0;
 
-void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8_t *outDaylight,
+int32_t taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8_t *outDaylight,
                            enum TdTimezone *tsTimezone) {
-  if (inTimezoneStr == NULL || inTimezoneStr[0] == 0) return;
+  if (inTimezoneStr == NULL || inTimezoneStr[0] == 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
 
+  int32_t code = TSDB_CODE_SUCCESS;
   size_t len = strlen(inTimezoneStr);
-  char  *buf = taosMemoryCalloc(len + 1, 1);
+  if (len >= TD_TIMEZONE_LEN) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  char buf[TD_TIMEZONE_LEN] = {0};
   for (int32_t i = 0; i < len; i++) {
     if (inTimezoneStr[i] == ' ' || inTimezoneStr[i] == '(') {
       buf[i] = 0;
@@ -790,7 +798,7 @@ void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8
         memcpy(&winStr[3], pp, ppp - pp);
         indexStr = ppp - pp + 3;
       }
-      sprintf(&winStr[indexStr], "%c%c%c:%c%c:00", (p[0] == '+' ? '-' : '+'), p[1], p[2], p[3], p[4]);
+      sprintf(&winStr[indexStr], "%c%c%c:%c%c:00", (p[0] == '+' ? '+' : '-'), p[1], p[2], p[3], p[4]);
       *tsTimezone = -taosStr2Int32(p, NULL, 10);
     } else {
       *tsTimezone = 0;
@@ -813,17 +821,22 @@ void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8
   *outDaylight = isdst_now;
 
 #else
-  setenv("TZ", buf, 1);
+  code = setenv("TZ", buf, 1);
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+
   tzset();
   int32_t tz = (int32_t)((-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR);
   *tsTimezone = tz;
   tz += isdst_now;
-  sprintf(outTimezoneStr, "%s (%s, %s%02d00)", buf, tzname[isdst_now], tz >= 0 ? "+" : "-", abs(tz));
+  (void)sprintf(outTimezoneStr, "%s (%s, %s%02d00)", buf, tzname[isdst_now], tz >= 0 ? "+" : "-", abs(tz));
   *outDaylight = isdst_now;
 
 #endif
 
-  taosMemoryFree(buf);
+  return code;
 }
 
 void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
@@ -858,14 +871,14 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
   {
     int n = readlink("/etc/localtime", buf, sizeof(buf));
     if (n < 0) {
-      printf("read /etc/localtime error, reason:%s", strerror(errno));
+      printf("read /etc/localtime error, reason:%s\n", strerror(errno));
       return;
     }
     buf[n] = '\0';
 
     char *zi = strstr(buf, "zoneinfo");
     if (!zi) {
-      printf("parsing /etc/localtime failed");
+      printf("parsing /etc/localtime failed\n");
       return;
     }
     tz = zi + strlen("zoneinfo") + 1;
@@ -880,7 +893,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
     //   }
     // }
     // if (!tz || 0 == strchr(tz, '/')) {
-    //   printf("parsing /etc/localtime failed");
+    //   printf("parsing /etc/localtime failed\n");
     //   return;
     // }
 
@@ -914,7 +927,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
   {
     int n = readlink("/etc/localtime", buf, sizeof(buf)-1);
     if (n < 0) {
-      printf("read /etc/localtime error, reason:%s", strerror(errno));
+      (void)printf("read /etc/localtime error, reason:%s\n", strerror(errno));
 
       if (taosCheckExistFile("/etc/timezone")) {
         /*
@@ -924,7 +937,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
          */
         time_t    tx1 = taosGetTimestampSec();
         struct tm tm1;
-        taosLocalTime(&tx1, &tm1, NULL);
+        (void)taosLocalTime(&tx1, &tm1, NULL);
         /* load time zone string from /etc/timezone */
         // FILE *f = fopen("/etc/timezone", "r");
         errno = 0;
@@ -932,13 +945,13 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
         char      buf[68] = {0};
         if (pFile != NULL) {
           int len = taosReadFile(pFile, buf, 64);
-          if (len < 64 && taosGetErrorFile(pFile)) {
-            taosCloseFile(&pFile);
-            printf("read /etc/timezone error, reason:%s", strerror(errno));
+          if (len < 0) {
+            (void)taosCloseFile(&pFile);
+            (void)printf("read /etc/timezone error, reason:%s\n", strerror(errno));
             return;
           }
 
-          taosCloseFile(&pFile);
+          (void)taosCloseFile(&pFile);
 
           buf[sizeof(buf) - 1] = 0;
           char *lineEnd = strstr(buf, "\n");
@@ -948,7 +961,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
 
           // for CentOS system, /etc/timezone does not exist. Ignore the TZ environment variables
           if (strlen(buf) > 0) {
-            setenv("TZ", buf, 1);
+            (void)setenv("TZ", buf, 1);
           }
         }
         // get and set default timezone
@@ -970,10 +983,10 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
          * Asia/Shanghai   (CST, +0800)
          * Europe/London   (BST, +0100)
          */
-        snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-",
+        (void)snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-",
                  abs(tz));
       } else {
-        printf("There is not /etc/timezone.\n");
+        (void)printf("There is not /etc/timezone.\n");
       }
       return;
     }
@@ -981,7 +994,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
 
     char *zi = strstr(buf, "zoneinfo");
     if (!zi) {
-      printf("parsing /etc/localtime failed");
+      (void)printf("parsing /etc/localtime failed\n");
       return;
     }
     tz = zi + strlen("zoneinfo") + 1;
@@ -1000,7 +1013,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
     //   return;
     // }
 
-    setenv("TZ", tz, 1);
+    (void)setenv("TZ", tz, 1);
     tzset();
   }
 
@@ -1011,7 +1024,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
    */
   time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
-  taosLocalTime(&tx1, &tm1, NULL);
+  (void)taosLocalTime(&tx1, &tm1, NULL);
   isdst_now = tm1.tm_isdst;
 
   /*
@@ -1020,7 +1033,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
    * Asia/Shanghai   (CST, +0800)
    * Europe/London   (BST, +0100)
    */
-  snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %+03ld00)", tz, tm1.tm_isdst ? tzname[daylight] : tzname[0],
+  (void)snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %+03ld00)", tz, tm1.tm_isdst ? tzname[daylight] : tzname[0],
            -timezone / 3600);
 #endif
 }

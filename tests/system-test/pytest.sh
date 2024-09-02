@@ -89,8 +89,8 @@ else
   export LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
   echo "Preload AsanSo:" $?
 
-  $* -a 2>$AsanFile
-
+  $* -a 2> $AsanFile 
+  cat $AsanFile
   unset LD_PRELOAD
   for ((i = 1; i <= 20; i++)); do
     AsanFileLen=$(cat $AsanFile | wc -l)

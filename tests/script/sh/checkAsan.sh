@@ -49,6 +49,7 @@ fi
 
 indirect_leak=$(cat ${LOG_DIR}/*.asan | grep "Indirect leak" | wc -l)
 python_error=$(cat ${LOG_DIR}/*.info | grep -w "stack" | wc -l)
+python_taos_error=$(cat ${LOG_DIR}/*.info  |grep "#" | grep -w "TDinternal" | wc -l)
 
 # ignore
 
@@ -72,23 +73,29 @@ python_error=$(cat ${LOG_DIR}/*.info | grep -w "stack" | wc -l)
 
 #0 0x7f2d64f5a808 in __interceptor_malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cc:144
 #1 0x7f2d63fcf459 in strerror /build/glibc-SzIz7B/glibc-2.31/string/strerror.c:38
-runtime_error=$(cat ${LOG_DIR}/*.asan | grep "runtime error" | grep -v "trees.c:873" | grep -v "sclfunc.c.*outside the range of representable values of type" | grep -v "signed integer overflow" | grep -v "strerror.c" | grep -v "asan_malloc_linux.cc" | grep -v "strerror.c" | grep -v "asan_malloc_linux.cpp" | grep -v "sclvector.c" | wc -l)
+
+# TD-29953
+#/home/TDinternal/community/utils/TSZ/sz/src/sz_double.c:388:59: runtime error: 2.64021e+25 is outside the range of representable values of type 'long unsigned int'
+#/home/TDinternal/community/utils/TSZ/sz/src/sz_float.c:407:59: runtime error: 5.76041e+19 is outside the range of representable values of type 'long unsigned int'
+#/home/TDinternal/community/source/libs/scalar/src/sclfunc.c:808:11: runtime error: -3.40401e+18 is outside the range of representable values of type 'int'
+runtime_error=$(cat ${LOG_DIR}/*.asan | grep "runtime error" | grep -v "trees.c:873" | grep -v "sclfunc.c.*outside the range of representable values of type" | grep -v "signed integer overflow" | grep -v "strerror.c" | grep -v "asan_malloc_linux.cc" | grep -v "strerror.c" | grep -v "asan_malloc_linux.cpp" | grep -v "sclvector.c" | grep -v "sclfunc.c:808"| grep -v "sz_double.c:388" | grep -v "sz_float.c:407:59"| wc -l)
 
 echo -e "\033[44;32;1m"asan error_num: $error_num"\033[0m"
 echo -e "\033[44;32;1m"asan memory_leak: $memory_leak"\033[0m"
 echo -e "\033[44;32;1m"asan indirect_leak: $indirect_leak"\033[0m"
 echo -e "\033[44;32;1m"asan runtime error: $runtime_error"\033[0m"
 echo -e "\033[44;32;1m"asan python error: $python_error"\033[0m"
+echo -e "\033[44;32;1m"asan python taos error: $python_taos_error"\033[0m"
 
-let "errors=$error_num+$memory_leak+$indirect_leak+$runtime_error+$python_error"
+let "errors=$error_num+$memory_leak+$indirect_leak+$runtime_error+$python_error+$python_taos_error"
 
 if [ $errors -eq 0 ]; then
   echo -e "\033[44;32;1m"no asan errors"\033[0m"
   exit 0
 else
   echo -e "\033[44;31;1m"asan total errors: $errors"\033[0m"
-  if [ $python_error -ne 0 ]; then
-    cat ${LOG_DIR}/*.info
+  if [ $python_error -ne 0 ] || [ $python_taos_error -ne 0 ] ; then
+    cat ${LOG_DIR}/*.info |grep "#" | grep -w "TDinternal"
   fi
   cat ${LOG_DIR}/*.asan
   exit 1

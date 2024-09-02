@@ -156,7 +156,7 @@ done
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
-tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh udfd set_core.sh TDinsight.sh start_pre.sh)
+tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh udfd set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
 if [ "${verMode}" == "cluster" ]; then
   services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
 elif [ "${verMode}" == "edge" ]; then
@@ -221,11 +221,16 @@ function install_bin() {
     ${csudo}cp -r ${script_dir}/bin/remove.sh ${install_main_dir}/bin
   else
     ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
+    ${csudo}cp ${script_dir}/start-all.sh ${install_main_dir}/bin
+    ${csudo}cp ${script_dir}/stop-all.sh ${install_main_dir}/bin
   fi
 
   if [[ "${verMode}" == "cluster" && "${verType}" != "client" ]]; then
     if [ -d ${script_dir}/${xname}/bin ]; then
       ${csudo}cp -r ${script_dir}/${xname}/bin/* ${install_main_dir}/bin
+    fi
+    if [ -e ${script_dir}/${xname}/uninstall_${xname}.sh ]; then
+      ${csudo}cp -r ${script_dir}/${xname}/uninstall_${xname}.sh ${install_main_dir}/uninstall_${xname}.sh
     fi
   fi
   
@@ -248,6 +253,8 @@ function install_bin() {
   for service in "${services[@]}"; do
     [ -x ${install_main_dir}/bin/${service} ] && ${csudo}ln -sf ${install_main_dir}/bin/${service} ${bin_link_dir}/${service} || :
   done
+
+  [ -x ${install_main_dir}/uninstall_${xname}.sh ] && ${csudo}ln -sf ${install_main_dir}/uninstall_${xname}.sh ${bin_link_dir}/uninstall_${xname}.sh || :
 }
 
 function install_lib() {
@@ -576,7 +583,9 @@ function install_taosd_config() {
     ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$serverFqdn/" ${script_dir}/cfg/${configFile}
     ${csudo}echo "monitor 1" >>${script_dir}/cfg/${configFile}
     ${csudo}echo "monitorFQDN ${serverFqdn}" >>${script_dir}/cfg/${configFile}
-    ${csudo}echo "audit 1" >>${script_dir}/cfg/${configFile}
+    if [ "$verMode" == "cluster" ]; then
+      ${csudo}echo "audit 1" >>${script_dir}/cfg/${configFile}  
+    fi
     
     if [ -f "${configDir}/${configFile}" ]; then
       ${csudo}cp ${fileName} ${configDir}/${configFile}.new
@@ -594,6 +603,7 @@ function install_config() {
   [ ! -z $1 ] && return 0 || : # only install client
 
   if ((${update_flag} == 1)); then
+    install_taosd_config
     return 0
   fi
 
@@ -651,9 +661,7 @@ function install_data() {
 
 function install_connector() {
   if [ -d "${script_dir}/connector/" ]; then
-    ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/ || echo "failed to copy connector"
-    ${csudo}cp ${script_dir}/start-all.sh ${install_main_dir}/ || echo "failed to copy start-all.sh"
-    ${csudo}cp ${script_dir}/stop-all.sh ${install_main_dir}/ || echo "failed to copy stop-all.sh"
+    ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/ || echo "failed to copy connector"    
     ${csudo}cp ${script_dir}/README.md ${install_main_dir}/ || echo "failed to copy README.md"
   fi
 }
@@ -795,10 +803,10 @@ function is_version_compatible() {
   if [ -f ${script_dir}/driver/vercomp.txt ]; then
     min_compatible_version=$(cat ${script_dir}/driver/vercomp.txt)
   else
-    min_compatible_version=$(${script_dir}/bin/${serverName} -V | head -1 | cut -d ' ' -f 5)
+    min_compatible_version=$(${script_dir}/bin/${serverName} -V | grep version | head -1 | cut -d ' ' -f 5)
   fi
 
-  exist_version=$(${installDir}/bin/${serverName} -V | head -1 | cut -d ' ' -f 3)
+  exist_version=$(${installDir}/bin/${serverName} -V | grep version | head -1 | cut -d ' ' -f 3)
   vercomp $exist_version "3.0.0.0"
   case $? in
   2)
@@ -910,39 +918,36 @@ function updateProduct() {
     echo
     echo -e "${GREEN_DARK}To configure ${productName} ${NC}\t\t: edit ${configDir}/${configFile}"
     [ -f ${configDir}/${adapterName}.toml ] && [ -f ${installDir}/bin/${adapterName} ] &&
-      echo -e "${GREEN_DARK}To configure ${adapterName} ${NC}\t: edit ${configDir}/${adapterName}.toml"
-    if [ "$verMode" == "cluster" ]; then
-      echo -e "${GREEN_DARK}To configure ${explorerName} ${NC}\t: edit ${configDir}/explorer.toml"
-    fi
+      echo -e "${GREEN_DARK}To configure ${adapterName} ${NC}\t: edit ${configDir}/${adapterName}.toml"    
+    echo -e "${GREEN_DARK}To configure ${explorerName} ${NC}\t: edit ${configDir}/explorer.toml"
     if ((${service_mod} == 0)); then
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ${csudo}systemctl start ${serverName}${NC}"
+      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo}systemctl start ${serverName}${NC}"
       [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
         echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}systemctl start ${clientName}adapter ${NC}"
     elif ((${service_mod} == 1)); then
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ${csudo}service ${serverName} start${NC}"
+      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo}service ${serverName} start${NC}"
       [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
         echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}service ${clientName}adapter start${NC}"
     else
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ./${serverName}${NC}"
+      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ./${serverName}${NC}"
       [ -f ${installDir}/bin/${clientName}adapter ] &&
         echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${clientName}adapter ${NC}"
     fi
 
-    echo -e "${GREEN_DARK}To enable ${clientName}keeper ${NC}\t\t: sudo systemctl enable ${clientName}keeper ${NC}"
+    echo -e "${GREEN_DARK}To start ${clientName}keeper ${NC}\t\t: sudo systemctl start ${clientName}keeper ${NC}"
     if [ "$verMode" == "cluster" ]; then
-      echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"
-      echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: sudo systemctl start ${clientName}-explorer ${NC}"
+      echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"      
     fi
+    echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: sudo systemctl start ${clientName}-explorer ${NC}"
 
     echo
     echo "${productName} is updated successfully!"
     echo
+    
+    echo -e "\033[44;32;1mTo start all the components                 : sudo start-all.sh${NC}"
+    echo -e "\033[44;32;1mTo access ${productName} Commnd Line Interface    : ${clientName} -h $serverFqdn${NC}"
+    echo -e "\033[44;32;1mTo access ${productName} Graphic User Interface   : http://$serverFqdn:6060${NC}"
     if [ "$verMode" == "cluster" ]; then
-      echo -e "\033[44;32;1mTo start all the components       : ./start-all.sh${NC}"
-    fi
-    echo -e "\033[44;32;1mTo access ${productName}                : ${clientName} -h $serverFqdn${NC}"
-    if [ "$verMode" == "cluster" ]; then
-      echo -e "\033[44;32;1mTo access the management system   : http://$serverFqdn:6060${NC}"
       echo -e "\033[44;32;1mTo read the user manual           : http://$serverFqdn:6060/docs${NC}"
     fi
   else
@@ -1007,39 +1012,36 @@ function installProduct() {
     echo -e "${GREEN_DARK}To configure ${productName} ${NC}\t\t: edit ${configDir}/${configFile}"
     [ -f ${configDir}/${clientName}adapter.toml ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
       echo -e "${GREEN_DARK}To configure ${clientName}Adapter ${NC}\t: edit ${configDir}/${clientName}adapter.toml"
-    if [ "$verMode" == "cluster" ]; then
-      echo -e "${GREEN_DARK}To configure ${clientName}-explorer ${NC}\t: edit ${configDir}/explorer.toml"
-    fi
+    echo -e "${GREEN_DARK}To configure ${clientName}-explorer ${NC}\t: edit ${configDir}/explorer.toml"
     if ((${service_mod} == 0)); then
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ${csudo}systemctl start ${serverName}${NC}"
+      echo -e "${GREEN_DARK}To start ${productName} server    ${NC}\t: ${csudo}systemctl start ${serverName}${NC}"
       [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
         echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}systemctl start ${clientName}adapter ${NC}"
     elif ((${service_mod} == 1)); then
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ${csudo}service ${serverName} start${NC}"
+      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo}service ${serverName} start${NC}"
       [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
         echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}service ${clientName}adapter start${NC}"
     else
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ${serverName}${NC}"
+      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${serverName}${NC}"
       [ -f ${installDir}/bin/${clientName}adapter ] &&
         echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${clientName}adapter ${NC}"
     fi
 
-    echo -e "${GREEN_DARK}To enable ${clientName}keeper ${NC}\t\t: sudo systemctl enable ${clientName}keeper ${NC}"
+    echo -e "${GREEN_DARK}To start ${clientName}keeper ${NC}\t\t: sudo systemctl start ${clientName}keeper ${NC}"
 
     if [ "$verMode" == "cluster" ]; then
       echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"
-      echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: sudo systemctl start ${clientName}-explorer ${NC}"
     fi
+    echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: sudo systemctl start ${clientName}-explorer ${NC}"
 
     echo
     echo "${productName} is installed successfully!"
     echo
+    
+    echo -e "\033[44;32;1mTo start all the components                 : sudo start-all.sh${NC}"
+    echo -e "\033[44;32;1mTo access ${productName} Commnd Line Interface    : ${clientName} -h $serverFqdn${NC}"
+    echo -e "\033[44;32;1mTo access ${productName} Graphic User Interface   : http://$serverFqdn:6060${NC}"
     if [ "$verMode" == "cluster" ]; then
-      echo -e "\033[44;32;1mTo start all the components       : sudo ./start-all.sh${NC}"
-    fi
-    echo -e "\033[44;32;1mTo access ${productName}                : ${clientName} -h $serverFqdn${NC}"
-    if [ "$verMode" == "cluster" ]; then
-      echo -e "\033[44;32;1mTo access the management system   : http://$serverFqdn:6060${NC}"
       echo -e "\033[44;32;1mTo read the user manual           : http://$serverFqdn:6060/docs-en${NC}"
     fi
     echo

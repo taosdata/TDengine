@@ -40,7 +40,7 @@ extern const int32_t TYPE_BYTES[21];
 #define LONG_BYTES      sizeof(int64_t)
 #define FLOAT_BYTES     sizeof(float)
 #define DOUBLE_BYTES    sizeof(double)
-#define POINTER_BYTES   sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
+#define POINTER_BYTES   sizeof(void *)
 #define TSDB_KEYSIZE    sizeof(TSKEY)
 #define TSDB_NCHAR_SIZE sizeof(TdUcs4)
 
@@ -76,6 +76,14 @@ extern const int32_t TYPE_BYTES[21];
 #define TSDB_DEFAULT_PASS "prodb"
 #else
 #define TSDB_DEFAULT_PASS "taosdata"
+#endif
+
+#ifndef TD_PRODUCT_NAME
+#ifdef TD_ENTERPRISE
+#define TD_PRODUCT_NAME "TDengine Enterprise Edition"
+#else
+#define TD_PRODUCT_NAME "TDengine Community Edition"
+#endif
 #endif
 
 #define TSDB_TRUE  1
@@ -123,10 +131,10 @@ static const int64_t TICK_PER_SECOND[] = {
                  : ((precision) == TSDB_TIME_PRECISION_MICRO ? 1000000LL : 1000000000LL)))
 
 #define T_MEMBER_SIZE(type, member) sizeof(((type *)0)->member)
-#define T_APPEND_MEMBER(dst, ptr, type, member)                                     \
-  do {                                                                              \
-    memcpy((void *)(dst), (void *)(&((ptr)->member)), T_MEMBER_SIZE(type, member)); \
-    dst = (void *)((char *)(dst) + T_MEMBER_SIZE(type, member));                    \
+#define T_APPEND_MEMBER(dst, ptr, type, member)                                           \
+  do {                                                                                    \
+    (void)memcpy((void *)(dst), (void *)(&((ptr)->member)), T_MEMBER_SIZE(type, member)); \
+    dst = (void *)((char *)(dst) + T_MEMBER_SIZE(type, member));                          \
   } while (0)
 #define T_READ_MEMBER(src, type, target)          \
   do {                                            \
@@ -213,6 +221,8 @@ typedef enum ELogicConditionType {
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_CGROUP_LEN               193                                // it is a null-terminated string
+#define TSDB_CLIENT_ID_LEN            256                                // it is a null-terminated string
+#define TSDB_CONSUMER_ID_LEN          32                                 // it is a null-terminated string
 #define TSDB_OFFSET_LEN               64                                 // it is a null-terminated string
 #define TSDB_USER_CGROUP_LEN          (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
 #define TSDB_STREAM_NAME_LEN          193                                // it is a null-terminated string
@@ -283,6 +293,8 @@ typedef enum ELogicConditionType {
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 #define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_LOG_VAR_LEN          32
+
+#define TSDB_MAX_EP_NUM 10
 
 #define TSDB_ARB_GROUP_MEMBER_NUM 2
 #define TSDB_ARB_TOKEN_SIZE       32
@@ -365,7 +377,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_FSYNC_PERIOD           0
 #define TSDB_MAX_FSYNC_PERIOD           180000  // millisecond
 #define TSDB_DEFAULT_FSYNC_PERIOD       3000    // three second
-#define TSDB_MIN_WAL_LEVEL              1
+#define TSDB_MIN_WAL_LEVEL              0
 #define TSDB_MAX_WAL_LEVEL              2
 #define TSDB_DEFAULT_WAL_LEVEL          1
 #define TSDB_MIN_PRECISION              TSDB_TIME_PRECISION_MILLI
@@ -541,18 +553,22 @@ typedef struct {
   char    dir[TSDB_FILENAME_LEN];
   int32_t level;
   int32_t primary;
+  int8_t  disable;  // disable create new file
 } SDiskCfg;
 
 typedef struct {
   char name[TSDB_LOG_VAR_LEN];
 } SLogVar;
 
-#define TMQ_SEPARATOR ':'
+#define TMQ_SEPARATOR      ":"
+#define TMQ_SEPARATOR_CHAR ':'
 
 enum {
   SND_WORKER_TYPE__SHARED = 1,
   SND_WORKER_TYPE__UNIQUE,
 };
+
+enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 
 #define DEFAULT_HANDLE 0
 #define MNODE_HANDLE   1
@@ -564,7 +580,7 @@ enum {
 #define TSDB_CONFIG_OPTION_LEN 32
 #define TSDB_CONFIG_VALUE_LEN  64
 #define TSDB_CONFIG_SCOPE_LEN  8
-#define TSDB_CONFIG_NUMBER     8
+#define TSDB_CONFIG_NUMBER     16
 
 #define QUERY_ID_SIZE      20
 #define QUERY_OBJ_ID_SIZE  18

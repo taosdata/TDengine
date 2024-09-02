@@ -1,0 +1,31 @@
+print ====check task status start
+
+$loop_count = 0
+
+loopCheck0:
+
+print loop_count=$loop_count
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 60 then
+  return 1
+endi
+
+print 1 select * from information_schema.ins_stream_tasks;
+sql select * from information_schema.ins_stream_tasks;
+
+if $rows == 0 then
+  print rows=$rows
+  goto loopCheck0
+endi
+
+print 1 select * from information_schema.ins_stream_tasks where status != "ready";
+sql select * from information_schema.ins_stream_tasks where status != "ready";
+
+if $rows != 0 then
+  print rows=$rows
+  goto loopCheck0
+endi
+
+print ====check task status end 

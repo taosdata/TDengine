@@ -42,7 +42,8 @@ SSyncSnapshotReceiver* createReceiver() {
   id.addr = syncUtilAddr2U64("1.2.3.4", 99);
   id.vgId = 100;
 
-  SSyncSnapshotReceiver* pReceiver = snapshotReceiverCreate(pSyncNode, id);
+  SSyncSnapshotReceiver* pReceiver = NULL;
+  (void)snapshotReceiverCreate(pSyncNode, id, &pReceiver);
   pReceiver->start = true;
   pReceiver->ack = 20;
   pReceiver->pWriter = (void*)0x11;

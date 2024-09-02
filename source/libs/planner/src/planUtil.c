@@ -35,7 +35,7 @@ static char* getUsageErrFormat(int32_t errCode) {
 int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...) {
   va_list vArgList;
   va_start(vArgList, errCode);
-  vsnprintf(pBuf, len, getUsageErrFormat(errCode), vArgList);
+  (void)vsnprintf(pBuf, len, getUsageErrFormat(errCode), vArgList);
   va_end(vArgList);
   return errCode;
 }
@@ -49,7 +49,8 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
   SCreateColumnCxt* pCxt = (SCreateColumnCxt*)pContext;
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN: {
-      SNode* pCol = nodesCloneNode(pNode);
+      SNode* pCol = NULL;
+      pCxt->errCode = nodesCloneNode(pNode, &pCol);
       if (NULL == pCol) {
         return DEAL_RES_ERROR;
       }
@@ -61,7 +62,8 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
     case QUERY_NODE_FUNCTION:
     case QUERY_NODE_CASE_WHEN: {
       SExprNode*   pExpr = (SExprNode*)pNode;
-      SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+      SColumnNode* pCol = NULL;
+      pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
       if (NULL == pCol) {
         return DEAL_RES_ERROR;
       }
@@ -88,9 +90,12 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
 }
 
 int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList) {
-  SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = (NULL == *pList ? nodesMakeList() : *pList)};
-  if (NULL == cxt.pList) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = *pList};
+  if (!cxt.pList) {
+    int32_t code = nodesMakeList(&cxt.pList);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
 
   nodesWalkExprs(pExprs, doCreateColumn, &cxt);
@@ -105,9 +110,12 @@ int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList) {
 }
 
 int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList) {
-  SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = (NULL == *pList ? nodesMakeList() : *pList)};
-  if (NULL == cxt.pList) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = *pList};
+  if (!cxt.pList) {
+    int32_t code = nodesMakeList(&cxt.pList);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
 
   nodesWalkExpr(pExpr, doCreateColumn, &cxt);
@@ -517,17 +525,26 @@ int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
       }
     }
 
-    tSimpleHashPut(*ppRes, pCol->tableAlias, strlen(pCol->tableAlias), NULL, 0);
-  }
-  
-  FOREACH(pNode, pCurr->pChildren) {
-    code = collectTableAliasFromNodes(pNode, ppRes);
+    code = tSimpleHashPut(*ppRes, pCol->tableAlias, strlen(pCol->tableAlias), NULL, 0);
     if (TSDB_CODE_SUCCESS != code) {
-      return code;
+      break;
     }
   }
   
-  return TSDB_CODE_SUCCESS;
+  if (TSDB_CODE_SUCCESS == code) {
+    FOREACH(pNode, pCurr->pChildren) {
+      code = collectTableAliasFromNodes(pNode, ppRes);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+    }
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    tSimpleHashCleanup(*ppRes);
+    *ppRes = NULL;
+  }
+
+  return code;
 }
 
 bool isPartTagAgg(SAggLogicNode* pAgg) {
@@ -545,25 +562,35 @@ bool isPartTableWinodw(SWindowLogicNode* pWindow) {
   return pWindow->isPartTb || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
 }
 
-bool cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat) {
-  SLimitNode* pLimit;
-  bool cloned = false;
+int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, bool* pCloned) {
+  SLimitNode* pLimit = NULL, *pSlimit = NULL;
+  int32_t     code = 0;
+  bool        cloned = false;
   if (pParent->pLimit && (cloneWhat & CLONE_LIMIT)) {
-    pChild->pLimit = nodesCloneNode(pParent->pLimit);
-    pLimit = (SLimitNode*)pChild->pLimit;
-    pLimit->limit += pLimit->offset;
-    pLimit->offset = 0;
-    cloned = true;
+    code = nodesCloneNode(pParent->pLimit, (SNode**)&pLimit);
+    if (TSDB_CODE_SUCCESS == code) {
+      pLimit->limit += pLimit->offset;
+      pLimit->offset = 0;
+      cloned = true;
+    }
   }
 
   if (pParent->pSlimit && (cloneWhat & CLONE_SLIMIT)) {
-    pChild->pSlimit = nodesCloneNode(pParent->pSlimit);
-    pLimit = (SLimitNode*)pChild->pSlimit;
-    pLimit->limit += pLimit->offset;
-    pLimit->offset = 0;
-    cloned = true;
+    code = nodesCloneNode(pParent->pSlimit, (SNode**)&pSlimit);
+    if (TSDB_CODE_SUCCESS == code) {
+      pSlimit->limit += pSlimit->offset;
+      pSlimit->offset = 0;
+      cloned = true;
+    }
   }
-  return cloned;
+  if (TSDB_CODE_SUCCESS == code) {
+    pChild->pLimit = (SNode*)pLimit;
+    pChild->pSlimit = (SNode*)pSlimit;
+    *pCloned = cloned;
+  } else {
+    nodesDestroyNode((SNode*)pLimit);
+  }
+  return code;
 }
 
 static EDealRes partTagsOptHasColImpl(SNode* pNode, void* pContext) {
@@ -583,12 +610,17 @@ bool keysHasCol(SNodeList* pKeys) {
 }
 
 SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
-  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  SFunctionNode* pFunc = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (pFunc) {
     strcpy(pFunc->functionName, "_group_key");
     strcpy(pFunc->node.aliasName, pGroupCol->node.aliasName);
     strcpy(pFunc->node.userAlias, pGroupCol->node.userAlias);
-    int32_t code = nodesListMakeStrictAppend(&pFunc->pParameterList, nodesCloneNode((SNode*)pGroupCol));
+    SNode* pNew = NULL;
+    code = nodesCloneNode((SNode*)pGroupCol, &pNew);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNew);
+    }
     if (code == TSDB_CODE_SUCCESS) {
       code = fmGetFuncInfo(pFunc, NULL, 0);
     }
@@ -596,10 +628,17 @@ SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
       nodesDestroyNode((SNode*)pFunc);
       pFunc = NULL;
     }
-    char    name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
-    int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
-    taosCreateMD5Hash(name, len);
-    strncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
+    if (TSDB_CODE_SUCCESS == code) {
+      char    name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
+      int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
+      (void)taosHashBinary(name, len);
+      strncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
+    }
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    terrno = code;
+    nodesDestroyNode((SNode*)pFunc);
+    pFunc = NULL;
   }
   return pFunc;
 }
@@ -656,14 +695,20 @@ int32_t tagScanSetExecutionMode(SScanLogicNode* pScan) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SNode* pCond = nodesCloneNode(pScan->node.pConditions);
+  SNode* pCond = NULL;
+  int32_t code = nodesCloneNode(pScan->node.pConditions, &pCond);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   SNode* pTagCond = NULL;
   SNode* pTagIndexCond = NULL;
-  filterPartitionCond(&pCond, NULL, &pTagIndexCond, &pTagCond, NULL);
-  if (pTagIndexCond || tagScanNodeHasTbname(pTagCond)) {
-    pScan->onlyMetaCtbIdx = false;
-  } else {
-    pScan->onlyMetaCtbIdx = true;
+  code = filterPartitionCond(&pCond, NULL, &pTagIndexCond, &pTagCond, NULL);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pTagIndexCond || tagScanNodeHasTbname(pTagCond)) {
+      pScan->onlyMetaCtbIdx = false;
+    } else {
+      pScan->onlyMetaCtbIdx = true;
+    }
   }
   nodesDestroyNode(pCond);
   nodesDestroyNode(pTagIndexCond);
@@ -671,5 +716,16 @@ int32_t tagScanSetExecutionMode(SScanLogicNode* pScan) {
   return TSDB_CODE_SUCCESS;
 }
 
+bool isColRefExpr(const SColumnNode* pCol, const SExprNode* pExpr) {
+  if (pCol->projRefIdx > 0) return pCol->projRefIdx == pExpr->projIdx;
 
+  return 0 == strcmp(pCol->colName, pExpr->aliasName);
+}
 
+void rewriteTargetsWithResId(SNodeList* pTargets) {
+  SNode* pNode;
+  FOREACH(pNode, pTargets) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    pCol->resIdx = pCol->projRefIdx;
+  }
+}

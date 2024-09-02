@@ -1,0 +1,7 @@
+The reqId is very similar to TraceID in distributed tracing systems. In a distributed system, a request may need to pass through multiple services or modules to be completed. The reqId is used to identify and associate all related operations of this request, allowing us to track and understand the complete execution path of the request.
+Here are some primary usage of reqId:
+- **Request Tracing**: By associating the same reqId with all related operations of a request, we can trace the complete path of the request within the system.
+- **Performance Analysis**: By analyzing a request's reqId, we can understand the processing time of the request across various services or modules, thereby identifying performance bottlenecks.
+- **Fault Diagnosis**: When a request fails, we can identify the location of the issue by examining the reqId associated with that request.
+
+If the user does not set a reqId, the client library will generate one randomly internally, but it is still recommended for the user to set it, as it can better associate with the user's request.

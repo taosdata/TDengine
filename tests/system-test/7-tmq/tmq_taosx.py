@@ -278,11 +278,36 @@ class TDTestCase:
         self.checkDropData(False)
 
         return
+    
+    def checkSnapshot1VgroupBtmeta(self):
+        buildPath = tdCom.getBuildPath()
+        cfgPath = tdCom.getClientCfgPath()
+        cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -s -bt'%(buildPath, cfgPath)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+
+        self.checkJson(cfgPath, "tmq_taosx_tmp_snapshot")
+        self.checkData()
+        self.checkDropData(False)
+
+        return
 
     def checkSnapshot1VgroupTable(self):
         buildPath = tdCom.getBuildPath()
         cfgPath = tdCom.getClientCfgPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -s -t'%(buildPath, cfgPath)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+
+        self.checkJson(cfgPath, "tmq_taosx_tmp_snapshot")
+        self.checkDataTable()
+
+        return
+    
+    def checkSnapshot1VgroupTableBtmeta(self):
+        buildPath = tdCom.getBuildPath()
+        cfgPath = tdCom.getClientCfgPath()
+        cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -s -t -bt'%(buildPath, cfgPath)
         tdLog.info(cmdStr)
         os.system(cmdStr)
 
@@ -301,10 +326,31 @@ class TDTestCase:
         self.checkDropData(False)
 
         return
+    
+    def checkSnapshotMultiVgroupsBtmeta(self):
+        buildPath = tdCom.getBuildPath()
+        cmdStr = '%s/build/bin/tmq_taosx_ci -sv 2 -dv 4 -s -bt'%(buildPath)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+
+        self.checkData()
+        self.checkDropData(False)
+
+        return
 
     def checkSnapshotMultiVgroupsWithDropTable(self):
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -sv 2 -dv 4 -s -d'%(buildPath)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+
+        self.checkDropData(True)
+
+        return
+    
+    def checkSnapshotMultiVgroupsWithDropTableBtmeta(self):
+        buildPath = tdCom.getBuildPath()
+        cmdStr = '%s/build/bin/tmq_taosx_ci -sv 2 -dv 4 -s -d -bt'%(buildPath)
         tdLog.info(cmdStr)
         os.system(cmdStr)
 
@@ -450,11 +496,180 @@ class TDTestCase:
             consumer.close()
         print("consume_ts_4551 ok")
 
+    def consume_td_31283(self):
+        tdSql.execute(f'create database if not exists d31283')
+        tdSql.execute(f'use d31283')
+
+        tdSql.execute(f'create topic topic_31283 with meta as database d31283')
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+            "experimental.snapshot.enable": "true",
+            # "msg.enable.batchmeta": "true"
+        }
+        consumer = Consumer(consumer_dict)
+
+        try:
+            consumer.subscribe(["topic_31283"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        tdSql.execute(f'create table stt(ts timestamp, i int) tags(t int)')
+
+        hasData = False
+        try:
+            while True:
+                res = consumer.poll(1)
+                if not res:
+                    break
+                hasData = True
+        finally:
+            consumer.close()
+
+        if not hasData:
+            tdLog.exit(f"consume_td_31283 error")
+
+        print("consume_td_31283 ok")
+
+    def consume_TS_5067_Test(self):
+        tdSql.execute(f'create database if not exists d1 vgroups 1')
+        tdSql.execute(f'use d1')
+        tdSql.execute(f'create table st(ts timestamp, i int) tags(t int)')
+        tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t2 using st tags(2) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t3 using st tags(3) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t1 using st tags(1) values(now+5s, 11) (now+10s, 12)')
+
+        tdSql.query("select * from st")
+        tdSql.checkRows(8)
+
+        tdSql.execute(f'create topic t1 as select * from st')
+        tdSql.execute(f'create topic t2 as select * from st')
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer1 = Consumer(consumer_dict)
+
+        try:
+            consumer1.subscribe(["t1"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        index = 0
+        try:
+            while True:
+                res = consumer1.poll(1)
+                if not res:
+                    if index != 1:
+                        tdLog.exit("consume error")
+                    break
+                val = res.value()
+                if val is None:
+                    continue
+                cnt = 0;
+                for block in val:
+                    cnt += len(block.fetchall())
+
+                if cnt != 8:
+                    tdLog.exit("consume error")
+
+                index += 1
+        finally:
+            consumer1.close()
+
+        consumer2 = Consumer(consumer_dict)
+        try:
+            consumer2.subscribe(["t2"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        tdSql.query(f'show subscriptions')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "t2")
+        tdSql.checkData(0, 1, 'g1')
+        tdSql.checkData(1, 0, 't1')
+        tdSql.checkData(1, 1, 'g1')
+
+        tdSql.query(f'show consumers')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 'g1')
+        tdSql.checkData(0, 6, 't2')
+        tdSql.execute(f'drop consumer group g1 on t1')
+        tdSql.query(f'show consumers')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 'g1')
+        tdSql.checkData(0, 6, 't2')
+
+        tdSql.query(f'show subscriptions')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "t2")
+        tdSql.checkData(0, 1, 'g1')
+
+        index = 0
+        try:
+            while True:
+                res = consumer2.poll(1)
+                if not res:
+                    if index != 1:
+                        tdLog.exit("consume error")
+                    break
+                val = res.value()
+                if val is None:
+                    continue
+                cnt = 0;
+                for block in val:
+                    cnt += len(block.fetchall())
+
+                if cnt != 8:
+                    tdLog.exit("consume error")
+
+                index += 1
+        finally:
+            consumer2.close()
+
+        consumer3 = Consumer(consumer_dict)
+        try:
+            consumer3.subscribe(["t2"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        tdSql.query(f'show consumers')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 'g1')
+        tdSql.checkData(0, 6, 't2')
+
+        tdSql.execute(f'insert into t4 using st tags(3) values(now, 1)')
+        try:
+            res = consumer3.poll(1)
+            if not res:
+                tdLog.exit("consume1 error")
+        finally:
+            consumer3.close()
+
+        tdSql.query(f'show consumers')
+        tdSql.checkRows(0)
+
+        tdSql.query(f'show subscriptions')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "t2")
+        tdSql.checkData(0, 1, 'g1')
+
+        tdSql.execute(f'drop topic t1')
+        tdSql.execute(f'drop topic t2')
+        tdSql.execute(f'drop database d1')
+
     def run(self):
+        self.consume_TS_5067_Test()
         self.consumeTest()
         self.consume_ts_4544()
         self.consume_ts_4551()
         self.consume_TS_4540_Test()
+        self.consume_td_31283()
 
         tdSql.prepare()
         self.checkWal1VgroupOnlyMeta()
@@ -471,6 +686,11 @@ class TDTestCase:
         self.checkWalMultiVgroupsWithDropTable()
 
         self.checkSnapshotMultiVgroupsWithDropTable()
+
+        self.checkSnapshot1VgroupBtmeta()
+        self.checkSnapshot1VgroupTableBtmeta()
+        self.checkSnapshotMultiVgroupsBtmeta()
+        self.checkSnapshotMultiVgroupsWithDropTableBtmeta()
 
     def stop(self):
         tdSql.close()

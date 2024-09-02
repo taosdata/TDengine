@@ -222,10 +222,10 @@ class TDTestCase:
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
         tdLog.info(len(tdSql.queryResult))
-        tdSql.checkEqual(True, len(tdSql.queryResult) in range(254, 255))
+        tdSql.checkEqual(True, len(tdSql.queryResult) in range(261, 271))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
-        tdSql.checkEqual(54, len(tdSql.queryResult))
+        tdSql.checkEqual(56, len(tdSql.queryResult))
 
     def ins_dnodes_check(self):
         tdSql.execute('drop database if exists db2')
@@ -269,13 +269,21 @@ class TDTestCase:
 
     def ins_grants_check(self):
         grant_name_dict = {
-            'stream':'stream',
-            'subscription':'subscription',
-            'view':'view',
-            'audit':'audit',
-            'csv':'csv',
-            'storage':'multi_tier_storage',
-            'backup_restore':'backup_restore',
+            'service':'Service Time',
+            'timeseries':'Timeseries',
+            'dnodes':'Dnodes',
+            'cpu_cores':'CPU Cores',
+            'stream':'Stream',
+            'subscription':'Subscription',
+            'view':'View',
+            'audit':'Audit',
+            'csv':'CSV',
+            'storage':'Multi-Tier Storage',
+            'backup_restore':'Data Backup & Restore',
+            'object_storage':'Object Storage',
+            'active_active':'Active-Active',
+            'dual_replica':'Dual-Replica HA',
+            'db_encryption':'Database Encryption',
             'opc_da':'OPC_DA',
             'opc_ua':'OPC_UA',
             'pi':'Pi',
@@ -285,7 +293,12 @@ class TDTestCase:
             'avevahistorian':'avevaHistorian',
             'opentsdb':'OpenTSDB',
             'td2.6':'TDengine2.6',
-            'td3.0':'TDengine3.0'
+            'td3.0':'TDengine3.0',
+            'mysql':'MySQL',
+            'postgres':'PostgreSQL',
+            'oracle':'Oracle',
+            'mssql':'SqlServer',
+            'mongodb':'MongoDB',
         }
 
         tdSql.execute('drop database if exists db2')
@@ -297,7 +310,7 @@ class TDTestCase:
             if result[i][0] in grant_name_dict:
                 tdSql.checkEqual(result[i][1], grant_name_dict[result[i][0]])
                 index += 1
-        tdSql.checkEqual(index, 17)
+        tdSql.checkEqual(index, len(grant_name_dict))
         tdSql.query(f'select * from information_schema.ins_grants_logs')
         result = tdSql.queryResult
         tdSql.checkEqual(True, len(result) >= 0)
@@ -329,7 +342,7 @@ class TDTestCase:
             tdSql.checkEqual(True, result[i][1] in key_status_list[1])
             index += 1
         tdSql.checkEqual(True, index > 0)
-                    
+
         tdSql.query(f'show encryptions')
         result = tdSql.queryResult
         index = 0
@@ -337,7 +350,7 @@ class TDTestCase:
             tdSql.checkEqual(True, result[i][1] in key_status_list[1])
             index += 1
         tdSql.checkEqual(True, index > 0)
-        
+
         # loaded/sm4
         tdSql.execute('drop database if exists db2')
         tdSql.execute('create encrypt_key \'12345678\'')
@@ -350,7 +363,7 @@ class TDTestCase:
             tdSql.checkEqual(True, result[i][1] in key_status_list[3])
             index += 1
         tdSql.checkEqual(True, index > 0)
-                    
+
         tdSql.query(f'show encryptions')
         result = tdSql.queryResult
         index = 0

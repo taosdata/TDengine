@@ -20,6 +20,8 @@ sql create table tu2 using st tags(2);
 
 sql create stream stream1 trigger window_close into streamt as select  _wstart, sum(a) from st interval(10s);
 
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into tu1 values(now, 1);
 
 $loop_count = 0
@@ -55,6 +57,8 @@ sql create stream stream8 trigger window_close into streamt8 as select  _wstart,
 sql create stream stream9 trigger max_delay 1s into streamt9 as select  _wstart, sum(a) from t1 session(ts, 10s);
 sql create stream stream10 trigger window_close into streamt10 as select  _wstart, sum(a) from t1 state_window(b);
 sql create stream stream11 trigger max_delay 1s into streamt11 as select  _wstart, sum(a) from t1 state_window(b);
+
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791213000,1,1);
 sql insert into t1 values(1648791213001,2,1);
@@ -141,7 +145,7 @@ sql create table t1(ts timestamp, a int, b int , c int, d double);
 
 sql create stream stream13 trigger max_delay 2s into streamt13 as select  _wstart, sum(a), now from t1 interval(10s);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791213000,1,2,3,1.0);
 sql insert into t1 values(1648791223001,2,2,3,1.1);
@@ -195,7 +199,7 @@ sql create table t2 using st tags(2,2,2);
 
 sql create stream stream14 trigger max_delay 2s into streamt14 as select  _wstart, sum(a), now from st partition by tbname interval(10s);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791213000,1,2,3,1.0);
 sql insert into t1 values(1648791223000,2,2,3,1.1);
@@ -297,7 +301,7 @@ sql create table t1(ts timestamp, a int, b int , c int, d double);
 
 sql create stream stream15 trigger max_delay 2s into streamt13 as select  _wstart, sum(a), now from t1 session(ts, 10s);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791213000,1,2,3,1.0);
 sql insert into t1 values(1648791233001,2,2,3,1.1);
@@ -365,7 +369,7 @@ sql create table t1(ts timestamp, a int, b int , c int, d double);
 
 sql create stream stream16 trigger max_delay 2s into streamt13 as select  _wstart, sum(a), now from t1 state_window(a);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791213000,1,2,3,1.0);
 sql insert into t1 values(1648791233001,2,2,3,1.1);
@@ -433,7 +437,7 @@ sql create table t1(ts timestamp, a int, b int , c int, d double);
 
 sql create stream stream17 trigger max_delay 2s into streamt13 as select  _wstart, sum(a), now from t1 event_window start with a = 1 end with a = 9;
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791213000,1,2,3,1.0);
 sql insert into t1 values(1648791213001,9,2,3,1.0);

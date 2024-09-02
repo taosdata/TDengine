@@ -62,6 +62,7 @@ typedef struct SRpcHandleInfo {
   SRpcConnInfo conn;
   int8_t       forbiddenIp;
   int8_t       notFreeAhandle;
+  int8_t       compressed;
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {
@@ -124,6 +125,7 @@ typedef struct SRpcInit {
   int32_t timeToGetConn;
   int8_t  supportBatch;  // 0: no batch, 1. batch
   int32_t batchSize;
+  int8_t notWaitAvaliableConn;  // 1: wait to get, 0: no wait  
   void   *parent;
 } SRpcInit;
 
@@ -157,19 +159,22 @@ void *rpcReallocCont(void *ptr, int64_t contLen);
 // Because taosd supports multi-process mode
 // These functions should not be used on the server side
 // Please use tmsg<xx> functions, which are defined in tmsgcb.h
-int rpcSendRequest(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid);
-int rpcSendResponse(const SRpcMsg *pMsg);
-int rpcRegisterBrokenLinkArg(SRpcMsg *msg);
-int rpcReleaseHandle(void *handle, int8_t type);  // just release conn to rpc instance, no close sock
+int32_t rpcSendRequest(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid);
+int32_t rpcSendResponse(const SRpcMsg *pMsg);
+int32_t rpcRegisterBrokenLinkArg(SRpcMsg *msg);
+int32_t rpcReleaseHandle(void *handle, int8_t type);  // just release conn to rpc instance, no close sock
 
 // These functions will not be called in the child process
-int   rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);
-int   rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
-int   rpcSendRecvWithTimeout(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp, int8_t *epUpdated,
-                             int32_t timeoutMs);
-int   rpcSetDefaultAddr(void *thandle, const char *ip, const char *fqdn);
-void *rpcAllocHandle();
-void  rpcSetIpWhite(void *thandl, void *arg);
+int32_t rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);
+int32_t rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
+int32_t rpcSendRecvWithTimeout(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp, int8_t *epUpdated,
+                               int32_t timeoutMs);
+
+int32_t rpcFreeConnById(void *shandle, int64_t connId);
+
+int32_t rpcSetDefaultAddr(void *thandle, const char *ip, const char *fqdn);
+int32_t rpcAllocHandle(int64_t *refId);
+int32_t rpcSetIpWhite(void *thandl, void *arg);
 
 int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf);
 

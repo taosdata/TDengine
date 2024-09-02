@@ -236,7 +236,9 @@ TEST(testCase, toInteger_test) {
 }
 
 TEST(testCase, Datablock_test) {
-  SSDataBlock* b = createDataBlock();
+  SSDataBlock* b = NULL;
+  int32_t code = createDataBlock(&b);
+  ASSERT(code == 0);
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
   taosArrayPush(b->pDataBlock, &infoData);
@@ -361,7 +363,9 @@ TEST(testCase, non_var_dataBlock_split_test) {
 TEST(testCase, var_dataBlock_split_test) {
   int32_t numOfRows = 1000000;
 
-  SSDataBlock* b = createDataBlock();
+  SSDataBlock* b = NULL;
+  int32_t code = createDataBlock(&b);
+  ASSERT(code == 0);
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
   blockDataAppendColInfo(b, &infoData);
@@ -465,7 +469,8 @@ TEST(timeTest, timestamp2tm) {
 
 void test_ts2char(int64_t ts, const char* format, int32_t precison, const char* expected) {
   char buf[256] = {0};
-  TEST_ts2char(format, ts, precison, buf, 256);
+  int32_t code = TEST_ts2char(format, ts, precison, buf, 256);
+  ASSERT_EQ(code, 0);
   printf("ts: %ld format: %s res: [%s], expected: [%s]\n", ts, format, buf, expected);
   ASSERT_STREQ(expected, buf);
 }
@@ -692,4 +697,174 @@ TEST(timeTest, epSet) {
     ASSERT_EQ(ep.numOfEps, 1);
   }
 }
+
+// Define test cases
+TEST(AlreadyAddGroupIdTest, GroupIdAdded) {
+  // Test case 1: Group ID has been added
+  char ctbName[64] = "abc123";
+  int64_t groupId = 123;
+  bool result = alreadyAddGroupId(ctbName, groupId);
+  EXPECT_TRUE(result);
+}
+
+TEST(AlreadyAddGroupIdTest, GroupIdNotAdded) {
+  // Test case 2: Group ID has not been added
+  char ctbName[64] = "abc456";
+  int64_t groupId = 123;
+  bool result = alreadyAddGroupId(ctbName, groupId);
+  EXPECT_FALSE(result);
+}
+
+TEST(AlreadyAddGroupIdTest, GroupIdAddedAtTheEnd) {
+  // Test case 3: Group ID has been added at the end
+  char ctbName[64] = "xyz1";
+  int64_t groupId = 1;
+  bool result = alreadyAddGroupId(ctbName, groupId);
+  EXPECT_TRUE(result);
+}
+
+TEST(AlreadyAddGroupIdTest, GroupIdAddedWithDifferentLength) {
+  // Test case 4: Group ID has been added with different length
+  char ctbName[64] = "def";
+  int64_t groupId = 123456;
+  bool result = alreadyAddGroupId(ctbName, groupId);
+  EXPECT_FALSE(result);
+}
+
+#define SLOW_LOG_TYPE_NULL   0x0
+#define SLOW_LOG_TYPE_QUERY  0x1
+#define SLOW_LOG_TYPE_INSERT 0x2
+#define SLOW_LOG_TYPE_OTHERS 0x4
+#define SLOW_LOG_TYPE_ALL    0x7
+
+static int32_t taosSetSlowLogScope(char* pScopeStr, int32_t* pScope) {
+  if (NULL == pScopeStr || 0 == strlen(pScopeStr)) {
+    *pScope = SLOW_LOG_TYPE_QUERY;
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  int32_t slowScope = 0;
+
+  char* scope = NULL;
+  char *tmp   = NULL;
+  while((scope = strsep(&pScopeStr, "|")) != NULL){
+    taosMemoryFreeClear(tmp);
+    tmp = taosStrdup(scope);
+    strtrim(tmp);
+    if (0 == strcasecmp(tmp, "all")) {
+      slowScope |= SLOW_LOG_TYPE_ALL;
+      continue;
+    }
+
+    if (0 == strcasecmp(tmp, "query")) {
+      slowScope |= SLOW_LOG_TYPE_QUERY;
+      continue;
+    }
+
+    if (0 == strcasecmp(tmp, "insert")) {
+      slowScope |= SLOW_LOG_TYPE_INSERT;
+      continue;
+    }
+
+    if (0 == strcasecmp(tmp, "others")) {
+      slowScope |= SLOW_LOG_TYPE_OTHERS;
+      continue;
+    }
+
+    if (0 == strcasecmp(tmp, "none")) {
+      slowScope |= SLOW_LOG_TYPE_NULL;
+      continue;
+    }
+
+    taosMemoryFreeClear(tmp);
+    uError("Invalid slowLog scope value:%s", pScopeStr);
+    TAOS_RETURN(TSDB_CODE_INVALID_CFG_VALUE);
+  }
+
+  *pScope = slowScope;
+  taosMemoryFreeClear(tmp);
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+TEST(TaosSetSlowLogScopeTest, NullPointerInput) {
+  char*   pScopeStr = NULL;
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_QUERY);
+}
+
+TEST(TaosSetSlowLogScopeTest, EmptyStringInput) {
+  char    pScopeStr[1] = "";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_QUERY);
+}
+
+TEST(TaosSetSlowLogScopeTest, AllScopeInput) {
+  char    pScopeStr[] = "all";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_ALL);
+}
+
+TEST(TaosSetSlowLogScopeTest, QueryScopeInput) {
+  char    pScopeStr[] = " query";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_QUERY);
+}
+
+TEST(TaosSetSlowLogScopeTest, InsertScopeInput) {
+  char    pScopeStr[] = "insert";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_INSERT);
+}
+
+TEST(TaosSetSlowLogScopeTest, OthersScopeInput) {
+  char    pScopeStr[] = "others";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_OTHERS);
+}
+
+TEST(TaosSetSlowLogScopeTest, NoneScopeInput) {
+  char    pScopeStr[] = "none";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_NULL);
+}
+
+TEST(TaosSetSlowLogScopeTest, InvalidScopeInput) {
+  char    pScopeStr[] = "invalid";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, -1);
+}
+
+TEST(TaosSetSlowLogScopeTest, MixedScopesInput) {
+  char    pScopeStr[] = "query|insert|others|none";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, (SLOW_LOG_TYPE_QUERY | SLOW_LOG_TYPE_INSERT | SLOW_LOG_TYPE_OTHERS));
+}
+
+TEST(TaosSetSlowLogScopeTest, MixedScopesInputWithSpaces) {
+  char    pScopeStr[] = "query | insert | others ";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, (SLOW_LOG_TYPE_QUERY | SLOW_LOG_TYPE_INSERT | SLOW_LOG_TYPE_OTHERS));
+}
+
 #pragma GCC diagnostic pop

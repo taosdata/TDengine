@@ -146,8 +146,8 @@ TEST_F(PlanStmtTest, basic) {
   {
     prepare("SELECT * FROM t1 WHERE c1 = ? AND c2 = ?");
     TAOS_MULTI_BIND* pBindParams = createBindParams(2);
-    buildIntegerParam(pBindParams, 0, 10, TSDB_DATA_TYPE_INT);
-    buildStringParam(pBindParams, 1, "abc", TSDB_DATA_TYPE_VARCHAR, strlen("abc"));
+    (void)buildIntegerParam(pBindParams, 0, 10, TSDB_DATA_TYPE_INT);
+    (void)buildStringParam(pBindParams, 1, "abc", TSDB_DATA_TYPE_VARCHAR, strlen("abc"));
     bindParams(pBindParams, -1);
     exec();
     destoryBindParams(pBindParams, 2);
@@ -156,8 +156,8 @@ TEST_F(PlanStmtTest, basic) {
   {
     prepare("SELECT MAX(?), MAX(?) FROM t1");
     TAOS_MULTI_BIND* pBindParams = createBindParams(2);
-    buildIntegerParam(pBindParams, 0, 10, TSDB_DATA_TYPE_TINYINT);
-    buildIntegerParam(pBindParams, 1, 20, TSDB_DATA_TYPE_INT);
+    (void)buildIntegerParam(pBindParams, 0, 10, TSDB_DATA_TYPE_TINYINT);
+    (void)buildIntegerParam(pBindParams, 1, 20, TSDB_DATA_TYPE_INT);
     bindParams(pBindParams, -1);
     exec();
     destoryBindParams(pBindParams, 2);

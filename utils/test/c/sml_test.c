@@ -121,7 +121,8 @@ int smlProcess_json1_Test() {
   char *sql1[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql1[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql1[i], sql[i], 1023);
+    ASSERT(sql1[i] != NULL);
+    (void)strncpy(sql1[i], sql[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
@@ -149,7 +150,8 @@ int smlProcess_json1_Test() {
   char *sql3[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql3[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql3[i], sql2[i], 1023);
+    ASSERT(sql3[i] != NULL);
+    (void)strncpy(sql3[i], sql2[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql3, sizeof(sql3) / sizeof(sql3[0]), TSDB_SML_JSON_PROTOCOL,
@@ -176,7 +178,8 @@ int smlProcess_json1_Test() {
   char *sql5[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql5[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql5[i], sql4[i], 1023);
+    ASSERT(sql5[i] != NULL);
+    (void)strncpy(sql5[i], sql4[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql5, sizeof(sql5) / sizeof(sql5[0]), TSDB_SML_JSON_PROTOCOL,
@@ -215,7 +218,8 @@ int smlProcess_json2_Test() {
   char *sql1[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql1[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql1[i], sql[i], 1023);
+    ASSERT(sql1[i] != NULL);
+    (void)strncpy(sql1[i], sql[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
@@ -249,7 +253,8 @@ int smlProcess_json3_Test() {
   char *sql1[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql1[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql1[i], sql[i], 1023);
+    ASSERT(sql1[i] != NULL);
+    (void)strncpy(sql1[i], sql[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
@@ -286,7 +291,8 @@ int smlProcess_json_tag_not_same_Test() {
   char *sql1[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql1[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql1[i], sql[i], 1023);
+    ASSERT(sql1[i] != NULL);
+    (void)strncpy(sql1[i], sql[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
@@ -312,7 +318,8 @@ int smlProcess_json_tag_not_same_Test() {
   char *sql3[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql3[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql3[i], sql2[i], 1023);
+    ASSERT(sql3[i] != NULL);
+    (void)strncpy(sql3[i], sql2[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql3, sizeof(sql3) / sizeof(sql3[0]), TSDB_SML_JSON_PROTOCOL,
@@ -338,7 +345,8 @@ int smlProcess_json_tag_not_same_Test() {
   char *sql5[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql5[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql5[i], sql4[i], 1023);
+    ASSERT(sql5[i] != NULL);
+    (void)strncpy(sql5[i], sql4[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql5, sizeof(sql5) / sizeof(sql5[0]), TSDB_SML_JSON_PROTOCOL,
@@ -982,6 +990,9 @@ int smlProcess_18784_Test() {
     rowIndex++;
   }
   taos_free_result(pRes);
+  pRes = taos_query(taos, "drop database if exists db_18784");
+  taos_free_result(pRes);
+
   taos_close(taos);
 
   return code;
@@ -1062,6 +1073,7 @@ int sml_escape1_Test() {
   for(int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++){
     pRes = taos_schemaless_insert(taos, (char**)&sql[i], 1, TSDB_SML_LINE_PROTOCOL, 0);
     int code = taos_errno(pRes);
+    taos_free_result(pRes);
     ASSERT(code);
   }
 
@@ -1143,7 +1155,8 @@ int sml_19221_Test() {
   taos_free_result(pRes);
 
   char *tmp = (char *)taosMemoryCalloc(1024, 1);
-  memcpy(tmp, sql[0], strlen(sql[0]));
+  ASSERT(tmp != NULL);
+  (void)memcpy(tmp, sql[0], strlen(sql[0]));
   *(char *)(tmp + 44) = 0;
   int32_t totalRows = 0;
   pRes = taos_schemaless_insert_raw(taos, tmp, strlen(sql[0]), &totalRows, TSDB_SML_LINE_PROTOCOL,
@@ -1187,6 +1200,9 @@ int sml_ts2164_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+  pRes = taos_query(taos, "drop database if exists line_test");
+  taos_free_result(pRes);
+
   taos_close(taos);
 
   return code;
@@ -1211,7 +1227,8 @@ int sml_ts3116_Test() {
   taos_free_result(pRes);
   int32_t totalRows = 0;
   char *tmp = (char *)taosMemoryCalloc(1024, 1);
-  memcpy(tmp, sql, strlen(sql));
+  ASSERT(tmp != NULL);
+  (void)memcpy(tmp, sql, strlen(sql));
   totalRows = 0;
   pRes = taos_schemaless_insert_raw(taos, tmp, strlen(tmp), &totalRows, TSDB_SML_LINE_PROTOCOL,
                                     TSDB_SML_TIMESTAMP_MILLI_SECONDS);
@@ -1228,13 +1245,16 @@ int sml_ts3116_Test() {
   taos_free_result(pRes);
 
   tmp = (char *)taosMemoryCalloc(1024, 1);
-  memcpy(tmp, sql1, strlen(sql1));
+  ASSERT(tmp != NULL);
+  (void)memcpy(tmp, sql1, strlen(sql1));
   totalRows = 0;
   pRes = taos_schemaless_insert_raw(taos, tmp, strlen(tmp), &totalRows, TSDB_SML_LINE_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_MILLI_SECONDS);
   taosMemoryFree(tmp);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   code = taos_errno(pRes);
+  taos_free_result(pRes);
+  pRes = taos_query(taos, "drop database if exists ts3116");
   taos_free_result(pRes);
   taos_close(taos);
 
@@ -1449,6 +1469,13 @@ int sml_td24070_Test() {
   code = taos_errno(pRes);
   ASSERT(code == 0);
   taos_free_result(pRes);
+
+  pRes = taos_query(taos, "drop database if exists td24070_write");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "drop database if exists td24070_read");
+  taos_free_result(pRes);
+
   taos_close(taos);
   // test table privilege
 
@@ -1477,6 +1504,10 @@ int sml_td23881_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+
+  pRes = taos_query(taos, "drop database if exists line_23881");
+  taos_free_result(pRes);
+
   taos_close(taos);
 
   return code;
@@ -1691,6 +1722,8 @@ int sml_ts2385_Test() {
 
   code = taos_errno(pRes);
   taos_free_result(pRes);
+  pRes = taos_query(taos, "drop database if exists ts2385");
+  taos_free_result(pRes);
   taos_close(taos);
 
   return code;
@@ -1782,6 +1815,9 @@ int sml_td24559_Test() {
 
     rowIndex++;
   }
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "drop database if exists td24559");
   taos_free_result(pRes);
 
   taos_close(taos);
@@ -1889,6 +1925,9 @@ int sml_td29691_Test() {
   ASSERT(code == TSDB_CODE_PAR_DUPLICATED_COLUMN);
   taos_free_result(pRes);
 
+  pRes = taos_query(taos, "drop database if exists td29691");
+  taos_free_result(pRes);
+
   taos_close(taos);
 
   return code;
@@ -1940,6 +1979,9 @@ int sml_td18789_Test() {
 
     rowIndex++;
   }
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "drop database if exists td18789");
   taos_free_result(pRes);
 
   taos_close(taos);
@@ -2018,7 +2060,8 @@ int sml_td29373_Test() {
   char *sql3[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql3[i] = taosMemoryCalloc(1, 1024);
-    strncpy(sql3[i], sql2[i], 1023);
+    ASSERT(sql3[i] != NULL);
+    (void)strncpy(sql3[i], sql2[i], 1023);
   }
 
   pRes = taos_schemaless_insert(taos, (char **)sql3, sizeof(sql3) / sizeof(sql3[0]), TSDB_SML_JSON_PROTOCOL,
@@ -2045,6 +2088,9 @@ int sml_td29373_Test() {
   code = taos_errno(pRes);
   printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
   ASSERT(code == TSDB_CODE_SML_NOT_SUPPORT_PK);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "drop database if exists td29373");
   taos_free_result(pRes);
 
   taos_close(taos);

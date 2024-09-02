@@ -315,19 +315,22 @@ function run_thread() {
             fi
             if [ -n "$corefile" ]; then
                 echo -e "\e[34m corefiles: $corefile \e[0m"
-                local build_dir=$log_dir/build_${hosts[index]}
-                local remote_build_dir="${workdirs[index]}/${DEBUGPATH}/build"
-                # if [ $ent -ne 0 ]; then
-                #     remote_build_dir="${workdirs[index]}/{DEBUGPATH}/build"
-                # fi
-                mkdir "$build_dir" 2>/dev/null
-                if [ $? -eq 0 ]; then
-                    # scp build binary
-                    cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    $cmd >/dev/null
-                fi
             fi
+            # scp build binary and unit test log
+            local build_dir=$log_dir/build_${hosts[index]}
+            local remote_build_dir="${workdirs[index]}/${DEBUGPATH}/build"
+            local remote_unit_test_log_dir="${workdirs[index]}/${DEBUGPATH}/Testing/Temporary/"
+
+            mkdir "$build_dir" 2>/dev/null
+            if [ $? -eq 0 ]; then
+                cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
+                echo "$cmd"
+                $cmd >/dev/null
+                cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
+                echo "$cmd"
+                $cmd >/dev/null
+            fi
+
             # get remote sim dir
             local remote_sim_dir="${workdirs[index]}/tmp/thread_volume/$thread_no"
             local tarcmd="sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"

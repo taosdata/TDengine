@@ -1,16 +1,17 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+/**
+ * Copyright 2019-2020 DigitalOcean Inc.
  *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #include <pthread.h>
@@ -23,7 +24,7 @@
 #include "taos_collector_registry.h"
 
 // Private
-#include "taos_assert.h"
+#include "taos_test.h"
 #include "taos_collector_registry_t.h"
 #include "taos_collector_t.h"
 #include "taos_errors.h"
@@ -49,8 +50,8 @@ taos_collector_registry_t *taos_collector_registry_new(const char *name) {
 
   self->name = taos_strdup(name);
   self->collectors = taos_map_new();
-  taos_map_set_free_value_fn(self->collectors, &taos_collector_free_generic);
-  taos_map_set(self->collectors, "default", taos_collector_new("default"));
+  (void)taos_map_set_free_value_fn(self->collectors, &taos_collector_free_generic);
+  if (taos_map_set(self->collectors, "default", taos_collector_new("default")) != 0) return NULL;
 
   self->metric_formatter = taos_metric_formatter_new();
   self->string_builder = taos_string_builder_new();
@@ -59,6 +60,7 @@ taos_collector_registry_t *taos_collector_registry_new(const char *name) {
   r = pthread_rwlock_init(self->lock, NULL);
   if (r) {
     TAOS_LOG("failed to initialize rwlock");
+    taos_free(self);
     return NULL;
   }
   return self;
@@ -111,7 +113,7 @@ int taos_collector_registry_destroy(taos_collector_registry_t *self) {
 }
 
 int taos_collector_registry_register_metric(taos_metric_t *metric) {
-  TAOS_ASSERT(metric != NULL);
+  TAOS_TEST_PARA(metric != NULL);
 
   taos_collector_t *default_collector =
       (taos_collector_t *)taos_map_get(TAOS_COLLECTOR_REGISTRY_DEFAULT->collectors, "default");
@@ -124,7 +126,7 @@ int taos_collector_registry_register_metric(taos_metric_t *metric) {
 }
 
 int taos_collector_registry_deregister_metric(const char *key) {
-  TAOS_ASSERT(metric != NULL);
+  TAOS_TEST_PARA(key != NULL);
 
   taos_collector_t *default_collector =
       (taos_collector_t *)taos_map_get(TAOS_COLLECTOR_REGISTRY_DEFAULT->collectors, "default");
@@ -137,7 +139,7 @@ int taos_collector_registry_deregister_metric(const char *key) {
 }
 
 taos_metric_t *taos_collector_registry_get_metric(char* metric_name){
-  TAOS_ASSERT(metric != NULL);
+  TAOS_TEST_PARA_NULL(metric_name != NULL);
 
   taos_collector_t *default_collector =
       (taos_collector_t *)taos_map_get(TAOS_COLLECTOR_REGISTRY_DEFAULT->collectors, "default");
@@ -159,7 +161,7 @@ taos_metric_t *taos_collector_registry_must_register_metric(taos_metric_t *metri
 }
 
 int taos_collector_registry_register_collector(taos_collector_registry_t *self, taos_collector_t *collector) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
 
   int r = 0;
@@ -235,15 +237,15 @@ int taos_collector_registry_clear_batch(taos_collector_registry_t *self){
 }
 
 const char *taos_collector_registry_bridge_new(taos_collector_registry_t *self, char *ts, char *format, char** prom_str) {
-  taos_metric_formatter_clear(self->metric_formatter);
-  
+  if (taos_metric_formatter_clear(self->metric_formatter) != 0) return NULL;
+
   SJson* pJson = tjsonCreateArray();
   SJson* item = tjsonCreateObject();
-  tjsonAddItemToArray(pJson, item);
-  tjsonAddStringToObject(item, "ts", ts);
-  tjsonAddDoubleToObject(item, "protocol", 2);
+  (void)tjsonAddItemToArray(pJson, item);
+  (void)tjsonAddStringToObject(item, "ts", ts);
+  (void)tjsonAddDoubleToObject(item, "protocol", 2);
   SJson* array = tjsonCreateArray();
-  tjsonAddItemToObject(item, "tables", array);
+  (void)tjsonAddItemToObject(item, "tables", array);
 
   if(taos_metric_formatter_load_metrics_new(self->metric_formatter, self->collectors, ts, format, array) != 0){
     TAOS_LOG("failed to load metrics");
@@ -301,6 +303,9 @@ const char *taos_collector_registry_bridge_new(taos_collector_registry_t *self, 
 
 _OVER:
   tjsonDelete(pJson);
+  if(tmp_builder != NULL){
+    (void)taos_string_builder_destroy(tmp_builder);
+  }
 
   return NULL;
 }

@@ -54,7 +54,7 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
 
   pMemTable = (SMemTable *)taosMemoryCalloc(1, sizeof(*pMemTable));
   if (pMemTable == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
   taosInitRWLatch(&pMemTable->latch);
@@ -71,7 +71,7 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
   pMemTable->nBucket = MEM_MIN_HASH;
   pMemTable->aBucket = (STbData **)taosMemoryCalloc(pMemTable->nBucket, sizeof(STbData *));
   if (pMemTable->aBucket == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     taosMemoryFree(pMemTable);
     goto _err;
   }
@@ -170,11 +170,10 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
     goto _err;
   }
 
-  ASSERT(pPool != NULL);
   // do delete
   SDelData *pDelData = (SDelData *)vnodeBufPoolMalloc(pPool, sizeof(*pDelData));
   if (pDelData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
   pDelData->version = version;
@@ -183,7 +182,6 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   pDelData->pNext = NULL;
   taosWLockLatch(&pTbData->lock);
   if (pTbData->pHead == NULL) {
-    ASSERT(pTbData->pTail == NULL);
     pTbData->pHead = pTbData->pTail = pDelData;
   } else {
     pTbData->pTail->pNext = pDelData;
@@ -195,7 +193,7 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   pMemTable->minVer = TMIN(pMemTable->minVer, version);
   pMemTable->maxVer = TMAX(pMemTable->maxVer, version);
 
-  tsdbCacheDel(pTsdb, suid, uid, sKey, eKey);
+  TAOS_UNUSED(tsdbCacheDel(pTsdb, suid, uid, sKey, eKey));
 
   tsdbTrace("vgId:%d, delete data from table suid:%" PRId64 " uid:%" PRId64 " skey:%" PRId64 " eKey:%" PRId64
             " at version %" PRId64,
@@ -214,7 +212,7 @@ int32_t tsdbTbDataIterCreate(STbData *pTbData, STsdbRowKey *pFrom, int8_t backwa
 
   (*ppIter) = (STbDataIter *)taosMemoryCalloc(1, sizeof(STbDataIter));
   if ((*ppIter) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -263,8 +261,6 @@ void tsdbTbDataIterOpen(STbData *pTbData, STsdbRowKey *pFrom, int8_t backward, S
 bool tsdbTbDataIterNext(STbDataIter *pIter) {
   pIter->pRow = NULL;
   if (pIter->backward) {
-    ASSERT(pIter->pNode != pIter->pTbData->sl.pTail);
-
     if (pIter->pNode == pIter->pTbData->sl.pHead) {
       return false;
     }
@@ -274,8 +270,6 @@ bool tsdbTbDataIterNext(STbDataIter *pIter) {
       return false;
     }
   } else {
-    ASSERT(pIter->pNode != pIter->pTbData->sl.pHead);
-
     if (pIter->pNode == pIter->pTbData->sl.pTail) {
       return false;
     }
@@ -329,7 +323,7 @@ static int32_t tsdbMemTableRehash(SMemTable *pMemTable) {
   int32_t   nBucket = pMemTable->nBucket * 2;
   STbData **aBucket = (STbData **)taosMemoryCalloc(nBucket, sizeof(STbData *));
   if (aBucket == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -366,11 +360,10 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   SVBufPool *pPool = pMemTable->pTsdb->pVnode->inUse;
   int8_t     maxLevel = pMemTable->pTsdb->pVnode->config.tsdbCfg.slLevel;
 
-  ASSERT(pPool != NULL);
   pTbData = vnodeBufPoolMallocAligned(pPool, sizeof(*pTbData) + SL_NODE_SIZE(maxLevel) * 2);
   if (pTbData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+    code = terrno;
+    goto _exit;
   }
   pTbData->suid = suid;
   pTbData->uid = uid;
@@ -401,7 +394,7 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
     code = tsdbMemTableRehash(pMemTable);
     if (code) {
       taosWUnLockLatch(&pMemTable->latch);
-      goto _err;
+      goto _exit;
     }
   }
 
@@ -410,16 +403,16 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   pMemTable->aBucket[idx] = pTbData;
   pMemTable->nTbData++;
 
-  tRBTreePut(pMemTable->tbDataTree, pTbData->rbtn);
+  (void)tRBTreePut(pMemTable->tbDataTree, pTbData->rbtn);
 
   taosWUnLockLatch(&pMemTable->latch);
 
 _exit:
-  *ppTbData = pTbData;
-  return code;
-
-_err:
-  *ppTbData = NULL;
+  if (code) {
+    *ppTbData = NULL;
+  } else {
+    *ppTbData = pTbData;
+  }
   return code;
 }
 
@@ -516,11 +509,9 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
     pNode = (SMemSkipListNode *)vnodeBufPoolMallocAligned(pPool, nSize + pRow->pTSRow->len);
   } else if (pRow->type == TSDBROW_COL_FMT) {
     pNode = (SMemSkipListNode *)vnodeBufPoolMallocAligned(pPool, nSize);
-  } else {
-    ASSERT(0);
   }
   if (pNode == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -582,14 +573,10 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   int32_t    nColData = TARRAY_SIZE(pSubmitTbData->aCol);
   SColData  *aColData = (SColData *)TARRAY_DATA(pSubmitTbData->aCol);
 
-  ASSERT(aColData[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID);
-  ASSERT(aColData[0].type == TSDB_DATA_TYPE_TIMESTAMP);
-  ASSERT(aColData[0].flag == HAS_VALUE);
-
   // copy and construct block data
   SBlockData *pBlockData = vnodeBufPoolMalloc(pPool, sizeof(*pBlockData));
   if (pBlockData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -599,7 +586,7 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   pBlockData->aUid = NULL;
   pBlockData->aVersion = vnodeBufPoolMalloc(pPool, aColData[0].nData);
   if (pBlockData->aVersion == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
   for (int32_t i = 0; i < pBlockData->nRow; i++) {  // todo: here can be optimized
@@ -608,7 +595,7 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
 
   pBlockData->aTSKEY = vnodeBufPoolMalloc(pPool, aColData[0].nData);
   if (pBlockData->aTSKEY == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
   memcpy(pBlockData->aTSKEY, aColData[0].pData, aColData[0].nData);
@@ -616,7 +603,7 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   pBlockData->nColData = nColData - 1;
   pBlockData->aColData = vnodeBufPoolMalloc(pPool, sizeof(SColData) * pBlockData->nColData);
   if (pBlockData->aColData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -629,14 +616,12 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   SMemSkipListNode *pos[SL_MAX_LEVEL];
   TSDBROW           tRow = tsdbRowFromBlockData(pBlockData, 0);
   STsdbRowKey       key;
-  TSDBROW           lRow;  // last row
 
   // first row
   tsdbRowGetKey(&tRow, &key);
   tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_BACKWARD);
   if ((code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 0))) goto _exit;
   pTbData->minKey = TMIN(pTbData->minKey, key.key.ts);
-  lRow = tRow;
 
   // remain row
   ++tRow.iRow;
@@ -653,7 +638,6 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
       }
 
       if ((code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 1))) goto _exit;
-      lRow = tRow;
 
       ++tRow.iRow;
     }
@@ -664,7 +648,7 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   }
 
   if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config)) {
-    tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
+    TAOS_UNUSED(tsdbCacheColFormatUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, pBlockData));
   }
 
   // SMemTable
@@ -688,7 +672,6 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   SMemSkipListNode *pos[SL_MAX_LEVEL];
   TSDBROW           tRow = {.type = TSDBROW_ROW_FMT, .version = version};
   int32_t           iRow = 0;
-  TSDBROW           lRow;
 
   // backward put first data
   tRow.pTSRow = aRow[iRow++];
@@ -696,7 +679,6 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_BACKWARD);
   code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 0);
   if (code) goto _exit;
-  lRow = tRow;
 
   pTbData->minKey = TMIN(pTbData->minKey, key.key.ts);
 
@@ -717,8 +699,6 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
       code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 1);
       if (code) goto _exit;
 
-      lRow = tRow;
-
       iRow++;
     }
   }
@@ -727,7 +707,7 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
     pTbData->maxKey = key.key.ts;
   }
   if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config)) {
-    tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
+    TAOS_UNUSED(tsdbCacheRowFormatUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, version, nRow, aRow));
   }
 
   // SMemTable
@@ -747,9 +727,11 @@ int32_t tsdbRefMemTable(SMemTable *pMemTable, SQueryNode *pQNode) {
   int32_t code = 0;
 
   int32_t nRef = atomic_fetch_add_32(&pMemTable->nRef, 1);
-  ASSERT(nRef > 0);
+  if (nRef <= 0) {
+    tsdbError("vgId:%d, memtable ref count is invalid, ref:%d", TD_VID(pMemTable->pTsdb->pVnode), nRef);
+  }
 
-  vnodeBufPoolRegisterQuery(pMemTable->pPool, pQNode);
+  (void)vnodeBufPoolRegisterQuery(pMemTable->pPool, pQNode);
 
 _exit:
   return code;
@@ -786,46 +768,4 @@ static FORCE_INLINE int32_t tbDataPCmprFn(const void *p1, const void *p2) {
   }
 
   return 0;
-}
-
-SArray *tsdbMemTableGetTbDataArray(SMemTable *pMemTable) {
-  SArray *aTbDataP = taosArrayInit(pMemTable->nTbData, sizeof(STbData *));
-  if (aTbDataP == NULL) goto _exit;
-
-  for (int32_t iBucket = 0; iBucket < pMemTable->nBucket; iBucket++) {
-    STbData *pTbData = pMemTable->aBucket[iBucket];
-
-    while (pTbData) {
-      taosArrayPush(aTbDataP, &pTbData);
-      pTbData = pTbData->next;
-    }
-  }
-
-  taosArraySort(aTbDataP, tbDataPCmprFn);
-
-_exit:
-  return aTbDataP;
-}
-
-TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter) {
-  if (pIter == NULL) return NULL;
-
-  if (pIter->pRow) {
-    return pIter->pRow;
-  }
-
-  if (pIter->backward) {
-    if (pIter->pNode == pIter->pTbData->sl.pHead) {
-      return NULL;
-    }
-  } else {
-    if (pIter->pNode == pIter->pTbData->sl.pTail) {
-      return NULL;
-    }
-  }
-
-  pIter->pRow = &pIter->row;
-  pIter->row = pIter->pNode->row;
-
-  return pIter->pRow;
 }

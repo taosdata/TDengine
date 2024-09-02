@@ -16,17 +16,5 @@
 #include "query.h"
 #include "schInt.h"
 
-tsem_t    schdRspSem;
 SSchDebug gSCHDebug = {0};
 
-void schdExecCallback(SExecResult* pResult, void* param, int32_t code) {
-  if (code) {
-    pResult->code = code;
-  }
-
-  *(SExecResult*)param = *pResult;
-
-  taosMemoryFree(pResult);
-
-  tsem_post(&schdRspSem);
-}

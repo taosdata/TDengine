@@ -159,13 +159,12 @@ TdSocketPtr       taosAcceptTcpConnectSocket(TdSocketServerPtr pServerSocket, st
 
 int32_t taosGetSocketName(TdSocketPtr pSocket, struct sockaddr *destAddr, int *addrLen);
 
-void        taosBlockSIGPIPE();
-uint32_t    taosGetIpv4FromFqdn(const char *);
+int32_t     taosBlockSIGPIPE();
+int32_t     taosGetIpv4FromFqdn(const char *fqdn, uint32_t* ip);
 int32_t     taosGetFqdn(char *);
 void        tinet_ntoa(char *ipstr, uint32_t ip);
 uint32_t    ip2uint(const char *const ip_addr);
-void        taosIgnSIGPIPE();
-void        taosSetMaskSIGPIPE();
+int32_t     taosIgnSIGPIPE();
 uint32_t    taosInetAddr(const char *ipAddr);
 const char *taosInetNtoa(struct in_addr ipInt, char *dstStr, int32_t len);
 

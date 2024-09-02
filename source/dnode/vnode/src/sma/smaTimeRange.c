@@ -32,19 +32,19 @@ int32_t tdProcessTSmaInsert(SSma *pSma, int64_t indexUid, const char *msg) {
     smaError("vgId:%d, insert tsma data failed since %s", SMA_VID(pSma), tstrerror(code));
   }
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t tdProcessTSmaCreate(SSma *pSma, int64_t ver, const char *msg) {
   int32_t code = tdProcessTSmaCreateImpl(pSma, ver, msg);
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days) {
   int32_t code = tdProcessTSmaGetDaysImpl(pCfg, pCont, contLen, days);
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 /**
@@ -69,8 +69,9 @@ static int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t c
   }
 
   STsdbCfg *pTsdbCfg = &pCfg->tsdbCfg;
-  int64_t   sInterval = convertTimeFromPrecisionToUnit(tsma.interval, pTsdbCfg->precision, TIME_UNIT_SECOND);
-  if (sInterval <= 0) {
+  int64_t   sInterval = -1;
+  TAOS_CHECK_EXIT(convertTimeFromPrecisionToUnit(tsma.interval, pTsdbCfg->precision, TIME_UNIT_SECOND, &sInterval));
+  if (0 == sInterval) {
     *days = pTsdbCfg->days;
     goto _exit;
   }
@@ -78,7 +79,8 @@ static int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t c
   if (records >= SMA_STORAGE_SPLIT_FACTOR) {
     *days = pTsdbCfg->days;
   } else {
-    int64_t mInterval = convertTimeFromPrecisionToUnit(tsma.interval, pTsdbCfg->precision, TIME_UNIT_MINUTE);
+    int64_t mInterval = -1;
+    TAOS_CHECK_EXIT(convertTimeFromPrecisionToUnit(tsma.interval, pTsdbCfg->precision, TIME_UNIT_MINUTE, &mInterval));
     int64_t daysPerFile = mInterval * SMA_STORAGE_MINUTES_DAY * 2;
 
     if (daysPerFile > SMA_STORAGE_MINUTES_MAX) {
@@ -98,7 +100,7 @@ _exit:
     smaDebug("vgId:%d, succeed to get tsma days %d", pCfg->vgId, *days);
   }
   tDecoderClear(&coder);
-  return code;
+  TAOS_RETURN(code);
 }
 
 /**
@@ -118,40 +120,33 @@ static int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t ver, const char *pMsg
 
   if (TD_VID(pSma->pVnode) == pCfg->dstVgId) {
     // create tsma meta in dstVgId
-    if (metaCreateTSma(SMA_META(pSma), ver, pCfg) < 0) {
-      code = terrno;
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+    TAOS_CHECK_EXIT(metaCreateTSma(SMA_META(pSma), ver, pCfg));
 
     // create stable to save tsma result in dstVgId
-    tNameFromString(&stbFullName, pCfg->dstTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    (void)tNameFromString(&stbFullName, pCfg->dstTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
     pReq.name = (char *)tNameGetTableName(&stbFullName);
     pReq.suid = pCfg->dstTbUid;
     pReq.schemaRow = pCfg->schemaRow;
     pReq.schemaTag = pCfg->schemaTag;
 
-    if (metaCreateSTable(SMA_META(pSma), ver, &pReq) < 0) {
-      code = terrno;
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+    TAOS_CHECK_EXIT(metaCreateSTable(SMA_META(pSma), ver, &pReq));
   } else {
-    code = terrno = TSDB_CODE_TSMA_INVALID_STAT;
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_EXIT(TSDB_CODE_TSMA_INVALID_STAT);
   }
 
 _exit:
   if (code) {
     smaError("vgId:%d, failed at line %d to create sma index %s %" PRIi64 " on stb:%" PRIi64 ", dstSuid:%" PRIi64
-             " dstTb:%s dstVg:%d",
+             " dstTb:%s dstVg:%d since %s",
              SMA_VID(pSma), lino, pCfg->indexName, pCfg->indexUid, pCfg->tableUid, pCfg->dstTbUid, pReq.name,
-             pCfg->dstVgId);
+             pCfg->dstVgId, tstrerror(code));
   } else {
     smaDebug("vgId:%d, success to create sma index %s %" PRIi64 " on stb:%" PRIi64 ", dstSuid:%" PRIi64
              " dstTb:%s dstVg:%d",
              SMA_VID(pSma), pCfg->indexName, pCfg->indexUid, pCfg->tableUid, pCfg->dstTbUid, pReq.name, pCfg->dstVgId);
   }
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *pTSchema, int64_t suid,
@@ -162,6 +157,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
   int32_t      len = 0;
   SSubmitReq2 *pReq = NULL;
   SArray      *tagArray = NULL;
+  SHashObj    *pTableIndexMap = NULL;
 
   int32_t numOfBlocks = taosArrayGetSize(pBlocks);
 
@@ -169,18 +165,18 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
   pReq = taosMemoryCalloc(1, sizeof(SSubmitReq2));
 
   if (!tagArray || !pReq) {
-    code = terrno == TSDB_CODE_SUCCESS ? TSDB_CODE_OUT_OF_MEMORY : terrno;
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_EXIT(terrno);
   }
 
   pReq->aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData));
   if (pReq->aSubmitTbData == NULL) {
-    code = terrno == TSDB_CODE_SUCCESS ? TSDB_CODE_OUT_OF_MEMORY : terrno;
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  SHashObj *pTableIndexMap =
-      taosHashInit(numOfBlocks, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  pTableIndexMap = taosHashInit(numOfBlocks, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  if (pTableIndexMap == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   // SSubmitTbData req
   for (int32_t i = 0; i < numOfBlocks; ++i) {
@@ -188,32 +184,35 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
       pDeleteReq->suid = suid;
       pDeleteReq->deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
-      code = tqBuildDeleteReq(pVnode->pTq, stbFullName, pDataBlock, pDeleteReq, "", true);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_EXIT(tqBuildDeleteReq(pVnode->pTq, stbFullName, pDataBlock, pDeleteReq, "", true));
       continue;
     }
 
     SSubmitTbData tbData = {.suid = suid, .uid = 0, .sver = pTSchema->version, .flags = SUBMIT_REQ_AUTO_CREATE_TABLE};
 
     int32_t cid = taosArrayGetSize(pDataBlock->pDataBlock) + 1;
-    tbData.pCreateTbReq = buildAutoCreateTableReq(stbFullName, suid, cid, pDataBlock, tagArray, true);
+
+    TAOS_CHECK_EXIT(buildAutoCreateTableReq(stbFullName, suid, cid, pDataBlock, tagArray, true, &tbData.pCreateTbReq));
 
     {
       uint64_t groupId = pDataBlock->info.id.groupId;
 
       int32_t *index = taosHashGet(pTableIndexMap, &groupId, sizeof(groupId));
       if (index == NULL) {  // no data yet, append it
-        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, "");
+        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, INT64_MIN, "");
         if (code != TSDB_CODE_SUCCESS) {
           continue;
         }
 
-        taosArrayPush(pReq->aSubmitTbData, &tbData);
+        if( taosArrayPush(pReq->aSubmitTbData, &tbData) == NULL) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          continue;
+        }
 
         int32_t size = (int32_t)taosArrayGetSize(pReq->aSubmitTbData) - 1;
-        taosHashPut(pTableIndexMap, &groupId, sizeof(groupId), &size, sizeof(size));
+        TAOS_CHECK_EXIT(taosHashPut(pTableIndexMap, &groupId, sizeof(groupId), &size, sizeof(size)));
       } else {
-        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, "");
+        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, INT64_MIN, "");
         if (code != TSDB_CODE_SUCCESS) {
           continue;
         }
@@ -227,15 +226,13 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     }
   }
 
-  taosHashCleanup(pTableIndexMap);
-
   // encode
   tEncodeSize(tEncodeSubmitReq, pReq, len, code);
   if (TSDB_CODE_SUCCESS == code) {
     SEncoder encoder;
     len += sizeof(SSubmitReq2Msg);
     if (!(pBuf = rpcMallocCont(len))) {
-      code = terrno;
+      code = TSDB_CODE_OUT_OF_MEMORY;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -243,9 +240,8 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     ((SSubmitReq2Msg *)pBuf)->header.contLen = htonl(len);
     ((SSubmitReq2Msg *)pBuf)->version = htobe64(1);
     tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg)), len - sizeof(SSubmitReq2Msg));
-    if (tEncodeSubmitReq(&encoder, pReq) < 0) {
+    if ((code = tEncodeSubmitReq(&encoder, pReq)) < 0) {
       tEncoderClear(&encoder);
-      code = TSDB_CODE_OUT_OF_MEMORY;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     tEncoderClear(&encoder);
@@ -253,6 +249,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
 
 _exit:
   taosArrayDestroy(tagArray);
+  taosHashCleanup(pTableIndexMap);
   if (pReq != NULL) {
     tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
     taosMemoryFree(pReq);
@@ -266,7 +263,7 @@ _exit:
     if (ppData) *ppData = pBuf;
     if (pLen) *pLen = len;
   }
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t tsmaProcessDelReq(SSma *pSma, int64_t indexUid, SBatchDeleteReq *pDelReq) {
@@ -280,13 +277,13 @@ static int32_t tsmaProcessDelReq(SSma *pSma, int64_t indexUid, SBatchDeleteReq *
 
     void *pBuf = rpcMallocCont(len + sizeof(SMsgHead));
     if (!pBuf) {
-      code = terrno;
+      code = TSDB_CODE_OUT_OF_MEMORY;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     SEncoder encoder;
     tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SMsgHead)), len);
-    tEncodeSBatchDeleteReq(&encoder, pDelReq);
+    (void)tEncodeSBatchDeleteReq(&encoder, pDelReq);
     tEncoderClear(&encoder);
 
     ((SMsgHead *)pBuf)->vgId = TD_VID(pSma->pVnode);
@@ -303,7 +300,7 @@ _exit:
              indexUid, tstrerror(code));
   }
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 /**
@@ -340,22 +337,20 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
   pTsmaStat = SMA_STAT_TSMA(pStat);
 
   if (!pTsmaStat->pTSma) {
-    terrno = 0;
     STSma *pTSma = metaGetSmaInfoByIndex(SMA_META(pSma), indexUid);
     if (!pTSma) {
-      code = terrno ? terrno : TSDB_CODE_TSMA_INVALID_PTR;
+      code = TSDB_CODE_TSMA_INVALID_PTR;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     pTsmaStat->pTSma = pTSma;
     pTsmaStat->pTSchema = metaGetTbTSchema(SMA_META(pSma), pTSma->dstTbUid, -1, 1);
     if (!pTsmaStat->pTSchema) {
-      code = terrno ? terrno : TSDB_CODE_TSMA_INVALID_PTR;
+      code = TSDB_CODE_TSMA_INVALID_PTR;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
 
-  if (ASSERTS(pTsmaStat->pTSma->indexUid == indexUid, "indexUid:%" PRIi64 " != %" PRIi64, pTsmaStat->pTSma->indexUid,
-              indexUid)) {
+  if (pTsmaStat->pTSma->indexUid != indexUid) {
     code = TSDB_CODE_APP_ERROR;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -368,15 +363,13 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
                           pTsmaStat->pTSma->dstTbName, &deleteReq, &pSubmitReq, &contLen);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  if ((terrno = tsmaProcessDelReq(pSma, indexUid, &deleteReq)) != 0) {
-    goto _exit;
-  }
+  TAOS_CHECK_EXIT(tsmaProcessDelReq(pSma, indexUid, &deleteReq));
 
 #if 0
   if (!strncasecmp("td.tsma.rst.tb", pTsmaStat->pTSma->dstTbName, 14)) {
-    terrno = TSDB_CODE_APP_ERROR;
+    code = TSDB_CODE_APP_ERROR;
     smaError("vgId:%d, tsma insert for smaIndex %" PRIi64 " failed since %s, %s", SMA_VID(pSma), indexUid,
-             pTsmaStat->pTSma->indexUid, tstrerror(terrno), pTsmaStat->pTSma->dstTbName);
+             pTsmaStat->pTSma->indexUid, tstrerror(code), pTsmaStat->pTSma->dstTbName);
     goto _err;
   }
 #endif
@@ -395,5 +388,5 @@ _exit:
     smaError("vgId:%d, %s failed at line %d since %s, smaIndex:%" PRIi64, SMA_VID(pSma), __func__, lino,
              tstrerror(code), indexUid);
   }
-  return code;
+  TAOS_RETURN(code);
 }

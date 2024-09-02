@@ -45,12 +45,357 @@ class TDTestCase:
                else:
                  tdSql.checkData(i, j, 1)
 
+    def ignoreTest(self):
+        dbname = "db"
+        
+        ts1 = 1694912400000
+        tdSql.execute(f'''create table  {dbname}.stb30749(ts timestamp, col1 tinyint, col2 smallint) tags(loc nchar(20))''')
+        tdSql.execute(f"create table  {dbname}.stb30749_1 using  {dbname}.stb30749 tags('shanghai')")
+
+        tdSql.execute(f"insert into  {dbname}.stb30749_1 values(%d, null, 1)" % (ts1 + 1))
+        tdSql.execute(f"insert into  {dbname}.stb30749_1 values(%d, 3, null)" % (ts1 + 2))
+        tdSql.execute(f"insert into  {dbname}.stb30749_1 values(%d, 4, 3)" % (ts1 + 3))
+        tdSql.execute(f"insert into  {dbname}.stb30749_1 values(%d, 1, 1)" % (ts1 + 4))
+        tdSql.execute(f"insert into  {dbname}.stb30749_1 values(%d, 2, null)" % (ts1 + 5))
+        tdSql.execute(f"insert into  {dbname}.stb30749_1 values(%d, null, null)" % (ts1 + 6))
+        
+        tdSql.query(f"select ts, diff(col1) from {dbname}.stb30749_1")
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, '2023-09-17 09:00:00.002')
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(1, 1, 1)
+        tdSql.checkData(2, 0, '2023-09-17 09:00:00.004')
+        tdSql.checkData(2, 1, -3)
+        tdSql.checkData(3, 0, '2023-09-17 09:00:00.005')
+        tdSql.checkData(3, 1, 1)
+        tdSql.checkData(4, 0, '2023-09-17 09:00:00.006')
+        tdSql.checkData(4, 1, None)
+        
+        tdSql.query(f"select ts, diff(col1, 1) from {dbname}.stb30749_1")
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, '2023-09-17 09:00:00.002')
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(1, 1, 1)
+        tdSql.checkData(2, 0, '2023-09-17 09:00:00.004')
+        tdSql.checkData(2, 1, None)
+        tdSql.checkData(3, 0, '2023-09-17 09:00:00.005')
+        tdSql.checkData(3, 1, 1)
+        tdSql.checkData(4, 0, '2023-09-17 09:00:00.006')
+        tdSql.checkData(4, 1, None)
+        
+        tdSql.query(f"select ts, diff(col1, 2) from {dbname}.stb30749_1")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 0, '2023-09-17 09:00:00.004')
+        tdSql.checkData(1, 1, -3)
+        tdSql.checkData(2, 0, '2023-09-17 09:00:00.005')
+        tdSql.checkData(2, 1, 1)
+        
+        tdSql.query(f"select ts, diff(col1, 3) from {dbname}.stb30749_1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 0, '2023-09-17 09:00:00.005')
+        tdSql.checkData(1, 1, 1)
+        
+        tdSql.query(f"select ts, diff(col1, 3), diff(col2, 0) from {dbname}.stb30749_1")
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, '2023-09-17 09:00:00.002')
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(2, 1, None)
+        tdSql.checkData(2, 2, -2)
+        
+        tdSql.query(f"select ts, diff(col1, 3), diff(col2, 1) from {dbname}.stb30749_1")
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, '2023-09-17 09:00:00.002')
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(2, 1, None)
+        tdSql.checkData(2, 2, None)
+        
+        tdSql.query(f"select ts, diff(col1, 2), diff(col2, 2) from {dbname}.stb30749_1")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(1, 0, '2023-09-17 09:00:00.004')
+        tdSql.checkData(2, 0, '2023-09-17 09:00:00.005')
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, -3)
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(1, 2, -2)
+        tdSql.checkData(2, 2, None)
+        
+        tdSql.query(f"select ts, diff(col1, 3), diff(col2, 2) from {dbname}.stb30749_1")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(1, 0, '2023-09-17 09:00:00.004')
+        tdSql.checkData(2, 0, '2023-09-17 09:00:00.005')
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, None)
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(1, 2, -2)
+        tdSql.checkData(2, 2, None)
+        
+        tdSql.query(f"select ts, diff(col1, 3), diff(col2, 3) from {dbname}.stb30749_1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(1, 0, '2023-09-17 09:00:00.005')
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 1)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(1, 2, None)
+        
+        tdSql.execute(f"create table  {dbname}.stb30749_2 using  {dbname}.stb30749 tags('shanghai')")
+
+        tdSql.execute(f"insert into  {dbname}.stb30749_2 values(%d, null, 1)" % (ts1 - 1))
+        tdSql.execute(f"insert into  {dbname}.stb30749_2 values(%d, 4, 3)" % (ts1 + 0))
+        tdSql.execute(f"insert into  {dbname}.stb30749_2 values(%d, null, null)" % (ts1 + 10))
+        
+        tdSql.query(f"select ts, diff(col1), diff(col2, 1) from {dbname}.stb30749")
+        tdSql.checkRows(8)
+        tdSql.checkData(2, 0, '2023-09-17 09:00:00.002')
+        tdSql.checkData(3, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(2, 1, -1)
+        tdSql.checkData(2, 2, None)
+        tdSql.checkData(3, 1, 1)
+        tdSql.checkData(3, 2, 2)
+        
+        tdSql.query(f"select ts, diff(col1), diff(col2) from {dbname}.stb30749")
+        tdSql.checkRows(8)
+        tdSql.checkData(2, 0, '2023-09-17 09:00:00.002')
+        tdSql.checkData(3, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(2, 1, -1)
+        tdSql.checkData(2, 2, None)
+        tdSql.checkData(3, 1, 1)
+        tdSql.checkData(3, 2, 2)
+        
+        tdSql.query(f"select ts, diff(col1), diff(col2, 3) from {dbname}.stb30749")
+        tdSql.checkRows(8)
+        tdSql.checkData(2, 0, '2023-09-17 09:00:00.002')
+        tdSql.checkData(3, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(2, 1, -1)
+        tdSql.checkData(2, 2, None)
+        tdSql.checkData(3, 1, 1)
+        tdSql.checkData(3, 2, 2)
+        
+        tdSql.query(f"select ts, diff(col1, 1), diff(col2, 2) from {dbname}.stb30749")
+        tdSql.checkRows(8)
+        tdSql.checkData(2, 0, '2023-09-17 09:00:00.002')
+        tdSql.checkData(3, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(2, 1, None)
+        tdSql.checkData(2, 2, None)
+        tdSql.checkData(3, 1, 1)
+        tdSql.checkData(3, 2, 2)
+        
+        tdSql.query(f"select ts, diff(col1, 1), diff(col2, 3) from {dbname}.stb30749")
+        tdSql.checkRows(8)
+        tdSql.checkData(2, 0, '2023-09-17 09:00:00.002')
+        tdSql.checkData(3, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(2, 1, None)
+        tdSql.checkData(2, 2, None)
+        tdSql.checkData(3, 1, 1)
+        tdSql.checkData(3, 2, 2)
+        
+        tdSql.query(f"select ts, diff(col1, 2), diff(col2, 2) from {dbname}.stb30749")
+        tdSql.checkRows(6)
+        tdSql.checkData(2, 0, '2023-09-17 09:00:00.002')
+        tdSql.checkData(3, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(2, 1, -1)
+        tdSql.checkData(2, 2, None)
+        tdSql.checkData(3, 1, 1)
+        tdSql.checkData(3, 2, 2)
+        
+        tdSql.query(f"select ts, diff(col1, 3), diff(col2, 2) from {dbname}.stb30749")
+        tdSql.checkRows(5)
+        tdSql.checkData(2, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(3, 0, '2023-09-17 09:00:00.004')
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(3, 1, None)
+        tdSql.checkData(3, 2, -2)
+        
+        tdSql.query(f"select ts, diff(col1, 2), diff(col2, 3) from {dbname}.stb30749")
+        tdSql.checkRows(5)
+        tdSql.checkData(2, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(3, 0, '2023-09-17 09:00:00.004')
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(3, 1, -3)
+        tdSql.checkData(3, 2, None)
+        
+        tdSql.query(f"select ts, diff(col1, 3), diff(col2, 3) from {dbname}.stb30749")
+        tdSql.checkRows(3)
+        tdSql.checkData(1, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(2, 0, '2023-09-17 09:00:00.005')
+        tdSql.checkData(1, 1, 1)
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(2, 2, None)
+        
+        tdSql.query(f"select ts, diff(col1), diff(col2) from {dbname}.stb30749 partition by tbname")
+        tdSql.checkRows(7)
+        tdSql.checkData(0, 0, '2023-09-17 09:00:00.002')
+        tdSql.checkData(1, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 1, 1)
+        tdSql.checkData(1, 2, 2)
+        
+        tdSql.query(f"select ts, diff(col1, 3), diff(col2, 2) from {dbname}.stb30749 partition by tbname")
+        tdSql.checkRows(4)
+        tdSql.checkData(3, 0, '2023-09-17 09:00:00.000')
+        tdSql.checkData(3, 1, None)
+        tdSql.checkData(3, 2, 2)
+        
+        tdSql.execute(f"insert into  {dbname}.stb30749_2 values(%d, null, 1)" % (ts1 + 1))
+        tdSql.error(f"select ts, diff(col1, 3), diff(col2, 2) from {dbname}.stb30749")
+
+    def withPkTest(self):
+        dbname = "db"
+        
+        ts1 = 1694912400000
+        tdSql.execute(f'''create table  {dbname}.stb5(ts timestamp, col1 int PRIMARY KEY, col2 smallint) tags(loc nchar(20))''')
+        tdSql.execute(f"create table  {dbname}.stb5_1 using  {dbname}.stb5 tags('shanghai')")
+
+        tdSql.execute(f"insert into  {dbname}.stb5_1 values(%d, 2, 1)" % (ts1 + 1))
+        tdSql.execute(f"insert into  {dbname}.stb5_1 values(%d, 3, null)" % (ts1 + 2))
+        tdSql.execute(f"insert into  {dbname}.stb5_1 values(%d, 4, 3)" % (ts1 + 3))
+
+        tdSql.execute(f"create table  {dbname}.stb5_2 using  {dbname}.stb5 tags('shanghai')")
+        
+        tdSql.execute(f"insert into  {dbname}.stb5_2 values(%d, 5, 4)" % (ts1 + 1))
+        tdSql.query(f"select ts, diff(col1, 3), diff(col2, 2) from {dbname}.stb5")
+        tdSql.checkRows(2)
+        
+        tdSql.execute(f"insert into  {dbname}.stb5_2 values(%d, 3, 3)" % (ts1 + 2))
+        tdSql.query(f"select ts, diff(col1, 3), diff(col2, 2) from {dbname}.stb5")
+        tdSql.checkRows(2)
+        
+        
+    def intOverflowTest(self):
+        dbname = "db"
+        
+        ts1 = 1694912400000
+        tdSql.execute(f'''create table  {dbname}.stb6(ts timestamp, c1 int, c2 smallint, c3 int unsigned, c4 BIGINT, c5 BIGINT unsigned) tags(loc nchar(20))''')
+        tdSql.execute(f"create table  {dbname}.stb6_1 using  {dbname}.stb6 tags('shanghai')")
+
+        tdSql.execute(f"insert into  {dbname}.stb6_1 values(%d, -2147483648, -32768, 0,         9223372036854775806,  9223372036854775806)" % (ts1 + 1))
+        tdSql.execute(f"insert into  {dbname}.stb6_1 values(%d, 2147483647,  32767, 4294967295, 0,                    0)" % (ts1 + 2))
+        tdSql.execute(f"insert into  {dbname}.stb6_1 values(%d, -10,         -10,    0,         -9223372036854775806, 16223372036854775806)" % (ts1 + 3))
+        
+        tdSql.query(f"select ts, diff(c1), diff(c2), diff(c3), diff(c4), diff(c5) from {dbname}.stb6_1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, '2023-09-17 09:00:00.002')
+        tdSql.checkData(0, 1, 4294967295)
+        tdSql.checkData(0, 2, 65535)
+        tdSql.checkData(0, 3, 4294967295)
+        tdSql.checkData(0, 4, -9223372036854775806)
+        tdSql.checkData(0, 5, -9223372036854775806)
+        tdSql.checkData(1, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(1, 1, -2147483657)
+        tdSql.checkData(1, 2, -32777)
+        tdSql.checkData(1, 3, -4294967295)
+        tdSql.checkData(1, 4, -9223372036854775806)
+        
+        tdSql.query(f"select ts, diff(c1, 1), diff(c2) from {dbname}.stb6_1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 4294967295)
+        tdSql.checkData(0, 2, 65535)
+        tdSql.checkData(1, 1, None)
+        tdSql.checkData(1, 2, -32777)
+        
+        tdSql.query(f"select ts, diff(c1, 1), diff(c2, 1) from {dbname}.stb6_1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 4294967295)
+        tdSql.checkData(0, 2, 65535)
+        tdSql.checkData(1, 1, None)
+        tdSql.checkData(1, 2, None)
+
+        tdSql.query(f"select ts, diff(c1, 2), diff(c2, 3) from {dbname}.stb6_1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 4294967295)
+        tdSql.checkData(0, 2, 65535)
+        tdSql.checkData(1, 1, -2147483657)
+        tdSql.checkData(1, 2, None)
+        
+        tdSql.query(f"select ts, diff(c1, 3), diff(c2, 3) from {dbname}.stb6_1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 4294967295)
+        tdSql.checkData(0, 2, 65535)
+        
+        tdSql.execute(f"insert into  {dbname}.stb6_1 values(%d, -10, -10, 0, 9223372036854775800, 0)" % (ts1 + 4))
+        tdSql.execute(f"insert into  {dbname}.stb6_1 values(%d, -10, -10, 0, 9223372036854775800, 16223372036854775806)" % (ts1 + 5))
+        
+        tdSql.query(f"select ts, diff(c4, 0) from {dbname}.stb6_1")
+        tdSql.checkRows(4)
+        
+        tdSql.query(f"select ts, diff(c4, 1) from {dbname}.stb6_1")
+        tdSql.checkRows(4)
+        tdSql.checkData(2, 1, -10)
+        
+        tdSql.query(f"select ts, diff(c4, 2) from {dbname}.stb6_1")
+        tdSql.checkRows(4)
+        
+        tdSql.query(f"select ts, diff(c4, 3) from {dbname}.stb6_1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, -10)
+        tdSql.checkData(1, 1, 0)
+        
+        tdSql.query(f"select ts, diff(c5, 0) from {dbname}.stb6_1")
+        tdSql.checkRows(4)
+        
+        tdSql.query(f"select ts, diff(c5, 1) from {dbname}.stb6_1")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(2, 1, None)
+        tdSql.checkData(3, 0, '2023-09-17 09:00:00.005')
+        
+        tdSql.query(f"select ts, diff(c5, 2) from {dbname}.stb6_1")
+        tdSql.checkRows(4)
+        
+        tdSql.query(f"select ts, diff(c5, 3) from {dbname}.stb6_1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(1, 0, '2023-09-17 09:00:00.005')
+
+    def doubleOverflowTest(self):
+        dbname = "db"
+        
+        ts1 = 1694912400000
+        tdSql.execute(f'''create table  {dbname}.stb7(ts timestamp, c1 float, c2 double) tags(loc nchar(20))''')
+        tdSql.execute(f"create table  {dbname}.stb7_1 using  {dbname}.stb7 tags('shanghai')")
+
+        tdSql.execute(f"insert into  {dbname}.stb7_1 values(%d, 334567777777777777777343434343333333733, 334567777777777777777343434343333333733)" % (ts1 + 1))
+        tdSql.execute(f"insert into  {dbname}.stb7_1 values(%d, -334567777777777777777343434343333333733, -334567777777777777777343434343333333733)" % (ts1 + 2))
+        tdSql.execute(f"insert into  {dbname}.stb7_1 values(%d, 334567777777777777777343434343333333733, 334567777777777777777343434343333333733)" % (ts1 + 3))
+        
+        tdSql.query(f"select ts, diff(c1), diff(c2) from {dbname}.stb7_1")
+        tdSql.checkRows(2)
+
+        tdSql.query(f"select ts, diff(c1, 1), diff(c2, 1) from {dbname}.stb7_1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+        
+        tdSql.query(f"select ts, diff(c1, 3), diff(c2, 3) from {dbname}.stb7_1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2023-09-17 09:00:00.003')
+
     def run(self):
         tdSql.prepare()
         dbname = "db"
 
         # full type test
         self.full_datatype_test()
+        
+        self.ignoreTest()
+        self.withPkTest()
+        self.intOverflowTest()
+        self.doubleOverflowTest()
 
         tdSql.execute(
             f"create table {dbname}.ntb(ts timestamp,c1 int,c2 double,c3 float)")
@@ -219,9 +564,18 @@ class TDTestCase:
         tdSql.error(f"select diff(col1,1.23) from  {dbname}.stb_1")
         tdSql.error(f"select diff(col1,-1) from  {dbname}.stb_1")
         tdSql.query(f"select ts,diff(col1),ts from  {dbname}.stb_1")
-        tdSql.error(f"select diff(col1, 1),diff(col2) from {dbname}.stb_1")
-        tdSql.error(f"select diff(col1, 1),diff(col2, 0) from {dbname}.stb_1")
-        tdSql.error(f"select diff(col1, 1),diff(col2, 1) from {dbname}.stb_1")
+        tdSql.error(f"select diff(col1, -1) from  {dbname}.stb_1")
+        tdSql.error(f"select diff(col1, 4) from  {dbname}.stb_1")
+        tdSql.error(f"select diff(col1, 1),diff(col2, 4) from {dbname}.stb_1")
+        
+        tdSql.query(f"select diff(col1, 1),diff(col2)  from {dbname}.stb_1")
+        tdSql.checkRows(self.rowNum)
+        
+        tdSql.query(f"select diff(col1, 1),diff(col2, 0) from {dbname}.stb_1")
+        tdSql.checkRows(self.rowNum)
+        
+        tdSql.query(f"select diff(col1, 1),diff(col2, 1) from {dbname}.stb_1")
+        tdSql.checkRows(self.rowNum)
 
         tdSql.query(f"select diff(ts) from  {dbname}.stb_1")
         tdSql.checkRows(10)

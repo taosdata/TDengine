@@ -177,21 +177,15 @@ class TDTestCase:
             if stopRole == "mnode":
                 for i in range(mnodeNums):
                     tdDnodes[i].stoptaosd()
-                    # sleep(10)
                     tdDnodes[i].starttaosd()
-                    # sleep(10)
             elif stopRole == "vnode":
                 for i in range(vnodeNumbers):
                     tdDnodes[i+mnodeNums].stoptaosd()
-                    # sleep(10)
                     tdDnodes[i+mnodeNums].starttaosd()
-                    # sleep(10)
             elif stopRole == "dnode":
                 for i in range(dnodeNumbers):
                     tdDnodes[i].stoptaosd()
-                    # sleep(10)
                     tdDnodes[i].starttaosd()
-                    # sleep(10)
 
             # dnodeNumbers don't include database of schema
             if clusterComCheck.checkDnodes(dnodeNumbers):
@@ -219,7 +213,7 @@ class TDTestCase:
             tdSql.checkRows(rowsPerStb)
     def run(self):
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=2,stopRole='dnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=1,stopRole='dnode')
 
     def stop(self):
         tdSql.close()

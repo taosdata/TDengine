@@ -187,6 +187,8 @@ const char* nodesNodeName(ENodeType type) {
       return "BalanceVgroupStmt";
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
       return "BalanceVgroupLeaderStmt";
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
+      return "BalanceVgroupLeaderStmt";
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return "MergeVgroupStmt";
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
@@ -234,6 +236,7 @@ const char* nodesNodeName(ENodeType type) {
     case QUERY_NODE_SHOW_TAGS_STMT:
       return "ShowTagsStmt";
     case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_USERS_FULL_STMT:
       return "ShowUsersStmt";
     case QUERY_NODE_SHOW_LICENCES_STMT:
       return "ShowGrantsStmt";
@@ -453,9 +456,9 @@ static int32_t nodeListToJson(SJson* pJson, const char* pName, const SNodeList* 
 static int32_t jsonToNodeListImpl(const SJson* pJsonArray, SNodeList** pList) {
   int32_t size = (NULL == pJsonArray ? 0 : tjsonGetArraySize(pJsonArray));
   if (size > 0) {
-    *pList = nodesMakeList();
+    int32_t code = nodesMakeList(pList);
     if (NULL == *pList) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return code;
     }
   }
 
@@ -1335,7 +1338,7 @@ static int32_t jsonToLogicDynQueryCtrlNode(const SJson* pJson, void* pObj) {
     tjsonGetNumberValue(pJson, jkDynQueryCtrlLogicPlanQueryType, pNode->qType, code);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    tjsonGetBoolValue(pJson, jkDynQueryCtrlLogicPlanStbJoinBatchFetch, &pNode->stbJoin.batchFetch);
+    code = tjsonGetBoolValue(pJson, jkDynQueryCtrlLogicPlanStbJoinBatchFetch, &pNode->stbJoin.batchFetch);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkDynQueryCtrlLogicPlanStbJoinVgList, &pNode->stbJoin.pVgList);
@@ -3028,10 +3031,10 @@ static int32_t physiPartitionNodeToJson(const void* pObj, SJson* pJson) {
     code = nodeListToJson(pJson, jkPartitionPhysiPlanTargets, pNode->pTargets);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    tjsonAddBoolToObject(pJson, jkPartitionPhysiPlanNeedBlockOutputTsOrder, pNode->needBlockOutputTsOrder);
+    code = tjsonAddBoolToObject(pJson, jkPartitionPhysiPlanNeedBlockOutputTsOrder, pNode->needBlockOutputTsOrder);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    tjsonAddIntegerToObject(pJson, jkPartitionPhysiPlanTsSlotId, pNode->tsSlotId);
+    code = tjsonAddIntegerToObject(pJson, jkPartitionPhysiPlanTsSlotId, pNode->tsSlotId);
   }
 
   return code;
@@ -4251,6 +4254,7 @@ static const char* jkFunctionHasPk = "HasPk";
 static const char* jkFunctionPkBytes = "PkBytes";
 static const char* jkFunctionIsMergeFunc = "IsMergeFunc";
 static const char* jkFunctionMergeFuncOf = "MergeFuncOf";
+static const char* jkFunctionTrimType = "TrimType";
 
 static int32_t functionNodeToJson(const void* pObj, SJson* pJson) {
   const SFunctionNode* pNode = (const SFunctionNode*)pObj;
@@ -4283,7 +4287,9 @@ static int32_t functionNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkFunctionMergeFuncOf, pNode->originalFuncId);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkFunctionTrimType, pNode->trimType);
+  }
   return code;
 }
 
@@ -4317,6 +4323,9 @@ static int32_t jsonToFunctionNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkFunctionMergeFuncOf, &pNode->originalFuncId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkFunctionTrimType, pNode->trimType, code);
   }
 
   return code;
@@ -6166,6 +6175,7 @@ static const char* jkAlterUserStmtAlterType = "AlterType";
 static const char* jkAlterUserStmtPassword = "Password";
 static const char* jkAlterUserStmtEnable = "Enable";
 static const char* jkAlterUserStmtSysinfo = "Sysinfo";
+static const char* jkAlterUserStmtCreatedb = "Createdb";
 
 static int32_t alterUserStmtToJson(const void* pObj, SJson* pJson) {
   const SAlterUserStmt* pNode = (const SAlterUserStmt*)pObj;
@@ -6182,6 +6192,9 @@ static int32_t alterUserStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkAlterUserStmtSysinfo, pNode->sysinfo);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkAlterUserStmtCreatedb, pNode->createdb);
   }
 
   return code;
@@ -6202,6 +6215,9 @@ static int32_t jsonToAlterUserStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkAlterUserStmtSysinfo, &pNode->sysinfo);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkAlterUserStmtCreatedb, &pNode->createdb);
   }
 
   return code;
@@ -7380,7 +7396,7 @@ static int32_t jsonToTSMAOption(const SJson* pJson, void* pObj) {
     code = jsonToNodeObject(pJson, jkTSMAOptionInterval, &pNode->pInterval);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    tjsonGetUTinyIntValue(pJson, jkTSMAOptionTsPrecision, &pNode->tsPrecision);
+    code = tjsonGetUTinyIntValue(pJson, jkTSMAOptionTsPrecision, &pNode->tsPrecision);
   }
   return code;
 }
@@ -7607,6 +7623,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return TSDB_CODE_SUCCESS;  // SBalanceVgroupStmt has no fields to serialize.
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
       return TSDB_CODE_SUCCESS;  // SBalanceVgroupLeaderStmt has no fields to serialize.
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
+      return TSDB_CODE_SUCCESS;
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return mergeVgroupStmtToJson(pObj, pJson);
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
@@ -7644,6 +7662,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_SHOW_TAGS_STMT:
       return showTagsStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_USERS_FULL_STMT:
       return showUsersStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_VGROUPS_STMT:
       return showVgroupsStmtToJson(pObj, pJson);
@@ -7953,7 +7972,9 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       return TSDB_CODE_SUCCESS;  // SBalanceVgroupStmt has no fields to deserialize.
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
-      return TSDB_CODE_SUCCESS;  // SBalanceVgroupLeaderStmt has no fields to deserialize.
+      return TSDB_CODE_SUCCESS;
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
+      return TSDB_CODE_SUCCESS;   // SBalanceVgroupLeaderStmt has no fields to deserialize.
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return jsonToMergeVgroupStmt(pJson, pObj);
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
@@ -7991,6 +8012,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_SHOW_TAGS_STMT:
       return jsonToShowTagsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_USERS_FULL_STMT:
       return jsonToShowUsersStmt(pJson, pObj);
     case QUERY_NODE_SHOW_VGROUPS_STMT:
       return jsonToShowVgroupsStmt(pJson, pObj);
@@ -8196,9 +8218,9 @@ static int32_t makeNodeByJson(const SJson* pJson, SNode** pNode) {
   int32_t val = 0;
   int32_t code = tjsonGetIntValue(pJson, jkNodeType, &val);
   if (TSDB_CODE_SUCCESS == code) {
-    *pNode = nodesMakeNode(val);
+    code = nodesMakeNode(val, pNode);
     if (NULL == *pNode) {
-      return TSDB_CODE_FAILED;
+      return code;
     }
     code = jsonToNode(pJson, *pNode);
   }

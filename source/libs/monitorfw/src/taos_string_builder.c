@@ -1,16 +1,17 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+/**
+ * Copyright 2019-2020 DigitalOcean Inc.
  *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #include <stddef.h>
@@ -19,9 +20,9 @@
 #include "taos_alloc.h"
 
 // Private
-#include "taos_assert.h"
 #include "taos_string_builder_i.h"
 #include "taos_string_builder_t.h"
+#include "taos_test.h"
 
 // The initial size of a string created via taos_string_builder
 #define TAOS_STRING_BUILDER_INIT_SIZE 32
@@ -43,7 +44,7 @@ taos_string_builder_t *taos_string_builder_new(void) {
   self->init_size = TAOS_STRING_BUILDER_INIT_SIZE;
   r = taos_string_builder_init(self);
   if (r) {
-    taos_string_builder_destroy(self);
+    (void)taos_string_builder_destroy(self);
     return NULL;
   }
 
@@ -51,7 +52,7 @@ taos_string_builder_t *taos_string_builder_new(void) {
 }
 
 int taos_string_builder_init(taos_string_builder_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
   self->str = (char *)taos_malloc(self->init_size);
   *self->str = '\0';
@@ -61,7 +62,7 @@ int taos_string_builder_init(taos_string_builder_t *self) {
 }
 
 int taos_string_builder_destroy(taos_string_builder_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 0;
   taos_free(self->str);
   self->str = NULL;
@@ -77,7 +78,7 @@ int taos_string_builder_destroy(taos_string_builder_t *self) {
  * is called in methods that need to add one or more characters to the underlying string.
  */
 static int taos_string_builder_ensure_space(taos_string_builder_t *self, size_t add_len) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
   if (add_len == 0 || self->allocated >= self->len + add_len + 1) return 0;
   while (self->allocated < self->len + add_len + 1) self->allocated <<= 1;
@@ -86,7 +87,7 @@ static int taos_string_builder_ensure_space(taos_string_builder_t *self, size_t 
 }
 
 int taos_string_builder_add_str(taos_string_builder_t *self, const char *str) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   int r = 0;
 
   if (self == NULL) return 1;
@@ -103,7 +104,7 @@ int taos_string_builder_add_str(taos_string_builder_t *self, const char *str) {
 }
 
 int taos_string_builder_add_char(taos_string_builder_t *self, char c) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   int r = 0;
 
   if (self == NULL) return 1;
@@ -117,7 +118,7 @@ int taos_string_builder_add_char(taos_string_builder_t *self, char c) {
 }
 
 int taos_string_builder_truncate(taos_string_builder_t *self, size_t len) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
   if (len >= self->len) return 0;
 
@@ -127,19 +128,19 @@ int taos_string_builder_truncate(taos_string_builder_t *self, size_t len) {
 }
 
 int taos_string_builder_clear(taos_string_builder_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   taos_free(self->str);
   self->str = NULL;
   return taos_string_builder_init(self);
 }
 
 size_t taos_string_builder_len(taos_string_builder_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   return self->len;
 }
 
 char *taos_string_builder_dump(taos_string_builder_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA_NULL(self != NULL);
   // +1 to accommodate \0
   char *out = (char *)taos_malloc((self->len + 1) * sizeof(char));
   memcpy(out, self->str, self->len + 1);
@@ -147,6 +148,6 @@ char *taos_string_builder_dump(taos_string_builder_t *self) {
 }
 
 char *taos_string_builder_str(taos_string_builder_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA_NULL(self != NULL);
   return self->str;
 }

@@ -23,8 +23,7 @@ int32_t tsdbDataFileRAWReaderOpen(const char *fname, const SDataFileRAWReaderCon
 
   reader[0] = taosMemoryCalloc(1, sizeof(SDataFileRAWReader));
   if (reader[0] == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   reader[0]->config[0] = config[0];
@@ -32,25 +31,26 @@ int32_t tsdbDataFileRAWReaderOpen(const char *fname, const SDataFileRAWReaderCon
   int32_t lcn = config->file.lcn;
   if (fname) {
     if (fname) {
-      code = tsdbOpenFile(fname, config->tsdb, TD_FILE_READ, &reader[0]->fd, lcn);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tsdbOpenFile(fname, config->tsdb, TD_FILE_READ, &reader[0]->fd, lcn), &lino, _exit);
     }
   } else {
     char fname1[TSDB_FILENAME_LEN];
-    tsdbTFileName(config->tsdb, &config->file, fname1);
-    code = tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd, lcn);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    (void)tsdbTFileName(config->tsdb, &config->file, fname1);
+    TAOS_CHECK_GOTO(tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd, lcn), &lino, _exit);
   }
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
 
 int32_t tsdbDataFileRAWReaderClose(SDataFileRAWReader **reader) {
-  if (reader[0] == NULL) return 0;
+  if (reader[0] == NULL) {
+    return 0;
+  }
 
   if (reader[0]->fd) {
     tsdbCloseFile(&reader[0]->fd);
@@ -74,13 +74,15 @@ int32_t tsdbDataFileRAWReadBlockData(SDataFileRAWReader *reader, STsdbDataRAWBlo
   pBlock->file.stt->level = reader->config->file.stt->level;
 
   int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-  code = tsdbReadFile(reader->fd, pBlock->offset, pBlock->data, pBlock->dataLength, 0, encryptAlgorithm, encryptKey);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  TAOS_CHECK_GOTO(
+      tsdbReadFile(reader->fd, pBlock->offset, pBlock->data, pBlock->dataLength, 0, encryptAlgorithm, encryptKey),
+      &lino, _exit);
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -91,25 +93,27 @@ int32_t tsdbDataFileRAWWriterOpen(const SDataFileRAWWriterConfig *config, SDataF
   int32_t lino = 0;
 
   SDataFileRAWWriter *writer = taosMemoryCalloc(1, sizeof(SDataFileRAWWriter));
-  if (!writer) return TSDB_CODE_OUT_OF_MEMORY;
+  if (!writer) {
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
+  }
 
   writer->config[0] = config[0];
 
-  code = tsdbDataFileRAWWriterDoOpen(writer);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbDataFileRAWWriterDoOpen(writer), &lino, _exit);
 
 _exit:
   if (code) {
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
     taosMemoryFree(writer);
     writer = NULL;
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
   }
   ppWriter[0] = writer;
   return code;
 }
 
 static int32_t tsdbDataFileRAWWriterCloseAbort(SDataFileRAWWriter *writer) {
-  ASSERT(0);
+  tsdbError("vgId:%d %s failed since not implemented", TD_VID(writer->config->tsdb->pVnode), __func__);
   return 0;
 }
 
@@ -118,29 +122,26 @@ static int32_t tsdbDataFileRAWWriterDoClose(SDataFileRAWWriter *writer) { return
 static int32_t tsdbDataFileRAWWriterCloseCommit(SDataFileRAWWriter *writer, TFileOpArray *opArr) {
   int32_t code = 0;
   int32_t lino = 0;
-  ASSERT(writer->ctx->offset <= writer->file.size);
-  ASSERT(writer->config->fid == writer->file.fid);
 
   STFileOp op = (STFileOp){
       .optype = TSDB_FOP_CREATE,
       .fid = writer->config->fid,
       .nf = writer->file,
   };
-  code = TARRAY2_APPEND(opArr, op);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(TARRAY2_APPEND(opArr, op), &lino, _exit);
 
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
   if (writer->fd) {
-    code = tsdbFsyncFile(writer->fd, encryptAlgorithm, encryptKey);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(tsdbFsyncFile(writer->fd, encryptAlgorithm, encryptKey), &lino, _exit);
     tsdbCloseFile(&writer->fd);
   }
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -156,13 +157,13 @@ static int32_t tsdbDataFileRAWWriterOpenDataFD(SDataFileRAWWriter *writer) {
     flag |= (TD_FILE_CREATE | TD_FILE_TRUNC);
   }
 
-  tsdbTFileName(writer->config->tsdb, &writer->file, fname);
-  code = tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd, writer->file.lcn);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  (void)tsdbTFileName(writer->config->tsdb, &writer->file, fname);
+  TAOS_CHECK_GOTO(tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd, writer->file.lcn), &lino, _exit);
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -174,57 +175,59 @@ int32_t tsdbDataFileRAWWriterDoOpen(SDataFileRAWWriter *writer) {
   writer->file = writer->config->file;
   writer->ctx->offset = 0;
 
-  code = tsdbDataFileRAWWriterOpenDataFD(writer);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbDataFileRAWWriterOpenDataFD(writer), &lino, _exit);
 
   writer->ctx->opened = true;
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
 
 int32_t tsdbDataFileRAWWriterClose(SDataFileRAWWriter **writer, bool abort, TFileOpArray *opArr) {
-  if (writer[0] == NULL) return 0;
+  if (writer[0] == NULL) {
+    return 0;
+  }
 
   int32_t code = 0;
   int32_t lino = 0;
 
   if (writer[0]->ctx->opened) {
     if (abort) {
-      code = tsdbDataFileRAWWriterCloseAbort(writer[0]);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tsdbDataFileRAWWriterCloseAbort(writer[0]), &lino, _exit);
     } else {
-      code = tsdbDataFileRAWWriterCloseCommit(writer[0], opArr);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TAOS_CHECK_GOTO(tsdbDataFileRAWWriterCloseCommit(writer[0], opArr), &lino, _exit);
     }
-    tsdbDataFileRAWWriterDoClose(writer[0]);
+    (void)tsdbDataFileRAWWriterDoClose(writer[0]);
   }
   taosMemoryFree(writer[0]);
   writer[0] = NULL;
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer[0]->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer[0]->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
 
-int32_t tsdbDataFileRAWWriteBlockData(SDataFileRAWWriter *writer, const STsdbDataRAWBlockHeader *pDataBlock, 
-                                      int32_t encryptAlgorithm, char* encryptKey) {
+int32_t tsdbDataFileRAWWriteBlockData(SDataFileRAWWriter *writer, const STsdbDataRAWBlockHeader *pDataBlock,
+                                      int32_t encryptAlgorithm, char *encryptKey) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbWriteFile(writer->fd, writer->ctx->offset, (const uint8_t *)pDataBlock->data, pDataBlock->dataLength,
-                        encryptAlgorithm, encryptKey);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbWriteFile(writer->fd, writer->ctx->offset, (const uint8_t *)pDataBlock->data,
+                                pDataBlock->dataLength, encryptAlgorithm, encryptKey),
+                  &lino, _exit);
 
   writer->ctx->offset += pDataBlock->dataLength;
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }

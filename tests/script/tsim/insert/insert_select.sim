@@ -61,5 +61,23 @@ if $data02 != 1 then
   return -1
 endi
 
+sql insert into t2 (ts, b, a) select ts + 1, 11, 12 from t1;
+sql select * from t2;
+if $rows != 2 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data11 != 12 then
+  return -1
+endi
+if $data12 != 11 then
+  return -1
+endi
+
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -135,7 +135,7 @@ static FORCE_INLINE int32_t sifGetOperParamNum(EOperatorType ty) {
 static FORCE_INLINE int32_t sifValidOp(EOperatorType ty) {
   if ((ty >= OP_TYPE_ADD && ty <= OP_TYPE_BIT_OR) || (ty == OP_TYPE_IN || ty == OP_TYPE_NOT_IN) ||
       (ty == OP_TYPE_LIKE || ty == OP_TYPE_NOT_LIKE || ty == OP_TYPE_MATCH || ty == OP_TYPE_NMATCH)) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
   return 0;
 }
@@ -209,7 +209,7 @@ static FORCE_INLINE int32_t sifGetValueFromNode(SNode *node, char **value) {
 static FORCE_INLINE int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   SOperatorNode *nd = (SOperatorNode *)node;
   if (nodeType(node) != QUERY_NODE_OPERATOR) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
   SColumnNode *l = (SColumnNode *)nd->pLeft;
   SValueNode  *r = (SValueNode *)nd->pRight;
@@ -390,15 +390,7 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
     SIF_ERR_JRET(sifInitParam(node->pLeft, &paramList[0], ctx));
 
     if (nParam > 1) {
-      // if (sifNeedConvertCond(node->pLeft, node->pRight)) {
-      // SIF_ERR_JRET(sifInitParamValByCol(node->pLeft, node->pRight, &paramList[1], ctx));
-      // } else {
       SIF_ERR_JRET(sifInitParam(node->pRight, &paramList[1], ctx));
-      // }
-      // if (paramList[0].colValType == TSDB_DATA_TYPE_JSON &&
-      //    ((SOperatorNode *)(node))->opType == OP_TYPE_JSON_CONTAINS) {
-      //  return TSDB_CODE_OUT_OF_MEMORY;
-      //}
     }
     *params = paramList;
     return TSDB_CODE_SUCCESS;
@@ -440,22 +432,37 @@ typedef int (*FilterFunc)(void *a, void *b, int16_t dtype);
 
 static FORCE_INLINE int sifGreaterThan(void *a, void *b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return tDoCompare(func, QUERY_GREATER_THAN, a, b);
 }
 static FORCE_INLINE int sifGreaterEqual(void *a, void *b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return tDoCompare(func, QUERY_GREATER_EQUAL, a, b);
 }
 static FORCE_INLINE int sifLessEqual(void *a, void *b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return tDoCompare(func, QUERY_LESS_EQUAL, a, b);
 }
 static FORCE_INLINE int sifLessThan(void *a, void *b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   return (int)tDoCompare(func, QUERY_LESS_THAN, a, b);
 }
 static FORCE_INLINE int sifEqual(void *a, void *b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
+  if (func == NULL) {
+    return -1;
+  }
   //__compar_fn_t func = idxGetCompar(dtype);
   return (int)tDoCompare(func, QUERY_TERM, a, b);
 }
@@ -485,7 +492,7 @@ int32_t sifStr2Num(char *buf, int32_t len, int8_t type, void *val) {
   if (IS_SIGNED_NUMERIC_TYPE(type)) {
     int64_t v = 0;
     if (0 != toInteger(buf, len, 10, &v)) {
-      return -1;
+      return TSDB_CODE_INVALID_PARA;
     }
     if (type == TSDB_DATA_TYPE_BIGINT) {
       *(int64_t *)val = v;
@@ -505,7 +512,7 @@ int32_t sifStr2Num(char *buf, int32_t len, int8_t type, void *val) {
   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
     uint64_t v = 0;
     if (0 != toUInteger(buf, len, 10, &v)) {
-      return -1;
+      return TSDB_CODE_INVALID_PARA;
     }
     if (type == TSDB_DATA_TYPE_UBIGINT) {
       *(uint64_t *)val = v;
@@ -517,7 +524,7 @@ int32_t sifStr2Num(char *buf, int32_t len, int8_t type, void *val) {
       *(uint16_t *)val = v;
     }
   } else {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
   return 0;
 }
@@ -526,7 +533,7 @@ static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typ
   int32_t code = 0;
   int8_t  ltype = left->colValType, rtype = right->colValType;
   if (!IS_NUMERIC_TYPE(ltype) || !((IS_NUMERIC_TYPE(rtype)) || rtype == TSDB_DATA_TYPE_VARCHAR)) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
   if (ltype == TSDB_DATA_TYPE_FLOAT) {
     float f = 0;
@@ -624,6 +631,23 @@ static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typ
   }
   return 0;
 }
+
+static int8_t sifShouldUseIndexBasedOnType(SIFParam *left, SIFParam *right) {
+  // not compress
+  if (left->colValType == TSDB_DATA_TYPE_FLOAT) return 0;
+
+  if (left->colValType == TSDB_DATA_TYPE_GEOMETRY || right->colValType == TSDB_DATA_TYPE_GEOMETRY ||
+      left->colValType == TSDB_DATA_TYPE_JSON || right->colValType == TSDB_DATA_TYPE_JSON) {
+    return 0;
+  }
+
+  if (IS_VAR_DATA_TYPE(left->colValType)) {
+    if (!IS_VAR_DATA_TYPE(right->colValType)) return 0;
+  } else if (IS_NUMERIC_TYPE(left->colValType)) {
+    if (left->colValType != right->colValType) return 0;
+  }
+  return 1;
+}
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
   int             ret = 0;
   SIndexMetaArg  *arg = &output->arg;
@@ -637,12 +661,23 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
     }
 
     SIndexMultiTermQuery *mtm = indexMultiTermQueryCreate(MUST);
-    indexMultiTermQueryAdd(mtm, tm, qtype);
+    if (mtm == NULL) {
+      indexTermDestroy(tm);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    if ((ret = indexMultiTermQueryAdd(mtm, tm, qtype)) != 0) {
+      indexMultiTermQueryDestroy(mtm);
+      return ret;
+    }
+
     ret = indexJsonSearch(arg->ivtIdx, mtm, output->result);
     indexMultiTermQueryDestroy(mtm);
   } else {
-    if (left->colValType == TSDB_DATA_TYPE_GEOMETRY || right->colValType == TSDB_DATA_TYPE_GEOMETRY) {
-      return TSDB_CODE_QRY_GEO_NOT_SUPPORT_ERROR;
+    int8_t useIndex = sifShouldUseIndexBasedOnType(left, right);
+    if (!useIndex) {
+      output->status = SFLT_NOT_INDEX;
+      return TSDB_CODE_INVALID_PARA;
     }
 
     bool       reverse = false, equal = false;
@@ -660,15 +695,12 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
 
     SDataTypeBuf typedata;
     memset(&typedata, 0, sizeof(typedata));
-    if (IS_VAR_DATA_TYPE(left->colValType)) {
-      if (!IS_VAR_DATA_TYPE(right->colValType)) {
-        NUM_TO_STRING(right->colValType, right->condValue, sizeof(buf) - 2, buf + VARSTR_HEADER_SIZE);
-        varDataSetLen(buf, strlen(buf + VARSTR_HEADER_SIZE));
-        param.val = buf;
-      }
-    } else {
-      if (sifSetFltParam(left, right, &typedata, &param) != 0) return -1;
+
+    if (sifSetFltParam(left, right, &typedata, &param) != 0) {
+      output->status = SFLT_NOT_INDEX;
+      return TSDB_CODE_INVALID_PARA;
     }
+
     ret = left->api.metaFilterTableIds(arg->metaEx, &param, output->result);
     if (ret == 0) {
       taosArraySort(output->result, uidCompare);
@@ -807,7 +839,7 @@ static FORCE_INLINE int32_t sifGetOperFn(int32_t funcId, sif_func_t *func, SIdxF
 }
 
 static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
-  int32_t code = -1;
+  int32_t code = TSDB_CODE_INVALID_PARA;
   if (sifValidOp(node->opType) < 0) {
     code = TSDB_CODE_QRY_INVALID_INPUT;
     ctx->code = code;
@@ -874,11 +906,10 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
   if (ctx->noExec == false) {
     for (int32_t m = 0; m < node->pParameterList->length; m++) {
       if (node->condType == LOGIC_COND_TYPE_AND) {
-        taosArrayAddAll(output->result, params[m].result);
+        if (taosArrayAddAll(output->result, params[m].result) == NULL) return terrno;
       } else if (node->condType == LOGIC_COND_TYPE_OR) {
-        taosArrayAddAll(output->result, params[m].result);
+        if (taosArrayAddAll(output->result, params[m].result) == NULL) return terrno;
       } else if (node->condType == LOGIC_COND_TYPE_NOT) {
-        // taosArrayAddAll(output->result, params[m].result);
       }
       taosArraySort(output->result, uidCompare);
       taosArrayRemoveDuplicate(output->result, uidCompare, NULL);
@@ -886,8 +917,6 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
   } else {
     for (int32_t m = 0; m < node->pParameterList->length; m++) {
       output->status = sifMergeCond(node->condType, output->status, params[m].status);
-      // taosArrayDestroy(params[m].result);
-      // params[m].result = NULL;
     }
   }
 _return:
@@ -896,10 +925,13 @@ _return:
 }
 
 static EDealRes sifWalkFunction(SNode *pNode, void *context) {
+  SIFCtx        *ctx = context;
   SFunctionNode *node = (SFunctionNode *)pNode;
   SIFParam       output = {.result = taosArrayInit(8, sizeof(uint64_t)), .status = SFLT_COARSE_INDEX};
-
-  SIFCtx *ctx = context;
+  if (output.result == NULL) {
+    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    return DEAL_RES_ERROR;
+  }
   ctx->code = sifExecFunction(node, ctx, &output);
   if (ctx->code != TSDB_CODE_SUCCESS) {
     sifFreeParam(&output);
@@ -913,11 +945,15 @@ static EDealRes sifWalkFunction(SNode *pNode, void *context) {
   return DEAL_RES_CONTINUE;
 }
 static EDealRes sifWalkLogic(SNode *pNode, void *context) {
+  SIFCtx              *ctx = context;
   SLogicConditionNode *node = (SLogicConditionNode *)pNode;
 
   SIFParam output = {.result = taosArrayInit(8, sizeof(uint64_t)), .status = SFLT_COARSE_INDEX};
+  if (output.result == NULL) {
+    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    return DEAL_RES_ERROR;
+  }
 
-  SIFCtx *ctx = context;
   ctx->code = sifExecLogic(node, ctx, &output);
   if (ctx->code) {
     sifFreeParam(&output);
@@ -931,10 +967,14 @@ static EDealRes sifWalkLogic(SNode *pNode, void *context) {
   return DEAL_RES_CONTINUE;
 }
 static EDealRes sifWalkOper(SNode *pNode, void *context) {
+  SIFCtx        *ctx = context;
   SOperatorNode *node = (SOperatorNode *)pNode;
   SIFParam       output = {.result = taosArrayInit(8, sizeof(uint64_t)), .status = SFLT_COARSE_INDEX};
+  if (output.result == NULL) {
+    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    return DEAL_RES_ERROR;
+  }
 
-  SIFCtx *ctx = context;
   ctx->code = sifExecOper(node, ctx, &output);
   if (ctx->code) {
     sifFreeParam(&output);
@@ -1010,12 +1050,14 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
       SIF_ERR_RET(TSDB_CODE_APP_ERROR);
     }
     if (res->result != NULL) {
-      taosArrayAddAll(pDst->result, res->result);
+      if (taosArrayAddAll(pDst->result, res->result) == NULL) {
+        SIF_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      }
     }
     pDst->status = res->status;
 
     sifFreeParam(res);
-    taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
+    (void)taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
   }
   sifFreeRes(ctx.pRes);
   return code;
@@ -1047,7 +1089,7 @@ static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status, SMetaDataFilte
   }
   *status = res->status;
   sifFreeParam(res);
-  taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
+  (void)taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
 
   void *iter = taosHashIterate(ctx.pRes, NULL);
   while (iter != NULL) {
@@ -1069,7 +1111,11 @@ int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, 
 
   SFilterInfo *filter = NULL;
 
-  SArray  *output = taosArrayInit(8, sizeof(uint64_t));
+  SArray *output = taosArrayInit(8, sizeof(uint64_t));
+  if (output == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   SIFParam param = {.arg = *metaArg, .result = output, .status = SFLT_NOT_INDEX, .api = *pAPI};
   int32_t  code = sifCalculate((SNode *)pFilterNode, &param);
   if (code != 0) {
@@ -1082,7 +1128,11 @@ int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, 
     *status = st;
   }
 
-  taosArrayAddAll(result, param.result);
+  if (taosArrayAddAll(result, param.result) == NULL) {
+    sifFreeParam(&param);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   sifFreeParam(&param);
   return TSDB_CODE_SUCCESS;
 }

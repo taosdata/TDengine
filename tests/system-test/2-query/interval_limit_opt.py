@@ -195,6 +195,10 @@ class TDTestCase:
         tdSql.checkData(1, 4, 2)
         tdSql.checkData(2, 4, 9)
         tdSql.checkData(3, 4, 9)
+        
+        sql = "SELECT _wstart, last(c1) FROM t6 INTERVAL(1w);"
+        tdSql.query(sql)
+        tdSql.checkRows(11)
 
     def test_partition_by_limit_no_agg(self):
         sql_template = 'select t1 from meters partition by t1 limit %d'

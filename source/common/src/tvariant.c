@@ -88,7 +88,7 @@ static int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint
     if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
       return TSDB_CODE_FAILED;
     }
-    if (val > UINT64_MAX) {
+    if (val > (double)UINT64_MAX) {
       errno = ERANGE;
       return TSDB_CODE_FAILED;
     }
@@ -161,8 +161,7 @@ int32_t toIntegerPure(const char *z, int32_t n, int32_t base, int64_t *value) {
 int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
   errno = 0;
   char *endPtr = NULL;
-  switch (type)
-  {
+  switch (type) {
     case TK_NK_INTEGER: {
       *value = taosStr2Int64(z, &endPtr, 10);
       if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
@@ -172,7 +171,7 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
     } break;
     case TK_NK_FLOAT: {
       double val = round(taosStr2Double(z, &endPtr));
-      if (!IS_VALID_INT64(val)) {
+      if (val < (double)INT64_MIN || val > (double)INT64_MAX) {
         return TSDB_CODE_FAILED;
       }
       if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
@@ -181,8 +180,8 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
       *value = val;
       return TSDB_CODE_SUCCESS;
     } break;
-  default:
-    break;
+    default:
+      break;
   }
 
   if (n == 0) {
@@ -201,7 +200,7 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
     // pure decimal part
     const char *s = endPtr + 1;
     const char *end = z + n;
-    bool pure = true;
+    bool        pure = true;
     while (s < end) {
       if (*s < '0' || *s > '9') {
         pure = false;
@@ -210,17 +209,17 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
       s++;
     }
     if (pure) {
-      if (endPtr+1 < end && endPtr[1] > '4') {
+      if (endPtr + 1 < end && endPtr[1] > '4') {
         const char *p = z;
         while (*p == ' ') {
           p++;
         }
         if (*p == '-') {
-          if ( *value > INT64_MIN) {
+          if (*value > INT64_MIN) {
             (*value)--;
           }
         } else {
-          if ( *value < INT64_MAX) {
+          if (*value < INT64_MAX) {
             (*value)++;
           }
         }
@@ -229,7 +228,7 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
     }
   }
 
-  // 2. parse as other 
+  // 2. parse as other
   bool     is_neg = false;
   uint64_t uv = 0;
   int32_t  code = parseSignAndUInteger(z, n, &is_neg, &uv, true);
@@ -256,7 +255,7 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
 
 int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
   errno = 0;
-  char *endPtr = NULL;
+  char       *endPtr = NULL;
   const char *p = z;
   switch (type) {
     case TK_NK_INTEGER: {
@@ -271,7 +270,7 @@ int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
     } break;
     case TK_NK_FLOAT: {
       double val = round(taosStr2Double(p, &endPtr));
-      if (!IS_VALID_UINT64(val)) {
+      if (val < 0 || val > (double)UINT64_MAX) {
         return TSDB_CODE_FAILED;
       }
       if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
@@ -427,7 +426,7 @@ void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uin
       size_t lenInwchar = len / TSDB_NCHAR_SIZE;
 
       pVar->ucs4 = taosMemoryCalloc(1, (lenInwchar + 1) * TSDB_NCHAR_SIZE);
-      memcpy(pVar->ucs4, pz, lenInwchar * TSDB_NCHAR_SIZE);
+      (void)memcpy(pVar->ucs4, pz, lenInwchar * TSDB_NCHAR_SIZE);
       pVar->nLen = (int32_t)len;
 
       break;
@@ -436,7 +435,7 @@ void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uin
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY: {  // todo refactor, extract a method
       pVar->pz = taosMemoryCalloc(len + 1, sizeof(char));
-      memcpy(pVar->pz, pz, len);
+      (void)memcpy(pVar->pz, pz, len);
       pVar->nLen = (int32_t)len;
       break;
     }
@@ -460,8 +459,8 @@ void taosVariantDestroy(SVariant *pVar) {
   }
 }
 
-void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
-  if (pSrc == NULL || pDst == NULL) return;
+int32_t taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
+  if (pSrc == NULL || pDst == NULL) return 0;
 
   pDst->nType = pSrc->nType;
   if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_VARBINARY ||
@@ -469,19 +468,20 @@ void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
       pSrc->nType == TSDB_DATA_TYPE_GEOMETRY) {
     int32_t len = pSrc->nLen + TSDB_NCHAR_SIZE;
     char   *p = taosMemoryRealloc(pDst->pz, len);
-    ASSERT(p);
+    if (!p) return terrno;
 
-    memset(p, 0, len);
+    (void)memset(p, 0, len);
     pDst->pz = p;
 
-    memcpy(pDst->pz, pSrc->pz, pSrc->nLen);
+    (void)memcpy(pDst->pz, pSrc->pz, pSrc->nLen);
     pDst->nLen = pSrc->nLen;
-    return;
+    return 0;
   }
 
   if (IS_NUMERIC_TYPE(pSrc->nType) || (pSrc->nType == TSDB_DATA_TYPE_BOOL)) {
     pDst->i = pSrc->i;
   }
+  return 0;
 }
 
 int32_t taosVariantCompare(const SVariant *p1, const SVariant *p2) {

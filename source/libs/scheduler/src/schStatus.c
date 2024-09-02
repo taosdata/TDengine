@@ -43,7 +43,7 @@ int32_t schSwitchJobStatus(SSchJob* pJob, int32_t status, void* param) {
       SCH_RET(schProcessOnJobFailure(pJob, (param ? *(int32_t*)param : 0)));
       break;
     case JOB_TASK_STATUS_DROP:
-      schProcessOnJobDropped(pJob, *(int32_t*)param);
+      (void)schProcessOnJobDropped(pJob, *(int32_t*)param); // ignore error
 
       if (taosRemoveRef(schMgmt.jobRef, pJob->refId)) {
         SCH_JOB_ELOG("remove job from job list failed, refId:0x%" PRIx64, pJob->refId);
@@ -65,7 +65,8 @@ _return:
 }
 
 int32_t schHandleOpBeginEvent(int64_t jobId, SSchJob** job, SCH_OP_TYPE type, SSchedulerReq* pReq) {
-  SSchJob* pJob = schAcquireJob(jobId);
+  SSchJob* pJob = NULL;
+  (void)schAcquireJob(jobId, &pJob);
   if (NULL == pJob) {
     qDebug("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, jobId);
     SCH_ERR_RET(TSDB_CODE_SCH_JOB_NOT_EXISTS);
@@ -90,7 +91,7 @@ int32_t schHandleOpEndEvent(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq
     code = pJob->errCode;
   }
 
-  schReleaseJob(pJob->refId);
+  (void)schReleaseJob(pJob->refId); // ignore error
 
   return code;
 }

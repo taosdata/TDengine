@@ -240,9 +240,22 @@ class TDTestCase:
         tdSql.error( " '' union all select c1 from ct1 " )
         # tdSql.error( "select c1 from ct1 union select c1 from ct2 union select c1 from ct4 ")
 
+    def test_select_from_union_all(self):
+        tdSql.query('select c8, ts from ((select ts, c8,c1 from stb1 order by c1) union all select ts, c8, c1 from stb1 limit 15)')
+        tdSql.checkRows(15)
+        tdSql.query('select c8, ts from ((select ts, c8,c1 from stb1 order by c1) union all (select ts, c8, c1 from stb1 order by c8 limit 10) limit 15)')
+        tdSql.checkRows(15)
+        tdSql.query('select ts, c1 from ((select ts, c8,c1 from stb1 order by c1) union all (select ts, c8, c1 from stb1 order by c8 limit 10) limit 15)')
+        tdSql.checkRows(15)
+        tdSql.query('select ts, c1, c8 from ((select ts, c8,c1 from stb1 order by c1) union all (select ts, c8, c1 from stb1 order by c8 limit 10) limit 15)')
+        tdSql.checkRows(15)
+        tdSql.query('select ts, c8, c1, 123 from ((select ts, c8,c1 from stb1 order by c1) union all (select ts, c8, c1 from stb1 order by c8 limit 10) limit 15)')
+        tdSql.checkRows(15)
+
     def all_test(self):
         self.__test_error()
         self.union_check()
+        self.test_select_from_union_all()
 
 
     def __create_tb(self):

@@ -1,0 +1,10 @@
+select VAR_POP(current) from ts_4893.meters;
+select VAR_POP(current) from ts_4893.meters interval(1d) order by 1 limit 10;
+select VAR_POP(id) from ts_4893.meters;
+select VAR_POP(id) from ts_4893.meters interval(1d) limit 10;
+select VAR_POP(id) from ts_4893.meters where id > 100;
+select VAR_POP(id) from ts_4893.meters interval(1d) order by 1 limit 10;
+select var_pop(id) from ts_4893.d0;
+select var_pop(id) from ts_4893.meters;
+select var_pop(current) from ts_4893.d0;
+select var_pop(current) from ts_4893.meters;

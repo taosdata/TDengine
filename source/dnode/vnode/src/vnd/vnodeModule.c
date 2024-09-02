@@ -14,43 +14,27 @@
  */
 
 #include "cos.h"
+#include "monitor.h"
 #include "vnd.h"
 
 static volatile int32_t VINIT = 0;
 
-SVAsync* vnodeAsyncHandle[2];
-
-int vnodeInit(int nthreads) {
-  int32_t init;
-
-  init = atomic_val_compare_exchange_32(&VINIT, 0, 1);
-  if (init) {
+int vnodeInit(int nthreads, StopDnodeFp stopDnodeFp) {
+  if (atomic_val_compare_exchange_32(&VINIT, 0, 1)) {
     return 0;
   }
 
-  // vnode-commit
-  vnodeAsyncInit(&vnodeAsyncHandle[0], "vnode-commit");
-  vnodeAsyncSetWorkers(vnodeAsyncHandle[0], nthreads);
+  TAOS_CHECK_RETURN(vnodeAsyncOpen(nthreads));
+  TAOS_CHECK_RETURN(walInit(stopDnodeFp));
 
-  // vnode-merge
-  vnodeAsyncInit(&vnodeAsyncHandle[1], "vnode-merge");
-  vnodeAsyncSetWorkers(vnodeAsyncHandle[1], nthreads);
-
-  if (walInit() < 0) {
-    return -1;
-  }
+  monInitVnode();
 
   return 0;
 }
 
 void vnodeCleanup() {
-  int32_t init = atomic_val_compare_exchange_32(&VINIT, 1, 0);
-  if (init == 0) return;
-
-  // set stop
-  vnodeAsyncDestroy(&vnodeAsyncHandle[0]);
-  vnodeAsyncDestroy(&vnodeAsyncHandle[1]);
-
+  if (atomic_val_compare_exchange_32(&VINIT, 1, 0) == 0) return;
+  (void)vnodeAsyncClose();
   walCleanUp();
   smaCleanUp();
 }

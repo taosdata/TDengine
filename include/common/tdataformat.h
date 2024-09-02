@@ -95,6 +95,15 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define COL_VAL_IS_NULL(CV)  ((CV)->flag == CV_FLAG_NULL)
 #define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
+#define tRowGetKey(_pRow, _pKey)           \
+  do {                                     \
+    (_pKey)->ts = (_pRow)->ts;             \
+    (_pKey)->numOfPKs = 0;                 \
+    if ((_pRow)->numOfPKs > 0) {           \
+      tRowGetPrimaryKey((_pRow), (_pKey)); \
+    }                                      \
+  } while (0)
+
 // SValueColumn ================================
 typedef struct {
   int8_t  cmprAlg;  // filled by caller
@@ -125,9 +134,9 @@ void    tRowDestroy(SRow *pRow);
 int32_t tRowSort(SArray *aRowP);
 int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
 int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag);
-void    tRowGetKey(SRow *pRow, SRowKey *key);
-int32_t tRowKeyCompare(const void *p1, const void *p2);
-int32_t tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc);
+void    tRowGetPrimaryKey(SRow *pRow, SRowKey *key);
+int32_t tRowKeyCompare(const SRowKey *key1, const SRowKey *key2);
+void    tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc);
 
 // SRowIter ================================
 int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
@@ -184,7 +193,7 @@ int32_t tColDataDecompress(void *input, SColDataCompressInfo *info, SColData *co
 
 // for stmt bind
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen);
-void    tColDataSortMerge(SArray *colDataArr);
+int32_t tColDataSortMerge(SArray **arr);
 
 // for raw block
 int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
@@ -306,7 +315,7 @@ struct STag {
   do {                                            \
     VarDataLenT __len = (VarDataLenT)strlen(str); \
     *(VarDataLenT *)(x) = __len;                  \
-    memcpy(varDataVal(x), (str), __len);          \
+    (void)memcpy(varDataVal(x), (str), __len);    \
   } while (0);
 
 #define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs)                         \
@@ -315,10 +324,10 @@ struct STag {
     varDataSetLen(x, (_e - (x)-VARSTR_HEADER_SIZE));                      \
   } while (0)
 
-#define STR_WITH_SIZE_TO_VARSTR(x, str, _size)  \
-  do {                                          \
-    *(VarDataLenT *)(x) = (VarDataLenT)(_size); \
-    memcpy(varDataVal(x), (str), (_size));      \
+#define STR_WITH_SIZE_TO_VARSTR(x, str, _size)   \
+  do {                                           \
+    *(VarDataLenT *)(x) = (VarDataLenT)(_size);  \
+    (void)memcpy(varDataVal(x), (str), (_size)); \
   } while (0);
 
 // STSchema ================================
@@ -360,6 +369,14 @@ int32_t tDecompressData(void                *input,       // input
 );
 int32_t tCompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *output, SBuffer *assist);
 int32_t tDecompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *output, SBuffer *assist);
+
+typedef struct {
+  int32_t          columnId;
+  int32_t          type;
+  TAOS_MULTI_BIND *bind;
+} SBindInfo;
+int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
+                          SArray *rowArray);
 
 #endif
 

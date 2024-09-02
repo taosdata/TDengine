@@ -20,6 +20,7 @@ from util.common import *
 from util.sqlset import *
 
 class TDTestCase:
+    updatecfgDict = {'stdebugflag':143}
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
@@ -145,11 +146,15 @@ class TDTestCase:
         tdSql.execute(f'create table {stbname} (ts timestamp,c0 int) tags(t0 int)')
         tdSql.execute(f'create table tb using {stbname} tags(1)')
         tdSql.execute(f'create stream {stream_name} trigger at_once ignore expired 0 into stb as select * from {self.dbname}.{stbname} partition by tbname')
+        time.sleep(5)
+
         tdSql.query(f'select * from information_schema.ins_streams where stream_name = "{stream_name}"')
         print(tdSql.queryResult)
         tdSql.checkEqual(tdSql.queryResult[0][4],f'create stream {stream_name} trigger at_once ignore expired 0 into stb as select * from {self.dbname}.{stbname} partition by tbname')
         tdSql.execute(f'drop stream {stream_name}')
         tdSql.execute(f'create stream {stream_name} trigger at_once ignore expired 0 into stb1 as select * from tb')
+        time.sleep(5)
+
         tdSql.query(f'select * from information_schema.ins_streams where stream_name = "{stream_name}"')
         tdSql.checkEqual(tdSql.queryResult[0][4],f'create stream {stream_name} trigger at_once ignore expired 0 into stb1 as select * from tb')
         tdSql.execute(f'drop database {self.dbname}')

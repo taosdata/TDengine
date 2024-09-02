@@ -39,24 +39,27 @@ extern "C" {
 
 #define SDB_GET_VAL(pData, dataPos, val, pos, func, type) \
   {                                                       \
-    if (func(pRaw, dataPos, val) != 0) {                  \
+    if ((code = func(pRaw, dataPos, val)) != 0) {         \
+      lino = __LINE__;                                    \
       goto pos;                                           \
     }                                                     \
     dataPos += sizeof(type);                              \
   }
 
-#define SDB_GET_BINARY(pRaw, dataPos, val, valLen, pos)     \
-  {                                                         \
-    if (sdbGetRawBinary(pRaw, dataPos, val, valLen) != 0) { \
-      goto pos;                                             \
-    }                                                       \
-    dataPos += valLen;                                      \
+#define SDB_GET_BINARY(pRaw, dataPos, val, valLen, pos)              \
+  {                                                                  \
+    if ((code = sdbGetRawBinary(pRaw, dataPos, val, valLen)) != 0) { \
+      lino = __LINE__;                                               \
+      goto pos;                                                      \
+    }                                                                \
+    dataPos += valLen;                                               \
   }
 
 #define SDB_GET_INT64(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt64, int64_t)
 #define SDB_GET_INT32(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt32, int32_t)
 #define SDB_GET_INT16(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt16, int16_t)
 #define SDB_GET_INT8(pData, dataPos, val, pos)  SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt8, int8_t)
+#define SDB_GET_UINT8(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawUInt8, uint8_t)
 
 #define SDB_GET_RESERVE(pRaw, dataPos, valLen, pos) \
   {                                                 \
@@ -66,7 +69,8 @@ extern "C" {
 
 #define SDB_SET_VAL(pRaw, dataPos, val, pos, func, type) \
   {                                                      \
-    if (func(pRaw, dataPos, val) != 0) {                 \
+    if ((code = func(pRaw, dataPos, val)) != 0) {        \
+      lino = __LINE__;                                   \
       goto pos;                                          \
     }                                                    \
     dataPos += sizeof(type);                             \
@@ -76,13 +80,15 @@ extern "C" {
 #define SDB_SET_INT32(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt32, int32_t)
 #define SDB_SET_INT16(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt16, int16_t)
 #define SDB_SET_INT8(pRaw, dataPos, val, pos)  SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt8, int8_t)
+#define SDB_SET_UINT8(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawUInt8, uint8_t)
 
-#define SDB_SET_BINARY(pRaw, dataPos, val, valLen, pos)     \
-  {                                                         \
-    if (sdbSetRawBinary(pRaw, dataPos, val, valLen) != 0) { \
-      goto pos;                                             \
-    }                                                       \
-    dataPos += valLen;                                      \
+#define SDB_SET_BINARY(pRaw, dataPos, val, valLen, pos)              \
+  {                                                                  \
+    if ((code = sdbSetRawBinary(pRaw, dataPos, val, valLen)) != 0) { \
+      lino = __LINE__;                                               \
+      goto pos;                                                      \
+    }                                                                \
+    dataPos += valLen;                                               \
   }
 
 #define SDB_SET_RESERVE(pRaw, dataPos, valLen, pos) \
@@ -91,11 +97,12 @@ extern "C" {
     SDB_SET_BINARY(pRaw, dataPos, val, valLen, pos) \
   }
 
-#define SDB_SET_DATALEN(pRaw, dataLen, pos)     \
-  {                                             \
-    if (sdbSetRawDataLen(pRaw, dataLen) != 0) { \
-      goto pos;                                 \
-    }                                           \
+#define SDB_SET_DATALEN(pRaw, dataLen, pos)              \
+  {                                                      \
+    if ((code = sdbSetRawDataLen(pRaw, dataLen)) != 0) { \
+      lino = __LINE__;                                   \
+      goto pos;                                          \
+    }                                                    \
   }
 
 typedef struct SMnode  SMnode;
@@ -327,9 +334,18 @@ void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStat
  * @brief Cancel a traversal
  *
  * @param pSdb The sdb object.
- * @param type The initial iterator of table.
+ * @param pIter The initial iterator of table.
  */
 void sdbCancelFetch(SSdb *pSdb, void *pIter);
+
+/**
+ * @brief Cancel a traversal
+ *
+ * @param pSdb The sdb object.
+ * @param pIter The initial iterator of table.
+ * @param type The type of table.
+ */
+void sdbCancelFetchByType(SSdb *pSdb, void *pIter, ESdbType type);
 
 /**
  * @brief Traverse a sdb
@@ -388,6 +404,7 @@ void sdbGetCommitInfo(SSdb *pSdb, int64_t *index, int64_t *term, int64_t *config
 SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen);
 void     sdbFreeRaw(SSdbRaw *pRaw);
 int32_t  sdbSetRawInt8(SSdbRaw *pRaw, int32_t dataPos, int8_t val);
+int32_t  sdbSetRawUInt8(SSdbRaw *pRaw, int32_t dataPos, uint8_t val);
 int32_t  sdbSetRawInt16(SSdbRaw *pRaw, int32_t dataPos, int16_t val);
 int32_t  sdbSetRawInt32(SSdbRaw *pRaw, int32_t dataPos, int32_t val);
 int32_t  sdbSetRawInt64(SSdbRaw *pRaw, int32_t dataPos, int64_t val);
@@ -395,6 +412,7 @@ int32_t  sdbSetRawBinary(SSdbRaw *pRaw, int32_t dataPos, const char *pVal, int32
 int32_t  sdbSetRawDataLen(SSdbRaw *pRaw, int32_t dataLen);
 int32_t  sdbSetRawStatus(SSdbRaw *pRaw, ESdbStatus status);
 int32_t  sdbGetRawInt8(SSdbRaw *pRaw, int32_t dataPos, int8_t *val);
+int32_t  sdbGetRawUInt8(SSdbRaw *pRaw, int32_t dataPos, uint8_t *val);
 int32_t  sdbGetRawInt16(SSdbRaw *pRaw, int32_t dataPos, int16_t *val);
 int32_t  sdbGetRawInt32(SSdbRaw *pRaw, int32_t dataPos, int32_t *val);
 int32_t  sdbGetRawInt64(SSdbRaw *pRaw, int32_t dataPos, int64_t *val);

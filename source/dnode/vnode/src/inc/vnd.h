@@ -32,12 +32,12 @@ extern "C" {
 #define vDebug(...) do { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ", DEBUG_DEBUG, vDebugFlag, __VA_ARGS__); }}    while(0)
 #define vTrace(...) do { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", DEBUG_TRACE, vDebugFlag, __VA_ARGS__); }}    while(0)
 
-#define vGTrace(param, ...) do { if (vDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vTrace(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
-#define vGFatal(param, ...) do { if (vDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vFatal(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
-#define vGError(param, ...) do { if (vDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vError(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
-#define vGWarn(param, ...)  do { if (vDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vWarn(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
-#define vGInfo(param, ...)  do { if (vDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vInfo(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
-#define vGDebug(param, ...) do { if (vDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vDebug(param ", gtid:%s", __VA_ARGS__, buf);}}    while(0)
+#define vGTrace(param, ...) do { if (vDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vTrace(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define vGFatal(param, ...) do { if (vDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vFatal(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define vGError(param, ...) do { if (vDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vError(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define vGWarn(param, ...)  do { if (vDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vWarn(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define vGInfo(param, ...)  do { if (vDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vInfo(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define vGDebug(param, ...) do { if (vDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vDebug(param ",QID:%s", __VA_ARGS__, buf);}}    while(0)
 
 // clang-format on
 
@@ -49,31 +49,21 @@ int32_t vnodeEncodeConfig(const void* pObj, SJson* pJson);
 int32_t vnodeDecodeConfig(const SJson* pJson, void* pObj);
 
 // vnodeAsync.c
-typedef struct SVAsync SVAsync;
-
 typedef enum {
   EVA_PRIORITY_HIGH = 0,
   EVA_PRIORITY_NORMAL,
   EVA_PRIORITY_LOW,
 } EVAPriority;
 
-#define VNODE_ASYNC_VALID_CHANNEL_ID(channelId) ((channelId) > 0)
-#define VNODE_ASYNC_VALID_TASK_ID(taskId)       ((taskId) > 0)
-
-int32_t vnodeAsyncInit(SVAsync** async, char* label);
-int32_t vnodeAsyncDestroy(SVAsync** async);
-int32_t vnodeAChannelInit(SVAsync* async, int64_t* channelId);
-int32_t vnodeAChannelDestroy(SVAsync* async, int64_t channelId, bool waitRunning);
-int32_t vnodeAsync(SVAsync* async, EVAPriority priority, int32_t (*execute)(void*), void (*complete)(void*), void* arg,
-                   int64_t* taskId);
-int32_t vnodeAsyncC(SVAsync* async, int64_t channelId, EVAPriority priority, int32_t (*execute)(void*),
-                    void (*complete)(void*), void* arg, int64_t* taskId);
-int32_t vnodeAWait(SVAsync* async, int64_t taskId);
-int32_t vnodeACancel(SVAsync* async, int64_t taskId);
-int32_t vnodeAsyncSetWorkers(SVAsync* async, int32_t numWorkers);
-
-// vnodeModule.c
-extern SVAsync* vnodeAsyncHandle[2];
+int32_t vnodeAsyncOpen(int32_t numOfThreads);
+int32_t vnodeAsyncClose();
+int32_t vnodeAChannelInit(int64_t async, SVAChannelID* channelID);
+int32_t vnodeAChannelDestroy(SVAChannelID* channelID, bool waitRunning);
+int32_t vnodeAsync(SVAChannelID* channelID, EVAPriority priority, int32_t (*execute)(void*), void (*complete)(void*),
+                   void* arg, SVATaskID* taskID);
+int32_t vnodeAWait(SVATaskID* taskID);
+int32_t vnodeACancel(SVATaskID* taskID);
+int32_t vnodeAsyncSetWorkers(int64_t async, int32_t numWorkers);
 
 // vnodeBufPool.c
 typedef struct SVBufPoolNode SVBufPoolNode;
