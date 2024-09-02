@@ -11,7 +11,7 @@ use crate::{
     utils::constants::{VERSION_3_0_0, VERSION_3_3_0},
 };
 
-// #[async_backtrace::framed]
+#[async_backtrace::framed]
 async fn restore(
     id: usize,
     path: impl AsRef<Path>,
@@ -177,7 +177,7 @@ async fn restore(
 }
 
 #[tracing::instrument]
-// #[async_backtrace::framed]
+#[async_backtrace::framed]
 pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
     // local dir
     let local_dir = from
