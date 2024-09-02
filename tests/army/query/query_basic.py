@@ -226,8 +226,8 @@ class TDTestCase(TBase):
         self.checkSameResult(sql1, sql2)
 
         # same as by TD-31726
-        sql1 = "select fc as a, voltage dc a from meters limit 5;"
-        sql2 = "select * from (select fc as a, dc as a from meters)t limit 5;"
+        sql1 = "select fc as a, dc as a from stb limit 5;"
+        sql2 = "select * from (select fc as a, dc as a from stb)t limit 5;"
         self.checkSameResult(sql1, sql2)
 
         # distributed expect values
