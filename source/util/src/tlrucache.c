@@ -445,6 +445,9 @@ static LRUStatus taosLRUCacheShardInsert(SLRUCacheShard *shard, const void *key,
                                          LRUPriority priority, void *ud) {
   SLRUEntry *e = taosMemoryCalloc(1, sizeof(SLRUEntry) - 1 + keyLen);
   if (!e) {
+    if (deleter) {
+      (*deleter)(key, keyLen, value, ud);
+    }
     return TAOS_LRU_STATUS_FAIL;
   }
 
