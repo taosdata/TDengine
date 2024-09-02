@@ -436,10 +436,10 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 - `identify`： 节点 endpoint
 
 ##### 相关指标及其含义
-| 指标名称                | 类型  | 含义                                    |
-| ----------------------- | ----- | --------------------------------------- |
-| taos_keeper_monitor_cpu | gauge | taoskeeper CPU 使用率（取值范围 0~100） |
-| taos_keeper_monitor_mem | gauge | taoskeeper 内存使用率（取值范围 0~100） |
+| 指标名称                | 类型  | 含义                                  |
+| ----------------------- | ----- | ------------------------------------- |
+| taos_keeper_monitor_cpu | gauge | taoskeeper CPU 使用率（取值范围 0~1） |
+| taos_keeper_monitor_mem | gauge | taoskeeper 内存使用率（取值范围 0~1） |
 
 #### 其他 taosd 集群监控项
 
@@ -479,7 +479,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
   - `database_name`: 数据库名称
   - `vgroup_id`: 虚拟组 id
 - **类型**: gauge
-- **含义**: 虚拟组状态
+- **含义**: 虚拟组状态。 0 为 unsynced，表示没有leader选出；1 为 ready。
 
 ##### taos_taosd_vgroups_info_tables_num
 - **标签**:
