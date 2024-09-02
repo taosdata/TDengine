@@ -174,7 +174,8 @@ command = "cargo"
 env = { "RUSTFLAGS" = "-Zsanitizer=address --cfg tokio_unstable" }
 args = [
   "build",
-  "--release",
+  "--profile",
+  "sani",
   "--target",
   "x86_64-unknown-linux-gnu",
   "-Zbuild-std",

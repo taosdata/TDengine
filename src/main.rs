@@ -622,6 +622,7 @@ fn print_effective_config(level_filter: &LevelFilter, args: &Args) {
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "jobs", args.global.jobs).as_str();
     if let Commands::Serve(cli) = args.commands.as_ref().unwrap_or(&Commands::Serve(Default::default())) {
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.listen", cli.get_listen_address()).as_str();
+        s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.grpc", cli.get_grpc_address()).as_str();
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.database_url", cli.get_database_url()).as_str();
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.fqdn", args.monitor.fqdn.as_ref().unwrap_or(&"".to_string())).as_str();
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.port", args.monitor.port).as_str();
@@ -690,6 +691,11 @@ fn main() -> Result<()> {
     tracing::info!("{}x version: {version}", build::CUS_PROMPT);
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
+    tracing::info!(
+        "connector version: {}-{}",
+        taos::build::PKG_VERSION,
+        taos::build::SHORT_COMMIT
+    );
 
     if args.global.dry_run.unwrap_or(false) {
         tracing::info!("dry run mode enabled");

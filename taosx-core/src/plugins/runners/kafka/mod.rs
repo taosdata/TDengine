@@ -1041,6 +1041,11 @@ async fn poll_message<'a>(
     // static RANDOM_ERROR_ATOMIC: AtomicUsize = AtomicUsize::new(1);
 
     let mut backoff = 1;
+    let mut last_message = Instant::now();
+    const INITIAL_NON_MESSAGE_WARNING_INTERVAL: u64 = 30;
+    const MAX_NON_MESSAGE_WARNING_INTERVAL: u64 = 480;
+    const MAX_BACKOFF: u64 = 16;
+    let mut last_warning_interval = INITIAL_NON_MESSAGE_WARNING_INTERVAL;
     loop {
         tracing::trace!("Kafka consumer-{} polling by ready trunks", index);
         tokio::select! {
@@ -1060,6 +1065,8 @@ async fn poll_message<'a>(
                 match chunk {
                     Some(Ok(chunk)) => {
                         backoff = 1;
+                        last_message = Instant::now();
+                        last_warning_interval = INITIAL_NON_MESSAGE_WARNING_INTERVAL;
                         match sender.send_chuck(&chunk).in_current_span().await? {
                             ExitStatus::None => {
                                 tokio::time::sleep(Duration::from_millis(100)).await;
@@ -1101,8 +1108,22 @@ async fn poll_message<'a>(
                         tracing::trace!("Kafka polling return None, continue");
                         match sender.send().in_current_span().await? {
                             ExitStatus::None => {
-                                backoff *= 2;
-                                tokio::time::sleep(Duration::from_millis(backoff.max(16) * 100)).await;
+                                if backoff < MAX_BACKOFF {
+                                    backoff *= 2;
+                                }
+                                let duration = Duration::from_secs(last_warning_interval);
+                                let elapsed = last_message.elapsed();
+                                if elapsed > duration {
+                                    tracing::warn!("Consumer {index} has no messages received in {:?} consumer polling timeout", elapsed);
+                                    let _ = notify.send(crate::TaskNotify::warn(format!("Consumer {index} has no messages received in {:?} consumer polling timeout", duration)));
+                                    if last_warning_interval < MAX_NON_MESSAGE_WARNING_INTERVAL {
+                                        last_warning_interval *= 2;
+                                        last_message = Instant::now();
+                                    } else {
+                                        bail!("Consumer {index} has no messages received in {:?}", elapsed);
+                                    }
+                                }
+                                tokio::time::sleep(Duration::from_millis(backoff * 100)).await;
                             }
                             ExitStatus::Timeout => {
                                 tracing::info!("None messages received, exit with consumer polling timeout");

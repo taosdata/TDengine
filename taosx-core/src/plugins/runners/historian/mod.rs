@@ -91,7 +91,14 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
         for (idx, col) in row.columns().into_iter().enumerate() {
             let col_name = col.name();
             let col_type = col.column_type();
-            let col_val = to_json_value(&row, idx, col_type)?;
+            let col_val = to_json_value(&row, idx, col_type).map_err(|err| {
+                anyhow::anyhow!(
+                    "failed to convert column value, index: {}, type: {:?}, cause: {}",
+                    idx,
+                    col_type,
+                    err.to_string(),
+                )
+            })?;
 
             sample_map.insert(col_name.to_string(), col_val);
         }
@@ -131,12 +138,18 @@ fn to_json_value(row: &Row, idx: usize, col_type: ColumnType) -> anyhow::Result<
     let col_val = match col_type {
         ColumnType::Datetime2 => json!(row.try_get::<NaiveDateTime, _>(idx)?),
         ColumnType::Int1 => json!(row.try_get::<u8, _>(idx)?),
-        ColumnType::Int4 => json!(row.try_get::<i32, _>(idx)?),
-        ColumnType::Intn => json!(row.try_get::<i32, _>(idx)?),
-        ColumnType::Floatn => json!(row.try_get::<f64, _>(idx)?),
+        ColumnType::Int2 => json!(row.try_get::<i16, _>(idx)?),
+        ColumnType::Int4 | ColumnType::Intn => json!(row.try_get::<i32, _>(idx)?),
+        ColumnType::Int8 => json!(row.try_get::<i64, _>(idx)?),
+        ColumnType::Float4 => json!(row.try_get::<f32, _>(idx)?),
+        ColumnType::Floatn | ColumnType::Float8 => json!(row.try_get::<f64, _>(idx)?),
         ColumnType::NVarchar => json!(row.try_get::<&str, _>(idx)?),
         _ => {
-            return Err(anyhow::anyhow!("Unsupported column type: {:?}", col_type));
+            return Err(anyhow::anyhow!(
+                "Unsupported column index: {}, type: {:?}",
+                idx,
+                col_type,
+            ));
         }
     };
 

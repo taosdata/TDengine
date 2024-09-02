@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use chrono::{DateTime, Local};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 use taos::taos_query::tmq::Assignment;
 use taos::*;
 use taos_query::common::RawData;
@@ -263,50 +263,51 @@ impl LocalConfig {
 /// full or incremental backup from TMQ to local file
 pub async fn tmq_to_local(
     from: Dsn,
-    mut to: Dsn,
+    to: Dsn,
     jobs: usize,
     force: bool,
     cancel: CancellationToken,
     task_id: Option<String>,
 ) -> Result<()> {
     let (mut from, builder, topics, _, _) = check_tmq_dsn(from).await?;
+
     let offsets = Arc::new(DashMap::new());
     let version = builder.server_version().await?.to_owned();
+    let stop_at = parse_stop_at(&from)?;
 
-    let mut from_params = from.drain_params();
-    let stop_at = if let Some(stop_at) = from_params.remove("stopAt") {
-        Some(StopAt::from_str(&stop_at).map_err(|err| {
-            anyhow::anyhow!("failed to parse stopAt: {}, cause: {:?}", stop_at, err)
-        })?)
+    // local backup dir
+    let dir = to.path.clone().ok_or(anyhow::anyhow!(
+        "invalid local backup dsn: {}, Please use a local path DSN like `local:./path/to/backup`",
+        to
+    ))?;
+    let backup_dir = Path::new(&dir).to_path_buf();
+    if !backup_dir.exists() {
+        tracing::info!("create dir for backup: {}", backup_dir.display());
+        std::fs::create_dir_all(backup_dir.clone())?;
     } else {
-        None
-    };
-
-    let to_params = to.drain_params();
-
-    if to.path.is_none() {
-        anyhow::bail!(
-            "invalid local backup dsn: {}\nPlease use a local path DSN like `local:./path/to/backup`",
-            to
-        );
+        tracing::info!("use existing dir for backup: {}", backup_dir.display());
     }
 
-    // local backup path
-    let path: &Path = to.path.as_ref().unwrap().as_ref();
-    if !path.exists() {
-        tracing::info!("create directory for backup: {}", path.display());
-        std::fs::create_dir_all(path)?;
+    // LocalConfig
+    let backup_path = backup_dir.join("local.toml");
+    let config = if !backup_path.exists() {
+        // create a new local config
+        new_local_config(&from, &to, topics)
     } else {
-        tracing::info!("use existing directory for backup: {}", path.display());
-    }
-
-    let config_path = path.join("local.toml");
-    let config = if config_path.exists() {
-        tracing::info!("read configuration in: {}", config_path.display());
-        let mut config = LocalConfig::from_path(&config_path)?;
+        let metadata = std::fs::metadata(backup_path.clone())?;
+        let mut config = if metadata.len() == 0 {
+            // if the 'local.toml' is an empty file, remove it
+            std::fs::remove_file(&backup_path)?;
+            // create a new local config
+            new_local_config(&from, &to, topics)
+        } else {
+            tracing::info!("read configuration in: {}", backup_path.display());
+            LocalConfig::from_path(&backup_path)?
+        };
+        // update last modified time
         config.last_modified = Local::now();
-
-        if let Some(group_id) = from_params.get("group.id") {
+        // check group id
+        if let Some(group_id) = from.params.get("group.id") {
             if config.group_id != group_id.as_str() {
                 if force {
                     tracing::warn!(
@@ -314,6 +315,7 @@ pub async fn tmq_to_local(
                         group_id,
                         config.group_id
                     );
+                    config.group_id = group_id.clone();
                 } else {
                     anyhow::bail!(
                         "group id not match: will use `{}` but it's `{}` in last operation",
@@ -322,48 +324,21 @@ pub async fn tmq_to_local(
                     );
                 }
             }
-        } else {
-            from_params.insert("group.id".to_string(), config.group_id.to_string());
         }
         config
-    } else {
-        let group_id = if let Some(group_id) = from_params.get("group.id") {
-            group_id
-        } else {
-            use sha2::Digest;
-            let mut hasher = Sha256::new();
-            hasher.update(from.to_string());
-            hasher.update(to.to_string());
-            let id = hasher.finalize();
-            let mut group_id = format!("x{:x}", id);
-            group_id.truncate(12);
-            from_params.insert("group.id".to_string(), group_id);
-            from_params.get("group.id").unwrap()
-        };
-        let client_id = from_params
-            .get("client.id")
-            .map(|s| s.as_str())
-            .unwrap_or(&"taosx");
-        let config = LocalConfig::new(topics, group_id, client_id);
-        config
     };
-
-    from.params = from_params;
-    to.params = to_params;
+    // update group id in DSN
+    from.params
+        .insert("group.id".to_string(), config.group_id.clone());
 
     let metrics_arc = get_metrics_arc(task_id.clone()).await;
     let metrics = metrics_arc.tmq();
     metrics.topics.fetch_add(config.topics.len() as _, SeqCst);
 
+    tracing::info!("create TMQ builder");
     let tmq = TmqBuilder::from_dsn(&from)?;
-    tracing::info!("TMQ builder created");
-
-    if to.path.is_none() {
-        anyhow::bail!("invalid backup DSN: {}", to);
-    }
-
     tracing::info!("write to config file");
-    config.write_to(config_path)?;
+    config.write_to(backup_path)?;
     tracing::info!("write to config file done");
 
     let mut join_set = JoinSet::new();
@@ -407,7 +382,7 @@ pub async fn tmq_to_local(
         let man = Arc::new(ZFileMan {
             api_version: crate::build::PKG_VERSION.to_owned(),
             server_version: version.clone(),
-            path: path.to_owned(),
+            path: backup_dir.to_owned(),
             // db: topic.database.clone(),
             topic: topic.name.clone(),
             sync: tokio::sync::Mutex::new(()),
@@ -462,6 +437,42 @@ pub async fn tmq_to_local(
     tracing::info!("all workers done for backup");
     tracing::debug!("metrics: {}", metrics);
     Ok(())
+}
+
+/// parse stopAt parameter from dsn
+fn parse_stop_at(dsn: &Dsn) -> Result<Option<StopAt>> {
+    dsn.params
+        .get("stopAt")
+        .map(|s| {
+            StopAt::from_str(&s)
+                .map_err(|err| anyhow::anyhow!("failed to parse stopAt: {}, cause: {:?}", s, err))
+        })
+        .transpose()
+}
+
+fn new_local_config(from: &Dsn, to: &Dsn, topics: Vec<Topic>) -> LocalConfig {
+    let group_id = from
+        .params
+        .get("group.id")
+        .map(|s| s.clone())
+        .unwrap_or_else(|| generate_group_id(from, to));
+    let client_id = from
+        .params
+        .get("client.id")
+        .map(|s| s.clone())
+        .unwrap_or("taosx".to_string());
+    LocalConfig::new(topics, group_id, client_id)
+}
+
+/// generate group.id by sha256(from + to)
+fn generate_group_id(from: &Dsn, to: &Dsn) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(from.to_string());
+    hasher.update(to.to_string());
+    let id = hasher.finalize();
+    let mut group_id = format!("x{:x}", id);
+    group_id.truncate(12);
+    group_id
 }
 
 #[instrument(skip_all)]

@@ -1,3 +1,5 @@
+mod worker;
+
 use std::{collections::BTreeMap, ops::Deref, sync::Arc, time::Duration};
 
 use crate::{
@@ -9,6 +11,7 @@ use crate::{
     Action,
 };
 use anyhow::{anyhow, bail, Context, Result};
+use faststr::FastStr;
 use linked_hash_map::LinkedHashMap;
 use serde::Serialize;
 use std::sync::atomic::Ordering::SeqCst;
@@ -16,6 +19,9 @@ use taos::taos_query::tmq::Assignment;
 use taos::*;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
+use worker::{parse_message, Worker, WriteOptions};
+
+use worker::*;
 
 async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<bool> {
     let target_desc = to.describe(&table).await?;
@@ -638,6 +644,7 @@ async fn write_meta(
     tracing::trace!("End writing meta {cur}");
     Ok(())
 }
+
 type TaosConnection = deadpool::managed::Object<taos::taos_query::Manager<taos::TaosBuilder>>;
 async fn sync_msg(
     topic: &Topic,
@@ -860,6 +867,157 @@ async fn sync(
                 }
             }
         }
+    }
+    update_progress(&consumer, &metrics).await;
+    tracing::info!("Task done");
+
+    // do not drop consumer when single task done.
+    drop(stream);
+    // let _ = sender.send(consumer); // tokio send
+    Ok(consumer)
+}
+
+#[instrument(skip_all, fields(consumer.id = id, table))]
+async fn sync_concurrently(
+    topic: &Arc<Topic>,
+    id: usize,
+    consumer: Consumer,
+    source_pool: &TaosPool,
+    target_pool: &TaosPool,
+    table: Option<&str>,
+    actions: &[Action],
+    cancel: CancellationToken,
+    metrics_arc: Arc<CoreMetrics>,
+    with_meta_delete: bool,
+    with_meta_drop: bool,
+    concurrency: usize,
+) -> Result<Consumer> {
+    tracing::info!("Task start");
+    let mut stream = consumer.stream();
+    let taos = target_pool.get().await?;
+    let _target_is_v3 = taos
+        .exec("desc information_schema.ins_databases")
+        .await
+        .is_ok();
+    let metrics = metrics_arc.tmq();
+
+    let chunk_size = std::env::var("TMQ_COMMIT_CHUNK_SIZE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(128);
+    let mut last_type = 0;
+    let actions = Arc::new(actions.to_owned());
+    let strategy = WriteStrategy::from_env();
+    let options = WriteOptions {
+        with_meta_delete,
+        with_meta_drop,
+        strategy,
+        actions,
+    };
+
+    use std::str::FromStr;
+    let mut join_set = tokio::task::JoinSet::new();
+    let (msg_tx, msg_rx) = flume::bounded::<RawMessage>(concurrency * 2);
+    let (res_tx, res_rx) = flume::bounded(chunk_size);
+
+    let table = table.map(|str| FastStr::from_str(str).unwrap());
+    for wid in 0..concurrency {
+        let worker = Worker {
+            source: source_pool.clone(),
+            target: target_pool.clone(),
+            target_connection: None,
+            table: table.clone(),
+            sender: res_tx.clone(),
+            options: options.clone(),
+            metrics: metrics_arc.clone(),
+            topic: topic.clone(),
+        };
+        let msg_rx = msg_rx.clone();
+        join_set.spawn(
+            async move {
+                let mut worker = worker;
+                let mut mid = 0;
+                while let Ok(mut message) = msg_rx.recv_async().await {
+                    mid += 1;
+                    let rows = message.rows();
+                    let bytes = message.raw.raw_len();
+                    tracing::debug!(mid, rows, bytes, "Received message");
+                    let res = worker
+                        .write(&mut message)
+                        .instrument(tracing::debug_span!("write", mid))
+                        .await;
+                    let _ = worker.sender.send_async(res).await;
+                }
+                tracing::info!("Worker done");
+            }
+            .instrument(tracing::info_span!("worker", wid)),
+        );
+    }
+
+    let mut last_offset = None;
+    let mut chunk_len = 0;
+
+    macro_rules! clean_cache {
+        () => {
+            for _ in 0..chunk_len {
+                res_rx.recv_async().await??;
+            }
+
+            #[allow(unused_assignments)]
+            {
+                chunk_len = 0;
+            }
+        };
+    }
+
+    let now = std::time::Instant::now();
+    println!("# [{id}] Start consuming at {}", chrono::Local::now());
+    tracing::info!("Start consuming");
+    while let Some((offset, message)) = stream.try_next().await? {
+        if cancel.is_cancelled() {
+            tracing::info!("Sync cancelled");
+            break;
+        }
+        let message_type = match &message {
+            MessageSet::Meta(_) => 1,
+            MessageSet::Data(_) => 2,
+            MessageSet::MetaData(_, _) => 3,
+        };
+        metrics.add_messages(1);
+        let message = parse_message(&message, &options.actions, metrics)
+            .in_current_span()
+            .await?;
+        if message_type == 1 {
+            clean_cache!();
+            // meta only, sync immediately.
+            msg_tx.send_async(message).await?;
+            res_rx.recv_async().await??;
+            consumer.commit(offset).await?;
+            continue;
+        }
+
+        if (last_type != 0 && last_type != message_type) || chunk_len >= chunk_size {
+            clean_cache!();
+
+            // meta only, sync immediately.
+            msg_tx.send_async(message).await?;
+            res_rx.recv_async().await??;
+            consumer.commit(offset).await?;
+        } else {
+            msg_tx.send_async(message).await?;
+            chunk_len += 1;
+            last_offset.replace(offset);
+        }
+        last_type = message_type;
+    }
+    println!(
+        "# [{id}] Consume done after {:?}, waiting for writers to finish",
+        now.elapsed()
+    );
+    tracing::info!(elapse = ?now.elapsed(), "Consume done, waiting for writers to finish");
+    if chunk_len > 0 {
+        clean_cache!();
+        consumer.commit(last_offset.unwrap()).await?;
     }
     update_progress(&consumer, &metrics).await;
     tracing::info!("Task done");
@@ -1108,6 +1266,14 @@ pub async fn tmq_to_td(
 
         let tmq = Arc::new(tmq);
         let topic = Arc::new(topic);
+        let concurrency = std::env::var("TMQ_CONSUMER_CONCURRENCY")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or_else(|| {
+                std::thread::available_parallelism()
+                    .map_or_else(|_| 8, |n| n.get() * 2 / jobs)
+                    .max(2)
+            });
         for _ in 0..jobs {
             let tmq = tmq.clone();
             let topic = topic.clone();
@@ -1123,7 +1289,7 @@ pub async fn tmq_to_td(
             }
             let actions = actions.to_vec();
             let cancellation = cancel.clone();
-            let sender = consumers_sender.clone();
+            let sender: tokio::sync::mpsc::UnboundedSender<Consumer> = consumers_sender.clone();
             let source_pool = source_pool.clone();
             let metrics_arc = metrics_arc.clone();
             let notify = notify.clone();
@@ -1136,21 +1302,38 @@ pub async fn tmq_to_td(
                     let tick = IntervalLimit::new(Duration::from_secs(60));
                     loop {
                         // let taos = target.get().await?;
-                        match sync(
-                            &topic,
-                            consumer_task_id,
-                            consumer,
-                            &source_pool,
-                            &target,
-                            table.as_deref(),
-                            &actions,
-                            cancellation.clone(),
-                            metrics_arc.clone(),
-                            with_meta_delete,
-                            with_meta_drop,
-                        )
-                        .await
-                        {
+                        match if actions.is_empty() {
+                            sync_concurrently(
+                                &topic,
+                                consumer_task_id,
+                                consumer,
+                                &source_pool,
+                                &target,
+                                table.as_deref(),
+                                &actions,
+                                cancellation.clone(),
+                                metrics_arc.clone(),
+                                with_meta_delete,
+                                with_meta_drop,
+                                concurrency,
+                            )
+                            .await
+                        } else {
+                            sync(
+                                &topic,
+                                consumer_task_id,
+                                consumer,
+                                &source_pool,
+                                &target,
+                                table.as_deref(),
+                                &actions,
+                                cancellation.clone(),
+                                metrics_arc.clone(),
+                                with_meta_delete,
+                                with_meta_drop,
+                            )
+                            .await
+                        } {
                             Ok(consumer) => {
                                 let _ = sender.send(consumer);
                                 break;
@@ -1203,6 +1386,7 @@ pub async fn tmq_to_td(
             return Err(err);
         }
     }
+    println!("# Syncing done at {}", chrono::Local::now());
     tracing::info!("Stop all consumers({})", consumer_task_id);
     for _ in 0..consumer_task_id {
         let consumer = consumers_receiver.recv().await;
