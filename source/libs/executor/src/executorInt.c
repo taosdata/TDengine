@@ -1105,7 +1105,8 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
 
       SArray* pInfoList = NULL;
       int32_t code = getTableListInfo(pTask, &pInfoList);
-      if (code || pInfoList == NULL) {
+      if (code != TSDB_CODE_SUCCESS || pInfoList == NULL) {
+        taosMemoryFree(pDeleterParam);
         return code;
       }
 
