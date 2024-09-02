@@ -61,7 +61,7 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
       if (tmpRes != TSDB_CODE_SUCCESS) {
         break;
       }
-      void* tmp = taosArrayPush(pWinStates, &tmp);
+      void* tmp = taosArrayPush(pWinStates, &tmpKey);
       QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
       streamStateCurPrev_rocksdb(pCur);
     }
