@@ -1,6 +1,6 @@
-use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
-
 use anyhow::{bail, Context, Result};
+use std::path::PathBuf;
+use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
 use taos::*;
 use taosx_ipc::types::dsv::DataSourceValidation;
 use tokio::sync::Semaphore;
@@ -11,7 +11,7 @@ use crate::{
     utils::constants::{VERSION_3_0_0, VERSION_3_3_0},
 };
 
-#[async_backtrace::framed]
+// #[async_backtrace::framed]
 async fn restore(
     id: usize,
     path: impl AsRef<Path>,
@@ -44,7 +44,6 @@ async fn restore(
     }
 
     let mut rows = 0;
-
     loop {
         let res = reader.read_message_async().await;
         match res {
@@ -112,7 +111,6 @@ async fn restore(
                             };
                         }
                         tracing::debug!("[{id}] current rows: {}", rows);
-                        // taos.write_raw_data(data[0]).await?
                     }
                     ZMessage::Raw(raw_type, raw) => {
                         let meta = raw.into();
@@ -179,32 +177,28 @@ async fn restore(
 }
 
 #[tracing::instrument]
-#[async_backtrace::framed]
-pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
-    if from.path.is_none() {
-        anyhow::bail!(
-            "invalid local dsn: {}\nPlease use a local path DSN like `local:./path/to/backup`",
+// #[async_backtrace::framed]
+pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
+    // local dir
+    let local_dir = from
+        .path
+        .as_ref()
+        .map(|s| PathBuf::from(s))
+        .ok_or(anyhow::anyhow!(
+            "invalid local dsn: {}, Please use a local path DSN like `local:./path/to/backup`",
             from
-        );
-    }
-    let continuous = from
-        .params
-        .remove("continue")
-        .map(|s| s.is_empty() || s.to_lowercase() == "true")
-        .unwrap_or(false);
-    let path: &Path = from.path.as_ref().unwrap().as_ref();
-    if !path.exists() {
-        anyhow::bail!("invalid backup dsn `{}`: directory not exist", from);
-    }
-    let config_path = path.join("local.toml");
-    if !config_path.exists() {
-        anyhow::bail!(
-            "invalid backup location: config file `{}` not found",
-            config_path.display()
-        );
+        ))?;
+    if !local_dir.exists() {
+        bail!("local path: {} not found", from);
     }
 
-    let config = LocalConfig::from_path(&config_path)?;
+    // local.toml
+    let local_toml_path = local_dir.join("local.toml");
+    if !local_toml_path.exists() {
+        bail!("local config: {} not found", local_toml_path.display());
+    }
+    // LocalConfig
+    let config = LocalConfig::from_path(&local_toml_path)?;
 
     // check database
     if let Some(target) = to.subject.as_mut() {
@@ -230,6 +224,13 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
         }
     }
 
+    // parameters
+    let continuous = from
+        .params
+        .get("continue")
+        .map(|s| s.is_empty() || s.to_lowercase() == "true")
+        .unwrap_or(false);
+
     let target_database = to.subject.take();
     let target = TaosBuilder::from_dsn(&to)?;
     let global_taos = target.build().await?;
@@ -237,7 +238,6 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
     let mut handles = Vec::new();
     let jobs = if jobs == 0 { 16 } else { jobs };
     let task_sem = Arc::new(Semaphore::new(jobs));
-    // let barrier = Arc::new(Barrier::new(jobs));
 
     let mut task_id = 0;
     for topic in &config.topics {
@@ -254,9 +254,7 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
                     global_taos.exec(sql).await?;
                 }
             } else if !force {
-                anyhow::bail!(
-                    "the database has already exists, please be sure to override it by force"
-                );
+                bail!("the database has already exists, please be sure to override it by force");
             }
         } else {
             if !global_taos.database_exists(&topic.database).await? {
@@ -266,11 +264,10 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
                         .await?;
                 }
             } else if !force {
-                anyhow::bail!(
-                    "the database has already exists, please be sure to override it by force"
-                );
+                bail!("the database has already exists, please be sure to override it by force");
             }
         }
+
         if let Some(table) = topic.table.as_ref() {
             // schema rebuild
             let taos = target.build().await?;
@@ -292,7 +289,7 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
             .await?;
         }
 
-        let mut dir_entry = tokio::fs::read_dir(path).await?;
+        let mut dir_entry = tokio::fs::read_dir(&local_dir).await?;
 
         let mut files: BTreeMap<i64, BTreeMap<i64, tokio::fs::DirEntry>> = BTreeMap::new();
 
@@ -301,6 +298,7 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
             if !file_name.starts_with(&topic.name) || !file_name.ends_with("z") {
                 continue;
             }
+
             if continuous {
                 let mut zo = path.path();
                 zo.set_extension("zo");
@@ -308,6 +306,7 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
                     continue;
                 }
             }
+
             let file_name_only = path.path().with_extension("");
             let items = file_name_only
                 .file_name()
@@ -330,9 +329,10 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
             }
         }
 
-        for (_, files) in files {
+        for (_vgroup_id, files) in files {
             let sem = task_sem.clone().acquire_owned().await?;
             let taos = target.build().await?;
+
             if let Some(target) = target_database.as_ref() {
                 taos.exec(format!("use `{}`", target)).await?;
             } else {
@@ -341,7 +341,7 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
 
             let table = topic.table.as_ref().map(|t| t.table.clone());
             let handle = tokio::spawn(async move {
-                for (_, path) in files {
+                for (_ts, path) in files {
                     let res = restore(task_id, path.path(), &taos, table.as_deref()).await;
                     if res.is_err() {
                         drop(sem);
@@ -391,14 +391,15 @@ pub async fn is_local_valid(dsn: &Dsn) -> DataSourceValidation {
             "Backup directory may not be correct".to_string(),
         );
     }
-    return DataSourceValidation {
+
+    DataSourceValidation {
         valid: true,
         support: true,
         data_source: "local".to_string(),
         version: None,
         message: None,
         namespaces: None,
-    };
+    }
 }
 
 #[tokio::test]
