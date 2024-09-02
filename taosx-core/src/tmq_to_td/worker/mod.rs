@@ -230,27 +230,27 @@ impl WriteOptions {
     }
     async fn parse_data(&self, data: &Data, metrics: &TmqMetrics) -> Result<RawMessage> {
         let raw = data.as_raw_data().await?;
-        if !self.actions.is_empty() || self.strategy.require_blocks() {
-            let mut vec = Vec::new();
-            while let Some(raw) = data
-                .fetch_raw_block()
-                .await
-                .context("Fetch raw block error")?
-            {
-                vec.push(raw);
-            }
-            metrics.add_messages_of_data(1);
-            Ok(RawMessage::data_only(
-                self.next_mid(),
-                unsafe { std::mem::transmute(raw) },
-                vec,
-            ))
-        } else {
-            metrics.add_messages_of_data(1);
-            Ok(RawMessage::raw_only(self.next_mid(), unsafe {
-                std::mem::transmute(raw)
-            }))
+        // if !self.actions.is_empty() || self.strategy.require_blocks() {
+        let mut vec = Vec::new();
+        while let Some(raw) = data
+            .fetch_raw_block()
+            .await
+            .context("Fetch raw block error")?
+        {
+            vec.push(raw);
         }
+        metrics.add_messages_of_data(1);
+        Ok(RawMessage::data_only(
+            self.next_mid(),
+            unsafe { std::mem::transmute(raw) },
+            vec,
+        ))
+        // } else {
+        //     metrics.add_messages_of_data(1);
+        //     Ok(RawMessage::raw_only(self.next_mid(), unsafe {
+        //         std::mem::transmute(raw)
+        //     }))
+        // }
     }
     async fn parse_meta_data(
         &self,
