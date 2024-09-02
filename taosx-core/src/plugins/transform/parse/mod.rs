@@ -30,10 +30,10 @@ use thiserror::Error;
 pub mod cast;
 mod join;
 mod json;
+pub mod plugin;
 mod regex;
 mod split;
 mod udt;
-pub mod plugin;
 
 #[derive(Debug, Error)]
 pub enum ParseError {
@@ -138,7 +138,7 @@ impl ParserImpl {
     pub fn new(map: LinkedHashMap<String, FieldParser>) -> Self {
         Self(map)
     }
-    
+
     // pub fn list_plugins() -> LinkedHashMap<String, FieldParser> {
     //     let mut map = LinkedHashMap::new();
     //     map.insert("regex".to_string(), FieldParser::Regex(Regex::default()));

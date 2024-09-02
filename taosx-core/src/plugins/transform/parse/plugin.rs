@@ -10,7 +10,6 @@ use dlopen2::wrapper::{Container, WrapperApi};
 
 use lazy_static::lazy_static;
 
-
 use serde::{Deserialize, Serialize};
 
 use std::{borrow::Cow, sync::Arc};
@@ -32,11 +31,10 @@ use arrow::{
 
 use super::super::super::runners::get_plugins_home_dir;
 
-
+use super::Parse;
 use arrow_schema::{Field, Fields};
 use itertools::Itertools;
 use serde_json::Value as JsonValue;
-use super::Parse;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PluginInfo {
@@ -56,7 +54,13 @@ struct PluginLib {
     parser_name: extern "C" fn() -> *mut c_char,
     parser_version: extern "C" fn() -> *mut c_char,
     parser_new: extern "C" fn(ctx: *const c_char, len: i32) -> ParserResponse,
-    parser_mutate: extern "C" fn(cp: *mut c_void, input_p: *const u8, input_l: u32, output_p: *mut *mut u8, output_l: *mut u32) -> *const c_char,
+    parser_mutate: extern "C" fn(
+        cp: *mut c_void,
+        input_p: *const u8,
+        input_l: u32,
+        output_p: *mut *mut u8,
+        output_l: *mut u32,
+    ) -> *const c_char,
     parser_free: extern "C" fn(cp: *mut c_void),
 }
 
@@ -94,11 +98,19 @@ impl ParserObject {
     pub fn mutate(&self, input: &[u8]) -> Result<String, String> {
         let mut output_p = std::ptr::null_mut();
         let mut output_l: u32 = 0;
-        let result = (self.plugin_lib.parser_mutate)(self.p, input.as_ptr(), input.len() as u32, &mut output_p, &mut output_l);
+        let result = (self.plugin_lib.parser_mutate)(
+            self.p,
+            input.as_ptr(),
+            input.len() as u32,
+            &mut output_p,
+            &mut output_l,
+        );
         if !result.is_null() {
             return Err("parser_mutate failed".to_string());
         }
-        let parsed_data = unsafe { String::from_raw_parts(output_p as *mut u8, output_l as usize, output_l as usize) };
+        let parsed_data = unsafe {
+            String::from_raw_parts(output_p as *mut u8, output_l as usize, output_l as usize)
+        };
         Ok(parsed_data)
     }
 }
@@ -164,7 +176,6 @@ pub struct ParserPlugin {
 }
 
 impl Parse for ParserPlugin {
-    
     fn parse_array(
         &self,
         _: &arrow::datatypes::Field,
@@ -175,9 +186,9 @@ impl Parse for ParserPlugin {
             return Ok((RecordBatch::new_empty(Arc::new(Schema::empty())), None));
         }
 
-        let parser_object = self.get_plugin_object().unwrap_or_else(|| {
-            self.new_plugin_object().unwrap()
-        });
+        let parser_object = self
+            .get_plugin_object()
+            .unwrap_or_else(|| self.new_plugin_object().unwrap());
 
         let array = arrow::compute::cast(array, &DataType::Utf8)?;
 
@@ -201,10 +212,7 @@ impl Parse for ParserPlugin {
             let value = match value {
                 Ok(v) => v,
                 Err(e) => {
-                    tracing::warn!(
-                        "{:#}",
-                        super::ParseError::JsonDeserializeError(s, e)
-                    );
+                    tracing::warn!("{:#}", super::ParseError::JsonDeserializeError(s, e));
                     JsonValue::Null
                 }
             };
@@ -217,13 +225,19 @@ impl Parse for ParserPlugin {
                         if v.is_object() {
                             json_data.push(Ok(v));
                         } else {
-                            tracing::warn!("plugin should return json object array, but one item is: {}", v);
+                            tracing::warn!(
+                                "plugin should return json object array, but one item is: {}",
+                                v
+                            );
                             continue;
                         }
                     }
                 }
                 _ => {
-                    tracing::warn!("plugin should return a json array, but return value as: {}", string.value(i));
+                    tracing::warn!(
+                        "plugin should return a json array, but return value as: {}",
+                        string.value(i)
+                    );
                     continue;
                 }
             }
@@ -950,14 +964,12 @@ impl Parse for ParserPlugin {
         schema.fields = Fields::from(r_fields);
         let records = RecordBatch::try_new(Arc::new(schema), r_arrays)?;
         let indices = Some(json_values.iter().map(|(i, _)| *i).collect_vec());
-       
+
         Ok((records, indices))
-        
     }
 }
 
 impl ParserPlugin {
-
     pub fn new(plugin_type: &str, plugin_params: &str) -> Self {
         Self {
             plugin_type: plugin_type.to_string(),
@@ -967,34 +979,40 @@ impl ParserPlugin {
 
     pub fn list_all_plugins() -> Vec<PluginInfo> {
         let plugin_map = PLUGIN_MAP.read().unwrap();
-        plugin_map.values().map(|plugin_container| {
-            PluginInfo {
+        plugin_map
+            .values()
+            .map(|plugin_container| PluginInfo {
                 name: plugin_container.lib_name.clone(),
                 version: plugin_container.lib_version.clone(),
                 id: plugin_container.lib_id.clone(),
-            }
-        }).collect()
+            })
+            .collect()
         // plugin_map.keys().cloned().collect()
     }
 
     fn get_plugin_object(&self) -> Option<ParserObject> {
         let plugin_map = PLUGIN_MAP.read().unwrap();
-        plugin_map.get(&self.plugin_type).map(|plugin_container| {
-            plugin_container.parsers.get(&self.plugin_params).map(|parser_object| {
-                parser_object.clone()
+        plugin_map
+            .get(&self.plugin_type)
+            .map(|plugin_container| {
+                plugin_container
+                    .parsers
+                    .get(&self.plugin_params)
+                    .map(|parser_object| parser_object.clone())
             })
-        }).flatten()
+            .flatten()
     }
 
     fn new_plugin_object(&self) -> Result<ParserObject, String> {
         let mut plugin_map = PLUGIN_MAP.write().unwrap();
-        let plugin_container = plugin_map.get_mut(&self.plugin_type).ok_or("plugin not found")?;
+        let plugin_container = plugin_map
+            .get_mut(&self.plugin_type)
+            .ok_or("plugin not found")?;
         let parser_object = plugin_container.container.new_parser(&self.plugin_params)?;
         plugin_container.add_parser(self.plugin_params.clone(), parser_object.clone());
         Ok(parser_object)
     }
 }
-
 
 // #[cfg(test)]
 // mod tests {
@@ -1007,7 +1025,6 @@ impl ParserPlugin {
 //         // assert_eq!(plugin_list.len(), 1);
 //         // assert_eq!(plugin_list[0], "hebeipower");
 //     }
-
 
 //     #[test]
 //     fn test_parse_hebeipower() {
@@ -1024,7 +1041,6 @@ impl ParserPlugin {
 //         let mutated = parser_object.mutate(b"{}").unwrap();
 //         println!("parsed====:{}", mutated);
 //     }
-
 
 //     #[test]
 //     fn json_extract_object_by_depth() {
