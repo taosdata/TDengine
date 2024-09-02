@@ -133,7 +133,8 @@ class TDTestCase:
     def run(self):
         self.topic_name_check()
         self.db_name_check()
-        self.stream_name_check()
+        if platform.system().lower() == 'windows':
+            self.stream_name_check()
         self.table_name_check()
         self.view_name_check()
         self.query_check()

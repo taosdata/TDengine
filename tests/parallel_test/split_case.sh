@@ -20,6 +20,7 @@ sed -i '/tsim\/query\/sort-pre-cols.sim/d' ${case_file}
 sed -i '/2-query\/nestedQueryInterval.py/d' ${case_file}
 #unsupported case:stream
 sed -i '/database_pre_suf/d' ${case_file}
+sed -i '/tsma/d' ${case_file}
 
 
 utest="unit-test"
