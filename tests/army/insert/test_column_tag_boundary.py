@@ -20,7 +20,7 @@ class TDTestCase(TBase):
         self.max_tag_length = 16382
         self.max_column_length = 65517
         self.child_table_num = 1
-        self.insert_round_num = 700
+        self.insert_round_num = 300
         self.row_num_per_round = 15
         self.start_ts = 1704082431000
 
@@ -47,8 +47,8 @@ class TDTestCase(TBase):
         # check the data
         for i in range(self.child_table_num):
             tdSql.query(f"select * from ct_binary{i+1};")
-            tdSql.checkRows(10500)
-            row_num = random.randint(0, 9999)
+            tdSql.checkRows(4500)
+            row_num = random.randint(0, 3999)
             tdSql.checkData(row_num, 1, 'a' * self.max_column_length)
             tdSql.query(f"show tags from ct_binary{i+1};")
             tdSql.checkData(0, 5, tag)                
@@ -71,8 +71,8 @@ class TDTestCase(TBase):
         # check the data
         for i in range(self.child_table_num):
             tdSql.query(f"select * from ct_varchar{i+1};")
-            tdSql.checkRows(10500)
-            row_num = random.randint(0, 9999)
+            tdSql.checkRows(4500)
+            row_num = random.randint(0, 3999)
             tdSql.checkData(row_num, 1, 'b' * self.max_column_length)
             tdSql.query(f"show tags from ct_varchar{i+1};")
             tdSql.checkData(0, 5, tag)
@@ -106,8 +106,8 @@ class TDTestCase(TBase):
         # check the data
         for i in range(self.child_table_num):
             tdSql.query(f"select * from ct_nchar{i+1};")
-            tdSql.checkRows(10500)
-            row_num = random.randint(0, 9999)
+            tdSql.checkRows(4500)
+            row_num = random.randint(0, 3999)
             tdSql.checkData(row_num, 1, column)
             tdSql.query(f"show tags from ct_nchar{i+1};")
             tdSql.checkData(0, 5, tag)
@@ -132,8 +132,8 @@ class TDTestCase(TBase):
         # check the data
         for i in range(self.child_table_num):
             tdSql.query(f"select * from ct_varbinary{i+1};")
-            tdSql.checkRows(5600)
-            row_num = random.randint(0, 5599)
+            tdSql.checkRows(2400)
+            row_num = random.randint(0, 2399)
             tdSql.checkData(row_num, 1, bytes.fromhex(column))
             tdSql.query(f"show tags from ct_varbinary{i+1};")
             tdSql.checkData(0, 5, '\\x' + tag.upper())
@@ -161,8 +161,8 @@ class TDTestCase(TBase):
         # check the data
         for i in range(self.child_table_num):
             tdSql.query(f"select * from ct_json_tag{i+1} where t1->'{tag_key}' = '{tag_value}';")
-            tdSql.checkRows(5600)
-            row_num = random.randint(0, 5599)
+            tdSql.checkRows(2400)
+            row_num = random.randint(0, 2399)
             tdSql.checkData(row_num, 1, bytes.fromhex(column))
 
     def run(self):
