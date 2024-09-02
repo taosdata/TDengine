@@ -27,7 +27,7 @@ int32_t vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeOb
   SVnodeObj **pVnodes = taosMemoryCalloc(size, sizeof(SVnodeObj *));
   if (pVnodes == NULL) {
     (void)taosThreadRwlockUnlock(&pMgmt->lock);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   void *pIter = taosHashIterate(pMgmt->hash, NULL);
@@ -62,7 +62,7 @@ static int32_t vmDecodeVnodeList(SJson *pJson, SVnodeMgmt *pMgmt, SWrapperCfg **
   int32_t vnodesNum = cJSON_GetArraySize(vnodes);
   if (vnodesNum > 0) {
     pCfgs = taosMemoryCalloc(vnodesNum, sizeof(SWrapperCfg));
-    if (pCfgs == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+    if (pCfgs == NULL) return terrno;
   }
 
   for (int32_t i = 0; i < vnodesNum; ++i) {
