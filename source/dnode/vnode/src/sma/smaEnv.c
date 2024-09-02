@@ -174,10 +174,14 @@ static void tRSmaInfoHashFreeNode(void *data) {
 
   if ((pRSmaInfo = *(SRSmaInfo **)data)) {
     if ((pItem = RSMA_INFO_ITEM((SRSmaInfo *)pRSmaInfo, 0)) && pItem->level) {
-      (void)taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES);
+      if (TSDB_CODE_SUCCESS != taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES)) {
+        smaError("failed to hash remove %s:%d", __FUNCTION__, __LINE__);
+      }
     }
     if ((pItem = RSMA_INFO_ITEM((SRSmaInfo *)pRSmaInfo, 1)) && pItem->level) {
-      (void)taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES);
+      if (TSDB_CODE_SUCCESS != taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES)) {
+        smaError("failed to hash remove %s:%d", __FUNCTION__, __LINE__);
+      }
     }
     (void)tdFreeRSmaInfo(pRSmaInfo->pSma, pRSmaInfo);
   }
