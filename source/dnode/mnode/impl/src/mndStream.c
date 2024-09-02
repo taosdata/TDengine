@@ -523,6 +523,7 @@ int32_t mndPersistTaskDeployReq(STrans *pTrans, SStreamTask *pTask) {
 
   int32_t code = tEncodeStreamTask(&encoder, pTask);
   if (code == -1) {
+    tEncoderClear(&encoder);
     return TSDB_CODE_INVALID_MSG;
   }
 
@@ -1009,6 +1010,7 @@ static int32_t mndBuildStreamCheckpointSourceReq(void **pBuf, int32_t *pLen, int
   tEncoderInit(&encoder, abuf, tlen);
   int32_t pos = tEncodeStreamCheckpointSourceReq(&encoder, &req);
   if (pos == -1) {
+    tEncoderClear(&encoder);
     return TSDB_CODE_INVALID_MSG;
   }
 
@@ -1651,7 +1653,7 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
 static void mndCancelGetNextStream(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_STREAM);
 }
 
 static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
@@ -1723,7 +1725,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
 static void mndCancelGetNextStreamTask(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_STREAM);
 }
 
 static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {

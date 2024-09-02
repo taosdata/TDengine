@@ -1520,7 +1520,7 @@ static void mndCancelRetrieveIdx(SMnode *pMnode, void *pIter) {
   SSmaAndTagIter *p = pIter;
   if (p != NULL) {
     SSdb *pSdb = pMnode->pSdb;
-    sdbCancelFetch(pSdb, p->pSmaIter);
+    sdbCancelFetchByType(pSdb, p->pSmaIter, SDB_SMA);
     sdbCancelFetchByType(pSdb, p->pIdxIter, SDB_IDX);
   }
   taosMemoryFree(p);
@@ -2288,7 +2288,7 @@ static void mndCancelRetrieveTSMA(SMnode *pMnode, void *pIter) {
   SSmaAndTagIter *p = pIter;
   if (p != NULL) {
     SSdb *pSdb = pMnode->pSdb;
-    sdbCancelFetch(pSdb, p->pSmaIter);
+    sdbCancelFetchByType(pSdb, p->pSmaIter, SDB_SMA);
   }
   taosMemoryFree(p);
 }

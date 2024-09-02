@@ -973,7 +973,10 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
 
     if (!recved) {  // make sure the inputQ is opened for not recv upstream checkpoint-trigger message
       streamTaskOpenUpstreamInput(pTask, pInfo->taskId);
-      (void)taosArrayPush(pNotSendList, pInfo);
+      void* px = taosArrayPush(pNotSendList, pInfo);
+      if (px == NULL) {
+        stError("s-task:%s failed to record not send info, code: out of memory", id);
+      }
     }
   }
 

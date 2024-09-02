@@ -723,6 +723,7 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
   while (1) {
     int32_t code = getNextBrinRecord(&iter, &pRecord);
     if (code != TSDB_CODE_SUCCESS) {
+      clearBrinBlockIter(&iter);
       return code;
     }
 
@@ -757,12 +758,14 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
 
     if (!(pRecord->suid == pReader->info.suid && uid == pRecord->uid)) {
       tsdbError("tsdb failed at: %s:%d", __func__, __LINE__);
+      clearBrinBlockIter(&iter);
       return TSDB_CODE_INTERNAL_ERROR;
     }
 
     STableBlockScanInfo* pScanInfo = NULL;
     code = getTableBlockScanInfo(pReader->status.pTableMap, uid, &pScanInfo, pReader->idStr);
     if (code != TSDB_CODE_SUCCESS) {
+      clearBrinBlockIter(&iter);
       return code;
     }
 
@@ -807,6 +810,7 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
     if (pScanInfo->pBlockList == NULL) {
       pScanInfo->pBlockList = taosArrayInit(4, sizeof(SFileDataBlockInfo));
       if (pScanInfo->pBlockList == NULL) {
+        clearBrinBlockIter(&iter);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
     }
@@ -814,6 +818,7 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
     if (pScanInfo->pBlockIdxList == NULL) {
       pScanInfo->pBlockIdxList = taosArrayInit(4, sizeof(STableDataBlockIdx));
       if (pScanInfo->pBlockIdxList == NULL) {
+        clearBrinBlockIter(&iter);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
     }
@@ -822,6 +827,7 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
     recordToBlockInfo(&blockInfo, pRecord);
     void* p1 = taosArrayPush(pScanInfo->pBlockList, &blockInfo);
     if (p1 == NULL) {
+      clearBrinBlockIter(&iter);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
@@ -840,6 +846,7 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
     } else {
       STableBlockScanInfo** p = taosArrayGetLast(pTableScanInfoList);
       if (p == NULL) {
+        clearBrinBlockIter(&iter);
         return TSDB_CODE_INVALID_PARA;
       }
 
@@ -849,6 +856,7 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
     }
 
     if (p1 == NULL) {
+      clearBrinBlockIter(&iter);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
@@ -4809,7 +4817,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
   return code;
 
 _err:
-  tsdbError("failed to create data reader, code:%s %s", tstrerror(code), idstr);
+  tsdbError("failed to create data reader, error at:%d code:%s %s", lino, tstrerror(code), idstr);
   tsdbReaderClose2(*ppReader);
   *ppReader = NULL;  // reset the pointer value.
   return code;

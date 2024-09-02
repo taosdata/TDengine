@@ -455,7 +455,7 @@ int32_t updateInfoSerialize(void* buf, int32_t bufLen, const SUpdateInfo* pInfo,
 
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
-  if (tStartEncode(&encoder) < 0) {
+  if (tStartEncode(&encoder) != 0) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -551,10 +551,10 @@ int32_t updateInfoSerialize(void* buf, int32_t bufLen, const SUpdateInfo* pInfo,
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
-  tEncoderClear(&encoder);
   *pLen = tlen;
 
 _end:
+  tEncoderClear(&encoder);
   if (code != TSDB_CODE_SUCCESS) {
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }

@@ -72,11 +72,23 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
   }
 
   int32_t code = 0, lino = 0;
-  if (atomic_val_compare_exchange_8(&tlGeosCtxKeyInited, 0, 1) == 0) {
+
+  int8_t  old;
+  int32_t nLoops = 0;
+  while (1) {
+    old = atomic_val_compare_exchange_8(&tlGeosCtxKeyInited, 0, 2);
+    if (old != 2) break;
+    if (++nLoops > 1000) {
+      (void)sched_yield();
+      nLoops = 0;
+    }
+  }
+  if (old == 0) {
     if ((taosThreadKeyCreate(&tlGeosCtxKey, destroyThreadLocalGeosCtx)) != 0) {
       atomic_store_8(&tlGeosCtxKeyInited, 0);
       TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
     }
+    atomic_store_8(&tlGeosCtxKeyInited, 1);
   }
 
   SGeosContext *tlGeosCtxObj = (SGeosContext *)taosMemoryCalloc(1, sizeof(SGeosContext));

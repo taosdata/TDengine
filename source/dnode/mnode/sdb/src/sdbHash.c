@@ -242,7 +242,12 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   (void)atomic_add_fetch_32(&pOldRow->refCount, 1);
   sdbPrintOper(pSdb, pOldRow, "delete");
 
-  TAOS_CHECK_RETURN(taosHashRemove(hash, pOldRow->pObj, keySize));
+  if (taosHashRemove(hash, pOldRow->pObj, keySize) != 0) {
+    sdbUnLock(pSdb, type);
+    sdbFreeRow(pSdb, pRow, false);
+    terrno = TSDB_CODE_SDB_OBJ_NOT_THERE;
+    return terrno;
+  }
   pSdb->tableVer[pOldRow->type]++;
   sdbUnLock(pSdb, type);
 

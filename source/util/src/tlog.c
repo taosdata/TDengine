@@ -206,7 +206,7 @@ int32_t taosInitSlowLog() {
   (void)taosUmaskFile(0);
   tsLogObj.slowHandle->pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (tsLogObj.slowHandle->pFile == NULL) {
-    printf("\nfailed to open slow log file:%s, reason:%s\n", name, strerror(errno));
+    (void)printf("\nfailed to open slow log file:%s, reason:%s\n", name, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
   }
 
@@ -529,7 +529,7 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
   processLogFileName(logName, maxFileNum);
 
   char name[PATH_MAX + 50] = "\0";
-  sprintf(name, "%s.%d", tsLogObj.logName, tsLogObj.flag);
+  (void)sprintf(name, "%s.%d", tsLogObj.logName, tsLogObj.flag);
   (void)taosThreadMutexInit(&tsLogObj.logMutex, NULL);
 
   (void)taosUmaskFile(0);
@@ -538,7 +538,7 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
 
   tsLogObj.logHandle->pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE);
   if (tsLogObj.logHandle->pFile == NULL) {
-    printf("\nfailed to open log file:%s, reason:%s\n", name, strerror(errno));
+    (void)printf("\nfailed to open log file:%s, reason:%s\n", name, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
   }
   (void)taosLockLogFile(tsLogObj.logHandle->pFile);
@@ -546,18 +546,18 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
   // only an estimate for number of lines
   int64_t filesize = 0;
   if (taosFStatFile(tsLogObj.logHandle->pFile, &filesize, NULL) < 0) {
-    printf("\nfailed to fstat log file:%s, reason:%s\n", name, strerror(errno));
+    (void)printf("\nfailed to fstat log file:%s, reason:%s\n", name, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
   }
   tsLogObj.lines = (int32_t)(filesize / 60);
 
   (void)taosLSeekFile(tsLogObj.logHandle->pFile, 0, SEEK_END);
 
-  sprintf(name, "==================================================\n");
+  (void)sprintf(name, "==================================================\n");
   (void)taosWriteFile(tsLogObj.logHandle->pFile, name, (uint32_t)strlen(name));
-  sprintf(name, "                new log file                      \n");
+  (void)sprintf(name, "                new log file                      \n");
   (void)taosWriteFile(tsLogObj.logHandle->pFile, name, (uint32_t)strlen(name));
-  sprintf(name, "==================================================\n");
+  (void)sprintf(name, "==================================================\n");
   (void)taosWriteFile(tsLogObj.logHandle->pFile, name, (uint32_t)strlen(name));
 
   return 0;
