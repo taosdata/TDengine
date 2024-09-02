@@ -82,7 +82,7 @@ def check_list_result(result_list,detaild_list):
         f"Total matches in {TD_project_path}/community/source/dnode/vnode/src/tsdb/tsdbCommit2.c:1",
         f"Total matches in {TD_project_path}/community/include/util/types.h:2"
         ]
-    logger.debug(len(result_list))
+    # logger.debug(len(result_list))
     if len(result_list) != 2:
         logger.error(f"{error_message}")
         for item in expected_strings:
@@ -98,15 +98,14 @@ def check_list_result(result_list,detaild_list):
     else:
         # check if all expected strings are in the result list 
         if all(item in result_list for item in expected_strings):
-            logger.debug(result_list)
-            logger.debug(detaild_list)
+            # logger.debug(result_list)
+            # logger.debug(detaild_list)
             if all(any(remove_detail_item in detaild for remove_detail_item in remove_detail_items) for detaild in detaild_list):
                 logger.info("Validation successful.")
         else:
             logger.error(f"{error_message}")
             for item in expected_strings:
                 if item in result_list:
-                    logger.debug(item)
                     result_list.remove(item)
             logger.error("\n" + "\n".join(result_list))
             logger.error(f"{error_message2}")
@@ -117,8 +116,5 @@ def check_list_result(result_list,detaild_list):
             exit(1)
 if __name__ == "__main__":
     summary_list, detaild_list = traverse_and_grep(source_dirs, exclude_dirs, exclude_source_files)
-    logger.debug("\n" + "\n".join(summary_list))
-    logger.debug("\n" + "\n".join(detaild_list))
-
     check_list_result(summary_list,detaild_list)
 
