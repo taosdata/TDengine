@@ -279,6 +279,12 @@ class TDTestCase(TBase):
 
         # alter error 
         sqls = [
+            f"alter table {tbname} add column a1 int ONLYOPTION",
+            f"alter table {tbname} add column a1 int 'simple8b';",
+            f"alter table {tbname} add column a1 int WRONG 'simple8b';",
+            f"alter table {tbname} add column a1 int 123456789 'simple8b';",
+            f"alter table {tbname} add column a1 int WRONGANDVERYLONG 'simple8b';",
+            f"alter table {tbname} add column a1 int ENCODE 'veryveryveryveryveryverylong';",
             f"alter table {tbname} add column a1 int ENCODE 'simple8bAA';",
             f"alter table {tbname} add column a2 int COMPRESS 'AABB';",
             f"alter table {tbname} add column a3 bigint LEVEL 'high1';",
