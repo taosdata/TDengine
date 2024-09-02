@@ -214,6 +214,7 @@ int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, 
   tEncoderInit(&encoder, abuf, tlen);
   if ((code = tEncodeStreamTaskCheckReq(&encoder, pReq)) < 0) {
     rpcFreeCont(buf);
+    tEncoderClear(&encoder);
     return code;
   }
   tEncoderClear(&encoder);
@@ -845,6 +846,7 @@ int32_t initCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamNodeId, int32
   tEncoderInit(&encoder, abuf, tlen);
   if ((code = tEncodeStreamCheckpointReadyMsg(&encoder, &req)) < 0) {
     rpcFreeCont(buf);
+    tEncoderClear(&encoder);
     return code;
   }
   tEncoderClear(&encoder);
@@ -1168,6 +1170,7 @@ int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, in
   SEncoder encoder;
   tEncoderInit(&encoder, abuf, tlen);
   if ((code = tEncodeStreamDispatchReq(&encoder, pReq)) < 0) {
+    tEncoderClear(&encoder);
     goto FAIL;
   }
   tEncoderClear(&encoder);

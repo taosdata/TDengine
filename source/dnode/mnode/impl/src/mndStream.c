@@ -523,6 +523,7 @@ int32_t mndPersistTaskDeployReq(STrans *pTrans, SStreamTask *pTask) {
 
   int32_t code = tEncodeStreamTask(&encoder, pTask);
   if (code == -1) {
+    tEncoderClear(&encoder);
     return TSDB_CODE_INVALID_MSG;
   }
 
@@ -1009,6 +1010,7 @@ static int32_t mndBuildStreamCheckpointSourceReq(void **pBuf, int32_t *pLen, int
   tEncoderInit(&encoder, abuf, tlen);
   int32_t pos = tEncodeStreamCheckpointSourceReq(&encoder, &req);
   if (pos == -1) {
+    tEncoderClear(&encoder);
     return TSDB_CODE_INVALID_MSG;
   }
 
