@@ -14,6 +14,7 @@
  */
 
 #include "indexFstDfa.h"
+#include "indexInt.h"
 #include "thash.h"
 
 const static uint32_t STATE_LIMIT = 1000;
@@ -68,23 +69,41 @@ FstDfa *dfaBuilderBuild(FstDfaBuilder *builder) {
   uint32_t      sz = taosArrayGetSize(builder->dfa->insts);
   FstSparseSet *cur = sparSetCreate(sz);
   FstSparseSet *nxt = sparSetCreate(sz);
+  if (cur == NULL || nxt == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
   dfaAdd(builder->dfa, cur, 0);
 
   uint32_t result;
   SArray  *states = taosArrayInit(0, sizeof(uint32_t));
+  if (states == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   if (dfaBuilderCacheState(builder, cur, &result)) {
-    (void)taosArrayPush(states, &result);
+    if (taosArrayPush(states, &result) == NULL) {
+      goto _exception;
+    }
   }
   SHashObj *seen = taosHashInit(12, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (seen == NULL) {
+    goto _exception;
+  }
+
   while (taosArrayGetSize(states) != 0) {
     result = *(uint32_t *)taosArrayPop(states);
     for (int i = 0; i < 256; i++) {
       uint32_t ns, dummpy = 0;
       if (dfaBuilderRunState(builder, cur, nxt, result, i, &ns)) {
         if (taosHashGet(seen, &ns, sizeof(ns)) == NULL) {
-          (void)taosHashPut(seen, &ns, sizeof(ns), &dummpy, sizeof(dummpy));
-          (void)taosArrayPush(states, &ns);
+          if (taosHashPut(seen, &ns, sizeof(ns), &dummpy, sizeof(dummpy)) != 0) {
+            goto _exception;
+          }
+          if (taosArrayPush(states, &ns) == NULL) {
+            goto _exception;
+          }
         }
       }
       if (taosArrayGetSize(builder->dfa->states) > STATE_LIMIT) {
@@ -96,6 +115,11 @@ FstDfa *dfaBuilderBuild(FstDfaBuilder *builder) {
   taosArrayDestroy(states);
   taosHashCleanup(seen);
   return builder->dfa;
+_exception:
+  taosArrayDestroy(states);
+  taosHashCleanup(seen);
+  indexError("failed to build dfa since %s", tstrerror(terrno));
+  return NULL;
 }
 
 bool dfaBuilderRunState(FstDfaBuilder *builder, FstSparseSet *cur, FstSparseSet *next, uint32_t state, uint8_t byte,
@@ -122,8 +146,13 @@ bool dfaBuilderRunState(FstDfaBuilder *builder, FstSparseSet *cur, FstSparseSet 
 }
 
 bool dfaBuilderCacheState(FstDfaBuilder *builder, FstSparseSet *set, uint32_t *result) {
+  int32_t code = 0;
   SArray *tinsts = taosArrayInit(4, sizeof(uint32_t));
-  bool    isMatch = false;
+  if (tinsts == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exception;
+  }
+  bool isMatch = false;
 
   for (int i = 0; i < sparSetLen(set); i++) {
     int32_t ip;
@@ -133,10 +162,16 @@ bool dfaBuilderCacheState(FstDfaBuilder *builder, FstSparseSet *set, uint32_t *r
     if (inst->ty == JUMP || inst->ty == SPLIT) {
       continue;
     } else if (inst->ty == RANGE) {
-      (void)taosArrayPush(tinsts, &ip);
+      if (taosArrayPush(tinsts, &ip) == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exception;
+      }
     } else if (inst->ty == MATCH) {
       isMatch = true;
-      (void)taosArrayPush(tinsts, &ip);
+      if (taosArrayPush(tinsts, &ip) == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exception;
+      }
     }
   }
   if (taosArrayGetSize(tinsts) == 0) {
@@ -149,13 +184,23 @@ bool dfaBuilderCacheState(FstDfaBuilder *builder, FstSparseSet *set, uint32_t *r
     taosArrayDestroy(tinsts);
   } else {
     DfaState st = {.insts = tinsts, .isMatch = isMatch};
-    (void)taosArrayPush(builder->dfa->states, &st);
+    if (taosArrayPush(builder->dfa->states, &st) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exception;
+    }
 
     int32_t sz = taosArrayGetSize(builder->dfa->states) - 1;
-    (void)taosHashPut(builder->cache, &tinsts, sizeof(POINTER_BYTES), &sz, sizeof(sz));
+    if ((code = taosHashPut(builder->cache, &tinsts, sizeof(POINTER_BYTES), &sz, sizeof(sz))) != 0) {
+      goto _exception;
+    }
+
     *result = sz;
   }
   return true;
+_exception:
+  indexError("failed to create dfa state, code:%d", code);
+  taosArrayDestroy(tinsts);
+  return false;
 }
 
 FstDfa *dfaCreate(SArray *insts, SArray *states) {
