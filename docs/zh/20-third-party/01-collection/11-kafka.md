@@ -390,12 +390,12 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 
 ## 其他说明
 
-1. 关于如何在独立安装的 Kafka 环境使用 Kafka Connect 插件， 请参考官方文档：\<https://kafka.apache.org/documentation/#connect\>。
+1. 关于如何在独立安装的 Kafka 环境使用 Kafka Connect 插件， 请参考官方文档：[https://kafka.apache.org/documentation/#connect](https://kafka.apache.org/documentation/#connect)。
 
 ## 问题反馈
 
-无论遇到任何问题，都欢迎在本项目的 Github 仓库反馈：\<https://github.com/taosdata/kafka-connect-tdengine/issues\>。
+无论遇到任何问题，都欢迎在本项目的 Github 仓库反馈：[https://github.com/taosdata/kafka-connect-tdengine/issues](https://github.com/taosdata/kafka-connect-tdengine/issues)。
 
 ## 参考
 
-1. \<https://kafka.apache.org/documentation/\>
+1. [https://kafka.apache.org/documentation/](https://kafka.apache.org/documentation/)
