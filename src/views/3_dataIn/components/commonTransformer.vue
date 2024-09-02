@@ -175,7 +175,8 @@
                   :depth="parseruleForm.depth"
                 />
               </div>
-              <div v-else style="display: inline-flex; align-items: start; width: 100%;">
+              <div v-else-if="parseruleForm.type == 'udt'" 
+                  style="display: inline-flex; align-items: start; width: 100%;">
                 <el-input 
                   size="small"
                   v-model="parseruleForm.expression"
@@ -197,6 +198,11 @@
                   </el-button>
                 </el-upload>
               </div>
+              <el-input v-else
+                v-model="parseruleForm.expression"
+                size="small"
+              >
+              </el-input>
             </el-form-item>
             <el-tooltip
               placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
@@ -664,7 +670,7 @@
 <script>
 import ExtractSplit from "./extractSplit.vue";
 import FilterExpression from "./filterExpression.vue";
-import { getParser, checkParseData, getHistorianMsgbody } from "@/api/explorer/datain";
+import { getParser, checkParseData, getHistorianMsgbody, listParserPlugins } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import CreateSTB from "./createSTB.vue";
@@ -675,6 +681,9 @@ import DocsContent from "@/views/support/components/editorContentDisplay.vue";
 import { extractAllProperties, getExampleList } from "@/utils"
 import cusSelect from "./cusSelect.vue";
 import VersionMixin from "@/mixins/version";
+
+const PARSER_BUILDIN = ["json", "regex", "udt"];
+
 export default {
   name: "CommonTransformer",
   inject: ['sourceParent'],
@@ -706,7 +715,7 @@ export default {
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
       mongodbDefaultCols: ["value"],
-      parseTypes: ["regex", "json", "udt"],
+      parseTypes: [],
       exprformat: "${c1}-${c2}:${c3}",
       exprexpression: "centigrade * 1.8 + 32",
       parseruleForm: {
@@ -841,7 +850,14 @@ export default {
       };
     },
   },
+
+  async created() {
+    const plugins = listParserPlugins();
+    this.parseTypes = PARSER_BUILDIN.concat(plugins.map((item) => item.name));
+  },
+
   async mounted() {
+
     if (this.parserColumns) {
       if (
         this.$store.state.app.currentDBType == "mqtt" ||
@@ -1114,7 +1130,7 @@ export default {
 
         if (this.$store.state.app.supportSQL) {
           topparser = JSON.parse(this.msgForm.msgbody);
-        } else {
+        } else if (PARSER_BUILDIN.includes(this.parseruleForm.type)) {
           let depthObj = {}
           if (this.parseruleForm.type == 'json' && (this.parseruleForm.depth || this.parseruleForm.depth == 0)) {
             depthObj = {
@@ -1146,6 +1162,23 @@ export default {
                     ...expressionObj,
                     ...depthObj
                 },
+              },
+            },
+            input:
+              this.$store.state.app.currentDBType == "csv"
+                ? this.$store.state.app.csvTransformerParser.inputList
+                : [].concat(this.generateInput()),
+          };
+        } else {
+          topparser = {
+            parser: {
+              parse: {
+                [this.$store.state.app.currentDBType == "mqtt"
+                  ? "payload"
+                  : "value"]: {
+                    "plugin_type": this.parseruleForm.type,
+                    "plugin_params": this.parseruleForm.expression
+                  },
               },
             },
             input:

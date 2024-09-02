@@ -367,6 +367,23 @@ export function getParser(data, messagebox) {
         data
     })
 }
+
+// export function listParserPlugins() {
+//     return [{
+//         "id": "hebeipower.dll",
+//         "name": "hebeipower",
+//         "version": "0.1.0"
+//     }];
+// }
+
+export function listParserPlugins() {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/transform/parser/plugins`,
+        method: 'get',
+    })
+}
+
 export function getMetricsDesc(data) {
     return request({
         baseURL: process.env.VUE_APP_X_API,
