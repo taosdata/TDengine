@@ -1,6 +1,7 @@
 use actix_cors::Cors;
 use actix_files::NamedFile;
 use anyhow::Context;
+use chrono::TimeZone;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use favorites::FavoritesSql;
 use geos::{Geom, Geometry};
@@ -9,7 +10,6 @@ use log::LevelFilter;
 use reqwest::RequestBuilder;
 use rustls::server::ServerConfig;
 use rustls_pemfile::{certs, private_key};
-use chrono::TimeZone;
 use std::{
     collections::HashMap,
     fmt::Display,
@@ -17,9 +17,11 @@ use std::{
     io::{BufReader, Read},
     path::PathBuf,
     str::FromStr,
+    sync::OnceLock,
     time::Duration,
 };
 use taos::*;
+use taos_query::Manager;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{error, info, instrument, Level};
 use tracing_actix_web::TracingLogger;
@@ -53,6 +55,8 @@ fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
         LevelFilter::Trace => Some(Level::TRACE),
     }
 }
+
+static TAOS_POOL: OnceLock<deadpool::managed::Pool<Manager<TaosBuilder>>> = OnceLock::new();
 
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {
@@ -1120,7 +1124,12 @@ impl Args {
     ) -> Result<RestOkResponse, RestErrResponse> {
         log::info!("SQL: {}, TZ: {:?}", sql, tz);
 
-        let conn = TaosBuilder::from_dsn(dsn)?.build().await?;
+        // taos connection pool
+        let pool = TAOS_POOL.get_or_init(|| {
+            let builder = taos::TaosBuilder::from_dsn(dsn).expect("Failed to create TaosBuilder");
+            builder.pool().expect("Failed to create Taos pool")
+        });
+        let conn = pool.get().await.expect("Failed to get connection");
 
         let tz = if let Some(tz) = tz {
             chrono_tz::Tz::from_str(tz).unwrap_or(chrono_tz::Tz::UTC)
@@ -1184,19 +1193,7 @@ impl Args {
         sql: &str,
         tz: Option<&String>,
     ) -> Result<RestOkResponse, RestErrResponse> {
-        //token
-        let credentials =
-            Credentials::from_header(header.to_string()).map_err(RestErrResponse::new)?;
-        let mut dsn: Dsn = self
-            .profile
-            .cluster
-            .as_deref()
-            .unwrap_or("taos://localhost:6030")
-            .parse()
-            .map_err(RestErrResponse::new)?;
-        dsn.username = Some(credentials.user_id);
-        dsn.password = Some(credentials.password);
-
+        let dsn = self.build_dsn(header)?;
         self.query_inner(dsn, sql, tz).await
     }
 
@@ -1220,20 +1217,13 @@ impl Args {
         header: &str,
         license: &RenewLicense,
     ) -> Result<RestOkResponse, RestErrResponse> {
-        // token
-        let credentials =
-            Credentials::from_header(header.to_string()).map_err(RestErrResponse::new)?;
-        // connection
-        let mut dsn: Dsn = self
-            .profile
-            .cluster
-            .as_deref()
-            .unwrap_or("taos://localhost:6030")
-            .parse()
-            .map_err(RestErrResponse::new)?;
-        dsn.username = Some(credentials.user_id);
-        dsn.password = Some(credentials.password);
-        let conn = TaosBuilder::from_dsn(dsn)?.build().await?;
+        let dsn = self.build_dsn(header)?;
+        // taos connection pool
+        let pool = TAOS_POOL.get_or_init(|| {
+            let builder = taos::TaosBuilder::from_dsn(dsn).expect("Failed to create TaosBuilder");
+            builder.pool().expect("Failed to create Taos pool")
+        });
+        let conn = pool.get().await.expect("Failed to get connection");
         // server version
         let server_version = conn.server_version().await;
         let server_version = match server_version {

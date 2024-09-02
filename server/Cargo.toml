@@ -42,7 +42,7 @@ sha1 = "0.10.6"
 rand = "0.8.4"
 lazy_static = "1.4.0"
 captcha = "0.0.9"
-
+deadpool = "0.10"
 
 const-str = "0.5.7"
 const_format = "0.2.32"
