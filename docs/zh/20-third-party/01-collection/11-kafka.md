@@ -394,7 +394,7 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 
 ## 问题反馈
 
-无论遇到任何问题，都欢迎在本项目的 Github 仓库反馈：\<https://github.com/taosdata/kafka-connect-tdengine/issues\>。
+无论遇到任何问题，都欢迎在本项目的 Github 仓库反馈：<https://github.com/taosdata/kafka-connect-tdengine/issues>。
 
 ## 参考
 
