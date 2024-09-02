@@ -213,7 +213,6 @@ static int32_t tsdbCommitOpenReader(SCommitter2 *committer) {
       || TARRAY2_SIZE(committer->ctx->info->fset->lvlArr) == 0  //
   ) {
     return 0;
-    assert(10000);
   }
 
   SSttLvl *lvl;
