@@ -65,9 +65,9 @@ typedef struct SSvrMsg {
   STransMsg     msg;
   queue         q;
   STransMsgType type;
-
-  void*     arg;
-  FilteFunc func;
+  int32_t       seqNum;
+  void*         arg;
+  FilteFunc     func;
 
 } SSvrMsg;
 
@@ -471,7 +471,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   transMsg.msgType = pHead->msgType;
   transMsg.code = pHead->code;
 
-  if (pHead->seqNum != 0) {
+  if (pHead->seqNum == 0) {
     ASSERT(0);
   }
   // pHead->noResp = 1,
@@ -487,6 +487,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   transMsg.info.cliVer = htonl(pHead->compatibilityVer);
   transMsg.info.forbiddenIp = forbiddenIp;
   transMsg.info.noResp = pHead->noResp == 1 ? 1 : 0;
+  transMsg.info.seqNum = htonl(pHead->seqNum);
 
   uvMaySetConnAcquired(pConn, pHead);
 
@@ -652,6 +653,7 @@ static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   pHead->magicNum = htonl(TRANS_MAGIC_NUM);
   pHead->compatibilityVer = htonl(((STrans*)pConn->pInst)->compatibilityVer);
   pHead->version = TRANS_VER;
+  pHead->seqNum = htonl(pMsg->info.seqNum);
 
   // handle invalid drop_task resp, TD-20098
   if (pConn->inType == TDMT_SCH_DROP_TASK && pMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
@@ -793,6 +795,8 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
 
       SExHandle* exh1 = transMsg.info.handle;
       int64_t    refId = transMsg.info.refId;
+      msg->seqNum = transMsg.info.seqNum;
+
       SExHandle* exh2 = transAcquireExHandle(transGetRefMgt(), refId);
       if (exh2 == NULL || exh1 != exh2) {
         tTrace("handle except msg %p, ignore it", exh1);
