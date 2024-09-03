@@ -3,7 +3,6 @@ use actix_web::{
     web::{Data, Path},
     HttpResponse, Responder,
 };
-use taos::Code;
 
 use crate::serve::{controller::TaskControllerRef, task::Failed};
 
@@ -27,9 +26,6 @@ pub(super) async fn get_cluster_connector_transferred(
 
     match task_store.cluster_transferred(id).await {
         Ok(offsets) => Ok(HttpResponse::Ok().json(&offsets)),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
