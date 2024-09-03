@@ -294,6 +294,9 @@ static bool scanPathOptIsSpecifiedFuncType(const SFunctionNode* pFunc, bool (*ty
   return true;
 }
 
+static bool isMinMaxFunction(int32_t funcType) {
+  return funcType == FUNCTION_TYPE_MIN || funcType == FUNCTION_TYPE_MAX;
+}
 static int32_t scanPathOptGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSdrFuncs, SNodeList** pDsoFuncs) {
   SNodeList* pAllFuncs = scanPathOptGetAllFuncs(pScan->node.pParent);
   SNodeList* pTmpSdrFuncs = NULL;
@@ -303,8 +306,8 @@ static int32_t scanPathOptGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSd
   FOREACH(pNode, pAllFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     int32_t        code = TSDB_CODE_SUCCESS;
-    if (scanPathOptIsSpecifiedFuncType(pFunc, fmIsSpecialDataRequiredFunc) &&
-        ((pFunc->funcType == FUNCTION_TYPE_MIN || pFunc->funcType == FUNCTION_TYPE_MAX) && pFunc->hasSMA)) {
+    if ((!isMinMaxFunction(pFunc->funcType) && scanPathOptIsSpecifiedFuncType(pFunc, fmIsSpecialDataRequiredFunc)) ||
+        (isMinMaxFunction(pFunc->funcType) && pFunc->hasSMA)) {
       SNode* pNew = NULL;
       code = nodesCloneNode(pNode, &pNew);
       if (TSDB_CODE_SUCCESS == code) {

@@ -192,6 +192,7 @@ typedef struct SFunctionNode {
   int32_t    originalFuncId;
   ETrimType  trimType;
   bool       hasSMA;
+  bool       dual; // whether select stmt without from stmt, true for without.
 } SFunctionNode;
 
 typedef struct STableNode {

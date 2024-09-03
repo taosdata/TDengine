@@ -271,6 +271,21 @@ static int32_t addUint8Param(SNodeList** pList, uint8_t param) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t addPseudoParam(SNodeList** pList) {
+  SNode *pseudoNode = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LEFT_VALUE, &pseudoNode);
+  if (pseudoNode == NULL) {
+    return code;
+  }
+
+  code = nodesListMakeAppend(pList, pseudoNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pseudoNode);
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static SDataType* getSDataTypeFromNode(SNode* pNode) {
   if (pNode == NULL) return NULL;
   if (nodesIsExprNode(pNode)) {
@@ -607,6 +622,13 @@ static int32_t translateRand(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
     if (!IS_INTEGER_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+  }
+
+  if (!pFunc->dual) {
+    int32_t code = addPseudoParam(&pFunc->pParameterList);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
   }
 
@@ -4768,7 +4790,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "rand",
     .type = FUNCTION_TYPE_RAND,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_CALC_EACH_ROW_FUNC,
+    .classification = FUNC_MGT_SCALAR_FUNC,
     .translateFunc = translateRand,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,

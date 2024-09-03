@@ -464,7 +464,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 }
 
 int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarCtx *ctx, int32_t *paramNum,
-                         int32_t *rowNum, bool needCalcForEachRow) {
+                         int32_t *rowNum) {
   int32_t code = 0;
   if (NULL == pParamList) {
     if (ctx->pBlockList) {
@@ -505,13 +505,6 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarC
     } else {
       FOREACH(tnode, pParamList) {
         SCL_ERR_JRET(sclInitParam(tnode, &paramList[i], ctx, rowNum));
-        if (needCalcForEachRow) {
-          SSDataBlock *pBlock = taosArrayGetP(ctx->pBlockList, 0);
-          if (NULL == pBlock) {
-            SCL_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
-          }
-          paramList[i].numOfRows = pBlock->info.rows;
-        }
         ++i;
       }
     }
@@ -759,7 +752,7 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
   int32_t       rowNum = 0;
   int32_t       paramNum = 0;
   int32_t       code = 0;
-  SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum, fmIsCalcEachRowFunc(node->funcId)));
+  SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum));
 
   if (fmIsUserDefinedFunc(node->funcId)) {
     code = callUdfScalarFunc(node->functionName, params, paramNum, output);
@@ -818,7 +811,7 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
   int32_t       rowNum = 0;
   int32_t       paramNum = 0;
   int32_t       code = 0;
-  SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum, false));
+  SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum));
   if (NULL == params) {
     output->numOfRows = 0;
     return TSDB_CODE_SUCCESS;
@@ -1187,8 +1180,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode         *tnode = NULL;
   if ((!fmIsScalarFunc(node->funcId) && (!ctx->dual)) ||
-      fmIsUserDefinedFunc(node->funcId) ||
-      (fmIsCalcEachRowFunc(node->funcId) && (!ctx->dual))) {
+      fmIsUserDefinedFunc(node->funcId)) {
     return DEAL_RES_CONTINUE;
   }
 
