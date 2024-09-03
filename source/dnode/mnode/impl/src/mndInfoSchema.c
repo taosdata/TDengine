@@ -21,7 +21,7 @@ static int32_t mndInitInfosTableSchema(const SSysDbTableSchema *pSrc, int32_t co
   int32_t  code = 0;
   SSchema *schema = taosMemoryCalloc(colNum, sizeof(SSchema));
   if (NULL == schema) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 
@@ -99,7 +99,7 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
 
   pRsp->pSchemas = taosMemoryCalloc(pMeta->numOfColumns, sizeof(SSchema));
   if (pRsp->pSchemas == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     pRsp->pSchemas = NULL;
     TAOS_RETURN(code);
   }
@@ -131,7 +131,7 @@ int32_t mndBuildInsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbN
 
   pRsp->pSchemas = taosMemoryCalloc(pMeta->numOfColumns, sizeof(SSchema));
   if (pRsp->pSchemas == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     pRsp->pSchemas = NULL;
     TAOS_RETURN(code);
   }

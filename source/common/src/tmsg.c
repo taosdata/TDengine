@@ -1829,7 +1829,7 @@ int32_t cloneSUpdateIpWhiteReq(SUpdateIpWhite *pReq, SUpdateIpWhite **pUpdateMsg
   }
   SUpdateIpWhite *pClone = taosMemoryCalloc(1, sizeof(SUpdateIpWhite));
   if (pClone == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pClone->numOfUser = pReq->numOfUser;
@@ -1837,7 +1837,7 @@ int32_t cloneSUpdateIpWhiteReq(SUpdateIpWhite *pReq, SUpdateIpWhite **pUpdateMsg
   pClone->pUserIpWhite = taosMemoryCalloc(1, sizeof(SUpdateUserIpWhite) * pReq->numOfUser);
   if (pClone->pUserIpWhite == NULL) {
     taosMemoryFree(pClone);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int i = 0; i < pReq->numOfUser; i++) {
@@ -1851,7 +1851,7 @@ int32_t cloneSUpdateIpWhiteReq(SUpdateIpWhite *pReq, SUpdateIpWhite **pUpdateMsg
     int32_t sz = pOld->numOfRange * sizeof(SIpV4Range);
     pNew->pIpRanges = taosMemoryCalloc(1, sz);
     if (pNew->pIpRanges == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       break;
     }
     memcpy(pNew->pIpRanges, pOld->pIpRanges, sz);
@@ -10669,7 +10669,7 @@ int32_t tCloneTbTSMAInfo(STableTSMAInfo *pInfo, STableTSMAInfo **pRes) {
     return TSDB_CODE_SUCCESS;
   }
   STableTSMAInfo *pRet = taosMemoryCalloc(1, sizeof(STableTSMAInfo));
-  if (!pRet) return TSDB_CODE_OUT_OF_MEMORY;
+  if (!pRet) return terrno;
 
   *pRet = *pInfo;
   if (pInfo->pFuncs) {

@@ -150,7 +150,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
           SStreamTask *pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
           if (pTask == NULL) {
             taosArrayDestroy(pArray);
-            code = TSDB_CODE_OUT_OF_MEMORY;
+            code = terrno;
             TAOS_RETURN(code);
           }
           if ((code = tDecodeStreamTask(pDecoder, pTask)) < 0) {
@@ -278,7 +278,7 @@ int32_t tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType,
   int32_t code = 0;
   SMqConsumerObj *pConsumer = taosMemoryCalloc(1, sizeof(SMqConsumerObj));
   if (pConsumer == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto END;
   }
 
