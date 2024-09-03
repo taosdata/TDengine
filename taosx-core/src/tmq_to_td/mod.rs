@@ -29,18 +29,43 @@ use worker::{Worker, WriteOptions};
 
 use worker::*;
 
-async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<()> {
+async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<bool> {
     let target_desc = to.describe(&table).await?;
     let fields: BTreeMap<_, _> = target_desc.iter().map(|f| (f.field(), f)).collect();
+
+    let desc_first = &desc[0];
+    let target_desc_first = target_desc.get(0);
+    // check if the first field is timestamp
+    if desc_first.ty() == Ty::Timestamp {
+        if let Some(target_desc_first) = target_desc_first {
+            if !(target_desc_first.ty() == Ty::Timestamp
+                && desc_first.name() == target_desc_first.field())
+            {
+                tracing::error!(
+                    "Mismatch the first field: expect `{:?}`, but got `{:?}`",
+                    target_desc_first,
+                    desc_first
+                );
+                return Ok(false);
+            }
+        }
+    } else {
+        tracing::error!(
+            "Error data: expect timestamp as first field, but got `{}`",
+            desc_first.ty()
+        );
+        return Ok(false);
+    }
 
     for l in desc {
         if let Some(r) = fields.get(l.name()) {
             // check if the field is equal.
             if r.is_tag() {
-                bail!(
+                tracing::error!(
                     "Target field is not match the source: expect `{}` as column, but got tag",
                     l.name()
                 );
+                return Ok(false);
             }
             if r.ty() != l.ty() {
                 tracing::warn!(
@@ -82,7 +107,7 @@ async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<(
             }
         }
     }
-    Ok(())
+    Ok(true)
 }
 
 async fn write_data(
@@ -233,6 +258,7 @@ async fn write_data(
                     tracing::debug!("Try to recover from error: {err}");
                     if let Some(source_table_name) = source_table_name {
                         match code {
+                            // invalid parameters
                             0x0118 => {
                                 let from = source.get().await?;
                                 let database = topic.database.as_str();
@@ -240,12 +266,16 @@ async fn write_data(
                                 let source_stable_name = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?;
                                 if let Some(mut source_stable_name) = source_stable_name {
                                     if actions.is_empty() {
-                                        migrate_data_schema(
+                                        let result = migrate_data_schema(
                                             &raw.fields(),
                                             &taos,
                                             &source_table_name,
                                         )
                                         .await?;
+                                        // if failed, do not retry again
+                                        if !result {
+                                            return anyhow::Ok(());
+                                        }
                                     } else {
                                         for action in actions {
                                             match action {
@@ -255,21 +285,31 @@ async fn write_data(
                                                 _ => (),
                                             }
                                         }
-                                        migrate_data_schema(
+                                        let result = migrate_data_schema(
                                             &raw.fields(),
                                             &taos,
                                             &source_stable_name,
                                         )
                                         .await?;
+                                        // if failed, do not retry again
+                                        if !result {
+                                            return anyhow::Ok(());
+                                        }
                                     }
                                 } else {
                                     let table = raw.table_name().unwrap();
-                                    migrate_data_schema(&raw.fields(), &taos, table).await?;
+                                    let result =
+                                        migrate_data_schema(&raw.fields(), &taos, table).await?;
+                                    // if failed, do not retry again
+                                    if !result {
+                                        return anyhow::Ok(());
+                                    }
                                 }
                                 taos.write_raw_block(&raw).await.context(
                                     "Write raw block into target error after 0x0118 fix",
                                 )?;
                             }
+                            // table not exist
                             0x0218 | 0x2603 | 0x2662 | 0x036D | 0x0618 => {
                                 let from = source.get().await?;
                                 let database = topic.database.as_str();
@@ -303,6 +343,7 @@ async fn write_data(
                                         .context("Write raw block into target error")?;
                                 }
                             }
+                            // table has been modified
                             0x061B => {
                                 // Table schema is old.
                                 let _ = taos.describe(raw.table_name().unwrap()).await;
@@ -1273,7 +1314,7 @@ pub async fn tmq_to_td(
         .remove("read_concurrency")
         .or(from.remove("num.of.consumers"))
         .and_then(|s| s.parse().ok())
-        .unwrap_or_else(|| if jobs > 0 { jobs } else { 1 });
+        .unwrap_or(jobs); // 0 means auto
     let strategy = from
         .remove("prefer")
         .map(|s| s.into())
@@ -1283,7 +1324,7 @@ pub async fn tmq_to_td(
         .or(from.remove("num.of.writers"))
         .or(std::env::var("TMQ_WRITE_CONCURRENCY").ok())
         .and_then(|s| s.parse().ok())
-        .unwrap_or(0);
+        .unwrap_or(0); // 0 means auto, should be set after.
     let commit_chunk_size = from
         .remove("commit.chunk.size")
         .or(std::env::var("TMQ_COMMIT_CHUNK_SIZE").ok())
@@ -1300,15 +1341,20 @@ pub async fn tmq_to_td(
         .or(from.remove("timeout")) // for compatibility
         .or(std::env::var("TMQ_MAX_POLLING_TIMEOUT").ok())
         .map(|s| {
-            parse_duration(&s).map_err(|e| {
-                tracing::warn!(
-                    key = "max.polling.timeout",
-                    value = s,
-                    "parse max.polling.timeout error: {}",
-                    e
-                );
-                anyhow::anyhow!("parse max.polling.timeout error: {e:#}")
-            })
+            let s = s.trim();
+            if matches!(s, "never" | "0" | "-1") {
+                Ok(Duration::MAX)
+            } else {
+                parse_duration(&s).map_err(|e| {
+                    tracing::warn!(
+                        key = "max.polling.timeout",
+                        value = s,
+                        "parse max.polling.timeout error: {}",
+                        e
+                    );
+                    anyhow::anyhow!("parse max.polling.timeout error: {e:#}")
+                })
+            }
         })
         .transpose()?
         .unwrap_or_else(|| Duration::from_secs(5));
@@ -1425,11 +1471,14 @@ pub async fn tmq_to_td(
             &topic.database
         };
 
+        // Jobs should be less than or equal to vgroups and greater than 0.
         let jobs = if jobs == 0 || jobs >= topic.vgroups {
             topic.vgroups
         } else {
             jobs
         };
+
+        // If concurrency is 0, use available_parallelism * 2 / jobs
         if options.concurrency == 0 {
             options.concurrency = std::thread::available_parallelism()
                 .map_or_else(|_| 8, |n| n.get() * 2 / jobs)
