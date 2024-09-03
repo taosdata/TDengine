@@ -866,6 +866,13 @@ _out:
           pNode->vgId, currentTerm, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
   }
 
+  if (!pNode->restoreFinish && pBuf->commitIndex == -1) {
+    pNode->pFsm->FpRestoreFinishCb(pNode->pFsm, pBuf->commitIndex);
+    pNode->restoreFinish = true;
+    sInfo("vgId:%d, restore finished. term:%" PRId64 ", log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
+          pNode->vgId, currentTerm, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
+  }
+
   if (!inBuf) {
     syncEntryDestroy(pEntry);
     pEntry = NULL;
