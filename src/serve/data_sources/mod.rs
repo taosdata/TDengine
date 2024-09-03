@@ -181,10 +181,11 @@ pub(super) async fn data_sources_in_one(
             .json(ds),
         None => HttpResponse::NotFound()
             .content_type(ContentType::json())
-            .json(Failed {
-                code: Code::new(-1),
-                message: "Data source not found".into(),
-            }),
+            .json(Failed::new(
+                Code::new(-1),
+                "Data source not found".to_string(),
+                (),
+            )),
     }
 }
 
@@ -227,35 +228,8 @@ pub(super) async fn data_source_sample(
         Ok(output) => Ok(HttpResponse::Ok()
             .content_type(ContentType::json())
             .json(output)),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
-    // let schema = Arc::new(arrow::datatypes::Schema::new(
-    //     sample_in.input[0]
-    //         .iter()
-    //         .map(|(name, value)| {
-    //             let dt = match value {
-    //                 serde_json::Value::Null
-    //                 | serde_json::Value::String(_)
-    //                 | serde_json::Value::Object(_)
-    //                 | serde_json::Value::Array(_) => DataType::Utf8,
-    //                 serde_json::Value::Bool(_) => DataType::Boolean,
-    //                 serde_json::Value::Number(num) => {
-    //                     if num.is_u64() {
-    //                         DataType::UInt64
-    //                     } else if num.is_f64() {
-    //                         DataType::Float64
-    //                     } else {
-    //                         DataType::Int64
-    //                     }
-    //                 }
-    //             };
-    //             Field::new(name, dt, true)
-    //         })
-    //         .collect_vec(),
-    // ));
 }
 
 #[test]
@@ -305,10 +279,7 @@ pub(super) async fn data_source_collection(
         Ok(data) => Ok(HttpResponse::Ok()
             .content_type(ContentType::json())
             .json(&data)),
-        Err(err) => Err(Failed {
-            code: 0xFFFF.into(),
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -354,10 +325,11 @@ pub(super) async fn data_source_is_valid(
     .await;
     match result {
         Ok(dsv) => Ok(HttpResponse::Ok().json(dsv)),
-        Err(_) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("Failed to connect to dsn: timed out"),
-        }),
+        Err(_) => Err(Failed::new(
+            Code::FAILED,
+            "Failed to connect to dsn: timed out".to_string(),
+            (),
+        )),
     }
 }
 
@@ -417,10 +389,11 @@ pub(super) async fn data_source_sink_is_valid(
     .await;
     match result {
         Ok(dsv) => Ok(HttpResponse::Ok().json(dsv)),
-        Err(_) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("Failed to connect to dsn: timed out"),
-        }),
+        Err(_) => Err(Failed::new(
+            Code::FAILED,
+            "Failed to connect to dsn: timed out".to_string(),
+            (),
+        )),
     }
 }
 
@@ -489,10 +462,16 @@ pub(super) async fn get_sample(
 
     // 获取示例数据的超时时间应该小于 query 中的timeout
     let query_timeout = query.timeout.clone().unwrap_or(DEFAULT_REQUEST_TIMEOUT);
-    let dsn = query.dsn.clone().into_dsn().map_err(|err| Failed {
-        code: Code::FAILED,
-        message: format!("DSN error: {:#}", err),
-    })?;
+    let dsn = query.dsn.clone().into_dsn();
+    if let Err(err) = dsn {
+        return Err(Failed::new(
+            Code::FAILED,
+            format!("parse dsn error: {:?}", err),
+            (),
+        ));
+    }
+
+    let dsn = dsn.unwrap();
     let sample_timeout = plugins::parse_sample_timeout(&dsn).as_secs();
     let timeout_sec = core::cmp::max(query_timeout, sample_timeout) + 5;
     tracing::debug!(?query_timeout, ?sample_timeout, ?timeout_sec);
@@ -505,14 +484,16 @@ pub(super) async fn get_sample(
 
     match result {
         Ok(Ok(sample)) => Ok(HttpResponse::Ok().json(sample)),
-        Ok(Err(err)) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("failed to get sample from data source, cause: {:#}", err),
-        }),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("get sample from data source timeout, cause: {:#}", err),
-        }),
+        Ok(Err(err)) => Err(Failed::new(
+            Code::FAILED,
+            format!("failed to get sample from data source, cause: {:?}", err),
+            (),
+        )),
+        Err(err) => Err(Failed::new(
+            Code::FAILED,
+            format!("get sample from data source timeout, cause: {:?}", err),
+            (),
+        )),
     }
 }
 
@@ -551,10 +532,7 @@ pub(super) async fn download_all_data_set_file(
     // match download_all_point_csv_file(controller, data).await {
     match download_all_point_csv_file(controller, params).await {
         Ok(named_file) => Ok(named_file.into_response(&req)),
-        Err(err) => Err(Failed {
-            code: 0xFFFF.into(),
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -575,10 +553,7 @@ pub(super) async fn init_download_file_task(
 
     match arrange_point_file_download_task(controller, params).await {
         Ok(task_id) => Ok(HttpResponse::Ok().json(TaskTicket::new_task(task_id))),
-        Err(err) => Err(Failed {
-            code: 0xFFFF.into(),
-            message: err.to_string(),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -595,10 +570,7 @@ pub(super) async fn check_point_file_ready(params: Query<TaskTicket>) -> impl Re
         Ok(complete) => {
             Ok(HttpResponse::Ok().json(TaskTicket::complete(params.ticket.clone(), complete)))
         }
-        Err(err) => Err(Failed {
-            code: 0xFFFF.into(),
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -621,10 +593,7 @@ pub(super) async fn download_point_file(
                 .set_content_disposition(content_disposition)
                 .into_response(&req))
         }
-        Err(err) => Err(Failed {
-            code: 0xFFFF.into(),
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -639,10 +608,7 @@ pub(super) async fn download_point_file(
 pub(super) async fn page_point_data(params: Query<TaskTicket>) -> impl Responder {
     match load_point_data_page(&params).await {
         Ok(page) => Ok(HttpResponse::Ok().json(R::success(page))),
-        Err(err) => Err(Failed {
-            code: 0xFFFF.into(),
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -673,10 +639,7 @@ pub(super) async fn download_point_template_file(
                 .set_content_disposition(content_disposition)
                 .into_response(&req))
         }
-        Err(err) => Err(Failed {
-            code: 0xFFFF.into(),
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -706,14 +669,16 @@ pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl 
             "valid": true,
             "message": "csv file is valid"
         }))),
-        Ok(Err(err)) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("check csv file failed, cause: {:#}", err),
-        }),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("check csv file timeout, cause: {:#}", err),
-        }),
+        Ok(Err(err)) => Err(Failed::new(
+            Code::FAILED,
+            format!("check csv file failed, cause: {:?}", err),
+            (),
+        )),
+        Err(err) => Err(Failed::new(
+            Code::FAILED,
+            format!("check csv file timeout, cause: {:?}", err),
+            (),
+        )),
     }
 }
 
@@ -746,10 +711,7 @@ pub(super) async fn download_pi_default_config(
 
     match get_pi_default_config(controller, params).await {
         Ok(file_name) => Ok(file_name),
-        Err(err) => Err(Failed {
-            code: 0xFFFF.into(),
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
