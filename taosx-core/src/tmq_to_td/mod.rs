@@ -1211,6 +1211,7 @@ async fn sync_concurrently(
             tracing::info!("Sync cancelled");
             break;
         }
+        drop(last_offset.take());
         if let Some((offset, message)) = consumer
             .recv_timeout(Timeout::from_millis(poll_interval.as_millis() as _))
             .await?
@@ -1281,7 +1282,9 @@ async fn sync_concurrently(
     tracing::info!(elapse = ?now.elapsed(), "Consume done, waiting for writers to finish");
     if chunk_len > 0 {
         clean_cache!();
-        consumer.commit(last_offset.unwrap()).await?;
+        if let Some(last_offset) = last_offset {
+            consumer.commit(last_offset).await?;
+        }
     }
     update_progress(&consumer, &metrics).await;
     tracing::info!("Task done");
