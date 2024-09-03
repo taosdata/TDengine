@@ -52,6 +52,16 @@ static void dmGetDmMonitorInfo(SDnode *pDnode) {
   monSetDmInfo(&dmInfo);
 }
 
+int dmCleanExpriedSamples(SDnode *pDnode) {
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[VNODE];
+  if (dmMarkWrapper(pWrapper) == 0) {
+    if (pWrapper->pMgmt != NULL) {
+      return vmCleanExpriedSamples(pWrapper->pMgmt);
+    }
+  }
+  return 0;
+}
+
 static void dmGetDmMonitorInfoBasic(SDnode *pDnode) {
   SMonDmInfo dmInfo = {0};
   dmGetMonitorBasicInfoBasic(pDnode, &dmInfo.basic);
@@ -121,6 +131,14 @@ void dmSendMonitorReport() {
   dmGetQmMonitorInfo(pDnode);
   dmGetSmMonitorInfo(pDnode);
   monGenAndSendReport();
+}
+
+void dmMonitorCleanExpiredSamples() {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+  dTrace("send monitor report to %s:%u", tsMonitorFqdn, tsMonitorPort);
+
+  SDnode *pDnode = dmInstance();
+  (void)dmCleanExpriedSamples(pDnode);
 }
 
 //Todo: put this in seperate file in the future

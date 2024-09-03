@@ -37,6 +37,7 @@ typedef struct SDnodeMgmt {
   ProcessAlterNodeTypeFp processAlterNodeTypeFp;
   ProcessDropNodeFp      processDropNodeFp;
   SendMonitorReportFp    sendMonitorReportFp;
+  MonitorCleanExpiredSamplesFp monitorCleanExpiredSamplesFp;
   SendAuditRecordsFp     sendAuditRecordsFp;
   GetVnodeLoadsFp        getVnodeLoadsFp;
   GetVnodeLoadsFp        getVnodeLoadsLiteFp;
