@@ -534,6 +534,155 @@ class TDTestCase(TBase):
 
         tdSql.query("select rand(id) from ts_4893.d0 limit 10;")
         tdSql.checkRows(10)
+    def test_greatest(self):
+        self.test_normal_query("greatest")
+
+        tdSql.query("select GREATEST(NULL, NULL, NULL, NULL);")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query("select GREATEST(1, NULL, NULL, NULL);")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query("select GREATEST(id, NULL, 1) from ts_4893.meters order by ts limit 10;")
+        tdSql.checkRows(10)
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query("select GREATEST(cast(100 as tinyint), cast(101 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "1970-01-01 08:00:00.101")
+
+        tdSql.query("select GREATEST(cast(101 as tinyint), cast(100 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "1970-01-01 08:00:00.101")
+
+        tdSql.query("select GREATEST(cast(1000 as smallint), cast(1001 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "1970-01-01 08:00:01.001")
+
+        tdSql.query("select GREATEST(cast(1001 as smallint), cast(1000 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "1970-01-01 08:00:01.001")
+
+        tdSql.query("select GREATEST(cast(1000000 as int), cast(1000001 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "1970-01-01 08:16:40.001")
+
+        tdSql.query("select GREATEST(cast(1000001 as int), cast(1000000 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "1970-01-01 08:16:40.001")
+
+        tdSql.query("select GREATEST(cast(1000000000 as bigint), cast(1000000001 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "1970-01-12 21:46:40.001")
+
+        tdSql.query("select GREATEST(cast(1000000001 as bigint), cast(1000000000 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "1970-01-12 21:46:40.001")
+
+        tdSql.query("select GREATEST(cast(1725506504000 as timestamp), cast(1725506510000 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2024-09-05 11:21:50")
+
+        tdSql.query("select GREATEST(cast(1725506510000 as timestamp), cast(1725506504000 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2024-09-05 11:21:50")
+
+        tdSql.query("select GREATEST(cast(100 as tinyint), cast(101 as varchar(20)), cast(102 as float));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "102.000000")
+
+        tdSql.query("select GREATEST(cast(100 as varchar(20)), cast(101 as tinyint), cast(102 as float));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "102.000000")
+
+        tdSql.query("select GREATEST(cast('a' as varbinary), cast('b' as varbinary), 'c', 'd');")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, b"d")
+
+        tdSql.query("select GREATEST(cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, b"f")
+
+    def test_least(self):
+        self.test_normal_query("least")
+
+        tdSql.query("select LEAST(NULL, NULL, NULL, NULL);")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query("select LEAST(1, NULL, NULL, NULL);")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query("select LEAST(id, NULL, 1) from ts_4893.meters order by ts limit 10;")
+        tdSql.checkRows(10)
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query("select LEAST(cast(100 as tinyint), cast(101 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "1970-01-01 08:00:00.100")
+
+        tdSql.query("select LEAST(cast(101 as tinyint), cast(100 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "1970-01-01 08:00:00.100")
+
+        tdSql.query("select LEAST(cast(1000 as smallint), cast(1001 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "1970-01-01 08:00:01.000")
+
+        tdSql.query("select LEAST(cast(1001 as smallint), cast(1000 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "1970-01-01 08:00:01.000")
+
+        tdSql.query("select LEAST(cast(1000000 as int), cast(1000001 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "1970-01-01 08:16:40.000")
+
+        tdSql.query("select LEAST(cast(1000001 as int), cast(1000000 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "1970-01-01 08:16:40.000")
+
+        tdSql.query("select LEAST(cast(1000000000 as bigint), cast(1000000001 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "1970-01-12 21:46:40.000")
+
+        tdSql.query("select LEAST(cast(1000000001 as bigint), cast(1000000000 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "1970-01-12 21:46:40.000")
+
+        tdSql.query("select LEAST(cast(1725506504000 as timestamp), cast(1725506510000 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2024-09-05 11:21:44")
+
+        tdSql.query("select LEAST(cast(1725506510000 as timestamp), cast(1725506504000 as timestamp));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2024-09-05 11:21:44")
+
+        tdSql.query("select LEAST(cast(100 as tinyint), cast(101 as varchar(20)), cast(102 as float));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "100")
+
+        tdSql.query("select LEAST(cast(100 as varchar(20)), cast(101 as tinyint), cast(102 as float));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "100")
+
+        tdSql.query("select LEAST(cast(100 as float), cast(101 as tinyint), cast(102 as varchar(20)));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "100.000000")
+
+        tdSql.query("select LEAST(cast(100 as float), cast(101 as varchar(20)), cast(102 as tinyint));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "100.000000")
+
+        tdSql.query("select LEAST(cast('a' as varbinary), cast('b' as varbinary), 'c', 'd');")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, b"a")
+
+        tdSql.query("select LEAST(cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, b"b")
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -552,6 +701,8 @@ class TDTestCase(TBase):
         self.test_degrees()
         self.test_radians()
         self.test_rand()
+        self.test_greatest()
+        self.test_least()
 
         # char function
         self.test_char_length()

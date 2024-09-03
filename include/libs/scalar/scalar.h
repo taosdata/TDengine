@@ -71,6 +71,8 @@ int32_t signFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t degreesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t radiansFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t randFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t greatestFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t leastFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 /* String functions */
 int32_t lengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);

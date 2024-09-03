@@ -2902,6 +2902,182 @@ int32_t randFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, EOperatorType order) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  SColumnInfoData *pOutputData = pOutput[0].columnData;
+  int16_t          outputType = GET_PARAM_TYPE(&pOutput[0]);
+  int64_t          outputLen = GET_PARAM_BYTES(&pOutput[0]);
+  int32_t          numOfRows = 0;
+  bool             hasNull = false;
+
+  // If any column is NULL type, the output is NULL type
+  for (int32_t i = 0; i < inputNum; i++) {
+    numOfRows = TMAX(numOfRows, pInput[i].numOfRows);
+    hasNull |= IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]));
+  }
+
+  if (hasNull) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // create a column to store the comparison result
+  SScalarParam *pCompRes = taosMemoryMalloc(sizeof(SScalarParam));
+  // initialize output buf to store the result
+  char   *convBuf = taosMemoryMalloc(outputLen);
+  char   *output = taosMemoryMalloc(outputLen);
+  int32_t bufSize = TSDB_MAX_FIELD_LEN + 1;
+  char   *buf = taosMemoryMalloc(bufSize);
+  if (pCompRes == NULL || output == NULL || buf == NULL || convBuf == NULL) {
+    SCL_ERR_JRET(terrno);
+  }
+
+  pCompRes->pHashFilter = NULL;
+  pCompRes->numOfRows = 1;
+  SDataType compType = {.type = TSDB_DATA_TYPE_BOOL, .bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes};
+  SCL_ERR_JRET(sclCreateColumnInfoData(&compType, numOfRows, pCompRes));
+
+  for (int32_t i = 0; i < numOfRows; i++) {
+    SScalarParam *pMax = &pInput[0];
+    if (colDataIsNull_s(pInput[0].columnData, pInput[0].numOfRows == 1 ? 0 : i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+    bool          res = false;
+    hasNull = false;
+    for (int32_t j = 1; j < inputNum; j++) {
+      if (colDataIsNull_s(pInput[j].columnData, pInput[j].numOfRows == 1 ? 0 : i)) {
+        colDataSetNULL(pOutputData, i);
+        hasNull = true;
+        break;
+      }
+      // compare the current max value with the next value
+      SCL_ERR_JRET(vectorCompareImpl(pMax, &pInput[j], pCompRes, i, 1, TSDB_ORDER_ASC, order));
+      GET_TYPED_DATA(res, bool, GET_PARAM_TYPE(pCompRes), colDataGetData(pCompRes->columnData, i));
+      if (!res) {
+        pMax = &pInput[j];
+      }
+    }
+    if (hasNull) {
+      continue;
+    }
+
+    int16_t inputType = GET_PARAM_TYPE(pMax);
+
+    char *input = colDataGetData(pMax->columnData, (pMax->numOfRows == 1) ? 0 : i);
+
+    switch (outputType) {
+      case TSDB_DATA_TYPE_TINYINT: {
+        GET_TYPED_DATA(*(int8_t *)output, int8_t, inputType, input);
+        break;
+      }
+      case TSDB_DATA_TYPE_SMALLINT: {
+        GET_TYPED_DATA(*(int16_t *)output, int16_t, inputType, input);
+        break;
+      }
+      case TSDB_DATA_TYPE_INT: {
+        GET_TYPED_DATA(*(int32_t *)output, int32_t, inputType, input);
+        break;
+      }
+      case TSDB_DATA_TYPE_BIGINT: {
+        GET_TYPED_DATA(*(int64_t *)output, int64_t, inputType, input);
+        break;
+      }
+      case TSDB_DATA_TYPE_UTINYINT: {
+        GET_TYPED_DATA(*(uint8_t *)output, uint8_t, inputType, input);
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT: {
+        GET_TYPED_DATA(*(uint16_t *)output, uint16_t, inputType, input);
+        break;
+      }
+      case TSDB_DATA_TYPE_UINT: {
+        GET_TYPED_DATA(*(uint32_t *)output, uint32_t, inputType, input);
+        break;
+      }
+      case TSDB_DATA_TYPE_UBIGINT: {
+        GET_TYPED_DATA(*(uint64_t *)output, uint64_t, inputType, input);
+        break;
+      }
+      case TSDB_DATA_TYPE_FLOAT: {
+        GET_TYPED_DATA(*(float *)output, float, inputType, input);
+        break;
+      }
+      case TSDB_DATA_TYPE_DOUBLE: {
+        GET_TYPED_DATA(*(double *)output, double, inputType, input);
+        break;
+      }
+      case TSDB_DATA_TYPE_BOOL: {
+        GET_TYPED_DATA(*(bool *)output, bool, inputType, input);
+        break;
+      }
+      case TSDB_DATA_TYPE_TIMESTAMP: {
+        GET_TYPED_DATA(*(int64_t *)output, int64_t, inputType, input);
+        break;
+      }
+      case TSDB_DATA_TYPE_BINARY: {
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          int32_t len = TMIN(varDataLen(input), outputLen - VARSTR_HEADER_SIZE);
+          (void)memcpy(varDataVal(output), varDataVal(input), len);
+          varDataSetLen(output, len);
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf);
+          if (len < 0) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _return;
+          }
+          len = TMIN(len, outputLen - VARSTR_HEADER_SIZE);
+          (void)memcpy(varDataVal(output), convBuf, len);
+          varDataSetLen(output, len);
+        } else {
+          NUM_TO_STRING(inputType, input, bufSize, buf);
+          int32_t len = (int32_t)strlen(buf);
+          len = (outputLen - VARSTR_HEADER_SIZE) > len ? len : (outputLen - VARSTR_HEADER_SIZE);
+          (void)memcpy(varDataVal(output), buf, len);
+          varDataSetLen(output, len);
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_VARBINARY: {
+        if (inputType == TSDB_DATA_TYPE_BINARY || inputType == TSDB_DATA_TYPE_VARBINARY) {
+          int32_t len = TMIN(varDataLen(input), outputLen - VARSTR_HEADER_SIZE);
+          (void)memcpy(varDataVal(output), varDataVal(input), len);
+          varDataSetLen(output, len);
+        } else {
+          code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+          goto _return;
+        }
+        break;
+      }
+      default: {
+        code = TSDB_CODE_FAILED;
+        goto _return;
+      }
+    }
+
+    SCL_ERR_JRET(colDataSetVal(pOutputData, i, output, false));
+
+  }
+  pOutput->numOfRows = numOfRows;
+
+_return:
+  taosMemoryFree(convBuf);
+  taosMemoryFree(buf);
+  taosMemoryFree(output);
+  sclFreeParam(pCompRes);
+  taosMemoryFreeClear(pCompRes);
+  return code;
+}
+
+int32_t greatestFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return greatestLeastImpl(pInput, inputNum, pOutput, OP_TYPE_GREATER_THAN);
+}
+
+int32_t leastFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return greatestLeastImpl(pInput, inputNum, pOutput, OP_TYPE_LOWER_THAN);
+}
+
 static double decimalFn(double val1, double val2, _double_fn fn) {
   if (val1 > DBL_MAX || val1 < -DBL_MAX) {
     return val1;

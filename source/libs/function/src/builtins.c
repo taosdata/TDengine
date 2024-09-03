@@ -637,6 +637,83 @@ static int32_t translateRand(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t getStrlenOfTypes(uint8_t type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_UTINYINT:
+      return 3;
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_TINYINT:
+      return 4;
+    case TSDB_DATA_TYPE_USMALLINT:
+      return 5;
+    case TSDB_DATA_TYPE_SMALLINT:
+      return 6;
+    case TSDB_DATA_TYPE_UINT:
+      return 10;
+    case TSDB_DATA_TYPE_INT:
+      return 11;
+    case TSDB_DATA_TYPE_UBIGINT:
+      return 19;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_BIGINT:
+      return 20;
+    case TSDB_DATA_TYPE_FLOAT:
+      return 16;
+    case TSDB_DATA_TYPE_DOUBLE:
+      return 24;
+    default:
+      return 0;
+  }
+}
+static int32_t translateGreatestleast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (LIST_LENGTH(pFunc->pParameterList) < 2) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  int32_t maxLength = 0;
+  bool hasStrType = false;
+  bool hasVarBinary = false;
+  bool allowVarBinary = true;
+  bool hasNull = false;
+  for (int32_t i = 0; i < LIST_LENGTH(pFunc->pParameterList); i++) {
+    uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i))->type;
+    if (!IS_MATHABLE_TYPE(paraType) && !IS_VAR_DATA_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    if (IS_MATHABLE_TYPE(paraType)) {
+      allowVarBinary &= false;
+      maxLength = TMAX(maxLength, (getStrlenOfTypes(paraType) + 2));
+    } else if (IS_VAR_DATA_TYPE(paraType)) {
+      hasStrType = true;
+      maxLength = TMAX(maxLength, getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i))->bytes);
+      allowVarBinary &= (paraType != TSDB_DATA_TYPE_NCHAR);
+      hasVarBinary |= (paraType == TSDB_DATA_TYPE_VARBINARY);
+    } else {
+      hasNull = true;
+    }
+    if (!allowVarBinary && hasVarBinary) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+  }
+  if (hasStrType) {
+    pFunc->node.resType = (SDataType){.bytes = maxLength, .type = hasVarBinary ? TSDB_DATA_TYPE_VARBINARY : TSDB_DATA_TYPE_BINARY};
+  } else if (hasNull) {
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
+  } else {
+    uint8_t resType = TSDB_DATA_TYPE_BOOL;
+    for (int32_t i = 0; i < LIST_LENGTH(pFunc->pParameterList); i++) {
+      uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i))->type;
+      if (paraType == resType) {
+        continue;
+      } else {
+        resType = vectorGetConvertType(paraType, resType);
+      }
+    }
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[resType].bytes, .type = resType};
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateRound(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (2 != LIST_LENGTH(pFunc->pParameterList) && 1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -4795,6 +4872,26 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = randFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "greatest",
+    .type = FUNCTION_TYPE_RAND,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateGreatestleast,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = greatestFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "least",
+    .type = FUNCTION_TYPE_RAND,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateGreatestleast,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = leastFunction,
     .finalizeFunc = NULL
   },
 };
