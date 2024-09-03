@@ -2621,6 +2621,7 @@ static void* cliWorkThread(void* arg) {
 
   SCliThrd* pThrd = (SCliThrd*)arg;
   pThrd->pid = taosGetSelfPthreadId();
+
   tsEnableRandErr = true;
   (void)strtolower(threadName, pThrd->pInst->label);
   setThreadName(threadName);
