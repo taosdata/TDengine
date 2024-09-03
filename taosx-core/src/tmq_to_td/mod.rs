@@ -1204,6 +1204,8 @@ async fn sync_concurrently(
     } else {
         DEFAULT_POLL_INTERVAL
     };
+    let refresh_progress_interval =
+        crate::utils::interval::IntervalLimit::new(Duration::from_secs(1));
     loop {
         if cancel.is_cancelled() {
             tracing::info!("Sync cancelled");
@@ -1213,6 +1215,9 @@ async fn sync_concurrently(
             .recv_timeout(Timeout::from_millis(poll_interval.as_millis() as _))
             .await?
         {
+            if refresh_progress_interval.ticked() {
+                update_progress(&consumer, &metrics).await;
+            }
             metrics.add_consume_cost_ms(per_message_instant.elapsed().as_millis() as _);
 
             let message_type = match &message {
