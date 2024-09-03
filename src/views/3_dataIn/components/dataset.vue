@@ -538,7 +538,11 @@ export default {
           this.$error(result?.message);
           return
         }
-        Message.success(this.$t("dataIn.addPointSucc"));
+        Message.success({
+          message: this.$t("dataIn.addPointSucc"),
+          duration: 30000,
+          showClose: true
+        });
         this.requestIng = false;
         this.opcPointForm.opcCsvHeaders.map(item => {
           if (item.name == 'point_id') {
