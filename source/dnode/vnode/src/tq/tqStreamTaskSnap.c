@@ -50,10 +50,14 @@ int32_t streamTaskSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTa
   }
 
   STablePair pair1 = {.tbl = pTq->pStreamMeta->pTaskDb, .type = SNAP_DATA_STREAM_TASK};
-  (void)taosArrayPush(pReader->tdbTbList, &pair1);
+  if (NULL == taosArrayPush(pReader->tdbTbList, &pair1)) {
+    TAOS_CHECK_GOTO(terrno, NULL, _err);
+  }
 
   STablePair pair2 = {.tbl = pTq->pStreamMeta->pCheckpointDb, .type = SNAP_DATA_STREAM_TASK_CHECKPOINT};
-  (void)taosArrayPush(pReader->tdbTbList, &pair2);
+  if (NULL == taosArrayPush(pReader->tdbTbList, &pair2)) {
+    TAOS_CHECK_GOTO(terrno, NULL, _err);
+  }
 
   pReader->pos = 0;
 
