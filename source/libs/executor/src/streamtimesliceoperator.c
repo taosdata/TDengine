@@ -507,6 +507,14 @@ static TSKEY adustEndTsKey(TSKEY pointTs, TSKEY rowTs, SInterval* pInterval) {
   return pointTs;
 }
 
+static void adjustFillResRow(SResultRowData** ppResRow, SStreamFillSupporter* pFillSup) {
+  if (pFillSup->type == TSDB_FILL_PREV) {
+    (*ppResRow) = &pFillSup->cur;
+  } else if (pFillSup->type == TSDB_FILL_NEXT){
+    (*ppResRow) = &pFillSup->next;
+  }
+}
+
 static void doStreamFillRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, SSDataBlock* pRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -538,7 +546,7 @@ static void doStreamFillRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* p
       pFillInfo->hasNext = false;
       TSKEY startTs = adustPrevTsKey(pFillInfo->current, pFillSup->cur.key, &pFillSup->interval);
       setFillKeyInfo(startTs, pFillSup->next.key, &pFillSup->interval, pFillInfo);
-      pFillInfo->pResRow = &pFillSup->cur;
+      adjustFillResRow(&pFillInfo->pResRow, pFillSup);
       fillNormalRange(pFillSup, pFillInfo, pRes);
     }
 
@@ -1004,7 +1012,12 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
     case TSDB_FILL_NULL_F:
     case TSDB_FILL_SET_VALUE:
     case TSDB_FILL_SET_VALUE_F: {
-      if (hasPrevWindow(pFillSup)) {
+      if (hasPrevWindow(pFillSup) && hasNextWindow(pFillSup) && pFillInfo->preRowKey == pFillInfo->prePointKey &&
+          pFillInfo->nextRowKey != pFillInfo->nextPointKey) {
+        setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
+        pFillInfo->pos = FILL_POS_MID;
+        pFillInfo->hasNext = true;
+      } else if (hasPrevWindow(pFillSup)) {
         setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;
       } else {
@@ -1033,19 +1046,25 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
       pFillInfo->pResRow = &pFillSup->prev;
     } break;
     case TSDB_FILL_NEXT: {
-      if (hasPrevWindow(pFillSup)) {
+      if (hasPrevWindow(pFillSup) && hasNextWindow(pFillSup) && pFillInfo->preRowKey == pFillInfo->prePointKey &&
+          pFillInfo->nextRowKey != pFillInfo->nextPointKey) {
+        setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
+        pFillInfo->pos = FILL_POS_MID;
+        pFillInfo->hasNext = true;
+        pFillInfo->pResRow = &pFillSup->cur;
+      } else if (hasPrevWindow(pFillSup)) {
         setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;
         resetFillWindow(&pFillSup->next);
         pFillSup->next.key = ts;
         pFillSup->next.pRowVal = pFillSup->cur.pRowVal;
+        pFillInfo->pResRow = &pFillSup->next;
       } else {
-        ASSERT(hasNextWindow(pFillSup));
         setFillKeyInfo(startTs, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
         resetFillWindow(&pFillSup->prev);
+        pFillInfo->pResRow = &pFillSup->next;
       }
-      pFillInfo->pResRow = &pFillSup->next;
     } break;
     case TSDB_FILL_LINEAR: {
       if (hasPrevWindow(pFillSup) && hasNextWindow(pFillSup)) {
@@ -1351,7 +1370,7 @@ void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, STimeWindowAggSup
     }
     QUERY_CHECK_CODE(code, lino, _end);
 
-    if (pFillSup->type == TSDB_FILL_PREV) {
+    if (pFillSup->type != TSDB_FILL_LINEAR) {
       getPrevResKey(pKey->groupId, pGroupResInfo->pRows, pGroupResInfo->index, &pFillInfo->preRowKey);
       if (hasPrevWindow(pFillSup)) {
         pFillInfo->prePointKey = prevPoint.key.ts;

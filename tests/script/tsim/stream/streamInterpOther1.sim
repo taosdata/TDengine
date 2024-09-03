@@ -21,11 +21,11 @@ run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791217000,20000,2,3);
 
-sleep 500
+sleep 2000
 
 sql insert into t1 values(1648791212000,10000,2,3);
 
-sleep 500
+sleep 2000
 
 sql insert into t1 values(1648791215001,20,2,3);
 
@@ -94,11 +94,11 @@ run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791217000,20000,2,3);
 
-sleep 500
+sleep 2000
 
 sql insert into t1 values(1648791212000,10000,2,3);
 
-sleep 500
+sleep 2000
 
 sql insert into t1 values(1648791215001,20,2,3);
 
@@ -167,11 +167,11 @@ run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791217000,20000,2,3);
 
-sleep 500
+sleep 2000
 
 sql insert into t1 values(1648791212000,10000,2,3);
 
-sleep 500
+sleep 2000
 
 sql insert into t1 values(1648791215001,20,2,3);
 
@@ -240,11 +240,11 @@ run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791217000,20000,2,3);
 
-sleep 500
+sleep 2000
 
 sql insert into t1 values(1648791212000,10000,2,3);
 
-sleep 500
+sleep 2000
 
 sql insert into t1 values(1648791215001,20,2,3);
 
@@ -313,11 +313,11 @@ run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791217000,20000,2,3);
 
-sleep 500
+sleep 2000
 
 sql insert into t1 values(1648791212000,10000,2,3);
 
-sleep 500
+sleep 2000
 
 sql insert into t1 values(1648791215001,20,2,3);
 
