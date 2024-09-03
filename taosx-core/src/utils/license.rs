@@ -51,9 +51,9 @@ impl LicenseKind {
     pub fn ok(self) -> Result<()> {
         match self {
             LicenseKind::Good { .. } => Ok(()),
-            LicenseKind::Edition(err) => Err(err),
-            LicenseKind::Feature(err) => Err(err),
-            LicenseKind::Connector(err) => Err(err),
+            LicenseKind::Edition(err) => Err(err).context("License error"),
+            LicenseKind::Feature(err) => Err(err).context("License error"),
+            LicenseKind::Connector(err) => Err(err).context("License error"),
         }
     }
 
@@ -250,15 +250,18 @@ async fn enterprise_edition_of(dsn: &Dsn) -> anyhow::Result<LicenseOf> {
 #[framed]
 #[instrument(skip_all, fields(source = %mask_dsn(from), sink = %mask_dsn(to)))]
 pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<LicenseKind> {
-    let source_dsn_context = || format!("License error in source: {}", mask_dsn(&from));
-    let sink_dsn_context = || format!("License error in sink: {}", mask_dsn(&to));
+    let source_dsn_context = || format!("Source error with {}", mask_dsn(&from));
+    let sink_dsn_context = || format!("Sink error with {}", mask_dsn(to));
     // Check if enterprise available
     match (from.driver.as_str(), to.driver.as_str()) {
         ("tmq", "taos") => {
             let mut from = from.clone();
             from.subject.take();
-            let source_builder = TaosBuilder::from_dsn(&from)?;
-            let sink_builder = TaosBuilder::from_dsn(to)?;
+            to.subject
+                .as_deref()
+                .ok_or_else(|| anyhow!("Sink database mut be set"))?;
+            let source_builder = TaosBuilder::from_dsn(&from).with_context(source_dsn_context)?;
+            let sink_builder = TaosBuilder::from_dsn(to).with_context(source_dsn_context)?;
 
             let (source_version, sink_version) = get_valid_taos_version(
                 &source_builder,
@@ -301,10 +304,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 // plain tmq to taos task.
 
                 // Check target enterprise license
-                let mut conn = sink_builder
-                    .build()
-                    .await
-                    .context("sink connection failed")?;
+                let mut conn = sink_builder.build().await.with_context(sink_dsn_context)?;
                 if let Err(err) = sink_builder.ping(&mut conn).await {
                     if *err.code() == 0x0388 {
                         let subject = to.subject.as_deref().unwrap_or("unknown");
