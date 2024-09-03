@@ -1357,7 +1357,7 @@ static int32_t createSortMemFile(SSortHandle* pHandle) {
   int32_t       code = TSDB_CODE_SUCCESS;
   SSortMemFile* pMemFile = taosMemoryCalloc(1, sizeof(SSortMemFile));
   if (pMemFile == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
   }
   if (code == TSDB_CODE_SUCCESS) {
     taosGetTmpfilePath(tsTempDir, "sort-ext-mem", pMemFile->memFilePath);
