@@ -130,11 +130,11 @@ alter_database_option: {
 
 1. 如何查看 cachesize?
 
-通过 select * from information_schema.ins_databases; 可以查看这些 cachesize 的具体值。
+通过 select * from information_schema.ins_databases; 可以查看这些 cachesize 的具体值（单位为 MB）。
 
 2. 如何查看 cacheload?
 
-通过 show \<db_name>.vgroups; 可以查看 cacheload
+通过 show \<db_name>.vgroups; 可以查看 cacheload（单位为字节）
 
 3. 判断 cachesize 是否够用
 
