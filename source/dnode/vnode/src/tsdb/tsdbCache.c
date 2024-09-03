@@ -678,14 +678,14 @@ int32_t tsdbCacheCommitNoLock(STsdb *pTsdb) {
 
 static int32_t tsdbCacheGetValuesFromRocks(STsdb *pTsdb, size_t numKeys, const char *const *ppKeysList,
                                            size_t *pKeysListSizes, char ***pppValuesList, size_t **ppValuesListSizes) {
-  char  **valuesList = taosMemoryCalloc(numKeys, sizeof(char *));
-  if(!valuesList) return terrno;
+  char **valuesList = taosMemoryCalloc(numKeys, sizeof(char *));
+  if (!valuesList) return terrno;
   size_t *valuesListSizes = taosMemoryCalloc(numKeys, sizeof(size_t));
-  if(!valuesListSizes) {
+  if (!valuesListSizes) {
     taosMemoryFreeClear(valuesList);
     return terrno;
   }
-  char  **errs = taosMemoryCalloc(numKeys, sizeof(char *));
+  char **errs = taosMemoryCalloc(numKeys, sizeof(char *));
   if (!errs) {
     taosMemoryFreeClear(valuesList);
     taosMemoryFreeClear(valuesListSizes);
@@ -1178,7 +1178,7 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
     size_t *values_list_sizes = NULL;
     char  **errs = NULL;
     keys_list = taosMemoryCalloc(num_keys, sizeof(char *));
-    if(!keys_list) {
+    if (!keys_list) {
       (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
       return terrno;
     }
@@ -1692,19 +1692,18 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
         goto _exit;
       }
 
+      SLastCol lastCol = *pLastCol;
+      TAOS_CHECK_EXIT(tsdbCacheReallocSLastCol(&lastCol, NULL));
+
       LRUStatus status = taosLRUCacheInsert(pCache, &idxKey->key, ROCKS_KEY_LEN, pLastCol, charge, tsdbCacheDeleter,
                                             NULL, TAOS_LRU_PRIORITY_LOW, &pTsdb->flushState);
       if (status != TAOS_LRU_STATUS_OK) {
         code = -1;
       }
 
-      SLastCol lastCol = *pLastCol;
-      TAOS_CHECK_EXIT(tsdbCacheReallocSLastCol(&lastCol, NULL));
-
       taosArraySet(pLastArray, idxKey->idx, &lastCol);
       taosArrayRemove(remainCols, j);
       taosArrayRemove(ignoreFromRocks, j);
-
     } else {
       ++j;
     }
