@@ -1314,7 +1314,7 @@ pub async fn tmq_to_td(
         .remove("read_concurrency")
         .or(from.remove("num.of.consumers"))
         .and_then(|s| s.parse().ok())
-        .unwrap_or(jobs);
+        .unwrap_or_else(|| if jobs > 0 { jobs } else { 1 });
     let strategy = from
         .remove("prefer")
         .map(|s| s.into())
@@ -1324,11 +1324,7 @@ pub async fn tmq_to_td(
         .or(from.remove("num.of.writers"))
         .or(std::env::var("TMQ_WRITE_CONCURRENCY").ok())
         .and_then(|s| s.parse().ok())
-        .unwrap_or_else(|| {
-            std::thread::available_parallelism()
-                .map_or_else(|_| 8, |n| n.get() * 2 / jobs)
-                .max(2)
-        });
+        .unwrap_or(0);
     let commit_chunk_size = from
         .remove("commit.chunk.size")
         .or(std::env::var("TMQ_COMMIT_CHUNK_SIZE").ok())
@@ -1357,7 +1353,7 @@ pub async fn tmq_to_td(
         })
         .transpose()?
         .unwrap_or_else(|| Duration::from_secs(5));
-    let options = WriteOptions {
+    let mut options = WriteOptions {
         with_meta_delete,
         with_meta_drop,
         strategy,
@@ -1475,6 +1471,11 @@ pub async fn tmq_to_td(
         } else {
             jobs
         };
+        if options.concurrency == 0 {
+            options.concurrency = std::thread::available_parallelism()
+                .map_or_else(|_| 8, |n| n.get() * 2 / jobs)
+                .max(2);
+        }
         metrics.consumers.fetch_add(jobs as _, SeqCst);
         let mut target_dsn = to.clone();
         target_dsn.subject.replace(target_database.to_string());
