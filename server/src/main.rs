@@ -22,7 +22,6 @@ use std::{
 };
 use taos::*;
 use taos_query::Manager;
-use tokio::sync::Mutex;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{error, info, instrument, Level};
 use tracing_actix_web::TracingLogger;
@@ -57,19 +56,42 @@ fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
     }
 }
 
-static TAOS_POOL: OnceLock<Mutex<HashMap<String, deadpool::managed::Pool<Manager<TaosBuilder>>>>> =
-    OnceLock::new();
+#[derive(Clone)]
+struct UserPool {
+    password: String,
+    pool: deadpool::managed::Pool<Manager<TaosBuilder>>,
+}
+
+static TAOS_POOL: OnceLock<scc::HashMap<String, UserPool>> = OnceLock::new();
 
 async fn global_pool(dsn: &Dsn) -> deadpool::managed::Pool<Manager<TaosBuilder>> {
-    let map = TAOS_POOL.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut map = map.lock().await;
-    if let Some(pool) = map.get(&dsn.to_string()) {
-        pool.clone()
+    let map = TAOS_POOL.get_or_init(|| scc::HashMap::new());
+    let mut dsn_simple = dsn.clone();
+    dsn_simple.password = None;
+
+    let user_pool = map
+        .entry(dsn_simple.to_string())
+        .or_insert_with(|| {
+            let builder = taos::TaosBuilder::from_dsn(dsn).expect("Failed to create TaosBuilder");
+            let pool = builder.pool().expect("Failed to create Taos pool");
+            UserPool {
+                password: dsn.password.clone().unwrap_or_default(),
+                pool,
+            }
+        })
+        .get()
+        .clone();
+    if user_pool.password == dsn.password.clone().unwrap_or_default() {
+        user_pool.pool.clone()
     } else {
         let builder = taos::TaosBuilder::from_dsn(dsn).expect("Failed to create TaosBuilder");
         let pool = builder.pool().expect("Failed to create Taos pool");
-        map.insert(dsn.to_string(), pool);
-        map.get(&dsn.to_string()).unwrap().clone()
+        let user_pool = UserPool {
+            password: dsn.password.clone().unwrap_or_default(),
+            pool,
+        };
+        let _ = map.upsert(dsn_simple.to_string(), user_pool.clone());
+        user_pool.pool.clone()
     }
 }
 
