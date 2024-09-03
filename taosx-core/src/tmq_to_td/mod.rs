@@ -1314,7 +1314,7 @@ pub async fn tmq_to_td(
         .remove("read_concurrency")
         .or(from.remove("num.of.consumers"))
         .and_then(|s| s.parse().ok())
-        .unwrap_or_else(|| if jobs > 0 { jobs } else { 1 });
+        .unwrap_or(jobs); // 0 means auto
     let strategy = from
         .remove("prefer")
         .map(|s| s.into())
@@ -1324,7 +1324,7 @@ pub async fn tmq_to_td(
         .or(from.remove("num.of.writers"))
         .or(std::env::var("TMQ_WRITE_CONCURRENCY").ok())
         .and_then(|s| s.parse().ok())
-        .unwrap_or(0);
+        .unwrap_or(0); // 0 means auto, should be set after.
     let commit_chunk_size = from
         .remove("commit.chunk.size")
         .or(std::env::var("TMQ_COMMIT_CHUNK_SIZE").ok())
@@ -1341,15 +1341,20 @@ pub async fn tmq_to_td(
         .or(from.remove("timeout")) // for compatibility
         .or(std::env::var("TMQ_MAX_POLLING_TIMEOUT").ok())
         .map(|s| {
-            parse_duration(&s).map_err(|e| {
-                tracing::warn!(
-                    key = "max.polling.timeout",
-                    value = s,
-                    "parse max.polling.timeout error: {}",
-                    e
-                );
-                anyhow::anyhow!("parse max.polling.timeout error: {e:#}")
-            })
+            let s = s.trim();
+            if matches!(s, "never" | "0" | "-1") {
+                Ok(Duration::MAX)
+            } else {
+                parse_duration(&s).map_err(|e| {
+                    tracing::warn!(
+                        key = "max.polling.timeout",
+                        value = s,
+                        "parse max.polling.timeout error: {}",
+                        e
+                    );
+                    anyhow::anyhow!("parse max.polling.timeout error: {e:#}")
+                })
+            }
         })
         .transpose()?
         .unwrap_or_else(|| Duration::from_secs(5));
@@ -1466,11 +1471,14 @@ pub async fn tmq_to_td(
             &topic.database
         };
 
+        // Jobs should be less than or equal to vgroups and greater than 0.
         let jobs = if jobs == 0 || jobs >= topic.vgroups {
             topic.vgroups
         } else {
             jobs
         };
+
+        // If concurrency is 0, use available_parallelism * 2 / jobs
         if options.concurrency == 0 {
             options.concurrency = std::thread::available_parallelism()
                 .map_or_else(|_| 8, |n| n.get() * 2 / jobs)
