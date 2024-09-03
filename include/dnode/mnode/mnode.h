@@ -121,6 +121,8 @@ void mndGenerateMachineCode();
 
 void mndDumpSdb();
 
+void mndDeleteTrans();
+
 #ifdef __cplusplus
 }
 #endif

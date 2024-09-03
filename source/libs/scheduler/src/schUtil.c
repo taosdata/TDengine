@@ -251,9 +251,8 @@ int32_t schUpdateHbConnection(SQueryNodeEpId *epId, SSchTrans *trans) {
   hb = taosHashGet(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId));
   if (NULL == hb) {
     SCH_UNLOCK(SCH_READ, &schMgmt.hbLock);
-    qDebug("taosHashGet hb connection not exists, nodeId:%d, fqdn:%s, port:%d", epId->nodeId, epId->ep.fqdn,
-          epId->ep.port);
-    SCH_ERR_RET(TSDB_CODE_APP_ERROR);
+    (void)atomic_add_fetch_64(&schMgmt.stat.runtime.hbConnNotFound, 1);
+    return TSDB_CODE_SUCCESS;
   }
 
   SCH_LOCK(SCH_WRITE, &hb->lock);

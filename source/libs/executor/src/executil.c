@@ -56,6 +56,7 @@ static int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTag
 
 static int64_t getLimit(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->limit; }
 static int64_t getOffset(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->offset; }
+static void    releaseColInfoData(void* pCol);
 
 void initResultRowInfo(SResultRowInfo* pResultRowInfo) {
   pResultRowInfo->size = 0;
@@ -321,13 +322,13 @@ int32_t prepareDataBlockBuf(SSDataBlock* pDataBlock, SColMatchInfo* pMatchInfo) 
       if (IS_VAR_DATA_TYPE(pItem->dataType.type)) {
         pBlockInfo->pks[0].pData = taosMemoryCalloc(1, pInfoData->info.bytes);
         if (pBlockInfo->pks[0].pData == NULL) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
 
         pBlockInfo->pks[1].pData = taosMemoryCalloc(1, pInfoData->info.bytes);
         if (pBlockInfo->pks[1].pData == NULL) {
           taosMemoryFreeClear(pBlockInfo->pks[0].pData);
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
 
         pBlockInfo->pks[0].nData = pInfoData->info.bytes;
@@ -519,7 +520,6 @@ static EDealRes getColumn(SNode** pNode, void* pContext) {
 static int32_t createResultData(SDataType* pType, int32_t numOfRows, SScalarParam* pParam) {
   SColumnInfoData* pColumnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
   if (pColumnData == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -531,7 +531,7 @@ static int32_t createResultData(SDataType* pType, int32_t numOfRows, SScalarPara
   int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows, true);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
-    taosMemoryFree(pColumnData);
+    releaseColInfoData(pColumnData);
     return terrno;
   }
 
@@ -758,7 +758,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
 
   keyBuf = taosMemoryCalloc(1, keyLen);
   if (keyBuf == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto end;
   }
 
@@ -1980,7 +1980,7 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
   SqlFunctionCtx*  p = NULL;
   SqlFunctionCtx** pValCtx = taosMemoryCalloc(numOfOutput, POINTER_BYTES);
   if (pValCtx == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SHashObj* pSelectFuncs = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);

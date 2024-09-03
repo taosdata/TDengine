@@ -421,7 +421,7 @@ static int32_t doCreateConstantValColumnSMAInfo(SInputColumnInfoData* pInput, SF
   if (pInput->pData[paramIndex] == NULL) {
     pInput->pData[paramIndex] = taosMemoryCalloc(1, sizeof(SColumnInfoData));
     if (pInput->pData[paramIndex] == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     // Set the correct column info (data type and bytes)
@@ -551,6 +551,8 @@ int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t n
         if (code != TSDB_CODE_SUCCESS && fmIsUserDefinedFunc(pCtx[i].functionId)) {
           pResInfo->initialized = false;
           return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
+        } else if (code != TSDB_CODE_SUCCESS) {
+          return code;
         }
       } else {
         pResInfo->initialized = true;
@@ -1090,7 +1092,7 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
       SInserterParam* pInserterParam = taosMemoryCalloc(1, sizeof(SInserterParam));
       if (NULL == pInserterParam) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       pInserterParam->readHandle = readHandle;
 
@@ -1100,12 +1102,13 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
     case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
       SDeleterParam* pDeleterParam = taosMemoryCalloc(1, sizeof(SDeleterParam));
       if (NULL == pDeleterParam) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       SArray* pInfoList = NULL;
       int32_t code = getTableListInfo(pTask, &pInfoList);
-      if (code || pInfoList == NULL) {
+      if (code != TSDB_CODE_SUCCESS || pInfoList == NULL) {
+        taosMemoryFree(pDeleterParam);
         return code;
       }
 

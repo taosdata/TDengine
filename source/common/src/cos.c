@@ -704,7 +704,7 @@ static int32_t s3PutObjectFromFileWithoutCp(S3BucketContext *bucket_context, cha
 
   manager.etags = (char **)taosMemoryCalloc(totalSeq, sizeof(char *));
   if (!manager.etags) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
   manager.next_etags_pos = 0;
   do {
@@ -810,7 +810,7 @@ static int32_t s3PutObjectFromFileWithCp(S3BucketContext *bucket_context, const 
   SCheckpoint cp = {0};
   cp.parts = taosMemoryCalloc(max_part_num, sizeof(SCheckpointPart));
   if (!cp.parts) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   if (taosCheckExistFile(file_cp_path)) {
@@ -858,7 +858,7 @@ static int32_t s3PutObjectFromFileWithCp(S3BucketContext *bucket_context, const 
 
   manager.etags = (char **)taosMemoryCalloc(totalSeq, sizeof(char *));
   if (!manager.etags) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   manager.next_etags_pos = 0;
@@ -1831,7 +1831,7 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_
   // char *buf = cos_pcalloc(p, (apr_size_t)(len + 1));
   char *buf = taosMemoryCalloc(1, (apr_size_t)(len));
   if (!buf) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   // buf[len] = '\0';

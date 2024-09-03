@@ -365,7 +365,7 @@ int32_t dmBuildVariablesBlock(SSDataBlock **ppBlock) {
 
   SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (pBlock == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   size_t size = 0;

@@ -381,7 +381,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
   return code;
 }
 
-static int32_t sdbWriteFileImp(SSdb *pSdb) {
+static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
   int32_t code = 0;
 
   char tmpfile[PATH_MAX] = {0};
@@ -409,6 +409,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
   }
 
   for (int32_t i = SDB_MAX - 1; i >= 0; --i) {
+    if (i == skip_type) continue;
     SdbEncodeFp encodeFp = pSdb->encodeFps[i];
     if (encodeFp == NULL) continue;
 
@@ -550,7 +551,7 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
     }
   }
   if (code == 0) {
-    code = sdbWriteFileImp(pSdb);
+    code = sdbWriteFileImp(pSdb, -1);
   }
   if (code == 0) {
     if (pSdb->pWal != NULL) {
@@ -563,6 +564,14 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
     mError("failed to write sdb file since %s", tstrerror(code));
   }
   (void)taosThreadMutexUnlock(&pSdb->filelock);
+  return code;
+}
+
+int32_t sdbWriteFileForDump(SSdb *pSdb) {
+  int32_t code = 0;
+
+  code = sdbWriteFileImp(pSdb, 0);
+
   return code;
 }
 
@@ -664,7 +673,7 @@ int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len) {
   int32_t maxlen = 4096;
   void   *pBuf = taosMemoryCalloc(1, maxlen);
   if (pBuf == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 
