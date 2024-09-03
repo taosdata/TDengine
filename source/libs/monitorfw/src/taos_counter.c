@@ -87,6 +87,7 @@ int taos_counter_get_vgroup_ids(taos_counter_t *self, char ***keys, int32_t **vg
   *keys = (char **)taos_malloc(*list_size * sizeof(char *));
   if (keys == NULL) return 1;
   int index = 0;
+  pthread_rwlock_rdlock(self->rwlock);
   for (taos_linked_list_node_t *current_key = key_list->head; current_key != NULL; current_key = current_key->next) {
     char   *key = (char *)current_key->item;
     int32_t vgroup_id = taos_metric_formatter_get_vgroup_id(key);
@@ -94,6 +95,7 @@ int taos_counter_get_vgroup_ids(taos_counter_t *self, char ***keys, int32_t **vg
     (*keys)[index] = key;
     index++;
   }
+  pthread_rwlock_unlock(self->rwlock);
   return r;
 }
 
