@@ -217,6 +217,7 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
 
   pqSw->pSchema = taosMemoryCalloc(numOfCols + numOfTags, sizeof(SSchema));
   if (pqSw->pSchema == NULL) {
+    taosMemoryFree(pqSw);
     return NULL;
   }
 

@@ -1706,7 +1706,9 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
         cell = cell->pNext;
       }
 
-      (void)taosArrayAddAll(ctx->group, preGroup);
+      if (NULL == taosArrayAddAll(ctx->group, preGroup)) {
+        FLT_ERR_JRET(terrno);
+      }
 
       taosArrayDestroy(preGroup);
 
