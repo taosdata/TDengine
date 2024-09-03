@@ -3009,9 +3009,8 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
       data += colSizes[col];
     }
 
-    if (colSizes[col] <= 0 && !colDataIsNull_s(pColRes, 0)) {
-      uError("Invalid colSize:%d while encoding block", colSizes[col]);
-      ASSERT(0);
+    if (colSizes[col] <= 0 && !colDataIsNull_s(pColRes, 0) && pColRes->info.type != TSDB_DATA_TYPE_NULL) {
+      uError("Invalid colSize:%d colIdx:%d colType:%d while encoding block", colSizes[col], col, pColRes->info.type);
       terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       return -1;
     }
@@ -3098,7 +3097,6 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
     colLen[i] = htonl(colLen[i]);
     if (colLen[i] < 0) {
       uError("block decode colLen:%d error, colIdx:%d", colLen[i], i);
-      ASSERT(0);
       terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       return terrno;
     }
@@ -3130,9 +3128,8 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
 
     if (colLen[i] > 0) {
       memcpy(pColInfoData->pData, pStart, colLen[i]);
-    } else if (!colDataIsNull_s(pColInfoData, 0)) {
-      uError("block decode colLen:%d error, colIdx:%d", colLen[i], i);
-      ASSERT(0);
+    } else if (!colDataIsNull_s(pColInfoData, 0) && pColInfoData->info.type != TSDB_DATA_TYPE_NULL) {
+      uError("block decode colLen:%d error, colIdx:%d, type:%d", colLen[i], i, pColInfoData->info.type);
       terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       return terrno;
     }
