@@ -158,19 +158,19 @@ int taos_metric_formatter_load_l_value(taos_metric_formatter_t *self, const char
   return 0;
 }
 int32_t taos_metric_formatter_get_vgroup_id(char *key) {
-  char *start,*end;
-  char vgroupid[10];
-    start = strstr(key, "vgroup_id=\"");
-    if (start) {
-        start += strlen("vgroup_id=\"");
-        end = strchr(start, '\"');
-        if (end) {
-            strncpy(vgroupid, start, end - start);
-            vgroupid[end - start] = '\0';
-        }
-        return strtol(vgroupid, NULL, 10);
+  char *start, *end;
+  char  vgroupid[10];
+  start = strstr(key, "vgroup_id=\"");
+  if (start) {
+    start += strlen("vgroup_id=\"");
+    end = strchr(start, '\"');
+    if (end) {
+      strncpy(vgroupid, start, end - start);
+      vgroupid[end - start] = '\0';
     }
-    return 0;
+    return strtol(vgroupid, NULL, 10);
+  }
+  return 0;
 }
 /*
 int taos_metric_formatter_load_sample(taos_metric_formatter_t *self, taos_metric_sample_t *sample, 
