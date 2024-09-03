@@ -338,9 +338,6 @@ static SKeyword keywordTable[] = {
     {"S3_COMPACT",           TK_S3_COMPACT},
     {"S3MIGRATE",            TK_S3MIGRATE},
     {"KEEP_TIME_OFFSET",     TK_KEEP_TIME_OFFSET},
-    {"ENCODE",               TK_ENCODE},
-    {"COMPRESS",             TK_COMPRESS},
-    {"LEVEL",                TK_LEVEL},
     {"ARBGROUPS",            TK_ARBGROUPS},
     {"IS_IMPORT",            TK_IS_IMPORT},
 };

@@ -44,7 +44,7 @@ int32_t smOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   int32_t     code = 0;
   SSnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SSnodeMgmt));
   if (pMgmt == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     return code;
   }
 

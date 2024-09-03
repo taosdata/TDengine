@@ -1685,7 +1685,7 @@ int32_t stdPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
 
   if (NULL == res) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (void)memcpy(varDataVal(res), pInfo, resultBytes);
   varDataSetLen(res, resultBytes);
@@ -2447,7 +2447,7 @@ int32_t apercentilePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t resultBytes = getApercentileMaxSize();
   char*   res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
   if (NULL == res) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (pInfo->algo == APERCT_ALGO_TDIGEST) {
@@ -3107,7 +3107,7 @@ int32_t firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   // todo check for failure
   char* res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
   if (NULL == res) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (void)memcpy(varDataVal(res), pRes, resultBytes);
 
@@ -4358,7 +4358,7 @@ int32_t spreadPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
 
   if (NULL == res) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (void)memcpy(varDataVal(res), pInfo, resultBytes);
   varDataSetLen(res, resultBytes);
@@ -4548,7 +4548,7 @@ int32_t elapsedPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
 
   if (NULL == res) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (void)memcpy(varDataVal(res), pInfo, resultBytes);
   varDataSetLen(res, resultBytes);
@@ -4654,7 +4654,7 @@ static int32_t getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8
     if (NULL == intervals) {
       cJSON_Delete(binDesc);
       qError("histogram function out of memory");
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if (cJSON_IsNumber(width) && factor == NULL && binType == LINEAR_BIN) {
       // linear bin process
@@ -4720,7 +4720,7 @@ static int32_t getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8
     if (NULL == intervals) {
       cJSON_Delete(binDesc);
       qError("histogram function out of memory");
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     cJSON* bin = binDesc->child;
     if (bin == NULL) {
@@ -4925,7 +4925,7 @@ int32_t histogramPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
 
   if (NULL == res) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (void)memcpy(varDataVal(res), pInfo, resultBytes);
   varDataSetLen(res, resultBytes);
@@ -5158,7 +5158,7 @@ int32_t hllPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
 
   if (NULL == res) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (void)memcpy(varDataVal(res), pInfo, resultBytes);
   varDataSetLen(res, resultBytes);
@@ -6993,7 +6993,7 @@ int32_t iratePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
 
   if (NULL == res) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (void)memcpy(varDataVal(res), pInfo, resultBytes);
   varDataSetLen(res, resultBytes);

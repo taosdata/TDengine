@@ -22,7 +22,7 @@ int32_t mndInitPerfsTableSchema(const SSysDbTableSchema *pSrc, int32_t colNum, S
   int32_t  code = 0;
   SSchema *schema = taosMemoryCalloc(colNum, sizeof(SSchema));
   if (NULL == schema) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 
@@ -84,7 +84,7 @@ int32_t mndBuildPerfsTableSchema(SMnode *pMnode, const char *dbFName, const char
 
   pRsp->pSchemas = taosMemoryCalloc(meta->numOfColumns, sizeof(SSchema));
   if (pRsp->pSchemas == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     pRsp->pSchemas = NULL;
     TAOS_RETURN(code);
   }
@@ -116,7 +116,7 @@ int32_t mndBuildPerfsTableCfg(SMnode *pMnode, const char *dbFName, const char *t
 
   pRsp->pSchemas = taosMemoryCalloc(pMeta->numOfColumns, sizeof(SSchema));
   if (pRsp->pSchemas == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     pRsp->pSchemas = NULL;
     TAOS_RETURN(code);
   }
