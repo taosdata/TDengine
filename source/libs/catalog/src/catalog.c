@@ -110,7 +110,7 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
   STableMetaOutput* output = taosMemoryCalloc(1, sizeof(STableMetaOutput));
   if (NULL == output) {
     ctgError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   if (CTG_FLAG_IS_SYS_DB(ctx->flag)) {
@@ -278,7 +278,7 @@ int32_t ctgUpdateTbMeta(SCatalog* pCtg, STableMetaRsp* rspMsg, bool syncOp) {
   STableMetaOutput* output = taosMemoryCalloc(1, sizeof(STableMetaOutput));
   if (NULL == output) {
     ctgError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   int32_t code = 0;
@@ -379,7 +379,7 @@ int32_t ctgGetTbIndex(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName
 
   STableIndex* pIndex = taosMemoryCalloc(1, sizeof(STableIndex));
   if (NULL == pIndex) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   int32_t code = ctgGetTbIndexFromMnode(pCtg, pConn, (SName*)pTableName, pIndex, NULL);
@@ -856,7 +856,7 @@ int32_t catalogInit(SCatalogCfg* cfg) {
   gCtgMgmt.queue.head = taosMemoryCalloc(1, sizeof(SCtgQNode));
   if (NULL == gCtgMgmt.queue.head) {
     qError("calloc %d failed", (int32_t)sizeof(SCtgQNode));
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
   gCtgMgmt.queue.tail = gCtgMgmt.queue.head;
 
@@ -916,7 +916,7 @@ int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
     clusterCtg = taosMemoryCalloc(1, sizeof(SCatalog));
     if (NULL == clusterCtg) {
       qError("calloc %d failed", (int32_t)sizeof(SCatalog));
-      CTG_API_LEAVE(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_API_LEAVE(terrno);
     }
 
     clusterCtg->clusterId = clusterId;
@@ -1065,7 +1065,7 @@ int32_t catalogGetDBVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* 
 
   pInfo->vgHash = taosMemoryCalloc(pInfo->vgNum, sizeof(TAOS_VGROUP_HASH_INFO));
   if (NULL == pInfo->vgHash) {
-    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_JRET(terrno);
   }
 
   SVgroupInfo* vgInfo = NULL;  
@@ -1178,7 +1178,7 @@ int32_t catalogUpdateTableIndex(SCatalog* pCtg, STableIndexRsp* pRsp) {
 
   STableIndex* pIndex = taosMemoryCalloc(1, sizeof(STableIndex));
   if (NULL == pIndex) {
-    CTG_API_LEAVE(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_API_LEAVE(terrno);
   }
 
   TAOS_MEMCPY(pIndex, pRsp, sizeof(STableIndex));
@@ -1613,7 +1613,7 @@ int32_t catalogGetExpiredUsers(SCatalog* pCtg, SUserAuthVersion** users, uint32_
   *users = taosMemoryCalloc(*num, sizeof(SUserAuthVersion));
   if (NULL == *users) {
     ctgError("calloc %d userAuthVersion failed", *num);
-    CTG_API_LEAVE(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_API_LEAVE(terrno);
   }
 
   uint32_t      i = 0;

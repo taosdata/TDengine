@@ -123,13 +123,13 @@ int32_t qExplainInitCtx(SExplainCtx **pCtx, SHashObj *groupHash, bool verbose, d
   SExplainCtx *ctx = taosMemoryCalloc(1, sizeof(SExplainCtx));
   if (NULL == ctx) {
     qError("calloc SExplainCtx failed");
-    QRY_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    QRY_ERR_JRET(terrno);
   }
 
   SArray *rows = taosArrayInit(10, sizeof(SQueryExplainRowInfo));
   if (NULL == rows) {
     qError("taosArrayInit SQueryExplainRowInfo failed");
-    QRY_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    QRY_ERR_JRET(terrno);
   }
 
   char *tbuf = taosMemoryMalloc(TSDB_EXPLAIN_RESULT_ROW_SIZE);
