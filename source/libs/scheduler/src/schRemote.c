@@ -940,13 +940,13 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
   SMsgSendInfo *pMsgSendInfo = NULL;
   bool          isHb = (TDMT_SCH_QUERY_HEARTBEAT == msgType);
 
+  SCH_ERR_JRET(schGenerateCallBackInfo(pJob, pTask, msg, msgSize, msgType, trans, isHb, &pMsgSendInfo));
+  SCH_ERR_JRET(schUpdateSendTargetInfo(pMsgSendInfo, addr, pTask));
+
   if (isHb && persistHandle && trans->pHandle == 0) {
     trans->pHandle = rpcAllocHandle();
     pMsgSendInfo->msgInfo.handle = trans->pHandle;
   } 
-  SCH_ERR_JRET(schGenerateCallBackInfo(pJob, pTask, msg, msgSize, msgType, trans, isHb, &pMsgSendInfo));
-  SCH_ERR_JRET(schUpdateSendTargetInfo(pMsgSendInfo, addr, pTask));
-
   if (pJob && pTask) {
     SCH_TASK_DLOG("start to send %s msg to node[%d,%s,%d], pTrans:%p, pHandle:%p", TMSG_INFO(msgType), addr->nodeId,
            epSet->eps[epSet->inUse].fqdn, epSet->eps[epSet->inUse].port, trans->pTrans, trans->pHandle);
