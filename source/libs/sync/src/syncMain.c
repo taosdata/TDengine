@@ -1421,7 +1421,7 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
 
   sInfo("vgId:%d, expected lastLogIndex1:%" PRId64 ", lastVer:%" PRId64 "", pSyncNode->vgId, endIndex - 1, lastVer);
 
-  taosMsleep(1000);
+  taosMsleep(5000);
 
   (void)taosThreadMutexLock(&pSyncNode->pLogBuf->mutex);
   lastVer = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
