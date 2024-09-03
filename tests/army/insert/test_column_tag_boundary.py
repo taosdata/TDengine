@@ -116,7 +116,7 @@ class TDTestCase(TBase):
             tdSql.checkData(0, 5, tag)
 
     def test_varbinary_boundary(self):
-        row_num_per_round = 8
+
         # create tables
         tdSql.execute(f"create table st_varbinary (ts timestamp, c1 varbinary({self.max_column_length})) tags (t1 varbinary({self.max_tag_length}));")
         for i in range(self.child_table_num):
