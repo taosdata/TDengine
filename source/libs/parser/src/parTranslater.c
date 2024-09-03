@@ -6015,7 +6015,9 @@ static int32_t isOperatorEqTbnameCond(STranslateContext* pCxt, SOperatorNode* pO
   }
   SArray* pTabNames = NULL;
   pTabNames = taosArrayInit(1, sizeof(void*));
-  if (!pTabNames) return TSDB_CODE_OUT_OF_MEMORY;
+  if (!pTabNames) {
+    return terrno;
+  }
   if (NULL == taosArrayPush(pTabNames, &(pValueNode->literal))) {
     taosArrayDestroy(pTabNames);
     return terrno;
