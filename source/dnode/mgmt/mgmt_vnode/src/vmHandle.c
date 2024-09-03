@@ -110,25 +110,33 @@ void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   taosArrayDestroy(pVloads);
 }
 
-int vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {
+void vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {
   int list_size = taos_counter_get_keys_size(tsInsertCounter);
-  if (list_size == 0) return 0;
+  if (list_size == 0) return;
   int32_t *vgroup_ids;
   char   **keys;
-  taos_counter_get_vgroup_ids(tsInsertCounter, &keys, &vgroup_ids);
-  int r = 0;
-  (void)taosThreadRwlockWrlock(&pMgmt->lock);
+  int      r = 0;
+  r = taos_counter_get_vgroup_ids(tsInsertCounter, &keys, &vgroup_ids, &list_size);
+  if (r) {
+    dError("failed to get vgroup ids");
+    return;
+  }
+  (void)taosThreadRwlockRdlock(&pMgmt->lock);
   for (int i = 0; i < list_size; i++) {
     int32_t vgroup_id = vgroup_ids[i];
     void   *vnode = taosHashGet(pMgmt->hash, &vgroup_id, sizeof(int32_t));
     if (vnode == NULL) {
       r = taos_counter_delete(tsInsertCounter, keys[i]);
+      if (r) {
+        dError("failed to delete key:%s", keys[i]);
+        return;
+      }
     }
   }
   (void)taosThreadRwlockUnlock(&pMgmt->lock);
   taosMemoryFree(vgroup_ids);
   taosMemoryFree(keys);
-  return r;
+  return;
 }
 
 static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {

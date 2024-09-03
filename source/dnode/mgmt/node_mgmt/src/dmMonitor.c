@@ -14,9 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "audit.h"
 #include "dmMgmt.h"
 #include "dmNodes.h"
+#include "audit.h"
 
 static void dmGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
   pInfo->protocol = 1;
@@ -52,14 +52,15 @@ static void dmGetDmMonitorInfo(SDnode *pDnode) {
   monSetDmInfo(&dmInfo);
 }
 
-int dmCleanExpriedSamples(SDnode *pDnode) {
+void dmCleanExpriedSamples(SDnode *pDnode) {
   SMgmtWrapper *pWrapper = &pDnode->wrappers[VNODE];
   if (dmMarkWrapper(pWrapper) == 0) {
     if (pWrapper->pMgmt != NULL) {
-      return vmCleanExpriedSamples(pWrapper->pMgmt);
+      vmCleanExpriedSamples(pWrapper->pMgmt);
     }
   }
-  return 0;
+  dmReleaseWrapper(pWrapper);
+  return;
 }
 
 static void dmGetDmMonitorInfoBasic(SDnode *pDnode) {
@@ -134,8 +135,8 @@ void dmSendMonitorReport() {
 }
 
 void dmMonitorCleanExpiredSamples() {
-  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
-  dTrace("send monitor report to %s:%u", tsMonitorFqdn, tsMonitorPort);
+  if (!tsEnableMonitor) return;
+  dTrace("clean monitor expired samples");
 
   SDnode *pDnode = dmInstance();
   (void)dmCleanExpriedSamples(pDnode);
