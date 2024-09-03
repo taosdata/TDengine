@@ -395,7 +395,8 @@ export function getDSN(driver = "tmq", subject = null) {
     } else if (parsed_url.protocol == "https:") {
       scheme = "+wss";
     } else {
-      scheme = "+" + parsed_url.protocol.replace(":", "");
+      driver = ''
+      scheme = parsed_url.protocol.replace(":", "");
       host = parsed_url.pathname.split('//')[1];
     }
 
