@@ -234,7 +234,7 @@ static int32_t addTimezoneParam(SNodeList* pList) {
   pVal->datum.p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE + 1);
   if (pVal->datum.p == NULL) {
     nodesDestroyNode((SNode*)pVal);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   varDataSetLen(pVal->datum.p, len);
   (void)strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
@@ -1266,7 +1266,7 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
     if (intervals == NULL) {
       (void)snprintf(errMsg, msgLen, "%s", msg9);
       cJSON_Delete(binDesc);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     cJSON* bin = binDesc->child;
     if (bin == NULL) {

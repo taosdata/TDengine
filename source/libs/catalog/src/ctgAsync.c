@@ -54,7 +54,7 @@ int32_t ctgInitGetTbMetaTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   task.taskCtx = taosMemoryCalloc(1, sizeof(SCtgTbMetaCtx));
   if (NULL == task.taskCtx) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   SCtgTbMetaCtx* ctx = task.taskCtx;
@@ -87,7 +87,7 @@ int32_t ctgInitGetTbMetasTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   task.taskCtx = taosMemoryCalloc(1, sizeof(SCtgTbMetasCtx));
   if (NULL == task.taskCtx) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   SCtgTbMetasCtx* ctx = task.taskCtx;
@@ -121,7 +121,7 @@ int32_t ctgInitGetDbVgTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   task.taskCtx = taosMemoryCalloc(1, sizeof(SCtgDbVgCtx));
   if (NULL == task.taskCtx) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   SCtgDbVgCtx* ctx = task.taskCtx;
@@ -149,7 +149,7 @@ int32_t ctgInitGetDbCfgTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   task.taskCtx = taosMemoryCalloc(1, sizeof(SCtgDbCfgCtx));
   if (NULL == task.taskCtx) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   SCtgDbCfgCtx* ctx = task.taskCtx;
@@ -177,7 +177,7 @@ int32_t ctgInitGetDbInfoTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   task.taskCtx = taosMemoryCalloc(1, sizeof(SCtgDbInfoCtx));
   if (NULL == task.taskCtx) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   SCtgDbInfoCtx* ctx = task.taskCtx;
@@ -205,7 +205,7 @@ int32_t ctgInitGetTbHashTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   task.taskCtx = taosMemoryCalloc(1, sizeof(SCtgTbHashCtx));
   if (NULL == task.taskCtx) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   SCtgTbHashCtx* ctx = task.taskCtx;
@@ -238,7 +238,7 @@ int32_t ctgInitGetTbHashsTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   task.taskCtx = taosMemoryCalloc(1, sizeof(SCtgTbHashsCtx));
   if (NULL == task.taskCtx) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   SCtgTbHashsCtx* ctx = task.taskCtx;
@@ -308,7 +308,7 @@ int32_t ctgInitGetIndexTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   task.taskCtx = taosMemoryCalloc(1, sizeof(SCtgIndexCtx));
   if (NULL == task.taskCtx) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   SCtgIndexCtx* ctx = task.taskCtx;
@@ -336,7 +336,7 @@ int32_t ctgInitGetUdfTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   task.taskCtx = taosMemoryCalloc(1, sizeof(SCtgUdfCtx));
   if (NULL == task.taskCtx) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   SCtgUdfCtx* ctx = task.taskCtx;
@@ -364,7 +364,7 @@ int32_t ctgInitGetUserTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   task.taskCtx = taosMemoryCalloc(1, sizeof(SCtgUserCtx));
   if (NULL == task.taskCtx) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   SCtgUserCtx* ctx = task.taskCtx;
@@ -409,7 +409,7 @@ int32_t ctgInitGetTbIndexTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   task.taskCtx = taosMemoryCalloc(1, sizeof(SCtgTbIndexCtx));
   if (NULL == task.taskCtx) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   SCtgTbIndexCtx* ctx = task.taskCtx;
@@ -442,7 +442,7 @@ int32_t ctgInitGetTbCfgTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   task.taskCtx = taosMemoryCalloc(1, sizeof(SCtgTbCfgCtx));
   if (NULL == task.taskCtx) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   SCtgTbCfgCtx* ctx = task.taskCtx;
@@ -475,7 +475,7 @@ int32_t ctgInitGetTbTagTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   task.taskCtx = taosMemoryCalloc(1, sizeof(SCtgTbTagCtx));
   if (NULL == task.taskCtx) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   SCtgTbTagCtx* ctx = task.taskCtx;
@@ -507,7 +507,7 @@ int32_t ctgInitGetViewsTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   task.taskCtx = taosMemoryCalloc(1, sizeof(SCtgViewsCtx));
   if (NULL == task.taskCtx) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   SCtgViewsCtx* ctx = task.taskCtx;
@@ -539,7 +539,7 @@ int32_t ctgInitGetTbTSMATask(SCtgJob* pJob, int32_t taskId, void* param) {
 
   SCtgTbTSMACtx* pTaskCtx = taosMemoryCalloc(1, sizeof(SCtgTbTSMACtx));
   if (NULL == pTaskCtx) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   task.taskCtx = pTaskCtx;
@@ -568,7 +568,7 @@ int32_t ctgInitGetTSMATask(SCtgJob* pJob, int32_t taskId, void* param) {
 
   SCtgTbTSMACtx* pTaskCtx = taosMemoryCalloc(1, sizeof(SCtgTbTSMACtx));
   if (NULL == pTaskCtx) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
   task.taskCtx = pTaskCtx;
   pTaskCtx->pNames = param;
@@ -829,7 +829,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   *job = taosMemoryCalloc(1, sizeof(SCtgJob));
   if (NULL == *job) {
     ctgError("failed to calloc, size:%d,QID:0x%" PRIx64, (int32_t)sizeof(SCtgJob), pConn->requestId);
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   SCtgJob* pJob = *job;
@@ -1340,7 +1340,7 @@ int32_t ctgDumpSvrVer(SCtgTask* pTask) {
   if (NULL == pJob->jobRes.pSvrVer) {
     pJob->jobRes.pSvrVer = taosMemoryCalloc(1, sizeof(SMetaRes));
     if (NULL == pJob->jobRes.pSvrVer) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
   }
 
@@ -2289,7 +2289,7 @@ int32_t ctgHandleGetViewsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf*
   SViewMetaRsp* pRsp = *(SViewMetaRsp**)pMsgCtx->out;
   SViewMeta*    pViewMeta = taosMemoryCalloc(1, sizeof(SViewMeta));
   if (NULL == pViewMeta) {
-    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_JRET(terrno);
   }
 
   code = dupViewMetaFromRsp(pRsp, pViewMeta);
@@ -3271,7 +3271,7 @@ int32_t ctgLaunchGetDbCfgTask(SCtgTask* pTask) {
   } else {
     pTask->res = taosMemoryCalloc(1, sizeof(SDbCfgInfo));
     if (NULL == pTask->res) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
 
     TAOS_MEMCPY(pTask->res, &cfgInfo, sizeof(cfgInfo));
@@ -3299,7 +3299,7 @@ int32_t ctgLaunchGetDbInfoTask(SCtgTask* pTask) {
 
   pTask->res = taosMemoryCalloc(1, sizeof(SDbInfo));
   if (NULL == pTask->res) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   SDbInfo* pInfo = (SDbInfo*)pTask->res;
@@ -3392,7 +3392,7 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
 
   rsp.pRawRes = taosMemoryCalloc(1, sizeof(SUserAuthRes));
   if (NULL == rsp.pRawRes) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   if (TSDB_CODE_SUCCESS != pCtx->subTaskCode) {
