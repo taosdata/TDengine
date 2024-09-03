@@ -91,6 +91,7 @@ void streamTimeSliceReloadState(SOperatorInfo* pOperator) {
   TSKEY ts = *(TSKEY*)((char*)pBuf + size - sizeof(TSKEY));
   pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, ts);
   pAggSup->stateStore.streamStateReloadInfo(pAggSup->pState, ts);
+  qDebug("===stream=== reload state. reload ts:%" PRId64, ts);
 
   if (!pInfo->pUpdatedMap && num > 0) {
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
