@@ -46,7 +46,10 @@ int32_t tqScanWal(STQ* pTq) {
 
   streamMetaWLock(pMeta);
   int32_t times = (--pMeta->scanInfo.scanCounter);
-  ASSERT(pMeta->scanInfo.scanCounter >= 0);
+  if (times < 0) {
+    tqError("vgId:%d invalid scan counter:%d, reset to 0", vgId, times);
+    times = 0;
+  }
 
   numOfTasks = taosArrayGetSize(pMeta->pTaskList);
   streamMetaWUnLock(pMeta);
@@ -134,6 +137,12 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
   if (numOfTasks == 0) {
     tqDebug("vgId:%d no stream tasks existed to run", vgId);
+    streamMetaWUnLock(pMeta);
+    return 0;
+  }
+
+  if (pMeta->startInfo.startAllTasks) {
+    tqTrace("vgId:%d in restart procedure, not scan wal", vgId);
     streamMetaWUnLock(pMeta);
     return 0;
   }
@@ -263,7 +272,6 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
 
   // fill-history task has entered into the last phase, no need to anything
   if ((pTask->info.fillHistory == 1) && pTask->status.appendTranstateBlock) {
-    ASSERT(pState.state == TASK_STATUS__READY);
     // the maximum version of data in the WAL has reached already, the step2 is done
     tqDebug("s-task:%s fill-history reach the maximum ver:%" PRId64 ", not scan wal anymore", pTask->id.idStr,
             pTask->dataRange.range.maxVer);

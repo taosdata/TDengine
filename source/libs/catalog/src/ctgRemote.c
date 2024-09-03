@@ -482,14 +482,14 @@ int32_t ctgMakeMsgSendInfo(SCtgJob* pJob, SArray* pTaskId, int32_t batchId, SArr
   SMsgSendInfo* msgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (NULL == msgSendInfo) {
     qError("calloc %d failed", (int32_t)sizeof(SMsgSendInfo));
-    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_JRET(terrno);
   }
 
   SCtgTaskCallbackParam* param = taosMemoryCalloc(1, sizeof(SCtgTaskCallbackParam));
   if (NULL == param) {
     qError("calloc %d failed", (int32_t)sizeof(SCtgTaskCallbackParam));
     taosMemoryFree(msgSendInfo);
-    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_JRET(terrno);
   }
 
   param->reqType = msgType;
@@ -538,7 +538,7 @@ int32_t ctgAsyncSendMsg(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob* pJob, 
     CTG_ERR_JRET(code);
   }
 
-  ctgDebug("ctg req msg sent, qid:0x%" PRIx64 ", msg type:%d, %s", pJob->queryId, msgType, TMSG_INFO(msgType));
+  ctgDebug("ctg req msg sent,QID:0x%" PRIx64 ", msg type:%d, %s", pJob->queryId, msgType, TMSG_INFO(msgType));
   return TSDB_CODE_SUCCESS;
 
 _return:
@@ -753,7 +753,7 @@ int32_t ctgBuildBatchReqMsg(SCtgBatch* pBatch, int32_t vgId, void** msg, int32_t
   *msg = taosMemoryCalloc(1, msgSize);
   if (NULL == (*msg)) {
     qError("calloc batchReq msg failed, size:%d", msgSize);
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
   if (tSerializeSBatchReq(*msg, msgSize, &batchReq) < 0) {
     qError("tSerializeSBatchReq failed");
@@ -928,7 +928,7 @@ int32_t ctgGetDBVgInfoFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SBuildU
   if (pTask) {
     void* pOut = taosMemoryCalloc(1, sizeof(SUseDbOutput));
     if (NULL == pOut) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
 
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx), reqType, pOut, input->db));
@@ -983,7 +983,7 @@ int32_t ctgGetDBCfgFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char
   if (pTask) {
     void* pOut = taosMemoryCalloc(1, sizeof(SDbCfgInfo));
     if (NULL == pOut) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
 
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, pOut, (char*)dbFName));
@@ -1041,7 +1041,7 @@ int32_t ctgGetIndexInfoFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const 
   if (pTask) {
     void* pOut = taosMemoryCalloc(1, sizeof(SIndexInfo));
     if (NULL == pOut) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
 
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, pOut, (char*)indexName));
@@ -1101,7 +1101,7 @@ int32_t ctgGetTbIndexFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SName* n
   if (pTask) {
     void* pOut = taosMemoryCalloc(1, sizeof(STableIndex));
     if (NULL == pOut) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
 
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, pOut, (char*)tbFName));
@@ -1159,7 +1159,7 @@ int32_t ctgGetUdfInfoFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const ch
   if (pTask) {
     void* pOut = taosMemoryCalloc(1, sizeof(SFuncInfo));
     if (NULL == pOut) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
 
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, pOut, (char*)funcName));
@@ -1217,7 +1217,7 @@ int32_t ctgGetUserDbAuthFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const
   if (pTask) {
     void* pOut = taosMemoryCalloc(1, sizeof(SGetUserAuthRsp));
     if (NULL == pOut) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
 
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, pOut, (char*)user));
@@ -1280,7 +1280,7 @@ int32_t ctgGetTbMetaFromMnodeImpl(SCatalog* pCtg, SRequestConnInfo* pConn, const
   if (pTask) {
     void* pOut = taosMemoryCalloc(1, sizeof(STableMetaOutput));
     if (NULL == pOut) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
 
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx), reqType, pOut, tbFName));
@@ -1353,7 +1353,7 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
   if (pTask) {
     void* pOut = taosMemoryCalloc(1, sizeof(STableMetaOutput));
     if (NULL == pOut) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
 
     SRequestConnInfo vConn = {.pTrans = pConn->pTrans,
@@ -1597,7 +1597,7 @@ int32_t ctgGetViewInfoFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SName* 
   if (pTask) {
     void* pOut = taosMemoryCalloc(1, POINTER_BYTES);
     if (NULL == pOut) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
 
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx), reqType, pOut, fullName));
@@ -1654,7 +1654,7 @@ int32_t ctgGetTbTSMAFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
   if (pTask) {
     void* pOut = taosMemoryCalloc(1, sizeof(STableTSMAInfoRsp));
     if (NULL == pOut) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
 
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx), reqType, pOut, (char*)tbFName));
@@ -1715,7 +1715,7 @@ int32_t ctgGetStreamProgressFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, c
   if (pTask) {
     SStreamProgressRsp* pOut = taosMemoryCalloc(1, sizeof(SStreamProgressRsp));
     if (!pOut) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx), reqType, pOut, (char*)tbFName));
 

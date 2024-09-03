@@ -744,12 +744,10 @@ _end:
     insertRet = taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(uint64_t), pVal,
                                      sizeof(STableCachedVal), freeCachedMetaItem, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
     if (insertRet != TAOS_LRU_STATUS_OK) {
-      qError("failed to put meta into lru cache, code:%d, %s", insertRet, idStr);
-      taosMemoryFreeClear(pVal);
-      freeTableCachedValObj(&val);
+      qWarn("failed to put meta into lru cache, code:%d, %s", insertRet, idStr);
     }
   }
-  
+
   if (freeReader) {
     pHandle->api.metaReaderFn.clearReader(&mr);
   }
@@ -1528,7 +1526,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   // for non-blocking operator, the open cost is always 0
   pOperator->cost.openCost = 0;
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (pInfo != NULL) {
@@ -5548,7 +5546,7 @@ static int32_t getBlockForTableMergeScan(void* param, SSDataBlock** ppBlock) {
     pOperator->resultInfo.totalRows += pBlock->info.rows;
     pInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
     *ppBlock = pBlock;
-    
+
     return code;
   }
 
@@ -5703,7 +5701,7 @@ void startGroupTableMergeScan(SOperatorInfo* pOperator) {
     int32_t numOfTables = 0;
     code = tableListGetSize(pInfo->base.pTableListInfo, &numOfTables);
     QUERY_CHECK_CODE(code, lino, _end);
-  
+
     int32_t i = pInfo->tableStartIndex + 1;
     for (; i < numOfTables; ++i) {
       STableKeyInfo* tableKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, i);

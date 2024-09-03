@@ -271,7 +271,7 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
 
   *ppRow = (SRow *)taosMemoryCalloc(1, sinfo->tupleRowSize);
   if (*ppRow == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (*ppRow)->flag = sinfo->tupleFlag;
   (*ppRow)->numOfPKs = sinfo->numOfPKs;
@@ -354,7 +354,7 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
 
   *ppRow = (SRow *)taosMemoryCalloc(1, sinfo->kvRowSize);
   if (*ppRow == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (*ppRow)->flag = sinfo->kvFlag;
   (*ppRow)->numOfPKs = sinfo->numOfPKs;
@@ -663,7 +663,7 @@ static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, 
 
   aIter = taosMemoryCalloc(nRow, sizeof(SRowIter *));
   if (aIter == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -799,7 +799,7 @@ int32_t tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter) {
 
   SRowIter *pIter = taosMemoryCalloc(1, sizeof(*pIter));
   if (pIter == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -1600,7 +1600,7 @@ int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
   // build tag
   (*ppTag) = (STag *)taosMemoryCalloc(szTag, 1);
   if ((*ppTag) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
   (*ppTag)->flags = 0;
@@ -3423,7 +3423,7 @@ static int32_t tColDataMergeSortMerge(SColData *aColData, int32_t start, int32_t
   if (end > start) {
     aDstColData = taosMemoryCalloc(1, sizeof(SColData) * nColData);
     if (aDstColData == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     for (int c = 0; c < nColData; ++c) {
       tColDataInit(&aDstColData[c], aColData[c].cid, aColData[c].type, aColData[c].cflag);

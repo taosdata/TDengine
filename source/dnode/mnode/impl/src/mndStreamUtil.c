@@ -13,12 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "mndDb.h"
+#include "mndStb.h"
 #include "mndStream.h"
 #include "mndTrans.h"
-#include "tmisce.h"
 #include "mndVgroup.h"
-#include "mndStb.h"
-#include "mndDb.h"
+#include "taoserror.h"
+#include "tmisce.h"
 
 struct SStreamTaskIter {
   SStreamObj  *pStream;
@@ -304,7 +305,7 @@ static int32_t doSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamTask *pT
   if (pReq == NULL) {
     mError("failed to malloc in resume stream, size:%" PRIzu ", code:%s", sizeof(SVResumeStreamTaskReq),
            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    // terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -405,7 +406,7 @@ static int32_t doSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTa
   if (pReq == NULL) {
     mError("failed to malloc in pause stream, size:%" PRIzu ", code:%s", sizeof(SVPauseStreamTaskReq),
            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    // terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -470,7 +471,7 @@ int32_t mndStreamSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStr
 static int32_t doSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask) {
   SVDropStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVDropStreamTaskReq));
   if (pReq == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    // terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -525,7 +526,7 @@ int32_t mndStreamSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStre
 static int32_t doSetDropActionFromId(SMnode *pMnode, STrans *pTrans, SOrphanTask* pTask) {
   SVDropStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVDropStreamTaskReq));
   if (pReq == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    // terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -905,7 +906,12 @@ void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
     }
   }
 
-  ASSERT(taosHashGetSize(pExecNode->pTaskMap) == taosArrayGetSize(pExecNode->pTaskList));
+  if (taosHashGetSize(pExecNode->pTaskMap) != taosArrayGetSize(pExecNode->pTaskList)) {
+    streamMutexUnlock(&pExecNode->lock);
+    destroyStreamTaskIter(pIter);
+    mError("task map size, task list size, not equal");
+    return;
+  }
 
   // 2. remove stream entry in consensus hash table and checkpoint-report hash table
   (void) mndClearConsensusCheckpointId(execInfo.pStreamConsensus, pStream->uid);

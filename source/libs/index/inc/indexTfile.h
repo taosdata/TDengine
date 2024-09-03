@@ -18,7 +18,7 @@
 #include "indexFst.h"
 #include "indexFstFile.h"
 #include "indexInt.h"
-#include "indexTfile.h"
+//#include "indexTfile.h"
 #include "indexUtil.h"
 #include "tlockfree.h"
 
@@ -129,8 +129,8 @@ void     tfileIteratorDestroy(Iterate* iterator);
 
 TFileValue* tfileValueCreate(char* val);
 
-int  tfileValuePush(TFileValue* tf, uint64_t val);
-void tfileValueDestroy(TFileValue* tf);
+int32_t tfileValuePush(TFileValue* tf, uint64_t val);
+void    tfileValueDestroy(TFileValue* tf);
 
 #ifdef __cplusplus
 }

@@ -1090,7 +1090,7 @@ void nodesDestroyNode(SNode* pNode) {
         pStmt->destroyParseFileCxt(&pStmt->pParFileCxt);
       }
 
-      assert(TSDB_CODE_SUCCESS == taosCloseFile(&pStmt->fp));
+      (void)taosCloseFile(&pStmt->fp);
       break;
     }
     case QUERY_NODE_CREATE_DATABASE_STMT:
@@ -2260,8 +2260,13 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
   } else {
     len = snprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
   }
-  if (NULL == taosHashGet(pCxt->pColHash, name, len)) {
-    pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, NULL, 0);
+  if (pCol->projRefIdx > 0) {
+    len = taosHashBinary(name, strlen(name));
+    len += sprintf(name + len, "_%d", pCol->projRefIdx);
+  }
+  SNode** pNodeFound = taosHashGet(pCxt->pColHash, name, len);
+  if (pNodeFound == NULL) {
+    pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, &pNode, POINTER_BYTES);
     if (TSDB_CODE_SUCCESS == pCxt->errCode) {
       SNode* pNew = NULL;
       pCxt->errCode = nodesCloneNode(pNode, &pNew);
@@ -2303,7 +2308,6 @@ static EDealRes collectColumnsExt(SNode* pNode, void* pContext) {
   }
   return DEAL_RES_CONTINUE;
 }
-
 
 int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
                             SNodeList** pCols) {

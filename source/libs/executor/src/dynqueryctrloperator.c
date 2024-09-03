@@ -1006,14 +1006,14 @@ int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numO
                                          NULL, optrDefaultGetNextExtFn, NULL);
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (pInfo != NULL) {
     destroyDynQueryCtrlOperator(pInfo);
   }
 
-  taosMemoryFree(pOperator);
+  destroyOperatorAndDownstreams(pOperator, pDownstream, numOfDownstream);
   pTaskInfo->code = code;
   return code;
 }

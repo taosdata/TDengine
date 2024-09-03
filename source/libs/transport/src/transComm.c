@@ -375,11 +375,10 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
     STransCtxVal* sVal = (STransCtxVal*)iter;
     key = taosHashGetKey(sVal, &klen);
 
-    // STransCtxVal* dVal = taosHashGet(dst->args, key, klen);
-    // if (dVal) {
-    //   dst->freeFunc(dVal->val);
-    // }
-    (void)taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
+    int32_t code = taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
+    if (code != 0) {
+      tError("failed to put val to hash, reason:%s", tstrerror(code));
+    }
     iter = taosHashIterate(src->args, iter);
   }
   taosHashCleanup(src->args);
@@ -453,7 +452,9 @@ bool transQueuePush(STransQueue* queue, void* arg) {
   if (queue->q == NULL) {
     return true;
   }
-  (void)taosArrayPush(queue->q, &arg);
+  if (taosArrayPush(queue->q, &arg) == NULL) {
+    return false;
+  }
   if (taosArrayGetSize(queue->q) > 1) {
     return false;
   }

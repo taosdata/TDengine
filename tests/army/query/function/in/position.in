@@ -26,3 +26,15 @@ select POSITION(nch2 IN '一二三四五六七八九十') from ts_4893.meters wh
 select POSITION(var2 IN '一二三四五六七八九十') from ts_4893.meters where POSITION(var2 IN '一二三四五六七八九十') != 0 order by ts limit 5;
 select ABS(POSITION('aaa' IN 'aaaaaaaaa'));
 select POW(POSITION('aaa' IN 'aaaaaaaaa'), 2);
+select position('t' in 'taos');
+select position('ustc' in 'taos');
+select position('' in '');
+select position('' in 'taos');
+select position(nch2 in nch1) from ts_4893.d0 order by ts limit 10;
+select position(nch2 in nch1) from ts_4893.meters order by ts limit 10;
+select position(nch2 in var1) from ts_4893.d0 order by ts limit 10;
+select position(nch2 in var1) from ts_4893.meters order by ts limit 10;
+select position(var2 in nch1) from ts_4893.d0 order by ts limit 10;
+select position(var2 in nch1) from ts_4893.meters order by ts limit 10;
+select position(var2 in var1) from ts_4893.d0 order by ts limit 10;
+select position(var2 in var1) from ts_4893.meters order by ts limit 10;

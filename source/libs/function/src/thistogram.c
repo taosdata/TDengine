@@ -594,7 +594,7 @@ int32_t tHistogramMerge(SHistogramInfo* pHisto1, SHistogramInfo* pHisto2, int32_
 
   SHistBin* pHistoBins = taosMemoryCalloc(1, sizeof(SHistBin) * (pHisto1->numOfEntries + pHisto2->numOfEntries));
   if (NULL == pHistoBins) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   int32_t   i = 0, j = 0, k = 0;
 

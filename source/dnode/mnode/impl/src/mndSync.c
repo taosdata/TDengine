@@ -312,7 +312,12 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   }
   (void)mndRefreshUserIpWhiteList(pMnode);
 
-  ASSERT(commitIdx == mndSyncAppliedIndex(pFsm));
+  SyncIndex fsmIndex = mndSyncAppliedIndex(pFsm);
+  if (commitIdx != fsmIndex) {
+    mError("vgId:1, sync restore finished, but commitIdx:%" PRId64 " is not equal to appliedIdx:%" PRId64, commitIdx,
+           fsmIndex);
+    mndSetRestored(pMnode, false);
+  }
 }
 
 int32_t mndSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void **ppReader) {
@@ -470,7 +475,7 @@ int32_t mndInitSync(SMnode *pMnode) {
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", pMnode->path, TD_DIRSEP);
   syncInfo.pFsm = mndSyncMakeFsm(pMnode);
 
-  mInfo("vgId:1, start to open sync, replica:%d selfIndex:%d", pMgmt->numOfReplicas, pMgmt->selfIndex);
+  mInfo("vgId:1, start to open mnode sync, replica:%d selfIndex:%d", pMgmt->numOfReplicas, pMgmt->selfIndex);
   SSyncCfg *pCfg = &syncInfo.syncCfg;
   pCfg->totalReplicaNum = pMgmt->numOfTotalReplicas;
   pCfg->replicaNum = pMgmt->numOfReplicas;
@@ -497,7 +502,7 @@ int32_t mndInitSync(SMnode *pMnode) {
   }
   pMnode->pSdb->sync = pMgmt->sync;
 
-  mInfo("mnode-sync is opened, id:%" PRId64, pMgmt->sync);
+  mInfo("vgId:1, mnode sync is opened, id:%" PRId64, pMgmt->sync);
   TAOS_RETURN(code);
 }
 
@@ -601,12 +606,13 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
 }
 
 void mndSyncStart(SMnode *pMnode) {
+  mInfo("vgId:1, start to start mnode sync");
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   if (syncStart(pMgmt->sync) < 0) {
     mError("vgId:1, failed to start sync, id:%" PRId64, pMgmt->sync);
     return;
   }
-  mInfo("vgId:1, sync started, id:%" PRId64, pMgmt->sync);
+  mInfo("vgId:1, mnode sync started, id:%" PRId64, pMgmt->sync);
 }
 
 void mndSyncStop(SMnode *pMnode) {

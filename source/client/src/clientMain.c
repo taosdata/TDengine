@@ -861,6 +861,44 @@ int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
   return pResInfo->pCol[columnIndex].offset;
 }
 
+int taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *rows){
+  if (res == NULL || result == NULL || rows == NULL || *rows <= 0 ||
+      columnIndex < 0 || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t numOfFields = taos_num_fields(res);
+  if (columnIndex >= numOfFields || numOfFields == 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SReqResultInfo *pResInfo = tscGetCurResInfo(res);
+  TAOS_FIELD     *pField = &pResInfo->userFields[columnIndex];
+  SResultColumn  *pCol = &pResInfo->pCol[columnIndex];
+
+  if (*rows > pResInfo->numOfRows){
+    *rows = pResInfo->numOfRows;
+  }
+  if (IS_VAR_DATA_TYPE(pField->type)) {
+    for(int i = 0; i < *rows; i++){
+      if(pCol->offset[i] == -1){
+        result[i] = true;
+      }else{
+        result[i] = false;
+      }
+    }
+  }else{
+    for(int i = 0; i < *rows; i++){
+      if (colDataIsNull_f(pCol->nullbitmap, i)){
+        result[i] = true;
+      }else{
+        result[i] = false;
+      }
+    }
+  }
+  return 0;
+}
+
 int taos_validate_sql(TAOS *taos, const char *sql) {
   TAOS_RES *pObj = taosQueryImpl(taos, sql, true, TD_REQ_FROM_APP);
 
@@ -942,7 +980,7 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
   SRequestObj         *pRequest = pWrapper->pRequest;
   SQuery              *pQuery = pRequest->pQuery;
 
-  qDebug("0x%" PRIx64 " start to semantic analysis, qid:0x%" PRIx64, pRequest->self, pRequest->requestId);
+  qDebug("0x%" PRIx64 " start to semantic analysis,QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
 
   int64_t analyseStart = taosGetTimestampUs();
   pRequest->metric.ctgCostUs = analyseStart - pRequest->metric.ctgStart;
@@ -1061,14 +1099,14 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     pRequest->pQuery = NULL;
 
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
-      tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, qid:0x%" PRIx64,
+      tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d,QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
       restartAsyncQuery(pRequest, code);
       return;
     }
 
     // return to app directly
-    tscError("0x%" PRIx64 " error occurs, code:%s, return to user app, qid:0x%" PRIx64, pRequest->self, tstrerror(code),
+    tscError("0x%" PRIx64 " error occurs, code:%s, return to user app,QID:0x%" PRIx64, pRequest->self, tstrerror(code),
              pRequest->requestId);
     pRequest->code = code;
     returnToUser(pRequest);
@@ -1118,7 +1156,7 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
   SQuery              *pQuery = pRequest->pQuery;
 
   pRequest->metric.ctgCostUs += taosGetTimestampUs() - pRequest->metric.ctgStart;
-  qDebug("0x%" PRIx64 " start to continue parse, qid:0x%" PRIx64 ", code:%s", pRequest->self, pRequest->requestId,
+  qDebug("0x%" PRIx64 " start to continue parse,QID:0x%" PRIx64 ", code:%s", pRequest->self, pRequest->requestId,
          tstrerror(code));
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -1131,7 +1169,7 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
   }
 
   if (TSDB_CODE_SUCCESS != code) {
-    tscError("0x%" PRIx64 " error happens, code:%d - %s, qid:0x%" PRIx64, pWrapper->pRequest->self, code,
+    tscError("0x%" PRIx64 " error happens, code:%d - %s,QID:0x%" PRIx64, pWrapper->pRequest->self, code,
              tstrerror(code), pWrapper->pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
     pRequest->pWrapper = NULL;
@@ -1148,7 +1186,7 @@ void continueInsertFromCsv(SSqlCallbackWrapper *pWrapper, SRequestObj *pRequest)
   }
 
   if (TSDB_CODE_SUCCESS != code) {
-    tscError("0x%" PRIx64 " error happens, code:%d - %s, qid:0x%" PRIx64, pWrapper->pRequest->self, code,
+    tscError("0x%" PRIx64 " error happens, code:%d - %s,QID:0x%" PRIx64, pWrapper->pRequest->self, code,
              tstrerror(code), pWrapper->pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
     pRequest->pWrapper = NULL;
@@ -1266,7 +1304,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   }
 
   if (TSDB_CODE_SUCCESS != code) {
-    tscError("0x%" PRIx64 " error happens, code:%d - %s, qid:0x%" PRIx64, pRequest->self, code, tstrerror(code),
+    tscError("0x%" PRIx64 " error happens, code:%d - %s,QID:0x%" PRIx64, pRequest->self, code, tstrerror(code),
              pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
     pRequest->pWrapper = NULL;
@@ -1274,7 +1312,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     pRequest->pQuery = NULL;
 
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
-      tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, qid:0x%" PRIx64,
+      tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d,QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
       (void)refreshMeta(pRequest->pTscObj, pRequest);  // ignore return code,try again
       pRequest->prevCode = code;

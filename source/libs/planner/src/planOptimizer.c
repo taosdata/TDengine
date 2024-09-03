@@ -3475,6 +3475,20 @@ static EDealRes eliminateProjOptRewriteScanTableAlias(SNode* pNode, void* pConte
 }
 
 
+static void eliminateProjPushdownProjIdx(SNodeList* pParentProjects, SNodeList* pChildTargets) {
+  SNode* pChildTarget = NULL, *pParentProject = NULL;
+  FOREACH(pChildTarget, pChildTargets) {
+    SColumnNode* pTargetCol = (SColumnNode*)pChildTarget;
+    FOREACH(pParentProject, pParentProjects) {
+      SExprNode* pProject = (SExprNode*)pParentProject;
+      if (0 == strcmp(pTargetCol->colName, pProject->aliasName)) {
+        pTargetCol->resIdx = pProject->projIdx;
+        break;
+      }
+    }
+  }
+}
+
 static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan,
                                          SProjectLogicNode* pProjectNode) {
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProjectNode->node.pChildren, 0);
@@ -3546,6 +3560,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     nodesWalkExprs(pScan->pScanPseudoCols, eliminateProjOptRewriteScanTableAlias, &cxt);    
     nodesWalkExpr(pScan->node.pConditions, eliminateProjOptRewriteScanTableAlias, &cxt);
     nodesWalkExprs(pChild->pTargets, eliminateProjOptRewriteScanTableAlias, &cxt);
+    eliminateProjPushdownProjIdx(pProjectNode->pProjections, pChild->pTargets);
   }
   
   if (TSDB_CODE_SUCCESS == code) {
@@ -4883,6 +4898,31 @@ typedef struct SMergeProjectionsContext {
   int32_t            errCode;
 } SMergeProjectionsContext;
 
+static EDealRes mergeProjectionsExpr2(SNode** pNode, void* pContext) {
+  SMergeProjectionsContext* pCxt = pContext;
+  SProjectLogicNode*        pChildProj = pCxt->pChildProj;
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    SColumnNode* pProjCol = (SColumnNode*)(*pNode);
+    SNode* pProjection;
+    int32_t projIdx = 1;
+    FOREACH(pProjection, pChildProj->pProjections) {
+      if (isColRefExpr(pProjCol, (SExprNode*)pProjection)) {
+        SNode* pExpr = NULL;
+        pCxt->errCode = nodesCloneNode(pProjection, &pExpr);
+        if (pExpr == NULL) {
+          return DEAL_RES_ERROR;
+        }
+        snprintf(((SExprNode*)pExpr)->aliasName, sizeof(((SExprNode*)pExpr)->aliasName), "%s",
+            ((SExprNode*)*pNode)->aliasName);
+        nodesDestroyNode(*pNode);
+        *pNode = pExpr;
+        return DEAL_RES_IGNORE_CHILD;
+      }
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 static EDealRes mergeProjectionsExpr(SNode** pNode, void* pContext) {
   SMergeProjectionsContext* pCxt = pContext;
   SProjectLogicNode*        pChildProj = pCxt->pChildProj;
@@ -4917,7 +4957,7 @@ static int32_t mergeProjectsOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     ((SProjectLogicNode*)pSelfNode)->inputIgnoreGroup = true;
   }
   SMergeProjectionsContext cxt = {.pChildProj = (SProjectLogicNode*)pChild, .errCode = TSDB_CODE_SUCCESS};
-  nodesRewriteExprs(((SProjectLogicNode*)pSelfNode)->pProjections, mergeProjectionsExpr, &cxt);
+  nodesRewriteExprs(((SProjectLogicNode*)pSelfNode)->pProjections, mergeProjectionsExpr2, &cxt);
   int32_t code = cxt.errCode;
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -6578,7 +6618,6 @@ static bool tsmaOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
         return false;
     }
 
-    assert(pFuncs);
     FOREACH(pTmpNode, pFuncs) {
       SFunctionNode* pFunc = (SFunctionNode*)pTmpNode;
       if (!fmIsTSMASupportedFunc(pFunc->funcId) && !fmIsPseudoColumnFunc(pFunc->funcId) &&
@@ -7271,7 +7310,6 @@ static int32_t tsmaOptRewriteParent(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParen
 
   if (code == TSDB_CODE_SUCCESS && pWindow) {
     SColumnNode* pCol = (SColumnNode*)pScan->pScanCols->pTail->pNode;
-    assert(pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
     nodesDestroyNode(pWindow->pTspk);
     pWindow->pTspk = NULL;
     code = nodesCloneNode((SNode*)pCol, &pWindow->pTspk);

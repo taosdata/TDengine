@@ -253,20 +253,20 @@ static void    cliWalkCb(uv_handle_t* handle, void* arg);
 #define CONN_PERSIST_TIME(para)   ((para) <= 90000 ? 90000 : (para))
 #define CONN_GET_INST_LABEL(conn) (((STrans*)(((SCliThrd*)(conn)->hostThrd)->pTransInst))->label)
 
-#define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                         \
-  do {                                                                    \
-    int i = 0, sz = transQueueSize(&conn->cliMsgs);                       \
-    for (; i < sz; i++) {                                                 \
-      pMsg = transQueueGet(&conn->cliMsgs, i);                            \
-      if (pMsg->ctx != NULL && (uint64_t)pMsg->ctx->ahandle == ahandle) { \
-        break;                                                            \
-      }                                                                   \
-    }                                                                     \
-    if (i == sz) {                                                        \
-      pMsg = NULL;                                                        \
-    } else {                                                              \
-      pMsg = transQueueRm(&conn->cliMsgs, i);                             \
-    }                                                                     \
+#define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                                                                    \
+  do {                                                                                                               \
+    int i = 0, sz = transQueueSize(&conn->cliMsgs);                                                                  \
+    for (; i < sz; i++) {                                                                                            \
+      pMsg = transQueueGet(&conn->cliMsgs, i);                                                                       \
+      if (pMsg->msg.msgType != TDMT_SCH_DROP_TASK && pMsg->ctx != NULL && (uint64_t)pMsg->ctx->ahandle == ahandle) { \
+        break;                                                                                                       \
+      }                                                                                                              \
+    }                                                                                                                \
+    if (i == sz) {                                                                                                   \
+      pMsg = NULL;                                                                                                   \
+    } else {                                                                                                         \
+      pMsg = transQueueRm(&conn->cliMsgs, i);                                                                        \
+    }                                                                                                                \
   } while (0)
 
 #define CONN_GET_NEXT_SENDMSG(conn)                 \
@@ -332,6 +332,21 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
   transQueueClear(&conn->cliMsgs);
   memset(&conn->ctx, 0, sizeof(conn->ctx));
 }
+void cliResetTimer(SCliThrd* pThrd, SCliConn* conn) {
+  if (conn->timer) {
+    if (uv_is_active((uv_handle_t*)conn->timer)) {
+      tDebug("%s conn %p stop timer", CONN_GET_INST_LABEL(conn), conn);
+      (void)uv_timer_stop(conn->timer);
+    }
+    if (taosArrayPush(pThrd->timerList, &conn->timer) == NULL) {
+      tError("failed to push timer %p to list, reason:%s", conn->timer, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      conn->timer = NULL;
+      return;
+    }
+    conn->timer->data = NULL;
+    conn->timer = NULL;
+  }
+}
 bool cliMaySendCachedMsg(SCliConn* conn) {
   if (!transQueueEmpty(&conn->cliMsgs)) {
     SCliMsg* pCliMsg = NULL;
@@ -376,15 +391,7 @@ void cliHandleResp(SCliConn* conn) {
   SCliThrd* pThrd = conn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
 
-  if (conn->timer) {
-    if (uv_is_active((uv_handle_t*)conn->timer)) {
-      tDebug("%s conn %p stop timer", CONN_GET_INST_LABEL(conn), conn);
-      (void)uv_timer_stop(conn->timer);
-    }
-    (void)taosArrayPush(pThrd->timerList, &conn->timer);
-    conn->timer->data = NULL;
-    conn->timer = NULL;
-  }
+  cliResetTimer(pThrd, conn);
 
   STransMsgHead* pHead = NULL;
 
@@ -593,8 +600,8 @@ void cliConnTimeout(uv_timer_t* handle) {
 
   (void)uv_timer_stop(handle);
   handle->data = NULL;
-  (void)taosArrayPush(pThrd->timerList, &conn->timer);
-  conn->timer = NULL;
+
+  cliResetTimer(pThrd, conn);
 
   cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, conn->dstAddr);
   cliHandleFastFail(conn, UV_ECANCELED);
@@ -643,13 +650,16 @@ void* destroyConnPool(SCliThrd* pThrd) {
 }
 
 static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
+  int32_t    code = 0;
   void*      pool = pThrd->pool;
   STrans*    pTranInst = pThrd->pTransInst;
   size_t     klen = strlen(key);
   SConnList* plist = taosHashGet((SHashObj*)pool, key, klen);
   if (plist == NULL) {
     SConnList list = {0};
-    (void)taosHashPut((SHashObj*)pool, key, klen, (void*)&list, sizeof(list));
+    if ((code = taosHashPut((SHashObj*)pool, key, klen, (void*)&list, sizeof(list))) != 0) {
+      return NULL;
+    }
     plist = taosHashGet(pool, key, klen);
 
     SMsgList* nList = taosMemoryCalloc(1, sizeof(SMsgList));
@@ -686,13 +696,17 @@ static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
 }
 
 static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
+  int32_t    code = 0;
   void*      pool = pThrd->pool;
   STrans*    pTransInst = pThrd->pTransInst;
   size_t     klen = strlen(key);
   SConnList* plist = taosHashGet((SHashObj*)pool, key, klen);
   if (plist == NULL) {
     SConnList list = {0};
-    (void)taosHashPut((SHashObj*)pool, key, klen, (void*)&list, sizeof(list));
+    if ((code = taosHashPut((SHashObj*)pool, key, klen, (void*)&list, sizeof(list))) != 0) {
+      tError("failed to put key %s to pool, reason:%s", key, tstrerror(code));
+      return NULL;
+    }
     plist = taosHashGet(pool, key, klen);
 
     SMsgList* nList = taosMemoryCalloc(1, sizeof(SMsgList));
@@ -805,12 +819,8 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   }
 
   SCliThrd* thrd = conn->hostThrd;
-  if (conn->timer != NULL) {
-    (void)uv_timer_stop(conn->timer);
-    (void)taosArrayPush(thrd->timerList, &conn->timer);
-    conn->timer->data = NULL;
-    conn->timer = NULL;
-  }
+  cliResetTimer(thrd, conn);
+
   if (T_REF_VAL_GET(conn) > 1) {
     transUnrefCliHandle(conn);
   }
@@ -1053,12 +1063,7 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
     transDQCancel(pThrd->timeoutQueue, conn->task);
     conn->task = NULL;
   }
-  if (conn->timer != NULL) {
-    (void)uv_timer_stop(conn->timer);
-    conn->timer->data = NULL;
-    (void)taosArrayPush(pThrd->timerList, &conn->timer);
-    conn->timer = NULL;
-  }
+  cliResetTimer(pThrd, conn);
 
   if (clear) {
     if (!uv_is_closing((uv_handle_t*)conn->stream)) {
@@ -1073,12 +1078,7 @@ static void cliDestroy(uv_handle_t* handle) {
   }
   SCliConn* conn = handle->data;
   SCliThrd* pThrd = conn->hostThrd;
-  if (conn->timer != NULL) {
-    (void)uv_timer_stop(conn->timer);
-    (void)taosArrayPush(pThrd->timerList, &conn->timer);
-    conn->timer->data = NULL;
-    conn->timer = NULL;
-  }
+  cliResetTimer(pThrd, conn);
 
   (void)atomic_sub_fetch_32(&pThrd->connCount, 1);
 
@@ -1385,10 +1385,7 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
 
     uint32_t ipaddr = 0;
     if ((code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, pList->ip, &ipaddr)) != 0) {
-      (void)uv_timer_stop(conn->timer);
-      conn->timer->data = NULL;
-      (void)taosArrayPush(pThrd->timerList, &conn->timer);
-      conn->timer = NULL;
+      cliResetTimer(pThrd, conn);
       cliHandleFastFail(conn, code);
       return;
     }
@@ -1421,10 +1418,7 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
 
     ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
     if (ret != 0) {
-      (void)uv_timer_stop(conn->timer);
-      conn->timer->data = NULL;
-      (void)taosArrayPush(pThrd->timerList, &conn->timer);
-      conn->timer = NULL;
+      cliResetTimer(pThrd, conn);
 
       cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, conn->dstAddr);
       cliHandleFastFail(conn, -1);
@@ -1502,7 +1496,10 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
         }
       } else {
         SFailFastItem item = {.count = 1, .timestamp = cTimestamp};
-        (void)taosHashPut(pThrd->failFastCache, pConn->dstAddr, strlen(pConn->dstAddr), &item, sizeof(SFailFastItem));
+        int32_t code = taosHashPut(pThrd->failFastCache, pConn->dstAddr, strlen(pConn->dstAddr), &item, sizeof(SFailFastItem));
+        if (code != 0) {
+          tError("failed to put fail-fast item to cache, reason:%s", tstrerror(code));   
+        }
       }
     }
   } else {
@@ -1522,10 +1519,7 @@ void cliConnCb(uv_connect_t* req, int status) {
   if (pConn->timer == NULL) {
     timeout = true;
   } else {
-    (void)uv_timer_stop(pConn->timer);
-    pConn->timer->data = NULL;
-    (void)taosArrayPush(pThrd->timerList, &pConn->timer);
-    pConn->timer = NULL;
+    cliResetTimer(pThrd, pConn);
   }
 
   STUB_RAND_NETWORK_ERR(status);
@@ -1656,6 +1650,9 @@ static void cliHandleFreeById(SCliMsg* pMsg, SCliThrd* pThrd) {
     // already recv, and notify upper layer
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _exception);
   } else {
+    destroyCmsg(pMsg);
+    (void)transReleaseExHandle(transGetRefMgt(), refId);
+
     while (T_REF_VAL_GET(conn) >= 1) {
       transUnrefCliHandle(conn);
     }
@@ -1867,11 +1864,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     uint32_t ipaddr;
     int32_t  code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, fqdn, &ipaddr);
     if (code != 0) {
-      (void)uv_timer_stop(conn->timer);
-      conn->timer->data = NULL;
-      (void)taosArrayPush(pThrd->timerList, &conn->timer);
-      conn->timer = NULL;
-
+      cliResetTimer(pThrd, conn);
       cliHandleExcept(conn, code);
       return;
     }
@@ -1907,10 +1900,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
 
     ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
     if (ret != 0) {
-      (void)uv_timer_stop(conn->timer);
-      conn->timer->data = NULL;
-      (void)taosArrayPush(pThrd->timerList, &conn->timer);
-      conn->timer = NULL;
+      cliResetTimer(pThrd, conn);
 
       cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, conn->dstAddr);
       cliHandleFastFail(conn, ret);
@@ -2374,7 +2364,9 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
       TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
     }
     (void)uv_timer_init(pThrd->loop, timer);
-    (void)taosArrayPush(pThrd->timerList, &timer);
+    if (taosArrayPush(pThrd->timerList, &timer) == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    }
   }
 
   pThrd->pool = createConnPool(4);

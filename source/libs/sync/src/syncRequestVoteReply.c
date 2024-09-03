@@ -53,14 +53,14 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   if (pMsg->term < currentTerm) {
     syncLogRecvRequestVoteReply(ths, pMsg, "drop stale response");
 
-    TAOS_RETURN(TSDB_CODE_FAILED);
+    TAOS_RETURN(TSDB_CODE_SYN_WRONG_TERM);
   }
 
   if (pMsg->term > currentTerm) {
     syncLogRecvRequestVoteReply(ths, pMsg, "error term");
     syncNodeStepDown(ths, pMsg->term);
 
-    TAOS_RETURN(TSDB_CODE_FAILED);
+    TAOS_RETURN(TSDB_CODE_SYN_WRONG_TERM);
   }
 
   syncLogRecvRequestVoteReply(ths, pMsg, "");
@@ -73,7 +73,7 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       sNError(ths, "vote respond error vote-respond-mgr term:%" PRIu64 ", msg term:%" PRIu64 "",
               ths->pVotesRespond->term, pMsg->term);
 
-      TAOS_RETURN(TSDB_CODE_FAILED);
+      TAOS_RETURN(TSDB_CODE_SYN_WRONG_TERM);
     }
 
     votesRespondAdd(ths->pVotesRespond, pMsg);

@@ -539,7 +539,7 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY) {
     newColData = taosMemoryCalloc(1, charLen + 1);
     if (NULL == newColData) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
     (void)memcpy(newColData, varDataVal(inputData), charLen);
     int32_t ret = taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, tsDaylight);
@@ -551,7 +551,7 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
     newColData = taosMemoryCalloc(1, charLen + TSDB_NCHAR_SIZE);
     if (NULL == newColData) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
     int len = taosUcs4ToMbs((TdUcs4*)varDataVal(inputData), charLen, newColData);
     if (len < 0) {

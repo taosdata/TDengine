@@ -613,14 +613,14 @@ void shellPrintGeometry(const unsigned char *val, int32_t length, int32_t width)
 
   code = initCtxAsText();
   if (code != TSDB_CODE_SUCCESS) {
-    shellPrintString(getThreadLocalGeosCtx()->errMsg, width);
+    shellPrintString(getGeosErrMsg(code), width);
     return;
   }
 
   char *outputWKT = NULL;
   code = doAsText(val, length, &outputWKT);
   if (code != TSDB_CODE_SUCCESS) {
-    shellPrintString(getThreadLocalGeosCtx()->errMsg, width);  // should NOT happen
+    shellPrintString(getGeosErrMsg(code), width);  // should NOT happen
     return;
   }
 
@@ -1284,7 +1284,6 @@ void *shellThreadLoop(void *arg) {
       taosResetTerminalMode();
     } while (shellRunCommand(command, true) == 0);
 
-    destroyThreadLocalGeosCtx();
     taosMemoryFreeClear(command);
     shellWriteHistory();
     shellExit();

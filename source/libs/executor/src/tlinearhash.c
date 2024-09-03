@@ -183,7 +183,7 @@ static void doTrimBucketPages(SLHashObj* pHashObj, SLHashBucket* pBucket) {
       setBufPageDirty(pFirst, true);
       setBufPageDirty(pLast, true);
 
-      // ASSERT(pLast->num >= nodeSize + sizeof(SFilePage));
+      // A S S E R T(pLast->num >= nodeSize + sizeof(SFilePage));
 
       pFirst->num += nodeSize;
       pLast->num -= nodeSize;

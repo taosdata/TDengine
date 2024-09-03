@@ -234,7 +234,7 @@ static int32_t addTimezoneParam(SNodeList* pList) {
   pVal->datum.p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE + 1);
   if (pVal->datum.p == NULL) {
     nodesDestroyNode((SNode*)pVal);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   varDataSetLen(pVal->datum.p, len);
   (void)strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
@@ -1266,7 +1266,7 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
     if (intervals == NULL) {
       (void)snprintf(errMsg, msgLen, "%s", msg9);
       cJSON_Delete(binDesc);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     cJSON* bin = binDesc->child;
     if (bin == NULL) {
@@ -2426,8 +2426,12 @@ static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t l
 
   // param1
   if (numOfParams == 2) {
-    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
-
+    SNode* pNode = (SNode*)nodesListGetNode(pFunc->pParameterList, 1);
+    if (QUERY_NODE_VALUE != nodeType(pNode)) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Not supported timzone format");
+    }
+    
+    SValueNode* pValue = (SValueNode*)pNode;
     if (!validateTimezoneFormat(pValue)) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Invalid timzone format");
     }
