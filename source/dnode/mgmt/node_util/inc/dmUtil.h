@@ -116,6 +116,7 @@ typedef enum {
 typedef int32_t (*ProcessCreateNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef int32_t (*ProcessDropNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef void (*SendMonitorReportFp)();
+typedef void (*MonitorCleanExpiredSamplesFp)();
 typedef void (*SendAuditRecordsFp)();
 typedef void (*GetVnodeLoadsFp)(SMonVloadInfo *pInfo);
 typedef void (*GetMnodeLoadsFp)(SMonMloadInfo *pInfo);
@@ -155,6 +156,7 @@ typedef struct {
   ProcessAlterNodeTypeFp processAlterNodeTypeFp;
   ProcessDropNodeFp      processDropNodeFp;
   SendMonitorReportFp    sendMonitorReportFp;
+  MonitorCleanExpiredSamplesFp monitorCleanExpiredSamplesFp;
   SendAuditRecordsFp     sendAuditRecordFp;
   GetVnodeLoadsFp        getVnodeLoadsFp;
   GetVnodeLoadsFp        getVnodeLoadsLiteFp;
