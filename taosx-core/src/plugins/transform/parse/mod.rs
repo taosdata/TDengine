@@ -103,9 +103,9 @@ pub enum FieldParser {
     Split(Split),
     Udt(Udt),
     Join(Join),
+    Plugin(plugin::ParserPlugin),
     // Json must be the last one, because it has default value. If not, other parsers will be ignored.
     Json(Json),
-    Plugin(plugin::ParserPlugin),
 }
 
 impl Parse for FieldParser {

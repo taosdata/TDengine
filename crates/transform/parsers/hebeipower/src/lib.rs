@@ -1,12 +1,11 @@
-use std::ffi::CString;
-use std::mem::ManuallyDrop;
-use std::os::raw::c_char;
-use std::os::raw::c_void;
 use regex::Regex;
 use serde_json::json;
 use serde_json::Map;
 use serde_json::Value as JsonValue;
-
+use std::ffi::CString;
+use std::mem::ManuallyDrop;
+use std::os::raw::c_char;
+use std::os::raw::c_void;
 
 #[no_mangle]
 pub extern "C" fn parser_name() -> *mut c_char {
@@ -42,14 +41,22 @@ pub extern "C" fn parser_new(ctx: *const c_char, len: i32) -> ParserResponse {
     let ctx_parts = ctx.split(",").collect::<Vec<&str>>();
     let ctx_parts_len = ctx_parts.len();
 
-    let regstr = format!(r#"{}\d{{4}}"#,  ctx_parts[0]);
+    let regstr = format!(r#"{}\d{{4}}"#, ctx_parts[0]);
 
     let parser_config = ParserConfig {
         value_key_pattern: Regex::new(&regstr).unwrap(),
-        value_type_key: if ctx_parts_len > 1 { CString::new(ctx_parts[1]).unwrap() } else { CString::new("").unwrap() },
-        white_type_key: if ctx_parts_len > 2 { CString::new(ctx_parts[2]).unwrap() } else { CString::new("").unwrap() },
+        value_type_key: if ctx_parts_len > 1 {
+            CString::new(ctx_parts[1]).unwrap()
+        } else {
+            CString::new("").unwrap()
+        },
+        white_type_key: if ctx_parts_len > 2 {
+            CString::new(ctx_parts[2]).unwrap()
+        } else {
+            CString::new("").unwrap()
+        },
     };
-    
+
     let parser_config = Box::into_raw(Box::new(parser_config));
     ParserResponse {
         e: 0,
@@ -71,8 +78,7 @@ fn parse_data(
     value_key_pattern: &Regex,
     data_type: &str,
 ) -> Vec<Map<String, JsonValue>> {
-    
-    println!("value_key_pattern: {:?}", value_key_pattern);
+    // println!("value_key_pattern: {:?}", value_key_pattern);
 
     let mut the_flag = "";
     for (k, v) in object.iter() {
@@ -114,8 +120,13 @@ fn parse_data(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn parser_mutate(p: *mut c_void, input_p: *const u8, input_l: u32, output_p: *mut *mut u8, output_l: *mut u32) 
--> *const c_char {
+pub unsafe extern "C" fn parser_mutate(
+    p: *mut c_void,
+    input_p: *const u8,
+    input_l: u32,
+    output_p: *mut *mut u8,
+    output_l: *mut u32,
+) -> *const c_char {
     /*
      * U,DATA_TYPE,1
      * value_key_prefix
@@ -127,18 +138,22 @@ pub unsafe extern "C" fn parser_mutate(p: *mut c_void, input_p: *const u8, input
     let input_len = input_l as usize;
     let input_string = std::str::from_utf8(std::slice::from_raw_parts(input_p, input_len)).unwrap();
 
-    println!("input_string: {}", input_string);
-    
+    // println!("input_string: {}", input_string);
+
     let value = serde_json::from_str::<serde_json::Value>(input_string).unwrap();
-    
+
     let output_string = match value {
         JsonValue::Object(object) => {
-            let parsed_data = parse_data(object, &parser_config.value_key_pattern, parser_config.value_type_key.to_str().unwrap());
+            let parsed_data = parse_data(
+                object,
+                &parser_config.value_key_pattern,
+                parser_config.value_type_key.to_str().unwrap(),
+            );
             serde_json::to_string(&parsed_data).unwrap()
-        },
-        _ => {"".to_string()},
+        }
+        _ => "".to_string(),
     };
-    println!("output_string: {}", output_string);
+    // println!("output_string: {}", output_string);
 
     set_output(output_string, output_p, output_l);
     std::ptr::null()

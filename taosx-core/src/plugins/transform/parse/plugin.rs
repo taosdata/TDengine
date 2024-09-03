@@ -84,7 +84,7 @@ struct ParserObject {
     plugin_lib: PluginLib,
 }
 
-// FIXME: *mut c_void is not Sync and Send，不能放到 PLUGIN_MAP 中
+// *mut c_void is not Sync and Send，不能放到 PLUGIN_MAP 中
 unsafe impl Send for ParserObject {}
 unsafe impl Sync for ParserObject {}
 
@@ -131,8 +131,6 @@ impl PluginLib {
 lazy_static! {
     static ref PLUGIN_MAP: RwLock<HashMap<String, ParserContainer>> = {
         let mut plugin_map = HashMap::new();
-
-        // FIXME: 需要从配置文件中加载配置目录
         let plugin_path = get_plugins_home_dir();
         let lib_path = plugin_path.join("parsers");
 
