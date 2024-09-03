@@ -1611,6 +1611,8 @@ int32_t getTableListInfo(const SExecTaskInfo* pTaskInfo, SArray** pList) {
   int32_t code = extractTableList(pArray, pTaskInfo->pRoot);
   if (code == 0) {
     *pList = pArray;
+  } else {
+    taosArrayDestroy(pArray);
   }
   return code;
 }
