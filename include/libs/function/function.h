@@ -286,8 +286,8 @@ struct SScalarParam {
 };
 
 #define cleanupResultRowEntry(p)  p->initialized = false
-#define isRowEntryCompleted(p)   (p->complete)
-#define isRowEntryInitialized(p) (p->initialized)
+#define isRowEntryCompleted(p)   ((p)->complete)
+#define isRowEntryInitialized(p) ((p)->initialized)
 
 typedef struct SPoint {
   int64_t key;

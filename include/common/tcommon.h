@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_COMMON_DEF_H_
-#define _TD_COMMON_DEF_H_
+#define TD_COMMON_DEF_H_
 
 #include "tarray.h"
 #include "tmsg.h"
@@ -26,13 +26,13 @@ extern "C" {
 
 // clang-format off
 #define IS_META_MSG(x) ( \
-     x == TDMT_VND_CREATE_STB     \
-  || x == TDMT_VND_ALTER_STB      \
-  || x == TDMT_VND_DROP_STB       \
-  || x == TDMT_VND_CREATE_TABLE   \
-  || x == TDMT_VND_ALTER_TABLE    \
-  || x == TDMT_VND_DROP_TABLE     \
-  || x == TDMT_VND_DELETE         \
+     (x) == TDMT_VND_CREATE_STB     \
+  || (x) == TDMT_VND_ALTER_STB      \
+  || (x) == TDMT_VND_DROP_STB       \
+  || (x) == TDMT_VND_CREATE_TABLE   \
+  || (x) == TDMT_VND_ALTER_TABLE    \
+  || (x) == TDMT_VND_DROP_TABLE     \
+  || (x) == TDMT_VND_DELETE         \
 )
 // clang-format on
 
@@ -372,7 +372,7 @@ typedef struct {
 } SSmlKv;
 
 #define QUERY_ASC_FORWARD_STEP  1
-#define QUERY_DESC_FORWARD_STEP -1
+#define QUERY_DESC_FORWARD_STEP (-1)
 
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
 

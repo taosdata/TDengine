@@ -23,12 +23,12 @@
 extern "C" {
 #endif
 
-typedef uint32_t (*_hash_fn_t)(const char *, uint32_t);
-typedef int32_t (*_equal_fn_t)(const void *, const void *, size_t len);
-typedef void (*_hash_before_fn_t)(void *);
-typedef void (*_hash_free_fn_t)(void *);
+typedef uint32_t (*hash_fn_t)(const char *, uint32_t);
+typedef int32_t (*equal_fn_t)(const void *, const void *, size_t len);
+typedef void (*hash_before_fn_t)(void *);
+typedef void (*hash_free_fn_t)(void *);
 
-#define HASH_NODE_EXIST(code)   (code == TSDB_CODE_DUP_KEY)
+#define HASH_NODE_EXIST(code)   ((code) == TSDB_CODE_DUP_KEY)
 
 /**
  * murmur hash algorithm
@@ -52,8 +52,8 @@ uint32_t taosIntHash_64(const char *key, uint32_t len);
 uint32_t taosFastHash(const char *key, uint32_t len);
 uint32_t taosDJB2Hash(const char *key, uint32_t len);
 
-_hash_fn_t  taosGetDefaultHashFunction(int32_t type);
-_equal_fn_t taosGetDefaultEqualFunction(int32_t type);
+hash_fn_t  taosGetDefaultHashFunction(int32_t type);
+equal_fn_t taosGetDefaultEqualFunction(int32_t type);
 
 typedef enum SHashLockTypeE {
   HASH_NO_LOCK = 0,
@@ -71,7 +71,7 @@ typedef struct SHashObj  SHashObj;
  * @param threadsafe  thread safe or not
  * @return
  */
-SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTypeE type);
+hash_fn_t *taosHashInit(size_t capacity, hash_fn_t fn, bool update, SHashLockTypeE type);
 
 /**
  * return the size of hash table
@@ -210,14 +210,14 @@ void taosHashRelease(SHashObj *pHashObj, void *p);
  * @param pHashObj
  * @param fp
  */
-void taosHashSetEqualFp(SHashObj *pHashObj, _equal_fn_t fp);
+equal_fn_t taosHashSetEqualFp(SHashObj *pHashObj, equal_fn_t fp);
 
 /**
  *
  * @param pHashObj
  * @param fp
  */
-void taosHashSetFreeFp(SHashObj *pHashObj, _hash_free_fn_t fp);
+hash_free_fn_t taosHashSetFreeFp(SHashObj *pHashObj, hash_free_fn_t fp);
 
 int64_t taosHashGetCompTimes(SHashObj *pHashObj);
 

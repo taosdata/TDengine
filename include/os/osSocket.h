@@ -63,7 +63,6 @@
 #if defined(_TD_DARWIN_64)
 #include <osEok.h>
 #else
-#include <netinet/in.h>
 #endif
 #endif
 

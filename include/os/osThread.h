@@ -98,7 +98,8 @@ typedef pthread_key_t        TdThreadKey;
 // If the error is in a third-party library, place this header file under the third-party library header file.
 // When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
-#define pthread_t                      PTHREAD_T_TYPE_TAOS_FORBID
+/*
+#define pthread_t                      PTHREAD_T_TYPE_TAOS_FORBID           
 #define pthread_spinlock_t             PTHREAD_SPINLOCK_T_TYPE_TAOS_FORBID
 #define pthread_mutex_t                PTHREAD_MUTEX_T_TYPE_TAOS_FORBID
 #define pthread_mutexattr_t            PTHREAD_MUTEXATTR_T_TYPE_TAOS_FORBID
@@ -199,6 +200,7 @@ typedef pthread_key_t        TdThreadKey;
 #define pthread_testcancel             PTHREAD_TESTCANCEL_FUNC_TAOS_FORBID
 #define pthread_sigmask                PTHREAD_SIGMASK_FUNC_TAOS_FORBID
 #define sigwait                        SIGWAIT_FUNC_TAOS_FORBID
+*/
 #endif
 
 int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)(void *), void *arg);

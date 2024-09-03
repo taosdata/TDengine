@@ -61,8 +61,8 @@ extern "C" {
 
 #define TRANGE(a, b, c) \
   ({                    \
-    a = TMAX(a, b);     \
-    a = TMIN(a, c);     \
+    (a) = TMAX(a, b);     \
+    (a) = TMIN(a, c);     \
   })
 #endif
 

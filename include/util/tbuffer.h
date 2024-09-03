@@ -16,7 +16,7 @@
 #include "os.h"
 
 #ifndef __TD_BUFFER_H__
-#define __TD_BUFFER_H__
+#define TD_BUFFER_H_
 
 #ifdef __cplusplus
 extern "C" {

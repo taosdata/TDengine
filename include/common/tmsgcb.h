@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_COMMON_MSG_CB_H_
-#define _TD_COMMON_MSG_CB_H_
+#define TD_COMMON_MSG_CB_H_
 
 #include "os.h"
 #include "tmsg.h"

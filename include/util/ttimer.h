@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_UTIL_TIMER_H_
-#define _TD_UTIL_TIMER_H_
+#define TD_UTIL_TIMER_H_
 
 #include "os.h"
 

@@ -14,7 +14,7 @@
  */
 #include "taosdef.h"
 #ifndef _TD_TCOL_H_
-#define _TD_TCOL_H_
+#define TD_TCOL_H_
 
 #define TSDB_COLUMN_ENCODE_UNKNOWN  "unknown"
 #define TSDB_COLUMN_ENCODE_SIMPLE8B "simple8b"

@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_COMMON_VARIANT_H_
-#define _TD_COMMON_VARIANT_H_
+#define TD_COMMON_VARIANT_H_
 
 #include "tarray.h"
 

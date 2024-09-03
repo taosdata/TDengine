@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_QWORKER_H_
-#define _TD_QWORKER_H_
+#define TD_QWORKER_H_
 
 #ifdef __cplusplus
 extern "C" {

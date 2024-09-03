@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_CATALOG_H_
-#define _TD_CATALOG_H_
+#define TD_CATALOG_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -208,7 +208,7 @@ int32_t catalogInit(SCatalogCfg* cfg);
  */
 int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle);
 
-int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId, int32_t* tableNum, int64_t* stateTs);
+int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId, int32_t* tableNum, const int64_t* stateTs);
 
 /**
  * Get a DB's all vgroup info.

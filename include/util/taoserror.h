@@ -56,7 +56,7 @@ int32_t  taosGetErrSize();
   (void)snprintf(terrMsg, ERR_MSG_LEN, MSG, ##__VA_ARGS__)
 
 #define TSDB_CODE_SUCCESS                   0
-#define TSDB_CODE_FAILED                    -1   // unknown or needn't tell detail error
+#define TSDB_CODE_FAILED                    (-1)   // unknown or needn't tell detail error
 
 // rpc
 // #define TSDB_CODE_RPC_ACTION_IN_PROGRESS     TAOS_DEF_ERROR_CODE(0, 0x0001) // 2.x

@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_NODES_H_
-#define _TD_NODES_H_
+#define TD_NODES_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,7 +30,7 @@ extern "C" {
 
 #define FOREACH(node, list)                                                                                   \
   for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL), *pNext;                                     \
-       (NULL != cell ? (node = cell->pNode, pNext = cell->pNext, true) : (node = NULL, pNext = NULL, false)); \
+       (NULL != cell ? ((node) = cell->pNode, pNext = cell->pNext, true) : ((node) = NULL, pNext = NULL, false)); \
        cell = pNext)
 
 #define REPLACE_NODE(newNode) cell->pNode = (SNode*)(newNode)
@@ -39,7 +39,7 @@ extern "C" {
 
 #define WHERE_EACH(node, list)                               \
   SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
-  while (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false))
+  while (NULL != cell ? ((node) = cell->pNode, true) : ((node) = NULL, false))
 
 #define WHERE_NEXT cell = cell->pNext
 
@@ -49,9 +49,9 @@ extern "C" {
 #define FORBOTH(node1, list1, node2, list2)                                               \
   for (SListCell* cell1 = (NULL != (list1) ? (list1)->pHead : NULL),                      \
                   *cell2 = (NULL != (list2) ? (list2)->pHead : NULL);                     \
-       (NULL == cell1 ? (node1 = NULL, false) : (node1 = cell1->pNode, true)),            \
-                  (NULL == cell2 ? (node2 = NULL, false) : (node2 = cell2->pNode, true)), \
-                  (node1 != NULL && node2 != NULL);                                       \
+       (NULL == cell1 ? ((node1) = NULL, false) : ((node1) = cell1->pNode, true)),            \
+                  (NULL == cell2 ? ((node2) = NULL, false) : ((node2) = cell2->pNode, true)), \
+                  ((node1) != NULL && (node2) != NULL);                                       \
        cell1 = cell1->pNext, cell2 = cell2->pNext)
 
 #define REPLACE_LIST1_NODE(newNode) cell1->pNode = (SNode*)(newNode)
@@ -59,7 +59,7 @@ extern "C" {
 
 #define FOREACH_FOR_REWRITE(node, list)                           \
   for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
-       (NULL != cell ? (node = &(cell->pNode), true) : (node = NULL, false)); cell = cell->pNext)
+       (NULL != cell ? ((node) = &(cell->pNode), true) : ((node) = NULL, false)); cell = cell->pNext)
 
 #define NODES_DESTORY_NODE(node) \
   do {                           \

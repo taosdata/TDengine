@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_UTIL_BLOOMFILTER_H_
-#define _TD_UTIL_BLOOMFILTER_H_
+#define TD_UTIL_BLOOMFILTER_H_
 
 #include "os.h"
 #include "tencode.h"
@@ -35,8 +35,8 @@ typedef struct SBloomFilter {
   uint64_t   numUnits;
   uint64_t   numBits;
   uint64_t   size;
-  _hash_fn_t hashFn1;
-  _hash_fn_t hashFn2;
+  hash_fn_t hashFn1;
+  hash_fn_t hashFn2;
   void*      buffer;
   double     errorRate;
 } SBloomFilter;

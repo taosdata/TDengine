@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_TRANSPORT_H_
-#define _TD_TRANSPORT_H_
+#define TD_TRANSPORT_H_
 
 #ifdef __cplusplus
 extern "C" {

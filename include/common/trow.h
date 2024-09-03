@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_COMMON_ROW_H_
-#define _TD_COMMON_ROW_H_
+#define TD_COMMON_ROW_H_
 
 #include "os.h"
 #include "talgo.h"
@@ -259,10 +259,10 @@ static FORCE_INLINE void *tdGetBitmapAddrKv(STSRow *pRow, col_id_t nKvCols) {
   return POINTER_SHIFT(TD_ROW_COL_IDX(pRow), (--nKvCols) * sizeof(SKvRowIdx));
 }
 void   *tdGetBitmapAddr(STSRow *pRow, uint8_t rowType, uint32_t flen, col_id_t nKvCols);
-int32_t tdSetBitmapValType(void *pBitmap, int16_t colIdx, TDRowValT valType, int8_t bitmapMode);
-int32_t tdSetBitmapValTypeII(void *pBitmap, int16_t colIdx, TDRowValT valType);
+
+
 // bool    tdIsBitmapValTypeNorm(const void *pBitmap, int16_t idx, int8_t bitmapMode);
-int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValType, int8_t bitmapMode);
+
 
 // ----------------- Tuple row structure(STpRow)
 /*

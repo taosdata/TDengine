@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_EXECUTOR_H_
-#define _TD_EXECUTOR_H_
+#define TD_EXECUTOR_H_
 
 #ifdef __cplusplus
 extern "C" {

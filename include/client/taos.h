@@ -101,8 +101,8 @@ typedef struct TAOS_FIELD_E {
 #define DLL_EXPORT
 #endif
 
-typedef void (*__taos_async_fn_t)(void *param, TAOS_RES *res, int code);
-typedef void (*__taos_notify_fn_t)(void *param, void *ext, int type);
+typedef void (*taos_async_fn_t)(void *param, TAOS_RES *res, int code);
+typedef void (*taos_notify_fn_t)(void *param, void *ext, int type);
 
 typedef struct TAOS_MULTI_BIND {
   int       buffer_type;
@@ -229,10 +229,10 @@ DLL_EXPORT int         taos_get_current_db(TAOS *taos, char *database, int len, 
 DLL_EXPORT const char *taos_errstr(TAOS_RES *res);
 DLL_EXPORT int         taos_errno(TAOS_RES *res);
 
-DLL_EXPORT void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param);
-DLL_EXPORT void taos_query_a_with_reqid(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param, int64_t reqid);
-DLL_EXPORT void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param);
-DLL_EXPORT void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param);
+DLL_EXPORT taos_async_fn_t taos_query_a(TAOS *taos, const char *sql, taos_async_fn_t fp, void *param);
+DLL_EXPORT taos_async_fn_t taos_query_a_with_reqid(TAOS *taos, const char *sql, taos_async_fn_t fp, void *param, int64_t reqid);
+DLL_EXPORT taos_async_fn_t taos_fetch_rows_a(TAOS_RES *res, taos_async_fn_t fp, void *param);
+DLL_EXPORT taos_async_fn_t taos_fetch_raw_block_a(TAOS_RES *res, taos_async_fn_t fp, void *param);
 DLL_EXPORT const void *taos_get_raw_block(TAOS_RES *res);
 
 DLL_EXPORT int taos_get_db_route_info(TAOS *taos, const char *db, TAOS_DB_ROUTE_INFO *dbInfo);
@@ -244,10 +244,10 @@ DLL_EXPORT int taos_load_table_info(TAOS *taos, const char *tableNameList);
 // set heart beat thread quit mode , if quicByKill 1 then kill thread else quit from inner
 DLL_EXPORT void taos_set_hb_quit(int8_t quitByKill);
 
-DLL_EXPORT int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type);
+DLL_EXPORT taos_notify_fn_t taos_set_notify_cb(TAOS *taos, taos_notify_fn_t fp, void *param, int type);
 
-typedef void (*__taos_async_whitelist_fn_t)(void *param, int code, TAOS *taos, int numOfWhiteLists, uint64_t* pWhiteLists);
-DLL_EXPORT void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param);
+typedef void (*taos_async_whitelist_fn_t)(void *param, int code, TAOS *taos, int numOfWhiteLists, uint64_t* pWhiteLists);
+DLL_EXPORT taos_async_whitelist_fn_t taos_fetch_whitelist_a(TAOS *taos, taos_async_whitelist_fn_t fp, void *param);
 
 typedef enum {
   TAOS_CONN_MODE_BI = 0,

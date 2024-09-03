@@ -15,7 +15,7 @@
  */
 
 #ifndef _TD_CONFIG_H_
-#define _TD_CONFIG_H_
+#define TD_CONFIG_H_
 
 #include "tarray.h"
 

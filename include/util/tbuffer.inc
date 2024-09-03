@@ -214,7 +214,8 @@ static int32_t tBufferGetU64v(SBufferReader *reader, uint64_t *value) {
 
   for (int32_t i = 0;; i++) {
     code = tBufferGetU8(reader, &byte);
-    if (code) return code;
+    if (code) { return code;
+}
 
     u64 |= (((uint64_t)(byte & 0x7F)) << (i * 7));
 
@@ -233,7 +234,8 @@ static int32_t tBufferGetU64v(SBufferReader *reader, uint64_t *value) {
 static int32_t tBufferGetU16v(SBufferReader *reader, uint16_t *value) {
   uint64_t u64;
   int32_t  code = tBufferGetU64v(reader, &u64);
-  if (code) return code;
+  if (code) { return code;
+}
   if (value) {
     *value = (uint16_t)u64;
   }
@@ -243,7 +245,8 @@ static int32_t tBufferGetU16v(SBufferReader *reader, uint16_t *value) {
 static int32_t tBufferGetU32v(SBufferReader *reader, uint32_t *value) {
   uint64_t u64;
   int32_t  code = tBufferGetU64v(reader, &u64);
-  if (code) return code;
+  if (code) { return code;
+}
   if (value) {
     *value = (uint32_t)u64;
   }
@@ -253,7 +256,8 @@ static int32_t tBufferGetU32v(SBufferReader *reader, uint32_t *value) {
 static int32_t tBufferGetI16v(SBufferReader *reader, int16_t *value) {
   uint16_t u16;
   int32_t  code = tBufferGetU16v(reader, &u16);
-  if (code) return code;
+  if (code) { return code;
+}
   if (value) {
     *value = ZIGZAGD(int16_t, u16);
   }
@@ -263,7 +267,8 @@ static int32_t tBufferGetI16v(SBufferReader *reader, int16_t *value) {
 static int32_t tBufferGetI32v(SBufferReader *reader, int32_t *value) {
   uint32_t u32;
   int32_t  code = tBufferGetU32v(reader, &u32);
-  if (code) return code;
+  if (code) { return code;
+}
   if (value) {
     *value = ZIGZAGD(int32_t, u32);
   }
@@ -273,7 +278,8 @@ static int32_t tBufferGetI32v(SBufferReader *reader, int32_t *value) {
 static int32_t tBufferGetI64v(SBufferReader *reader, int64_t *value) {
   uint64_t u64;
   int32_t  code = tBufferGetU64v(reader, &u64);
-  if (code) return code;
+  if (code) { return code;
+}
   if (value) {
     *value = ZIGZAGD(int64_t, u64);
   }
@@ -286,7 +292,8 @@ static int32_t tBufferGetBinary(SBufferReader *reader, const void **data, uint32
 
   // size
   code = tBufferGetU32v(reader, &tmpSize);
-  if (code) return code;
+  if (code) { return code;
+}
   if (size) {
     *size = tmpSize;
   }

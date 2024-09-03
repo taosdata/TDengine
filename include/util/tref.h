@@ -15,7 +15,7 @@
  */
 
 #ifndef _TD_UTIL_REF_H_
-#define _TD_UTIL_REF_H_
+#define TD_UTIL_REF_H_
 
 #include "os.h"
 

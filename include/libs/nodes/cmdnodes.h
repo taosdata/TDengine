@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_CMD_NODES_H_
-#define _TD_CMD_NODES_H_
+#define TD_CMD_NODES_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,7 +53,7 @@ extern "C" {
 
 #define SHOW_ALIVE_RESULT_COLS 1
 
-#define BIT_FLAG_MASK(n)              (1 << n)
+#define BIT_FLAG_MASK(n)              (1 << (n))
 #define BIT_FLAG_SET_MASK(val, mask)  ((val) |= (mask))
 #define BIT_FLAG_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 

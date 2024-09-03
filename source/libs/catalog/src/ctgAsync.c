@@ -1412,11 +1412,11 @@ int32_t ctgCallUserCb(void* param) {
 }
 
 void ctgUpdateJobErrCode(SCtgJob* pJob, int32_t errCode) {
-  if (!NEED_CLIENT_REFRESH_VG_ERROR(errCode) || errCode == TSDB_CODE_SUCCESS) return;
+  if (!NEED_CLIENT_REFRESH_VG_ERROR(errCode) || errCode == TSDB_CODE_SUCCESS) { return;
+}
 
   atomic_store_32(&pJob->jobResCode, errCode);
   qDebug("qid:0x%" PRIx64 " ctg job errCode updated to %s", pJob->queryId, tstrerror(errCode));
-  return;
 }
 
 int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
@@ -2543,8 +2543,9 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
-  if (reqType != TDMT_VND_GET_STREAM_PROGRESS)
+  if (reqType != TDMT_VND_GET_STREAM_PROGRESS) {
     CTG_ERR_JRET(ctgProcessRspMsg(pMsgCtx->out, reqType, pMsg->pData, pMsg->len, rspCode, pMsgCtx->target));
+}
 
   switch (reqType) {
     case TDMT_MND_GET_TABLE_TSMA: {
@@ -3706,7 +3707,8 @@ int32_t ctgLaunchGetTSMATask(SCtgTask* pTask) {
     if (!exists) {
       SCtgTaskReq tReq = {.pTask = pTask, .msgIdx = 0};
       SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, 0);
-      if (!pMsgCtx->pBatchs) pMsgCtx->pBatchs = pJob->pBatchs;
+      if (!pMsgCtx->pBatchs) { pMsgCtx->pBatchs = pJob->pBatchs;
+}
       CTG_RET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, pTsma->targetDbFName, pTsma->targetTb, NULL, &tReq));
     } else {
       CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));

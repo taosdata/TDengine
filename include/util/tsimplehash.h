@@ -36,7 +36,7 @@ typedef struct SSHashObj SSHashObj;
  * @param fn          hash function to generate the hash value
  * @return
  */
-SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn);
+hash_fn_t *tSimpleHashInit(size_t capacity, hash_fn_t fn);
 
 /**
  * return the size of hash table
@@ -50,7 +50,7 @@ int32_t tSimpleHashGetSize(const SSHashObj *pHashObj);
  * @param pHashObj
  * @param freeFp
  */
-void tSimpleHashSetFreeFp(SSHashObj* pHashObj, _hash_free_fn_t freeFp);
+hash_free_fn_t tSimpleHashSetFreeFp(SSHashObj* pHashObj, hash_free_fn_t freeFp);
 
 int32_t tSimpleHashPrint(const SSHashObj *pHashObj);
 
@@ -133,7 +133,8 @@ typedef struct SHNode {
  */
 static FORCE_INLINE void *tSimpleHashGetKey(void *data, size_t *keyLen) {
   SHNode *node = (SHNode *)((char *)data - offsetof(SHNode, data));
-  if (keyLen) *keyLen = node->keyLen;
+  if (keyLen) { *keyLen = node->keyLen;
+}
 
   return POINTER_SHIFT(data, node->dataLen);
 }

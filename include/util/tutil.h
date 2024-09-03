@@ -132,7 +132,7 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 #define TSDB_CHECK_CODE(CODE, LINO, LABEL) \
   do {                                     \
     if (TSDB_CODE_SUCCESS != (CODE)) {     \
-      LINO = __LINE__;                     \
+      (LINO) = __LINE__;                     \
       goto LABEL;                          \
     }                                      \
   } while (0)
@@ -140,7 +140,7 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 #define QUERY_CHECK_CODE TSDB_CHECK_CODE
 
 #define QUERY_CHECK_CONDITION(condition, CODE, LINO, LABEL, ERRNO) \
-  if (!condition) {                                                \
+  if (!(condition)) {                                                \
     (CODE) = (ERRNO);                                              \
     (LINO) = __LINE__;                                             \
     goto LABEL;                                                    \
@@ -155,14 +155,14 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 
 #define QUERY_CHECK_NULL TSDB_CHECK_NULL
 
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
 #define VND_CHECK_CODE(CODE, LINO, LABEL) TSDB_CHECK_CODE(CODE, LINO, LABEL)
 
 #define TCONTAINER_OF(ptr, type, member) ((type *)((char *)(ptr)-offsetof(type, member)))
 
 #define TAOS_GET_TERRNO(code) \
- (terrno == 0 ? code : terrno)
+ (terrno == 0 ? (code) : terrno)
 
 #define TAOS_RETURN(CODE)     \
   do {                        \

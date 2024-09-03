@@ -112,13 +112,6 @@ int32_t schUpdateJobStatus(SSchJob *pJob, int8_t newStatus) {
 
         break;
       case JOB_TASK_STATUS_PART_SUCC:
-        if (newStatus != JOB_TASK_STATUS_FAIL && newStatus != JOB_TASK_STATUS_SUCC &&
-            newStatus != JOB_TASK_STATUS_DROP && newStatus != JOB_TASK_STATUS_EXEC &&
-            newStatus != JOB_TASK_STATUS_FETCH) {
-          SCH_ERR_JRET(TSDB_CODE_APP_ERROR);
-        }
-
-        break;
       case JOB_TASK_STATUS_FETCH:
         if (newStatus != JOB_TASK_STATUS_FAIL && newStatus != JOB_TASK_STATUS_SUCC &&
             newStatus != JOB_TASK_STATUS_DROP && newStatus != JOB_TASK_STATUS_EXEC &&

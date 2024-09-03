@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_UTIL_SCALABLEBF_H_
-#define _TD_UTIL_SCALABLEBF_H_
+#define TD_UTIL_SCALABLEBF_H_
 
 #include "tbloomfilter.h"
 
@@ -28,8 +28,8 @@ typedef struct SScalableBf {
   uint64_t   numBits;
   uint32_t   maxBloomFilters;
   int8_t     status;
-  _hash_fn_t hashFn1;
-  _hash_fn_t hashFn2;
+  hash_fn_t hashFn1;
+  hash_fn_t hashFn2;
 } SScalableBf;
 
 int32_t tScalableBfInit(uint64_t expectedEntries, double errorRate, SScalableBf** ppSBf);

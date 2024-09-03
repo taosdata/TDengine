@@ -137,9 +137,9 @@ int32_t taosResetTerminalMode();
     char  **strings = backtrace_symbols(array, size);                                                                 \
     int32_t offset = 0;                                                                                               \
     if (strings != NULL) {                                                                                            \
-      offset = snprintf(buf, bufSize - 1, "obtained %d stack frames\n", (ignoreNum > 0) ? size - ignoreNum : size);   \
-      for (int32_t i = (ignoreNum > 0) ? ignoreNum : 0; i < size; i++) {                                              \
-        offset += snprintf(buf + offset, bufSize - 1 - offset, "frame:%d, %s\n", (ignoreNum > 0) ? i - ignoreNum : i, \
+      offset = snprintf(buf, (bufSize) - 1, "obtained %d stack frames\n", ((ignoreNum) > 0) ? size - (ignoreNum) : size);   \
+      for (int32_t i = ((ignoreNum) > 0) ? (ignoreNum) : 0; i < size; i++) {                                              \
+        offset += snprintf((buf) + offset, (bufSize) - 1 - offset, "frame:%d, %s\n", ((ignoreNum) > 0) ? i - (ignoreNum) : i, \
                            strings[i]);                                                                               \
       }                                                                                                               \
     }                                                                                                                 \
@@ -153,9 +153,9 @@ int32_t taosResetTerminalMode();
     int32_t size = backtrace(array, STACKSIZE);                                                                 \
     char  **strings = backtrace_symbols(array, size);                                                           \
     if (strings != NULL) {                                                                                      \
-      taosPrintLog(flags, level, dflag, "obtained %d stack frames", (ignoreNum > 0) ? size - ignoreNum : size); \
-      for (int32_t i = (ignoreNum > 0) ? ignoreNum : 0; i < size; i++) {                                        \
-        taosPrintLog(flags, level, dflag, "frame:%d, %s", (ignoreNum > 0) ? i - ignoreNum : i, strings[i]);     \
+      taosPrintLog(flags, level, dflag, "obtained %d stack frames", ((ignoreNum) > 0) ? size - (ignoreNum) : size); \
+      for (int32_t i = ((ignoreNum) > 0) ? (ignoreNum) : 0; i < size; i++) {                                        \
+        taosPrintLog(flags, level, dflag, "frame:%d, %s", ((ignoreNum) > 0) ? i - (ignoreNum) : i, strings[i]);     \
       }                                                                                                         \
     }                                                                                                           \
                                                                                                                 \

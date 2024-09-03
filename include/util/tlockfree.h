@@ -23,7 +23,7 @@ extern "C" {
 #endif
 
 // reference counting
-typedef void (*_ref_fn_t)(const void *pObj);
+typedef void (*ref_fn_t)(const void *pObj);
 
 #define T_REF_DECLARE()   \
   struct {                \

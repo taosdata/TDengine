@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_QUERY_H_
-#define _TD_QUERY_H_
+#define TD_QUERY_H_
 
 // clang-foramt off
 #ifdef __cplusplus
@@ -253,8 +253,8 @@ typedef struct SStbInterlaceInfo {
   int32_t pTableColsIdx;
 } SStbInterlaceInfo;
 
-typedef int32_t (*__async_send_cb_fn_t)(void* param, SDataBuf* pMsg, int32_t code);
-typedef int32_t (*__async_exec_fn_t)(void* param);
+typedef int32_t (*async_send_cb_fn_t)(void* param, SDataBuf* pMsg, int32_t code);
+typedef int32_t (*async_exec_fn_t)(void* param);
 
 typedef struct SRequestConnInfo {
   void*    pTrans;
@@ -263,13 +263,13 @@ typedef struct SRequestConnInfo {
   SEpSet   mgmtEps;
 } SRequestConnInfo;
 
-typedef void (*__freeFunc)(void* param);
+typedef void (*freeFunc)(void* param);
 
 // todo add creator/destroyer function
 typedef struct SMsgSendInfo {
-  __async_send_cb_fn_t fp;      // async callback function
+  async_send_cb_fn_t fp;      // async callback function
   STargetInfo          target;  // for update epset
-  __freeFunc           paramFreeFp;
+  freeFunc           paramFreeFp;
   void*                param;
   uint64_t             requestId;
   uint64_t             requestObjRefId;
@@ -296,7 +296,7 @@ int32_t cleanupTaskQueue();
  * @param code        The response code during execution the execFn
  * @return
  */
-int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
+async_exec_fn_t taosAsyncExec(async_exec_fn_t execFn, void* execParam, int32_t* code);
 int32_t taosAsyncWait();
 int32_t taosAsyncRecover();
 

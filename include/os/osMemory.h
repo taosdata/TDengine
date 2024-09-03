@@ -60,7 +60,7 @@ void   *taosMemoryMallocAlign(uint32_t alignment, int64_t size);
 #define taosMemoryFreeClear(ptr)   \
   do {                             \
     if (ptr) {                     \
-      taosMemoryFree((void *)ptr); \
+      taosMemoryFree((void *)(ptr)); \
       (ptr) = NULL;                \
     }                              \
   } while (0)

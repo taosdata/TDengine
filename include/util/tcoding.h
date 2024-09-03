@@ -210,7 +210,8 @@ static FORCE_INLINE void *taosDecodeFixedI64(const void *buf, int64_t *value) {
 static FORCE_INLINE int32_t taosEncodeVariantU16(void **buf, uint16_t value) {
   int32_t i = 0;
   while (value >= ENCODE_LIMIT) {
-    if (buf != NULL) ((uint8_t *)(*buf))[i] = (uint8_t)(value | ENCODE_LIMIT);
+    if (buf != NULL) { ((uint8_t *)(*buf))[i] = (uint8_t)(value | ENCODE_LIMIT);
+}
     value >>= 7;
     i++;
   }
@@ -257,7 +258,8 @@ static FORCE_INLINE void *taosDecodeVariantI16(const void *buf, int16_t *value) 
 static FORCE_INLINE int32_t taosEncodeVariantU32(void **buf, uint32_t value) {
   int32_t i = 0;
   while (value >= ENCODE_LIMIT) {
-    if (buf != NULL) ((uint8_t *)(*buf))[i] = (value | ENCODE_LIMIT);
+    if (buf != NULL) { ((uint8_t *)(*buf))[i] = (value | ENCODE_LIMIT);
+}
     value >>= 7;
     i++;
   }
@@ -304,7 +306,8 @@ static FORCE_INLINE void *taosDecodeVariantI32(const void *buf, int32_t *value) 
 static FORCE_INLINE int32_t taosEncodeVariantU64(void **buf, uint64_t value) {
   int32_t i = 0;
   while (value >= ENCODE_LIMIT) {
-    if (buf != NULL) ((uint8_t *)(*buf))[i] = (uint8_t)(value | ENCODE_LIMIT);
+    if (buf != NULL) { ((uint8_t *)(*buf))[i] = (uint8_t)(value | ENCODE_LIMIT);
+}
     value >>= 7;
     i++;
   }
@@ -368,7 +371,8 @@ static FORCE_INLINE void *taosDecodeString(const void *buf, char **value) {
   buf = taosDecodeVariantU64(buf, &size);
   *value = (char *)taosMemoryMalloc((size_t)size + 1);
 
-  if (*value == NULL) return NULL;
+  if (*value == NULL) { return NULL;
+}
   TAOS_MEMCPY(*value, buf, (size_t)size);
 
   (*value)[size] = '\0';
@@ -402,7 +406,8 @@ static FORCE_INLINE int32_t taosEncodeBinary(void **buf, const void *value, int3
 
 static FORCE_INLINE void *taosDecodeBinary(const void *buf, void **value, int32_t valueLen) {
   *value = taosMemoryMalloc((size_t)valueLen);
-  if (*value == NULL) return NULL;
+  if (*value == NULL) { return NULL;
+}
   TAOS_MEMCPY(*value, buf, (size_t)valueLen);
 
   return POINTER_SHIFT(buf, valueLen);

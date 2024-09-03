@@ -23,20 +23,20 @@ extern "C" {
 // If the error is in a third-party library, place this header file under the third-party library header file.
 // When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
-#define __atomic_load_n             __ATOMIC_LOAD_N_FUNC_TAOS_FORBID
-#define __atomic_store_n            __ATOMIC_STORE_N_FUNC_TAOS_FORBID
-#define __atomic_exchange_n         __ATOMIC_EXCHANGE_N_FUNC_TAOS_FORBID
-#define __sync_val_compare_and_swap __SYNC_VAL_COMPARE_AND_SWAP_FUNC_TAOS_FORBID
-#define __atomic_add_fetch          __ATOMIC_ADD_FETCH_FUNC_TAOS_FORBID
-#define __atomic_fetch_add          __ATOMIC_FETCH_ADD_FUNC_TAOS_FORBID
-#define __atomic_sub_fetch          __ATOMIC_SUB_FETCH_FUNC_TAOS_FORBID
-#define __atomic_fetch_sub          __ATOMIC_FETCH_SUB_FUNC_TAOS_FORBID
-#define __atomic_and_fetch          __ATOMIC_AND_FETCH_FUNC_TAOS_FORBID
-#define __atomic_fetch_and          __ATOMIC_FETCH_AND_FUNC_TAOS_FORBID
-#define __atomic_or_fetch           __ATOMIC_OR_FETCH_FUNC_TAOS_FORBID
-#define __atomic_fetch_or           __ATOMIC_FETCH_OR_FUNC_TAOS_FORBID
-#define __atomic_xor_fetch          __ATOMIC_XOR_FETCH_FUNC_TAOS_FORBID
-#define __atomic_fetch_xor          __ATOMIC_FETCH_XOR_FUNC_TAOS_FORBID
+#define atomic_load_n             __ATOMIC_LOAD_N_FUNC_TAOS_FORBID
+#define atomic_store_n            __ATOMIC_STORE_N_FUNC_TAOS_FORBID
+#define atomic_exchange_n         __ATOMIC_EXCHANGE_N_FUNC_TAOS_FORBID
+#define sync_val_compare_and_swap __SYNC_VAL_COMPARE_AND_SWAP_FUNC_TAOS_FORBID
+#define atomic_add_fetch          __ATOMIC_ADD_FETCH_FUNC_TAOS_FORBID
+#define atomic_fetch_add          __ATOMIC_FETCH_ADD_FUNC_TAOS_FORBID
+#define atomic_sub_fetch          __ATOMIC_SUB_FETCH_FUNC_TAOS_FORBID
+#define atomic_fetch_sub          __ATOMIC_FETCH_SUB_FUNC_TAOS_FORBID
+#define atomic_and_fetch          __ATOMIC_AND_FETCH_FUNC_TAOS_FORBID
+#define atomic_fetch_and          __ATOMIC_FETCH_AND_FUNC_TAOS_FORBID
+#define atomic_or_fetch           __ATOMIC_OR_FETCH_FUNC_TAOS_FORBID
+#define atomic_fetch_or           __ATOMIC_FETCH_OR_FUNC_TAOS_FORBID
+#define atomic_xor_fetch          __ATOMIC_XOR_FETCH_FUNC_TAOS_FORBID
+#define atomic_fetch_xor          __ATOMIC_FETCH_XOR_FUNC_TAOS_FORBID
 #endif
 
 int8_t  atomic_load_8(int8_t volatile *ptr);

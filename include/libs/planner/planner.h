@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_PLANNER_H_
-#define _TD_PLANNER_H_
+#define TD_PLANNER_H_
 
 #ifdef __cplusplus
 extern "C" {

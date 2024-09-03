@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_QUERY_NODES_H_
-#define _TD_QUERY_NODES_H_
+#define TD_QUERY_NODES_H_
 
 #ifdef __cplusplus
 extern "C" {

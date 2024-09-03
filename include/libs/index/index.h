@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_INDEX_H_
-#define _TD_INDEX_H_
+#define TD_INDEX_H_
 
 #include "nodes.h"
 #include "os.h"

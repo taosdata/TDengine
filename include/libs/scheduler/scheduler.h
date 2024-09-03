@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_SCHEDULER_H_
-#define _TD_SCHEDULER_H_
+#define TD_SCHEDULER_H_
 
 #ifdef __cplusplus
 extern "C" {

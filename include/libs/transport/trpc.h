@@ -27,7 +27,7 @@ extern "C" {
 
 #define TAOS_CONN_SERVER 0
 #define TAOS_CONN_CLIENT 1
-#define IsReq(pMsg)      (pMsg->msgType & 1U)
+#define IsReq(pMsg)      ((pMsg)->msgType & 1U)
 
 extern int32_t tsRpcHeadSize;
 

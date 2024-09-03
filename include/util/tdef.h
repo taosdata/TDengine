@@ -89,7 +89,7 @@ extern const int32_t TYPE_BYTES[21];
 #define TSDB_TRUE  1
 #define TSDB_FALSE 0
 #define TSDB_OK    0
-#define TSDB_ERR   -1
+#define TSDB_ERR   (-1)
 
 #define TS_PATH_DELIMITER "."
 #define TS_ESCAPE_CHAR    '`'
@@ -134,12 +134,12 @@ static const int64_t TICK_PER_SECOND[] = {
 #define T_APPEND_MEMBER(dst, ptr, type, member)                                           \
   do {                                                                                    \
     (void)memcpy((void *)(dst), (void *)(&((ptr)->member)), T_MEMBER_SIZE(type, member)); \
-    dst = (void *)((char *)(dst) + T_MEMBER_SIZE(type, member));                          \
+    (dst) = (void *)((char *)(dst) + T_MEMBER_SIZE(type, member));                          \
   } while (0)
 #define T_READ_MEMBER(src, type, target)          \
   do {                                            \
     (target) = *(type *)(src);                    \
-    (src) = (void *)((char *)src + sizeof(type)); \
+    (src) = (void *)((char *)(src) + sizeof(type)); \
   } while (0)
 
 typedef enum EOperatorType {
@@ -196,7 +196,7 @@ typedef enum ELogicConditionType {
   LOGIC_COND_TYPE_NOT,
 } ELogicConditionType;
 
-#define ENCRYPTED_LEN(len)  (len / 16) * 16 + (len % 16 ? 1 : 0) * 16
+#define ENCRYPTED_LEN(len)  (((len) / 16) * 16 + ((len) % 16 ? 1 : 0) * 16)
 #define ENCRYPT_KEY_LEN     16
 #define ENCRYPT_KEY_LEN_MIN 8
 
@@ -228,13 +228,13 @@ typedef enum ELogicConditionType {
 #define TSDB_STREAM_NAME_LEN          193                                // it is a null-terminated string
 #define TSDB_DB_NAME_LEN              65
 #define TSDB_DB_FNAME_LEN             (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
-#define TSDB_PRIVILEDGE_CONDITION_LEN 48 * 1024
-#define TSDB_PRIVILEDGE_HOST_LEN      48 * 1024
+#define TSDB_PRIVILEDGE_CONDITION_LEN (48 * 1024)
+#define TSDB_PRIVILEDGE_HOST_LEN      (48 * 1024)
 
 #define TSDB_FUNC_NAME_LEN       65
-#define TSDB_FUNC_COMMENT_LEN    1024 * 1024
-#define TSDB_FUNC_CODE_LEN       10 * 1024 * 1024
-#define TSDB_FUNC_BUF_SIZE       4096 * 64
+#define TSDB_FUNC_COMMENT_LEN    (1024 * 1024)
+#define TSDB_FUNC_CODE_LEN       (10 * 1024 * 1024)
+#define TSDB_FUNC_BUF_SIZE       (4096 * 64)
 #define TSDB_FUNC_TYPE_SCALAR    1
 #define TSDB_FUNC_TYPE_AGGREGATE 2
 #define TSDB_FUNC_SCRIPT_BIN_LIB 0
@@ -253,7 +253,7 @@ typedef enum ELogicConditionType {
 #define TSDB_PARTITION_KEY_LEN   (TSDB_SUBSCRIBE_KEY_LEN + 20)
 #define TSDB_COL_NAME_LEN        65
 #define TSDB_COL_FNAME_LEN       (TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
-#define TSDB_MAX_SAVED_SQL_LEN   TSDB_MAX_COLUMNS * 64
+#define TSDB_MAX_SAVED_SQL_LEN   (TSDB_MAX_COLUMNS * 64)
 #define TSDB_MAX_SQL_LEN         TSDB_PAYLOAD_SIZE
 #define TSDB_MAX_SQL_SHOW_LEN    1024
 #define TSDB_MAX_ALLOWED_SQL_LEN (1 * 1024 * 1024u)  // sql length should be less than 1mb
@@ -289,7 +289,7 @@ typedef enum ELogicConditionType {
 #define TSDB_IPv4ADDR_LEN         16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_SHOW_SQL_LEN         2048
-#define TSDB_SHOW_SCHEMA_JSON_LEN TSDB_MAX_COLUMNS * 256
+#define TSDB_SHOW_SCHEMA_JSON_LEN (TSDB_MAX_COLUMNS * 256)
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 #define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_LOG_VAR_LEN          32
@@ -451,10 +451,10 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_S3_COMPACT        1
 #define TSDB_DEFAULT_S3_COMPACT    0
 
-#define TSDB_DB_MIN_WAL_RETENTION_PERIOD -1
+#define TSDB_DB_MIN_WAL_RETENTION_PERIOD (-1)
 #define TSDB_REP_DEF_DB_WAL_RET_PERIOD   3600
 #define TSDB_REPS_DEF_DB_WAL_RET_PERIOD  3600
-#define TSDB_DB_MIN_WAL_RETENTION_SIZE   -1
+#define TSDB_DB_MIN_WAL_RETENTION_SIZE   (-1)
 #define TSDB_REP_DEF_DB_WAL_RET_SIZE     0
 #define TSDB_REPS_DEF_DB_WAL_RET_SIZE    0
 #define TSDB_DB_MIN_WAL_ROLL_PERIOD      0
@@ -516,7 +516,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_QUERY_HAS_TYPE(x, _type)   (((x) & (_type)) != 0)
 #define TSDB_QUERY_SET_TYPE(x, _type)   ((x) |= (_type))
-#define TSDB_QUERY_CLEAR_TYPE(x, _type) ((x) &= (~_type))
+#define TSDB_QUERY_CLEAR_TYPE(x, _type) ((x) &= (~(_type)))
 #define TSDB_QUERY_RESET_TYPE(x)        ((x) = TSDB_QUERY_TYPE_NON_TYPE)
 
 #define TSDB_ORDER_ASC  1
@@ -543,7 +543,7 @@ typedef enum ELogicConditionType {
 #define TFS_MAX_LEVEL          (TFS_MAX_TIERS - 1)
 #define TFS_PRIMARY_LEVEL      0
 #define TFS_PRIMARY_ID         0
-#define TFS_MIN_DISK_FREE_SIZE 50 * 1024 * 1024
+#define TFS_MIN_DISK_FREE_SIZE (50 * 1024 * 1024)
 
 enum { TRANS_STAT_INIT = 0, TRANS_STAT_EXECUTING, TRANS_STAT_EXECUTED, TRANS_STAT_ROLLBACKING, TRANS_STAT_ROLLBACKED };
 enum { TRANS_OPER_INIT = 0, TRANS_OPER_EXECUTE, TRANS_OPER_ROLLBACK };
@@ -572,10 +572,10 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 
 #define DEFAULT_HANDLE 0
 #define MNODE_HANDLE   1
-#define QNODE_HANDLE   -1
-#define SNODE_HANDLE   -2
-#define VNODE_HANDLE   -3
-#define CLIENT_HANDLE  -5
+#define QNODE_HANDLE   (-1)
+#define SNODE_HANDLE   (-2)
+#define VNODE_HANDLE   (-3)
+#define CLIENT_HANDLE  (-5)
 
 #define TSDB_CONFIG_OPTION_LEN 32
 #define TSDB_CONFIG_VALUE_LEN  64

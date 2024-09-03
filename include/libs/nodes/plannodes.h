@@ -14,7 +14,7 @@
  */
 
 #ifndef _TD_PLANN_NODES_H_
-#define _TD_PLANN_NODES_H_
+#define TD_PLANN_NODES_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,7 +24,7 @@ extern "C" {
 #include "querynodes.h"
 #include "tname.h"
 
-#define SLOT_NAME_LEN TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN
+#define SLOT_NAME_LEN (TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN)
 
 typedef enum EDataOrderLevel {
   DATA_ORDER_LEVEL_NONE = 1,

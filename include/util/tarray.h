@@ -187,7 +187,7 @@ SArray* taosArrayFromList(const void* src, size_t size, size_t elemSize);
  * clone a new array
  * @param pSrc
  */
-SArray* taosArrayDup(const SArray* pSrc, __array_item_dup_fn_t fn);
+array_item_dup_fn_t* taosArrayDup(const SArray* pSrc, array_item_dup_fn_t fn);
 
 /**
  * clear the array (remove all element)
@@ -251,7 +251,7 @@ int32_t taosArraySearchIdx(const SArray* pArray, const void* key, __compar_fn_t 
  * @return
  */
 
-int32_t taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void* param);
+ext_compar_fn_t taosArraySortPWithExt(SArray* pArray, ext_compar_fn_t fn, const void* param);
 
 int32_t taosEncodeArray(void** buf, const SArray* pArray, FEncode encode);
 void*   taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t dataSz, int8_t sver);

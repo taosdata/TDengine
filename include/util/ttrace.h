@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #ifndef _TD_TRACE_H_
-#define _TD_TRACE_H_
+#define TD_TRACE_H_
 
 #include <stdint.h>
 #include <stdlib.h>
