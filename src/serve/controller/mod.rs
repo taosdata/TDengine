@@ -893,9 +893,7 @@ impl TaskController {
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
-        license::validate_task(&from, &to, Some(&self.pool))
-            .await
-            .context("License error")?;
+        license::validate_task(&from, &to, Some(&self.pool)).await?;
 
         if task.via.is_none() {
             validate_dsn(&from).await.ok()?;
