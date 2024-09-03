@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "vmInt.h"
 #include "taos_monitor.h"
+#include "vmInt.h"
 
 extern taos_counter_t *tsInsertCounter;
 
@@ -124,16 +124,16 @@ int vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {
   int list_size = taos_counter_get_keys_size(tsInsertCounter);
   if (list_size == 0) return 0;
   int32_t *vgroup_ids;
-  char **keys;
-  taos_counter_get_vgroup_ids(tsInsertCounter,&keys,&vgroup_ids);
+  char   **keys;
+  taos_counter_get_vgroup_ids(tsInsertCounter, &keys, &vgroup_ids);
   int r = 0;
   (void)taosThreadRwlockWrlock(&pMgmt->lock);
-  for (int i = 0; i<list_size; i++) {
-      int32_t vgroup_id = vgroup_ids[i];
-      void *vnode = taosHashGet(pMgmt->hash, &vgroup_id, sizeof(int32_t));
-      if (vnode == NULL) {
-          r = taos_counter_delete(tsInsertCounter, keys[i]);
-      }
+  for (int i = 0; i < list_size; i++) {
+    int32_t vgroup_id = vgroup_ids[i];
+    void   *vnode = taosHashGet(pMgmt->hash, &vgroup_id, sizeof(int32_t));
+    if (vnode == NULL) {
+      r = taos_counter_delete(tsInsertCounter, keys[i]);
+    }
   }
   (void)taosThreadRwlockUnlock(&pMgmt->lock);
   taosMemoryFree(vgroup_ids);

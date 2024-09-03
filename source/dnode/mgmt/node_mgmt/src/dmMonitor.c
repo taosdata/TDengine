@@ -14,9 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "audit.h"
 #include "dmMgmt.h"
 #include "dmNodes.h"
-#include "audit.h"
 
 static void dmGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
   pInfo->protocol = 1;
@@ -33,8 +33,8 @@ static void dmGetMonitorBasicInfoBasic(SDnode *pDnode, SMonBasicInfo *pInfo) {
 }
 
 static void dmGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
-  //pInfo->uptime = (taosGetTimestampMs() - pDnode->data.rebootTime) / (86400000.0f);
-  pInfo->uptime = (taosGetTimestampMs() - pDnode->data.rebootTime) /1000.0f;
+  // pInfo->uptime = (taosGetTimestampMs() - pDnode->data.rebootTime) / (86400000.0f);
+  pInfo->uptime = (taosGetTimestampMs() - pDnode->data.rebootTime) / 1000.0f;
   pInfo->has_mnode = pDnode->wrappers[MNODE].required;
   pInfo->has_qnode = pDnode->wrappers[QNODE].required;
   pInfo->has_snode = pDnode->wrappers[SNODE].required;
@@ -141,10 +141,8 @@ void dmMonitorCleanExpiredSamples() {
   (void)dmCleanExpriedSamples(pDnode);
 }
 
-//Todo: put this in seperate file in the future
-void dmSendAuditRecords() {
-  auditSendRecordsInBatch();
-}
+// Todo: put this in seperate file in the future
+void dmSendAuditRecords() { auditSendRecordsInBatch(); }
 
 void dmGetVnodeLoads(SMonVloadInfo *pInfo) {
   SDnode       *pDnode = dmInstance();

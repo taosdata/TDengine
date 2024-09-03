@@ -99,7 +99,7 @@ int taos_counter_inc(taos_counter_t *self, const char **label_values);
  */
 int taos_counter_add(taos_counter_t *self, double r_value, const char **label_values);
 
-int taos_counter_get_vgroup_ids(taos_counter_t *self, char ***keys,int32_t **vgroup_ids);
+int taos_counter_get_vgroup_ids(taos_counter_t *self, char ***keys, int32_t **vgroup_ids);
 int taos_counter_get_keys_size(taos_counter_t *self);
 int taos_counter_delete(taos_counter_t *self, char *key);
 #endif  // TAOS_COUNTER_H

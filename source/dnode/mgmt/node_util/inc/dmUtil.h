@@ -147,22 +147,22 @@ typedef struct {
 } SDnodeData;
 
 typedef struct {
-  const char            *path;
-  const char            *name;
-  STfs                  *pTfs;
-  SDnodeData            *pData;
-  SMsgCb                 msgCb;
-  ProcessCreateNodeFp    processCreateNodeFp;
-  ProcessAlterNodeTypeFp processAlterNodeTypeFp;
-  ProcessDropNodeFp      processDropNodeFp;
-  SendMonitorReportFp    sendMonitorReportFp;
+  const char                  *path;
+  const char                  *name;
+  STfs                        *pTfs;
+  SDnodeData                  *pData;
+  SMsgCb                       msgCb;
+  ProcessCreateNodeFp          processCreateNodeFp;
+  ProcessAlterNodeTypeFp       processAlterNodeTypeFp;
+  ProcessDropNodeFp            processDropNodeFp;
+  SendMonitorReportFp          sendMonitorReportFp;
   MonitorCleanExpiredSamplesFp monitorCleanExpiredSamplesFp;
-  SendAuditRecordsFp     sendAuditRecordFp;
-  GetVnodeLoadsFp        getVnodeLoadsFp;
-  GetVnodeLoadsFp        getVnodeLoadsLiteFp;
-  GetMnodeLoadsFp        getMnodeLoadsFp;
-  GetQnodeLoadsFp        getQnodeLoadsFp;
-  StopDnodeFp            stopDnodeFp;
+  SendAuditRecordsFp           sendAuditRecordFp;
+  GetVnodeLoadsFp              getVnodeLoadsFp;
+  GetVnodeLoadsFp              getVnodeLoadsLiteFp;
+  GetMnodeLoadsFp              getMnodeLoadsFp;
+  GetQnodeLoadsFp              getQnodeLoadsFp;
+  StopDnodeFp                  stopDnodeFp;
 } SMgmtInputOpt;
 
 typedef struct {

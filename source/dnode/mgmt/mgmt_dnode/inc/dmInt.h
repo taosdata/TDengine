@@ -23,27 +23,27 @@ extern "C" {
 #endif
 
 typedef struct SDnodeMgmt {
-  SDnodeData            *pData;
-  SMsgCb                 msgCb;
-  const char            *path;
-  const char            *name;
-  TdThread               statusThread;
-  TdThread               notifyThread;
-  TdThread               monitorThread;
-  TdThread               auditThread;
-  TdThread               crashReportThread;
-  SSingleWorker          mgmtWorker;
-  ProcessCreateNodeFp    processCreateNodeFp;
-  ProcessAlterNodeTypeFp processAlterNodeTypeFp;
-  ProcessDropNodeFp      processDropNodeFp;
-  SendMonitorReportFp    sendMonitorReportFp;
+  SDnodeData                  *pData;
+  SMsgCb                       msgCb;
+  const char                  *path;
+  const char                  *name;
+  TdThread                     statusThread;
+  TdThread                     notifyThread;
+  TdThread                     monitorThread;
+  TdThread                     auditThread;
+  TdThread                     crashReportThread;
+  SSingleWorker                mgmtWorker;
+  ProcessCreateNodeFp          processCreateNodeFp;
+  ProcessAlterNodeTypeFp       processAlterNodeTypeFp;
+  ProcessDropNodeFp            processDropNodeFp;
+  SendMonitorReportFp          sendMonitorReportFp;
   MonitorCleanExpiredSamplesFp monitorCleanExpiredSamplesFp;
-  SendAuditRecordsFp     sendAuditRecordsFp;
-  GetVnodeLoadsFp        getVnodeLoadsFp;
-  GetVnodeLoadsFp        getVnodeLoadsLiteFp;
-  GetMnodeLoadsFp        getMnodeLoadsFp;
-  GetQnodeLoadsFp        getQnodeLoadsFp;
-  int32_t                statusSeq;
+  SendAuditRecordsFp           sendAuditRecordsFp;
+  GetVnodeLoadsFp              getVnodeLoadsFp;
+  GetVnodeLoadsFp              getVnodeLoadsLiteFp;
+  GetMnodeLoadsFp              getMnodeLoadsFp;
+  GetQnodeLoadsFp              getQnodeLoadsFp;
+  int32_t                      statusSeq;
 } SDnodeMgmt;
 
 // dmHandle.c
