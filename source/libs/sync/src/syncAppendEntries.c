@@ -102,6 +102,11 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     goto _IGNORE;
   }
 
+  if (!ths->restoreFinish) {
+    syncLogRecvAppendEntries(ths, pMsg, "restore not finish");
+    goto _IGNORE;
+  }
+
   int32_t code = syncBuildAppendEntriesReply(&rpcRsp, ths->vgId);
   if (code != 0) {
     syncLogRecvAppendEntries(ths, pMsg, "build rsp error");
