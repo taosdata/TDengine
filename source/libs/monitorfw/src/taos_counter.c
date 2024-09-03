@@ -68,7 +68,7 @@ int taos_counter_add(taos_counter_t *self, double r_value, const char **label_va
 
 int taos_counter_get_keys_size(taos_counter_t *self) { return self->samples->keys->size; }
 
-int taos_counter_get_vgroup_ids(taos_counter_t *self, char ***keys, int32_t **vgroup_ids) {
+int taos_counter_get_vgroup_ids(taos_counter_t *self, char ***keys, int32_t **vgroup_ids, int *list_size) {
   TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
   if (self->type != TAOS_COUNTER) {
@@ -77,9 +77,12 @@ int taos_counter_get_vgroup_ids(taos_counter_t *self, char ***keys, int32_t **vg
   }
   if (self->samples == NULL) return 1;
   taos_linked_list_t *key_list = self->samples->keys;
-  int                 r = 0;
-  *vgroup_ids = (int32_t *)taos_malloc(key_list->size * sizeof(int32_t));
-  *keys = (char **)taos_malloc(key_list->size * sizeof(char *));
+  *list_size = key_list->size;
+  int r = 0;
+  *vgroup_ids = (int32_t *)taos_malloc(*list_size * sizeof(int32_t));
+  if (vgroup_ids == NULL) return 1;
+  *keys = (char **)taos_malloc(*list_size * sizeof(char *));
+  if (keys == NULL) return 1;
   int index = 0;
   for (taos_linked_list_node_t *current_key = key_list->head; current_key != NULL; current_key = current_key->next) {
     char   *key = (char *)current_key->item;
