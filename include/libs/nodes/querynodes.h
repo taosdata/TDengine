@@ -191,6 +191,7 @@ typedef struct SFunctionNode {
   bool       hasOriginalFunc;
   int32_t    originalFuncId;
   ETrimType  trimType;
+  bool       hasSMA;
 } SFunctionNode;
 
 typedef struct STableNode {

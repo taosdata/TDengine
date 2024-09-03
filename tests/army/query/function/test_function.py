@@ -505,12 +505,14 @@ class TDTestCase(TBase):
         tdSql.query("select var_pop(null) from ts_4893.meters;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, None)
-
     def test_error(self):
         tdSql.error(
             "select * from (select to_iso8601(ts, timezone()), timezone() from meters order by ts desc) limit 1000;",
             expectErrInfo="Not supported timzone format")  # TS-5340
-
+    def test_min(self):
+        self.test_normal_query("min")
+    def test_max(self):
+        self.test_normal_query("max")
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -550,6 +552,10 @@ class TDTestCase(TBase):
         # agg function
         self.test_stddev()
         self.test_varpop()
+
+        # select function
+        self.test_min()
+        self.test_max()
 
         # error function
         self.test_error()

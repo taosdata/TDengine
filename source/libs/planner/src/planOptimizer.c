@@ -303,7 +303,8 @@ static int32_t scanPathOptGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSd
   FOREACH(pNode, pAllFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     int32_t        code = TSDB_CODE_SUCCESS;
-    if (scanPathOptIsSpecifiedFuncType(pFunc, fmIsSpecialDataRequiredFunc)) {
+    if (scanPathOptIsSpecifiedFuncType(pFunc, fmIsSpecialDataRequiredFunc) &&
+        ((pFunc->funcType == FUNCTION_TYPE_MIN || pFunc->funcType == FUNCTION_TYPE_MAX) && pFunc->hasSMA)) {
       SNode* pNew = NULL;
       code = nodesCloneNode(pNode, &pNew);
       if (TSDB_CODE_SUCCESS == code) {
