@@ -1314,7 +1314,7 @@ pub async fn tmq_to_td(
         .remove("read_concurrency")
         .or(from.remove("num.of.consumers"))
         .and_then(|s| s.parse().ok())
-        .unwrap_or(0); // 0 means auto
+        .unwrap_or(jobs); // 0 means auto
     let strategy = from
         .remove("prefer")
         .map(|s| s.into())
@@ -1341,15 +1341,20 @@ pub async fn tmq_to_td(
         .or(from.remove("timeout")) // for compatibility
         .or(std::env::var("TMQ_MAX_POLLING_TIMEOUT").ok())
         .map(|s| {
-            parse_duration(&s).map_err(|e| {
-                tracing::warn!(
-                    key = "max.polling.timeout",
-                    value = s,
-                    "parse max.polling.timeout error: {}",
-                    e
-                );
-                anyhow::anyhow!("parse max.polling.timeout error: {e:#}")
-            })
+            let s = s.trim();
+            if matches!(s, "never" | "0" | "-1") {
+                Ok(Duration::MAX)
+            } else {
+                parse_duration(&s).map_err(|e| {
+                    tracing::warn!(
+                        key = "max.polling.timeout",
+                        value = s,
+                        "parse max.polling.timeout error: {}",
+                        e
+                    );
+                    anyhow::anyhow!("parse max.polling.timeout error: {e:#}")
+                })
+            }
         })
         .transpose()?
         .unwrap_or_else(|| Duration::from_secs(5));
