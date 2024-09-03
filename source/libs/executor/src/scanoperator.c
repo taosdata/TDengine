@@ -4530,6 +4530,7 @@ static int32_t tagScanFillResultBlock(SOperatorInfo* pOperator, SSDataBlock* pRe
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pExprInfo[j].base.resSchema.slotId);
         QUERY_CHECK_NULL(pDst, code, lino, _end, terrno);
         code = tagScanFillOneCellWithTag(pOperator, pUidTagInfo, &pExprInfo[j], pDst, i, pAPI, pInfo->readHandle.vnode);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
     }
   } else {
