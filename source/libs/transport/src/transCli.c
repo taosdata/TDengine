@@ -507,6 +507,7 @@ static void cliDestroyMsgInExhandle(int64_t refId) {
       queue* h = QUEUE_HEAD(&exh->q);
       QUEUE_REMOVE(h);
       SCliMsg* t = QUEUE_DATA(h, SCliMsg, seqq);
+      tWarn("%s try to destroy, refId:%" PRId64 "", TMSG_INFO(t->msg.msgType), refId);
       destroyCmsg(t);
     }
     taosWUnLockLatch(&exh->latch);
@@ -1496,9 +1497,10 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
         }
       } else {
         SFailFastItem item = {.count = 1, .timestamp = cTimestamp};
-        int32_t code = taosHashPut(pThrd->failFastCache, pConn->dstAddr, strlen(pConn->dstAddr), &item, sizeof(SFailFastItem));
+        int32_t       code =
+            taosHashPut(pThrd->failFastCache, pConn->dstAddr, strlen(pConn->dstAddr), &item, sizeof(SFailFastItem));
         if (code != 0) {
-          tError("failed to put fail-fast item to cache, reason:%s", tstrerror(code));   
+          tError("failed to put fail-fast item to cache, reason:%s", tstrerror(code));
         }
       }
     }
