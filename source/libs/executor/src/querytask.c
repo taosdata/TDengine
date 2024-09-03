@@ -43,7 +43,7 @@ int32_t doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC
 
   SExecTaskInfo* p = taosMemoryCalloc(1, sizeof(SExecTaskInfo));
   if (p == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   setTaskStatus(p, TASK_NOT_COMPLETED);

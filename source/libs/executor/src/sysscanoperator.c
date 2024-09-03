@@ -2236,7 +2236,7 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   SSysTableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SSysTableScanInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     lino = __LINE__;
     goto _error;
   }
@@ -2832,7 +2832,6 @@ static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pC
   pCond->colList = taosMemoryCalloc(1, sizeof(SColumnInfo));
   pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t));
   if (pCond->colList == NULL || pCond->pSlotList == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -2862,7 +2861,7 @@ int32_t createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanP
   SBlockDistInfo* pInfo = taosMemoryCalloc(1, sizeof(SBlockDistInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    pTaskInfo->code = code = TSDB_CODE_OUT_OF_MEMORY;
+    pTaskInfo->code = code = terrno;
     goto _error;
   }
 
