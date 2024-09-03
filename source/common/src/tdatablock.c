@@ -3126,6 +3126,11 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
       pStart += BitmapLen(numOfRows);
     }
 
+    // TODO
+    // setting this flag to true temporarily so aggregate function on stable will
+    // examine NULL value for non-primary key column
+    pColInfoData->hasNull = true;
+
     if (colLen[i] > 0) {
       memcpy(pColInfoData->pData, pStart, colLen[i]);
     } else if (!colDataIsNull_s(pColInfoData, 0) && pColInfoData->info.type != TSDB_DATA_TYPE_NULL) {
@@ -3134,10 +3139,6 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
       return terrno;
     }
 
-    // TODO
-    // setting this flag to true temporarily so aggregate function on stable will
-    // examine NULL value for non-primary key column
-    pColInfoData->hasNull = true;
     pStart += colLen[i];
   }
 
