@@ -395,7 +395,7 @@ export default {
     },
     isShowAddOpcPoint() {
       // 重新上传了一个 csv,此时的任务还没有提交，因此csv没有生效，所有也不应该显示增加点位按钮
-      return this.value != '*' && this.value === this.oldValue && this.isEdit
+      return this.oldValue && this.value != '*' && this.value === this.oldValue && this.isEdit
     },
     lang() {
      return localStorage.getItem('local_language');
