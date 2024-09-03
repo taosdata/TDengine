@@ -852,7 +852,7 @@ export default {
   },
 
   async created() {
-    const plugins = listParserPlugins();
+    const plugins = await listParserPlugins();
     this.parseTypes = PARSER_BUILDIN.concat(plugins.map((item) => item.name));
   },
 
