@@ -1,5 +1,5 @@
 [Unit]
-Description=Explorer for TDengine
+Description=taosExplorer - GUI based management console for TDengine
 After=network-online.target
 Wants=network-online.target
 
