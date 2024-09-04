@@ -1057,6 +1057,9 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
 
         code = pfCtx->fpSet.process(pfCtx);
         if (code != TSDB_CODE_SUCCESS) {
+          if (pCtx[k].fpSet.cleanup != NULL) {
+            pCtx[k].fpSet.cleanup(&pCtx[k]);
+          }
           goto _exit;
         }
 

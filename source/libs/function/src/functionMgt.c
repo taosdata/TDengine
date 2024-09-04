@@ -142,6 +142,7 @@ int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
   pFpSet->finalize = funcMgtBuiltins[funcId].finalizeFunc;
   pFpSet->combine = funcMgtBuiltins[funcId].combineFunc;
   pFpSet->processFuncByRow = funcMgtBuiltins[funcId].processFuncByRow;
+  pFpSet->cleanup = funcMgtBuiltins[funcId].cleanupFunc;
   return TSDB_CODE_SUCCESS;
 }
 
