@@ -2178,7 +2178,12 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
-    (void)tsem_wait(&pInfo->ready);
+    code = tsem_wait(&pInfo->ready);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      pTaskInfo->code = code;
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
 
     if (pTaskInfo->code) {
       qError("%s load meta data from mnode failed, totalRows:%" PRIu64 ", code:%s", GET_TASKID(pTaskInfo),
@@ -2328,7 +2333,10 @@ void extractTbnameSlotId(SSysTableScanInfo* pInfo, const SScanPhysiNode* pScanNo
 
 void destroySysScanOperator(void* param) {
   SSysTableScanInfo* pInfo = (SSysTableScanInfo*)param;
-  (void)tsem_destroy(&pInfo->ready);
+  int32_t            code = tsem_destroy(&pInfo->ready);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  }
   blockDataDestroy(pInfo->pRes);
 
   if (pInfo->name.type == TSDB_TABLE_NAME_T) {
@@ -2384,7 +2392,10 @@ int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
-  (void)tsem_post(&pScanResInfo->ready);
+  int32_t res = tsem_post(&pScanResInfo->ready);
+  if (res != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(res));
+  }
   return TSDB_CODE_SUCCESS;
 }
 

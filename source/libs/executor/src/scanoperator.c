@@ -671,7 +671,8 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       STableCachedVal* pVal = taosLRUCacheValue(pCache->pTableMetaEntryCache, h);
       val = *pVal;
 
-      (void)taosLRUCacheRelease(pCache->pTableMetaEntryCache, h, false);
+      bool bRes = taosLRUCacheRelease(pCache->pTableMetaEntryCache, h, false);
+      qTrace("release LRU cache, res %d", bRes);
     }
 
     qDebug("retrieve table meta from cache:%" PRIu64 ", hit:%" PRIu64 " miss:%" PRIu64 ", %s", pCache->metaFetch,
@@ -893,7 +894,10 @@ void markGroupProcessed(STableScanInfo* pInfo, uint64_t groupId) {
   if (pInfo->base.pTableListInfo->groupOffset) {
     pInfo->countState = TABLE_COUNT_STATE_PROCESSED;
   } else {
-    (void)taosHashRemove(pInfo->base.pTableListInfo->remainGroups, &groupId, sizeof(groupId));
+    int32_t code = taosHashRemove(pInfo->base.pTableListInfo->remainGroups, &groupId, sizeof(groupId));
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    }
   }
 }
 

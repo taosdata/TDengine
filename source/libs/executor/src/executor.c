@@ -904,8 +904,14 @@ void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
     }
     SExchangeInfo* pExchangeInfo = taosAcquireRef(exchangeObjRefPool, pStop->refId);
     if (pExchangeInfo) {
-      (void)tsem_post(&pExchangeInfo->ready);
-      (void)taosReleaseRef(exchangeObjRefPool, pStop->refId);
+      int32_t code = tsem_post(&pExchangeInfo->ready);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      }
+      code = taosReleaseRef(exchangeObjRefPool, pStop->refId);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      }
     }
   }
 
