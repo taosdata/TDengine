@@ -583,7 +583,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, subscribe.consumerId, &pConsumerTmp));
     if (taosArrayGetSize(pConsumerTmp->assignedTopics) == 0){
       mndReleaseConsumer(pMnode, pConsumerTmp);
-      return 0;
+      goto END;
     }
     mndReleaseConsumer(pMnode, pConsumerTmp);
   }
