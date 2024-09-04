@@ -1263,6 +1263,10 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_BIND));
 
+  if (pStmt->options.asyncExecFn) {
+    (void)tsem_wait(&pStmt->asyncQuerySem);
+  }
+
   if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
       STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
     pStmt->bInfo.needParse = false;
@@ -1277,10 +1281,6 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
 
   if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));
-  }
-
-  if (pStmt->options.asyncExecFn) {
-    (void)tsem_wait(&pStmt->asyncQuerySem);
   }
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
