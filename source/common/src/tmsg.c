@@ -5559,6 +5559,7 @@ int32_t tSerializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
+  int32_t  tlen;
 
   tEncoderInit(&encoder, buf, bufLen);
 
@@ -5877,8 +5878,8 @@ int32_t tSerializeSCMCreateTopicReq(void *buf, int32_t bufLen, const SCMCreateTo
       TAOS_CHECK_EXIT(tEncodeI32(&encoder, 0));
     }
   }
-  iTAOS_CHECK_EXIT(tEncodeI32(&encoder, strlen(pReq->sql)));
-  iTAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->sql));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, strlen(pReq->sql)));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->sql));
 
   tEndEncode(&encoder);
 
