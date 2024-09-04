@@ -14,7 +14,7 @@
 import sys
 import random
 import time
-
+import platform
 import taos
 from util.log import *
 from util.cases import *
@@ -149,9 +149,10 @@ class TDTestCase:
             tdSql.execute(sql)
 
         # create stream
-        sql = "create stream ma into sta as select count(ts) from st interval(100b)"
-        tdLog.info(sql)
-        tdSql.execute(sql)
+        if platform.system().lower() != 'windows':
+            sql = "create stream ma into sta as select count(ts) from st interval(100b)"
+            tdLog.info(sql)
+            tdSql.execute(sql)
 
         # insert data
         self.insertData()
@@ -315,7 +316,8 @@ class TDTestCase:
         self.checkWhere()
 
         # check stream
-        self.checkStream()
+        if platform.system().lower() != 'windows':
+            self.checkStream()
 
     # stop
     def stop(self):

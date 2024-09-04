@@ -484,7 +484,7 @@ void doStreamCountSaveCheckpoint(SOperatorInfo* pOperator) {
     int32_t len = doStreamCountEncodeOpState(NULL, 0, pOperator, true);
     pBuf = taosMemoryCalloc(1, len);
     if (!pBuf) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
     void* pTmpBuf = pBuf;
@@ -816,7 +816,7 @@ int32_t createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   SStreamCountAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamCountAggOperatorInfo));
   SOperatorInfo*               pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
