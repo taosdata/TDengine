@@ -46,7 +46,7 @@ deadpool = "0.10"
 
 const-str = "0.5.7"
 const_format = "0.2.32"
-shadow-rs = "0.28.0"
+shadow-rs = { version = "0.33", default-features = false }
 geos = { version = "9.0.0", features = ["static"] }
 hex = "0.4.3"
 chrono = "0.4"
@@ -61,7 +61,7 @@ default-features = false
 features = ["ws-rustls", "optin", "deadpool"]
 
 [build-dependencies]
-shadow-rs = "0.28.0"
+shadow-rs = { version = "0.33", default-features = false }
 
 [dev-dependencies]
 zstd = "0"
