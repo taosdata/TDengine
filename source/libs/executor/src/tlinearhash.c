@@ -260,7 +260,7 @@ static int32_t doAddNewBucket(SLHashObj* pHashObj) {
 SLHashObj* tHashInit(int32_t inMemPages, int32_t pageSize, _hash_fn_t fn, int32_t numOfTuplePerPage) {
   SLHashObj* pHashObj = taosMemoryCalloc(1, sizeof(SLHashObj));
   if (pHashObj == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    terrno = terrno;
     return NULL;
   }
 

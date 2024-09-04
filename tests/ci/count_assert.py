@@ -32,7 +32,9 @@ source_dirs = [
 
 # List of directories to exclude
 exclude_dirs = [
-    f"{TD_project_path}/community/source/client/jni"
+    f"{TD_project_path}/community/source/client/jni",
+    f"{TD_project_path}/enterprise/src/plugins/taosx",
+    f"{TD_project_path}/enterprise/src/plugins/explorer",
 ]
 
 # List of files to exclude

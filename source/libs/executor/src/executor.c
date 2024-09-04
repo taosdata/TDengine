@@ -1220,7 +1220,6 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
   if (pCond->colList == NULL || pCond->pSlotList == NULL) {
     taosMemoryFreeClear(pCond->colList);
     taosMemoryFreeClear(pCond->pSlotList);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
