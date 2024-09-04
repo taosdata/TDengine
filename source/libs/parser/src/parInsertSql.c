@@ -182,7 +182,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
 
   bool* pUseCols = taosMemoryCalloc(pBoundInfo->numOfCols, sizeof(bool));
   if (NULL == pUseCols) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pBoundInfo->numOfBound = 0;
@@ -768,7 +768,7 @@ static int32_t buildCreateTbReq(SVnodeModifyOpStmt* pStmt, STag* pTag, SArray* p
   }
   pStmt->pCreateTblReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
   if (NULL == pStmt->pCreateTblReq) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   insBuildCreateTbReq(pStmt->pCreateTblReq, pStmt->targetTableName.tname, pTag, pStmt->pTableMeta->suid,
                       pStmt->usingTableName.tname, pTagName, pStmt->pTableMeta->tableInfo.numOfTags,
@@ -850,7 +850,7 @@ static int32_t rewriteTagCondColumnImpl(STagVal* pVal, SNode** pNode) {
     case TSDB_DATA_TYPE_NCHAR:
       pValue->datum.p = taosMemoryCalloc(1, pVal->nData + VARSTR_HEADER_SIZE);
       if (NULL == pValue->datum.p) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       varDataSetLen(pValue->datum.p, pVal->nData);
       memcpy(varDataVal(pValue->datum.p), pVal->pData, pVal->nData);
@@ -1916,7 +1916,7 @@ static int32_t processCtbAutoCreationAndCtbMeta(SInsertParseContext* pCxt, SVnod
 
   pStbRowsCxt->pCreateCtbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
   if (pStbRowsCxt->pCreateCtbReq == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
   }
   if (code == TSDB_CODE_SUCCESS) {
     insBuildCreateTbReq(pStbRowsCxt->pCreateCtbReq, pStbRowsCxt->ctbName.tname, pStbRowsCxt->pTag,
@@ -2319,7 +2319,7 @@ static void destroyStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
 static int32_t constructStbRowsDataContext(SVnodeModifyOpStmt* pStmt, SStbRowsDataContext** ppStbRowsCxt) {
   SStbRowsDataContext* pStbRowsCxt = taosMemoryCalloc(1, sizeof(SStbRowsDataContext));
   if (!pStbRowsCxt) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   tNameAssign(&pStbRowsCxt->stbName, &pStmt->targetTableName);
   int32_t code = collectUseTable(&pStbRowsCxt->stbName, pStmt->pTableNameHashObj);

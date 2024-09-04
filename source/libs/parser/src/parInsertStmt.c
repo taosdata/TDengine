@@ -32,7 +32,7 @@ typedef struct SKvParam {
 int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
   *pData = taosMemoryCalloc(1, sizeof(SSubmitTbData));
   if (NULL == *pData) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SSubmitTbData* pNew = *pData;
@@ -190,7 +190,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
         int32_t output = 0;
         void*   p = taosMemoryCalloc(1, colLen * TSDB_NCHAR_SIZE);
         if (p == NULL) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           goto end;
         }
         if (!taosMbsToUcs4(bind[c].buffer, colLen, (TdUcs4*)(p), colLen * TSDB_NCHAR_SIZE, &output)) {
@@ -224,7 +224,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
   if (NULL == pDataBlock->pData->pCreateTbReq) {
     pDataBlock->pData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
     if (NULL == pDataBlock->pData->pCreateTbReq) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto end;
     }
   }
@@ -465,7 +465,7 @@ int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSc
   if (fields) {
     *fields = taosMemoryCalloc(numOfBound, sizeof(TAOS_FIELD_E));
     if (NULL == *fields) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     SSchema* schema = &pSchema[boundColumns[0]];
@@ -572,7 +572,7 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
 
   *pDst = taosMemoryCalloc(1, sizeof(STableDataCxt));
   if (NULL == *pDst) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   STableDataCxt* pNewCxt = (STableDataCxt*)*pDst;
@@ -650,7 +650,7 @@ int32_t qRebuildStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_
   if (rebuildCreateTb && NULL == pBlock->pData->pCreateTbReq) {
     pBlock->pData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
     if (NULL == pBlock->pData->pCreateTbReq) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
