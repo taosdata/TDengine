@@ -70,9 +70,9 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
   }
 
   int32_t size = taosArrayGetSize(pWinStates);
-  if (!isFlushedState(pFileState, pKey->ts, 0)) {
+  int32_t index = binarySearch(pWinStates, size, pKey, fillStateKeyCompare);
+  if (!isFlushedState(pFileState, pKey->ts, 0)|| index >= 0) {
     // find the first position which is smaller than the pKey
-    int32_t index = binarySearch(pWinStates, size, pKey, fillStateKeyCompare);
     if (index >= 0) {
       SWinKey* pTmpKey = taosArrayGet(pWinStates, index);
       if (winKeyCmprImpl(pTmpKey, pKey) == 0) {
@@ -277,6 +277,12 @@ int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
     return code;
   } else {
     SWinKey* pNext = taosArrayGet(pWinStates, index - 1);
+    if (qDebugFlag & DEBUG_DEBUG) {
+      SWinKey* pTmp = taosArrayGet(pWinStates, index);
+      if (winKeyCmprImpl(pTmp, pKey) != 0) {
+        qError("%s failed at line %d since do not find cur SWinKey", __func__, lino);
+      }
+    }
     *pResKey = *pNext;
     return getHashSortRowBuff(pFileState, pResKey, ppVal, pVLen, pWinCode);
   }

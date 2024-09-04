@@ -1033,6 +1033,7 @@ int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, voi
     (*pos)->beUsed = true;
     (*pos)->beFlushed = false;
     (*pWinCode) = TSDB_CODE_SUCCESS;
+    goto _end;
   }
   TSKEY ts = pFileState->getTs(pKey);
   if (!isDeteled(pFileState, ts) && isFlushedState(pFileState, ts, 0)) {
