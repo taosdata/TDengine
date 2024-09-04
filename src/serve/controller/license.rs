@@ -86,7 +86,10 @@ impl<'a> LicenseValidator<'a> {
                         )),
                         n if n > 0 => {
                             if used > n as usize {
-                                LicenseKind::Connector(anyhow!("Number of {:?} has reached the licensed upper limit.", license.r#type))
+                                LicenseKind::Connector(anyhow!(
+                                    "Number of {:?} has reached the licensed upper limit.",
+                                    license.r#type
+                                ))
                             } else {
                                 kind
                             }
