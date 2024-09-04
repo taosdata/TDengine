@@ -1,7 +1,7 @@
-#include "clientMonitor.h"
 #include "cJSON.h"
 #include "clientInt.h"
 #include "clientLog.h"
+#include "clientMonitor.h"
 #include "os.h"
 #include "tglobal.h"
 #include "tmisce.h"
@@ -113,15 +113,15 @@ static int32_t monitorReportAsyncCB(void* param, SDataBuf* pMsg, int32_t code) {
       tscError("failed to send slow log:%s, clusterId:%" PRIx64, p->data, p->clusterId);
     }
     MonitorSlowLogData tmp = {.clusterId = p->clusterId,
-        .type = p->type,
-        .fileName = p->fileName,
-        .pFile = p->pFile,
-        .offset = p->offset,
-        .data = NULL};
+                              .type = p->type,
+                              .fileName = p->fileName,
+                              .pFile = p->pFile,
+                              .offset = p->offset,
+                              .data = NULL};
     if (monitorPutData2MonitorQueue(tmp) == 0) {
       p->fileName = NULL;
     } else {
-      if(taosCloseFile(&(p->pFile))  != 0) {
+      if (taosCloseFile(&(p->pFile)) != 0) {
         tscError("failed to close file:%p", p->pFile);
       }
     }
@@ -286,7 +286,7 @@ void monitorCreateClient(int64_t clusterId) {
 
   return;
 
-  fail:
+fail:
   destroyMonitorClient(&pMonitor);
   taosWUnLockLatch(&monitorLock);
 }
@@ -302,7 +302,7 @@ void monitorCreateClientCounter(int64_t clusterId, const char* name, const char*
   taos_counter_t* newCounter = taos_counter_new(name, help, label_key_count, label_keys);
   if (newCounter == NULL) return;
   MonitorClient* pMonitor = *ppMonitor;
-  if (taos_collector_add_metric(pMonitor->colector, newCounter) != 0){
+  if (taos_collector_add_metric(pMonitor->colector, newCounter) != 0) {
     tscError("failed to add metric to collector");
     (void)taos_counter_destroy(newCounter);
     goto end;
@@ -315,7 +315,7 @@ void monitorCreateClientCounter(int64_t clusterId, const char* name, const char*
   tscInfo("[monitor] monitorCreateClientCounter %" PRIx64 "(%p):%s : %p.", pMonitor->clusterId, pMonitor, name,
           newCounter);
 
-  end:
+end:
   taosWUnLockLatch(&monitorLock);
 }
 
@@ -338,13 +338,13 @@ void monitorCounterInc(int64_t clusterId, const char* counterName, const char** 
     tscError("monitorCounterInc not found pCounter %" PRIx64 ":%s.", clusterId, counterName);
     goto end;
   }
-  if (taos_counter_inc(*ppCounter, label_values) != 0){
+  if (taos_counter_inc(*ppCounter, label_values) != 0) {
     tscError("monitorCounterInc failed to inc %" PRIx64 ":%s.", clusterId, counterName);
     goto end;
   }
   tscDebug("[monitor] monitorCounterInc %" PRIx64 "(%p):%s", pMonitor->clusterId, pMonitor, counterName);
 
-  end:
+end:
   taosWUnLockLatch(&monitorLock);
 }
 
@@ -378,7 +378,7 @@ static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char* tmpP
       return;
     }
     pClient->lastCheckTime = taosGetMonoTimestampMs();
-    (void)strcpy(pClient->path, path);
+    tstrncpy(pClient->path, path, PATH_MAX);
     pClient->offset = 0;
     pClient->pFile = pFile;
     if (taosHashPut(monitorSlowLogHash, &slowLogData->clusterId, LONG_BYTES, &pClient, POINTER_BYTES) != 0) {
@@ -413,7 +413,7 @@ static char* readFile(TdFilePtr pFile, int64_t* offset, int64_t size) {
     return NULL;
   }
 
-  if((size <= *offset)){
+  if ((size <= *offset)) {
     tscError("invalid size:%" PRId64 ", offset:%" PRId64, size, *offset);
     terrno = TSDB_CODE_TSC_INTERNAL_ERROR;
     return NULL;
@@ -510,13 +510,13 @@ static int32_t monitorReadSend(int64_t clusterId, TdFilePtr pFile, int64_t* offs
   }
   SEpSet ep = getEpSet_s(&pInst->mgmtEp);
   char*  data = readFile(pFile, offset, size);
-  if(data  == NULL) return terrno;
+  if (data == NULL) return terrno;
   return sendSlowLog(clusterId, data, (type == SLOW_LOG_READ_BEGINNIG ? pFile : NULL), *offset, type, fileName,
                      pInst->pTransporter, &ep);
 }
 
 static void monitorSendSlowLogAtBeginning(int64_t clusterId, char** fileName, TdFilePtr pFile, int64_t offset) {
-  if (fileName == NULL){
+  if (fileName == NULL) {
     return;
   }
   int64_t size = getFileSize(*fileName);
@@ -525,10 +525,11 @@ static void monitorSendSlowLogAtBeginning(int64_t clusterId, char** fileName, Td
     tscDebug("[monitor] monitorSendSlowLogAtBeginning delete file:%s", *fileName);
   } else {
     int32_t code = monitorReadSend(clusterId, pFile, &offset, size, SLOW_LOG_READ_BEGINNIG, *fileName);
-    if (code == 0){
+    if (code == 0) {
       tscDebug("[monitor] monitorSendSlowLogAtBeginning send slow log succ, clusterId:%" PRId64, clusterId);
-    }else{
-      tscError("[monitor] monitorSendSlowLogAtBeginning send slow log failed, clusterId:%" PRId64 ",ret:%d", clusterId, code);
+    } else {
+      tscError("[monitor] monitorSendSlowLogAtBeginning send slow log failed, clusterId:%" PRId64 ",ret:%d", clusterId,
+               code);
     }
     *fileName = NULL;
   }

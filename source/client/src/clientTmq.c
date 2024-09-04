@@ -533,7 +533,7 @@ static int32_t doSendCommitMsg(tmq_t* tmq, int32_t vgId, SEpSet* epSet, STqOffse
   pParam->vgId = vgId;
   pParam->consumerId = tmq->consumerId;
 
-  tstrncpy(pParam->topicName, pTopicName, tListLen(pParam->topicName));
+  tstrncpy(pParam->topicName, pTopicName, TSDB_TOPIC_FNAME_LEN);
 
   // build send info
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
@@ -895,7 +895,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
     if (data == NULL) {
       continue;
     }
-    (void)strcpy(data->topicName, pTopic->topicName);
+    tstrncpy(data->topicName, pTopic->topicName, TSDB_TOPIC_FNAME_LEN);
     data->offsetRows = taosArrayInit(numOfVgroups, sizeof(OffsetRows));
     if (data->offsetRows == NULL) {
       continue;
@@ -1263,8 +1263,8 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->epoch = 0;
 
   // set conf
-  (void)strcpy(pTmq->clientId, conf->clientId);
-  (void)strcpy(pTmq->groupId, conf->groupId);
+  tstrncpy(pTmq->clientId, conf->clientId, TSDB_CLIENT_ID_LEN);
+  tstrncpy(pTmq->groupId, conf->groupId, TSDB_CGROUP_LEN);
   pTmq->withTbName = conf->withTbName;
   pTmq->useSnapshot = conf->snapEnable;
   pTmq->autoCommit = conf->autoCommit;
@@ -1280,7 +1280,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->enableBatchMeta = conf->enableBatchMeta;
   tstrncpy(pTmq->user, user, TSDB_USER_LEN);
   if (taosGetFqdn(pTmq->fqdn) != 0) {
-    (void)strcpy(pTmq->fqdn, "localhost");
+    tstrncpy(pTmq->fqdn, "localhost", TSDB_FQDN_LEN);
   }
   if (conf->replayEnable) {
     pTmq->autoCommit = false;
@@ -1645,7 +1645,7 @@ END:
   if (pRspWrapper) {
     pRspWrapper->code = code;
     pRspWrapper->vgId = vgId;
-    (void)strcpy(pRspWrapper->topicName, pParam->topicName);
+    tstrncpy(pRspWrapper->topicName, pParam->topicName, TSDB_TOPIC_FNAME_LEN);
     code = taosWriteQitem(tmq->mqueue, pRspWrapper);
     if (code != 0) {
       tscError("consumer:0x%" PRIx64 " put poll res into mqueue failed, code:%d", tmq->consumerId, code);
@@ -2025,7 +2025,7 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
   }
 
   pParam->refId = pTmq->refId;
-  (void)strcpy(pParam->topicName, pTopic->topicName);
+  tstrncpy(pParam->topicName, pTopic->topicName, TSDB_TOPIC_FNAME_LEN);
   pParam->vgId = pVg->vgId;
   pParam->requestId = req.reqId;
 
@@ -2945,7 +2945,7 @@ int32_t askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   SMqAskEpReq req = {0};
   req.consumerId = pTmq->consumerId;
   req.epoch = updateEpSet ? -1 : pTmq->epoch;
-  (void)strcpy(req.cgroup, pTmq->groupId);
+  tstrncpy(req.cgroup, pTmq->groupId, TSDB_CGROUP_LEN);
   int              code = 0;
   SMqAskEpCbParam* pParam = NULL;
   void*            pReq = NULL;

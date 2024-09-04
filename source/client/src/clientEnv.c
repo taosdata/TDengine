@@ -489,11 +489,11 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
   (*pObj)->connType = connType;
   (*pObj)->pAppInfo = pAppInfo;
   (*pObj)->appHbMgrIdx = pAppInfo->pAppHbMgr->idx;
-  tstrncpy((*pObj)->user, user, sizeof((*pObj)->user));
+  tstrncpy((*pObj)->user, user, TSDB_USER_LEN);
   (void)memcpy((*pObj)->pass, auth, TSDB_PASSWORD_LEN);
 
   if (db != NULL) {
-    tstrncpy((*pObj)->db, db, tListLen((*pObj)->db));
+    tstrncpy((*pObj)->db, db, TSDB_DB_FNAME_LEN);
   }
 
   TSC_ERR_RET(taosThreadMutexInit(&(*pObj)->mutex, NULL));
@@ -1115,50 +1115,50 @@ uint64_t generateRequestId() {
 
 #if 0
 #include "cJSON.h"
-static setConfRet taos_set_config_imp(const char *config){
-  setConfRet ret = {SET_CONF_RET_SUCC, {0}};
+static setConfRet taos_set_config_imp(const char *config) {
+  setConfRet  ret = {SET_CONF_RET_SUCC, {0}};
   static bool setConfFlag = false;
   if (setConfFlag) {
     ret.retCode = SET_CONF_RET_ERR_ONLY_ONCE;
-    strcpy(ret.retMsg, "configuration can only set once");
+    tstrncpy(ret.retMsg, "configuration can only set once", RET_MSG_LENGTH);
     return ret;
   }
   taosInitGlobalCfg();
   cJSON *root = cJSON_Parse(config);
-  if (root == NULL){
+  if (root == NULL) {
     ret.retCode = SET_CONF_RET_ERR_JSON_PARSE;
-    strcpy(ret.retMsg, "parse json error");
+    tstrncpy(ret.retMsg, "parse json error",RET_MSG_LENGTH);
     return ret;
   }
 
   int size = cJSON_GetArraySize(root);
-  if(!cJSON_IsObject(root) || size == 0) {
+  if (!cJSON_IsObject(root) || size == 0) {
     ret.retCode = SET_CONF_RET_ERR_JSON_INVALID;
-    strcpy(ret.retMsg, "json content is invalid, must be not empty object");
+    tstrncpy(ret.retMsg, "json content is invalid, must be not empty object", RET_MSG_LENGTH);
     return ret;
   }
 
-  if(size >= 1000) {
+  if (size >= 1000) {
     ret.retCode = SET_CONF_RET_ERR_TOO_LONG;
-    strcpy(ret.retMsg, "json object size is too long");
+    tstrncpy(ret.retMsg, "json content is invalid, must be not empty object", RET_MSG_LENGTH);
     return ret;
   }
 
-  for(int i = 0; i < size; i++){
+  for (int i = 0; i < size; i++) {
     cJSON *item = cJSON_GetArrayItem(root, i);
-    if(!item) {
-      ret.retCode = SET_CONF_RET_ERR_INNER;
-      strcpy(ret.retMsg, "inner error");
+    if (!item) {
+      tstrncpy(ret.retMsg, "json object is invalid", RET_MSG_LENGTH);
       return ret;
     }
-    if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION, TSDB_CFG_CTYPE_B_CLIENT)){
+    if (!taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION,
+                              TSDB_CFG_CTYPE_B_CLIENT)) {
       ret.retCode = SET_CONF_RET_ERR_PART;
-      if (strlen(ret.retMsg) == 0){
+      if (strlen(ret.retMsg) == 0) {
         snprintf(ret.retMsg, RET_MSG_LENGTH, "part error|%s", item->string);
-      }else{
-        int tmp = RET_MSG_LENGTH - 1 - (int)strlen(ret.retMsg);
+      } else {
+        int    tmp = RET_MSG_LENGTH - 1 - (int)strlen(ret.retMsg);
         size_t leftSize = tmp >= 0 ? tmp : 0;
-        strncat(ret.retMsg, "|",  leftSize);
+        strncat(ret.retMsg, "|", leftSize);
         tmp = RET_MSG_LENGTH - 1 - (int)strlen(ret.retMsg);
         leftSize = tmp >= 0 ? tmp : 0;
         strncat(ret.retMsg, item->string, leftSize);
@@ -1170,7 +1170,7 @@ static setConfRet taos_set_config_imp(const char *config){
   return ret;
 }
 
-setConfRet taos_set_config(const char *config){
+setConfRet taos_set_config(const char *config) {
   taosThreadMutexLock(&setConfMutex);
   setConfRet ret = taos_set_config_imp(config);
   taosThreadMutexUnlock(&setConfMutex);
