@@ -14,7 +14,6 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndStb.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -27,6 +26,7 @@
 #include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndSma.h"
+#include "mndStb.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
@@ -1009,10 +1009,10 @@ _OVER:
 
 int32_t mndAddStbToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
   mndTransSetDbName(pTrans, pDb->name, pStb->name);
-  TAOS_CHECK_RETURN (mndTransCheckConflict(pMnode, pTrans));
-  TAOS_CHECK_RETURN (mndSetCreateStbCommitLogs(pMnode, pTrans, pDb, pStb));
-  TAOS_CHECK_RETURN (mndSetCreateStbRedoActions(pMnode, pTrans, pDb, pStb));
-  TAOS_CHECK_RETURN (mndSetCreateStbUndoActions(pMnode, pTrans, pDb, pStb));
+  TAOS_CHECK_RETURN(mndTransCheckConflict(pMnode, pTrans));
+  TAOS_CHECK_RETURN(mndSetCreateStbCommitLogs(pMnode, pTrans, pDb, pStb));
+  TAOS_CHECK_RETURN(mndSetCreateStbRedoActions(pMnode, pTrans, pDb, pStb));
+  TAOS_CHECK_RETURN(mndSetCreateStbUndoActions(pMnode, pTrans, pDb, pStb));
   return 0;
 }
 
@@ -1483,8 +1483,8 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
 
 static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId) {
   int32_t code = 0;
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
   while (1) {
     SMqTopicObj *pTopic = NULL;
     pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic);
@@ -1545,8 +1545,8 @@ static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName,
 
 static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId) {
   int32_t code = 0;
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
   while (1) {
     SStreamObj *pStream = NULL;
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
@@ -1599,8 +1599,8 @@ static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName
 
 static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId) {
   int32_t code = 0;
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
   while (1) {
     SSmaObj *pSma = NULL;
     pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
@@ -2216,7 +2216,7 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
 
 static int32_t mndValidateStbVersion(SMnode *pMnode, SSTableVersion *pStbVer, bool *schema, bool *sma) {
   int32_t code = 0;
-  char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+  char    tbFName[TSDB_TABLE_FNAME_LEN] = {0};
   snprintf(tbFName, sizeof(tbFName), "%s.%s", pStbVer->dbFName, pStbVer->stbName);
 
   SDbObj *pDb = mndAcquireDb(pMnode, pStbVer->dbFName);
@@ -2261,7 +2261,7 @@ static int32_t mndValidateStbVersion(SMnode *pMnode, SSTableVersion *pStbVer, bo
 
 static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp) {
   int32_t code = 0;
-  char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+  char    tbFName[TSDB_TABLE_FNAME_LEN] = {0};
   snprintf(tbFName, sizeof(tbFName), "%s.%s", dbFName, tbName);
 
   SDbObj *pDb = mndAcquireDb(pMnode, dbFName);
@@ -2285,7 +2285,7 @@ static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char
 
 static int32_t mndBuildStbCfg(SMnode *pMnode, const char *dbFName, const char *tbName, STableCfgRsp *pRsp) {
   int32_t code = 0;
-  char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+  char    tbFName[TSDB_TABLE_FNAME_LEN] = {0};
   snprintf(tbFName, sizeof(tbFName), "%s.%s", dbFName, tbName);
 
   SDbObj *pDb = mndAcquireDb(pMnode, dbFName);
@@ -2749,8 +2749,8 @@ _OVER:
 
 static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, int64_t suid) {
   int32_t code = 0;
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
   while (1) {
     SMqTopicObj *pTopic = NULL;
     pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic);
@@ -2809,8 +2809,8 @@ static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, 
 
 static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName, int64_t suid) {
   int32_t code = 0;
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
   while (1) {
     SStreamObj *pStream = NULL;
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
@@ -2982,7 +2982,7 @@ _OVER:
 
   mndReleaseUser(pMnode, pUser);
   tFreeSTableMetaRsp(&metaRsp);
-  //TODO change to TAOS_RETURN
+  // TODO change to TAOS_RETURN
   return code;
 }
 
@@ -3116,8 +3116,8 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
         indexRsp.pIndex = NULL;
       }
 
-      strcpy(indexRsp.dbFName, pStbVersion->dbFName);
-      strcpy(indexRsp.tbName, pStbVersion->stbName);
+      tstrncpy(indexRsp.dbFName, pStbVersion->dbFName, TSDB_DB_FNAME_LEN);
+      tstrncpy(indexRsp.tbName, pStbVersion->stbName, TSDB_TABLE_NAME_LEN);
 
       if (taosArrayPush(hbRsp.pIndexRsp, &indexRsp) == NULL) {
         code = terrno;

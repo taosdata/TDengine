@@ -618,8 +618,8 @@ static void *mnodeGenTypeStr(char *buf, int32_t buflen, uint8_t type, int32_t le
     return msg;
   }
 
-  if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_VARBINARY ||
-      type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
+  if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_BINARY ||
+      type == TSDB_DATA_TYPE_GEOMETRY) {
     int32_t bytes = len > 0 ? (int32_t)(len - VARSTR_HEADER_SIZE) : len;
 
     (void)snprintf(buf, buflen - 1, "%s(%d)", tDataTypes[type].name, type == TSDB_DATA_TYPE_NCHAR ? bytes / 4 : bytes);
@@ -693,7 +693,7 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
     char varLang[TSDB_TYPE_STR_MAX_LEN + 1] = {0};
     varDataSetLen(varLang, strlen(language));
-    strcpy(varDataVal(varLang), language);
+    tstrncpy(varDataVal(varLang), language, TSDB_TYPE_STR_MAX_LEN - 1);
     (void)colDataSetVal(pColInfo, numOfRows, (const char *)varLang, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

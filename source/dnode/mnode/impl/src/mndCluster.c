@@ -243,7 +243,7 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
 
   int32_t code = taosGetSystemUUID(clusterObj.name, TSDB_CLUSTER_ID_LEN);
   if (code != 0) {
-    (void)strcpy(clusterObj.name, "tdengine3.0");
+    tstrncpy(clusterObj.name, "tdengine3.0", TSDB_CLUSTER_ID_LEN);
     mError("failed to get name from system, set to default val %s", clusterObj.name);
   }
 

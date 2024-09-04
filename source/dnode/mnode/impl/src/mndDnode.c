@@ -14,11 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndDnode.h"
 #include <stdio.h>
 #include "audit.h"
 #include "mndCluster.h"
 #include "mndDb.h"
+#include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndQnode.h"
@@ -460,7 +460,7 @@ int32_t mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
       dInfo.isMnode = 0;
     }
 
-    if(taosArrayPush(pDnodeInfo, &dInfo) == NULL){
+    if (taosArrayPush(pDnodeInfo, &dInfo) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       sdbCancelFetch(pSdb, pIter);
       break;
@@ -469,12 +469,12 @@ int32_t mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
   TAOS_RETURN(code);
 }
 
-#define CHECK_MONITOR_PARA(para,err) \
-if (pCfg->monitorParas.para != para) { \
-  mError("dnode:%d, para:%d inconsistent with cluster:%d", pDnode->id, pCfg->monitorParas.para, para); \
-  terrno = err; \
-  return err;\
-}
+#define CHECK_MONITOR_PARA(para, err)                                                                    \
+  if (pCfg->monitorParas.para != para) {                                                                 \
+    mError("dnode:%d, para:%d inconsistent with cluster:%d", pDnode->id, pCfg->monitorParas.para, para); \
+    terrno = err;                                                                                        \
+    return err;                                                                                          \
+  }
 
 static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const SClusterCfg *pCfg) {
   CHECK_MONITOR_PARA(tsEnableMonitor, DND_REASON_STATUS_MONITOR_SWITCH_NOT_MATCH);
@@ -485,7 +485,8 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
   CHECK_MONITOR_PARA(tsSlowLogScope, DND_REASON_STATUS_MONITOR_SLOW_LOG_SCOPE_NOT_MATCH);
 
   if (0 != strcasecmp(pCfg->monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb)) {
-    mError("dnode:%d, tsSlowLogExceptDb:%s inconsistent with cluster:%s", pDnode->id, pCfg->monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb);
+    mError("dnode:%d, tsSlowLogExceptDb:%s inconsistent with cluster:%s", pDnode->id,
+           pCfg->monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb);
     terrno = TSDB_CODE_DNODE_INVALID_MONITOR_PARAS;
     return DND_REASON_STATUS_MONITOR_NOT_MATCH;
   }
@@ -581,8 +582,8 @@ static bool mndUpdateMnodeState(SMnodeObj *pObj, SMnodeLoad *pMload) {
   return stateChanged;
 }
 
-extern char* tsMonFwUri;
-extern char* tsMonSlowLogUri;
+extern char   *tsMonFwUri;
+extern char   *tsMonSlowLogUri;
 static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   SStatisReq statisReq = {0};
@@ -594,9 +595,9 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
     mInfo("process statis req,\n %s", statisReq.pCont);
   }
 
-  if (statisReq.type == MONITOR_TYPE_COUNTER){
+  if (statisReq.type == MONITOR_TYPE_COUNTER) {
     monSendContent(statisReq.pCont, tsMonFwUri);
-  }else if(statisReq.type == MONITOR_TYPE_SLOW_LOG){
+  } else if (statisReq.type == MONITOR_TYPE_SLOW_LOG) {
     monSendContent(statisReq.pCont, tsMonSlowLogUri);
   }
 
@@ -1027,27 +1028,27 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static void getSlowLogScopeString(int32_t scope, char* result){
-  if(scope == SLOW_LOG_TYPE_NULL) {
+static void getSlowLogScopeString(int32_t scope, char *result) {
+  if (scope == SLOW_LOG_TYPE_NULL) {
     (void)strcat(result, "NONE");
     return;
   }
-  while(scope > 0){
-    if(scope & SLOW_LOG_TYPE_QUERY) {
+  while (scope > 0) {
+    if (scope & SLOW_LOG_TYPE_QUERY) {
       (void)strcat(result, "QUERY");
       scope &= ~SLOW_LOG_TYPE_QUERY;
-    } else if(scope & SLOW_LOG_TYPE_INSERT) {
+    } else if (scope & SLOW_LOG_TYPE_INSERT) {
       (void)strcat(result, "INSERT");
       scope &= ~SLOW_LOG_TYPE_INSERT;
-    } else if(scope & SLOW_LOG_TYPE_OTHERS) {
+    } else if (scope & SLOW_LOG_TYPE_OTHERS) {
       (void)strcat(result, "OTHERS");
       scope &= ~SLOW_LOG_TYPE_OTHERS;
-    } else{
+    } else {
       (void)printf("invalid slow log scope:%d", scope);
       return;
     }
 
-    if(scope > 0) {
+    if (scope > 0) {
       (void)strcat(result, "|");
     }
   }
@@ -1070,65 +1071,65 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
 
   SVariablesInfo info = {0};
 
-  (void)strcpy(info.name, "statusInterval");
+  tstrncpy(info.name, "statusInterval", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
-  (void)strcpy(info.scope, "server");
+  tstrncpy(info.scope, "server", TSDB_CONFIG_SCOPE_LEN + 1);
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
 
-  (void)strcpy(info.name, "timezone");
+  tstrncpy(info.name, "timezone", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsTimezoneStr);
-  (void)strcpy(info.scope, "both");
+  tstrncpy(info.scope, "both", TSDB_CONFIG_SCOPE_LEN + 1);
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
 
-  (void)strcpy(info.name, "locale");
+  tstrncpy(info.name, "locale", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsLocale);
-  (void)strcpy(info.scope, "both");
+  tstrncpy(info.scope, "both", TSDB_CONFIG_SCOPE_LEN + 1);
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
 
-  (void)strcpy(info.name, "charset");
+  tstrncpy(info.name, "charset", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
-  (void)strcpy(info.scope, "both");
+  tstrncpy(info.scope, "both", TSDB_CONFIG_SCOPE_LEN + 1);
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
 
-  (void)strcpy(info.name, "monitor");
+  tstrncpy(info.name, "monitor", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsEnableMonitor);
-  (void)strcpy(info.scope, "server");
+  tstrncpy(info.scope, "server", TSDB_CONFIG_SCOPE_LEN + 1);
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
 
-  (void)strcpy(info.name, "monitorInterval");
+  tstrncpy(info.name, "monitorInterval", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsMonitorInterval);
-  (void)strcpy(info.scope, "server");
+  tstrncpy(info.scope, "server", TSDB_CONFIG_SCOPE_LEN + 1);
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
 
-  (void)strcpy(info.name, "slowLogThreshold");
+  tstrncpy(info.name, "slowLogThreshold", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogThreshold);
-  (void)strcpy(info.scope, "server");
+  tstrncpy(info.scope, "server", TSDB_CONFIG_SCOPE_LEN + 1);
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
 
-  (void)strcpy(info.name, "slowLogMaxLen");
+  tstrncpy(info.name, "slowLogMaxLen", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogMaxLen);
-  (void)strcpy(info.scope, "server");
+  tstrncpy(info.scope, "server", TSDB_CONFIG_SCOPE_LEN + 1);
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
@@ -1136,9 +1137,9 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
 
   char scopeStr[64] = {0};
   getSlowLogScopeString(tsSlowLogScope, scopeStr);
-  (void)strcpy(info.name, "slowLogScope");
+  tstrncpy(info.name, "slowLogScope", TSDB_CONFIG_OPTION_LEN + 1);
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", scopeStr);
-  (void)strcpy(info.scope, "server");
+  tstrncpy(info.scope, "server", TSDB_CONFIG_SCOPE_LEN + 1);
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
@@ -1405,7 +1406,7 @@ _OVER:
 
 static int32_t mndMCfg2DCfg(SMCfgDnodeReq *pMCfgReq, SDCfgDnodeReq *pDCfgReq) {
   int32_t code = 0;
-  char *p = pMCfgReq->config;
+  char   *p = pMCfgReq->config;
   while (*p) {
     if (*p == ' ') {
       break;
@@ -1420,11 +1421,11 @@ static int32_t mndMCfg2DCfg(SMCfgDnodeReq *pMCfgReq, SDCfgDnodeReq *pDCfgReq) {
   if (' ' == pMCfgReq->config[optLen]) {
     // 'key value'
     if (strlen(pMCfgReq->value) != 0) goto _err;
-    (void)strcpy(pDCfgReq->value, p + 1);
+    tstrncpy(pDCfgReq->value, p + 1, TSDB_DNODE_VALUE_LEN);
   } else {
     // 'key' 'value'
     if (strlen(pMCfgReq->value) == 0) goto _err;
-    (void)strcpy(pDCfgReq->value, pMCfgReq->value);
+    tstrncpy(pDCfgReq->value, pMCfgReq->value, TSDB_DNODE_VALUE_LEN);
   }
 
   TAOS_RETURN(code);
@@ -1480,7 +1481,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
   SDCfgDnodeReq dcfgReq = {0};
   if (strcasecmp(cfgReq.config, "resetlog") == 0) {
-    (void)strcpy(dcfgReq.config, "resetlog");
+    tstrncpy(dcfgReq.config, "resetlog", TSDB_DNODE_CONFIG_LEN);
 #ifdef TD_ENTERPRISE
   } else if (strncasecmp(cfgReq.config, "s3blocksize", 11) == 0) {
     int32_t optLen = strlen("s3blocksize");
@@ -1496,11 +1497,11 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       TAOS_RETURN(code);
     }
 
-    strcpy(dcfgReq.config, "s3blocksize");
+    tstrncpy(dcfgReq.config, "s3blocksize", TSDB_DNODE_CONFIG_LEN);
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
 #endif
   } else {
-    TAOS_CHECK_GOTO (mndMCfg2DCfg(&cfgReq, &dcfgReq), NULL, _err_out);
+    TAOS_CHECK_GOTO(mndMCfg2DCfg(&cfgReq, &dcfgReq), NULL, _err_out);
     if (strlen(dcfgReq.config) > TSDB_DNODE_CONFIG_LEN) {
       mError("dnode:%d, failed to config since config is too long", cfgReq.dnodeId);
       code = TSDB_CODE_INVALID_CFG;
@@ -1627,8 +1628,8 @@ static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pReq) {
   const STraceId *trace = &pReq->info.traceId;
   SDCfgDnodeReq   dcfgReq = {0};
   if (strncasecmp(cfgReq.config, "encrypt_key", 12) == 0) {
-    strcpy(dcfgReq.config, cfgReq.config);
-    strcpy(dcfgReq.value, cfgReq.value);
+    tstrncpy(dcfgReq.config, cfgReq.config, TSDB_DNODE_CONFIG_LEN);
+    tstrncpy(dcfgReq.value, cfgReq.value, TSDB_DNODE_VALUE_LEN);
     tFreeSMCfgDnodeReq(&cfgReq);
     return mndProcessCreateEncryptKeyReqImpl(pReq, cfgReq.dnodeId, &dcfgReq);
   } else {

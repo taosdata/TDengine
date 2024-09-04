@@ -342,7 +342,7 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
   SIpV4Range range = {.ip = 0, .mask = 32};
   int32_t    code = taosGetIpv4FromFqdn(fqdn, &range.ip);
   if (code) {
-    //TODO
+    // TODO
   }
   mDebug("ip-white-list may update for user: %s, fqdn: %s", user, fqdn);
   SIpWhiteList **ppList = taosHashGet(pIpWhiteTab, user, strlen(user));
@@ -1858,9 +1858,9 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
                 createReq.sysInfo);
   char operation[15] = {0};
   if (createReq.isImport == 1) {
-    (void)strcpy(operation, "importUser");
+    tstrncpy(operation, "importUser", 15);
   } else {
-    (void)strcpy(operation, "createUser");
+    tstrncpy(operation, "createUser", 15);
   }
 
   auditRecord(pReq, pMnode->clusterId, operation, "", createReq.user, detail, strlen(detail));

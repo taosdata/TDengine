@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndProfile.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
+#include "mndProfile.h"
 #include "mndQnode.h"
 #include "mndShow.h"
 #include "mndSma.h"
@@ -307,7 +307,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   tstrncpy(connectRsp.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   connectRsp.whiteListVer = pUser->ipWhiteListVer;
 
-  (void)strcpy(connectRsp.sVer, version);
+  tstrncpy(connectRsp.sVer, version, TSDB_VERSION_LEN);
   (void)snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version,
                  buildinfo, gitinfo);
   mndGetMnodeEpSet(pMnode, &connectRsp.epSet);
@@ -371,7 +371,7 @@ static SAppObj *mndCreateApp(SMnode *pMnode, uint32_t clientIp, SAppHbReq *pReq)
   app.appId = pReq->appId;
   app.ip = clientIp;
   app.pid = pReq->pid;
-  (void)strcpy(app.name, pReq->name);
+  tstrncpy(app.name, pReq->name, TSDB_APP_NAME_LEN);
   app.startTime = pReq->startTime;
   (void)memcpy(&app.summary, &pReq->summary, sizeof(pReq->summary));
   app.lastAccessTimeMs = taosGetTimestampMs();

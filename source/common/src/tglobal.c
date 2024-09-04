@@ -555,7 +555,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   char    defaultFqdn[TSDB_FQDN_LEN] = {0};
   int32_t defaultServerPort = 6030;
   if (taosGetFqdn(defaultFqdn) != 0) {
-    (void)strcpy(defaultFqdn, "localhost");
+    tstrncpy(defaultFqdn, "localhost", TSDB_FQDN_LEN);
   }
 
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "firstEp", "", CFG_SCOPE_BOTH, CFG_DYN_CLIENT));

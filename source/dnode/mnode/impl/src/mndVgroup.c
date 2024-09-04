@@ -14,7 +14,6 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndVgroup.h"
 #include "audit.h"
 #include "mndArbGroup.h"
 #include "mndDb.h"
@@ -27,6 +26,7 @@
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndVgroup.h"
 #include "tmisce.h"
 
 #define VGROUP_VER_NUMBER   1
@@ -998,7 +998,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
         char buf1[20] = {0};
         char role[20] = "offline";
         if (!exist) {
-          strcpy(role, "dropping");
+          tstrncpy(role, "dropping", 20);
         } else if (online) {
           char *star = "";
           if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEADER ||
