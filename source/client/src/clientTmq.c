@@ -1017,7 +1017,7 @@ int32_t tmq_unsubscribe(tmq_t* tmq) {
       return rsp;
     }
   }
-  taosSsleep(2);  // sleep 2s for hb to send offset and rows to server
+  tmqSendHbReq((void*)(tmq->refId), NULL);
 
   tmq_list_t* lst = tmq_list_new();
   int32_t     rsp = tmq_subscribe(tmq, lst);
