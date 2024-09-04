@@ -3658,6 +3658,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = modeFunction,
     .sprocessFunc = modeScalarFunction,
     .finalizeFunc = modeFinalize,
+    .cleanupFunc  = modeFunctionCleanupExt
   },
   {
     .name = "abs",

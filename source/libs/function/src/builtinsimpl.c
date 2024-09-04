@@ -6019,6 +6019,12 @@ static void modeFunctionCleanup(SModeInfo * pInfo) {
   taosMemoryFreeClear(pInfo->buf);
 }
 
+void modeFunctionCleanupExt(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SModeInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  modeFunctionCleanup(pInfo);
+}
+
 static int32_t saveModeTupleData(SqlFunctionCtx* pCtx, char* data, SModeInfo *pInfo, STuplePos* pPos) {
   if (IS_VAR_DATA_TYPE(pInfo->colType)) {
     (void)memcpy(pInfo->buf, data, varDataTLen(data));

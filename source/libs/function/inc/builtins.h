@@ -40,6 +40,7 @@ typedef struct SBuiltinFuncDefinition {
   FExecProcess               processFunc;
   FScalarExecProcess         sprocessFunc;
   FExecFinalize              finalizeFunc;
+  FExecCleanUp               cleanupFunc;
 #ifdef BUILD_NO_CALL
   FExecProcess               invertFunc;
 #endif
