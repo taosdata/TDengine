@@ -53,6 +53,7 @@
   import "codemirror/addon/display/placeholder.js";
   import { proprocess_sql } from "../../utils/preProcessSQL";
 
+  _CodeMirror.resolveMode("text/x-sql").keywords = {}
   TDengineSqlKeywrods.forEach(key => (_CodeMirror.resolveMode("text/x-sql").keywords[key] = true));
   const SQLTEXT = /^(_|\.|\w)+$/g;
   export default {
@@ -133,6 +134,9 @@
           this.isCondition = false
         }
       },
+      "$i18n.locale"() {
+        this.comIns.setOption('placeholder', this.$t('console.sqlTip'))
+      }
     },
     mounted() {
       this.$BusOnAndAutoOff("console/sql/focus", () => {
