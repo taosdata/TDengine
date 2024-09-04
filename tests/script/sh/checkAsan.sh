@@ -97,6 +97,6 @@ else
   if [ $python_error -ne 0 ] || [ $python_taos_error -ne 0 ] ; then
     cat ${LOG_DIR}/*.info |grep "#" | grep -w "TDinternal"
   fi
-  cat ${LOG_DIR}/*.asan
+  cat ${LOG_DIR}/*.asan |grep "#" | grep -w "TDinternal"
   exit 1
 fi

@@ -409,16 +409,19 @@ static int32_t addNamespace(STranslateContext* pCxt, void* pTable) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
       if (pCxt->currLevel == currTotalLevel) {
-        (void)taosArrayPush(pTables, &pTable);
+        if (NULL == taosArrayPush(pTables, &pTable)) {
+          taosArrayDestroy(pTables);
+          return terrno;
+        }
         if (hasSameTableAlias(pTables)) {
-          (void)taosArrayDestroy(pTables);
+          taosArrayDestroy(pTables);
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_UNIQUE_TABLE_ALIAS,
                                          "Not unique table/alias: '%s'", ((STableNode*)pTable)->tableAlias);
         }
       }
       if (NULL == taosArrayPush(pCxt->pNsLevel, &pTables)) {
         code = TSDB_CODE_OUT_OF_MEMORY;
-        (void)taosArrayDestroy(pTables);
+        taosArrayDestroy(pTables);
         break;
       }
       ++currTotalLevel;
@@ -820,7 +823,7 @@ static int32_t resetHighLevelTranslateNamespace(STranslateContext* pCxt) {
     }
 
     for (int32_t i = size - 1; i >= pCxt->currLevel; --i) {
-      (void)taosArrayDestroy(taosArrayGetP(pCxt->pNsLevel, i));
+      taosArrayDestroy(taosArrayGetP(pCxt->pNsLevel, i));
     }
     taosArrayPopTailBatch(pCxt->pNsLevel, levelNum);
 
@@ -837,9 +840,9 @@ static int32_t resetTranslateNamespace(STranslateContext* pCxt) {
   if (NULL != pCxt->pNsLevel) {
     size_t size = taosArrayGetSize(pCxt->pNsLevel);
     for (size_t i = 0; i < size; ++i) {
-      (void)taosArrayDestroy(taosArrayGetP(pCxt->pNsLevel, i));
+      taosArrayDestroy(taosArrayGetP(pCxt->pNsLevel, i));
     }
-    (void)taosArrayDestroy(pCxt->pNsLevel);
+    taosArrayDestroy(pCxt->pNsLevel);
   }
   pCxt->pNsLevel = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
   if (NULL == pCxt->pNsLevel) {
@@ -852,9 +855,9 @@ static void destroyTranslateContext(STranslateContext* pCxt) {
   if (NULL != pCxt->pNsLevel) {
     size_t size = taosArrayGetSize(pCxt->pNsLevel);
     for (size_t i = 0; i < size; ++i) {
-      (void)taosArrayDestroy(taosArrayGetP(pCxt->pNsLevel, i));
+      taosArrayDestroy(taosArrayGetP(pCxt->pNsLevel, i));
     }
-    (void)taosArrayDestroy(pCxt->pNsLevel);
+    taosArrayDestroy(pCxt->pNsLevel);
   }
 
   if (NULL != pCxt->pCmdMsg) {
@@ -1208,7 +1211,9 @@ static int32_t setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SCo
   SAssociationNode assNode;
   assNode.pPlace = (SNode**)pColRef;
   assNode.pAssociationNode = (SNode*)*pColRef;
-  (void)taosArrayPush(pExpr->pAssociation, &assNode);
+  if (NULL == taosArrayPush(pExpr->pAssociation, &assNode)) {
+    return terrno;
+  }
 
   strcpy(pCol->tableAlias, pTable->table.tableAlias);
   pCol->isPrimTs = isPrimaryKeyImpl((SNode*)pExpr);
@@ -3882,7 +3887,7 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   if (TSDB_CODE_SUCCESS == code) {
     code = toVgroupsInfo(pVgs, &pRealTable->pVgroupList);
   }
-  (void)taosArrayDestroy(pVgs);
+  taosArrayDestroy(pVgs);
 
   return code;
 }
@@ -3893,7 +3898,7 @@ static int32_t setDnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   if (TSDB_CODE_SUCCESS == code) {
     code = dnodeToVgroupsInfo(pDnodes, &pRealTable->pVgroupList);
   }
-  (void)taosArrayDestroy(pDnodes);
+  taosArrayDestroy(pDnodes);
   return code;
 }
 
@@ -3913,7 +3918,7 @@ static int32_t setSuperTableVgroupList(STranslateContext* pCxt, SName* pName, SR
   if (TSDB_CODE_SUCCESS == code) {
     code = toVgroupsInfo(vgroupList, &pRealTable->pVgroupList);
   }
-  (void)taosArrayDestroy(vgroupList);
+  taosArrayDestroy(vgroupList);
   return code;
 }
 
@@ -4033,7 +4038,10 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
           }
           pVgpsInfo->numOfVgroups = 1;
           pVgpsInfo->vgroups[0] = vgInfo;
-          (void)taosArrayPush(pRealTable->tsmaTargetTbVgInfo, &pVgpsInfo);
+          if (NULL == taosArrayPush(pRealTable->tsmaTargetTbVgInfo, &pVgpsInfo)) {
+            code = terrno;
+            break;
+          }
         } else {
           break;
         }
@@ -4062,7 +4070,10 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
           // ignore table not exists error
           code = TSDB_CODE_SUCCESS;
         }
-        (void)taosArrayPush(pRealTable->tsmaTargetTbInfo, &ctbInfo);
+        if (NULL == taosArrayPush(pRealTable->tsmaTargetTbInfo, &ctbInfo)) {
+          code = terrno;
+          break;
+        }
       }
     }
   }
@@ -6003,20 +6014,28 @@ static int32_t isOperatorEqTbnameCond(STranslateContext* pCxt, SOperatorNode* pO
     return TSDB_CODE_SUCCESS;
   }
 
+  char* pTableAlias = NULL;
   if (LIST_LENGTH(pTbnameFunc->pParameterList) == 0) {
-    *ppTableAlias = NULL;
   } else if (LIST_LENGTH(pTbnameFunc->pParameterList) == 1) {
     SNode* pQualNode = nodesListGetNode(pTbnameFunc->pParameterList, 0);
     if (nodeType(pQualNode) != QUERY_NODE_VALUE) return false;
     SValueNode* pQualValNode = (SValueNode*)pQualNode;
-    *ppTableAlias = pQualValNode->literal;
+    pTableAlias = pQualValNode->literal;
   } else {
     *pRet = false;
     return TSDB_CODE_SUCCESS;
   }
-  *ppTabNames = taosArrayInit(1, sizeof(void*));
-  if (!*ppTabNames) return TSDB_CODE_OUT_OF_MEMORY;
-  (void)taosArrayPush(*ppTabNames, &(pValueNode->literal));
+  SArray* pTabNames = NULL;
+  pTabNames = taosArrayInit(1, sizeof(void*));
+  if (!pTabNames) {
+    return terrno;
+  }
+  if (NULL == taosArrayPush(pTabNames, &(pValueNode->literal))) {
+    taosArrayDestroy(pTabNames);
+    return terrno;
+  }
+  *ppTableAlias = pTableAlias;
+  *ppTabNames = pTabNames;
   *pRet = true;
   return TSDB_CODE_SUCCESS;
 }
@@ -6054,7 +6073,11 @@ static int32_t isOperatorTbnameInCond(STranslateContext* pCxt, SOperatorNode* pO
       *pRet = false;
       return TSDB_CODE_SUCCESS;
     }
-    (void)taosArrayPush(*ppTbNames, &((SValueNode*)pValNode)->literal);
+    if (NULL == taosArrayPush(*ppTbNames, &((SValueNode*)pValNode)->literal)) {
+      taosArrayDestroy(*ppTbNames);
+      *ppTbNames = NULL;
+      return terrno;
+    }
   }
   *pRet = true;
   return TSDB_CODE_SUCCESS;
@@ -6082,7 +6105,7 @@ static int32_t findEqCondTbNameInOperatorNode(STranslateContext* pCxt, SNode* pW
       *pRet = true;
       return TSDB_CODE_SUCCESS;
     }
-    (void)taosArrayDestroy(pInfo->aTbnames);
+    taosArrayDestroy(pInfo->aTbnames);
     pInfo->aTbnames = NULL;
   }
   *pRet = false;
@@ -6116,7 +6139,7 @@ static int32_t findEqualCondTbnameInLogicCondAnd(STranslateContext* pCxt, SNode*
             break;
           }
         } else {
-          (void)taosArrayDestroy(info.aTbnames);
+          taosArrayDestroy(info.aTbnames);
         }
       }
     }
@@ -6135,7 +6158,7 @@ static int32_t unionEqualCondTbnamesOfSameTable(SArray* aTableTbnames, SEqCondTb
         code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
-      (void)taosArrayDestroy(pInfo->aTbnames);
+      taosArrayDestroy(pInfo->aTbnames);
       pInfo->aTbnames = NULL;
       bFoundTable = true;
       break;
@@ -6175,7 +6198,7 @@ static int32_t findEqualCondTbnameInLogicCondOr(STranslateContext* pCxt, SNode* 
   if (TSDB_CODE_SUCCESS == code && !bAllTbName) {
     for (int i = 0; i < taosArrayGetSize(aTableTbnames); ++i) {
       SEqCondTbNameTableInfo* pInfo = taosArrayGet(aTableTbnames, i);
-      (void)taosArrayDestroy(pInfo->aTbnames);
+      taosArrayDestroy(pInfo->aTbnames);
       pInfo->aTbnames = NULL;
     }
     taosArrayClear(aTableTbnames);
@@ -6338,7 +6361,10 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
             code = TSDB_CODE_OUT_OF_MEMORY;
             break;
           }
-          (void)taosArrayPush(pTbNames, &pNewTbName);
+          if (NULL == taosArrayPush(pTbNames, &pNewTbName)) {
+            code = terrno;
+            break;
+          }
           sprintf(pNewTbName, "%s.%s_%s", pTsma->dbFName, pTsma->name, pTbName);
           int32_t len = taosCreateMD5Hash(pNewTbName, strlen(pNewTbName));
         }
@@ -6349,7 +6375,9 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
         if (TSDB_CODE_SUCCESS == code) {
           findVgroupsFromEqualTbname(pCxt, pTbNames, pInfo->pRealTable->table.dbName, numOfVgs, vgsInfo);
           if (vgsInfo->numOfVgroups != 0) {
-            (void)taosArrayPush(pInfo->pRealTable->tsmaTargetTbVgInfo, &vgsInfo);
+            if (NULL == taosArrayPush(pInfo->pRealTable->tsmaTargetTbVgInfo, &vgsInfo)) {
+              code = terrno;
+            }
           } else {
             taosMemoryFree(vgsInfo);
           }
@@ -6378,9 +6406,9 @@ static int32_t setTableVgroupsFromEqualTbnameCond(STranslateContext* pCxt, SSele
   }
   for (int i = 0; i < taosArrayGetSize(aTables); ++i) {
     SEqCondTbNameTableInfo* pInfo = taosArrayGet(aTables, i);
-    (void)taosArrayDestroy(pInfo->aTbnames);
+    taosArrayDestroy(pInfo->aTbnames);
   }
-  (void)taosArrayDestroy(aTables);
+  taosArrayDestroy(aTables);
   return code;
 }
 
@@ -7980,7 +8008,7 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calB
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
-    (void)taosArrayDestroy(*pArray);
+    taosArrayDestroy(*pArray);
     *pArray = NULL;
   }
   return code;
@@ -8004,7 +8032,11 @@ static int32_t tagDefNodeToField(SNodeList* pList, SArray** pArray, bool calByte
     if (pCol->sma) {
       field.flags |= COL_SMA_ON;
     }
-    (void)taosArrayPush(*pArray, &field);
+    if (NULL == taosArrayPush(*pArray, &field)) {
+      taosArrayDestroy(*pArray);
+      *pArray = NULL;
+      return terrno;
+    }
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -8746,7 +8778,13 @@ static int32_t buildRollupFuncs(SNodeList* pFuncs, SArray** pArray) {
   *pArray = taosArrayInit(LIST_LENGTH(pFuncs), TSDB_FUNC_NAME_LEN);
   if (!*pArray) return TSDB_CODE_OUT_OF_MEMORY;
   SNode* pNode;
-  FOREACH(pNode, pFuncs) { (void)taosArrayPush(*pArray, ((SFunctionNode*)pNode)->functionName); }
+  FOREACH(pNode, pFuncs) {
+    if (NULL == taosArrayPush(*pArray, ((SFunctionNode*)pNode)->functionName)) {
+      taosArrayDestroy(*pArray);
+      *pArray = NULL;
+      return terrno;
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -8911,7 +8949,7 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
       break;
     }
     case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION: {
-      (void)taosArrayDestroy(pAlterReq->pFields);
+      taosArrayDestroy(pAlterReq->pFields);
 
       pAlterReq->pFields = taosArrayInit(1, sizeof(SFieldWithOptions));
       if (!pAlterReq->pFields) return TSDB_CODE_OUT_OF_MEMORY;
@@ -10678,7 +10716,7 @@ static int32_t adjustOrderOfProjections(STranslateContext* pCxt, SNodeList** ppC
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    (void)taosArrayDestroy(pProjColPos);
+    taosArrayDestroy(pProjColPos);
     nodesDestroyList(*pProjections);
     nodesDestroyList(*ppCols);
     *pProjections = pNewProjections;
@@ -10790,7 +10828,7 @@ static int32_t adjustOrderOfTags(STranslateContext* pCxt, SNodeList* pTags, cons
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    (void)taosArrayDestroy(pTagPos);
+    taosArrayDestroy(pTagPos);
     nodesDestroyList(*pTagExprs);
     *pTagExprs = pNewTagExprs;
   } else {
@@ -13416,7 +13454,7 @@ static void destroyCreateTbReqBatch(void* data) {
     tdDestroySVCreateTbReq(pTableReq);
   }
 
-  (void)taosArrayDestroy(pTbBatch->req.pArray);
+  taosArrayDestroy(pTbBatch->req.pArray);
 }
 
 int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray) {
@@ -13439,7 +13477,7 @@ static void destroyCreateTbReqArray(SArray* pArray) {
     taosMemoryFreeClear(pVg->pData);
     taosMemoryFreeClear(pVg);
   }
-  (void)taosArrayDestroy(pArray);
+  taosArrayDestroy(pArray);
 }
 
 static int32_t buildCreateTableDataBlock(int32_t acctId, const SCreateTableStmt* pStmt, const SVgroupInfo* pInfo,
@@ -13528,12 +13566,12 @@ static int32_t addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const char* db
     if (!tBatch.req.pArray) {
       code = terrno;
     } else if (NULL == taosArrayPush(tBatch.req.pArray, &req)) {
-      (void)taosArrayDestroy(tBatch.req.pArray);
+      taosArrayDestroy(tBatch.req.pArray);
       code = TSDB_CODE_OUT_OF_MEMORY;
     } else {
       code = taosHashPut(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId), &tBatch, sizeof(tBatch));
       if (TSDB_CODE_SUCCESS != code) {
-        (void)taosArrayDestroy(tBatch.req.pArray);
+        taosArrayDestroy(tBatch.req.pArray);
       }
     }
   } else {  // add to the correct vgroup
@@ -13630,7 +13668,7 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
       taosMemoryFreeClear(p->pData);
     }
   }
-  (void)taosArrayDestroy(pTagArray);
+  taosArrayDestroy(pTagArray);
   return code;
 }
 
@@ -13693,7 +13731,7 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
       taosMemoryFreeClear(p->pData);
     }
   }
-  (void)taosArrayDestroy(pTagArray);
+  taosArrayDestroy(pTagArray);
   return code;
 }
 
@@ -13744,7 +13782,7 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
     taosMemoryFree(pTag);
   }
 
-  (void)taosArrayDestroy(tagName);
+  taosArrayDestroy(tagName);
   taosMemoryFreeClear(pSuperTableMeta);
   return code;
 }
@@ -14151,10 +14189,9 @@ _ERR:
   return code;
 }
 
-static int32_t resetParseFileContext(SParseFileContext* pParFileCxt) {
+static void resetParseFileContext(SParseFileContext* pParFileCxt) {
   taosArrayClear(pParFileCxt->aCreateTbData);
   taosArrayClearEx(pParFileCxt->aTagVals, clearTagValArrayFp);
-  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t createSubTableFromFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt, SVnodeModifyOpStmt* pModifyStmt) {
@@ -14189,7 +14226,7 @@ static int32_t createSubTableFromFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt
     }
   }
 
-  (void)resetParseFileContext(pModifyStmt->pParFileCxt);
+  resetParseFileContext(pModifyStmt->pParFileCxt);
 
   return code;
 }
@@ -14217,7 +14254,7 @@ int32_t serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap, SArray** pOut
   } while (true);
 
   if (TSDB_CODE_SUCCESS != code) {
-    (void)taosArrayDestroy(pBufArray);
+    taosArrayDestroy(pBufArray);
   } else {
     *pOut = pBufArray;
   }
@@ -14343,14 +14380,14 @@ static int32_t addDropTbReqIntoVgroup(SHashObj* pVgroupHashmap, SVgroupInfo* pVg
     tBatch.info = *pVgInfo;
     tBatch.req.pArray = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SVDropTbReq));
     if (NULL == taosArrayPush(tBatch.req.pArray, pReq)) {
-      (void)taosArrayDestroy(tBatch.req.pArray);
+      taosArrayDestroy(tBatch.req.pArray);
       tBatch.req.pArray = NULL;
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     code = taosHashPut(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId), &tBatch, sizeof(tBatch));
     if (TSDB_CODE_SUCCESS != code) {
-      (void)taosArrayDestroy(tBatch.req.pArray);
+      taosArrayDestroy(tBatch.req.pArray);
       tBatch.req.pArray = NULL;
       return code;
     }
@@ -14397,7 +14434,7 @@ over:
 
 static void destroyDropTbReqBatch(void* data) {
   SVgroupDropTableBatch* pTbBatch = (SVgroupDropTableBatch*)data;
-  (void)taosArrayDestroy(pTbBatch->req.pArray);
+  taosArrayDestroy(pTbBatch->req.pArray);
 }
 
 static int32_t serializeVgroupDropTableBatch(SVgroupDropTableBatch* pTbBatch, SArray* pBufArray) {
@@ -14459,7 +14496,7 @@ int32_t serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap, SArray** pOut) 
     code = serializeVgroupDropTableBatch(pTbBatch, pBufArray);
     if (TSDB_CODE_SUCCESS != code) {
       taosHashCancelIterate(pVgroupHashmap, pTbBatch);
-      (void)taosArrayDestroy(pBufArray);
+      taosArrayDestroy(pBufArray);
       break;
     }
   } while (true);
@@ -14537,7 +14574,7 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
       if (TSDB_CODE_SUCCESS == code) {
         code = buildCmdMsg(pCxt, TDMT_MND_DROP_TB_WITH_TSMA, (FSerializeFunc)tSerializeSMDropTbsReq, &req);
       }
-      (void)taosArrayDestroy(req.pVgReqs);
+      taosArrayDestroy(req.pVgReqs);
     }
     taosHashCleanup(pVgroupHashmap);
     return code;
@@ -14902,7 +14939,7 @@ static int32_t buildModifyVnodeArray(STranslateContext* pCxt, SAlterTableStmt* p
   if (TSDB_CODE_SUCCESS == code) {
     *pArray = pTmpArray;
   } else {
-    (void)taosArrayDestroy(pTmpArray);
+    taosArrayDestroy(pTmpArray);
   }
 
   return code;
@@ -14920,7 +14957,7 @@ static void destoryAlterTbReq(SVAlterTbReq* pReq) {
       taosMemoryFreeClear(p->pData);
     }
   }
-  (void)taosArrayDestroy(pReq->pTagArray);
+  taosArrayDestroy(pReq->pTagArray);
   if (pReq->tagFree) tTagFree((STag*)pReq->pTagVal);
 }
 
@@ -15005,7 +15042,7 @@ static int32_t serializeFlushDb(SArray* pVgs, SArray** pOutput) {
   for (int32_t i = 0; i < numOfVgs; ++i) {
     int32_t code = serializeFlushVgroup((SVgroupInfo*)taosArrayGet(pVgs, i), pBufArray);
     if (TSDB_CODE_SUCCESS != code) {
-      (void)taosArrayDestroy(pBufArray);
+      taosArrayDestroy(pBufArray);
       return code;
     }
   }
@@ -15027,9 +15064,9 @@ static int32_t rewriteFlushDatabase(STranslateContext* pCxt, SQuery* pQuery) {
     code = rewriteToVnodeModifyOpStmt(pQuery, pBufArray);
   }
   if (TSDB_CODE_SUCCESS != code) {
-    (void)taosArrayDestroy(pBufArray);
+    taosArrayDestroy(pBufArray);
   }
-  (void)taosArrayDestroy(pVgs);
+  taosArrayDestroy(pVgs);
   return code;
 }
 
@@ -15662,7 +15699,7 @@ static int32_t toMsgType(ENodeType type) {
 
 static int32_t setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery) {
   if (NULL != pCxt->pDbs) {
-    (void)taosArrayDestroy(pQuery->pDbList);
+    taosArrayDestroy(pQuery->pDbList);
     pQuery->pDbList = taosArrayInit(taosHashGetSize(pCxt->pDbs), TSDB_DB_FNAME_LEN);
     if (NULL == pQuery->pDbList) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -15678,7 +15715,7 @@ static int32_t setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery) {
   }
 
   if (NULL != pCxt->pTables) {
-    (void)taosArrayDestroy(pQuery->pTableList);
+    taosArrayDestroy(pQuery->pTableList);
     pQuery->pTableList = taosArrayInit(taosHashGetSize(pCxt->pTables), sizeof(SName));
     if (NULL == pQuery->pTableList) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -15694,7 +15731,7 @@ static int32_t setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery) {
   }
 
   if (NULL != pCxt->pTargetTables) {
-    (void)taosArrayDestroy(pQuery->pTargetTableList);
+    taosArrayDestroy(pQuery->pTargetTableList);
     pQuery->pTargetTableList = taosArrayInit(taosHashGetSize(pCxt->pTargetTables), sizeof(SName));
     if (NULL == pQuery->pTargetTableList) {
       return TSDB_CODE_OUT_OF_MEMORY;
