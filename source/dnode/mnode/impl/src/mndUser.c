@@ -1858,9 +1858,9 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
                 createReq.sysInfo);
   char operation[15] = {0};
   if (createReq.isImport == 1) {
-    tstrncpy(operation, "importUser", 15);
+    tstrncpy(operation, "importUser", sizeof(operation));
   } else {
-    tstrncpy(operation, "createUser", 15);
+    tstrncpy(operation, "createUser", sizeof(operation));
   }
 
   auditRecord(pReq, pMnode->clusterId, operation, "", createReq.user, detail, strlen(detail));
