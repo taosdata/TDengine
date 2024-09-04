@@ -1740,7 +1740,8 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   tMemBucket* pMemBucket = ppInfo->pMemBucket;
   if (pMemBucket != NULL && pMemBucket->total > 0) {  // check for null
     if (pCtx->numOfParams > 2) {
-      char   buf[512] = {0};
+      char   buf[3200] = {0};
+      // max length of double num is 317, e.g. use %.6lf to print -1.0e+308, consider the comma and bracket, 3200 is enough.
       size_t len = 1;
 
       varDataVal(buf)[0] = '[';
