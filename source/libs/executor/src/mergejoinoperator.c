@@ -1919,10 +1919,10 @@ _return:
   if (pInfo != NULL) {
     destroyMergeJoinOperator(pInfo);
   }
+  destroyOperatorAndDownstreams(pOperator, pDownstream, oldNum);
   if (newDownstreams) {
     taosMemoryFree(pDownstream);
   }
-  destroyOperatorAndDownstreams(pOperator, pDownstream, oldNum);
   pTaskInfo->code = code;
   
   return code;

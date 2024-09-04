@@ -1298,7 +1298,7 @@ static int32_t initGroupCacheExecInfo(SOperatorInfo*        pOperator) {
   SGroupCacheOperatorInfo* pInfo = pOperator->info;
   pInfo->execInfo.pDownstreamBlkNum = taosMemoryCalloc(pOperator->numOfDownstream, sizeof(int64_t));
   if (NULL == pInfo->execInfo.pDownstreamBlkNum) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1342,7 +1342,7 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
   SGroupCacheOperatorInfo* pInfo = pOperator->info;
   pInfo->pDownstreams = taosMemoryCalloc(pOperator->numOfDownstream, sizeof(*pInfo->pDownstreams));
   if (NULL == pInfo->pDownstreams) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pInfo->downstreamNum = pOperator->numOfDownstream;
 
@@ -1450,7 +1450,7 @@ int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfD
   SGroupCacheOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SGroupCacheOperatorInfo));
   SOperatorInfo*           pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL || pInfo == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _error;
   }
 

@@ -1496,9 +1496,10 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
         }
       } else {
         SFailFastItem item = {.count = 1, .timestamp = cTimestamp};
-        int32_t code = taosHashPut(pThrd->failFastCache, pConn->dstAddr, strlen(pConn->dstAddr), &item, sizeof(SFailFastItem));
+        int32_t       code =
+            taosHashPut(pThrd->failFastCache, pConn->dstAddr, strlen(pConn->dstAddr), &item, sizeof(SFailFastItem));
         if (code != 0) {
-          tError("failed to put fail-fast item to cache, reason:%s", tstrerror(code));   
+          tError("failed to put fail-fast item to cache, reason:%s", tstrerror(code));
         }
       }
     }
@@ -2980,7 +2981,9 @@ int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, S
 
         QUEUE_PUSH(&exh->q, &pCliMsg->seqq);
         taosWUnLockLatch(&exh->latch);
+
         tDebug("msg refId: %" PRId64 "", handle);
+        (void)transReleaseExHandle(transGetRefMgt(), handle);
         (void)transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
         return 0;
       } else {

@@ -423,6 +423,10 @@ pipeline {
                                     echo "''' + env.FILE_CHANGED + '''" > ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
                                     '''
                                     sh '''
+                                       cd ${WKC}/tests/parallel_test
+                                       ./run_check_assert_container.sh -d ${WKDIR}
+                                    '''
+                                    sh '''
                                         date
                                         rm -rf ${WKC}/debug
                                         cd ${WKC}/tests/parallel_test
