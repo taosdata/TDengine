@@ -581,6 +581,10 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   if(unSubscribe){
     SMqConsumerObj *pConsumerTmp = NULL;
     MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, subscribe.consumerId, &pConsumerTmp));
+    if (taosArrayGetSize(pConsumerTmp->assignedTopics) == 0){
+      mndReleaseConsumer(pMnode, pConsumerTmp);
+      return 0;
+    }
     mndReleaseConsumer(pMnode, pConsumerTmp);
   }
   MND_TMQ_RETURN_CHECK(checkAndSortTopic(pMnode, subscribe.topicNames));
