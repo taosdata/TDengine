@@ -662,21 +662,22 @@ static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
     return TSDB_CODE_INVALID_MSG;
   }
 
-  if (pConn->status == ConnNormal) {
-    pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
-    if (smsg->type == Release) pHead->msgType = 0;
-  } else {
-    if (smsg->type == Release) {
-      pHead->msgType = 0;
-      pConn->status = ConnNormal;
-      destroyConnRegArg(pConn);
-      transUnrefSrvHandle(pConn);
-    } else {
-      // set up resp msg type
-      pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
-    }
-  }
+  // if (pConn->status == ConnNormal) {
+  //   pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
+  //   if (smsg->type == Release) pHead->msgType = 0;
+  // } else {
+  //   if (smsg->type == Release) {
+  //     pHead->msgType = 0;
+  //     pConn->status = ConnNormal;
+  //     destroyConnRegArg(pConn);
+  //     transUnrefSrvHandle(pConn);
+  //   } else {
+  //     // set up resp msg type
+  //     pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
+  //   }
+  // }
 
+  pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
   pHead->release = smsg->type == Release ? 1 : 0;
   pHead->code = htonl(pMsg->code);
   pHead->msgLen = htonl(pMsg->contLen + sizeof(STransMsgHead));
@@ -835,13 +836,13 @@ static void uvShutDownCb(uv_shutdown_t* req, int status) {
 }
 static bool uvRecvReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
   if ((pHead)->release == 1 && (pHead->msgLen) == sizeof(*pHead)) {
-    int32_t code = reallocConnRef(pConn);
-    if (code != 0) {
-      destroyConn(pConn, true);
-      return true;
-    }
-    tTrace("conn %p received release request", pConn);
+    // int32_t code = reallocConnRef(pConn);
 
+    //  if (code != 0) {
+    //    destroyConn(pConn, true);
+    //    return true;
+    //  }
+    tTrace("conn %p received release request", pConn);
     STraceId traceId = pHead->traceId;
     (void)transClearBuffer(&pConn->readBuf);
     transFreeMsg(transContFromHead((char*)pHead));
@@ -850,7 +851,11 @@ static bool uvRecvReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
     }
     pConn->status = ConnRelease;
 
-    STransMsg tmsg = {.code = 0, .info.handle = (void*)pConn, .info.traceId = traceId, .info.ahandle = (void*)0x9527};
+    STransMsg tmsg = {.code = 0,
+                      .info.handle = (void*)pConn,
+                      .info.traceId = traceId,
+                      .info.ahandle = (void*)0x9527,
+                      .info.seqNum = htonl(pHead->seqNum)};
     SSvrMsg*  srvMsg = taosMemoryCalloc(1, sizeof(SSvrMsg));
     srvMsg->msg = tmsg;
     srvMsg->type = Release;
@@ -1590,11 +1595,6 @@ void uvHandleRelease(SSvrMsg* msg, SWorkThrd* thrd) {
   int32_t   code = 0;
   SSvrConn* conn = msg->pConn;
   if (conn->status == ConnAcquire) {
-    code = reallocConnRef(conn);
-    if (code != 0) {
-      destroyConn(conn, true);
-      return;
-    }
     if (!transQueuePush(&conn->srvMsgs, msg)) {
       return;
     }
