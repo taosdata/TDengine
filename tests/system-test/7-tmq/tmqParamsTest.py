@@ -102,7 +102,7 @@ class TDTestCase:
                         stop_flag = 0
                         try:
                             while True:
-                                res = consumer.poll(1)
+                                res = consumer.poll(3)
                                 tdSql.query('show consumers;')
                                 consumer_info = tdSql.queryResult[0][-1]
                                 if offset_value == "latest":
