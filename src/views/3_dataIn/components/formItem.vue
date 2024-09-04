@@ -224,11 +224,13 @@
 <script>
 import { hasOwn } from "@/utils/util";
 import { marked } from "marked";
-import { TimeFormats, getGroupsObj, getFieldClassMarkName, getDsnData, getActiveTabValueObject, getActiveTabKey, handleDownload } from "../utils";
+import { TimeFormats, getGroupsObj, getFieldClassMarkName, getDsnData, getActiveTabValueObject, getActiveTabKey, handleDownload, checkJson } from "../utils";
 import {
   generatePIDefaultConfigFile,
 } from "@/api/explorer/datain";
-
+const fnMap = {
+  "checkJson": checkJson
+}
 export default {
   props: {
     config: {
@@ -331,6 +333,20 @@ export default {
           trigger: 'blur',
         }
       ]
+      const validatorRule = [
+        { 
+          validator: fnMap[this.config.validator], 
+          trigger: "blur" 
+        }
+      ]
+      let rules = []
+      if (this.config.pattern) {
+        rules = rules.concat(patternRule)
+      }
+
+      if (this.config.validator) {
+        rules = rules.concat(validatorRule)
+      }
 
       if (typeof this.config.required === "function") {
         return this.config.required(
@@ -339,20 +355,12 @@ export default {
           this.sourceParent.currentDefinition,
           this.isEdit && !this.isCopyable
         )
-          ? this.config.pattern 
-            ? [...requireRule,...patternRule] 
-            : requireRule
-          : this.config.pattern 
-            ? [...patternRule]
-            : [];
+          ? rules.concat(requireRule)
+          : rules;
       }
       return this.config.required
-        ? this.config.pattern 
-          ? [...requireRule,...patternRule] 
-          : requireRule
-        : this.config.pattern 
-          ? [...patternRule]
-          : [];
+        ? rules.concat(requireRule)
+        : rules;
     },
     timeRules() {
       return [{ validator: this.compareTime, trigger: "blur" }];

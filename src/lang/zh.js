@@ -243,6 +243,7 @@ export default {
     selectPlan: "选择方案",
   },
   dataIn: {
+    jsonTip: '请输入正确的 json 格式',
     start: '启动',
     stop: '停止',
     delete: '删除',

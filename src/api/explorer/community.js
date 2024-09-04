@@ -4421,6 +4421,17 @@ export function getDataSources(lang) {
                 "placeholder": "collection_${md}",
               },
               {
+                "name": "subtable_fields",
+                "display": "Subtable Fields",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "Fields and query statements used for splitting sub tables.",
+                "description": "Fields and query statements used for splitting sub tables.",
+                "required": false,
+                "placeholder": "col_name1,col_name2,...",
+              },
+              {
                 "name": "sql",
                 "display": "Query Template",
                 "hint": {
@@ -4431,6 +4442,18 @@ export function getDataSources(lang) {
                 "required": true,
                 "placeholder": "{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}",
                 "grid_two": true,
+              },
+              {
+                "name": "sort",
+                "display": "Sort",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "Sorting of query statements.",
+                "description": "Sorting of query statements.\n\n\n1.`{\"createtime\":1}`:MongoDB query results are returned in `createtime` order.\n\n2.`{\"createdate\":1, \"createtime\":1}`:MongoDB query results are returned in `createdate` and `createtime` order.",
+                "required": false,
+                "placeholder": "{\"createtime\":1}",
+                "validator": "checkJson"
               },
               {
                 "name": "start",
@@ -8953,6 +8976,17 @@ export function getDataSources(lang) {
                 "placeholder": "collection_${md}",
               },
               {
+                "name": "subtable_fields",
+                "display": "子表字段",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "用于拆分子表的字段。",
+                "description": "用于拆分子表的字段。",
+                "required": false,
+                "placeholder": "col_name1,col_name2,...",
+              },
+              {
                 "name": "sql",
                 "display": "查询模板",
                 "hint": {
@@ -8963,6 +8997,18 @@ export function getDataSources(lang) {
                 "required": true,
                 "placeholder": "{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}",
                 "grid_two": true,
+              },
+              {
+                "name": "sort",
+                "display": "查询排序",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "执行查询时的排序条件。",
+                "description": "执行查询时的排序条件。\n\n1.`{\"createtime\":1}`：MongoDB 查询结果按 `createtime` 正序返回。\n\n2.`{\"createdate\":1, \"createtime\":1}`：MongoDB 查询结果按 `createdate` 正序、`createtime` 正序返回。",
+                "required": false,
+                "placeholder": "{\"createtime\":1}",
+                "validator": "checkJson"
               },
               {
                 "name": "start",

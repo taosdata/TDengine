@@ -637,6 +637,7 @@ export default {
     backslashTip: 'If you need a case-sensitive name, add ` before and after the name, such as `testDB`.',
   },
   dataIn: {
+    jsonTip: 'Please enter the correct json format',
     start: 'start',
     stop: 'stop',
     delete: 'delete',
