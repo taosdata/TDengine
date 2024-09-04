@@ -524,7 +524,7 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
     goto PROCESS_META_OVER;
   }
 
-  if (0 != strcmp(metaRsp.dbFName, TSDB_INFORMATION_SCHEMA_DB) &&
+  if (!IS_SYS_DBNAME(metaRsp.dbFName) &&
       !tIsValidSchema(metaRsp.pSchemas, metaRsp.numOfColumns, metaRsp.numOfTags)) {
     code = TSDB_CODE_TSC_INVALID_VALUE;
     goto PROCESS_META_OVER;
