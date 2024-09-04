@@ -40,7 +40,6 @@ use actix_web::{
 use anyhow::bail;
 use clap::Parser;
 use qid::{headers_with_qid, Qid, DEFAULT_INSTANCE_ID, INSTANCE_ID};
-use reqwest::header::HeaderMap;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 use taoslog::{
@@ -532,14 +531,13 @@ async fn profile(args: web::Data<Args>, client: web::Data<reqwest::Client>) -> i
 
     let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
     qid.set_taosx();
-    let mut headers = HeaderMap::new();
-    headers.set_qid(&qid);
+    qid.add_sequence_id();
     Span.set_qid(&qid);
 
     let mut profile = args.profile.clone();
     let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/profile");
-    let client = client.get(url).headers(headers);
+    let client = client.get(url).headers(headers_with_qid(&qid));
     let client = client.timeout(Duration::from_secs(10));
 
     if let Ok(resp) = client.send().await {
