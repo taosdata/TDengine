@@ -373,6 +373,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pTransInst = pConn->pTransInst;
   SWorkThrd* pThrd = pConn->hostThrd;
 
+  int8_t         acquire = 0;
   STransMsgHead* pHead = NULL;
 
   int8_t resetBuf = pConn->status == ConnAcquire ? 0 : 1;
@@ -459,7 +460,13 @@ static bool uvHandleReq(SSvrConn* pConn) {
   // 2. once send out data, cli conn released to conn pool immediately
   // 3. not mixed with persist
   transMsg.info.ahandle = (void*)pHead->ahandle;
-  transMsg.info.handle = (void*)transAcquireExHandle(transGetRefMgt(), pConn->refId);
+
+  if (pHead->noResp == 1) {
+    transMsg.info.handle = NULL;
+  } else {
+    transMsg.info.handle = (void*)transAcquireExHandle(transGetRefMgt(), pConn->refId);
+    acquire = 1;
+  }
   transMsg.info.refId = pConn->refId;
   transMsg.info.traceId = pHead->traceId;
   transMsg.info.cliVer = htonl(pHead->compatibilityVer);
@@ -483,7 +490,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   pConnInfo->clientPort = pConn->port;
   tstrncpy(pConnInfo->user, pConn->user, sizeof(pConnInfo->user));
 
-  (void)transReleaseExHandle(transGetRefMgt(), pConn->refId);
+  if (acquire) transReleaseExHandle(transGetRefMgt(), pConn->refId);
 
   (*pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
   return true;
