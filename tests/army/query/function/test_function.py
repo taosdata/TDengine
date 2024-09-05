@@ -19,7 +19,6 @@ import taos
 import frame
 import frame.etool
 
-
 from frame.log import *
 from frame.cases import *
 from frame.sql import *
@@ -29,13 +28,12 @@ from frame import *
 
 class TDTestCase(TBase):
     updatecfgDict = {
-        "keepColumnName"   : "1",
-        "ttlChangeOnWrite" : "1",
-        "querySmaOptimize" : "1",
-        "slowLogScope"     : "none",
-        "queryBufferSize"  : 10240
+        "keepColumnName": "1",
+        "ttlChangeOnWrite": "1",
+        "querySmaOptimize": "1",
+        "slowLogScope": "none",
+        "queryBufferSize": 10240
     }
-
 
     def insertData(self):
         tdLog.info(f"insert data.")
@@ -508,6 +506,11 @@ class TDTestCase(TBase):
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, None)
 
+    def test_error(self):
+        tdSql.error(
+            "select * from (select to_iso8601(ts, timezone()), timezone() from meters order by ts desc) limit 1000;",
+            expectErrInfo="Not supported timzone format")  # TS-5340
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -547,8 +550,11 @@ class TDTestCase(TBase):
         # agg function
         self.test_stddev()
         self.test_varpop()
-        tdLog.success(f"{__file__} successfully executed")
 
+        # error function
+        self.test_error()
+
+        tdLog.success(f"{__file__} successfully executed")
 
 
 tdCases.addLinux(__file__, TDTestCase())

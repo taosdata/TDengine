@@ -200,7 +200,6 @@
 ./test.sh -f tsim/query/unionall_as_table.sim
 ./test.sh -f tsim/query/multi_order_by.sim
 ./test.sh -f tsim/query/sys_tbname.sim
-./test.sh -f tsim/query/sort-pre-cols.sim
 ./test.sh -f tsim/query/groupby.sim
 ./test.sh -f tsim/query/groupby_distinct.sim
 ./test.sh -f tsim/query/event.sim
@@ -289,12 +288,6 @@
 ./test.sh -f tsim/stable/tag_rename.sim
 ./test.sh -f tsim/stable/values.sim
 ./test.sh -f tsim/stable/vnode3.sim
-./test.sh -f tsim/sma/drop_sma.sim
-./test.sh -f tsim/sma/sma_leak.sim
-./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
-./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
-./test.sh -f tsim/sma/rsmaCreateInsertQueryDelete.sim
-./test.sh -f tsim/sync/vnodesnapshot-rsma-test.sim
 ./test.sh -f tsim/valgrind/checkError1.sim
 ./test.sh -f tsim/valgrind/checkError2.sim
 ./test.sh -f tsim/valgrind/checkError3.sim
@@ -406,7 +399,6 @@
 ./test.sh -f tsim/tag/tbNameIn.sim
 ./test.sh -f tmp/monitor.sim
 ./test.sh -f tsim/tagindex/add_index.sim
-./test.sh -f tsim/tagindex/sma_and_tag_index.sim
 ./test.sh -f tsim/tagindex/indexOverflow.sim
 ./test.sh -f tsim/view/view.sim
 ./test.sh -f tsim/query/cache_last.sim

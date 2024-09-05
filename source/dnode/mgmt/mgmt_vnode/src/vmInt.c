@@ -592,7 +592,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 
   SVnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SVnodeMgmt));
   if (pMgmt == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -727,7 +727,7 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
 
   SVnodeThread *threads = taosMemoryCalloc(threadNum, sizeof(SVnodeThread));
   if (threads == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int32_t t = 0; t < threadNum; ++t) {
@@ -735,7 +735,7 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
     threads[t].pMgmt = pMgmt;
     threads[t].ppVnodes = taosMemoryCalloc(vnodesPerThread, sizeof(SVnode *));
     if (threads[t].ppVnodes == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       break;
     }
   }

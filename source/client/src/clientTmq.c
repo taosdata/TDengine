@@ -567,9 +567,9 @@ static int32_t doSendCommitMsg(tmq_t* tmq, int32_t vgId, SEpSet* epSet, STqOffse
   pMsgSendInfo->fp = tmqCommitCb;
   pMsgSendInfo->msgType = TDMT_VND_TMQ_COMMIT_OFFSET;
 
-  int64_t transporterId = 0;
+  // int64_t transporterId = 0;
   (void)atomic_add_fetch_32(&pParamSet->waitingRspNum, 1);
-  code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, epSet, &transporterId, pMsgSendInfo);
+  code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, epSet, NULL, pMsgSendInfo);
   if (code != 0) {
     (void)atomic_sub_fetch_32(&pParamSet->waitingRspNum, 1);
   }
@@ -953,8 +953,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
 
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
 
-  int64_t transporterId = 0;
-  int32_t code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
+  int32_t code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, NULL, sendInfo);
   if (code != 0) {
     tqErrorC("tmqSendHbReq asyncSendMsgToServer failed");
   }
@@ -1430,8 +1429,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
 
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
 
-  int64_t transporterId = 0;
-  code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
+  code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, NULL, sendInfo);
   if (code != 0) {
     goto END;
   }
@@ -2039,11 +2037,10 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
   sendInfo->fp = tmqPollCb;
   sendInfo->msgType = TDMT_VND_TMQ_CONSUME;
 
-  int64_t transporterId = 0;
-  char    offsetFormatBuf[TSDB_OFFSET_LEN] = {0};
+  char offsetFormatBuf[TSDB_OFFSET_LEN] = {0};
   tFormatOffset(offsetFormatBuf, tListLen(offsetFormatBuf), &pVg->offsetInfo.endOffset);
-  code = asyncSendMsgToServer(pTmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);
-  tqDebugC("consumer:0x%" PRIx64 " send poll to %s vgId:%d, code:%d, epoch %d, req:%s,QID:0x%" PRIx64, pTmq->consumerId,
+  code = asyncSendMsgToServer(pTmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, NULL, sendInfo);
+  tscDebug("consumer:0x%" PRIx64 " send poll to %s vgId:%d, code:%d, epoch %d, req:%s,QID:0x%" PRIx64, pTmq->consumerId,
            pTopic->topicName, pVg->vgId, code, pTmq->epoch, offsetFormatBuf, req.reqId);
   if (code != 0) {
     return code;
@@ -3190,8 +3187,7 @@ int64_t getCommittedFromServer(tmq_t* tmq, char* tname, int32_t vgId, SEpSet* ep
   sendInfo->fp = tmCommittedCb;
   sendInfo->msgType = TDMT_VND_TMQ_VG_COMMITTEDINFO;
 
-  int64_t transporterId = 0;
-  code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, epSet, &transporterId, sendInfo);
+  code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, epSet, NULL, sendInfo);
   if (code != 0) {
     (void)tsem2_destroy(&pParam->sem);
     taosMemoryFree(pParam);
@@ -3467,13 +3463,13 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       sendInfo->fp = tmqGetWalInfoCb;
       sendInfo->msgType = TDMT_VND_TMQ_VG_WALINFO;
 
-      int64_t transporterId = 0;
-      char    offsetFormatBuf[TSDB_OFFSET_LEN] = {0};
+      // int64_t transporterId = 0;
+      char offsetFormatBuf[TSDB_OFFSET_LEN] = {0};
       tFormatOffset(offsetFormatBuf, tListLen(offsetFormatBuf), &pClientVg->offsetInfo.beginOffset);
 
       tqInfoC("consumer:0x%" PRIx64 " %s retrieve wal info vgId:%d, epoch %d, req:%s,QID:0x%" PRIx64, tmq->consumerId,
               pTopic->topicName, pClientVg->vgId, tmq->epoch, offsetFormatBuf, req.reqId);
-      code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pClientVg->epSet, &transporterId, sendInfo);
+      code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pClientVg->epSet, NULL, sendInfo);
       if (code != 0) {
         goto end;
       }
@@ -3637,8 +3633,7 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   sendInfo->fp = tmqSeekCb;
   sendInfo->msgType = TDMT_VND_TMQ_SEEK;
 
-  int64_t transporterId = 0;
-  code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
+  code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, NULL, sendInfo);
   if (code != 0) {
     (void)tsem2_destroy(&pParam->sem);
     taosMemoryFree(pParam);

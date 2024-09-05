@@ -1706,7 +1706,9 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
         cell = cell->pNext;
       }
 
-      (void)taosArrayAddAll(ctx->group, preGroup);
+      if (NULL == taosArrayAddAll(ctx->group, preGroup)) {
+        FLT_ERR_JRET(terrno);
+      }
 
       taosArrayDestroy(preGroup);
 
@@ -5236,22 +5238,20 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
     *pResultStatus = FILTER_RESULT_ALL_QUALIFIED;
     return TSDB_CODE_SUCCESS;
   }
-
+  int32_t      code = TSDB_CODE_SUCCESS;
   SScalarParam output = {0};
   SDataType    type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
 
-  int32_t code = sclCreateColumnInfoData(&type, pSrc->info.rows, &output);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
+  FLT_ERR_JRET(sclCreateColumnInfoData(&type, pSrc->info.rows, &output));
 
   if (info->scalarMode) {
     SArray *pList = taosArrayInit(1, POINTER_BYTES);
     if (NULL == pList) {
-      FLT_ERR_RET(terrno);
+      FLT_ERR_JRET(terrno);
     }
     if (NULL == taosArrayPush(pList, &pSrc)) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      taosArrayDestroy(pList);
+      FLT_ERR_JRET(terrno);
     }
 
     code = scalarCalculate(info->sclCtx.node, pList, &output);
@@ -5259,7 +5259,7 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
 
     *p = output.columnData;
 
-    FLT_ERR_RET(code);
+    FLT_ERR_JRET(code);
 
     if (output.numOfQualified == output.numOfRows) {
       *pResultStatus = FILTER_RESULT_ALL_QUALIFIED;
@@ -5275,11 +5275,12 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
   output.numOfRows = pSrc->info.rows;
 
   if (*p == NULL) {
-    return TSDB_CODE_APP_ERROR;
+    fltError("filterExecute failed, column data is NULL");
+    FLT_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
   bool keepAll = false;
-  FLT_ERR_RET((info->func)(info, pSrc->info.rows, *p, statis, numOfCols, &output.numOfQualified, &keepAll));
+  FLT_ERR_JRET((info->func)(info, pSrc->info.rows, *p, statis, numOfCols, &output.numOfQualified, &keepAll));
 
   // todo this should be return during filter procedure
   if (keepAll) {
@@ -5302,6 +5303,10 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
   }
 
   return TSDB_CODE_SUCCESS;
+_return:
+  sclFreeParam(&output);
+  *p = NULL;
+  return code;
 }
 
 typedef struct SClassifyConditionCxt {

@@ -474,7 +474,7 @@ void udfdDeinitPythonPlugin(SUdfScriptPlugin *plugin) {
 int32_t udfdInitScriptPlugin(int8_t scriptType) {
   SUdfScriptPlugin *plugin = taosMemoryCalloc(1, sizeof(SUdfScriptPlugin));
   if (plugin == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   int32_t err = 0;
   switch (scriptType) {

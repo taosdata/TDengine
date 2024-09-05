@@ -515,7 +515,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     SQueryHbRspBasic *rspBasic = taosMemoryCalloc(1, sizeof(SQueryHbRspBasic));
     if (rspBasic == NULL) {
       mndReleaseConn(pMnode, pConn, true);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       mError("user:%s, conn:%u failed to process hb while since %s", pConn->user, pBasic->connId, terrstr());
       TAOS_RETURN(code);
     }

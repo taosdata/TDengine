@@ -355,7 +355,7 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
     if (pList == NULL) {
       SIpWhiteList *pNewList = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range));
       if (pNewList == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
       }
       (void)memcpy(pNewList->pIpRange, &range, sizeof(SIpV4Range));
       pNewList->num = 1;
@@ -370,7 +370,7 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
         int32_t       sz = sizeof(SIpWhiteList) + sizeof(SIpV4Range) * (pList->num + 1);
         SIpWhiteList *pNewList = taosMemoryCalloc(1, sz);
         if (pNewList == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+          TAOS_CHECK_GOTO(terrno, &lino, _OVER);
         }
         (void)memcpy(pNewList->pIpRange, pList->pIpRange, sizeof(SIpV4Range) * (pList->num));
         pNewList->pIpRange[pList->num].ip = range.ip;
@@ -397,7 +397,7 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
           int32_t       sz = sizeof(SIpWhiteList) + sizeof(SIpV4Range) * (pList->num - 1);
           SIpWhiteList *pNewList = taosMemoryCalloc(1, sz);
           if (pNewList == NULL) {
-            TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+            TAOS_CHECK_GOTO(terrno, &lino, _OVER);
           }
           for (int i = 0; i < pList->num; i++) {
             SIpV4Range *e = &pList->pIpRange[i];
@@ -468,7 +468,7 @@ int32_t mndUpdateIpWhiteForAllUser(SMnode *pMnode, char *user, char *fqdn, int8_
 
     char *keyDup = taosMemoryCalloc(1, klen + 1);
     if (keyDup == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
     (void)memcpy(keyDup, key, klen);
     bool upd = false;
@@ -503,7 +503,7 @@ static int64_t ipWhiteMgtFillMsg(SUpdateIpWhite *pUpdate) {
   pUpdate->pUserIpWhite = taosMemoryCalloc(1, num * sizeof(SUpdateUserIpWhite));
   if (pUpdate->pUserIpWhite == NULL) {
     (void)taosThreadRwlockUnlock(&ipWhiteMgt.rw);
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   void   *pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, NULL);
@@ -521,7 +521,7 @@ static int64_t ipWhiteMgtFillMsg(SUpdateIpWhite *pUpdate) {
       pUser->pIpRanges = taosMemoryCalloc(1, list->num * sizeof(SIpV4Range));
       if (pUser->pIpRanges == NULL) {
         (void)taosThreadRwlockUnlock(&ipWhiteMgt.rw);
-        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+        TAOS_RETURN(terrno);
       }
       (void)memcpy(pUser->pIpRanges, list->pIpRange, list->num * sizeof(SIpV4Range));
       i++;
@@ -808,7 +808,7 @@ static int32_t createIpWhiteList(void *buf, int32_t len, SIpWhiteList **ppList) 
 
   p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + num * sizeof(SIpV4Range));
   if (p == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
   TAOS_CHECK_GOTO(tDerializeIpWhileList(buf, len, p), &lino, _OVER);
 
@@ -826,7 +826,7 @@ _OVER:
 static int32_t createDefaultIpWhiteList(SIpWhiteList **ppWhiteList) {
   *ppWhiteList = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range) * 1);
   if (*ppWhiteList == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
   (*ppWhiteList)->num = 1;
   SIpV4Range *range = &((*ppWhiteList)->pIpRange[0]);
@@ -1739,7 +1739,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     SIpWhiteList *p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + numOfRanges * sizeof(SIpV4Range));
     if (p == NULL) {
       taosHashCleanup(pUniqueTab);
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
     void   *pIter = taosHashIterate(pUniqueTab, NULL);
     int32_t i = 0;
@@ -2357,7 +2357,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     SIpWhiteList *pNew = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range) * num);
 
     if (pNew == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
 
     bool exist = false;
@@ -2394,7 +2394,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     SIpWhiteList *pNew = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range) * num);
 
     if (pNew == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
 
     if (pUser->pIpWhiteList->num > 0) {

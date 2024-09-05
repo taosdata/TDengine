@@ -854,7 +854,7 @@ int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
   int32_t              code = TSDB_CODE_SUCCESS;
   if (NULL == res) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (void)memcpy(varDataVal(res), pInfo, resultBytes);
   varDataSetLen(res, resultBytes);

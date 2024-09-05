@@ -298,7 +298,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
         taosRUnLockLatch(&pSub->lock);
         mndReleaseSubscribe(pMnode, pSub);
         mndReleaseTopic(pMnode, pTopic);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       (void)memcpy(topicEp.schema.pSchema, pTopic->schema.pSchema, topicEp.schema.nCols * sizeof(SSchema));
     }

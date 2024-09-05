@@ -36,6 +36,7 @@ typedef struct SFuncExecEnv {
 } SFuncExecEnv;
 
 typedef bool (*FExecGetEnv)(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
+typedef void (*FExecCleanUp)(struct SqlFunctionCtx* pCtx);
 typedef int32_t (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo);
 typedef int32_t (*FExecProcess)(struct SqlFunctionCtx *pCtx);
 typedef int32_t (*FExecFinalize)(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock);
@@ -54,6 +55,7 @@ typedef struct SFuncExecFuncs {
   FExecProcess     process;
   FExecFinalize    finalize;
   FExecCombine     combine;
+  FExecCleanUp     cleanup;
   processFuncByRow processFuncByRow;
 } SFuncExecFuncs;
 

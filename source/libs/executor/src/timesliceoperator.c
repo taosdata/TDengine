@@ -652,7 +652,7 @@ static int32_t initGroupKeyKeeper(STimeSliceOperatorInfo* pInfo, SExprSupp* pExp
 
   pInfo->pPrevGroupKey = taosMemoryCalloc(1, sizeof(SGroupKeys));
   if (pInfo->pPrevGroupKey == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
@@ -1112,7 +1112,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   SOperatorInfo*          pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
 
   if (pOperator == NULL || pInfo == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _error;
   }
 

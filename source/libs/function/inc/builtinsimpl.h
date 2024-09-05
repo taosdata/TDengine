@@ -239,6 +239,7 @@ bool    getModeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t modeFunction(SqlFunctionCtx* pCtx);
 int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+void    modeFunctionCleanupExt(SqlFunctionCtx* pCtx);
 
 bool    getTwaFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t  twaFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);

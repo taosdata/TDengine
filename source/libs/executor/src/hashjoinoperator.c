@@ -388,7 +388,7 @@ static int32_t hJoinBuildResColsMap(SHJoinOperatorInfo* pInfo, SHashJoinPhysiNod
   pInfo->pResColNum = pJoinNode->pTargets->length;
   pInfo->pResColMap = taosMemoryCalloc(pJoinNode->pTargets->length, sizeof(int8_t));
   if (NULL == pInfo->pResColMap) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   
   SNode* pNode = NULL;
@@ -1188,7 +1188,7 @@ int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDow
   SHJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SHJoinOperatorInfo));
   SOperatorInfo*      pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL || pInfo == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _return;
   }
 
