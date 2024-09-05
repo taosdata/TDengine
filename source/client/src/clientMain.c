@@ -296,7 +296,6 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
   pSendInfo->fp = fetchWhiteListCallbackFn;
   pSendInfo->msgType = TDMT_MND_GET_USER_WHITELIST;
 
-  // int64_t transportId = 0;
   SEpSet epSet = getEpSet_s(&pTsc->pAppInfo->mgmtEp);
   if (TSDB_CODE_SUCCESS != asyncSendMsgToServer(pTsc->pAppInfo->pTransporter, &epSet, NULL, pSendInfo)) {
     tscWarn("failed to async send msg to server");
