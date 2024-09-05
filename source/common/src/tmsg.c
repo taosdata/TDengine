@@ -7050,6 +7050,7 @@ int32_t tSerializeSMqHbRsp(void *buf, int32_t bufLen, SMqHbRsp *pRsp) {
     if (tEncodeI8(&encoder, privilege->noPrivilege) < 0) return -1;
   }
 
+  if (tEncodeI32(&encoder, pRsp->debugFlag) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -7074,6 +7075,10 @@ int32_t tDeserializeSMqHbRsp(void *buf, int32_t bufLen, SMqHbRsp *pRsp) {
       if (tDecodeCStrTo(&decoder, data->topic) < 0) return -1;
       if (tDecodeI8(&decoder, &data->noPrivilege) < 0) return -1;
     }
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI32(&decoder, &pRsp->debugFlag) < 0) return -1;
   }
   tEndDecode(&decoder);
 

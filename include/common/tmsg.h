@@ -4158,6 +4158,7 @@ typedef struct {
 
 typedef struct {
   SArray* topicPrivileges;  // SArray<STopicPrivilege>
+  int32_t debugFlag;
 } SMqHbRsp;
 
 typedef struct {

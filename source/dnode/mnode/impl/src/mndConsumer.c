@@ -244,6 +244,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   }
 
   storeOffsetRows(pMnode, &req, pConsumer);
+  rsp.debugFlag = tqDebugFlag;
   code = buildMqHbRsp(pMsg, &rsp);
 
 END:
@@ -609,7 +610,7 @@ END:
   tDeleteSMqConsumerObj(pConsumerNew);
   taosArrayDestroyP(subscribe.topicNames, (FDelete)taosMemoryFree);
 
-  return code == TSDB_CODE_TMQ_NO_NEED_REBALANCE ? 0 : code;
+  return (code == TSDB_CODE_TMQ_NO_NEED_REBALANCE || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) ? 0 : code;
 }
 
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
