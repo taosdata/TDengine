@@ -364,7 +364,6 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
         pSdb->commitTerm, pSdb->commitConfig);
 
 _OVER:
-  int32_t ret = 0;
   if ((ret = taosCloseFile(&pFile)) != 0) {
     mError("failed to close sdb file:%s since %s", file, tstrerror(ret));
   }
