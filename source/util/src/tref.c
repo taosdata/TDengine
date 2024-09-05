@@ -19,10 +19,11 @@
 #include "tlog.h"
 #include "tutil.h"
 
-#define TSDB_REF_OBJECTS       50
-#define TSDB_REF_STATE_EMPTY   0
-#define TSDB_REF_STATE_ACTIVE  1
-#define TSDB_REF_STATE_DELETED 2
+#define TSDB_REF_OBJECTS        50
+#define TSDB_REF_STATE_EMPTY    0
+#define TSDB_REF_STATE_ACTIVE   1
+#define TSDB_REF_STATE_DELETED  2
+#define TSDB_REF_ITER_THRESHOLD 100
 
 typedef struct SRefNode {
   struct SRefNode *prev;     // previous node
@@ -188,6 +189,7 @@ void *taosAcquireRef(int32_t rsetId, int64_t rid) {
   int32_t   hash;
   SRefNode *pNode;
   SRefSet  *pSet;
+  int32_t   iter = 0;
   void     *p = NULL;
 
   if (rsetId < 0 || rsetId >= TSDB_REF_OBJECTS) {
@@ -220,8 +222,12 @@ void *taosAcquireRef(int32_t rsetId, int64_t rid) {
     if (pNode->rid == rid) {
       break;
     }
-
+    iter++;
     pNode = pNode->next;
+  }
+
+  if (iter >= TSDB_REF_ITER_THRESHOLD) {
+    uWarn("rsetId:%d rid:%" PRId64 " iter:%d", rsetId, rid, iter);
   }
 
   if (pNode) {
@@ -277,6 +283,7 @@ void *taosIterateRef(int32_t rsetId, int64_t rid) {
   do {
     newP = NULL;
     int32_t hash = 0;
+    int32_t iter = 0;
     if (rid > 0) {
       hash = rid % pSet->max;
       taosLockList(pSet->lockedBy + hash);
@@ -285,6 +292,11 @@ void *taosIterateRef(int32_t rsetId, int64_t rid) {
       while (pNode) {
         if (pNode->rid == rid) break;
         pNode = pNode->next;
+        iter++;
+      }
+
+      if (iter >= TSDB_REF_ITER_THRESHOLD) {
+        uWarn("rsetId:%d rid:%" PRId64 " iter:%d", rsetId, rid, iter);
       }
 
       if (pNode == NULL) {
@@ -376,6 +388,7 @@ static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove) {
   int32_t   hash;
   SRefSet  *pSet;
   SRefNode *pNode;
+  int32_t   iter = 0;
   int32_t   released = 0;
   int32_t   code = 0;
 
@@ -403,6 +416,11 @@ static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove) {
     if (pNode->rid == rid) break;
 
     pNode = pNode->next;
+    iter++;
+  }
+
+  if (iter >= TSDB_REF_ITER_THRESHOLD) {
+    uWarn("rsetId:%d rid:%" PRId64 " iter:%d", rsetId, rid, iter);
   }
 
   if (pNode) {
