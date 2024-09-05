@@ -168,6 +168,7 @@ static void *dmMonitorThreadFp(void *param) {
     float interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsMonitorInterval) {
       (*pMgmt->sendMonitorReportFp)();
+      (*pMgmt->monitorCleanExpiredSamplesFp)();
       lastTime = curTime;
 
       trimCount = (trimCount + 1) % TRIM_FREQ;
