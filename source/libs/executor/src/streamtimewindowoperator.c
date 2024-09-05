@@ -436,6 +436,11 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   blockDataDestroy(pInfo->pDelRes);
   blockDataDestroy(pInfo->pMidRetriveRes);
   blockDataDestroy(pInfo->pMidPulloverRes);
+  if (pInfo->pUpdatedMap != NULL) {
+    tSimpleHashSetFreeFp(pInfo->pUpdatedMap, destroyFlusedppPos);
+    tSimpleHashCleanup(pInfo->pUpdatedMap);
+    pInfo->pUpdatedMap = NULL;
+  }
   pInfo->stateStore.streamFileStateDestroy(pInfo->pState->pFileState);
   taosArrayDestroy(pInfo->pMidPullDatas);
 
@@ -448,11 +453,6 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   nodesDestroyNode((SNode*)pInfo->pPhyNode);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   cleanupExprSupp(&pInfo->scalarSupp);
-  if (pInfo->pUpdatedMap != NULL) {
-    tSimpleHashSetFreeFp(pInfo->pUpdatedMap, destroyFlusedppPos);
-    tSimpleHashCleanup(pInfo->pUpdatedMap);
-    pInfo->pUpdatedMap = NULL;
-  }
   tSimpleHashCleanup(pInfo->pDeletedMap);
 
   blockDataDestroy(pInfo->pCheckpointRes);
