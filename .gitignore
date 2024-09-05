@@ -1,5 +1,4 @@
 /target
-Cargo.lock
 USER_MANUAL.md TODO.md
 TDengine
 .vscode
