@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use crate::plugins::config::AdvancedOptions;
 use crate::runners::mongodb::config::connect::ConnectConfig;
@@ -58,7 +58,9 @@ impl MongoDBConfig {
 pub struct TaskConfig {
     pub database: String,
     pub collection: String,
+    pub subtable_fields: HashMap<String, String>,
     pub sql: String,
+    pub sort: Option<String>,
     pub start: DateTime<Utc>,
     pub end: Option<DateTime<Utc>>,
     pub time_zone: String,
@@ -72,7 +74,9 @@ impl TaskConfig {
         Ok(TaskConfig {
             database: Self::parse_database(dsn)?,
             collection: Self::parse_collection(dsn)?,
+            subtable_fields: Self::parse_subtable_fields(dsn),
             sql: Self::parse_sql(dsn)?,
+            sort: Self::parse_sort(dsn),
             start: Self::parse_start(dsn)?,
             end: Self::parse_end(dsn)?,
             time_zone: Self::parse_time_zone(dsn)?,
@@ -98,12 +102,30 @@ impl TaskConfig {
             .ok_or_else(|| anyhow::anyhow!("collection is required"))?)
     }
 
+    fn parse_subtable_fields(dsn: &Dsn) -> HashMap<String, String> {
+        let subtable_fields = dsn.params.get("subtable_fields");
+        // transform "name,sn" to HashMap<String, String>
+        if let Some(subtable_fields) = subtable_fields {
+            if !subtable_fields.is_empty() {
+                return subtable_fields
+                    .split(",")
+                    .map(|s| (s.to_string(), format!("\"{}\":${{v}}", s)))
+                    .collect::<HashMap<String, String>>();
+            }
+        }
+        return HashMap::new();
+    }
+
     fn parse_sql(dsn: &Dsn) -> anyhow::Result<String> {
         Ok(dsn
             .params
             .get("sql")
             .map(|s| s.to_string())
             .ok_or_else(|| anyhow::anyhow!("sql is required"))?)
+    }
+
+    fn parse_sort(dsn: &Dsn) -> Option<String> {
+        dsn.params.get("sort").map(|sort| sort.clone())
     }
 
     fn parse_start(dsn: &Dsn) -> anyhow::Result<DateTime<Utc>> {
@@ -384,6 +406,18 @@ impl TaskConfig {
             Err(e) => anyhow::bail!("parsing query template failed: {}", e),
         }
     }
+
+    pub fn generate_sort(&self) -> anyhow::Result<Document> {
+        let sort: Result<Document, serde_json::Error> = if let Some(sort) = self.sort.clone() {
+            serde_json::from_str(sort.as_str())
+        } else {
+            Ok(Document::new())
+        };
+        match sort {
+            Ok(sort) => anyhow::Ok(sort),
+            Err(e) => anyhow::bail!("parsing sort failed: {}", e),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -475,6 +509,27 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_subtable_fields() {
+        let dsn = Dsn::from_str("mongodb://admin:123456@localhost:27017?database=test_taosx&collection=metrics&subtable_fields=sys_sn,sys_so&sql={}&start=2021-01-01T00:00:00Z")
+            .unwrap();
+        let config = MongoDBConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.task.subtable_fields.len(), 2);
+        assert_eq!(
+            config.task.subtable_fields.get("sys_sn").unwrap(),
+            "\"sys_sn\":${v}"
+        );
+        assert_eq!(
+            config.task.subtable_fields.get("sys_so").unwrap(),
+            "\"sys_so\":${v}"
+        );
+
+        let dsn = Dsn::from_str("mongodb://admin:123456@localhost:27017?database=test_taosx&collection=metrics&sql={}&start=2021-01-01T00:00:00Z")
+            .unwrap();
+        let config = MongoDBConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.task.subtable_fields.len(), 0);
+    }
+
+    #[test]
     fn test_generate_filter() {
         // with type datatime
         let dsn = Dsn::from_str("mongodb://admin:123456@localhost:27017?load_balanced=true&direct_connection=true&repl_set_name=repl&local_threshold=10ms&mechanism=MongoDbCr&source=admin&app_name=appname&compressors=zstd&tls=true&ca_file_path=@./file/ca.pem&cert_key_file_path=@./file/cert.pem&database=test_taosx&collection=metrics&sql={\"datetime\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}&start=2024-07-01T00:00:00+00:00&end=2024-08-01T00:00:00+00:00&interval=12h&delay=0&sample_data_limit=4")
@@ -489,5 +544,14 @@ mod tests {
         let config = MongoDBConfig::from_dsn(&dsn).unwrap();
         let filter = config.task.generate_filter().unwrap();
         dbg!(&filter);
+    }
+
+    #[test]
+    fn test_generate_sort() {
+        let dsn = Dsn::from_str("mongodb://admin:123456@localhost:27017?load_balanced=true&direct_connection=true&repl_set_name=repl&local_threshold=10ms&mechanism=MongoDbCr&source=admin&app_name=appname&compressors=zstd&tls=true&ca_file_path=@./file/ca.pem&cert_key_file_path=@./file/cert.pem&database=test_taosx&collection=metrics&sql={\"datetime\":{\"$gte\":${start_timestamp},\"$lt\":${end_timestamp}}}&start=2024-07-01T00:00:00+00:00&end=2024-08-01T00:00:00+00:00&interval=12h&delay=0&sample_data_limit=4&sort={\"datetime\":1}")
+            .unwrap();
+        let config = MongoDBConfig::from_dsn(&dsn).unwrap();
+        let sort = config.task.generate_sort().unwrap();
+        dbg!(&sort);
     }
 }
