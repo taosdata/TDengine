@@ -600,8 +600,8 @@ static void doRecordThroughput(STaskExecStatisInfo* pInfo, int64_t totalBlocks, 
                                double st, const char* id) {
   double el = (taosGetTimestampMs() - st) / 1000.0;
 
-  stDebug("s-task:%s batch of input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%d", id, el,
-          SIZE_IN_MiB(totalSize), totalBlocks);
+  stDebug("s-task:%s batch of input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%" PRId64, id,
+          el, SIZE_IN_MiB(totalSize), totalBlocks);
 
   pInfo->outputDataBlocks += totalBlocks;
   pInfo->outputDataSize += totalSize;
