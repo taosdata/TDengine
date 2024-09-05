@@ -1384,7 +1384,7 @@ SELECT SERVER_VERSION();
 SELECT SERVER_STATUS();
 ```
 
-**Description**: The server status.
+**Description**: The server status. When checking the status of a cluster, the recommended way is to use `SHOW CLUSTER ALIVE;`. Unlike `SELECT SERVER_STATUS();`, it does not return an error when some nodes in the cluster are unavailable; instead, it returns different status codes. Plese check [SHOW CLUSTER ALIVE](https://docs.tdengine.com/reference/taos-sql/show/#show-cluster-alive) for details.
 
 ### CURRENT_USER
 
