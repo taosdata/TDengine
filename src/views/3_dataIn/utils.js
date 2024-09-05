@@ -1525,4 +1525,5 @@ export function checkJson (_, value, callback) {
   if (value && !isValidJSON(value)) {
     return callback(new Error(i18n.t('dataIn.jsonTip')))
   }
+  return callback()
 }
