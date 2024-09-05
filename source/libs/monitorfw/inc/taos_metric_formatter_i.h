@@ -16,6 +16,7 @@
 
 #ifndef TAOS_METRIC_FORMATTER_I_H
 #define TAOS_METRIC_FORMATTER_I_H
+#include <stdint.h>
 
 // Private
 #include "taos_metric_formatter_t.h"
