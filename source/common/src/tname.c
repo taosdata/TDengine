@@ -153,7 +153,11 @@ int32_t tNameGetDbName(const SName* name, char* dst) {
 const char* tNameGetDbNameP(const SName* name) { return &name->dbname[0]; }
 
 int32_t tNameGetFullDbName(const SName* name, char* dst) {
-  return snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
+  if (name == NULL || dst == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  (void)snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
+  return 0;
 }
 
 bool tNameIsEmpty(const SName* name) { return name->type == 0 || name->acctId == 0; }

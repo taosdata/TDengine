@@ -2800,7 +2800,7 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
     void  *key = taosHashGetKey(value, &keyLen);
 
     char dbName[TSDB_DB_NAME_LEN] = {0};
-    mndExtractShortDbNameFromStbFullName(key, dbName);
+    (void)mndExtractShortDbNameFromStbFullName(key, dbName);
     char dbNameContent[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(dbNameContent, dbName, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
