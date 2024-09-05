@@ -1123,20 +1123,6 @@ export default {
       });
       return result;
     },
-    handlerErrMsg(data) {
-      const errData = data.map(item => {
-        item.activity = item.message,
-        item.level = "error"
-        item.at = parsinginZone(new Date())
-        item.context = null
-        this.topicList = this.topicList.map((task) => {
-          if (task.taskid == item.id) {
-            task.taskActivities.unshift({...item});
-          }
-          return task;
-        });
-      })
-    },
     handlerConfirm(content, excuteFn, ids, showConfirmButton) {
       try {
         this.$confirm(
@@ -1152,11 +1138,6 @@ export default {
           await this.handleClearInterval();
           let result = await excuteFn({ids});
           this.$refs.dataSourceTable.clearSelection();
-          if (result?.code) {
-            this.handleSetInterval();
-            this.handlerErrMsg(result.data);
-            return;
-          }
           await this.refresh();
           await this.$nextTick(() => {
             this.handleSetInterval();
