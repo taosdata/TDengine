@@ -77,6 +77,7 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     return -1;
   }
 
+  uint64_t st = taosGetTimestampMs();
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
@@ -105,7 +106,7 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
 
     pRsp->blockNum++;
     totalRows += pDataBlock->info.rows;
-    if (totalRows >= MAX_ROWS_TO_RETURN) {
+    if (totalRows >= MAX_ROWS_TO_RETURN || (taosGetTimestampMs() - st > 1000)) {
       break;
     }
   }
