@@ -15,8 +15,8 @@
 
 #ifndef TAOS_COUNTER_H
 #define TAOS_COUNTER_H
+#include <stdint.h>
 #include <stdlib.h>
-#include "os.h"
 
 #include "taos_metric.h"
 
