@@ -27,7 +27,8 @@ const state = {
   sharedTotal: 0,
   total: 0,
   selectedSqlStr: "",
-  gridLoading: false
+  gridLoading: false,
+  dbName: ""
 };
 
 const mutations = {
@@ -59,6 +60,9 @@ const mutations = {
   },
   SET_TAB_NAME(state, name) {
     state.tabName = name;
+  },
+  SET_DB_NAME(state, name) {
+    state.dbName = name;
   },
   SET_ACTIVE_TAB: (state, activeTab) => {
     state.activeTab = activeTab;

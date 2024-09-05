@@ -445,7 +445,7 @@ export default {
     },
     addDatabase() {
       this.$store.commit("dbs/HANDLE_ADD_DB");
-      this.$store.commit("console/SET_TAB_NAME", this.$t("add"));
+      this.$store.commit("console/SET_TAB_NAME", "add");
       this.$store.commit("dbs/SET_ADD_DB_COMP", "explorer");
       this.$store.state.console.partActive = "detail";
       this.$store.state.console.currentComponent = "DatabaseCreate";
@@ -661,7 +661,7 @@ export default {
         default:
           break;
       }
-      this.$store.commit("console/SET_TAB_NAME", this.$t("add"));
+      this.$store.commit("console/SET_TAB_NAME", "add");
       this.$store.state.console.partActive = "detail";
     },
     async view(data) {
@@ -671,9 +671,7 @@ export default {
       this.$store.state.console.currentComponent = "Info";
       this.$store.commit(
         "console/SET_TAB_NAME",
-        this.$t(
           `console.${data.typeName === "table" ? data.type : data.typeName}Info`
-        )
       );
       this.$store.state.console.partActive = "detail";
     },
@@ -700,7 +698,7 @@ export default {
         default:
           break;
       }
-      this.$store.commit("console/SET_TAB_NAME", this.$t("edit"));
+      this.$store.commit("console/SET_TAB_NAME", "edit");
       this.$store.commit("dbs/SET_ADD_DB_COMP", "explorer");
       this.$store.state.console.partActive = "detail";
     },
@@ -836,7 +834,11 @@ export default {
       this.$store.state.console.currentComponent = "DatabasePrivileges";
       this.$store.commit(
         "console/SET_TAB_NAME",
-        this.$t(`data.databaseControl`).replace("{dbName}", data.name)
+        "data.databaseControl"
+      );
+      this.$store.commit(
+        "console/SET_DB_NAME",
+        data.name
       );
       this.$store.state.console.partActive = "detail";
     },

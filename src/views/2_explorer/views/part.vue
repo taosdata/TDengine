@@ -70,7 +70,7 @@
       <!-- <el-tab-pane name="xterm" label="Shell">
         <Xterm></Xterm>
       </el-tab-pane> -->
-      <el-tab-pane name="detail" v-if="tabName" :label="tabName">
+      <el-tab-pane name="detail" v-if="tabName" :label="$t(`${tabName}`,[dbName])">
         <Detail></Detail>
       </el-tab-pane>
     </el-tabs>
@@ -97,6 +97,7 @@
     computed: {
       ...mapState({
         tabName: state => state.console.tabName,
+        dbName: state => state.console.dbName,
         sqlStr: state => state.console.sqlStr,
         favorites: state => state.console.favorites,
         previewBtn: state => state.console.previewBtn,

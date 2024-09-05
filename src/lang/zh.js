@@ -533,7 +533,7 @@ export default {
     viewStable: "查看超级表配置",
     delStable: "删除超级表",
     delTable: "删除表",
-    databaseControl: "数据库{dbName}访问控制",
+    databaseControl: "数据库{0}访问控制",
     viewTable: "查看表配置",
     manageDBprivilege: "管理数据库权限",
     viewDatabase: "查看数据库配置",

@@ -503,7 +503,7 @@ export default {
     createAt: "Created at",
     showTable: "Show Table",
     delStable: "Delete STable",
-    databaseControl: "Database {dbName} Access Control",
+    databaseControl: "Database {0} Access Control",
     operations: "Operations",
     delTable: "Delete Table",
     createDatabase: "Create Database",
