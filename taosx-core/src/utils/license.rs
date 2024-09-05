@@ -340,7 +340,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
             let source_builder = TaosBuilder::from_dsn(&from)?;
             let sink_builder = TaosBuilder::from_dsn(to)?;
 
-            let (source_version, sink_version) = get_valid_taos_version(
+            let (source_version, _sink_version) = get_valid_taos_version(
                 &source_builder,
                 source_dsn_context,
                 &sink_builder,
