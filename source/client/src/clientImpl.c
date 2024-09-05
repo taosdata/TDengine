@@ -2953,6 +2953,10 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   pRequest->inCallback = true;
   int64_t this = pRequest->self;
+  if (tsQueryTbNotExistAsEmpty && TD_RES_QUERY(&pRequest->resType) && (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
+    code = TSDB_CODE_SUCCESS;
+    pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+  }
   pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
   SRequestObj* pReq = acquireRequest(this);
   if (pReq != NULL) {

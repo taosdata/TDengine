@@ -52,11 +52,11 @@ enum {
 #define SHOW_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD3_LEN (TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE)
 
-#define TD_RES_QUERY(res)          (*(int8_t*)res == RES_TYPE__QUERY)
-#define TD_RES_TMQ(res)            (*(int8_t*)res == RES_TYPE__TMQ)
-#define TD_RES_TMQ_META(res)       (*(int8_t*)res == RES_TYPE__TMQ_META)
-#define TD_RES_TMQ_METADATA(res)   (*(int8_t*)res == RES_TYPE__TMQ_METADATA)
-#define TD_RES_TMQ_BATCH_META(res) (*(int8_t*)res == RES_TYPE__TMQ_BATCH_META)
+#define TD_RES_QUERY(res)          (*(int8_t*)(res) == RES_TYPE__QUERY)
+#define TD_RES_TMQ(res)            (*(int8_t*)(res) == RES_TYPE__TMQ)
+#define TD_RES_TMQ_META(res)       (*(int8_t*)(res) == RES_TYPE__TMQ_META)
+#define TD_RES_TMQ_METADATA(res)   (*(int8_t*)(res) == RES_TYPE__TMQ_METADATA)
+#define TD_RES_TMQ_BATCH_META(res) (*(int8_t*)(res) == RES_TYPE__TMQ_BATCH_META)
 
 typedef struct SAppInstInfo SAppInstInfo;
 
