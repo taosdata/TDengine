@@ -421,6 +421,7 @@ typedef struct SSqlCallbackWrapper {
   void*          pPlanInfo;
 } SSqlCallbackWrapper;
 
+void setQueryRequest(int64_t rId);
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res);
 int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList);
 void    launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta, SSqlCallbackWrapper* pWrapper);
