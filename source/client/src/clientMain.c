@@ -1235,7 +1235,8 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
                            .allocatorId = pRequest->allocatorRefId,
                            .parseSqlFp = clientParseSql,
-                           .parseSqlParam = pWrapper};
+                           .parseSqlParam = pWrapper,
+                           .setQueryFp = setQueryRequest};
   int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
   (*pCxt)->biMode = biMode;
   return TSDB_CODE_SUCCESS;

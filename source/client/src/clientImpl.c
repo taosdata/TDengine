@@ -31,6 +31,15 @@
 static int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo);
 
+void setQueryRequest(int64_t rId) {
+  SRequestObj* pReq = acquireRequest(rId);
+  if (pReq != NULL) {
+    pReq->isQuery = true;
+    (void)releaseRequest(rId);
+  }
+
+}
+
 static bool stringLengthCheck(const char* str, size_t maxsize) {
   if (str == NULL) {
     return false;
@@ -286,7 +295,8 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
                        .enableSysInfo = pTscObj->sysInfo,
                        .svrVer = pTscObj->sVer,
                        .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
-                       .isStmtBind = pRequest->isStmtBind};
+                       .isStmtBind = pRequest->isStmtBind,
+                       .setQueryFp = setQueryRequest};
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
@@ -2953,6 +2963,10 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   pRequest->inCallback = true;
   int64_t this = pRequest->self;
+  if (tsQueryTbNotExistAsEmpty && TD_RES_QUERY(&pRequest->resType) && pRequest->isQuery && (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
+    code = TSDB_CODE_SUCCESS;
+    pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+  }
   pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
   SRequestObj* pReq = acquireRequest(this);
   if (pReq != NULL) {
