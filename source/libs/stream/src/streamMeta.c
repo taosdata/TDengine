@@ -1333,16 +1333,7 @@ SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta) {
       continue;
     }
 
-    taosThreadMutexLock(&pTask->lock);
-
-    SStreamTaskState* pState = streamTaskGetStatus(pTask);
-    if (pState->state == TASK_STATUS__CK) {
-      streamTaskSetFailedCheckpointId(pTask);
-    } else {
-      stDebug("s-task:%s status:%s not reset the checkpoint", pTask->id.idStr, pState->name);
-    }
-
-    taosThreadMutexUnlock(&pTask->lock);
+    streamTaskSetCheckpointFailed(pTask);
     streamMetaReleaseTask(pMeta, pTask);
   }
 

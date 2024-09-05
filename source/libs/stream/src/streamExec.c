@@ -541,34 +541,38 @@ int32_t streamProcessTransstateBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
 //static void streamTaskSetIdleInfo(SStreamTask* pTask, int32_t idleTime) { pTask->status.schedIdleTime = idleTime; }
 static void setLastExecTs(SStreamTask* pTask, int64_t ts) { pTask->status.lastExecTs = ts; }
 
+static void doRecordThroughput(STaskExecStatisInfo* pInfo, int64_t totalBlocks, int64_t totalSize, int64_t blockSize,
+                               double st, const char* id) {
+  double el = (taosGetTimestampMs() - st) / 1000.0;
+
+  stDebug("s-task:%s batch of input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%" PRId64, id,
+          el, SIZE_IN_MiB(totalSize), totalBlocks);
+
+  pInfo->outputDataBlocks += totalBlocks;
+  pInfo->outputDataSize += totalSize;
+  if (fabs(el - 0.0) <= DBL_EPSILON) {
+    pInfo->procsThroughput = 0;
+    pInfo->outputThroughput = 0;
+  } else {
+    pInfo->outputThroughput = (totalSize / el);
+    pInfo->procsThroughput = (blockSize / el);
+  }
+}
+
 static void doStreamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pBlock, int32_t num) {
   const char*      id = pTask->id.idStr;
   int32_t          blockSize = 0;
   int64_t          st = taosGetTimestampMs();
   SCheckpointInfo* pInfo = &pTask->chkInfo;
   int64_t          ver = pInfo->processedVer;
+  int64_t          totalSize = 0;
+  int32_t          totalBlocks = 0;
 
   stDebug("s-task:%s start to process batch blocks, num:%d, type:%s", id, num, streamQueueItemGetTypeStr(pBlock->type));
 
   doSetStreamInputBlock(pTask, pBlock, &ver, id);
-
-  int64_t totalSize = 0;
-  int32_t totalBlocks = 0;
   streamTaskExecImpl(pTask, pBlock, &totalSize, &totalBlocks);
-
-  double el = (taosGetTimestampMs() - st) / 1000.0;
-  stDebug("s-task:%s batch of input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%d", id, el,
-          SIZE_IN_MiB(totalSize), totalBlocks);
-
-  pTask->execInfo.outputDataBlocks += totalBlocks;
-  pTask->execInfo.outputDataSize += totalSize;
-  if (fabs(el - 0.0) <= DBL_EPSILON) {
-    pTask->execInfo.procsThroughput = 0;
-    pTask->execInfo.outputThroughput = 0;
-  } else {
-    pTask->execInfo.outputThroughput = (totalSize / el);
-    pTask->execInfo.procsThroughput = (blockSize / el);
-  }
+  doRecordThroughput(&pTask->execInfo, totalBlocks, totalSize, blockSize, st, pTask->id.idStr);
 
   // update the currentVer if processing the submit blocks.
   ASSERT(pInfo->checkpointVer <= pInfo->nextProcessVer && ver >= pInfo->checkpointVer);

@@ -550,6 +550,15 @@ void streamTaskSetFailedCheckpointId(SStreamTask* pTask) {
           pTask->chkInfo.pActiveInfo->activeId, pTask->chkInfo.pActiveInfo->transId);
 }
 
+void streamTaskSetCheckpointFailed(SStreamTask* pTask) {
+  taosThreadMutexLock(&pTask->lock);
+  ETaskStatus status = streamTaskGetStatus(pTask)->state;
+  if (status == TASK_STATUS__CK) {
+    streamTaskSetFailedCheckpointId(pTask);
+  }
+  taosThreadMutexUnlock(&pTask->lock);
+}
+
 static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* list) {
   char buf[128] = {0};
 
@@ -971,9 +980,6 @@ void streamTaskInitTriggerDispatchInfo(SStreamTask* pTask) {
 
   int64_t now = taosGetTimestampMs();
   taosThreadMutexLock(&pInfo->lock);
-
-  // outputQ should be empty here
-  ASSERT(streamQueueGetNumOfUnAccessedItems(pTask->outputq.queue) == 0);
 
   pInfo->dispatchTrigger = true;
   if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {

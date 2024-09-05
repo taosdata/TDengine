@@ -949,15 +949,12 @@ static int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq*
     return terrno;
   }
 
-  // enqueue
-  stDebug("s-task:%s (vgId:%d level:%d) recv retrieve req from task:0x%x(vgId:%d), reqId:0x%" PRIx64, pTask->id.idStr,
-          pTask->pMeta->vgId, pTask->info.taskLevel, pReq->srcTaskId, pReq->srcNodeId, pReq->reqId);
-
   pData->type = STREAM_INPUT__DATA_RETRIEVE;
   pData->srcVgId = 0;
 
   int32_t code = streamRetrieveReqToData(pReq, pData, pTask->id.idStr);
   if (code != TSDB_CODE_SUCCESS) {
+    stError("s-task:%s failed to convert retrieve-data to block, code:%s", pTask->id.idStr, tstrerror(code));
     taosFreeQitem(pData);
     return code;
   }
