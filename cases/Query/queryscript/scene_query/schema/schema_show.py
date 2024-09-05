@@ -71,7 +71,8 @@ class TDTestQuery(TDCase):
                      'rpcDebugFlag','timezone','qDebugFlag','locale','charset','assert','enableCoreFile','numOfCores','SSE42','AVX','AVX2',
                      'FMA','SIMD-builtins','tagFilterCache','openMax','streamMax','pageSizeKB','totalMemoryKB','os sysname',
                      'os nodename','os release','os version','os machine','version','compatible_version','gitinfo','buildinfo','keepAliveIdle','ssd42','avx','avx2',
-                     'fma','avx512','simdEnable','experimental','crashReporting','monitor','monitorInterval','countAlwaysReturnValue','','',''];
+                     'fma','avx512','simdEnable','experimental','crashReporting','monitor','monitorInterval','countAlwaysReturnValue','AVX512Enable','randErrorChance',
+                     'randErrorDivisor','randErrorScope','','','','','','','','',];
         
         list_client = ['queryPolicy','enableQueryHb','enableScience','querySmaOptimize','queryPlannerTrace','queryNodeChunkSize','queryUseNodeAllocator',
                        'keepColumnName','smlChildTableName','smlTagName','maxInsertBatchRows','useAdapter','queryMaxConcurrentTables','metaCacheMaxSize',
@@ -106,7 +107,8 @@ class TDTestQuery(TDCase):
                         'countAlwaysReturnValue','numOfRpcThreads','numOfRpcSessions','timeToGetAvailableConn','rpcQueueMemoryAllowed',
                         'crashReporting','telemetryReporting','telemetryInterval','telemetryServer','telemetryPort','configDir','scriptDir',
                         'logDir','minimalLogDirGB','numOfLogLines','asyncLog','logKeepDays','debugFlag','sDebugFlag','keepAliveIdle','rsyncPort',
-                        'ssd42','avx','avx2','fma','avx512','simdEnable','experimental','monitor','monitorInterval','','','','','','',''];
+                        'ssd42','avx','avx2','fma','avx512','simdEnable','experimental','monitor','monitorInterval','AVX512Enable','randErrorChance',
+                        'randErrorDivisor','randErrorScope','','','','','',''];
     
         list_client = ['queryPolicy','enableQueryHb','enableScience','querySmaOptimize','queryPlannerTrace','queryNodeChunkSize','queryUseNodeAllocator',
                         'keepColumnName','smlChildTableName','smlTagName','maxInsertBatchRows','useAdapter','queryMaxConcurrentTables','metaCacheMaxSize',
@@ -131,7 +133,7 @@ class TDTestQuery(TDCase):
                         's3UploadDelaySec','sDebugFlag','stDebugFlag','sndDebugFlag','auditInterval','compactPullupInterval','encryptAlgorithm','encryptScope',
                         'syncSnapReplMaxWaitN','arbHeartBeatIntervalSec','arbCheckSyncIntervalSec','arbSetAssignedTimeoutSec','monitorLogProtocol',
                         'monitorIntervalForBasic','monitorForceV2','tmqRowSize','maxTsmaNum','s3MigrateIntervalSec','s3MigrateEnabled','streamAggCnt',
-                        'concurrentCheckpoint','retentionSpeedLimitMB','','','','','','','','']
+                        'concurrentCheckpoint','retentionSpeedLimitMB','slowLogThresholdTest','slowLogThreshold','slowLogMaxLen','slowLogScope','slowLogExceptDb','','','']
         
         
         dnodes_list = []
@@ -280,7 +282,7 @@ class TDTestQuery(TDCase):
         show_create_sql = "show create table information_schema.ins_subscriptions;"
         self.tdSql.query(show_create_sql)          
         self.tdCreateData.data_check(self.tdSql.getData(0,0),'ins_subscriptions')
-        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_subscriptions` (`topic_name` VARCHAR(205), `consumer_group` VARCHAR(193), `vgroup_id` INT, `consumer_id` VARCHAR(30), `offset` VARCHAR(64), `rows` BIGINT) COMMENT ''")
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_subscriptions` (`topic_name` VARCHAR(205), `consumer_group` VARCHAR(193), `vgroup_id` INT, `consumer_id` VARCHAR(256), `user` VARCHAR(24), `fqdn` VARCHAR(128), `offset` VARCHAR(64), `rows` BIGINT) COMMENT ''")
         
         show_create_sql = "show create table information_schema.ins_streams;"
         self.tdSql.query(show_create_sql)          
@@ -672,7 +674,7 @@ class TDTestQuery(TDCase):
         show_create_sql = "show create table performance_schema.perf_consumers;"
         self.tdSql.query(show_create_sql)          
         self.tdCreateData.data_check(self.tdSql.getData(0,0),'perf_consumers')
-        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `perf_consumers` (`consumer_id` VARCHAR(30), `consumer_group` VARCHAR(192), `client_id` VARCHAR(192), `status` VARCHAR(20), `topics` VARCHAR(205), `up_time` TIMESTAMP, `subscribe_time` TIMESTAMP, `rebalance_time` TIMESTAMP, `parameters` VARCHAR(128)) COMMENT ''")
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `perf_consumers` (`consumer_id` VARCHAR(32), `consumer_group` VARCHAR(193), `client_id` VARCHAR(256), `user` VARCHAR(24), `fqdn` VARCHAR(128), `status` VARCHAR(20), `topics` VARCHAR(205), `up_time` TIMESTAMP, `subscribe_time` TIMESTAMP, `rebalance_time` TIMESTAMP, `parameters` VARCHAR(192)) COMMENT ''")
         show_sql = "show consumers;"
         select_sql = "select * from performance_schema.perf_consumers;"
         self.sql_check(show_sql,select_sql)

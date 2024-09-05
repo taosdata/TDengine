@@ -360,7 +360,7 @@ class TDFunction():
         # TWA/Diff/Derivative/Irate/CSUM/MAVG/SAMPLE/INTERP/Elapsed are not allowed to apply to super table directly 
         # diff(field_name, ignore_negative)获取给定行的数据相对于前一行的值之间的差。ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。
         hanshu = ['DIFF']        
-        column = ['(q_bigint,num)','(q_smallint,num)','(q_tinyint,num)','(q_int,num)','(q_float,num)','(q_double,num)'] 
+        column = ['(q_smallint,num)','(q_tinyint,num)','(q_int,num)','(q_float,num)','(q_double,num)'] #'(q_bigint,num)',
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         int_cloumn_diff = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         

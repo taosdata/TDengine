@@ -96,38 +96,38 @@ class TDCreateData():
         #local variables 修改验证
         show_sql = 'show local variables;'
         
-        self.tdSql.query('''alter local 'slowlogthreshold' '10';''') #慢查询门限值，大于等于门限值认为是慢查询，单位：秒        
+        self.tdSql.query('''alter all dnodes 'slowlogthreshold' '10';''') #慢查询门限值，大于等于门限值认为是慢查询，单位：秒        
         self.tdSql.query(show_sql)        
         for i in range(self.tdSql.query_row):
             if (self.tdSql.query_data[i][0] == 'slowLogThreshold'):      
                 self.data_check(self.tdSql.query_data[i][1],'10')
         
         #ALL: 启动所有类型记录 \ QUERY: 只记录查询 \ INSERT:只记录写入 \ OTHERS:除写入、查询外其他语句 \ NONE:不记录
-        self.tdSql.query('''alter local 'slowLogScope' 'NONE';''')
+        self.tdSql.query('''alter all dnodes 'slowLogScope' 'NONE';''')
         self.tdSql.query(show_sql)        
         for i in range(self.tdSql.query_row):
             if (self.tdSql.query_data[i][0] == 'slowLogScope'):      
                 self.data_check(self.tdSql.query_data[i][1],'NONE')
                 
-        self.tdSql.query('''alter local 'slowLogScope' 'INSERT';''')
+        self.tdSql.query('''alter all dnodes 'slowLogScope' 'INSERT';''')
         self.tdSql.query(show_sql)        
         for i in range(self.tdSql.query_row):
             if (self.tdSql.query_data[i][0] == 'slowLogScope'):      
                 self.data_check(self.tdSql.query_data[i][1],'INSERT')
                 
-        self.tdSql.query('''alter local 'slowLogScope' 'QUERY';''')
+        self.tdSql.query('''alter all dnodes 'slowLogScope' 'QUERY';''')
         self.tdSql.query(show_sql)        
         for i in range(self.tdSql.query_row):
             if (self.tdSql.query_data[i][0] == 'slowLogScope'):      
                 self.data_check(self.tdSql.query_data[i][1],'QUERY')
                 
-        self.tdSql.query('''alter local 'slowLogScope' 'OTHERS';''')
+        self.tdSql.query('''alter all dnodes 'slowLogScope' 'OTHERS';''')
         self.tdSql.query(show_sql)        
         for i in range(self.tdSql.query_row):
             if (self.tdSql.query_data[i][0] == 'slowLogScope'):      
                 self.data_check(self.tdSql.query_data[i][1],'OTHERS')
                 
-        self.tdSql.query('''alter local 'slowLogScope' 'ALL';''')
+        self.tdSql.query('''alter all dnodes 'slowLogScope' 'ALL';''')
         self.tdSql.query(show_sql)        
         for i in range(self.tdSql.query_row):
             if (self.tdSql.query_data[i][0] == 'slowLogScope'):      
@@ -1351,7 +1351,292 @@ class TDCreateData():
             # # self.add_data_random(database,n,1630000000000)
             # # self.add_data_random(database,n,1640000000000)
         
-                           
+        
+        
+    def dropandcreate_diff_DB(self,database,once_insert_num,updata_num=1,dropdb='yes',insertdata='yes',deletedata='yes'): #fixed
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
+        self.ts = 1630000000000
+        
+        self.show_local_variables()
+        if dropdb == 'yes':
+            self.tdCommon.createDb(database, True, keep=36500)
+            self.tdSql.execute('''use %s;'''%database)
+        
+            #stable
+            self.tdSql.execute(f'''create stable {database}.stable_no_pk_ts_same (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+            self.tdSql.execute(f'''create stable {database}.stable_no_pk_ts_diff (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                        
+            self.tdSql.execute(f'''create stable {database}.stable_ts_pk_ts_same_pk_same (ts timestamp , ts_pk INT primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+            self.tdSql.execute(f'''create stable {database}.stable_ts_pk_ts_same_pk_diff (ts timestamp , ts_pk INT primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+            
+            self.tdSql.execute(f'''create stable {database}.stable_ts_pk_ts_diff_pk_same (ts timestamp , ts_pk INT primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+            self.tdSql.execute(f'''create stable {database}.stable_ts_pk_ts_diff_pk_diff (ts timestamp , ts_pk INT primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+            
+            #regular table
+            self.tdSql.execute(f'''create table {database}.table_no_pk \
+                    (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                    q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) ;''')
+            self.tdSql.execute(f'''create table {database}.table_ts_pk_bigint \
+                    (ts timestamp , ts_pk BIGINT primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                    q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) ;''')
+            self.tdSql.execute(f'''create table {database}.table_ts_pk_bigint_unsigned \
+                    (ts timestamp , ts_pk BIGINT UNSIGNED primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                    q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) ;''')
+            
+            #child table
+            for tag_i in range(1,6):
+                self.tdSql.execute(f'''create table {database}.stable_no_pk_ts_same_{tag_i} using {database}.stable_no_pk_ts_same tags('stable_no_pk_ts_same_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 0 , 'binary1.{tag_i}' , 'nchar1.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
+                self.tdSql.execute(f'''create table {database}.stable_no_pk_ts_diff_{tag_i} using {database}.stable_no_pk_ts_diff tags('stable_no_pk_ts_diff_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 0 , 'binary1.{tag_i}' , 'nchar1.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
+                self.tdSql.execute(f'''create table {database}.stable_ts_pk_ts_same_pk_same_{tag_i} using {database}.stable_ts_pk_ts_same_pk_same tags('stable_ts_pk_ts_same_pk_same_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 1 , 'binary2.{tag_i}' , 'nchar2.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
+                self.tdSql.execute(f'''create table {database}.stable_ts_pk_ts_same_pk_diff_{tag_i} using {database}.stable_ts_pk_ts_same_pk_diff tags('stable_ts_pk_ts_same_pk_diff_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 0 , 'binary3.{tag_i}' , 'nchar3.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
+                self.tdSql.execute(f'''create table {database}.stable_ts_pk_ts_diff_pk_same_{tag_i} using {database}.stable_ts_pk_ts_diff_pk_same tags('stable_ts_pk_ts_diff_pk_same_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 1 , 'binary4.{tag_i}' , 'nchar4.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
+                self.tdSql.execute(f'''create table {database}.stable_ts_pk_ts_diff_pk_diff_{tag_i} using {database}.stable_ts_pk_ts_diff_pk_diff tags('stable_ts_pk_ts_diff_pk_diff_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 0 , 'binary5.{tag_i}' , 'nchar5.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
+
+        else:
+            self.tdSql.execute('''use %s;'''%database)
+            
+        
+        if insertdata == 'yes':            
+            for tag_i in range(1,6):
+                for column_i in range(1,51):    
+                    self.tdSql.execute(f'''insert into {database}.stable_no_pk_ts_same_{tag_i}  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}',  '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_no_pk_ts_same_{tag_i}  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*100000000 + 1 }',  '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_no_pk_ts_same_{tag_i}  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 2000000000 - 1000000000 + 2 }', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_no_pk_ts_same_{tag_i}  (ts) values('{self.ts + 100000000 + 10 }') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_no_pk_ts_same_{tag_i}  (ts) values('{self.ts + column_i*100000000 + 11 }') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_no_pk_ts_same_{tag_i}  (ts) values('{self.ts + 2000000000 - 1000000000 + 12 }') ;''' ) 
+                    
+                    self.tdSql.execute(f'''insert into {database}.stable_no_pk_ts_diff_{tag_i}  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + tag_i + 100000000}',  '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_no_pk_ts_diff_{tag_i}  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + tag_i + column_i*100000000 + 100 }',  '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_no_pk_ts_diff_{tag_i}  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + tag_i + 2000000000 - 1000000000 + 200 }', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_no_pk_ts_diff_{tag_i}  (ts) values('{self.ts + tag_i + 100000000 + 500 }') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_no_pk_ts_diff_{tag_i}  (ts) values('{self.ts + tag_i + column_i*100000000 + 1000 }') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_no_pk_ts_diff_{tag_i}  (ts) values('{self.ts + tag_i + 2000000000 - 1000000000 + 2000 }') ;''' ) 
+                    
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_same_pk_same_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{column_i - 25}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_same_pk_same_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*100000000 + 1 }', '{column_i - 25}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_same_pk_same_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 2000000000 - 1000000000 + 2 }', '{column_i - 25}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_same_pk_same_{tag_i}  (ts , ts_pk ) values('{self.ts + 100000000 + 10 }', '{column_i - 25}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_same_pk_same_{tag_i}  (ts , ts_pk ) values('{self.ts + column_i*100000000 + 11 }', '{column_i - 25}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_same_pk_same_{tag_i}  (ts , ts_pk ) values('{self.ts + 2000000000 - 1000000000 + 12 }', '{column_i - 25}') ;''' ) 
+                    
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_same_pk_diff_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_same_pk_diff_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*200000000 + 2 }', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_same_pk_diff_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 1000000000 + 1 }', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_same_pk_diff_{tag_i}  (ts , ts_pk ) values('{self.ts + 100000000 + 10 }', '{column_i}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_same_pk_diff_{tag_i}  (ts , ts_pk ) values('{self.ts + column_i*200000000 + 12 }', '{column_i}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_same_pk_diff_{tag_i}  (ts , ts_pk ) values('{self.ts + 1000000000 + 11 }', '{column_i}') ;''' ) 
+                    
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_diff_pk_same_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + tag_i + 100000000}', '{column_i - 25}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_diff_pk_same_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + tag_i + column_i*300000000 + 3 }', '{column_i - 25}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_diff_pk_same_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + tag_i + 10000000000 + 1 }', '{column_i - 25}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_diff_pk_same_{tag_i}  (ts , ts_pk ) values('{self.ts + tag_i + 100000000 + 10 }', '{column_i - 25}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_diff_pk_same_{tag_i}  (ts , ts_pk ) values('{self.ts + tag_i + column_i*300000000 + 13 }', '{column_i - 25}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_diff_pk_same_{tag_i}  (ts , ts_pk ) values('{self.ts + tag_i + 10000000000 + 11 }', '{column_i - 25}') ;''' ) 
+                    
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_diff_pk_diff_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + tag_i + 100000000}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_diff_pk_diff_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + tag_i + column_i*400000000 + 4 }', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_diff_pk_diff_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + tag_i + 100000000000 + 1 }', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_diff_pk_diff_{tag_i}  (ts , ts_pk ) values('{self.ts + tag_i + 100000000 + 10 }', '{column_i}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_diff_pk_diff_{tag_i}  (ts , ts_pk ) values('{self.ts + tag_i + column_i*400000000 + 14 }', '{column_i}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_ts_pk_ts_diff_pk_diff_{tag_i}  (ts , ts_pk ) values('{self.ts + tag_i + 100000000000 + 11 }', '{column_i}') ;''' ) 
+                    
+            for column_i in range(1,51):    
+                self.tdSql.execute(f'''insert into {database}.table_no_pk  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}',  '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.table_no_pk  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*100000000 + 1 }',  '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' )
+                self.tdSql.execute(f'''insert into {database}.table_no_pk  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 2000000000 - 1000000000 + 2 }', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.table_no_pk  (ts) values('{self.ts + 100000000 + 10 }') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.table_no_pk  (ts) values('{self.ts + column_i*100000000 + 11 }') ;''' )
+                self.tdSql.execute(f'''insert into {database}.table_no_pk  (ts) values('{self.ts + 2000000000 - 1000000000 + 12 }') ;''' ) 
+                    
+                self.tdSql.execute(f'''insert into {database}.table_ts_pk_bigint  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{column_i - 25}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.table_ts_pk_bigint  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*100000000 + 1 }', '{column_i - 25}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' )
+                self.tdSql.execute(f'''insert into {database}.table_ts_pk_bigint  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 2000000000 - 1000000000 + 2 }', '{column_i - 25}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.table_ts_pk_bigint  (ts , ts_pk ) values('{self.ts + 100000000 + 10 }', '{column_i - 25}') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.table_ts_pk_bigint  (ts , ts_pk ) values('{self.ts + column_i*100000000 + 11 }', '{column_i - 25}') ;''' )
+                self.tdSql.execute(f'''insert into {database}.table_ts_pk_bigint  (ts , ts_pk ) values('{self.ts + 2000000000 - 1000000000 + 12 }', '{column_i - 25}') ;''' ) 
+                
+                self.tdSql.execute(f'''insert into {database}.table_ts_pk_bigint_unsigned  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.table_ts_pk_bigint_unsigned  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*200000000 + 2 }', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' )
+                self.tdSql.execute(f'''insert into {database}.table_ts_pk_bigint_unsigned  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 1000000000 + 1 }', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.table_ts_pk_bigint_unsigned  (ts , ts_pk ) values('{self.ts + 100000000 + 10 }', '{column_i}') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.table_ts_pk_bigint_unsigned  (ts , ts_pk ) values('{self.ts + column_i*200000000 + 12 }', '{column_i}') ;''' )
+                self.tdSql.execute(f'''insert into {database}.table_ts_pk_bigint_unsigned  (ts , ts_pk ) values('{self.ts + 1000000000 + 11 }', '{column_i}') ;''' ) 
+                
+            
+                                
+        else:
+            self.tdSql.execute('''use %s;'''%database)
+            
+                    
+        if deletedata != 'yes':     
+            i = random.randint(0,4)
+            if i ==0:
+                self.logger.info("======this case test use flush database =========")
+                self.tdSql.execute("flush database %s;" %database) 
+                self.drop_DB_index(database)
+            elif i ==1:  
+                self.logger.info("======this case test use flush database =========")
+                self.tdSql.execute("flush database %s;" %database)   
+                self.logger.info("======this case test keepcolumnname = 1 =========")  
+                self.tdSql.execute("alter local 'keepcolumnname' '1';")  
+            elif i ==2:  
+                self.logger.info("======this case test use flush database =========")
+                self.tdSql.execute("flush database %s;" %database)   
+                self.logger.info("======this case test keepcolumnname = 0 =========")  
+                self.tdSql.execute("alter local 'keepcolumnname' '0';")  
+                self.drop_DB_index(database)
+            else:
+                self.logger.info("===!!!===this case test not use flush database =====!!!====")
+            
+            self.tdSql.query("select count(*) from %s.stable_ts_pk_ts_same_pk_same;"%database)
+            self.tdSql.checkData(0,0,5*300*once_insert_num)
+            self.tdSql.query("select count(*) from %s.table_ts_pk_bigint;"%database)
+            self.tdSql.checkData(0,0,300*once_insert_num)
+            
+            self.tdSql.query("select count(*) from %s.stable_no_pk_ts_same;"%database)
+            self.tdSql.checkData(0,0,5*104*once_insert_num)
+            self.tdSql.query("select count(*) from %s.table_no_pk;"%database)
+            self.tdSql.checkData(0,0,104*once_insert_num)
+            
+            self.alter_cachemodel(database)
+            
+            self.tdSql.query("select count(*) from %s.stable_ts_pk_ts_same_pk_same;"%database)
+            self.tdSql.checkData(0,0,5*300*once_insert_num)
+            self.tdSql.query("select count(*) from %s.table_ts_pk_bigint;"%database)
+            self.tdSql.checkData(0,0,300*once_insert_num)
+            self.tdSql.query("select count(*) from %s.stable_no_pk_ts_same group by tbname;"%database)
+            self.tdSql.checkData(0,0,104*once_insert_num)
+            self.tdSql.checkData(2,0,104*once_insert_num)
+            self.tdSql.checkData(4,0,104*once_insert_num)
+            
+        
+        #delete data
+        if deletedata == 'yes':            
+            for tag_i in range(1,6):
+                for column_i in range(49,51):    
+                    self.tdSql.execute(f'''delete from {database}.stable_no_pk_ts_same_{tag_i}  where ts = {self.ts + 100000000};''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_no_pk_ts_same_{tag_i}  where ts = {self.ts + column_i*100000000 + 1 };''' )
+                    self.tdSql.execute(f'''delete from {database}.stable_no_pk_ts_same_{tag_i}  where ts = {self.ts + 2000000000 - 1000000000 + 2 };''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_no_pk_ts_same_{tag_i}  where ts = {self.ts + 100000000 + 10 };''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_no_pk_ts_same_{tag_i}  where ts = {self.ts + column_i*100000000 + 11 };''' )
+                    self.tdSql.execute(f'''delete from {database}.stable_no_pk_ts_same_{tag_i}  where ts = {self.ts + 2000000000 - 1000000000 + 12 };''' ) 
+                      
+                    self.tdSql.execute(f'''delete from {database}.stable_no_pk_ts_diff_{tag_i}  where ts = {self.ts + tag_i + 100000000};''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_no_pk_ts_diff_{tag_i}  where ts = {self.ts + tag_i + column_i*100000000 + 1 };''' )
+                    self.tdSql.execute(f'''delete from {database}.stable_no_pk_ts_diff_{tag_i}  where ts = {self.ts + tag_i + 2000000000 - 1000000000 + 2 };''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_no_pk_ts_diff_{tag_i}  where ts = {self.ts + tag_i + 100000000 + 500 };''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_no_pk_ts_diff_{tag_i}  where ts = {self.ts + tag_i + column_i*100000000 + 1000 };''' )
+                    self.tdSql.execute(f'''delete from {database}.stable_no_pk_ts_diff_{tag_i}  where ts = {self.ts + tag_i + 2000000000 - 1000000000 + 2000 };''' ) 
+                    
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_same_pk_same_{tag_i}  where ts = {self.ts + 100000000} ;''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_same_pk_same_{tag_i}  where ts = {self.ts + column_i*100000000 + 1 };''' )
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_same_pk_same_{tag_i}  where ts = {self.ts + 2000000000 - 1000000000 + 2 };''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_same_pk_same_{tag_i}  where ts = {self.ts + 100000000 + 10 }  ;''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_same_pk_same_{tag_i}  where ts = {self.ts + column_i*100000000 + 11 } ;''' )
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_same_pk_same_{tag_i}  where ts = {self.ts + 2000000000 - 1000000000 + 12 } ;''' ) 
+                    
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_same_pk_diff_{tag_i}  where ts = {self.ts + 100000000};''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_same_pk_diff_{tag_i}  where ts = {self.ts + column_i*200000000 + 2 };''' )
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_same_pk_diff_{tag_i}  where ts = {self.ts + 1000000000 + 1 };''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_same_pk_diff_{tag_i}  where ts = {self.ts + 100000000 + 10 };''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_same_pk_diff_{tag_i}  where ts = {self.ts + column_i*200000000 + 12 };''' )
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_same_pk_diff_{tag_i}  where ts = {self.ts + 1000000000 + 11 };''' ) 
+                    
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_diff_pk_same_{tag_i}  where ts = {self.ts + tag_i + 100000000};''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_diff_pk_same_{tag_i}  where ts = {self.ts + tag_i + column_i*300000000 + 3 };''' )
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_diff_pk_same_{tag_i}  where ts = {self.ts + tag_i + 10000000000 + 1 };''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_diff_pk_same_{tag_i}  where ts = {self.ts + tag_i + 100000000 + 10 };''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_diff_pk_same_{tag_i}  where ts = {self.ts + tag_i + column_i*300000000 + 13 };''' )
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_diff_pk_same_{tag_i}  where ts = {self.ts + tag_i + 10000000000 + 11 };''' ) 
+                    
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_diff_pk_diff_{tag_i}  where ts = {self.ts + tag_i + 100000000};''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_diff_pk_diff_{tag_i}  where ts = {self.ts + tag_i + column_i*400000000 + 4 };''' )
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_diff_pk_diff_{tag_i}  where ts = {self.ts + tag_i + 100000000000 + 1 };''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_diff_pk_diff_{tag_i}  where ts = {self.ts + tag_i + 100000000 + 10 };''' ) 
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_diff_pk_diff_{tag_i}  where ts = {self.ts + tag_i + column_i*400000000 + 14 };''' )
+                    self.tdSql.execute(f'''delete from {database}.stable_ts_pk_ts_diff_pk_diff_{tag_i}  where ts = {self.ts + tag_i + 100000000000 + 11 };''' ) 
+                    
+            for column_i in range(49,51):    
+                self.tdSql.execute(f'''delete from {database}.table_no_pk  where ts = {self.ts + 100000000};''' ) 
+                self.tdSql.execute(f'''delete from {database}.table_no_pk  where ts = {self.ts + column_i*100000000 + 1 };''' )
+                self.tdSql.execute(f'''delete from {database}.table_no_pk  where ts = {self.ts + 2000000000 - 1000000000 + 2 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.table_no_pk  where ts = {self.ts + 100000000 + 10 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.table_no_pk  where ts = {self.ts + column_i*100000000 + 11 };''' )
+                self.tdSql.execute(f'''delete from {database}.table_no_pk  where ts = {self.ts + 2000000000 - 1000000000 + 12 };''' ) 
+                    
+                self.tdSql.execute(f'''delete from {database}.table_ts_pk_bigint  where ts = {self.ts + 100000000};''' ) 
+                self.tdSql.execute(f'''delete from {database}.table_ts_pk_bigint  where ts = {self.ts + column_i*100000000 + 1 };''' )
+                self.tdSql.execute(f'''delete from {database}.table_ts_pk_bigint  where ts = {self.ts + 2000000000 - 1000000000 + 2 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.table_ts_pk_bigint  where ts = {self.ts + 100000000 + 10 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.table_ts_pk_bigint  where ts = {self.ts + column_i*100000000 + 11 };''' )
+                self.tdSql.execute(f'''delete from {database}.table_ts_pk_bigint  where ts = {self.ts + 2000000000 - 1000000000 + 12 };''' ) 
+                
+                self.tdSql.execute(f'''delete from {database}.table_ts_pk_bigint_unsigned  where ts = {self.ts + 100000000};''' ) 
+                self.tdSql.execute(f'''delete from {database}.table_ts_pk_bigint_unsigned  where ts = {self.ts + column_i*200000000 + 2 };''' )
+                self.tdSql.execute(f'''delete from {database}.table_ts_pk_bigint_unsigned  where ts = {self.ts + 1000000000 + 1 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.table_ts_pk_bigint_unsigned  where ts = {self.ts + 100000000 + 10 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.table_ts_pk_bigint_unsigned  where ts = {self.ts + column_i*200000000 + 12 };''' )
+                self.tdSql.execute(f'''delete from {database}.table_ts_pk_bigint_unsigned  where ts = {self.ts + 1000000000 + 11 };''' ) 
+                                        
+        else:
+            self.tdSql.execute('''use %s;'''%database)
+                    
+        #delete data
+        if deletedata == 'yes':    
+            i = random.randint(0,4)
+            if i ==0:
+                self.logger.info("======this case test use flush database =========")
+                self.tdSql.execute("flush database %s;" %database) 
+                self.drop_DB_index(database)
+            elif i ==1:  
+                self.logger.info("======this case test use flush database =========")
+                self.tdSql.execute("flush database %s;" %database)   
+                self.logger.info("======this case test keepcolumnname = 1 =========")  
+                self.tdSql.execute("alter local 'keepcolumnname' '1';")  
+            elif i ==2:  
+                self.logger.info("======this case test use flush database =========")
+                self.tdSql.execute("flush database %s;" %database)   
+                self.logger.info("======this case test keepcolumnname = 0 =========")  
+                self.tdSql.execute("alter local 'keepcolumnname' '0';")  
+                self.drop_DB_index(database)
+            else:
+                self.logger.info("===!!!===this case test not use flush database =====!!!====")
+            
+            self.tdSql.query("select count(*) from %s.stable_ts_pk_ts_same_pk_same;"%database)
+            self.tdSql.checkData(0,0,5*96*once_insert_num)
+            self.tdSql.query("select count(*) from %s.table_ts_pk_bigint;"%database)
+            self.tdSql.checkData(0,0,96*once_insert_num)
+            
+            self.tdSql.query("select count(*) from %s.stable_no_pk_ts_same;"%database)
+            self.tdSql.checkData(0,0,5*96*once_insert_num)
+            self.tdSql.query("select count(*) from %s.table_no_pk;"%database)
+            self.tdSql.checkData(0,0,96*once_insert_num)
+            
+            self.alter_cachemodel(database)
+            
+            self.tdSql.query("select count(*) from %s.stable_ts_pk_ts_same_pk_same;"%database)
+            self.tdSql.checkData(0,0,5*96*once_insert_num)
+            self.tdSql.query("select count(*) from %s.table_ts_pk_bigint;"%database)
+            self.tdSql.checkData(0,0,96*once_insert_num)
+            self.tdSql.query("select count(*) from %s.stable_no_pk_ts_same group by tbname;"%database)
+            self.tdSql.checkData(0,0,96*once_insert_num)
+            self.tdSql.checkData(2,0,96*once_insert_num)
+            self.tdSql.checkData(4,0,96*once_insert_num)
+            
+                            
     def dropandcreateDB_tsbs(self,database,n):
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.ts = 1630000000000

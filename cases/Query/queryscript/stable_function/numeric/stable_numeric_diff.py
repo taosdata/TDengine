@@ -94,6 +94,7 @@ class TDTestQuery(TDCase):
         for i in (13,):
             func = tdFunction.func_stable_special(i)
             func_0 = func
+            func_3 = func
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                
@@ -101,8 +102,9 @@ class TDTestQuery(TDCase):
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
-                n = random.randrange(0,2) 
+                n = random.randrange(0,4) 
                 func_0 = func_0.replace(",num",",1") #ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative为1时表示忽略负数。
+                func_3 = func_3.replace(",num",",3") #ignore_negative 取值为 2|3 , 为 2 表示不忽略(diff结果)负值但忽略 null 值。为 3 时则表示忽略(diff结果)负值且忽略 null 值。
                 sql0 = 'select %s from %s ;'  % (func_0,self.table)
                 func = func.replace("num","%d" %n)
                 sql1 = 'select %s as df from %s order by df ;'  % (func,self.table)
@@ -126,6 +128,12 @@ class TDTestQuery(TDCase):
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        #检查某列返回结果和value的对比
+                        sql2 = "select %s from %s where  %s %s %s " %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
 
                         sql2 = "select * from (select %s as df  from %s where %s %s %s ) order by df " %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
@@ -138,6 +146,11 @@ class TDTestQuery(TDCase):
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        sql2 = "select * from (select %s from %s where %s %s %s)" %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
 
                         sql2 = "select %s as df  from (select * from %s) where %s %s %s order by df " %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
@@ -146,6 +159,11 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s) where %s %s %s " %(func_0,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+                        sql2 = "select %s from (select * from %s) where %s %s %s " %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
@@ -172,6 +190,7 @@ class TDTestQuery(TDCase):
         for i in (13,):
             func = tdFunction.func_stable_special(i)
             func_0 = func
+            func_3 = func
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                
@@ -179,8 +198,9 @@ class TDTestQuery(TDCase):
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case1======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
-                n = random.randrange(0,2) 
+                n = random.randrange(0,4) 
                 func_0 = func_0.replace(",num",",1") #ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative为1时表示忽略负数。
+                func_3 = func_3.replace(",num",",3") #ignore_negative 取值为 2|3 , 为 2 表示不忽略(diff结果)负值但忽略 null 值。为 3 时则表示忽略(diff结果)负值且忽略 null 值。
                 sql0 = "select %s from %s where tbname in ('%s_1');"  % (func_0,self.table,self.table)
                 func = func.replace("num","%d" %n)
                 sql1 = "select %s from %s where tbname in ('%s_1') ;"  % (func,self.table,self.table)
@@ -203,6 +223,11 @@ class TDTestQuery(TDCase):
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        sql2 = "select %s from %s where tbname in ('%s_1') and %s %s %s " %(func_3,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
                         
                         sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s )" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
@@ -211,6 +236,11 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
                         
                         sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s )" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s )" %(func_3,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
@@ -227,6 +257,11 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s) where loc in ('%s_1') and %s %s %s " %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+                        sql2 = "select %s from (select * from %s) where loc in ('%s_1') and %s %s %s " %(func_3,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
@@ -253,6 +288,7 @@ class TDTestQuery(TDCase):
         for i in (13,):
             func = tdFunction.func_stable_special(i)
             func_0 = func
+            func_3 = func
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                
@@ -260,8 +296,9 @@ class TDTestQuery(TDCase):
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()                
-                n = random.randrange(0,2) 
+                n = random.randrange(0,4) 
                 func_0 = func_0.replace(",num",",1") #ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative为1时表示忽略负数。
+                func_3 = func_3.replace(",num",",3") #ignore_negative 取值为 2|3 , 为 2 表示不忽略(diff结果)负值但忽略 null 值。为 3 时则表示忽略(diff结果)负值且忽略 null 值。
                 sql0 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func_0,self.table,self.table)
                 func = func.replace("num","%d" %n)
                 sql1 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func,self.table,self.table)
@@ -307,6 +344,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             func_desc = func # for desc
             func_0 = func
+            func_3 = func
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                
@@ -314,8 +352,9 @@ class TDTestQuery(TDCase):
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
 
                 stable_where = tdWhere.stable_where()
-                n = random.randrange(0,2) 
+                n = random.randrange(0,4) 
                 func_0 = func_0.replace(",num",",1") #ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative为1时表示忽略负数。
+                func_3 = func_3.replace(",num",",3") #ignore_negative 取值为 2|3 , 为 2 表示不忽略(diff结果)负值但忽略 null 值。为 3 时则表示忽略(diff结果)负值且忽略 null 值。
                 sql0 = 'select %s from %s;'  % (func_0,self.table)
                 func = func.replace("num","%d" %n)
                 sql1 = 'select %s as df from %s order by df,ts;'  % (func,self.table)
@@ -338,6 +377,11 @@ class TDTestQuery(TDCase):
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        sql2 = "select %s as df from %s where  %s %s %s order by df,ts" %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
                         
                         sql2 = "select * from (select %s as df  from %s where  %s %s %s order by df,ts)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
@@ -346,6 +390,11 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2                        
                         
                         sql2 = "select * from (select %s as df  from %s where  %s %s %s order by ts)" %(func_0,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+                        sql2 = "select * from (select %s as df  from %s where  %s %s %s order by ts)" %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
@@ -362,6 +411,11 @@ class TDTestQuery(TDCase):
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        sql2 = "select %s as df from (select * from %s where  %s %s %s ) order by df,ts" %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
                         
                         sql2 = "select %s as df  from (select * from %s where  %s %s %s order by ts) order by df" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
@@ -370,6 +424,11 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
                         
                         sql2 = "select %s as df  from (select * from %s where  %s %s %s order by ts) order by df" %(func_0,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+                        sql2 = "select %s as df  from (select * from %s where  %s %s %s order by ts) order by df" %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
@@ -386,6 +445,11 @@ class TDTestQuery(TDCase):
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        sql2 = "select %s as df  from (select * from %s) where  %s %s %s order by df,ts" %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
 
                         sql2 = "select %s as df  from (select * from %s where  %s %s %s ) order by df,ts" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
@@ -394,6 +458,11 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select %s as df  from (select * from %s where  %s %s %s ) order by df,ts" %(func_0,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+                        sql2 = "select %s as df  from (select * from %s where  %s %s %s ) order by df,ts" %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
@@ -410,10 +479,16 @@ class TDTestQuery(TDCase):
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        sql2 = "select %s as df  from (select * from %s where  %s %s %s order by ts ) order by df,ts" %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
                 
                 stable_where = tdWhere.stable_where()
-                n = random.randrange(0,2) 
+                n = random.randrange(0,4) 
                 func_0 = func_0.replace(",num",",1") #ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative为1时表示忽略负数。
+                func_3 = func_3.replace(",num",",3") #ignore_negative 取值为 2|3 , 为 2 表示不忽略(diff结果)负值但忽略 null 值。为 3 时则表示忽略(diff结果)负值且忽略 null 值。
                 sql0 = 'select %s from (select * from %s order by ts desc);'  % (func_0,self.table)
                 func_desc = func_desc.replace("num","%d" %n)
                 #sql1 = 'select %s as df from (select * from %s order by ts desc) order by df;'  % (func_desc,self.table)
@@ -437,6 +512,11 @@ class TDTestQuery(TDCase):
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        sql2 = "select %s as df from %s where  %s %s %s order by df,ts desc" %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
 
                         sql2 = "select * from (select %s as df from %s where  %s %s %s order by df,ts desc)" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
@@ -445,6 +525,11 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s as df from %s where  %s %s %s order by df,ts desc)" %(func_0,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+                        sql2 = "select * from (select %s as df from %s where  %s %s %s order by df,ts desc)" %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
@@ -461,6 +546,11 @@ class TDTestQuery(TDCase):
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        sql2 = "select %s as df from (select * from %s) where  %s %s %s order by df,ts desc" %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
 
                         sql2 = "select %s as df from (select * from %s where  %s %s %s ) order by df,ts desc" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
@@ -473,6 +563,11 @@ class TDTestQuery(TDCase):
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        sql2 = "select %s as df from (select * from %s where  %s %s %s order by ts desc) order by df,ts desc" %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
                         
                         sql2 = "select %s as df from (select * from %s where  %s %s %s ) order by df,ts desc" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
@@ -481,6 +576,11 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select %s as df from (select * from %s where  %s %s %s order by ts desc ) order by df,ts desc" %(func_0,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+                        sql2 = "select %s as df from (select * from %s where  %s %s %s order by ts desc ) order by df,ts desc" %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
@@ -509,6 +609,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             func_desc = func # for desc
             func_0 = func
+            func_3 = func
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)               
@@ -516,8 +617,9 @@ class TDTestQuery(TDCase):
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case2======\n\n\n" %i)
 
                 stable_where = tdWhere.stable_where()
-                n = random.randrange(0,2) 
+                n = random.randrange(0,4) 
                 func_0 = func_0.replace(",num",",1") #ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative为1时表示忽略负数。
+                func_3 = func_3.replace(",num",",3") #ignore_negative 取值为 2|3 , 为 2 表示不忽略(diff结果)负值但忽略 null 值。为 3 时则表示忽略(diff结果)负值且忽略 null 值。
                 sql0 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func,self.table,self.table)
                 func = func.replace("num","%d" %n)
                 sql1 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func,self.table,self.table)
@@ -562,8 +664,9 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
                 
                 stable_where = tdWhere.stable_where()
-                n = random.randrange(0,2) 
+                n = random.randrange(0,4) 
                 func_0 = func_0.replace(",num",",1") #ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative为1时表示忽略负数。
+                func_3 = func_3.replace(",num",",3") #ignore_negative 取值为 2|3 , 为 2 表示不忽略(diff结果)负值但忽略 null 值。为 3 时则表示忽略(diff结果)负值且忽略 null 值。
                 sql0 = "select %s from %s where tbname in ('%s_1')  group by tbname order by ts desc;"  % (func_0,self.table,self.table)
                 func_desc = func_desc.replace("num","%d" %n)
                 sql1 = "select %s from %s where tbname in ('%s_1')  group by tbname order by ts desc;"  % (func_desc,self.table,self.table)
@@ -626,6 +729,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             func_desc = func # for desc
             func_0 = func
+            func_3 = func
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)               
@@ -633,8 +737,9 @@ class TDTestQuery(TDCase):
                 self.logger.info("\n\n\n=======hanshu num = %d======error case========case2======\n\n\n" %i)
 
                 stable_where = tdWhere.stable_where()
-                n = random.randrange(0,2) 
+                n = random.randrange(0,4) 
                 func_0 = func_0.replace(",num",",1") #ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative为1时表示忽略负数。
+                func_3 = func_3.replace(",num",",3") #ignore_negative 取值为 2|3 , 为 2 表示不忽略(diff结果)负值但忽略 null 值。为 3 时则表示忽略(diff结果)负值且忽略 null 值。
                 sql0 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func_0,self.table,self.table)
                 func = func.replace("num","%d" %n)
                 sql1 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func,self.table,self.table)
@@ -723,6 +828,7 @@ class TDTestQuery(TDCase):
         for i in (13,):
             func = tdFunction.func_stable_special(i)
             func_0 = func
+            func_3 = func
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                
@@ -730,8 +836,9 @@ class TDTestQuery(TDCase):
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
-                n = random.randrange(0,2) 
+                n = random.randrange(0,4) 
                 func_0 = func_0.replace(",num",",1") #ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative为1时表示忽略负数。
+                func_3 = func_3.replace(",num",",3") #ignore_negative 取值为 2|3 , 为 2 表示不忽略(diff结果)负值但忽略 null 值。为 3 时则表示忽略(diff结果)负值且忽略 null 值。
                 sql0 = 'select %s from %s ;'  % (func_0,self.table)
                 func = func.replace("num","%d" %n)
                 sql1 = 'select %s as df from %s order by df ;'  % (func,self.table)
@@ -754,6 +861,11 @@ class TDTestQuery(TDCase):
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        sql2 = "select %s as df from %s where  %s %s %s order by df limit 1000 " %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
                         
                         sql2 = "select * from (select %s as df from %s where  %s %s %s order by df limit 1000)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
@@ -762,6 +874,11 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2   
                         
                         sql2 = "select * from (select %s as df from %s where  %s %s %s order by ts limit 1000)" %(func_0,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2   
+                        sql2 = "select * from (select %s as df from %s where  %s %s %s order by ts limit 1000)" %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
@@ -778,6 +895,11 @@ class TDTestQuery(TDCase):
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        sql2 = "select %s from (select * from %s where  %s %s %s order by ts limit 1000)" %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
                                                 
                         sql2 = "select %s as df from (select * from %s) where  %s %s %s order by df limit 1000" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
@@ -786,6 +908,11 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
                                                 
                         sql2 = "select %s as df from (select * from %s) where  %s %s %s order by df limit 1000" %(func_0,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+                        sql2 = "select %s as df from (select * from %s) where  %s %s %s order by df limit 1000" %(func_3,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
@@ -814,6 +941,7 @@ class TDTestQuery(TDCase):
         for i in (13,):
             func = tdFunction.func_stable_special(i)
             func_0 = func
+            func_3 = func
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                
@@ -821,8 +949,9 @@ class TDTestQuery(TDCase):
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case3======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
-                n = random.randrange(0,2) 
+                n = random.randrange(0,4) 
                 func_0 = func_0.replace(",num",",1") #ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative为1时表示忽略负数。
+                func_3 = func_3.replace(",num",",3") #ignore_negative 取值为 2|3 , 为 2 表示不忽略(diff结果)负值但忽略 null 值。为 3 时则表示忽略(diff结果)负值且忽略 null 值。
                 sql0 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func_0,self.table,self.table)
                 func = func.replace("num","%d" %n)
                 sql1 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func,self.table,self.table)
@@ -841,12 +970,18 @@ class TDTestQuery(TDCase):
                         sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts limit 1000" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
+                        sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts limit 1000" %(func_3,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdSql.error(sql2)
+                        sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname order by ts limit 1000)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname order by ts limit 1000)" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdSql.error(sql2)
+                        sql= sql + sql2
+                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname order by ts limit 1000)" %(func_3,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
@@ -875,6 +1010,7 @@ class TDTestQuery(TDCase):
         for i in (13,):
             func = tdFunction.func_stable_special(i)
             func_0 = func
+            func_3 = func
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)               
@@ -882,8 +1018,9 @@ class TDTestQuery(TDCase):
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
-                n = random.randrange(0,2) 
+                n = random.randrange(0,4) 
                 func_0 = func_0.replace(",num",",1") #ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative为1时表示忽略负数。
+                func_3 = func_3.replace(",num",",3") #ignore_negative 取值为 2|3 , 为 2 表示不忽略(diff结果)负值但忽略 null 值。为 3 时则表示忽略(diff结果)负值且忽略 null 值。
                 sql0 = "select %s from %s where tbname in ('%s_1') ;"  % (func_0,self.table,self.table)
                 func = func.replace("num","%d" %n)
                 sql1 = "select %s from %s where tbname in ('%s_1') ;"  % (func,self.table,self.table)
@@ -906,6 +1043,11 @@ class TDTestQuery(TDCase):
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        sql2 = "select %s from %s where  tbname in ('%s_1') and   %s %s %s order by ts limit 1000" %(func_3,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where  tbname in ('%s_1') and   %s %s %s order by ts limit 1000)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
@@ -918,6 +1060,11 @@ class TDTestQuery(TDCase):
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        sql2 = "select * from (select %s from %s where  tbname in ('%s_1') and   %s %s %s order by ts limit 1000)" %(func_3,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s) where  loc in ('%s_1') and   %s %s %s order by ts limit 1000" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
@@ -926,6 +1073,11 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s) where  loc in ('%s_1') and   %s %s %s order by ts limit 1000" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+                        sql2 = "select %s from (select * from %s) where  loc in ('%s_1') and   %s %s %s order by ts limit 1000" %(func_3,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,5,0,'GE',-0)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)

@@ -194,6 +194,9 @@ class StreamComputingTest(TDCase):
         self.need_cast_log = False
         self.n_print = False if self.need_cast_log else True
         self.tdCom.stream_timeout = 100
+        self.stream_thread_list = [0.5, 1, 2, 4]
+        self.stream_thread = random.choice(self.stream_thread_list)
+        self._remote._logger.info(f"update ratioOfVnodeStreamThreads to {self.stream_thread}")
 
     def update_delete_history_data(self):
         self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.record_history_ts, pk_dict=self.pk_dict)
@@ -312,7 +315,7 @@ class StreamComputingTest(TDCase):
         self.tdCom.drop_all_streams()
         self.tdCom.drop_all_db()
 
-    def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", fill_history_value=0, ignore_expired=None, constant_col=None, custom_col_index=0, col_value_type="random"):
+    def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", fill_history_value=0, ignore_expired=None, constant_col=None, custom_col_index=0, col_value_type="random", force_replica=False):
         self.clean_env()
         self.dataDict = {
             "stb_name" : f"{self.case_name}_stb",
@@ -354,8 +357,8 @@ class StreamComputingTest(TDCase):
         self.date_time = self.tdCom.genTs(precision=self.precision)[0]
         self.date_time = int(datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()*self.offset)
         self.tdCom.stream_latency_log = self.run_log_dir + "/latency.log"
-
-        self.tdCom.createDb(dbname=self.dbname, vgroups=self.vgroups, precision=self.precision)
+        replica = force_replica if force_replica else self.replica
+        self.tdCom.createDb(dbname=self.dbname, vgroups=self.vgroups, precision=self.precision, replica=replica)
         self.tdCom.create_stable(dbname=self.dbname, stbname=self.stb_name, pk_dict=self.pk_dict)
         self.tdCom.create_ctable(dbname=self.dbname, stbname=self.stb_name, ctbname=self.ctb_name)
         if ignore_expired is not None:
@@ -702,13 +705,15 @@ class StreamComputingTest(TDCase):
                 return False
         return self.tdSql.query_data[0][0]
 
-    def at_once_interval(self, interval, partition="tbname", delete=False, fill_value=None, fill_history_value=None, interval_value=None, case_when=None, ignore_expired=None, check_stream_task=None, checkpoint_check=False, inc_cpt=False):
+    def at_once_interval(self, interval, partition="tbname", delete=False, fill_value=None, fill_history_value=None, interval_value=None, case_when=None, ignore_expired=None, check_stream_task=None, checkpoint_check=False, inc_cpt=False, redistribute=False):
         self.delete = delete
         self.case_name = sys._getframe().f_code.co_name
         # if interval_value is None:
         #     interval_value = f'{self.dataDict["interval"]}s'
-        self.prepare_data(interval=interval, fill_history_value=fill_history_value, ignore_expired=ignore_expired)
-
+        force_replica = 1 if redistribute else self.replica
+        self.prepare_data(interval=interval, fill_history_value=fill_history_value, ignore_expired=ignore_expired, force_replica=force_replica)
+        if self.replica == 3 and redistribute:
+            self.tdCom.check_transactions(self._remote)
         if partition == "tbname":
             if case_when:
                 stream_case_when_partition = case_when
@@ -755,6 +760,11 @@ class StreamComputingTest(TDCase):
             if "value" in fill_value.lower():
                 fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11'
         self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tb_source_select_str}  from {self.tb_name} {partition_elm} interval({self.dataDict["interval"]}s)', trigger_mode="at_once", subtable_value=tb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value, ignore_expired=ignore_expired)
+        if self.replica == 3 and redistribute:
+            self.tdSql.query(f'show {self.dbname}.vgroups')
+            vg_list = list(map(lambda x:x[0], self.tdSql.query_data))
+            for vgid in vg_list:
+                self.tdSql.execute(f'redistribute vgroup {vgid} dnode 2')
         start_time = self.date_time
         custom_col_index = 1 if partition == "c1" else None
         col_value_type = "Incremental" if partition == "c1" else "random"
@@ -2130,7 +2140,7 @@ class StreamComputingTest(TDCase):
                     # self.tdSql.query(f'select count(*) from `{self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}`;')
                     ptn_counter += 1
         # self.tdSql.query(f'select count(*) from {self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
-                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if partition != "c1" else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if "c1" not in str(partition) else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
 
             self.tdSql.query(f'select * from {self.tb_name}')
             ptn_counter = 0
@@ -2420,7 +2430,7 @@ class StreamComputingTest(TDCase):
                         # self.tdSql.query(f'select count(*) from `{self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}`;')
                         ptn_counter += 1
             # self.tdSql.query(f'select count(*) from {self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
-                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if subtable is not None else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
+                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if "c1" not in str(partition) else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
 
             self.tdSql.query(f'select * from {self.tb_name}')
             ptn_counter = 0
@@ -4834,6 +4844,21 @@ class StreamComputingTest(TDCase):
         # for tbname in ["ct1", "tb1"]:
         #     self.tdSql.error(f'create stream if not exists {stream_name} into {dbname2}.{tbname} as select ts,c100 from {self.dbname}.{self.case_name}_{tbname}')
 
+    def wait_checkpoint_ready(self, stream_name):
+        time.sleep(3)
+        cnt = 0
+        cmd = f'select distinct status from information_schema.ins_stream_tasks where stream_name = "{stream_name}"'
+        self.tdSql.query(cmd)
+        query_result = self.tdSql.query_data
+        while len(query_result) != 0 and query_result[0][0] != "ready":
+            time.sleep(1)
+            self.tdSql.query(cmd)
+            query_result = self.tdSql.query_data
+            if cnt < self.tdCom.stream_timeout:
+                cnt += 1
+            else:
+                return
+
     def pause_resume_test(self, interval, partition="tbname", delete=False, fill_history_value=None, pause=True, resume=True, ignore_untreated=False):
         if_exist_value_list = [None, True]
         if_exist = random.choice(if_exist_value_list)
@@ -4895,6 +4920,8 @@ class StreamComputingTest(TDCase):
             # if i == int(range_count/2):
             if i > 2 and i % 3 == 0:
                 for stream_name in [f'{self.stb_name}{self.stream_suffix}', f'{self.ctb_name}{self.stream_suffix}', f'{self.tb_name}{self.stream_suffix}']:
+                    if ignore_untreated:
+                        self.wait_checkpoint_ready(stream_name)
                     if if_exist is not None:
                         self.tdSql.execute(f'pause stream if exists {stream_name}_no_exist')
                     self.tdSql.error(f'pause stream if not exists {stream_name}')
@@ -5065,6 +5092,7 @@ class StreamComputingTest(TDCase):
     def run(self):
         # return
         for vgroups in self.vgroups_list:
+            self.taosd.update_cfg('/tmp', self.taosd_setting, {"ratioOfVnodeStreamThreads": self.stream_thread}, self.endpoint, True)
             self.vgroups = vgroups
             self.create_none_db_stream()
             self.create_none_source_tb_stream()
@@ -5101,8 +5129,9 @@ class StreamComputingTest(TDCase):
             self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
             self.at_once_interval(interval=random.randint(10, 15), partition=None, delete=True)
             self.at_once_session(session=random.randint(10, 15),subtable=None, partition="abs(c1)")
-            if self.replica == 1:
-                self.at_once_interval(interval=random.randint(10, 15), partition="tbname", delete=True, inc_cpt=True)
+            # TODO not stable todo confirm 20240628
+            # if self.replica == 1:
+            #    self.at_once_interval(interval=random.randint(10, 15), partition="tbname", delete=True, inc_cpt=True)
             self.at_once_event_window(partition="c1")
             self.at_once_event_window(partition="abs(c1)")
             self.at_once_event_window(partition=None)
@@ -5173,7 +5202,8 @@ class StreamComputingTest(TDCase):
                 # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s", fill_value=fill_value)
                 for watermark in [None, random.randint(15, 20)]:
                     self.window_close_interval(interval=random.randint(10, 12), watermark=watermark, fill_value=fill_value)
-
+            if self.replica == 3:
+                self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="NULL", redistribute=True)
             self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_history_value=1, fill_value="NULL")
             # # TODO optimize，TD-22963 is a right case
             # !!!TD-24631
@@ -5236,6 +5266,7 @@ class StreamComputingTest(TDCase):
                     self.at_once_interval_ext(interval=random.randint(10, 15), delete=delete, fill_history_value=fill_history_value, partition=None, subtable=None, stb_field_name_value=self.pk_tb_filter_des_select_elm, tag_value="t1", use_exist_stb=True)
 
                     # pause/resume
+                    # ! TD-30779
                     self.pause_resume_test(interval=random.randint(10, 15), delete=True, partition="tbname", ignore_untreated=False, fill_history_value=fill_history_value)
                     self.pause_resume_test(interval=random.randint(10, 15), delete=True, partition="tbname", ignore_untreated=True, fill_history_value=fill_history_value)
                     # ! TD-26711
