@@ -752,8 +752,6 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
     return 0;
   }
 
-  ASSERT(pTask->msgInfo.pData == NULL);
-
   if (pTask->msgInfo.pData != NULL) {
     stFatal("s-task:%s not rsp data:%p exist, should not dispatch msg now", id, pTask->msgInfo.pData);
   } else {
