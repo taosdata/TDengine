@@ -272,19 +272,19 @@ bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
     }                                                                \
   } while (0)
 
-#define ASYNC_CHECK_HANDLE(exh1, id)                                \
-  do {                                                              \
-    if (id > 0) {                                                   \
-      SExHandle* exh2 = transAcquireExHandle(transGetRefMgt(), id); \
-      if (exh2 == NULL || id != exh2->refId) {                      \
-        tDebug("ref:%" PRId64 " already released" PRIu64, id);      \
-        code = terrno;                                              \
-        goto _return1;                                              \
-      }                                                             \
-    } else {                                                        \
-      tWarn("invalid handle to release");                           \
-      goto _return2;                                                \
-    }                                                               \
+#define ASYNC_CHECK_HANDLE(exh1, id)                                   \
+  do {                                                                 \
+    if (id > 0) {                                                      \
+      SExHandle* exh2 = transAcquireExHandle(transGetSvrRefMgt(), id); \
+      if (exh2 == NULL || id != exh2->refId) {                         \
+        tDebug("ref:%" PRId64 " already released", id);                \
+        code = terrno;                                                 \
+        goto _return1;                                                 \
+      }                                                                \
+    } else {                                                           \
+      tWarn("invalid handle to release");                              \
+      goto _return2;                                                   \
+    }                                                                  \
   } while (0)
 
 int32_t transInitBuffer(SConnBuffer* buf);
