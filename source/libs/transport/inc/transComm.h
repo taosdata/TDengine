@@ -282,7 +282,7 @@ bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
         goto _return1;                                                 \
       }                                                                \
     } else {                                                           \
-      tWarn("invalid handle to release");                              \
+      tDebug("invalid handle to release");                             \
       goto _return2;                                                   \
     }                                                                  \
   } while (0)
