@@ -6784,6 +6784,10 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
 }
 
 static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (pCxt->pParseCxt && pCxt->pParseCxt->setQueryFp) {
+    (*pCxt->pParseCxt->setQueryFp)(pCxt->pParseCxt->requestRid);
+  }
+  
   if (NULL == pSelect->pFromTable) {
     return translateSelectWithoutFrom(pCxt, pSelect);
   } else {
@@ -6908,6 +6912,10 @@ static int32_t checkSetOperLimit(STranslateContext* pCxt, SLimitNode* pLimit) {
 }
 
 static int32_t translateSetOperator(STranslateContext* pCxt, SSetOperator* pSetOperator) {
+  if (pCxt->pParseCxt && pCxt->pParseCxt->setQueryFp) {
+    (*pCxt->pParseCxt->setQueryFp)(pCxt->pParseCxt->requestRid);
+  }
+
   int32_t code = translateQuery(pCxt, pSetOperator->pLeft);
   if (TSDB_CODE_SUCCESS == code) {
     code = resetHighLevelTranslateNamespace(pCxt);
