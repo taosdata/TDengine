@@ -128,8 +128,7 @@ void vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {
     if (vnode == NULL) {
       r = taos_counter_delete(tsInsertCounter, keys[i]);
       if (r) {
-        dError("failed to delete key:%s", keys[i]);
-        return;
+        dError("failed to delete monitor sample key:%s", keys[i]);
       }
     }
   }

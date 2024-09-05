@@ -135,7 +135,7 @@ void dmSendMonitorReport() {
 }
 
 void dmMonitorCleanExpiredSamples() {
-  if (!tsEnableMonitor) return;
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
   dTrace("clean monitor expired samples");
 
   SDnode *pDnode = dmInstance();
