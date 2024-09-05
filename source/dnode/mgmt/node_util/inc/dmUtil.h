@@ -116,6 +116,7 @@ typedef enum {
 typedef int32_t (*ProcessCreateNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef int32_t (*ProcessDropNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef void (*SendMonitorReportFp)();
+typedef void (*MonitorCleanExpiredSamplesFp)();
 typedef void (*SendAuditRecordsFp)();
 typedef void (*GetVnodeLoadsFp)(SMonVloadInfo *pInfo);
 typedef void (*GetMnodeLoadsFp)(SMonMloadInfo *pInfo);
@@ -146,21 +147,22 @@ typedef struct {
 } SDnodeData;
 
 typedef struct {
-  const char            *path;
-  const char            *name;
-  STfs                  *pTfs;
-  SDnodeData            *pData;
-  SMsgCb                 msgCb;
-  ProcessCreateNodeFp    processCreateNodeFp;
-  ProcessAlterNodeTypeFp processAlterNodeTypeFp;
-  ProcessDropNodeFp      processDropNodeFp;
-  SendMonitorReportFp    sendMonitorReportFp;
-  SendAuditRecordsFp     sendAuditRecordFp;
-  GetVnodeLoadsFp        getVnodeLoadsFp;
-  GetVnodeLoadsFp        getVnodeLoadsLiteFp;
-  GetMnodeLoadsFp        getMnodeLoadsFp;
-  GetQnodeLoadsFp        getQnodeLoadsFp;
-  StopDnodeFp            stopDnodeFp;
+  const char                  *path;
+  const char                  *name;
+  STfs                        *pTfs;
+  SDnodeData                  *pData;
+  SMsgCb                       msgCb;
+  ProcessCreateNodeFp          processCreateNodeFp;
+  ProcessAlterNodeTypeFp       processAlterNodeTypeFp;
+  ProcessDropNodeFp            processDropNodeFp;
+  SendMonitorReportFp          sendMonitorReportFp;
+  MonitorCleanExpiredSamplesFp monitorCleanExpiredSamplesFp;
+  SendAuditRecordsFp           sendAuditRecordFp;
+  GetVnodeLoadsFp              getVnodeLoadsFp;
+  GetVnodeLoadsFp              getVnodeLoadsLiteFp;
+  GetMnodeLoadsFp              getMnodeLoadsFp;
+  GetQnodeLoadsFp              getQnodeLoadsFp;
+  StopDnodeFp                  stopDnodeFp;
 } SMgmtInputOpt;
 
 typedef struct {

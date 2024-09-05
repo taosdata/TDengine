@@ -39,6 +39,8 @@ void vmGetVnodeLoadsLite(void *pMgmt, SMonVloadInfo *pInfo);
 void mmGetMnodeLoads(void *pMgmt, SMonMloadInfo *pInfo);
 void qmGetQnodeLoads(void *pMgmt, SQnodeLoad *pInfo);
 
+void vmCleanExpriedSamples(void *pMgmt);
+
 #ifdef __cplusplus
 }
 #endif
