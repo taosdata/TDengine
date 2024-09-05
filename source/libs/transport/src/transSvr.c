@@ -475,10 +475,10 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pTransInst), transMsg.info.handle, pConn,
           pConn->refId);
-  if (transMsg.info.handle == NULL) {
-    tError("%s handle %p conn:%p handle failed to init" PRIu64, transLabel(pTransInst), transMsg.info.handle, pConn);
-    return false;
-  }
+  // if (transMsg.info.handle == NULL) {
+  //   tError("%s handle %p conn:%p handle failed to init" PRIu64, transLabel(pTransInst), transMsg.info.handle, pConn);
+  //   return false;
+  // }
 
   if (pHead->noResp == 1) {
     transMsg.info.refId = -1;
