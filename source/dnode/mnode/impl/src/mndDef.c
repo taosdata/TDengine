@@ -294,8 +294,8 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t upda
     pConsumer->autoCommit = subscribe->autoCommit;
     pConsumer->autoCommitInterval = subscribe->autoCommitInterval;
     pConsumer->resetOffsetCfg = subscribe->resetOffsetCfg;
-    tstrncpy(pConsumer->user, subscribe.user, TSDB_USER_LEN);
-    tstrncpy(pConsumer->fqdn, subscribe.fqdn, TSDB_FQDN_LEN);
+    tstrncpy(pConsumer->user, subscribe->user, TSDB_USER_LEN);
+    tstrncpy(pConsumer->fqdn, subscribe->fqdn, TSDB_FQDN_LEN);
 
     pConsumer->rebNewTopics = taosArrayDup(subscribe->topicNames, topicNameDup);
     if (pConsumer->rebNewTopics == NULL){
