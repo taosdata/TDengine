@@ -143,8 +143,8 @@ void vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {
     }
   }
   (void)taosThreadRwlockUnlock(&pMgmt->lock);
-  taosMemoryFree(vgroup_ids);
-  taosMemoryFree(keys);
+  if (vgroup_ids) taosMemoryFree(vgroup_ids);
+  if (keys) taosMemoryFree(keys);
   return;
 }
 
