@@ -59,13 +59,17 @@ export default {
       requestIng: false,
       roles: [],
       userList: [],
-      rules:{
+    };
+  },
+  computed: {
+    rules(){
+      return {
         user_name: [{
           required: true,
           message: this.$t("pleaseSelect") + this.$t('user')
         }]
       }
-    };
+    }
   },
   created() {
     this.getUsers();
