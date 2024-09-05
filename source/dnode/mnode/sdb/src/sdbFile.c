@@ -258,8 +258,11 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   if (code != 0) {
     mError("failed to read sdb file:%s head since %s", file, tstrerror(code));
     taosMemoryFree(pRaw);
-    (void)taosCloseFile(&pFile);
-    return -1;
+    int32_t ret = 0;
+    if ((ret = taosCloseFile(&pFile)) != 0) {
+      mError("failed to close sdb file:%s since %s", file, tstrerror(ret));
+    }
+    return code;
   }
 
   int64_t tableVer[SDB_MAX] = {0};
@@ -361,7 +364,10 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
         pSdb->commitTerm, pSdb->commitConfig);
 
 _OVER:
-  (void)taosCloseFile(&pFile);
+  int32_t ret = 0;
+  if ((ret = taosCloseFile(&pFile)) != 0) {
+    mError("failed to close sdb file:%s since %s", file, tstrerror(ret));
+  }
   sdbFreeRaw(pRaw);
 
   TAOS_RETURN(code);
@@ -404,8 +410,11 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
   code = sdbWriteFileHead(pSdb, pFile);
   if (code != 0) {
     mError("failed to write sdb file:%s head since %s", tmpfile, tstrerror(code));
-    (void)taosCloseFile(&pFile);
-    return -1;
+    int32_t ret = 0;
+    if ((ret = taosCloseFile(&pFile)) != 0) {
+      mError("failed to close sdb file:%s since %s", tmpfile, tstrerror(ret));
+    }
+    return code;
   }
 
   for (int32_t i = SDB_MAX - 1; i >= 0; --i) {
@@ -613,12 +622,18 @@ static void sdbCloseIter(SSdbIter *pIter) {
   if (pIter == NULL) return;
 
   if (pIter->file != NULL) {
-    (void)taosCloseFile(&pIter->file);
+    int32_t ret = 0;
+    if ((ret = taosCloseFile(&pIter->file)) != 0) {
+      mError("failed to close sdb file since %s", tstrerror(ret));
+    }
     pIter->file = NULL;
   }
 
   if (pIter->name != NULL) {
-    (void)taosRemoveFile(pIter->name);
+    int32_t ret = 0;
+    if ((ret = taosRemoveFile(pIter->name)) != 0) {
+      mError("failed to remove sdb file:%s since %s", pIter->name, tstrerror(ret));
+    }
     taosMemoryFree(pIter->name);
     pIter->name = NULL;
   }
