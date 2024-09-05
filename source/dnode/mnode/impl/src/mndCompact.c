@@ -260,7 +260,11 @@ int32_t mndAddCompactToTran(SMnode *pMnode, STrans *pTrans, SCompactObj *pCompac
     sdbFreeRaw(pVgRaw);
     TAOS_RETURN(code);
   }
-  (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+
+  if ((code = sdbSetRawStatus(pVgRaw, SDB_STATUS_READY)) != 0) {
+    sdbFreeRaw(pVgRaw);
+    TAOS_RETURN(code);
+  }
 
   rsp->compactId = pCompact->compactId;
 
@@ -349,7 +353,10 @@ static void *mndBuildKillCompactReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *pC
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
 
-  (void)tSerializeSVKillCompactReq((char *)pReq + sizeof(SMsgHead), contLen, &req);
+  if ((contLen = tSerializeSVKillCompactReq((char *)pReq + sizeof(SMsgHead), contLen, &req)) <= 0) {
+    terrno = contLen;
+    return NULL;
+  }
   *pContLen = contLen;
   return pReq;
 }
@@ -413,7 +420,10 @@ static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompa
     mndTransDrop(pTrans);
     TAOS_RETURN(code);
   }
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY)) != 0) {
+    mndTransDrop(pTrans);
+    TAOS_RETURN(code);
+  }
 
   void *pIter = NULL;
   while (1) {
@@ -606,7 +616,11 @@ void mndCompactSendProgressReq(SMnode *pMnode, SCompactObj *pCompact) {
       pHead->contLen = htonl(contLen);
       pHead->vgId = htonl(pDetail->vgId);
 
-      (void)tSerializeSQueryCompactProgressReq((char *)pHead + sizeof(SMsgHead), contLen - sizeof(SMsgHead), &req);
+      if ((contLen = tSerializeSQueryCompactProgressReq((char *)pHead + sizeof(SMsgHead), contLen - sizeof(SMsgHead),
+                                                        &req)) <= 0) {
+        sdbRelease(pMnode->pSdb, pDetail);
+        continue;
+      }
 
       SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_COMPACT_PROGRESS, .contLen = contLen};
 
@@ -711,7 +725,12 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
         mndTransDrop(pTrans);
         TAOS_RETURN(code);
       }
-      (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+      if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY)) != 0) {
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        sdbRelease(pMnode->pSdb, pDetail);
+        mndTransDrop(pTrans);
+        TAOS_RETURN(code);
+      }
     }
 
     sdbRelease(pMnode->pSdb, pDetail);
@@ -774,7 +793,12 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
           mndTransDrop(pTrans);
           TAOS_RETURN(code);
         }
-        (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+        if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED)) != 0) {
+          sdbCancelFetch(pMnode->pSdb, pIter);
+          sdbRelease(pMnode->pSdb, pDetail);
+          mndTransDrop(pTrans);
+          TAOS_RETURN(code);
+        }
         mInfo("compact:%d, add drop compactdetail action", pDetail->compactDetailId);
       }
 
@@ -801,7 +825,11 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
       mndTransDrop(pTrans);
       TAOS_RETURN(code);
     }
-    (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+    if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED)) != 0) {
+      mError("compact:%d, trans:%d, failed to append commit log since %s", compactId, pTrans->id, terrstr());
+      mndTransDrop(pTrans);
+      TAOS_RETURN(code);
+    }
     mInfo("compact:%d, add drop compact action", pCompact->compactId);
   }
 

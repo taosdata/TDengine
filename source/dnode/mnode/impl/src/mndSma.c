@@ -368,14 +368,18 @@ static void *mndBuildVDropSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSma,
   SEncoder encoder = {0};
   int32_t  contLen;
   SName    name = {0};
-  (void)tNameFromString(&name, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  int32_t  ret = 0;
+
+  if ((ret = tNameFromString(&name, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) {
+    terrno = ret;
+    return NULL;
+  }
 
   SVDropTSmaReq req = {0};
   req.indexUid = pSma->uid;
   tstrncpy(req.indexName, (char *)tNameGetTableName(&name), TSDB_INDEX_NAME_LEN);
 
   // get length
-  int32_t ret = 0;
   tEncodeSize(tEncodeSVDropTSmaReq, &req, contLen, ret);
   if (ret < 0) {
     return NULL;
@@ -1669,7 +1673,7 @@ static int32_t mndSetUpdateDbTsmaVersionPrepareLogs(SMnode *pMnode, STrans *pTra
     TAOS_RETURN(code);
   }
 
-  (void)sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
+  TAOS_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY));
   TAOS_RETURN(code);
 }
 
@@ -1686,7 +1690,7 @@ static int32_t mndSetUpdateDbTsmaVersionCommitLogs(SMnode *pMnode, STrans *pTran
     TAOS_RETURN(code);
   }
 
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  TAOS_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
   TAOS_RETURN(code);
 }
 

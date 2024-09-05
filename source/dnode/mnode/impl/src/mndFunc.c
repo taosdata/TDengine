@@ -375,7 +375,7 @@ static int32_t mndDropFunc(SMnode *pMnode, SRpcMsg *pReq, SFuncObj *pFunc) {
     goto _OVER;
   }
   TAOS_CHECK_GOTO(mndTransAppendRedolog(pTrans, pRedoRaw), NULL, _OVER);
-  (void)sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING), NULL, _OVER);
 
   SSdbRaw *pUndoRaw = mndFuncActionEncode(pFunc);
   if (pUndoRaw == NULL) {
@@ -384,7 +384,7 @@ static int32_t mndDropFunc(SMnode *pMnode, SRpcMsg *pReq, SFuncObj *pFunc) {
     goto _OVER;
   }
   TAOS_CHECK_GOTO(mndTransAppendUndolog(pTrans, pUndoRaw), NULL, _OVER);
-  (void)sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY), NULL, _OVER);
 
   SSdbRaw *pCommitRaw = mndFuncActionEncode(pFunc);
   if (pCommitRaw == NULL) {
@@ -393,7 +393,7 @@ static int32_t mndDropFunc(SMnode *pMnode, SRpcMsg *pReq, SFuncObj *pFunc) {
     goto _OVER;
   }
   TAOS_CHECK_GOTO(mndTransAppendCommitlog(pTrans, pCommitRaw), NULL, _OVER);
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED), NULL, _OVER);
 
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
@@ -598,7 +598,10 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
     goto RETRIEVE_FUNC_OVER;
   }
 
-  (void)tSerializeSRetrieveFuncRsp(pRsp, contLen, &retrieveRsp);
+  if ((contLen = tSerializeSRetrieveFuncRsp(pRsp, contLen, &retrieveRsp)) <= 0) {
+    code = contLen;
+    goto RETRIEVE_FUNC_OVER;
+  }
 
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = contLen;
