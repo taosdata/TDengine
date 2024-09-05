@@ -2404,7 +2404,7 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
     }
     if(buf == NULL) {
       uError("failed to decode null bitmap/offset, type:%d", data.info.type);
-      return NULL;
+      goto _error;
     }
 
     int32_t len = 0;
@@ -2412,7 +2412,7 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
     buf = taosDecodeBinary(buf, (void**)&data.pData, len);
     if (buf == NULL) {
       uError("failed to decode data, type:%d", data.info.type);
-      return NULL;
+      goto _error;
     }
     if (IS_VAR_DATA_TYPE(data.info.type)) {
       data.varmeta.length = len;
