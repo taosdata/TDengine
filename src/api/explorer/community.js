@@ -4343,21 +4343,6 @@ export function getDataSources(lang) {
                 "description": "Identifies a client.",
                 "placeholder": "For example: TDengine",
               },
-              {
-                "name": "compressors",
-                "display": "Compressor",
-                "hint": {
-                  "type": "str",
-                  "choices": [
-                    "snappy",
-                    "zlib",
-                    "zstd"
-                  ]
-                },
-                "short_description": "Used to compress messages sent to the server and decompress messages received from the server.",
-                "description": "Used to compress messages sent to the server and decompress messages received from the server.",
-                "placeholder": "Please select a compressor",
-              }
             ]
           },
           {
@@ -8898,21 +8883,6 @@ export function getDataSources(lang) {
                 "description": "用于标识客户端。",
                 "placeholder": "示例: TDengine",
               },
-              {
-                "name": "compressors",
-                "display": "压缩器",
-                "hint": {
-                  "type": "str",
-                  "choices": [
-                    "snappy",
-                    "zlib",
-                    "zstd"
-                  ]
-                },
-                "short_description": "用于压缩发送到服务器的消息和解压缩从服务器接收的消息。",
-                "description": "用于压缩发送到服务器的消息和解压缩从服务器接收的消息。",
-                "placeholder": "请选择压缩器",
-              }
             ]
           },
           {
