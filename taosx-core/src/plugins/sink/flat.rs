@@ -1638,12 +1638,12 @@ pub async fn ipc_flat_stream_worker_concurrent(
                                 ),
                             };
                             ack_tx.send_async(ack).await.context("ACK writer error")?;
-                            if ipc_error_strategy.will_stop() {
-                                cancel.cancel();
-                                Err(err).context("write batch error")?;
-                            } else if let Err(_) =
+                            if let Err(_) =
                                 notifier.send(crate::TaskNotify::Error(format!("{:#}", err)))
                             {
+                                cancel.cancel();
+                                Err(err).context("write batch error")?;
+                            } else if ipc_error_strategy.will_stop() {
                                 cancel.cancel();
                                 Err(err).context("write batch error")?;
                             } else {
