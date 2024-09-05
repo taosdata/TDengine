@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -91,11 +92,25 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 /// }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create mongodb query
-    let config = MongoDBConfig::from_dsn(dsn)?;
+    let mut config = MongoDBConfig::from_dsn(dsn)?;
     let mut query = MongoDBQuery::try_new(config.connect).await?;
 
     // results
     let mut input_sample: Vec<LinkedHashMap<String, String>> = Vec::new();
+
+    // replace subtable fields
+    let placeholders = config
+        .task
+        .subtable_fields
+        .iter()
+        .map(|(k, v)| (k.clone(), v.replace("${v}", "{\"$ne\":\"\"}")))
+        .collect::<HashMap<String, String>>();
+    for (key, value) in placeholders.iter() {
+        config.task.sql = config
+            .task
+            .sql
+            .replace(&format!("${{{}}}", key), &value.to_string());
+    }
 
     // generate filter
     let database = config.task.generate_database()?;

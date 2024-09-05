@@ -1,5 +1,5 @@
 use std::cmp;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -111,7 +111,7 @@ pub async fn migrate_history_by_subtable(
     // generate placeholders
     let mut placeholders = HashMap::new();
     for (k, v) in filters.iter() {
-        let placeholder = config.task.sql_placeholder.get(k);
+        let placeholder = config.task.subtable_fields.get(k);
         if let Some(placeholder) = placeholder {
             let vec = v
                 .iter()
@@ -126,7 +126,7 @@ pub async fn migrate_history_by_subtable(
         &placeholders,
         &config.task.sql,
         0,
-        HashMap::new(),
+        BTreeMap::new(),
         &mut combinations,
     );
 
@@ -135,14 +135,16 @@ pub async fn migrate_history_by_subtable(
     let cancel_clone = cancel.clone();
     let future_migrate = async move {
         let semaphore = Arc::new(Semaphore::new(concurrency));
-        for sql in combinations {
+        for sub_sql in combinations {
             let semaphore = semaphore.clone();
             // Acquire permit before sending request.
             let _permit = semaphore.acquire_owned().await.unwrap();
             // modify config and produce task
             let cancel_clone = cancel_clone.clone();
             let mut config_clone = config.clone();
-            config_clone.task.sql = sql;
+            config_clone.task.sql = sub_sql.sql;
+            config_clone.sub_task_id =
+                Some(format!("{MIGRATE_TASK_PREFIX}-{}", sub_sql.sub_values));
             let _ = tokio::spawn(async move {
                 // do migrate
                 let _ = migrate_history_by_interval(config_clone, cancel_clone).await;
@@ -178,8 +180,7 @@ pub async fn migrate_history_by_interval(
 
     let (tx, rx) = flume::bounded(0);
     // set sub task id
-    let mut config_clone = config.clone();
-    config_clone.sub_task_id = Some(format!("{MIGRATE_TASK_PREFIX}-{}", config_clone.task.sql));
+    let config_clone = config.clone();
     // consumer
     let consumer =
         tokio::spawn(async move { Consumer::new(config_clone, schema).consume(rx).await });
@@ -259,9 +260,9 @@ pub async fn get_all_distinct_values(
 
         if current_database != database || current_collection != collection {
             // get distinct values
-            if config.task.sql_placeholder.len() > 0 {
+            if config.task.subtable_fields.len() > 0 {
                 // such as: {\"sys_sn\":\"\\\"sys_sn\\\":${v}\",\"sys_so\":\"\\\"sys_so\\\":${v}\"}, use sys_sn as distinct
-                for (k, _) in config.task.sql_placeholder.iter() {
+                for (k, _) in config.task.subtable_fields.iter() {
                     let values = query
                         .select_distinct_values(&database, &collection, k)
                         .await?;
@@ -293,19 +294,31 @@ pub async fn get_all_distinct_values(
     Ok(filters)
 }
 
+struct SubSql {
+    sql: String,
+    sub_values: String,
+}
+
 fn generate_combinations(
     data: &HashMap<&String, Vec<String>>,
     template: &String,
     index: usize,
-    current_values: HashMap<&str, String>,
-    result: &mut Vec<String>,
+    current_values: BTreeMap<&str, String>,
+    result: &mut Vec<SubSql>,
 ) {
     if index == data.len() {
         let mut filled_template = template.to_string();
         for (key, value) in current_values.iter() {
             filled_template = filled_template.replace(&format!("${{{}}}", key), &value.to_string());
         }
-        result.push(filled_template);
+        result.push(SubSql {
+            sql: filled_template,
+            sub_values: current_values
+                .iter()
+                .map(|(_, v)| format!("{}", v))
+                .collect::<Vec<String>>()
+                .join(","),
+        });
         return;
     }
 
