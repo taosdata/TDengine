@@ -127,6 +127,9 @@ int32_t TEST_char2ts(const char* format, int64_t* ts, int32_t precision, const c
 /// @return 0 success, other fail
 int32_t offsetOfTimezone(char* tzStr, int64_t* offset);
 
+bool checkRecursiveTsmaInterval(int64_t baseInterval, int8_t baseUnit, int64_t interval, int8_t unit, int8_t precision,
+                                bool checkEq);
+
 #ifdef __cplusplus
 }
 #endif

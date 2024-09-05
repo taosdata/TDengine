@@ -60,6 +60,7 @@ typedef struct SExprNode {
   bool      orderAlias;
   bool      asAlias;
   bool      asParam;
+  int32_t   projIdx;
 } SExprNode;
 
 typedef enum EColumnType {
@@ -90,6 +91,8 @@ typedef struct SColumnNode {
   int16_t     numOfPKs;
   bool        tableHasPk;
   bool        isPk;
+  int32_t     projRefIdx;
+  int32_t     resIdx;
 } SColumnNode;
 
 typedef struct SColumnRefNode {
@@ -206,6 +209,7 @@ typedef struct SRealTableNode {
   double             ratio;
   SArray*            pSmaIndexes;
   int8_t             cacheLastMode;
+  int8_t             stbRewrite;
   SArray*            pTsmas;
   SArray*            tsmaTargetTbVgInfo; // SArray<SVgroupsInfo*>, used for child table or normal table only
   SArray*            tsmaTargetTbInfo; // SArray<STsmaTargetTbInfo>, used for child table or normal table only

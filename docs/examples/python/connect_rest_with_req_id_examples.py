@@ -1,11 +1,12 @@
 # ANCHOR: connect
 from taosrest import connect, TaosRestConnection, TaosRestCursor
 
-conn = connect(url="http://localhost:6041",
-               user="root",
-               password="taosdata",
-               timeout=30)
 
+conn = connect(url="http://localhost:6041",
+            user="root",
+            password="taosdata",
+            timeout=30)
+        
 # ANCHOR_END: connect
 # ANCHOR: basic
 # create STable

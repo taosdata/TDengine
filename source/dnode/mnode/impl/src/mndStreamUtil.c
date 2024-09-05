@@ -80,13 +80,48 @@ void destroyStreamTaskIter(SStreamTaskIter* pIter) {
   taosMemoryFree(pIter);
 }
 
-SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
-  SSdb   *pSdb = pMnode->pSdb;
-  void   *pIter = NULL;
-  SVgObj *pVgroup = NULL;
+static bool checkStatusForEachReplica(SVgObj *pVgroup) {
+  for (int32_t i = 0; i < pVgroup->replica; ++i) {
+    if (!pVgroup->vnodeGid[i].syncRestore) {
+      mInfo("vgId:%d not restored, not ready for checkpoint or other operations", pVgroup->vgId);
+      return false;
+    }
+
+    ESyncState state = pVgroup->vnodeGid[i].syncState;
+    if (state == TAOS_SYNC_STATE_OFFLINE || state == TAOS_SYNC_STATE_ERROR || state == TAOS_SYNC_STATE_LEARNER ||
+        state == TAOS_SYNC_STATE_CANDIDATE) {
+      mInfo("vgId:%d state:%d , not ready for checkpoint or other operations, not check other vgroups", pVgroup->vgId,
+            state);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// NOTE: choose the version in 3.0 branch.
+SArray* mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
+  SSdb     *pSdb = pMnode->pSdb;
+  void     *pIter = NULL;
+  SVgObj   *pVgroup = NULL;
+  int32_t   code = 0;
+  SArray   *pVgroupList = NULL;
+  SHashObj *pHash = NULL;
+
+  pVgroupList = taosArrayInit(4, sizeof(SNodeEntry));
+  if (pVgroupList == NULL) {
+    mError("failed to prepare arraylist during take vgroup snapshot, code:%s", tstrerror(terrno));
+    code = terrno;
+    goto _err;
+  }
+
+  pHash = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  if (pHash == NULL) {
+    mError("failed to prepare hashmap during take vgroup snapshot, code:%s", tstrerror(terrno));
+    goto _err;
+  }
 
   *allReady = true;
-  SArray *pVgroupListSnapshot = taosArrayInit(4, sizeof(SNodeEntry));
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
@@ -97,29 +132,42 @@ SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
     SNodeEntry entry = {.nodeId = pVgroup->vgId, .hbTimestamp = pVgroup->updateTime};
     entry.epset = mndGetVgroupEpset(pMnode, pVgroup);
 
-    // if not all ready till now, no need to check the remaining vgroups.
-    if (*allReady) {
-      for (int32_t i = 0; i < pVgroup->replica; ++i) {
-        if (!pVgroup->vnodeGid[i].syncRestore) {
-          mInfo("vgId:%d not restored, not ready for checkpoint or other operations", pVgroup->vgId);
-          *allReady = false;
-          break;
-        }
-
-        ESyncState state = pVgroup->vnodeGid[i].syncState;
-        if (state == TAOS_SYNC_STATE_OFFLINE || state == TAOS_SYNC_STATE_ERROR) {
-          mInfo("vgId:%d offline/err, not ready for checkpoint or other operations", pVgroup->vgId);
-          *allReady = false;
-          break;
-        }
+    int8_t *pReplica = taosHashGet(pHash, &pVgroup->dbUid, sizeof(pVgroup->dbUid));
+    if (pReplica == NULL) {  // not exist, add it into hash map
+      code = taosHashPut(pHash, &pVgroup->dbUid, sizeof(pVgroup->dbUid), &pVgroup->replica, sizeof(pVgroup->replica));
+      if (code) {
+        mError("failed to put info into hashmap during task vgroup snapshot, code:%s", tstrerror(code));
+        sdbRelease(pSdb, pVgroup);
+        sdbCancelFetch(pSdb, pIter);
+        goto _err;  // take snapshot failed, and not all ready
+      }
+    } else {
+      if (*pReplica != pVgroup->replica) {
+        mInfo("vgId:%d replica:%d inconsistent with other vgroups replica:%d, not ready for stream operations",
+              pVgroup->vgId, pVgroup->replica, *pReplica);
+        *allReady = false;  // task snap success, but not all ready
       }
     }
 
-    char buf[256] = {0};
-    epsetToStr(&entry.epset, buf, tListLen(buf));
+    // if not all ready till now, no need to check the remaining vgroups.
+    // but still we need to put the info of the existed vgroups into the snapshot list
+    if (*allReady) {
+      *allReady = checkStatusForEachReplica(pVgroup);
+    }
 
-    mDebug("take node snapshot, nodeId:%d %s", entry.nodeId, buf);
-    taosArrayPush(pVgroupListSnapshot, &entry);
+    char buf[256] = {0};
+    (void)epsetToStr(&entry.epset, buf, tListLen(buf));
+
+    void *p = taosArrayPush(pVgroupList, &entry);
+    if (p == NULL) {
+      mError("failed to put entry in vgroup list, nodeId:%d code:out of memory", entry.nodeId);
+      sdbRelease(pSdb, pVgroup);
+      sdbCancelFetch(pSdb, pIter);
+      goto _err;
+    } else {
+      mDebug("take node snapshot, nodeId:%d %s", entry.nodeId, buf);
+    }
+
     sdbRelease(pSdb, pVgroup);
   }
 
@@ -130,19 +178,40 @@ SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
       break;
     }
 
-    SNodeEntry entry = {0};
+    SNodeEntry entry = {.nodeId = SNODE_HANDLE};
     addEpIntoEpSet(&entry.epset, pObj->pDnode->fqdn, pObj->pDnode->port);
-    entry.nodeId = SNODE_HANDLE;
+//    if (code) {
+//      sdbRelease(pSdb, pObj);
+//      mError("failed to extract epset for fqdn:%s during task vgroup snapshot", pObj->pDnode->fqdn);
+//      goto _err;
+//    }
 
     char buf[256] = {0};
-    epsetToStr(&entry.epset, buf, tListLen(buf));
-    mDebug("take snode snapshot, nodeId:%d %s", entry.nodeId, buf);
+    (void)epsetToStr(&entry.epset, buf, tListLen(buf));
 
-    taosArrayPush(pVgroupListSnapshot, &entry);
+    void *p = taosArrayPush(pVgroupList, &entry);
+    if (p == NULL) {
+      code = terrno;
+      sdbRelease(pSdb, pObj);
+      sdbCancelFetch(pSdb, pIter);
+      mError("failed to put entry in vgroup list, nodeId:%d code:%s", entry.nodeId, tstrerror(code));
+      goto _err;
+    } else {
+      mDebug("take snode snapshot, nodeId:%d %s", entry.nodeId, buf);
+    }
+
     sdbRelease(pSdb, pObj);
   }
 
-  return pVgroupListSnapshot;
+  taosHashCleanup(pHash);
+  return pVgroupList;
+
+  _err:
+  *allReady = false;
+  taosArrayDestroy(pVgroupList);
+  taosHashCleanup(pHash);
+
+  return NULL;
 }
 
 SStreamObj *mndGetStreamObj(SMnode *pMnode, int64_t streamId) {

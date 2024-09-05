@@ -34,7 +34,8 @@ SCtgOperation gCtgCacheOperation[CTG_OP_MAX] = {{CTG_OP_UPDATE_VGROUP, "update v
                                                 {CTG_OP_DROP_VIEW_META, "drop viewMeta", ctgOpDropViewMeta},
                                                 {CTG_OP_UPDATE_TB_TSMA, "update tbTSMA", ctgOpUpdateTbTSMA},
                                                 {CTG_OP_DROP_TB_TSMA, "drop tbTSMA", ctgOpDropTbTSMA},
-                                                {CTG_OP_CLEAR_CACHE, "clear cache", ctgOpClearCache}};
+                                                {CTG_OP_CLEAR_CACHE, "clear cache", ctgOpClearCache},
+                                                {CTG_OP_UPDATE_DB_TSMA_VERSION, "update dbTsmaVersion", ctgOpUpdateDbTsmaVersion}};
 
 SCtgCacheItemInfo gCtgStatItem[CTG_CI_MAX_VALUE] = {
     {"Cluster   ", CTG_CI_FLAG_LEVEL_GLOBAL},  //CTG_CI_CLUSTER
@@ -1378,6 +1379,41 @@ _return:
   CTG_RET(code);
 }
 
+
+int32_t ctgUpdateDbTsmaVersionEnqueue(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId, bool syncOp) {
+  int32_t             code = 0;
+  SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  op->opId = CTG_OP_UPDATE_DB_TSMA_VERSION;
+  op->syncOp = syncOp;
+
+  SCtgUpdateTbTSMAMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateTbTSMAMsg));
+  if (NULL == msg) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateTbTSMAMsg));
+    taosMemoryFree(op);
+    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  msg->pCtg = pCtg;
+  msg->pTsma = NULL;
+  msg->dbTsmaVersion = tsmaVersion;
+  msg->dbId = dbId;
+  memcpy(msg->dbFName, dbFName, TSDB_DB_FNAME_LEN);
+
+  op->data = msg;
+
+  CTG_ERR_JRET(ctgEnqueue(pCtg, op));
+
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  CTG_RET(code);
+}
 
 int32_t ctgAddNewDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId) {
   int32_t code = 0;
@@ -3633,6 +3669,32 @@ _return:
   CTG_RET(code);
 }
 
+static int32_t ctgOpUpdateDbRentForTsmaVersion(SCtgDBCache* pDbCache, SCtgUpdateTbTSMAMsg* pMsg) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pDbCache && pMsg->dbTsmaVersion > 0) {
+    pDbCache->tsmaVersion = pMsg->dbTsmaVersion;
+    SDbCacheInfo cacheInfo = {0};
+    cacheInfo.dbId = pDbCache->dbId;
+
+    if (pDbCache->cfgCache.cfgInfo) {
+      cacheInfo.cfgVersion = pDbCache->cfgCache.cfgInfo->cfgVersion;
+      tstrncpy(cacheInfo.dbFName, pDbCache->cfgCache.cfgInfo->db, TSDB_DB_FNAME_LEN);
+    }
+
+    if (pDbCache->vgCache.vgInfo) {
+      cacheInfo.vgVersion = pDbCache->vgCache.vgInfo->vgVersion;
+      cacheInfo.numOfTable = pDbCache->vgCache.vgInfo->numOfTable;
+      cacheInfo.stateTs = pDbCache->vgCache.vgInfo->stateTs;
+    }
+
+    cacheInfo.tsmaVersion = pDbCache->tsmaVersion;
+    CTG_ERR_JRET(ctgMetaRentUpdate(&pMsg->pCtg->dbRent, &cacheInfo, cacheInfo.dbId, sizeof(SDbCacheInfo),
+                                   ctgDbCacheInfoSortCompare, ctgDbCacheInfoSearchCompare));
+  }
+_return:
+  CTG_RET(code);
+}
+
 int32_t ctgOpUpdateTbTSMA(SCtgCacheOperation *operation) {
   int32_t              code = 0;
   SCtgUpdateTbTSMAMsg *msg = operation->data;
@@ -3646,23 +3708,7 @@ int32_t ctgOpUpdateTbTSMA(SCtgCacheOperation *operation) {
 
   CTG_ERR_JRET(ctgGetAddDBCache(pCtg, pTsmaInfo->dbFName, pTsmaInfo->dbId, &dbCache));
   CTG_ERR_JRET(ctgWriteTbTSMAToCache(pCtg, dbCache, pTsmaInfo->dbFName, pTsmaInfo->tb, &pTsmaInfo));
-  if (dbCache && msg->dbTsmaVersion > 0) {
-    dbCache->tsmaVersion = msg->dbTsmaVersion;
-    SDbCacheInfo cacheInfo = {0};
-    cacheInfo.dbId = dbCache->dbId;
-    if (dbCache->cfgCache.cfgInfo) {
-      cacheInfo.cfgVersion = dbCache->cfgCache.cfgInfo->cfgVersion;
-      tstrncpy(cacheInfo.dbFName, dbCache->cfgCache.cfgInfo->db, TSDB_DB_FNAME_LEN);
-    }
-    if (dbCache->vgCache.vgInfo) {
-      cacheInfo.vgVersion = dbCache->vgCache.vgInfo->vgVersion;
-      cacheInfo.numOfTable = dbCache->vgCache.vgInfo->numOfTable;
-      cacheInfo.stateTs = dbCache->vgCache.vgInfo->stateTs;
-    }
-    cacheInfo.tsmaVersion = dbCache->tsmaVersion;
-    CTG_ERR_JRET(ctgMetaRentUpdate(&msg->pCtg->dbRent, &cacheInfo, cacheInfo.dbId, sizeof(SDbCacheInfo),
-                                   ctgDbCacheInfoSortCompare, ctgDbCacheInfoSearchCompare));
-  }
+  CTG_ERR_JRET(ctgOpUpdateDbRentForTsmaVersion(dbCache, msg));
 
 _return:
 
@@ -3674,3 +3720,20 @@ _return:
   taosMemoryFreeClear(msg);
   CTG_RET(code);
 }
+
+int32_t ctgOpUpdateDbTsmaVersion(SCtgCacheOperation *pOper) {
+  int32_t              code = 0;
+  SCtgUpdateTbTSMAMsg *pMsg = pOper->data;
+  SCatalog            *pCtg = pMsg->pCtg;
+  SCtgDBCache         *pDbCache = NULL;
+
+  if (pCtg->stopUpdate) goto _return;
+
+  CTG_ERR_JRET(ctgGetAddDBCache(pCtg, pMsg->dbFName, pMsg->dbId, &pDbCache));
+  CTG_ERR_JRET(ctgOpUpdateDbRentForTsmaVersion(pDbCache, pMsg));
+
+_return:
+  taosMemoryFreeClear(pMsg);
+  CTG_RET(code);
+}
+

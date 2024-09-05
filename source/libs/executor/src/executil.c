@@ -1563,6 +1563,14 @@ void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     pExp->base.resSchema =
         createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pCaseNode->node.aliasName);
     pExp->pExpr->_optrRoot.pRootNode = pNode;
+  } else if (type == QUERY_NODE_LOGIC_CONDITION) {
+    pExp->pExpr->nodeType = QUERY_NODE_OPERATOR;
+    SLogicConditionNode* pCond = (SLogicConditionNode*)pNode;
+    pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
+    pExp->base.numOfParams = 1;
+    SDataType* pType = &pCond->node.resType;
+    pExp->base.resSchema = createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pCond->node.aliasName);
+    pExp->pExpr->_optrRoot.pRootNode = pNode;
   } else {
     ASSERT(0);
   }
@@ -2195,7 +2203,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
       
       for (int i = 0; i < numOfTables; i++) {
         STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
-        info->groupId = info->uid;
+        info->groupId = groupByTbname ? info->uid : 0;
         
         taosHashPut(pTableListInfo->remainGroups, &(info->groupId), sizeof(info->groupId), &(info->uid),
                     sizeof(info->uid));

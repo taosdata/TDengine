@@ -250,11 +250,6 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   version = (submitTbData.flags >> 8) & 0xff;
   submitTbData.flags = submitTbData.flags & 0xff;
 
-  if (submitTbData.flags & SUBMIT_REQ_FROM_FILE) {
-    code = grantCheck(TSDB_GRANT_CSV);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
   int64_t uid;
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
     code = vnodePreprocessCreateTableReq(pVnode, pCoder, btimeMs, &uid);
@@ -517,6 +512,14 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   void   *pReq;
   int32_t len;
 
+  (void)taosThreadMutexLock(&pVnode->mutex);
+  if (pVnode->disableWrite) {
+    (void)taosThreadMutexUnlock(&pVnode->mutex);
+    vError("vgId:%d write is disabled for snapshot, version:%" PRId64, TD_VID(pVnode), ver);
+    return TSDB_CODE_VND_WRITE_DISABLED;
+  }
+  (void)taosThreadMutexUnlock(&pVnode->mutex);
+
   if (ver <= pVnode->state.applied) {
     vError("vgId:%d, duplicate write request. ver: %" PRId64 ", applied: %" PRId64 "", TD_VID(pVnode), ver,
            pVnode->state.applied);
@@ -735,8 +738,7 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
-  if ((pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_VND_TMQ_CONSUME ||
-       pMsg->msgType == TDMT_VND_TMQ_CONSUME_PUSH) &&
+  if ((pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_VND_TMQ_CONSUME) &&
       !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;

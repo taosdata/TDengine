@@ -368,11 +368,11 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   }
 
   tjsonGetNumberValue(pJson, "s3ChunkSize", pCfg->s3ChunkSize, code);
-  if (code < 0) {
+  if (code < 0 || pCfg->s3ChunkSize < TSDB_MIN_S3_CHUNK_SIZE) {
     pCfg->s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
   }
   tjsonGetNumberValue(pJson, "s3KeepLocal", pCfg->s3KeepLocal, code);
-  if (code < 0) {
+  if (code < 0 || pCfg->s3KeepLocal < TSDB_MIN_S3_KEEP_LOCAL) {
     pCfg->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
   }
   tjsonGetNumberValue(pJson, "s3Compact", pCfg->s3Compact, code);

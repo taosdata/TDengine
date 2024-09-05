@@ -161,44 +161,38 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
   int64_t   numRecord = 0;
   SMetaInfo info;
 
-  if (committer->tsdb->imem->nDel == 0) {
-    goto _exit;
-  }
+  // if no history data and no new timestamp data, skip tomb data
+  if (committer->ctx->info->fset || committer->ctx->hasTSData) {
+    committer->ctx->tbid->suid = 0;
+    committer->ctx->tbid->uid = 0;
+    for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(committer->tombIterMerger));) {
+      if (record->uid != committer->ctx->tbid->uid) {
+        committer->ctx->tbid->suid = record->suid;
+        committer->ctx->tbid->uid = record->uid;
 
-  // do not need to write tomb data if there is no ts data
-  bool skip = (committer->ctx->info->fset == NULL && !committer->ctx->hasTSData);
-
-  committer->ctx->tbid->suid = 0;
-  committer->ctx->tbid->uid = 0;
-  for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(committer->tombIterMerger));) {
-    if (record->uid != committer->ctx->tbid->uid) {
-      committer->ctx->tbid->suid = record->suid;
-      committer->ctx->tbid->uid = record->uid;
-
-      if (metaGetInfo(committer->tsdb->pVnode->pMeta, record->uid, &info, NULL) != 0) {
-        code = tsdbIterMergerSkipTableData(committer->tombIterMerger, committer->ctx->tbid);
-        TSDB_CHECK_CODE(code, lino, _exit);
-        continue;
+        if (metaGetInfo(committer->tsdb->pVnode->pMeta, record->uid, &info, NULL) != 0) {
+          code = tsdbIterMergerSkipTableData(committer->tombIterMerger, committer->ctx->tbid);
+          TSDB_CHECK_CODE(code, lino, _exit);
+          continue;
+        }
       }
-    }
 
-    if (record->ekey < committer->ctx->minKey) {
-      // do nothing
-    } else if (record->skey > committer->ctx->maxKey) {
-      // committer->ctx->nextKey = TMIN(record->skey, committer->ctx->nextKey);
-    } else {
-      record->skey = TMAX(record->skey, committer->ctx->minKey);
-      record->ekey = TMIN(record->ekey, committer->ctx->maxKey);
+      if (record->ekey < committer->ctx->minKey) {
+        // do nothing
+      } else if (record->skey > committer->ctx->maxKey) {
+        // committer->ctx->nextKey = TMIN(record->skey, committer->ctx->nextKey);
+      } else {
+        record->skey = TMAX(record->skey, committer->ctx->minKey);
+        record->ekey = TMIN(record->ekey, committer->ctx->maxKey);
 
-      if (!skip) {
         numRecord++;
         code = tsdbFSetWriteTombRecord(committer->writer, record);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
-    }
 
-    code = tsdbIterMergerNext(committer->tombIterMerger);
-    TSDB_CHECK_CODE(code, lino, _exit);
+      code = tsdbIterMergerNext(committer->tombIterMerger);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
   }
 
 _exit:

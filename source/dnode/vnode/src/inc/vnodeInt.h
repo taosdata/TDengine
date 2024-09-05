@@ -490,6 +490,7 @@ struct SVnode {
   STfs*     pTfs;
   int32_t   diskPrimary;
   SMsgCb    msgCb;
+  bool      disableWrite;
 
   // Buffer Pool
   TdThreadMutex mutex;

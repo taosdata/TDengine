@@ -246,7 +246,7 @@ typedef struct {
   //  SMqVgOffset*         pOffset;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
   int32_t vgId;
-  tmq_t*  pTmq;
+  int64_t consumerId;
 } SMqCommitCbParam;
 
 typedef struct SSyncCommitInfo {
@@ -447,7 +447,7 @@ static int32_t tmqCommitCb(void* param, SDataBuf* pBuf, int32_t code) {
   taosMemoryFree(pBuf->pData);
   taosMemoryFree(pBuf->pEpSet);
 
-  commitRspCountDown(pParamSet, pParam->pTmq->consumerId, pParam->topicName, pParam->vgId);
+  commitRspCountDown(pParamSet, pParam->consumerId, pParam->topicName, pParam->vgId);
   return 0;
 }
 
@@ -494,7 +494,7 @@ static int32_t doSendCommitMsg(tmq_t* tmq, int32_t vgId, SEpSet* epSet, STqOffse
   pParam->params = pParamSet;
   //  pParam->pOffset = pOffset;
   pParam->vgId = vgId;
-  pParam->pTmq = tmq;
+  pParam->consumerId = tmq->consumerId;
 
   tstrncpy(pParam->topicName, pTopicName, tListLen(pParam->topicName));
 
@@ -1019,7 +1019,7 @@ int32_t tmq_unsubscribe(tmq_t* tmq) {
       return rsp;
     }
   }
-  taosSsleep(2);  // sleep 2s for hb to send offset and rows to server
+  tmqSendHbReq((void*)(tmq->refId), NULL);
 
   tmq_list_t* lst = tmq_list_new();
   int32_t     rsp = tmq_subscribe(tmq, lst);
@@ -1378,23 +1378,21 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   tmq_t*          tmq = NULL;
   SMqPollCbParam* pParam = (SMqPollCbParam*)param;
   if (pParam == NULL || pMsg == NULL) {
-    goto FAIL;
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
   int64_t         refId = pParam->refId;
   int32_t         vgId = pParam->vgId;
   uint64_t        requestId = pParam->requestId;
   tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
   if (tmq == NULL) {
-    code = TSDB_CODE_TMQ_CONSUMER_CLOSED;
-    goto FAIL;
+    return TSDB_CODE_TMQ_CONSUMER_CLOSED;
   }
 
   SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper), DEF_QITEM, 0);
   if (pRspWrapper == NULL) {
     tscWarn("consumer:0x%" PRIx64 " msg discard from vgId:%d, since out of memory", tmq->consumerId, vgId);
-    taosReleaseRef(tmqMgmt.rsetId, refId);
     code = TSDB_CODE_OUT_OF_MEMORY;
-    goto FAIL;
+    goto END;
   }
 
   if (code != 0) {
@@ -1414,7 +1412,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     tscWarn("consumer:0x%" PRIx64
             " msg discard from vgId:%d since from earlier epoch, rsp epoch %d, current epoch %d, reqId:0x%" PRIx64,
             tmq->consumerId, vgId, msgEpoch, clientEpoch, requestId);
-    code = -1;
+    code = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
     goto END;
   }
 
@@ -1431,7 +1429,6 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     tDecoderInit(&decoder, POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), pMsg->len - sizeof(SMqRspHead));
     if (tDecodeMqDataRsp(&decoder, &pRspWrapper->dataRsp) < 0) {
       tDecoderClear(&decoder);
-      taosReleaseRef(tmqMgmt.rsetId, refId);
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto END;
     }
@@ -1447,7 +1444,6 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     tDecoderInit(&decoder, POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), pMsg->len - sizeof(SMqRspHead));
     if (tDecodeMqMetaRsp(&decoder, &pRspWrapper->metaRsp) < 0) {
       tDecoderClear(&decoder);
-      taosReleaseRef(tmqMgmt.rsetId, refId);
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto END;
     }
@@ -1458,7 +1454,6 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     tDecoderInit(&decoder, POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), pMsg->len - sizeof(SMqRspHead));
     if (tDecodeSTaosxRsp(&decoder, &pRspWrapper->taosxRsp) < 0) {
       tDecoderClear(&decoder);
-      taosReleaseRef(tmqMgmt.rsetId, refId);
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto END;
     }
@@ -1469,9 +1464,8 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     tDecoderInit(&decoder, POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), pMsg->len - sizeof(SMqRspHead));
     if (tSemiDecodeMqBatchMetaRsp(&decoder, &pRspWrapper->batchMetaRsp) < 0) {
       tDecoderClear(&decoder);
-      taosReleaseRef(tmqMgmt.rsetId, refId);
       code = TSDB_CODE_OUT_OF_MEMORY;
-      goto FAIL;
+      goto END;
     }
     tDecoderClear(&decoder);
     memcpy(&pRspWrapper->batchMetaRsp, pMsg->pData, sizeof(SMqRspHead));
@@ -1482,20 +1476,20 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
 END:
-  pRspWrapper->code = code;
-  pRspWrapper->vgId = vgId;
-  strcpy(pRspWrapper->topicName, pParam->topicName);
-  taosWriteQitem(tmq->mqueue, pRspWrapper);
-
+  if (pRspWrapper){
+    pRspWrapper->code = code;
+    pRspWrapper->vgId = vgId;
+    strcpy(pRspWrapper->topicName, pParam->topicName);
+    taosWriteQitem(tmq->mqueue, pRspWrapper);
+  }
   int32_t total = taosQueueItemSize(tmq->mqueue);
   tscDebug("consumer:0x%" PRIx64 " put poll res into mqueue, type:%d, vgId:%d, total in queue:%d, reqId:0x%" PRIx64,
            tmq->consumerId, rspType, vgId, total, requestId);
-  taosReleaseRef(tmqMgmt.rsetId, refId);
 
-FAIL:
   if (tmq) tsem2_post(&tmq->rspSem);
   if (pMsg) taosMemoryFreeClear(pMsg->pData);
   if (pMsg) taosMemoryFreeClear(pMsg->pEpSet);
+  taosReleaseRef(tmqMgmt.rsetId, refId);
 
   return code;
 }
@@ -1975,6 +1969,8 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
         taosWUnLockLatch(&tmq->lock);
       }
       setVgIdle(tmq, pollRspWrapper->topicName, pollRspWrapper->vgId);
+      taosMemoryFreeClear(pollRspWrapper->pEpset);
+      tmqFreeRspWrapper(pRspWrapper);
       taosFreeQitem(pRspWrapper);
     } else if (pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_DATA_RSP) {
       SMqPollRspWrapper* pollRspWrapper = (SMqPollRspWrapper*)pRspWrapper;
@@ -2033,6 +2029,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
                    ", vg total:%" PRId64 ", total:%" PRId64 ", reqId:0x%" PRIx64,
                    tmq->consumerId, pVg->vgId, buf, pDataRsp->blockNum, numOfRows, pVg->numOfRows, tmq->totalRows,
                    pollRspWrapper->reqId);
+          taosMemoryFreeClear(pollRspWrapper->pEpset);
           taosFreeQitem(pRspWrapper);
           taosWUnLockLatch(&tmq->lock);
           return pRsp;
@@ -2068,6 +2065,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
                      pollRspWrapper->metaRsp.head.walsver, pollRspWrapper->metaRsp.head.walever, tmq->consumerId, true);
         // build rsp
         SMqMetaRspObj* pRsp = tmqBuildMetaRspFromWrapper(pollRspWrapper);
+        taosMemoryFreeClear(pollRspWrapper->pEpset);
         taosFreeQitem(pRspWrapper);
         taosWUnLockLatch(&tmq->lock);
         return pRsp;
@@ -2104,6 +2102,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
                      pollRspWrapper->batchMetaRsp.head.walsver, pollRspWrapper->batchMetaRsp.head.walever,
                      tmq->consumerId, true);
         pRsp = tmqBuildBatchMetaRspFromWrapper(pollRspWrapper);
+        taosMemoryFreeClear(pollRspWrapper->pEpset);
         taosFreeQitem(pRspWrapper);
         taosWUnLockLatch(&tmq->lock);
         return pRsp;
@@ -2160,6 +2159,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
                  tmq->consumerId, pVg->vgId, buf, pDataRsp->blockNum, numOfRows, pVg->numOfRows, tmq->totalRows,
                  pollRspWrapper->reqId);
 
+        taosMemoryFreeClear(pollRspWrapper->pEpset);
         taosFreeQitem(pRspWrapper);
         taosWUnLockLatch(&tmq->lock);
         return pRsp;

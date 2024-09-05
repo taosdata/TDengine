@@ -627,7 +627,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     goto END;
   }
 
-  mndTransSetDbName(pTrans, pOutput->pSub->dbName, cgroup);
+  mndTransSetDbName(pTrans, pOutput->pSub->dbName, pOutput->pSub->key);
   code = mndTransCheckConflict(pMnode, pTrans);
   if (code != 0) {
     goto END;
@@ -1046,7 +1046,7 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
     goto end;
   }
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pMsg, "drop-cgroup");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pMsg, "drop-cgroup");
   if (pTrans == NULL) {
     mError("cgroup: %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
     code = -1;
@@ -1054,7 +1054,7 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
   }
 
   mInfo("trans:%d, used to drop cgroup:%s on topic %s", pTrans->id, dropReq.cgroup, dropReq.topic);
-  mndTransSetDbName(pTrans, pSub->dbName, dropReq.cgroup);
+  mndTransSetDbName(pTrans, pSub->dbName, NULL);
   code = mndTransCheckConflict(pMnode, pTrans);
   if (code != 0) {
     goto end;

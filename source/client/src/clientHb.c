@@ -254,6 +254,8 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
           catalogAsyncUpdateTSMA(pCatalog, &pTsma, rsp->dbTsmaVersion);
         }
         taosArrayClear(rsp->pTsmaRsp->pTsmas);
+      } else {
+        catalogAsyncUpdateDbTsmaVersion(pCatalog, rsp->dbTsmaVersion, rsp->db, rsp->dbId);
       }
     }
   }

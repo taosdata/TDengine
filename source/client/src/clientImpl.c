@@ -68,6 +68,10 @@ bool chkRequestKilled(void* param) {
   return killed;
 }
 
+void cleanupAppInfo() {
+  taosHashCleanup(appInfo.pInstMap);
+}
+
 static STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
                                 SAppInstInfo* pAppInfo, int connType);
 
@@ -2723,7 +2727,11 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
       .cbParam = pRequest,
   };
 
-  schedulerFetchRows(pRequest->body.queryJob, &req);
+  int32_t code = schedulerFetchRows(pRequest->body.queryJob, &req);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("0x%" PRIx64 " failed to schedule fetch rows", pRequest->requestId);
+    pRequest->body.fetchFp(param, pRequest, code);    
+  }
 }
 
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {

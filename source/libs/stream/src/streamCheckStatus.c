@@ -71,13 +71,6 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
   }
 
   if (pInfo->stage != stage) {
-    taosThreadMutexLock(&pTask->lock);
-    ETaskStatus status = streamTaskGetStatus(pTask)->state;
-    if (status == TASK_STATUS__CK) {
-      streamTaskSetFailedCheckpointId(pTask);
-    }
-    taosThreadMutexUnlock(&pTask->lock);
-
     return TASK_UPSTREAM_NEW_STAGE;
   } else if (pTask->status.downstreamReady != 1) {
     stDebug("s-task:%s vgId:%d leader:%d, downstream not ready", id, vgId, (pTask->pMeta->role == NODE_ROLE_LEADER));

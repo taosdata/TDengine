@@ -1,19 +1,24 @@
 import taos
 
-
-def test_connection():
+def create_connection():
     # all parameters are optional.
-    # if database is specified,
-    # then it must exist.
-    conn = taos.connect(host="localhost",
-                        port=6030,
-                        user="root",
-                        password="taosdata",
-                        database="log")
-    print('client info:', conn.client_info)
-    print('server info:', conn.server_info)
-    conn.close()
+    conn = None
+    host = "localhost"
+    port = 6030
+    try:
+        conn = taos.connect(
+            user="root",
+            password="taosdata",
+            host=host,
+            port=port,
+        )
+        print(f"Connected to {host}:{port} successfully.");
+    except Exception as err:
+        print(f"Failed to connect to {host}:{port} , ErrMessage:{err}")
+    finally:
+        if conn:
+            conn.close()
 
 
 if __name__ == "__main__":
-    test_connection()
+    create_connection()

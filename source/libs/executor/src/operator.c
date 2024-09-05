@@ -460,6 +460,9 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
     SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
     ops[i] = createOperator(pChildNode, pTaskInfo, pHandle, pTagCond, pTagIndexCond, pUser, dbname);
     if (ops[i] == NULL) {
+      for (int32_t j = 0; j < i; ++j) {
+        destroyOperator(ops[j]);
+      }
       taosMemoryFree(ops);
       return NULL;
     }

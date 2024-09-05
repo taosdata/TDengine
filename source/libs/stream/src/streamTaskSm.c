@@ -373,7 +373,6 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
               pTask->id.idStr, pSM->current.name, GET_EVT_NAME(evt));
       taosMsleep(100);
     } else {
-      // no active event trans exists, handle this event directly
       pTrans = streamTaskFindTransform(pSM->current.state, event);
       if (pTrans == NULL) {
         stDebug("s-task:%s failed to handle event:%s", pTask->id.idStr, GET_EVT_NAME(event));
@@ -381,7 +380,15 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
         return TSDB_CODE_STREAM_INVALID_STATETRANS;
       }
 
+      // no active event trans exists, handle this event directly
       if (pSM->pActiveTrans != NULL) {
+        // not allowed concurrently initialization
+        if (event == TASK_EVENT_INIT && pSM->pActiveTrans->event == TASK_EVENT_INIT) {
+          taosThreadMutexUnlock(&pTask->lock);
+          stError("s-task:%s already in handling init procedure, handle this init event failed", pTask->id.idStr);
+          return TSDB_CODE_STREAM_INVALID_STATETRANS;
+        }
+
         // currently in some state transfer procedure, not auto invoke transfer, abort it
         stDebug("s-task:%s event:%s handle procedure quit, status %s -> %s failed, handle event %s now",
                 pTask->id.idStr, GET_EVT_NAME(pSM->pActiveTrans->event), pSM->current.name,

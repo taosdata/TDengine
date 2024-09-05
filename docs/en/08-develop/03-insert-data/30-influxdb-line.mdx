@@ -1,0 +1,80 @@
+---
+title: InfluxDB Line Protocol
+sidebar_label: InfluxDB Line Protocol
+description: This document describes how to insert data into TDengine using the InfluxDB Line Protocol.
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import JavaLine from "./_java_line.mdx";
+import PyLine from "./_py_line.mdx";
+import GoLine from "./_go_line.mdx";
+import RustLine from "./_rust_line.mdx";
+import NodeLine from "./_js_line.mdx";
+import CsLine from "./_cs_line.mdx";
+import CLine from "./_c_line.mdx";
+
+## Introduction
+
+In the InfluxDB Line protocol format, a single line of text is used to represent one row of data. Each line contains 4 parts as shown below.
+
+```
+measurement,tag_set field_set timestamp
+```
+
+- `measurement` will be used as the name of the STable Enter a comma (,) between `measurement` and `tag_set`.
+- `tag_set` will be used as tags, with format like `<tag_key>=<tag_value>,<tag_key>=<tag_value>` Enter a space between `tag_set` and `field_set`.
+- `field_set`will be used as data columns, with format like `<field_key>=<field_value>,<field_key>=<field_value>` Enter a space between `field_set` and `timestamp`.
+- `timestamp` is the primary key timestamp corresponding to this row of data
+
+For example:
+
+```
+meters,location=California.LosAngeles,groupid=2 current=13.4,voltage=223,phase=0.29 1648432611249500
+```
+
+:::note
+
+- All the data in `tag_set` will be converted to NCHAR type automatically
+- Each data in `field_set` must be self-descriptive for its data type. For example 1.2f32 means a value 1.2 of float type. Without the "f" type suffix, it will be treated as type double
+- Multiple kinds of precision can be used for the `timestamp` field. Time precision can be from nanosecond (ns) to hour (h)
+- The rule of table name
+  - The child table name is created automatically in a rule to guarantee its uniqueness.
+  - You can configure `smlAutoChildTableNameDelimiter` in taos.cfg to specify a delimiter between tag values as the table names. For example, you set `smlAutoChildTableNameDelimiter=-` in taos.cfg, when you insert `st,t0=cpu1,t1=4 c1=3 1626006833639000000`, the child table will be `cpu1-4`
+  - You can configure `smlChildTableName` in taos.cfg to specify a tag value as the table names if the tag value is unique globally. For example, if a tag is called `tname` and you set `smlChildTableName=tname` in taos.cfg, when you insert `st,tname=cpu1,t1=4 c1=3 1626006833639000000`, the child table `cpu1` will be created automatically. Note that if multiple rows have the same tname but different tag_set values, the tag_set of the first row is used to create the table and the others are ignored
+- It is assumed that the order of field_set in a supertable is consistent, meaning that the first record contains all fields and subsequent records store fields in the same order. If the order is not consistent, set smlDataFormat in taos.cfg to false. Otherwise, data will be written out of order and a database error will occur.(smlDataFormat in taos.cfg default to false after version of 3.0.1.3, smlDataFormat is discarded since 3.0.3.0)
+
+:::
+
+For more details please refer to [InfluxDB Line Protocol](https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/) and [TDengine Schemaless](../../../reference/schemaless/)
+
+## Examples
+
+<Tabs defaultValue="java" groupId="lang">
+  <TabItem label="Java" value="java">
+    <JavaLine />
+  </TabItem>
+  <TabItem label="Python" value="Python">
+    <PyLine />
+  </TabItem>
+  <TabItem label="Go" value="go">
+    <GoLine />
+  </TabItem>
+  <TabItem label="Node.js" value="node">
+    <NodeLine />
+  </TabItem>
+  <TabItem label="C#" value="csharp">
+    <CsLine />
+  </TabItem>
+  <TabItem label="C" value="c">
+    <CLine />
+  </TabItem>
+</Tabs>
+
+## Query Examples
+
+If you want query the data of `location=California.LosAngeles,groupid=2`, here is the query SQL:
+
+```sql
+SELECT * FROM meters WHERE location = "California.LosAngeles" AND groupid = 2;
+```

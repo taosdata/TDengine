@@ -125,7 +125,7 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
 
 _return:
 
-  taosLogCrashInfo("taosd", pMsg, msgLen, signum, sigInfo);
+  taosLogCrashInfo(CUS_PROMPT "d", pMsg, msgLen, signum, sigInfo);
 
 #ifdef _TD_DARWIN_64
   exit(signum);
@@ -258,7 +258,7 @@ static void dmPrintArgs(int32_t argc, char const *argv[]) {
 static void dmGenerateGrant() { mndGenerateMachineCode(); }
 
 static void dmPrintVersion() {
-  printf("%s\ntaosd version: %s compatible_version: %s\n", TD_PRODUCT_NAME, version, compatible_version);
+  printf("%s\n%sd version: %s compatible_version: %s\n", TD_PRODUCT_NAME, CUS_PROMPT, version, compatible_version);
   printf("git: %s\n", gitinfo);
 #ifdef TD_ENTERPRISE
   printf("gitOfInternal: %s\n", gitinfoOfInternal);
@@ -268,7 +268,7 @@ static void dmPrintVersion() {
 
 static void dmPrintHelp() {
   char indent[] = "  ";
-  printf("Usage: taosd [OPTION...] \n\n");
+  printf("Usage: %sd [OPTION...] \n\n", CUS_PROMPT);
   printf("%s%s%s%s\n", indent, "-a,", indent, DM_APOLLO_URL);
   printf("%s%s%s%s\n", indent, "-c,", indent, DM_CFG_DIR);
   printf("%s%s%s%s\n", indent, "-s,", indent, DM_SDB_INFO);

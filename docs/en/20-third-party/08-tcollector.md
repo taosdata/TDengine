@@ -4,7 +4,7 @@ sidebar_label: TCollector
 description: This document describes how to integrate TDengine with TCollector.
 ---
 
-import TCollector from "../14-reference/_tcollector.mdx"
+import TCollector from "../14-reference/01-components/_tcollector.mdx"
 
 TCollector is part of openTSDB and collects client computer's logs to send to the database.
 
@@ -14,7 +14,7 @@ You can write the data collected by TCollector to TDengine by simply changing th
 
 To write data to the TDengine via TCollector requires the following preparations.
 - The TDengine cluster has been deployed and is working properly
-- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](../../reference/taosadapter) for details.
+- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](../../reference/components/taosadapter) for details.
 - TCollector has been installed. Please refer to [official documentation](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html#installation-of-tcollector) for TCollector installation
 
 ## Configuration steps

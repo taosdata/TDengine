@@ -1240,6 +1240,15 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
     taosMsleep(100);
   }
 
+  streamMetaRLock(pMeta);
+
+  SArray* pTaskList = streamMetaSendMsgBeforeCloseTasks(pMeta);
+  streamMetaRUnLock(pMeta);
+
+  if (pTaskList != NULL) {
+    taosArrayDestroy(pTaskList);
+  }
+
   int64_t el = taosGetTimestampMs() - st;
   stDebug("vgId:%d all stream tasks are not in timer, continue close, elapsed time:%" PRId64 " ms", pMeta->vgId, el);
 }
@@ -1536,23 +1545,42 @@ bool streamMetaAllTasksReady(const SStreamMeta* pMeta) {
   return true;
 }
 
-int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, __stream_task_expand_fn expandFn) {
-  int32_t code = 0;
-  int32_t vgId = pMeta->vgId;
+int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, __stream_task_expand_fn fn) {
+  int32_t      code = 0;
+  int32_t      vgId = pMeta->vgId;
+  SStreamTask* pTask = NULL;
+  bool         continueExec = true;
+
   stInfo("vgId:%d start task:0x%x by checking it's downstream status", vgId, taskId);
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, streamId, taskId);
+  pTask = streamMetaAcquireTask(pMeta, streamId, taskId);
   if (pTask == NULL) {
-    stError("vgId:%d failed to acquire task:0x%x when starting task", pMeta->vgId, taskId);
-    streamMetaAddFailedTask(pMeta, streamId, taskId);
+    stError("vgId:%d failed to acquire task:0x%x when starting task", vgId, taskId);
+    (void)streamMetaAddFailedTask(pMeta, streamId, taskId);
     return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
   }
 
   // fill-history task can only be launched by related stream tasks.
   STaskExecStatisInfo* pInfo = &pTask->execInfo;
   if (pTask->info.fillHistory == 1) {
+    stError("s-task:0x%x vgId:%d fill-histroy task, not start here", taskId, vgId);
     streamMetaReleaseTask(pMeta, pTask);
     return TSDB_CODE_SUCCESS;
+  }
+
+  taosThreadMutexLock(&pTask->lock);
+  SStreamTaskState* pStatus = streamTaskGetStatus(pTask);
+  if (pStatus->state != TASK_STATUS__UNINIT) {
+    stError("s-task:0x%x vgId:%d status:%s not uninit status, not start stream task", taskId, vgId, pStatus->name);
+    continueExec = false;
+  } else {
+    continueExec = true;
+  }
+  taosThreadMutexUnlock(&pTask->lock);
+
+  if (!continueExec) {
+    streamMetaReleaseTask(pMeta, pTask);
+    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
   }
 
   ASSERT(pTask->status.downstreamReady == 0);
@@ -1573,7 +1601,8 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
   if (code == TSDB_CODE_SUCCESS) {
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
     if (code != TSDB_CODE_SUCCESS) {
-      stError("s-task:%s vgId:%d failed to handle event:%d", pTask->id.idStr, pMeta->vgId, TASK_EVENT_INIT);
+      stError("s-task:%s vgId:%d failed to handle event:%d, code:%s", pTask->id.idStr, pMeta->vgId, TASK_EVENT_INIT,
+              tstrerror(code));
       streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
     }
   }
