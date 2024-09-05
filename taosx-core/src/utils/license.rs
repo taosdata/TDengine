@@ -414,10 +414,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
             if let Err(err) = edition {
                 return Ok(LicenseKind::Edition(anyhow!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
             }
-            return check_connector_grant_of(&sink_builder, &sink_version, "td3.0")
-                .in_current_span()
-                .await
-                .with_context(sink_dsn_context);
+            return Ok(LicenseKind::good());
         }
         ("taos", "tmq" | "taos") => {
             let mut from = from.clone();
