@@ -76,18 +76,18 @@ int taos_counter_get_vgroup_ids(taos_counter_t *self, char ***keys, int32_t **vg
     return 1;
   }
   if (self->samples == NULL) return 1;
-  pthread_rwlock_rdlock(self->rwlock);
+  (void)pthread_rwlock_rdlock(self->rwlock);
   taos_linked_list_t *key_list = self->samples->keys;
   *list_size = key_list->size;
   int r = 0;
   *vgroup_ids = (int32_t *)taos_malloc(*list_size * sizeof(int32_t));
   if (vgroup_ids == NULL) {
-    pthread_rwlock_unlock(self->rwlock);
+    (void)pthread_rwlock_unlock(self->rwlock);
     return 1;
   }
   *keys = (char **)taos_malloc(*list_size * sizeof(char *));
   if (keys == NULL) {
-    pthread_rwlock_unlock(self->rwlock);
+    (void)pthread_rwlock_unlock(self->rwlock);
     return 1;
   }
   int index = 0;
@@ -98,7 +98,7 @@ int taos_counter_get_vgroup_ids(taos_counter_t *self, char ***keys, int32_t **vg
     (*keys)[index] = key;
     index++;
   }
-  pthread_rwlock_unlock(self->rwlock);
+  (void)pthread_rwlock_unlock(self->rwlock);
   return r;
 }
 
