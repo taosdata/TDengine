@@ -104,7 +104,7 @@ class TDTestCase:
                         stop_flag = 0
                         try:
                             while True:
-                                res = consumer.poll(1)
+                                res = consumer.poll(3)
                                 tdSql.query('show consumers;')
                                 consumer_info = tdSql.queryResult[0][-1]
                                 if offset_value == "latest":
@@ -123,7 +123,6 @@ class TDTestCase:
                                     tmqCom.insert_data(tdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],int(round(time.time()*1000)))
                                     stop_flag = 1
                         finally:
-                            time.sleep(5)           #wait for send heartbeat to update subscription info.
                             consumer.unsubscribe()
                             consumer.close()
                         tdSql.checkEqual(consumer_info, expected_parameters)
