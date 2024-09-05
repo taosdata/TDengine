@@ -25,7 +25,7 @@
 #include "tcompare.h"
 #include "tname.h"
 
-#define MND_CONSUMER_VER_NUMBER   2
+#define MND_CONSUMER_VER_NUMBER   3
 #define MND_CONSUMER_RESERVE_SIZE 64
 
 #define MND_MAX_GROUP_PER_TOPIC 100
@@ -652,7 +652,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   int32_t code = 0;
 
   SCMSubscribeReq subscribe = {0};
-  tDeserializeSCMSubscribeReq(msgStr, &subscribe);
+  tDeserializeSCMSubscribeReq(msgStr, &subscribe, pMsg->contLen);
 
   SMqConsumerObj *pConsumerNew = NULL;
   STrans         *pTrans = NULL;
@@ -993,6 +993,21 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)clientId, false);
+
+      // user
+      char user[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(user, pConsumer->user);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)user, false);
+
+
+      // fqdn
+      char fqdn[TSDB_FQDN_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(fqdn, pConsumer->fqdn);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)fqdn, false);
 
       // status
       char        status[20 + VARSTR_HEADER_SIZE] = {0};
