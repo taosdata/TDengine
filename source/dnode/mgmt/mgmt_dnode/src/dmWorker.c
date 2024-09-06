@@ -168,6 +168,7 @@ static void *dmMonitorThreadFp(void *param) {
     float interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsMonitorInterval) {
       (*pMgmt->sendMonitorReportFp)();
+      (*pMgmt->monitorCleanExpiredSamplesFp)();
       lastTime = curTime;
 
       // cron time = TRIM_FREQ * tsMonitorInterval,

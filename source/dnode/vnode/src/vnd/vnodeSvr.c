@@ -14,6 +14,7 @@
  */
 
 #include "audit.h"
+#include "monitor.h"
 #include "tencode.h"
 #include "tmsg.h"
 #include "tstrbuild.h"
@@ -21,6 +22,8 @@
 #include "vndCos.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+
+extern taos_counter_t *tsInsertCounter;
 
 static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -679,8 +682,7 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
-  if ((pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_VND_TMQ_CONSUME) &&
-      !syncIsReadyForRead(pVnode->sync)) {
+  if ((pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_VND_TMQ_CONSUME) && !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
@@ -1677,7 +1679,8 @@ _exit:
   atomic_add_fetch_64(&pVnode->statis.nInsertSuccess, pSubmitRsp->affectedRows);
   atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
 
-  if (tsEnableMonitor && pSubmitRsp->affectedRows > 0 && strlen(pOriginalMsg->info.conn.user) > 0) {
+  if (tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && pSubmitRsp->affectedRows > 0 &&
+      strlen(pOriginalMsg->info.conn.user) > 0 && tsInsertCounter != NULL) {
     const char *sample_labels[] = {VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS,
                                    pVnode->monitor.strClusterId,
                                    pVnode->monitor.strDnodeId,
@@ -1685,7 +1688,7 @@ _exit:
                                    pVnode->monitor.strVgId,
                                    pOriginalMsg->info.conn.user,
                                    "Success"};
-    taos_counter_add(pVnode->monitor.insertCounter, pSubmitRsp->affectedRows, sample_labels);
+    (void)taos_counter_add(tsInsertCounter, pSubmitRsp->affectedRows, sample_labels);
   }
 
   if (code == 0) {

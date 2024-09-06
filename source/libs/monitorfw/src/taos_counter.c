@@ -20,9 +20,12 @@
 #include "taos_alloc.h"
 
 // Private
+
 #include "taos_assert.h"
+
 #include "taos_errors.h"
 #include "taos_log.h"
+#include "taos_metric_formatter_i.h"
 #include "taos_metric_i.h"
 #include "taos_metric_sample_i.h"
 #include "taos_metric_sample_t.h"
@@ -63,4 +66,48 @@ int taos_counter_add(taos_counter_t *self, double r_value, const char **label_va
   taos_metric_sample_t *sample = taos_metric_sample_from_labels(self, label_values);
   if (sample == NULL) return 1;
   return taos_metric_sample_add(sample, r_value);
+}
+
+int taos_counter_get_keys_size(taos_counter_t *self) { return self->samples->keys->size; }
+
+int taos_counter_get_vgroup_ids(taos_counter_t *self, char ***keys, int32_t **vgroup_ids, int *list_size) {
+  if (self == NULL) return 1;
+  if (self->type != TAOS_COUNTER) {
+    TAOS_LOG(TAOS_METRIC_INCORRECT_TYPE);
+    return 1;
+  }
+  if (self->samples == NULL) return 1;
+  (void)pthread_rwlock_rdlock(self->rwlock);
+  taos_linked_list_t *key_list = self->samples->keys;
+  *list_size = key_list->size;
+  int r = 0;
+  *vgroup_ids = (int32_t *)taos_malloc(*list_size * sizeof(int32_t));
+  if (vgroup_ids == NULL) {
+    (void)pthread_rwlock_unlock(self->rwlock);
+    return 1;
+  }
+  *keys = (char **)taos_malloc(*list_size * sizeof(char *));
+  if (keys == NULL) {
+    (void)pthread_rwlock_unlock(self->rwlock);
+    return 1;
+  }
+  int index = 0;
+  for (taos_linked_list_node_t *current_key = key_list->head; current_key != NULL; current_key = current_key->next) {
+    char   *key = (char *)current_key->item;
+    int32_t vgroup_id = taos_metric_formatter_get_vgroup_id(key);
+    (*vgroup_ids)[index] = vgroup_id;
+    (*keys)[index] = key;
+    index++;
+  }
+  (void)pthread_rwlock_unlock(self->rwlock);
+  return r;
+}
+
+int taos_counter_delete(taos_counter_t *self, char *key) {
+  if (self == NULL) return 1;
+  if (self->type != TAOS_COUNTER) {
+    TAOS_LOG(TAOS_METRIC_INCORRECT_TYPE);
+    return 1;
+  }
+  return taos_map_delete(self->samples, key);
 }
