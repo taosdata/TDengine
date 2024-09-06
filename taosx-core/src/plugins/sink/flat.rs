@@ -1791,13 +1791,6 @@ mod tests {
                 }
                 Arc::new(builder.finish())
             }
-            VarBinary(_) => {
-                let mut builder = StringBuilder::new();
-                for _ in 0..len {
-                    builder.append_value(format!("\\x0102030405060708090a0b0c0d0e0f10"));
-                }
-                Arc::new(builder.finish())
-            }
         };
         (field, value)
     }
