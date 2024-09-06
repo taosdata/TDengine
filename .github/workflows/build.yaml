@@ -42,7 +42,7 @@ jobs:
 
       - name: Format check
         run: |
-          cargo fmt --locked --check --all
+          cargo fmt --check --all
 
       - name: Typos check
         run: |
