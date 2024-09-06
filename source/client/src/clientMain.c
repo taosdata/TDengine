@@ -297,9 +297,8 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
   pSendInfo->fp = fetchWhiteListCallbackFn;
   pSendInfo->msgType = TDMT_MND_GET_USER_WHITELIST;
 
-  int64_t transportId = 0;
-  SEpSet  epSet = getEpSet_s(&pTsc->pAppInfo->mgmtEp);
-  if (TSDB_CODE_SUCCESS != asyncSendMsgToServer(pTsc->pAppInfo->pTransporter, &epSet, &transportId, pSendInfo)) {
+  SEpSet epSet = getEpSet_s(&pTsc->pAppInfo->mgmtEp);
+  if (TSDB_CODE_SUCCESS != asyncSendMsgToServer(pTsc->pAppInfo->pTransporter, &epSet, NULL, pSendInfo)) {
     tscWarn("failed to async send msg to server");
   }
   releaseTscObj(connId);
@@ -861,9 +860,9 @@ int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
   return pResInfo->pCol[columnIndex].offset;
 }
 
-int taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *rows){
-  if (res == NULL || result == NULL || rows == NULL || *rows <= 0 ||
-      columnIndex < 0 || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+int taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *rows) {
+  if (res == NULL || result == NULL || rows == NULL || *rows <= 0 || columnIndex < 0 || TD_RES_TMQ_META(res) ||
+      TD_RES_TMQ_BATCH_META(res)) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -876,22 +875,22 @@ int taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *r
   TAOS_FIELD     *pField = &pResInfo->userFields[columnIndex];
   SResultColumn  *pCol = &pResInfo->pCol[columnIndex];
 
-  if (*rows > pResInfo->numOfRows){
+  if (*rows > pResInfo->numOfRows) {
     *rows = pResInfo->numOfRows;
   }
   if (IS_VAR_DATA_TYPE(pField->type)) {
-    for(int i = 0; i < *rows; i++){
-      if(pCol->offset[i] == -1){
+    for (int i = 0; i < *rows; i++) {
+      if (pCol->offset[i] == -1) {
         result[i] = true;
-      }else{
+      } else {
         result[i] = false;
       }
     }
-  }else{
-    for(int i = 0; i < *rows; i++){
-      if (colDataIsNull_f(pCol->nullbitmap, i)){
+  } else {
+    for (int i = 0; i < *rows; i++) {
+      if (colDataIsNull_f(pCol->nullbitmap, i)) {
         result[i] = true;
-      }else{
+      } else {
         result[i] = false;
       }
     }
@@ -1236,7 +1235,8 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
                            .allocatorId = pRequest->allocatorRefId,
                            .parseSqlFp = clientParseSql,
-                           .parseSqlParam = pWrapper};
+                           .parseSqlParam = pWrapper,
+                           .setQueryFp = setQueryRequest};
   int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
   (*pCxt)->biMode = biMode;
   return TSDB_CODE_SUCCESS;

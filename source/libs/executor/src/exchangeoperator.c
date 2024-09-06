@@ -464,7 +464,10 @@ _error:
 
 void destroyExchangeOperatorInfo(void* param) {
   SExchangeInfo* pExInfo = (SExchangeInfo*)param;
-  (void)taosRemoveRef(exchangeObjRefPool, pExInfo->self);
+  int32_t        code = taosRemoveRef(exchangeObjRefPool, pExInfo->self);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  }
 }
 
 void freeBlock(void* pParam) {
@@ -505,7 +508,10 @@ void doDestroyExchangeOperatorInfo(void* param) {
   blockDataDestroy(pExInfo->pDummyBlock);
   tSimpleHashCleanup(pExInfo->pHashSources);
 
-  (void)tsem_destroy(&pExInfo->ready);
+  int32_t code = tsem_destroy(&pExInfo->ready);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  }
   taosMemoryFreeClear(pExInfo->pTaskId);
 
   taosMemoryFreeClear(param);
@@ -561,9 +567,13 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     code = TAOS_SYSTEM_ERROR(code);
     qError("failed to invoke post when fetch rsp is ready, code:%s, %p", tstrerror(code), pExchangeInfo);
+    return code;
   }
 
-  (void)taosReleaseRef(exchangeObjRefPool, pWrapper->exchangeId);
+  code = taosReleaseRef(exchangeObjRefPool, pWrapper->exchangeId);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  }
   return code;
 }
 
@@ -1190,7 +1200,14 @@ static int32_t exchangeWait(SOperatorInfo* pOperator, SExchangeInfo* pExchangeIn
       return pTask->code;
     }
   }
-  (void)tsem_wait(&pExchangeInfo->ready);
+
+  code = tsem_wait(&pExchangeInfo->ready);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    pTask->code = code;
+    return pTask->code;
+  }
+
   if (pTask->pWorkerCb) {
     code = pTask->pWorkerCb->afterRecoverFromBlocking(pTask->pWorkerCb->pPool);
     if (code != TSDB_CODE_SUCCESS) {

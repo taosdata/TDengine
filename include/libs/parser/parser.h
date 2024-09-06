@@ -65,6 +65,8 @@ typedef struct SParseCsvCxt {
   const char* pLastSqlPos;  // the location of the last parsed sql
 } SParseCsvCxt;
 
+typedef void(*setQueryFn)(int64_t);
+
 typedef struct SParseContext {
   uint64_t         requestId;
   int64_t          requestRid;
@@ -98,6 +100,7 @@ typedef struct SParseContext {
   void*            parseSqlParam;
   int8_t           biMode;
   SArray*          pSubMetaList;
+  setQueryFn       setQueryFp;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);

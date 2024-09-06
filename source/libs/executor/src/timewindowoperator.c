@@ -1231,7 +1231,7 @@ void destroyIntervalOperatorInfo(void* param) {
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSupp);
 
-  (void)tdListFree(pInfo->binfo.resultRowInfo.openWindow);
+  pInfo->binfo.resultRowInfo.openWindow = tdListFree(pInfo->binfo.resultRowInfo.openWindow);
 
   taosArrayDestroy(pInfo->pInterpCols);
   pInfo->pInterpCols = NULL;
@@ -2132,7 +2132,7 @@ typedef struct SGroupTimeWindow {
 
 void destroyMergeIntervalOperatorInfo(void* param) {
   SMergeIntervalAggOperatorInfo* miaInfo = (SMergeIntervalAggOperatorInfo*)param;
-  (void)tdListFree(miaInfo->groupIntervals);
+  miaInfo->groupIntervals = tdListFree(miaInfo->groupIntervals);
   destroyIntervalOperatorInfo(&miaInfo->intervalAggOperatorInfo);
 
   taosMemoryFreeClear(param);
@@ -2162,7 +2162,8 @@ static int32_t outputPrevIntervalResult(SOperatorInfo* pOperatorInfo, uint64_t t
 
     STimeWindow* prevWin = &prevGrpWin->window;
     if ((ascScan && newWin->skey > prevWin->ekey) || ((!ascScan) && newWin->skey < prevWin->ekey)) {
-      (void)tdListPopNode(miaInfo->groupIntervals, listNode);
+      SListNode* tmp = tdListPopNode(miaInfo->groupIntervals, listNode);
+      taosMemoryFreeClear(tmp);
     }
   }
 
