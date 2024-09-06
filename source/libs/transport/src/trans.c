@@ -103,7 +103,7 @@ void* rpcOpen(const SRpcInit* pInit) {
     pRpc->timeToGetConn = 10 * 1000;
   }
   pRpc->notWaitAvaliableConn = pInit->notWaitAvaliableConn;
-  
+
   pRpc->tcphandle =
       (*taosInitHandle[pRpc->connType])(ip, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
 
@@ -124,14 +124,20 @@ _end:
 }
 void rpcClose(void* arg) {
   tInfo("start to close rpc");
+  if (arg == NULL) {
+    return;
+  }
   (void)transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
   (void)transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
   tInfo("end to close rpc");
   return;
 }
 void rpcCloseImpl(void* arg) {
+  if (arg == NULL) return;
   SRpcInfo* pRpc = (SRpcInfo*)arg;
-  (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
+  if (pRpc->tcphandle != NULL) {
+    (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
+  }
   taosMemoryFree(pRpc);
 }
 
@@ -168,7 +174,7 @@ int32_t rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64
   return transSendRequest(shandle, pEpSet, pMsg, NULL);
 }
 int32_t rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
-  if (pCtx != NULL || pMsg->info.handle != 0 || pMsg->info.noResp != 0|| pRid == NULL) {
+  if (pCtx != NULL || pMsg->info.handle != 0 || pMsg->info.noResp != 0 || pRid == NULL) {
     return transSendRequest(shandle, pEpSet, pMsg, pCtx);
   } else {
     return transSendRequestWithId(shandle, pEpSet, pMsg, pRid);

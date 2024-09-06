@@ -99,12 +99,11 @@ typedef struct SCliMsg {
 } SCliMsg;
 
 typedef struct SCliThrd {
-  TdThread      thread;  // tid
-  int64_t       pid;     // pid
-  uv_loop_t*    loop;
-  SAsyncPool*   asyncPool;
-  uv_prepare_t* prepare;
-  void*         pool;  // conn pool
+  TdThread    thread;  // tid
+  int64_t     pid;     // pid
+  uv_loop_t*  loop;
+  SAsyncPool* asyncPool;
+  void*       pool;  // conn pool
   // timer handles
   SArray* timerList;
   // msg queue
@@ -167,7 +166,6 @@ static void cliSendCb(uv_write_t* req, int status);
 static void cliConnCb(uv_connect_t* req, int status);
 static void cliAsyncCb(uv_async_t* handle);
 static void cliIdleCb(uv_idle_t* handle);
-static void cliPrepareCb(uv_prepare_t* handle);
 
 static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd);
 static void cliSendBatchCb(uv_write_t* req, int status);
@@ -231,7 +229,9 @@ static FORCE_INLINE void transDestroyConnCtx(STransConnCtx* ctx);
 // thread obj
 static int32_t createThrdObj(void* trans, SCliThrd** pThrd);
 static void    destroyThrdObj(SCliThrd* pThrd);
-static void    cliWalkCb(uv_handle_t* handle, void* arg);
+
+int32_t     cliSendQuit(SCliThrd* thrd);
+static void cliWalkCb(uv_handle_t* handle, void* arg);
 
 #define CLI_RELEASE_UV(loop)              \
   do {                                    \
@@ -2119,33 +2119,6 @@ static void cliAsyncCb(uv_async_t* handle) {
 
   if (pThrd->stopMsg != NULL) cliHandleQuit(pThrd->stopMsg, pThrd);
 }
-static void cliPrepareCb(uv_prepare_t* handle) {
-  SCliThrd* thrd = handle->data;
-  tTrace("prepare work start");
-
-  SAsyncPool* pool = thrd->asyncPool;
-  for (int i = 0; i < pool->nAsync; i++) {
-    uv_async_t* async = &(pool->asyncs[i]);
-    SAsyncItem* item = async->data;
-
-    queue wq;
-    (void)taosThreadMutexLock(&item->mtx);
-    QUEUE_MOVE(&item->qmsg, &wq);
-    (void)taosThreadMutexUnlock(&item->mtx);
-
-    int count = 0;
-    while (!QUEUE_IS_EMPTY(&wq)) {
-      queue* h = QUEUE_HEAD(&wq);
-      QUEUE_REMOVE(h);
-
-      SCliMsg* pMsg = QUEUE_DATA(h, SCliMsg, q);
-      (*cliAsyncHandle[pMsg->type])(pMsg, thrd);
-      count++;
-    }
-  }
-  tTrace("prepare work end");
-  if (thrd->stopMsg != NULL) cliHandleQuit(thrd->stopMsg, thrd);
-}
 
 void cliDestroyConnMsgs(SCliConn* conn, bool destroy) {
   transCtxCleanup(&conn->ctx);
@@ -2260,6 +2233,12 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
 _err:
   if (cli) {
+    for (int i = 0; i < cli->numOfThreads; i++) {
+      if (cli->pThreadObj[i]) {
+        (void)cliSendQuit(cli->pThreadObj[i]);
+        destroyThrdObj(cli->pThreadObj[i]);
+      }
+    }
     taosMemoryFree(cli->pThreadObj);
     taosMemoryFree(cli);
   }
@@ -2339,37 +2318,6 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
     TAOS_CHECK_GOTO(code, NULL, _end);
   }
 
-  pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
-  if (pThrd->prepare == NULL) {
-    tError("failed to create prepre since:%s", tstrerror(code));
-    TAOS_CHECK_GOTO(code, NULL, _end);
-  }
-
-  code = uv_prepare_init(pThrd->loop, pThrd->prepare);
-  if (code != 0) {
-    tError("failed to create prepre since:%s", uv_err_name(code));
-    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _end);
-  }
-  pThrd->prepare->data = pThrd;
-
-  int32_t timerSize = 64;
-  pThrd->timerList = taosArrayInit(timerSize, sizeof(void*));
-  if (pThrd->timerList == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
-  }
-
-  for (int i = 0; i < timerSize; i++) {
-    uv_timer_t* timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
-    if (timer == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
-    }
-    (void)uv_timer_init(pThrd->loop, timer);
-    if (taosArrayPush(pThrd->timerList, &timer) == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
-    }
-  }
-
   pThrd->pool = createConnPool(4);
   if (pThrd->pool == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -2402,6 +2350,23 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
   }
 
+  int32_t timerSize = 64;
+  pThrd->timerList = taosArrayInit(timerSize, sizeof(void*));
+  if (pThrd->timerList == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+  }
+
+  for (int i = 0; i < timerSize; i++) {
+    uv_timer_t* timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
+    if (timer == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    }
+    (void)uv_timer_init(pThrd->loop, timer);
+    if (taosArrayPush(pThrd->timerList, &timer) == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    }
+  }
   pThrd->nextTimeout = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
   pThrd->pTransInst = trans;
   pThrd->quit = false;
@@ -2411,17 +2376,21 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
 
 _end:
   if (pThrd) {
+    (void)taosThreadMutexDestroy(&pThrd->msgMtx);
+
     (void)uv_loop_close(pThrd->loop);
     taosMemoryFree(pThrd->loop);
-    taosMemoryFree(pThrd->prepare);
-    (void)taosThreadMutexDestroy(&pThrd->msgMtx);
     transAsyncPoolDestroy(pThrd->asyncPool);
     for (int i = 0; i < taosArrayGetSize(pThrd->timerList); i++) {
       uv_timer_t* timer = taosArrayGetP(pThrd->timerList, i);
       taosMemoryFree(timer);
     }
     taosArrayDestroy(pThrd->timerList);
-    taosMemoryFree(pThrd->prepare);
+
+    destroyConnPool(pThrd);
+    transDQDestroy(pThrd->delayQueue, NULL);
+    transDQDestroy(pThrd->timeoutQueue, NULL);
+    transDQDestroy(pThrd->waitConnQueue, NULL);
     taosHashCleanup(pThrd->fqdn2ipCache);
     taosHashCleanup(pThrd->failFastCache);
     taosHashCleanup(pThrd->batchCache);
@@ -2450,8 +2419,8 @@ static void destroyThrdObj(SCliThrd* pThrd) {
     uv_timer_t* timer = taosArrayGetP(pThrd->timerList, i);
     taosMemoryFree(timer);
   }
+  uv_loop_close(pThrd->loop);
   taosArrayDestroy(pThrd->timerList);
-  taosMemoryFree(pThrd->prepare);
   taosMemoryFree(pThrd->loop);
   taosHashCleanup(pThrd->fqdn2ipCache);
   taosHashCleanup(pThrd->failFastCache);
