@@ -51,6 +51,7 @@ static int32_t tsdbSttLvlInitEx(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl **lvl
 
     code = TARRAY2_APPEND(lvl[0]->fobjArr, fobj);
     if (code) {
+      (void)tsdbSttLvlClear(lvl);
       taosMemoryFree(fobj);
       return code;
     }
