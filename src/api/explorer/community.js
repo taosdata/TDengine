@@ -4317,8 +4317,8 @@ export function getDataSources(lang) {
                   "required": false,
                   "display": "Authenticate DB",
                   "placeholder": "Authenticate DB",
-                  "short_description": "The database for authentication.\n",
-                  "description": "The database for authentication.The default is admin in the SCRAM authentication mechanism, $external in GSSAPI and MONGODB-X509, and the default is the database name or $external in PLAIN.\n",
+                  "short_description": "The default database for storing user information in MongoDB is admin.\n",
+                  "description": "The default database for storing user information in MongoDB is admin.\n",
                 },
               ],
             }
@@ -4390,7 +4390,7 @@ export function getDataSources(lang) {
                   "type": "str"
                 },
                 "short_description": "The source database.",
-                "description": "The source database.\n",
+                "description": "Source database in MongoDB, can be dynamically configured using placeholders, available placeholder list: \n<ul><li>${Y} Full Gregorian year representation, zero-filled 4-digit integer </li><li>${y} Gregorian year divided by 100, Zero padding of two integers </li ><li>${M} integer (1-12 month </li><li>${M} in integer (01-12) </li><li>${B} in English whole put together </li><li>${B} in English abbreviations (3 A letter) </li><li>${D} date Numbers (1-31) </li><li>${D} date Numbers (01-31) </li><li>${J} the first day of the year (1-366) </li><li>${J} the first day of the year (001 - 366) </li><li>${F} is equivalent to ${Y}${m}${d}</li></ul>\n",
                 "required": true,
                 "placeholder": "database_${Y}",
               },
@@ -4401,7 +4401,7 @@ export function getDataSources(lang) {
                   "type": "str"
                 },
                 "short_description": "The source collection.",
-                "description": "The source collection.\n",
+                "description": "Set in MongoDB, can be dynamically configured using placeholders, available placeholder list: \n<ul><li>${Y} Full Gregorian year representation, zero-filled 4-digit integer </li><li>${y} Gregorian year divided by 100, Zero padding of two integers </li ><li>${M} integer (1-12 month </li><li>${M} in integer (01-12) </li><li>${B} in English whole put together </li><li>${B} in English abbreviations (3 A letter) </li><li>${D} date Numbers (1-31) </li><li>${D} date Numbers (01-31) </li><li>${J} the first day of the year (1-366) </li><li>${J} the first day of the year (001 - 366) </li><li>${F} is equivalent to ${Y}${m}${d}</li></ul>",
                 "required": true,
                 "placeholder": "collection_${md}",
               },
@@ -8857,8 +8857,8 @@ export function getDataSources(lang) {
                   "required": false,
                   "display": "认证数据库",
                   "placeholder": "认证数据库",
-                  "short_description": "进行身份验证的数据库。\n",
-                  "description": "进行身份验证的数据库，在 SCRAM 身份验证机制中默认为 “admin”，GSSAPI 和 MONGODB-X509 默认为 “$external”，PLAIN 默认为数据库名称或 “$external”。\n",
+                  "short_description": "MongoDB 中存储用户信息的数据库，默认为 admin。\n",
+                  "description": "MongoDB 中存储用户信息的数据库，默认为 admin。\n",
                 },
               ],
             }
@@ -8930,7 +8930,7 @@ export function getDataSources(lang) {
                   "type": "str"
                 },
                 "short_description": "源数据库。",
-                "description": "源数据库。\n",
+                "description": "MongoDB 中源数据库，可以使用占位符进行动态配置，可用占位符列表：\n<ul><li>${Y} 完整的公历年表示，零填充的 4 位整数</li><li>${y} 公历年除以 100，零填充的 2 位整数</li><li>${M} 整数月份（1 - 12</li><li>${m} 整数月份（01 - 12）</li><li>${B} 月份英文全拼</li><li>${b} 月份英文的缩写（3 个字母）</li><li>${D} 日期的数字表示（1 - 31）</li><li>${d} 日期的数字表示（01 - 31）</li><li>${J} 一年中的第几天（1 - 366）</li><li>${j} 一年中的第几天（001 - 366）</li><li>${F} 相当于 ${Y}${m}${d}</li></ul>\n",
                 "required": true,
                 "placeholder": "database_${Y}",
               },
@@ -8941,7 +8941,7 @@ export function getDataSources(lang) {
                   "type": "str"
                 },
                 "short_description": "源集合。",
-                "description": "源集合。\n",
+                "description": "MongoDB 中集合，可以使用占位符进行动态配置，可用占位符列表：\n<ul><li>${Y} 完整的公历年表示，零填充的 4 位整数</li><li>${y} 公历年除以 100，零填充的 2 位整数</li><li>${M} 整数月份（1 - 12</li><li>${m} 整数月份（01 - 12）</li><li>${B} 月份英文全拼</li><li>${b} 月份英文的缩写（3 个字母）</li><li>${D} 日期的数字表示（1 - 31）</li><li>${d} 日期的数字表示（01 - 31）</li><li>${J} 一年中的第几天（1 - 366）</li><li>${j} 一年中的第几天（001 - 366）</li><li>${F} 相当于 ${Y}${m}${d}</li></ul>",
                 "required": true,
                 "placeholder": "collection_${md}",
               },
