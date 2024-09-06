@@ -355,8 +355,9 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
   pInfo->startTs = taosGetTimestampUs();
   //  pInfo->binfo.pRes is not equalled to the input datablock.
   pInfo->pSortHandle = NULL;
-  int32_t code = tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1, NULL, pTaskInfo->id.str,
-                                             pInfo->maxRows, pInfo->maxTupleLength, tsPQSortMemThreshold * 1024 * 1024, &pInfo->pSortHandle);
+  int32_t code =
+      tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1, NULL, pTaskInfo->id.str, pInfo->maxRows,
+                            pInfo->maxTupleLength, tsPQSortMemThreshold * 1024 * 1024, &pInfo->pSortHandle);
   if (code) {
     return code;
   }
@@ -365,10 +366,10 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
 
   SSortSource* pSource = taosMemoryCalloc(1, sizeof(SSortSource));
   if (pSource == NULL) {
-    qInfo("alloc:%p", pSource);
     return terrno;
   }
 
+  qInfo("---alloc:%p", pSource);
   pSource->param = pOperator->pDownstream[0];
   pSource->onlyRef = true;
 
