@@ -221,6 +221,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowQnodesStmt";
     case QUERY_NODE_SHOW_ANODES_STMT:
       return "ShowAnodesStmt";
+    case QUERY_NODE_SHOW_ANODES_FULL_STMT:
+      return "ShowAnodesFullStmt";
     case QUERY_NODE_SHOW_SNODES_STMT:
       return "ShowSnodesStmt";
     case QUERY_NODE_SHOW_BNODES_STMT:
@@ -7050,6 +7052,10 @@ static int32_t showAnodesStmtToJson(const void* pObj, SJson* pJson) { return sho
 
 static int32_t jsonToShowAnodesStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
 
+static int32_t showAnodesFullStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+
+static int32_t jsonToShowAnodesFullStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+
 static int32_t showArbGroupsStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
 
 static int32_t jsonToShowArbGroupsStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
@@ -7696,6 +7702,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showQnodesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_ANODES_STMT:
       return showAnodesStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_ANODES_FULL_STMT:
+      return showAnodesFullStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
       return showArbGroupsStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_CLUSTER_STMT:
@@ -8048,6 +8056,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowQnodesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_ANODES_STMT:
       return jsonToShowAnodesStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_ANODES_FULL_STMT:
+      return jsonToShowAnodesFullStmt(pJson, pObj);
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
       return jsonToShowArbGroupsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_CLUSTER_STMT:

@@ -520,3 +520,18 @@ int32_t parseCfgReal(const char *str, float *out) {
   *out = val;
   return TSDB_CODE_SUCCESS;
 }
+
+const char *afuncStr(EAFuncType type) {
+  switch (type) {
+    case AFUNC_TYPE_ANOMALY_WINDOW:
+      return "anomaly_window";
+    case AFUNC_TYPE_ANOMALY_DETECT:
+      return "anomaly_detect";
+    case AFUNC_TYPE_FORECAST:
+      return "forecast";
+    case AFUNC_TYPE_HISTORIC:
+      return "historic";
+    default:
+      return "unknown";
+  }
+}

@@ -35,6 +35,8 @@ static int32_t  mndProcessUpdateAnodeReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropAnodeReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextAnode(SMnode *pMnode, void *pIter);
+static int32_t  mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static void     mndCancelGetNextAnodeFull(SMnode *pMnode, void *pIter);
 
 int32_t mndInitAnode(SMnode *pMnode) {
   SSdbTable table = {
@@ -53,6 +55,8 @@ int32_t mndInitAnode(SMnode *pMnode) {
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ANODE, mndRetrieveAnodes);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ANODE, mndCancelGetNextAnode);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ANODE_FULL, mndRetrieveAnodesFull);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ANODE_FULL, mndCancelGetNextAnodeFull);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -154,7 +158,7 @@ static SSdbRow *mndAnodeActionDecode(SSdbRaw *pRaw) {
   if (pObj->urlLen > 0) {
     pObj->url = taosMemoryCalloc(pObj->urlLen, 1);
     if (pObj->url == NULL) goto _OVER;
-    SDB_GET_BINARY(pRaw, dataPos, pObj->url, pObj->urlLen , _OVER)
+    SDB_GET_BINARY(pRaw, dataPos, pObj->url, pObj->urlLen, _OVER)
   }
 
   if (pObj->numOfFuncs > 0) {
@@ -294,6 +298,7 @@ static int32_t mndCreateAnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateAnodeReq *p
   // get from restful, test begin
   anodeObj.numOfFuncs = 2;
 
+  //todo: check len of url/name/types
   anodeObj.pFuncs = taosMemoryCalloc(anodeObj.numOfFuncs, sizeof(SAnodeFunc));
   SAnodeFunc *pFunc1 = &anodeObj.pFuncs[0];
   pFunc1->typeLen = 3;
@@ -527,6 +532,52 @@ static int32_t mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 }
 
 static void mndCancelGetNextAnode(SMnode *pMnode, void *pIter) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetchByType(pSdb, pIter, SDB_ANODE);
+}
+
+static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode    *pMnode = pReq->info.node;
+  SSdb      *pSdb = pMnode->pSdb;
+  int32_t    numOfRows = 0;
+  int32_t    cols = 0;
+  SAnodeObj *pObj = NULL;
+  char       buf[TSDB_FUNC_NAME_LEN + VARSTR_HEADER_SIZE];
+
+  while (numOfRows < rows) {
+    pShow->pIter = sdbFetch(pSdb, SDB_ANODE, pShow->pIter, (void **)&pObj);
+    if (pShow->pIter == NULL) break;
+
+    for (int32_t f = 0; f < pObj->numOfFuncs; ++f) {
+      SAnodeFunc *pFunc = &pObj->pFuncs[f];
+      for (int32_t t = 0; t < pFunc->typeLen; ++t) {
+        int32_t type = pFunc->types[t];
+
+        cols = 0;
+        SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
+
+        STR_TO_VARSTR(buf, pFunc->name);
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        (void)colDataSetVal(pColInfo, numOfRows, buf, false);
+
+        STR_TO_VARSTR(buf, afuncStr(type));
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        (void)colDataSetVal(pColInfo, numOfRows, buf, false);
+
+        numOfRows++;
+      }
+    }
+
+    sdbRelease(pSdb, pObj);
+  }
+
+  pShow->numOfRows += numOfRows;
+
+  return numOfRows;
+}
+
+static void mndCancelGetNextAnodeFull(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetchByType(pSdb, pIter, SDB_ANODE);
 }

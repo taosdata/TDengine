@@ -70,6 +70,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_SNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_ANODES, len) == 0) {
     type = TSDB_MGMT_TABLE_ANODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ANODES_FULL, len) == 0) {
+    type = TSDB_MGMT_TABLE_ANODE_FULL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_ARBGROUPS, len) == 0) {
     type = TSDB_MGMT_TABLE_ARBGROUP;
   } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, len) == 0) {

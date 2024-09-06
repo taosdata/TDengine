@@ -30,6 +30,7 @@ extern "C" {
 #define TSDB_INS_TABLE_BNODES            "ins_bnodes"  // no longer used
 #define TSDB_INS_TABLE_SNODES            "ins_snodes"
 #define TSDB_INS_TABLE_ANODES            "ins_anodes"
+#define TSDB_INS_TABLE_ANODES_FULL       "ins_anodes_full"
 #define TSDB_INS_TABLE_ARBGROUPS         "ins_arbgroups"
 #define TSDB_INS_TABLE_CLUSTER           "ins_cluster"
 #define TSDB_INS_TABLE_DATABASES         "ins_databases"
