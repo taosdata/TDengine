@@ -444,7 +444,6 @@ _return:
 int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDataBuf *pMsg, int32_t rspCode) {
   int32_t code = 0;
   int32_t msgType = pMsg->msgType;
-  char   *msg = pMsg->pData;
 
   bool dropExecNode = (msgType == TDMT_SCH_LINK_BROKEN || SCH_NETWORK_ERR(rspCode));
   if (SCH_IS_QUERY_JOB(pJob)) {
@@ -466,7 +465,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
 
 _return:
 
-  taosMemoryFreeClear(msg);
+  taosMemoryFreeClear(pMsg->pData);
 
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 } 
