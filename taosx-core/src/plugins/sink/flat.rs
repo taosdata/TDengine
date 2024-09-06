@@ -16,15 +16,15 @@ use futures_util::{Sink, SinkExt, Stream, StreamExt};
 use lazy_static::lazy_static;
 use serde_json::json;
 use taos::{taos_query::Manager, AsyncQueryable, Itertools, RawBlock, TaosBuilder, TaosPool, Ty};
-use thiserror::Error;
-use tokio::task::JoinSet;
-use tokio_util::sync::CancellationToken;
-use tracing::{error, info, instrument, trace, Instrument};
-
 use taosx_ipc::{
     ack::LushAck,
     stream::{flat::FlatMessage, reader::IpcMessage},
 };
+use thiserror::Error;
+
+use tokio::task::JoinSet;
+use tokio_util::sync::CancellationToken;
+use tracing::{error, info, instrument, trace, Instrument};
 
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
@@ -236,6 +236,7 @@ pub async fn flat_write_with_sql(
     req_id: &RequestID,
     messages: &[MessageArrowRecords],
     metrics: &IpcMetrics,
+    _notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
 ) -> anyhow::Result<usize> {
     let mut count = 0;
@@ -247,32 +248,6 @@ pub async fn flat_write_with_sql(
         .into_group_map_by(|m| m.stable_name().map(|s| s.to_string()));
     // insert into stable
     for (stable, messages) in groups.into_iter() {
-        if let Some(stable) = stable.as_ref() {
-            let describe = describe_table_with_connection_retries(
-                pool,
-                taos,
-                stable,
-                DEFAULT_MAX_RETRIES_FOR_CONNECTION,
-                cancel,
-            )
-            .await?;
-
-            if let Some(field) = describe
-                .split()
-                .map(|c| c.0)
-                .and_then(|c| c.get(1))
-                .filter(|c| c.is_primary_key())
-                .map(|c| c.field())
-            {
-                if messages
-                    .iter()
-                    .map(|m| m.records.column_by_name(field))
-                    .any(|a| a.is_some_and(|a| a.null_count() > 0))
-                {
-                    bail!("Primary key field contains null value")
-                }
-            }
-        }
         let instant = std::time::Instant::now();
         let sqls = message_to_sql(messages.iter().map(|v| *v), target_precision, true, true);
         tracing::debug!(
@@ -388,6 +363,7 @@ pub async fn flat_write_with_raw_block(
     req_id: &RequestID,
     messages: &[MessageArrowRecords],
     metrics: &IpcMetrics,
+    notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
 ) -> anyhow::Result<usize> {
     let mut count = 0;
@@ -398,31 +374,6 @@ pub async fn flat_write_with_raw_block(
         metrics.add_processed_rows(records.records.num_rows() as u64);
         if records.records.column(0).null_count() > 0 {
             bail!("Timestamp field contains null or invalid values");
-        }
-        if let Some(stable) = records.stable_name() {
-            let describe = describe_table_with_connection_retries(
-                pool,
-                taos,
-                stable,
-                DEFAULT_MAX_RETRIES_FOR_CONNECTION,
-                cancel,
-            )
-            .await?;
-            if let Some(field) = describe
-                .split()
-                .map(|s| s.0)
-                .and_then(|s| s.get(1))
-                .filter(|s| s.is_primary_key())
-                .map(|s| s.field())
-            {
-                if records
-                    .records
-                    .column_by_name(field)
-                    .is_some_and(|s| s.null_count() > 0)
-                {
-                    bail!("Primary key field contains null value")
-                }
-            }
         }
         tracing::debug!("Write records with rows {}", records.records.num_rows());
         let views = taosx_ipc::stream::reader::record_batch_to_column_view(
@@ -867,6 +818,7 @@ pub async fn flat_write_with_raw_block(
                         &req_id,
                         &retry_messages,
                         metrics,
+                        notifier,
                         cancel,
                     )
                     .await?;
@@ -914,6 +866,7 @@ impl FlatSink {
         parser: Parser,
         target_precision: taos::Precision,
         metrics_arc: Arc<CoreMetrics>,
+        notifier: crate::TaskNotifySender,
         cancel: CancellationToken,
     ) -> anyhow::Result<Self> {
         let workers = parser.global().workers_per_vgroup();
@@ -939,6 +892,7 @@ impl FlatSink {
                 let metrics_arc = metrics_arc.clone();
                 let parser = parser.clone();
                 let rx = rx.clone();
+                let notifier = notifier.clone();
                 let cancel = cancel.clone();
                 set.spawn(
                     async move {
@@ -965,6 +919,7 @@ impl FlatSink {
                                     &req_id,
                                     &messages,
                                     metrics,
+                                    Some(&notifier),
                                     &cancel,
                                 )
                                 .in_current_span()
@@ -979,6 +934,7 @@ impl FlatSink {
                                     &req_id,
                                     &messages,
                                     metrics,
+                                    Some(&notifier),
                                     &cancel,
                                 )
                                 .in_current_span()
@@ -1049,6 +1005,7 @@ impl FlatSink {
                                                 &req_id,
                                                 &messages,
                                                 metrics,
+                                                Some(&notifier),
                                                 &cancel,
                                             )
                                             .in_current_span()
@@ -1063,6 +1020,7 @@ impl FlatSink {
                                                 &req_id,
                                                 &messages,
                                                 metrics,
+                                                Some(&notifier),
                                                 &cancel,
                                             )
                                             .in_current_span()
@@ -1223,6 +1181,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
         parser.clone(),
         target_precision,
         metrics_arc.clone(),
+        notifier.clone(),
         cancel,
     )
     .await?;
@@ -1394,6 +1353,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
         parser.clone(),
         target_precision,
         metrics_arc.clone(),
+        notifier.clone(),
         cancel,
     )
     .await?;
@@ -1592,6 +1552,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                         context.target_precision,
                         data_trace_id,
                         metrics,
+                        Some(&notifier),
                     )
                     .await;
                     worker_written += written;
@@ -1601,7 +1562,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                             metrics.add_failed_batches(1);
                             error!(trace.id = %data_trace_id, "Writing batch error: {err:#}");
                             let ack = LushAck {
-                                code: 0,
+                                code: 0xFFFF,
                                 message: Some(err.to_string()),
                                 context: Some(
                                     json!({
@@ -1720,17 +1681,16 @@ pub async fn ipc_flat_stream_worker_concurrent(
 }
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use arrow::array::*;
     use arrow_schema::{Field, FieldRef, Schema};
     use serde_json::json;
     use taos::AsyncTBuilder;
-
     use taosx_ipc::prelude::IpcDataType;
     use IpcDataType::*;
 
     use crate::plugins::transform::MessageTableMeta;
-
-    use super::*;
 
     struct STableMessagesBuilder {
         /// The stable name of the table, if not set, use ordinary table instead.
@@ -2043,6 +2003,7 @@ mod tests {
             &req_id,
             &messages,
             &metrics,
+            None,
             &CancellationToken::new(),
         )
         .await?;

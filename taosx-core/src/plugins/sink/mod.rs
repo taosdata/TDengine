@@ -12,10 +12,11 @@ use std::{
     time::Duration,
 };
 
-use crate::plugins::runners::opc::config::model::ColumnConfig;
-use crate::plugins::runners::opc::config::model::OpcModelConfig;
+use crate::runners::opc::config::model::ColumnConfig;
+use crate::runners::opc::config::model::OpcModelConfig;
 use crate::runners::opc::config::model::TableConfig;
 use crate::runners::opc::config::model::TagConfig;
+
 use crate::utils::breakpoints::BreakpointDb;
 use crate::utils::sql::get_minimum_timestamp;
 use crate::utils::trace::TraceDataId;
@@ -181,8 +182,18 @@ async fn ipc_tcp_forward(
         .context("Try clone IPC stream as reader error")?;
     let ipc_reader = tokio::task::spawn_blocking(move || IpcReader::new(reader_stream))
         .in_current_span()
-        .await?
-        .context("Build IPC stream reader error")?;
+        .await?;
+    if let Err(err) = ipc_reader {
+        let msg = format!("{err:#}");
+        if msg.contains("Parser error: Unable to get root as message") {
+            // 关闭没有发过数据的连接会导致这个错误, 是正常行为
+            tracing::warn!("Build IPC stream reader error: {err:#}");
+            return Ok(());
+        } else {
+            return Err(err).context("Build IPC stream reader error");
+        }
+    }
+    let ipc_reader = ipc_reader.unwrap();
     let ack = ipc_reader.ack();
     let ipc_ack_writer =
         tokio::task::spawn_blocking(move || AckWriterBuilder::new(ack).open(stream))
@@ -409,19 +420,20 @@ async fn ipc_tcp_forward(
                 let rsp = res;
                 match rsp {
                     Ok(rsp) => {
-                        tracing::trace!("Response ok: {:?}", rsp);
+                        tracing::trace!("Response ok");
                         use zerocopy::FromBytes;
                         if let Some(metadata) = MessageMetadata::ref_from(&rsp.app_metadata) {
                             let ack = metadata.ack();
                             let trace_id = metadata.trace_id();
+                            let trace_id = TraceDataId(trace_id);
                             let count = metadata.count;
                             match ack {
                                 RPC_ACK_PROCESSED => {
-                                    trace!(alive = ?alive.elapsed(), trace_id, "Processed received: {count}");
+                                    trace!(alive = ?alive.elapsed(), ?trace_id, "Processed received: {count}");
                                     _msg_processed += count;
                                 }
                                 RPC_ACK_DROPPED => {
-                                    trace!(alive = ?alive.elapsed(), trace_id, "Dropped received: {count}");
+                                    trace!(alive = ?alive.elapsed(), ?trace_id, "Dropped received: {count}");
                                 }
                                 RPC_ACK_STREAM_END => {
                                     debug!(alive = ?alive.elapsed(), "Stream end received");
@@ -436,50 +448,52 @@ async fn ipc_tcp_forward(
                             _msg_processed += 1;
                         }
                     }
-                    Err(err) => match &err {
-                        FlightError::Tonic(status) => {
-                            if status
-                                .message()
-                                .contains("stream closed because of a broken pipe")
-                                || status.message() == "ExternalError(Disconnected)"
-                                || status.message().contains("connection reset")
-                                || status.message().contains("connection closed")
-                                || status.message().contains("h2 protocol error")
-                            {
-                                tracing::warn!(alive = ?alive.elapsed(), "Disconnected, retry after one second: {err:#}");
-                                tokio::time::sleep(Duration::from_secs(1)).await;
-                                cause_error.replace(anyhow::anyhow!(
+                    Err(err) => {
+                        match &err {
+                            FlightError::Tonic(status) => {
+                                if status
+                                    .message()
+                                    .contains("stream closed because of a broken pipe")
+                                    || status.message() == "ExternalError(Disconnected)"
+                                    || status.message().contains("connection reset")
+                                    || status.message().contains("connection closed")
+                                    || status.message().contains("h2 protocol error")
+                                {
+                                    tracing::warn!(alive = ?alive.elapsed(), "Disconnected, retry after one second: {err:#}");
+                                    tokio::time::sleep(Duration::from_secs(1)).await;
+                                    cause_error.replace(anyhow::anyhow!(
                                     "gRPC put stream disconnected: {err:#}, DTID={stream_trace_id}"
                                 ));
-                                last_retry_tick!();
-                                continue 'start;
-                            }
+                                    last_retry_tick!();
+                                    continue 'start;
+                                }
 
-                            tracing::error!(alive = ?alive.elapsed(), source = status.message(), "Tonic error: {status}");
-                            return Err(err).context(format!(
-                                "Got server response with error, DTID={stream_trace_id}"
-                            ));
-                        }
-                        FlightError::Arrow(arrow) => {
-                            tracing::error!(alive = ?alive.elapsed(), "Arrow error: {arrow:#}");
-                            let err_msg = format!("{err:#}");
-                            if err_msg.contains("os error 10054")
-                                || err_msg.contains("os error 10053")
-                            {
-                                warn!("ConnectionReset or ConnectionAborted, consider as success");
-                                return Ok(());
+                                tracing::error!(alive = ?alive.elapsed(), source = status.message(), "Tonic error: {status}");
+                                return Err(err).context(format!(
+                                    "Got server response with error, DTID={stream_trace_id}"
+                                ));
                             }
-                            return Err(err).context(format!(
-                                "Got server response with arrow error, DTID={stream_trace_id}"
-                            ));
+                            FlightError::Arrow(arrow) => {
+                                let err_msg = format!("{err:#}");
+                                if err_msg.contains("os error 10054")
+                                    || err_msg.contains("os error 10053")
+                                {
+                                    warn!("ConnectionReset or ConnectionAborted, consider as success: {}", err_msg);
+                                    return Ok(());
+                                }
+                                tracing::error!(alive = ?alive.elapsed(), "Arrow error: {arrow:#}");
+                                return Err(err).context(format!(
+                                    "Got server response with arrow error, DTID={stream_trace_id}"
+                                ));
+                            }
+                            _ => {
+                                tracing::error!(alive = ?alive.elapsed(), "Other error: {err:#}");
+                                return Err(err).context(format!(
+                                    "Got server response with error, DTID={stream_trace_id}"
+                                ));
+                            }
                         }
-                        _ => {
-                            tracing::error!(alive = ?alive.elapsed(), "Other error: {err:#}");
-                            return Err(err).context(format!(
-                                "Got server response with error, DTID={stream_trace_id}"
-                            ));
-                        }
-                    },
+                    }
                 }
             } else {
                 info!(alive = ?alive.elapsed(), "[{task_id}] Putting stream finished");
@@ -2654,7 +2668,7 @@ fn get_real_column_name(column_config: &ColumnConfig) -> &String {
     &column_config.alias.as_ref().unwrap_or(&column_config.name)
 }
 
-const DEFAULT_MAX_RETRIES_FOR_CONNECTION: u32 = 5;
+const DEFAULT_MAX_RETRIES_FOR_CONNECTION: u32 = 10;
 
 /// Write flat message to TDengine.
 ///
@@ -2673,6 +2687,7 @@ async fn consume_flat_record(
     target_precision: taos::Precision,
     data_trace_id: TraceDataId,
     metrics: &IpcMetrics,
+    notifier: Option<&crate::TaskNotifySender>,
 ) -> anyhow::Result<()> {
     if cancel.is_cancelled() {
         tracing::warn!("Task is cancelled");
@@ -2725,6 +2740,7 @@ async fn consume_flat_record(
                         &req_id,
                         &message,
                         metrics,
+                        notifier,
                         cancel,
                     )
                     .in_current_span()
@@ -2739,6 +2755,7 @@ async fn consume_flat_record(
                         &req_id,
                         &message,
                         metrics,
+                        notifier,
                         cancel,
                     )
                     .in_current_span()
@@ -2798,6 +2815,7 @@ async fn consume_flat_record(
                                     &req_id,
                                     &message,
                                     metrics,
+                                    notifier,
                                     cancel,
                                 )
                                 .in_current_span()
@@ -2812,6 +2830,7 @@ async fn consume_flat_record(
                                     &req_id,
                                     &message,
                                     metrics,
+                                    notifier,
                                     cancel,
                                 )
                                 .in_current_span()
@@ -3605,6 +3624,7 @@ impl IpcStreamWorker {
         metrics: &IpcMetrics,
         metrics_arc: &Arc<CoreMetrics>,
         tables_messages_in_progress: &Arc<AtomicUsize>,
+        notifier: Option<&crate::TaskNotifySender>,
     ) -> anyhow::Result<usize> {
         let taos = unsafe { &mut *self.taos.as_ptr() };
         if taos.is_none() {
@@ -3634,6 +3654,7 @@ impl IpcStreamWorker {
                     self.target_precision,
                     data_trace_id,
                     metrics,
+                    notifier,
                 )
                 .await?;
                 Ok(count)
@@ -3771,12 +3792,14 @@ pub async fn listen_tcp_socket_with_agent(
                 let stream = stream.into_std().unwrap();
                 let _ = stream.set_read_timeout(None);
                 let _ = stream.set_nonblocking(false);
+                let _ = stream.set_nodelay(true);
                 // let client = addr.as_socket_ipv4().unwrap().to_string();
                 let se = sender.clone();
                 let cancel = cancel.clone();
                 let (id, remote, token) = with_agent.clone();
                 let config = config.clone();
                 let notify = notified.clone();
+
                 tokio::spawn(async move {
                     let res =
                         ipc_tcp_forward(stream, cancel, remote, token, id, config).in_current_span().await;
