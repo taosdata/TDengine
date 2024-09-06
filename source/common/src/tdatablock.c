@@ -2402,10 +2402,18 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
     } else {
       buf = taosDecodeBinary(buf, (void**)&data.nullbitmap, BitmapLen(pBlock->info.rows));
     }
+    if(buf == NULL) {
+      uError("failed to decode null bitmap/offset, type:%d", data.info.type);
+      goto _error;
+    }
 
     int32_t len = 0;
     buf = taosDecodeFixedI32(buf, &len);
     buf = taosDecodeBinary(buf, (void**)&data.pData, len);
+    if (buf == NULL) {
+      uError("failed to decode data, type:%d", data.info.type);
+      goto _error;
+    }
     if (IS_VAR_DATA_TYPE(data.info.type)) {
       data.varmeta.length = len;
       data.varmeta.allocLen = len;
@@ -2418,6 +2426,15 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
   }
 
   return (void*)buf;
+_error:
+  for (int32_t i = 0; i < sz; ++i) {
+    SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
+    if (pColInfoData == NULL) {
+      break;
+    }
+    colDataDestroy(pColInfoData);
+  }
+  return NULL;
 }
 
 static char* formatTimestamp(char* buf, int64_t val, int precision) {
