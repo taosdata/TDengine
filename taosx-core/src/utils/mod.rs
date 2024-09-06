@@ -232,6 +232,7 @@ pub fn validate_table_column_name(col_name: &str, name_value: &str) -> anyhow::R
             name_value
         );
     }
+
     if name_value.contains(".") {
         bail!(
             "The {}: {} is invalid, it should not contain the character: .",
@@ -239,6 +240,7 @@ pub fn validate_table_column_name(col_name: &str, name_value: &str) -> anyhow::R
             name_value
         );
     }
+
     if name_value.contains("`") {
         bail!(
             "The {}: {} is invalid, it should not contain the character: `",
