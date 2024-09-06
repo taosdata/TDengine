@@ -160,7 +160,7 @@ export default {
   docsUrl: IS_COMMUNITY ? "https://docs.taosdata.com/": "/docs/",
   discord: "意见反馈",
   hour: "时",
-  formatWrong: "格式错误",
+  formatWrong: "格式错误{0}",
   enable: "启用",
   disable: "停用",
   network: "网络",
@@ -661,7 +661,7 @@ export default {
     selectAll: "全选",
     checkFail: "请检查字段名或类型",
     tableNameTip:
-      "表名只能由字母、数字和下划线组成，且不能以数字开头。默认不区分大小写，如果要创建区分大小写的名称，请在名称前后添加 `，例如`testTable`。",
+      "表名默认只能由字母、数字和下划线组成，且不能以数字开头。默认不区分大小写，如果要创建包含特殊字符或以数字开头或区分大小写的名称，请在名称前后添加 `，例如`testTable`。且特殊字符不能包含“.“。",
     runSqlTip: "运行第一条或选中的 SQL 语句",
     performanceRelatedParameters: "性能调优相关参数",
     dataPersistenceParameters: "数据持久化存储参数",
