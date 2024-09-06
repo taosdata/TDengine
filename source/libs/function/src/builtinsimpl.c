@@ -6009,6 +6009,7 @@ int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   pInfo->buf = taosMemoryMalloc(pInfo->colBytes);
   if (NULL == pInfo->buf) {
     taosHashCleanup(pInfo->pHash);
+    pInfo->pHash = NULL;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -6017,6 +6018,7 @@ int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
 
 static void modeFunctionCleanup(SModeInfo * pInfo) {
   taosHashCleanup(pInfo->pHash);
+  pInfo->pHash = NULL;
   taosMemoryFreeClear(pInfo->buf);
 }
 
