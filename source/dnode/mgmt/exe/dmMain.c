@@ -140,6 +140,7 @@ static void dmSetSignalHandle() {
   taosSetSignal(SIGQUIT, dmStopDnode);
 #endif
 
+#if 0
 #ifndef WINDOWS
   taosSetSignal(SIGBUS, dmLogCrash);
 #endif
@@ -147,6 +148,7 @@ static void dmSetSignalHandle() {
   taosSetSignal(SIGFPE, dmLogCrash);
   taosSetSignal(SIGSEGV, dmLogCrash);
 }
+#endif
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   global.startTime = taosGetTimestampMs();
