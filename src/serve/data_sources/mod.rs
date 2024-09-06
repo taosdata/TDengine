@@ -464,9 +464,10 @@ pub(super) async fn get_sample(
     let query_timeout = query.timeout.clone().unwrap_or(DEFAULT_REQUEST_TIMEOUT);
     let dsn = query.dsn.clone().into_dsn();
     if let Err(err) = dsn {
+        tracing::error!("parse dsn error: {:?}", err);
         return Err(Failed::new(
             Code::FAILED,
-            format!("parse dsn error: {:?}", err),
+            format!("parse dsn error: {}", err.to_string()),
             (),
         ));
     }
@@ -484,16 +485,28 @@ pub(super) async fn get_sample(
 
     match result {
         Ok(Ok(sample)) => Ok(HttpResponse::Ok().json(sample)),
-        Ok(Err(err)) => Err(Failed::new(
-            Code::FAILED,
-            format!("failed to get sample from data source, cause: {:?}", err),
-            (),
-        )),
-        Err(err) => Err(Failed::new(
-            Code::FAILED,
-            format!("get sample from data source timeout, cause: {:?}", err),
-            (),
-        )),
+        Ok(Err(err)) => {
+            tracing::error!("failed to get sample from data source, cause: {:?}", err);
+            Err(Failed::new(
+                Code::FAILED,
+                format!(
+                    "failed to get sample from data source, cause: {}",
+                    err.to_string()
+                ),
+                (),
+            ))
+        }
+        Err(err) => {
+            tracing::error!("get sample from data source timeout, cause: {:?}", err);
+            Err(Failed::new(
+                Code::FAILED,
+                format!(
+                    "get sample from data source timeout, cause: {}",
+                    err.to_string()
+                ),
+                (),
+            ))
+        }
     }
 }
 
@@ -669,16 +682,22 @@ pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl 
             "valid": true,
             "message": "csv file is valid"
         }))),
-        Ok(Err(err)) => Err(Failed::new(
-            Code::FAILED,
-            format!("check csv file failed, cause: {:?}", err),
-            (),
-        )),
-        Err(err) => Err(Failed::new(
-            Code::FAILED,
-            format!("check csv file timeout, cause: {:?}", err),
-            (),
-        )),
+        Ok(Err(err)) => {
+            tracing::error!("check csv file failed, cause: {:?}", err);
+            Err(Failed::new(
+                Code::FAILED,
+                format!("check csv file failed, cause: {}", err.to_string()),
+                (),
+            ))
+        }
+        Err(err) => {
+            tracing::error!("check csv file timeout, cause: {:?}", err);
+            Err(Failed::new(
+                Code::FAILED,
+                format!("check csv file timeout, cause: {}", err.to_string()),
+                (),
+            ))
+        }
     }
 }
 
