@@ -45,7 +45,7 @@ pub fn to_record_batches(
                         payload.insert(key.clone(), json!(v));
                     }
                     Bson::Document(v) => {
-                        payload.insert(key.clone(), json!(v));
+                        payload.insert(key.clone(), json!(serde_json::to_string(v).unwrap()));
                     }
                     Bson::Boolean(v) => {
                         payload.insert(key.clone(), json!(v));
