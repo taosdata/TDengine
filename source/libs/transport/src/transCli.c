@@ -2387,7 +2387,7 @@ _end:
     }
     taosArrayDestroy(pThrd->timerList);
 
-    destroyConnPool(pThrd);
+    (void)destroyConnPool(pThrd);
     transDQDestroy(pThrd->delayQueue, NULL);
     transDQDestroy(pThrd->timeoutQueue, NULL);
     transDQDestroy(pThrd->waitConnQueue, NULL);
@@ -2419,7 +2419,7 @@ static void destroyThrdObj(SCliThrd* pThrd) {
     uv_timer_t* timer = taosArrayGetP(pThrd->timerList, i);
     taosMemoryFree(timer);
   }
-  uv_loop_close(pThrd->loop);
+  (void)uv_loop_close(pThrd->loop);
   taosArrayDestroy(pThrd->timerList);
   taosMemoryFree(pThrd->loop);
   taosHashCleanup(pThrd->fqdn2ipCache);

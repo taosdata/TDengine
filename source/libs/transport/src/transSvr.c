@@ -1615,7 +1615,7 @@ void destroyWorkThrdObj(SWorkThrd* pThrd) {
   }
   transAsyncPoolDestroy(pThrd->asyncPool);
   uvWhiteListDestroy(pThrd->pWhiteList);
-  uv_loop_close(pThrd->loop);
+  (void)uv_loop_close(pThrd->loop);
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);
 }
