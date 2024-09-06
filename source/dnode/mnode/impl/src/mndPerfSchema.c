@@ -42,7 +42,7 @@ int32_t mndPerfsInitMeta(SHashObj *hash) {
   int32_t       code = 0;
   STableMetaRsp meta = {0};
 
-  tstrncpy(meta.dbFName, TSDB_INFORMATION_SCHEMA_DB, sizeof(meta.dbFName));
+  tstrncpy(meta.dbFName, TSDB_PERFORMANCE_SCHEMA_DB, sizeof(meta.dbFName));
   meta.tableType = TSDB_SYSTEM_TABLE;
   meta.sversion = 1;
   meta.tversion = 1;
