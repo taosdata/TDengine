@@ -609,7 +609,7 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   SValue    value;
 
   if (pRow->type == TSDBROW_ROW_FMT) {
-    (void)tRowGet(pRow->pTSRow, pTSchema, iCol, pColVal);
+    TAOS_UNUSED(tRowGet(pRow->pTSRow, pTSchema, iCol, pColVal));
   } else if (pRow->type == TSDBROW_COL_FMT) {
     if (iCol == 0) {
       *pColVal =

@@ -59,16 +59,16 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
   pTsdb->pVnode = pVnode;
   (void)taosThreadMutexInit(&pTsdb->mutex, NULL);
   if (!pKeepCfg) {
-    (void)tsdbSetKeepCfg(pTsdb, &pVnode->config.tsdbCfg);
+    TAOS_CHECK_GOTO(tsdbSetKeepCfg(pTsdb, &pVnode->config.tsdbCfg), &lino, _exit);
   } else {
     memcpy(&pTsdb->keepCfg, pKeepCfg, sizeof(STsdbKeepCfg));
   }
 
   // create dir
   if (pVnode->pTfs) {
-    (void)tfsMkdir(pVnode->pTfs, pTsdb->path);
+    TAOS_CHECK_GOTO(tfsMkdir(pVnode->pTfs, pTsdb->path), &lino, _exit);
   } else {
-    (void)taosMkDir(pTsdb->path);
+    TAOS_CHECK_GOTO(taosMkDir(pTsdb->path), &lino, _exit);
   }
 
   // open tsdb

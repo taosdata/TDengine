@@ -105,8 +105,8 @@ static int32_t tsdbSaveFSToFile(STsdbFS *pFS, const char *fname) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-  (void)tsdbFSToBinary(pData, pFS);
-  (void)taosCalcChecksumAppend(0, pData, size);
+  TAOS_UNUSED(tsdbFSToBinary(pData, pFS));
+  TAOS_CHECK_GOTO(taosCalcChecksumAppend(0, pData, size), &lino, _exit);
 
   // save to file
   pFD = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
@@ -128,7 +128,7 @@ _exit:
     tsdbError("%s failed at line %d since %s, fname:%s", __func__, lino, tstrerror(code), fname);
   }
   taosMemoryFree(pData);
-  (void)taosCloseFile(&pFD);
+  TAOS_UNUSED(taosCloseFile(&pFD));
   return code;
 }
 
@@ -268,18 +268,12 @@ void tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t) {
   SVnode *pVnode = pTsdb->pVnode;
   int32_t offset = 0;
 
-  // CURRENT
-  if (current) {
-    (void)vnodeGetPrimaryDir(pTsdb->path, pVnode->diskPrimary, pVnode->pTfs, current, TSDB_FILENAME_LEN);
-    offset = strlen(current);
-    snprintf(current + offset, TSDB_FILENAME_LEN - offset - 1, "%sCURRENT", TD_DIRSEP);
-  }
-
-  // CURRENT.t
-  if (current_t) {
-    (void)vnodeGetPrimaryDir(pTsdb->path, pVnode->diskPrimary, pVnode->pTfs, current_t, TSDB_FILENAME_LEN);
-    offset = strlen(current_t);
-    snprintf(current_t + offset, TSDB_FILENAME_LEN - offset - 1, "%sCURRENT.t", TD_DIRSEP);
+  char       *bufs[] = {current, current_t};
+  const char *suffix[] = {"CURRENT", "CURRENT.t"};
+  for (int32_t i = 0; i < sizeof(bufs) / sizeof(bufs[0]); ++i) {
+    TAOS_UNUSED(vnodeGetPrimaryDir(pTsdb->path, pVnode->diskPrimary, pVnode->pTfs, bufs[i], TSDB_FILENAME_LEN));
+    offset = strlen(bufs[i]);
+    snprintf(bufs[i] + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, suffix[i]);
   }
 }
 
@@ -290,81 +284,67 @@ static int32_t load_fs(const char *fname, STsdbFS *pFS) {
 
   // load binary
   TdFilePtr pFD = taosOpenFile(fname, TD_FILE_READ);
-  if (pFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  TSDB_CHECK_NULL(pFD, code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
 
   int64_t size;
-  if (taosFStatFile(pFD, &size, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    (void)taosCloseFile(&pFD);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  int32_t res = taosFStatFile(pFD, &size, NULL);
+  QUERY_CHECK_CONDITION((res >= 0), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
 
   pData = taosMemoryMalloc(size);
-  if (pData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    (void)taosCloseFile(&pFD);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  TSDB_CHECK_NULL(pData, code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
 
-  if (taosReadFile(pFD, pData, size) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    (void)taosCloseFile(&pFD);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  res = taosReadFile(pFD, pData, size);
+  QUERY_CHECK_CONDITION((res >= 0), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
 
-  if (!taosCheckChecksumWhole(pData, size)) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-    (void)taosCloseFile(&pFD);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  res = taosCheckChecksumWhole(pData, size);
+  QUERY_CHECK_CONDITION(res, code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
 
-  code = tsdbBinaryToFS(pData, size, pFS);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbBinaryToFS(pData, size, pFS), &lino, _exit);
 
 _exit:
   if (code) {
     tsdbError("%s failed at line %d since %s, fname:%s", __func__, lino, tstrerror(code), fname);
   }
   taosMemoryFree(pData);
-  (void)taosCloseFile(&pFD);
+  TAOS_UNUSED(taosCloseFile(&pFD));
   return code;
 }
+
+
+#define TSDB_UNREF_SINGLE_FILE(GET_FILE_NAME, func, pSet, file) \
+  do {                                                          \
+    int32_t nRef = atomic_sub_fetch_32(&file->nRef, 1);         \
+    if (nRef == 0) {                                            \
+      GET_FILE_NAME(func, pSet, file, fname);                   \
+      int32_t res = taosRemoveFile(fname);                      \
+      if (res != TSDB_CODE_SUCCESS) {                           \
+        tsdbWarn("failed to remove file %s", fname);            \
+        code = res;                                             \
+      }                                                         \
+      taosMemoryFree(file);                                     \
+    }                                                           \
+  } while (0)
+
+#define TSDB_GET_DATA_FILE_NAME(func, pSet, file, fname) func(pTsdb, pSet->diskId, pSet->fid, file, fname)
+#define TSDB_UNREF_SINGLE_DATA_FILE(func, pSet, file) TSDB_UNREF_SINGLE_FILE(TSDB_GET_DATA_FILE_NAME, func, pSet, file)
+
+#define TSDB_GET_DEL_FILE_NAME(func, pSet, file, fname) tsdbDelFileName(pTsdb, file, fname)
+#define TSDB_UNREF_SINGLE_DEL_FILE(file)                TSDB_UNREF_SINGLE_FILE(TSDB_GET_DEL_FILE_NAME, _, _, file)
 
 static int32_t tsdbRemoveFileSet(STsdb *pTsdb, SDFileSet *pSet) {
   int32_t code = 0;
   char    fname[TSDB_FILENAME_LEN] = {0};
 
-  int32_t nRef = atomic_sub_fetch_32(&pSet->pHeadF->nRef, 1);
-  if (nRef == 0) {
-    tsdbHeadFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pHeadF, fname);
-    (void)taosRemoveFile(fname);
-    taosMemoryFree(pSet->pHeadF);
-  }
+  TSDB_UNREF_SINGLE_DATA_FILE(tsdbHeadFileName, pSet, pSet->pHeadF);
 
-  nRef = atomic_sub_fetch_32(&pSet->pDataF->nRef, 1);
-  if (nRef == 0) {
-    tsdbDataFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pDataF, fname);
-    (void)taosRemoveFile(fname);
-    taosMemoryFree(pSet->pDataF);
-  }
+  TSDB_UNREF_SINGLE_DATA_FILE(tsdbHeadFileName, pSet, pSet->pHeadF);
 
-  nRef = atomic_sub_fetch_32(&pSet->pSmaF->nRef, 1);
-  if (nRef == 0) {
-    tsdbSmaFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pSmaF, fname);
-    (void)taosRemoveFile(fname);
-    taosMemoryFree(pSet->pSmaF);
-  }
+  TSDB_UNREF_SINGLE_DATA_FILE(tsdbDataFileName, pSet, pSet->pDataF);
+
+  TSDB_UNREF_SINGLE_DATA_FILE(tsdbSmaFileName, pSet, pSet->pSmaF);
 
   for (int8_t iStt = 0; iStt < pSet->nSttF; iStt++) {
-    nRef = atomic_sub_fetch_32(&pSet->aSttF[iStt]->nRef, 1);
-    if (nRef == 0) {
-      tsdbSttFileName(pTsdb, pSet->diskId, pSet->fid, pSet->aSttF[iStt], fname);
-      (void)taosRemoveFile(fname);
-      taosMemoryFree(pSet->aSttF[iStt]);
-    }
+    TSDB_UNREF_SINGLE_DATA_FILE(tsdbSttFileName, pSet, pSet->aSttF[iStt]);
   }
 
 _exit:
@@ -431,7 +411,6 @@ _exit:
 static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSetNew) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t nRef = 0;
   bool    sameDisk = ((pSetOld->diskId.level == pSetNew->diskId.level) && (pSetOld->diskId.id == pSetNew->diskId.id));
   char    fname[TSDB_FILENAME_LEN] = {0};
 
@@ -446,12 +425,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
     *pSetOld->pHeadF = *pSetNew->pHeadF;
     pSetOld->pHeadF->nRef = 1;
 
-    nRef = atomic_sub_fetch_32(&pHeadF->nRef, 1);
-    if (nRef == 0) {
-      tsdbHeadFileName(pTsdb, pSetOld->diskId, pSetOld->fid, pHeadF, fname);
-      (void)taosRemoveFile(fname);
-      taosMemoryFree(pHeadF);
-    }
+    TSDB_UNREF_SINGLE_DATA_FILE(tsdbHeadFileName, pSetOld, pHeadF);
   } else {
     if (pHeadF->offset != pSetNew->pHeadF->offset || pHeadF->size != pSetNew->pHeadF->size) {
       TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
@@ -469,12 +443,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
     *pSetOld->pDataF = *pSetNew->pDataF;
     pSetOld->pDataF->nRef = 1;
 
-    nRef = atomic_sub_fetch_32(&pDataF->nRef, 1);
-    if (nRef == 0) {
-      tsdbDataFileName(pTsdb, pSetOld->diskId, pSetOld->fid, pDataF, fname);
-      (void)taosRemoveFile(fname);
-      taosMemoryFree(pDataF);
-    }
+    TSDB_UNREF_SINGLE_DATA_FILE(tsdbDataFileName, pSetOld, pDataF);
   } else {
     pDataF->size = pSetNew->pDataF->size;
   }
@@ -490,12 +459,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
     *pSetOld->pSmaF = *pSetNew->pSmaF;
     pSetOld->pSmaF->nRef = 1;
 
-    nRef = atomic_sub_fetch_32(&pSmaF->nRef, 1);
-    if (nRef == 0) {
-      tsdbSmaFileName(pTsdb, pSetOld->diskId, pSetOld->fid, pSmaF, fname);
-      (void)taosRemoveFile(fname);
-      taosMemoryFree(pSmaF);
-    }
+    TSDB_UNREF_SINGLE_DATA_FILE(tsdbSmaFileName, pSetOld, pSmaF);
   } else {
     pSmaF->size = pSetNew->pSmaF->size;
   }
@@ -514,12 +478,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
     } else if (pSetNew->nSttF < pSetOld->nSttF) {
       for (int32_t iStt = 0; iStt < pSetOld->nSttF; iStt++) {
         SSttFile *pSttFile = pSetOld->aSttF[iStt];
-        nRef = atomic_sub_fetch_32(&pSttFile->nRef, 1);
-        if (nRef == 0) {
-          tsdbSttFileName(pTsdb, pSetOld->diskId, pSetOld->fid, pSttFile, fname);
-          (void)taosRemoveFile(fname);
-          taosMemoryFree(pSttFile);
-        }
+        TSDB_UNREF_SINGLE_DATA_FILE(tsdbSttFileName, pSetOld, pSttFile);
         pSetOld->aSttF[iStt] = NULL;
       }
 
@@ -535,12 +494,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
       for (int32_t iStt = 0; iStt < pSetOld->nSttF; iStt++) {
         if (pSetOld->aSttF[iStt]->commitID != pSetNew->aSttF[iStt]->commitID) {
           SSttFile *pSttFile = pSetOld->aSttF[iStt];
-          nRef = atomic_sub_fetch_32(&pSttFile->nRef, 1);
-          if (nRef == 0) {
-            tsdbSttFileName(pTsdb, pSetOld->diskId, pSetOld->fid, pSttFile, fname);
-            (void)taosRemoveFile(fname);
-            taosMemoryFree(pSttFile);
-          }
+          TSDB_UNREF_SINGLE_DATA_FILE(tsdbSttFileName, pSetOld, pSttFile);
 
           pSetOld->aSttF[iStt] = (SSttFile *)taosMemoryMalloc(sizeof(SSttFile));
           if (pSetOld->aSttF[iStt] == NULL) {
@@ -560,12 +514,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
   } else {
     for (int32_t iStt = 0; iStt < pSetOld->nSttF; iStt++) {
       SSttFile *pSttFile = pSetOld->aSttF[iStt];
-      nRef = atomic_sub_fetch_32(&pSttFile->nRef, 1);
-      if (nRef == 0) {
-        tsdbSttFileName(pTsdb, pSetOld->diskId, pSetOld->fid, pSttFile, fname);
-        (void)taosRemoveFile(fname);
-        taosMemoryFree(pSttFile);
-      }
+      TSDB_UNREF_SINGLE_DATA_FILE(tsdbSttFileName, pSetOld, pSttFile);
     }
 
     pSetOld->nSttF = 0;
@@ -598,7 +547,6 @@ static int32_t tsdbFSApplyChange(STsdb *pTsdb, STsdbFS *pFS) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t nRef = 0;
   char    fname[TSDB_FILENAME_LEN] = {0};
 
   // SDelFile
@@ -616,22 +564,12 @@ static int32_t tsdbFSApplyChange(STsdb *pTsdb, STsdbFS *pFS) {
       pTsdb->fs.pDelFile->nRef = 1;
 
       if (pDelFile) {
-        nRef = atomic_sub_fetch_32(&pDelFile->nRef, 1);
-        if (nRef == 0) {
-          tsdbDelFileName(pTsdb, pDelFile, fname);
-          (void)taosRemoveFile(fname);
-          taosMemoryFree(pDelFile);
-        }
+        TSDB_UNREF_SINGLE_DEL_FILE(pDelFile);
       }
     }
   } else {
     if (pTsdb->fs.pDelFile) {
-      nRef = atomic_sub_fetch_32(&pTsdb->fs.pDelFile->nRef, 1);
-      if (nRef == 0) {
-        tsdbDelFileName(pTsdb, pTsdb->fs.pDelFile, fname);
-        (void)taosRemoveFile(fname);
-        taosMemoryFree(pTsdb->fs.pDelFile);
-      }
+      TSDB_UNREF_SINGLE_DEL_FILE(pTsdb->fs.pDelFile);
       pTsdb->fs.pDelFile = NULL;
     }
   }
@@ -741,7 +679,7 @@ static int32_t tsdbFSRollback(STsdb *pTsdb) {
 
   char current_t[TSDB_FILENAME_LEN] = {0};
   tsdbGetCurrentFName(pTsdb, NULL, current_t);
-  (void)taosRemoveFile(current_t);
+  TAOS_UNUSED(taosRemoveFile(current_t));
 
 _exit:
   if (code) {

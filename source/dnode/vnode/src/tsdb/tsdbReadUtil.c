@@ -912,7 +912,7 @@ static int32_t doLoadTombDataFromTombBlk(const TTombBlkArray* pTombBlkArray, STs
     ETombBlkCheckEnum ret = 0;
     code = doCheckTombBlock(&block, pReader, numOfTables, &j, &ret);
 
-    (void)tTombBlockDestroy(&block);
+    TAOS_UNUSED(tTombBlockDestroy(&block));
     if (code != TSDB_CODE_SUCCESS || ret == BLK_CHECK_QUIT) {
       return code;
     }
@@ -1012,10 +1012,13 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
 
   SStatisBlk*     p = &pStatisBlkArray->data[i];
   STbStatisBlock* pStatisBlock = taosMemoryCalloc(1, sizeof(STbStatisBlock));
-  (void)tStatisBlockInit(pStatisBlock);
+  int32_t code = tStatisBlockInit(pStatisBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    return 0;
+  }
 
   int64_t st = taosGetTimestampMs();
-  int32_t code = tsdbSttFileReadStatisBlock(pSttFileReader, p, pStatisBlock);
+  code = tsdbSttFileReadStatisBlock(pSttFileReader, p, pStatisBlock);
   if (code != TSDB_CODE_SUCCESS) {
     return 0;
   }
@@ -1030,9 +1033,7 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
   }
 
   if (index >= pStatisBlock->numOfRecords) {
-    (void)tStatisBlockDestroy(pStatisBlock);
-    taosMemoryFreeClear(pStatisBlock);
-    return num;
+    goto _exit;
   }
 
   int32_t j = index;
@@ -1040,9 +1041,7 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
   while (i < TARRAY2_SIZE(pStatisBlkArray) && uidIndex < numOfTables) {
     p = &pStatisBlkArray->data[i];
     if (p->minTbid.suid > suid) {
-      (void)tStatisBlockDestroy(pStatisBlock);
-      taosMemoryFreeClear(pStatisBlock);
-      return num;
+      goto _exit;
     }
 
     uint64_t uid = pUidList[uidIndex];
@@ -1060,7 +1059,8 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
     }
   }
 
-  (void)tStatisBlockDestroy(pStatisBlock);
+_exit:
+  TAOS_UNUSED(tStatisBlockDestroy(pStatisBlock));
   taosMemoryFreeClear(pStatisBlock);
   return num;
 }
@@ -1072,7 +1072,7 @@ static void loadNextStatisticsBlock(SSttFileReader* pSttFileReader, STbStatisBlo
     (*i) += 1;
     (*j) = 0;
     if ((*i) < TARRAY2_SIZE(pStatisBlkArray)) {
-      (void)tsdbSttFileReadStatisBlock(pSttFileReader, &pStatisBlkArray->data[(*i)], pStatisBlock);
+      TAOS_UNUSED(tsdbSttFileReadStatisBlock(pSttFileReader, &pStatisBlkArray->data[(*i)], pStatisBlock));
     }
   }
 }

@@ -71,8 +71,8 @@ static int32_t tsdbDoCopyFileLC(SRTNer *rtner, const STFileObj *from, const STFi
   char      fname_from[TSDB_FILENAME_LEN];
   char      fname_to[TSDB_FILENAME_LEN];
 
-  (void)tsdbTFileLastChunkName(rtner->tsdb, from->f, fname_from);
-  (void)tsdbTFileLastChunkName(rtner->tsdb, to, fname_to);
+  TAOS_CHECK_GOTO(tsdbTFileLastChunkName(rtner->tsdb, from->f, fname_from), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbTFileLastChunkName(rtner->tsdb, to, fname_to), &lino, _exit);
 
   fdFrom = taosOpenFile(fname_from, TD_FILE_READ);
   if (fdFrom == NULL) {
@@ -99,8 +99,8 @@ _exit:
     tsdbError("vgId:%d, %s failed at %s:%d since %s", TD_VID(rtner->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
   }
-  (void)taosCloseFile(&fdFrom);
-  (void)taosCloseFile(&fdTo);
+  TAOS_UNUSED(taosCloseFile(&fdFrom));
+  TAOS_UNUSED(taosCloseFile(&fdTo));
   return code;
 }
 
@@ -112,7 +112,7 @@ static int32_t tsdbDoCopyFile(SRTNer *rtner, const STFileObj *from, const STFile
   TdFilePtr fdFrom = NULL;
   TdFilePtr fdTo = NULL;
 
-  (void)tsdbTFileName(rtner->tsdb, to, fname);
+  TAOS_CHECK_GOTO(tsdbTFileName(rtner->tsdb, to, fname), &lino, _exit);
 
   fdFrom = taosOpenFile(from->fname, TD_FILE_READ);
   if (fdFrom == NULL) {
@@ -136,8 +136,8 @@ _exit:
     tsdbError("vgId:%d, %s failed at %s:%d since %s", TD_VID(rtner->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
   }
-  (void)taosCloseFile(&fdFrom);
-  (void)taosCloseFile(&fdTo);
+  TAOS_UNUSED(taosCloseFile(&fdFrom));
+  TAOS_UNUSED(taosCloseFile(&fdTo));
   return code;
 }
 
@@ -255,7 +255,7 @@ static int32_t tsdbDoRetention(SRTNer *rtner) {
     SDiskID did;
 
     TAOS_CHECK_GOTO(tfsAllocDisk(rtner->tsdb->pVnode->pTfs, expLevel, &did), &lino, _exit);
-    (void)tfsMkdirRecurAt(rtner->tsdb->pVnode->pTfs, rtner->tsdb->path, did);
+    TAOS_CHECK_GOTO(tfsMkdirRecurAt(rtner->tsdb->pVnode->pTfs, rtner->tsdb->path, did), &lino, _exit);
 
     // data
     for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX && (fobj = fset->farr[ftype], 1); ++ftype) {
@@ -316,8 +316,8 @@ static int32_t tsdbRetention(void *arg) {
 
   // begin task
   (void)taosThreadMutexLock(&pTsdb->mutex);
-  (void)tsdbBeginTaskOnFileSet(pTsdb, rtnArg->fid, &fset);
-  if (fset && (code = tsdbTFileSetInitCopy(pTsdb, fset, &rtner.fset))) {
+  code = tsdbBeginTaskOnFileSet(pTsdb, rtnArg->fid, &fset);
+  if (code == TSDB_CODE_SUCCESS && fset && (code = tsdbTFileSetInitCopy(pTsdb, fset, &rtner.fset))) {
     (void)taosThreadMutexUnlock(&pTsdb->mutex);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -337,7 +337,7 @@ static int32_t tsdbRetention(void *arg) {
 _exit:
   if (rtner.fset) {
     (void)taosThreadMutexLock(&pTsdb->mutex);
-    (void)tsdbFinishTaskOnFileSet(pTsdb, rtnArg->fid);
+    TAOS_UNUSED(tsdbFinishTaskOnFileSet(pTsdb, rtnArg->fid));
     (void)taosThreadMutexUnlock(&pTsdb->mutex);
   }
 
@@ -425,7 +425,7 @@ static int32_t tsdbCopyFileS3(SRTNer *rtner, const STFileObj *from, const STFile
   TdFilePtr fdFrom = NULL;
   // TdFilePtr fdTo = NULL;
 
-  (void)tsdbTFileName(rtner->tsdb, to, fname);
+  TAOS_CHECK_GOTO(tsdbTFileName(rtner->tsdb, to, fname), &lino, _exit);
 
   fdFrom = taosOpenFile(from->fname, TD_FILE_READ);
   if (fdFrom == NULL) {
@@ -440,7 +440,7 @@ _exit:
     tsdbError("vgId:%d %s failed at line %s:%d since %s", TD_VID(rtner->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
   }
-  (void)taosCloseFile(&fdFrom);
+  TAOS_UNUSED(taosCloseFile(&fdFrom));
   return code;
 }
 
@@ -484,7 +484,7 @@ static int32_t tsdbMigrateDataFileLCS3(SRTNer *rtner, const STFileObj *fobj, int
   TAOS_CHECK_GOTO(TARRAY2_APPEND(&rtner->fopArr, op), &lino, _exit);
 
   char fname[TSDB_FILENAME_LEN];
-  (void)tsdbTFileName(rtner->tsdb, &op.nf, fname);
+  TAOS_CHECK_GOTO(tsdbTFileName(rtner->tsdb, &op.nf, fname), &lino, _exit);
   char   *object_name = taosDirEntryBaseName(fname);
   char    object_name_prefix[TSDB_FILENAME_LEN];
   int32_t node_id = vnodeNodeId(rtner->tsdb->pVnode);
@@ -540,8 +540,8 @@ _exit:
     tsdbError("vgId:%d %s failed at line %s:%d since %s", TD_VID(rtner->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
   }
-  (void)taosCloseFile(&fdFrom);
-  (void)taosCloseFile(&fdTo);
+  TAOS_UNUSED(taosCloseFile(&fdFrom));
+  TAOS_UNUSED(taosCloseFile(&fdTo));
   return code;
 }
 
@@ -585,7 +585,7 @@ static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, int64
   TAOS_CHECK_GOTO(TARRAY2_APPEND(&rtner->fopArr, op), &lino, _exit);
 
   char fname[TSDB_FILENAME_LEN];
-  (void)tsdbTFileName(rtner->tsdb, &op.nf, fname);
+  TAOS_CHECK_GOTO(tsdbTFileName(rtner->tsdb, &op.nf, fname), &lino, _exit);
   char   *object_name = taosDirEntryBaseName(fname);
   char    object_name_prefix[TSDB_FILENAME_LEN];
   int32_t node_id = vnodeNodeId(rtner->tsdb->pVnode);
@@ -638,8 +638,8 @@ _exit:
     tsdbError("vgId:%d %s failed at line %s:%d since %s", TD_VID(rtner->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
   }
-  (void)taosCloseFile(&fdFrom);
-  (void)taosCloseFile(&fdTo);
+  TAOS_UNUSED(taosCloseFile(&fdFrom));
+  TAOS_UNUSED(taosCloseFile(&fdTo));
   return code;
 }
 
@@ -671,7 +671,7 @@ static int32_t tsdbDoS3Migrate(SRTNer *rtner) {
   if (/*lcn < 1 && */ taosCheckExistFile(fobj->fname)) {
     int32_t mtime = 0;
     int64_t size = 0;
-    (void)taosStatFile(fobj->fname, &size, &mtime, NULL);
+    TAOS_CHECK_GOTO(taosStatFile(fobj->fname, &size, &mtime, NULL), &lino, _exit);
     if (size > chunksize && mtime < rtner->now - tsS3UploadDelaySec) {
       if (pCfg->s3Compact && lcn < 0) {
         extern int32_t tsdbAsyncCompact(STsdb * tsdb, const STimeWindow *tw, bool sync);
@@ -693,12 +693,12 @@ static int32_t tsdbDoS3Migrate(SRTNer *rtner) {
       TAOS_CHECK_GOTO(TSDB_CODE_INVALID_PARA, &lino, _exit);
     }
     char fname1[TSDB_FILENAME_LEN];
-    (void)tsdbTFileLastChunkName(rtner->tsdb, fobj->f, fname1);
+    TAOS_CHECK_GOTO(tsdbTFileLastChunkName(rtner->tsdb, fobj->f, fname1), &lino, _exit);
 
     if (taosCheckExistFile(fname1)) {
       int32_t mtime = 0;
       int64_t size = 0;
-      (void)taosStatFile(fname1, &size, &mtime, NULL);
+      TAOS_CHECK_GOTO(taosStatFile(fname1, &size, &mtime, NULL), &lino, _exit);
       if (size > chunksize && mtime < rtner->now - tsS3UploadDelaySec) {
         TAOS_CHECK_GOTO(tsdbMigrateDataFileLCS3(rtner, fobj, size, chunksize), &lino, _exit);
       }

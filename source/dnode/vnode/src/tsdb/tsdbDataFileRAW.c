@@ -35,7 +35,7 @@ int32_t tsdbDataFileRAWReaderOpen(const char *fname, const SDataFileRAWReaderCon
     }
   } else {
     char fname1[TSDB_FILENAME_LEN];
-    (void)tsdbTFileName(config->tsdb, &config->file, fname1);
+    TAOS_CHECK_GOTO(tsdbTFileName(config->tsdb, &config->file, fname1), &lino, _exit);
     TAOS_CHECK_GOTO(tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd, lcn), &lino, _exit);
   }
 
@@ -157,7 +157,7 @@ static int32_t tsdbDataFileRAWWriterOpenDataFD(SDataFileRAWWriter *writer) {
     flag |= (TD_FILE_CREATE | TD_FILE_TRUNC);
   }
 
-  (void)tsdbTFileName(writer->config->tsdb, &writer->file, fname);
+  TAOS_CHECK_GOTO(tsdbTFileName(writer->config->tsdb, &writer->file, fname), &lino, _exit);
   TAOS_CHECK_GOTO(tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd, writer->file.lcn), &lino, _exit);
 
 _exit:

@@ -4574,7 +4574,11 @@ int32_t tsdbSetTableList2(STsdbReader* pReader, const void* pTableList, int32_t 
   STableBlockScanInfo** p = NULL;
   int32_t               iter = 0;
 
-  (void)tsdbAcquireReader(pReader);
+  code = tsdbAcquireReader(pReader);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("failed to lock reader since %s", tstrerror(code));
+    return code;
+  }
 
   while ((p = tSimpleHashIterate(pReader->status.pTableMap, p, &iter)) != NULL) {
     clearBlockScanInfo(*p);
@@ -4618,7 +4622,7 @@ int32_t tsdbSetTableList2(STsdbReader* pReader, const void* pTableList, int32_t 
     }
   }
 
-  (void) tsdbReleaseReader(pReader);
+  code = tsdbReleaseReader(pReader);
   return code;
 }
 
@@ -4805,7 +4809,7 @@ void tsdbReaderClose2(STsdbReader* pReader) {
     return;
   }
 
-  (void)tsdbAcquireReader(pReader);
+  TAOS_UNUSED(tsdbAcquireReader(pReader));
 
   {
     if (pReader->innerReader[0] != NULL || pReader->innerReader[1] != NULL) {
@@ -5875,15 +5879,19 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
     pSnap->pMem = pTsdb->mem;
     pSnap->pNode = taosMemoryMalloc(sizeof(*pSnap->pNode));
     if (pSnap->pNode == NULL) {
-      (void) taosThreadMutexUnlock(&pTsdb->mutex);
       code = terrno;
+      (void) taosThreadMutexUnlock(&pTsdb->mutex);
       goto _exit;
     }
 
     pSnap->pNode->pQHandle = pReader;
     pSnap->pNode->reseek = reseek;
 
-    (void)tsdbRefMemTable(pTsdb->mem, pSnap->pNode);
+    code = tsdbRefMemTable(pTsdb->mem, pSnap->pNode);
+    if (code) {
+      taosThreadMutexUnlock(&pTsdb->mutex);
+      goto _exit;
+    }
   }
 
   if (pTsdb->imem && (pRange->minVer <= pTsdb->imem->maxVer && pRange->maxVer >= pTsdb->imem->minVer)) {
@@ -5903,7 +5911,15 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
     pSnap->pINode->pQHandle = pReader;
     pSnap->pINode->reseek = reseek;
 
-    (void)tsdbRefMemTable(pTsdb->imem, pSnap->pINode);
+    code = tsdbRefMemTable(pTsdb->imem, pSnap->pINode);
+    if (code) {
+      if (pTsdb->mem && pSnap->pNode) {
+        tsdbUnrefMemTable(pTsdb->mem, pSnap->pNode, true);  // unref the previous refed mem
+      }
+
+      taosThreadMutexUnlock(&pTsdb->mutex);
+      goto _exit;
+    }
   }
 
   // fs

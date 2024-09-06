@@ -44,8 +44,12 @@ static const struct {
 };
 
 void remove_file(const char *fname) {
-  (void)taosRemoveFile(fname);
-  tsdbInfo("file:%s is removed", fname);
+  int32_t code = taosRemoveFile(fname);
+  if (code == TSDB_CODE_SUCCESS) {
+    tsdbInfo("file:%s is removed", fname);
+  } else {
+    tsdbWarn("failed to remove file %s since %s", fname, tstrerror(code));
+  }
 }
 
 static int32_t tfile_to_json(const STFile *file, cJSON *json) {
@@ -234,10 +238,10 @@ int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
   fobj[0]->f[0] = f[0];
   fobj[0]->state = TSDB_FSTATE_LIVE;
   fobj[0]->ref = 1;
-  (void)tsdbTFileName(pTsdb, f, fobj[0]->fname);
+  int32_t code = tsdbTFileName(pTsdb, f, fobj[0]->fname);
   // fobj[0]->nlevel = tfsGetLevel(pTsdb->pVnode->pTfs);
   fobj[0]->nlevel = vnodeNodeId(pTsdb->pVnode);
-  return 0;
+  return code;
 }
 
 int32_t tsdbTFileObjRef(STFileObj *fobj) {

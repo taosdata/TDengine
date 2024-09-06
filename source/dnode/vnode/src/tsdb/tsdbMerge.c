@@ -204,7 +204,7 @@ static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
         TAOS_CHECK_GOTO(tsdbSttFileReaderOpen(fobj->fname, &config, &reader), &lino, _exit);
 
         if ((code = TARRAY2_APPEND(merger->sttReaderArr, reader))) {
-          (void)tsdbSttFileReaderClose(&reader);
+          TAOS_UNUSED(tsdbSttFileReaderClose(&reader));
           TSDB_CHECK_CODE(code, lino, _exit);
         }
       }
@@ -219,7 +219,7 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(merger->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
-    (void)tsdbMergeFileSetEndCloseReader(merger);
+    TAOS_UNUSED(tsdbMergeFileSetEndCloseReader(merger));
   }
   return code;
 }
@@ -271,7 +271,7 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
 
   TAOS_CHECK_GOTO(tfsAllocDisk(merger->tsdb->pVnode->pTfs, level, &did), &lino, _exit);
 
-  (void)tfsMkdirRecurAt(merger->tsdb->pVnode->pTfs, merger->tsdb->path, did);
+  TAOS_CHECK_GOTO(tfsMkdirRecurAt(merger->tsdb->pVnode->pTfs, merger->tsdb->path, did), &lino, _exit);
   SFSetWriterConfig config = {
       .tsdb = merger->tsdb,
       .toSttOnly = true,
@@ -339,11 +339,18 @@ static int32_t tsdbMergeFileSetEndCloseWriter(SMerger *merger) {
 }
 
 static int32_t tsdbMergeFileSetEndCloseIter(SMerger *merger) {
-  (void)tsdbIterMergerClose(&merger->tombIterMerger);
+  int32_t code = 0;
+  int32_t res = tsdbIterMergerClose(&merger->tombIterMerger);
+  if (res != TSDB_CODE_SUCCESS) {
+    code = res;
+  }
   TARRAY2_CLEAR(merger->tombIterArr, tsdbIterClose);
-  (void)tsdbIterMergerClose(&merger->dataIterMerger);
+  res = tsdbIterMergerClose(&merger->dataIterMerger);
+  if (res != TSDB_CODE_SUCCESS) {
+    code = res;
+  }
   TARRAY2_CLEAR(merger->dataIterArr, tsdbIterClose);
-  return 0;
+  return code;
 }
 
 static int32_t tsdbMergeFileSetEnd(SMerger *merger) {
@@ -463,15 +470,15 @@ static int32_t tsdbMergeGetFSet(SMerger *merger) {
   STFileSet *fset;
 
   (void)taosThreadMutexLock(&merger->tsdb->mutex);
-  (void)tsdbFSGetFSet(merger->tsdb->pFS, merger->fid, &fset);
-  if (fset == NULL) {
+  int32_t code = tsdbFSGetFSet(merger->tsdb->pFS, merger->fid, &fset);
+  if (code != TSDB_CODE_SUCCESS || fset == NULL) {
     (void)taosThreadMutexUnlock(&merger->tsdb->mutex);
     return 0;
   }
 
   fset->mergeScheduled = false;
 
-  int32_t code = tsdbTFileSetInitCopy(merger->tsdb, fset, &merger->fset);
+  code = tsdbTFileSetInitCopy(merger->tsdb, fset, &merger->fset);
   if (code) {
     (void)taosThreadMutexUnlock(&merger->tsdb->mutex);
     return code;
