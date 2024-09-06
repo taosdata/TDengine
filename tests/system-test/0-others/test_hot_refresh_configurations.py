@@ -165,18 +165,25 @@ class TDTestCase:
             if config_name == row[0]:
                 tdLog.debug("Found variable '{}'".format(row[0]))
                 return row[1]
-
+            
+    def get_server_param_value(self, config_name):
+        tdSql.query("show dnode 1 variables;")
+        for row in tdSql.queryResult:
+            if config_name == row[0]:
+                tdLog.debug("Found variable '{}'".format(row[0]))
+                return row[1]
+            
     def cli_check(self, name, values, except_values=False):
         if not except_values:
             for v in values:
-                tdLog.debug("Set {} to {}".format(name, v))
+                tdLog.debug("Set client {} to {}".format(name, v))
                 tdSql.execute(f'alter local "{name} {v}";')
                 value = self.get_param_value(name)
                 tdLog.debug("Get {} value: {}".format(name, value))
                 assert(v == int(value))
         else:
             for v in values:
-                tdLog.debug("Set {} to {}".format(name, v))
+                tdLog.debug("Set client {} to {}".format(name, v))
                 tdSql.error(f'alter local "{name} {v}";')
 
     def svr_check(self, name, alias, values, except_values=False):
@@ -190,8 +197,8 @@ class TDTestCase:
         if not except_values:
             for v in values:
                 dnode = random.choice(p_list)
-                tdSql.execute(f'alter {dnode} "{name} {v}";')
-                value = self.get_param_value(alias)
+                tdSql.execute(f'alter {dnode} "{name} {v}";',show=True)
+                value = self.get_server_param_value(name)
                 if value:
                     tdLog.debug(f"value: {value}")
                     assert(value == str(bool(v)).lower() if is_bool else str(v))

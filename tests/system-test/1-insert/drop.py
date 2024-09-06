@@ -162,7 +162,7 @@ class TDTestCase:
         self.drop_ntb_check()
         self.drop_stb_ctb_check()
         self.drop_topic_check()
-        if platform.system().lower() == 'windows':        
+        if platform.system().lower() != 'windows':        
             self.drop_stream_check()
         pass
     def stop(self):
