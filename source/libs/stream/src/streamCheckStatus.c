@@ -65,12 +65,7 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
             ", prev:%" PRId64,
             id, upstreamTaskId, vgId, stage, pInfo->stage);
     // record the checkpoint failure id and sent to mnode
-    streamMutexLock(&pTask->lock);
-    ETaskStatus status = streamTaskGetStatus(pTask).state;
-    if (status == TASK_STATUS__CK) {
-      streamTaskSetFailedCheckpointId(pTask);
-    }
-    streamMutexUnlock(&pTask->lock);
+    streamTaskSetCheckpointFailed(pTask);
   }
 
   if (pInfo->stage != stage) {
