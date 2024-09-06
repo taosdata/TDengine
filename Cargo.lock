@@ -1436,18 +1436,18 @@ checksum = "373e9fafaa20882876db20562275ff58d50e0caa2590077fe7ce7bef90211d0d"
 
 [[package]]
 name = "const_format"
-version = "0.2.32"
+version = "0.2.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3a214c7af3d04997541b18d432afaff4c455e79e2029079647e72fc2bd27673"
+checksum = "50c655d81ff1114fb0dcdea9225ea9f0cc712a6f8d189378e82bdf62a473a64b"
 dependencies = [
  "const_format_proc_macros",
 ]
 
 [[package]]
 name = "const_format_proc_macros"
-version = "0.2.32"
+version = "0.2.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7f6ff08fd20f4f299298a28e2dfa8a8ba1036e6cd2460ac1de7b425d76f2500"
+checksum = "eff1a44b93f47b1bac19a27932f5c591e43d1ba357ee4f61526c8a25603f0eb1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2095,9 +2095,9 @@ checksum = "e8c02a5121d4ea3eb16a80748c74f5549a5665e4c21333c6098f283870fbdea6"
 
 [[package]]
 name = "faststr"
-version = "0.2.22"
+version = "0.2.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de3345ffff4508dd4f95461b3a510464cb310565b5d561a7a458c0f3bf16d77a"
+checksum = "4dc21a7d5a45182c2bb5ae9471b93f10919c0744b54403e54a9e2329c26ed5a3"
 dependencies = [
  "bytes",
  "serde",
@@ -3537,7 +3537,7 @@ checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 [[package]]
 name = "mdsn"
 version = "0.2.25"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#755f04df5614c388dd9ba895d94181b33e86d3c1"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#bfc8cfa5e1fae63df2fb126e2503fce656525e1e"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -5514,9 +5514,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.38.35"
+version = "0.38.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a85d50532239da68e9addb745ba38ff4612a242c1c7ceea689c4bc7c2f43c36f"
+checksum = "3f55e80d50763938498dd5ebb18647174e0c76dc38c5505294bb224624f30f36"
 dependencies = [
  "bitflags 2.6.0",
  "errno",
@@ -6559,7 +6559,7 @@ checksum = "f764005d11ee5f36500a149ace24e00e3da98b0158b3e2d53a7495660d3f4d60"
 [[package]]
 name = "taos"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#755f04df5614c388dd9ba895d94181b33e86d3c1"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#bfc8cfa5e1fae63df2fb126e2503fce656525e1e"
 dependencies = [
  "async-trait",
  "bytes",
@@ -6574,7 +6574,7 @@ dependencies = [
 [[package]]
 name = "taos-error"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#755f04df5614c388dd9ba895d94181b33e86d3c1"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#bfc8cfa5e1fae63df2fb126e2503fce656525e1e"
 dependencies = [
  "anyhow",
  "derive_more",
@@ -6587,7 +6587,7 @@ dependencies = [
 [[package]]
 name = "taos-macros"
 version = "0.2.16"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#755f04df5614c388dd9ba895d94181b33e86d3c1"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#bfc8cfa5e1fae63df2fb126e2503fce656525e1e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6597,7 +6597,7 @@ dependencies = [
 [[package]]
 name = "taos-optin"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#755f04df5614c388dd9ba895d94181b33e86d3c1"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#bfc8cfa5e1fae63df2fb126e2503fce656525e1e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6619,7 +6619,7 @@ dependencies = [
 [[package]]
 name = "taos-query"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#755f04df5614c388dd9ba895d94181b33e86d3c1"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#bfc8cfa5e1fae63df2fb126e2503fce656525e1e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6660,7 +6660,7 @@ dependencies = [
 [[package]]
 name = "taos-ws"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#755f04df5614c388dd9ba895d94181b33e86d3c1"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#bfc8cfa5e1fae63df2fb126e2503fce656525e1e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7332,9 +7332,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-stream"
-version = "0.1.15"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "267ac89e0bec6e691e5813911606935d77c476ff49024f98abcea3e7b15e37af"
+checksum = "4f4e6ce100d0eb49a2734f8c0812bcd324cf357d21810932c5df6b96ef2b86f1"
 dependencies = [
  "futures-core",
  "pin-project-lite",
