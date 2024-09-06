@@ -5677,7 +5677,11 @@ int32_t startDurationForGroupTableMergeScan(SOperatorInfo* pOperator) {
   param->pOperator = pOperator;
 
   SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
-  QUERY_CHECK_NULL(ps, code, lino, _end, terrno);
+  if (ps == NULL) {
+    taosMemoryFree(param);
+    QUERY_CHECK_NULL(ps, code, lino, _end, terrno);
+  }
+
   ps->param = param;
   ps->onlyRef = false;
   code = tsortAddSource(pInfo->pSortHandle, ps);

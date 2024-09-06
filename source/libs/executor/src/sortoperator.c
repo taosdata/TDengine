@@ -369,7 +369,6 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
     return terrno;
   }
 
-  qInfo("---alloc:%p", pSource);
   pSource->param = pOperator->pDownstream[0];
   pSource->onlyRef = true;
 
