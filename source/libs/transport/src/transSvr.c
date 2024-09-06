@@ -1360,11 +1360,11 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     goto End;
   }
 
-  // if (false == taosValidIpAndPort(srv->ip, srv->port)) {
-  //   code = TAOS_SYSTEM_ERROR(errno);
-  //   tError("invalid ip/port, %d:%d, reason:%s", srv->ip, srv->port, terrstr());
-  //   goto End;
-  // }
+  if (false == taosValidIpAndPort(srv->ip, srv->port)) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    tError("invalid ip/port, %d:%d, reason:%s", srv->ip, srv->port, terrstr());
+    goto End;
+  }
   char pipeName[PATH_MAX];
 
 #if defined(WINDOWS) || defined(DARWIN)
