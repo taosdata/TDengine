@@ -211,7 +211,7 @@ static int32_t updateBlockSMAInfo(STSchema* pSchema, SBlockLoadSuppInfo* pSupInf
   while (i < pSchema->numOfCols && j < pSupInfo->numOfCols) {
     STColumn* pTCol = &pSchema->columns[i];
     if (pTCol->colId == pSupInfo->colId[j]) {
-      if (!IS_BSMA_ON(pTCol)) {
+      if (!IS_BSMA_ON(pTCol) && (PRIMARYKEY_TIMESTAMP_COL_ID != pTCol->colId)) {
         pSupInfo->smaValid = false;
         return TSDB_CODE_SUCCESS;
       }
@@ -1743,8 +1743,6 @@ static int32_t initRowMergeIfNeeded(STsdbReader* pReader, int64_t uid) {
     if (ps == NULL) {
       return terrno;
     }
-
-    code = tsdbRowMergerInit(pMerger, ps);
   }
 
   return code;
