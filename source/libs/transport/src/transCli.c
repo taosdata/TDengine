@@ -619,7 +619,11 @@ void* createConnPool(int size) {
   return taosHashInit(size, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 }
 void* destroyConnPool(SCliThrd* pThrd) {
-  void*      pool = pThrd->pool;
+  void* pool = pThrd->pool;
+  if (pool == NULL) {
+    return NULL;
+  }
+
   SConnList* connList = taosHashIterate((SHashObj*)pool, NULL);
   while (connList != NULL) {
     while (!QUEUE_IS_EMPTY(&connList->conns)) {
