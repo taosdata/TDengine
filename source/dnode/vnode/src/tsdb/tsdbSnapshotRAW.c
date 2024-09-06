@@ -410,7 +410,7 @@ static int32_t tsdbSnapRAWWriteFileSetBegin(STsdbSnapRAWWriter* writer, int32_t 
   int32_t level = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
   code = tfsAllocDisk(writer->tsdb->pVnode->pTfs, level, &writer->ctx->did);
   TSDB_CHECK_CODE(code, lino, _exit);
-  (void)tfsMkdirRecurAt(writer->tsdb->pVnode->pTfs, writer->tsdb->path, writer->ctx->did);
+  TAOS_CHECK_GOTO(tfsMkdirRecurAt(writer->tsdb->pVnode->pTfs, writer->tsdb->path, writer->ctx->did), &lino, _exit);
 
   code = tsdbSnapRAWWriteFileSetOpenWriter(writer);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -489,7 +489,7 @@ int32_t tsdbSnapRAWWriterClose(STsdbSnapRAWWriter** writer, int8_t rollback) {
   }
 
   TARRAY2_DESTROY(writer[0]->fopArr, NULL);
-  (void)tsdbFSDestroyCopySnapshot(&writer[0]->fsetArr);
+  TAOS_UNUSED(tsdbFSDestroyCopySnapshot(&writer[0]->fsetArr));
 
   taosMemoryFree(writer[0]);
   writer[0] = NULL;

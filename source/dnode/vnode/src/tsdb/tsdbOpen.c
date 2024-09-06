@@ -65,9 +65,9 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
 
   // create dir
   if (pVnode->pTfs) {
-    (void)tfsMkdir(pVnode->pTfs, pTsdb->path);
+    TAOS_CHECK_GOTO(tfsMkdir(pVnode->pTfs, pTsdb->path), &lino, _exit);
   } else {
-    (void)taosMkDir(pTsdb->path);
+    TAOS_CHECK_GOTO(taosMkDir(pTsdb->path), &lino, _exit);
   }
 
   // open tsdb

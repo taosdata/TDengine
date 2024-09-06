@@ -130,7 +130,7 @@ _exit:
     tsdbError("%s failed at line %d since %s, fname:%s", __func__, lino, tstrerror(code), fname);
   }
   taosMemoryFree(pData);
-  (void)taosCloseFile(&pFD);
+  TAOS_UNUSED(taosCloseFile(&pFD));
   return code;
 }
 
@@ -292,46 +292,29 @@ static int32_t load_fs(const char *fname, STsdbFS *pFS) {
 
   // load binary
   TdFilePtr pFD = taosOpenFile(fname, TD_FILE_READ);
-  if (pFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  TSDB_CHECK_NULL(pFD, code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
 
   int64_t size;
-  if (taosFStatFile(pFD, &size, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    (void)taosCloseFile(&pFD);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  int32_t res = taosFStatFile(pFD, &size, NULL);
+  QUERY_CHECK_CONDITION((res >= 0), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
 
   pData = taosMemoryMalloc(size);
-  if (pData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    (void)taosCloseFile(&pFD);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  TSDB_CHECK_NULL(pData, code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
 
-  if (taosReadFile(pFD, pData, size) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    (void)taosCloseFile(&pFD);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  res = taosReadFile(pFD, pData, size);
+  QUERY_CHECK_CONDITION((res >= 0), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
 
-  if (!taosCheckChecksumWhole(pData, size)) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-    (void)taosCloseFile(&pFD);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  res = taosCheckChecksumWhole(pData, size);
+  QUERY_CHECK_CONDITION(res, code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
 
-  code = tsdbBinaryToFS(pData, size, pFS);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbBinaryToFS(pData, size, pFS), &lino, _exit);
 
 _exit:
   if (code) {
     tsdbError("%s failed at line %d since %s, fname:%s", __func__, lino, tstrerror(code), fname);
   }
   taosMemoryFree(pData);
-  (void)taosCloseFile(&pFD);
+  TAOS_UNUSED(taosCloseFile(&pFD));
   return code;
 }
 

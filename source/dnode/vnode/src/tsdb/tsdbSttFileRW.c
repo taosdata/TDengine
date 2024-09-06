@@ -590,11 +590,11 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
   statisBlk.cmprAlg = writer->config->cmprAlg;
   statisBlk.numOfPKs = statisBlock->numOfPKs;
 
-  (void)tStatisBlockGet(statisBlock, 0, &record);
+  TAOS_CHECK_GOTO(tStatisBlockGet(statisBlock, 0, &record), &lino, _exit);
   statisBlk.minTbid.suid = record.suid;
   statisBlk.minTbid.uid = record.uid;
 
-  (void)tStatisBlockGet(statisBlock, statisBlock->numOfRecords - 1, &record);
+  TAOS_CHECK_GOTO(tStatisBlockGet(statisBlock, statisBlock->numOfRecords - 1, &record), &lino, _exit);
   statisBlk.maxTbid.suid = record.suid;
   statisBlk.maxTbid.uid = record.uid;
 

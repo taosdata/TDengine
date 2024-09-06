@@ -44,13 +44,16 @@ static int32_t create_fs(STsdb *pTsdb, STFileSystem **fs) {
   }
 
   fs[0]->tsdb = pTsdb;
-  (void)tsem_init(&fs[0]->canEdit, 0, 1);
+  int32_t code = 0;
+  if (tsem_init(&fs[0]->canEdit, 0, 1) != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+  }
   fs[0]->fsstate = TSDB_FS_STATE_NORMAL;
   fs[0]->neid = 0;
   TARRAY2_INIT(fs[0]->fSetArr);
   TARRAY2_INIT(fs[0]->fSetArrTmp);
 
-  return 0;
+  return code;
 }
 
 static void destroy_fs(STFileSystem **fs) {
@@ -58,7 +61,7 @@ static void destroy_fs(STFileSystem **fs) {
 
   TARRAY2_DESTROY(fs[0]->fSetArr, NULL);
   TARRAY2_DESTROY(fs[0]->fSetArrTmp, NULL);
-  (void)tsem_destroy(&fs[0]->canEdit);
+  TAOS_UNUSED(tsem_destroy(&fs[0]->canEdit));
   taosMemoryFree(fs[0]);
   fs[0] = NULL;
 }
@@ -70,7 +73,6 @@ void current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype) {
   offset = strlen(fname);
   snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, gCurrentFname[ftype]);
 }
-
 static int32_t save_json(const cJSON *json, const char *fname) {
   int32_t   code = 0;
   int32_t   lino;
@@ -100,7 +102,7 @@ _exit:
     tsdbError("%s failed at %s:%d since %s", __func__, fname, __LINE__, tstrerror(code));
   }
   taosMemoryFree(data);
-  (void)taosCloseFile(&fp);
+  TAOS_UNUSED(taosCloseFile(&fp));
   return code;
 }
 
@@ -139,7 +141,7 @@ _exit:
     tsdbError("%s failed at %s:%d since %s", __func__, fname, __LINE__, tstrerror(code));
     json[0] = NULL;
   }
-  (void)taosCloseFile(&fp);
+  TAOS_UNUSED(taosCloseFile(&fp));
   taosMemoryFree(data);
   return code;
 }
@@ -169,7 +171,10 @@ int32_t save_fs(const TFileSetArray *arr, const char *fname) {
     if (!item) {
       TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
     }
-    (void)cJSON_AddItemToArray(ajson, item);
+    if (!cJSON_AddItemToArray(ajson, item)) {
+      cJSON_Delete(item);
+      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    }
 
     code = tsdbTFileSetToJson(fset, item);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -788,7 +793,7 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   taosArrayDestroy(channelArray);
 
 #ifdef TD_ENTERPRISE
-  (void)tsdbStopAllCompTask(pTsdb);
+  TAOS_UNUSED(tsdbStopAllCompTask(pTsdb));
 #endif
   return 0;
 }
@@ -832,7 +837,7 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT e
     current_fname(fs->tsdb, current_t, TSDB_FCURRENT_M);
   }
 
-  (void)tsem_wait(&fs->canEdit);
+  TAOS_CHECK_GOTO(tsem_wait(&fs->canEdit), &lino, _exit);
   fs->etype = etype;
 
   // edit
@@ -938,13 +943,16 @@ _exit:
   } else {
     tsdbInfo("vgId:%d %s done, etype:%d", TD_VID(fs->tsdb->pVnode), __func__, fs->etype);
   }
-  (void)tsem_post(&fs->canEdit);
+  TAOS_UNUSED(tsem_post(&fs->canEdit));
   return code;
 }
 
 int32_t tsdbFSEditAbort(STFileSystem *fs) {
   int32_t code = abort_edit(fs);
-  (void)tsem_post(&fs->canEdit);
+  int32_t res = tsem_post(&fs->canEdit);
+  if (res != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+  }
   return code;
 }
 
@@ -1157,7 +1165,7 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
   (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
 
   if (code) {
-    (void)tsdbTFileSetRangeClear(&fsr1);
+    TAOS_UNUSED(tsdbTFileSetRangeClear(&fsr1));
     TARRAY2_DESTROY(fsrArr[0], tsdbTFileSetRangeClear);
     fsrArr[0] = NULL;
   }

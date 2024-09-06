@@ -4626,7 +4626,7 @@ int32_t tsdbSetTableList2(STsdbReader* pReader, const void* pTableList, int32_t 
     }
   }
 
-  (void) tsdbReleaseReader(pReader);
+  code = tsdbReleaseReader(pReader);
   return code;
 }
 
