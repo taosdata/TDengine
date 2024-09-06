@@ -6019,7 +6019,6 @@ static void modeFunctionCleanup(SModeInfo * pInfo) {
   taosHashCleanup(pInfo->pHash);
   pInfo->pHash = NULL;
   taosMemoryFreeClear(pInfo->buf);
-  pInfo->buf = NULL;
 }
 
 void modeFunctionCleanupExt(SqlFunctionCtx* pCtx) {
