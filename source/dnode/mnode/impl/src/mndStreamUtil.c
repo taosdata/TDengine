@@ -1893,7 +1893,7 @@ void streamTransRandomErrorGen(STransAction *pAction, STrans *pTrans, int64_t si
         mError(
             "***sleep 5s and core dump, following tasks will not recv update-checkpoint info, so the checkpoint will "
             "rollback***");
-        ASSERT(0);
+        exit(-1);
       } else if (pAction->msgType == TDMT_STREAM_CONSEN_CHKPT) {  // pAction->msgType == TDMT_STREAM_CONSEN_CHKPT
         mError(
             "***sleep 5s and core dump, following tasks will not recv consen-checkpoint info, so the tasks will "
@@ -1902,7 +1902,7 @@ void streamTransRandomErrorGen(STransAction *pAction, STrans *pTrans, int64_t si
         mError(
             "***sleep 5s and core dump, following tasks will not recv checkpoint-source info, so the tasks will "
             "started after restart***");
-        ASSERT(0);
+        exit(-1);
       }
     } else if (choseItem == 1) {
       // 2. repeat send update chkpt msg
