@@ -761,13 +761,13 @@ pub async fn append_point(dsn: &Dsn, csv_line: String) -> anyhow::Result<()> {
     ))?;
     let parser = CsvParser::try_new(opc_type.clone(), csv_files)?;
     let point_ids = parser.parse_all_point_id().await?;
+
+    // check if point_id already exists
     for id in point_ids {
         if id == point_id {
             bail!("point id: {} already exists", point_id);
         }
     }
-
-    // TODO: 检查提交的点位配置能否通过 CSV 合法性校验
 
     // 将新增的点位配置，追加到现有的 CSV 点位配置文件中
     let csv_files = OPCConfig::parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(

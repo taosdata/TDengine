@@ -171,7 +171,7 @@ impl OpcPointMappingRule {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OpcModelConfig {
     pub opc_type: OpcType,
-    pub generate_rule: GeneratePointMappingBy,
+    pub generate_rule: Option<GeneratePointMappingBy>,
     pub point_config_map: LinkedHashMap<String, PointConfig>,
     pub table_config_map: LinkedHashMap<String, TableConfig>,
 }
@@ -226,9 +226,20 @@ impl OpcModelConfig {
         point_id: &str,
         value_type: &IpcDataType,
     ) -> anyhow::Result<(PointConfig, TableConfig)> {
-        assert_eq!(self.point_config_map.len(), self.table_config_map.len());
+        if self.point_config_map.len() != self.table_config_map.len() {
+            bail!(
+                "point_config_map length: {} not equal to table_config_map length: {}",
+                self.point_config_map.len(),
+                self.table_config_map.len()
+            );
+        }
 
-        match &self.generate_rule {
+        let generate_rule = self
+            .generate_rule
+            .clone()
+            .ok_or(anyhow::anyhow!("generate_rule is required"))?;
+
+        match &generate_rule {
             GeneratePointMappingBy::Rule(rule) => {
                 let index = self.point_config_map.len();
                 let p =
@@ -413,10 +424,7 @@ fn parse_stable(header: &CsvHeader, row: &StringRecord) -> Option<String> {
 ///      入库温度
 /// tag_value map:
 ///      name => 入库温度
-fn parse_tag_values(
-    header: &CsvHeader,
-    row: &csv_async::StringRecord,
-) -> Option<HashMap<String, String>> {
+fn parse_tag_values(header: &CsvHeader, row: &StringRecord) -> Option<HashMap<String, String>> {
     let mut map = HashMap::new();
 
     for col in header.get_columns() {

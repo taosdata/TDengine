@@ -268,7 +268,7 @@ pub async fn append_point(
             tracing::error!("failed to add point: {:#?}", err);
             Err(Failed::new(
                 Code::FAILED,
-                format!("failed to add point: {:?}", err),
+                format!("failed to add point: {}", err.to_string()),
                 (),
             ))
         }
