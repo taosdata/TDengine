@@ -2383,6 +2383,7 @@ _end:
     transAsyncPoolDestroy(pThrd->asyncPool);
     for (int i = 0; i < taosArrayGetSize(pThrd->timerList); i++) {
       uv_timer_t* timer = taosArrayGetP(pThrd->timerList, i);
+      (void)uv_timer_stop(timer);
       taosMemoryFree(timer);
     }
     taosArrayDestroy(pThrd->timerList);
@@ -2417,8 +2418,10 @@ static void destroyThrdObj(SCliThrd* pThrd) {
   tDebug("thread destroy %" PRId64, pThrd->pid);
   for (int i = 0; i < taosArrayGetSize(pThrd->timerList); i++) {
     uv_timer_t* timer = taosArrayGetP(pThrd->timerList, i);
+    (void)uv_timer_stop(timer);
     taosMemoryFree(timer);
   }
+
   (void)uv_loop_close(pThrd->loop);
   taosArrayDestroy(pThrd->timerList);
   taosMemoryFree(pThrd->loop);
