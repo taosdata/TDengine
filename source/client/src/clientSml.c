@@ -116,7 +116,7 @@ static int32_t smlCheckAuth(SSmlHandle *info, SRequestConnInfo *conn, const char
       return TSDB_CODE_SML_INVALID_DATA;
     }
   } else {
-    (void)toName(info->taos->acctId, info->pRequest->pDb, pTabName, &pAuth.tbName); //ignore
+    toName(info->taos->acctId, info->pRequest->pDb, pTabName, &pAuth.tbName);
   }
   pAuth.type = type;
 
@@ -1113,7 +1113,10 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
 
   pReq.commentLen = -1;
   pReq.igExists = true;
-  (void)tNameExtractFullName(pName, pReq.name);
+  code = tNameExtractFullName(pName, pReq.name);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
 
   pCmdMsg.epSet = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
   pCmdMsg.msgType = TDMT_MND_CREATE_STB;
@@ -2214,9 +2217,12 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
         break;
       }
       taosMsleep(100);
-      (void)refreshMeta(request->pTscObj, request); //ignore return code,try again
       uInfo("SML:%" PRIx64 " retry:%d/10,ver is old retry or object is creating code:%d, msg:%s", info->id, cnt, code,
             tstrerror(code));
+      code = refreshMeta(request->pTscObj, request);
+      if (code != 0){
+        uInfo("SML:%" PRIx64 " refresh meta error code:%d, msg:%s", info->id, code, tstrerror(code));
+      }
       smlDestroyInfo(info);
       info = NULL;
       taos_free_result(request);

@@ -344,7 +344,10 @@ int32_t tqProcessPollPush(STQ* pTq, SRpcMsg* pMsg) {
                        .pCont = pHandle->msg->pCont,
                        .contLen = pHandle->msg->contLen,
                        .info = pHandle->msg->info};
-        (void)tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg);
+        int32_t ret = tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg);
+        if (ret != 0){
+          tqError("vgId:%d tmsgPutToQueue failed, consumer:0x%" PRIx64, vgId, pHandle->consumerId);
+        }
         taosMemoryFree(pHandle->msg);
         pHandle->msg = NULL;
       }
@@ -643,7 +646,6 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
   tDecoderInit(&dc, (uint8_t*)msg, msgLen);
   ret = tDecodeSMqRebVgReq(&dc, &req);
-  // decode req
   if (ret < 0) {
     goto end;
   }
@@ -653,7 +655,10 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
   taosRLockLatch(&pTq->lock);
   STqHandle* pHandle = NULL;
-  (void)tqMetaGetHandle(pTq, req.subKey, &pHandle);  // ignore return code
+  int32_t code = tqMetaGetHandle(pTq, req.subKey, &pHandle);
+  if (code != 0){
+    tqInfo("vgId:%d, tq process sub req:%s, no such handle, create new one", pTq->pVnode->config.vgId, req.subKey);
+  }
   taosRUnLockLatch(&pTq->lock);
   if (pHandle == NULL) {
     if (req.oldConsumerId != -1) {
@@ -662,6 +667,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     }
     if (req.newConsumerId == -1) {
       tqError("vgId:%d, tq invalid rebalance request, new consumerId %" PRId64 "", req.vgId, req.newConsumerId);
+      ret = TSDB_CODE_INVALID_PARA;
       goto end;
     }
     STqHandle handle = {0};

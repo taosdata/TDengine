@@ -248,7 +248,7 @@ static int32_t processRemovedConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash
       MND_TMQ_RETURN_CHECK(pushVgDataToHash(pConsumerEp->vgs, pHash, *consumerId, pOutput->pSub->key));
     }
 
-    (void)taosArrayDestroy(pConsumerEp->vgs);
+    taosArrayDestroy(pConsumerEp->vgs);
     MND_TMQ_RETURN_CHECK(taosHashRemove(pOutput->pSub->consumerHash, consumerId, sizeof(int64_t)));
     MND_TMQ_NULL_CHECK(taosArrayPush(pOutput->removedConsumers, consumerId));
     actualRemoved++;
@@ -682,8 +682,8 @@ END:
 
 static void freeRebalanceItem(void *param) {
   SMqRebInfo *pInfo = param;
-  (void)taosArrayDestroy(pInfo->newConsumers);
-  (void)taosArrayDestroy(pInfo->removedConsumers);
+  taosArrayDestroy(pInfo->newConsumers);
+  taosArrayDestroy(pInfo->removedConsumers);
 }
 
 // type = 0 remove  type = 1 add
@@ -738,8 +738,12 @@ static void checkForVgroupSplit(SMnode *pMnode, SMqConsumerObj *pConsumer, SHash
       }
       SVgObj  *pVgroup = mndAcquireVgroup(pMnode, pVgEp->vgId);
       if (!pVgroup) {
-        (void)mndGetOrCreateRebSub(rebSubHash, key, NULL);
-        mInfo("vnode splitted, vgId:%d rebalance will be triggered", pVgEp->vgId);
+        code = mndGetOrCreateRebSub(rebSubHash, key, NULL);
+        if (code != 0){
+          mError("failed to mndGetOrCreateRebSub vgroup:%d, error:%s", pVgEp->vgId, tstrerror(code))
+        }else{
+          mInfo("vnode splitted, vgId:%d rebalance will be triggered", pVgEp->vgId);
+        }
       }
       mndReleaseVgroup(pMnode, pVgroup);
     }
@@ -813,10 +817,10 @@ void mndRebCntDec() {
 }
 
 static void clearRebOutput(SMqRebOutputObj *rebOutput) {
-  (void)taosArrayDestroy(rebOutput->newConsumers);
-  (void)taosArrayDestroy(rebOutput->modifyConsumers);
-  (void)taosArrayDestroy(rebOutput->removedConsumers);
-  (void)taosArrayDestroy(rebOutput->rebVgs);
+  taosArrayDestroy(rebOutput->newConsumers);
+  taosArrayDestroy(rebOutput->modifyConsumers);
+  taosArrayDestroy(rebOutput->removedConsumers);
+  taosArrayDestroy(rebOutput->rebVgs);
   tDeleteSubscribeObj(rebOutput->pSub);
   taosMemoryFree(rebOutput->pSub);
 }
@@ -858,7 +862,7 @@ static int32_t checkConsumer(SMnode *pMnode, SMqSubscribeObj *pSub) {
     mError("consumer:0x%" PRIx64 " not exists in sdb for exception", pConsumerEp->consumerId);
     MND_TMQ_NULL_CHECK(taosArrayAddAll(pSub->unassignedVgs, pConsumerEp->vgs));
 
-    (void)taosArrayDestroy(pConsumerEp->vgs);
+    taosArrayDestroy(pConsumerEp->vgs);
     MND_TMQ_RETURN_CHECK(taosHashRemove(pSub->consumerHash, &pConsumerEp->consumerId, sizeof(int64_t)));
   }
 END:

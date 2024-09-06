@@ -797,11 +797,16 @@ static void generateTimedTask(int64_t refId, int32_t type) {
   if (code == TSDB_CODE_SUCCESS) {
     *pTaskType = type;
     if (taosWriteQitem(tmq->delayedTask, pTaskType) == 0) {
-      (void)tsem2_post(&tmq->rspSem);
+      if (tsem2_post(&tmq->rspSem) != 0){
+        tscError("consumer:0x%" PRIx64 " failed to post sem, type:%d", tmq->consumerId, type);
+      }
     }
   }
 
-  (void)taosReleaseRef(tmqMgmt.rsetId, refId);
+  code = taosReleaseRef(tmqMgmt.rsetId, refId);
+  if (code != 0){
+    tscError("failed to release ref:%"PRId64 ", type:%d, code:%d", refId, type, code);
+  }
 }
 
 void tmqAssignAskEpTask(void* param, void* tmrId) {
@@ -814,8 +819,13 @@ void tmqReplayTask(void* param, void* tmrId) {
   tmq_t*  tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
   if (tmq == NULL) return;
 
-  (void)tsem2_post(&tmq->rspSem);
-  (void)taosReleaseRef(tmqMgmt.rsetId, refId);
+  if (tsem2_post(&tmq->rspSem) != 0){
+    tscError("consumer:0x%" PRIx64 " failed to post sem, replay", tmq->consumerId);
+  }
+  int32_t code = taosReleaseRef(tmqMgmt.rsetId, refId);
+  if (code != 0){
+    tscError("failed to release ref:%"PRId64 ", code:%d", refId, code);
+  }
 }
 
 void tmqAssignDelayedCommitTask(void* param, void* tmrId) {
@@ -825,17 +835,17 @@ void tmqAssignDelayedCommitTask(void* param, void* tmrId) {
 
 int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (code != 0) {
-    goto _return;
+    goto END;
   }
   if (pMsg == NULL || param == NULL) {
     code = TSDB_CODE_INVALID_PARA;
-    goto _return;
+    goto END;
   }
 
   SMqHbRsp rsp = {0};
   code = tDeserializeSMqHbRsp(pMsg->pData, pMsg->len, &rsp);
   if (code != 0) {
-    goto _return;
+    goto END;
   }
 
   int64_t refId = (int64_t)param;
@@ -856,13 +866,15 @@ int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
       }
     }
     taosWUnLockLatch(&tmq->lock);
-    (void)taosReleaseRef(tmqMgmt.rsetId, refId);
+    code = taosReleaseRef(tmqMgmt.rsetId, refId);
+    if (code != 0){
+      tscError("failed to release ref:%"PRId64 ", code:%d", refId, code);
+    }
   }
 
   tDestroySMqHbRsp(&rsp);
 
-_return:
-
+END:
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
   return code;
@@ -967,7 +979,10 @@ OVER:
   if (tmrId != NULL) {
     (void)taosTmrReset(tmqSendHbReq, tmq->heartBeatIntervalMs, param, tmqMgmt.timer, &tmq->hbLiveTimer);
   }
-  (void)taosReleaseRef(tmqMgmt.rsetId, refId);
+  int32_t ret = taosReleaseRef(tmqMgmt.rsetId, refId);
+  if (ret != 0){
+    tscError("failed to release ref:%"PRId64 ", code:%d", refId, ret);
+  }
 }
 
 static void defaultCommitCbFn(tmq_t* pTmq, int32_t code, void* param) {
@@ -1086,7 +1101,9 @@ int32_t tmqSubscribeCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (pMsg) {
     taosMemoryFree(pMsg->pEpSet);
   }
-  (void)tsem2_post(&pParam->rspSem);
+  if (tsem2_post(&pParam->rspSem) != 0){
+    tscError("failed to post sem, subscribe cb");
+  }
   return 0;
 }
 
@@ -1658,7 +1675,10 @@ END:
   if (tmq) (void)tsem2_post(&tmq->rspSem);
   if (pMsg) taosMemoryFreeClear(pMsg->pData);
   if (pMsg) taosMemoryFreeClear(pMsg->pEpSet);
-  (void)taosReleaseRef(tmqMgmt.rsetId, refId);
+  ret = taosReleaseRef(tmqMgmt.rsetId, refId);
+  if (ret != 0){
+    tscError("failed to release ref:%"PRId64 ", code:%d", refId, ret);
+  }
 
   return code;
 }
@@ -2903,8 +2923,12 @@ int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
 END:
-  (void)taosReleaseRef(tmqMgmt.rsetId, pParam->refId);
-
+  {
+    int32_t ret = taosReleaseRef(tmqMgmt.rsetId, pParam->refId);
+    if (ret != 0){
+      tscError("failed to release ref:%"PRId64 ", code:%d", pParam->refId, ret);
+    }
+  }
 FAIL:
   if (pParam->sync) {
     SAskEpInfo* pInfo = pParam->pParam;

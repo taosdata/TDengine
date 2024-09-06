@@ -1313,7 +1313,10 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d,QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
-      (void)refreshMeta(pRequest->pTscObj, pRequest);  // ignore return code,try again
+      code = refreshMeta(pRequest->pTscObj, pRequest);
+      if (code != 0){
+        uInfo("refresh meta error code:%d, msg:%s", code, tstrerror(code));
+      }
       pRequest->prevCode = code;
       doAsyncQuery(pRequest, true);
       return;
@@ -1492,8 +1495,8 @@ int taos_get_table_vgId(TAOS *taos, const char *db, const char *table, int *vgId
 
   conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
-  SName tableName;
-  (void)toName(pTscObj->acctId, db, table, &tableName);
+  SName tableName = {0};
+  toName(pTscObj->acctId, db, table, &tableName);
 
   SVgroupInfo vgInfo;
   code = catalogGetTableHashVgroup(pCtg, &conn, &tableName, &vgInfo);
