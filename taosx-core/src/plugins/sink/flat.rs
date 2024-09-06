@@ -1562,7 +1562,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                             metrics.add_failed_batches(1);
                             error!(trace.id = %data_trace_id, "Writing batch error: {err:#}");
                             let ack = LushAck {
-                                code: 0,
+                                code: 0xFFFF,
                                 message: Some(err.to_string()),
                                 context: Some(
                                     json!({
