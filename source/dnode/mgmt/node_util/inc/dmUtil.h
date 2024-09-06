@@ -128,7 +128,6 @@ typedef struct {
   GetVnodeLoadsFp              getVnodeLoadsLiteFp;
   GetMnodeLoadsFp              getMnodeLoadsFp;
   GetQnodeLoadsFp              getQnodeLoadsFp;
-  StopDnodeFp                  stopDnodeFp;
 } SMgmtInputOpt;
 
 typedef struct {
