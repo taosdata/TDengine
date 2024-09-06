@@ -68,7 +68,11 @@ SSdb *sdbInit(SSdbOpt *pOption) {
 void sdbCleanup(SSdb *pSdb) {
   mInfo("start to cleanup sdb");
 
-  (void)sdbWriteFile(pSdb, 0);
+  int32_t code = 0;
+
+  if ((code = sdbWriteFile(pSdb, 0)) != 0) {
+    mError("failed to write sdb file since %s", tstrerror(code));
+  }
 
   if (pSdb->currDir != NULL) {
     taosMemoryFreeClear(pSdb->currDir);

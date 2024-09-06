@@ -1743,8 +1743,6 @@ static int32_t initRowMergeIfNeeded(STsdbReader* pReader, int64_t uid) {
     if (ps == NULL) {
       return terrno;
     }
-
-    code = tsdbRowMergerInit(pMerger, ps);
   }
 
   return code;

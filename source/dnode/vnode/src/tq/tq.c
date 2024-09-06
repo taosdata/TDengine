@@ -1129,7 +1129,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 
   SStreamTask* pTask = NULL;
   code = streamMetaAcquireTask(pMeta, req.streamId, req.taskId, &pTask);
-  if (pTask == NULL) {
+  if (pTask == NULL || code != 0) {
     tqError("vgId:%d failed to find s-task:0x%x, ignore checkpoint msg. checkpointId:%" PRId64
             " transId:%d it may have been destroyed",
             vgId, req.taskId, req.checkpointId, req.transId);
