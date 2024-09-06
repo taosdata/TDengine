@@ -7,12 +7,13 @@ LFLAGS = '-Wl,-rpath,/usr/local/taos/driver/' -ltaos -lpthread -lm -lrt
 CFLAGS = -O0 -g -Wno-deprecated -fPIC -Wno-unused-result -Wconversion \
 	-Wno-char-subscripts -D_REENTRANT -Wno-format -D_REENTRANT -DLINUX \
 	-Wno-unused-function -D_M_X64 -I/usr/local/taos/include -std=gnu99 -Wno-sign-conversion
-CFLAGS +=  -fsanitize=address -fsanitize=undefined -fsanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=shift-base -fno-sanitize=alignment
+#CFLAGS +=  -fsanitize=address -fsanitize=undefined -fsanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=shift-base -fno-sanitize=alignment
 
 all: $(TARGET)
 
 exe:
 	gcc $(CFLAGS) ./batchprepare.c  -o $(ROOT)batchprepare  $(LFLAGS)
+	gcc $(CFLAGS) ./stmt2-test.c  -o $(ROOT)stmt2-test $(LFLAGS)
 	gcc $(CFLAGS) ./stopquery.c  -o $(ROOT)stopquery $(LFLAGS)
 	gcc $(CFLAGS) ./dbTableRoute.c  -o $(ROOT)dbTableRoute $(LFLAGS)
 	gcc $(CFLAGS) ./insertSameTs.c  -o $(ROOT)insertSameTs $(LFLAGS)
@@ -29,6 +30,7 @@ exe:
 
 clean:
 	rm $(ROOT)batchprepare
+	rm $(ROOT)stmt2-test
 	rm $(ROOT)stopquery
 	rm $(ROOT)dbTableRoute
 	rm $(ROOT)insertSameTs
