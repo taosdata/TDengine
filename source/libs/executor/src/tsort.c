@@ -79,9 +79,8 @@ struct SSortHandle {
   bool          forceUsePQSort;
   BoundedQueue* pBoundedQueue;
   uint32_t      tmpRowIdx;
-
-  int64_t mergeLimit;
-  int64_t currMergeLimitTs;
+  int64_t       mergeLimit;
+  int64_t       currMergeLimitTs;
 
   int32_t           sourceId;
   SSDataBlock*      pDataBlock;
@@ -2380,19 +2379,22 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
   return code;
 }
 
-static void freeSSortSource(SSortSource* source) {
-  if (NULL == source) {
+static void freeSortSource(SSortSource* pSource) {
+  if (NULL == pSource) {
     return;
   }
 
-  if (source->param && !source->onlyRef) {
-    taosMemoryFree(source->param);
+  if (!pSource->onlyRef && pSource->param) {
+    taosMemoryFree(pSource->param);
   }
-  if (!source->onlyRef && source->src.pBlock) {
-    blockDataDestroy(source->src.pBlock);
-    source->src.pBlock = NULL;
+
+  if (!pSource->onlyRef && pSource->src.pBlock) {
+    blockDataDestroy(pSource->src.pBlock);
+    pSource->src.pBlock = NULL;
   }
-  taosMemoryFree(source);
+
+  qInfo("---free-single:%p", pSource);
+  taosMemoryFree(pSource);
 }
 
 static int32_t createBlocksQuickSortInitialSources(SSortHandle* pHandle) {
@@ -2424,7 +2426,7 @@ static int32_t createBlocksQuickSortInitialSources(SSortHandle* pHandle) {
       sortBufSize = pHandle->numOfPages * pHandle->pageSize;
       code = createOneDataBlock(pBlock, false, &pHandle->pDataBlock);
       if (code) {
-        freeSSortSource(pSource);
+        freeSortSource(pSource);
         return code;
       }
     }
@@ -2435,7 +2437,7 @@ static int32_t createBlocksQuickSortInitialSources(SSortHandle* pHandle) {
 
     code = blockDataMerge(pHandle->pDataBlock, pBlock);
     if (code != TSDB_CODE_SUCCESS) {
-      freeSSortSource(pSource);
+      freeSortSource(pSource);
       return code;
     }
 
@@ -2445,7 +2447,7 @@ static int32_t createBlocksQuickSortInitialSources(SSortHandle* pHandle) {
       int64_t st = taosGetTimestampUs();
       code = blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
       if (code != 0) {
-        freeSSortSource(pSource);
+        freeSortSource(pSource);
         return code;
       }
 
@@ -2454,13 +2456,13 @@ static int32_t createBlocksQuickSortInitialSources(SSortHandle* pHandle) {
       if (pHandle->pqMaxRows > 0) blockDataKeepFirstNRows(pHandle->pDataBlock, pHandle->pqMaxRows);
       code = doAddToBuf(pHandle->pDataBlock, pHandle);
       if (code != TSDB_CODE_SUCCESS) {
-        freeSSortSource(pSource);
+        freeSortSource(pSource);
         return code;
       }
     }
   }
 
-  freeSSortSource(pSource);
+  freeSortSource(pSource);
 
   if (pHandle->pDataBlock != NULL && pHandle->pDataBlock->info.rows > 0) {
     size_t size = blockDataGetSize(pHandle->pDataBlock);
@@ -2501,7 +2503,7 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
     code = createBlocksMergeSortInitialSources(pHandle);
   }
 
-  qDebug("%zu sources created", taosArrayGetSize(pHandle->pOrderedSource));
+  qDebug("%s %zu sources created", pHandle->idStr, taosArrayGetSize(pHandle->pOrderedSource));
   return code;
 }
 
