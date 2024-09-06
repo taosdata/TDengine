@@ -63,7 +63,9 @@ typedef struct SRpcHandleInfo {
   int8_t       forbiddenIp;
   int8_t       notFreeAhandle;
   int8_t       compressed;
-  int32_t      seqNum;
+  int32_t      seqNum;  // msg seq
+  int64_t      qId;     // queryId Get from client, other req's qId = -1;
+  int32_t      refIdMgt;
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {

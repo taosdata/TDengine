@@ -183,7 +183,8 @@ typedef struct {
   uint32_t magicNum;
   STraceId traceId;
   uint64_t ahandle;  // ahandle assigned by client
-  uint32_t code;     // del later
+  int64_t  qid;
+  uint32_t code;  // del later
   uint32_t msgType;
   int32_t  msgLen;
   int32_t  seqNum;
@@ -272,10 +273,10 @@ bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
     }                                                                \
   } while (0)
 
-#define ASYNC_CHECK_HANDLE(exh1, id)                                                                         \
+#define ASYNC_CHECK_HANDLE(idMgt, id, exh1)                                                                  \
   do {                                                                                                       \
     if (id > 0) {                                                                                            \
-      SExHandle* exh2 = transAcquireExHandle(transGetRefMgt(), id);                                          \
+      SExHandle* exh2 = transAcquireExHandle(idMgt, id);                                                     \
       if (exh2 == NULL || id != exh2->refId) {                                                               \
         tTrace("handle %p except, may already freed, ignore msg, ref1:%" PRIu64 ", ref2:%" PRIu64, exh1,     \
                exh2 ? exh2->refId : 0, id);                                                                  \
