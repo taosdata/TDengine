@@ -536,7 +536,7 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
 _end:
   (void) tStatisBlockDestroy(&block);
   if (code != 0) {
-    tsdbError("%s error happens at:%s line number: %d, code:%s", id, __FUNCTION__, lino, tstrerror(code));
+    tsdbError("%s error happens at:%s line number: %d, code:%s", id, __func__, lino, tstrerror(code));
   } else {
     double el = (taosGetTimestampUs() - st) / 1000.0;
     pBlockLoadInfo->cost.statisElapsedTime += el;
