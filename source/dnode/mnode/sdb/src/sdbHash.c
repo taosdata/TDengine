@@ -174,12 +174,12 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   if (insertFp != NULL) {
     code = (*insertFp)(pSdb, pRow->pObj);
     if (code != 0) {
-      if (terrno == 0) terrno = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
-      code = terrno;
-      (void)taosHashRemove(hash, pRow->pObj, keySize);
+      if (taosHashRemove(hash, pRow->pObj, keySize) != 0) {
+        mError("failed to remove row from hash");
+      }
       sdbFreeRow(pSdb, pRow, false);
-      terrno = code;
       sdbUnLock(pSdb, type);
+      terrno = code;
       return terrno;
     }
   }

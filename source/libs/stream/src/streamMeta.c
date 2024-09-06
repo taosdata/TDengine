@@ -1254,16 +1254,7 @@ int32_t streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta, SArray** pList) {
       continue;
     }
 
-    streamMutexLock(&pTask->lock);
-
-    SStreamTaskState pState = streamTaskGetStatus(pTask);
-    if (pState.state == TASK_STATUS__CK) {
-      streamTaskSetFailedCheckpointId(pTask);
-    } else {
-      stDebug("s-task:%s status:%s not reset the checkpoint", pTask->id.idStr, pState.name);
-    }
-
-    streamMutexUnlock(&pTask->lock);
+    streamTaskSetCheckpointFailed(pTask);
     streamMetaReleaseTask(pMeta, pTask);
   }
 
