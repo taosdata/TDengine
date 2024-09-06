@@ -209,7 +209,9 @@ _return:
 
 void freeQueryParam(SSyncQueryParam* param) {
   if (param == NULL) return;
-  (void)tsem_destroy(&param->sem);
+  if (TSDB_CODE_SUCCESS != tsem_destroy(&param->sem)) {
+    tscError("failed to destroy semaphore in freeQueryParam");
+  }
   taosMemoryFree(param);
 }
 
@@ -351,7 +353,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 
   // int64_t transporterId = 0;
   TSC_ERR_RET(asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pMsgInfo->epSet, NULL, pSendMsg));
-  (void)tsem_wait(&pRequest->body.rspSem);
+  TSC_ERR_RET(tsem_wait(&pRequest->body.rspSem));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1165,14 +1167,18 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pRequest->sqlstr != NULL) {
     tscDebug("0x%" PRIx64 " client retry to handle the error, code:%s, tryCount:%d,QID:0x%" PRIx64, pRequest->self,
              tstrerror(code), pRequest->retry, pRequest->requestId);
-    (void)removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
+    if (TSDB_CODE_SUCCESS != removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type))) {
+      tscError("0x%" PRIx64 " remove meta failed,QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
+    }
     restartAsyncQuery(pRequest, code);
     return;
   }
 
   tscDebug("schedulerExecCb request type %s", TMSG_INFO(pRequest->type));
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
-    (void)removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
+    if (TSDB_CODE_SUCCESS != removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type))) {
+      tscError("0x%" PRIx64 " remove meta failed,QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
+    }
   }
 
   pRequest->metric.execCostUs = taosGetTimestampUs() - pRequest->metric.execStart;
@@ -1266,7 +1272,10 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
   }
 
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
-    (void)removeMeta(pRequest->pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
+    code = removeMeta(pRequest->pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
+    if (TSDB_CODE_SUCCESS != code) {
+      tscError("0x%" PRIx64 " remove meta failed,QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -1479,12 +1488,12 @@ int32_t removeMeta(STscObj* pTscObj, SArray* tbList, bool isView) {
         continue;
       }
       (void)tNameGetFullDbName(pViewName, dbFName);
-      (void)catalogRemoveViewMeta(pCatalog, dbFName, 0, pViewName->tname, 0);
+      TSC_ERR_RET(catalogRemoveViewMeta(pCatalog, dbFName, 0, pViewName->tname, 0));
     }
   } else {
     for (int32_t i = 0; i < tbNum; ++i) {
       SName* pTbName = taosArrayGet(tbList, i);
-      (void)catalogRemoveTableMeta(pCatalog, pTbName);
+      TSC_ERR_RET(catalogRemoveTableMeta(pCatalog, pTbName));
     }
   }
 
@@ -1584,7 +1593,11 @@ int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __ta
     tscError("failed to send connect msg to server, code:%s", tstrerror(code));
     return code;
   }
-  (void)tsem_wait(&pRequest->body.rspSem);
+  if (TSDB_CODE_SUCCESS != tsem_wait(&pRequest->body.rspSem)) {
+    destroyTscObj(*pTscObj);
+    tscError("failed to wait sem, code:%s", terrstr());
+    return terrno;
+  }
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char* errorMsg = (code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);
     tscError("failed to connect to server, reason: %s", errorMsg);
@@ -1736,7 +1749,9 @@ int32_t doProcessMsgFromServer(void* param) {
         tscError("doProcessMsgFromServer pRequest->self:%" PRId64 " != pSendInfo->requestObjRefId:%" PRId64,
                  pRequest->self, pSendInfo->requestObjRefId);
 
-        (void)taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
+        if (TSDB_CODE_SUCCESS != taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId)) {
+          tscError("doProcessMsgFromServer taosReleaseRef failed");
+        }
         taosMemoryFree(arg->pEpset);
         rpcFreeCont(pMsg->pCont);
         destroySendMsgInfo(pSendInfo);
@@ -1769,7 +1784,12 @@ int32_t doProcessMsgFromServer(void* param) {
   (void)pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
 
   if (pTscObj) {
-    (void)taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
+    int32_t code = taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
+    if (TSDB_CODE_SUCCESS != code) {
+      tscError("doProcessMsgFromServer taosReleaseRef failed");
+      terrno = code;
+      pMsg->code = code;
+    }
   }
 
   rpcFreeCont(pMsg->pCont);
@@ -1946,7 +1966,9 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
 
 static void syncFetchFn(void* param, TAOS_RES* res, int32_t numOfRows) {
   tsem_t* sem = param;
-  (void)tsem_post(sem);
+  if (TSDB_CODE_SUCCESS != tsem_post(sem)) {
+    tscError("failed to post sem, code:%s", terrstr());
+  }
 }
 
 void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) {
@@ -1965,10 +1987,16 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     // convert ucs4 to native multi-bytes string
     pResultInfo->convertUcs4 = convertUcs4;
     tsem_t sem;
-    (void)tsem_init(&sem, 0, 0);
+    if (TSDB_CODE_SUCCESS != tsem_init(&sem, 0, 0)) {
+      tscError("failed to init sem, code:%s", terrstr());
+    }
     taos_fetch_rows_a(pRequest, syncFetchFn, &sem);
-    (void)tsem_wait(&sem);
-    (void)tsem_destroy(&sem);
+    if (TSDB_CODE_SUCCESS != tsem_wait(&sem)) {
+      tscError("failed to wait sem, code:%s", terrstr());
+    }
+    if (TSDB_CODE_SUCCESS != tsem_destroy(&sem)) {
+      tscError("failed to destroy sem, code:%s", terrstr());
+    }
     pRequest->inCallback = false;
   }
 
@@ -2742,7 +2770,9 @@ void syncCatalogFn(SMetaData* pResult, void* param, int32_t code) {
   SSyncQueryParam* pParam = param;
   pParam->pRequest->code = code;
 
-  (void)tsem_post(&pParam->sem);
+  if (TSDB_CODE_SUCCESS != tsem_post(&pParam->sem)) {
+    tscError("failed to post semaphore since %s", tstrerror(terrno));
+  }
 }
 
 void syncQueryFn(void* param, void* res, int32_t code) {
@@ -2753,7 +2783,9 @@ void syncQueryFn(void* param, void* res, int32_t code) {
     pParam->pRequest->code = code;
   }
 
-  (void)tsem_post(&pParam->sem);
+  if (TSDB_CODE_SUCCESS != tsem_post(&pParam->sem)) {
+    tscError("failed to post semaphore since %s", tstrerror(terrno));
+  }
 }
 
 void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
@@ -2831,10 +2863,20 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  (void)tsem_init(&param->sem, 0, 0);
+  int32_t code = tsem_init(&param->sem, 0, 0);
+  if (TSDB_CODE_SUCCESS != code) {
+    terrno = code;
+    taosMemoryFree(param);
+    return NULL;
+  }
 
   taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, source);
-  (void)tsem_wait(&param->sem);
+  code = tsem_wait(&param->sem);
+  if (TSDB_CODE_SUCCESS != code) {
+    terrno = code;
+    taosMemoryFree(param);
+    return NULL;
+  }
 
   SRequestObj* pRequest = NULL;
   if (param->pRequest != NULL) {
@@ -2860,10 +2902,20 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  (void)tsem_init(&param->sem, 0, 0);
+  int32_t code = tsem_init(&param->sem, 0, 0);
+  if (TSDB_CODE_SUCCESS != code) {
+    terrno = code;
+    taosMemoryFree(param);
+    return NULL;
+  }
 
   taosAsyncQueryImplWithReqid(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, reqid);
-  (void)tsem_wait(&param->sem);
+  code = tsem_wait(&param->sem);
+  if (TSDB_CODE_SUCCESS != code) {
+    terrno = code;
+    taosMemoryFree(param);
+    return NULL;
+  }
   SRequestObj* pRequest = NULL;
   if (param->pRequest != NULL) {
     param->pRequest->syncQuery = true;
