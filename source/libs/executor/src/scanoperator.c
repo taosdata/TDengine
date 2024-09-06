@@ -1269,9 +1269,7 @@ static int32_t groupSeqTableScan(SOperatorInfo* pOperator, SSDataBlock** pResBlo
 
     code = pAPI->tsdReader.tsdReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, pList, num, pInfo->pResBlock,
                                          (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->pIgnoreTables);
-//    QUERY_CHECK_CODE(code, lino, _end);
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _end;
+    QUERY_CHECK_CODE(code, lino, _end);
 
     if (pInfo->filesetDelimited) {
       pAPI->tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
