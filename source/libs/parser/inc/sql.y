@@ -159,7 +159,8 @@ cmd ::= CREATE ENCRYPT_KEY NK_STRING(A).                                        
 
 /************************************************ create drop update anode ***************************************/
 cmd ::= CREATE ANODE NK_STRING(A).                                                { pCxt->pRootNode = createCreateAnodeStmt(pCxt, &A); }
-cmd ::= UPDATE ANODE NK_INTEGER(A).                                               { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, &A); }
+cmd ::= UPDATE ANODE NK_INTEGER(A).                                               { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, &A, false); }
+cmd ::= UPDATE ALL ANODES.                                                        { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, NULL, true); }
 cmd ::= DROP ANODE NK_INTEGER(A).                                                 { pCxt->pRootNode = createDropAnodeStmt(pCxt, &A); }
 
 /************************************************ create/drop/alter/restore dnode *********************************************/

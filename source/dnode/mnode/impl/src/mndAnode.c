@@ -298,7 +298,7 @@ static int32_t mndCreateAnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateAnodeReq *p
   // get from restful, test begin
   anodeObj.numOfFuncs = 2;
 
-  //todo: check len of url/name/types
+  // todo: check len of url/name/types
   anodeObj.pFuncs = taosMemoryCalloc(anodeObj.numOfFuncs, sizeof(SAnodeFunc));
   SAnodeFunc *pFunc1 = &anodeObj.pFuncs[0];
   pFunc1->typeLen = 3;
@@ -396,7 +396,39 @@ _OVER:
 }
 
 static int32_t mndProcessUpdateAnodeReq(SRpcMsg *pReq) {
-  return TSDB_CODE_OPS_NOT_SUPPORT;
+  SMnode          *pMnode = pReq->info.node;
+  int32_t          code = -1;
+  SAnodeObj       *pObj = NULL;
+  SMUpdateAnodeReq updateReq = {0};
+
+  TAOS_CHECK_GOTO(tDeserializeSMUpdateAnodeReq(pReq->pCont, pReq->contLen, &updateReq), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_UPDATE_ANODE), NULL, _OVER);
+
+  if (updateReq.anodeId == -1) {
+    mInfo("update all anodes");
+  } else {
+    mInfo("anode:%d, start to update", updateReq.anodeId);
+    pObj = mndAcquireAnode(pMnode, updateReq.anodeId);
+    if (pObj == NULL) {
+      code = TSDB_CODE_MND_ANODE_NOT_EXIST;
+      goto _OVER;
+    }
+
+    // code = mndUpdateteAnode(pMnode, pReq, &updateReq);
+    // if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  }
+
+  code = TSDB_CODE_OPS_NOT_SUPPORT;
+
+_OVER:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("anode:%d, failed to update since %s", updateReq.anodeId, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  mndReleaseAnode(pMnode, pObj);
+  tFreeSMUpdateAnodeReq(&updateReq);
+  TAOS_RETURN(code);
 }
 
 static int32_t mndSetDropAnodeRedoLogs(STrans *pTrans, SAnodeObj *pObj) {

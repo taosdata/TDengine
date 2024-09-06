@@ -3011,7 +3011,7 @@ _err:
   return NULL;
 }
 
-SNode* createUpdateAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode) {
+SNode* createUpdateAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode, bool updateAll) {
   CHECK_PARSER_STATUS(pCxt);
   SUpdateAnodeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_UPDATE_ANODE_STMT, (SNode**)&pStmt);
