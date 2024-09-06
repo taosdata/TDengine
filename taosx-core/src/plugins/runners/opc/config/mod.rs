@@ -88,7 +88,7 @@ impl OPCConfig {
 
             let model_config = OpcModelConfig {
                 opc_type: opc_type.clone(),
-                generate_rule: GeneratePointMappingBy::Rule(rule),
+                generate_rule: Some(GeneratePointMappingBy::Rule(rule)),
                 point_config_map: point_map,
                 table_config_map: table_map,
             };
