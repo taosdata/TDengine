@@ -849,7 +849,7 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
 
 int32_t blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t rowCount, SSDataBlock** pResBlock) {
   int32_t code = 0;
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
 
   if (pBlock == NULL || startIndex < 0 || rowCount > pBlock->info.rows || rowCount + startIndex > pBlock->info.rows) {
     return TSDB_CODE_INVALID_PARA;
@@ -1753,7 +1753,7 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc) {
 }
 
 int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
-  QRY_OPTR_CHECK(pBlock);
+  QRY_PARAM_CHECK(pBlock);
 
   int32_t      code = 0;
   SSDataBlock* p = taosMemoryCalloc(1, sizeof(SSDataBlock));
@@ -1846,7 +1846,7 @@ _err:
 }
 
 int32_t blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
 
   if (pDataBlock == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -1946,7 +1946,7 @@ _end:
 }
 
 int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
   if (pDataBlock == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -2029,7 +2029,7 @@ int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataB
 }
 
 int32_t createDataBlock(SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (pBlock == NULL) {
     return terrno;
@@ -2080,7 +2080,7 @@ SColumnInfoData createColumnInfoData(int16_t type, int32_t bytes, int16_t colId)
 
 int32_t bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index, SColumnInfoData** pColInfoData) {
   int32_t code = 0;
-  QRY_OPTR_CHECK(pColInfoData);
+  QRY_PARAM_CHECK(pColInfoData);
 
   if (index >= taosArrayGetSize(pBlock->pDataBlock)) {
     return TSDB_CODE_INVALID_PARA;
@@ -2854,7 +2854,7 @@ bool alreadyAddGroupId(char* ctbName, int64_t groupId) {
 }
 
 int32_t buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId, char** pName) {
-  QRY_OPTR_CHECK(pName);
+  QRY_PARAM_CHECK(pName);
 
   char* pBuf = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);
   if (!pBuf) {

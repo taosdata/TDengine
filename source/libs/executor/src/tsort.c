@@ -287,7 +287,7 @@ int32_t tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t pageSize,
   int32_t code = 0;
   int32_t lino = 0;
 
-  QRY_OPTR_CHECK(pHandle);
+  QRY_PARAM_CHECK(pHandle);
   SSortHandle* pSortHandle = taosMemoryCalloc(1, sizeof(SSortHandle));
   QUERY_CHECK_NULL(pSortHandle, code, lino, _err, terrno);
 
@@ -393,7 +393,6 @@ void tsortClearOrderedSource(SArray* pOrderedSource, int64_t *fetchUs, int64_t *
       (*pSource)->src.pBlock = NULL;
     }
 
-    qInfo("---free:%p", *pSource);
     taosMemoryFreeClear(*pSource);
   }
 
@@ -2393,7 +2392,6 @@ static void freeSortSource(SSortSource* pSource) {
     pSource->src.pBlock = NULL;
   }
 
-  qInfo("---free-single:%p", pSource);
   taosMemoryFree(pSource);
 }
 
@@ -2412,7 +2410,12 @@ static int32_t createBlocksQuickSortInitialSources(SSortHandle* pHandle) {
 
   while (1) {
     SSDataBlock* pBlock = NULL;
-    TAOS_CHECK_RETURN(pHandle->fetchfp(pSource->param, &pBlock));
+    code = pHandle->fetchfp(pSource->param, &pBlock);
+    if (code != 0) {
+      freeSortSource(pSource);
+      return code;
+    }
+
     if (pBlock == NULL) {
       break;
     }

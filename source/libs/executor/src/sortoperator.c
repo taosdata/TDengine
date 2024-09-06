@@ -55,7 +55,7 @@ static void destroySortOpGroupIdCalc(SSortOpGroupIdCalc* pCalc);
 
 // todo add limit/offset impl
 int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t code = 0;
   int32_t lino = 0;
@@ -252,7 +252,7 @@ static STupleHandle* nextTupleWithGroupId(SSortHandle* pHandle, SSortOperatorInf
 
 static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo,
                                 SSortOperatorInfo* pInfo, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
   blockDataCleanup(pDataBlock);
   int32_t lino = 0;
   int32_t code = 0;
@@ -392,7 +392,7 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
 }
 
 int32_t doSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
   if (pOperator->status == OP_EXEC_DONE) {
     return 0;
   }
@@ -518,7 +518,7 @@ typedef struct SGroupSortOperatorInfo {
 
 int32_t getGroupSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo,
                                 SGroupSortOperatorInfo* pInfo, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
 
   blockDataCleanup(pDataBlock);
   int32_t code = blockDataEnsureCapacity(pDataBlock, capacity);
@@ -600,7 +600,7 @@ int32_t fetchNextGroupSortDataBlock(void* param, SSDataBlock** ppBlock) {
   SGroupSortOperatorInfo* grpSortOpInfo = source->grpSortOpInfo;
   SSDataBlock*            block = NULL;
 
-  QRY_OPTR_CHECK(ppBlock);
+  QRY_PARAM_CHECK(ppBlock);
 
   if (grpSortOpInfo->prefetchedSortInput) {
     block = grpSortOpInfo->prefetchedSortInput;
@@ -687,7 +687,7 @@ int32_t finishSortGroup(SOperatorInfo* pOperator) {
 }
 
 int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
   SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
   SGroupSortOperatorInfo* pInfo = pOperator->info;
 
@@ -777,7 +777,7 @@ void destroyGroupSortOperatorInfo(void* param) {
 
 int32_t createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNode* pSortPhyNode,
                                     SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
   int32_t code = 0;
   int32_t lino = 0;
 
