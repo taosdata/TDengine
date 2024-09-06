@@ -215,6 +215,7 @@ async fn ipc_stream_writer(
                             metrics,
                             metrics_arc,
                             tables_messages_in_progress,
+                            None,
                         )
                         .in_current_span()
                         .await
@@ -733,7 +734,7 @@ impl PutStream {
                 async move {
                     match message.payload {
                         arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
-                            // tracing::trace!("Enqueue batch {}\nschema=\n{:?} \ncolumns=\n{:?}", trace_id, batch.schema(), batch.columns());
+                            tracing::trace!("Enqueue batch {}\nschema=\n{:?} \ncolumns=\n{:?}", trace_id, batch.schema(), batch.columns());
                             if let Err(err) = tx.send_async((batch, trace_id)).await {
                                 tracing::warn!(
                                     trace_id = %trace_id,
