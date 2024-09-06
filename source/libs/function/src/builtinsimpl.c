@@ -5996,10 +5996,6 @@ int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   pInfo->colBytes = pCtx->resDataInfo.bytes;
   if (pInfo->pHash != NULL) {
     taosHashClear(pInfo->pHash);
-    pInfo->pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-    if (NULL == pInfo->pHash) {
-      return terrno;
-    }
   } else {
     pInfo->pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
     if (NULL == pInfo->pHash) {
@@ -6012,6 +6008,7 @@ int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   pInfo->buf = taosMemoryMalloc(pInfo->colBytes);
   if (NULL == pInfo->buf) {
     taosHashCleanup(pInfo->pHash);
+    pInfo->pHash = NULL;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -6020,7 +6017,9 @@ int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
 
 static void modeFunctionCleanup(SModeInfo * pInfo) {
   taosHashCleanup(pInfo->pHash);
+  pInfo->pHash = NULL;
   taosMemoryFreeClear(pInfo->buf);
+  pInfo->buf = NULL;
 }
 
 void modeFunctionCleanupExt(SqlFunctionCtx* pCtx) {
