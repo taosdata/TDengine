@@ -678,7 +678,7 @@ static int32_t translatePercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t 
 
   // set result type
   if (numOfParams > 2) {
-    pFunc->node.resType = (SDataType){.bytes = 512, .type = TSDB_DATA_TYPE_VARCHAR};
+    pFunc->node.resType = (SDataType){.bytes = 3200, .type = TSDB_DATA_TYPE_VARCHAR};
   } else {
     pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   }

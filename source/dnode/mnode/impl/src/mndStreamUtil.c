@@ -251,7 +251,7 @@ void mndKillTransImpl(SMnode *pMnode, int32_t transId, const char *pDbName) {
     int32_t code = mndKillTrans(pMnode, pTrans);
     mndReleaseTrans(pMnode, pTrans);
     if (code) {
-      mError("failed to kill trans:%d", pTrans->id);
+      mError("failed to kill transId:%d, code:%s", pTrans->id, tstrerror(code));
     }
   } else {
     mError("failed to acquire trans in Db:%s, transId:%d", pDbName, transId);
