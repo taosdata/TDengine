@@ -3163,7 +3163,7 @@ static int32_t doSaveLastrow(SqlFunctionCtx* pCtx, char* pData, int32_t rowIndex
     (void)memcpy(pInfo->buf, pData, pInfo->bytes);
   }
 
-  if (pCtx->hasPrimaryKey) {
+  if (pCtx->hasPrimaryKey && !colDataIsNull_s(pkCol, rowIndex)) {
     char* pkData = colDataGetData(pkCol, rowIndex);
     if (IS_VAR_DATA_TYPE(pInfo->pkType)) {
       pInfo->pkBytes = varDataTLen(pkData);

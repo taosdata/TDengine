@@ -237,17 +237,21 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
 
 static int32_t setTableSchema(SCacheRowsReader* p, uint64_t suid, const char* idstr) {
   int32_t numOfTables = p->numOfTables;
+  int32_t  code = TSDB_CODE_SUCCESS;
 
   if (suid != 0) {
-    p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, suid, -1, 1);
-    if (p->pSchema == NULL) {
+    code = metaGetTbTSchemaNotNull(p->pVnode->pMeta, suid, -1, 1, &p->pSchema);
+    if (TSDB_CODE_SUCCESS != code) {
       tsdbWarn("stable:%" PRIu64 " has been dropped, failed to retrieve cached rows, %s", suid, idstr);
-      return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      return code;
     }
   } else {
     for (int32_t i = 0; i < numOfTables; ++i) {
       uint64_t uid = p->pTableList[i].uid;
-      p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, uid, -1, 1);
+      code = metaGetTbTSchemaMaybeNull(p->pVnode->pMeta, uid, -1, 1, &p->pSchema);
+      if(code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
       if (p->pSchema != NULL) {
         break;
       }
