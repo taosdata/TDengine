@@ -177,11 +177,10 @@ int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, SDiskID *pDiskId) {
       continue;
     }
 
-    return 0;
+    return (terrno = 0);
   }
 
-  terrno = TSDB_CODE_FS_NO_VALID_DISK;
-  return -1;
+  return (terrno = TSDB_CODE_FS_NO_VALID_DISK);
 }
 
 const char *tfsGetPrimaryPath(STfs *pTfs) { return TFS_PRIMARY_DISK(pTfs)->path; }
@@ -520,6 +519,18 @@ static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
     return -1;
   }
 
+  if (pCfg->primary < 0 || pCfg->primary > 1) {
+    fError("failed to mount %s to FS since invalid primary %d", pCfg->dir, pCfg->primary);
+    terrno = TSDB_CODE_FS_INVLD_CFG;
+    return -1;
+  }
+
+  if (pCfg->disable < 0 || pCfg->disable > 1) {
+    fError("failed to mount %s to FS since invalid disable %" PRIi8, pCfg->dir, pCfg->disable);
+    terrno = TSDB_CODE_FS_INVLD_CFG;
+    return -1;
+  }
+
   if (pCfg->primary) {
     if (pCfg->level != 0) {
       fError("failed to mount %s to FS since disk is primary but level %d not 0", pCfg->dir, pCfg->level);
@@ -595,6 +606,15 @@ static int32_t tfsCheck(STfs *pTfs) {
       fError("no disk at level %d", level);
       terrno = TSDB_CODE_FS_NO_MOUNT_AT_TIER;
       return -1;
+    }
+
+    if (level == 0) {
+      tfsUpdateTierSize(TFS_TIER_AT(pTfs, level));
+      if (TFS_TIER_AT(pTfs, level)->nAvailDisks == 0) {
+        fError("no disk to create new file at level %d", level);
+        terrno = TSDB_CODE_FS_NO_VALID_DISK;
+        return -1;
+      }
     }
   }
 

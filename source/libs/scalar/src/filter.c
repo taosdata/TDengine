@@ -177,7 +177,7 @@ __compar_fn_t gUint64SignCompare[] = {compareUint64Int8,  compareUint64Int16, co
                                       compareUint64Int64, compareUint64Float, compareUint64Double};
 __compar_fn_t gUint64UsignCompare[] = {compareUint64Uint8, compareUint64Uint16, compareUint64Uint32, compareUint64Val};
 
-int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
+int8_t filterGetCompFuncIdx(int32_t type, int32_t optr, bool scalarMode) {
   int8_t comparFn = 0;
 
   if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY &&
@@ -290,9 +290,9 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
 
     case TSDB_DATA_TYPE_NCHAR: {
       if (optr == OP_TYPE_MATCH) {
-        comparFn = 28;
+        comparFn = scalarMode ? 28 : 19;
       } else if (optr == OP_TYPE_NMATCH) {
-        comparFn = 29;
+        comparFn = scalarMode ? 29 : 20;
       } else if (optr == OP_TYPE_LIKE) {
         comparFn = 9;
       } else if (optr == OP_TYPE_NOT_LIKE) {
@@ -343,7 +343,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
   return comparFn;
 }
 
-__compar_fn_t filterGetCompFunc(int32_t type, int32_t optr) { return gDataCompare[filterGetCompFuncIdx(type, optr)]; }
+__compar_fn_t filterGetCompFunc(int32_t type, int32_t optr) { return gDataCompare[filterGetCompFuncIdx(type, optr, true)]; }
 
 __compar_fn_t filterGetCompFuncEx(int32_t lType, int32_t rType, int32_t optr) {
   if (TSDB_DATA_TYPE_NULL == rType || TSDB_DATA_TYPE_JSON == rType) {
@@ -2785,7 +2785,7 @@ int32_t filterGenerateComInfo(SFilterInfo *info) {
   for (uint32_t i = 0; i < info->unitNum; ++i) {
     SFilterUnit *unit = &info->units[i];
 
-    info->cunits[i].func = filterGetCompFuncIdx(FILTER_UNIT_DATA_TYPE(unit), unit->compare.optr); // set terrno if err
+    info->cunits[i].func = filterGetCompFuncIdx(FILTER_UNIT_DATA_TYPE(unit), unit->compare.optr, false); // set terrno if err
     info->cunits[i].rfunc = filterGetRangeCompFuncFromOptrs(unit->compare.optr, unit->compare.optr2);
     info->cunits[i].optr = FILTER_UNIT_OPTR(unit);
     info->cunits[i].colData = NULL;
@@ -3782,7 +3782,7 @@ int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange *colRange, SColumnDataAg
   return TSDB_CODE_SUCCESS;
 }
 
-bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t numOfCols, int32_t numOfRows) {
+bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows) {
   if (info->scalarMode) {
     SArray *colRanges = info->sclCtx.fltSclRange;
     for (int32_t i = 0; i < taosArrayGetSize(colRanges); ++i) {
@@ -3790,13 +3790,13 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t
       bool                foundCol = false;
       int32_t             j = 0;
       for (; j < numOfCols; ++j) {
-        if (pDataStatis[j] != NULL && pDataStatis[j]->colId == colRange->colNode->colId) {
+        if (pDataStatis[j].colId == colRange->colNode->colId) {
           foundCol = true;
           break;
         }
       }
       if (foundCol) {
-        SColumnDataAgg *pAgg = pDataStatis[j];
+        SColumnDataAgg *pAgg = &pDataStatis[j];
         SArray         *points = taosArrayInit(2, sizeof(SFltSclPoint));
         fltSclBuildRangeFromBlockSma(colRange, pAgg, numOfRows, points);
         qDebug("column data agg: nulls %d, rows %d, max %" PRId64 " min %" PRId64, pAgg->numOfNull, numOfRows,
@@ -3833,7 +3833,7 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t
     int32_t          index = -1;
     SFilterRangeCtx *ctx = info->colRange[k];
     for (int32_t i = 0; i < numOfCols; ++i) {
-      if (pDataStatis[i] != NULL && pDataStatis[i]->colId == ctx->colId) {
+      if (pDataStatis[i].colId == ctx->colId) {
         index = i;
         break;
       }
@@ -3849,13 +3849,13 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t
       break;
     }
 
-    if (pDataStatis[index]->numOfNull <= 0) {
+    if (pDataStatis[index].numOfNull <= 0) {
       if (ctx->isnull && !ctx->notnull && !ctx->isrange) {
         ret = false;
         break;
       }
-    } else if (pDataStatis[index]->numOfNull > 0) {
-      if (pDataStatis[index]->numOfNull == numOfRows) {
+    } else if (pDataStatis[index].numOfNull > 0) {
+      if (pDataStatis[index].numOfNull == numOfRows) {
         if ((ctx->notnull || ctx->isrange) && (!ctx->isnull)) {
           ret = false;
           break;
@@ -3869,7 +3869,7 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t
       }
     }
 
-    SColumnDataAgg *pDataBlockst = pDataStatis[index];
+    SColumnDataAgg *pDataBlockst = &pDataStatis[index];
 
     SFilterRangeNode *r = ctx->rs;
     float             minv = 0;

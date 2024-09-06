@@ -200,25 +200,23 @@ static int32_t removeEventInWaitingList(SStreamTask* pTask, EStreamTaskEvent eve
   SStreamTaskSM* pSM = pTask->status.pSM;
 
   bool removed = false;
-  taosThreadMutexLock(&pTask->lock);
 
   int32_t num = taosArrayGetSize(pSM->pWaitingEventList);
   for (int32_t i = 0; i < num; ++i) {
     SFutureHandleEventInfo* pInfo = taosArrayGet(pSM->pWaitingEventList, i);
     if (pInfo->event == event) {
       taosArrayRemove(pSM->pWaitingEventList, i);
-      stDebug("s-task:%s pause event in waiting list not be handled yet, remove it from waiting list, remaining:%d",
-              pTask->id.idStr, pInfo->event);
+      stDebug("s-task:%s %s event in waiting list not be handled yet, remove it from waiting list, remaining events:%d",
+              pTask->id.idStr, GET_EVT_NAME(pInfo->event), num - 1);
       removed = true;
       break;
     }
   }
 
   if (!removed) {
-    stDebug("s-task:%s failed to remove event:%s in waiting list", pTask->id.idStr, StreamTaskEventList[event].name);
+    stDebug("s-task:%s failed to remove event:%s in waiting list", pTask->id.idStr, GET_EVT_NAME(event));
   }
 
-  taosThreadMutexUnlock(&pTask->lock);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -375,7 +373,6 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
               pTask->id.idStr, pSM->current.name, GET_EVT_NAME(evt));
       taosMsleep(100);
     } else {
-      // no active event trans exists, handle this event directly
       pTrans = streamTaskFindTransform(pSM->current.state, event);
       if (pTrans == NULL) {
         stDebug("s-task:%s failed to handle event:%s", pTask->id.idStr, GET_EVT_NAME(event));
@@ -383,7 +380,15 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
         return TSDB_CODE_STREAM_INVALID_STATETRANS;
       }
 
+      // no active event trans exists, handle this event directly
       if (pSM->pActiveTrans != NULL) {
+        // not allowed concurrently initialization
+        if (event == TASK_EVENT_INIT && pSM->pActiveTrans->event == TASK_EVENT_INIT) {
+          taosThreadMutexUnlock(&pTask->lock);
+          stError("s-task:%s already in handling init procedure, handle this init event failed", pTask->id.idStr);
+          return TSDB_CODE_STREAM_INVALID_STATETRANS;
+        }
+
         // currently in some state transfer procedure, not auto invoke transfer, abort it
         stDebug("s-task:%s event:%s handle procedure quit, status %s -> %s failed, handle event %s now",
                 pTask->id.idStr, GET_EVT_NAME(pSM->pActiveTrans->event), pSM->current.name,
@@ -584,7 +589,7 @@ void doInitStateTransferTable(void) {
   // initialization event handle
   STaskStateTrans trans = createStateTransform(TASK_STATUS__UNINIT, TASK_STATUS__READY, TASK_EVENT_INIT, streamTaskInitStatus, streamTaskOnNormalTaskReady, NULL);
   taosArrayPush(streamTaskSMTrans, &trans);
-  trans = createStateTransform(TASK_STATUS__UNINIT, TASK_STATUS__SCAN_HISTORY, TASK_EVENT_INIT_SCANHIST, streamTaskInitStatus, streamTaskOnScanhistoryTaskReady, NULL);
+  trans = createStateTransform(TASK_STATUS__UNINIT, TASK_STATUS__SCAN_HISTORY, TASK_EVENT_INIT_SCANHIST, streamTaskInitStatus, streamTaskOnScanHistoryTaskReady, NULL);
   taosArrayPush(streamTaskSMTrans, &trans);
 
   // scan-history related event
@@ -623,9 +628,9 @@ void doInitStateTransferTable(void) {
   taosArrayPush(streamTaskSMTrans, &trans);
   trans = createStateTransform(TASK_STATUS__HALT, TASK_STATUS__PAUSE, TASK_EVENT_PAUSE, NULL, NULL, &info);
   taosArrayPush(streamTaskSMTrans, &trans);
-
-  trans = createStateTransform(TASK_STATUS__UNINIT, TASK_STATUS__PAUSE, TASK_EVENT_PAUSE, NULL, NULL, NULL);
+  trans = createStateTransform(TASK_STATUS__UNINIT, TASK_STATUS__PAUSE, TASK_EVENT_PAUSE, NULL, NULL, &info);
   taosArrayPush(streamTaskSMTrans, &trans);
+
   trans = createStateTransform(TASK_STATUS__PAUSE, TASK_STATUS__PAUSE, TASK_EVENT_PAUSE, NULL, NULL, NULL);
   taosArrayPush(streamTaskSMTrans, &trans);
   trans = createStateTransform(TASK_STATUS__STOP, TASK_STATUS__STOP, TASK_EVENT_PAUSE, NULL, NULL, NULL);

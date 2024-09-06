@@ -21,7 +21,7 @@
 
 #define MALLOC_ALIGN_BYTES 32
 
-static void copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
+
 
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
@@ -87,7 +87,7 @@ int32_t getJsonValueLen(const char* data) {
 }
 
 int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull) {
-  if (isNull) {
+  if (isNull || pData == NULL) {
     // There is a placehold for each NULL value of binary or nchar type.
     if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
       pColumnInfoData->varmeta.offset[rowIndex] = -1;  // it is a null value of VAR type.
@@ -848,7 +848,7 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
       if (pBlock->pBlockAgg == NULL) {
         isNull = colDataIsNull_s(pColData, j);
       } else {
-        isNull = colDataIsNull(pColData, pBlock->info.rows, j, pBlock->pBlockAgg[i]);
+        isNull = colDataIsNull(pColData, pBlock->info.rows, j, &pBlock->pBlockAgg[i]);
       }
 
       if (isNull) {
@@ -1361,6 +1361,8 @@ void blockDataEmpty(SSDataBlock* pDataBlock) {
   if (pInfo->capacity == 0) {
     return;
   }
+
+  taosMemoryFreeClear(pDataBlock->pBlockAgg);
 
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -2435,18 +2437,13 @@ void buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId
 // the total length is fixed to be 34 bytes.
 bool isAutoTableName(char* ctbName) { return (strlen(ctbName) == 34 && ctbName[0] == 't' && ctbName[1] == '_'); }
 
-bool alreadyAddGroupId(char* ctbName) {
-  size_t len = strlen(ctbName);
-  if (len == 0) return false;
-  size_t _location = len - 1;
-  while (_location > 0) {
-    if (ctbName[_location] < '0' || ctbName[_location] > '9') {
-      break;
-    }
-    _location--;
-  }
-
-  return ctbName[_location] == '_' && len - 1 - _location >= 15;  // 15 means the min length of groupid
+bool alreadyAddGroupId(char* ctbName, int64_t groupId) {
+  char tmp[64] = {0};
+  snprintf(tmp, sizeof(tmp), "%" PRIu64, groupId);
+  size_t len1 = strlen(ctbName);
+  size_t len2 = strlen(tmp);
+  if (len1 < len2) return false;
+  return memcmp(ctbName + len1 - len2, tmp, len2) == 0;
 }
 
 char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {

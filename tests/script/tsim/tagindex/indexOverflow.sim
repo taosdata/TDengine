@@ -1,0 +1,82 @@
+
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step0
+$dbPrefix = ta_3_db
+$tbPrefix = ta_3_tb
+$mtPrefix = ta_3_mt
+$lastRowNum = 0
+$tbNum =  100000 
+$rowNum = 20
+$totalNum = 200
+
+print =============== create database 
+sql create database $dbPrefix 
+sql use $dbPrefix 
+
+
+
+sql create table if not exists $mtPrefix (ts timestamp, c1 int) tags (t1 tinyint, t1c tinyint)
+$i = 0
+$tinyLimit = 127
+$tinyTable = tinyTable
+while $i < $tinyLimit
+  $tb = $tinyTable . $i
+  sql insert into $tb using $mtPrefix tags( $i , $i ) values( now , $i ) 
+  $i = $i + 1
+endw
+
+$i = 0
+$maxTinyLimit = 200
+
+# 1. compress index and no-index to verify resultset  
+# 2. compress resultset of index filter and scalar filter 
+while $i < $maxTinyLimit
+  sql select * from $mtPrefix where t1 <= $i  
+  $lastRowNum = $rows
+  
+  sql select * from $mtPrefix where t1c <= $i 
+  if $lastRowNum != $rows then 
+    return -1
+  endi
+
+  $i = $i + 1
+endw
+
+
+$tbPrefix = ta_3_tb_c
+$mtPrefix = ta_3_mt_c
+$colPrefix = 'col'
+sql create table if not exists $mtPrefix (ts timestamp, c1 int) tags (t1 nchar(18), t1c nchar(18))
+$i = 0
+$tinyLimit = 127
+while $i < $tinyLimit
+  $tb = $tbPrefix . $i
+  sql insert into $tb using $mtPrefix tags( $colPrefix , $colPrefix ) values( now , $i ) 
+  $i = $i + 1
+endw
+
+$i = 0
+$maxTinyLimit = 200
+
+# 1. compress index and no-index to verify resultset  
+# 2. compress resultset of index filter and scalar filter 
+while $i < $maxTinyLimit
+  sql select * from $mtPrefix where t1 <= $i  
+  $lastRowNum = $rows
+  
+  sql select * from $mtPrefix where t1c <= $i 
+  if $lastRowNum != $rows then 
+    return -1
+  endi
+
+  $i = $i + 1
+endw
+
+
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

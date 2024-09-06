@@ -52,6 +52,7 @@ extern const SVnodeCfg vnodeCfgDefault;
 int32_t vnodeInit(int32_t nthreads);
 void    vnodeCleanup();
 int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs *pTfs);
+bool    vnodeShouldRemoveWal(SVnode *pVnode);
 int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t diskPrimary, STfs *pTfs);
 int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnodeHashRangeReq *pReq,
                             int32_t diskPrimary, STfs *pTfs);
@@ -181,7 +182,7 @@ void         tsdbReaderSetNotifyCb(STsdbReader *pReader, TsdReaderNotifyCbFn not
 int32_t tsdbReuseCacherowsReader(void *pReader, void *pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
                                 SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr,
-                                SArray *pFuncTypeList, SColumnInfo* pkCol, int32_t numOfPks);
+                                SArray *pFuncTypeList, SColumnInfo *pkCol, int32_t numOfPks);
 int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
                               SArray *pTableUids);
 void   *tsdbCacherowsReaderClose(void *pReader);
@@ -218,8 +219,8 @@ typedef struct STqReader {
 STqReader *tqReaderOpen(SVnode *pVnode);
 void       tqReaderClose(STqReader *);
 
-bool tqGetTablePrimaryKey(STqReader* pReader);
-void tqSetTablePrimaryKey(STqReader* pReader, int64_t uid);
+bool tqGetTablePrimaryKey(STqReader *pReader);
+void tqSetTablePrimaryKey(STqReader *pReader, int64_t uid);
 
 void    tqReaderSetColIdList(STqReader *pReader, SArray *pColIdList);
 int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList, const char *id);
@@ -278,8 +279,8 @@ struct STsdbCfg {
   int32_t keep2;  // just for save config, don't use in tsdbRead/tsdbCommit/..., and use STsdbKeepCfg in STsdb instead
   int32_t keepTimeOffset;  // just for save config, use STsdbKeepCfg in STsdb instead
   SRetention retentions[TSDB_RETENTION_MAX];
-  int32_t encryptAlgorithm;
-  char    encryptKey[ENCRYPT_KEY_LEN + 1];
+  int32_t    encryptAlgorithm;
+  char       encryptKey[ENCRYPT_KEY_LEN + 1];
 };
 
 typedef struct {

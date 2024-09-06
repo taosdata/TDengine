@@ -822,9 +822,9 @@ int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelement
     memcpy(output, input + 1, nelements * longBytes);
     return nelements * longBytes;
   } else if (input[0] == 1) {  // Decompress
-    if (tsSIMDEnable && tsAVX512Enable) {
+    if (tsSIMDEnable && tsAVX512Supported && tsAVX512Enable) {
       tsDecompressTimestampAvx512(input, nelements, output, false);
-    } else if (tsSIMDEnable && tsAVX2Enable) {
+    } else if (tsSIMDEnable && tsAVX2Supported) {
       tsDecompressTimestampAvx2(input, nelements, output, false);
     } else {
       int64_t *ostream = (int64_t *)output;
@@ -1198,9 +1198,9 @@ int32_t tsDecompressFloatImp(const char *const input, const int32_t nelements, c
     return nelements * FLOAT_BYTES;
   }
 
-  if (tsSIMDEnable && tsAVX2Enable) {
+  if (tsSIMDEnable && tsAVX2Supported) {
     tsDecompressFloatImplAvx2(input, nelements, output);
-  } else if (tsSIMDEnable && tsAVX512Enable) {
+  } else if (tsSIMDEnable && tsAVX512Supported && tsAVX512Enable) {
     tsDecompressFloatImplAvx512(input, nelements, output);
   } else {  // alternative implementation without SIMD instructions.
     tsDecompressFloatHelper(input, nelements, (float *)output);
@@ -2713,7 +2713,7 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
         int8_t alvl = tsGetCompressL2Level(l2, lvl);                                                                  \
         return compressL2Dict[l2].comprFn(pIn, nIn, pOut, nOut, type, alvl);                                          \
       } else {                                                                                                        \
-        uTrace("dencode:%s, dcompress:%s, level:%d, type:%s", "disabled", compressL2Dict[l1].name, lvl,               \
+        uTrace("dencode:%s, decompress:%s, level:%d, type:%s", "disabled", compressL2Dict[l1].name, lvl,               \
                tDataTypes[type].name);                                                                                \
         return compressL2Dict[l2].decomprFn(pIn, nIn, pOut, nOut, type);                                              \
       }                                                                                                               \
@@ -2741,7 +2741,7 @@ int32_t tsDecompressTimestamp2(void *pIn, int32_t nIn, int32_t nEle, void *pOut,
 int32_t tsCompressFloat2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                          int32_t nBuf) {
   DEFINE_VAR(cmprAlg)
-  if (lvl != 0 && lossyFloat) {
+  if (l2 == L2_TSZ && lvl != 0 && lossyFloat) {
     return tsCompressFloatLossyImp(pIn, nEle, pOut);
   }
   FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_FLOAT, 1);
@@ -2760,7 +2760,7 @@ int32_t tsDecompressFloat2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
 int32_t tsCompressDouble2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                           int32_t nBuf) {
   DEFINE_VAR(cmprAlg)
-  if (lvl != 0 && lossyDouble) {
+  if (l2 == L2_TSZ && lvl != 0 && lossyDouble) {
     // lossy mode
     return tsCompressDoubleLossyImp(pIn, nEle, pOut);
   }
@@ -2916,8 +2916,11 @@ int32_t tcompressDebug(uint32_t cmprAlg, uint8_t *l1Alg, uint8_t *l2Alg, uint8_t
   *level = lvl;
   return 0;
 }
+
 int8_t tUpdateCompress(uint32_t oldCmpr, uint32_t newCmpr, uint8_t l2Disabled, uint8_t lvlDiabled, uint8_t lvlDefault,
+
                        uint32_t *dst) {
+  int8_t  update = 0;
   uint8_t ol1 = COMPRESS_L1_TYPE_U32(oldCmpr);
   uint8_t ol2 = COMPRESS_L2_TYPE_U32(oldCmpr);
   uint8_t olvl = COMPRESS_L2_TYPE_LEVEL_U32(oldCmpr);
@@ -2925,10 +2928,17 @@ int8_t tUpdateCompress(uint32_t oldCmpr, uint32_t newCmpr, uint8_t l2Disabled, u
   uint8_t nl1 = COMPRESS_L1_TYPE_U32(newCmpr);
   uint8_t nl2 = COMPRESS_L2_TYPE_U32(newCmpr);
   uint8_t nlvl = COMPRESS_L2_TYPE_LEVEL_U32(newCmpr);
+
+  // nl1 == 0, not update encode
+  // nl2 == 0, not update compress
+  // nl3 == 0, not update level
   if (nl1 != 0 && ol1 != nl1) {
     SET_COMPRESS(nl1, ol2, olvl, *dst);
-    return 1;
-  } else if (nl2 != 0 && ol2 != nl2) {
+    update = 1;
+    ol1 = nl1;
+  }
+
+  if (nl2 != 0 && ol2 != nl2) {
     if (nl2 == l2Disabled) {
       SET_COMPRESS(ol1, nl2, lvlDiabled, *dst);
     } else {
@@ -2938,10 +2948,20 @@ int8_t tUpdateCompress(uint32_t oldCmpr, uint32_t newCmpr, uint8_t l2Disabled, u
         SET_COMPRESS(ol1, nl2, olvl, *dst);
       }
     }
-    return 1;
-  } else if (nlvl != 0 && olvl != nlvl) {
-    SET_COMPRESS(ol1, ol2, nlvl, *dst);
-    return 1;
+    update = 1;
+    ol2 = nl2;
   }
-  return 0;
+
+  if (nlvl != 0 && olvl != nlvl) {
+    if (update == 0) {
+      if (ol2 == L2_DISABLED) {
+        update = -1;
+        return update;
+      }
+    }
+    SET_COMPRESS(ol1, ol2, nlvl, *dst);
+    update = 1;
+  }
+
+  return update;
 }

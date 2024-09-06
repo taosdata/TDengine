@@ -567,7 +567,7 @@ int32_t schLaunchJobLowerLevel(SSchJob *pJob, SSchTask *pTask) {
   }
 
   SSchLevel *pLevel = pTask->level;
-  int32_t    doneNum = atomic_add_fetch_32(&pLevel->taskExecDoneNum, 1);
+  int32_t    doneNum = atomic_load_32(&pLevel->taskExecDoneNum);
   if (doneNum == pLevel->taskNum) {
     atomic_sub_fetch_32(&pJob->levelIdx, 1);
 

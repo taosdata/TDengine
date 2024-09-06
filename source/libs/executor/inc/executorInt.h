@@ -127,6 +127,7 @@ typedef struct SExprSupp {
   SqlFunctionCtx* pCtx;
   int32_t*        rowEntryInfoOffset;  // offset value for each row result cell info
   SFilterInfo*    pFilterInfo;
+  bool            hasWindowOrGroup;
 } SExprSupp;
 
 typedef enum {
@@ -446,17 +447,23 @@ typedef struct STimeWindowAggSupp {
   SColumnInfoData timeWindowData;  // query time window info for scalar function execution.
 } STimeWindowAggSupp;
 
+typedef struct SSteamOpBasicInfo {
+  int32_t primaryPkIndex;
+  bool    updateOperatorInfo;
+} SSteamOpBasicInfo;
+
 typedef struct SStreamScanInfo {
-  SExprInfo*    pPseudoExpr;
-  int32_t       numOfPseudoExpr;
-  SExprSupp     tbnameCalSup;
-  SExprSupp*    pPartTbnameSup;
-  SExprSupp     tagCalSup;
-  int32_t       primaryTsIndex;  // primary time stamp slot id
-  int32_t       primaryKeyIndex;
-  SReadHandle   readHandle;
-  SInterval     interval;  // if the upstream is an interval operator, the interval info is also kept here.
-  SColMatchInfo matchInfo;
+  SSteamOpBasicInfo basic;
+  SExprInfo*        pPseudoExpr;
+  int32_t           numOfPseudoExpr;
+  SExprSupp         tbnameCalSup;
+  SExprSupp*        pPartTbnameSup;
+  SExprSupp         tagCalSup;
+  int32_t           primaryTsIndex;  // primary time stamp slot id
+  int32_t           primaryKeyIndex;
+  SReadHandle       readHandle;
+  SInterval         interval;  // if the upstream is an interval operator, the interval info is also kept here.
+  SColMatchInfo     matchInfo;
 
   SArray*      pBlockLists;  // multiple SSDatablock.
   SSDataBlock* pRes;         // result SSDataBlock
@@ -568,10 +575,6 @@ typedef struct SOpCheckPointInfo {
   SHashObj* children;  // key:child id
 } SOpCheckPointInfo;
 
-typedef struct SSteamOpBasicInfo {
-  int32_t primaryPkIndex;
-} SSteamOpBasicInfo;
-
 typedef struct SStreamIntervalOperatorInfo {
   SOptrBasicInfo      binfo;           // basic info
   SSteamOpBasicInfo   basic;
@@ -622,6 +625,8 @@ typedef struct SDataGroupInfo {
   uint64_t groupId;
   int64_t  numOfRows;
   SArray*  pPageList;
+  SArray*  blockForNotLoaded;   // SSDataBlock that data is not loaded
+  int32_t  offsetForNotLoaded;  // read offset for SSDataBlock that data is not loaded
 } SDataGroupInfo;
 
 typedef struct SWindowRowsSup {
@@ -859,7 +864,7 @@ void setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, 
 void setVgIdColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, int32_t vgId);
 void setVgVerColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, int64_t vgVer);
 
-void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowEntryInfoOffset);
+int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowEntryInfoOffset);
 void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo, char* pData,

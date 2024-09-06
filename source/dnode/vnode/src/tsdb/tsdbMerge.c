@@ -90,6 +90,11 @@ _exit:
   return code;
 }
 
+static int32_t tsdbMergeFileSetEndCloseReader(SMerger *merger) {
+  TARRAY2_CLEAR(merger->sttReaderArr, tsdbSttFileReaderClose);
+  return 0;
+}
+
 static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
   int32_t  code = 0;
   int32_t  lino = 0;
@@ -220,8 +225,10 @@ static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
         code = tsdbSttFileReaderOpen(fobj->fname, &config, &reader);
         TSDB_CHECK_CODE(code, lino, _exit);
 
-        code = TARRAY2_APPEND(merger->sttReaderArr, reader);
-        TSDB_CHECK_CODE(code, lino, _exit);
+        if ((code = TARRAY2_APPEND(merger->sttReaderArr, reader))) {
+          tsdbSttFileReaderClose(&reader);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
       }
     }
 
@@ -232,6 +239,7 @@ static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
 
 _exit:
   if (code) {
+    tsdbMergeFileSetEndCloseReader(merger);
     TSDB_ERROR_LOG(TD_VID(merger->tsdb->pVnode), lino, code);
   }
   return code;
@@ -372,11 +380,6 @@ static int32_t tsdbMergeFileSetEndCloseIter(SMerger *merger) {
   TARRAY2_CLEAR(merger->tombIterArr, tsdbIterClose);
   tsdbIterMergerClose(&merger->dataIterMerger);
   TARRAY2_CLEAR(merger->dataIterArr, tsdbIterClose);
-  return 0;
-}
-
-static int32_t tsdbMergeFileSetEndCloseReader(SMerger *merger) {
-  TARRAY2_CLEAR(merger->sttReaderArr, tsdbSttFileReaderClose);
   return 0;
 }
 
@@ -593,5 +596,6 @@ _exit:
     exit(EXIT_FAILURE);
   }
   tsdbTFileSetClear(&merger->fset);
+  taosMemoryFree(arg);
   return code;
 }

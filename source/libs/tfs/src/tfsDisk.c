@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tfsInt.h"
 
-STfsDisk *tfsNewDisk(int32_t level, int32_t id, const char *path) {
+STfsDisk *tfsNewDisk(int32_t level, int32_t id, int8_t disable, const char *path) {
   STfsDisk *pDisk = taosMemoryCalloc(1, sizeof(STfsDisk));
   if (pDisk == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -32,6 +32,7 @@ STfsDisk *tfsNewDisk(int32_t level, int32_t id, const char *path) {
 
   pDisk->level = level;
   pDisk->id = id;
+  pDisk->disable = disable;
   taosGetDiskSize(pDisk->path, &pDisk->size);
   return pDisk;
 }

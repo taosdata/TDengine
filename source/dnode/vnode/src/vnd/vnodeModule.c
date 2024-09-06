@@ -18,8 +18,6 @@
 
 static volatile int32_t VINIT = 0;
 
-SVAsync* vnodeAsyncHandle[2];
-
 int vnodeInit(int nthreads) {
   int32_t init;
 
@@ -28,13 +26,9 @@ int vnodeInit(int nthreads) {
     return 0;
   }
 
-  // vnode-commit
-  vnodeAsyncInit(&vnodeAsyncHandle[0], "vnode-commit");
-  vnodeAsyncSetWorkers(vnodeAsyncHandle[0], nthreads);
-
-  // vnode-merge
-  vnodeAsyncInit(&vnodeAsyncHandle[1], "vnode-merge");
-  vnodeAsyncSetWorkers(vnodeAsyncHandle[1], nthreads);
+  if (vnodeAsyncOpen(nthreads) != 0) {
+    return -1;
+  }
 
   if (walInit() < 0) {
     return -1;
@@ -48,8 +42,7 @@ void vnodeCleanup() {
   if (init == 0) return;
 
   // set stop
-  vnodeAsyncDestroy(&vnodeAsyncHandle[0]);
-  vnodeAsyncDestroy(&vnodeAsyncHandle[1]);
+  vnodeAsyncClose();
 
   walCleanUp();
   smaCleanUp();

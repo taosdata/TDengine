@@ -329,7 +329,7 @@ typedef struct {
 
 typedef struct SStateStore {
   int32_t (*streamStatePutParName)(SStreamState* pState, int64_t groupId, const char* tbname);
-  int32_t (*streamStateGetParName)(SStreamState* pState, int64_t groupId, void** pVal);
+  int32_t (*streamStateGetParName)(SStreamState* pState, int64_t groupId, void** pVal, bool onlyCache);
 
   int32_t (*streamStateAddIfNotExist)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
   int32_t (*streamStateReleaseBuf)(SStreamState* pState, void* pVal, bool used);
@@ -410,7 +410,7 @@ typedef struct SStateStore {
   void (*streamFileStateClear)(struct SStreamFileState* pFileState);
   bool (*needClearDiskBuff)(struct SStreamFileState* pFileState);
 
-  SStreamState* (*streamStateOpen)(char* path, void* pTask, bool specPath, int32_t szPage, int32_t pages);
+  SStreamState* (*streamStateOpen)(const char* path, void* pTask, int64_t streamId, int32_t taskId);
   void (*streamStateClose)(SStreamState* pState, bool remove);
   int32_t (*streamStateBegin)(SStreamState* pState);
   int32_t (*streamStateCommit)(SStreamState* pState);

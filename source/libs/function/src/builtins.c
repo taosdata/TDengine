@@ -616,7 +616,7 @@ static int32_t translatePercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t 
 
   // set result type
   if (numOfParams > 2) {
-    pFunc->node.resType = (SDataType){.bytes = 512, .type = TSDB_DATA_TYPE_VARCHAR};
+    pFunc->node.resType = (SDataType){.bytes = 3200, .type = TSDB_DATA_TYPE_VARCHAR};
   } else {
     pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   }
@@ -2166,19 +2166,14 @@ static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  if (QUERY_NODE_VALUE == nodeType(nodesListGetNode(pFunc->pParameterList, 0))) {
-    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
-
-    if (!validateTimestampDigits(pValue)) {
-      pFunc->node.resType = (SDataType){.bytes = 0, .type = TSDB_DATA_TYPE_BINARY};
-      return TSDB_CODE_SUCCESS;
-    }
-  }
-
   // param1
   if (numOfParams == 2) {
-    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
-
+    SNode* pNode = (SNode*)nodesListGetNode(pFunc->pParameterList, 1);
+    if (QUERY_NODE_VALUE != nodeType(pNode)) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Not supported timzone format");
+    }
+    
+    SValueNode* pValue = (SValueNode*)pNode;
     if (!validateTimezoneFormat(pValue)) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Invalid timzone format");
     }
@@ -2679,7 +2674,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_avg_partial",
     .type = FUNCTION_TYPE_AVG_PARTIAL,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_IGNORE_NULL_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateAvgPartial,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getAvgFuncEnv,
@@ -2694,7 +2689,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_avg_merge",
     .type = FUNCTION_TYPE_AVG_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_IGNORE_NULL_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateAvgMerge,
     .getEnvFunc   = getAvgFuncEnv,
     .initFunc     = avgFunctionSetup,
@@ -4115,6 +4110,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc = NULL,
     .sprocessFunc = md5Function,
     .finalizeFunc = NULL
+  },
+  {
+    .name = "_group_const_value",
+    .type = FUNCTION_TYPE_GROUP_CONST_VALUE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateSelectValue,
+    .getEnvFunc   = getSelectivityFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = groupConstValueFunction,
+    .finalizeFunc = groupConstValueFinalize,
   },
 };
 // clang-format on

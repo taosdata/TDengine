@@ -237,21 +237,19 @@ class ClusterComCheck:
         last_number=vgroup_numbers-1
         while count < count_number:
             time.sleep(1)
+            count+=1
+            print("check vgroup count :", count)
             tdSql.query(f"show  {db_name}.vgroups;")
-            if  count == 0 :
-                if tdSql.checkRows(vgroup_numbers) :
-                    tdLog.success(f"{db_name} has {vgroup_numbers} vgroups" )
-                else:
-                    tdLog.exit(f"vgroup number of {db_name} is not correct")
+            if tdSql.getRows() != vgroup_numbers :
+                continue
             if self.db_replica == 1 :
                 if  tdSql.queryResult[0][4] == 'leader' and tdSql.queryResult[last_number][4] == 'leader':
                     tdSql.query(f"select `replica` from information_schema.ins_databases where `name`='{db_name}';")
                     print("db replica :",tdSql.queryResult[0][0])
                     if tdSql.queryResult[0][0] == db_replica:
-                        ready_time= (count + 1)
-                        tdLog.success(f"all vgroups with replica {self.db_replica} of {db_name} are leaders in {count + 1} s")
+                        tdLog.success(f"all vgroups with replica {self.db_replica} of {db_name} are leaders in {count} s")
                         return True
-                count+=1
+
             elif self.db_replica == 3 :
                 vgroup_status_first=[tdSql.queryResult[0][4],tdSql.queryResult[0][6],tdSql.queryResult[0][8]]
 
@@ -261,10 +259,8 @@ class ClusterComCheck:
                         tdSql.query(f"select `replica` from information_schema.ins_databases where `name`='{db_name}';")
                         print("db replica :",tdSql.queryResult[0][0])
                         if tdSql.queryResult[0][0] == db_replica:
-                            ready_time= (count + 1)
-                            tdLog.success(f"elections of {db_name}.vgroups with replica {self.db_replica}  are ready in {ready_time} s")
+                            tdLog.success(f"elections of {db_name}.vgroups with replica {self.db_replica}  are ready in {count} s")
                             return True
-                count+=1
         else:
             tdLog.debug(tdSql.queryResult)
             tdLog.notice(f"elections of {db_name} all vgroups with replica {self.db_replica}  are failed in {count} s ")

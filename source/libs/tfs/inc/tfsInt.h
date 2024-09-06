@@ -38,6 +38,7 @@
 typedef struct {
   int32_t   level;
   int32_t   id;
+  int8_t    disable;  // disable create new file
   char     *path;
   SDiskSize size;
 } STfsDisk;
@@ -73,7 +74,7 @@ typedef struct STfs {
   SHashObj        *hash;  // name to did map
 } STfs;
 
-STfsDisk *tfsNewDisk(int32_t level, int32_t id, const char *dir);
+STfsDisk *tfsNewDisk(int32_t level, int32_t id, int8_t disable, const char *dir);
 STfsDisk *tfsFreeDisk(STfsDisk *pDisk);
 int32_t   tfsUpdateDiskSize(STfsDisk *pDisk);
 

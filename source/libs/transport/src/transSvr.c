@@ -363,7 +363,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   memcpy(pConn->user, pHead->user, strlen(pHead->user));
 
   int8_t forbiddenIp = 0;
-  if (pThrd->enableIpWhiteList) {
+  if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
     forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
     if (forbiddenIp == 0) {
       uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
@@ -431,6 +431,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   transMsg.info.traceId = pHead->traceId;
   transMsg.info.cliVer = htonl(pHead->compatibilityVer);
   transMsg.info.forbiddenIp = forbiddenIp;
+  transMsg.info.noResp = pHead->noResp == 1 ? 1 : 0;
 
   tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pTransInst), transMsg.info.handle, pConn,
           pConn->refId);
@@ -623,7 +624,8 @@ static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   int32_t len = transMsgLenFromCont(pMsg->contLen);
 
   STrans* pTransInst = pConn->pTransInst;
-  if (pTransInst->compressSize != -1 && pTransInst->compressSize < pMsg->contLen) {
+  if (pMsg->info.compressed == 0 && pConn->clientIp != pConn->serverIp && pTransInst->compressSize != -1 &&
+      pTransInst->compressSize < pMsg->contLen) {
     len = transCompressMsg(pMsg->pCont, pMsg->contLen) + sizeof(STransMsgHead);
     pHead->msgLen = (int32_t)htonl((uint32_t)len);
   }

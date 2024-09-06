@@ -83,10 +83,10 @@ int32_t s3CheckCfg() {
 
   snprintf(path, PATH_MAX, "%s", tsTempDir);
   if (strncmp(tsTempDir + tmp_len - ds_len, TD_DIRSEP, ds_len) != 0) {
-    snprintf(path + tmp_len, PATH_MAX, "%s", TD_DIRSEP);
-    snprintf(path + tmp_len + ds_len, PATH_MAX, "%s", objectname[0]);
+    snprintf(path + tmp_len, PATH_MAX - tmp_len, "%s", TD_DIRSEP);
+    snprintf(path + tmp_len + ds_len, PATH_MAX - tmp_len - ds_len, "%s", objectname[0]);
   } else {
-    snprintf(path + tmp_len, PATH_MAX, "%s", objectname[0]);
+    snprintf(path + tmp_len, PATH_MAX - tmp_len, "%s", objectname[0]);
   }
 
   TdFilePtr fp = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
@@ -1075,32 +1075,32 @@ static SArray *getListByPrefix(const char *prefix) {
   S3ListBucketHandler listBucketHandler = {{&responsePropertiesCallbackNull, &responseCompleteCallback},
                                            &listBucketCallback};
 
-  const char               *marker = 0, *delimiter = 0;
-  int                       maxkeys = 0, allDetails = 0;
-  list_bucket_callback_data data = {0};
+  const char /**marker = 0,*/ *delimiter = 0;
+  int /*maxkeys = 0, */        allDetails = 0;
+  list_bucket_callback_data    data = {0};
   data.objectArray = taosArrayInit(32, sizeof(void *));
   if (!data.objectArray) {
     uError("%s: %s", __func__, "out of memoty");
     return NULL;
   }
-  if (marker) {
+  /*if (marker) {
     snprintf(data.nextMarker, sizeof(data.nextMarker), "%s", marker);
-  } else {
-    data.nextMarker[0] = 0;
-  }
+    } else {*/
+  data.nextMarker[0] = 0;
+  //}
   data.keyCount = 0;
   data.allDetails = allDetails;
 
   do {
     data.isTruncated = 0;
     do {
-      S3_list_bucket(&bucketContext, prefix, data.nextMarker, delimiter, maxkeys, 0, timeoutMsG, &listBucketHandler,
-                     &data);
+      S3_list_bucket(&bucketContext, prefix, data.nextMarker, delimiter, 0 /*maxkeys*/, 0, timeoutMsG,
+                     &listBucketHandler, &data);
     } while (S3_status_is_retryable(data.status) && should_retry());
     if (data.status != S3StatusOK) {
       break;
     }
-  } while (data.isTruncated && (!maxkeys || (data.keyCount < maxkeys)));
+  } while (data.isTruncated /* && (!maxkeys || (data.keyCount < maxkeys))*/);
 
   if (data.status == S3StatusOK) {
     if (data.keyCount > 0) {
@@ -1179,6 +1179,13 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
                                          &getObjectDataCallback};
 
   TS3SizeCBD cbd = {0};
+  int        retryCount = 0;
+  static int maxRetryCount = 5;
+  static int minRetryInterval = 1000;  // ms
+  static int maxRetryInterval = 3000;  // ms
+
+_retry:
+  (void)memset(&cbd, 0, sizeof(cbd));
   cbd.content_length = size;
   cbd.buf_pos = 0;
   do {
@@ -1186,6 +1193,11 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
   } while (S3_status_is_retryable(cbd.status) && should_retry());
 
   if (cbd.status != S3StatusOK) {
+    if (S3StatusErrorSlowDown == cbd.status && retryCount++ < maxRetryCount) {
+      taosMsleep(taosRand() % (maxRetryInterval - minRetryInterval + 1) + minRetryInterval);
+      uInfo("%s: %d/%s(%s) retry get object", __func__, cbd.status, S3_get_status_name(cbd.status), cbd.err_msg);
+      goto _retry;
+    }
     uError("%s: %d/%s(%s)", __func__, cbd.status, S3_get_status_name(cbd.status), cbd.err_msg);
     return TAOS_SYSTEM_ERROR(EIO);
   }

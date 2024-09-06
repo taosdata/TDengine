@@ -84,7 +84,9 @@ static void doSetUserSpecifiedValue(SColumnInfoData* pDst, SVariant* pVar, int32
     GET_TYPED_DATA(v, uint64_t, pVar->nType, &pVar->u);
     colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
   } else if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-    colDataSetVal(pDst, rowIndex, (const char*)&currentKey, isNull);
+    int64_t v = 0;
+    GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->u);
+    colDataSetVal(pDst, rowIndex, (const char*)&v, isNull);
   } else if (pDst->info.type == TSDB_DATA_TYPE_NCHAR || pDst->info.type == TSDB_DATA_TYPE_VARCHAR ||
              pDst->info.type == TSDB_DATA_TYPE_VARBINARY) {
     colDataSetVal(pDst, rowIndex, pVar->pz, isNull);

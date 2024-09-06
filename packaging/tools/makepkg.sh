@@ -232,7 +232,7 @@ fi
 
 if [ "$verMode" == "cluster" ]; then
   sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh >>remove_temp.sh
-  sed -i "s/PREFIX=\"taos\"/PREFIX=\"${serverName2}\"/g" remove_temp.sh  
+  sed -i "s/PREFIX=\"taos\"/PREFIX=\"${clientName2}\"/g" remove_temp.sh  
   sed -i "s/productName=\"TDengine\"/productName=\"${productName2}\"/g" remove_temp.sh  
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
@@ -284,34 +284,35 @@ if [[ $dbName == "taos" ]]; then
   # Copy example code  
   mkdir -p ${install_dir}/examples
   examples_dir="${top_dir}/examples"
+  new_example_dir="${top_dir}/docs/examples"
   cp -r ${examples_dir}/c ${install_dir}/examples
   if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-    if [ -d ${examples_dir}/JDBC/connectionPools/target ]; then
-      rm -rf ${examples_dir}/JDBC/connectionPools/target
+    if [ -d ${new_example_dir}/JDBC/connectionPools/target ]; then
+      rm -rf ${new_example_dir}/JDBC/connectionPools/target
     fi
-    if [ -d ${examples_dir}/JDBC/JDBCDemo/target ]; then
-      rm -rf ${examples_dir}/JDBC/JDBCDemo/target
+    if [ -d ${new_example_dir}/JDBC/JDBCDemo/target ]; then
+      rm -rf ${new_example_dir}/JDBC/JDBCDemo/target
     fi
-    if [ -d ${examples_dir}/JDBC/mybatisplus-demo/target ]; then
-      rm -rf ${examples_dir}/JDBC/mybatisplus-demo/target
+    if [ -d ${new_example_dir}/JDBC/mybatisplus-demo/target ]; then
+      rm -rf ${new_example_dir}/JDBC/mybatisplus-demo/target
     fi
-    if [ -d ${examples_dir}/JDBC/springbootdemo/target ]; then
-      rm -rf ${examples_dir}/JDBC/springbootdemo/target
+    if [ -d ${new_example_dir}/JDBC/springbootdemo/target ]; then
+      rm -rf ${new_example_dir}/JDBC/springbootdemo/target
     fi
-    if [ -d ${examples_dir}/JDBC/SpringJdbcTemplate/target ]; then
-      rm -rf ${examples_dir}/JDBC/SpringJdbcTemplate/target
+    if [ -d ${new_example_dir}/JDBC/SpringJdbcTemplate/target ]; then
+      rm -rf ${new_example_dir}/JDBC/SpringJdbcTemplate/target
     fi
-    if [ -d ${examples_dir}/JDBC/taosdemo/target ]; then
-      rm -rf ${examples_dir}/JDBC/taosdemo/target
+    if [ -d ${new_example_dir}/JDBC/taosdemo/target ]; then
+      rm -rf ${new_example_dir}/JDBC/taosdemo/target
     fi
 
-    cp -r ${examples_dir}/JDBC ${install_dir}/examples
-    cp -r ${examples_dir}/matlab ${install_dir}/examples
-    cp -r ${examples_dir}/python ${install_dir}/examples
-    cp -r ${examples_dir}/R ${install_dir}/examples
-    cp -r ${examples_dir}/go ${install_dir}/examples
-    cp -r ${examples_dir}/nodejs ${install_dir}/examples
-    cp -r ${examples_dir}/C# ${install_dir}/examples
+    cp -r ${new_example_dir}/JDBC ${install_dir}/examples ||:
+    cp -r ${examples_dir}/matlab ${install_dir}/examples ||:
+    cp -r ${examples_dir}/python ${install_dir}/examples ||:
+    cp -r ${examples_dir}/R ${install_dir}/examples ||:
+    cp -r ${examples_dir}/go ${install_dir}/examples ||:
+    cp -r ${examples_dir}/nodejs ${install_dir}/examples ||:
+    cp -r ${examples_dir}/C# ${install_dir}/examples ||:
     mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 

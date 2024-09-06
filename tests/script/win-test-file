@@ -401,6 +401,7 @@
 ./test.sh -f tsim/tag/tbNameIn.sim
 ./test.sh -f tmp/monitor.sim
 ./test.sh -f tsim/tagindex/add_index.sim
+./test.sh -f tsim/tagindex/indexOverflow.sim
 ./test.sh -f tsim/tagindex/sma_and_tag_index.sim
 ./test.sh -f tsim/view/view.sim
 ./test.sh -f tsim/query/cache_last.sim

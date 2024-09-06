@@ -578,7 +578,9 @@ function install_taosd_config() {
     ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$serverFqdn/" ${script_dir}/cfg/${configFile}
     ${csudo}echo "monitor 1" >>${script_dir}/cfg/${configFile}
     ${csudo}echo "monitorFQDN ${serverFqdn}" >>${script_dir}/cfg/${configFile}
-    ${csudo}echo "audit 1" >>${script_dir}/cfg/${configFile}
+    if [ "$verMode" == "cluster" ]; then
+      ${csudo}echo "audit 1" >>${script_dir}/cfg/${configFile}  
+    fi
     
     if [ -f "${configDir}/${configFile}" ]; then
       ${csudo}cp ${fileName} ${configDir}/${configFile}.new
@@ -596,6 +598,7 @@ function install_config() {
   [ ! -z $1 ] && return 0 || : # only install client
 
   if ((${update_flag} == 1)); then
+    install_taosd_config
     return 0
   fi
 
@@ -795,10 +798,10 @@ function is_version_compatible() {
   if [ -f ${script_dir}/driver/vercomp.txt ]; then
     min_compatible_version=$(cat ${script_dir}/driver/vercomp.txt)
   else
-    min_compatible_version=$(${script_dir}/bin/${serverName} -V | head -1 | cut -d ' ' -f 5)
+    min_compatible_version=$(${script_dir}/bin/${serverName} -V | grep version | head -1 | cut -d ' ' -f 5)
   fi
 
-  exist_version=$(${installDir}/bin/${serverName} -V | head -1 | cut -d ' ' -f 3)
+  exist_version=$(${installDir}/bin/${serverName} -V | grep version | head -1 | cut -d ' ' -f 3)
   vercomp $exist_version "3.0.0.0"
   case $? in
   2)
@@ -1030,7 +1033,7 @@ function installProduct() {
     echo "${productName} is installed successfully!"
     echo
     
-    echo -e "\033[44;32;1mTo start all the components                 : sudo ./start-all.sh${NC}"
+    echo -e "\033[44;32;1mTo start all the components                 : sudo start-all.sh${NC}"
     echo -e "\033[44;32;1mTo access ${productName} Commnd Line Interface    : ${clientName} -h $serverFqdn${NC}"
     echo -e "\033[44;32;1mTo access ${productName} Graphic User Interface   : http://$serverFqdn:6060${NC}"
     if [ "$verMode" == "cluster" ]; then

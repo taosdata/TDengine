@@ -98,7 +98,7 @@ int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
   return winKeyCmprImpl(&pWin1->key, &pWin2->key);
 }
 
-SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t szPage, int32_t pages) {
+SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, int32_t taskId) {
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   stDebug("open stream state %p, %s", pState, path);
   if (pState == NULL) {
@@ -114,8 +114,8 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
   }
 
   SStreamTask* pStreamTask = pTask;
-  pState->taskId = pStreamTask->id.taskId;
-  pState->streamId = pStreamTask->id.streamId;
+  pState->streamId = streamId;
+  pState->taskId = taskId;
   sprintf(pState->pTdbState->idstr, "0x%" PRIx64 "-0x%x", pState->streamId, pState->taskId);
 
   streamTaskSetDb(pStreamTask->pMeta, pTask, pState->pTdbState->idstr);
@@ -127,7 +127,7 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT);
 
   pState->parNameMap = tSimpleHashInit(1024, hashFn);
-  stInfo("succ to open state %p on backend %p 0x%" PRIx64 "-%d", pState, pMeta->streamBackend, pState->streamId,
+  stInfo("open state %p on backend %p 0x%" PRIx64 "-%d succ", pState, pMeta->streamBackend, pState->streamId,
          pState->taskId);
   return pState;
 
@@ -654,6 +654,7 @@ int32_t streamStateCurNext(SStreamState* pState, SStreamStateCur* pCur) {
 
 int32_t streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur) {
 #ifdef USE_ROCKSDB
+  qTrace("move cursor to next");
   return streamStateCurPrev_rocksdb(pCur);
 #else
   if (!pCur) {
@@ -1095,7 +1096,9 @@ _end:
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
 #ifdef USE_ROCKSDB
   if (tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t)) == NULL) {
-    tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN);
+    if (tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
+      tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN);
+    }
     streamStatePutParName_rocksdb(pState, groupId, tbname);
   }
   return TSDB_CODE_SUCCESS;
@@ -1105,12 +1108,15 @@ int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char 
 #endif
 }
 
-int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal) {
+int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal, bool onlyCache) {
 #ifdef USE_ROCKSDB
   void* pStr = tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t));
   if (!pStr) {
+    if (onlyCache && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
+      return TSDB_CODE_FAILED;
+    }
     int32_t code = streamStateGetParName_rocksdb(pState, groupId, pVal);
-    if (code == TSDB_CODE_SUCCESS) {
+    if (code == TSDB_CODE_SUCCESS && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
       tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), *pVal, TSDB_TABLE_NAME_LEN);
     }
     return code;

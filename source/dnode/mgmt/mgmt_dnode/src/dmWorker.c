@@ -175,15 +175,6 @@ static void *dmMonitorThreadFp(void *param) {
         taosMemoryTrim(0);
       }
     }
-    
-    if(tsMonitorForceV2){
-      if (curTime < lastTimeForBasic) lastTimeForBasic = curTime;
-      float intervalForBasic = (curTime - lastTimeForBasic) / 1000.0f;
-      if (intervalForBasic >= tsMonitorIntervalForBasic) {
-        (*pMgmt->sendMonitorReportFpBasic)();
-        lastTimeForBasic = curTime;
-      }
-    }
   }
 
   return NULL;

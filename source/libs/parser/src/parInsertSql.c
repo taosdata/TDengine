@@ -182,6 +182,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
   }
 
   pBoundInfo->numOfBound = 0;
+  pBoundInfo->hasBoundCols = true;
 
   bool    hasPK = pTableMeta->tableInfo.numOfPKs;
   int16_t numOfBoundPKs = 0;
@@ -1378,6 +1379,8 @@ static int32_t parseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModifyOp
 
   if (NULL != pStmt->pBoundCols) {
     return parseBoundColumns(pCxt, &pStmt->pBoundCols, BOUND_COLUMNS, pStmt->pTableMeta, &pTableCxt->boundColsInfo);
+  } else if (pTableCxt->boundColsInfo.hasBoundCols) {
+    insResetBoundColsInfo(&pTableCxt->boundColsInfo);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1708,37 +1711,31 @@ typedef union SRowsDataContext {
   SStbRowsDataContext* pStbRowsCxt;
 } SRowsDataContext;
 
-static int32_t parseTbnameToken(SInsertParseContext* pCxt, SStbRowsDataContext* pStbRowsCxt, SToken* pToken,
-                                bool* pFoundCtbName) {
+int32_t parseTbnameToken(SMsgBuf* pMsgBuf, char* tname, SToken* pToken, bool* pFoundCtbName) {
   *pFoundCtbName = false;
-  int32_t code = checkAndTrimValue(pToken, pCxt->tmpTokenBuf, &pCxt->msg, TSDB_DATA_TYPE_BINARY);
-  if (TK_NK_VARIABLE == pToken->type) {
-    code = buildInvalidOperationMsg(&pCxt->msg, "not expected tbname");
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-    if (isNullValue(TSDB_DATA_TYPE_BINARY, pToken)) {
-      return buildInvalidOperationMsg(&pCxt->msg, "tbname can not be null value");
-    }
 
-    if (pToken->n > 0) {
-      if (pToken->n <= TSDB_TABLE_NAME_LEN - 1) {
-        for (int i = 0; i < pToken->n; ++i) {
-          if (pToken->z[i] == '.') {
-            return buildInvalidOperationMsg(&pCxt->msg, "tbname can not contain '.'");
-          } else {
-            pStbRowsCxt->ctbName.tname[i] = pToken->z[i];
-          }
-        }
-        pStbRowsCxt->ctbName.tname[pToken->n] = '\0';
-        *pFoundCtbName = true;
-      } else {
-        return buildInvalidOperationMsg(&pCxt->msg, "tbname is too long");
-      }
-    } else {
-      return buildInvalidOperationMsg(&pCxt->msg, "tbname can not be empty");
-    }
+  if (isNullValue(TSDB_DATA_TYPE_BINARY, pToken)) {
+    return buildInvalidOperationMsg(pMsgBuf, "tbname can not be null value");
   }
-  return code;
+
+  if (pToken->n > 0) {
+    if (pToken->n <= TSDB_TABLE_NAME_LEN - 1) {
+      for (int i = 0; i < pToken->n; ++i) {
+        if (pToken->z[i] == '.') {
+          return buildInvalidOperationMsg(pMsgBuf, "tbname can not contain '.'");
+        } else {
+          tname[i] = pToken->z[i];
+        }
+      }
+      tname[pToken->n] = '\0';
+      *pFoundCtbName = true;
+    } else {
+      return buildInvalidOperationMsg(pMsgBuf, "tbname is too long");
+    }
+  } else {
+    return buildInvalidOperationMsg(pMsgBuf, "tbname can not be empty");
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t processCtbTagsAfterCtbName(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,
@@ -1821,7 +1818,14 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         }
       }
     } else if (pCols->pColIndex[i] == tbnameIdx) {
-      code = parseTbnameToken(pCxt, pStbRowsCxt, pToken, bFoundTbName);
+      code = checkAndTrimValue(pToken, pCxt->tmpTokenBuf, &pCxt->msg, TSDB_DATA_TYPE_BINARY);
+      if (TK_NK_VARIABLE == pToken->type) {
+        code = buildInvalidOperationMsg(&pCxt->msg, "not expected tbname");
+      }
+
+      if (code == TSDB_CODE_SUCCESS) {
+        code = parseTbnameToken(&pCxt->msg, pStbRowsCxt->ctbName.tname, pToken, bFoundTbName);
+      }
     }
 
     if (code == TSDB_CODE_SUCCESS && i < pCols->numOfBound - 1) {
@@ -2189,6 +2193,8 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
     if (pStmt->insertType != TSDB_QUERY_TYPE_FILE_INSERT) {
       return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is exclusive", NULL);
     }
+  } else {
+    return buildInvalidOperationMsg(&pCxt->msg, tstrerror(code));
   }
 
   // just record pTableCxt whose data come from file
@@ -2203,7 +2209,7 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
 
 static int32_t parseDataFromFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SToken* pFilePath,
                                  SRowsDataContext rowsDataCxt) {
-  char filePathStr[TSDB_FILENAME_LEN] = {0};
+  char filePathStr[PATH_MAX] = {0};
   if (TK_NK_STRING == pFilePath->type) {
     trimString(pFilePath->z, pFilePath->n, filePathStr, sizeof(filePathStr));
   } else {
@@ -2393,7 +2399,7 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
   // no data in the sql string anymore.
   if (0 == pTbName->n) {
     if (0 != pTbName->type && '\0' != pStmt->pSql[0]) {
-      return buildSyntaxErrMsg(&pCxt->msg, "invalid charactor in SQL", pTbName->z);
+      return buildSyntaxErrMsg(&pCxt->msg, "invalid table name", pTbName->z);
     }
 
     if (0 == pStmt->totalRowsNum && (!TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_STMT_INSERT))) {
@@ -2474,7 +2480,7 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
   taosHashClear(pStmt->pTableCxtHashObj);
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = insBuildVgDataBlocks(pStmt->pVgroupsHashObj, pStmt->pVgDataBlocks, &pStmt->pDataBlocks);
+    code = insBuildVgDataBlocks(pStmt->pVgroupsHashObj, pStmt->pVgDataBlocks, &pStmt->pDataBlocks, false);
   }
 
   return code;
@@ -2523,9 +2529,14 @@ static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, S
   pStmt->freeStbRowsCxtFunc = destroyStbRowsDataContext;
 
   if (!reentry) {
-    pStmt->pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
-    pStmt->pTableBlockHashObj =
-        taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    pStmt->pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+    if (pCxt->pComCxt->pStmtCb) {
+      pStmt->pTableBlockHashObj =
+          taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    } else {
+      pStmt->pTableBlockHashObj =
+          taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    }
   }
   pStmt->pSubTableHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
   pStmt->pTableNameHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);

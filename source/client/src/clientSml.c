@@ -939,7 +939,7 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
   pReq.pColumns = taosArrayInit(pReq.numOfColumns, sizeof(SFieldWithOptions));
   for (int32_t i = 0; i < pReq.numOfColumns; ++i) {
     SField           *pField = taosArrayGet(pColumns, i);
-    SFieldWithOptions fieldWithOption;
+    SFieldWithOptions fieldWithOption = {0};
     setFieldWithOptions(&fieldWithOption, pField);
     setDefaultOptionsForField(&fieldWithOption);
     taosArrayPush(pReq.pColumns, &fieldWithOption);
@@ -1380,7 +1380,7 @@ void freeSSmlKv(void *data) {
 
 void smlDestroyInfo(SSmlHandle *info) {
   if (!info) return;
-  qDestroyQuery(info->pQuery);
+//  qDestroyQuery(info->pQuery);
 
   taosHashCleanup(info->pVgHash);
   taosHashCleanup(info->childTables);
@@ -1851,7 +1851,7 @@ static int smlProcess(SSmlHandle *info, char *lines[], char *rawLine, char *rawL
 }
 
 void smlSetReqSQL(SRequestObj *request, char *lines[], char *rawLine, char *rawLineEnd) {
-  if (tsSlowLogScope & SLOW_LOG_TYPE_INSERT) {
+  if (request->pTscObj->pAppInfo->monitorParas.tsSlowLogScope & SLOW_LOG_TYPE_INSERT) {
     int32_t len = 0;
     int32_t rlen = 0;
     char   *p = NULL;
@@ -1912,6 +1912,7 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
       return (TAOS_RES *)request;
     }
     info->pRequest = request;
+    info->pRequest->pQuery = info->pQuery;
     info->ttl = ttl;
     info->precision = precision;
     info->protocol = (TSDB_SML_PROTOCOL_TYPE)protocol;

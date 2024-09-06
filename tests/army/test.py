@@ -657,8 +657,10 @@ if __name__ == "__main__":
                 conn = taos.connect(host=f"{host}", config=tdDnodes.getSimCfgPath())
 
             if fileName == "all":
+                tdLog.info("Procedures for testing runAllLinux")
                 tdCases.runAllLinux(conn)
             else:
+                tdLog.info(f"Procedures for testing runOneLinux {fileName}")
                 tdCases.runOneLinux(conn, fileName, replicaVar)
 
         # do restart option

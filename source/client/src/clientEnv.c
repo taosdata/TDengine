@@ -13,9 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <ttimer.h>
+#include "cJSON.h"
 #include "catalog.h"
 #include "clientInt.h"
 #include "clientLog.h"
+#include "clientMonitor.h"
 #include "functionMgt.h"
 #include "os.h"
 #include "osSleep.h"
@@ -26,6 +29,7 @@
 #include "tglobal.h"
 #include "thttp.h"
 #include "tmsg.h"
+#include "tqueue.h"
 #include "tref.h"
 #include "trpc.h"
 #include "tsched.h"
@@ -70,6 +74,118 @@ static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void concatStrings(SArray *list, char* buf, int size){
+  int  len = 0;
+  for(int i = 0; i < taosArrayGetSize(list); i++){
+    char* db = taosArrayGet(list, i);
+    char* dot = strchr(db, '.');
+    if (dot != NULL) {
+      db = dot + 1;
+    }
+    if (i != 0){
+      strcat(buf, ",");
+      len += 1;
+    }
+    int ret = snprintf(buf + len, size - len, "%s", db);
+    if (ret < 0)  {
+      tscError("snprintf failed, buf:%s, ret:%d", buf, ret);
+      break;
+    }
+    len += ret;
+    if (len >= size){
+      tscInfo("dbList is truncated, buf:%s, len:%d", buf, len);
+      break;
+    }
+  }
+}
+
+static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_t reqType, int64_t duration){
+  cJSON* json = cJSON_CreateObject();
+  if (json == NULL) {
+    tscError("[monitor] cJSON_CreateObject failed");
+    return;
+  }
+  char clusterId[32] = {0};
+  if (snprintf(clusterId, sizeof(clusterId), "%" PRId64, pTscObj->pAppInfo->clusterId) < 0){
+    tscError("failed to generate clusterId:%" PRId64, pTscObj->pAppInfo->clusterId);
+  }
+
+  char startTs[32] = {0};
+  if (snprintf(startTs, sizeof(startTs), "%" PRId64, pRequest->metric.start/1000) < 0){
+    tscError("failed to generate startTs:%" PRId64, pRequest->metric.start/1000);
+  }
+
+  char requestId[32] = {0};
+  if (snprintf(requestId, sizeof(requestId), "%" PRIu64, pRequest->requestId) < 0){
+    tscError("failed to generate requestId:%" PRIu64, pRequest->requestId);
+  }
+  cJSON_AddItemToObject(json, "cluster_id",  cJSON_CreateString(clusterId));
+  cJSON_AddItemToObject(json, "start_ts",    cJSON_CreateString(startTs));
+  cJSON_AddItemToObject(json, "request_id",  cJSON_CreateString(requestId));
+  cJSON_AddItemToObject(json, "query_time",         cJSON_CreateNumber(duration/1000));
+  cJSON_AddItemToObject(json, "code",         cJSON_CreateNumber(pRequest->code));
+  cJSON_AddItemToObject(json, "error_info",   cJSON_CreateString(tstrerror(pRequest->code)));
+  cJSON_AddItemToObject(json, "type",         cJSON_CreateNumber(reqType));
+  cJSON_AddItemToObject(json, "rows_num",     cJSON_CreateNumber(pRequest->body.resInfo.numOfRows + pRequest->body.resInfo.totalRows));
+  if(pRequest->sqlstr != NULL && strlen(pRequest->sqlstr) > pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen){
+    char tmp = pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen];
+    pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen] = '\0';
+    cJSON_AddItemToObject(json, "sql",          cJSON_CreateString(pRequest->sqlstr));
+    pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen] = tmp;
+  }else{
+    cJSON_AddItemToObject(json, "sql",          cJSON_CreateString(pRequest->sqlstr));
+  }
+
+  cJSON_AddItemToObject(json, "user",         cJSON_CreateString(pTscObj->user));
+  cJSON_AddItemToObject(json, "process_name", cJSON_CreateString(appInfo.appName));
+  cJSON_AddItemToObject(json, "ip",           cJSON_CreateString(tsLocalFqdn));
+
+  char pid[32] = {0};
+  if (snprintf(pid, sizeof(pid), "%d", appInfo.pid) < 0){
+    tscError("failed to generate pid:%d", appInfo.pid);
+  }
+
+  cJSON_AddItemToObject(json, "process_id",   cJSON_CreateString(pid));
+  if(pRequest->dbList != NULL){
+    char dbList[1024] = {0};
+    concatStrings(pRequest->dbList, dbList, sizeof(dbList) - 1);
+    cJSON_AddItemToObject(json, "db", cJSON_CreateString(dbList));
+  }else if(pRequest->pDb != NULL){
+    cJSON_AddItemToObject(json, "db", cJSON_CreateString(pRequest->pDb));
+  }else{
+    cJSON_AddItemToObject(json, "db", cJSON_CreateString(""));
+  }
+
+  char* value = cJSON_PrintUnformatted(json);
+  MonitorSlowLogData data = {0};
+  data.clusterId = pTscObj->pAppInfo->clusterId;
+  data.type = SLOW_LOG_WRITE;
+  data.data = value;
+  if(monitorPutData2MonitorQueue(data) < 0){
+    taosMemoryFree(value);
+  }
+
+  cJSON_Delete(json);
+}
+
+static bool checkSlowLogExceptDb(SRequestObj *pRequest, char* exceptDb) {
+  if (pRequest->pDb != NULL) {
+    return strcmp(pRequest->pDb, exceptDb) != 0;
+  }
+
+  for (int i = 0; i < taosArrayGetSize(pRequest->dbList); i++) {
+    char *db = taosArrayGet(pRequest->dbList, i);
+    char *dot = strchr(db, '.');
+    if (dot != NULL) {
+      db = dot + 1;
+    }
+    if(strcmp(db, exceptDb) == 0){
+      return false;
+    }
+  }
+  return true;
+}
+
 static void deregisterRequest(SRequestObj *pRequest) {
   if (pRequest == NULL) {
     tscError("pRequest == NULL");
@@ -89,41 +205,51 @@ static void deregisterRequest(SRequestObj *pRequest) {
            "current:%d, app current:%d",
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
 
-  if (pRequest->pQuery && pRequest->pQuery->pRoot) {
-    if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->pQuery->pRoot->type &&
-        (0 == ((SVnodeModifyOpStmt *)pRequest->pQuery->pRoot)->sqlNodeType)) {
+  if (TSDB_CODE_SUCCESS == nodesSimAcquireAllocator(pRequest->allocatorRefId)) {
+    if ((pRequest->pQuery && pRequest->pQuery->pRoot &&
+         QUERY_NODE_VNODE_MODIFY_STMT == pRequest->pQuery->pRoot->type &&
+         (0 == ((SVnodeModifyOpStmt *)pRequest->pQuery->pRoot)->sqlNodeType)) ||
+        QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType) {
       tscDebug("insert duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
-               "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
+                   "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
                duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
                pRequest->metric.planCostUs, pRequest->metric.execCostUs);
       atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
       reqType = SLOW_LOG_TYPE_INSERT;
     } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
       tscDebug("query duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
-               "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
+                   "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
                duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
                pRequest->metric.planCostUs, pRequest->metric.execCostUs);
 
       atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
       reqType = SLOW_LOG_TYPE_QUERY;
-    } 
+    }
+
+    nodesSimReleaseAllocator(pRequest->allocatorRefId);
   }
 
-  if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType || QUERY_NODE_INSERT_STMT == pRequest->stmtType) {
-    sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEINSERT);
-  } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
-    sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPESELECT);
-  } else if (QUERY_NODE_DELETE_STMT == pRequest->stmtType) {
-    sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEDELETE);
+  if(pTscObj->pAppInfo->monitorParas.tsEnableMonitor){
+    if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType || QUERY_NODE_INSERT_STMT == pRequest->stmtType) {
+      sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEINSERT);
+    } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
+      sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPESELECT);
+    } else if (QUERY_NODE_DELETE_STMT == pRequest->stmtType) {
+      sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEDELETE);
+    }
   }
 
-  if (duration >= (tsSlowLogThreshold * 1000000UL)) {
+  if ((duration >= pTscObj->pAppInfo->monitorParas.tsSlowLogThreshold * 1000000UL || duration >= pTscObj->pAppInfo->monitorParas.tsSlowLogThresholdTest * 1000000UL) &&
+      checkSlowLogExceptDb(pRequest, pTscObj->pAppInfo->monitorParas.tsSlowLogExceptDb)) {
     atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
-    if (tsSlowLogScope & reqType) {
-      taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 ", Duration:%" PRId64 "us, SQL:%s",
+    if (pTscObj->pAppInfo->monitorParas.tsSlowLogScope & reqType) {
+      taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 " us, Duration:%" PRId64 "us, SQL:%s",
                        taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration,
                        pRequest->sqlstr);
-      SlowQueryLog(pTscObj->id, pRequest->killed, pRequest->code, duration);
+      if(pTscObj->pAppInfo->monitorParas.tsEnableMonitor){
+        slowQueryLog(pTscObj->id, pRequest->killed, pRequest->code, duration);
+        generateWriteSlowLog(pTscObj, pRequest, reqType, duration);
+      }
     }
   }
 
@@ -229,14 +355,13 @@ void stopAllRequests(SHashObj *pRequests) {
   }
 }
 
-void destroyAppInst(SAppInstInfo *pAppInfo) {
+void destroyAppInst(void *info) {
+  SAppInstInfo* pAppInfo = *(SAppInstInfo**)info;
   tscDebug("destroy app inst mgr %p", pAppInfo);
 
   taosThreadMutexLock(&appInfo.mutex);
 
-  clientMonitorClose(pAppInfo->instKey);
   hbRemoveAppHbMrg(&pAppInfo->pAppHbMgr);
-  taosHashRemove(appInfo.pInstMap, pAppInfo->instKey, strlen(pAppInfo->instKey));
 
   taosThreadMutexUnlock(&appInfo.mutex);
 
@@ -330,6 +455,7 @@ void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
   }
   SSyncQueryParam *interParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   if (interParam == NULL) {
+    releaseTscObj(connId);
     doDestroyRequest(pRequest);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -370,6 +496,7 @@ void doFreeReqResultInfo(SReqResultInfo *pResInfo) {
   taosMemoryFreeClear(pResInfo->fields);
   taosMemoryFreeClear(pResInfo->userFields);
   taosMemoryFreeClear(pResInfo->convertJson);
+  taosMemoryFreeClear(pResInfo->decompBuf);
 
   if (pResInfo->convertBuf != NULL) {
     for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
@@ -471,13 +598,11 @@ void doDestroyRequest(void *p) {
   destorySqlCallbackWrapper(pRequest->pWrapper);
 
   taosMemoryFreeClear(pRequest->msgBuf);
-  taosMemoryFreeClear(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
   tsem_destroy(&pRequest->body.rspSem);
 
   taosArrayDestroy(pRequest->tableList);
-  taosArrayDestroy(pRequest->dbList);
   taosArrayDestroy(pRequest->targetTableList);
 
   destroyQueryExecRes(&pRequest->body.resInfo.execRes);
@@ -486,6 +611,8 @@ void doDestroyRequest(void *p) {
     deregisterRequest(pRequest);
   }
 
+  taosMemoryFreeClear(pRequest->pDb);
+  taosArrayDestroy(pRequest->dbList);
   if (pRequest->body.interParam) {
     tsem_destroy(&((SSyncQueryParam *)pRequest->body.interParam)->sem);
   }
@@ -661,7 +788,7 @@ void tscStopCrashReport() {
   }
 
   if (atomic_val_compare_exchange_32(&clientStop, 0, 1)) {
-    tscDebug("hb thread already stopped");
+    tscDebug("crash report thread already stopped");
     return;
   }
 
@@ -710,7 +837,8 @@ void taos_init_imp(void) {
   appInfo.pid = taosGetPId();
   appInfo.startTime = taosGetTimestampMs();
   appInfo.pInstMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-
+  appInfo.pInstMapByClusterId = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  taosHashSetFreeFp(appInfo.pInstMap, destroyAppInst);
   deltaToUtcInitOnce();
 
   char logDirName[64] = {0};
@@ -725,7 +853,7 @@ void taos_init_imp(void) {
     return;
   }
 
-  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1, true) != 0) {
+  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1) != 0) {
     tscInitRes = -1;
     return;
   }
@@ -733,7 +861,13 @@ void taos_init_imp(void) {
   initQueryModuleMsgHandle();
 
   if (taosConvInit() != 0) {
+    tscInitRes = -1;
     tscError("failed to init conv");
+    return;
+  }
+  if (monitorInit() != 0) {
+    tscInitRes = -1;
+    tscError("failed to init monitor");
     return;
   }
 
@@ -756,7 +890,6 @@ void taos_init_imp(void) {
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
   clientReqRefPool = taosOpenRef(40960, doDestroyRequest);
 
-  // transDestroyBuffer(&conn->readBuf);
   taosGetAppName(appInfo.appName, NULL);
   taosThreadMutexInit(&appInfo.mutex, NULL);
 

@@ -87,7 +87,7 @@ int tqUnregisterPushHandle(STQ* pTq, void *handle) {
   int32_t ret = taosHashRemove(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey));
   tqInfo("vgId:%d remove pHandle:%p,ret:%d consumer Id:0x%" PRIx64, vgId, pHandle, ret, pHandle->consumerId);
 
-  if(pHandle->msg != NULL) {
+  if(ret == 0 && pHandle->msg != NULL) {
 //    tqPushDataRsp(pHandle, vgId);
     tqPushEmptyDataRsp(pHandle, vgId);
 

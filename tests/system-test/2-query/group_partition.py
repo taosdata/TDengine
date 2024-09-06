@@ -80,6 +80,12 @@ class TDTestCase:
         if nonempty_tb_num > 0:
             num = self.row_nums
         tdSql.checkRows(num)
+        
+        tdSql.query(f"select c1, count(*), count(1), count(c1) from {self.dbname}.{self.stable} {keyword} by c1 having c1 >= 0")
+        num = 0
+        if nonempty_tb_num > 0:
+            num = self.row_nums
+        tdSql.checkRows(num)
     
         tdSql.query(f"select ts, count(*) from {self.dbname}.{self.stable} {keyword} by ts ")
         tdSql.checkRows(nonempty_tb_num * self.row_nums)
@@ -236,6 +242,9 @@ class TDTestCase:
 
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and t2=0;")
         tdSql.checkRows(1)
+
+        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and t2=0 having count(*) > 10;")
+        tdSql.checkRows(0)
 
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and _rowts>0;")
         tdSql.checkRows(nonempty_tb_num)

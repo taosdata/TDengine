@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tglobal.h"
 #include "tutil.h"
 #include "vnd.h"
-#include "tglobal.h"
 
 const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .dbname = "",
@@ -47,6 +47,7 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                            .segSize = 0,
                                            .retentionSize = -1,
                                            .level = TAOS_WAL_WRITE,
+                                           .clearFiles = 0,
                                        },
                                    .hashBegin = 0,
                                    .hashEnd = 0,
@@ -142,6 +143,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "wal.retentionSize", pCfg->walCfg.retentionSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.segSize", pCfg->walCfg.segSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.level", pCfg->walCfg.level) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "wal.clearFiles", pCfg->walCfg.clearFiles) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgorithm) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "tdbEncryptAlgorithm", pCfg->tdbEncryptAlgorithm) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "sstTrigger", pCfg->sttTrigger) < 0) return -1;
@@ -249,12 +251,11 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "tsdb.encryptAlgorithm", pCfg->tsdbCfg.encryptAlgorithm, code);
   if (code < 0) return -1;
 #if defined(TD_ENTERPRISE)
-  if(pCfg->tsdbCfg.encryptAlgorithm == DND_CA_SM4){
-    if(tsEncryptKey[0] == 0){
+  if (pCfg->tsdbCfg.encryptAlgorithm == DND_CA_SM4) {
+    if (tsEncryptKey[0] == 0) {
       terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       return -1;
-    }
-    else{
+    } else {
       strncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
     }
   }
@@ -273,15 +274,16 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "wal.level", pCfg->walCfg.level, code);
   if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "wal.clearFiles", pCfg->walCfg.clearFiles, code);
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgorithm, code);
   if (code < 0) return -1;
 #if defined(TD_ENTERPRISE)
-  if(pCfg->walCfg.encryptAlgorithm == DND_CA_SM4){
-    if(tsEncryptKey[0] == 0){
+  if (pCfg->walCfg.encryptAlgorithm == DND_CA_SM4) {
+    if (tsEncryptKey[0] == 0) {
       terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       return -1;
-    }
-    else{
+    } else {
       strncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
     }
   }
@@ -289,12 +291,11 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "tdbEncryptAlgorithm", pCfg->tdbEncryptAlgorithm, code);
   if (code < 0) return -1;
 #if defined(TD_ENTERPRISE)
-  if(pCfg->tdbEncryptAlgorithm == DND_CA_SM4){
-    if(tsEncryptKey[0] == 0){
+  if (pCfg->tdbEncryptAlgorithm == DND_CA_SM4) {
+    if (tsEncryptKey[0] == 0) {
       terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       return -1;
-    }
-    else{
+    } else {
       strncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
     }
   }
@@ -367,11 +368,11 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   }
 
   tjsonGetNumberValue(pJson, "s3ChunkSize", pCfg->s3ChunkSize, code);
-  if (code < 0) {
+  if (code < 0 || pCfg->s3ChunkSize < TSDB_MIN_S3_CHUNK_SIZE) {
     pCfg->s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
   }
   tjsonGetNumberValue(pJson, "s3KeepLocal", pCfg->s3KeepLocal, code);
-  if (code < 0) {
+  if (code < 0 || pCfg->s3KeepLocal < TSDB_MIN_S3_KEEP_LOCAL) {
     pCfg->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
   }
   tjsonGetNumberValue(pJson, "s3Compact", pCfg->s3Compact, code);

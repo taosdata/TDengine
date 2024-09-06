@@ -53,9 +53,12 @@ unsigned int optimize_intervals_float_1D(float *oriData, size_t dataLength, doub
 			//pred_value = 2*oriData[i-1] - oriData[i-2];
 			pred_value = oriData[i-1];
 			pred_err = fabs(pred_value - oriData[i]);
-			radiusIndex = (unsigned long)((pred_err/realPrecision+1)/2);
-			if(radiusIndex>=confparams_cpr->maxRangeRadius)
-				radiusIndex = confparams_cpr->maxRangeRadius - 1;			
+			double dbri = (pred_err/realPrecision+1)/2;
+			if(dbri >= confparams_cpr->maxRangeRadius) {
+				radiusIndex = confparams_cpr->maxRangeRadius - 1;
+			} else {
+				radiusIndex = (size_t)dbri;
+			}
 			intervals[radiusIndex]++;
 		}
 	}
@@ -404,9 +407,12 @@ unsigned int optimize_intervals_float_1D_opt(float *oriData, size_t dataLength, 
 		totalSampleSize++;
 		pred_value = data_pos[-1];
 		pred_err = fabs(pred_value - *data_pos);
-		radiusIndex = (unsigned long)((pred_err/realPrecision+1)/2);
-		if(radiusIndex>=confparams_cpr->maxRangeRadius)
-			radiusIndex = confparams_cpr->maxRangeRadius - 1;			
+		double dbri = (pred_err/realPrecision+1)/2;
+		if(dbri >= confparams_cpr->maxRangeRadius) {
+			radiusIndex = confparams_cpr->maxRangeRadius - 1;
+		} else {
+			radiusIndex = (size_t)dbri;
+		}
 		intervals[radiusIndex]++;
 
 		data_pos += confparams_cpr->sampleDistance;

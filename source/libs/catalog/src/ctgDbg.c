@@ -426,6 +426,7 @@ int32_t ctgdGetClusterCacheNum(SCatalog *pCtg, int32_t type) {
         break;
       case CTG_DBG_VIEW_NUM:
         num += ctgdGetViewNum(dbCache);
+        break;
       default:
         ctgError("invalid type:%d", type);
         break;

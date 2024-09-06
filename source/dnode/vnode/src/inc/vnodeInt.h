@@ -237,14 +237,12 @@ int32_t tsdbCacheNewSTableColumn(STsdb* pTsdb, SArray* uids, int16_t cid, int8_t
 int32_t tsdbCacheDropSTableColumn(STsdb* pTsdb, SArray* uids, int16_t cid, bool hasPrimayKey);
 int32_t tsdbCacheNewNTableColumn(STsdb* pTsdb, int64_t uid, int16_t cid, int8_t col_type);
 int32_t tsdbCacheDropNTableColumn(STsdb* pTsdb, int64_t uid, int16_t cid, bool hasPrimayKey);
-int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
-int32_t tsdbRetention(STsdb* tsdb, int64_t now, int32_t sync);
-int32_t tsdbS3Migrate(STsdb* tsdb, int64_t now, int32_t sync);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
 int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 int32_t tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
+int64_t tsdbGetEarliestTs(STsdb* pTsdb);
 
 // tq
 STQ*    tqOpen(const char* path, SVnode* pVnode);
@@ -257,13 +255,16 @@ int     tqScanWalAsync(STQ* pTq, bool ckPause);
 int32_t tqStopStreamTasksAsync(STQ* pTq);
 int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp);
 int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskRetrieveTriggerReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskRetrieveTriggerRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessStreamHbRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessStreamReqCheckpointRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskChkptReportRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
 
-int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
+int32_t tqBuildStreamTask(void* pTq, SStreamTask* pTask, int64_t ver);
 int32_t tqScanWal(STQ* pTq);
 
 int     tqCommit(STQ*);
@@ -295,6 +296,7 @@ int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqStreamProgressRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskUpdateCheckpointReq(STQ* pTq, char* msg, int32_t msgLen);
 
 // sma
 int32_t smaInit();
@@ -470,6 +472,16 @@ typedef struct SVMonitorObj {
   taos_counter_t* insertCounter;
 } SVMonitorObj;
 
+typedef struct {
+  int64_t async;
+  int64_t id;
+} SVAChannelID;
+
+typedef struct {
+  int64_t async;
+  int64_t id;
+} SVATaskID;
+
 struct SVnode {
   char*     path;
   SVnodeCfg config;
@@ -478,6 +490,7 @@ struct SVnode {
   STfs*     pTfs;
   int32_t   diskPrimary;
   SMsgCb    msgCb;
+  bool      disableWrite;
 
   // Buffer Pool
   TdThreadMutex mutex;
@@ -491,8 +504,8 @@ struct SVnode {
   SVBufPool*    onRecycle;
 
   // commit variables
-  int64_t commitChannel;
-  int64_t commitTask;
+  SVAChannelID commitChannel;
+  SVATaskID    commitTask;
 
   SMeta*        pMeta;
   SSma*         pSma;
@@ -597,6 +610,24 @@ struct SCompactInfo {
 };
 
 void initStorageAPI(SStorageAPI* pAPI);
+
+// a simple hash table impl
+typedef struct SVHashTable SVHashTable;
+
+struct SVHashTable {
+  uint32_t (*hash)(const void*);
+  int32_t (*compare)(const void*, const void*);
+  int32_t              numEntries;
+  uint32_t             numBuckets;
+  struct SVHashEntry** buckets;
+};
+
+#define vHashNumEntries(ht) ((ht)->numEntries)
+int32_t vHashInit(SVHashTable** ht, uint32_t (*hash)(const void*), int32_t (*compare)(const void*, const void*));
+int32_t vHashDestroy(SVHashTable** ht);
+int32_t vHashPut(SVHashTable* ht, void* obj);
+int32_t vHashGet(SVHashTable* ht, const void* obj, void** retObj);
+int32_t vHashDrop(SVHashTable* ht, const void* obj);
 
 #ifdef __cplusplus
 }

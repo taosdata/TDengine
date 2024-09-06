@@ -28,6 +28,31 @@ static inline void vmSendRsp(SRpcMsg *pMsg, int32_t code) {
   tmsgSendRsp(&rsp);
 }
 
+static void vmProcessMultiMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
+  SVnodeMgmt     *pMgmt = pInfo->ahandle;
+  int32_t         code = -1;
+  const STraceId *trace = &pMsg->info.traceId;
+
+  dGTrace("msg:%p, get from vnode-multi-mgmt queue", pMsg);
+  switch (pMsg->msgType) {
+    case TDMT_DND_CREATE_VNODE:
+      code = vmProcessCreateVnodeReq(pMgmt, pMsg);
+      break;
+  }
+
+  if (IsReq(pMsg)) {
+    if (code != 0) {
+      if (terrno != 0) code = terrno;
+      dGError("msg:%p, failed to process since %s, type:%s", pMsg, tstrerror(code), TMSG_INFO(pMsg->msgType));
+    }
+    vmSendRsp(pMsg, code);
+  }
+
+  dGTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
+}
+
 static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SVnodeMgmt     *pMgmt = pInfo->ahandle;
   int32_t         code = -1;
@@ -271,6 +296,13 @@ int32_t vmPutMsgToFetchQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsg
 
 int32_t vmPutMsgToStreamQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsgToQueue(pMgmt, pMsg, STREAM_QUEUE); }
 
+int32_t vmPutMsgToMultiMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  const STraceId *trace = &pMsg->info.traceId;
+  dGTrace("msg:%p, put into vnode-multi-mgmt queue", pMsg);
+  taosWriteQitem(pMgmt->mgmtMultiWorker.queue, pMsg);
+  return 0;
+}
+
 int32_t vmPutMsgToMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
   dGTrace("msg:%p, put into vnode-mgmt queue", pMsg);
@@ -287,7 +319,8 @@ int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
     return -1;
   }
 
-  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen);
+  EQItype  itype = APPLY_QUEUE == qtype ? DEF_QITEM : RPC_QITEM;
+  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen);
   if (pMsg == NULL) {
     rpcFreeCont(pRpc->pCont);
     pRpc->pCont = NULL;
@@ -413,6 +446,20 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
       .min = 1, .max = 1, .name = "vnode-mgmt", .fp = (FItem)vmProcessMgmtQueue, .param = pMgmt};
 
   if (tSingleWorkerInit(&pMgmt->mgmtWorker, &mgmtCfg) != 0) return -1;
+
+  int32_t threadNum = 0;
+  if (tsNumOfCores == 1) {
+    threadNum = 2;
+  } else {
+    threadNum = tsNumOfCores;
+  }
+  SSingleWorkerCfg multiMgmtCfg = {.min = threadNum,
+                                   .max = threadNum,
+                                   .name = "vnode-multi-mgmt",
+                                   .fp = (FItem)vmProcessMultiMgmtQueue,
+                                   .param = pMgmt};
+
+  if (tSingleWorkerInit(&pMgmt->mgmtMultiWorker, &multiMgmtCfg) != 0) return -1;
 
   dDebug("vnode workers are initialized");
   return 0;

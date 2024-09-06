@@ -67,6 +67,21 @@ int32_t sdbSetRawInt8(SSdbRaw *pRaw, int32_t dataPos, int8_t val) {
   return 0;
 }
 
+int32_t sdbSetRawUInt8(SSdbRaw *pRaw, int32_t dataPos, uint8_t val) {
+  if (pRaw == NULL) {
+    terrno = TSDB_CODE_INVALID_PTR;
+    return -1;
+  }
+
+  if (dataPos + sizeof(uint8_t) > pRaw->dataLen) {
+    terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+    return -1;
+  }
+
+  *(uint8_t *)(pRaw->pData + dataPos) = val;
+  return 0;
+}
+
 int32_t sdbSetRawInt32(SSdbRaw *pRaw, int32_t dataPos, int32_t val) {
   if (pRaw == NULL) {
     terrno = TSDB_CODE_INVALID_PTR;
@@ -171,6 +186,21 @@ int32_t sdbGetRawInt8(SSdbRaw *pRaw, int32_t dataPos, int8_t *val) {
   }
 
   *val = *(int8_t *)(pRaw->pData + dataPos);
+  return 0;
+}
+
+int32_t sdbGetRawUInt8(SSdbRaw *pRaw, int32_t dataPos, uint8_t *val) {
+  if (pRaw == NULL) {
+    terrno = TSDB_CODE_INVALID_PTR;
+    return -1;
+  }
+
+  if (dataPos + sizeof(uint8_t) > pRaw->dataLen) {
+    terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+    return -1;
+  }
+
+  *val = *(uint8_t *)(pRaw->pData + dataPos);
   return 0;
 }
 

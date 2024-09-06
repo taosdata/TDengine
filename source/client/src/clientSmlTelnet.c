@@ -233,7 +233,7 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
 
   SSmlKv kvTs = {0};
   smlBuildTsKv(&kvTs, ts);
-  if (needConverTime) {
+  if (needConverTime && info->currSTableMeta != NULL) {
     kvTs.i = convertTimePrecision(kvTs.i, TSDB_TIME_PRECISION_NANO, info->currSTableMeta->tableInfo.precision);
   }
 

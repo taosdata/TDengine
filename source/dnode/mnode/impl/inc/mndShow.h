@@ -23,6 +23,14 @@
 extern "C" {
 #endif
 
+#define COL_DATA_SET_VAL_RET(pData, isNull, pObj)                              \
+  do {                                                                         \
+    if ((code = colDataSetVal(pColInfo, numOfRows, (pData), (isNull))) != 0) { \
+      if (pObj) sdbRelease(pSdb, (pObj));                                      \
+      return code;                                                             \
+    }                                                                          \
+  } while (0)
+
 int32_t mndInitShow(SMnode *pMnode);
 void    mndCleanupShow(SMnode *pMnode);
 void    mndAddShowRetrieveHandle(SMnode *pMnode, EShowType showType, ShowRetrieveFp fp);

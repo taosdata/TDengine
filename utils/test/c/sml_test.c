@@ -982,6 +982,9 @@ int smlProcess_18784_Test() {
     rowIndex++;
   }
   taos_free_result(pRes);
+  pRes = taos_query(taos, "drop database if exists db_18784");
+  taos_free_result(pRes);
+
   taos_close(taos);
 
   return code;
@@ -1062,6 +1065,7 @@ int sml_escape1_Test() {
   for(int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++){
     pRes = taos_schemaless_insert(taos, (char**)&sql[i], 1, TSDB_SML_LINE_PROTOCOL, 0);
     int code = taos_errno(pRes);
+    taos_free_result(pRes);
     ASSERT(code);
   }
 
@@ -1187,6 +1191,9 @@ int sml_ts2164_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+  pRes = taos_query(taos, "drop database if exists line_test");
+  taos_free_result(pRes);
+
   taos_close(taos);
 
   return code;
@@ -1235,6 +1242,8 @@ int sml_ts3116_Test() {
   taosMemoryFree(tmp);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   code = taos_errno(pRes);
+  taos_free_result(pRes);
+  pRes = taos_query(taos, "drop database if exists ts3116");
   taos_free_result(pRes);
   taos_close(taos);
 
@@ -1449,6 +1458,13 @@ int sml_td24070_Test() {
   code = taos_errno(pRes);
   ASSERT(code == 0);
   taos_free_result(pRes);
+
+  pRes = taos_query(taos, "drop database if exists td24070_write");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "drop database if exists td24070_read");
+  taos_free_result(pRes);
+
   taos_close(taos);
   // test table privilege
 
@@ -1477,6 +1493,10 @@ int sml_td23881_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+
+  pRes = taos_query(taos, "drop database if exists line_23881");
+  taos_free_result(pRes);
+
   taos_close(taos);
 
   return code;
@@ -1691,6 +1711,8 @@ int sml_ts2385_Test() {
 
   code = taos_errno(pRes);
   taos_free_result(pRes);
+  pRes = taos_query(taos, "drop database if exists ts2385");
+  taos_free_result(pRes);
   taos_close(taos);
 
   return code;
@@ -1782,6 +1804,9 @@ int sml_td24559_Test() {
 
     rowIndex++;
   }
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "drop database if exists td24559");
   taos_free_result(pRes);
 
   taos_close(taos);
@@ -1889,6 +1914,9 @@ int sml_td29691_Test() {
   ASSERT(code == TSDB_CODE_PAR_DUPLICATED_COLUMN);
   taos_free_result(pRes);
 
+  pRes = taos_query(taos, "drop database if exists td29691");
+  taos_free_result(pRes);
+
   taos_close(taos);
 
   return code;
@@ -1940,6 +1968,9 @@ int sml_td18789_Test() {
 
     rowIndex++;
   }
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "drop database if exists td18789");
   taos_free_result(pRes);
 
   taos_close(taos);
@@ -2045,6 +2076,9 @@ int sml_td29373_Test() {
   code = taos_errno(pRes);
   printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
   ASSERT(code == TSDB_CODE_SML_NOT_SUPPORT_PK);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "drop database if exists td29373");
   taos_free_result(pRes);
 
   taos_close(taos);

@@ -632,10 +632,7 @@ void tsdbRowGetKey(TSDBROW *row, STsdbRowKey *key) {
   }
 }
 
-void tColRowGetKey(SBlockData *pBlock, int32_t irow, SRowKey *key) {
-  key->ts = pBlock->aTSKEY[irow];
-  key->numOfPKs = 0;
-
+void tColRowGetPrimaryKey(SBlockData *pBlock, int32_t irow, SRowKey *key) {
   for (int32_t i = 0; i < pBlock->nColData; i++) {
     SColData *pColData = &pBlock->aColData[i];
     if (pColData->cflag & COL_IS_KEY) {

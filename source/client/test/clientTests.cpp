@@ -821,31 +821,16 @@ TEST(clientCase, projection_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
+  TAOS_RES* pRes = NULL;
+
   //  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 1");
   //  if (taos_errno(pRes) != 0) {
   //    printf("error in create db, reason:%s\n", taos_errstr(pRes));
   //  }
   //  taos_free_result(pRes);
 
-  TAOS_RES* pRes = taos_query(pConn, "alter local 'fqdn 127.0.0.1'");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to exec query, %s\n", taos_errstr(pRes));
-  }
-
+  pRes= taos_query(pConn, "use abc1");
   taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "select last(ts), ts from cache_1.t1");
-//  pRes = taos_query(pConn, "select last(ts), ts from cache_1.no_pk_t1");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to exec query, %s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-
-//  pRes = taos_query(pConn, "create stream stream_1 trigger at_once fill_history 1 ignore expired 0 into str_res1 as select _wstart as ts, count(*) from stable_1 interval(10s);");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
-//  }
-//  taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create table tu using st2 tags(2)");
   if (taos_errno(pRes) != 0) {
@@ -876,27 +861,26 @@ TEST(clientCase, projection_query_tables) {
   for(int32_t j = 0; j < 1; ++j) {
     start += 20;
     for (int32_t i = 0; i < 1; ++i) {
-      createNewTable(pConn, i, 100, start, pstr);
+      createNewTable(pConn, i, 100000, 0, pstr);
     }
   }
 
-  //
-  //  pRes = taos_query(pConn, "select * from tu");
-  //  if (taos_errno(pRes) != 0) {
-  //    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
-  //    taos_free_result(pRes);
-  //    ASSERT_TRUE(false);
-  //  }
-  //
-  //  TAOS_ROW    pRow = NULL;
-  //  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-  //  int32_t     numOfFields = taos_num_fields(pRes);
-  //
-  //  char str[512] = {0};
-  //  while ((pRow = taos_fetch_row(pRes)) != NULL) {
-  //    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-  //    printf("%s\n", str);
-  //  }
+    pRes = taos_query(pConn, "select * from abc1.st2");
+    if (taos_errno(pRes) != 0) {
+      printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
+      taos_free_result(pRes);
+      ASSERT_TRUE(false);
+    }
+
+    TAOS_ROW    pRow = NULL;
+    TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+    int32_t     numOfFields = taos_num_fields(pRes);
+
+    char str[512] = {0};
+    while ((pRow = taos_fetch_row(pRes)) != NULL) {
+//      int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+//      printf("%s\n", str);
+    }
 
   taos_free_result(pRes);
   taos_close(pConn);
@@ -915,25 +899,44 @@ TEST(clientCase, projection_query_stables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  TAOS_RES* pRes = taos_query(pConn, "use test");
-  taos_free_result(pRes);
+  TAOS_RES* pRes = taos_query(pConn, "explain select * from dbvg.st where tbname='ct1'");
+//  taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "select * from meters limit 50000000");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
-    taos_free_result(pRes);
-    ASSERT_TRUE(false);
-  }
+//  pRes = taos_query(pConn, "select * from st2");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
+//    taos_free_result(pRes);
+//    ASSERT_TRUE(false);
+//  }
 
   TAOS_ROW    pRow = NULL;
   TAOS_FIELD* pFields = taos_fetch_fields(pRes);
   int32_t     numOfFields = taos_num_fields(pRes);
 
-  char str[512] = {0};
-  while ((pRow = taos_fetch_row(pRes)) != NULL) {
-    //    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-    //    printf("%s\n", str);
+  int32_t numOfRows = 0;
+  int32_t i = 0;
+  int32_t prev = 0;
+
+  char    str[512] = {0};
+  while (1) {
+    pRow = taos_fetch_row(pRes);
+    if (pRow == NULL) {
+      break;
+    }
+    i += numOfRows;
+
+    if ( (i / 1000000) > prev) {
+      printf("%d\n", i);
+      prev = i/1000000;
+    }
+    //printf("%d\n", i);
   }
+//  while ((pRow = taos_fetch_row(pRes)) != NULL) {
+//        int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+//    if (i++ % 100000 == 0) {
+//      printf("%d\n", i);
+//    }
+//  }
 
   taos_free_result(pRes);
   taos_close(pConn);
@@ -1517,6 +1520,13 @@ TEST(clientCase, sub_tb_test) {
 }
 
 TEST(clientCase, sub_tb_mt_test) {
+  char *user = NULL;
+  char *auth = NULL;
+  char *ip = NULL;
+  int port = 0;
+  char key[512] = {0};
+  snprintf(key, sizeof(key), "%s:%s:%s:%d", user, auth, ip, port);
+
   taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
   TdThread qid[20] = {0};
 
@@ -1528,5 +1538,39 @@ TEST(clientCase, sub_tb_mt_test) {
     taosThreadJoin(qid[i], NULL);
   }
 }
+
+//static void concatStrings(SArray *list, char* buf, int size){
+//  int  len = 0;
+//  for(int i = 0; i < taosArrayGetSize(list); i++){
+//    char* db = (char*)taosArrayGet(list, i);
+//    char* dot = strchr(db, '.');
+//    if (dot != NULL) {
+//      db = dot + 1;
+//    }
+//    if (i != 0){
+//      strcat(buf, ",");
+//      len += 1;
+//    }
+//    int ret = snprintf(buf + len, size - len, "%s", db);
+//    if (ret < 0)  {
+//      printf("snprintf failed, buf:%s, ret:%d", buf, ret);
+//      break;
+//    }
+//    len += ret;
+//    if (len >= size){
+//      printf("dbList is truncated, buf:%s, len:%d", buf, len);
+//      break;
+//    }
+//  }
+//}
+//
+//TEST(clientCase, concat_string_test) {
+//  SArray* list = taosArrayInit(10, TSDB_DB_FNAME_LEN);
+//  taosArrayPush(list, "1.db1");
+//  taosArrayPush(list, "2.db2");
+//
+//  char buf[32] = {0};
+//  concatStrings(list, buf, sizeof(buf) - 1);
+//}
 
 #pragma GCC diagnostic pop

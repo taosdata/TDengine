@@ -244,7 +244,7 @@ static void tdRSmaTaskInit(SStreamMeta *pMeta, SRSmaInfoItem *pItem, SStreamTask
   SStreamTask **ppTask = (SStreamTask **)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask && *ppTask) {
     pItem->submitReqVer = (*ppTask)->chkInfo.checkpointVer;
-    pItem->fetchResultVer = (*ppTask)->info.triggerParam;
+    pItem->fetchResultVer = (*ppTask)->info.delaySchedParam;
   }
   streamMetaRUnLock(pMeta);
 }
@@ -298,8 +298,8 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     pStreamTask->chkInfo.checkpointId = streamMetaGetLatestCheckpointId(pStreamTask->pMeta);
     tdRSmaTaskInit(pStreamTask->pMeta, pItem, &pStreamTask->id);
     pStreamTask->status.pSM = streamCreateStateMachine(pStreamTask);
-
-    pStreamState = streamStateOpen(taskInfDir, pStreamTask, true, -1, -1);
+    pStreamTask->chkInfo.pActiveInfo = streamTaskCreateActiveChkptInfo();
+    pStreamState = streamStateOpen(taskInfDir, pStreamTask, pStreamTask->id.streamId, pStreamTask->id.taskId);
     if (!pStreamState) {
       terrno = TSDB_CODE_RSMA_STREAM_STATE_OPEN;
       return TSDB_CODE_FAILED;
@@ -622,8 +622,8 @@ int32_t smaRetention(SSma *pSma, int64_t now) {
 
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pSma->pRSmaTsdb[i]) {
-      code = tsdbRetention(pSma->pRSmaTsdb[i], now, pSma->pVnode->config.sttTrigger == 1);
-      if (code) goto _end;
+      // code = tsdbRetention(pSma->pRSmaTsdb[i], now, pSma->pVnode->config.sttTrigger == 1);
+      // if (code) goto _end;
     }
   }
 
@@ -1285,10 +1285,11 @@ _checkpoint:
         if (pItem && pItem->pStreamTask) {
           SStreamTask *pTask = pItem->pStreamTask;
           // atomic_store_32(&pTask->pMeta->chkptNotReadyTasks, 1);
-          pTask->chkInfo.checkpointingId = checkpointId;
+          streamTaskSetActiveCheckpointInfo(pTask, checkpointId);
+
           pTask->chkInfo.checkpointId = checkpointId;  // 1pTask->checkpointingId;
           pTask->chkInfo.checkpointVer = pItem->submitReqVer;
-          pTask->info.triggerParam = pItem->fetchResultVer;
+          pTask->info.delaySchedParam = pItem->fetchResultVer;
           pTask->info.taskLevel = TASK_LEVEL_SMA;
 
           if (!checkpointBuilt) {
@@ -1532,10 +1533,6 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
     if (msg) {
       int8_t inputType = RSMA_EXEC_MSG_TYPE(msg);
       if (inputType == STREAM_INPUT__DATA_SUBMIT) {
-        if (nDelete > 0) {
-          resume = 1;
-          break;
-        }
       _resume_submit:
         packData.msgLen = RSMA_EXEC_MSG_LEN(msg);
         packData.ver = RSMA_EXEC_MSG_VER(msg);
@@ -1548,10 +1545,6 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
         }
         ++nSubmit;
       } else if (inputType == STREAM_INPUT__REF_DATA_BLOCK) {
-        if (nSubmit > 0) {
-          resume = 2;
-          break;
-        }
       _resume_delete:
         version = RSMA_EXEC_MSG_VER(msg);
         if ((terrno = tqExtractDelDataBlock(RSMA_EXEC_MSG_BODY(msg), RSMA_EXEC_MSG_LEN(msg), version,
@@ -1592,10 +1585,7 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
       goto _rtn;
     }
 
-    if (resume == 1) {
-      resume = 0;
-      goto _resume_submit;
-    } else if (resume == 2) {
+    if (resume == 2) {
       resume = 0;
       goto _resume_delete;
     }

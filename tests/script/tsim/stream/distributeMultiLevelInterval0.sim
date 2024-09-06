@@ -21,7 +21,36 @@ sql create table ts3 using st tags(3,2,2);
 sql create table ts4 using st tags(4,2,2);
 sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt1 as select  _wstart, count(*) c1, sum(a) c3 , max(b) c4 from st interval(10s);
 
+print ====check task status start
+
+$loop_count = 0
+
+loopCheck:
+
 sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+print 1 select * from information_schema.ins_stream_tasks;
+sql select * from information_schema.ins_stream_tasks;
+
+if $rows == 0 then
+  print rows=$rows
+  goto loopCheck
+endi
+
+print 1 select * from information_schema.ins_stream_tasks where status != "ready";
+sql select * from information_schema.ins_stream_tasks where status != "ready";
+
+if $rows != 0 then
+  print rows=$rows
+  goto loopCheck
+endi
+
+print ====check task status end 
 
 sql insert into ts1 values(1648791213000,1,1,3,4.1);
 sql insert into ts1 values(1648791223000,2,2,3,1.1);
@@ -122,6 +151,8 @@ if $data31 != 2 then
   print =====data31=$data31
   goto loop1
 endi
+
+sleep 5000
 
 sql delete from ts2 where ts = 1648791243000 ;
 

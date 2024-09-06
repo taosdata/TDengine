@@ -361,7 +361,10 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
 }
 
 int32_t tsortAddSource(SSortHandle* pSortHandle, void* pSource) {
-  taosArrayPush(pSortHandle->pOrderedSource, &pSource);
+  void* px = taosArrayPush(pSortHandle->pOrderedSource, &pSource);
+  if (px == NULL) {
+    taosMemoryFree(pSource);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -651,7 +654,7 @@ int32_t tsortComparBlockCell(SSDataBlock* pLeftBlock, SSDataBlock* pRightBlock,
         leftNull = colDataIsNull_t(pLeftColInfoData, leftRowIndex, isVarType);
       } else {
         leftNull =
-            colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, leftRowIndex, pLeftBlock->pBlockAgg[pOrder->slotId]);
+            colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, leftRowIndex, &pLeftBlock->pBlockAgg[pOrder->slotId]);
       }
     }
 
@@ -661,7 +664,7 @@ int32_t tsortComparBlockCell(SSDataBlock* pLeftBlock, SSDataBlock* pRightBlock,
         rightNull = colDataIsNull_t(pRightColInfoData, rightRowIndex, isVarType);
       } else {
         rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, rightRowIndex,
-                                  pRightBlock->pBlockAgg[pOrder->slotId]);
+                                  &pRightBlock->pBlockAgg[pOrder->slotId]);
       }
     }
 
@@ -742,7 +745,7 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
             leftNull = colDataIsNull_t(pLeftColInfoData, pLeftSource->src.rowIndex, isVarType);
           } else {
             leftNull = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->src.rowIndex,
-                                     pLeftBlock->pBlockAgg[i]);
+                                     &pLeftBlock->pBlockAgg[i]);
           }
         }
 
@@ -752,7 +755,7 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
             rightNull = colDataIsNull_t(pRightColInfoData, pRightSource->src.rowIndex, isVarType);
           } else {
             rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex,
-                                      pRightBlock->pBlockAgg[i]);
+                                      &pRightBlock->pBlockAgg[i]);
           }
         }
 
@@ -863,8 +866,10 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
       while (1) {
         if (tsortIsClosed(pHandle) || (pHandle->abortCheckFn && pHandle->abortCheckFn(pHandle->abortCheckParam))) {
           code = terrno = TSDB_CODE_TSC_QUERY_CANCELLED;
+          taosArrayDestroy(pPageIdList);
           return code;
         }
+
         SSDataBlock* pDataBlock = getSortedBlockDataInner(pHandle, &pHandle->cmpParam, numOfRows);
         if (pDataBlock == NULL) {
           break;
@@ -989,13 +994,15 @@ void tsortAppendTupleToBlock(SSortHandle* pHandle, SSDataBlock* pBlock, STupleHa
         colDataSetNULL(pColInfo, pBlock->info.rows);
       }
     }
-    if (bFreeRow) {
-      taosMemoryFree(buf);
-    }
+
     if (*(int32_t*)pStart != pStart - buf) {
       qError("table merge scan row buf deserialization. length error %d != %d ", *(int32_t*)pStart,
              (int32_t)(pStart - buf));
-    };
+    }
+
+    if (bFreeRow) {
+      taosMemoryFree(buf);
+    }
 
     pBlock->info.dataLoad = 1;
     pBlock->info.scanFlag = ((SDataBlockInfo*)tsortGetBlockInfo(pTupleHandle))->scanFlag;
@@ -1122,7 +1129,7 @@ static int32_t createSortMemFile(SSortHandle* pHandle) {
   }
   if (code == TSDB_CODE_SUCCESS) {
     taosGetTmpfilePath(tsTempDir, "sort-ext-mem", pMemFile->memFilePath);
-    pMemFile->pTdFile = taosOpenCFile(pMemFile->memFilePath, "w+");
+    pMemFile->pTdFile = taosOpenCFile(pMemFile->memFilePath, "w+b");
     if (pMemFile->pTdFile == NULL) {
       code = terrno = TAOS_SYSTEM_ERROR(errno);
     }
@@ -1359,6 +1366,7 @@ static void initRowIdSort(SSortHandle* pHandle) {
 
   taosArrayDestroy(pHandle->pSortInfo);
   pHandle->pSortInfo = pOrderInfoList;
+  pHandle->cmpParam.pPkOrder = (pHandle->bSortPk) ? taosArrayGet(pHandle->pSortInfo, 1) : NULL;
 }
 
 int32_t tsortSetSortByRowId(SSortHandle* pHandle, int32_t extRowsMemSize) {

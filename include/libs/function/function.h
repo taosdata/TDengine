@@ -150,6 +150,7 @@ typedef struct SBackendCfWrapper {
   int64_t        backendId;
   char           idstr[64];
 } SBackendCfWrapper;
+
 typedef struct STdbState {
   SBackendCfWrapper *pBackendCfWrapper;
   int64_t            backendCfWrapperId;
@@ -252,6 +253,7 @@ typedef struct SqlFunctionCtx {
   bool                 hasPrimaryKey;
   SFuncInputRowIter    rowIter;
   bool                 bInputFinished;
+  bool                 hasWindowOrGroup; // denote that the function is used with time window or group
 } SqlFunctionCtx;
 
 typedef struct tExprNode {

@@ -1563,6 +1563,14 @@ void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     pExp->base.resSchema =
         createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pCaseNode->node.aliasName);
     pExp->pExpr->_optrRoot.pRootNode = pNode;
+  } else if (type == QUERY_NODE_LOGIC_CONDITION) {
+    pExp->pExpr->nodeType = QUERY_NODE_OPERATOR;
+    SLogicConditionNode* pCond = (SLogicConditionNode*)pNode;
+    pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
+    pExp->base.numOfParams = 1;
+    SDataType* pType = &pCond->node.resType;
+    pExp->base.resSchema = createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pCond->node.aliasName);
+    pExp->pExpr->_optrRoot.pRootNode = pNode;
   } else {
     ASSERT(0);
   }
@@ -1626,7 +1634,8 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
   SHashObj* pSelectFuncs = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     const char* pName = pCtx[i].pExpr->pExpr->_function.functionName;
-    if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0)) {
+    if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0)
+      || (strcmp(pName, "_group_const_value") == 0)) {
       pValCtx[num++] = &pCtx[i];
     } else if (fmIsSelectFunc(pCtx[i].functionId)) {
       void* data = taosHashGet(pSelectFuncs, pName, strlen(pName));
@@ -1716,6 +1725,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->param = pFunct->pParam;
     pCtx->saveHandle.currentPage = -1;
     pCtx->pStore = pStore;
+    pCtx->hasWindowOrGroup = false;
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
@@ -2024,6 +2034,12 @@ int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t
   }
 
   STableKeyInfo keyInfo = {.uid = uid, .groupId = gid};
+  void* p = taosHashGet(pTableList->map, &uid, sizeof(uid));
+  if (p != NULL) {
+    qInfo("table:%" PRId64 " already in tableIdList, ignore it", uid);
+    return TSDB_CODE_SUCCESS;
+  }
+
   taosArrayPush(pTableList->pTableList, &keyInfo);
 
   int32_t slot = (int32_t)taosArrayGetSize(pTableList->pTableList) - 1;
@@ -2178,9 +2194,25 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
     return code;
   }
   if (group == NULL || groupByTbname) {
-    for (int32_t i = 0; i < numOfTables; i++) {
-      STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
-      info->groupId = groupByTbname ? info->uid : 0;
+    if (tsCountAlwaysReturnValue && QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pScanNode) && ((STableScanPhysiNode*)pScanNode)->needCountEmptyTable) {
+      pTableListInfo->remainGroups =
+          taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+      if (pTableListInfo->remainGroups == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      
+      for (int i = 0; i < numOfTables; i++) {
+        STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
+        info->groupId = groupByTbname ? info->uid : 0;
+        
+        taosHashPut(pTableListInfo->remainGroups, &(info->groupId), sizeof(info->groupId), &(info->uid),
+                    sizeof(info->uid));
+      }
+    } else {
+      for (int32_t i = 0; i < numOfTables; i++) {
+        STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
+        info->groupId = groupByTbname ? info->uid : 0;
+      }
     }
 
     pTableListInfo->oneTableForEachGroup = groupByTbname;
@@ -2192,8 +2224,6 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
       taosArraySort(pTableListInfo->pTableList, orderbyGroupIdComparFn);
       pTableListInfo->numOfOuputGroups = numOfTables;
     } else if (groupByTbname && pScanNode->groupOrderScan) {
-      pTableListInfo->numOfOuputGroups = numOfTables;
-    } else if (groupByTbname && tsCountAlwaysReturnValue && ((STableScanPhysiNode*)pScanNode)->needCountEmptyTable) {
       pTableListInfo->numOfOuputGroups = numOfTables;
     } else {
       pTableListInfo->numOfOuputGroups = 1;
@@ -2354,7 +2384,7 @@ int32_t compKeys(const SArray* pSortGroupCols, const char* oldkeyBuf, int32_t ol
   for (int32_t i = 0; i < pSortGroupCols->size; ++i) {
     const SColumn*         pCol = (SColumn*)TARRAY_GET_ELEM(pSortGroupCols, i);
     const SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(pBlock->pDataBlock, pCol->slotId);
-    if (pBlock->pBlockAgg) pColAgg = pBlock->pBlockAgg[pCol->slotId];
+    if (pBlock->pBlockAgg) pColAgg = &pBlock->pBlockAgg[pCol->slotId];
 
     if (colDataIsNull(pColInfoData, pBlock->info.rows, rowIndex, pColAgg)) {
       if (isNull[i] != 1) return 1;
@@ -2389,7 +2419,7 @@ int32_t buildKeys(char* keyBuf, const SArray* pSortGroupCols, const SSDataBlock*
     const SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(pBlock->pDataBlock, pCol->slotId);
     if (pCol->slotId > pBlock->pDataBlock->size) continue;
 
-    if (pBlock->pBlockAgg) pColAgg = pBlock->pBlockAgg[pCol->slotId];
+    if (pBlock->pBlockAgg) pColAgg = &pBlock->pBlockAgg[pCol->slotId];
 
     if (colDataIsNull(pColInfoData, pBlock->info.rows, rowIndex, pColAgg)) {
       isNull[i] = 1;

@@ -321,10 +321,10 @@ int32_t tDeserializeTsdbFSetPartList(void* buf, int32_t bufLen, STsdbFSetPartLis
         if (tDecodeI64(&decoder, &r.minVer) < 0) goto _err;
         if (tDecodeI64(&decoder, &r.maxVer) < 0) goto _err;
         if (tDecodeI64(&decoder, &reserved64) < 0) goto _err;
-        TARRAY2_APPEND(iList, r);
+        if (TARRAY2_APPEND(iList, r)) goto _err;
       }
     }
-    TARRAY2_APPEND(pList, p);
+    if (TARRAY2_APPEND(pList, p)) goto _err;
     p = NULL;
   }
 

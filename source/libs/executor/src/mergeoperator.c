@@ -182,7 +182,7 @@ SSDataBlock* doSortMerge(SOperatorInfo* pOperator) {
       resetLimitInfoForNextGroup(&pInfo->limitInfo);
     }
 
-    applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo);
+    (void)applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo);
 
     if (p->info.rows > 0) {
       break;

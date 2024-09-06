@@ -102,7 +102,7 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
     return false;
   }
 
-  if (pColAgg != NULL) {
+  if (pColAgg != NULL && pColAgg->colId != -1) {
     if (pColAgg->numOfNull == totalRows) {
       ASSERT(pColumnInfoData->nullbitmap == NULL);
       return true;
@@ -274,13 +274,15 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf, c
 int32_t buildSubmitReqFromDataBlock(SSubmitReq2** pReq, const SSDataBlock* pDataBlocks, const STSchema* pTSchema, int64_t uid, int32_t vgId,
                                     tb_uid_t suid);
 
-bool  alreadyAddGroupId(char* ctbName);
+bool  alreadyAddGroupId(char* ctbName, int64_t groupId);
 bool  isAutoTableName(char* ctbName);
 void  buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId);
 char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId);
 int32_t buildCtbNameByGroupIdImpl(const char* stbName, uint64_t groupId, char* pBuf);
 
 void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
+
+void copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
 
 #ifdef __cplusplus
 }

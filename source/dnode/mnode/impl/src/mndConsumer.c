@@ -91,14 +91,13 @@ void mndSendConsumerMsg(SMnode *pMnode, int64_t consumerId, uint16_t msgType, SR
   }
 }
 
-static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *pMnode, const char *pUser,
-                              bool enableReplay) {
+static int32_t validateTopics(STrans* pTrans, SCMSubscribeReq *subscribe, SMnode *pMnode, const char *pUser) {
   SMqTopicObj *pTopic = NULL;
   int32_t      code = 0;
 
-  int32_t numOfTopics = taosArrayGetSize(pTopicList);
+  int32_t numOfTopics = taosArrayGetSize(subscribe->topicNames);
   for (int32_t i = 0; i < numOfTopics; i++) {
-    char *pOneTopic = taosArrayGetP(pTopicList, i);
+    char *pOneTopic = taosArrayGetP(subscribe->topicNames, i);
     pTopic = mndAcquireTopic(pMnode, pOneTopic);
     if (pTopic == NULL) {  // terrno has been set by callee function
       code = -1;
@@ -116,7 +115,7 @@ static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *
       goto FAILED;
     }
 
-    if (enableReplay) {
+    if (subscribe->enableReplay) {
       if (pTopic->subType != TOPIC_SUB_TYPE__COLUMN) {
         code = TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT;
         goto FAILED;
@@ -134,12 +133,14 @@ static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *
         mndReleaseDb(pMnode, pDb);
       }
     }
-
-    mndTransSetDbName(pTrans, pOneTopic, NULL);
-    if (mndTransCheckConflict(pMnode, pTrans) != 0) {
-      code = -1;
+    char  key[32] = {0};
+    (void)snprintf(key, 32, "%"PRIx64, subscribe->consumerId);
+    mndTransSetDbName(pTrans, pTopic->db, key);
+    if(mndTransCheckConflict(pMnode, pTrans) != 0){
+      code = terrno;
       goto FAILED;
     }
+
     mndReleaseTopic(pMnode, pTopic);
   }
 
@@ -177,12 +178,13 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
     goto END;
   }
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_TOPIC, pMsg, "recover-csm");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "recover-csm");
   if (pTrans == NULL) {
     code = -1;
     goto END;
   }
-  code = validateTopics(pTrans, pConsumer->assignedTopics, pMnode, pMsg->info.conn.user, false);
+  SCMSubscribeReq subscribe = {.topicNames = pConsumer->assignedTopics, .enableReplay = false, .consumerId = pConsumer->consumerId};
+  code = validateTopics(pTrans, &subscribe, pMnode, pMsg->info.conn.user);
   if (code != 0) {
     goto END;
   }
@@ -586,6 +588,10 @@ static int32_t getTopicAddDelete(SMqConsumerObj *pExistedConsumer, SMqConsumerOb
       }
     }
   }
+  // no topics need to be rebalanced
+  if (taosArrayGetSize(pConsumerNew->rebNewTopics) == 0 && taosArrayGetSize(pConsumerNew->rebRemovedTopics) == 0) {
+    return TSDB_CODE_TMQ_NO_NEED_REBALANCE;
+  }
   return 0;
 }
 
@@ -662,27 +668,39 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   SMqConsumerObj *pConsumerNew = NULL;
   STrans         *pTrans = NULL;
 
+  bool unSubscribe = (taosArrayGetSize(subscribe.topicNames) == 0);
+  if(unSubscribe){
+    SMqConsumerObj *pConsumerTmp = mndAcquireConsumer(pMnode, subscribe.consumerId);
+    if(pConsumerTmp == NULL){
+      goto _over;
+    }
+    mndReleaseConsumer(pMnode, pConsumerTmp);
+  }
+
   code = checkAndSortTopic(pMnode, subscribe.topicNames);
   if(code != TSDB_CODE_SUCCESS){
     goto _over;
   }
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_TOPIC_INSIDE, pMsg, "subscribe");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY,
+                          unSubscribe ? TRN_CONFLICT_NOTHING : TRN_CONFLICT_DB_INSIDE,
+                          pMsg, "subscribe");
   if (pTrans == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _over;
   }
 
-  code = validateTopics(pTrans, subscribe.topicNames, pMnode, pMsg->info.conn.user, subscribe.enableReplay);
+  code = validateTopics(pTrans, &subscribe, pMnode, pMsg->info.conn.user);
   if (code != TSDB_CODE_SUCCESS) {
     goto _over;
   }
 
   pConsumerNew = buildSubConsumer(pMnode, &subscribe);
   if(pConsumerNew == NULL){
-    code = -1;
+    code = terrno;
     goto _over;
   }
+
   code = mndSetConsumerCommitLogs(pTrans, pConsumerNew);
   if (code != 0) goto _over;
 
@@ -694,7 +712,7 @@ _over:
   mndTransDrop(pTrans);
   tDeleteSMqConsumerObj(pConsumerNew);
   taosArrayDestroyP(subscribe.topicNames, (FDelete)taosMemoryFree);
-  return code;
+  return code == TSDB_CODE_TMQ_NO_NEED_REBALANCE ? 0 : code;
 }
 
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {

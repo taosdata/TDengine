@@ -87,21 +87,29 @@ class TDconnect:
         self.cursor = self._conn.cursor()
         return self
 
-    def error(self, sql):
+    def error(self, sql, expectErrInfo = None):
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
         expectErrNotOccured = True
         try:
             self.cursor.execute(sql)
-        except BaseException:
+        except BaseException as e:
+            tdLog.info("err:%s" % (e))
             expectErrNotOccured = False
+            self.errno = e.errno
+            error_info = repr(e)
+            self.error_info = ','.join(error_info[error_info.index('(')+1:-1].split(",")[:-1]).replace("'","")
 
         if expectErrNotOccured:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
             tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{sql}, expect error not occured" )
         else:
-            self.queryRows = 0
-            self.queryCols = 0
-            self.queryResult = None
-            tdLog.info(f"sql:{sql}, expect error occured")
+            if expectErrInfo != None:
+                if expectErrInfo == self.error_info:
+                    self.queryRows = 0
+                    self.queryCols = 0
+                    self.queryResult = None
+                    tdLog.info("sql:%s, expected ErrInfo '%s' occured" % (sql, expectErrInfo))
+                else:
+                    tdLog.exit("%s(%d) failed: sql:%s, ErrInfo '%s' occured, but not expected ErrInfo '%s'" % (caller.filename, caller.lineno, sql, self.error_info, expectErrInfo))
 
     def query(self, sql, row_tag=None):
         # sourcery skip: raise-from-previous-error, raise-specific-error
@@ -504,6 +512,17 @@ class TDTestCase:
         else:
             tdLog.exit("connect successfully, except error not occrued!")
 
+    def test_alter_user(self):
+        options = ["enable", "sysinfo", "createdb"]
+        optionErrVals = [-10000, -128, -1, 2, 127, 1000, 10000]
+        for optionErrVal in optionErrVals:
+            tdSql.error("create user user_alter pass 'taosdata' sysinfo %d" % optionErrVal)
+        tdSql.execute("create user user_alter pass 'taosdata'")
+        for option in options:
+            for optionErrVal in optionErrVals:
+                tdSql.error("alter user user_alter %s %d" % (option, optionErrVal))
+        tdSql.execute("drop user user_alter")
+
     def __drop_user(self, user):
         return f"DROP USER {user}"
 
@@ -647,6 +666,16 @@ class TDTestCase:
             user.error(f"drop user {self.__user_list[0]}")
             user.error(f"drop user {self.__user_list[1]}")
             user.error("drop user root")
+            # 普通用户默认不可创建 db
+            user.error("create database ordinary_user_db", expectErrInfo='Insufficient privilege for operation')
+            tdSql.execute(f'alter user {self.__user_list[0]} createdb 1')
+            tdSql.execute(f'alter user {self.__user_list[0]} createdb 0')
+            tdSql.execute(f'alter user {self.__user_list[0]} createdb 1')
+            tdSql.execute(f'alter user {self.__user_list[0]} createdb 1')
+            user.query("create database ordinary_user_db")
+            user.query("drop database ordinary_user_db")
+            tdSql.execute(f'alter user {self.__user_list[0]} createdb 0')
+            user.error("create database ordinary_user_db", expectErrInfo='Insufficient privilege for operation')
 
         tdLog.printNoPrefix("==========step5: enable info")
         taos1_conn = taos.connect(user=self.__user_list[1], password=f"new{self.__passwd_list[1]}")
@@ -702,8 +731,12 @@ class TDTestCase:
         else:
             tdLog.info("taos 4 query except error occured,  sysinfo == 0, can not show dnode/vgroups")
 
+        # alter 用户测试
+        tdLog.printNoPrefix("==========step7: alter ordinary user")
+        self.test_alter_user()
+
         # root删除用户测试
-        tdLog.printNoPrefix("==========step7: super user drop normal user")
+        tdLog.printNoPrefix("==========step8: super user drop normal user")
         self.test_drop_user()
 
         tdSql.query("show users")

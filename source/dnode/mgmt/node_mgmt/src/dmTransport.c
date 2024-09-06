@@ -58,8 +58,8 @@ static void dmConvertErrCode(tmsg_t msgType) {
   if (terrno != TSDB_CODE_APP_IS_STOPPING) {
     return;
   }
-  if ((msgType > TDMT_VND_MSG && msgType < TDMT_VND_MAX_MSG) ||
-      (msgType > TDMT_SCH_MSG && msgType < TDMT_SCH_MAX_MSG)) {
+  if ((msgType > TDMT_VND_MSG_MIN && msgType < TDMT_VND_MSG_MAX) ||
+      (msgType > TDMT_SCH_MSG_MIN && msgType < TDMT_SCH_MSG_MAX)) {
     terrno = TSDB_CODE_VND_STOPPED;
   }
 }
@@ -208,8 +208,12 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
   pRpc->info.wrapper = pWrapper;
-  pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen);
-  if (pMsg == NULL) goto _OVER;
+  EQItype itype = IsReq(pRpc) ? RPC_QITEM : DEF_QITEM;  // rsp msg is not restricted by tsQueueMemoryUsed
+  pMsg = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen);
+  if (pMsg == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
 
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
   dGTrace("msg:%p, is created, type:%s handle:%p len:%d", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle,
@@ -279,7 +283,7 @@ int32_t dmInitMsgHandle(SDnode *pDnode) {
 
 static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   SDnode *pDnode = dmInstance();
-  if (pDnode->status != DND_STAT_RUNNING && pMsg->msgType < TDMT_SYNC_MSG) {
+  if (pDnode->status != DND_STAT_RUNNING && pMsg->msgType < TDMT_SYNC_MSG_MIN) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
     if (pDnode->status == DND_STAT_INIT) {
@@ -297,7 +301,7 @@ static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
 }
 static inline int32_t dmSendSyncReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   SDnode *pDnode = dmInstance();
-  if (pDnode->status != DND_STAT_RUNNING && pMsg->msgType < TDMT_SYNC_MSG) {
+  if (pDnode->status != DND_STAT_RUNNING && pMsg->msgType < TDMT_SYNC_MSG_MIN) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
     if (pDnode->status == DND_STAT_INIT) {

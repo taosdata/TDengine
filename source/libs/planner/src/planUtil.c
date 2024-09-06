@@ -598,7 +598,7 @@ SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
     }
     char    name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
     int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
-    taosCreateMD5Hash(name, len);
+    (void)taosHashBinary(name, len);
     strncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
   }
   return pFunc;
@@ -671,5 +671,18 @@ int32_t tagScanSetExecutionMode(SScanLogicNode* pScan) {
   return TSDB_CODE_SUCCESS;
 }
 
+bool isColRefExpr(const SColumnNode* pCol, const SExprNode* pExpr) {
+  if (pCol->projRefIdx > 0) return pCol->projRefIdx == pExpr->projIdx;
+
+  return 0 == strcmp(pCol->colName, pExpr->aliasName);
+}
+
+void rewriteTargetsWithResId(SNodeList* pTargets) {
+  SNode* pNode;
+  FOREACH(pNode, pTargets) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    pCol->resIdx = pCol->projRefIdx;
+  }
+}
 
 

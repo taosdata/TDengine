@@ -33,11 +33,26 @@ SStreamDataBlock* createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pRe
   }
 
   ASSERT((pReq->blockNum == taosArrayGetSize(pReq->data)) && (pReq->blockNum == taosArrayGetSize(pReq->dataLen)));
-
   for (int32_t i = 0; i < blockNum; i++) {
     SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*) taosArrayGetP(pReq->data, i);
     SSDataBlock*       pDataBlock = taosArrayGet(pArray, i);
-    blockDecode(pDataBlock, pRetrieve->data);
+
+    int32_t compLen = *(int32_t*)pRetrieve->data;
+    int32_t fullLen = *(int32_t*)(pRetrieve->data + sizeof(int32_t));
+
+    char* pInput = pRetrieve->data + PAYLOAD_PREFIX_LEN;
+    if (pRetrieve->compressed && compLen < fullLen) {
+      char* p = taosMemoryMalloc(fullLen);
+      int32_t len = tsDecompressString(pInput, compLen, 1, p, fullLen, ONE_STAGE_COMP, NULL, 0);
+      ASSERT(len == fullLen);
+      pInput = p;
+    }
+
+    blockDecode(pDataBlock, pInput);
+
+    if (pRetrieve->compressed && compLen < fullLen) {
+      taosMemoryFree(pInput);
+    }
 
     // TODO: refactor
     pDataBlock->info.window.skey = be64toh(pRetrieve->skey);
@@ -89,16 +104,19 @@ void destroyStreamDataBlock(SStreamDataBlock* pBlock) {
   taosFreeQitem(pBlock);
 }
 
-int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock* pData) {
+int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock* pData, const char* id) {
   SArray* pArray = taosArrayInit(1, sizeof(SSDataBlock));
   if (pArray == NULL) {
-    return -1;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    stError("failed to prepare retrieve block, %s", id);
+    return terrno;
   }
 
   taosArrayPush(pArray, &(SSDataBlock){0});
   SRetrieveTableRsp* pRetrieve = pReq->pRetrieve;
   SSDataBlock*       pDataBlock = taosArrayGet(pArray, 0);
-  blockDecode(pDataBlock, pRetrieve->data);
+
+  blockDecode(pDataBlock, pRetrieve->data + PAYLOAD_PREFIX_LEN);
 
   // TODO: refactor
   pDataBlock->info.window.skey = be64toh(pRetrieve->skey);
@@ -110,7 +128,7 @@ int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock
   pData->reqId = pReq->reqId;
   pData->blocks = pArray;
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 SStreamDataSubmit* streamDataSubmitNew(SPackedData* pData, int32_t type) {

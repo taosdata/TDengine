@@ -183,11 +183,11 @@ sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   wa
 sql insert into t2 values(1648791213001,1,1,3,1.0,1);
 sql insert into t2 values(1648791213002,2,2,6,3.4,2);
 sql insert into t2 values(1648791213003,4,9,3,4.8,3);
-sql insert into t2 values(1648791233003,3,4,3,2.1,4);
-sql insert into t2 values(1648791233004,3,5,3,3.4,5);
-sql insert into t2 values(1648791233005,3,6,3,7.6,6);
 
-#
+sql insert into t2 values(1648791233003,3,4,3,2.1,4) (1648791233004,3,5,3,3.4,5) (1648791233005,3,6,3,7.6,6);
+
+sleep 1000
+
 sql insert into t2 values(1648791223003,20,7,3,10.1,7);
 
 $loop_count = 0

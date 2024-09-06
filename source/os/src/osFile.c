@@ -66,7 +66,7 @@ typedef struct TdFile {
 
 void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath) {
 #ifdef WINDOWS
-  const char *tdengineTmpFileNamePrefix = "tdengine-";
+
   char        tmpPath[PATH_MAX];
 
   int32_t len = (int32_t)strlen(inputTmpDir);
@@ -76,7 +76,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
     tmpPath[len++] = '\\';
   }
 
-  strcpy(tmpPath + len, tdengineTmpFileNamePrefix);
+  strcpy(tmpPath + len, TD_TMP_FILE_PREFIX);
   if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
     strcat(tmpPath, fileNamePrefix);
     strcat(tmpPath, "-%d-%s");
@@ -88,8 +88,6 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
 
 #else
 
-  const char *tdengineTmpFileNamePrefix = "tdengine-";
-
   char    tmpPath[PATH_MAX];
   int32_t len = strlen(inputTmpDir);
   memcpy(tmpPath, inputTmpDir, len);
@@ -99,7 +97,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
     tmpPath[len++] = '/';
   }
 
-  strcpy(tmpPath + len, tdengineTmpFileNamePrefix);
+  strcpy(tmpPath + len, TD_TMP_FILE_PREFIX);
   if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
     strcat(tmpPath, fileNamePrefix);
     strcat(tmpPath, "-%d-%s");
@@ -1224,20 +1222,24 @@ int32_t taosUmaskFile(int32_t maskVal) {
 
 int32_t taosGetErrorFile(TdFilePtr pFile) { return errno; }
 int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
+  int64_t ret = -1;
+#if FILE_WITH_LOCK
+  taosThreadRwlockRdlock(&(pFile->rwlock));
+#endif
   if (pFile == NULL || ptrBuf == NULL) {
-    return -1;
+    goto END;
   }
   if (*ptrBuf != NULL) {
     taosMemoryFreeClear(*ptrBuf);
   }
   ASSERT(pFile->fp != NULL);
   if (pFile->fp == NULL) {
-    return -1;
+    goto END;
   }
 #ifdef WINDOWS
   size_t bufferSize = 512;
   *ptrBuf = taosMemoryMalloc(bufferSize);
-  if (*ptrBuf == NULL) return -1;
+  if (*ptrBuf == NULL)     goto END;
 
   size_t bytesRead = 0;
   size_t totalBytesRead = 0;
@@ -1246,7 +1248,7 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
     char *result = fgets(*ptrBuf + totalBytesRead, bufferSize - totalBytesRead, pFile->fp);
     if (result == NULL) {
       taosMemoryFreeClear(*ptrBuf);
-      return -1;
+      goto END;
     }
     bytesRead = strlen(*ptrBuf + totalBytesRead);
     totalBytesRead += bytesRead;
@@ -1259,18 +1261,24 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
     void *newBuf = taosMemoryRealloc(*ptrBuf, bufferSize);
     if (newBuf == NULL) {
       taosMemoryFreeClear(*ptrBuf);
-      return -1;
+      goto END;
     }
 
     *ptrBuf = newBuf;
   }
 
   (*ptrBuf)[totalBytesRead] = '\0';
-  return totalBytesRead;
+  ret = totalBytesRead;
 #else
   size_t len = 0;
-  return getline(ptrBuf, &len, pFile->fp);
+  ret = getline(ptrBuf, &len, pFile->fp);
 #endif
+
+  END:
+#if FILE_WITH_LOCK
+  taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+  return ret;
 }
 
 int64_t taosGetsFile(TdFilePtr pFile, int32_t maxSize, char *__restrict buf) {
@@ -1431,7 +1439,14 @@ int	 taosCloseCFile(FILE *f) {
 
 int taosSetAutoDelFile(char* path) {
 #ifdef WINDOWS
-  return SetFileAttributes(path, FILE_ATTRIBUTE_TEMPORARY);
+  bool succ = SetFileAttributes(path, FILE_ATTRIBUTE_TEMPORARY);
+  if (succ) {
+    return 0;
+  } else {
+    DWORD error = GetLastError();
+    terrno = TAOS_SYSTEM_ERROR(error);
+    return terrno;
+  }
 #else
   return unlink(path);
 #endif  

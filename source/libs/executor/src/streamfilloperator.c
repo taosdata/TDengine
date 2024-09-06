@@ -172,10 +172,17 @@ void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, 
   SWinKey key = {.ts = ts, .groupId = groupId};
   void*   curVal = NULL;
   int32_t curVLen = 0;
+  bool hasCurKey = true;
   int32_t code = pAPI->stateStore.streamStateFillGet(pState, &key, (void**)&curVal, &curVLen);
-  ASSERT(code == TSDB_CODE_SUCCESS);
-  pFillSup->cur.key = key.ts;
-  pFillSup->cur.pRowVal = curVal;
+  if (code == TSDB_CODE_SUCCESS) {
+    pFillSup->cur.key = key.ts;
+    pFillSup->cur.pRowVal = curVal;
+  } else {
+    qDebug("streamStateFillGet key failed, Data may be deleted. ts:%" PRId64 ", groupId:%" PRId64, ts, groupId);
+    pFillSup->cur.key = ts;
+    pFillSup->cur.pRowVal = NULL;
+    hasCurKey = false;
+  }
 
   SStreamStateCur* pCur = pAPI->stateStore.streamStateFillSeekKeyPrev(pState, &key);
   SWinKey          preKey = {.ts = INT64_MIN, .groupId = groupId};
@@ -187,8 +194,10 @@ void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, 
     pFillSup->prev.key = preKey.ts;
     pFillSup->prev.pRowVal = preVal;
 
-    code = pAPI->stateStore.streamStateCurNext(pState, pCur);
-    ASSERT(code == TSDB_CODE_SUCCESS);
+    if (hasCurKey) {
+      code = pAPI->stateStore.streamStateCurNext(pState, pCur);
+      ASSERT(code == TSDB_CODE_SUCCESS);
+    }
 
     code = pAPI->stateStore.streamStateCurNext(pState, pCur);
     if (code != TSDB_CODE_SUCCESS) {
@@ -707,7 +716,7 @@ static void buildDeleteRange(SOperatorInfo* pOp, TSKEY start, TSKEY end, uint64_
   SColumnInfoData* pTableCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
 
   void* tbname = NULL;
-  pAPI->stateStore.streamStateGetParName(pOp->pTaskInfo->streamInfo.pState, groupId, &tbname);
+  pAPI->stateStore.streamStateGetParName(pOp->pTaskInfo->streamInfo.pState, groupId, &tbname, false);
   if (tbname == NULL) {
     colDataSetNULL(pTableCol, pBlock->info.rows);
   } else {
@@ -741,8 +750,8 @@ static void doDeleteFillResultImpl(SOperatorInfo* pOperator, TSKEY startTs, TSKE
   getWindowFromDiscBuf(pOperator, startTs, groupId, pInfo->pFillSup);
   setDeleteFillValueInfo(startTs, endTs, pInfo->pFillSup, pInfo->pFillInfo);
   SWinKey key = {.ts = startTs, .groupId = groupId};
+  pAPI->stateStore.streamStateFillDel(pOperator->pTaskInfo->streamInfo.pState, &key);
   if (!pInfo->pFillInfo->needFill) {
-    pAPI->stateStore.streamStateFillDel(pOperator->pTaskInfo->streamInfo.pState, &key);
     buildDeleteResult(pOperator, startTs, endTs, groupId, pInfo->pDelRes);
   } else {
     STimeRange tw = {
@@ -751,11 +760,27 @@ static void doDeleteFillResultImpl(SOperatorInfo* pOperator, TSKEY startTs, TSKE
         .groupId = groupId,
     };
     taosArrayPush(pInfo->pFillInfo->delRanges, &tw);
-    while (key.ts <= endTs) {
-      key.ts = taosTimeAdd(key.ts, pInfo->pFillSup->interval.sliding, pInfo->pFillSup->interval.slidingUnit,
-                           pInfo->pFillSup->interval.precision);
-      tSimpleHashPut(pInfo->pFillSup->pResMap, &key, sizeof(SWinKey), NULL, 0);
-    }
+  }
+}
+
+static void getWindowInfoByKey(SStorageAPI* pAPI, void* pState, TSKEY ts, int64_t groupId, SResultRowData* pWinData) {
+  SWinKey key = {.ts = ts, .groupId = groupId};
+  void*   val = NULL;
+  int32_t len = 0;
+  int32_t code = pAPI->stateStore.streamStateFillGet(pState, &key, (void**)&val, &len);
+  if (code != TSDB_CODE_SUCCESS) {
+    qDebug("get window info by key failed, Data may be deleted, try next window. ts:%" PRId64 ", groupId:%" PRId64, ts,
+           groupId);
+    SStreamStateCur* pCur = pAPI->stateStore.streamStateFillSeekKeyNext(pState, &key);
+    code = pAPI->stateStore.streamStateGetGroupKVByCur(pCur, &key, (const void**)&val, &len);
+    pAPI->stateStore.streamStateFreeCur(pCur);
+    qDebug("get window info by key ts:%" PRId64 ", groupId:%" PRId64 ", res%d", ts, groupId, code);
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    resetFillWindow(pWinData);
+    pWinData->key = key.ts;
+    pWinData->pRowVal = val;
   }
 }
 
@@ -765,20 +790,22 @@ static void doDeleteFillFinalize(SOperatorInfo* pOperator) {
   SStreamFillOperatorInfo* pInfo = pOperator->info;
   SStreamFillInfo*         pFillInfo = pInfo->pFillInfo;
   int32_t                  size = taosArrayGetSize(pFillInfo->delRanges);
-  tSimpleHashClear(pInfo->pFillSup->pResMap);
-  for (; pFillInfo->delIndex < size; pFillInfo->delIndex++) {
+  while (pFillInfo->delIndex < size) {
     STimeRange* range = taosArrayGet(pFillInfo->delRanges, pFillInfo->delIndex);
     if (pInfo->pRes->info.id.groupId != 0 && pInfo->pRes->info.id.groupId != range->groupId) {
       return;
     }
     getWindowFromDiscBuf(pOperator, range->skey, range->groupId, pInfo->pFillSup);
+    TSKEY realEnd = range->ekey + 1;
+    if (pInfo->pFillInfo->type == TSDB_FILL_NEXT && pInfo->pFillSup->next.key != realEnd) {
+      getWindowInfoByKey(pAPI, pOperator->pTaskInfo->streamInfo.pState, realEnd, range->groupId, &pInfo->pFillSup->next);
+    }
     setDeleteFillValueInfo(range->skey, range->ekey, pInfo->pFillSup, pInfo->pFillInfo);
+    pFillInfo->delIndex++;
     if (pInfo->pFillInfo->needFill) {
       doStreamFillRange(pInfo->pFillInfo, pInfo->pFillSup, pInfo->pRes);
       pInfo->pRes->info.id.groupId = range->groupId;
     }
-    SWinKey key = {.ts = range->skey, .groupId = range->groupId};
-    pAPI->stateStore.streamStateFillDel(pOperator->pTaskInfo->streamInfo.pState, &key);
   }
 }
 

@@ -31,8 +31,8 @@ class LegalDataType(Enum):
     UINT       = 'INT UNSIGNED'
     BIGINT     = 'BIGINT' 
     UBIGINT    = 'BIGINT UNSIGNED'  
-    VARCHAR    = 'VARCHAR(100)' 
-    BINARY     = 'BINARY(100)'   
+    VARCHAR    = 'VARCHAR(10000)' 
+    BINARY     = 'BINARY(10000)'   
 
 
 class TableType(Enum):  

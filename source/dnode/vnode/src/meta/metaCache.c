@@ -686,8 +686,8 @@ int32_t metaUidFilterCachePut(void* pVnode, uint64_t suid, const void* pKey, int
   }
 
   // add to cache.
-  taosLRUCacheInsert(pCache, key, TAG_FILTER_RES_KEY_LEN, pPayload, payloadLen, freeUidCachePayload, NULL,
-                     TAOS_LRU_PRIORITY_LOW, NULL);
+  (void)taosLRUCacheInsert(pCache, key, TAG_FILTER_RES_KEY_LEN, pPayload, payloadLen, freeUidCachePayload, NULL,
+                           TAOS_LRU_PRIORITY_LOW, NULL);
 _end:
   taosThreadMutexUnlock(pLock);
   metaDebug("vgId:%d, suid:%" PRIu64 " list cache added into cache, total:%d, tables:%d", vgId, suid,
@@ -909,7 +909,7 @@ int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid) {
   return TSDB_CODE_SUCCESS;
 }
 
-bool metaTbInFilterCache(SMeta *pMeta, const void* key, int8_t type) {
+bool metaTbInFilterCache(SMeta* pMeta, const void* key, int8_t type) {
   if (type == 0 && taosHashGet(pMeta->pCache->STbFilterCache.pStb, key, sizeof(tb_uid_t))) {
     return true;
   }
@@ -921,7 +921,7 @@ bool metaTbInFilterCache(SMeta *pMeta, const void* key, int8_t type) {
   return false;
 }
 
-int32_t metaPutTbToFilterCache(SMeta *pMeta, const void* key, int8_t type) {
+int32_t metaPutTbToFilterCache(SMeta* pMeta, const void* key, int8_t type) {
   if (type == 0) {
     return taosHashPut(pMeta->pCache->STbFilterCache.pStb, key, sizeof(tb_uid_t), NULL, 0);
   }
@@ -933,7 +933,7 @@ int32_t metaPutTbToFilterCache(SMeta *pMeta, const void* key, int8_t type) {
   return 0;
 }
 
-int32_t metaSizeOfTbFilterCache(SMeta *pMeta, int8_t type) {
+int32_t metaSizeOfTbFilterCache(SMeta* pMeta, int8_t type) {
   if (type == 0) {
     return taosHashGetSize(pMeta->pCache->STbFilterCache.pStb);
   }

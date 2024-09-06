@@ -120,12 +120,32 @@ static FORCE_INLINE int64_t tsdbLogicToFileSize(int64_t lSize, int32_t szPage) {
 #define tsdbRowFromBlockData(BLOCKDATA, IROW) \
   ((TSDBROW){.type = TSDBROW_COL_FMT, .pBlockData = (BLOCKDATA), .iRow = (IROW)})
 
+#define TSDBROW_INIT_KEY(_ROW, _KEY)                             \
+  {                                                              \
+    if ((_ROW)->type == TSDBROW_ROW_FMT) {                       \
+      _KEY.version = (_ROW)->version;                            \
+      _KEY.ts = (_ROW)->pTSRow->ts;                              \
+    } else {                                                     \
+      _KEY.version = (_ROW)->pBlockData->aVersion[(_ROW)->iRow]; \
+      _KEY.ts = (_ROW)->pBlockData->aTSKEY[(_ROW)->iRow];        \
+    }                                                            \
+  }
+
+#define tColRowGetKey(_pBlock, _irow, _key)             \
+  {                                                     \
+    (_key)->ts = (_pBlock)->aTSKEY[(_irow)];            \
+    (_key)->numOfPKs = 0;                               \
+    if ((_pBlock)->nColData > 0) {                      \
+      tColRowGetPrimaryKey((_pBlock), (_irow), (_key)); \
+    }                                                   \
+  }
+
 void    tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 int32_t tsdbRowCompare(const void *p1, const void *p2);
 int32_t tsdbRowCompareWithoutVersion(const void *p1, const void *p2);
 int32_t tsdbRowKeyCmpr(const STsdbRowKey *key1, const STsdbRowKey *key2);
 void    tsdbRowGetKey(TSDBROW *row, STsdbRowKey *key);
-void    tColRowGetKey(SBlockData *pBlock, int32_t irow, SRowKey *key);
+void    tColRowGetPrimaryKey(SBlockData *pBlock, int32_t irow, SRowKey *key);
 
 
 // STSDBRowIter
@@ -335,6 +355,8 @@ typedef struct {
   int    flush_count;
 } SCacheFlushState;
 
+typedef struct SCompMonitor SCompMonitor;
+
 struct STsdb {
   char *               path;
   SVnode *             pVnode;
@@ -355,8 +377,11 @@ struct STsdb {
   TdThreadMutex        pgMutex;
   struct STFileSystem *pFS;  // new
   SRocksCache          rCache;
-  // compact monitor
-  struct SCompMonitor *pCompMonitor;
+  SCompMonitor         *pCompMonitor;
+  struct {
+    SVHashTable *ht;
+    SArray      *arr;
+  } *commitInfo;
 };
 
 struct TSDBKEY {
@@ -953,7 +978,28 @@ static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
 // #define SL_NODE_FORWARD(n, l)  ((n)->forwards[l])
 // #define SL_NODE_BACKWARD(n, l) ((n)->forwards[(n)->level + (l)])
 
-TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter);
+static FORCE_INLINE TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter) {
+  if (pIter == NULL) return NULL;
+
+  if (pIter->pRow) {
+    return pIter->pRow;
+  }
+
+  if (pIter->backward) {
+    if (pIter->pNode == pIter->pTbData->sl.pHead) {
+      return NULL;
+    }
+  } else {
+    if (pIter->pNode == pIter->pTbData->sl.pTail) {
+      return NULL;
+    }
+  }
+
+  pIter->pRow = &pIter->row;
+  pIter->row = pIter->pNode->row;
+
+  return pIter->pRow;
+}
 
 typedef struct {
   int64_t  suid;

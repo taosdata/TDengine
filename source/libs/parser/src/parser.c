@@ -48,6 +48,33 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
   return false;
 }
 
+bool qIsCreateTbFromFileSql(const char* pStr, size_t length) {
+  if (NULL == pStr) {
+    return false;
+  }
+
+  const char* pSql = pStr;
+
+  int32_t index = 0;
+  SToken  t = tStrGetToken((char*)pStr, &index, false, NULL);
+  if (TK_CREATE != t.type) {
+    return false;
+  }
+
+  do {
+    pStr += index;
+    index = 0;
+    t = tStrGetToken((char*)pStr, &index, false, NULL);
+    if (TK_FILE == t.type) {
+      return true;
+    }
+    if (0 == t.type || 0 == t.n) {
+      break;
+    }
+  } while (pStr - pSql < length);
+  return false;
+}
+
 static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
   int32_t code = authenticate(pCxt, pQuery, pMetaCache);
 
@@ -198,11 +225,19 @@ static int32_t parseQuerySyntax(SParseContext* pCxt, SQuery** pQuery, struct SCa
   return code;
 }
 
+static int32_t parseCreateTbFromFileSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq) {
+  if (NULL == *pQuery) return parseQuerySyntax(pCxt, pQuery, pCatalogReq);
+
+  return continueCreateTbFromFile(pCxt, pQuery);
+}
+
 int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq) {
   int32_t code = nodesAcquireAllocator(pCxt->allocatorId);
   if (TSDB_CODE_SUCCESS == code) {
     if (qIsInsertValuesSql(pCxt->pSql, pCxt->sqlLen)) {
       code = parseInsertSql(pCxt, pQuery, pCatalogReq, NULL);
+    } else if (qIsCreateTbFromFileSql(pCxt->pSql, pCxt->sqlLen)) {
+      code = parseCreateTbFromFileSyntax(pCxt, pQuery, pCatalogReq);
     } else {
       code = parseQuerySyntax(pCxt, pQuery, pCatalogReq);
     }
@@ -281,7 +316,7 @@ void destoryCatalogReq(SCatalogReq *pCatalogReq) {
     taosArrayDestroyEx(pCatalogReq->pTableHash, destoryTablesReq);
 #ifdef TD_ENTERPRISE
     taosArrayDestroyEx(pCatalogReq->pView, destoryTablesReq);
-#endif  
+#endif
     taosArrayDestroyEx(pCatalogReq->pTableTSMAs, destoryTablesReq);
     taosArrayDestroyEx(pCatalogReq->pTSMAs, destoryTablesReq);
   }

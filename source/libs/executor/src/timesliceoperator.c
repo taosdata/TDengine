@@ -194,6 +194,7 @@ static void tRowGetKeyFromColData(int64_t ts, SColumnInfoData* pPkCol, int32_t r
   }
 }
 
+// only the timestamp is needed to complete the duplicated timestamp check.
 static bool checkDuplicateTimestamps(STimeSliceOperatorInfo* pSliceInfo, SColumnInfoData* pTsCol,
                                      SColumnInfoData* pPkCol, int32_t curIndex, int32_t rows) {
   int64_t currentTs = *(int64_t*)colDataGetData(pTsCol, curIndex);
@@ -230,6 +231,11 @@ static bool isInterpFunc(SExprInfo* pExprInfo) {
 static bool isGroupKeyFunc(SExprInfo* pExprInfo) {
   int32_t functionType = pExprInfo->pExpr->_function.functionType;
   return (functionType == FUNCTION_TYPE_GROUP_KEY);
+}
+
+static bool isSelectGroupConstValueFunc(SExprInfo* pExprInfo) {
+  int32_t functionType = pExprInfo->pExpr->_function.functionType;
+  return (functionType == FUNCTION_TYPE_GROUP_CONST_VALUE);
 }
 
 static bool getIgoreNullRes(SExprSupp* pExprSup) {
@@ -295,7 +301,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
       colDataSetVal(pDst, pResBlock->info.rows, (char*)&isFilled, false);
       continue;
     } else if (!isInterpFunc(pExprInfo)) {
-      if (isGroupKeyFunc(pExprInfo)) {
+      if (isGroupKeyFunc(pExprInfo) || isSelectGroupConstValueFunc(pExprInfo)) {
         if (pSrcBlock != NULL) {
           int32_t       srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
           SColumnInfoData* pSrc = taosArrayGet(pSrcBlock->pDataBlock, srcSlot);
@@ -307,9 +313,17 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
           char* v = colDataGetData(pSrc, index);
           colDataSetVal(pDst, pResBlock->info.rows, v, false);
-        } else {
+        } else if(!isSelectGroupConstValueFunc(pExprInfo)){
           // use stored group key
           SGroupKeys* pkey = pSliceInfo->pPrevGroupKey;
+          if (pkey->isNull == false) {
+            colDataSetVal(pDst, rows, pkey->pData, false);
+          } else {
+            colDataSetNULL(pDst, rows);
+          }
+        } else {
+          int32_t srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
+          SGroupKeys* pkey = taosArrayGet(pSliceInfo->pPrevRow, srcSlot);
           if (pkey->isNull == false) {
             colDataSetVal(pDst, rows, pkey->pData, false);
           } else {
@@ -511,7 +525,6 @@ static int32_t initPrevRowsKeeper(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
   }
 
   pInfo->isPrevRowSet = false;
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -825,8 +838,12 @@ static void genInterpAfterDataBlock(STimeSliceOperatorInfo* pSliceInfo, SOperato
   SSDataBlock* pResBlock = pSliceInfo->pRes;
   SInterval*   pInterval = &pSliceInfo->interval;
 
-  while (pSliceInfo->current <= pSliceInfo->win.ekey && pSliceInfo->fillType != TSDB_FILL_NEXT &&
-         pSliceInfo->fillType != TSDB_FILL_LINEAR) {
+  if (pSliceInfo->fillType == TSDB_FILL_NEXT || pSliceInfo->fillType == TSDB_FILL_LINEAR ||
+      pSliceInfo->pPrevGroupKey == NULL) {
+    return;
+  }
+
+  while (pSliceInfo->current <= pSliceInfo->win.ekey) {
     genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, NULL, index, false);
     pSliceInfo->current =
         taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
@@ -1067,6 +1084,8 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode
       createOperatorFpSet(optrDummyOpenFn, doTimeslice, NULL, destroyTimeSliceOperatorInfo, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
+
+//  int32_t code = initKeeperInfo(pSliceInfo, pBlock, &pOperator->exprSupp);
 
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;

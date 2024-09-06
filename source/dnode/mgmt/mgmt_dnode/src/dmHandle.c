@@ -107,7 +107,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.numOfSupportVnodes = tsNumOfSupportVnodes;
   req.numOfDiskCfg = tsDiskCfgNum;
   req.memTotal = tsTotalMemoryKB * 1024;
-  req.memAvail = req.memTotal - tsRpcQueueMemoryAllowed - 16 * 1024 * 1024;
+  req.memAvail = req.memTotal - tsQueueMemoryAllowed - 16 * 1024 * 1024;
   tstrncpy(req.dnodeEp, tsLocalEp, TSDB_EP_LEN);
   tstrncpy(req.machineId, pMgmt->pData->machineId, TSDB_MACHINE_ID_LEN + 1);
 
@@ -117,6 +117,13 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.enableWhiteList = tsEnableWhiteList ? 1 : 0;
   req.clusterCfg.encryptionKeyStat = tsEncryptionKeyStat;
   req.clusterCfg.encryptionKeyChksum =  tsEncryptionKeyChksum;
+  req.clusterCfg.monitorParas.tsEnableMonitor = tsEnableMonitor;
+  req.clusterCfg.monitorParas.tsMonitorInterval = tsMonitorInterval;
+  req.clusterCfg.monitorParas.tsSlowLogScope = tsSlowLogScope;
+  req.clusterCfg.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
+  req.clusterCfg.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
+  req.clusterCfg.monitorParas.tsSlowLogThresholdTest = tsSlowLogThresholdTest;
+  tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
@@ -223,7 +230,7 @@ int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     goto _exit;
   }
 
-  code = dmUpdateEncryptKey(cfgReq.value);
+  code = dmUpdateEncryptKey(cfgReq.value, true);
   if (code == 0) {
     tsEncryptionKeyChksum = taosCalcChecksum(0, cfgReq.value, strlen(cfgReq.value));
     tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED;

@@ -45,6 +45,7 @@ extern "C" {
 #define WAL_SCAN_BUF_SIZE (1024 * 1024 * 3)
 
 typedef enum {
+  TAOS_WAL_SKIP = 0,
   TAOS_WAL_WRITE = 1,
   TAOS_WAL_FSYNC = 2,
 } EWalType;
@@ -59,6 +60,7 @@ typedef struct {
   EWalType level;  // wal level
   int32_t  encryptAlgorithm;
   char     encryptKey[ENCRYPT_KEY_LEN + 1];
+  int8_t   clearFiles;
 } SWalCfg;
 
 typedef struct {
@@ -145,17 +147,18 @@ typedef struct SWalReader SWalReader;
 
 // todo hide this struct
 struct SWalReader {
-  SWal          *pWal;
-  int64_t        readerId;
-  TdFilePtr      pLogFile;
-  TdFilePtr      pIdxFile;
-  int64_t        curFileFirstVer;
-  int64_t        curVersion;
-  int64_t        skipToVersion; // skip data and jump to destination version, usually used by stream resume ignoring untreated data
+  SWal     *pWal;
+  int64_t   readerId;
+  TdFilePtr pLogFile;
+  TdFilePtr pIdxFile;
+  int64_t   curFileFirstVer;
+  int64_t   curVersion;
+  int64_t skipToVersion;  // skip data and jump to destination version, usually used by stream resume ignoring untreated
+                          // data
   int64_t        capacity;
   TdThreadMutex  mutex;
   SWalFilterCond cond;
-  SWalCkHead *pHead;
+  SWalCkHead    *pHead;
 };
 
 // module initialization
@@ -198,7 +201,7 @@ SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond, int64_t id);
 void        walCloseReader(SWalReader *pRead);
 void        walReadReset(SWalReader *pReader);
 int32_t     walReadVer(SWalReader *pRead, int64_t ver);
-void        decryptBody(SWalCfg* cfg, SWalCkHead* pHead, int32_t plainBodyLen, const char* func);
+void        decryptBody(SWalCfg *cfg, SWalCkHead *pHead, int32_t plainBodyLen, const char *func);
 int32_t     walReaderSeekVer(SWalReader *pRead, int64_t ver);
 int32_t     walNextValidMsg(SWalReader *pRead);
 int64_t     walReaderGetCurrentVer(const SWalReader *pReader);
@@ -206,7 +209,7 @@ int64_t     walReaderGetValidFirstVer(const SWalReader *pReader);
 int64_t     walReaderGetSkipToVersion(SWalReader *pReader);
 void        walReaderSetSkipToVersion(SWalReader *pReader, int64_t ver);
 void        walReaderValidVersionRange(SWalReader *pReader, int64_t *sver, int64_t *ever);
-void        walReaderVerifyOffset(SWalReader *pWalReader, STqOffsetVal* pOffset);
+void        walReaderVerifyOffset(SWalReader *pWalReader, STqOffsetVal *pOffset);
 
 // only for tq usage
 int32_t walFetchHead(SWalReader *pRead, int64_t ver);

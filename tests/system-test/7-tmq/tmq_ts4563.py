@@ -109,7 +109,7 @@ class TDTestCase:
             params = new_multi_binds(2)
             params[0].timestamp((1626861392589, 1626861392590))
             params[1].int([3, None])
-
+      
             # print(type(stmt))
             tdLog.debug("bind_param_batch start")
             stmt.bind_param_batch(params)

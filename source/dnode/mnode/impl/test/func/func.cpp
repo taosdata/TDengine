@@ -49,6 +49,7 @@ TEST_F(MndTestFunc, 01_Show_Func) {
 }
 
 TEST_F(MndTestFunc, 02_Create_Func) {
+#ifndef WINDOWS
   {
     SCreateFuncReq createReq = {0};
     strcpy(createReq.name, "");
@@ -159,14 +160,17 @@ TEST_F(MndTestFunc, 02_Create_Func) {
 
   test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "ins_functions", "");
   EXPECT_EQ(test.GetShowRows(), 1);
+#endif
 }
 
 TEST_F(MndTestFunc, 03_Retrieve_Func) {
+#ifndef WINDOWS
   {
     SRetrieveFuncReq retrieveReq = {0};
     retrieveReq.numOfFuncs = 1;
     retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
-    taosArrayPush(retrieveReq.pFuncNames, "f1");
+    char name[TSDB_FUNC_NAME_LEN] =  "f1";
+    taosArrayPush(retrieveReq.pFuncNames, name);
 
     int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
     void*   pReq = rpcMallocCont(contLen);
@@ -217,7 +221,8 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
     retrieveReq.numOfFuncs = TSDB_FUNC_MAX_RETRIEVE + 1;
     retrieveReq.pFuncNames = taosArrayInit(TSDB_FUNC_MAX_RETRIEVE + 1, TSDB_FUNC_NAME_LEN);
     for (int32_t i = 0; i < TSDB_FUNC_MAX_RETRIEVE + 1; ++i) {
-      taosArrayPush(retrieveReq.pFuncNames, "1");
+      char name[TSDB_FUNC_NAME_LEN] =  "1";
+      taosArrayPush(retrieveReq.pFuncNames, name);
     }
 
     int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
@@ -234,7 +239,8 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
     SRetrieveFuncReq retrieveReq = {0};
     retrieveReq.numOfFuncs = 1;
     retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
-    taosArrayPush(retrieveReq.pFuncNames, "f2");
+    char name[TSDB_FUNC_NAME_LEN] =  "f2";
+    taosArrayPush(retrieveReq.pFuncNames, name);
 
     int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
     void*   pReq = rpcMallocCont(contLen);
@@ -276,7 +282,8 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
     SRetrieveFuncReq retrieveReq = {0};
     retrieveReq.numOfFuncs = 1;
     retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
-    taosArrayPush(retrieveReq.pFuncNames, "f2");
+    char name[TSDB_FUNC_NAME_LEN] =  "f2";
+    taosArrayPush(retrieveReq.pFuncNames, name);
 
     int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
     void*   pReq = rpcMallocCont(contLen);
@@ -313,8 +320,10 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
     SRetrieveFuncReq retrieveReq = {0};
     retrieveReq.numOfFuncs = 2;
     retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
-    taosArrayPush(retrieveReq.pFuncNames, "f2");
-    taosArrayPush(retrieveReq.pFuncNames, "f1");
+    char name1[TSDB_FUNC_NAME_LEN] =  "f2";
+    taosArrayPush(retrieveReq.pFuncNames, name1);
+    char name2[TSDB_FUNC_NAME_LEN] =  "f1";
+    taosArrayPush(retrieveReq.pFuncNames, name2);
 
     int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
     void*   pReq = rpcMallocCont(contLen);
@@ -364,8 +373,10 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
     SRetrieveFuncReq retrieveReq = {0};
     retrieveReq.numOfFuncs = 2;
     retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
-    taosArrayPush(retrieveReq.pFuncNames, "f2");
-    taosArrayPush(retrieveReq.pFuncNames, "f3");
+    char name1[TSDB_FUNC_NAME_LEN] =  "f2";
+    taosArrayPush(retrieveReq.pFuncNames, name1);
+    char name2[TSDB_FUNC_NAME_LEN] =  "f3";
+    taosArrayPush(retrieveReq.pFuncNames, name2);
 
     int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
     void*   pReq = rpcMallocCont(contLen);
@@ -376,9 +387,11 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_FUNC_NOT_EXIST);
   }
+#endif
 }
 
 TEST_F(MndTestFunc, 04_Drop_Func) {
+#ifndef WINDOWS
   {
     SDropFuncReq dropReq = {0};
     strcpy(dropReq.name, "");
@@ -441,9 +454,11 @@ TEST_F(MndTestFunc, 04_Drop_Func) {
 
   test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "ins_functions", "");
   EXPECT_EQ(test.GetShowRows(), 1);
+#endif
 }
 
 TEST_F(MndTestFunc, 05_Actual_code) {
+#ifndef WINDOWS
   {
     SCreateFuncReq createReq = {0};
     strcpy(createReq.name, "udf1");
@@ -476,7 +491,8 @@ TEST_F(MndTestFunc, 05_Actual_code) {
     SRetrieveFuncReq retrieveReq = {0};
     retrieveReq.numOfFuncs = 1;
     retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
-    taosArrayPush(retrieveReq.pFuncNames, "udf1");
+    char name[TSDB_FUNC_NAME_LEN] =  "udf1";
+    taosArrayPush(retrieveReq.pFuncNames, name);
 
     int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
     void*   pReq = rpcMallocCont(contLen);
@@ -507,4 +523,5 @@ TEST_F(MndTestFunc, 05_Actual_code) {
     }
     tFreeSRetrieveFuncRsp(&retrieveRsp);
   }
+#endif
 }

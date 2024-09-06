@@ -1,26 +1,26 @@
 import taos
 
-conn = taos.connect(
-    host="localhost",
-    user="root",
-    password="taosdata",
-    port=6030,
-)
+conn = None
+host = "localhost"
+port = 6030
+try:
+    conn = taos.connect(host=host,
+                        port=port,
+                        user="root",
+                        password="taosdata")
 
-db = "power"
+    # create database
+    rowsAffected = conn.execute(f"CREATE DATABASE IF NOT EXISTS power")
+    print(f"Create database power successfully, rowsAffected: {rowsAffected}");
+    
+    # create super table
+    rowsAffected = conn.execute(
+        "CREATE TABLE IF NOT EXISTS power.meters (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(16))"
+    )
+    print(f"Create stable power.meters successfully, rowsAffected: {rowsAffected}");
 
-conn.execute(f"DROP DATABASE IF EXISTS {db}")
-conn.execute(f"CREATE DATABASE {db}")
-
-# change database. same as execute "USE db"
-conn.select_db(db)
-
-# create super table
-conn.execute(
-    "CREATE TABLE `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(16))"
-)
-
-# create table
-conn.execute("CREATE TABLE `d0` USING `meters` TAGS(0, 'Los Angles')")
-
-conn.close()
+except Exception as err:
+    print(f"Failed to create database power or stable meters, ErrMessage:{err}") 
+finally:
+    if conn:
+        conn.close()       

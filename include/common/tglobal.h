@@ -24,10 +24,11 @@
 extern "C" {
 #endif
 
+#define SLOW_LOG_TYPE_NULL   0x0
 #define SLOW_LOG_TYPE_QUERY  0x1
 #define SLOW_LOG_TYPE_INSERT 0x2
 #define SLOW_LOG_TYPE_OTHERS 0x4
-#define SLOW_LOG_TYPE_ALL    0xFFFFFFFF
+#define SLOW_LOG_TYPE_ALL    0x7
 
 typedef enum {
   DND_CA_SM4 = 1,
@@ -85,7 +86,8 @@ extern int32_t tsNumOfQnodeQueryThreads;
 extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeStreamThreads;
 extern int32_t tsNumOfSnodeWriteThreads;
-extern int64_t tsRpcQueueMemoryAllowed;
+extern int64_t tsQueueMemoryAllowed;
+extern int32_t tsRetentionSpeedLimitMB;
 
 // sync raft
 extern int32_t tsElectInterval;
@@ -132,7 +134,6 @@ extern uint16_t tsMonitorPort;
 extern int32_t  tsMonitorMaxLogs;
 extern bool     tsMonitorComp;
 extern bool     tsMonitorLogProtocol;
-extern int32_t  tsMonitorIntervalForBasic;
 extern bool     tsMonitorForceV2;
 
 // audit
@@ -176,7 +177,10 @@ extern int32_t tsMaxRetryWaitTime;
 extern bool    tsUseAdapter;
 extern int32_t tsMetaCacheMaxSize;
 extern int32_t tsSlowLogThreshold;
+extern int32_t tsSlowLogThresholdTest;
+extern char    tsSlowLogExceptDb[];
 extern int32_t tsSlowLogScope;
+extern int32_t tsSlowLogMaxLen;
 extern int32_t tsTimeSeriesThreshold;
 extern bool    tsMultiResultFunctionStarReturnTags;
 
@@ -235,6 +239,7 @@ extern int32_t tsMqRebalanceInterval;
 extern int32_t tsStreamCheckpointInterval;
 extern float   tsSinkDataRate;
 extern int32_t tsStreamNodeCheckInterval;
+extern int32_t tsMaxConcurrentCheckpoint;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushIntervalSec;
 extern int32_t tsTtlBatchDropNum;
@@ -257,8 +262,10 @@ extern bool tsExperimental;
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
+int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd,
+                      const char *envFile, char *apolloUrl, SArray *pArgs);
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
-                    bool tsc, bool isDumpCfg);
+                    bool tsc);
 void    taosCleanupCfg();
 
 int32_t taosCfgDynamicOptions(SConfig *pCfg, const char *name, bool forServer);
@@ -269,6 +276,7 @@ void   taosSetGlobalDebugFlag(int32_t flag);
 void   taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal);
 void   taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
 int8_t taosGranted(int8_t type);
+int32_t taosSetSlowLogScope(char *pScope);
 
 #ifdef __cplusplus
 }

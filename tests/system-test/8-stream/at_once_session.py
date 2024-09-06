@@ -15,9 +15,12 @@ class TDTestCase:
 
     def at_once_session(self, session, ignore_expired=None, ignore_update=None, partition="tbname", delete=False, fill_history_value=None, case_when=None, subtable=True):
         tdLog.info(f"*** testing stream at_once+interval: session: {session}, ignore_expired: {ignore_expired}, ignore_update: {ignore_update}, partition: {partition}, delete: {delete}, fill_history: {fill_history_value}, case_when: {case_when}, subtable: {subtable} ***")
+        col_value_type = "Incremental" if partition=="c1" else "random"
+        custom_col_index = 1 if partition=="c1" else None
+        self.tdCom.custom_col_val = 0
         self.delete = delete
         self.tdCom.case_name = sys._getframe().f_code.co_name
-        self.tdCom.prepare_data(session=session, fill_history_value=fill_history_value)
+        self.tdCom.prepare_data(session=session, fill_history_value=fill_history_value, custom_col_index=custom_col_index, col_value_type=col_value_type)
         self.stb_name = self.tdCom.stb_name.replace(f"{self.tdCom.dbname}.", "")
         self.ctb_name = self.tdCom.ctb_name.replace(f"{self.tdCom.dbname}.", "")
         self.tb_name = self.tdCom.tb_name.replace(f"{self.tdCom.dbname}.", "")
@@ -79,11 +82,11 @@ class TDTestCase:
             if i == 0:
                 record_window_close_ts = window_close_ts
             for ts_value in [self.tdCom.date_time, window_close_ts]:
-                self.tdCom.sinsert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=True)
-                self.tdCom.sinsert_rows(tbname=self.tb_name, ts_value=ts_value, need_null=True)
+                self.tdCom.sinsert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=True, custom_col_index=custom_col_index, col_value_type=col_value_type)
+                self.tdCom.sinsert_rows(tbname=self.tb_name, ts_value=ts_value, need_null=True, custom_col_index=custom_col_index, col_value_type=col_value_type)
                 if self.tdCom.update and i%2 == 0:
-                    self.tdCom.sinsert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=True)
-                    self.tdCom.sinsert_rows(tbname=self.tb_name, ts_value=ts_value, need_null=True)
+                    self.tdCom.sinsert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=True, custom_col_index=custom_col_index, col_value_type=col_value_type)
+                    self.tdCom.sinsert_rows(tbname=self.tb_name, ts_value=ts_value, need_null=True, custom_col_index=custom_col_index, col_value_type=col_value_type)
                 if self.delete and i%2 != 0:
                     dt = f'cast({self.tdCom.date_time-1} as timestamp)'
                     self.tdCom.sdelete_rows(tbname=self.ctb_name, start_ts=dt)
@@ -166,6 +169,7 @@ class TDTestCase:
                 self.tdCom.sdelete_rows(tbname=self.tb_name, start_ts=self.tdCom.time_cast(self.tdCom.record_history_ts, "-"))
 
         if self.tdCom.subtable:
+            group_id = self.tdCom.get_group_id_from_stb(f'{self.ctb_name}_output')
             tdSql.query(f'select * from {self.ctb_name}')
             ptn_counter = 0
             for c1_value in tdSql.queryResult:
@@ -182,11 +186,11 @@ class TDTestCase:
                             tbname = self.tdCom.get_subtable_wait(f'{self.ctb_name}_{self.tdCom.subtable_prefix}{partition_elm_alias}{self.tdCom.subtable_suffix}')
                             tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition == "tbname" and ptn_counter == 0:
-                        tbname = self.tdCom.get_subtable_wait(f'{self.ctb_name}_{self.tdCom.subtable_prefix}{self.ctb_name}{self.tdCom.subtable_suffix}')
+                        tbname = self.tdCom.get_subtable_wait(f'{self.ctb_name}_{self.tdCom.subtable_prefix}{self.ctb_name}{self.tdCom.subtable_suffix}_{self.ctb_name}_output_{group_id}')
                         tdSql.query(f'select count(*) from `{tbname}`')
                         ptn_counter += 1
                     tdSql.checkEqual(tdSql.queryResult[0][0] > 0, True) if subtable is not None else tdSql.checkEqual(tdSql.queryResult[0][0] >= 0, True)
-
+            group_id = self.tdCom.get_group_id_from_stb(f'{self.tb_name}_output')
             tdSql.query(f'select * from {self.tb_name}')
             ptn_counter = 0
             for c1_value in tdSql.queryResult:
@@ -203,7 +207,7 @@ class TDTestCase:
                             tbname = self.tdCom.get_subtable_wait(f'{self.tb_name}_{self.tdCom.subtable_prefix}{partition_elm_alias}{self.tdCom.subtable_suffix}')
                             tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition == "tbname" and ptn_counter == 0:
-                        tbname = self.tdCom.get_subtable_wait(f'{self.tb_name}_{self.tdCom.subtable_prefix}{self.tb_name}{self.tdCom.subtable_suffix}')
+                        tbname = self.tdCom.get_subtable_wait(f'{self.tb_name}_{self.tdCom.subtable_prefix}{self.tb_name}{self.tdCom.subtable_suffix}_{self.tb_name}_output_{group_id}')
                         tdSql.query(f'select count(*) from `{tbname}`')
                         ptn_counter += 1
 

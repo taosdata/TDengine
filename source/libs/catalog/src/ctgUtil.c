@@ -410,7 +410,7 @@ void ctgFreeHandle(SCatalog* pCtg) {
     return;
   }
 
-  uint64_t clusterId = pCtg->clusterId;
+  int64_t clusterId = pCtg->clusterId;
 
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);
@@ -498,7 +498,7 @@ void ctgClearHandle(SCatalog* pCtg) {
     return;
   }
 
-  uint64_t clusterId = pCtg->clusterId;
+  int64_t clusterId = pCtg->clusterId;
   
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);
@@ -2416,6 +2416,21 @@ int32_t dupViewMetaFromRsp(SViewMetaRsp* pRsp, SViewMeta* pViewMeta) {
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
   memcpy(pViewMeta->pSchema, pRsp->pSchema, pViewMeta->numOfCols * sizeof(SSchema));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgBuildUseDbOutput(SUseDbOutput** ppOut, SDBVgInfo* vgInfo) {
+  *ppOut = taosMemoryCalloc(1, sizeof(SUseDbOutput));
+  if (NULL == *ppOut) {
+    CTG_ERR_RET(terrno);
+  }
+
+  int32_t code = cloneDbVgInfo(vgInfo, &(*ppOut)->dbVgroup);
+  if (code) {
+    taosMemoryFreeClear(*ppOut);
+    CTG_RET(code);
+  }
 
   return TSDB_CODE_SUCCESS;
 }

@@ -194,6 +194,10 @@ class TDTestCase:
         tdSql.checkData(10, 1, 10)
         tdSql.checkData(11, 1, 10)
 
+        sql = "select _wstart, first(ts), last(ts) from meters where ts >= '2018-09-20 00:00:00.000' and ts < '2018-09-20 01:00:00.000' partition by t1 interval(5m) fill(NULL)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(60)
+
     def run(self):
         self.prepareTestEnv()
         self.test_partition_by_with_interval_fill_prev_new_group_fill_error()

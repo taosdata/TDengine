@@ -1170,6 +1170,7 @@ bool shellGetGrantInfo(char* buf) {
         code != TSDB_CODE_PAR_PERMISSION_DENIED) {
       fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\r\n\r\n", code, taos_errstr(tres));
     }
+    taos_free_result(tres);
     return community;
   }
 
@@ -1189,12 +1190,11 @@ bool shellGetGrantInfo(char* buf) {
       fprintf(stderr, "\r\nFailed to get grant information from server. Abort.\r\n");
       exit(0);
     }
-
-    char serverVersion[32] = {0};
+    char serverVersion[64] = {0};
     char expiretime[32] = {0};
     char expired[32] = {0};
 
-    memcpy(serverVersion, row[0], fields[0].bytes);
+    tstrncpy(serverVersion, row[0], 64);
     memcpy(expiretime, row[1], fields[1].bytes);
     memcpy(expired, row[2], fields[2].bytes);
 
@@ -1202,10 +1202,10 @@ bool shellGetGrantInfo(char* buf) {
       community = true;
     } else if (strcmp(expiretime, "unlimited") == 0) {
       community = false;
-      sprintf(buf, "Server is Enterprise %s Edition, %s and will never expire.\r\n", serverVersion, sinfo);
+      sprintf(buf, "Server is %s, %s and will never expire.\r\n", serverVersion, sinfo);
     } else {
       community = false;
-      sprintf(buf, "Server is Enterprise %s Edition, %s and will expire at %s.\r\n", serverVersion, sinfo,
+      sprintf(buf, "Server is %s, %s and will expire at %s.\r\n", serverVersion, sinfo,
               expiretime);
     }
 

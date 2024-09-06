@@ -66,6 +66,7 @@ typedef struct {
   int32_t       lines;
   int32_t       flag;
   int32_t       openInProgress;
+  int64_t       lastKeepFileSec;
   pid_t         pid;
   char          logName[LOG_FILE_NAME_LEN];
   SLogBuff     *logHandle;
@@ -163,7 +164,10 @@ int32_t taosInitSlowLog() {
   if (strlen(tsLogDir) != 0) {
     char lastC = tsLogDir[strlen(tsLogDir) - 1];
     if (lastC == '\\' || lastC == '/') {
-      snprintf(fullName, PATH_MAX, "%s" "%s", tsLogDir, logFileName);
+      snprintf(fullName, PATH_MAX,
+               "%s"
+               "%s",
+               tsLogDir, logFileName);
     } else {
       snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logFileName);
     }
@@ -192,7 +196,10 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles) {
   if (strlen(tsLogDir) != 0) {
     char lastC = tsLogDir[strlen(tsLogDir) - 1];
     if (lastC == '\\' || lastC == '/') {
-      snprintf(fullName, PATH_MAX, "%s" "%s", tsLogDir, logName);
+      snprintf(fullName, PATH_MAX,
+               "%s"
+               "%s",
+               tsLogDir, logName);
     } else {
       snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logName);
     }
@@ -267,19 +274,33 @@ static void taosUnLockLogFile(TdFilePtr pFile) {
   }
 }
 
-static void taosKeepOldLog(char *oldName) {
-  if (tsLogKeepDays == 0) return;
+static void taosReserveOldLog(char *oldName, char *keepName) {
+  if (tsLogKeepDays <= 0) {
+    keepName[0] = 0;
+    return;
+  }
 
+  int32_t code = 0;
   int64_t fileSec = taosGetTimestampSec();
-  char    fileName[LOG_FILE_NAME_LEN + 20];
-  snprintf(fileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64, tsLogObj.logName, fileSec);
+  if (tsLogObj.lastKeepFileSec < fileSec) {
+    tsLogObj.lastKeepFileSec = fileSec;
+  } else {
+    fileSec = ++tsLogObj.lastKeepFileSec;
+  }
+  snprintf(keepName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64, tsLogObj.logName, fileSec);
+  if ((code = taosRenameFile(oldName, keepName))) {
+    keepName[0] = 0;
+    uError("failed to rename file:%s to %s since %s", oldName, keepName, tstrerror(code));
+  }
+}
 
-  (void)taosRenameFile(oldName, fileName);
-
-  char compressFileName[LOG_FILE_NAME_LEN + 20];
-  snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64 ".gz", tsLogObj.logName, fileSec);
-  if (taosCompressFile(fileName, compressFileName) == 0) {
-    (void)taosRemoveFile(fileName);
+static void taosKeepOldLog(char *oldName) {
+  if (oldName[0] != 0) {
+    char compressFileName[LOG_FILE_NAME_LEN + 20];
+    snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.gz", oldName);
+    if (taosCompressFile(oldName, compressFileName) == 0) {
+      (void)taosRemoveFile(oldName);
+    }
   }
 
   if (tsLogKeepDays > 0) {
@@ -316,22 +337,22 @@ static OldFileKeeper *taosOpenNewFile() {
   tsLogObj.logHandle->pFile = pFile;
   tsLogObj.lines = 0;
   tsLogObj.openInProgress = 0;
-  OldFileKeeper* oldFileKeeper = taosMemoryMalloc(sizeof(OldFileKeeper));
+  OldFileKeeper *oldFileKeeper = taosMemoryMalloc(sizeof(OldFileKeeper));
   if (oldFileKeeper == NULL) {
     uError("create old log keep info faild! mem is not enough.");
     return NULL;
   }
   oldFileKeeper->pOldFile = pOldFile;
-  memcpy(oldFileKeeper->keepName, keepName, LOG_FILE_NAME_LEN + 20);
+  taosReserveOldLog(keepName, oldFileKeeper->keepName);
 
   uInfo("   new log file:%d is opened", tsLogObj.flag);
   uInfo("==================================");
   return oldFileKeeper;
 }
 
-static void *taosThreadToCloseOldFile(void* param) {
-  if(!param)  return NULL;
-  OldFileKeeper* oldFileKeeper = (OldFileKeeper*)param;
+static void *taosThreadToCloseOldFile(void *param) {
+  if (!param) return NULL;
+  OldFileKeeper *oldFileKeeper = (OldFileKeeper *)param;
   taosSsleep(20);
   taosCloseLogByFd(oldFileKeeper->pOldFile);
   taosKeepOldLog(oldFileKeeper->keepName);
@@ -351,7 +372,7 @@ static int32_t taosOpenNewLogFile() {
     taosThreadAttrInit(&attr);
     taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_DETACHED);
 
-    OldFileKeeper* oldFileKeeper = taosOpenNewFile();
+    OldFileKeeper *oldFileKeeper = taosOpenNewFile();
     taosThreadCreate(&thread, &attr, taosThreadToCloseOldFile, oldFileKeeper);
     taosThreadAttrDestroy(&attr);
   }
@@ -841,7 +862,7 @@ static void *taosAsyncOutputLog(void *param) {
   return NULL;
 }
 
-bool taosAssertDebug(bool condition, const char *file, int32_t line, const char *format, ...) {
+bool taosAssertDebug(bool condition, const char *file, int32_t line, bool core, const char *format, ...) {
   if (condition) return false;
 
   const char *flags = "UTL FATAL ";
@@ -861,7 +882,7 @@ bool taosAssertDebug(bool condition, const char *file, int32_t line, const char 
   taosPrintLog(flags, level, dflag, "tAssert at file %s:%d exit:%d", file, line, tsAssert);
   taosPrintTrace(flags, level, dflag, -1);
 
-  if (tsAssert) {
+  if (tsAssert || core) {
     taosCloseLog();
     taosMsleep(300);
 

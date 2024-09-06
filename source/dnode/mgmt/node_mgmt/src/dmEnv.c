@@ -110,10 +110,8 @@ static bool dmCheckDiskSpace() {
 
 int32_t dmDiskInit() {
   SDnode  *pDnode = dmInstance();
-  SDiskCfg dCfg = {0};
+  SDiskCfg dCfg = {.level = 0, .primary = 1, .disable = 0};
   tstrncpy(dCfg.dir, tsDataDir, TSDB_FILENAME_LEN);
-  dCfg.level = 0;
-  dCfg.primary = 1;
   SDiskCfg *pDisks = tsDiskCfg;
   int32_t   numOfDisks = tsDiskCfgNum;
   if (numOfDisks <= 0 || pDisks == NULL) {
@@ -312,7 +310,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
 
   pWrapper = &pDnode->wrappers[ntype];
   if (taosMkDir(pWrapper->path) != 0) {
-    dmReleaseWrapper(pWrapper);
+    taosThreadMutexUnlock(&pDnode->mutex);
     terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to create dir:%s since %s", pWrapper->path, terrstr());
     return -1;
@@ -396,7 +394,6 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .processDropNodeFp = dmProcessDropNodeReq,
       .sendMonitorReportFp = dmSendMonitorReport,
       .sendAuditRecordFp = auditSendRecordsInBatch,
-      .sendMonitorReportFpBasic = dmSendMonitorReportBasic,
       .getVnodeLoadsFp = dmGetVnodeLoads,
       .getVnodeLoadsLiteFp = dmGetVnodeLoadsLite,
       .getMnodeLoadsFp = dmGetMnodeLoads,
@@ -415,3 +412,7 @@ void dmReportStartup(const char *pName, const char *pDesc) {
 }
 
 int64_t dmGetClusterId() { return globalDnode.data.clusterId; }
+
+bool dmReadyForTest() {
+  return dmInstance()->data.dnodeVer > 0;
+}

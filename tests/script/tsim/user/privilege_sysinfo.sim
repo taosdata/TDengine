@@ -67,6 +67,7 @@ sql_error drop snode on dnode 1
 
 sql_error redistribute vgroup 2 dnode 1 dnode 2
 sql_error balance vgroup
+sql_error balance vgroup leader
 
 sql_error kill transaction 1
 sql_error kill connection 1

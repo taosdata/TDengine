@@ -70,7 +70,6 @@ char* qExplainGetTimerangeTargetStr(int32_t target) {
   return targetName[target];
 }
 
-
 void qExplainFreeResNode(SExplainResNode *resNode) {
   if (NULL == resNode) {
     return;
@@ -1942,7 +1941,7 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
 
   pBlock->info.rows = rowNum;
 
-  int32_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+  int32_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
 
   SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)taosMemoryCalloc(1, rspSize);
   if (NULL == rsp) {
@@ -1954,9 +1953,13 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   rsp->completed = 1;
   rsp->numOfRows = htobe64((int64_t)rowNum);
 
-  int32_t len = blockEncode(pBlock, rsp->data, taosArrayGetSize(pBlock->pDataBlock));
+  int32_t len = blockEncode(pBlock, rsp->data + PAYLOAD_PREFIX_LEN, taosArrayGetSize(pBlock->pDataBlock));
 
   rsp->compLen = htonl(len);
+  rsp->payloadLen = htonl(len);
+  rsp->compressed = 0;
+
+  SET_PAYLOAD_LEN(rsp->data, len, len);
 
   blockDataDestroy(pBlock);
 

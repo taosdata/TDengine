@@ -834,7 +834,7 @@ int32_t catalogInit(SCatalogCfg* cfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle) {
+int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
   if (NULL == catalogHandle) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
@@ -1901,6 +1901,18 @@ int32_t catalogGetTsma(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTs
 
   int32_t code = 0;
   CTG_ERR_JRET(ctgGetTsma(pCtg, pConn, pTsmaName, pTsma));
+
+_return:
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogAsyncUpdateDbTsmaVersion(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId) {
+  CTG_API_ENTER();
+  if (!pCtg || !dbFName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  int32_t code = 0;
+  CTG_ERR_JRET(ctgUpdateDbTsmaVersionEnqueue(pCtg, tsmaVersion, dbFName, dbId, false));
 
 _return:
   CTG_API_LEAVE(code);

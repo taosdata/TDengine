@@ -434,8 +434,8 @@ void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, SSDataBlock* pB
 
       if (pFuncParam->type == FUNC_PARAM_TYPE_COLUMN) {
         int32_t slotId = pFuncParam->pCol->slotId;
-        pInput->pColumnDataAgg[j] = pBlock->pBlockAgg[slotId];
-        if (pInput->pColumnDataAgg[j] == NULL) {
+        pInput->pColumnDataAgg[j] = &pBlock->pBlockAgg[slotId];
+        if (pInput->pColumnDataAgg[j]->colId == -1) {
           pInput->colDataSMAIsSet = false;
         }
 
@@ -468,7 +468,7 @@ STimeWindow getAlignQueryTimeWindow(const SInterval* pInterval, int64_t key) {
   return win;
 }
 
-void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowEntryInfoOffset) {
+int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowEntryInfoOffset) {
   bool init = false;
   for (int32_t i = 0; i < numOfOutput; ++i) {
     pCtx[i].resultInfo = getResultEntryInfo(pResult, i, rowEntryInfoOffset);
@@ -487,7 +487,11 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
 
     if (!pResInfo->initialized) {
       if (pCtx[i].functionId != -1) {
-        pCtx[i].fpSet.init(&pCtx[i], pResInfo);
+        bool ini = pCtx[i].fpSet.init(&pCtx[i], pResInfo);
+        if (!ini && fmIsUserDefinedFunc(pCtx[i].functionId)){
+          pResInfo->initialized = false;
+          return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
+        }
       } else {
         pResInfo->initialized = true;
       }
@@ -495,6 +499,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
       init = true;
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
@@ -598,7 +603,8 @@ void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultR
 
     pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
     if (pCtx[j].fpSet.finalize) {
-      if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_key") == 0) {
+      if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_key") == 0 ||
+      strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_const_value") == 0) {
         // for groupkey along with functions that output multiple lines(e.g. Histogram)
         // need to match groupkey result for each output row of that function.
         if (pCtx[j].resultInfo->numOfRes != 0) {
@@ -904,12 +910,21 @@ void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock) {
   initResultRowInfo(&pInfo->resultRowInfo);
 }
 
-static void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
+static void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOfOutput) {
   if (pCtx == NULL) {
     return NULL;
   }
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
+    if (pExpr != NULL) {
+      SExprInfo* pExprInfo = &pExpr[i];
+      for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
+        if (pExprInfo->base.pParam[j].type == FUNC_PARAM_TYPE_VALUE) {
+          taosMemoryFree(pCtx[i].input.pData[j]);
+          taosMemoryFree(pCtx[i].input.pColumnDataAgg[j]);
+        }
+      }
+    }
     for (int32_t j = 0; j < pCtx[i].numOfParams; ++j) {
       taosVariantDestroy(&pCtx[i].param[j].param);
     }
@@ -942,7 +957,7 @@ int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, S
 }
 
 void cleanupExprSupp(SExprSupp* pSupp) {
-  destroySqlFunctionCtx(pSupp->pCtx, pSupp->numOfExprs);
+  destroySqlFunctionCtx(pSupp->pCtx, pSupp->pExprInfo, pSupp->numOfExprs);
   if (pSupp->pExprInfo != NULL) {
     destroyExprInfo(pSupp->pExprInfo, pSupp->numOfExprs);
     taosMemoryFreeClear(pSupp->pExprInfo);

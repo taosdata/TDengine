@@ -90,21 +90,6 @@ static void *mndBuildTimerMsg(int32_t *pContLen) {
   return pReq;
 }
 
-static void *mndBuildCheckpointTickMsg(int32_t *pContLen, int64_t sec) {
-  SMStreamTickReq timerReq = {
-      .tick = sec,
-  };
-
-  int32_t contLen = tSerializeSMStreamTickMsg(NULL, 0, &timerReq);
-  if (contLen <= 0) return NULL;
-  void *pReq = rpcMallocCont(contLen);
-  if (pReq == NULL) return NULL;
-
-  tSerializeSMStreamTickMsg(pReq, contLen, &timerReq);
-  *pContLen = contLen;
-  return pReq;
-}
-
 static void mndPullupTrans(SMnode *pMnode) {
   mTrace("pullup trans msg");
   int32_t contLen = 0;
@@ -137,7 +122,7 @@ static void mndPullupTrimDb(SMnode *pMnode) {
   mTrace("pullup s3migrate");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_S3MIGRATE_DB_TIMER, .pCont = pReq, .contLen = contLen};
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRIM_DB_TIMER, .pCont = pReq, .contLen = contLen};
   tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
 }
 
@@ -145,7 +130,7 @@ static void mndPullupS3MigrateDb(SMnode *pMnode) {
   mTrace("pullup trim");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRIM_DB_TIMER, .pCont = pReq, .contLen = contLen};
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_S3MIGRATE_DB_TIMER, .pCont = pReq, .contLen = contLen};
   tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
 }
 
@@ -174,21 +159,12 @@ static void mndCalMqRebalance(SMnode *pMnode) {
   }
 }
 
-static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
-  int32_t contLen = 0;
-  void   *pReq = mndBuildCheckpointTickMsg(&contLen, sec);
-  if (pReq != NULL) {
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_CHECKPOINT_TIMER, .pCont = pReq, .contLen = contLen};
-    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
-  }
-}
-
-static void mndStreamCheckpointRemain(SMnode *pMnode) {
-  int32_t contLen = 0;
-  void   *pReq = mndBuildCheckpointTickMsg(&contLen, 0);
-  if (pReq != NULL) {
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_CHECKPOINT_CANDIDITATE, .pCont = pReq, .contLen = contLen};
-    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+static void mndStreamCheckpointTimer(SMnode *pMnode) {
+  SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
+  if (pMsg != NULL) {
+    int32_t size = sizeof(SMStreamDoCheckpointMsg);
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT, .pCont = pMsg, .contLen = size};
+    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
 }
 
@@ -334,6 +310,8 @@ static int32_t minCronTime() {
   min = TMIN(min, tsStreamCheckpointInterval);
   min = TMIN(min, 6);  // checkpointRemain
   min = TMIN(min, tsStreamNodeCheckInterval);
+  min = TMIN(min, tsArbHeartBeatIntervalSec);
+  min = TMIN(min, tsArbCheckSyncIntervalSec);
 
   int64_t telemInt = TMIN(60, (tsTelemInterval - 1));
   min = TMIN(min, telemInt);
@@ -367,12 +345,8 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     mndCalMqRebalance(pMnode);
   }
 
-  if (sec % tsStreamCheckpointInterval == 0) {
-    mndStreamCheckpointTick(pMnode, sec);
-  }
-
-  if (sec % 5 == 0) {
-    mndStreamCheckpointRemain(pMnode);
+  if (sec % 30 == 0) {  // send the checkpoint info every 30 sec
+    mndStreamCheckpointTimer(pMnode);
   }
 
   if (sec % tsStreamNodeCheckInterval == 0) {
@@ -390,6 +364,18 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % tsUptimeInterval == 0) {
     mndIncreaseUpTime(pMnode);
   }
+
+  if (sec % (tsArbHeartBeatIntervalSec) == 0) {
+    if (mndPullupArbHeartbeat(pMnode) != 0) {
+      mError("failed to pullup arb heartbeat, since:%s", terrstr());
+    }
+  }
+
+  if (sec % (tsArbCheckSyncIntervalSec) == 0) {
+    if (mndPullupArbCheckSync(pMnode) != 0) {
+      mError("failed to pullup arb check sync, since:%s", terrstr());
+    }
+  }
 }
 void mndDoTimerCheckTask(SMnode *pMnode, int64_t sec) {
   if (sec % (tsStatusInterval * 5) == 0) {
@@ -399,6 +385,7 @@ void mndDoTimerCheckTask(SMnode *pMnode, int64_t sec) {
     mndSyncCheckTimeout(pMnode);
   }
 }
+
 static void *mndThreadFp(void *param) {
   SMnode *pMnode = param;
   int64_t lastTime = 0;
@@ -421,18 +408,6 @@ static void *mndThreadFp(void *param) {
       continue;
     }
     mndDoTimerPullupTask(pMnode, sec);
-
-    if (sec % (tsArbHeartBeatIntervalSec) == 0) {
-      if (mndPullupArbHeartbeat(pMnode) != 0) {
-        mError("failed to pullup arb heartbeat, since:%s", terrstr());
-      }
-    }
-
-    if (sec % (tsArbCheckSyncIntervalSec) == 0) {
-      if (mndPullupArbCheckSync(pMnode) != 0) {
-        mError("failed to pullup arb check sync, since:%s", terrstr());
-      }
-    }
   }
 
   return NULL;
@@ -477,26 +452,23 @@ static int32_t mndCreateDir(SMnode *pMnode, const char *path) {
 static int32_t mndInitWal(SMnode *pMnode) {
   char path[PATH_MAX + 20] = {0};
   snprintf(path, sizeof(path), "%s%swal", pMnode->path, TD_DIRSEP);
-  SWalCfg cfg = {
-      .vgId = 1,
-      .fsyncPeriod = 0,
-      .rollPeriod = -1,
-      .segSize = -1,
-      .retentionPeriod = 0,
-      .retentionSize = 0,
-      .level = TAOS_WAL_FSYNC,
-      .encryptAlgorithm = 0,
-      .encryptKey = {0}
-  };
+  SWalCfg cfg = {.vgId = 1,
+                 .fsyncPeriod = 0,
+                 .rollPeriod = -1,
+                 .segSize = -1,
+                 .retentionPeriod = 0,
+                 .retentionSize = 0,
+                 .level = TAOS_WAL_FSYNC,
+                 .encryptAlgorithm = 0,
+                 .encryptKey = {0}};
 
 #if defined(TD_ENTERPRISE)
-  if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL){
-    cfg.encryptAlgorithm = (tsiEncryptScope & DND_CS_MNODE_WAL)? tsiEncryptAlgorithm : 0;
-    if(tsEncryptKey[0] == '\0'){
+  if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL) {
+    cfg.encryptAlgorithm = (tsiEncryptScope & DND_CS_MNODE_WAL) ? tsiEncryptAlgorithm : 0;
+    if (tsEncryptKey[0] == '\0') {
       terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       return -1;
-    }
-    else{
+    } else {
       strncpy(cfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
     }
   }
@@ -832,10 +804,9 @@ _OVER:
       pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER ||
       pMsg->msgType == TDMT_MND_TRIM_DB_TIMER || pMsg->msgType == TDMT_MND_UPTIME_TIMER ||
       pMsg->msgType == TDMT_MND_COMPACT_TIMER || pMsg->msgType == TDMT_MND_NODECHECK_TIMER ||
-      pMsg->msgType == TDMT_MND_GRANT_HB_TIMER || pMsg->msgType == TDMT_MND_STREAM_CHECKPOINT_CANDIDITATE ||
-      pMsg->msgType == TDMT_MND_STREAM_CHECKPOINT_TIMER || pMsg->msgType == TDMT_MND_STREAM_REQ_CHKPT ||
-      pMsg->msgType == TDMT_MND_S3MIGRATE_DB_TIMER ||
-      pMsg->msgType == TDMT_MND_ARB_HEARTBEAT_TIMER || pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER) {
+      pMsg->msgType == TDMT_MND_GRANT_HB_TIMER || pMsg->msgType == TDMT_MND_STREAM_REQ_CHKPT ||
+      pMsg->msgType == TDMT_MND_S3MIGRATE_DB_TIMER || pMsg->msgType == TDMT_MND_ARB_HEARTBEAT_TIMER ||
+      pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
            pMnode->stopped, state.restored, syncStr(state.state));
     return -1;
@@ -1074,6 +1045,11 @@ int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
   mTrace("mnode current syncState is %s, syncRestore:%d, syncTerm:%" PRId64 " ,roleTimeMs:%" PRId64,
          syncStr(pLoad->syncState), pLoad->syncRestore, pLoad->syncTerm, pLoad->roleTimeMs);
   return 0;
+}
+
+int64_t mndGetRoleTimeMs(SMnode *pMnode) {
+  SSyncState state = syncGetState(pMnode->syncMgmt.sync);
+  return state.roleTimeMs;
 }
 
 void mndSetRestored(SMnode *pMnode, bool restored) {

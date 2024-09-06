@@ -38,11 +38,12 @@ int64_t         tsTotalMemoryKB = 0;
 char           *tsProcPath = NULL;
 
 char tsSIMDEnable = 0;
-char tsSSE42Enable = 0;
-char tsAVXEnable = 0;
-char tsAVX2Enable = 0;
-char tsFMAEnable = 0;
 char tsAVX512Enable = 0;
+char tsSSE42Supported = 0;
+char tsAVXSupported = 0;
+char tsAVX2Supported = 0;
+char tsFMASupported = 0;
+char tsAVX512Supported = 0;
 
 void osDefaultInit() {
   taosSeedRand(taosSafeRand());
@@ -77,7 +78,9 @@ void osDefaultInit() {
   }
   strcpy(tsDataDir, TD_DATA_DIR_PATH);
   strcpy(tsLogDir, TD_LOG_DIR_PATH);
-  strcpy(tsTempDir, TD_TMP_DIR_PATH);
+  if(strlen(tsTempDir) == 0){
+    strcpy(tsTempDir, TD_TMP_DIR_PATH);
+  }
 }
 
 void osUpdate() {

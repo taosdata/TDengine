@@ -41,7 +41,36 @@ sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
 sql create stream stream_t1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamtST as select  _wstart, count(*) c1, sum(a) c2 ,  max(b)  c3 from st session(ts, 10s) ;
 
+print ====check task status start
+
+$loop_count = 0
+
+loopCheck:
+
 sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+print 1 select * from information_schema.ins_stream_tasks;
+sql select * from information_schema.ins_stream_tasks;
+
+if $rows == 0 then
+  print rows=$rows
+  goto loopCheck
+endi
+
+print 1 select * from information_schema.ins_stream_tasks where status != "ready";
+sql select * from information_schema.ins_stream_tasks where status != "ready";
+
+if $rows != 0 then
+  print rows=$rows
+  goto loopCheck
+endi
+
+print ====check task status end 
 
 sql insert into ts1 values(1648791211000,1,1,1) (1648791211005,1,1,1);
 sql insert into ts2 values(1648791221004,1,2,3) (1648791221008,2,2,3);
@@ -77,6 +106,75 @@ endi
 if $data03 != 7 then
   print ======$data03
   return -1
+endi
+
+print ===== step3
+
+sql create database test1  vgroups 4;
+sql use test1;
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table ts1 using st tags(1,1,1);
+sql create table ts2 using st tags(2,2,2);
+sql create stream stream_t2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamtST2 as select  _wstart, count(*) c1, sum(a) c2 ,  max(b)  c3 from st partition by a session(ts, 10s) ;
+
+print ====check task status start
+
+$loop_count = 0
+
+loopCheck1:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+print 1 select * from information_schema.ins_stream_tasks;
+sql select * from information_schema.ins_stream_tasks;
+
+if $rows == 0 then
+  print rows=$rows
+  goto loopCheck1
+endi
+
+print 1 select * from information_schema.ins_stream_tasks where status != "ready";
+sql select * from information_schema.ins_stream_tasks where status != "ready";
+
+if $rows != 0 then
+  print rows=$rows
+  goto loopCheck1
+endi
+
+print ====check task status end 
+
+sql insert into ts1 values(1648791201000,1,1,1) (1648791210000,1,1,1);
+sql insert into ts1 values(1648791211000,2,1,1) (1648791212000,2,1,1);
+sql insert into ts2 values(1648791211000,3,1,1) (1648791212000,3,1,1);
+
+sql delete from st where ts = 1648791211000;
+
+$loop_count = 0
+loop2:
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sleep 1000
+print 2 select * from streamtST2;
+sql select * from streamtST2;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print $data20 $data21 $data22 $data23
+print $data30 $data31 $data32 $data33
+print $data40 $data41 $data42 $data43
+
+if $rows != 3 then
+  print =====rows=$rows
+  goto loop2
 endi
 
 system sh/stop_dnodes.sh

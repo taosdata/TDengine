@@ -138,7 +138,6 @@ void initStreamExecInfo() {
 }
 
 void initNodeInfo() {
-  execInfo.pNodeList = taosArrayInit(4, sizeof(SNodeEntry));
   SNodeEntry entry = {0};
   entry.nodeId = 2;
   entry.stageUpdated = true;
@@ -207,27 +206,32 @@ TEST_F(StreamTest, kill_checkpoint_trans) {
 
   killAllCheckpointTrans(pMnode, &info);
 
-  SStreamObj stream;
-  memset(&stream, 0, sizeof(SStreamObj));
+  void* p = alloca(sizeof(SStreamObj) + sizeof(SSdbRow));
+  SSdbRow* pRow = static_cast<SSdbRow*>(p);
+  pRow->type = SDB_MAX;
 
-  stream.uid = defStreamId;
-  stream.lock = 0;
-  stream.tasks = taosArrayInit(1, POINTER_BYTES);
-  stream.pHTasksList = taosArrayInit(1, POINTER_BYTES);
+  SStreamObj* pStream = (SStreamObj*)((char*)p + sizeof(SSdbRow));
+
+  memset(pStream, 0, sizeof(SStreamObj));
+
+  pStream->uid = defStreamId;
+  pStream->lock = 0;
+  pStream->tasks = taosArrayInit(1, POINTER_BYTES);
+  pStream->pHTasksList = taosArrayInit(1, POINTER_BYTES);
 
   SArray* pLevel = taosArrayInit(1, POINTER_BYTES);
   SStreamTask* pTask = static_cast<SStreamTask*>(taosMemoryCalloc(1, sizeof(SStreamTask)));
   pTask->id.streamId = defStreamId;
   pTask->id.taskId = 1;
-  pTask->exec.qmsg = (char*)taosMemoryMalloc(1);
+  pTask->exec.qmsg = (char*)taosMemoryCalloc(1,1);
   taosThreadMutexInit(&pTask->lock, NULL);
 
   taosArrayPush(pLevel, &pTask);
 
-  taosArrayPush(stream.tasks, &pLevel);
-  mndCreateStreamResetStatusTrans(pMnode, &stream);
+  taosArrayPush(pStream->tasks, &pLevel);
+  mndCreateStreamResetStatusTrans(pMnode, pStream);
 
-  tFreeStreamObj(&stream);
+  tFreeStreamObj(pStream);
   sdbCleanup(pMnode->pSdb);
 
   taosMemoryFree(pMnode);

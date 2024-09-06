@@ -351,7 +351,12 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
   }
 
   pCell = tdbPageGetCell(btc.pPage, btc.idx);
-  tdbBtreeDecodeCell(btc.pPage, pCell, &cd, btc.pTxn, pBt);
+  ret = tdbBtreeDecodeCell(btc.pPage, pCell, &cd, btc.pTxn, pBt);
+  if (ret < 0) {
+    tdbBtcClose(&btc);
+    tdbError("tdb/btree-pget: decode cell failed with ret: %d.", ret);
+    return -1;
+  }
 
   if (ppKey) {
     pTKey = tdbRealloc(*ppKey, cd.kLen);
@@ -1072,6 +1077,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
       // pack partial val to local if any space left
       if (nLocal > nHeader + kLen + sizeof(SPgno)) {
         if (ASSERT(pVal != NULL && vLen != 0)) {
+          tdbFree(pBuf);
           return -1;
         }
         memcpy(pCell + nHeader + kLen, pVal, nLocal - nHeader - kLen - sizeof(SPgno));
@@ -1124,7 +1130,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
 
       memcpy(pCell + nLocal - sizeof(pgno), &pgno, sizeof(pgno));
 
-      int lastKeyPageSpace = 0;
+      size_t lastKeyPageSpace = 0;
       // pack left key & val to ovpages
       do {
         // cal key to cpy
@@ -1859,7 +1865,11 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
   pCell = tdbPageGetCell(pBtc->pPage, pBtc->idx);
 
-  tdbBtreeDecodeCell(pBtc->pPage, pCell, &cd, pBtc->pTxn, pBtc->pBt);
+  ret = tdbBtreeDecodeCell(pBtc->pPage, pCell, &cd, pBtc->pTxn, pBtc->pBt);
+  if (ret < 0) {
+    tdbError("tdb/btree-next: decode cell failed with ret: %d.", ret);
+    return -1;
+  }
 
   pKey = tdbRealloc(*ppKey, cd.kLen);
   if (pKey == NULL) {
@@ -1918,7 +1928,11 @@ int tdbBtreePrev(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
   pCell = tdbPageGetCell(pBtc->pPage, pBtc->idx);
 
-  tdbBtreeDecodeCell(pBtc->pPage, pCell, &cd, pBtc->pTxn, pBtc->pBt);
+  ret = tdbBtreeDecodeCell(pBtc->pPage, pCell, &cd, pBtc->pTxn, pBtc->pBt);
+  if (ret < 0) {
+    tdbError("tdb/btree-prev: decode cell failed with ret: %d.", ret);
+    return -1;
+  }
 
   pKey = tdbRealloc(*ppKey, cd.kLen);
   if (pKey == NULL) {

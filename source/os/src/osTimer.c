@@ -86,8 +86,9 @@ static void taosDeleteTimer(void *tharg) {
 static TdThread      timerThread;
 static timer_t       timerId;
 static volatile bool stopTimer = false;
-static void         *taosProcessAlarmSignal(void *tharg) {
-          // Block the signal
+
+static void *taosProcessAlarmSignal(void *tharg) {
+  // Block the signal
   sigset_t sigset;
   sigemptyset(&sigset);
   sigaddset(&sigset, SIGALRM);

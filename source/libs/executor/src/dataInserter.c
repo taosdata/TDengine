@@ -370,7 +370,7 @@ static void endPut(struct SDataSinkHandle* pHandle, uint64_t useconds) {
   taosThreadMutexUnlock(&pInserter->mutex);
 }
 
-static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryEnd) {
+static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, int64_t* pRawLen, bool* pQueryEnd) {
   SDataInserterHandle* pDispatcher = (SDataInserterHandle*)pHandle;
   *pLen = pDispatcher->submitRes.affectedRows;
   qDebug("got total affectedRows %" PRId64, *pLen);

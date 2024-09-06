@@ -48,9 +48,9 @@ struct SVSnapReader {
   int8_t           metaDone;
   SMetaSnapReader *pMetaReader;
   // tsdb
-  int8_t           tsdbDone;
+  int8_t              tsdbDone;
   TFileSetRangeArray *pRanges;
-  STsdbSnapReader *pTsdbReader;
+  STsdbSnapReader    *pTsdbReader;
   // tsdb raw
   int8_t              tsdbRAWDone;
   STsdbSnapRAWReader *pTsdbRAWReader;
@@ -68,9 +68,9 @@ struct SVSnapReader {
   int8_t              streamStateDone;
   SStreamStateReader *pStreamStateReader;
   // rsma
-  int8_t           rsmaDone;
+  int8_t              rsmaDone;
   TFileSetRangeArray *pRsmaRanges[TSDB_RETENTION_L2];
-  SRSmaSnapReader *pRsmaReader;
+  SRSmaSnapReader    *pRsmaReader;
 };
 
 static TFileSetRangeArray **vnodeSnapReaderGetTsdbRanges(SVSnapReader *pReader, int32_t tsdbTyp) {
@@ -422,7 +422,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   }
 
   // STREAM ============
-  vInfo("vgId:%d stream task start", vgId);
+  vInfo("vgId:%d stream task start to take snapshot", vgId);
   if (!pReader->streamTaskDone) {
     if (pReader->pStreamTaskReader == NULL) {
       code = streamTaskSnapReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->sver, &pReader->pStreamTaskReader);
@@ -532,7 +532,7 @@ struct SVSnapWriter {
   SMetaSnapWriter *pMetaSnapWriter;
   // tsdb
   TFileSetRangeArray *pRanges;
-  STsdbSnapWriter *pTsdbSnapWriter;
+  STsdbSnapWriter    *pTsdbSnapWriter;
   // tsdb raw
   STsdbSnapRAWWriter *pTsdbSnapRAWWriter;
   // tq
@@ -544,7 +544,7 @@ struct SVSnapWriter {
   SStreamStateWriter *pStreamStateWriter;
   // rsma
   TFileSetRangeArray *pRsmaRanges[TSDB_RETENTION_L2];
-  SRSmaSnapWriter *pRsmaSnapWriter;
+  SRSmaSnapWriter    *pRsmaSnapWriter;
 };
 
 TFileSetRangeArray **vnodeSnapWriterGetTsdbRanges(SVSnapWriter *pWriter, int32_t tsdbTyp) {
@@ -574,7 +574,7 @@ static int32_t vnodeSnapWriterDealWithSnapInfo(SVSnapWriter *pWriter, SSnapshotP
 
     STsdbRepOpts         tsdbOpts = {0};
     TFileSetRangeArray **ppRanges = NULL;
-    int32_t           offset = 0;
+    int32_t              offset = 0;
 
     while (offset + sizeof(SSyncTLV) < datHead->len) {
       SSyncTLV *subField = (void *)(datHead->val + offset);
@@ -622,13 +622,13 @@ extern int32_t tsdbEnableBgTask(STsdb *pTsdb);
 static int32_t vnodeCancelAndDisableAllBgTask(SVnode *pVnode) {
   tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
   vnodeSyncCommit(pVnode);
-  vnodeAChannelDestroy(vnodeAsyncHandle[0], pVnode->commitChannel, true);
+  vnodeAChannelDestroy(&pVnode->commitChannel, true);
   return 0;
 }
 
 static int32_t vnodeEnableBgTask(SVnode *pVnode) {
   tsdbEnableBgTask(pVnode->pTsdb);
-  vnodeAChannelInit(vnodeAsyncHandle[0], &pVnode->commitChannel);
+  vnodeAChannelInit(1, &pVnode->commitChannel);
   return 0;
 }
 
@@ -638,7 +638,10 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapWriter
   int64_t       sver = pParam->start;
   int64_t       ever = pParam->end;
 
-  // cancel and disable all bg task
+  // disable write, cancel and disable all bg tasks
+  (void)taosThreadMutexLock(&pVnode->mutex);
+  pVnode->disableWrite = true;
+  (void)taosThreadMutexUnlock(&pVnode->mutex);
   vnodeCancelAndDisableAllBgTask(pVnode);
 
   // alloc
@@ -771,6 +774,9 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
   }
 
   vnodeBegin(pVnode);
+  (void)taosThreadMutexLock(&pVnode->mutex);
+  pVnode->disableWrite = false;
+  (void)taosThreadMutexUnlock(&pVnode->mutex);
 
 _exit:
   if (code) {

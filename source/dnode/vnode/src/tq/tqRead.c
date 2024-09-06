@@ -99,14 +99,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
       taosArrayDestroy(reqNew.pArray);
     }
 
-    for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
-      pCreateReq = req.pReqs + iReq;
-      taosMemoryFreeClear(pCreateReq->comment);
-      taosMemoryFreeClear(pCreateReq->sql);
-      if (pCreateReq->type == TSDB_CHILD_TABLE) {
-        taosArrayDestroy(pCreateReq->ctb.tagName);
-      }
-    }
+    tDeleteSVCreateTbBatchReq(&req);
   } else if (msgType == TDMT_VND_ALTER_TABLE) {
     SVAlterTbReq req = {0};
 
@@ -385,7 +378,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
 bool tqNextBlockInWal(STqReader* pReader, const char* id, int sourceExcluded) {
   SWalReader*  pWalReader = pReader->pWalReader;
 
-  uint64_t st = taosGetTimestampMs();
+  int64_t st = taosGetTimestampMs();
   while (1) {
     int32_t numOfBlocks = taosArrayGetSize(pReader->submit.aSubmitTbData);
     while (pReader->nextBlk < numOfBlocks) {
@@ -413,7 +406,8 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id, int sourceExcluded) {
     tDestroySubmitReq(&pReader->submit, TSDB_MSG_FLG_DECODE);
     pReader->msg.msgStr = NULL;
 
-    if (taosGetTimestampMs() - st > 1000) {
+    int64_t elapsed = taosGetTimestampMs() - st;
+    if(elapsed > 1000 || elapsed < 0){
       return false;
     }
 
@@ -1089,7 +1083,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     }
 
     SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+    if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && (pTask->exec.pExecutor != NULL)) {
       int32_t code = qUpdateTableListForStreamScanner(pTask->exec.pExecutor, tbUidList, isAdd);
       if (code != 0) {
         tqError("vgId:%d, s-task:%s update qualified table error for stream task", vgId, pTask->id.idStr);

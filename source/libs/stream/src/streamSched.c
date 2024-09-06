@@ -20,13 +20,14 @@ static void streamTaskResumeHelper(void* param, void* tmrId);
 static void streamTaskSchedHelper(void* param, void* tmrId);
 
 int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
-  if (pTask->info.triggerParam != 0 && pTask->info.fillHistory == 0) {
+  if (pTask->info.delaySchedParam != 0 && pTask->info.fillHistory == 0) {
     int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
     ASSERT(ref == 2 && pTask->schedInfo.pDelayTimer == NULL);
 
-    stDebug("s-task:%s setup scheduler trigger, delay:%" PRId64 " ms", pTask->id.idStr, pTask->info.triggerParam);
+    stDebug("s-task:%s setup scheduler trigger, delay:%" PRId64 " ms", pTask->id.idStr, pTask->info.delaySchedParam);
 
-    pTask->schedInfo.pDelayTimer = taosTmrStart(streamTaskSchedHelper, (int32_t)pTask->info.triggerParam, pTask, streamTimer);
+    pTask->schedInfo.pDelayTimer =
+        taosTmrStart(streamTaskSchedHelper, (int32_t)pTask->info.delaySchedParam, pTask, streamTimer);
     pTask->schedInfo.status = TASK_TRIGGER_STATUS__INACTIVE;
   }
 
@@ -52,7 +53,11 @@ int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int3
     return -1;
   }
 
-  stDebug("vgId:%d create msg to start stream task:0x%x, exec type:%d", vgId, taskId, execType);
+  if (streamId != 0) {
+    stDebug("vgId:%d create msg to start stream task:0x%x, exec type:%d", vgId, taskId, execType);
+  } else {
+    stDebug("vgId:%d create msg to exec, type:%d", vgId, execType);
+  }
 
   pRunReq->head.vgId = vgId;
   pRunReq->streamId = streamId;
@@ -74,7 +79,7 @@ int32_t streamTaskResumeInFuture(SStreamTask* pTask) {
           pTask->status.schedIdleTime, ref);
 
   // add one ref count for task
-  /*SStreamTask* pAddRefTask = */streamMetaAcquireOneTask(pTask);
+  /*SStreamTask* pAddRefTask = */ streamMetaAcquireOneTask(pTask);
 
   if (pTask->schedInfo.pIdleTimer == NULL) {
     pTask->schedInfo.pIdleTimer = taosTmrStart(streamTaskResumeHelper, pTask->status.schedIdleTime, pTask, streamTimer);
@@ -115,7 +120,7 @@ void streamTaskResumeHelper(void* param, void* tmrId) {
 void streamTaskSchedHelper(void* param, void* tmrId) {
   SStreamTask* pTask = (void*)param;
   const char*  id = pTask->id.idStr;
-  int32_t      nextTrigger = (int32_t)pTask->info.triggerParam;
+  int32_t      nextTrigger = (int32_t)pTask->info.delaySchedParam;
 
   int8_t status = atomic_load_8(&pTask->schedInfo.status);
   stTrace("s-task:%s in scheduler, trigger status:%d, next:%dms", id, status, nextTrigger);

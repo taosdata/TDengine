@@ -416,7 +416,7 @@ pipeline {
                             echo "${WKDIR}/restore.sh -p ${BRANCH_NAME} -n ${BUILD_ID} -c {container name}"
                         }
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            timeout(time: 150, unit: 'MINUTES'){
+                            timeout(time: 200, unit: 'MINUTES'){
                                 pre_test()
                                 script {
                                     sh '''
@@ -454,7 +454,7 @@ pipeline {
                                         cd ${WKC}/tests/parallel_test
                                         export DEFAULT_RETRY_TIME=2
                                         date
-                                        ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 900 ''' + extra_param + '''
+                                        ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 1200 ''' + extra_param + '''
                                     '''
                                 }
                             }

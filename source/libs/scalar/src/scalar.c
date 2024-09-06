@@ -1158,27 +1158,6 @@ EDealRes sclRewriteNonConstOperator(SNode **pNode, SScalarCtx *ctx) {
     }
   }
 
-  if (node->pRight && (QUERY_NODE_NODE_LIST == nodeType(node->pRight))) {
-    SNodeListNode *listNode = (SNodeListNode *)node->pRight;
-    SNode         *tnode = NULL;
-    WHERE_EACH(tnode, listNode->pNodeList) {
-      if (SCL_IS_NULL_VALUE_NODE(tnode)) {
-        if (node->opType == OP_TYPE_IN) {
-          ERASE_NODE(listNode->pNodeList);
-          continue;
-        } else {  // OP_TYPE_NOT_IN
-          return sclRewriteNullInOptr(pNode, ctx, node->opType);
-        }
-      }
-
-      WHERE_NEXT;
-    }
-
-    if (listNode->pNodeList->length <= 0) {
-      return sclRewriteNullInOptr(pNode, ctx, node->opType);
-    }
-  }
-
   return DEAL_RES_CONTINUE;
 }
 
@@ -1213,6 +1192,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
+  strcpy(res->node.aliasName, node->node.aliasName);
   res->node.resType.type = output.columnData->info.type;
   res->node.resType.bytes = output.columnData->info.bytes;
   res->node.resType.scale = output.columnData->info.scale;
@@ -1268,6 +1248,7 @@ EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
   res->node.resType = node->node.resType;
   res->translate = true;
 
+  strcpy(res->node.aliasName, node->node.aliasName);
   int32_t type = output.columnData->info.type;
   if (IS_VAR_DATA_TYPE(type)) {
     res->datum.p = output.columnData->pData;
@@ -1287,6 +1268,27 @@ EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
   SOperatorNode *node = (SOperatorNode *)*pNode;
 
   SCL_ERR_RET(sclConvertOpValueNodeTs(node, ctx));
+
+  if (node->pRight && (QUERY_NODE_NODE_LIST == nodeType(node->pRight))) {
+    SNodeListNode *listNode = (SNodeListNode *)node->pRight;
+    SNode         *tnode = NULL;
+    WHERE_EACH(tnode, listNode->pNodeList) {
+      if (SCL_IS_NULL_VALUE_NODE(tnode)) {
+        if (node->opType == OP_TYPE_IN) {
+          ERASE_NODE(listNode->pNodeList);
+          continue;
+        } else {  // OP_TYPE_NOT_IN
+          return sclRewriteNullInOptr(pNode, ctx, node->opType);
+        }
+      }
+
+      WHERE_NEXT;
+    }
+
+    if (listNode->pNodeList->length <= 0) {
+      return sclRewriteNullInOptr(pNode, ctx, node->opType);
+    }
+  }
 
   if ((!SCL_IS_CONST_NODE(node->pLeft)) || (!SCL_IS_CONST_NODE(node->pRight))) {
     return sclRewriteNonConstOperator(pNode, ctx);
@@ -1309,6 +1311,7 @@ EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
+  strcpy(res->node.aliasName, node->node.aliasName);
   res->node.resType = node->node.resType;
   if (colDataIsNull_s(output.columnData, 0)) {
     res->isNull = true;
@@ -1364,6 +1367,7 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
+  strcpy(res->node.aliasName, node->node.aliasName);
   res->node.resType = node->node.resType;
   if (colDataIsNull_s(output.columnData, 0)) {
     res->isNull = true;

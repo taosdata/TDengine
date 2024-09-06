@@ -1090,6 +1090,10 @@ int32_t buildDbTableInfoBlock(bool sysInfo, const SSDataBlock* p, const SSysTabl
       continue;
     }
 
+    if(strcmp(pm->name, TSDB_INS_TABLE_USERS_FULL) == 0){
+      continue;
+    }
+
     SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, 0);
 
     STR_TO_VARSTR(n, pm->name);

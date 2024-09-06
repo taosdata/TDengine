@@ -120,7 +120,8 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     memcpy(metaRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
   }
   if (metaRsp.pSchemaExt) {
-    code = fillTableColCmpr(&mer1, metaRsp.pSchemaExt, metaRsp.numOfColumns);
+    SMetaReader *pReader = mer1.me.type == TSDB_CHILD_TABLE ? &mer2 : &mer1;
+    code = fillTableColCmpr(pReader, metaRsp.pSchemaExt, metaRsp.numOfColumns);
     if (code < 0) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
@@ -254,15 +255,18 @@ int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     memcpy(cfgRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
   }
 
-  if (useCompress(cfgRsp.tableType)) {
-    SColCmprWrapper *pColCmpr = &mer1.me.colCmpr;
-    for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
-      SColCmpr   *pCmpr = &pColCmpr->pColCmpr[i];
-      SSchemaExt *pSchExt = cfgRsp.pSchemaExt + i;
-      pSchExt->colId = pCmpr->id;
-      pSchExt->compress = pCmpr->alg;
-    }
+  // if (useCompress(cfgRsp.tableType)) {
+
+  SMetaReader     *pReader = mer1.me.type == TSDB_CHILD_TABLE ? &mer2 : &mer1;
+  SColCmprWrapper *pColCmpr = &pReader->me.colCmpr;
+
+  for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
+    SColCmpr   *pCmpr = &pColCmpr->pColCmpr[i];
+    SSchemaExt *pSchExt = cfgRsp.pSchemaExt + i;
+    pSchExt->colId = pCmpr->id;
+    pSchExt->compress = pCmpr->alg;
   }
+  //}
 
   // encode and send response
   rspLen = tSerializeSTableCfgRsp(NULL, 0, &cfgRsp);
@@ -752,13 +756,13 @@ int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64
   return tsdbGetTableSchema(((SVnode *)pVnode)->pMeta, uid, pSchema, suid);
 }
 
-int32_t vnodeGetStreamProgress(SVnode* pVnode, SRpcMsg* pMsg, bool direct) {
-  int32_t             code = 0;
-  SStreamProgressReq  req;
-  SStreamProgressRsp  rsp = {0};
-  SRpcMsg             rpcMsg = {.info = pMsg->info, .code = 0};
-  char *              buf = NULL;
-  int32_t rspLen = 0;
+int32_t vnodeGetStreamProgress(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
+  int32_t            code = 0;
+  SStreamProgressReq req;
+  SStreamProgressRsp rsp = {0};
+  SRpcMsg            rpcMsg = {.info = pMsg->info, .code = 0};
+  char              *buf = NULL;
+  int32_t            rspLen = 0;
   code = tDeserializeStreamProgressReq(pMsg->pCont, pMsg->contLen, &req);
 
   if (code == TSDB_CODE_SUCCESS) {

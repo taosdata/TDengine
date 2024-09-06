@@ -1969,3 +1969,98 @@ int32_t TEST_char2ts(const char* format, int64_t* ts, int32_t precision, const c
   taosArrayDestroy(formats);
   return code;
 }
+
+static int8_t UNIT_INDEX[26] = {/*a*/ 2,  0,  -1, 6,  -1, -1, -1,
+                                /*h*/ 5,  -1, -1, -1, -1, 4,  8,
+                                /*o*/ -1, -1, -1, -1, 3,  -1,
+                                /*u*/ 1,  -1, 7,  -1, 9,  -1};
+
+#define GET_UNIT_INDEX(idx) UNIT_INDEX[(idx) - 97]
+
+static int64_t UNIT_MATRIX[10][11] = {     /*  ns,   us,   ms,    s,   min,   h,   d,   w, month, y*/
+                                /*ns*/ {   1, 1000,    0},
+                                /*us*/ {1000,    1, 1000,    0},
+                                /*ms*/ {   0, 1000,    1, 1000,    0},
+                                 /*s*/ {   0,    0, 1000,    1,   60,    0},
+                               /*min*/ {   0,    0,    0,   60,    1,   60,   0},
+                                 /*h*/ {   0,    0,    0,    0,   60,    1,   1,   0},
+                                 /*d*/ {   0,    0,    0,    0,    0,   24,   1,   7,   1,   0},
+                                 /*w*/ {   0,    0,    0,    0,    0,    0,   7,   1,  -1,   0},
+                               /*mon*/ {   0,    0,    0,    0,    0,    0,   0,   0,   1,  12,  0},
+                                 /*y*/ {   0,    0,    0,    0,    0,    0,   0,   0,   12,   1,  0}};
+
+static bool recursiveTsmaCheckRecursive(int64_t baseInterval, int8_t baseIdx, int64_t interval, int8_t idx, bool checkEq) {
+  if (UNIT_MATRIX[baseIdx][idx] == -1) return false;
+  if (baseIdx == idx) {
+    if (interval < baseInterval) return false;
+    if (checkEq && interval == baseInterval) return false;
+    return interval % baseInterval == 0;
+  }
+  int8_t next = baseIdx + 1;
+  int64_t val = UNIT_MATRIX[baseIdx][next];
+  while (val != 0 && next <= idx) {
+    if (val == -1) {
+      next++;
+      val = UNIT_MATRIX[baseIdx][next];
+      continue;
+    }
+    if (val % baseInterval == 0 || baseInterval % val == 0) {
+      int8_t extra = baseInterval >= val ? 0 : 1;
+      bool needCheckEq = baseInterval >= val && !(baseIdx < next && val == 1);
+      if (!recursiveTsmaCheckRecursive(baseInterval / val + extra, next, interval, idx, needCheckEq && checkEq)) {
+        next++;
+        val = UNIT_MATRIX[baseIdx][next];
+        continue;
+      } else {
+        return true;
+      }
+    } else {
+      return false;
+    }
+  }
+  return false;
+}
+
+static bool recursiveTsmaCheckRecursiveReverse(int64_t baseInterval, int8_t baseIdx, int64_t interval, int8_t idx, bool checkEq) {
+  if (UNIT_MATRIX[baseIdx][idx] == -1) return false;
+
+  if (baseIdx == idx) {
+    if (interval < baseInterval) return false;
+    if (checkEq && interval == baseInterval) return false;
+    return interval % baseInterval == 0;
+  }
+
+  int8_t next = baseIdx - 1;
+  int64_t val = UNIT_MATRIX[baseIdx][next];
+  while (val != 0 && next >= 0) {
+    return recursiveTsmaCheckRecursiveReverse(baseInterval * val, next, interval, idx, checkEq);
+  }
+  return false;
+}
+
+/*
+ * @breif check if tsma with param [interval], [unit] can create based on base tsma with baseInterval and baseUnit
+ * @param baseInterval, baseUnit, interval/unit of base tsma
+ * @param interval the tsma interval going to create. Not that if unit is not calander unit, then interval has already been
+ * translated to TICKS of [precision]
+ * @param unit the tsma unit going to create
+ * @param precision the precision of this db
+ * @param checkEq pass true if same interval is not acceptable, false if acceptable.
+ * @ret true the tsma can be created, else cannot
+ * */
+bool checkRecursiveTsmaInterval(int64_t baseInterval, int8_t baseUnit, int64_t interval, int8_t unit, int8_t precision, bool checkEq) {
+  bool baseIsCalendarDuration = IS_CALENDAR_TIME_DURATION(baseUnit);
+  if (!baseIsCalendarDuration) baseInterval = convertTimeFromPrecisionToUnit(baseInterval, precision, baseUnit);
+  bool isCalendarDuration = IS_CALENDAR_TIME_DURATION(unit);
+  if (!isCalendarDuration) interval = convertTimeFromPrecisionToUnit(interval, precision, unit);
+
+  bool needCheckEq = baseIsCalendarDuration == isCalendarDuration && checkEq;
+
+  int8_t baseIdx = GET_UNIT_INDEX(baseUnit), idx = GET_UNIT_INDEX(unit);
+  if (baseIdx <= idx) {
+    return recursiveTsmaCheckRecursive(baseInterval, baseIdx, interval, idx, needCheckEq);
+  } else {
+    return recursiveTsmaCheckRecursiveReverse(baseInterval, baseIdx, interval, idx, checkEq);
+  }
+  return true;
+}

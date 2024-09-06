@@ -46,6 +46,12 @@ SSttBlockLoadInfo *tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, 
   }
 
   pLoadInfo->aSttBlk = taosArrayInit(4, sizeof(SSttBlk));
+  if (pLoadInfo->aSttBlk == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFreeClear(pLoadInfo);
+    return NULL;
+  }
+
   pLoadInfo->pSchema = pSchema;
   pLoadInfo->colIds = colList;
   pLoadInfo->numOfCols = numOfCols;
@@ -107,15 +113,21 @@ void *destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoa
     SArray *pList = taosArrayGetP(pLDataIterArray, i);
     for (int32_t j = 0; j < taosArrayGetSize(pList); ++j) {
       SLDataIter *pIter = taosArrayGetP(pList, j);
+      if (pIter->pBlockLoadInfo == NULL) {
+        continue;
+      }
+
+      SSttBlockLoadCostInfo* pCost = &pIter->pBlockLoadInfo->cost;
       if (pLoadCost != NULL) {
-        pLoadCost->loadBlocks += pIter->pBlockLoadInfo->cost.loadBlocks;
-        pLoadCost->loadStatisBlocks += pIter->pBlockLoadInfo->cost.loadStatisBlocks;
-        pLoadCost->blockElapsedTime += pIter->pBlockLoadInfo->cost.blockElapsedTime;
-        pLoadCost->statisElapsedTime += pIter->pBlockLoadInfo->cost.statisElapsedTime;
+        pLoadCost->loadBlocks += pCost->loadBlocks;
+        pLoadCost->loadStatisBlocks += pCost->loadStatisBlocks;
+        pLoadCost->blockElapsedTime += pCost->blockElapsedTime;
+        pLoadCost->statisElapsedTime += pCost->statisElapsedTime;
       }
 
       destroyLDataIter(pIter);
     }
+
     taosArrayDestroy(pList);
   }
 
@@ -828,7 +840,7 @@ static FORCE_INLINE int32_t tLDataIterCmprFn(const SRBTreeNode *p1, const SRBTre
   SLDataIter *pIter1 = (SLDataIter *)(((uint8_t *)p1) - offsetof(SLDataIter, node));
   SLDataIter *pIter2 = (SLDataIter *)(((uint8_t *)p2) - offsetof(SLDataIter, node));
 
-  SRowKey rkey1, rkey2;
+  SRowKey rkey1 = {0}, rkey2 = {0};
   tRowGetKeyEx(&pIter1->rInfo.row, &rkey1);
   tRowGetKeyEx(&pIter2->rInfo.row, &rkey2);
 
@@ -903,6 +915,10 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
 
       if (pLoadInfo == NULL) {
         pLoadInfo = tCreateSttBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols);
+        if (pLoadInfo == NULL) {
+          code = terrno;
+          goto _end;
+        }
       }
 
       memset(pIter, 0, sizeof(SLDataIter));

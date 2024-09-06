@@ -985,6 +985,10 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
 
       if (pIter->pBlockLoadInfo == NULL) {
         pIter->pBlockLoadInfo = tCreateSttBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols);
+        if (pIter->pBlockLoadInfo == NULL) {
+          tsdbError("failed to create block load info, code: out of memory, %s", pstr);
+          continue;
+        }
       }
 
       // load stt blocks statis for all stt-blocks, to decide if the data of queried table exists in current stt file

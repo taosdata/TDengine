@@ -92,6 +92,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
   }
 
   qStreamSetSourceExcluded(task, pRequest->sourceExcluded);
+  uint64_t st = taosGetTimestampMs();
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     code = getDataBlock(task, pHandle, vgId, &pDataBlock);
@@ -151,7 +152,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
 
       pRsp->common.blockNum++;
       totalRows += pDataBlock->info.rows;
-      if (totalRows >= tmqRowSize) {
+      if (totalRows >= tmqRowSize || (taosGetTimestampMs() - st > 1000)) {
         break;
       }
     }
@@ -163,7 +164,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
   return 0;
 }
 
-int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMetaRsp* pMetaRsp, STqOffsetVal* pOffset) {
+int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqBatchMetaRsp* pBatchMetaRsp, STqOffsetVal* pOffset) {
   const STqExecHandle* pExec = &pHandle->execHandle;
   qTaskInfo_t          task = pExec->task;
 
@@ -218,10 +219,10 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
     }
 
     // get meta
-    SMqMetaRsp* tmp = qStreamExtractMetaMsg(task);
-    if (tmp->metaRspLen > 0) {
+    SMqBatchMetaRsp* tmp = qStreamExtractMetaMsg(task);
+    if (taosArrayGetSize(tmp->batchMetaReq) > 0) {
       qStreamExtractOffset(task, &tmp->rspOffset);
-      *pMetaRsp = *tmp;
+      *pBatchMetaRsp = *tmp;
 
       tqDebug("tmqsnap task get meta");
       break;

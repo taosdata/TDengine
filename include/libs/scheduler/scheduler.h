@@ -48,16 +48,6 @@ typedef struct SQueryProfileSummary {
   uint64_t resultSize;  // generated result size in Kb.
 } SQueryProfileSummary;
 
-typedef struct STaskInfo {
-  SQueryNodeAddr addr;
-  SSubQueryMsg*  msg;
-} STaskInfo;
-
-typedef struct SSchdFetchParam {
-  void**   pData;
-  int32_t* code;
-} SSchdFetchParam;
-
 typedef void (*schedulerExecFp)(SExecResult* pResult, void* param, int32_t code);
 typedef void (*schedulerFetchFp)(void* pResult, void* param, int32_t code);
 typedef bool (*schedulerChkKillFp)(void* param);

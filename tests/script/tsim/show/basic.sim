@@ -230,7 +230,7 @@ endi
 sql_error show create stable t0;
 
 sql show variables;
-if $rows != 4 then
+if $rows != 9 then
   return -1
 endi
 
