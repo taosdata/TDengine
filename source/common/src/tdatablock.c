@@ -1263,18 +1263,19 @@ static void blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataBloc
 }
 
 static int32_t createHelpColInfoData(const SSDataBlock* pDataBlock, SColumnInfoData** ppCols) {
-  *ppCols = NULL;
-
   int32_t code = 0;
   int32_t rows = pDataBlock->info.capacity;
   size_t  numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
+  int32_t i = 0;
+
+  *ppCols = NULL;
 
   SColumnInfoData* pCols = taosMemoryCalloc(numOfCols, sizeof(SColumnInfoData));
   if (pCols == NULL) {
     return terrno;
   }
 
-  for (int32_t i = 0; i < numOfCols; ++i) {
+  for (i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, i);
     if (pColInfoData == NULL) {
       continue;
@@ -1309,6 +1310,10 @@ static int32_t createHelpColInfoData(const SSDataBlock* pDataBlock, SColumnInfoD
   return code;
 
   _error:
+  for(int32_t j = 0; j < i; ++j) {
+    colDataDestroy(&pCols[j]);
+  }
+
   taosMemoryFree(pCols);
   return code;
 }
