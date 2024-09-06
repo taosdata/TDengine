@@ -31,8 +31,7 @@ from frame.clusterCommonCheck import clusterComCheck
 class TDTestCase(TBase):
     def init(self, conn, logSql, replicaVar=3):
         super(TDTestCase, self).init(conn, logSql, replicaVar=3, db="db")
-        self.dnodeNum = 3
-        self.mnodeNum = 3
+        self.vgroupNum = 3
         tdSql.init(conn.cursor(), logSql)
 
     def checkClusterEmptyDB(self):
@@ -47,24 +46,48 @@ class TDTestCase(TBase):
         tdSql.query("show cluster alive;")
         tdSql.checkData(0, 0, 1)
 
+        sc.dnodeStop(2)
+        while 1:
+            if clusterComCheck.checkDnodes(1): break
+        tdSql.query("show cluster alive;")
+        tdSql.checkData(0, 0, 1)
 
     def checkClusterWithDB(self):
         sc.dnodeStart(3)
+        sc.dnodeStart(2)
         while 1:
             if clusterComCheck.checkDnodes(3): break
+            
         tdSql.execute(f'drop database if exists {self.db}')
-        tdSql.execute(f'create database {self.db} replica 3')
+        tdSql.execute(f'create database {self.db} replica 1 vgroups {self.vgroupNum}')
+        while 1:
+            leader_status = clusterComCheck.check_vgroups_status_with_offline(vgroup_numbers=self.vgroupNum, db_replica=self.replicaVar)
+            if leader_status >= 0: break
+
+        leader_status = clusterComCheck.check_vgroups_status_with_offline(vgroup_numbers=self.vgroupNum, db_replica=self.replicaVar)
         tdSql.query("show cluster alive;")
-        print(tdSql.getResult("show cluster alive;"))
-        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 0, leader_status)
 
         sc.dnodeStop(3)
         while 1:
             if clusterComCheck.checkDnodes(2): break
+            
+        while 1:
+            leader_status = clusterComCheck.check_vgroups_status_with_offline(vgroup_numbers=self.vgroupNum, db_replica=self.replicaVar)
+            if leader_status >= 0: break
+        leader_status = clusterComCheck.check_vgroups_status_with_offline(vgroup_numbers=self.vgroupNum, db_replica=self.replicaVar)
         tdSql.query("show cluster alive;")
-        print(tdSql.getResult("show cluster alive;"))
-        tdSql.checkData(0, 0, 1)
-
+        tdSql.checkData(0, 0, leader_status)
+        
+        sc.dnodeStop(2)
+        while 1:
+            if clusterComCheck.checkDnodes(1): break
+        while 1:
+            leader_status = clusterComCheck.check_vgroups_status_with_offline(vgroup_numbers=self.vgroupNum, db_replica=self.replicaVar)
+            if leader_status >= 0: break
+        leader_status = clusterComCheck.check_vgroups_status_with_offline(vgroup_numbers=self.vgroupNum, db_replica=self.replicaVar)
+        tdSql.query("show cluster alive;")
+        tdSql.checkData(0, 0, leader_status)
 
     # run
     def run(self):
@@ -73,7 +96,6 @@ class TDTestCase(TBase):
         self.checkClusterWithDB()
 
     def stop(self):
-        sc.dnodeStop(2)
         sc.dnodeStop(1)
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
