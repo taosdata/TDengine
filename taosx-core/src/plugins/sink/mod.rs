@@ -1268,7 +1268,7 @@ struct ModifyStructForPointMessage {
 }
 
 /// handle value_transform, ts_transform, rts_transform
-fn handle_transform(
+async fn handle_transform(
     message: &RecordMessage,
     config: &OpcModelConfig,
 ) -> anyhow::Result<RecordMessage> {
@@ -1280,17 +1280,50 @@ fn handle_transform(
 
     // transform ts
     let ts_config_map = config.get_column_config_map_by_name(ColumnConfig::ORIGINAL_TS);
-    let ts_transform = to_record_transform_map(&ts_config_map);
+    let mut ts_transform = to_record_transform_map(&ts_config_map);
+    // 通过规则生成的 transform
+    let generated_ts_config: HashMap<String, ColumnConfig> = config
+        .generate_transform_map(ColumnConfig::ORIGINAL_TS)
+        .await;
+    let generated_ts_transform_map = to_record_transform_map(&generated_ts_config);
+    // 将生成的 transform_map 添加到原始的 transform_map 中
+    for (point_id, transform) in generated_ts_transform_map {
+        if !ts_transform.contains_key(&point_id) {
+            ts_transform.insert(point_id, transform);
+        }
+    }
     let transformed_ts_col = transform_by_name(message.record(), "ts", ts_transform)?;
 
     // transform received_ts
     let rts_config_map = config.get_column_config_map_by_name(ColumnConfig::RECEIVED_TS);
-    let rts_transform = to_record_transform_map(&rts_config_map);
+    let mut rts_transform = to_record_transform_map(&rts_config_map);
+    // 通过规则生成的 transform
+    let generated_rts_config: HashMap<String, ColumnConfig> = config
+        .generate_transform_map(ColumnConfig::RECEIVED_TS)
+        .await;
+    let generated_rts_transform_map = to_record_transform_map(&generated_rts_config);
+    // 将生成的 transform_map 添加到原始的 transform_map 中
+    for (point_id, transform) in generated_rts_transform_map {
+        if !rts_transform.contains_key(&point_id) {
+            rts_transform.insert(point_id, transform);
+        }
+    }
     let transformed_received_col = transform_by_name(message.record(), "received", rts_transform)?;
 
     // transform value
     let val_config_map = config.get_column_config_map_by_name(ColumnConfig::VALUE);
-    let value_transform = to_record_transform_map(&val_config_map);
+    let mut value_transform = to_record_transform_map(&val_config_map);
+    // 通过规则生成的 transform
+    let generated_value_config: HashMap<String, ColumnConfig> =
+        config.generate_transform_map(ColumnConfig::VALUE).await;
+    let generated_value_transform = to_record_transform_map(&generated_value_config);
+    // 将生成的 transform_map 添加到原始的 transform_map 中
+    for (point_id, transform) in generated_value_transform {
+        if !value_transform.contains_key(&point_id) {
+            value_transform.insert(point_id, transform);
+        }
+    }
+
     let transformed_value_col = transform_by_name(message.record(), "value", value_transform)?;
 
     // status
@@ -1325,6 +1358,7 @@ fn handle_transform(
 }
 
 /// convert ColumnConfig map to RecordTransform map
+/// return (point_id, RecordTransform) pairs
 fn to_record_transform_map(
     config_map: &HashMap<String, ColumnConfig>,
 ) -> HashMap<String, RecordTransform> {
@@ -1563,17 +1597,6 @@ fn transform_by_name(
     crate::plugins::expr::array_from_rhai_dynamics(values).ok_or(anyhow::anyhow!(
         "failed to transform Vec<Dynamic> to ArrayRef"
     ))
-
-    // let array = crate::plugins::expr::array_from_rhai_dynamics(values).ok_or(anyhow::anyhow!(
-    //     "failed to transform Vec<Dynamic> to ArrayRef"
-    // ))?;
-    // arrow::compute::cast(&array, col_type).map_err(|err| {
-    //     anyhow::anyhow!(
-    //         "failed to cast transformed array to dataType: {}, cause: {:?}",
-    //         col_type,
-    //         err
-    //     )
-    // })
 }
 fn to_dynamic_value(
     record_batch: &RecordBatch,
@@ -1744,20 +1767,17 @@ fn get_transform_exprssion_by_id(
 
 #[cfg(test)]
 mod handle_transform_tests {
-    use std::str::FromStr;
-    use std::sync::Arc;
-
+    use crate::runners::opc::config::csv::CsvParser;
+    use crate::sink::handle_transform;
     use arrow::array::{Array, Int32Array, Int64Array, StringArray, TimestampMillisecondArray};
     use arrow::record_batch::RecordBatch;
     use arrow_schema::DataType;
     use arrow_schema::Field;
     use arrow_schema::Schema;
+    use std::str::FromStr;
+    use std::sync::Arc;
     use taos::Dsn;
-
     use taosx_ipc::stream::point::RecordMessage;
-
-    use crate::runners::opc::config::csv::CsvParser;
-    use crate::sink::handle_transform;
 
     #[tokio::test]
     async fn test_handle_transform() {
@@ -1814,7 +1834,7 @@ mod handle_transform_tests {
         let parser = CsvParser::from_dsn(&dsn).unwrap();
         let model_config = parser.parse().await.unwrap();
 
-        let transformed_msg = handle_transform(&message, &model_config).unwrap();
+        let transformed_msg = handle_transform(&message, &model_config).await.unwrap();
 
         let value = transformed_msg
             .record()
@@ -1993,7 +2013,7 @@ async fn consume_point_record(
     let req_id = RequestID::new(data_trace_id.as_u64());
     for message in record.records() {
         // handle value_transform, ts_transform, rts_transform
-        let message = handle_transform(message, config)?;
+        let message = handle_transform(message, config).await?;
 
         let cv_vec = record_batch_to_column_view(message.record(), target_precision);
 
@@ -2036,6 +2056,7 @@ async fn consume_point_record(
 
             let mapping = config.get_point_mapping(&point_id)?;
             if mapping.is_none() {
+                // 如果在一开始的 modelConfig 中找不到点位对应的 PoingConfig 和 TableConfig，则尝试使用规则生成
                 tracing::warn!(
                     "point mapping not found and try to auto generate, point_id: {}",
                     point_id

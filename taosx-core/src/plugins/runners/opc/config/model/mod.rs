@@ -249,12 +249,41 @@ impl OpcModelConfig {
             }
             GeneratePointMappingBy::Csv(csv_files) => {
                 let parser = CsvParser::try_new(self.opc_type.clone(), csv_files.clone())?;
-                let (p, t) = parser.parse_line(point_id).await?.ok_or(anyhow::anyhow!(
+                let (p, t) = parser.parse_one(point_id).await?.ok_or(anyhow::anyhow!(
                     "point_id: {} not found in csv files: {:?}",
                     point_id,
                     csv_files
                 ))?;
                 Ok((p, t))
+            }
+        }
+    }
+
+    pub async fn generate_transform_map(&self, column_name: &str) -> HashMap<String, ColumnConfig> {
+        let result = self.generate_transform_map_impl(column_name).await;
+        match result {
+            Ok(map) => map,
+            Err(err) => {
+                tracing::warn!("failed to generate transform map, use an empty HashMap instead, column: {}, err: {}",column_name,err.to_string());
+                HashMap::new()
+            }
+        }
+    }
+
+    async fn generate_transform_map_impl(
+        &self,
+        column_name: &str,
+    ) -> anyhow::Result<HashMap<String, ColumnConfig>> {
+        match &self.generate_rule {
+            None => {
+                bail!("generate rule is required")
+            }
+            Some(GeneratePointMappingBy::Rule(_rule)) => {
+                bail!("generate transform map by GeneratePointMappingBy::Rule is not supported")
+            }
+            Some(GeneratePointMappingBy::Csv(csv)) => {
+                let parser = CsvParser::try_new(self.opc_type.clone(), csv.clone())?;
+                parser.parse_transform(column_name).await
             }
         }
     }

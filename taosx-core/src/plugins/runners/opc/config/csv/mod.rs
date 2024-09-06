@@ -13,7 +13,7 @@ use tokio_stream::StreamExt;
 
 use crate::runners::opc::config::csv::header::CsvHeader;
 use crate::runners::opc::config::model::{
-    GeneratePointMappingBy, OpcModelConfig, PointConfig, TableConfig,
+    ColumnConfig, GeneratePointMappingBy, OpcModelConfig, PointConfig, TableConfig,
 };
 use crate::runners::opc::config::OPCConfig;
 use crate::runners::opc::{generate_tbname_from_pattern, OpcType};
@@ -405,7 +405,46 @@ impl CsvParser {
         // node_config
     }
 
-    pub async fn parse_line(
+    pub async fn parse_transform(
+        &self,
+        column_name: &str,
+    ) -> anyhow::Result<HashMap<String, ColumnConfig>> {
+        let mut transform_map = HashMap::new();
+        let files = Self::open_csv_files(self.csv_files.clone()).await?;
+        for (_file, mut rdr) in files {
+            // parse header
+            let header = rdr.headers().await.map_err(|e| {
+                anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
+            })?;
+            let csv_header = CsvHeader::try_new(self.opc_type.clone(), header)?;
+            csv_header.check_required_columns()?;
+
+            // parse lines
+            let mut records = rdr.records();
+            while let Some(record) = records.next().await {
+                let row = record.map_err(|e| {
+                    anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
+                })?;
+
+                let point_id = row
+                    .get(csv_header.id_index())
+                    .ok_or(anyhow::anyhow!("point id column not found in csv header"))?;
+                let t = TableConfig::from_csv(&csv_header, &row)?;
+                let column = t
+                    .column_configs
+                    .iter()
+                    .find(|c| c.name == column_name)
+                    .ok_or(anyhow::anyhow!(
+                        "column {} not found in csv header",
+                        column_name
+                    ))?;
+                transform_map.insert(point_id.to_string(), column.clone());
+            }
+        }
+        Ok(transform_map)
+    }
+
+    pub async fn parse_one(
         &self,
         point_id: &str,
     ) -> anyhow::Result<Option<(PointConfig, TableConfig)>> {
