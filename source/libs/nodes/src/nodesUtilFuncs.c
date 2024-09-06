@@ -468,6 +468,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SDropDnodeStmt), &pNode); break;
     case QUERY_NODE_ALTER_DNODE_STMT:
       code = makeNode(type, sizeof(SAlterDnodeStmt), &pNode); break;
+     case QUERY_NODE_CREATE_ANODE_STMT:
+      code = makeNode(type, sizeof(SCreateAnodeStmt), &pNode); break;
+    case QUERY_NODE_DROP_ANODE_STMT:
+      code = makeNode(type, sizeof(SDropAnodeStmt), &pNode); break;
+    case QUERY_NODE_UPDATE_ANODE_STMT:
+      code = makeNode(type, sizeof(SUpdateAnodeStmt), &pNode); break;
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = makeNode(type, sizeof(SCreateIndexStmt), &pNode); break;
     case QUERY_NODE_DROP_INDEX_STMT:
@@ -534,6 +540,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
+    case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
@@ -1158,6 +1165,9 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_CREATE_DNODE_STMT:  // no pointer field
     case QUERY_NODE_DROP_DNODE_STMT:    // no pointer field
     case QUERY_NODE_ALTER_DNODE_STMT:   // no pointer field
+    case QUERY_NODE_CREATE_ANODE_STMT:  // no pointer field
+    case QUERY_NODE_UPDATE_ANODE_STMT:  // no pointer field
+    case QUERY_NODE_DROP_ANODE_STMT:    // no pointer field
       break;
     case QUERY_NODE_CREATE_INDEX_STMT: {
       SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pNode;
@@ -1243,6 +1253,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
+    case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:

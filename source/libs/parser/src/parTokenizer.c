@@ -99,6 +99,8 @@ static SKeyword keywordTable[] = {
     {"ENCRYPTIONS",          TK_ENCRYPTIONS},
     {"ENCRYPT_ALGORITHM",    TK_ENCRYPT_ALGORITHM},
     {"ENCRYPT_KEY",          TK_ENCRYPT_KEY},
+    {"ANODE",                TK_ANODE},
+    {"ANODES",               TK_ANODES},
     {"END",                  TK_END},
     {"EXISTS",               TK_EXISTS},
     {"EXPIRED",              TK_EXPIRED},

@@ -348,6 +348,13 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  {
+    .showType = QUERY_NODE_SHOW_ANODES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_ANODES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -7757,6 +7764,19 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropQnodeReq, pReq);
       break;
     }
+    
+    case TDMT_MND_CREATE_ANODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateAnodeReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_ANODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropAnodeReq, pReq);
+      break;
+    }
+    case TDMT_MND_UPDATE_ANODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMUpdateAnodeReq, pReq);
+      break;
+    }
 
     case TDMT_MND_CREATE_MNODE: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateMnodeReq, pReq);
@@ -9252,6 +9272,44 @@ static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) 
   tFreeSDropUserReq(&dropReq);
   return code;
 }
+
+static int32_t translateCreateAnode(STranslateContext* pCxt, SCreateAnodeStmt* pStmt) {
+  // #ifndef TD_ENTERPRISE
+  //   return TSDB_CODE_OPS_NOT_SUPPORT;
+  // #endif
+
+  SMCreateAnodeReq createReq = {0};
+  createReq.urlLen = strlen(pStmt->url) + 1;
+  createReq.url = taosMemoryCalloc(createReq.urlLen, 1);
+  if (createReq.url == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  tstrncpy(createReq.url, pStmt->url, createReq.urlLen);
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_ANODE, (FSerializeFunc)tSerializeSMCreateAnodeReq, &createReq);
+  tFreeSMCreateAnodeReq(&createReq);
+  return code;
+}
+
+static int32_t translateDropAnode(STranslateContext* pCxt, SDropAnodeStmt* pStmt) {
+  SMDropAnodeReq dropReq = {0};
+  dropReq.anodeId = pStmt->anodeId;
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_ANODE, (FSerializeFunc)tSerializeSMDropAnodeReq, &dropReq);
+  tFreeSMDropAnodeReq(&dropReq);
+  return code;
+}
+
+static int32_t translateUpdateAnode(STranslateContext* pCxt, SUpdateAnodeStmt* pStmt) {
+  SMUpdateAnodeReq updateReq = {0};
+  updateReq.anodeId = pStmt->anodeId;
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_UPDATE_ANODE, (FSerializeFunc)tSerializeSMUpdateAnodeReq, &updateReq);
+  tFreeSMUpdateAnodeReq(&updateReq);
+  return code;
+}
+
 
 static int32_t translateCreateDnode(STranslateContext* pCxt, SCreateDnodeStmt* pStmt) {
   SCreateDnodeReq createReq = {0};
@@ -12230,6 +12288,15 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_ALTER_DNODE_STMT:
       code = translateAlterDnode(pCxt, (SAlterDnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_CREATE_ANODE_STMT:
+      code = translateCreateAnode(pCxt, (SCreateAnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_ANODE_STMT:
+      code = translateDropAnode(pCxt, (SDropAnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_UPDATE_ANODE_STMT:
+      code = translateUpdateAnode(pCxt, (SUpdateAnodeStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = translateCreateIndex(pCxt, (SCreateIndexStmt*)pNode);
@@ -15521,6 +15588,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
+    case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:
     case QUERY_NODE_SHOW_STREAMS_STMT:

@@ -251,6 +251,9 @@ SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName);
 SNode* createCreateDnodeStmt(SAstCreateContext* pCxt, const SToken* pFqdn, const SToken* pPort);
 SNode* createDropDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, bool force, bool unsafe);
 SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const SToken* pConfig, const SToken* pValue);
+SNode* createCreateAnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl);
+SNode* createDropAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode);
+SNode* createUpdateAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode);
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue);
 SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName);
 SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool ignoreExists, SNode* pIndexName,

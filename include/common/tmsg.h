@@ -159,6 +159,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_ARBGROUP,
   TSDB_MGMT_TABLE_ENCRYPTIONS,
   TSDB_MGMT_TABLE_USER_FULL,
+  TSDB_MGMT_TABLE_ANODE,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -345,6 +346,9 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_VIEW_STMT,
   QUERY_NODE_DROP_VIEW_STMT,
   QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE,
+  QUERY_NODE_CREATE_ANODE_STMT,
+  QUERY_NODE_DROP_ANODE_STMT,
+  QUERY_NODE_UPDATE_ANODE_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -386,6 +390,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT,
   QUERY_NODE_SHOW_ENCRYPTIONS_STMT,
   QUERY_NODE_SHOW_TSMAS_STMT,
+  QUERY_NODE_SHOW_ANODES_STMT,
   QUERY_NODE_CREATE_TSMA_STMT,
   QUERY_NODE_SHOW_CREATE_TSMA_STMT,
   QUERY_NODE_DROP_TSMA_STMT,
@@ -2370,6 +2375,30 @@ typedef struct {
 
 int32_t tSerializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
 int32_t tDeserializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
+
+typedef struct {
+  int32_t urlLen;
+  int32_t sqlLen;
+  char*   url;
+  char*   sql;
+} SMCreateAnodeReq;
+
+int32_t tSerializeSMCreateAnodeReq(void* buf, int32_t bufLen, SMCreateAnodeReq* pReq);
+int32_t tDeserializeSMCreateAnodeReq(void* buf, int32_t bufLen, SMCreateAnodeReq* pReq);
+void    tFreeSMCreateAnodeReq(SMCreateAnodeReq* pReq);
+
+typedef struct {
+  int32_t anodeId;
+  int32_t sqlLen;
+  char*   sql;
+} SMDropAnodeReq, SMUpdateAnodeReq;
+
+int32_t tSerializeSMDropAnodeReq(void* buf, int32_t bufLen, SMDropAnodeReq* pReq);
+int32_t tDeserializeSMDropAnodeReq(void* buf, int32_t bufLen, SMDropAnodeReq* pReq);
+void    tFreeSMDropAnodeReq(SMDropAnodeReq* pReq);
+int32_t tSerializeSMUpdateAnodeReq(void* buf, int32_t bufLen, SMUpdateAnodeReq* pReq);
+int32_t tDeserializeSMUpdateAnodeReq(void* buf, int32_t bufLen, SMUpdateAnodeReq* pReq);
+void    tFreeSMUpdateAnodeReq(SMUpdateAnodeReq* pReq);
 
 typedef struct {
   int32_t vgId;

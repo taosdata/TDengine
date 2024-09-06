@@ -157,6 +157,11 @@ with_opt(A) ::= WITH search_condition(B).                                       
 /************************************************ create encrypt_key *********************************************/
 cmd ::= CREATE ENCRYPT_KEY NK_STRING(A).                                          { pCxt->pRootNode = createEncryptKeyStmt(pCxt, &A); }
 
+/************************************************ create drop update anode ***************************************/
+cmd ::= CREATE ANODE NK_STRING(A).                                                { pCxt->pRootNode = createCreateAnodeStmt(pCxt, &A); }
+cmd ::= UPDATE ANODE NK_INTEGER(A).                                               { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, &A); }
+cmd ::= DROP ANODE NK_INTEGER(A).                                                 { pCxt->pRootNode = createDropAnodeStmt(pCxt, &A); }
+
 /************************************************ create/drop/alter/restore dnode *********************************************/
 cmd ::= CREATE DNODE dnode_endpoint(A).                                           { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, NULL); }
 cmd ::= CREATE DNODE dnode_endpoint(A) PORT NK_INTEGER(B).                        { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, &B); }
@@ -519,6 +524,7 @@ cmd ::= SHOW db_name_cond_opt(A) VGROUPS.                                       
 cmd ::= SHOW MNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_MNODES_STMT); }
 //cmd ::= SHOW MODULES.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_MODULES_STMT); }
 cmd ::= SHOW QNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_QNODES_STMT); }
+cmd ::= SHOW ANODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ANODES_STMT); }
 cmd ::= SHOW ARBGROUPS.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ARBGROUPS_STMT); }
 cmd ::= SHOW FUNCTIONS.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_FUNCTIONS_STMT); }
 cmd ::= SHOW INDEXES FROM table_name_cond(A) from_db_opt(B).                      { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_INDEXES_STMT, B, A, OP_TYPE_EQUAL); }

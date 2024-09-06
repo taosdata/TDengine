@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDnode.h"
-#include <stdio.h>
 #include "audit.h"
 #include "mndCluster.h"
 #include "mndDb.h"

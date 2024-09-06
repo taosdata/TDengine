@@ -153,6 +153,12 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateQnodeStmt";
     case QUERY_NODE_DROP_QNODE_STMT:
       return "DropQnodeStmt";
+    case QUERY_NODE_CREATE_ANODE_STMT:
+      return "CreateAnodeStmt";
+    case QUERY_NODE_DROP_ANODE_STMT:
+      return "DropAnodeStmt";
+    case QUERY_NODE_UPDATE_ANODE_STMT:
+      return "UpdateAnodeStmt";
     case QUERY_NODE_CREATE_SNODE_STMT:
       return "CreateSnodeStmt";
     case QUERY_NODE_DROP_SNODE_STMT:
@@ -213,6 +219,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowModulesStmt";
     case QUERY_NODE_SHOW_QNODES_STMT:
       return "ShowQnodesStmt";
+    case QUERY_NODE_SHOW_ANODES_STMT:
+      return "ShowAnodesStmt";
     case QUERY_NODE_SHOW_SNODES_STMT:
       return "ShowSnodesStmt";
     case QUERY_NODE_SHOW_BNODES_STMT:
@@ -6440,6 +6448,39 @@ static int32_t dropQnodeStmtToJson(const void* pObj, SJson* pJson) { return drop
 
 static int32_t jsonToDropQnodeStmt(const SJson* pJson, void* pObj) { return jsonToDropComponentNodeStmt(pJson, pObj); }
 
+static const char* jkCreateAnodeStmtUrl = "Url";
+const const char* jkUpdateDropANodeStmtId = "AnodeId";
+
+static int32_t createAnodeStmtToJson(const void* pObj, SJson* pJson) {
+  const SCreateAnodeStmt* pNode = (const SCreateAnodeStmt*)pObj;
+  return tjsonAddStringToObject(pJson, jkCreateAnodeStmtUrl, pNode->url);
+}
+
+static int32_t jsonToCreateAnodeStmt(const SJson* pJson, void* pObj) {
+  SCreateAnodeStmt* pNode = (SCreateAnodeStmt*)pObj;
+  return tjsonGetStringValue(pJson, jkCreateAnodeStmtUrl, pNode->url);
+}
+
+static int32_t updateAnodeStmtToJson(const void* pObj, SJson* pJson) {
+  const SUpdateAnodeStmt* pNode = (const SUpdateAnodeStmt*)pObj;
+  return tjsonAddIntegerToObject(pJson, jkUpdateDropANodeStmtId, pNode->anodeId);
+}
+
+static int32_t jsonToUpdateAnodeStmt(const SJson* pJson, void* pObj) {
+  SUpdateAnodeStmt* pNode = (SUpdateAnodeStmt*)pObj;
+  return tjsonGetIntValue(pJson, jkUpdateDropANodeStmtId, &pNode->anodeId);
+}
+
+static int32_t dropAnodeStmtToJson(const void* pObj, SJson* pJson) {
+  const SDropAnodeStmt* pNode = (const SDropAnodeStmt*)pObj;
+  return tjsonAddIntegerToObject(pJson, jkUpdateDropANodeStmtId, pNode->anodeId);
+}
+
+static int32_t jsonToDropAnodeStmt(const SJson* pJson, void* pObj) {
+  SDropAnodeStmt* pNode = (SDropAnodeStmt*)pObj;
+  return tjsonGetIntValue(pJson, jkUpdateDropANodeStmtId, &pNode->anodeId);
+}
+
 static int32_t createSnodeStmtToJson(const void* pObj, SJson* pJson) {
   return createComponentNodeStmtToJson(pObj, pJson);
 }
@@ -7004,6 +7045,10 @@ static int32_t jsonToShowMnodesStmt(const SJson* pJson, void* pObj) { return jso
 static int32_t showQnodesStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
 
 static int32_t jsonToShowQnodesStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+
+static int32_t showAnodesStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+
+static int32_t jsonToShowAnodesStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
 
 static int32_t showArbGroupsStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
 
@@ -7593,6 +7638,12 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return createQnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_QNODE_STMT:
       return dropQnodeStmtToJson(pObj, pJson);
+    case QUERY_NODE_CREATE_ANODE_STMT:
+      return createAnodeStmtToJson(pObj, pJson);
+    case QUERY_NODE_DROP_ANODE_STMT:
+      return dropAnodeStmtToJson(pObj, pJson);
+    case QUERY_NODE_UPDATE_ANODE_STMT:
+      return updateAnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_SNODE_STMT:
       return createSnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_SNODE_STMT:
@@ -7643,6 +7694,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showMnodesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_QNODES_STMT:
       return showQnodesStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_ANODES_STMT:
+      return showAnodesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
       return showArbGroupsStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_CLUSTER_STMT:
@@ -7993,6 +8046,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowMnodesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_QNODES_STMT:
       return jsonToShowQnodesStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_ANODES_STMT:
+      return jsonToShowAnodesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
       return jsonToShowArbGroupsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_CLUSTER_STMT:

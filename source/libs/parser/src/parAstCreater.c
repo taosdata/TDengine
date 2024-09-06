@@ -2985,6 +2985,47 @@ _err:
   return NULL;
 }
 
+SNode* createCreateAnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateAnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_ANODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  (void)trimString(pUrl->z, pUrl->n, pStmt->url, sizeof(pStmt->url));
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createDropAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode) {
+  CHECK_PARSER_STATUS(pCxt);
+  SUpdateAnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_ANODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (NULL != pAnode) {
+    pStmt->anodeId = taosStr2Int32(pAnode->z, NULL, 10);
+  } else {
+    pStmt->anodeId = -1;
+  }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createUpdateAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode) {
+  CHECK_PARSER_STATUS(pCxt);
+  SUpdateAnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_UPDATE_ANODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (NULL != pAnode) {
+    pStmt->anodeId = taosStr2Int32(pAnode->z, NULL, 10);
+  } else {
+    pStmt->anodeId = -1;
+  }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue) {
   SToken config;
   config.type = TK_NK_STRING;

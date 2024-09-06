@@ -343,6 +343,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_MULTI_REPLICA_SOURCE_DB,  "Stream temporarily do
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_STREAMS,         "Too many streams")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TARGET_TABLE,     "Cannot write the same stable as other stream")
 
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_ALREADY_EXIST,      "Anode already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_NOT_EXIST,          "Anode not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_CANT_ACCESS_URL,    "Anode url can't access")
+
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_NOT_EXIST,            "sma not exist")
