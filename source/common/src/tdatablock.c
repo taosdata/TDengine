@@ -2402,10 +2402,18 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
     } else {
       buf = taosDecodeBinary(buf, (void**)&data.nullbitmap, BitmapLen(pBlock->info.rows));
     }
+    if(buf == NULL) {
+      uError("failed to decode null bitmap/offset, type:%d", data.info.type);
+      goto _error;
+    }
 
     int32_t len = 0;
     buf = taosDecodeFixedI32(buf, &len);
     buf = taosDecodeBinary(buf, (void**)&data.pData, len);
+    if (buf == NULL) {
+      uError("failed to decode data, type:%d", data.info.type);
+      goto _error;
+    }
     if (IS_VAR_DATA_TYPE(data.info.type)) {
       data.varmeta.length = len;
       data.varmeta.allocLen = len;
@@ -2418,6 +2426,15 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
   }
 
   return (void*)buf;
+_error:
+  for (int32_t i = 0; i < sz; ++i) {
+    SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
+    if (pColInfoData == NULL) {
+      break;
+    }
+    colDataDestroy(pColInfoData);
+  }
+  return NULL;
 }
 
 static char* formatTimestamp(char* buf, int64_t val, int precision) {
@@ -3009,6 +3026,12 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
       data += colSizes[col];
     }
 
+    if (colSizes[col] <= 0 && !colDataIsNull_s(pColRes, 0) && pColRes->info.type != TSDB_DATA_TYPE_NULL) {
+      uError("Invalid colSize:%d colIdx:%d colType:%d while encoding block", colSizes[col], col, pColRes->info.type);
+      terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      return -1;
+    }
+    
     colSizes[col] = htonl(colSizes[col]);
     //    uError("blockEncode col bytes:%d, type:%d, size:%d, htonl size:%d", pColRes->info.bytes, pColRes->info.type,
     //    htonl(colSizes[col]), colSizes[col]);
@@ -3036,6 +3059,11 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
   // total rows sizeof(int32_t)
   int32_t numOfRows = *(int32_t*)pStart;
   pStart += sizeof(int32_t);
+  if (numOfRows <= 0) {
+    uError("block decode numOfRows:%d error", numOfRows);
+    terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    return terrno;
+  }
 
   // total columns sizeof(int32_t)
   int32_t numOfCols = *(int32_t*)pStart;
@@ -3115,14 +3143,19 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
       pStart += BitmapLen(numOfRows);
     }
 
-    if (colLen[i] > 0) {
-      memcpy(pColInfoData->pData, pStart, colLen[i]);
-    }
-
     // TODO
     // setting this flag to true temporarily so aggregate function on stable will
     // examine NULL value for non-primary key column
     pColInfoData->hasNull = true;
+
+    if (colLen[i] > 0) {
+      memcpy(pColInfoData->pData, pStart, colLen[i]);
+    } else if (!colDataIsNull_s(pColInfoData, 0) && pColInfoData->info.type != TSDB_DATA_TYPE_NULL) {
+      uError("block decode colLen:%d error, colIdx:%d, type:%d", colLen[i], i, pColInfoData->info.type);
+      terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      return terrno;
+    }
+
     pStart += colLen[i];
   }
 

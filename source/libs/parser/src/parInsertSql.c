@@ -2254,10 +2254,16 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
 
 static int32_t parseDataFromFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SToken* pFilePath,
                                  SRowsDataContext rowsDataCxt) {
-  char filePathStr[PATH_MAX] = {0};
+  char filePathStr[PATH_MAX + 16] = {0};
   if (TK_NK_STRING == pFilePath->type) {
     (void)trimString(pFilePath->z, pFilePath->n, filePathStr, sizeof(filePathStr));
+    if (strlen(filePathStr) >= PATH_MAX) {
+      return buildSyntaxErrMsg(&pCxt->msg, "file path is too long, max length is 4096", pFilePath->z);
+    }
   } else {
+    if (pFilePath->n >= PATH_MAX) {
+      return buildSyntaxErrMsg(&pCxt->msg, "file path is too long, max length is 4096", pFilePath->z);
+    }
     strncpy(filePathStr, pFilePath->z, pFilePath->n);
   }
   pStmt->fp = taosOpenFile(filePathStr, TD_FILE_READ | TD_FILE_STREAM);
