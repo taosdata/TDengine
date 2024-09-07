@@ -1335,6 +1335,16 @@ static void cliDestroy(uv_handle_t* handle) {
   taosMemoryFree(conn->dstAddr);
   taosMemoryFree(conn->stream);
 
+  void* pIter = taosHashIterate(conn->pQTable, NULL);
+  while (pIter) {
+    int64_t qid = *(int64_t*)pIter;
+    (void)taosHashRemove(pThrd->pIdConnTable, &qid, sizeof(qid));
+
+    pIter = taosHashIterate(conn->pQTable, pIter);
+
+    tDebug("%s conn %p destroy state %ld", CONN_GET_INST_LABEL(conn), conn, qid);
+  }
+
   cliDestroyConnMsgs(conn, true);
 
   tTrace("%s conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
@@ -2278,51 +2288,6 @@ void cliConnFreeMsgs(SCliConn* conn) {
   }
 }
 
-// bool cliConnRmReleaseReq(SCliConn* conn, STransMsgHead* pHead) {
-//   if (pHead->release == 1 && (pHead->msgLen) == sizeof(*pHead)) {
-//     for (int i = 0; i < transQueueSize(&conn->reqs); i++) {
-//       SCliReq* pReq = transQueueGet(&conn->reqs, i);
-//       if (pHead->ahandle == (uint64_t)pReq->ctx->ahandle) {
-//         tDebug("%s conn %p receive release request, refId:%" PRId64 "", CONN_GET_INST_LABEL(conn), conn,
-//         conn->refId); transQueueRm(&conn->reqs, i); return true;
-//       }
-//     }
-//   }
-//   return false;
-// }
-// bool cliRecvReleaseReq(SCliConn* conn, STransMsgHead* pHead) {
-//   if (pHead->release == 1 && (pHead->msgLen) == sizeof(*pHead)) {
-//     uint64_t ahandle = pHead->ahandle;
-//     SCliReq* pReq = NULL;
-//     CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle);
-//     tDebug("%s conn %p receive release request, refId:%" PRId64 ", may ignore", CONN_GET_INST_LABEL(conn), conn,
-//            conn->refId);
-
-//     (void)transClearBuffer(&conn->readBuf);
-//     transFreeMsg(transContFromHead((char*)pHead));
-
-//     for (int i = 0; ahandle == 0 && i < transQueueSize(&conn->reqs); i++) {
-//       SCliReq* pReq = transQueueGet(&conn->reqs, i);
-//       if (pReq->type == Release) {
-//         ASSERTS(pReq == NULL, "trans-cli recv invaid release-req");
-//         tDebug("%s conn %p receive release request, refId:%" PRId64 ", ignore msg", CONN_GET_INST_LABEL(conn), conn,
-//                conn->refId);
-//         cliDestroyConn(conn, true);
-//         return true;
-//       }
-//     }
-
-//     cliConnFreeMsgs(conn);
-
-//     tDebug("%s conn %p receive release request, refId:%" PRId64 "", CONN_GET_INST_LABEL(conn), conn, conn->refId);
-//     destroyReq(pReq);
-
-//     addConnToPool(((SCliThrd*)conn->hostThrd)->pool, conn);
-//     return true;
-//   }
-//   return false;
-// }
-
 static FORCE_INLINE void destroyReq(void* arg) {
   SCliReq* pReq = arg;
   if (pReq == NULL) {
@@ -2330,7 +2295,7 @@ static FORCE_INLINE void destroyReq(void* arg) {
   }
   tDebug("free memory:%p, free ctx: %p", pReq, pReq->ctx);
 
-  destroyReqCtx(pReq->ctx);
+  if (pReq->ctx) destroyReqCtx(pReq->ctx);
   transFreeMsg(pReq->msg.pCont);
   taosMemoryFree(pReq);
 }
@@ -3562,11 +3527,11 @@ int32_t transFreeConnById(void* pInstRef, int64_t transpointId) {
   if (pCli == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
   }
-  pCli->type = FreeById;
+  pCli->type = Normal;
 
   tDebug("release conn id %" PRId64 "", transpointId);
 
-  STransMsg msg = {.info.handle = (void*)transpointId};
+  STransMsg msg = {.msgType = TDMT_SCH_TASK_RELEASE, .info.handle = (void*)transpointId};
   msg.info.qId = transpointId;
   pCli->msg = msg;
 
