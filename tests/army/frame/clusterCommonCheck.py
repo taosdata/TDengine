@@ -228,6 +228,47 @@ class ClusterComCheck:
             tdLog.debug(tdSql.res)
             tdLog.exit("stop mnodes  on dnode 2 or 3 failed in 10s")
 
+    def check_vgroups_status_with_offline(self,vgroup_numbers=2,db_replica=3,count_number=10,db_name="db"):
+        """ 
+            n nodes cluster, 3 replica database
+            return 1, n leaders, stable status
+            return 2, 0 < num of leader < n, stable status
+            return 0, no leader, stable status
+            return -1, Elections not yet completed, unstable status
+        """
+        vgroup_numbers = int(vgroup_numbers)
+        self.db_replica = int(db_replica)
+        tdLog.debug("start to check status of vgroups")
+        count=0
+        leader_number = 0
+        while count < count_number:
+            time.sleep(1)
+            count+=1
+            tdSql.query(f"show {db_name}.vgroups;")
+            if tdSql.getRows() != vgroup_numbers :
+                continue
+            for i in range(vgroup_numbers):
+                print(tdSql.res[i])
+                if 'leader' in tdSql.res[i]:leader_number += 1
+                elif tdSql.res[i].count('follower') + tdSql.res[i].count('candidate') >= 2:
+                    print(tdSql.res[i].count('follow'))
+                    tdLog.debug("Elections not yet completed")
+                    return -1
+                else: # only one 'follower' or 'offline'
+                    tdLog.debug("Not in compliance with Raft protocol, unable to complete election")
+            if leader_number == vgroup_numbers: 
+                tdLog.debug("Leader election for all vgroups completed")
+                return 1
+            elif leader_number == 0:
+                tdLog.debug("all vnodes is follower")
+                return 0
+            else:
+                tdLog.debug(f"there is {vgroup_numbers} vgroups, and leader elections for {leader_number} vgroups competed")
+                return 2
+        else:
+            tdLog.debug(tdSql.res)
+            tdLog.notice(f"elections of {db_name} all vgroups with replica {self.db_replica}  are failed in {count} s ")
+
     def check_vgroups_status(self,vgroup_numbers=2,db_replica=3,count_number=10,db_name="db"):
         """ check vgroups status in 10s after db vgroups status is changed """
         vgroup_numbers = int(vgroup_numbers)

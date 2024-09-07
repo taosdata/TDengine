@@ -24,7 +24,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_desc.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_null.py
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/incSnapshot.py -N 3
-#,,y,army,./pytest.sh python3 ./test.py -f cluster/clusterBasic.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f cluster/clusterBasic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/query_basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_query_accuracy.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/insert_basic.py -N 3
