@@ -1075,6 +1075,7 @@ class StreamComputingTest(TDCase):
             # self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
             if pause:
                 for stream_name in [f'{self.stb_name}{self.stream_suffix}', f'{self.ctb_name}{self.stream_suffix}', f'{self.tb_name}{self.stream_suffix}']:
+                    self.wait_checkpoint_ready(stream_name)
                     self.tdCom.pause_stream(stream_name, True)
             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
             # if self.update and i%2 == 0:
