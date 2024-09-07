@@ -36,19 +36,19 @@ class TDTestCase(TBase):
 
     def checkClusterEmptyDB(self):
         while 1:
-            if clusterComCheck.checkDnodes(3): break
+            if clusterComCheck.checkDnodes(5): break
         tdSql.query("show cluster alive;")
         tdSql.checkData(0, 0, 1)
 
         sc.dnodeStop(3)
         while 1:
-            if clusterComCheck.checkDnodes(2): break
+            if clusterComCheck.checkDnodes(4): break
         tdSql.query("show cluster alive;")
         tdSql.checkData(0, 0, 1)
 
         sc.dnodeStop(2)
         while 1:
-            if clusterComCheck.checkDnodes(1): break
+            if clusterComCheck.checkDnodes(3): break
         tdSql.query("show cluster alive;")
         tdSql.checkData(0, 0, 1)
 
@@ -56,8 +56,8 @@ class TDTestCase(TBase):
         sc.dnodeStart(3)
         sc.dnodeStart(2)
         while 1:
-            if clusterComCheck.checkDnodes(3): break
-            
+            if clusterComCheck.checkDnodes(5): break
+        
         tdSql.execute(f'drop database if exists {self.db}')
         tdSql.execute(f'create database {self.db} replica {self.replicaVar} vgroups {self.vgroupNum}')
         while 1:
@@ -70,7 +70,7 @@ class TDTestCase(TBase):
 
         sc.dnodeStop(3)
         while 1:
-            if clusterComCheck.checkDnodes(2): break
+            if clusterComCheck.checkDnodes(4): break
             
         while 1:
             leader_status = clusterComCheck.check_vgroups_status_with_offline(vgroup_numbers=self.vgroupNum, db_replica=self.replicaVar)
@@ -80,8 +80,8 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 0, leader_status)
         
         sc.dnodeStop(2)
-        while 1:
-            if clusterComCheck.checkDnodes(1): break
+        # while 1:
+        #     if clusterComCheck.checkDnodes(3): break
         while 1:
             leader_status = clusterComCheck.check_vgroups_status_with_offline(vgroup_numbers=self.vgroupNum, db_replica=self.replicaVar)
             if leader_status >= 0: break
@@ -97,6 +97,8 @@ class TDTestCase(TBase):
 
     def stop(self):
         sc.dnodeStop(1)
+        sc.dnodeStop(4)
+        sc.dnodeStop(5)
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
