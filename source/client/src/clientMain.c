@@ -312,7 +312,9 @@ void taos_close_internal(void *taos) {
   STscObj *pTscObj = (STscObj *)taos;
   tscDebug("0x%" PRIx64 " try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
 
-  (void)taosRemoveRef(clientConnRefPool, pTscObj->id);
+  if (TSDB_CODE_SUCCESS != taosRemoveRef(clientConnRefPool, pTscObj->id)) {
+    tscError("0x%" PRIx64 " failed to remove ref from conn pool", pTscObj->id);
+  }
 }
 
 void taos_close(TAOS *taos) {
@@ -1313,7 +1315,10 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d,QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
-      (void)refreshMeta(pRequest->pTscObj, pRequest);  // ignore return code,try again
+      if (TSDB_CODE_SUCCESS != refreshMeta(pRequest->pTscObj, pRequest)) {
+        tscWarn("0x%" PRIx64 " refresh meta failed, code:%d - %s,QID:0x%" PRIx64, pRequest->self, code,
+                tstrerror(code), pRequest->requestId);
+      }
       pRequest->prevCode = code;
       doAsyncQuery(pRequest, true);
       return;
@@ -1614,8 +1619,11 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   }
 
   SSyncQueryParam *pParam = pRequest->body.interParam;
-  (void)tsem_wait(&pParam->sem);
-
+  code = tsem_wait(&pParam->sem);
+  if (code) {
+    tscError("tsem wait failed, code:%d - %s", code, tstrerror(code));
+    goto _return;
+  }
 _return:
   destoryCatalogReq(&catalogReq);
   destroyRequest(pRequest);

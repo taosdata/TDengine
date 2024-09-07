@@ -2249,7 +2249,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
         return TSDB_CODE_SCALAR_CONVERT_ERROR;
       }
       varDataSetLen(newValData, len);
-      (void)varDataCopy(fi->data, newValData);
+      varDataCopy(fi->data, newValData);
     }
   }
 
@@ -4592,7 +4592,7 @@ int32_t filterConverNcharColumns(SFilterInfo *info, int32_t rows, bool *gotNchar
         if (k == varSrcLen) {
           /* NULL */
           varDataLen(dst) = (VarDataLenT)varSrcLen;
-          (void)varDataCopy(dst, src);
+          varDataCopy(dst, src);
           continue;
         }
         bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), (TdUcs4 *)varDataVal(dst), bufSize, &len);
