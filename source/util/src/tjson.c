@@ -203,15 +203,6 @@ int32_t tjsonGetStringValue(const SJson* pJson, const char* pName, char* pVal) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tjsonGetStringValue2(const SJson* pJson, char* pVal) {
-  char* p = cJSON_GetStringValue(pJson);
-  if (NULL == p) {
-    return TSDB_CODE_SUCCESS;
-  }
-  strcpy(pVal, p);
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t tjsonDupStringValue(const SJson* pJson, const char* pName, char** pVal) {
   char* p = cJSON_GetStringValue(tjsonGetObjectItem((cJSON*)pJson, pName));
   if (NULL == p) {

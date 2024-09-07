@@ -294,7 +294,7 @@ static int32_t mndCreateAnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateAnodeReq *p
   anodeObj.version = 0;
   anodeObj.urlLen = pCreate->urlLen;
   if (anodeObj.urlLen > TSDB_URL_LEN) {
-    terrno = TSDB_CODE_MND_ANODE_TOO_LONG_URL;
+    code = TSDB_CODE_MND_ANODE_TOO_LONG_URL;
     goto _OVER;
   }
 
@@ -302,7 +302,8 @@ static int32_t mndCreateAnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateAnodeReq *p
   if (anodeObj.url == NULL) goto _OVER;
   memcpy(anodeObj.url, pCreate->url, pCreate->urlLen);
 
-  if (mndGetAnodeFuncList(&anodeObj) != 0) goto _OVER;
+  code = mndGetAnodeFuncList(&anodeObj);
+  if (code != 0) goto _OVER;
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-anode");
   if (pTrans == NULL) {
@@ -606,76 +607,53 @@ static int32_t mndDecodeFuncList(SJson *pJson, SAnodeObj *pObj) {
   int32_t code = 0;
   int32_t protocol = 0;
   char    buf[TSDB_FUNC_NAME_LEN + 1] = {0};
-  terrno = TSDB_CODE_INVALID_JSON_FORMAT;
 
-  code = tjsonGetIntValue(pJson, "protocol", &protocol);
-  if (code < 0) return -1;
-  if (protocol != 1) {
-    terrno = TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
-    return -1;
-  }
+  tjsonGetInt32ValueFromDouble(pJson, "protocol", protocol, code);
+  if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
+  if (protocol != 1) return TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
 
-  code = tjsonGetIntValue(pJson, "version", &pObj->version);
-  if (code < 0) return -1;
-  if (pObj->version <= 0) {
-    terrno = TSDB_CODE_MND_ANODE_INVALID_VERSION;
-    return -1;
-  }
+  tjsonGetInt32ValueFromDouble(pJson, "version", pObj->version, code);
+  if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
+  if (pObj->version <= 0) return TSDB_CODE_MND_ANODE_INVALID_VERSION;
 
   SJson *functions = tjsonGetObjectItem(pJson, "functions");
-  if (functions == NULL) return -1;
+  if (functions == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
   pObj->numOfFuncs = tjsonGetArraySize(functions);
-  if (pObj->numOfFuncs <= 0 || pObj->numOfFuncs > 1024) {
-    terrno = TSDB_CODE_MND_ANODE_TOO_MANY_FUNC;
-    return -1;
-  }
+  if (pObj->numOfFuncs <= 0 || pObj->numOfFuncs > 1024) return TSDB_CODE_MND_ANODE_TOO_MANY_FUNC;
   pObj->pFuncs = taosMemoryCalloc(pObj->numOfFuncs, sizeof(SAnodeFunc));
-  if (pObj->pFuncs == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
+  if (pObj->pFuncs == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   for (int32_t i = 0; i < pObj->numOfFuncs; ++i) {
     SJson *func = tjsonGetArrayItem(functions, i);
-    if (func == NULL) return -1;
+    if (func == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
     SAnodeFunc *pFunc = &pObj->pFuncs[i];
 
     code = tjsonGetStringValue(func, "name", buf);
-    if (code < 0) return -1;
-    if (pFunc->nameLen > TSDB_FUNC_NAME_LEN) {
-      terrno = TSDB_CODE_MND_ANODE_TOO_LONG_FUNC_NAME;
-      return -1;
-    }
+    if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
     pFunc->nameLen = strlen(buf) + 1;
-    if (pFunc->nameLen <= 1) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
+    if (pFunc->nameLen > TSDB_FUNC_NAME_LEN) return TSDB_CODE_MND_ANODE_TOO_LONG_FUNC_NAME;
+    if (pFunc->nameLen <= 1) return TSDB_CODE_OUT_OF_MEMORY;
 
     pFunc->name = taosMemoryCalloc(pFunc->nameLen, 1);
     tstrncpy(pFunc->name, buf, pFunc->nameLen);
 
-    SJson *types = tjsonGetObjectItem(pJson, "types");
+    SJson *types = tjsonGetObjectItem(func, "types");
     if (types == NULL) return -1;
     pFunc->typeLen = tjsonGetArraySize(types);
-    if (pFunc->typeLen <= 0) return -1;
-    if (pFunc->typeLen > 1024) {
-      terrno = TSDB_CODE_MND_ANODE_TOO_MANY_TYPE;
-      return -1;
-    }
+    if (pFunc->typeLen <= 0) return TSDB_CODE_INVALID_JSON_FORMAT;
+    if (pFunc->typeLen > 1024) return TSDB_CODE_MND_ANODE_TOO_MANY_TYPE;
 
     pFunc->types = taosMemoryCalloc(pFunc->typeLen, sizeof(int32_t));
-    if (pFunc->types == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
+    if (pFunc->types == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
     for (int32_t j = 0; j < pFunc->typeLen; ++j) {
       SJson *type = tjsonGetArrayItem(types, j);
-      if (type == NULL) return -1;
-      code = tjsonGetStringValue2(type, buf);
-      if (code != 0) return -1;
-      pFunc->types[j] = taosFuncInt(buf);
+      if (type == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
+
+      char *typestr = NULL;
+      code = tjsonGetObjectValueString(type, &typestr);
+      if (code != 0) return TSDB_CODE_INVALID_JSON_FORMAT;
+      pFunc->types[j] = taosFuncInt(typestr);
     }
   }
 
@@ -690,8 +668,7 @@ static SJson *mndGetAnodeJson(SAnodeObj *pObj, const char *path) {
   char url[TSDB_URL_LEN + 1] = {0};
   snprintf(url, TSDB_URL_LEN, "%s/%s", pObj->url, path);
 
-  int32_t code = taosSendGetRequest(url, &pCont, &contLen);
-  if (code != 0) {
+  if (taosSendGetRequest(url, &pCont, &contLen) < 0) {
     terrno = TSDB_CODE_MND_ANODE_URL_CANT_ACCESS;
     goto _OVER;
   }
@@ -715,52 +692,40 @@ _OVER:
 
 static int32_t mndGetAnodeFuncList(SAnodeObj *pObj) {
   SJson *pJson = mndGetAnodeJson(pObj, "list");
-  if (pJson == NULL) return -1;
+  if (pJson == NULL) return terrno;
 
   int32_t code = mndDecodeFuncList(pJson, pObj);
   if (pJson != NULL) cJSON_Delete(pJson);
-  return code;
-}
-
-static int32_t mndDecodeStatus(SJson *pJson, char *status) {
-  int32_t code = 0;
-  int32_t protocol = 0;
-  terrno = TSDB_CODE_INVALID_JSON_FORMAT;
-
-  tjsonGetInt32ValueFromDouble(pJson, "protocol", protocol, code);
-  if (code < 0) return -1;
-  if (protocol != 1) {
-    terrno = TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
-    return -1;
-  }
-
-  return tjsonGetStringValue(pJson, "status", status);
+  TAOS_RETURN(code);
 }
 
 static int32_t mndGetAnodeStatus(SAnodeObj *pObj, char *status) {
   int32_t code = 0;
   int32_t protocol = 0;
-  terrno = TSDB_CODE_INVALID_JSON_FORMAT;
-  SJson *pJson = mndGetAnodeJson(pObj, "status");
-  if (pJson == NULL) return -1;
+  SJson  *pJson = mndGetAnodeJson(pObj, "status");
+  if (pJson == NULL) return terrno;
 
   tjsonGetInt32ValueFromDouble(pJson, "protocol", protocol, code);
-  if (code < 0) goto _OVER;
+  if (code < 0) {
+    code = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
   if (protocol != 1) {
-    code = -1;
-    terrno = TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
+    code = TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
     goto _OVER;
   }
 
   code = tjsonGetStringValue(pJson, "status", status);
-  if (code < 0) goto _OVER;
+  if (code < 0) {
+    code = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
   if (strlen(status) == 0) {
-    code = -1;
-    terrno = TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
+    code = TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
     goto _OVER;
   }
 
 _OVER:
   if (pJson != NULL) cJSON_Delete(pJson);
-  return code;
+  TAOS_RETURN(code);
 }

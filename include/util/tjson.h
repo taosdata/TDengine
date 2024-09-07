@@ -79,7 +79,6 @@ int32_t tjsonGetUIntValue(const SJson* pJson, const char* pName, uint32_t* pVal)
 int32_t tjsonGetUTinyIntValue(const SJson* pJson, const char* pName, uint8_t* pVal);
 int32_t tjsonGetBoolValue(const SJson* pJson, const char* pName, bool* pVal);
 int32_t tjsonGetDoubleValue(const SJson* pJson, const char* pName, double* pVal);
-int32_t tjsonGetStringValue2(const SJson* pJson, char* pVal);
 
 int32_t tjsonGetArraySize(const SJson* pJson);
 SJson*  tjsonGetArrayItem(const SJson* pJson, int32_t index);
