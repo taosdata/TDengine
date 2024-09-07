@@ -3367,6 +3367,10 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
         break;
       }
       // high version's column value
+      if (slotIds[iCol] > pTSchema->numOfCols - 1) {
+        continue;
+      }
+
       SLastCol *lastColVal = (SLastCol *)taosArrayGet(pColArray, iCol);
       if (lastColVal->colVal.cid != pTSchema->columns[slotIds[iCol]].colId) {
         continue;
