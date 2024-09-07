@@ -614,8 +614,6 @@ typedef enum {
   AFUNC_TYPE_END,
 } EAFuncType;
 
-const char* afuncStr(EAFuncType type);
-
 #ifdef __cplusplus
 }
 #endif

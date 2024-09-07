@@ -21,6 +21,8 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "tfunc.h"
+#include "tjson.h"
 
 #define TSDB_ANODE_VER_NUMBER   1
 #define TSDB_ANODE_RESERVE_SIZE 64
@@ -37,6 +39,8 @@ static int32_t  mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 static void     mndCancelGetNextAnode(SMnode *pMnode, void *pIter);
 static int32_t  mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextAnodeFull(SMnode *pMnode, void *pIter);
+static int32_t  mndGetAnodeFuncList(SAnodeObj *pObj);
+static int32_t  mndGetAnodeStatus(SAnodeObj *pObj, char *status);
 
 int32_t mndInitAnode(SMnode *pMnode) {
   SSdbTable table = {
@@ -285,40 +289,20 @@ static int32_t mndCreateAnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateAnodeReq *p
 
   SAnodeObj anodeObj = {0};
   anodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_ANODE);
-
   anodeObj.createdTime = taosGetTimestampMs();
   anodeObj.updateTime = anodeObj.createdTime;
   anodeObj.version = 0;
   anodeObj.urlLen = pCreate->urlLen;
-  anodeObj.url = taosMemoryCalloc(1, pCreate->urlLen);
+  if (anodeObj.urlLen > TSDB_URL_LEN) {
+    terrno = TSDB_CODE_MND_ANODE_TOO_LONG_URL;
+    goto _OVER;
+  }
 
+  anodeObj.url = taosMemoryCalloc(1, pCreate->urlLen);
   if (anodeObj.url == NULL) goto _OVER;
   memcpy(anodeObj.url, pCreate->url, pCreate->urlLen);
 
-  // get from restful, test begin
-  anodeObj.numOfFuncs = 2;
-
-  // todo: check len of url/name/types
-  anodeObj.pFuncs = taosMemoryCalloc(anodeObj.numOfFuncs, sizeof(SAnodeFunc));
-  SAnodeFunc *pFunc1 = &anodeObj.pFuncs[0];
-  pFunc1->typeLen = 3;
-  pFunc1->nameLen = strlen("arima") + 1;
-  pFunc1->name = taosMemoryCalloc(pFunc1->nameLen, 1);
-  pFunc1->types = taosMemoryCalloc(pFunc1->typeLen, sizeof(int32_t));
-  tstrncpy(pFunc1->name, "arima", pFunc1->nameLen);
-  pFunc1->types[0] = AFUNC_TYPE_ANOMALY_WINDOW;
-  pFunc1->types[1] = AFUNC_TYPE_FORECAST;
-  pFunc1->types[2] = AFUNC_TYPE_ANOMALY_DETECT;
-
-  SAnodeFunc *pFunc2 = &anodeObj.pFuncs[1];
-  pFunc2->typeLen = 2;
-  pFunc2->nameLen = strlen("ar") + 1;
-  pFunc2->name = taosMemoryCalloc(pFunc2->nameLen, 1);
-  pFunc2->types = taosMemoryCalloc(pFunc2->typeLen, sizeof(int32_t));
-  tstrncpy(pFunc2->name, "ar", pFunc2->nameLen);
-  pFunc2->types[0] = AFUNC_TYPE_ANOMALY_WINDOW;
-  pFunc2->types[1] = AFUNC_TYPE_FORECAST;
-  // test end
+  if (mndGetAnodeFuncList(&anodeObj) != 0) goto _OVER;
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-anode");
   if (pTrans == NULL) {
@@ -529,6 +513,7 @@ static int32_t mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   int32_t    cols = 0;
   SAnodeObj *pObj = NULL;
   char       buf[TSDB_URL_LEN + VARSTR_HEADER_SIZE];
+  char       status[64];
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_ANODE, pShow->pIter, (void **)&pObj);
@@ -542,9 +527,12 @@ static int32_t mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     (void)colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
 
-    const char *status = "ready";
-    // get from anode
-    STR_TO_VARSTR(buf, status);
+    status[0] = 0;
+    if (mndGetAnodeStatus(pObj, status) == 0) {
+      STR_TO_VARSTR(buf, status);
+    } else {
+      STR_TO_VARSTR(buf, "offline");
+    }
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     (void)colDataSetVal(pColInfo, numOfRows, buf, false);
 
@@ -593,7 +581,7 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         (void)colDataSetVal(pColInfo, numOfRows, buf, false);
 
-        STR_TO_VARSTR(buf, afuncStr(type));
+        STR_TO_VARSTR(buf, taosFuncStr(type));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         (void)colDataSetVal(pColInfo, numOfRows, buf, false);
 
@@ -612,4 +600,167 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 static void mndCancelGetNextAnodeFull(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetchByType(pSdb, pIter, SDB_ANODE);
+}
+
+static int32_t mndDecodeFuncList(SJson *pJson, SAnodeObj *pObj) {
+  int32_t code = 0;
+  int32_t protocol = 0;
+  char    buf[TSDB_FUNC_NAME_LEN + 1] = {0};
+  terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+
+  code = tjsonGetIntValue(pJson, "protocol", &protocol);
+  if (code < 0) return -1;
+  if (protocol != 1) {
+    terrno = TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
+    return -1;
+  }
+
+  code = tjsonGetIntValue(pJson, "version", &pObj->version);
+  if (code < 0) return -1;
+  if (pObj->version <= 0) {
+    terrno = TSDB_CODE_MND_ANODE_INVALID_VERSION;
+    return -1;
+  }
+
+  SJson *functions = tjsonGetObjectItem(pJson, "functions");
+  if (functions == NULL) return -1;
+  pObj->numOfFuncs = tjsonGetArraySize(functions);
+  if (pObj->numOfFuncs <= 0 || pObj->numOfFuncs > 1024) {
+    terrno = TSDB_CODE_MND_ANODE_TOO_MANY_FUNC;
+    return -1;
+  }
+  pObj->pFuncs = taosMemoryCalloc(pObj->numOfFuncs, sizeof(SAnodeFunc));
+  if (pObj->pFuncs == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  for (int32_t i = 0; i < pObj->numOfFuncs; ++i) {
+    SJson *func = tjsonGetArrayItem(functions, i);
+    if (func == NULL) return -1;
+    SAnodeFunc *pFunc = &pObj->pFuncs[i];
+
+    code = tjsonGetStringValue(func, "name", buf);
+    if (code < 0) return -1;
+    if (pFunc->nameLen > TSDB_FUNC_NAME_LEN) {
+      terrno = TSDB_CODE_MND_ANODE_TOO_LONG_FUNC_NAME;
+      return -1;
+    }
+    pFunc->nameLen = strlen(buf) + 1;
+    if (pFunc->nameLen <= 1) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    pFunc->name = taosMemoryCalloc(pFunc->nameLen, 1);
+    tstrncpy(pFunc->name, buf, pFunc->nameLen);
+
+    SJson *types = tjsonGetObjectItem(pJson, "types");
+    if (types == NULL) return -1;
+    pFunc->typeLen = tjsonGetArraySize(types);
+    if (pFunc->typeLen <= 0) return -1;
+    if (pFunc->typeLen > 1024) {
+      terrno = TSDB_CODE_MND_ANODE_TOO_MANY_TYPE;
+      return -1;
+    }
+
+    pFunc->types = taosMemoryCalloc(pFunc->typeLen, sizeof(int32_t));
+    if (pFunc->types == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    for (int32_t j = 0; j < pFunc->typeLen; ++j) {
+      SJson *type = tjsonGetArrayItem(types, j);
+      if (type == NULL) return -1;
+      code = tjsonGetStringValue2(type, buf);
+      if (code != 0) return -1;
+      pFunc->types[j] = taosFuncInt(buf);
+    }
+  }
+
+  return 0;
+}
+
+static SJson *mndGetAnodeJson(SAnodeObj *pObj, const char *path) {
+  SJson  *pJson = NULL;
+  char   *pCont = NULL;
+  int32_t contLen = 0;
+
+  char url[TSDB_URL_LEN + 1] = {0};
+  snprintf(url, TSDB_URL_LEN, "%s/%s", pObj->url, path);
+
+  int32_t code = taosSendGetRequest(url, &pCont, &contLen);
+  if (code != 0) {
+    terrno = TSDB_CODE_MND_ANODE_URL_CANT_ACCESS;
+    goto _OVER;
+  }
+
+  if (pCont == NULL || contLen == 0) {
+    terrno = TSDB_CODE_MND_ANODE_RSP_IS_NULL;
+    goto _OVER;
+  }
+
+  pCont[contLen] = '\0';
+  pJson = tjsonParse(pCont);
+  if (pJson == NULL) {
+    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
+
+_OVER:
+  if (pCont != NULL) taosMemoryFreeClear(pCont);
+  return pJson;
+}
+
+static int32_t mndGetAnodeFuncList(SAnodeObj *pObj) {
+  SJson *pJson = mndGetAnodeJson(pObj, "list");
+  if (pJson == NULL) return -1;
+
+  int32_t code = mndDecodeFuncList(pJson, pObj);
+  if (pJson != NULL) cJSON_Delete(pJson);
+  return code;
+}
+
+static int32_t mndDecodeStatus(SJson *pJson, char *status) {
+  int32_t code = 0;
+  int32_t protocol = 0;
+  terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+
+  tjsonGetInt32ValueFromDouble(pJson, "protocol", protocol, code);
+  if (code < 0) return -1;
+  if (protocol != 1) {
+    terrno = TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
+    return -1;
+  }
+
+  return tjsonGetStringValue(pJson, "status", status);
+}
+
+static int32_t mndGetAnodeStatus(SAnodeObj *pObj, char *status) {
+  int32_t code = 0;
+  int32_t protocol = 0;
+  terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+  SJson *pJson = mndGetAnodeJson(pObj, "status");
+  if (pJson == NULL) return -1;
+
+  tjsonGetInt32ValueFromDouble(pJson, "protocol", protocol, code);
+  if (code < 0) goto _OVER;
+  if (protocol != 1) {
+    code = -1;
+    terrno = TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
+    goto _OVER;
+  }
+
+  code = tjsonGetStringValue(pJson, "status", status);
+  if (code < 0) goto _OVER;
+  if (strlen(status) == 0) {
+    code = -1;
+    terrno = TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
+    goto _OVER;
+  }
+
+_OVER:
+  if (pJson != NULL) cJSON_Delete(pJson);
+  return code;
 }
