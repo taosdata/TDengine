@@ -114,6 +114,7 @@ typedef struct SExHandle {
   void*    handle;
   int64_t  refId;
   void*    pThrd;
+  int8_t   pThrdIdx;
   queue    q;
   int8_t   inited;
   SRWLatch latch;

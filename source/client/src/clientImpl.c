@@ -335,8 +335,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   STscObj*      pTscObj = pRequest->pTscObj;
   SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
 
-  int64_t transporterId = 0;
-  TSC_ERR_RET(asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pMsgInfo->epSet, &transporterId, pSendMsg));
+  TSC_ERR_RET(asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pMsgInfo->epSet, NULL, pSendMsg));
   (void)tsem_wait(&pRequest->body.rspSem);
   return TSDB_CODE_SUCCESS;
 }
@@ -392,8 +391,7 @@ int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   SAppInstInfo* pAppInfo = getAppInfo(pRequest);
   SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
 
-  int64_t transporterId = 0;
-  int32_t code = asyncSendMsgToServer(pAppInfo->pTransporter, &pMsgInfo->epSet, &transporterId, pSendMsg);
+  int32_t code = asyncSendMsgToServer(pAppInfo->pTransporter, &pMsgInfo->epSet, NULL, pSendMsg);
   if (code) {
     doRequestCallback(pRequest, code);
   }
@@ -1557,9 +1555,8 @@ int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __ta
     return code;
   }
 
-  int64_t transporterId = 0;
-  code = asyncSendMsgToServer((*pTscObj)->pAppInfo->pTransporter, &(*pTscObj)->pAppInfo->mgmtEp.epSet, &transporterId,
-                              body);
+  // int64_t transporterId = 0;
+  code = asyncSendMsgToServer((*pTscObj)->pAppInfo->pTransporter, &(*pTscObj)->pAppInfo->mgmtEp.epSet, NULL, body);
   if (TSDB_CODE_SUCCESS != code) {
     destroyTscObj(*pTscObj);
     tscError("failed to send connect msg to server, code:%s", tstrerror(code));

@@ -71,7 +71,7 @@ typedef struct SSvrMsg {
   int32_t       seqNum;
   void*         arg;
   FilteFunc     func;
-
+  int8_t        sent;
 } SSvrMsg;
 
 typedef struct {
@@ -423,16 +423,40 @@ static int8_t uvValidConn(SSvrConn* pConn) {
   }
   return forbiddenIp;
 }
-static void uvMaySetConnAcquired(SSvrConn* pConn, STransMsgHead* pHead) {
-  if (pConn->status == ConnNormal) {
-    if (pHead->persist == 1) {
-      pConn->status = ConnAcquire;
-      transRefSrvHandle(pConn);
-      tDebug("conn %p acquired by server app", pConn);
-    } else if (pHead->noResp == 0) {
-      transRefSrvHandle(pConn);
+
+static int32_t uvHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
+  int32_t code = 0;
+  STrans* pInst = pConn->pInst;
+  if (pHead->msgType == TDMT_SCH_TASK_RELEASE) {
+    int64_t qId = taosHton64(pHead->qid);
+    void*   p = taosHashGet(pConn->pQTable, &qId, sizeof(qId));
+    if (p == NULL) {
+      code = TSDB_CODE_RPC_NO_STATE;
+      tTrace("conn %p recv release, and releady release by server qid%ld", pConn, qId);
+      // notify cli already release, cli release resouce
+    } else {
+      SSvrRegArg* arg = p;
+      (pInst->cfp)(pInst->parent, &(arg->msg), NULL);
+      tTrace("conn %p recv release, notify server app, qid%ld", pConn, qId);
+      (void)taosHashRemove(pConn->pQTable, &qId, sizeof(qId));
     }
+
+    STransMsg tmsg = {.code = code,
+                      .msgType = pHead->msgType + 1,
+                      .info.qId = qId,
+                      .info.traceId = pHead->traceId,
+                      .info.seqNum = htonl(pHead->seqNum)};
+    SSvrMsg*  srvMsg = taosMemoryCalloc(1, sizeof(SSvrMsg));
+    srvMsg->msg = tmsg;
+    srvMsg->type = Normal;
+    srvMsg->pConn = pConn;
+
+    transQueuePush(&pConn->srvMsgs, srvMsg);
+
+    uvStartSendRespImpl(srvMsg);
+    return 1;
   }
+  return 0;
 }
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pInst = pConn->pInst;
@@ -440,8 +464,8 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   STransMsgHead* pHead = NULL;
 
-  int8_t resetBuf = pConn->status == ConnAcquire ? 0 : 1;
-  int    msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, resetBuf);
+  int8_t resetBuf = 0;
+  int    msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0);
   if (msgLen <= 0) {
     tError("%s conn %p read invalid packet", transLabel(pInst), pConn);
     return false;
@@ -469,7 +493,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
     }
   }
 
-  if (uvRecvReleaseReq(pConn, pHead)) {
+  if (uvHandleReleaseReq(pConn, pHead)) {
     return true;
   }
 
@@ -478,14 +502,14 @@ static bool uvHandleReq(SSvrConn* pConn) {
   transMsg.pCont = pHead->content;
   transMsg.msgType = pHead->msgType;
   transMsg.code = pHead->code;
-  transMsg.info.qId = htole64(pHead->qid);
+  transMsg.info.qId = taosHton64(pHead->qid);
 
   if (transMsg.info.qId > 0) {
-    int32_t code = taosHashPut(pConn->pQTable, &transMsg.info.qId, sizeof(int64_t), &transMsg, sizeof(STransMsg));
-    if (code != 0) {
-      tError("%s conn %p failed to put msg to req dict, since %s", transLabel(pInst), pConn, tstrerror(code));
-      return false;
-    }
+    // int32_t code = taosHashPut(pConn->pQTable, &transMsg.info.qId, sizeof(int64_t), &transMsg, sizeof(STransMsg));
+    // if (code != 0) {
+    //   tError("%s conn %p failed to put msg to req dict, since %s", transLabel(pInst), pConn, tstrerror(code));
+    //   return false;
+    // }
   }
 
   if (pHead->seqNum == 0) {
@@ -595,49 +619,21 @@ void uvOnSendCb(uv_write_t* req, int status) {
   if (conn == NULL) return;
 
   if (status == 0) {
-    tTrace("conn %p data already was written on stream", conn);
-    if (!transQueueEmpty(&conn->srvMsgs)) {
-      SSvrMsg*  msg = transQueuePop(&conn->srvMsgs);
-      STraceId* trace = &msg->msg.info.traceId;
-      tGDebug("conn %p write data out", conn);
-
-      destroySmsg(msg);
-      // send cached data
-      if (!transQueueEmpty(&conn->srvMsgs)) {
-        msg = (SSvrMsg*)transQueueGet(&conn->srvMsgs, 0);
-        if (msg->type == Register && conn->status == ConnAcquire) {
-          if (conn->regArg.init) {
-            transFreeMsg(conn->regArg.msg.pCont);
-            conn->regArg.init = 0;
-          }
-          conn->regArg.notifyCount = 0;
-          conn->regArg.init = 1;
-          conn->regArg.msg = msg->msg;
-          if (conn->broken) {
-            STrans* pInst = conn->pInst;
-            (pInst->cfp)(pInst->parent, &(conn->regArg.msg), NULL);
-            memset(&conn->regArg, 0, sizeof(conn->regArg));
-          }
-          (void)transQueuePop(&conn->srvMsgs);
-          taosMemoryFree(msg);
-
-          msg = (SSvrMsg*)transQueueGet(&conn->srvMsgs, 0);
-          if (msg != NULL) {
-            uvStartSendRespImpl(msg);
-          }
-        } else {
-          uvStartSendRespImpl(msg);
-        }
+    for (int32_t i = 0; i < transQueueSize(&conn->srvMsgs); i++) {
+      SSvrMsg* smsg = transQueueGet(&conn->srvMsgs, i);
+      if (smsg->sent == 1) {
+        transQueueRm(&conn->srvMsgs, i);
+        destroySmsg(smsg);
+        i--;
       }
     }
-    transUnrefSrvHandle(conn);
   } else {
     if (!uv_is_closing((uv_handle_t*)(conn->pTcp))) {
       tError("conn %p failed to write data, %s", conn, uv_err_name(status));
       conn->broken = true;
-      transUnrefSrvHandle(conn);
     }
   }
+  transUnrefSrvHandle(conn);
 }
 static void uvOnPipeWriteCb(uv_write_t* req, int status) {
   STUB_RAND_NETWORK_ERR(status);
@@ -662,7 +658,6 @@ static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
     if (pMsg->pCont == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-
     pMsg->contLen = 0;
   }
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
@@ -673,30 +668,18 @@ static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   pHead->compatibilityVer = htonl(((STrans*)pConn->pInst)->compatibilityVer);
   pHead->version = TRANS_VER;
   pHead->seqNum = htonl(pMsg->info.seqNum);
+  pHead->qid = taosHton64(pMsg->info.qId);
 
   // handle invalid drop_task resp, TD-20098
   if (pConn->inType == TDMT_SCH_DROP_TASK && pMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
-    (void)transQueuePop(&pConn->srvMsgs);
-    destroySmsg(smsg);
-    return TSDB_CODE_INVALID_MSG;
+    ASSERT(0);
+    // (void)transQueuePop(&pConn->srvMsgs);
+    // destroySmsg(smsg);
+    // return TSDB_CODE_INVALID_MSG;
   }
 
-  // if (pConn->status == ConnNormal) {
-  //   pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
-  //   if (smsg->type == Release) pHead->msgType = 0;
-  // } else {
-  //   if (smsg->type == Release) {
-  //     pHead->msgType = 0;
-  //     pConn->status = ConnNormal;
-  //     destroyConnRegArg(pConn);
-  //     transUnrefSrvHandle(pConn);
-  //   } else {
-  //     // set up resp msg type
-  //     pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
-  //   }
-  // }
-
   pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
+  // pHead->msgType = pMsg->msgType;
   pHead->release = smsg->type == Release ? 1 : 0;
   pHead->code = htonl(pMsg->code);
   pHead->msgLen = htonl(pMsg->contLen + sizeof(STransMsgHead));
@@ -712,22 +695,60 @@ static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   }
 
   STraceId* trace = &pMsg->info.traceId;
-  tGDebug("%s conn %p %s is sent to %s, local info:%s, len:%d", transLabel(pInst), pConn, TMSG_INFO(pHead->msgType),
-          pConn->dst, pConn->src, len);
+  tGDebug("%s conn %p %s is sent to %s, local info:%s, len:%d, seqNum:%d, qid:%ld", transLabel(pInst), pConn,
+          TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, len, pMsg->info.seqNum, pMsg->info.qId);
 
   wb->base = (char*)pHead;
   wb->len = len;
   return 0;
 }
+static int32_t uvBuildToSendData(SSvrConn* pConn, uv_buf_t** ppBuf, int32_t* bufNum) {
+  int32_t count = 0;
+
+  int32_t   size = transQueueSize(&pConn->srvMsgs);
+  uv_buf_t* pWb = taosMemoryCalloc(size, sizeof(uv_buf_t));
+  if (pWb == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  for (int32_t i = 0; i < size; i++) {
+    SSvrMsg* pMsg = transQueueGet(&pConn->srvMsgs, i);
+    if (pMsg->sent == 1) {
+      continue;
+    }
+    uv_buf_t wb;
+    (void)uvPrepareSendData(pMsg, &wb);
+    pWb[count] = wb;
+
+    pMsg->sent = 1;
+    count++;
+  }
+
+  if (count == 0) {
+    taosMemoryFree(pWb);
+    return 0;
+  }
+
+  *bufNum = count;
+  *ppBuf = pWb;
+
+  return 0;
+}
 
 static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
+  int32_t   code = 0;
   SSvrConn* pConn = smsg->pConn;
   if (pConn->broken) {
     return;
   }
 
-  uv_buf_t wb;
-  if (uvPrepareSendData(smsg, &wb) < 0) {
+  uv_buf_t* pBuf = NULL;
+  int32_t   bufNum = 0;
+  code = uvBuildToSendData(pConn, &pBuf, &bufNum);
+  if (code != 0) {
+    tError("%s conn %p failed to send data", transLabel(pConn->pInst), pConn);
+    return;
+  }
+  if (bufNum == 0) {
     return;
   }
 
@@ -741,24 +762,33 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
       return;
     }
   }
-  (void)uv_write(req, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
+  (void)uv_write(req, (uv_stream_t*)pConn->pTcp, pBuf, bufNum, uvOnSendCb);
+  taosMemoryFree(pBuf);
+}
+int32_t uvConnMayHandlsReleaseMsg(SSvrMsg* pMsg) {
+  SSvrConn* pConn = pMsg->pConn;
+  if (pMsg->msg.msgType == TDMT_SCH_TASK_RELEASE) {
+    int64_t     qid = pMsg->msg.info.qId;
+    SSvrRegArg* p = taosHashGet(pConn->pQTable, &qid, sizeof(qid));
+    if (p == NULL) {
+      tError("%s conn %p already release qid %ld", transLabel(pConn->pInst), pConn, qid);
+      return TSDB_CODE_RPC_NO_STATE;
+    } else {
+      transFreeMsg(p->msg.pCont);
+      taosHashRemove(pConn->pQTable, &qid, sizeof(qid));
+    }
+  }
+  return 0;
 }
 static void uvStartSendResp(SSvrMsg* smsg) {
   // impl
   SSvrConn* pConn = smsg->pConn;
-  if (pConn->broken == true) {
-    // persist by
+  if (uvConnMayHandlsReleaseMsg(smsg) == TSDB_CODE_RPC_NO_STATE) {
     destroySmsg(smsg);
-    transUnrefSrvHandle(pConn);
     return;
-  }
-  if (pConn->status == ConnNormal) {
-    transUnrefSrvHandle(pConn);
   }
 
-  if (!transQueuePush(&pConn->srvMsgs, smsg)) {
-    return;
-  }
+  transQueuePush(&pConn->srvMsgs, smsg);
   uvStartSendRespImpl(smsg);
   return;
 }
@@ -1199,7 +1229,7 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   transRefSrvHandle(pConn);
   tTrace("%s handle %p, conn %p created, refId:%" PRId64, transLabel(pInst), exh, pConn, pConn->refId);
 
-  pConn->pQTable = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  pConn->pQTable = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (pConn->pQTable == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
   }
@@ -1540,19 +1570,20 @@ void uvHandleQuit(SSvrMsg* msg, SWorkThrd* thrd) {
   taosMemoryFree(msg);
 }
 void uvHandleRelease(SSvrMsg* msg, SWorkThrd* thrd) {
-  int32_t   code = 0;
-  SSvrConn* conn = msg->pConn;
-  if (conn->status == ConnAcquire) {
-    if (!transQueuePush(&conn->srvMsgs, msg)) {
-      return;
-    }
-    uvStartSendRespImpl(msg);
-    return;
-  } else if (conn->status == ConnRelease || conn->status == ConnNormal) {
-    tDebug("%s conn %p already released, ignore release-msg", transLabel(thrd->pInst), conn);
-  }
+  ASSERT(0);
+  // int32_t   code = 0;
+  // SSvrConn* conn = msg->pConn;
+  // if (conn->status == ConnAcquire) {
+  //   if (!transQueuePush(&conn->srvMsgs, msg)) {
+  //     return;
+  //   }
+  //   uvStartSendRespImpl(msg);
+  //   return;
+  // } else if (conn->status == ConnRelease || conn->status == ConnNormal) {
+  //   tDebug("%s conn %p already released, ignore release-msg", transLabel(thrd->pInst), conn);
+  // }
 
-  destroySmsg(msg);
+  // destroySmsg(msg);
 }
 void uvHandleResp(SSvrMsg* msg, SWorkThrd* thrd) {
   // send msg to client
@@ -1697,6 +1728,7 @@ int32_t transReleaseSrvHandle(void* handle) {
   int32_t         code = 0;
   SRpcHandleInfo* info = handle;
   SExHandle*      exh = info->handle;
+  int64_t         qId = info->qId;
   int64_t         refId = info->refId;
 
   ASYNC_CHECK_HANDLE(info->refIdMgt, refId, exh);
@@ -1704,7 +1736,8 @@ int32_t transReleaseSrvHandle(void* handle) {
   SWorkThrd* pThrd = exh->pThrd;
   ASYNC_ERR_JRET(pThrd);
 
-  STransMsg tmsg = {.code = 0, .info.handle = exh, .info.ahandle = NULL, .info.refId = refId};
+  STransMsg tmsg = {
+      .msgType = TDMT_SCH_TASK_RELEASE, .code = 0, .info.handle = exh, .info.ahandle = NULL, .info.refId = refId};
 
   SSvrMsg* m = taosMemoryCalloc(1, sizeof(SSvrMsg));
   if (m == NULL) {
@@ -1713,9 +1746,10 @@ int32_t transReleaseSrvHandle(void* handle) {
   }
 
   m->msg = tmsg;
-  m->type = Release;
+  m->type = Normal;
 
-  tDebug("%s conn %p start to release", transLabel(pThrd->pInst), exh->handle);
+  tDebug("%s conn %p start to %p, qId:%" PRId64 "", transLabel(pThrd->pInst), exh->handle, TMSG_INFO(tmsg.msgType),
+         qId);
   if ((code = transAsyncSend(pThrd->asyncPool, &m->q)) != 0) {
     destroySmsg(m);
     (void)transReleaseExHandle(info->refIdMgt, refId);

@@ -61,14 +61,14 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
   if (code) {
     pInserter->submitRes.code = code;
   }
-  
+
   if (code == TSDB_CODE_SUCCESS) {
     pInserter->submitRes.pRsp = taosMemoryCalloc(1, sizeof(SSubmitRsp2));
     if (NULL == pInserter->submitRes.pRsp) {
       pInserter->submitRes.code = terrno;
       goto _return;
     }
-    
+
     SDecoder coder = {0};
     tDecoderInit(&coder, pMsg->pData, pMsg->len);
     code = tDecodeSSubmitRsp2(&coder, pInserter->submitRes.pRsp);
@@ -108,7 +108,7 @@ _return:
 
   (void)tsem_post(&pInserter->ready);
   taosMemoryFree(pMsg->pData);
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -136,8 +136,7 @@ static int32_t sendSubmitRequest(SDataInserterHandle* pInserter, void* pMsg, int
   pMsgSendInfo->msgType = TDMT_VND_SUBMIT;
   pMsgSendInfo->fp = inserterCallback;
 
-  int64_t transporterId = 0;
-  return asyncSendMsgToServer(pTransporter, pEpset, &transporterId, pMsgSendInfo);
+  return asyncSendMsgToServer(pTransporter, pEpset, NULL, pMsgSendInfo);
 }
 
 static int32_t submitReqToMsg(int32_t vgId, SSubmitReq2* pReq, void** pData, int32_t* pLen) {
@@ -166,7 +165,7 @@ static int32_t submitReqToMsg(int32_t vgId, SSubmitReq2* pReq, void** pData, int
   } else {
     taosMemoryFree(pBuf);
   }
-  
+
   return code;
 }
 
@@ -228,7 +227,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         goto _end;
       }
-      void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
+      void* var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
 
       switch (pColInfoData->info.type) {
         case TSDB_DATA_TYPE_NCHAR:
@@ -327,11 +326,11 @@ _end:
       tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
       taosMemoryFree(pReq);
     }
-    
+
     return terrno;
   }
   *ppReq = pReq;
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -458,7 +457,8 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
   inserter->explain = pInserterNode->explain;
 
   int64_t suid = 0;
-  int32_t code = pManager->pAPI->metaFn.getTableSchema(inserter->pParam->readHandle->vnode, pInserterNode->tableId, &inserter->pSchema, &suid);
+  int32_t code = pManager->pAPI->metaFn.getTableSchema(inserter->pParam->readHandle->vnode, pInserterNode->tableId,
+                                                       &inserter->pSchema, &suid);
   if (code) {
     terrno = code;
     goto _return;
@@ -480,9 +480,9 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
   inserter->pCols = taosHashInit(pInserterNode->pCols->length, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT),
                                  false, HASH_NO_LOCK);
   if (NULL == inserter->pCols) {
-     goto _return;
+    goto _return;
   }
-  
+
   SNode*  pNode = NULL;
   int32_t i = 0;
   FOREACH(pNode, pInserterNode->pCols) {
