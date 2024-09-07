@@ -251,7 +251,6 @@ class ClusterComCheck:
                 print(tdSql.res[i])
                 if 'leader' in tdSql.res[i]:leader_number += 1
                 elif tdSql.res[i].count('follower') + tdSql.res[i].count('candidate') >= 2:
-                    print(tdSql.res[i].count('follow'))
                     tdLog.debug("Elections not yet completed")
                     return -1
                 else: # only one 'follower' or 'offline'
