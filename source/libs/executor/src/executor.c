@@ -1633,3 +1633,11 @@ int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo) {
   pTaskInfo->pRoot->fpSet.reloadStreamStateFn(pTaskInfo->pRoot);
   return 0;
 }
+
+void qResetTaskCode(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+
+  int32_t code = pTaskInfo->code;
+  pTaskInfo->code = 0;
+  qDebug("0x%" PRIx64 " reset task code to be success, prev:%s", pTaskInfo->id.taskId, tstrerror(code));
+}
