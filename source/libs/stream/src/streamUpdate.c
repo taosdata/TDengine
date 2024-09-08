@@ -231,7 +231,7 @@ _end:
 static int32_t getSBf(SUpdateInfo* pInfo, TSKEY ts, SScalableBf** ppSBf) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  if (ts <= 0) {
+  if (ts < 0) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
