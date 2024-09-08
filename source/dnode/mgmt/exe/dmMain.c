@@ -146,12 +146,14 @@ static void dmSetSignalHandle() {
   taosSetSignal(SIGQUIT, dmStopDnode);
 #endif
 
+#if 0
 #ifndef WINDOWS
   taosSetSignal(SIGBUS, dmLogCrash);
 #endif
   taosSetSignal(SIGABRT, dmLogCrash);
   taosSetSignal(SIGFPE, dmLogCrash);
   taosSetSignal(SIGSEGV, dmLogCrash);
+#endif
 }
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
