@@ -121,7 +121,6 @@ class DbConn:
         return "[DbConn: type={}, target={}]".format(self._type, self._dbTarget)
 
     def getLastSql(self):
-        
         return self._lastSql
 
     def open(self):

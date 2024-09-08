@@ -114,6 +114,10 @@ class WorkerThread:
     def logInfo(self, msg):
         Logging.info("    TRD[{}] {}".format(self._tid, msg))
 
+    def logError(self, msg):
+        Logging.cfgPath = self._dbConn._dbTarget.cfgPath
+        Logging.error("    TRD[{}] {}".format(self._tid, msg))
+
     # def dbInUse(self):
     #     return self._dbInUse
 
@@ -1368,6 +1372,11 @@ class Task():
             "Step[{}.{}] {}".format(
                 self._curStep, self._taskNum, msg))
 
+    def logError(self, msg):
+        self._workerThread.logError(
+            "Step[{}.{}] {}".format(
+                self._curStep, self._taskNum, msg))
+
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         raise RuntimeError(
             "To be implemeted by child classes, class name: {}".format(
@@ -1471,9 +1480,13 @@ class Task():
             if (Config.getConfig().continue_on_exception):  # user choose to continue
                 self.logDebug("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
                     errno2, err, wt.getDbConn().getLastSql()))
+                self.logError("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
+                    errno2, err, wt.getDbConn().getLastSql()))
                 self._err = err
             elif self._isErrAcceptable(errno2, err.__str__()):
                 self.logDebug("[=] Acceptable Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(
+                    errno2, err, wt.getDbConn().getLastSql()))
+                self.logError("[=] Acceptable Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(
                     errno2, err, wt.getDbConn().getLastSql()))
                 # print("_", end="", flush=True)
                 Progress.emit(Progress.ACCEPTABLE_ERROR)
@@ -2212,6 +2225,8 @@ class TdSuperTable:
         others don't access it while we create it.
         '''
         dbName = self._dbName
+        # if not self._checkStableExists(dbc, self._stName):
+        #     return
         sql = "select tbname from {}.{} where tbname in ('{}')".format(dbName, self._stName, regTableName)
         if dbc.query(sql) >= 1:  # reg table exists already
             return
@@ -2285,14 +2300,22 @@ class TdSuperTable:
         trans_tagStrs_to_string_list = list(map(lambda x: f'"{x[1]}"' if x[0] in record_str_idx_lst else x[1], enumerate(tagStrs_to_string_list)))
         return ", ".join(trans_tagStrs_to_string_list)
 
+    def _checkStableExists(self, dbc, table):
+        dbc.query("show {}.stables".format(self._dbName))
+        stCols = dbc.getQueryResult()
+        tables = [row[0] for row in stCols]
+        return table in tables
 
     def _getTags(self, dbc) -> dict:
+        # if self._checkStableExists(dbc, self._stName):
         dbc.query("DESCRIBE {}.{}".format(self._dbName, self._stName))
         stCols = dbc.getQueryResult()
         # print(stCols)
         ret = {row[0]: row[1] for row in stCols if row[3] == 'TAG'}  # name:type
         # print("Tags retrieved: {}".format(ret))
         return ret
+        # else:
+        #     return False
 
     def _getCols(self, dbc) -> dict:
         """
@@ -2304,10 +2327,13 @@ class TdSuperTable:
         Returns:
             A dictionary containing the column names as keys and their corresponding types as values.
         """
+        # if self._checkStableExists(dbc, self._stName):
         dbc.query("DESCRIBE {}.{}".format(self._dbName, self._stName))
         stCols = dbc.getQueryResult()
         ret = {row[0]: row[1] for row in stCols if row[3] != 'TAG'}  # name:type
         return ret
+        # else:
+        #     return False
 
     def addTag(self, dbc, tagName, tagType):
         if tagName in self._getTags(dbc):  # already
@@ -3080,17 +3106,17 @@ class TdSuperTable:
             selectPartList = [random.choice(selectPartList)]
         if len(groupKeyList) > 0:
             groupKeyStr = ",".join(groupKeyList)
-            return f"SELECT {', '.join(selectPartList)} FROM {tbname} GROUP BY {groupKeyStr} {self.getOrderByValue(groupKeyStr)} {self.getSlimitValue()};"
+            return f"SELECT {', '.join(selectPartList)} FROM {self._dbName}.{tbname} GROUP BY {groupKeyStr} {self.getOrderByValue(groupKeyStr)} {self.getSlimitValue()};"
         else:
             groupKeyStr = "tbname"
         randomSelectPart = f'`{random.choice(selectPartList)}`'
-        return f"SELECT {', '.join(selectPartList)} FROM {tbname} {self.getTimeRangeFilter(tbname, tsCol)} {self.getPartitionValue(groupKeyStr)} {self.getWindowStr(self.getRandomWindow(), colDict)} {self.getSlidingValue()} {self.getOrderByValue(randomSelectPart)} {self.getSlimitValue()};"
+        return f"SELECT {', '.join(selectPartList)} FROM {self._dbName}.{tbname} {self.getTimeRangeFilter(tbname, tsCol)} {self.getPartitionValue(groupKeyStr)} {self.getWindowStr(self.getRandomWindow(), colDict)} {self.getSlidingValue()} {self.getOrderByValue(randomSelectPart)} {self.getSlimitValue()};"
 
 
 
     def generateQueries_n(self, dbc: DbConn, selectItems) -> List[SqlQuery]:
-        ''' 
-        Generate queries to test/exercise this super table 
+        '''
+        Generate queries to test/exercise this super table
 
         Args:
             dbc (DbConn): The database connection object.
@@ -3158,6 +3184,8 @@ class TaskReadData(StateTransitionTask):
         sTable = self._db.getFixedSuperTable()
         tags = sTable._getTags(dbc)
         cols = sTable._getCols(dbc)
+        # if not tags or not cols:
+        #     return "no table exists"
         tagCols = {**tags, **cols}
         selectCnt = random.randint(1, len(tagCols))
         selectKeys = random.sample(list(tagCols.keys()), selectCnt)
@@ -3386,26 +3414,41 @@ class TaskAddData(StateTransitionTask):
             # Logging.info("Data added in batch: {}".format(sql))
             self._unlockTableIfNeeded(fullTableName)
 
+    def _checkStableExists(self, dbc, table):
+        dbc.query("show {}.stables".format(self._dbName))
+        stCols = dbc.getQueryResult()
+        tables = [row[0] for row in stCols]
+        return table in tables
+
     def _getCols(self, db: Database, dbc, regTableName):
+        # if self._checkStableExists(dbc, regTableName):
         dbc.query("DESCRIBE {}.{}".format(db.getName(), regTableName))
         stCols = dbc.getQueryResult()
         ret = {row[0]: row[1] for row in stCols if row[3] != 'TAG'}  # name:type
         return ret
+        # else:
+        #     return False
 
     def getMeta(self, db: Database, dbc: DbConn, customStable=None):
         stableName = self._getStableName(db, customStable)
+        # if self._checkStableExists(dbc, stableName):
         dbc.query("DESCRIBE {}.{}".format(db.getName(), stableName))
         sts = dbc.getQueryResult()
         cols = {row[0]: row[1] for row in sts if row[3] != 'TAG'}
         tags = {row[0]: row[1] for row in sts if row[3] == 'TAG'}
         return cols, tags
+        # else:
+        #     return False
 
     def _getVals(self, db: Database, dbc: DbConn, tagNameList, customStable=None):
         stableName = self._getStableName(db, customStable)
         selectedTagCols = ",".join(tagNameList)
+        # if self._checkStableExists(dbc, stableName):
         dbc.query(f'select {selectedTagCols} from {stableName}')
         sts = dbc.getQueryResult()
         return random.choice(sts)
+        # else:
+        #     return False
 
     def _getStableName(self, db: Database, customStable=None):
         sTable = db.getFixedSuperTable().getName() if customStable is None else customStable
@@ -3413,6 +3456,8 @@ class TaskAddData(StateTransitionTask):
 
     def _getRandomCols(self, db: Database, dbc: DbConn):
         cols = self.getMeta(db, dbc)[0]
+        # if not cols:
+        #     return "No table exists"
         n = random.randint(1, len(cols))
         timestampKey = next((key for key, value in cols.items() if value == 'TIMESTAMP'), None)
         if timestampKey:
@@ -3427,6 +3472,8 @@ class TaskAddData(StateTransitionTask):
 
     def _getRandomTags(self, db: Database, dbc: DbConn):
         tags = self.getMeta(db, dbc)[1]
+        # if not tags:
+        #     return "No table exists"
         n = random.randint(1, len(tags))
         random_keys = random.sample(list(tags.keys()), n)
         return ",".join(random_keys), {key: tags[key] for key in random_keys}
@@ -3434,6 +3481,8 @@ class TaskAddData(StateTransitionTask):
     def _getTagColStrForSql(self, db: Database, dbc, customTagCols=None, default="cols"):
         meta_idx = 0 if default == "cols" else 1
         tagCols = self.getMeta(db, dbc)[meta_idx] if not customTagCols else customTagCols
+        # if not tagCols:
+        #     return "No table exists"
         # self.cols = self._getCols(db, dbc, regTableName)
         # print("-----tagCols:",tagCols)
         tagColStrs = []
@@ -3731,6 +3780,8 @@ class TaskAddData(StateTransitionTask):
         for regTable in regTables:
             cols = self.getMeta(db, dbc)[0]
             tags = self.getMeta(db, dbc)[1]
+            # if not cols or not tags:
+            #     return "No table exists"
             colStrs = self._getTagColStrForSql(db, dbc, cols)[1]
             tagStrs = self._getTagColStrForSql(db, dbc, tags)[1]
             combine_list = [regTable] + colStrs + tagStrs
@@ -3859,6 +3910,8 @@ class TaskAddData(StateTransitionTask):
             colStrs = self._format_sml(dataDictList[1], rowType="col")
         else:
             cols, tags = self.getMeta(db, dbc, customStable=stbname)
+            # if not tags or not cols:
+            #     return "No table exists"
             tagNameList = list(tags.keys())
             tagTypeList = list(tags.values())
             randomTagValList = self._getTagColStrForSql(db, dbc, tags)[1]
