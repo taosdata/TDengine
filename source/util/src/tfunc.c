@@ -42,17 +42,73 @@ EAFuncType taosFuncInt(const char *name) {
   return AFUNC_TYPE_START;
 }
 
-int32_t taosFuncInit() { return curl_global_init(CURL_GLOBAL_ALL); }
+int32_t taosFuncInit() {
+  // CURL_GLOBAL_NOTHING
+  if (curl_global_init(CURL_GLOBAL_ALL) != 0) {
+    return -1;
+  } else {
+    uError("failed to init curl env");
+    return 0;
+  }
+}
 
 void taosFuncCleanup() { curl_global_cleanup(); }
 
-size_t write_data(void *ptr, size_t size, size_t nmemb, void *stream) {
-  // int written = fwrite(ptr, size, nmemb, (FILE *)fp);
-  // return written;
+static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void *userdata) {
+  SCurlResp *pRsp = userdata;
+  pRsp->dataLen = (int64_t)contLen * (int64_t)nmemb;
+  pRsp->data = taosMemoryMalloc(pRsp->dataLen + 1);
+
+  if (pRsp->data != NULL) {
+    memcpy(pRsp->data, pCont, pRsp->dataLen);
+    pRsp->data[pRsp->dataLen] = 0;
+    uInfo("curl resp is received, len:%" PRId64 ", cont:%s", pRsp->dataLen, pRsp->data);
+    return pRsp->dataLen;
+  } else {
+    pRsp->dataLen = 0;
+    uInfo("failed to malloc curl resp");
+    return 0;
+  }
+}
+
+int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
+  pRsp->data = NULL;
+  pRsp->dataLen = 0;
+
+#if 0
+  return taosCurlTestStr(url, pRsp);
+#else
+  CURL    *curl = NULL;
+  CURLcode code = 0;
+
+  curl = curl_easy_init();
+  if (curl == NULL) {
+    uError("failed to create curl handle");
+    return -1;
+  }
+
+  curl_easy_setopt(curl, CURLOPT_URL, url);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp);
+  curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 100);
+
+  code = curl_easy_perform(curl);
+  if (code != CURLE_OK) {
+    uError("failed to perform curl action, code:%d", code);
+  }
+
+_OVER:
+  if (curl != NULL) curl_easy_cleanup(curl);
+  return code;
+#endif
+}
+
+int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp) {
+  // curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "name=daniel&project=curl");
   return 0;
 }
 
-static int32_t taosTestStr(const char *url, char **ppCont, int32_t *pContLen) {
+static int32_t taosCurlTestStr(const char *url, SCurlResp *pRsp) {
   const char *listStr =
       "{"
       "\"protocol\": 1,"
@@ -75,40 +131,14 @@ static int32_t taosTestStr(const char *url, char **ppCont, int32_t *pContLen) {
       "}";
 
   if (strstr(url, "list") != NULL) {
-    *pContLen = strlen(listStr) + 1;
-    *ppCont = taosMemoryMalloc(*pContLen);
-    strcpy(*ppCont, listStr);
+    pRsp->dataLen = strlen(listStr);
+    pRsp->data = taosMemoryCalloc(1, pRsp->dataLen + 1);
+    strcpy(pRsp->data, listStr);
   } else {
-    *pContLen = strlen(statusStr) + 1;
-    *ppCont = taosMemoryMalloc(*pContLen);
-    strcpy(*ppCont, statusStr);
+    pRsp->dataLen = strlen(statusStr);
+    pRsp->data = taosMemoryCalloc(1, pRsp->dataLen + 1);
+    strcpy(pRsp->data, statusStr);
   }
 
   return 0;
 }
-
-int32_t taosSendGetRequest(const char *url, char **ppCont, int32_t *pContLen) {
-#if 1
-  return taosTestStr(url, ppCont, pContLen);
-#else
-  CURL   *curl = NULL;
-  int32_t code = 0;
-
-  curl = curl_easy_init();  // 初始化
-  if (curl == NULL) {
-    return -1;
-  }
-
-  curl_easy_setopt(curl, CURLOPT_URL, url);
-  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-  // curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "name=daniel&project=curl");
-  code = curl_easy_perform(curl);
-
-_OVER:
-  if (curl != NULL) curl_easy_cleanup(curl);
-  return -code;
-  return 0;
-#endif
-}
-
-int32_t taosSendPostRequest(const char *url, char **ppCont, int32_t *pContLen) { return 0; }

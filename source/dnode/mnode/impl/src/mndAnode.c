@@ -661,32 +661,30 @@ static int32_t mndDecodeFuncList(SJson *pJson, SAnodeObj *pObj) {
 }
 
 static SJson *mndGetAnodeJson(SAnodeObj *pObj, const char *path) {
-  SJson  *pJson = NULL;
-  char   *pCont = NULL;
-  int32_t contLen = 0;
+  SJson    *pJson = NULL;
+  SCurlResp curlRsp = {0};
 
   char url[TSDB_URL_LEN + 1] = {0};
   snprintf(url, TSDB_URL_LEN, "%s/%s", pObj->url, path);
 
-  if (taosSendGetRequest(url, &pCont, &contLen) < 0) {
+  if (taosCurlGetRequest(url, &curlRsp) != 0) {
     terrno = TSDB_CODE_MND_ANODE_URL_CANT_ACCESS;
     goto _OVER;
   }
 
-  if (pCont == NULL || contLen == 0) {
+  if (curlRsp.data == NULL || curlRsp.dataLen == 0) {
     terrno = TSDB_CODE_MND_ANODE_RSP_IS_NULL;
     goto _OVER;
   }
 
-  pCont[contLen] = '\0';
-  pJson = tjsonParse(pCont);
+  pJson = tjsonParse(curlRsp.data);
   if (pJson == NULL) {
     terrno = TSDB_CODE_INVALID_JSON_FORMAT;
     goto _OVER;
   }
 
 _OVER:
-  if (pCont != NULL) taosMemoryFreeClear(pCont);
+  if (curlRsp.data != NULL) taosMemoryFreeClear(curlRsp.data);
   return pJson;
 }
 

@@ -23,10 +23,15 @@
 extern "C" {
 #endif
 
+typedef struct {
+  char   *data;
+  int64_t dataLen;
+} SCurlResp;
+
 int32_t taosFuncInit();
 void    taosFuncCleanup();
-int32_t taosSendGetRequest(const char *url, char **ppCont, int32_t *pContLen);
-int32_t taosSendPostRequest(const char *url, char **ppCont, int32_t *pContLen);
+int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp);
+int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp);
 
 const char *taosFuncStr(EAFuncType type);
 EAFuncType  taosFuncInt(const char *name);
