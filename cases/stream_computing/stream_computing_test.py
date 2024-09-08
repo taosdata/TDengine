@@ -1074,11 +1074,11 @@ class StreamComputingTest(TDCase):
             # ctb_name = self.tdCom.get_long_name()
             # self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
             if pause:
-                for stream_name in [f'{self.stb_name}{self.stream_suffix}', f'{self.ctb_name}{self.stream_suffix}', f'{self.tb_name}{self.stream_suffix}']
-                    self.tdCom.check_transactions(self._remote):
+                for stream_name in [f'{self.stb_name}{self.stream_suffix}', f'{self.ctb_name}{self.stream_suffix}', f'{self.tb_name}{self.stream_suffix}']:
+                    self.tdCom.check_transactions(self._remote)
                     self.wait_checkpoint_ready(stream_name)
                     # double check
-                    self.tdCom.check_transactions(self._remote):
+                    self.tdCom.check_transactions(self._remote)
                     self.tdCom.pause_stream(stream_name, True)
             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
             # if self.update and i%2 == 0:
@@ -4849,7 +4849,7 @@ class StreamComputingTest(TDCase):
         #     self.tdSql.error(f'create stream if not exists {stream_name} into {dbname2}.{tbname} as select ts,c100 from {self.dbname}.{self.case_name}_{tbname}')
 
     def wait_checkpoint_ready(self, stream_name):
-        time.sleep(5)
+        time.sleep(3)
         cnt = 0
         cmd = f'select distinct status from information_schema.ins_stream_tasks where stream_name = "{stream_name}"'
         self.tdSql.query(cmd)
@@ -5344,4 +5344,5 @@ class StreamComputingTest(TDCase):
 
     def tags(self):
         return T.Write.Stream
+
 
