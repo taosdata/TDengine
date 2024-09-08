@@ -60,7 +60,7 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
   pRsp->data = taosMemoryMalloc(pRsp->dataLen + 1);
 
   if (pRsp->data != NULL) {
-    memcpy(pRsp->data, pCont, pRsp->dataLen);
+    (void)memcpy(pRsp->data, pCont, pRsp->dataLen);
     pRsp->data[pRsp->dataLen] = 0;
     uInfo("curl resp is received, len:%" PRId64 ", cont:%s", pRsp->dataLen, pRsp->data);
     return pRsp->dataLen;

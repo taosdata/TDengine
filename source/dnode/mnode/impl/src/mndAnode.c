@@ -39,7 +39,7 @@ static int32_t  mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 static void     mndCancelGetNextAnode(SMnode *pMnode, void *pIter);
 static int32_t  mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextAnodeFull(SMnode *pMnode, void *pIter);
-static int32_t  mndGetAnodeFuncList(SAnodeObj *pObj);
+static int32_t  mndGetAnodeFuncList(const char *url, SAnodeObj *pObj);
 static int32_t  mndGetAnodeStatus(SAnodeObj *pObj, char *status);
 
 int32_t mndInitAnode(SMnode *pMnode) {
@@ -300,9 +300,9 @@ static int32_t mndCreateAnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateAnodeReq *p
 
   anodeObj.url = taosMemoryCalloc(1, pCreate->urlLen);
   if (anodeObj.url == NULL) goto _OVER;
-  memcpy(anodeObj.url, pCreate->url, pCreate->urlLen);
+  (void)memcpy(anodeObj.url, pCreate->url, pCreate->urlLen);
 
-  code = mndGetAnodeFuncList(&anodeObj);
+  code = mndGetAnodeFuncList(anodeObj.url, &anodeObj);
   if (code != 0) goto _OVER;
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-anode");
@@ -372,12 +372,70 @@ static int32_t mndProcessCreateAnodeReq(SRpcMsg *pReq) {
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("anode:%s, failed to create since %s", createReq.url, tstrerror(code));
-    TAOS_RETURN(code);
   }
 
   mndReleaseAnode(pMnode, pObj);
   tFreeSMCreateAnodeReq(&createReq);
   TAOS_RETURN(code);
+}
+
+static int32_t mndUpdateAnode(SMnode *pMnode, SAnodeObj *pAnode, SRpcMsg *pReq) {
+  mInfo("anode:%d, start to update", pAnode->id);
+  int32_t   code = -1;
+  STrans   *pTrans = NULL;
+  SAnodeObj anodeObj = {0};
+  anodeObj.id = pAnode->id;
+  anodeObj.updateTime = taosGetTimestampMs();
+
+  code = mndGetAnodeFuncList(pAnode->url, &anodeObj);
+  if (code != 0) goto _OVER;
+
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-anode");
+  if (pTrans == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    goto _OVER;
+  }
+  mInfo("trans:%d, used to update anode:%d", pTrans->id, anodeObj.id);
+
+  TAOS_CHECK_GOTO(mndSetCreateAnodeCommitLogs(pTrans, &anodeObj), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
+  code = 0;
+
+_OVER:
+  mndFreeAnode(&anodeObj);
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndUpdateAllAnodes(SMnode *pMnode, SRpcMsg *pReq) {
+  mInfo("update all anodes");
+  SSdb   *pSdb = pMnode->pSdb;
+  int32_t code = 0;
+  int32_t rows = 0;
+  int32_t numOfRows = sdbGetSize(pSdb, SDB_ANODE);
+
+  void *pIter = NULL;
+  while (1) {
+    SAnodeObj *pObj = NULL;
+    ESdbStatus objStatus = 0;
+    pIter = sdbFetchAll(pSdb, SDB_ANODE, pIter, (void **)&pObj, &objStatus, true);
+    if (pIter == NULL) break;
+
+    rows++;
+    void *transReq = NULL;
+    if (rows == numOfRows) transReq = pReq;
+    code = mndUpdateAnode(pMnode, pObj, transReq);
+    sdbRelease(pSdb, pObj);
+
+    if (code != 0) break;
+  }
+
+  if (code == 0 && rows == numOfRows) {
+    code = TSDB_CODE_ACTION_IN_PROGRESS;
+  }
+
+  return code;
 }
 
 static int32_t mndProcessUpdateAnodeReq(SRpcMsg *pReq) {
@@ -390,25 +448,22 @@ static int32_t mndProcessUpdateAnodeReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_UPDATE_ANODE), NULL, _OVER);
 
   if (updateReq.anodeId == -1) {
-    mInfo("update all anodes");
+    code = mndUpdateAllAnodes(pMnode, pReq);
   } else {
-    mInfo("anode:%d, start to update", updateReq.anodeId);
     pObj = mndAcquireAnode(pMnode, updateReq.anodeId);
     if (pObj == NULL) {
       code = TSDB_CODE_MND_ANODE_NOT_EXIST;
       goto _OVER;
     }
-
-    // code = mndUpdateteAnode(pMnode, pReq, &updateReq);
-    // if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+    code = mndUpdateAnode(pMnode, pObj, pReq);
+    if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
-
-  code = TSDB_CODE_OPS_NOT_SUPPORT;
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("anode:%d, failed to update since %s", updateReq.anodeId, tstrerror(code));
-    TAOS_RETURN(code);
+    if (updateReq.anodeId != -1) {
+      mError("anode:%d, failed to update since %s", updateReq.anodeId, tstrerror(code));
+    }
   }
 
   mndReleaseAnode(pMnode, pObj);
@@ -660,12 +715,12 @@ static int32_t mndDecodeFuncList(SJson *pJson, SAnodeObj *pObj) {
   return 0;
 }
 
-static SJson *mndGetAnodeJson(SAnodeObj *pObj, const char *path) {
+static SJson *mndGetAnodeJson(const char *anodeUrl, const char *path) {
   SJson    *pJson = NULL;
   SCurlResp curlRsp = {0};
 
   char url[TSDB_URL_LEN + 1] = {0};
-  snprintf(url, TSDB_URL_LEN, "%s/%s", pObj->url, path);
+  snprintf(url, TSDB_URL_LEN, "%s/%s", anodeUrl, path);
 
   if (taosCurlGetRequest(url, &curlRsp) != 0) {
     terrno = TSDB_CODE_MND_ANODE_URL_CANT_ACCESS;
@@ -688,8 +743,8 @@ _OVER:
   return pJson;
 }
 
-static int32_t mndGetAnodeFuncList(SAnodeObj *pObj) {
-  SJson *pJson = mndGetAnodeJson(pObj, "list");
+static int32_t mndGetAnodeFuncList(const char *url, SAnodeObj *pObj) {
+  SJson *pJson = mndGetAnodeJson(url, "list");
   if (pJson == NULL) return terrno;
 
   int32_t code = mndDecodeFuncList(pJson, pObj);
@@ -700,7 +755,7 @@ static int32_t mndGetAnodeFuncList(SAnodeObj *pObj) {
 static int32_t mndGetAnodeStatus(SAnodeObj *pObj, char *status) {
   int32_t code = 0;
   int32_t protocol = 0;
-  SJson  *pJson = mndGetAnodeJson(pObj, "status");
+  SJson  *pJson = mndGetAnodeJson(pObj->url, "status");
   if (pJson == NULL) return terrno;
 
   tjsonGetInt32ValueFromDouble(pJson, "protocol", protocol, code);
