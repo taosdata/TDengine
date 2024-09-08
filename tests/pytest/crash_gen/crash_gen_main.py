@@ -3444,7 +3444,7 @@ class TaskAddData(StateTransitionTask):
         stableName = self._getStableName(db, customStable)
         selectedTagCols = ",".join(tagNameList)
         # if self._checkStableExists(dbc, stableName):
-        dbc.query(f'select {selectedTagCols} from {stableName}')
+        dbc.query(f'select {selectedTagCols} from {db.getName()}.{stableName}')
         sts = dbc.getQueryResult()
         return random.choice(sts)
         # else:
