@@ -4854,6 +4854,9 @@ class StreamComputingTest(TDCase):
         cmd = f'select distinct status from information_schema.ins_stream_tasks where stream_name = "{stream_name}"'
         self.tdSql.query(cmd)
         query_result = self.tdSql.query_data
+        self._remote._logger.info(f'distinct status-------{query_result}')
+        self.tdSql.query('select * from information_schema.ins_stream_tasks')
+        self._remote._logger.info(self.tdSql.query_data)
         while len(query_result) != 0 and query_result[0][0] != "ready":
             time.sleep(1)
             self.tdSql.query(cmd)
