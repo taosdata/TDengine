@@ -1120,6 +1120,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
 
         t = threading.Thread(target=self.thread_insert, args=line_list)
         t.start()
+        # TODO refactor why no retry in container
+        time.sleep(5)
         self.tdSql.query("select * from  hvlgpibybg")
         self.tdSql.checkEqual(self.tdSql.query_row, len(line_list)-1)
 
