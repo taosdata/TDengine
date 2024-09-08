@@ -379,6 +379,7 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
   int32_t lino = 0;
   void   *px = NULL;
   int32_t startIndex = 0;
+  double  el = 0;
 
   int32_t numOfBlocks = TARRAY2_SIZE(pStatisBlkArray);
   if (numOfBlocks <= 0) {
@@ -489,7 +490,9 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
       } else {
         STbStatisRecord record = {0};
         while (i < rows) {
-          (void)tStatisBlockGet(&block, i, &record);
+          code = tStatisBlockGet(&block, i, &record);
+          TSDB_CHECK_CODE(code, lino, _end);
+
           if (record.suid != suid) {
             break;
           }
@@ -536,12 +539,16 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
   }
 
 _end:
-  (void)tStatisBlockDestroy(&block);
-
-  double el = (taosGetTimestampUs() - st) / 1000.0;
+  el = (taosGetTimestampUs() - st) / 1000.0;
   pBlockLoadInfo->cost.statisElapsedTime += el;
 
-  tsdbDebug("%s load %d statis blocks into buf, elapsed time:%.2fms", id, num, el);
+  if (code != 0) {
+    tsdbError("%s failed to load block data statistics, %s at line:%d, code:%s", id, __func__, lino, tstrerror(code));
+  } else {
+    tsdbDebug("%s load %d statis blocks into buf, elapsed time:%.2fms", id, num, el);
+  }
+
+  int32_t ret = tStatisBlockDestroy(&block);
   return code;
 }
 
@@ -677,7 +684,11 @@ int32_t tLDataIterOpen2(SLDataIter *pIter, SSttFileReader *pSttFileReader, int32
 }
 
 void tLDataIterClose2(SLDataIter *pIter) {
-  (void)tsdbSttFileReaderClose(&pIter->pReader);  // always return 0
+  int32_t code = tsdbSttFileReaderClose(&pIter->pReader);  // always return 0
+  if (code != 0) {
+    tsdbError("%" PRId64 " failed to close tsdb file reader, code:%s", pIter->cid, tstrerror(code));
+  }
+
   pIter->pReader = NULL;
 }
 

@@ -449,10 +449,14 @@ static int32_t tsdbUninitReaderLock(STsdbReader* pReader) {
 
 static int32_t tsdbAcquireReader(STsdbReader* pReader) {
   int32_t code = -1;
-  tsdbTrace("tsdb/read: %p, pre-take read mutex: %p, code: %d", pReader, &pReader->readerMutex, code);
+  tsdbTrace("tsdb/read: %s, pre-take read mutex: %p, code: %d", pReader->idStr, &pReader->readerMutex, code);
 
   code = taosThreadMutexLock(&pReader->readerMutex);
-  tsdbTrace("tsdb/read: %p, post-take read mutex: %p, code: %d", pReader, &pReader->readerMutex, code);
+  if (code != 0) {
+    tsdbError("tsdb/read:%p, failed to lock reader mutex, code:%s", pReader->idStr, tstrerror(code));
+  } else {
+    tsdbTrace("tsdb/read: %s, post-take read mutex: %p, code: %d", pReader->idStr, &pReader->readerMutex, code);
+  }
 
   return code;
 }
@@ -4574,7 +4578,10 @@ int32_t tsdbSetTableList2(STsdbReader* pReader, const void* pTableList, int32_t 
   STableBlockScanInfo** p = NULL;
   int32_t               iter = 0;
 
-  (void)tsdbAcquireReader(pReader);
+  code = tsdbAcquireReader(pReader);
+  if (code) {
+    return code;
+  }
 
   while ((p = tSimpleHashIterate(pReader->status.pTableMap, p, &iter)) != NULL) {
     clearBlockScanInfo(*p);
@@ -4805,7 +4812,10 @@ void tsdbReaderClose2(STsdbReader* pReader) {
     return;
   }
 
-  (void)tsdbAcquireReader(pReader);
+  int32_t code = tsdbAcquireReader(pReader);
+  if (code) {
+    return;
+  }
 
   {
     if (pReader->innerReader[0] != NULL || pReader->innerReader[1] != NULL) {
@@ -5853,6 +5863,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
   int32_t        code = 0;
   STsdb*         pTsdb = pReader->pTsdb;
   SVersionRange* pRange = &pReader->info.verRange;
+  int32_t        lino = 0;
   *ppSnap = NULL;
 
   // lock
@@ -5866,8 +5877,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
   STsdbReadSnap* pSnap = (STsdbReadSnap*)taosMemoryCalloc(1, sizeof(STsdbReadSnap));
   if (pSnap == NULL) {
     (void) taosThreadMutexUnlock(&pTsdb->mutex);
-    code = terrno;
-    goto _exit;
+    TSDB_CHECK_NULL(pSnap, code, lino, _exit, terrno);
   }
 
   // take snapshot
@@ -5876,14 +5886,14 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
     pSnap->pNode = taosMemoryMalloc(sizeof(*pSnap->pNode));
     if (pSnap->pNode == NULL) {
       (void) taosThreadMutexUnlock(&pTsdb->mutex);
-      code = terrno;
-      goto _exit;
+      TSDB_CHECK_NULL(pSnap->pNode, code, lino, _exit, terrno);
     }
 
     pSnap->pNode->pQHandle = pReader;
     pSnap->pNode->reseek = reseek;
 
-    (void)tsdbRefMemTable(pTsdb->mem, pSnap->pNode);
+    code = tsdbRefMemTable(pTsdb->mem, pSnap->pNode);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (pTsdb->imem && (pRange->minVer <= pTsdb->imem->maxVer && pRange->maxVer >= pTsdb->imem->minVer)) {
@@ -5903,7 +5913,8 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
     pSnap->pINode->pQHandle = pReader;
     pSnap->pINode->reseek = reseek;
 
-    (void)tsdbRefMemTable(pTsdb->imem, pSnap->pINode);
+    code = tsdbRefMemTable(pTsdb->imem, pSnap->pINode);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // fs
@@ -5918,8 +5929,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
     }
 
     (void) taosThreadMutexUnlock(&pTsdb->mutex);
-    goto _exit;
-  }
+    TSDB_CHECK_CODE(code, lino, _exit);}
 
   // unlock
   (void) taosThreadMutexUnlock(&pTsdb->mutex);
@@ -5929,7 +5939,8 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
   return code;
 
 _exit:
-  tsdbError("vgId:%d take read snapshot failed, code:%s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("%s vgId:%d take read snapshot failed, line:%d code:%s", pReader->idStr, TD_VID(pTsdb->pVnode), lino,
+            tstrerror(code));
   if (pSnap) {
     if (pSnap->pNode) taosMemoryFree(pSnap->pNode);
     if (pSnap->pINode) taosMemoryFree(pSnap->pINode);
