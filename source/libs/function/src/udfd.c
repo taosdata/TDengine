@@ -524,7 +524,12 @@ void udfdDeinitScriptPlugins() {
 void udfdProcessRequest(uv_work_t *req) {
   SUvUdfWork *uvUdf = (SUvUdfWork *)(req->data);
   SUdfRequest request = {0};
-  if(decodeUdfRequest(uvUdf->input.base, &request) == NULL) return;
+  if(decodeUdfRequest(uvUdf->input.base, &request) == NULL)
+  {
+    taosMemoryFree(uvUdf->input.base);
+    fnError("udf request decode failed");
+    return;
+  }
 
   switch (request.type) {
     case UDF_TASK_SETUP: {

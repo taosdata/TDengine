@@ -204,6 +204,7 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
 
 _return:
 
+  taosMemoryFreeClear(pBuf->pData);
   taosFreeQitem(pBuf);
   return code;
 }

@@ -1227,7 +1227,11 @@ static void checkRegexCache(void* param, void* tmrId) {
   if(sRegexCache.exit) {
     goto _exit;
   }
-  (void)taosTmrReset(checkRegexCache, REGEX_CACHE_CLEAR_TIME * 1000, param, sRegexCache.regexCacheTmr, &tmrId);
+  bool ret = taosTmrReset(checkRegexCache, REGEX_CACHE_CLEAR_TIME * 1000, param, sRegexCache.regexCacheTmr, &tmrId);
+  if (!ret) {
+    uError("failed to reset regex cache timer");
+    goto _exit;
+  }
   if (taosHashGetSize(sRegexCache.regexHash) < MAX_REGEX_CACHE_SIZE) {
     goto _exit;
   }
@@ -1238,7 +1242,10 @@ static void checkRegexCache(void* param, void* tmrId) {
       if (taosGetTimestampSec() - (*ppUsingRegex)->lastUsedTime > REGEX_CACHE_CLEAR_TIME) {
         size_t len = 0;
         char* key = (char*)taosHashGetKey(ppUsingRegex, &len);
-        (void)taosHashRemove(sRegexCache.regexHash, key, len);
+        if (TSDB_CODE_SUCCESS != taosHashRemove(sRegexCache.regexHash, key, len)) {
+          uError("failed to remove regex pattern %s from cache", key);
+          goto _exit;
+        }
       }
       ppUsingRegex = taosHashIterate(sRegexCache.regexHash, ppUsingRegex);
     }
@@ -1285,7 +1292,10 @@ void DestroyRegexCache(){
   #endif
   int32_t code = 0;
   uInfo("[regex cache] destory regex cache");
-  (void)taosTmrStopA(&sRegexCache.timer);
+  bool ret = taosTmrStopA(&sRegexCache.timer);
+  if (!ret) {
+    uError("failed to stop regex cache timer");
+  }
   taosWLockLatch(&sRegexCache.mutex);
   sRegexCache.exit = true;
   taosHashCleanup(sRegexCache.regexHash);

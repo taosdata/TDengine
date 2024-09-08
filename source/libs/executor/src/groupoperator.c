@@ -353,38 +353,6 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   }
 }
 
-static SSDataBlock* buildGroupResultDataBlock(SOperatorInfo* pOperator) {
-  int32_t               code = TSDB_CODE_SUCCESS;
-  int32_t               lino = 0;
-  SGroupbyOperatorInfo* pInfo = pOperator->info;
-  SSDataBlock*          pRes = pInfo->binfo.pRes;
-  SExecTaskInfo*        pTaskInfo = pOperator->pTaskInfo;
-
-  while (1) {
-    doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    if (!hasRemainResults(&pInfo->groupResInfo)) {
-      setOperatorCompleted(pOperator);
-      break;
-    }
-
-    if (pRes->info.rows > 0) {
-      break;
-    }
-  }
-
-  pOperator->resultInfo.totalRows += pRes->info.rows;
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, code);
-  }
-  return (pRes->info.rows == 0) ? NULL : pRes;
-}
-
 bool hasRemainResultByHash(SOperatorInfo* pOperator) {
   SGroupbyOperatorInfo* pInfo = pOperator->info;
   SSHashObj*            pHashmap = pInfo->aggSup.pResultRowHashTable;
@@ -463,25 +431,23 @@ _end:
 }
 
 static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  int32_t               code = TSDB_CODE_SUCCESS;
+  int32_t               lino = 0;
+  SExecTaskInfo*        pTaskInfo = pOperator->pTaskInfo;
+  SGroupbyOperatorInfo* pInfo = pOperator->info;
+  SGroupResInfo*        pGroupResInfo = &pInfo->groupResInfo;
+  int32_t               order = pInfo->binfo.inputTsOrder;
+  int64_t               st = taosGetTimestampUs();
+
+  QRY_PARAM_CHECK(ppRes);
   if (pOperator->status == OP_EXEC_DONE) {
-    (*ppRes) = NULL;
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t        code = TSDB_CODE_SUCCESS;
-  int32_t        lino = 0;
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-
-  SGroupbyOperatorInfo* pInfo = pOperator->info;
   if (pOperator->status == OP_RES_TO_RETURN) {
     (*ppRes) = buildGroupResultDataBlockByHash(pOperator);
     return code;
   }
-  SGroupResInfo* pGroupResInfo = &pInfo->groupResInfo;
-
-  int32_t        order = pInfo->binfo.inputTsOrder;
-  int64_t        st = taosGetTimestampUs();
-  SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
@@ -511,10 +477,12 @@ static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
   if (pGroupResInfo->pRows != NULL) {
     taosArrayDestroy(pGroupResInfo->pRows);
   }
+
   if (pGroupResInfo->pBuf) {
     taosMemoryFree(pGroupResInfo->pBuf);
     pGroupResInfo->pBuf = NULL;
   }
+
   pGroupResInfo->index = 0;
   pGroupResInfo->iter = 0;
   pGroupResInfo->dataPos = NULL;
@@ -525,15 +493,16 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
+  } else {
+    (*ppRes) = buildGroupResultDataBlockByHash(pOperator);
   }
-  (*ppRes) = buildGroupResultDataBlockByHash(pOperator);
+
   return code;
 }
 
 int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo,
                                 SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
@@ -1127,7 +1096,7 @@ static void destroyPartitionOperatorInfo(void* param) {
 
 int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNode* pPartNode,
                                            SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t                 code = TSDB_CODE_SUCCESS;
   int32_t                 lino = 0;
@@ -1668,7 +1637,7 @@ void freePartItem(void* ptr) {
 
 int32_t createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStreamPartitionPhysiNode* pPartNode,
                                           SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t                       code = TSDB_CODE_SUCCESS;
   int32_t                       lino = 0;
