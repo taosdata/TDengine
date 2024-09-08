@@ -165,6 +165,8 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
 
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pBlock, uint64_t* useconds);
 
+void qResetTaskCode(qTaskInfo_t tinfo);
+
 void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo);
 
 /**
