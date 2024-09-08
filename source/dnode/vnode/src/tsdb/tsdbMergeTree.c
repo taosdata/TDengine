@@ -379,7 +379,7 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
   int32_t lino = 0;
   void   *px = NULL;
   int32_t startIndex = 0;
-  double  el = 0;
+  int32_t ret = 0;
 
   int32_t numOfBlocks = TARRAY2_SIZE(pStatisBlkArray);
   if (numOfBlocks <= 0) {
@@ -409,9 +409,7 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
 
   for (int32_t k = startIndex; k < endIndex; ++k) {
     code = tsdbSttFileReadStatisBlock(pSttFileReader, &pStatisBlkArray->data[k], &block);
-    if (code) {
-      return code;
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
 
     int32_t i = 0;
     int32_t rows = block.numOfRecords;
@@ -539,16 +537,15 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
   }
 
 _end:
-  el = (taosGetTimestampUs() - st) / 1000.0;
-  pBlockLoadInfo->cost.statisElapsedTime += el;
-
+  ret = tStatisBlockDestroy(&block);
   if (code != 0) {
-    tsdbError("%s failed to load block data statistics, %s at line:%d, code:%s", id, __func__, lino, tstrerror(code));
+    tsdbError("%s error happens at:%s line number: %d, code:%s", id, __func__, lino, tstrerror(code));
   } else {
+    double el = (taosGetTimestampUs() - st) / 1000.0;
+    pBlockLoadInfo->cost.statisElapsedTime += el;
+
     tsdbDebug("%s load %d statis blocks into buf, elapsed time:%.2fms", id, num, el);
   }
-
-  int32_t ret = tStatisBlockDestroy(&block);
   return code;
 }
 
@@ -964,6 +961,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
   pMTree->pIter = NULL;
   pMTree->backward = pConf->backward;
   pMTree->idStr = pConf->idstr;
+  int32_t lino = 0;
 
   if (!pMTree->backward) {  // asc
     tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
@@ -1038,9 +1036,8 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
         // let's record the time window for current table of uid in the stt files
         if (pSttDataInfo != NULL && numOfRows > 0) {
           void *px = taosArrayPush(pSttDataInfo->pKeyRangeList, &range);
-          if (px == NULL) {
-            return terrno;
-          }
+          QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+
           pSttDataInfo->numOfRows += numOfRows;
         }
       } else {

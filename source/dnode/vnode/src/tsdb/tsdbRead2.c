@@ -403,7 +403,7 @@ static void initReaderStatus(SReaderStatus* pStatus) {
 }
 
 static int32_t createResBlock(SQueryTableDataCond* pCond, int32_t capacity, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
 
   SSDataBlock* pBlock = NULL;
   int32_t code = createDataBlock(&pBlock);

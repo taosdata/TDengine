@@ -1421,12 +1421,12 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
 
   if (lastVer != -1 && endIndex != lastVer + 1) {
     code = TSDB_CODE_WAL_LOG_INCOMPLETE;
-    sError("vgId:%d, failed to restore sync node since %s. expected lastLogIndex:%" PRId64 ", lastVer:%" PRId64 "",
-           pSyncNode->vgId, terrstr(), endIndex - 1, lastVer);
-    TAOS_RETURN(code);
+    sWarn("vgId:%d, failed to restore sync node since %s. expected lastLogIndex:%" PRId64 ", lastVer:%" PRId64 "",
+          pSyncNode->vgId, terrstr(), endIndex - 1, lastVer);
+    // TAOS_RETURN(code);
   }
 
-  if (endIndex != lastVer + 1) return TSDB_CODE_SYN_INTERNAL_ERROR;
+  // if (endIndex != lastVer + 1) return TSDB_CODE_SYN_INTERNAL_ERROR;
   pSyncNode->commitIndex = TMAX(pSyncNode->commitIndex, commitIndex);
   sInfo("vgId:%d, restore sync until commitIndex:%" PRId64, pSyncNode->vgId, pSyncNode->commitIndex);
 
