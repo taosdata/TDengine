@@ -1072,7 +1072,7 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
     }
   }
 
-  tStatisBlockDestroy(pStatisBlock);
+  int32_t ret = tStatisBlockDestroy(pStatisBlock);
   taosMemoryFreeClear(pStatisBlock);
   *pNumOfRows = num;
   return code;
