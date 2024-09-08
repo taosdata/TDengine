@@ -78,7 +78,7 @@ static int32_t getSchemaBytes(const SSchema* pSchema) {
 }
 
 static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
-  QRY_OPTR_CHECK(pOutput);
+  QRY_PARAM_CHECK(pOutput);
 
   SSDataBlock* pBlock = NULL;
   int32_t      code = createDataBlock(&pBlock);
@@ -236,7 +236,7 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
 static int32_t execResetQueryCache() { return catalogClearCache(); }
 
 static int32_t buildCreateDBResultDataBlock(SSDataBlock** pOutput) {
-  QRY_OPTR_CHECK(pOutput);
+  QRY_PARAM_CHECK(pOutput);
 
   SSDataBlock* pBlock = NULL;
   int32_t      code = createDataBlock(&pBlock);
@@ -475,7 +475,7 @@ static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveT
 }
 
 static int32_t buildCreateTbResultDataBlock(SSDataBlock** pOutput) {
-  QRY_OPTR_CHECK(pOutput);
+  QRY_PARAM_CHECK(pOutput);
 
   SSDataBlock* pBlock = NULL;
   int32_t      code = createDataBlock(&pBlock);
@@ -499,7 +499,7 @@ static int32_t buildCreateTbResultDataBlock(SSDataBlock** pOutput) {
 }
 
 static int32_t buildCreateViewResultDataBlock(SSDataBlock** pOutput) {
-  QRY_OPTR_CHECK(pOutput);
+  QRY_PARAM_CHECK(pOutput);
 
   SSDataBlock* pBlock = NULL;
   int32_t      code = createDataBlock(&pBlock);
@@ -929,7 +929,7 @@ static int32_t execShowLocalVariables(SRetrieveTableRsp** pRsp) {
 }
 
 static int32_t createSelectResultDataBlock(SNodeList* pProjects, SSDataBlock** pOutput) {
-  QRY_OPTR_CHECK(pOutput);
+  QRY_PARAM_CHECK(pOutput);
 
   SSDataBlock* pBlock = NULL;
   int32_t      code = createDataBlock(&pBlock);
