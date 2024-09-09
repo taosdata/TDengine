@@ -49,7 +49,7 @@ pub struct ParserResponse {
     p: *mut c_void,
 }
 
-#[derive(WrapperApi, Clone)]
+#[derive(WrapperApi, Clone, Debug)]
 struct PluginLib {
     parser_name: extern "C" fn() -> *mut c_char,
     parser_version: extern "C" fn() -> *mut c_char,
@@ -69,16 +69,9 @@ struct ParserContainer {
     lib_version: String,
     lib_id: String,
     lib_name: String,
-    parsers: HashMap<String, ParserObject>,
 }
 
-impl ParserContainer {
-    fn add_parser(&mut self, plugin_params: String, parser: ParserObject) {
-        self.parsers.insert(plugin_params, parser);
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct ParserObject {
     p: *mut c_void,
     plugin_lib: PluginLib,
@@ -109,7 +102,11 @@ impl ParserObject {
             return Err("parser_mutate failed".to_string());
         }
         let parsed_data = unsafe {
-            String::from_utf8_lossy(std::slice::from_raw_parts(output_p as *const u8, output_l as usize)).to_string()
+            String::from_utf8_lossy(std::slice::from_raw_parts(
+                output_p as *const u8,
+                output_l as usize,
+            ))
+            .to_string()
         };
         Ok(parsed_data)
     }
@@ -129,7 +126,7 @@ impl PluginLib {
 }
 
 lazy_static! {
-    static ref PLUGIN_MAP: RwLock<HashMap<String, ParserContainer>> = {
+    static ref PLUGIN_MAP: RwLock<HashMap<String, Arc<ParserContainer>>> = {
         let mut plugin_map = HashMap::new();
         let plugin_path = get_plugins_home_dir();
         let lib_path = plugin_path.join("parsers");
@@ -150,10 +147,10 @@ lazy_static! {
                             lib_version: parser_version.to_string(),
                             lib_name: parser_name.to_string(),
                             lib_id: entry.file_name().to_str().unwrap().to_string(),
-                            parsers: HashMap::new(),
+                            // parsers: HashMap::new(),
                         };
-                        dbg!("load plugin: {}", parser_name);
-                        plugin_map.insert(parser_name.to_string(), plugin_container);
+                        tracing::debug!("load plugin: {parser_name}");
+                        plugin_map.insert(parser_name.to_string(), Arc::new(plugin_container));
                     }
                 }
             }
@@ -167,10 +164,38 @@ lazy_static! {
  * Parser plugin for extracting fields from JSON object.
  * 比如河北电力使用 {"plugin_type": "hebeipower", "plugin_params": "U,DATA_TYPE"} 来解析数据
  */
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(try_from = "ParserPluginPreDeserialize")]
 pub struct ParserPlugin {
     pub(crate) plugin_type: String,
     pub(crate) plugin_params: String,
+    #[serde(skip_serializing)]
+    parser_object: ParserObject,
+}
+
+impl Clone for ParserPlugin {
+    /// ## Safety
+    ///
+    /// parser_object should always be created by the same PluginLib
+    fn clone(&self) -> Self {
+        Self::new(&self.plugin_type, &self.plugin_params).unwrap()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ParserPluginPreDeserialize {
+    pub(crate) plugin_type: String,
+    pub(crate) plugin_params: String,
+}
+
+impl TryFrom<ParserPluginPreDeserialize> for ParserPlugin {
+    type Error = String;
+
+    fn try_from(value: ParserPluginPreDeserialize) -> Result<Self, Self::Error> {
+        let plugin_type = value.plugin_type;
+        let plugin_params = value.plugin_params;
+        Self::new(&plugin_type, &plugin_params)
+    }
 }
 
 impl Parse for ParserPlugin {
@@ -184,10 +209,6 @@ impl Parse for ParserPlugin {
             return Ok((RecordBatch::new_empty(Arc::new(Schema::empty())), None));
         }
 
-        let parser_object = self
-            .get_plugin_object()
-            .unwrap_or_else(|| self.new_plugin_object().unwrap());
-
         let array = arrow::compute::cast(array, &DataType::Utf8)?;
 
         let string = array.as_any().downcast_ref::<StringArray>().unwrap();
@@ -199,7 +220,7 @@ impl Parse for ParserPlugin {
                 continue;
             }
 
-            let value = parser_object.mutate(string.value(i).as_bytes());
+            let value = self.parser_object.mutate(string.value(i).as_bytes());
             if value.is_err() {
                 tracing::warn!("plugin parser failed with raw data: {}", string.value(i));
                 continue;
@@ -254,7 +275,7 @@ impl Parse for ParserPlugin {
                     return vec![(n, None)];
                 }
 
-                let value = parser_object.mutate(string.value(i).as_bytes());
+                let value = self.parser_object.mutate(string.value(i).as_bytes());
                 if value.is_err() {
                     return vec![(n, None)];
                 }
@@ -968,11 +989,17 @@ impl Parse for ParserPlugin {
 }
 
 impl ParserPlugin {
-    pub fn new(plugin_type: &str, plugin_params: &str) -> Self {
-        Self {
+    pub fn new(plugin_type: &str, plugin_params: &str) -> Result<Self, String> {
+        let plugin_map = PLUGIN_MAP.write().unwrap();
+        let plugin_container = plugin_map
+            .get(plugin_type)
+            .ok_or(format!("plugin {plugin_type} not found"))?;
+        let parser_object = plugin_container.container.new_parser(plugin_params)?;
+        Ok(Self {
             plugin_type: plugin_type.to_string(),
             plugin_params: plugin_params.to_string(),
-        }
+            parser_object,
+        })
     }
 
     pub fn list_all_plugins() -> Vec<PluginInfo> {
@@ -985,30 +1012,6 @@ impl ParserPlugin {
                 id: plugin_container.lib_id.clone(),
             })
             .collect()
-        // plugin_map.keys().cloned().collect()
-    }
-
-    fn get_plugin_object(&self) -> Option<ParserObject> {
-        let plugin_map = PLUGIN_MAP.read().unwrap();
-        plugin_map
-            .get(&self.plugin_type)
-            .map(|plugin_container| {
-                plugin_container
-                    .parsers
-                    .get(&self.plugin_params)
-                    .map(|parser_object| parser_object.clone())
-            })
-            .flatten()
-    }
-
-    fn new_plugin_object(&self) -> Result<ParserObject, String> {
-        let mut plugin_map = PLUGIN_MAP.write().unwrap();
-        let plugin_container = plugin_map
-            .get_mut(&self.plugin_type)
-            .ok_or("plugin not found")?;
-        let parser_object = plugin_container.container.new_parser(&self.plugin_params)?;
-        plugin_container.add_parser(self.plugin_params.clone(), parser_object.clone());
-        Ok(parser_object)
     }
 }
 
