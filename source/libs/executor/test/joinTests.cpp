@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define ALLOW_FORBID_FUNC
+
 #include <gtest/gtest.h>
 #include <iostream>
 
@@ -2882,7 +2884,7 @@ void jtInitLogFile() {
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
-  TAOS_STRCPY(tsLogDir, TD_LOG_DIR_PATH);
+  strcpy(tsLogDir, TD_LOG_DIR_PATH);
 
   if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, false) < 0) {
     JT_PRINTF("failed to open log file in directory:%s\n", tsLogDir);

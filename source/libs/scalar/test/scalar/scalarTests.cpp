@@ -27,6 +27,8 @@
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 #include <addr_any.h>
 
+#define ALLOW_FORBID_FUNC
+
 #ifdef WINDOWS
 #define TD_USE_WINSOCK
 #endif

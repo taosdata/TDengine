@@ -9,6 +9,7 @@
  *
  */
 
+#define ALLOW_FORBID_FUNC
 #include <gtest/gtest.h>
 
 #include "sdb.h"

@@ -9,6 +9,7 @@
  *
  */
 
+#define ALLOW_FORBID_FUNC
 #include "sut.h"
 
 class MndTestFunc : public ::testing::Test {

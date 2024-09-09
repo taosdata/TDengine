@@ -25,6 +25,8 @@
 #pragma GCC diagnostic ignored "-Wformat"
 #include <addr_any.h>
 
+#define ALLOW_FORBID_FUNC
+
 #ifdef WINDOWS
 #define TD_USE_WINSOCK
 #endif
@@ -77,7 +79,7 @@ void schtInitLogFile() {
   const int32_t maxLogFileNum = 10;
   tsAsyncLog = 0;
   qDebugFlag = 159;
-  TAOS_STRCPY(tsLogDir, TD_LOG_DIR_PATH);
+  strcpy(tsLogDir, TD_LOG_DIR_PATH);
 
   if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, false) < 0) {
     (void)printf("failed to open log file in directory:%s\n", tsLogDir);
@@ -697,7 +699,7 @@ void *schtRunJobThread(void *aa) {
     
     SQueryNodeLoad load = {0};
     load.addr.epSet.numOfEps = 1;
-    TAOS_STRCPY(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
+    strcpy(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
     load.addr.epSet.eps[0].port = 6031;
     if (NULL == taosArrayPush(qnodeList, &load)) {
       assert(0);
@@ -866,7 +868,7 @@ TEST(queryTest, normalCase) {
 
   SQueryNodeLoad load = {0};
   load.addr.epSet.numOfEps = 1;
-  TAOS_STRCPY(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
+  strcpy(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
   load.addr.epSet.eps[0].port = 6031;
   assert(taosArrayPush(qnodeList, &load) != NULL);
 
@@ -982,7 +984,7 @@ TEST(queryTest, readyFirstCase) {
 
   SQueryNodeLoad load = {0};
   load.addr.epSet.numOfEps = 1;
-  TAOS_STRCPY(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
+  strcpy(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
   load.addr.epSet.eps[0].port = 6031;
   assert(NULL != taosArrayPush(qnodeList, &load));
 
@@ -1101,7 +1103,7 @@ TEST(queryTest, flowCtrlCase) {
 
   SQueryNodeLoad load = {0};
   load.addr.epSet.numOfEps = 1;
-  TAOS_STRCPY(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
+  strcpy(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
   load.addr.epSet.eps[0].port = 6031;
   assert(NULL != taosArrayPush(qnodeList, &load));
 
@@ -1196,7 +1198,7 @@ TEST(insertTest, normalCase) {
 
   SQueryNodeLoad load = {0};
   load.addr.epSet.numOfEps = 1;
-  TAOS_STRCPY(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
+  strcpy(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
   load.addr.epSet.eps[0].port = 6031;
   assert(NULL != taosArrayPush(qnodeList, &load));
 

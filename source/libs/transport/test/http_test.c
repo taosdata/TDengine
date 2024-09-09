@@ -20,10 +20,11 @@
 #include "trpc.h"
 #include "tutil.h"
 #include "tversion.h"
+#undef strcpy
 
 void initLogEnv() {
-  const char *  logDir = "/tmp/trans_cli";
-  const char *  defaultLogFileNamePrefix = "taoslog";
+  const char   *logDir = "/tmp/trans_cli";
+  const char   *defaultLogFileNamePrefix = "taoslog";
   const int32_t maxLogFileNum = 1000000;
   tsAsyncLog = 0;
   // rpcDebugflag = 143;
@@ -44,7 +45,7 @@ void *proces(void *arg) {
   char *monitor = "172.26.10.94";
   while (1) {
     int32_t len = 512;
-    char *  msg = taosMemoryCalloc(1, len);
+    char   *msg = taosMemoryCalloc(1, len);
     memset(msg, 1, len);
     int32_t code = taosSendHttpReport(monitor, "/crash", 6050, msg, 10, HTTP_FLAT);
     taosMemoryFree(msg);

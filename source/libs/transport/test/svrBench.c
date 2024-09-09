@@ -20,6 +20,7 @@
 #include "transLog.h"
 #include "trpc.h"
 #include "tversion.h"
+#undef strcpy
 
 int         msgSize = 128;
 int         commit = 0;

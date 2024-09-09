@@ -14,6 +14,7 @@
 
 #include "monitor.h"
 #include "tglobal.h"
+#undef strcpy
 
 class MonitorTest : public ::testing::Test {
  protected:
