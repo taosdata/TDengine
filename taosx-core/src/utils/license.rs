@@ -259,7 +259,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
             from.subject.take();
             to.subject
                 .as_deref()
-                .ok_or_else(|| anyhow!("Sink database mut be set"))?;
+                .ok_or_else(|| anyhow!("Sink database must be set"))?;
             let source_builder = TaosBuilder::from_dsn(&from).with_context(source_dsn_context)?;
             let sink_builder = TaosBuilder::from_dsn(to).with_context(source_dsn_context)?;
 
