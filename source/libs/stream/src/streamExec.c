@@ -244,9 +244,10 @@ static void streamScanHistoryDataImpl(SStreamTask* pTask, SArray* pRes, int32_t*
     SSDataBlock* output = NULL;
     uint64_t     ts = 0;
     code = qExecTask(exec, &output, &ts);
-    if (code != TSDB_CODE_TSC_QUERY_KILLED && code != TSDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_TSC_QUERY_KILLED && code != TSDB_CODE_SUCCESS) {  // if out of memory occurs, quit
       stError("s-task:%s scan-history data error occurred code:%s, continue scan-history", pTask->id.idStr,
               tstrerror(code));
+      qResetTaskCode(exec);
       continue;
     }
 
