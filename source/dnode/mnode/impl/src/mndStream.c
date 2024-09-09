@@ -1052,6 +1052,7 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
   int32_t code = TSDB_CODE_SUCCESS;
   bool    conflict = false;
   int64_t ts = taosGetTimestampMs();
+  STrans *pTrans = NULL;
 
   if (mndTrigger == 1 && (ts - pStream->checkpointFreq < tsStreamCheckpointInterval * 1000)) {
     return code;
@@ -1059,20 +1060,14 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
 
   code = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_CHECKPOINT_NAME, lock);
   if (code) {
+    mWarn("checkpoint conflict with other trans in %s, code:%s ignore the checkpoint for stream:%s %" PRIx64,
+          pStream->sourceDb, tstrerror(code), pStream->name, pStream->uid);
     goto _ERR;
   }
 
-  if (conflict) {
-    mWarn("checkpoint conflict with other trans in %s, ignore the checkpoint for stream:%s %" PRIx64, pStream->sourceDb,
-          pStream->name, pStream->uid);
-    return TSDB_CODE_MND_TRANS_CONFLICT;
-  }
-
-  STrans *pTrans = NULL;
   code = doCreateTrans(pMnode, pStream, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_CHECKPOINT_NAME,
-                                 "gen checkpoint for stream", &pTrans);
-  if (pTrans == NULL || code) {
-    code = TSDB_CODE_MND_TRANS_CONFLICT;
+                       "gen checkpoint for stream", &pTrans);
+  if (code) {
     mError("failed to checkpoint of stream name%s, checkpointId: %" PRId64 ", reason:%s", pStream->name, checkpointId,
            tstrerror(code));
     goto _ERR;

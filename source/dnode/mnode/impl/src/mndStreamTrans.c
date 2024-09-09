@@ -50,7 +50,7 @@ int32_t mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt) 
              pEntry->startTime);
       void* p = taosArrayPush(pList, &info);
       if (p == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     } else {
       if (strcmp(pEntry->name, MND_STREAM_CHECKPOINT_NAME) == 0) {
@@ -77,7 +77,6 @@ int32_t mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt) 
   mDebug("clear %d finished stream-trans, remained:%d, active checkpoint trans:%d", size,
          taosHashGetSize(execInfo.transMgmt.pDBTrans), num);
 
-  terrno = TSDB_CODE_SUCCESS;
   taosArrayDestroy(pList);
 
   if (pNumOfActiveChkpt != NULL) {

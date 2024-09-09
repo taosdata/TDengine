@@ -171,8 +171,9 @@ int32_t epsetToStr(const SEpSet* pEpSet, char* pBuf, int32_t cap) {
   ret = snprintf(pBuf + nwrite, cap, "}, inUse:%d", pEpSet->inUse);
   if (ret <= 0 || ret >= cap) {
     return TSDB_CODE_OUT_OF_BUFFER;
+  } else {
+    return TSDB_CODE_SUCCESS;
   }
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime) {
