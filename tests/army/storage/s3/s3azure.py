@@ -63,8 +63,8 @@ class TDTestCase(TBase):
     bucketName = "td-test"
     updatecfgDict = {
         "supportVnodes": "1000",
-        's3EndPoint': 'http://192.168.1.49',
-        's3AccessKey': 'FlIOwdr5HAnsMyEZ6FBwSPE5:87x1tZJll1SaK4hoiglC8zPRhDgbMeW6ufQqEt8',
+        's3EndPoint': 'http://192.168.1.49,http://192.168.1.49:81',
+        's3AccessKey': 'FlIOwdr5HAnsMyEZ6FBwSPE5:87x1tZJll1SaK4hoiglC8zPRhDgbMeW6ufQqEt8,FlIOvHz0MePAf4KttYqfZM:Hve86EvB6KdvRPa5d1DG38jP6BSSSJC7IxYvSgEP',
         's3BucketName': f'{bucketName}',
         's3PageCacheSize': '10240',
         "s3UploadDelaySec": "10",
@@ -161,7 +161,7 @@ class TDTestCase(TBase):
         # check upload to s3
         self.checkUploadToS3()
 
-    def check_azure_exist(self):
+    def checkAzureDataExist(self):
         result = self.azure_class.blob_list()
         if not self.fileName:
             tdLog.exit("cannot find S3 file")
@@ -173,7 +173,7 @@ class TDTestCase(TBase):
         else:
             tdLog.exit("failed found the file %s in Azure" % self.fileName)
 
-    def check_azure_not_exist(self):
+    def checkAzureDataNotExist(self):
         datafile = self.fileName.split("/")[-1].split(".")[0]
 
         result = self.azure_class.blob_list()
@@ -352,7 +352,7 @@ class TDTestCase(TBase):
             # do action
             self.doAction()
             # check azure data exist
-            self.check_azure_exist()
+            self.checkAzureDataExist()
             # check save agg result correct
             self.checkAggCorrect()
 
@@ -365,24 +365,10 @@ class TDTestCase(TBase):
             # drop stream
             self.dropStream(self.sname)
 
-            # # insert history  disorder data
-            # self.insertHistory()
-            #
-            # # checkBasic
-            # self.checkBasic()
-
-            # self.checkInsertCorrect()
-            # self.snapshotAgg()
-            # self.doAction()
-            # self.checkAggCorrect()
-            # self.checkInsertCorrect(difCnt=self.childtable_count * 1499999)
-            # self.checkDelete()
-            # self.doAction()
-
             # drop database and free s3 file
             self.dropDb()
             # check azure data not exist
-            self.check_azure_not_exist()
+            self.checkAzureDataNotExist()
 
             tdLog.success(f"{__file__} successfully executed")
 
