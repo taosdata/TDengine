@@ -43,15 +43,17 @@ where
 
     pub data: T,
 }
+
 impl Failed<()> {
-    pub fn from_error(err: impl Debug) -> Self {
+    pub fn from_error(err: impl Display) -> Self {
         Self {
             code: Code::FAILED,
-            message: format!("{:?}", err),
+            message: format!("{}", err.to_string()),
             data: (),
         }
     }
 }
+
 impl<T: Debug + Serialize> Failed<T> {
     pub fn new(code: Code, message: String, data: T) -> Self {
         Self {

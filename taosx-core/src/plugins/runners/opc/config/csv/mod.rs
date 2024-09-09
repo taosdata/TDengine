@@ -1,16 +1,4 @@
-use std::collections::HashMap;
-use std::io::Write;
-
-use anyhow::bail;
-use base64::engine::general_purpose;
-use base64::Engine;
-use csv_async::{AsyncReader, AsyncWriter, StringRecord};
-use linked_hash_map::LinkedHashMap;
-use taos::Dsn;
-use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
-use tokio_stream::StreamExt;
-
+use crate::get_data_dir;
 use crate::runners::opc::config::csv::header::CsvHeader;
 use crate::runners::opc::config::model::{
     ColumnConfig, GeneratePointMappingBy, OpcModelConfig, PointConfig, TableConfig,
@@ -19,6 +7,18 @@ use crate::runners::opc::config::OPCConfig;
 use crate::runners::opc::{generate_tbname_from_pattern, OpcType};
 use crate::utils::files::{get_encode, get_encode_from_buffer};
 use crate::utils::validate_table_column_name;
+use anyhow::bail;
+use base64::engine::general_purpose;
+use base64::Engine;
+use csv_async::{AsyncReader, AsyncWriter, StringRecord};
+use linked_hash_map::LinkedHashMap;
+use std::collections::HashMap;
+use std::io::Write;
+use std::path::Path;
+use taos::Dsn;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
+use tokio_stream::StreamExt;
 
 pub mod column;
 pub mod header;
@@ -29,6 +29,8 @@ pub struct CsvParser {
     opc_type: OpcType,
     /// csv files could be file path or utf8 encoded string
     csv_files: Vec<String>,
+
+    csv_origin: Option<String>,
 }
 
 impl CsvParser {
@@ -40,6 +42,7 @@ impl CsvParser {
         Ok(Self {
             opc_type,
             csv_files,
+            csv_origin: None,
         })
     }
 
@@ -54,16 +57,51 @@ impl CsvParser {
         Ok(Self {
             opc_type,
             csv_files,
+            csv_origin: None,
         })
     }
 
+    pub fn set_csv_origin(&mut self, csv_origin: Option<String>) {
+        self.csv_origin = csv_origin;
+    }
+
+    pub fn decoded_csv(csv: &str) -> anyhow::Result<String> {
+        if csv.starts_with("@") {
+            Ok(csv.to_string())
+        } else {
+            let decoded = general_purpose::STANDARD
+                .decode(csv.as_bytes().to_vec())
+                .map_err(|err| {
+                    anyhow::anyhow!("failed to decode csv content, cause: {}", err.to_string())
+                })?;
+            Ok(String::from_utf8(decoded)?)
+        }
+    }
+
+    fn decode_csv_content(content: &str, encoded: bool) -> anyhow::Result<Vec<u8>> {
+        let decoded = if encoded {
+            general_purpose::STANDARD.decode(content).map_err(|err| {
+                anyhow::anyhow!("failed to decode csv content, cause: {}", err.to_string())
+            })?
+        } else {
+            content.as_bytes().to_vec()
+        };
+
+        // check the file encoding
+        let encoding = get_encode_from_buffer(decoded.as_slice())?;
+        if encoding.name() != "UTF-8" {
+            bail!(
+                "invalid CSV file encoding: {}, only UTF-8 or UTF-8 BOM supported",
+                encoding.name()
+            );
+        };
+
+        Ok(decoded)
+    }
+
     /// 直接解析 csv 文件内容，生成 opc model config
-    async fn parse_csv(
-        opc_type: OpcType,
-        content: String,
-        encoded: bool,
-    ) -> anyhow::Result<OpcModelConfig> {
-        let rdr = Self::load_csv_from_content(content.as_str(), encoded).await?;
+    async fn parse_csv(opc_type: OpcType, content: String) -> anyhow::Result<OpcModelConfig> {
+        let rdr = Self::load_csv_with_string(content.as_str(), false).await?;
 
         let (point_config_map, table_config_map) =
             Self::parse_point_mapping(opc_type.clone(), rdr).await?;
@@ -123,7 +161,7 @@ impl CsvParser {
 
     /// 读取 self.csv_files 的内容，生成 opc model config
     pub async fn parse(&self) -> anyhow::Result<OpcModelConfig> {
-        let files = Self::open_csv_files(self.csv_files.clone()).await?;
+        let files = Self::open_csv_many(self.csv_files.clone()).await?;
 
         let mut point_config_map = LinkedHashMap::new();
         let mut table_config_map = LinkedHashMap::new();
@@ -137,7 +175,10 @@ impl CsvParser {
 
         Ok(OpcModelConfig {
             opc_type: self.opc_type.clone(),
-            generate_rule: Some(GeneratePointMappingBy::Csv(self.csv_files.clone())),
+            generate_rule: Some(GeneratePointMappingBy::Csv((
+                self.csv_files.clone(),
+                self.csv_origin.clone(),
+            ))),
             point_config_map,
             table_config_map,
         })
@@ -151,7 +192,7 @@ impl CsvParser {
 
         let csv_files = self.csv_files.clone();
 
-        let files = Self::open_csv_files(csv_files).await?;
+        let files = Self::open_csv_many(csv_files).await?;
 
         let mut headers = HashMap::new();
 
@@ -183,7 +224,7 @@ impl CsvParser {
             .get(csv_index)
             .ok_or(anyhow::anyhow!("csv_file not found"))?;
 
-        let mut rdr = Self::open_csv_file(csv.clone()).await?;
+        let mut rdr = Self::open_csv(csv.clone()).await?;
 
         // parse header
         let header = rdr
@@ -208,7 +249,7 @@ impl CsvParser {
             .get(0)
             .ok_or(anyhow::anyhow!("csv_file not found"))?;
         tracing::info!("append line to the csv: {}", csv_file);
-        let mut rdr = Self::open_csv_file(csv_file.clone()).await?;
+        let mut rdr = Self::open_csv(csv_file.clone()).await?;
 
         // read csv to writer
         let mut writer = AsyncWriter::from_writer(vec![]);
@@ -236,8 +277,7 @@ impl CsvParser {
         // write the new csv
         let new_csv = String::from_utf8(writer.into_inner().await?)?;
 
-        let model_config =
-            CsvParser::parse_csv(self.opc_type.clone(), new_csv.clone(), false).await?;
+        let model_config = CsvParser::parse_csv(self.opc_type.clone(), new_csv.clone()).await?;
         model_config.validate()?;
 
         if csv_file.starts_with("@") {
@@ -251,18 +291,36 @@ impl CsvParser {
         Ok(())
     }
 
-    pub async fn open_csv_file(file: String) -> anyhow::Result<AsyncReader<File>> {
-        let rdr = if file.starts_with("@") {
-            let file_path = &file[1..];
-            Self::load_csv_from_filepath(file_path).await?
+    /// 如果 csv 以 @ 开头， 从文件中读， 否则从字符串中读
+    pub async fn open_csv(csv: String) -> anyhow::Result<AsyncReader<File>> {
+        let rdr = if csv.starts_with("@") {
+            let file_path = &csv[1..];
+            Self::load_csv_with_path(file_path).await?
         } else {
-            Self::load_csv_from_content(&file, true).await?
+            Self::load_csv_with_string(&csv, true).await?
         };
 
         Ok(rdr)
     }
 
-    async fn load_csv_from_filepath(file_path: &str) -> anyhow::Result<AsyncReader<File>> {
+    /// 如果 csv_path 不为空， 从 csv_path 中读， 否则从 csv 中读
+    pub async fn open_csv_with_path(
+        csv: String,
+        csv_path: Option<String>,
+    ) -> anyhow::Result<AsyncReader<File>> {
+        if let Some(csv_path) = csv_path {
+            let path = Path::new(&csv_path);
+            if path.exists() {
+                return Self::load_csv_with_path(&csv_path).await;
+            }
+        };
+        Self::open_csv(csv).await
+    }
+
+    async fn load_csv_with_path(file_path: &str) -> anyhow::Result<AsyncReader<File>> {
+        // set current dir to DATA_DIR
+        let _ = std::env::set_current_dir(get_data_dir());
+
         // check the file encoding
         let encoding = get_encode(file_path)?;
         if encoding.name() != "UTF-8" {
@@ -275,26 +333,12 @@ impl CsvParser {
         Ok(AsyncReader::from_reader(File::open(file_path).await?))
     }
 
-    async fn load_csv_from_content(
-        data: &str,
-        data_encoded: bool,
+    /// 将 string 解码，写入临时文件后打开
+    async fn load_csv_with_string(
+        content: &str,
+        encoded: bool,
     ) -> anyhow::Result<AsyncReader<File>> {
-        let decoded = if data_encoded {
-            general_purpose::STANDARD.decode(data).map_err(|err| {
-                anyhow::anyhow!("failed to decode csv content, cause: {}", err.to_string())
-            })?
-        } else {
-            data.as_bytes().to_vec()
-        };
-
-        // check the file encoding
-        let encoding = get_encode_from_buffer(decoded.as_slice())?;
-        if encoding.name() != "UTF-8" {
-            bail!(
-                "invalid CSV file encoding: {}, only UTF-8 or UTF-8 BOM supported",
-                encoding.name()
-            );
-        }
+        let decoded = Self::decode_csv_content(content, encoded)?;
 
         let mut temp_file = tempfile::NamedTempFile::new()?;
         let res = String::from_utf8(decoded)?;
@@ -306,12 +350,13 @@ impl CsvParser {
         Ok(rdr)
     }
 
-    async fn open_csv_files(
+    /// 打开多个 csv
+    async fn open_csv_many(
         csv_files: Vec<String>,
     ) -> anyhow::Result<Vec<(String, AsyncReader<File>)>> {
         let mut readers = Vec::new();
         for file in csv_files.iter() {
-            let rdr = Self::open_csv_file(file.clone()).await.map_err(|err| {
+            let rdr = Self::open_csv(file.clone()).await.map_err(|err| {
                 anyhow::anyhow!("failed to open csv: {}, cause: {}", file, err.to_string())
             })?;
             readers.push((file.clone(), rdr));
@@ -322,7 +367,7 @@ impl CsvParser {
     pub async fn parse_all_point_id_and_tbname(&self) -> anyhow::Result<Vec<(String, String)>> {
         let mut point_ids = vec![];
 
-        let files = Self::open_csv_files(self.csv_files.clone()).await?;
+        let files = Self::open_csv_many(self.csv_files.clone()).await?;
         for (_file, mut rdr) in files {
             // parse header
             let header = rdr.headers().await.map_err(|e| {
@@ -357,7 +402,7 @@ impl CsvParser {
     pub async fn parse_all_point_id(&self) -> anyhow::Result<Vec<String>> {
         let mut point_ids = vec![];
 
-        let files = Self::open_csv_files(self.csv_files.clone()).await?;
+        let files = Self::open_csv_many(self.csv_files.clone()).await?;
 
         for (_file, mut rdr) in files {
             // parse header
@@ -385,24 +430,6 @@ impl CsvParser {
         }
 
         Ok(point_ids)
-
-        // let point_config_map = &self.model_config.point_config_map;
-        // let table_config_map = &self.model_config.table_config_map;
-        // let mut node_config = Vec::new();
-        //
-        // for point_id in point_config_map.keys() {
-        //     // filter out disabled points
-        //     if let Some(table_config) = table_config_map.get(point_id) {
-        //         if table_config.enabled == Some(0i8) {
-        //             continue;
-        //         }
-        //     }
-        //
-        //     let tbname = point_config_map.get(point_id).unwrap().code.clone();
-        //     node_config.push(format!("{}::{}", point_id, tbname));
-        // }
-        //
-        // node_config
     }
 
     pub async fn parse_transform(
@@ -410,7 +437,7 @@ impl CsvParser {
         column_name: &str,
     ) -> anyhow::Result<HashMap<String, ColumnConfig>> {
         let mut transform_map = HashMap::new();
-        let files = Self::open_csv_files(self.csv_files.clone()).await?;
+        let files = Self::open_csv_many(self.csv_files.clone()).await?;
         for (_file, mut rdr) in files {
             // parse header
             let header = rdr.headers().await.map_err(|e| {
@@ -448,7 +475,7 @@ impl CsvParser {
         &self,
         point_id: &str,
     ) -> anyhow::Result<Option<(PointConfig, TableConfig)>> {
-        let files = Self::open_csv_files(self.csv_files.clone()).await?;
+        let files = Self::open_csv_many(self.csv_files.clone()).await?;
 
         for (_file, mut rdr) in files {
             // parse header
@@ -551,6 +578,41 @@ impl CsvParser {
             false => Ok(tbname),
         }
     }
+
+    pub async fn read_to_string(&self) -> anyhow::Result<(Option<String>, String)> {
+        if self.csv_files.is_empty() {
+            bail!("csv_files is empty");
+        }
+
+        let csv = self
+            .csv_files
+            .get(0)
+            .ok_or(anyhow::anyhow!("csv_file not found"))?;
+
+        if csv.starts_with("@") {
+            let file_path = &csv[1..];
+            let content = tokio::fs::read_to_string(file_path)
+                .await
+                .map_err(|err| anyhow::anyhow!("failed to read csv file: {}", err))?;
+
+            Ok((Some(file_path.to_string()), content))
+        } else {
+            let decoded = general_purpose::STANDARD.decode(csv).map_err(|err| {
+                anyhow::anyhow!("failed to decode csv content, cause: {}", err.to_string())
+            })?;
+
+            // check the file encoding
+            let encoding = get_encode_from_buffer(decoded.as_slice())?;
+            if encoding.name() != "UTF-8" {
+                bail!(
+                    "invalid CSV file encoding: {}, only UTF-8 or UTF-8 BOM supported",
+                    encoding.name()
+                );
+            }
+            let res = String::from_utf8(decoded)?;
+            Ok((None, res))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -559,11 +621,21 @@ mod tests {
     use futures::stream::StreamExt;
     use std::str::FromStr;
 
+    #[test]
+    fn test_decode_csv_content() {
+        todo!()
+    }
+
+    #[tokio::test]
+    async fn test_read_to_string() {
+        todo!()
+    }
+
     #[tokio::test]
     async fn test_open_csv_file() {
         // file path
         let file = "@../tests/opc/opcua-utf8bom.csv".to_string();
-        let mut rdr = CsvParser::open_csv_file(file).await.unwrap();
+        let mut rdr = CsvParser::open_csv(file).await.unwrap();
         let headers = rdr.headers().await.unwrap();
         assert_eq!(headers.len(), 14);
         assert_eq!(headers.get(0).unwrap(), "0");
@@ -580,7 +652,7 @@ mod tests {
         // content
         let content = "a,b,c\n1,2,3".to_string();
         let file = general_purpose::STANDARD.encode(content.as_bytes().to_vec());
-        let mut rdr = CsvParser::open_csv_file(file).await.unwrap();
+        let mut rdr = CsvParser::open_csv(file).await.unwrap();
         let headers = rdr.headers().await.unwrap();
         assert_eq!(headers.len(), 3);
         assert_eq!(headers.get(0).unwrap(), "a");
@@ -593,17 +665,17 @@ mod tests {
     #[tokio::test]
     async fn test_open_csv_files() {
         let files = vec!["@../tests/opc/opcua-utf8bom.csv".to_string()];
-        let res = CsvParser::open_csv_files(files).await.unwrap();
+        let res = CsvParser::open_csv_many(files).await.unwrap();
         assert_eq!(res.len(), 1);
         assert_eq!(res.get(0).unwrap().0, "@../tests/opc/opcua-utf8bom.csv");
 
         let files = vec!["@../tests/opc/opcua-utf8.csv".to_string()];
-        let res = CsvParser::open_csv_files(files).await.unwrap();
+        let res = CsvParser::open_csv_many(files).await.unwrap();
         assert_eq!(res.len(), 1);
         assert_eq!(res.get(0).unwrap().0, "@../tests/opc/opcua-utf8.csv");
 
         let files = vec!["@../tests/opc/opcua-gbk.csv".to_string()];
-        let res = CsvParser::open_csv_files(files).await;
+        let res = CsvParser::open_csv_many(files).await;
         assert!(res.is_err());
         assert_eq!(
             res.err().unwrap().to_string(),

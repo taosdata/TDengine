@@ -1,16 +1,16 @@
 use std::fs::File;
 use std::io::Write;
 use std::time::Duration;
-
+use taos::Dsn;
 use tokio_util::sync::CancellationToken;
 
-use taosx_ipc::types::DataSet;
-
+use crate::get_data_dir;
 use crate::runners::opc::config::collect::da::DaNodeConfig;
 use crate::runners::opc::config::collect::ua::UANodeConfig;
 use crate::runners::opc::config::points::UpdateMode;
-use crate::runners::opc::config::OPCConfig;
+use crate::runners::opc::config::{OPCConfig, PointsMode};
 use crate::runners::opc::{opc_datasets_by_command, opc_datasets_by_csv, OpcType};
+use taosx_ipc::types::DataSet;
 
 #[derive(Debug, Clone)]
 pub enum UpdateBy {
@@ -20,8 +20,9 @@ pub enum UpdateBy {
 
 #[derive(Debug)]
 pub struct PointsUpdater {
+    origin_dsn: Dsn,
     opc_config: OPCConfig,
-    opc_config_file: String, // 生成 taosx-opc 的配置文件的路径
+    opc_toml_path: String, // 生成 taosx-opc 的配置文件的路径
     update_by: UpdateBy,
     update_mode: UpdateMode,
     update_interval: tokio::time::Interval,
@@ -30,52 +31,60 @@ pub struct PointsUpdater {
 }
 
 impl PointsUpdater {
-    pub fn new(
+    pub fn try_new(
+        origin_dsn: Dsn,
         opc_config: OPCConfig,
-        update_by: UpdateBy,
-        opc_config_file: String,
+        opc_toml_path: String,
         token: CancellationToken,
-    ) -> Self {
-        match &update_by {
-            UpdateBy::Command => {
-                let update_mode = opc_config
-                    .clone()
-                    .points
-                    .map(|p| p.update_mode.unwrap_or(UpdateMode::None))
-                    .unwrap_or(UpdateMode::None);
-                let update_interval = opc_config
-                    .clone()
-                    .points
-                    .map(|p| p.update_interval.unwrap_or(600))
-                    .unwrap_or(600);
-                Self {
-                    opc_config,
-                    opc_config_file,
-                    update_by,
-                    update_mode,
-                    update_interval: tokio::time::interval(Duration::from_secs(
-                        update_interval as u64,
-                    )),
-                    cancel_token: token,
-                    cur_list: vec![],
-                }
+    ) -> anyhow::Result<Self> {
+        let points_mode = opc_config
+            .clone()
+            .points_mode
+            .ok_or(anyhow::anyhow!("points mode cannot be None"))?;
+
+        let update_by = match points_mode {
+            PointsMode::ByCsv => {
+                let csv_config_files = OPCConfig::parse_csv_config_files(&origin_dsn).ok_or(
+                    anyhow::anyhow!("csv config file not found in dsn: {:?}", origin_dsn),
+                )?;
+                let csv = csv_config_files.get(0).ok_or(anyhow::anyhow!(
+                    "cannot found the first csv config file in dsn: {:?}",
+                    origin_dsn
+                ))?;
+                UpdateBy::Csv(csv.clone())
             }
-            UpdateBy::Csv(_csv) => Self {
-                opc_config,
-                opc_config_file,
-                update_by,
-                update_mode: UpdateMode::Append,
-                update_interval: tokio::time::interval(Duration::from_secs(60)),
-                cancel_token: token,
-                cur_list: vec![],
-            },
-        }
+            PointsMode::ByCommand => UpdateBy::Command,
+        };
+
+        let update_mode = opc_config
+            .clone()
+            .points
+            .map(|p| p.update_mode.clone().unwrap_or(UpdateMode::None))
+            .unwrap_or(UpdateMode::None);
+        let update_interval = opc_config
+            .clone()
+            .points
+            .map(|p| p.update_interval.unwrap_or(600))
+            .unwrap_or(600);
+
+        Ok(Self {
+            origin_dsn,
+            opc_config,
+            opc_toml_path,
+            update_by,
+            update_mode,
+            update_interval: tokio::time::interval(Duration::from_secs(update_interval as u64)),
+            cancel_token: token,
+            cur_list: vec![],
+        })
     }
 
     pub async fn run(&mut self) {
         if self.update_mode == UpdateMode::None {
             return;
         }
+        // set current dir to DATA_DIR
+        let _ = std::env::set_current_dir(get_data_dir());
 
         tracing::info!("update points thread started");
         loop {
@@ -88,7 +97,10 @@ impl PointsUpdater {
             let to_list = match &self.update_by {
                 UpdateBy::Command => opc_datasets_by_command(&self.opc_config).await,
                 UpdateBy::Csv(csv) => {
-                    opc_datasets_by_csv(self.opc_config.opc_type.clone(), csv.clone()).await
+                    let opc_type = self.opc_config.opc_type.clone();
+                    let csv = csv.clone();
+                    let csv_path = OPCConfig::parse_csv_origin(&self.origin_dsn);
+                    opc_datasets_by_csv(opc_type, csv, csv_path).await
                 }
             };
             if let Err(e) = to_list {
@@ -195,7 +207,7 @@ impl PointsUpdater {
                 e.to_string()
             )
         })?;
-        let mut opc_config_file = File::create(&self.opc_config_file).map_err(|e| {
+        let mut opc_config_file = File::create(&self.opc_toml_path).map_err(|e| {
             anyhow::anyhow!(
                 "failed to create opc config file during points updating, cause: {}",
                 e.to_string()

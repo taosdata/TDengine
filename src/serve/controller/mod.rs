@@ -29,18 +29,18 @@ use tracing::{instrument, Instrument};
 use utoipa::*;
 use uuid::Uuid;
 
+use crate::build;
+use crate::serve::controller::agent::Activity;
 use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
+use taosx_core::runners::opc::config::csv::CsvParser;
 use taosx_core::runners::opc::config::OPCConfig;
 use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_compressed_csv};
 use taosx_core::QueryDataSourceReq;
 use taosx_core::{
     get_data_dir, validate_dsn, DataSet, DataSetsReq, PutFileReq, Response, TaskOpts,
 };
-
-use crate::build;
-use crate::serve::controller::agent::Activity;
 
 use super::data_sources::DataSourceDefinition;
 use super::scheduler::agent::{AgentId, TaskId};
@@ -689,6 +689,7 @@ impl TaskController {
         let shutdown_notify_cloned = shutdown_notify.clone();
         tokio::spawn(
             async move {
+                tracing::info!("scheduler notify listener in controller start");
                 let mut rx = notify_channel;
                 let pool = pool_cloned;
                 loop {
@@ -728,6 +729,7 @@ impl TaskController {
                 }
                 shutdown_notify_cloned.notify_waiters();
                 ctl_alive_cloned.store(false, std::sync::atomic::Ordering::SeqCst);
+                tracing::info!("scheduler notify listener in controller stop");
             }
             .instrument(tracing::info_span!(
                 "scheduler_notify_listener_in_controller"
@@ -1946,6 +1948,28 @@ impl TaskController {
             completed_tasks_count,
             failed_tasks_count,
         )
+    }
+
+    pub async fn send_opc_csv_to_agnet(&self, agent_id: i64, dsn: &Dsn) -> anyhow::Result<()> {
+        if !self.agent_alive(agent_id).await {
+            bail!("Agent {} is not alive", agent_id);
+        }
+
+        let parser = CsvParser::from_dsn(dsn)?;
+        let (path, csv) = parser.read_to_string().await?;
+
+        tracing::debug!(
+            "send opc csv file to agent: {}, path: {:?}, csv: {}",
+            agent_id,
+            path,
+            csv
+        );
+        let scheduler = self.scheduler.clone();
+        scheduler
+            .put_file_to_agent(agent_id, path.unwrap().as_str(), csv.into_bytes())
+            .await?;
+
+        Ok(())
     }
 }
 

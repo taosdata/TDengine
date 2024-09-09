@@ -403,7 +403,7 @@ pub(super) async fn data_source_sink_is_valid(
     let _ = std::env::set_current_dir(get_data_dir());
 
     let query = query.into_inner();
-    let timeout_sec = query.timeout.unwrap_or_else(|| {
+    let query_timeout = query.timeout.unwrap_or_else(|| {
         let dsn = query.from.clone().into_dsn();
         if let Ok(dsn) = dsn {
             Timeout::get(TimeoutType::ValidateDataSource(dsn))
@@ -413,7 +413,7 @@ pub(super) async fn data_source_sink_is_valid(
     });
     let span = Span::current();
     let result = timeout(
-        Duration::from_secs(timeout_sec),
+        Duration::from_secs(query_timeout),
         dsn_and_license_validate(controller, query).instrument(span),
     )
     .await;

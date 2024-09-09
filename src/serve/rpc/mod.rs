@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     net::SocketAddr,
     path::PathBuf,
     pin::Pin,
@@ -396,10 +396,12 @@ impl FlightServiceImpl {
             let mut receiver = receiver;
             let tx = tx_cloned;
             let _ = std::env::set_current_dir(get_data_dir());
+            info!("agent action flight listener start");
             loop {
                 match receiver.recv().await {
                     Ok((id, action)) => {
                         if id == agent_id {
+                            tracing::debug!("receive action: {:?}, agent id: {}", action, id);
                             if let Some(batch) = action_to_arrow(
                                 &req_id,
                                 &senders,
@@ -430,6 +432,7 @@ impl FlightServiceImpl {
                     },
                 }
             }
+            info!("agent action flight listener stop");
         });
         (tx, rx)
     }
@@ -1101,32 +1104,51 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
 
 #[instrument(skip(dsn))]
 async fn modify_dsn_params(dsn: impl IntoDsn) -> anyhow::Result<Dsn> {
-    let mut dsn = dsn.into_dsn()?;
+    let mut dsn = dsn.into_dsn()?.clone();
     tracing::debug!("dsn before modify: {:?}", &dsn);
-    let mut map = BTreeMap::new();
-    for (k, v) in dsn.params {
-        let new_value = if k == "csv_config_file" {
-            encode_csv_config_file(v.clone())?
-        } else if k == "transform_config_file" {
-            String::new()
-        } else if v.contains("@") {
-            get_string_content_from_param_value(&v, false, false)?.unwrap_or(String::new())
-        } else {
-            String::new()
-        };
-        let new_value = if new_value.is_empty() { v } else { new_value };
-        map.insert(k, new_value);
+    // let mut map = BTreeMap::new();
+    // for (k, v) in dsn.params {
+    //     let new_value = if k == "csv_config_file" {
+    //         encode_csv_config_file(v.clone())?
+    //     } else if k == "transform_config_file" {
+    //         String::new()
+    //     } else if v.contains("@") {
+    //         get_string_content_from_param_value(&v, false, false)?.unwrap_or(String::new())
+    //     } else {
+    //         String::new()
+    //     };
+    //     let new_value = if new_value.is_empty() { v } else { new_value };
+    //     map.insert(k, new_value);
+    // }
+    // dsn.params = map;
+
+    if let Some(v) = dsn.params.get("csv_config_file") {
+        let csv_path = &v[1..];
+        dsn.params
+            .insert("csv_config_file_origin".to_string(), csv_path.to_string());
     }
-    dsn.params = map;
+    for (k, v) in dsn.params.iter_mut() {
+        if k == "csv_config_file" {
+            *v = encode_csv_config_file(v.clone())?;
+            continue;
+        }
+
+        if v.contains("@") {
+            if let Some(new_value) = get_string_content_from_param_value(&v, false, false)? {
+                *v = new_value;
+            }
+        }
+    }
+
     tracing::debug!("dsn after modify: {:?}", &dsn);
     Ok(dsn)
 }
 
-pub fn encode_csv_config_file(v: String) -> anyhow::Result<String> {
+pub fn encode_csv_config_file(csv_path: String) -> anyhow::Result<String> {
     let mut new_value = String::new();
 
     // TODO use mime instead
-    let (files, strs): (Vec<String>, Vec<String>) = v
+    let (files, strs): (Vec<String>, Vec<String>) = csv_path
         .split(",")
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
@@ -1134,8 +1156,8 @@ pub fn encode_csv_config_file(v: String) -> anyhow::Result<String> {
         .partition(|v| v.starts_with("@"));
     let file_len = files.len();
     for file in files {
-        info!(
-            "current log: {}",
+        tracing::debug!(
+            "current dir: {}",
             std::env::current_dir().unwrap().to_str().unwrap()
         );
         let file_data = std::fs::read(&file[1..])

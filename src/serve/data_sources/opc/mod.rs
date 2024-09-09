@@ -169,6 +169,7 @@ pub struct GetPointsHeaderReq {
 pub struct AddPointReq {
     task_id: i64,
     point: Vec<PointDetail>,
+    via: Option<i64>,
 }
 
 #[utoipa::path(
@@ -259,10 +260,8 @@ pub async fn append_point(
     req: Json<AddPointReq>,
     task_store: Data<TaskControllerRef>,
 ) -> impl Responder {
-    let task_id = req.task_id;
-    let point_details = req.point.clone();
-
-    match append_point_impl(task_id, point_details, task_store).await {
+    let req = req.into_inner();
+    match append_point_impl(req, task_store).await {
         Ok(_) => Ok::<HttpResponse, Failed>(HttpResponse::Ok().finish()),
         Err(err) => {
             tracing::error!("failed to add point: {:#?}", err);
@@ -276,10 +275,12 @@ pub async fn append_point(
 }
 
 async fn append_point_impl(
-    task_id: i64,
-    point: Vec<PointDetail>,
+    req: AddPointReq,
     task_store: Data<TaskControllerRef>,
 ) -> anyhow::Result<()> {
+    let task_id = req.task_id;
+    let point = req.point.clone();
+
     // find task detail
     let task = task_store
         .get(task_id)
@@ -288,7 +289,7 @@ async fn append_point_impl(
 
     // get dsn
     let dsn = task.from.clone().into_dsn()?;
-    tracing::debug!("add point for task: {}, from: {:?}", task_id, dsn);
+    tracing::debug!("add point for task: {}, dsn: {:?}", task_id, dsn);
 
     // set current dir to DATA_DIR
     let _ = std::env::set_current_dir(get_data_dir());
@@ -297,8 +298,14 @@ async fn append_point_impl(
     let line = PointDetail::to_csv(point, true).await?;
     tracing::debug!("append opc point to csv, data: \n{}", line);
 
-    // append point to csv file
-    runners::opc::append_point(&dsn, line).await
+    // append point to the csv file
+    runners::opc::append_point(&dsn, line.clone()).await?;
+
+    // send the new csv to agent if via is not None
+    if let Some(agent_id) = req.via {
+        task_store.send_opc_csv_to_agnet(agent_id, &dsn).await?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

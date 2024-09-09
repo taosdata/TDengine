@@ -23,7 +23,7 @@ use crate::runners::opc::config::csv::header::CsvHeader;
 use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::model::OpcModelConfig;
 use crate::runners::opc::config::{OPCConfig, PointsMode};
-use crate::runners::opc::point_updater::{PointsUpdater, UpdateBy};
+use crate::runners::opc::point_updater::PointsUpdater;
 use crate::utils::monitor::send_sub_process_info;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
@@ -142,7 +142,7 @@ pub async fn opc_to_taos(
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     if to.subject.is_none() {
-        anyhow::bail!(
+        bail!(
             "Database name is required in OPC dsn: {}",
             to.clone().to_string()
         );
@@ -152,7 +152,7 @@ pub async fn opc_to_taos(
         .await
         .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
 
-    tracing::info!("OPC DataIn task start, from: {}, to: {}", from, to);
+    tracing::info!("OPC task start, from: {}, to: {}", from, to);
 
     let certificate = get_temp_file(&from, "certificate");
     let private_key = get_temp_file(&from, "private_key");
@@ -234,30 +234,13 @@ pub async fn opc_to_taos(
     // start points updating task
     let pu_cancel_token = CancellationToken::new();
     let token = pu_cancel_token.clone();
-    let cloned_opc_config = config.clone();
-    let points_mode = config
-        .points_mode
-        .ok_or(anyhow::anyhow!("points mode cannot be None"))?;
-    let update_by = match points_mode {
-        PointsMode::ByCsv => {
-            let csv_config_files = OPCConfig::parse_csv_config_files(&from).ok_or(
-                anyhow::anyhow!("csv config file not found in dsn: {}", from.to_string()),
-            )?;
-            let csv = csv_config_files.get(0).ok_or(anyhow::anyhow!(
-                "cannot found the first csv config file in dsn: {}",
-                from.to_string()
-            ))?;
-            UpdateBy::Csv(csv.clone())
-        }
-        PointsMode::ByCommand => UpdateBy::Command,
-    };
+    let mut updater = PointsUpdater::try_new(
+        from.clone(),
+        config.clone(),
+        config_file_path.display().to_string(),
+        token,
+    )?;
     tokio::spawn(async move {
-        let mut updater = PointsUpdater::new(
-            cloned_opc_config,
-            update_by,
-            config_file_path.display().to_string(),
-            token,
-        );
         updater.run().await;
     });
 
@@ -318,17 +301,17 @@ pub async fn opc_to_taos(
                     safe_exit!();
                     use ringbuf::Rb;
                     let error = error_buf.lock().await.iter().join("");
-                    anyhow::bail!("OPC exit with {}\n{error}", status);
+                    bail!("OPC exit with {}\n{error}", status);
                 } else {
                     safe_exit!();
-                    anyhow::bail!("OPC process was killed by signal");
+                    bail!("OPC process was killed by signal");
                 }
             },
             err = ipc_handler.recv_error() => {
                 tracing::info!("have received worker thread panicked message, terminate child process");
                 if let Some(err) = err {
                     safe_exit!();
-                    anyhow::bail!("OPC writer error: {err}");
+                    bail!("OPC writer error: {err}");
                 }
             },
             _ = cancel.cancelled() => {
@@ -446,7 +429,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     })?;
 
     if req.categories.is_empty() {
-        anyhow::bail!("categories is empty");
+        bail!("categories is empty");
     }
 
     opc_datasets_impl(from).await
@@ -531,8 +514,17 @@ async fn to_opc_dataset_vec(model_config: &OpcModelConfig) -> anyhow::Result<Vec
 
 /// get opc datasets in csv
 /// csv: a file path which start with '@' or an encoded csv string
-async fn opc_datasets_by_csv(opc_type: OpcType, csv: String) -> anyhow::Result<Vec<DataSet>> {
-    let mut rdr = CsvParser::open_csv_file(csv).await?;
+async fn opc_datasets_by_csv(
+    opc_type: OpcType,
+    csv: String,
+    csv_path: Option<String>,
+) -> anyhow::Result<Vec<DataSet>> {
+    tracing::info!(
+        "read opc points from csv: {}, csv_path: {:?}",
+        CsvParser::decoded_csv(&csv)?,
+        csv_path
+    );
+    let mut rdr = CsvParser::open_csv_with_path(csv, csv_path).await?;
 
     let header = rdr.headers().await?;
 
@@ -615,9 +607,9 @@ async fn opc_datasets_by_command(config: &OPCConfig) -> anyhow::Result<Vec<DataS
             regex::Regex::new(r#"level=PANIC msg="(?P<msg>.*)" error="(?<error>.*)"#).unwrap();
         let matches = pattern.captures(&error);
         if let Some(matches) = matches {
-            anyhow::bail!("{}: {}", &matches["msg"], &matches["error"]);
+            bail!("{}: {}", &matches["msg"], &matches["error"]);
         } else {
-            anyhow::bail!("Get OPC datasets error: {}", &error);
+            bail!("Get OPC datasets error: {}", &error);
         }
     }
     temp_path.close()?;
