@@ -821,9 +821,10 @@ int32_t monitorInit() {
     return code;
   }
 
-  if (taosMulModeMkDir(tmpSlowLogPath, 0777, true) != 0) {
+  code = taosMulModeMkDir(tmpSlowLogPath, 0777, true);
+  if (code != 0) {
     tscError("failed to create dir:%s since %s", tmpSlowLogPath, terrstr());
-    return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    return code;
   }
 
   if (tsem2_init(&monitorSem, 0, 0) != 0) {

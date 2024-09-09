@@ -1224,7 +1224,7 @@ static int32_t uploadCheckpointToS3(const char* id, const char* path) {
 
   TdDirPtr pDir = taosOpenDir(path);
   if (pDir == NULL) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   TdDirEntryPtr de = NULL;

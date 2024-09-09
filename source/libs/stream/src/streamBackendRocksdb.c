@@ -599,7 +599,7 @@ int32_t backendFileCopyFilesImpl(const char* src, const char* dst) {
   // copy file to dst
   TdDirPtr pDir = taosOpenDir(src);
   if (pDir == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _ERROR;
   }
 
@@ -1428,7 +1428,7 @@ int32_t chkpPreBuildDir(char* path, int64_t chkpId, char** chkpDir, char** chkpI
 
   code = taosMulModeMkDir(pChkpDir, 0755, true);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     stError("failed to prepare checkpoint dir, path:%s, reason:%s", path, tstrerror(code));
     goto _EXIT;
   }
@@ -4633,7 +4633,7 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
   TdDirPtr pDir = taosOpenDir(p->buf);
   if (pDir == NULL) {
     (void)taosThreadRwlockUnlock(&p->rwLock);
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   TdDirEntryPtr de = NULL;

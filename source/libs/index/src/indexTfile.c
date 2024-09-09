@@ -1125,7 +1125,7 @@ static int32_t tfileGetFileList(const char* path, SArray** ppResult) {
 
   TdDirPtr pDir = taosOpenDir(path);
   if (NULL == pDir) {
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _exception);
+    TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
   TdDirEntryPtr pDirEntry;
   while ((pDirEntry = taosReadDir(pDir)) != NULL) {

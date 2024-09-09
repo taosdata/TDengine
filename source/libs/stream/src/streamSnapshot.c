@@ -271,7 +271,7 @@ int32_t snapFileReadMeta(SBackendSnapFile2* pSnapFile) {
   int32_t  code = 0;
   TdDirPtr pDir = taosOpenDir(pSnapFile->path);
   if (NULL == pDir) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     stError("%s failed to open %s, reason:%s", STREAM_STATE_TRANSFER, pSnapFile->path, tstrerror(code));
     return code;
   }

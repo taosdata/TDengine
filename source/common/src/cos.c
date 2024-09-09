@@ -1881,7 +1881,6 @@ void s3EvictCache(const char *path, long object_size) {
     // 1, list data files' atime under dir(path)
     tdbDirPtr pDir = taosOpenDir(dir_name);
     if (pDir == NULL) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
       vError("failed to open %s since %s", dir_name, terrstr());
     }
     SArray        *evict_files = taosArrayInit(16, sizeof(SEvictFile));
