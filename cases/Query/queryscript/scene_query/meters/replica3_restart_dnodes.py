@@ -26,7 +26,7 @@ class RestartDnodes(TDCase):
         self.ctbname = 'ctb'
         self.ts = 1537146000000
         self.str_length = 20
-        self.default_replica = 2
+        self.default_replica = 3
         self.ready_sleep = 60
         self._remote: Remote = Remote(self.logger)
         self.column_dict = {
