@@ -86,7 +86,7 @@ void streamTimeSliceReloadState(SOperatorInfo* pOperator) {
   int32_t num = (size - sizeof(TSKEY)) / sizeof(SWinKey);
   qDebug("===stream=== time slice operator reload state. get result count:%d", num);
   SWinKey* pKeyBuf = (SWinKey*)pBuf;
-  QUERY_CHECK_CONDITION(size == num * sizeof(SWinKey) + sizeof(TSKEY), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  QUERY_CHECK_CONDITION((size == num * sizeof(SWinKey) + sizeof(TSKEY)), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
   TSKEY ts = *(TSKEY*)((char*)pBuf + size - sizeof(TSKEY));
   pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, ts);
