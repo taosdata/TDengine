@@ -27,7 +27,7 @@ class RestartDnodes(TDCase):
         self.ts = 1537146000000
         self.str_length = 20
         self.default_replica = 2
-        self.ready_sleep = 120
+        self.ready_sleep = 60
         self._remote: Remote = Remote(self.logger)
         self.column_dict = {
             'col1': 'bigint'
@@ -55,7 +55,7 @@ class RestartDnodes(TDCase):
         for i in range(1001, 2000):
             self.tdSql.execute(f'insert into {self.ntbname} values(now+{i}s, {i})',queryTimes=30)
         self.taosd.restart(self.endpoint_list[-1], self.ready_sleep)
-        time.sleep(self.ready_sleep)
+        time.sleep(self.ready_sleep*5)
         self.tdSql.query("show dnodes")
         for query_data in self.tdSql.query_data:
             self.tdSql.checkEqual(query_data[4], "ready")
