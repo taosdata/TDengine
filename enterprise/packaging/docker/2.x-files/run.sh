@@ -23,13 +23,25 @@ if [ "$TZ" != "" ]; then
     ln -sf /usr/share/zoneinfo/$TZ /etc/localtime
     echo $TZ >/etc/timezone
 fi
-
-FQDN=$(taosd -C|grep -E 'fqdn.*(\S+)' -o |head -n1|sed 's/fqdn *//')
-FIRSET_EP=$(taosd -C|grep -E 'firstEp.*(\S+)' -o|head -n1|sed 's/firstEp *//')
+# copy taos.cfg to /var/log
+TAOSDCLOG="/var/log/taosd_c"
+if [ ! -d "$TAOSDCLOG" ]; then
+  mkdir -p "$TAOSDCLOG"
+  echo "taosd -C log folder created: $TAOSDCLOG"
+  cp /etc/taos/taos.cfg /var/log/taos.cfg
+  echo "logKeepDays 3" >> /var/log/taos.cfg
+  sed -i 's/\/var\/log/\/var\/log\/taosd_c/g' taos.cfg
+  cat /var/log/taos.cfg
+else
+  echo "taosd -C log folder already exists: $TAOSDCLOG"
+fi
+taosd -C -c '/var/log' > /var/log/taosdc_out
+FQDN=$(cat /var/log/taosdc_out|grep -E 'fqdn.*(\S+)' -o |head -n1|sed 's/fqdn *//')
+FIRSET_EP=$(cat /var/log/taosdc_out|grep -E 'firstEp.*(\S+)' -o|head -n1|sed 's/firstEp *//')
 # parse first ep host and port
 FIRST_EP_HOST=${FIRSET_EP%:*}
 FIRST_EP_PORT=${FIRSET_EP#*:}
-SERVER_PORT=$(taosd -C|grep -E 'serverPort.*(\S+)' -o|head -n1|sed 's/serverPort *//')
+SERVER_PORT=$(cat /var/log/taosdc_out|grep -E 'serverPort.*(\S+)' -o|head -n1|sed 's/serverPort *//')
 SERVER_PORT=${SERVER_PORT:-6030}
 ENDPOINT=$FQDN:$SERVER_PORT
 function logger() {

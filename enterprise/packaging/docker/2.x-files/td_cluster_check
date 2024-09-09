@@ -7,11 +7,10 @@ logging() {
 }
 
 logging "INFO" "td cluster check begins"
-
-
-FQDN=$(taosd -C|grep -E 'fqdn.*(\S+)' -o |head -n1|sed 's/fqdn *//')
-FIRSET_EP=$(taosd -C|grep -E 'firstEp.*(\S+)' -o|head -n1|sed 's/firstEp *//')
-SECOND_EP=$(taosd -C|grep -E 'secondEp.*(\S+)' -o|head -n1|sed 's/secondEp *//')
+taosd -C -c '/var/log' > /var/log/taosdc_out
+FQDN=$(cat /var/log/taosdc_out|grep -E 'fqdn.*(\S+)' -o |head -n1|sed 's/fqdn *//')
+FIRSET_EP=$(cat /var/log/taosdc_out|grep -E 'firstEp.*(\S+)' -o|head -n1|sed 's/firstEp *//')
+SECOND_EP=$(cat /var/log/taosdc_out|grep -E 'secondEp.*(\S+)' -o|head -n1|sed 's/secondEp *//')
 
 # parse first ep host and port
 FIRST_EP_HOST=${FIRSET_EP%:*}
