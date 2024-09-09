@@ -2155,6 +2155,8 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       tMemBucketDestroy(pMemBucket);
       return functionFinalize(pCtx, pBlock);
     }
+  } else {
+    return functionFinalize(pCtx, pBlock);
   }
 
 _fin_error:
