@@ -1477,15 +1477,15 @@ static int32_t vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, 
   tInitSubmitBlkIter(msgIter, pBlock, &blkIter);
   if (blkIter.row == NULL) return 0;
 
-  pSchema = metaGetTbTSchema(pMeta, msgIter->suid, TD_ROW_SVER(blkIter.row), 1);  // TODO: use the real schema
-  if (pSchema) {
-    suid = msgIter->suid;
-    rv = TD_ROW_SVER(blkIter.row);
-  }
-  if (!pSchema) {
+  int32_t code = metaGetTbTSchemaNotNull(pMeta, msgIter->suid, TD_ROW_SVER(blkIter.row), 1, &pSchema);  // TODO: use the real schema
+  if (TSDB_CODE_SUCCESS != code) {
     printf("%s:%d no valid schema\n", tags, __LINE__);
-    return -1;
+    return code;
   }
+
+  suid = msgIter->suid;
+  rv = TD_ROW_SVER(blkIter.row);
+
   char __tags[128] = {0};
   snprintf(__tags, 128, "%s: uid %" PRIi64 " ", tags, msgIter->uid);
   while ((row = tGetSubmitBlkNext(&blkIter))) {
@@ -1510,10 +1510,10 @@ typedef struct SSubmitReqConvertCxt {
 
 static int32_t vnodeResetTableCxt(SMeta *pMeta, SSubmitReqConvertCxt *pCxt) {
   taosMemoryFreeClear(pCxt->pTbSchema);
-  pCxt->pTbSchema = metaGetTbTSchema(pMeta, pCxt->msgIter.suid > 0 ? pCxt->msgIter.suid : pCxt->msgIter.uid,
-                                     pCxt->msgIter.sversion, 1);
-  if (NULL == pCxt->pTbSchema) {
-    return TSDB_CODE_INVALID_MSG;
+  int32_t code = metaGetTbTSchemaNotNull(pMeta, pCxt->msgIter.suid > 0 ? pCxt->msgIter.suid : pCxt->msgIter.uid,
+                                     pCxt->msgIter.sversion, 1, &pCxt->pTbSchema);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
   }
   tdSTSRowIterInit(&pCxt->rowIter, pCxt->pTbSchema);
 
