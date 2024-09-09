@@ -1,0 +1,141 @@
+974:09/09 18:52:59.433846 00166866 C TSC 0x6 new Request from connObj:0x2, current:1, app current:1, total:5, reqId:0x987bae6a58a90008
+975:09/09 18:52:59.433871 00166866 C TSC 0x6 SQL: select * from test.sp;, reqId:0x987bae6a58a90008
+977:09/09 18:52:59.433972 00166866 C QRY QID:0x987bae6a58a90008 the 0th task type [get db vgroup] initialized, dbFName:1.test
+978:09/09 18:52:59.433978 00166866 C QRY QID:0x987bae6a58a90008 the 1th task type [bget table meta] initialized, dbNum:1, tbNum:1
+979:09/09 18:52:59.433982 00166866 C QRY QID:0x987bae6a58a90008 the 2th task type [bget table hash] initialized, dbNum:1, tbNum:1
+980:09/09 18:52:59.433986 00166866 C QRY QID:0x987bae6a58a90008 the 3th task type [get user] initialized, user:root
+981:09/09 18:52:59.433991 00166866 C QRY QID:0x987bae6a58a90008, jobId: 0x5 initialized, task num 5, forceUpdate 0, elapsed time:0.03 ms
+982:09/09 18:52:59.434002 00166866 C QRY QID:0x987bae6a58a90008 ctg launch [0th] task
+985:09/09 18:52:59.434031 00166866 C QRY QID:0x987bae6a58a90008 task 0 end with res success
+986:09/09 18:52:59.434036 00166866 C QRY QID:0x987bae6a58a90008 task done: 1, total: 5
+987:09/09 18:52:59.434039 00166866 C QRY QID:0x987bae6a58a90008 ctg launch [1th] task
+990:09/09 18:52:59.434053 00166866 C QRY QID:0x987bae6a58a90008 task 1 end with res success
+991:09/09 18:52:59.434056 00166866 C QRY QID:0x987bae6a58a90008 task done: 2, total: 5
+992:09/09 18:52:59.434059 00166866 C QRY QID:0x987bae6a58a90008 ctg launch [2th] task
+995:09/09 18:52:59.434072 00166866 C QRY QID:0x987bae6a58a90008 task 2 end with res success
+996:09/09 18:52:59.434075 00166866 C QRY QID:0x987bae6a58a90008 task done: 3, total: 5
+997:09/09 18:52:59.434078 00166866 C QRY QID:0x987bae6a58a90008 ctg launch [3th] task
+1000:09/09 18:52:59.434090 00166866 C QRY QID:0x987bae6a58a90008 task 3 end with res success
+1001:09/09 18:52:59.434104 00166866 C QRY QID:0x987bae6a58a90008 task done: 4, total: 5
+1002:09/09 18:52:59.434108 00166866 C QRY QID:0x987bae6a58a90008 ctg launch [4th] task
+1003:09/09 18:52:59.434114 00166866 C QRY QID:0x987bae6a58a90008 task 4 end with res success
+1004:09/09 18:52:59.434170 00166842 C QRY QID:0x987bae6a58a90008 ctg start to call user cb with rsp success
+1005:09/09 18:52:59.434187 00166842 C QRY 0x6 start to semantic analysis, reqId:0x987bae6a58a90008
+1006:09/09 18:52:59.434337 00166842 C TSC 0x987bae6a58a90008 vnode policy, use vnode list, num:2
+1008:09/09 18:52:59.434346 00166842 C QRY QID:0x987bae6a58a90008 set job levelIdx to 1
+1009:09/09 18:52:59.434352 00166842 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:-1 task initialized, max times 6:6
+1010:09/09 18:52:59.434355 00166842 C QRY QID:0x987bae6a58a90008 level 0 initialized, taskNum:1
+1011:09/09 18:52:59.434358 00166842 C QRY QID:0x987bae6a58a90008,TID:0x7,EID:-1 task initialized, max times 6:12
+1012:09/09 18:52:59.434360 00166842 C QRY QID:0x987bae6a58a90008,TID:0x8,EID:-1 task initialized, max times 6:12
+1013:09/09 18:52:59.434361 00166842 C QRY QID:0x987bae6a58a90008 level 1 initialized, taskNum:2
+1014:09/09 18:52:59.434363 00166842 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:-1 children info, the 0 child TID 0x7
+1015:09/09 18:52:59.434365 00166842 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:-1 children info, the 1 child TID 0x8
+1016:09/09 18:52:59.434366 00166842 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:-1 level:0, parentNum:0, childNum:2
+1017:09/09 18:52:59.434367 00166842 C QRY QID:0x987bae6a58a90008,TID:0x7,EID:-1 parents info, the 0 parent TID 0x6
+1018:09/09 18:52:59.434368 00166842 C QRY QID:0x987bae6a58a90008,TID:0x7,EID:-1 level:1, parentNum:1, childNum:0
+1019:09/09 18:52:59.434369 00166842 C QRY QID:0x987bae6a58a90008,TID:0x8,EID:-1 parents info, the 0 parent TID 0x6
+1020:09/09 18:52:59.434371 00166842 C QRY QID:0x987bae6a58a90008,TID:0x8,EID:-1 level:1, parentNum:1, childNum:0
+1021:09/09 18:52:59.434373 00166842 C QRY QID:0x987bae6a58a90008 job refId:0x5 created
+1023:09/09 18:52:59.434377 00166842 C QRY QID:0x987bae6a58a90008 job start EXEC operation
+1024:09/09 18:52:59.434381 00166842 C QRY QID:0x987bae6a58a90008 job status updated from NULL to INIT
+1025:09/09 18:52:59.434382 00166842 C QRY QID:0x987bae6a58a90008 job status updated from INIT to EXECUTING
+1026:09/09 18:52:59.434383 00166842 C QRY QID:0x987bae6a58a90008 sch job refId 0x5 started
+1027:09/09 18:52:59.434385 00166842 C QRY QID:0x987bae6a58a90008 job no need flow ctrl, totalTableNum:0
+1028:09/09 18:52:59.434410 00166842 C QRY QID:0x987bae6a58a90008 job exec done, job status:EXECUTING, jobId:0x5
+1029:09/09 18:52:59.434414 00166842 C QRY QID:0x987bae6a58a90008 job end EXEC operation with code success
+1031:09/09 18:52:59.434417 00166842 C QRY QID:0x987bae6a58a90008 ctg end to call user cb
+1032:09/09 18:52:59.434424 00166842 C QRY QID:0x987bae6a58a90008, ctg job 0x5 freed
+1035:09/09 18:52:59.434456 00166843 C QRY QID:0x987bae6a58a90008,TID:0x7,EID:0 start to launch REMOTE task, execId 0, retry 1
+1036:09/09 18:52:59.434458 00166842 C QRY QID:0x987bae6a58a90008,TID:0x8,EID:0 start to launch REMOTE task, execId 0, retry 1
+1037:09/09 18:52:59.434484 00166842 C QRY QID:0x987bae6a58a90008,TID:0x8,EID:0 task added to execTask list, numOfTasks:1
+1038:09/09 18:52:59.434485 00166843 C QRY QID:0x987bae6a58a90008,TID:0x7,EID:0 task added to execTask list, numOfTasks:2
+1039:09/09 18:52:59.434503 00166842 C QRY QID:0x987bae6a58a90008,TID:0x8,EID:0 use execNode in plan as candidate addr, numOfEps:1
+1040:09/09 18:52:59.434515 00166843 C QRY QID:0x987bae6a58a90008,TID:0x7,EID:0 use execNode in plan as candidate addr, numOfEps:1
+1050:09/09 18:52:59.434576 00166842 C QRY QID:0x987bae6a58a90008,TID:0x8,EID:0 target candidateIdx 0, epInUse 0/1
+1052:09/09 18:52:59.434588 00166842 C QRY QID:0x987bae6a58a90008,TID:0x8,EID:0 start to send query msg to node[3,localhost,6100], pTrans:0x2, pHandle:0x11
+1054:09/09 18:52:59.434593 00166842 C RPC TSC send request at thread:00166862, dst:localhost:6100, app:0x7f65a4003330, gtid:0x987bae6a58a90008:0x31de1d66a580001d
+1055:09/09 18:52:59.434595 00166842 C QRY QID:0x987bae6a58a90008,TID:0x8,EID:0 req msg sent, type:769, query
+1056:09/09 18:52:59.434597 00166842 C QRY QID:0x987bae6a58a90008,TID:0x8,EID:0 task execNode added, execId:0, handle:0x11
+1059:09/09 18:52:59.434605 00166843 C QRY QID:0x987bae6a58a90008,TID:0x7,EID:0 target candidateIdx 0, epInUse 0/1
+1062:09/09 18:52:59.434666 00166843 C QRY QID:0x987bae6a58a90008,TID:0x7,EID:0 start to send query msg to node[2,localhost,6100], pTrans:0x2, pHandle:0x12
+1065:09/09 18:52:59.434672 00166843 C RPC TSC send request at thread:00166860, dst:localhost:6100, app:0x7f65a8006120, gtid:0x987bae6a58a90008:0x31de1d66a580001e
+1066:09/09 18:52:59.434696 00166843 C QRY QID:0x987bae6a58a90008,TID:0x7,EID:0 req msg sent, type:769, query
+1068:09/09 18:52:59.434700 00166843 C QRY QID:0x987bae6a58a90008,TID:0x7,EID:0 task execNode added, execId:0, handle:0x12
+1077:09/09 18:52:59.434797 00166862 C RPC TSC conn 0x7f65bc000c40 query is sent to 127.0.0.1:6100, local info:127.0.0.1:57880, seq:14, qid:17, gtid:0x987bae6a58a90008:0x31de1d66a580001d
+1089:09/09 18:52:59.434934 00166860 C RPC TSC conn 0x7f65d4000c40 query is sent to 127.0.0.1:6100, local info:127.0.0.1:57868, seq:9, qid:18, gtid:0x987bae6a58a90008:0x31de1d66a580001e
+1107:09/09 18:52:59.480608 00166862 C RPC TSC conn 0x7f65bc000c40 query-rsp received from 127.0.0.1:6100, local info:127.0.0.1:57880, len:130, seq:14, qid:17, gtid:0x987bae6a58a90008:0x31de1d66a580001d
+1108:09/09 18:52:59.480658 00166860 C RPC TSC conn 0x7f65d4000c40 query-rsp received from 127.0.0.1:6100, local info:127.0.0.1:57868, len:130, seq:9, qid:18, gtid:0x987bae6a58a90008:0x31de1d66a580001e
+1111:09/09 18:52:59.480728 00166847 C TSC processMsgFromServer handle 0x11, message: query-rsp, size:39, code: success, gtid: 0x987bae6a58a90008:0x31de1d66a580001d
+1114:09/09 18:52:59.480779 00166847 C QRY QID:0x987bae6a58a90008,TID:0x8,EID:0 handle updated to 0x11 for execId 0
+1115:09/09 18:52:59.480795 00166847 C QRY QID:0x987bae6a58a90008,TID:0x8,EID:0 taskOnSuccess, status:EXECUTING
+1116:09/09 18:52:59.480809 00166847 C QRY PLAN: QID:0x987bae6a58a90008 set subplan execution node, groupId:2
+1119:09/09 18:52:59.480832 00166847 C TSC processMsgFromServer handle 0x12, message: query-rsp, size:39, code: success, gtid: 0x987bae6a58a90008:0x31de1d66a580001e
+1122:09/09 18:52:59.480854 00166847 C QRY QID:0x987bae6a58a90008,TID:0x7,EID:0 handle updated to 0x12 for execId 0
+1123:09/09 18:52:59.480863 00166847 C QRY QID:0x987bae6a58a90008,TID:0x7,EID:0 taskOnSuccess, status:EXECUTING
+1124:09/09 18:52:59.480868 00166847 C QRY PLAN: QID:0x987bae6a58a90008 set subplan execution node, groupId:2
+1125:09/09 18:52:59.480872 00166847 C QRY QID:0x987bae6a58a90008,TID:0x7,EID:0 all 2 children task done, start to launch parent task 0x6
+1129:09/09 18:52:59.480921 00166847 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:0 start to launch REMOTE task, execId 0, retry 1
+1130:09/09 18:52:59.480927 00166847 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:0 task added to execTask list, numOfTasks:3
+1131:09/09 18:52:59.480959 00166847 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:0 target candidateIdx 0, epInUse 0/1
+1133:09/09 18:52:59.480982 00166847 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:0 start to send merge-query msg to node[2,localhost,6100], pTrans:0x2, pHandle:0x13
+1135:09/09 18:52:59.480998 00166847 C RPC TSC send request at thread:00166862, dst:localhost:6100, app:0x7f6598006b80, gtid:0x987bae6a58a90008:0x31de1d66a580001f
+1136:09/09 18:52:59.481028 00166847 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:0 req msg sent, type:771, merge-query
+1137:09/09 18:52:59.481035 00166847 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:0 task execNode added, execId:0, handle:0x13
+1143:09/09 18:52:59.481077 00166862 C RPC TSC conn 0x7f65bc000c40 merge-query is sent to 127.0.0.1:6100, local info:127.0.0.1:57880, seq:15, qid:19, gtid:0x987bae6a58a90008:0x31de1d66a580001f
+1145:09/09 18:52:59.481938 00166862 C RPC TSC conn 0x7f65bc000c40 merge-query-rsp received from 127.0.0.1:6100, local info:127.0.0.1:57880, len:111, seq:15, qid:19, gtid:0x987bae6a58a90008:0x31de1d66a580001f
+1147:09/09 18:52:59.481995 00166850 C TSC processMsgFromServer handle 0x13, message: merge-query-rsp, size:20, code: success, gtid: 0x987bae6a58a90008:0x31de1d66a580001f
+1150:09/09 18:52:59.482031 00166850 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:0 handle updated to 0x13 for execId 0
+1151:09/09 18:52:59.482042 00166850 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:0 taskOnSuccess, status:EXECUTING
+1152:09/09 18:52:59.482049 00166850 C QRY QID:0x987bae6a58a90008 job status updated from EXECUTING to PARTIAL_SUCCEED
+1153:09/09 18:52:59.482055 00166850 C QRY QID:0x987bae6a58a90008 execRes dumped, code: success
+1154:09/09 18:52:59.482058 00166850 C QRY QID:0x987bae6a58a90008 sch start to invoke exec cb, code: success
+1155:09/09 18:52:59.482062 00166850 C TSC 0x6 enter scheduler exec cb, code:success, reqId:0x987bae6a58a90008
+1162:09/09 18:52:59.482157 00166850 C QRY QID:0x987bae6a58a90008 sch end from exec cb, code: success
+1168:09/09 18:52:59.482384 00166866 C QRY QID:0x987bae6a58a90008 job start FETCH operation
+1169:09/09 18:52:59.482390 00166866 C QRY QID:0x987bae6a58a90008 job status updated from PARTIAL_SUCCEED to FETCHING
+1170:09/09 18:52:59.482403 00166866 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:0 start to send merge-fetch msg to node[2,localhost,6100], pTrans:0x2, pHandle:0x13
+1172:09/09 18:52:59.482426 00166866 C RPC TSC send request at thread:00166862, dst:localhost:6100, app:0x7f65943151d0, gtid:0x987bae6a58a90008:0x31de1d66a5800020
+1173:09/09 18:52:59.482452 00166866 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:0 req msg sent, type:779, merge-fetch
+1174:09/09 18:52:59.482460 00166866 C QRY QID:0x987bae6a58a90008 job end FETCH operation with code success
+1178:09/09 18:52:59.482489 00166862 C RPC TSC conn 0x7f65bc000c40 merge-fetch is sent to 127.0.0.1:6100, local info:127.0.0.1:57880, seq:16, qid:19, gtid:0x987bae6a58a90008:0x31de1d66a5800020
+1180:09/09 18:52:59.482714 00166862 C RPC TSC conn 0x7f65bc000c40 merge-fetch-rsp received from 127.0.0.1:6100, local info:127.0.0.1:57880, len:1110, seq:16, qid:19, gtid:0x987bae6a58a90008:0x31de1d66a5800020
+1182:09/09 18:52:59.482782 00166852 C TSC processMsgFromServer handle 0x13, message: merge-fetch-rsp, size:1019, code: success, gtid: 0x987bae6a58a90008:0x31de1d66a5800020
+1185:09/09 18:52:59.482829 00166852 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:0 handle updated to 0x13 for execId 0
+1186:09/09 18:52:59.482835 00166852 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:0 got fetch rsp, rows:42, complete:1
+1187:09/09 18:52:59.482839 00166852 C QRY QID:0x987bae6a58a90008 job status updated from FETCHING to SUCCEED
+1188:09/09 18:52:59.482842 00166852 C QRY QID:0x987bae6a58a90008 fetch done, totalRows:42
+1189:09/09 18:52:59.482845 00166852 C QRY QID:0x987bae6a58a90008 sch start to invoke fetch cb, code: success
+1190:09/09 18:52:59.482848 00166852 C TSC 0x6 enter scheduler fetch cb, code:0 - success, reqId:0x987bae6a58a90008
+1191:09/09 18:52:59.482858 00166852 C TSC 0x6 fetch results, numOfRows:42 total Rows:42, complete:1, reqId:0x987bae6a58a90008
+1192:09/09 18:52:59.483360 00166852 C QRY QID:0x987bae6a58a90008 sch end from fetch cb, code: success
+1196:09/09 18:52:59.483396 00166866 C TSC 0x987bae6a58a90008 taos_free_result start to free query
+1198:09/09 18:52:59.483414 00166866 C QRY QID:0x987bae6a58a90008 start to free job 0x5, code:Query killed
+1199:09/09 18:52:59.483419 00166866 C QRY QID:0x987bae6a58a90008 job status updated from SUCCEED to DROPPING
+1200:09/09 18:52:59.483423 00166866 C QRY QID:0x987bae6a58a90008 job errCode updated to Query killed
+1201:09/09 18:52:59.483426 00166866 C QRY QID:0x987bae6a58a90008 job failed with error Query killed
+1202:09/09 18:52:59.483428 00166866 C QRY QID:0x987bae6a58a90008 job not in any operation, no need to post job res, status:DROPPING
+1203:09/09 18:52:59.483432 00166866 C QRY QID:0x987bae6a58a90008 job removed from jobRef list, refId:0x5
+1205:09/09 18:52:59.483437 00166866 C QRY QID:0x987bae6a58a90008 begin to free sch job, refId:0x5, pointer:0x7f65a400d4a0
+1206:09/09 18:52:59.483449 00166866 C QRY QID:0x987bae6a58a90008,TID:0x8,EID:0 start to send drop-task msg to node[3,localhost,6100], pTrans:0x2, pHandle:0x11
+1208:09/09 18:52:59.483462 00166866 C RPC TSC send request at thread:00166862, dst:localhost:6100, app:0x7f6594302920, gtid:0x987bae6a58a90008:0x31de1d66a5800021
+1209:09/09 18:52:59.483487 00166866 C QRY QID:0x987bae6a58a90008,TID:0x8,EID:0 req msg sent, type:783, drop-task
+1210:09/09 18:52:59.483494 00166866 C QRY QID:0x987bae6a58a90008,TID:0x8,EID:0 start to drop task's 0th execNode
+1211:09/09 18:52:59.483498 00166866 C QRY QID:0x987bae6a58a90008,TID:0x8,EID:0 task has been dropped on 1 exec nodes
+1212:09/09 18:52:59.483505 00166866 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:0 start to send drop-task msg to node[2,localhost,6100], pTrans:0x2, pHandle:0x13
+1214:09/09 18:52:59.483515 00166866 C RPC TSC send request at thread:00166862, dst:localhost:6100, app:0x7f65943031b0, gtid:0x987bae6a58a90008:0x31de1d66a5800022
+1215:09/09 18:52:59.483519 00166866 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:0 req msg sent, type:783, drop-task
+1216:09/09 18:52:59.483521 00166866 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:0 start to drop task's 0th execNode
+1217:09/09 18:52:59.483524 00166866 C QRY QID:0x987bae6a58a90008,TID:0x6,EID:0 task has been dropped on 1 exec nodes
+1218:09/09 18:52:59.483528 00166866 C QRY QID:0x987bae6a58a90008,TID:0x7,EID:0 start to send drop-task msg to node[2,localhost,6100], pTrans:0x2, pHandle:0x12
+1220:09/09 18:52:59.483535 00166866 C RPC TSC send request at thread:00166860, dst:localhost:6100, app:0x7f659430e900, gtid:0x987bae6a58a90008:0x31de1d66a5800023
+1221:09/09 18:52:59.483560 00166866 C QRY QID:0x987bae6a58a90008,TID:0x7,EID:0 req msg sent, type:783, drop-task
+1222:09/09 18:52:59.483566 00166866 C QRY QID:0x987bae6a58a90008,TID:0x7,EID:0 start to drop task's 0th execNode
+1223:09/09 18:52:59.483570 00166866 C QRY QID:0x987bae6a58a90008,TID:0x7,EID:0 task has been dropped on 1 exec nodes
+1226:09/09 18:52:59.483597 00166860 C RPC TSC conn 0x7f65d4000c40 drop-task is sent to 127.0.0.1:6100, local info:127.0.0.1:57868, seq:10, qid:18, gtid:0x987bae6a58a90008:0x31de1d66a5800023
+1228:09/09 18:52:59.483610 00166866 C QRY QID:0x987bae6a58a90008 sch job freed, refId:0x5, pointer:0x7f65a400d4a0
+1230:09/09 18:52:59.483622 00166866 C TSC 0x6 free Request from connObj: 0x2, reqId:0x987bae6a58a90008 elapsed:49.78 ms, current:0, app current:0
+1234:09/09 18:52:59.483739 00166862 C RPC TSC conn 0x7f65bc000c40 drop-task is sent to 127.0.0.1:6100, local info:127.0.0.1:57880, seq:17, qid:17, gtid:0x987bae6a58a90008:0x31de1d66a5800021
+1236:09/09 18:52:59.483813 00166860 C RPC TSC conn 0x7f65d4000c40 receive release req, qid:18, gtid:0x987bae6a58a90008:0x31de1d66a580001e
+1242:09/09 18:52:59.483854 00166862 C RPC TSC conn 0x7f65bc000c40 drop-task is sent to 127.0.0.1:6100, local info:127.0.0.1:57880, seq:18, qid:19, gtid:0x987bae6a58a90008:0x31de1d66a5800022
+1246:09/09 18:52:59.484011 00166862 C RPC TSC conn 0x7f65bc000c40 receive release req, qid:17, gtid:0x987bae6a58a90008:0x31de1d66a580001d
+1250:09/09 18:52:59.484124 00166862 C RPC TSC conn 0x7f65bc000c40 receive release req, qid:19, gtid:0x987bae6a58a90008:0x31de1d66a580001f

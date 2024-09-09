@@ -566,6 +566,9 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
   STrans* pInst = conn->pInst;
+  int32_t fd = 0;
+  uv_fileno((uv_handle_t*)cli, &fd);
+  setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (int[]){1}, sizeof(int));
 
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {

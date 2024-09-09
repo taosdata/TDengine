@@ -1160,6 +1160,9 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   if (handle->data == NULL) {
     return;
   }
+  int32_t fd;
+  uv_fileno((uv_handle_t*)handle, &fd);
+  setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (int[]){1}, sizeof(int));
 
   SCliConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
@@ -3630,13 +3633,13 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
     return NULL;
   }
   code = transHeapGet(pHeap, &pConn);
-  if (pConn && taosHashGetSize(pConn->pQTable) > 0) {
-    tDebug("get conn %p from heap cache for key:%s, status:%d, refCnt:%d", pConn, key, pConn->inHeap, pConn->reqRefCnt);
-    return NULL;
-  } /*else {
-    // tDebug("failed to get conn from heap cache for key:%s", key);
-    // return NULL;
-  }*/
+  // if (pConn && taosHashGetSize(pConn->pQTable) > 0) {
+  //   tDebug("get conn %p from heap cache for key:%s, status:%d, refCnt:%d", pConn, key, pConn->inHeap,
+  //   pConn->reqRefCnt); return NULL;
+  // } /*else {
+  //   // tDebug("failed to get conn from heap cache for key:%s", key);
+  //   // return NULL;
+  // }*/
 
   if (code != 0) {
     tDebug("failed to get conn from heap cache for key:%s", key);
