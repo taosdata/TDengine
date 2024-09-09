@@ -27,15 +27,75 @@ pub struct ParserResponse {
 
 struct ParserConfig {
     value_key_pattern: Regex,
-    value_type_key: CString,
-    white_type_key: CString,
+    value_type_key: Option<String>,
+    white_type_key: Option<String>,
+}
+
+impl ParserConfig {
+    fn new(
+        value_key_pattern: Regex,
+        value_type_key: Option<String>,
+        white_type_key: Option<String>,
+    ) -> Self {
+        ParserConfig {
+            value_key_pattern,
+            value_type_key,
+            white_type_key,
+        }
+    }
+
+    fn parse_object(&self, object: Map<String, JsonValue>) -> Vec<Map<String, JsonValue>> {
+        // let data_type = self.value_type_key.as_deref().unwrap_or("");
+        let the_flag = self
+            .value_type_key
+            .as_ref()
+            .map(|s| {
+                for (k, v) in object.iter() {
+                    if k == s {
+                        return v.as_str().unwrap_or("");
+                    }
+                }
+                ""
+            })
+            .unwrap_or("");
+
+        let mut arr_data = Vec::new();
+        let date_date = object.get("DATA_DATE").unwrap().as_str().unwrap();
+        let mut share_object = Map::new();
+
+        for (k, v) in object.iter() {
+            if self.value_key_pattern.is_match(k) {
+                let mut new_obj = Map::new();
+                new_obj.insert(format!("_val{}", the_flag), v.clone());
+
+                let dt = format!(
+                    "{}T{}:{}:00+08:00",
+                    date_date,
+                    k[1..3].to_string(),
+                    k[3..].to_string()
+                );
+                new_obj.insert("_ts".to_string(), json!(dt));
+                arr_data.push(new_obj);
+            } else if k != "DATA_DATE" {
+                share_object.insert(k.clone(), v.clone());
+            }
+        }
+
+        for obj in arr_data.iter_mut() {
+            for (k, v) in share_object.iter() {
+                obj.insert(k.clone(), v.clone());
+            }
+        }
+
+        arr_data
+    }
 }
 
 // static mut PARSER: *mut Parser = std::ptr::null_mut();
 #[no_mangle]
 pub extern "C" fn parser_new(ctx: *const c_char, len: i32) -> ParserResponse {
-    let ctx = unsafe { std::slice::from_raw_parts(ctx, len as usize) };
-    let ctx = unsafe { std::mem::transmute(ctx) };
+    let ctx = unsafe { std::slice::from_raw_parts(ctx as *const u8, len as usize) };
+    // let ctx = unsafe { std::mem::transmute(ctx) };
 
     let ctx = std::str::from_utf8(ctx).unwrap();
     let ctx_parts = ctx.split(",").collect::<Vec<&str>>();
@@ -45,16 +105,8 @@ pub extern "C" fn parser_new(ctx: *const c_char, len: i32) -> ParserResponse {
 
     let parser_config = ParserConfig {
         value_key_pattern: Regex::new(&regstr).unwrap(),
-        value_type_key: if ctx_parts_len > 1 {
-            CString::new(ctx_parts[1]).unwrap()
-        } else {
-            CString::new("").unwrap()
-        },
-        white_type_key: if ctx_parts_len > 2 {
-            CString::new(ctx_parts[2]).unwrap()
-        } else {
-            CString::new("").unwrap()
-        },
+        value_type_key: ctx_parts.get(1).map(|s| s.to_string()),
+        white_type_key: ctx_parts.get(2).map(|s| s.to_string()),
     };
 
     let parser_config = Box::into_raw(Box::new(parser_config));
@@ -71,52 +123,6 @@ fn set_output(output_string: String, output_p: *mut *mut u8, output_l: *mut u32)
         *output_p = output.as_ptr() as *mut u8;
         *output_l = output.len() as u32;
     }
-}
-
-fn parse_data(
-    object: Map<String, JsonValue>,
-    value_key_pattern: &Regex,
-    data_type: &str,
-) -> Vec<Map<String, JsonValue>> {
-    // println!("value_key_pattern: {:?}", value_key_pattern);
-
-    let mut the_flag = "";
-    for (k, v) in object.iter() {
-        if k == data_type {
-            the_flag = v.as_str().unwrap_or("");
-            break;
-        }
-    }
-
-    let mut arr_data = Vec::new();
-    let date_date = object.get("DATA_DATE").unwrap().as_str().unwrap();
-    let mut share_object = Map::new();
-
-    for (k, v) in object.iter() {
-        if value_key_pattern.is_match(k) {
-            let mut new_obj = Map::new();
-            new_obj.insert(format!("_val{}", the_flag), v.clone());
-
-            let dt = format!(
-                "{}T{}:{}:00+08:00",
-                date_date,
-                k[1..3].to_string(),
-                k[3..].to_string()
-            );
-            new_obj.insert("_ts".to_string(), json!(dt));
-            arr_data.push(new_obj);
-        } else if k != "DATA_DATE" {
-            share_object.insert(k.clone(), v.clone());
-        }
-    }
-
-    for obj in arr_data.iter_mut() {
-        for (k, v) in share_object.iter() {
-            obj.insert(k.clone(), v.clone());
-        }
-    }
-
-    arr_data
 }
 
 #[no_mangle]
@@ -144,11 +150,7 @@ pub unsafe extern "C" fn parser_mutate(
 
     let output_string = match value {
         JsonValue::Object(object) => {
-            let parsed_data = parse_data(
-                object,
-                &parser_config.value_key_pattern,
-                parser_config.value_type_key.to_str().unwrap(),
-            );
+            let parsed_data = parser_config.parse_object(object);
             serde_json::to_string(&parsed_data).unwrap()
         }
         _ => "".to_string(),

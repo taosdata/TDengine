@@ -109,7 +109,7 @@ impl ParserObject {
             return Err("parser_mutate failed".to_string());
         }
         let parsed_data = unsafe {
-            String::from_raw_parts(output_p as *mut u8, output_l as usize, output_l as usize)
+            String::from_utf8_lossy(std::slice::from_raw_parts(output_p as *const u8, output_l as usize)).to_string()
         };
         Ok(parsed_data)
     }
