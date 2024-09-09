@@ -219,6 +219,11 @@ async fn write_stable_with_sql(
                     }
                     Err(err).map_err(Into::into)
                 }
+                0x267B => {
+                    // TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL
+                    // SQL internal error, ignore for now
+                    Ok(0)
+                }
                 _ => Err(err)
                     .context("flat message write sql error")
                     .map_err(Into::into),
@@ -822,6 +827,14 @@ pub async fn flat_write_with_raw_block(
                         cancel,
                     )
                     .await?;
+                    break;
+                } else if errno == 0x267B {
+                    // TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL
+                    // SQL internal error, ignore for now
+                    tracing::warn!(
+                        code = errno,
+                        "write raw block sql error: Primary key column should not be null",
+                    );
                     break;
                 } else {
                     error!(table = table_name.as_ref(), code = %code, "write {} records failed: {err:?}", records.records.num_rows());
