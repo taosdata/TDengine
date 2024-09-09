@@ -109,6 +109,9 @@ int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
 
+  if (code == 0) {
+    code = TSDB_CODE_ACTION_IN_PROGRESS;
+  }
   return code;
 }
 
@@ -221,8 +224,8 @@ int32_t mndProcessResetStatusReq(SRpcMsg *pReq) {
     code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
     mError("failed to acquire the streamObj:0x%" PRIx64 " to reset checkpoint, may have been dropped", pStream->uid);
   } else {
-    bool conflict = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_TASK_RESET_NAME, false);
-    if (conflict) {
+    code = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_TASK_RESET_NAME, false);
+    if (code) {
       mError("stream:%s other trans exists in DB:%s, dstTable:%s failed to start reset-status trans", pStream->name,
              pStream->sourceDb, pStream->targetSTbName);
     } else {
