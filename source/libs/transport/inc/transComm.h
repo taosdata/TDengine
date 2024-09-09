@@ -350,15 +350,15 @@ void* transCtxDumpVal(STransCtx* ctx, int32_t key);
 void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType);
 
 // request list
-typedef struct STransReq {
+typedef struct SWriteReq {
   queue      q;     // gloabl queue node
   queue      node;  // req queue node
   void*      conn;
   uv_write_t req;
-} STransReq;
+} SWriteReq;
 
 void  transReqQueueInit(queue* q);
-void* transReqQueuePush(queue* q, STransReq* req);
+void* transReqQueuePush(queue* q, SWriteReq* req);
 void* transReqQueueRemove(void* arg);
 void  transReqQueueClear(queue* q);
 

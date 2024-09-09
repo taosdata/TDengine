@@ -411,7 +411,7 @@ void transReqQueueInit(queue* q) {
   // init req queue
   QUEUE_INIT(q);
 }
-void* transReqQueuePush(queue* q, STransReq* userReq) {
+void* transReqQueuePush(queue* q, SWriteReq* userReq) {
   uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
   req->data = userReq;
 
@@ -422,7 +422,7 @@ void* transReqQueueRemove(void* arg) {
   void*       ret = NULL;
   uv_write_t* req = arg;
 
-  STransReq* userReq = req ? req->data : NULL;
+  SWriteReq* userReq = req ? req->data : NULL;
   if (req == NULL) return NULL;
   QUEUE_REMOVE(&userReq->q);
 
@@ -432,7 +432,7 @@ void transReqQueueClear(queue* q) {
   while (!QUEUE_IS_EMPTY(q)) {
     queue* h = QUEUE_HEAD(q);
     QUEUE_REMOVE(h);
-    STransReq* req = QUEUE_DATA(h, STransReq, q);
+    SWriteReq* req = QUEUE_DATA(h, SWriteReq, q);
     taosMemoryFree(req);
   }
 }

@@ -25,7 +25,7 @@ typedef struct {
 } SSvrRegArg;
 
 typedef struct SSvrConn {
-  T_REF_DECLARE()
+  int32_t    ref;
   uv_tcp_t*  pTcp;
   queue      wreqQueue;
   uv_timer_t pTimer;
@@ -625,7 +625,7 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
 void uvOnSendCb(uv_write_t* req, int status) {
   STUB_RAND_NETWORK_ERR(status);
 
-  STransReq* userReq = req->data;
+  SWriteReq* userReq = req->data;
   SSvrConn*  conn = userReq->conn;
   queue*     src = &userReq->node;
 
@@ -780,7 +780,7 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
 
   transRefSrvHandle(pConn);
 
-  STransReq* pWreq = taosMemoryCalloc(1, sizeof(STransReq));
+  SWriteReq* pWreq = taosMemoryCalloc(1, sizeof(SWriteReq));
   pWreq->conn = pConn;
   QUEUE_INIT(&pWreq->q);
   QUEUE_MOVE(&sendReqNode, &pWreq->node);
@@ -843,7 +843,7 @@ static void destroyAllConn(SWorkThrd* pThrd) {
     QUEUE_INIT(h);
 
     SSvrConn* c = QUEUE_DATA(h, SSvrConn, queue);
-    while (T_REF_VAL_GET(c) >= 2) {
+    while (c->ref >= 2) {
       transUnrefSrvHandle(c);
     }
     transUnrefSrvHandle(c);
@@ -1743,17 +1743,19 @@ void transRefSrvHandle(void* handle) {
   if (handle == NULL) {
     return;
   }
-  int ref = T_REF_INC((SSvrConn*)handle);
-  tTrace("conn %p ref count:%d", handle, ref);
+  SSvrConn* pConn = handle;
+  pConn->ref++;
+  tTrace("conn %p ref count:%d", handle, pConn->ref);
 }
 
 void transUnrefSrvHandle(void* handle) {
   if (handle == NULL) {
     return;
   }
-  int ref = T_REF_DEC((SSvrConn*)handle);
-  tTrace("conn %p ref count:%d", handle, ref);
-  if (ref == 0) {
+  SSvrConn* pConn = handle;
+  pConn->ref--;
+  tTrace("conn %p ref count:%d", handle, pConn->ref);
+  if (pConn->ref == 0) {
     destroyConn((SSvrConn*)handle, true);
   }
 }
