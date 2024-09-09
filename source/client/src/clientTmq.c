@@ -55,7 +55,7 @@
   (void)memcpy(DATA, pMsg->pData, sizeof(SMqRspHead));
 
 #define DELETE_POLL_RSP(FUNC,DATA) \
-  SMqPollRspWrapper* pRsp = (SMqPollRspWrapper*)rspWrapper;\
+  SMqPollRspWrapper* pRsp = &rspWrapper->pollRsp;\
   taosMemoryFreeClear(pRsp->pEpset);\
   FUNC(DATA);
 
@@ -1029,9 +1029,10 @@ static void defaultCommitCbFn(tmq_t* pTmq, int32_t code, void* param) {
 static void tmqFreeRspWrapper(SMqRspWrapper* rspWrapper) {
   if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__EP_RSP) {
     tDeleteSMqAskEpRsp(&rspWrapper->epRsp);
-  } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_DATA_RSP ||
-      rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_DATA_META_RSP) {
-    DELETE_POLL_RSP(tDeleteMqDataRsp,&pRsp->dataRsp)
+  } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_DATA_RSP) {
+    DELETE_POLL_RSP(tDeleteMqDataRsp, &pRsp->dataRsp)
+  } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_DATA_META_RSP){
+    DELETE_POLL_RSP(tDeleteSTaosxRsp, &pRsp->dataRsp)
   } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_META_RSP) {
     DELETE_POLL_RSP(tDeleteMqMetaRsp,&pRsp->metaRsp)
   } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_BATCH_META_RSP) {

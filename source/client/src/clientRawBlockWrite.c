@@ -2096,13 +2096,21 @@ int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
     raw->raw_len = rspObj->metaRsp.metaRspLen;
     raw->raw_type = rspObj->metaRsp.resMsgType;
     uDebug("tmq get raw type meta:%p", raw);
-  } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
-    int32_t code = encodeMqDataRsp(tEncodeMqDataRsp, &rspObj->dataRsp, raw);
+  } else if (TD_RES_TMQ(res)) {
+    int32_t    code = encodeMqDataRsp(tEncodeMqDataRsp, &rspObj->dataRsp, raw);
     if (code != 0) {
       uError("tmq get raw type error:%d", terrno);
       return code;
     }
-    raw->raw_type = rspObj->resType;
+    raw->raw_type = RES_TYPE__TMQ;
+    uDebug("tmq get raw type data:%p", raw);
+  } else if (TD_RES_TMQ_METADATA(res)) {
+    int32_t code = encodeMqDataRsp(tEncodeSTaosxRsp, &rspObj->dataRsp, raw);
+    if (code != 0) {
+      uError("tmq get raw type error:%d", terrno);
+      return code;
+    }
+    raw->raw_type = RES_TYPE__TMQ_METADATA;
     uDebug("tmq get raw type metadata:%p", raw);
   } else if (TD_RES_TMQ_BATCH_META(res)) {
     raw->raw = rspObj->batchMetaRsp.pMetaBuff;
