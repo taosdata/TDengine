@@ -13,6 +13,7 @@ use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use arrow_schema::SchemaRef;
 use chrono::Utc;
+use faststr::FastStr;
 use futures_ext::TryReadyChunksError;
 use futures_util::StreamExt;
 use itertools::Itertools;
@@ -37,11 +38,13 @@ use tracing::{error, instrument, warn, Instrument, Span};
 use taosx_ipc::ack::{AckReaderBuilder, LushAck};
 use taosx_ipc::prelude::ArrowDataType;
 
+use crate::core_metrics::{get_metrics_arc_from_i64, CoreMetrics};
 use crate::plugins::dsv::DataSourceValidation;
 use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::kafka::config::connect::KafkaConnectConfig;
 use crate::runners::kafka::config::KafkaTaskConfig;
 use crate::runners::set_tcp_keepalive;
+use crate::sink::ipc_metric::IpcMetrics;
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, Action, Parser, Transferred};
 
@@ -49,6 +52,10 @@ mod config;
 
 pub const KAFKA_ID: &'static str = "kafka";
 const FETCH_METADATA_TIMEOUT: Duration = Duration::from_secs(30);
+const METRIC_CONSUMERS: FastStr = FastStr::from_static_str("kafka_consumers");
+const METRIC_TOTAL_PARTITIONS: FastStr = FastStr::from_static_str("kafka_total_partitions");
+const METRIC_CONSUMING_PARTITIONS: FastStr = FastStr::from_static_str("kafka_consuming_partitions");
+const METRIC_CONSUMED_MESSAGES: FastStr = FastStr::from_static_str("kafka_consumed_messages");
 
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match is_valid_impl(dsn) {
@@ -244,6 +251,7 @@ pub async fn kafka_to_taos(
         serde_json::to_string(&parser)?,
         to
     );
+    let metrics_arc = get_metrics_arc_from_i64(task_id).await;
 
     let ipc_port = port_pool
         .get()
@@ -267,9 +275,15 @@ pub async fn kafka_to_taos(
     .await?;
 
     let aborted_cloned = cancel.clone();
-    let mut join_set = execute(from, ipc_port.get(), aborted_cloned, notify.clone())
-        .in_current_span()
-        .await?;
+    let mut join_set = execute(
+        from,
+        ipc_port.get(),
+        aborted_cloned,
+        notify.clone(),
+        metrics_arc,
+    )
+    .in_current_span()
+    .await?;
     tokio::spawn(async move {
         tokio::select! {
             // application exit with error code
@@ -363,6 +377,7 @@ async fn execute(
     ipc_server_port: u16,
     aborted: CancellationToken,
     notify: crate::TaskNotifySender,
+    metrics_arc: Arc<CoreMetrics>,
 ) -> anyhow::Result<KafkaJoinSet> {
     let ipc_server = format!("127.0.0.1:{}", ipc_server_port);
 
@@ -381,7 +396,7 @@ async fn execute(
     );
 
     // split into sub tasks
-    let sub_tasks: Vec<SubTask> = SubTask::build_tasks(config, notify.clone())?;
+    let sub_tasks = SubTask::build_tasks(config, &notify, &metrics_arc)?;
 
     let schema = Arc::new(build_schema());
 
@@ -490,6 +505,7 @@ async fn execute(
             Ok(ExitStatus::Finished)
         });
 
+        let metrics = metrics_arc.clone();
         consumers.spawn(
             async move {
                 let SubTask {
@@ -531,6 +547,7 @@ async fn execute(
                             if errors < MAX_RETRY_TIMES {
                                 let context = consumer.context().clone();
                                 drop(consumer);
+                                context.metrics().sub_extra_metric(&METRIC_CONSUMERS, 1);
                                 let joins = context.current_joins();
 
                                 if instance.is_some() && error.contains("FencedInstanceId") {
@@ -547,6 +564,7 @@ async fn execute(
                                                     .iter()
                                                     .map(|s| s.as_str())
                                                     .collect::<Vec<&str>>(),
+                                                &metrics,
                                             )
                                         },
                                         |context| {
@@ -609,7 +627,8 @@ struct SubTask {
 impl SubTask {
     pub fn build_tasks(
         config: KafkaTaskConfig,
-        _notify: crate::TaskNotifySender,
+        _notify: &crate::TaskNotifySender,
+        metrics: &Arc<CoreMetrics>,
     ) -> anyhow::Result<Vec<Self>> {
         let client_config = build_client_config(config.connect.clone()).unwrap();
 
@@ -653,6 +672,10 @@ impl SubTask {
                 config.topics
             );
         }
+        metrics.ipc().set_extra_metric(
+            &METRIC_TOTAL_PARTITIONS,
+            topic_partitions.values().sum::<usize>() as _,
+        );
 
         if topic_partitions.len() != config.topics.len() {
             tracing::error!(
@@ -688,6 +711,7 @@ impl SubTask {
             let consumer = config.build_consumer(
                 instance.as_deref(),
                 &topics.iter().map(|s| s.as_str()).collect::<Vec<&str>>(),
+                metrics,
             )?;
             let topics = topics.clone();
 
@@ -699,6 +723,26 @@ impl SubTask {
                 timeout: config.timeout,
             };
             sub_tasks.push(sub_task);
+        }
+        for (idx, t) in sub_tasks.iter().enumerate() {
+            match t.consumer.assignment() {
+                Ok(tp_list) => {
+                    for tp in tp_list.elements() {
+                        tracing::info!(
+                            consumer.id = idx,
+                            consumer.topic = tp.topic(),
+                            consumer.partition = tp.partition(),
+                            consumer.offset = ?tp.offset(),
+                        );
+                    }
+                }
+                Err(err) => {
+                    tracing::error!(
+                        consumer.id = idx,
+                        "Consumer {idx} failed to assign partitions: {err}",
+                    );
+                }
+            }
         }
 
         Ok(sub_tasks)
@@ -758,6 +802,9 @@ impl<'a> MessagesSender<'a> {
 
         let now = std::time::Instant::now();
         let context = self.consumer.context();
+        context
+            .metrics()
+            .add_extra_metric(&METRIC_CONSUMED_MESSAGES, chunk.len() as _);
         let chunks = chunk.iter().chunk_by(|msg| (msg.topic(), msg.partition()));
 
         let permit = context.sem.acquire().await;
@@ -1202,6 +1249,7 @@ struct CustomContext {
     joins: AtomicUsize,
     rebalances: AtomicUsize,
     commits: AtomicUsize,
+    metrics: Arc<CoreMetrics>,
 }
 
 impl CustomContext {
@@ -1212,17 +1260,20 @@ impl CustomContext {
     fn current_joins(&self) -> usize {
         self.joins.load(std::sync::atomic::Ordering::SeqCst)
     }
-}
 
-impl Default for CustomContext {
-    fn default() -> Self {
+    fn new(metrics: Arc<CoreMetrics>) -> Self {
         Self {
             offsets_cache: scc::HashIndex::with_capacity(1),
             sem: tokio::sync::Semaphore::new(1),
             joins: AtomicUsize::new(0),
             rebalances: AtomicUsize::new(0),
             commits: AtomicUsize::new(0),
+            metrics,
         }
+    }
+
+    fn metrics(&self) -> &IpcMetrics {
+        self.metrics.ipc()
     }
 }
 
@@ -1233,6 +1284,21 @@ impl ConsumerContext for CustomContext {
         if is_rebalance_empty(rebalance) {
             return;
         }
+        // match rebalance {
+        //     Rebalance::Assign(tpl) => {
+        //         tracing::info!("Assign {}", tpl.count());
+        //         self.metrics()
+        //             .sub_extra_metric(&METRIC_CONSUMING_PARTITIONS, tpl.count() as _);
+        //     }
+        //     Rebalance::Revoke(tpl) => {
+        //         tracing::info!("Revoke {}", tpl.count());
+        //         self.metrics()
+        //             .sub_extra_metric(&METRIC_CONSUMING_PARTITIONS, tpl.count() as _);
+        //     }
+        //     Rebalance::Error(err) => {
+        //         tracing::error!("Pre rebalance error: {:?}", err);
+        //     }
+        // }
         self.sem.forget_permits(1);
         if !self.offsets_cache.is_empty() {
             tracing::info!("Pre rebalance {:?}, will clear offsets cache", rebalance);
@@ -1245,6 +1311,22 @@ impl ConsumerContext for CustomContext {
     fn post_rebalance(&self, rebalance: &Rebalance) {
         if is_rebalance_empty(rebalance) {
             return;
+        }
+
+        match rebalance {
+            Rebalance::Assign(tpl) => {
+                tracing::info!("Post Assign {}", tpl.count());
+                self.metrics()
+                    .add_extra_metric(&METRIC_CONSUMING_PARTITIONS, tpl.count() as _);
+            }
+            Rebalance::Revoke(tpl) => {
+                tracing::info!("Post Revoke {}", tpl.count());
+                self.metrics()
+                    .sub_extra_metric(&METRIC_CONSUMING_PARTITIONS, tpl.count() as _);
+            }
+            Rebalance::Error(err) => {
+                tracing::error!("Pre rebalance error: {:?}", err);
+            }
         }
         let rebalances = self
             .rebalances
@@ -1292,8 +1374,9 @@ impl KafkaTaskConfig {
         &self,
         instance: Option<&str>,
         topics: &[&str],
+        metrics: &Arc<CoreMetrics>,
     ) -> anyhow::Result<LoggingConsumer> {
-        self.build_consumer_with_context(instance, topics, CustomContext::default())
+        self.build_consumer_with_context(instance, topics, CustomContext::new(metrics.clone()))
     }
 
     fn build_consumer_with_context(
@@ -1415,8 +1498,13 @@ impl KafkaTaskConfig {
         let subscription = consumer
             .subscription()
             .context("Kafka get consumer subscription metadata error")?;
+        consumer
+            .context()
+            .metrics()
+            .add_extra_metric(&METRIC_CONSUMERS, 1);
         for t in subscription.elements() {
             tracing::info!(
+                kafka.consumed.partions = subscription.count(),
                 "Consumer subscribed to topic: {}:{}:{:?}",
                 t.topic(),
                 t.partition(),

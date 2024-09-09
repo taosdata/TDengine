@@ -61,3 +61,7 @@ drained_rows: 本次运行此任务排除时间戳无法入库的总行数
 failed_points: 本次运行此任务写入失败的点数
 written_raw_blocks: 本次运行此任务写人成功的 raw block 数
 failed_raw_blocks: 本次运行此任务写入失败的 raw block 数
+kafka_consumers: Kafka 消费者数
+kafka_total_partitions: Kafka topic 总分区数
+kafka_consuming_partitions: 正在消费的分区数
+kafka_consumed_messages: 已经消费的消息数

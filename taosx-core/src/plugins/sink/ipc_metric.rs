@@ -1,4 +1,5 @@
 use crate::core_metrics::{CommonMetrics, CoreMetrics, TaskMetrics};
+use faststr::FastStr;
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering::SeqCst;
@@ -34,6 +35,9 @@ pub struct IpcMetrics {
     pub failed_points: AtomicU64,
     pub written_raw_blocks: AtomicU64,
     pub failed_raw_blocks: AtomicU64,
+
+    #[serde(flatten)]
+    pub extras: scc::HashIndex<FastStr, u64>,
 }
 
 impl IpcMetrics {
@@ -43,6 +47,36 @@ impl IpcMetrics {
             ..Default::default()
         }
     }
+
+    pub fn set_extra_metric(&self, key: &FastStr, value: u64) {
+        if let Some(entry) = self.extras.get(key) {
+            entry.update(value);
+        } else {
+            self.extras.entry(key.clone()).or_insert_with(|| value);
+        }
+    }
+
+    pub fn add_extra_metric(&self, key: &FastStr, value: u64) {
+        if let Some(entry) = self.extras.get(key) {
+            let new = *entry.get() + value;
+            entry.update(new);
+        } else {
+            self.extras.entry(key.clone()).or_insert_with(|| value);
+        }
+    }
+    pub fn sub_extra_metric(&self, key: &FastStr, value: u64) {
+        if let Some(entry) = self.extras.get(key) {
+            let new = if *entry.get() > value {
+                *entry.get() - value
+            } else {
+                0
+            };
+            entry.update(new);
+        } else {
+            self.extras.entry(key.clone()).or_insert_with(|| 0);
+        }
+    }
+
     #[inline]
     pub fn add_received_batches(&self, n: u64) {
         self.total_received_batches.fetch_add(n, SeqCst);
