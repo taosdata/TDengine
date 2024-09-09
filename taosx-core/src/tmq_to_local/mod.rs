@@ -1,15 +1,15 @@
+use anyhow::{bail, Context, Result};
+use chrono::{DateTime, Local};
+use dashmap::DashMap;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::fmt::Debug;
 use std::sync::atomic::Ordering::SeqCst;
 use std::{
     path::{Path, PathBuf},
     str::FromStr,
     sync::Arc,
 };
-
-use anyhow::{Context, Result};
-use chrono::{DateTime, Local};
-use dashmap::DashMap;
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use taos::taos_query::tmq::Assignment;
 use taos::*;
 use taos_query::common::RawData;
@@ -31,10 +31,27 @@ struct ZFileMan {
     api_version: String,
     server_version: String,
     path: PathBuf,
-    // db: String,
     topic: String,
     sync: Mutex<()>,
-    writers: dashmap::DashMap<i32, Mutex<ZFile>>,
+    writers: DashMap<i32, Mutex<ZFile>>,
+
+    max_file_size: u64,
+    move_to: Option<PathBuf>,
+    compression_level: async_compression::Level,
+}
+
+impl Debug for ZFileMan {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZFileMan")
+            .field("api_version", &self.api_version)
+            .field("server_version", &self.server_version)
+            .field("path", &self.path)
+            .field("topic", &self.topic)
+            .field("max_file_size", &self.max_file_size)
+            .field("move_to", &self.move_to)
+            .field("compress_level", &self.compression_level)
+            .finish()
+    }
 }
 
 impl Drop for ZFileMan {
@@ -64,13 +81,15 @@ impl ZFileMan {
             let _ = self.sync.lock().await;
             if !self.writers.contains_key(&vgroup) {
                 let prefix = self.path.join(format!("{}-{}", self.topic, vgroup));
-                let file = ZFile::new(
+                let mut file = ZFile::new(
                     prefix,
-                    async_compression::Level::Best,
+                    self.compression_level.clone(),
                     &self.api_version,
                     &self.server_version,
                 )
                 .await?;
+                file.set_max_file_size(self.max_file_size);
+                file.set_move_to(self.move_to.clone());
                 let _ = self.writers.insert(vgroup, Mutex::new(file));
             }
         }
@@ -163,10 +182,6 @@ impl ZFileMan {
         metrics: &TmqMetrics,
         stop_at: &Option<StopAt>,
     ) -> Result<(usize, bool)> {
-        if stop_at.is_none() {
-            return Ok((0, false));
-        }
-
         let mut nrows = 0;
         let mut last_ts = None;
 
@@ -273,7 +288,11 @@ pub async fn tmq_to_local(
 
     let offsets = Arc::new(DashMap::new());
     let version = builder.server_version().await?.to_owned();
+    // parameters
     let stop_at = parse_stop_at(&from)?;
+    let max_file_size = parse_max_file_size(&from)?.unwrap_or(1024 * 1024 * 1024);
+    let move_to = parse_move_to(&to)?;
+    let compression_level = parse_compression_level(&to)?;
 
     // local backup dir
     let dir = to.path.clone().ok_or(anyhow::anyhow!(
@@ -289,20 +308,20 @@ pub async fn tmq_to_local(
     }
 
     // LocalConfig
-    let backup_path = backup_dir.join("local.toml");
-    let config = if !backup_path.exists() {
+    let local_config_path = backup_dir.join("local.toml");
+    let config = if !local_config_path.exists() {
         // create a new local config
         new_local_config(&from, &to, topics)
     } else {
-        let metadata = std::fs::metadata(backup_path.clone())?;
+        let metadata = std::fs::metadata(local_config_path.clone())?;
         let mut config = if metadata.len() == 0 {
             // if the 'local.toml' is an empty file, remove it
-            std::fs::remove_file(&backup_path)?;
+            std::fs::remove_file(&local_config_path)?;
             // create a new local config
             new_local_config(&from, &to, topics)
         } else {
-            tracing::info!("read configuration in: {}", backup_path.display());
-            LocalConfig::from_path(&backup_path)?
+            tracing::info!("read configuration in: {}", local_config_path.display());
+            LocalConfig::from_path(&local_config_path)?
         };
         // update last modified time
         config.last_modified = Local::now();
@@ -338,8 +357,22 @@ pub async fn tmq_to_local(
     tracing::info!("create TMQ builder");
     let tmq = TmqBuilder::from_dsn(&from)?;
     tracing::info!("write to config file");
-    config.write_to(backup_path)?;
+    config.write_to(local_config_path.clone())?;
     tracing::info!("write to config file done");
+
+    // move the current file to a new path
+    match &move_to {
+        Some(new_dir) => {
+            let file_path = &local_config_path;
+            if let Some(file_name) = file_path.file_name() {
+                let new_path = new_dir.clone().join(file_name);
+                tokio::fs::rename(file_path, new_path).await?;
+            }
+        }
+        None => {
+            // nothing
+        }
+    }
 
     let mut join_set = JoinSet::new();
     let mut consumer_task_id = 0;
@@ -383,11 +416,14 @@ pub async fn tmq_to_local(
             api_version: crate::build::PKG_VERSION.to_owned(),
             server_version: version.clone(),
             path: backup_dir.to_owned(),
-            // db: topic.database.clone(),
             topic: topic.name.clone(),
             sync: tokio::sync::Mutex::new(()),
             writers: Default::default(),
+            max_file_size,
+            move_to: move_to.clone(),
+            compression_level: compression_level.clone(),
         });
+        tracing::info!("zfile: {:?}", man);
 
         for _ in 0..jobs {
             let consumer = consumers.pop().unwrap();
@@ -448,6 +484,81 @@ fn parse_stop_at(dsn: &Dsn) -> Result<Option<StopAt>> {
                 .map_err(|err| anyhow::anyhow!("failed to parse stopAt: {}, cause: {:?}", s, err))
         })
         .transpose()
+}
+
+fn parse_max_file_size(dsn: &Dsn) -> Result<Option<u64>> {
+    let max_file_size = dsn
+        .params
+        .get("max.file.size")
+        .map(|s| {
+            if s.is_empty() {
+                return None;
+            }
+            Some(s.to_string())
+        })
+        .flatten();
+
+    max_file_size
+        .map(|s| {
+            s.parse::<u64>().map_err(|err| {
+                anyhow::anyhow!("failed to parse max.file.size: {}, cause: {:?}", s, err)
+            })
+        })
+        .transpose()
+}
+
+fn parse_move_to(dsn: &Dsn) -> Result<Option<PathBuf>> {
+    let move_to = dsn
+        .params
+        .get("move.to")
+        .map(|s| {
+            if s.is_empty() {
+                return None;
+            }
+            Some(s.to_string())
+        })
+        .flatten();
+
+    if move_to.is_none() {
+        return Ok(None);
+    }
+
+    let move_to = move_to.unwrap();
+    let path = Path::new(&move_to);
+    if !path.exists() {
+        bail!("the move.to: {} not exists", path.display())
+    }
+    Ok(Some(path.to_path_buf()))
+}
+
+fn parse_compression_level(dsn: &Dsn) -> Result<async_compression::Level> {
+    let level = dsn
+        .params
+        .get("compression.level")
+        .map(|s| {
+            if s.is_empty() {
+                return None;
+            }
+            Some(s.to_string())
+        })
+        .flatten();
+
+    let level = level.unwrap_or("best".to_string()).to_lowercase();
+    match level.as_str() {
+        "fastest" => Ok(async_compression::Level::Fastest),
+        "best" => Ok(async_compression::Level::Best),
+        "default" => Ok(async_compression::Level::Default),
+        _ => {
+            let level = level.parse::<i32>().map_err(|err| {
+                anyhow::anyhow!(
+                    "failed to parse compress.level: {}, cause: {:?}",
+                    level,
+                    err
+                )
+            })?;
+            Ok(async_compression::Level::Precise(level))
+        }
+    }
 }
 
 fn new_local_config(from: &Dsn, to: &Dsn, topics: Vec<Topic>) -> LocalConfig {

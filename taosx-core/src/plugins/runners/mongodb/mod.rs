@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -91,16 +92,31 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 /// }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create mongodb query
-    let config = MongoDBConfig::from_dsn(dsn)?;
+    let mut config = MongoDBConfig::from_dsn(dsn)?;
     let mut query = MongoDBQuery::try_new(config.connect).await?;
 
     // results
     let mut input_sample: Vec<LinkedHashMap<String, String>> = Vec::new();
 
+    // replace subtable fields
+    let placeholders = config
+        .task
+        .subtable_fields
+        .iter()
+        .map(|(k, v)| (k.clone(), v.replace("${v}", "{\"$ne\":\"\"}")))
+        .collect::<HashMap<String, String>>();
+    for (key, value) in placeholders.iter() {
+        config.task.sql = config
+            .task
+            .sql
+            .replace(&format!("${{{}}}", key), &value.to_string());
+    }
+
     // generate filter
     let database = config.task.generate_database()?;
     let collection = config.task.generate_collection()?;
     let filter = config.task.generate_filter()?;
+    let sort = config.task.generate_sort()?;
     tracing::info!(
         "get sample data, filter: {}, limit: {}",
         filter,
@@ -113,6 +129,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
             &database,
             &collection,
             filter,
+            sort,
             config.task.sample_data_limit,
         )
         .await?;
@@ -270,7 +287,7 @@ fn generate_payload(document: Document) -> anyhow::Result<String> {
                     payload.insert(key.clone(), json!(v));
                 }
                 Bson::Document(v) => {
-                    payload.insert(key.clone(), json!(serde_json::to_string(v).unwrap()));
+                    payload.insert(key.clone(), json!(v));
                 }
                 Bson::Boolean(v) => {
                     payload.insert(key.clone(), json!(v));
@@ -523,7 +540,7 @@ mod tests {
         let _ = test_clear_data().await;
         let _ = test_insert_data(4).await;
 
-        let from = Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27017?source=admin&database=test_taosx&collection=metrics&sql={\"datetime\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}&start=2024-07-01T00:00:00+00:00&end=2024-08-01T00:00:00+00:00&interval=12h&delay=0&sample_data_limit=4")
+        let from = Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27017?source=admin&database=test_db6_2023&collection=tb_9&sql={\"createtime\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}&start=2023-09-01T00:00:00+00:00&end=2023-09-30T00:00:00+00:00&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
 
         let res = get_sample(&from).await;
@@ -583,7 +600,9 @@ mod tests {
         let result = MongoDBQuery::try_new(config).await;
         match result {
             Ok(mut query) => {
-                let query_result = query.top_n("test_taosx", "metrics", doc! {}, 1).await;
+                let query_result = query
+                    .top_n("test_taosx", "metrics", doc! {}, doc! {}, 1)
+                    .await;
                 match query_result {
                     Ok(documents) => {
                         for document in documents {

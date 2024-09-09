@@ -3,7 +3,7 @@ use actix_web::{post, web::Json, Responder};
 
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
-use taos::{Code, Dsn};
+use taos::Dsn;
 use taosx_core::migrations::*;
 use tracing::instrument;
 use utoipa::ToSchema;
@@ -39,10 +39,7 @@ pub async fn privileges_migrate(params: Json<MigrateRequestBody>) -> impl Respon
     let options = params.options.unwrap_or_default();
     match migrate(&params.from, &params.to, &options).await {
         Ok(named_file) => Ok(serde_json::to_string(&ApplyResponseBody(named_file)).unwrap()),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -78,10 +75,7 @@ pub async fn privileges_export(params: Json<ExportRequestBody>) -> impl Responde
     };
     match f.await {
         Ok(file) => Ok(file),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -110,9 +104,6 @@ pub async fn privileges_import(params: Json<ImportRequestBody>) -> impl Responde
     let options = params.options.unwrap_or_default();
     match params.data.apply_to(&params.to, &options).await {
         Ok(file) => Ok(Json(ApplyResponseBody(file))),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }

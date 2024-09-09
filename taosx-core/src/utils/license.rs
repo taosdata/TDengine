@@ -259,7 +259,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
             from.subject.take();
             to.subject
                 .as_deref()
-                .ok_or_else(|| anyhow!("Sink database mut be set"))?;
+                .ok_or_else(|| anyhow!("Sink database must be set"))?;
             let source_builder = TaosBuilder::from_dsn(&from).with_context(source_dsn_context)?;
             let sink_builder = TaosBuilder::from_dsn(to).with_context(source_dsn_context)?;
 
@@ -340,7 +340,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
             let source_builder = TaosBuilder::from_dsn(&from)?;
             let sink_builder = TaosBuilder::from_dsn(to)?;
 
-            let (source_version, sink_version) = get_valid_taos_version(
+            let (source_version, _sink_version) = get_valid_taos_version(
                 &source_builder,
                 source_dsn_context,
                 &sink_builder,
@@ -414,10 +414,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
             if let Err(err) = edition {
                 return Ok(LicenseKind::Edition(anyhow!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
             }
-            return check_connector_grant_of(&sink_builder, &sink_version, "td3.0")
-                .in_current_span()
-                .await
-                .with_context(sink_dsn_context);
+            return Ok(LicenseKind::good());
         }
         ("taos", "tmq" | "taos") => {
             let mut from = from.clone();

@@ -1227,14 +1227,15 @@ async fn sync_concurrently(
                 MessageSet::MetaData(_, _) => 3,
             };
             metrics.add_messages(1);
-            let message = options
+            let raw = options
                 .parse_message(&message, metrics)
                 .in_current_span()
                 .await?;
+            drop(message);
             if message_type == 1 {
                 clean_cache!();
                 // meta only, sync immediately.
-                msg_tx.send_async(message).await?;
+                msg_tx.send_async(raw).await?;
                 res_rx.recv_async().await??;
                 consumer.commit(offset).await?;
                 per_message_instant = std::time::Instant::now();
@@ -1245,11 +1246,11 @@ async fn sync_concurrently(
                 clean_cache!();
 
                 // meta only, sync immediately.
-                msg_tx.send_async(message).await?;
+                msg_tx.send_async(raw).await?;
                 res_rx.recv_async().await??;
                 consumer.commit(offset).await?;
             } else {
-                msg_tx.send_async(message).await?;
+                msg_tx.send_async(raw).await?;
                 chunk_len += 1;
                 last_offset.replace(offset);
             }
@@ -1599,11 +1600,9 @@ pub async fn tmq_to_td(
 
         let tmq = Arc::new(tmq);
         let topic = Arc::new(topic);
-        for _ in 0..jobs {
+        for mut consumer in consumers {
             let tmq = tmq.clone();
             let topic = topic.clone();
-            let consumer = consumers.pop().unwrap();
-            // taos.exec(format!("use `{target_database}`")).await?;
             let mut table = topic.table.as_ref().map(|t| t.table.clone());
             if topic.is_query() {
                 if let Some(name) = topic.use_table_name.as_ref() {
@@ -1622,7 +1621,6 @@ pub async fn tmq_to_td(
             let options = options.clone();
             join_set.spawn(
                 async move {
-                    let mut consumer = consumer;
                     let mut retries = 0;
                     let max_retries = 5; // max retries in 1m
                     let tick = IntervalLimit::new(Duration::from_secs(60));

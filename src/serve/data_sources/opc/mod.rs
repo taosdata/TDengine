@@ -197,11 +197,12 @@ pub async fn get_point_header(
     let task_id = req.task_id;
 
     match get_point_header_impl(task_id, task_store).await {
-        Ok(headers) => Ok::<HttpResponse, Failed>(HttpResponse::Ok().json(headers)),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("failed to get point headers: {}", err),
-        }),
+        Ok(headers) => Ok(HttpResponse::Ok().json(headers)),
+        Err(err) => Err(Failed::new(
+            Code::FAILED,
+            format!("failed to get point headers: {:?}", err),
+            (),
+        )),
     }
 }
 
@@ -265,10 +266,11 @@ pub async fn append_point(
         Ok(_) => Ok::<HttpResponse, Failed>(HttpResponse::Ok().finish()),
         Err(err) => {
             tracing::error!("failed to add point: {:#?}", err);
-            Err(Failed {
-                code: Code::FAILED,
-                message: format!("failed to add point: {}", err),
-            })
+            Err(Failed::new(
+                Code::FAILED,
+                format!("failed to add point: {}", err.to_string()),
+                (),
+            ))
         }
     }
 }

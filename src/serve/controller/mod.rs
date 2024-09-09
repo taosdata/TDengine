@@ -776,6 +776,12 @@ impl TaskController {
 
         if let Some(via) = task.via {
             if !self.agent_alive(via).await {
+                self.scheduler
+                    .global_state
+                    .send_task_activity(TaskActivity::error(
+                        task.id,
+                        format!("Agent {} is not alive", via),
+                    ));
                 bail!("Agent {} is not alive", via);
             }
             if from.driver == "pibackfill" || from.driver == "pi" {

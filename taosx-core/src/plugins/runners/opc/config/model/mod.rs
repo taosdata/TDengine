@@ -171,7 +171,7 @@ impl OpcPointMappingRule {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OpcModelConfig {
     pub opc_type: OpcType,
-    pub generate_rule: GeneratePointMappingBy,
+    pub generate_rule: Option<GeneratePointMappingBy>,
     pub point_config_map: LinkedHashMap<String, PointConfig>,
     pub table_config_map: LinkedHashMap<String, TableConfig>,
 }
@@ -226,9 +226,20 @@ impl OpcModelConfig {
         point_id: &str,
         value_type: &IpcDataType,
     ) -> anyhow::Result<(PointConfig, TableConfig)> {
-        assert_eq!(self.point_config_map.len(), self.table_config_map.len());
+        if self.point_config_map.len() != self.table_config_map.len() {
+            bail!(
+                "point_config_map length: {} not equal to table_config_map length: {}",
+                self.point_config_map.len(),
+                self.table_config_map.len()
+            );
+        }
 
-        match &self.generate_rule {
+        let generate_rule = self
+            .generate_rule
+            .clone()
+            .ok_or(anyhow::anyhow!("generate_rule is required"))?;
+
+        match &generate_rule {
             GeneratePointMappingBy::Rule(rule) => {
                 let index = self.point_config_map.len();
                 let p =
@@ -238,12 +249,41 @@ impl OpcModelConfig {
             }
             GeneratePointMappingBy::Csv(csv_files) => {
                 let parser = CsvParser::try_new(self.opc_type.clone(), csv_files.clone())?;
-                let (p, t) = parser.parse_line(point_id).await?.ok_or(anyhow::anyhow!(
+                let (p, t) = parser.parse_one(point_id).await?.ok_or(anyhow::anyhow!(
                     "point_id: {} not found in csv files: {:?}",
                     point_id,
                     csv_files
                 ))?;
                 Ok((p, t))
+            }
+        }
+    }
+
+    pub async fn generate_transform_map(&self, column_name: &str) -> HashMap<String, ColumnConfig> {
+        let result = self.generate_transform_map_impl(column_name).await;
+        match result {
+            Ok(map) => map,
+            Err(err) => {
+                tracing::warn!("failed to generate transform map, use an empty HashMap instead, column: {}, err: {}",column_name,err.to_string());
+                HashMap::new()
+            }
+        }
+    }
+
+    async fn generate_transform_map_impl(
+        &self,
+        column_name: &str,
+    ) -> anyhow::Result<HashMap<String, ColumnConfig>> {
+        match &self.generate_rule {
+            None => {
+                bail!("generate rule is required")
+            }
+            Some(GeneratePointMappingBy::Rule(_rule)) => {
+                bail!("generate transform map by GeneratePointMappingBy::Rule is not supported")
+            }
+            Some(GeneratePointMappingBy::Csv(csv)) => {
+                let parser = CsvParser::try_new(self.opc_type.clone(), csv.clone())?;
+                parser.parse_transform(column_name).await
             }
         }
     }
@@ -413,10 +453,7 @@ fn parse_stable(header: &CsvHeader, row: &StringRecord) -> Option<String> {
 ///      入库温度
 /// tag_value map:
 ///      name => 入库温度
-fn parse_tag_values(
-    header: &CsvHeader,
-    row: &csv_async::StringRecord,
-) -> Option<HashMap<String, String>> {
+fn parse_tag_values(header: &CsvHeader, row: &StringRecord) -> Option<HashMap<String, String>> {
     let mut map = HashMap::new();
 
     for col in header.get_columns() {

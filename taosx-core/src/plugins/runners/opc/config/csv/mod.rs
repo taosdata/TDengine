@@ -13,7 +13,7 @@ use tokio_stream::StreamExt;
 
 use crate::runners::opc::config::csv::header::CsvHeader;
 use crate::runners::opc::config::model::{
-    GeneratePointMappingBy, OpcModelConfig, PointConfig, TableConfig,
+    ColumnConfig, GeneratePointMappingBy, OpcModelConfig, PointConfig, TableConfig,
 };
 use crate::runners::opc::config::OPCConfig;
 use crate::runners::opc::{generate_tbname_from_pattern, OpcType};
@@ -57,55 +57,87 @@ impl CsvParser {
         })
     }
 
-    /// 读取 csv 文件，生成 opc model config
+    /// 直接解析 csv 文件内容，生成 opc model config
+    async fn parse_csv(
+        opc_type: OpcType,
+        content: String,
+        encoded: bool,
+    ) -> anyhow::Result<OpcModelConfig> {
+        let rdr = Self::load_csv_from_content(content.as_str(), encoded).await?;
+
+        let (point_config_map, table_config_map) =
+            Self::parse_point_mapping(opc_type.clone(), rdr).await?;
+
+        Ok(OpcModelConfig {
+            opc_type,
+            generate_rule: None,
+            point_config_map,
+            table_config_map,
+        })
+    }
+
+    async fn parse_point_mapping(
+        opc_type: OpcType,
+        mut rdr: AsyncReader<File>,
+    ) -> anyhow::Result<(
+        LinkedHashMap<String, PointConfig>,
+        LinkedHashMap<String, TableConfig>,
+    )> {
+        let mut point_config_map = LinkedHashMap::new();
+        let mut table_config_map = LinkedHashMap::new();
+
+        // parse header
+        let header = rdr
+            .headers()
+            .await
+            .map_err(|e| anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string()))?;
+        let csv_header = CsvHeader::try_new(opc_type, header)?;
+        csv_header.check_required_columns()?;
+
+        // parse lines
+        let mut records = rdr.records();
+        let mut row_index = 1;
+        while let Some(record) = records.next().await {
+            let row = record.map_err(|e| {
+                anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
+            })?;
+
+            let point_id = Self::parse_point_id(&csv_header, &row)?;
+            // parse point config and table config
+            let p = PointConfig::from_csv(&csv_header, &row, row_index)?;
+            let t = TableConfig::from_csv(&csv_header, &row)?;
+
+            OpcModelConfig::is_conflict(&point_id, &p, &t, &point_config_map, &table_config_map)?;
+
+            point_config_map.insert(point_id.clone(), p);
+            table_config_map.insert(point_id.clone(), t);
+
+            row_index += 1;
+        }
+        if row_index == 1 {
+            bail!("empty csv file");
+        }
+
+        Ok((point_config_map, table_config_map))
+    }
+
+    /// 读取 self.csv_files 的内容，生成 opc model config
     pub async fn parse(&self) -> anyhow::Result<OpcModelConfig> {
         let files = Self::open_csv_files(self.csv_files.clone()).await?;
 
         let mut point_config_map = LinkedHashMap::new();
         let mut table_config_map = LinkedHashMap::new();
 
-        for (_file, mut rdr) in files {
-            // parse header
-            let header = rdr.headers().await.map_err(|e| {
-                anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
-            })?;
-            let csv_header = CsvHeader::try_new(self.opc_type.clone(), header)?;
-            csv_header.check_required_columns()?;
-
-            // parse lines
-            let mut records = rdr.records();
-            let mut row_index = 1;
-            while let Some(record) = records.next().await {
-                let row = record.map_err(|e| {
-                    anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
-                })?;
-
-                let point_id = Self::parse_point_id(&csv_header, &row)?;
-                // parse point config and table config
-                let p = PointConfig::from_csv(&csv_header, &row, row_index)?;
-                let t = TableConfig::from_csv(&csv_header, &row)?;
-
-                OpcModelConfig::is_conflict(
-                    &point_id,
-                    &p,
-                    &t,
-                    &point_config_map,
-                    &table_config_map,
-                )?;
-
-                point_config_map.insert(point_id.clone(), p);
-                table_config_map.insert(point_id.clone(), t);
-
-                row_index += 1;
-            }
-            if row_index == 1 {
-                bail!("empty csv file");
-            }
+        for (_file, rdr) in files {
+            let (point_config, table_config) =
+                Self::parse_point_mapping(self.opc_type.clone(), rdr).await?;
+            point_config_map.extend(point_config);
+            table_config_map.extend(table_config);
         }
 
         Ok(OpcModelConfig {
             opc_type: self.opc_type.clone(),
-            generate_rule: GeneratePointMappingBy::Csv(self.csv_files.clone()),
+            generate_rule: Some(GeneratePointMappingBy::Csv(self.csv_files.clone())),
             point_config_map,
             table_config_map,
         })
@@ -204,6 +236,10 @@ impl CsvParser {
         // write the new csv
         let new_csv = String::from_utf8(writer.into_inner().await?)?;
 
+        let model_config =
+            CsvParser::parse_csv(self.opc_type.clone(), new_csv.clone(), false).await?;
+        model_config.validate()?;
+
         if csv_file.starts_with("@") {
             let file_path = &csv_file[1..];
             let mut file = File::create(file_path).await?;
@@ -220,7 +256,7 @@ impl CsvParser {
             let file_path = &file[1..];
             Self::load_csv_from_filepath(file_path).await?
         } else {
-            Self::load_csv_from_content(&file).await?
+            Self::load_csv_from_content(&file, true).await?
         };
 
         Ok(rdr)
@@ -239,10 +275,17 @@ impl CsvParser {
         Ok(AsyncReader::from_reader(File::open(file_path).await?))
     }
 
-    async fn load_csv_from_content(data: &str) -> anyhow::Result<AsyncReader<File>> {
-        let decoded = general_purpose::STANDARD.decode(data).map_err(|err| {
-            anyhow::anyhow!("failed to decode csv content, cause: {}", err.to_string())
-        })?;
+    async fn load_csv_from_content(
+        data: &str,
+        data_encoded: bool,
+    ) -> anyhow::Result<AsyncReader<File>> {
+        let decoded = if data_encoded {
+            general_purpose::STANDARD.decode(data).map_err(|err| {
+                anyhow::anyhow!("failed to decode csv content, cause: {}", err.to_string())
+            })?
+        } else {
+            data.as_bytes().to_vec()
+        };
 
         // check the file encoding
         let encoding = get_encode_from_buffer(decoded.as_slice())?;
@@ -362,7 +405,46 @@ impl CsvParser {
         // node_config
     }
 
-    pub async fn parse_line(
+    pub async fn parse_transform(
+        &self,
+        column_name: &str,
+    ) -> anyhow::Result<HashMap<String, ColumnConfig>> {
+        let mut transform_map = HashMap::new();
+        let files = Self::open_csv_files(self.csv_files.clone()).await?;
+        for (_file, mut rdr) in files {
+            // parse header
+            let header = rdr.headers().await.map_err(|e| {
+                anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
+            })?;
+            let csv_header = CsvHeader::try_new(self.opc_type.clone(), header)?;
+            csv_header.check_required_columns()?;
+
+            // parse lines
+            let mut records = rdr.records();
+            while let Some(record) = records.next().await {
+                let row = record.map_err(|e| {
+                    anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
+                })?;
+
+                let point_id = row
+                    .get(csv_header.id_index())
+                    .ok_or(anyhow::anyhow!("point id column not found in csv header"))?;
+                let t = TableConfig::from_csv(&csv_header, &row)?;
+                let column = t
+                    .column_configs
+                    .iter()
+                    .find(|c| c.name == column_name)
+                    .ok_or(anyhow::anyhow!(
+                        "column {} not found in csv header",
+                        column_name
+                    ))?;
+                transform_map.insert(point_id.to_string(), column.clone());
+            }
+        }
+        Ok(transform_map)
+    }
+
+    pub async fn parse_one(
         &self,
         point_id: &str,
     ) -> anyhow::Result<Option<(PointConfig, TableConfig)>> {

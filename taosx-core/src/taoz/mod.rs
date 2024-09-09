@@ -30,6 +30,7 @@ type ZFileInner = ZCodec<ZstdEncoder<BufReader<tokio::fs::File>>>;
 ///
 /// Automatically create new file when file reach the max_file_size
 pub struct ZFile {
+    path: PathBuf,
     file: ZCodec<ZstdEncoder<BufReader<tokio::fs::File>>>,
     prefix: PathBuf,
     level: Level,
@@ -37,38 +38,41 @@ pub struct ZFile {
     max_file_size: u64,
     api_version: String,
     server_version: String,
-    // version: Version,
+    move_to: Option<PathBuf>,
 }
 
 async fn new_z_file(
     prefix: impl AsRef<Path>,
-    compression_level: async_compression::Level,
+    compression_level: Level,
     api_version: &str,
     server_version: &str,
-) -> IoResult<ZFileInner> {
+) -> IoResult<(PathBuf, ZFileInner)> {
     let prefix = prefix.as_ref().to_path_buf();
     let now = Local::now();
     let timestamp = now.timestamp();
-    let file = File::create(format!("{}-{timestamp}.z", prefix.display())).await?;
+    let path = PathBuf::from(format!("{}-{timestamp}.z", prefix.display()));
+    let file = File::create(&path).await?;
     let wtr = BufReader::new(file);
-    let wtr = async_compression::tokio::write::ZstdEncoder::with_quality(wtr, compression_level);
+    let wtr = ZstdEncoder::with_quality(wtr, compression_level);
     let mut file = ZCodec::new(wtr);
     file.write_head_async(&Header::new(api_version, server_version, None))
         .await?;
-    Ok(file)
+    Ok((path, file))
 }
 
 impl ZFile {
     pub async fn new(
         prefix: impl AsRef<Path>,
-        compression_level: async_compression::Level,
+        compression_level: Level,
         api_version: &str,
         server_version: &str,
     ) -> IoResult<Self> {
         let prefix = prefix.as_ref().to_path_buf();
-        let file = new_z_file(&prefix, compression_level, api_version, server_version).await?;
+        let (file_name, file) =
+            new_z_file(&prefix, compression_level, api_version, server_version).await?;
         let max_file_size = 1 * 1024 * 1024 * 1024;
         Ok(Self {
+            path: file_name,
             file,
             prefix,
             level: compression_level,
@@ -76,15 +80,38 @@ impl ZFile {
             max_file_size,
             api_version: api_version.to_string(),
             server_version: server_version.to_string(),
-            // version: Version::CURRENT,
+            move_to: None,
         })
+    }
+
+    pub fn set_max_file_size(&mut self, max_file_size: u64) {
+        self.max_file_size = max_file_size;
+    }
+
+    pub fn set_move_to(&mut self, move_to: Option<PathBuf>) {
+        self.move_to = move_to;
     }
 
     pub async fn check_or_next(&mut self) -> IoResult<()> {
         if self.current_size as u64 >= self.max_file_size {
             self.file.flush().await?;
             self.file.shutdown().await?;
-            self.file = new_z_file(
+
+            match &self.move_to {
+                Some(new_dir) => {
+                    // move the current file to a new path
+                    let file_path = &self.path;
+                    if let Some(file_name) = file_path.file_name() {
+                        let new_path = new_dir.clone().join(file_name);
+                        tokio::fs::rename(file_path, new_path).await?;
+                    }
+                }
+                None => {
+                    // nothing
+                }
+            }
+
+            (self.path, self.file) = new_z_file(
                 &self.prefix,
                 self.level,
                 &self.api_version,

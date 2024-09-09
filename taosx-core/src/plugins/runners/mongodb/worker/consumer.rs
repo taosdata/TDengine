@@ -84,24 +84,29 @@ impl Consumer {
         // query database and send to writer
         let mut batch_count: u64 = 0;
         while let Ok(mut config) = receiver.recv_async().await {
-            tracing::debug!("consume task, config: {:?}", &config);
             let end = config.task.end.unwrap_or_else(Utc::now);
             let database = config.task.generate_database()?;
             let collection = config.task.generate_collection()?;
-            let document = config.task.generate_filter()?;
+            let filter = config.task.generate_filter()?;
+            let sort = config.task.generate_sort()?;
             let batch_size = config.advanced.batch_size.unwrap_or(10000);
 
             // set sub task id
             config.sub_task_id = self.config.sub_task_id.clone();
 
-            tracing::debug!("consume task, config:{:?}, filter:{:?}", &config, &document);
+            tracing::debug!(
+                "consume task, config:{:?}, filter:{:?}, sort:{:?}",
+                &config,
+                &filter,
+                &sort
+            );
 
             // query database, oom occurs when rows are too large
-            // let result = query.select_all_and_to_record_batches(&database, &collection, document, batch_size).await;
+            // let result = query.select_all_and_to_record_batches(&database, &collection, filter, batch_size).await;
 
             let run_start = Utc::now().timestamp_millis();
             let result = query
-                .select_all_and_send(&database, &collection, document, batch_size, tx.clone())
+                .select_all_and_send(&database, &collection, filter, sort, batch_size, tx.clone())
                 .await;
             let run_end = Utc::now().timestamp_millis();
 

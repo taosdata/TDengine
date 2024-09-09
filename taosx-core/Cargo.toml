@@ -164,7 +164,7 @@ mongodb = { version = "3.0.0", features = [
 ] }
 
 #rdkafka = { version = "0.36.2", features = ["dynamic-linking"] }
-rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl"] }
+rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl", "tracing"] }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
