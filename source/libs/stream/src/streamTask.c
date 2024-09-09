@@ -416,7 +416,7 @@ int32_t streamTaskSetBackendPath(SStreamTask* pTask) {
 int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, int64_t ver) {
   int32_t code = createStreamTaskIdStr(pTask->id.streamId, pTask->id.taskId, &pTask->id.idStr);
   if (code) {
-    stError("%s failed create stream task id str, code:%s", pTask->id.taskId, tstrerror(code));
+    stError("0x%x failed create stream task id str, code:%s", pTask->id.taskId, tstrerror(code));
     return code;
   }
 
