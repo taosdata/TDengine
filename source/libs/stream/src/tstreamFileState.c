@@ -1016,7 +1016,7 @@ int32_t recoverFillSnapshot(SStreamFileState* pFileState, int64_t ckId) {
       taosMemoryFreeClear(pVal);
       break;
     }
-    ASSERT(vlen == pFileState->rowSize);
+
     memcpy(pNewPos->pRowBuff, pVal, vlen);
     taosMemoryFreeClear(pVal);
     pNewPos->beFlushed = true;

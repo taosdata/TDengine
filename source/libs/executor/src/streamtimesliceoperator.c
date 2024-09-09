@@ -86,7 +86,7 @@ void streamTimeSliceReloadState(SOperatorInfo* pOperator) {
   int32_t num = (size - sizeof(TSKEY)) / sizeof(SWinKey);
   qDebug("===stream=== time slice operator reload state. get result count:%d", num);
   SWinKey* pKeyBuf = (SWinKey*)pBuf;
-  ASSERT(size == num * sizeof(SWinKey) + sizeof(TSKEY));
+  QUERY_CHECK_CONDITION(size == num * sizeof(SWinKey) + sizeof(TSKEY), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
   TSKEY ts = *(TSKEY*)((char*)pBuf + size - sizeof(TSKEY));
   pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, ts);
@@ -665,7 +665,7 @@ static int32_t getLinearResultInfoFromState(SStreamAggSupporter* pAggSup, SStrea
                                                         (void**)&pPrevPoint->pResPos, &preVLen, &tmpRes);
       QUERY_CHECK_CODE(code, lino, _end);
       if (tmpRes == TSDB_CODE_SUCCESS) {
-        ASSERT(!IS_INVALID_WIN_KEY(pPrevPoint->key.ts));
+        QUERY_CHECK_CONDITION(!IS_INVALID_WIN_KEY(pPrevPoint->key.ts), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
         setPointBuff(pPrevPoint, pFillSup);
         if (HAS_ROW_DATA(pPrevPoint->pRightRow)) {
           pFillSup->prev.key = pPrevPoint->pRightRow->key;
@@ -693,7 +693,7 @@ static int32_t getLinearResultInfoFromState(SStreamAggSupporter* pAggSup, SStrea
                                                         (void**)&pNextPoint->pResPos, &nextVLen, &tmpRes);
       QUERY_CHECK_CODE(code, lino, _end);
       if (tmpRes == TSDB_CODE_SUCCESS) {
-        ASSERT(!IS_INVALID_WIN_KEY(pNextPoint->key.ts));
+        QUERY_CHECK_CONDITION(!IS_INVALID_WIN_KEY(pNextPoint->key.ts), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
         setPointBuff(pNextPoint, pFillSup);
         if (HAS_ROW_DATA(pNextPoint->pLeftRow)) {
           pFillSup->next.key = pNextPoint->pLeftRow->key;
@@ -750,7 +750,7 @@ static int32_t getResultInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillS
                                                     (void**)&pPrevPoint->pResPos, &preVLen, &tmpRes);
   QUERY_CHECK_CODE(code, lino, _end);
   if (tmpRes == TSDB_CODE_SUCCESS) {
-    ASSERT(!IS_INVALID_WIN_KEY(pPrevPoint->key.ts));
+    QUERY_CHECK_CONDITION(!IS_INVALID_WIN_KEY(pPrevPoint->key.ts), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     setPointBuff(pPrevPoint, pFillSup);
     if (HAS_ROW_DATA(pPrevPoint->pRightRow)) {
       pFillSup->prev.key = pPrevPoint->pRightRow->key;
@@ -768,7 +768,7 @@ static int32_t getResultInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillS
                                                     (void**)&pNextPoint->pResPos, &nextVLen, &tmpRes);
   QUERY_CHECK_CODE(code, lino, _end);
   if (tmpRes == TSDB_CODE_SUCCESS) {
-    ASSERT(!IS_INVALID_WIN_KEY(pNextPoint->key.ts));
+    QUERY_CHECK_CONDITION(!IS_INVALID_WIN_KEY(pNextPoint->key.ts), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     setPointBuff(pNextPoint, pFillSup);
     if (HAS_ROW_DATA(pNextPoint->pLeftRow)) {
       pFillSup->next.key = pNextPoint->pLeftRow->key;
@@ -977,7 +977,7 @@ static void setForceWindowCloseFillRule(SStreamFillSupporter* pFillSup, SStreamF
       pFillInfo->pResRow = &pFillSup->prev;
     } break;
     default:
-      ASSERT(0);
+      qError("%s failed at line %d since invalid fill type", __func__, __LINE__);
       break;
   }
 
@@ -988,6 +988,8 @@ _end:
 }
 
 static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, TSKEY ts) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (!hasNextWindow(pFillSup) && !hasPrevWindow(pFillSup)) {
     pFillInfo->needFill = false;
     pFillInfo->pos = FILL_POS_START;
@@ -1039,7 +1041,7 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
         pFillSup->prev.key = ts;
         pFillSup->prev.pRowVal = pFillSup->cur.pRowVal;
       } else {
-        ASSERT(hasPrevWindow(pFillSup));
+        QUERY_CHECK_CONDITION(hasPrevWindow(pFillSup), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR); 
         setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;
       }
@@ -1087,7 +1089,7 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
         pFillInfo->pResRow = &pFillSup->prev;
         pFillInfo->pLinearInfo->hasNext = false;
       } else {
-        ASSERT(hasNextWindow(pFillSup));
+        QUERY_CHECK_CONDITION(hasNextWindow(pFillSup), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
         setFillKeyInfo(startTs, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
         SET_WIN_KEY_INVALID(pFillInfo->pLinearInfo->nextEnd);
@@ -1099,13 +1101,16 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
       }
     } break;
     default:
-      ASSERT(0);
+      qError("%s failed at line %d since invalid fill type", __func__, __LINE__);
       break;
   }
 
 _end:
   if (ts != pFillSup->cur.key) {
     pFillInfo->pos = FILL_POS_INVALID;
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 }
 
@@ -1145,7 +1150,7 @@ static bool needAdjustValue(SSlicePoint* pPoint, TSKEY ts, bool isLeft, int32_t 
       }
     } break;
     default:
-      ASSERT(0);
+      qError("%s failed at line %d since invalid fill type", __func__, __LINE__);
   }
   return false;
 }
@@ -1276,7 +1281,7 @@ static void doStreamTimeSliceImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock)
                                                 TSDB_ORDER_ASC);
     startPos += numOfWin;
     int32_t leftRowId = getQualifiedRowNumDesc(pExprSup, pBlock, tsCols, startPos - 1, pInfo->ignoreNull);
-    ASSERT(leftRowId >= 0);
+    QUERY_CHECK_CONDITION((leftRowId >= 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     left = needAdjustValue(&nextPoint, tsCols[leftRowId], true, pFillSup->type);
     if (left) {
       transBlockToResultRow(pBlock, leftRowId, tsCols[leftRowId], nextPoint.pLeftRow);

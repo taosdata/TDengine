@@ -1156,9 +1156,6 @@ int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo) {
       SStreamTimeSliceOperatorInfo* pInfo = pOperator->info;
       STimeWindowAggSupp*           pSup = &pInfo->twAggSup;
 
-      ASSERT(pSup->calTrigger == STREAM_TRIGGER_AT_ONCE || pSup->calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);
-      ASSERT(pSup->calTriggerSaved == 0 && pSup->deleteMarkSaved == 0);
-
       qInfo("save stream param for state: %d,  %" PRId64, pSup->calTrigger, pSup->deleteMark);
 
       pSup->calTriggerSaved = pSup->calTrigger;
