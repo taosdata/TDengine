@@ -1630,4 +1630,30 @@ mod tests {
             .collect::<Vec<_>>();
         dbg!(topics_readable.len());
     }
+
+    #[tokio::test]
+    #[ignore]
+    async fn produce_messages() {
+        use rdkafka::config::ClientConfig;
+        use rdkafka::producer::{FutureProducer, FutureRecord, Producer};
+        use rdkafka::util::Timeout;
+
+        let producer: FutureProducer = ClientConfig::new()
+            .set("bootstrap.servers", "kafka:9092")
+            .create()
+            .unwrap();
+
+        for _ in 0..300 {
+            producer
+                .send(
+                    FutureRecord::to("tp1")
+                        .payload(r#"{"a": 1725518745000, "c": 3}"#)
+                        .key("key"),
+                    Timeout::Never,
+                )
+                .await
+                .unwrap();
+        }
+        producer.flush(std::time::Duration::from_secs(5)).unwrap();
+    }
 }
