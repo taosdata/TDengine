@@ -274,7 +274,8 @@ int32_t simExecuteExpression(SScript *script, char *exp) {
 
   if (op1Len == 1) {
     if (op1[0] == '=') {
-      strcpy(simGetVariable(script, var1 + 1, var1Len - 1), t3);
+      char *str = simGetVariable(script, var1 + 1, var1Len - 1);
+      tstrncpy(str, t3, strlen(str));
     } else if (op1[0] == '<') {
       int64_t val0 = atoll(t0);
       int64_t val1 = atoll(t3);
@@ -607,11 +608,11 @@ void simVisuallizeOption(SScript *script, char *src, char *dst) {
     src = paGetToken(var + 1, &token, &tokenLen);
     value = simGetVariable(script, token, tokenLen);
 
-    strcpy(dst + dstLen, value);
+    tstrncpy(dst + dstLen, value, strlen(dst) - dstLen);
     dstLen += (int32_t)strlen(value);
   }
 
-  strcpy(dst + dstLen, src);
+  tstrncpy(dst + dstLen, src, strlen(src) - dstLen);
 }
 
 void simCloseNativeConnect(SScript *script) {
@@ -736,7 +737,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
           }
 
           if (row[i] == 0) {
-            strcpy(value, TSDB_DATA_NULL_STR);
+            tstrncpy(value, TSDB_DATA_NULL_STR, strlen(value) + 1);
             continue;
           }
 
@@ -846,11 +847,11 @@ bool simExecuteSqlImpCmd(SScript *script, char *rest, bool isSlow) {
   rest = buf;
 
   simDebug("script:%s, exec:%s", script->fileName, rest);
-  strcpy(script->rows, "-1");
-  strcpy(script->cols, "-1");
+  tstrncpy(script->rows, "-1", sizeof(script->rows));
+  tstrncpy(script->cols, "-1", sizeof(script->cols));
   for (int32_t row = 0; row < MAX_QUERY_ROW_NUM; ++row) {
     for (int32_t col = 0; col < MAX_QUERY_COL_NUM; ++col) {
-      strcpy(script->data[row][col], "null");
+      tstrncpy(script->data[row][col], "null", sizeof(script->data[row][col]));
     }
   }
 
@@ -943,11 +944,11 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
   rest = buf;
 
   simDebug("script:%s, exec:%s", script->fileName, rest);
-  strcpy(script->rows, "-1");
-  strcpy(script->cols, "-1");
+  tstrncpy(script->rows, "-1", sizeof(script->rows));
+  tstrncpy(script->cols, "-1", sizeof(script->cols));
   for (int32_t row = 0; row < MAX_QUERY_ROW_NUM; ++row) {
     for (int32_t col = 0; col < MAX_QUERY_COL_NUM; ++col) {
-      strcpy(script->data[row][col], "null");
+      tstrncpy(script->data[row][col], "null", sizeof(script->data[row][col]));
     }
   }
 

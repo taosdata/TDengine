@@ -92,7 +92,8 @@ SWords shellCommands[] = {
     {"create table <anyword> using <stb_name> tags(", 0, 0, NULL},
     {"create database <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> "
      "<anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> "
-     "<db_options> <anyword> <db_options> <anyword> ;", 0, 0, NULL},
+     "<db_options> <anyword> <db_options> <anyword> ;",
+     0, 0, NULL},
     {"create dnode <anyword>", 0, 0, NULL},
     {"create index <anyword> on <stb_name> ()", 0, 0, NULL},
     {"create mnode on dnode <dnode_id> ;", 0, 0, NULL},
@@ -101,11 +102,15 @@ SWords shellCommands[] = {
     {"create topic <anyword> as select", 0, 0, NULL},                  // 27 append sub sql
     {"create function <anyword> as <anyword> outputtype <data_types> language <udf_language>", 0, 0, NULL},
     {"create or replace <anyword> as <anyword> outputtype <data_types> language <udf_language>", 0, 0, NULL},
-    {"create aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>", 0, 0, NULL},
-    {"create or replace aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>", 0, 0, NULL},
+    {"create aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language "
+     "<udf_language>",
+     0, 0, NULL},
+    {"create or replace aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language "
+     "<udf_language>",
+     0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 0;", 0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 1;", 0, 0, NULL},
-#ifdef TD_ENTERPRISE    
+#ifdef TD_ENTERPRISE
     {"create view <anyword> as select", 0, 0, NULL},
     {"compact database <db_name>", 0, 0, NULL},
 #endif
@@ -163,7 +168,7 @@ SWords shellCommands[] = {
     {"show create database <db_name> \\G;", 0, 0, NULL},
     {"show create stable <stb_name> \\G;", 0, 0, NULL},
     {"show create table <tb_name> \\G;", 0, 0, NULL},
-#ifdef TD_ENTERPRISE    
+#ifdef TD_ENTERPRISE
     {"show create view <all_table> \\G;", 0, 0, NULL},
 #endif
     {"show connections;", 0, 0, NULL},
@@ -284,18 +289,27 @@ char* db_options[] = {"keep ",
                       "wal_level ",
                       "vgroups ",
                       "single_stable ",
-		      "s3_chunksize ",
-		      "s3_keeplocal ",
-		      "s3_compact ",
+                      "s3_chunksize ",
+                      "s3_keeplocal ",
+                      "s3_compact ",
                       "wal_retention_period ",
                       "wal_roll_period ",
                       "wal_retention_size ",
                       "wal_segment_size "};
 
-char* alter_db_options[] = {"cachemodel ", "replica ", "keep ", "stt_trigger ",
-                            "wal_retention_period ", "wal_retention_size ", "cachesize ", 
-			    "s3_keeplocal ", "s3_compact ",
-                            "wal_fsync_period ", "buffer ", "pages " ,"wal_level "};
+char* alter_db_options[] = {"cachemodel ",
+                            "replica ",
+                            "keep ",
+                            "stt_trigger ",
+                            "wal_retention_period ",
+                            "wal_retention_size ",
+                            "cachesize ",
+                            "s3_keeplocal ",
+                            "s3_compact ",
+                            "wal_fsync_period ",
+                            "buffer ",
+                            "pages ",
+                            "wal_level "};
 
 char* data_types[] = {"timestamp",    "int",
                       "int unsigned", "varchar(16)",
@@ -320,18 +334,8 @@ char* key_systable[] = {
 char* udf_language[] = {"\'Python\'", "\'C\'"};
 
 // global keys can tips on anywhere
-char* global_keys[] = {
-    "tbname",         
-    "now",     
-    "_wstart",      
-    "_wend",
-    "_wduration",
-    "_qstart",          
-    "_qend",
-    "_qduration",
-    "_qtag",
-    "_isfilled"
-  };
+char* global_keys[] = {"tbname",  "now",   "_wstart",    "_wend", "_wduration",
+                       "_qstart", "_qend", "_qduration", "_qtag", "_isfilled"};
 
 //
 //  ------- global variant define ---------
@@ -345,17 +349,17 @@ bool    waitAutoFill = false;
 //
 //   ----------- global var array define -----------
 //
-#define WT_VAR_DBNAME         0
-#define WT_VAR_STABLE         1
-#define WT_VAR_TABLE          2
-#define WT_VAR_DNODEID        3
-#define WT_VAR_USERNAME       4
-#define WT_VAR_TOPIC          5
-#define WT_VAR_STREAM         6
-#define WT_VAR_UDFNAME        7
-#define WT_VAR_VGROUPID       8
+#define WT_VAR_DBNAME   0
+#define WT_VAR_STABLE   1
+#define WT_VAR_TABLE    2
+#define WT_VAR_DNODEID  3
+#define WT_VAR_USERNAME 4
+#define WT_VAR_TOPIC    5
+#define WT_VAR_STREAM   6
+#define WT_VAR_UDFNAME  7
+#define WT_VAR_VGROUPID 8
 
-#define WT_FROM_DB_MAX        8  // max get content from db
+#define WT_FROM_DB_MAX 8  // max get content from db
 #define WT_FROM_DB_CNT (WT_FROM_DB_MAX + 1)
 
 #define WT_VAR_ALLTABLE       9
@@ -376,7 +380,6 @@ bool    waitAutoFill = false;
 
 #define WT_VAR_CNT 24
 
-
 #define WT_TEXT 0xFF
 
 char dbName[256] = "";  // save use database name;
@@ -386,13 +389,15 @@ TdThreadMutex tiresMutex;
 // save thread handle obtain var name from db server
 TdThread* threads[WT_FROM_DB_CNT];
 // obtain var name  with sql from server
-char varTypes[WT_VAR_CNT][64] = {
-    "<db_name>",    "<stb_name>",  "<tb_name>",  "<dnode_id>",  "<user_name>",    "<topic_name>", "<stream_name>",
-    "<udf_name>",   "<vgroup_id>", "<all_table>", "<function>", "<keyword>",    "<tb_actions>",   "<db_options>", "<alter_db_options>",
-    "<data_types>", "<key_tags>",  "<anyword>",  "<tb_options>", "<user_actions>", "<key_select>", "<sys_table>", "<udf_language>"};
+char varTypes[WT_VAR_CNT][64] = {"<db_name>",    "<stb_name>",    "<tb_name>",     "<dnode_id>",   "<user_name>",
+                                 "<topic_name>", "<stream_name>", "<udf_name>",    "<vgroup_id>",  "<all_table>",
+                                 "<function>",   "<keyword>",     "<tb_actions>",  "<db_options>", "<alter_db_options>",
+                                 "<data_types>", "<key_tags>",    "<anyword>",     "<tb_options>", "<user_actions>",
+                                 "<key_select>", "<sys_table>",   "<udf_language>"};
 
-char varSqls[WT_FROM_DB_CNT][64] = {"show databases;", "show stables;", "show tables;", "show dnodes;",
-                                    "show users;",     "show topics;",  "show streams;", "show functions;", "show vgroups;"};
+char varSqls[WT_FROM_DB_CNT][64] = {"show databases;", "show stables;",   "show tables;",
+                                    "show dnodes;",    "show users;",     "show topics;",
+                                    "show streams;",   "show functions;", "show vgroups;"};
 
 // var words current cursor, if user press any one key except tab, cursorVar can be reset to -1
 int  cursorVar = -1;
@@ -425,11 +430,11 @@ void printfIntroduction(bool community) {
   printf("  *    [ Ctrl + L ]   ......  clear the entire screen                                    *\n");
   printf("  *    [ Ctrl + K ]   ......  clear the screen after the cursor                          *\n");
   printf("  *    [ Ctrl + U ]   ......  clear the screen before the cursor                         *\n");
-  if(community) {
-  printf("  * ------------------------------------------------------------------------------------ *\n");
-  printf("  *   You are using TDengine OSS. To experience advanced features, like backup/restore,  *\n");
-  printf("  *   privilege control and more, or receive 7x24 technical support, try TDengine        *\n");
-  printf("  *   Enterprise or TDengine Cloud. Learn more at https://tdengine.com                 *\n");
+  if (community) {
+    printf("  * ------------------------------------------------------------------------------------ *\n");
+    printf("  *   You are using TDengine OSS. To experience advanced features, like backup/restore,  *\n");
+    printf("  *   privilege control and more, or receive 7x24 technical support, try TDengine        *\n");
+    printf("  *   Enterprise or TDengine Cloud. Learn more at https://tdengine.com                 *\n");
   }
   printf("  ****************************************************************************************\n\n");
 }
@@ -1863,7 +1868,6 @@ bool matchEnd(TAOS* con, SShellCmd* cmd) {
     goto _return;
   }
 
-
 _return:
   taosMemoryFree(ps);
   return ret;
@@ -1872,7 +1876,7 @@ _return:
 // main key press tab
 void pressTabKey(SShellCmd* cmd) {
 #ifdef WINDOWS
-  return ;
+  return;
 #endif
   // check empty tab key
   if (cmd->commandSize == 0) {
@@ -1918,7 +1922,7 @@ void pressTabKey(SShellCmd* cmd) {
 // press othr key
 void pressOtherKey(char c) {
 #ifdef WINDOWS
-  return ;
+  return;
 #endif
 
   // reset global variant
@@ -1996,7 +2000,7 @@ bool dealUseDB(char* sql) {
     freeTire(tire);
   }
   // save
-  strcpy(dbName, db);
+  tstrncpy(dbName, db, sizeof(dbName));
   taosThreadMutexUnlock(&tiresMutex);
 
   return true;

@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tenv.h"
 #include "tconfig.h"
+#include "tenv.h"
 
 static char toLowChar(char c) { return (c > 'Z' || c < 'A' ? c : (c - 'A' + 'a')); }
 
@@ -57,7 +57,7 @@ int32_t taosEnvToCfg(const char *envStr, char *cfgStr) {
   if (envStr == NULL || cfgStr == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  if (cfgStr != envStr) strcpy(cfgStr, envStr);
+  if (cfgStr != envStr) tstrncpy(cfgStr, envStr, strlen(cfgStr));
   char *p = strchr(cfgStr, '=');
 
   if (p != NULL) {

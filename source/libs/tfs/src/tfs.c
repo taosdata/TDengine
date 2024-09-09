@@ -592,7 +592,7 @@ static int32_t tfsFormatDir(char *idir, char *odir) {
     wordfree(&wep);
     TAOS_RETURN(code);
   }
-  strcpy(odir, tmp);
+  tstrncpy(odir, tmp, strlen(tmp) + 1);
 
   wordfree(&wep);
   TAOS_RETURN(0);
