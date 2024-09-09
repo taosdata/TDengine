@@ -4849,6 +4849,16 @@ class StreamComputingTest(TDCase):
         #     self.tdSql.error(f'create stream if not exists {stream_name} into {dbname2}.{tbname} as select ts,c100 from {self.dbname}.{self.case_name}_{tbname}')
 
     def wait_checkpoint_ready(self, stream_name):
+        """
+        Waits for the checkpoint of a stream to be ready.
+
+        Args:
+            stream_name (str): The name of the stream.
+
+        Returns:
+            None: If the checkpoint is not ready within the specified timeout.
+
+        """
         time.sleep(3)
         cnt = 0
         cmd = f'select distinct status from information_schema.ins_stream_tasks where stream_name = "{stream_name}"'
@@ -4857,7 +4867,8 @@ class StreamComputingTest(TDCase):
         self._remote._logger.info(f'distinct status-------{query_result}')
         self.tdSql.query('select * from information_schema.ins_stream_tasks')
         self._remote._logger.info(self.tdSql.query_data)
-        while len(query_result) != 0 and query_result[0][0] != "ready":
+        while len(query_result) != 1 or query_result[0][0] != "ready":
+            self._remote._logger.info("retrying to wait checkpoint ready")
             time.sleep(1)
             self.tdSql.query(cmd)
             query_result = self.tdSql.query_data
