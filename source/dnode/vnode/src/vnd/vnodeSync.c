@@ -589,7 +589,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
         tqInfo("vgId:%d stream task already loaded, start them", vgId);
         int32_t code = streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
         if (code != 0) {
-          tqError("vgId:%^d failed to sched stream task, code:%s", vgId, tstrerror(code));
+          tqError("vgId:%d failed to sched stream task, code:%s", vgId, tstrerror(code));
         }
         return;
       }
