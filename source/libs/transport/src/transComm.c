@@ -15,7 +15,7 @@
 
 #include "transComm.h"
 
-#define BUFFER_CAP 4096
+#define BUFFER_CAP 16 * 4096
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
@@ -341,7 +341,7 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
 
 void transCtxInit(STransCtx* ctx) {
   // init transCtx
-  ctx->args = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UINT), true, HASH_NO_LOCK);
+  ctx->args = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 }
 void transCtxCleanup(STransCtx* ctx) {
   if (ctx->args == NULL) {
@@ -350,6 +350,8 @@ void transCtxCleanup(STransCtx* ctx) {
 
   STransCtxVal* iter = taosHashIterate(ctx->args, NULL);
   while (iter) {
+    int32_t* type = taosHashGetKey(iter, NULL);
+    tDebug("free msg type %s dump func", TMSG_INFO(*type));
     ctx->freeFunc(iter->val);
     iter = taosHashIterate(ctx->args, iter);
   }
@@ -409,27 +411,22 @@ void transReqQueueInit(queue* q) {
   // init req queue
   QUEUE_INIT(q);
 }
-void* transReqQueuePush(queue* q) {
-  STransReq* req = taosMemoryCalloc(1, sizeof(STransReq));
-  if (req == NULL) {
-    return NULL;
-  }
-  req->wreq.data = req;
-  QUEUE_PUSH(q, &req->q);
-  return &req->wreq;
+void* transReqQueuePush(queue* q, STransReq* userReq) {
+  uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
+  req->data = userReq;
+
+  QUEUE_PUSH(q, &userReq->q);
+  return req;
 }
 void* transReqQueueRemove(void* arg) {
   void*       ret = NULL;
-  uv_write_t* wreq = arg;
+  uv_write_t* req = arg;
 
-  STransReq* req = wreq ? wreq->data : NULL;
+  STransReq* userReq = req ? req->data : NULL;
   if (req == NULL) return NULL;
-  QUEUE_REMOVE(&req->q);
+  QUEUE_REMOVE(&userReq->q);
 
-  ret = wreq && wreq->handle ? wreq->handle->data : NULL;
-  taosMemoryFree(req);
-
-  return ret;
+  return userReq;
 }
 void transReqQueueClear(queue* q) {
   while (!QUEUE_IS_EMPTY(q)) {

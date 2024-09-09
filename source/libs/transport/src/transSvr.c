@@ -72,6 +72,9 @@ typedef struct SSvrMsg {
   void*         arg;
   FilteFunc     func;
   int8_t        sent;
+
+  queue sendReq;
+
 } SSvrMsg;
 
 typedef struct {
@@ -618,17 +621,35 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
 
 void uvOnSendCb(uv_write_t* req, int status) {
   STUB_RAND_NETWORK_ERR(status);
-  SSvrConn* conn = transReqQueueRemove(req);
-  if (conn == NULL) return;
+
+  queue q;
+  QUEUE_INIT(&q);
+
+  STransReq* userReq = transReqQueueRemove(req);
+  SSvrConn*  conn = userReq->conn;
+
+  queue* src = &userReq->node;
+  while (!QUEUE_IS_EMPTY(src)) {
+    queue* head = QUEUE_HEAD(src);
+    QUEUE_REMOVE(head);
+    QUEUE_PUSH(&q, head);
+    // }
+  }
+  // QUEUE_MOVE(src, &q);
+
+  tDebug("%s conn %p send data", transLabel(conn->pInst), conn);
 
   if (status == 0) {
-    for (int32_t i = 0; i < transQueueSize(&conn->srvMsgs); i++) {
-      SSvrMsg* smsg = transQueueGet(&conn->srvMsgs, i);
-      if (smsg->sent == 1) {
-        transQueueRm(&conn->srvMsgs, i);
-        destroySmsg(smsg);
-        i--;
-      }
+    while (!QUEUE_IS_EMPTY(&q)) {
+      queue* head = QUEUE_HEAD(&q);
+      QUEUE_REMOVE(head);
+
+      SSvrMsg* smsg = QUEUE_DATA(head, SSvrMsg, sendReq);
+
+      STraceId* trace = &smsg->msg.info.traceId;
+      tGDebug("%s conn %p msg already send out, seqNum:%d, qid:%ld", transLabel(conn->pInst), conn,
+              smsg->msg.info.seqNum, smsg->msg.info.qId);
+      destroySmsg(smsg);
     }
   } else {
     if (!uv_is_closing((uv_handle_t*)(conn->pTcp))) {
@@ -705,7 +726,7 @@ static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   wb->len = len;
   return 0;
 }
-static int32_t uvBuildToSendData(SSvrConn* pConn, uv_buf_t** ppBuf, int32_t* bufNum) {
+static int32_t uvBuildToSendData(SSvrConn* pConn, uv_buf_t** ppBuf, int32_t* bufNum, queue* sendReqNode) {
   int32_t count = 0;
 
   int32_t   size = transQueueSize(&pConn->srvMsgs);
@@ -713,7 +734,9 @@ static int32_t uvBuildToSendData(SSvrConn* pConn, uv_buf_t** ppBuf, int32_t* buf
   if (pWb == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  for (int32_t i = 0; i < size; i++) {
+
+  tDebug("%s conn %p has %d msg to send", transLabel(pConn->pInst), pConn, size);
+  for (int32_t i = 0; i < transQueueSize(&pConn->srvMsgs); i++) {
     SSvrMsg* pMsg = transQueueGet(&pConn->srvMsgs, i);
     if (pMsg->sent == 1) {
       continue;
@@ -721,8 +744,12 @@ static int32_t uvBuildToSendData(SSvrConn* pConn, uv_buf_t** ppBuf, int32_t* buf
     uv_buf_t wb;
     (void)uvPrepareSendData(pMsg, &wb);
     pWb[count] = wb;
-
     pMsg->sent = 1;
+
+    QUEUE_PUSH(sendReqNode, &pMsg->sendReq);
+
+    transQueueRm(&pConn->srvMsgs, i);
+    i--;
     count++;
   }
 
@@ -743,20 +770,30 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
   if (pConn->broken) {
     return;
   }
+  queue sendReqNode;
+  QUEUE_INIT(&sendReqNode);
 
   uv_buf_t* pBuf = NULL;
   int32_t   bufNum = 0;
-  code = uvBuildToSendData(pConn, &pBuf, &bufNum);
+  code = uvBuildToSendData(pConn, &pBuf, &bufNum, &sendReqNode);
   if (code != 0) {
     tError("%s conn %p failed to send data", transLabel(pConn->pInst), pConn);
     return;
   }
   if (bufNum == 0) {
+    tDebug("%s conn %p no data to send", transLabel(pConn->pInst), pConn);
     return;
   }
 
   transRefSrvHandle(pConn);
-  uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
+
+  STransReq* pWreq = taosMemoryCalloc(1, sizeof(STransReq));
+  pWreq->conn = pConn;
+  QUEUE_INIT(&pWreq->q);
+
+  QUEUE_MOVE(&sendReqNode, &pWreq->node);
+
+  uv_write_t* req = transReqQueuePush(&pConn->wreqQueue, pWreq);
   if (req == NULL) {
     if (!uv_is_closing((uv_handle_t*)(pConn->pTcp))) {
       tError("conn %p failed to write data, reason:%s", pConn, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
