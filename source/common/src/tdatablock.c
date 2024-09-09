@@ -3415,11 +3415,12 @@ void blockDataCheck(const SSDataBlock* pDataBlock) {
     checkRows = pDataBlock->info.rows;
 
     if (isVarType) {
-      ASSERT(pCol->varmeta.length);
+      ASSERT(pCol->varmeta.offset);
     } else {
       ASSERT(pCol->nullbitmap);
     }
-    
+
+    nextPos = 0;
     for (int64_t r = 0; r < checkRows; ++r) {
       if (!colDataIsNull_s(pCol, r)) {
         ASSERT(pCol->pData);
