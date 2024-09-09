@@ -106,6 +106,8 @@ typedef struct SFirstLastRes {
   int32_t   bytes;
   int64_t   ts;
   STuplePos pos;
+  STuplePos nullTuplePos;
+  bool      nullTupleSaved;
   char      buf[];
 } SFirstLastRes;
 
