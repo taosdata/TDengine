@@ -104,19 +104,20 @@ function check_taosd() {
                     echo "${BACKUP_CORE_FOLDER} does not exist and create it"
                     mkdir -p ${BACKUP_CORE_FOLDER}
                 fi
-                # 检查和设置 core 文件大小限制
-                ulimit -c unlimited
+                logger "INFO" "sleep 5s to generate core file"
+                sleep 5
+                # generate core file 
                 taosdTID=$(pidof taosd)
-                if gcore -a -o ${BACKUP_CORE_FOLDER}/taosd.core.${SUFFIX} $taosdTID; then 
-                    logger "ERROR" "generated corefile ${BACKUP_CORE_FOLDER}/taosd.core.${SUFFIX} for taosd $taosdTID"
-                else  
+                if gcore -a -o "$BACKUP_CORE_FOLDER/taosd.core.$SUFFIX" "$taosdTID"; then 
+                    logger "INFO" "generated corefile ${BACKUP_CORE_FOLDER}/taosd.core.${SUFFIX} for taosd $taosdTID"
+                else
                     logger "ERROR" "failed to generate corefile ${BACKUP_CORE_FOLDER}/taosd.core.${SUFFIX} for taosd $taosdTID"  
                 fi
                 # alert the message
                 post_error_msg
                 # kill the taosd with -15 if failed with -9
                 if kill -15 $taosdTID; then
-                    logger "ERROR" "killed taosd $taosdTID with -15"
+                    logger "INFO" "killed taosd $taosdTID with -15"
                 else
                     logger "ERROR" "failed to kill the taosd $taosdTID with -15 and try to kill it with -9"
                     kill -9 $taosdTID;
@@ -144,7 +145,7 @@ function post_error_msg() {
                 \"taosVersion\":\"${taos_version}\",\
                 \"alertMsg\":\"${service_msg}\"}" \
                 ${ADMIN_URL}/${ALERT_URL} 2>&1 | tee -a /var/log/run.log
-            echo -e "\n"
+            echo "" >> /var/log/run.log
         fi
     fi
 }
