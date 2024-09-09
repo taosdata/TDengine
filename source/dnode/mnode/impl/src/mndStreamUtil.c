@@ -1510,7 +1510,7 @@ int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_
 
   char trigger[20 + VARSTR_HEADER_SIZE] = {0};
   char trigger2[20] = {0};
-  mndShowStreamTrigger(trigger2, 20，pStream);
+  mndShowStreamTrigger(trigger2, 20, pStream);
   STR_WITH_MAXSIZE_TO_VARSTR(trigger, trigger2, sizeof(trigger));
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
@@ -1551,7 +1551,7 @@ int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_
 
   // history scan idle
   char scanHistoryIdle[20 + VARSTR_HEADER_SIZE] = {0};
-  tstrncpy(scanHistoryIdle, "100a",20 + VARSTR_HEADER_SIZE);
+  tstrncpy(scanHistoryIdle, "100a", 20 + VARSTR_HEADER_SIZE);
 
   memset(dstStr, 0, tListLen(dstStr));
   STR_TO_VARSTR(dstStr, scanHistoryIdle)

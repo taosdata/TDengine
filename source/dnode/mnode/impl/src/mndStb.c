@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndStb.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -26,7 +27,6 @@
 #include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndSma.h"
-#include "mndStb.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"

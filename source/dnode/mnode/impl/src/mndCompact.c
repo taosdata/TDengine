@@ -12,8 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "audit.h"
 #include "mndCompact.h"
+#include "audit.h"
 #include "mndCompactDetail.h"
 #include "mndDb.h"
 #include "mndDnode.h"

@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "functionMgt.h"
+#include "mndSma.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndIndex.h"
@@ -24,7 +24,6 @@
 #include "mndPrivilege.h"
 #include "mndScheduler.h"
 #include "mndShow.h"
-#include "mndSma.h"
 #include "mndStb.h"
 #include "mndStream.h"
 #include "mndTrans.h"
@@ -32,6 +31,7 @@
 #include "mndVgroup.h"
 #include "parser.h"
 #include "tname.h"
+#include "functionMgt.h"
 
 #define TSDB_SMA_VER_NUMBER   1
 #define TSDB_SMA_RESERVE_SIZE 64

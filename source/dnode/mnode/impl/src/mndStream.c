@@ -13,13 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "mndStream.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndPrivilege.h"
 #include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndStb.h"
-#include "mndStream.h"
 #include "mndTrans.h"
 #include "mndVgroup.h"
 #include "osMemory.h"
