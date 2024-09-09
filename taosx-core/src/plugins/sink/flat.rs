@@ -831,10 +831,7 @@ pub async fn flat_write_with_raw_block(
                 } else if errno == 0x267B {
                     // TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL
                     // SQL internal error, ignore for now
-                    tracing::warn!(
-                        code = errno,
-                        "write raw block sql error: Primary key column should not be null",
-                    );
+                    tracing::warn!("write raw block sql error: {err:#}",);
                     break;
                 } else {
                     error!(table = table_name.as_ref(), code = %code, "write {} records failed: {err:?}", records.records.num_rows());
