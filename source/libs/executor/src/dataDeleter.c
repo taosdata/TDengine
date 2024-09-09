@@ -80,8 +80,8 @@ static int32_t toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* p
   SDeleterRes* pRes = (SDeleterRes*)pEntry->data;
   pRes->suid = pHandle->pParam->suid;
   pRes->uidList = pHandle->pParam->pUidList;
-  TAOS_STRCPY(pRes->tableName, pHandle->pDeleter->tableFName);
-  TAOS_STRCPY(pRes->tsColName, pHandle->pDeleter->tsColName);
+  tstrncpy(pRes->tableName, pHandle->pDeleter->tableFName, sizeof(pRes->tableName));
+  tstrncpy(pRes->tsColName, pHandle->pDeleter->tsColName, sizeof(pRes->tsColName));
   pRes->affectedRows = *(int64_t*)pColRes->pData;
 
   if (pRes->affectedRows) {
@@ -133,7 +133,7 @@ static int32_t updateStatus(SDataDeleterHandle* pDeleter) {
                       : (blockNums < pDeleter->pManager->cfg.maxDataBlockNumPerQuery ? DS_BUF_LOW : DS_BUF_FULL));
   pDeleter->status = status;
   (void)taosThreadMutexUnlock(&pDeleter->mutex);
-  
+
   return status;
 }
 
@@ -141,7 +141,7 @@ static int32_t getStatus(SDataDeleterHandle* pDeleter) {
   (void)taosThreadMutexLock(&pDeleter->mutex);
   int32_t status = pDeleter->status;
   (void)taosThreadMutexUnlock(&pDeleter->mutex);
-  
+
   return status;
 }
 
@@ -169,7 +169,7 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
 _return:
 
   taosFreeQitem(pBuf);
-  
+
   return code;
 }
 
@@ -321,6 +321,6 @@ _end:
   } else {
     taosMemoryFree(pManager);
   }
-  
+
   return code;
 }

@@ -2609,7 +2609,7 @@ void unitTestFloat() {
   int         buff_len = input_len;
 
   printf(" ft1 have count=%d \n", cnt);
-  strcpy(output, "abcde");
+  tstrncpy(output, "abcde", strlen(output) + 1);
 
   cost_start();
   int ret_len = 0;
@@ -2736,10 +2736,8 @@ int main(int argc, char* argv[]) {
   // printf(" sizeof(long)=%d\n", (int)sizeof(long));
   // printf(" sizeof(short)=%d\n",(int)sizeof(short));
 
-  strcpy(tsLossyColumns, "float|double");
+  tstrncpy(tsLossyColumns, "float|double", 32);
   bool lossy = true;
-  // fPrecision = 1E-5;
-  // strcpy(Compressor, "GZIP_COMPRESSOR");
 
   tsCompressInit(tsLossyColumns, tsFPrecision, tsDPrecision, tsMaxRange, tsCurRange, (int)tsIfAdtFse, tsCompressor);
   lossyFloat = lossyDouble = true;

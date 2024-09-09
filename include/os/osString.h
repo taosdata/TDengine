@@ -44,14 +44,14 @@ typedef enum { M2C = 0, C2M } ConvType;
 #define wcsncpy     WCSNCPY_FUNC_TAOS_FORBID
 #define wchar_t     WCHAR_T_TYPE_TAOS_FORBID
 #define strcasestr  STR_CASE_STR_FORBID
-// #define strcpy      STR_CPY_STR_FORBID
-#define strtoll  STR_TO_LL_FUNC_TAOS_FORBID
-#define strtoull STR_TO_ULL_FUNC_TAOS_FORBID
-#define strtol   STR_TO_L_FUNC_TAOS_FORBID
-#define strtoul  STR_TO_UL_FUNC_TAOS_FORBID
-#define strtod   STR_TO_LD_FUNC_TAOS_FORBID
-#define strtold  STR_TO_D_FUNC_TAOS_FORBID
-#define strtof   STR_TO_F_FUNC_TAOS_FORBID
+#define strcpy      STR_CPY_STR_FORBID
+#define strtoll     STR_TO_LL_FUNC_TAOS_FORBID
+#define strtoull    STR_TO_ULL_FUNC_TAOS_FORBID
+#define strtol      STR_TO_L_FUNC_TAOS_FORBID
+#define strtoul     STR_TO_UL_FUNC_TAOS_FORBID
+#define strtod      STR_TO_LD_FUNC_TAOS_FORBID
+#define strtold     STR_TO_D_FUNC_TAOS_FORBID
+#define strtof      STR_TO_F_FUNC_TAOS_FORBID
 #endif
 
 #define tstrncpy(dst, src, size)           \
@@ -60,7 +60,6 @@ typedef enum { M2C = 0, C2M } ConvType;
     (dst)[(size)-1] = 0;                   \
   } while (0)
 
-#define TAOS_STRCPY(_dst, _src)         ((void)strcpy(_dst, _src))
 #define TAOS_STRNCPY(_dst, _src, _size) ((void)strncpy(_dst, _src, _size))
 #define TAOS_STRCAT(_dst, _src)         ((void)strcat(_dst, _src))
 

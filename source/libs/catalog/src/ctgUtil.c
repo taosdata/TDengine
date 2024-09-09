@@ -1355,7 +1355,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
     }
 
     tbNameLen = offset + strlen(pName->tname);
-    TAOS_STRCPY(tbFullName + offset, pName->tname);
+    tstrncpy(tbFullName + offset, pName->tname, sizeof(tbFullName) - offset);
 
     uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod,
                                           dbInfo->hashPrefix, dbInfo->hashSuffix);

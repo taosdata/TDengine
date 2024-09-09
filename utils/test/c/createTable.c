@@ -20,7 +20,8 @@
 #include "tlog.h"
 
 #define GREEN "\033[1;32m"
-#define NC "\033[0m"
+#define NC    "\033[0m"
+#undef strcpy
 
 char    dbName[32] = "db";
 char    stbName[64] = "st";
@@ -39,16 +40,16 @@ int32_t queryFlag = 0;
 int64_t startTimestamp = 1640966400000;  // 2020-01-01 00:00:00.000
 
 typedef struct {
-  int64_t   tableBeginIndex;
-  int64_t   tableEndIndex;
-  int32_t   threadIndex;
-  char      dbName[32];
-  char      stbName[64];
-  float     createTableSpeed;
-  float     insertDataSpeed;
-  int64_t   startMs;
-  int64_t   maxDelay;
-  int64_t   minDelay;
+  int64_t  tableBeginIndex;
+  int64_t  tableEndIndex;
+  int32_t  threadIndex;
+  char     dbName[32];
+  char     stbName[64];
+  float    createTableSpeed;
+  float    insertDataSpeed;
+  int64_t  startMs;
+  int64_t  maxDelay;
+  int64_t  minDelay;
   TdThread thread;
 } SThreadInfo;
 
@@ -109,9 +110,9 @@ void printCreateProgress(SThreadInfo *pInfo, int64_t t) {
 
 void printInsertProgress(SThreadInfo *pInfo, int64_t insertTotalRows) {
   int64_t endMs = taosGetTimestampMs();
-  //int64_t totalTables = t - pInfo->tableBeginIndex;
-  float   seconds = (endMs - pInfo->startMs) / 1000.0;
-  float   speed = insertTotalRows / seconds;
+  // int64_t totalTables = t - pInfo->tableBeginIndex;
+  float seconds = (endMs - pInfo->startMs) / 1000.0;
+  float speed = insertTotalRows / seconds;
   pInfo->insertDataSpeed = speed;
   pPrint("thread:%d, %" PRId64 " rows inserted, time:%.2f sec, speed:%.1f rows/second, ", pInfo->threadIndex,
          insertTotalRows, seconds, speed);
@@ -182,13 +183,15 @@ void *threadFunc(void *param) {
     exit(1);
   }
 
-  //pPrint("====before thread:%d, table range: %" PRId64 " - %" PRId64 "\n", pInfo->threadIndex, pInfo->tableBeginIndex,
-  //       pInfo->tableEndIndex);
+  // pPrint("====before thread:%d, table range: %" PRId64 " - %" PRId64 "\n", pInfo->threadIndex,
+  // pInfo->tableBeginIndex,
+  //        pInfo->tableEndIndex);
 
   pInfo->tableBeginIndex += startOffset;
   pInfo->tableEndIndex += startOffset;
 
-  pPrint("====thread:%d, table range: %" PRId64 " - %" PRId64 "\n", pInfo->threadIndex, pInfo->tableBeginIndex, pInfo->tableEndIndex);
+  pPrint("====thread:%d, table range: %" PRId64 " - %" PRId64 "\n", pInfo->threadIndex, pInfo->tableBeginIndex,
+         pInfo->tableEndIndex);
 
   sprintf(qstr, "use %s", pInfo->dbName);
   TAOS_RES *pRes = taos_query(con, qstr);
@@ -237,28 +240,28 @@ void *threadFunc(void *param) {
   }
 
   if (insertData) {
-  	int64_t insertTotalRows = 0;
+    int64_t insertTotalRows = 0;
     int64_t curMs = 0;
     int64_t beginMs = taosGetTimestampMs();
     pInfo->startMs = beginMs;
     int64_t t = pInfo->tableBeginIndex;
     for (; t <= pInfo->tableEndIndex; t++) {
-      //printf("table name: %"PRId64"\n", t);
+      // printf("table name: %"PRId64"\n", t);
       int64_t ts = startTimestamp;
       for (int32_t i = 0; i < totalRowsOfPerTbl;) {
         int32_t len = sprintf(qstr, "insert into ");
         len += sprintf(qstr + len, "%s_t%" PRId64 " values ", stbName, t);
         for (int32_t j = 0; j < batchNumOfRow; j++) {
           len += sprintf(qstr + len, "(%" PRId64 ", 6666) ", ts++);
-		  i++;
-		  insertTotalRows++;
-		  if (i >= totalRowsOfPerTbl) {
-		  	break;
-		  }
+          i++;
+          insertTotalRows++;
+          if (i >= totalRowsOfPerTbl) {
+            break;
+          }
         }
 
-        #if 1
-        int64_t	startTs = taosGetTimestampUs();
+#if 1
+        int64_t   startTs = taosGetTimestampUs();
         TAOS_RES *pRes = taos_query(con, qstr);
         code = taos_errno(pRes);
         if (code != 0) {
@@ -270,17 +273,17 @@ void *threadFunc(void *param) {
         // printf("==== %"PRId64" -  %"PRId64", %"PRId64"\n", startTs, endTs, delay);
         if (delay > pInfo->maxDelay) pInfo->maxDelay = delay;
         if (delay < pInfo->minDelay) pInfo->minDelay = delay;
-        
+
         curMs = taosGetTimestampMs();
         if (curMs - beginMs > 10000) {
           beginMs = curMs;
           // printf("==== tableBeginIndex: %"PRId64", t: %"PRId64"\n", pInfo->tableBeginIndex, t);
           printInsertProgress(pInfo, insertTotalRows);
         }
-        #endif		
+#endif
       }
-    }	
-    printInsertProgress(pInfo, insertTotalRows);    
+    }
+    printInsertProgress(pInfo, insertTotalRows);
   }
 
   taos_close(con);
