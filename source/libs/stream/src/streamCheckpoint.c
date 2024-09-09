@@ -994,7 +994,7 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
   int32_t size = taosArrayGetSize(pNotSendList);
   int32_t code = doSendRetrieveTriggerMsg(pTask, pNotSendList);
   if (code) {
-    stError("s-task:%s vgId:%d failed to retrieve trigger msg, code:%s", pTask->id.idStr, tstrerror(code));
+    stError("s-task:%s vgId:%d failed to retrieve trigger msg, code:%s", pTask->id.idStr, vgId, tstrerror(code));
   }
 
   streamMutexUnlock(&pActiveInfo->lock);
