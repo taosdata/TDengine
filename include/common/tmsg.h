@@ -649,6 +649,20 @@ void tFreeSSubmitRsp(SSubmitRsp* pRsp);
     (s)->flags &= (~COL_IDX_ON); \
   } while (0)
 
+enum {
+  RES_TYPE__QUERY = 1,
+  RES_TYPE__TMQ,
+  RES_TYPE__TMQ_META,
+  RES_TYPE__TMQ_METADATA,
+  RES_TYPE__TMQ_BATCH_META,
+};
+
+#define TD_RES_QUERY(res)          (*(int8_t*)(res) == RES_TYPE__QUERY)
+#define TD_RES_TMQ(res)            (*(int8_t*)(res) == RES_TYPE__TMQ)
+#define TD_RES_TMQ_META(res)       (*(int8_t*)(res) == RES_TYPE__TMQ_META)
+#define TD_RES_TMQ_METADATA(res)   (*(int8_t*)(res) == RES_TYPE__TMQ_METADATA)
+#define TD_RES_TMQ_BATCH_META(res) (*(int8_t*)(res) == RES_TYPE__TMQ_BATCH_META)
+
 #define SSCHMEA_TYPE(s)  ((s)->type)
 #define SSCHMEA_FLAGS(s) ((s)->flags)
 #define SSCHMEA_COLID(s) ((s)->colId)
@@ -4042,38 +4056,53 @@ void    tDeleteMqMetaRsp(SMqMetaRsp* pRsp);
 
 #define MQ_DATA_RSP_VERSION 100
 
-typedef struct {
-  SMqRspHead   head;
-  STqOffsetVal reqOffset;
-  STqOffsetVal rspOffset;
-  int32_t      blockNum;
-  int8_t       withTbName;
-  int8_t       withSchema;
-  SArray*      blockDataLen;
-  SArray*      blockData;
-  SArray*      blockTbName;
-  SArray*      blockSchema;
-} SMqDataRspCommon;
+//typedef struct {
+//  SMqRspHead   head;
+//  STqOffsetVal rspOffset;
+//  STqOffsetVal reqOffset;
+//  int32_t      blockNum;
+//  int8_t       withTbName;
+//  int8_t       withSchema;
+//  SArray*      blockDataLen;
+//  SArray*      blockData;
+//  SArray*      blockTbName;
+//  SArray*      blockSchema;
+//} SMqDataRspCommon;
 
 typedef struct {
-  SMqDataRspCommon common;
-  int64_t          sleepTime;
+  struct {
+    SMqRspHead   head;
+    STqOffsetVal rspOffset;
+    STqOffsetVal reqOffset;
+    int32_t      blockNum;
+    int8_t       withTbName;
+    int8_t       withSchema;
+    SArray*      blockDataLen;
+    SArray*      blockData;
+    SArray*      blockTbName;
+    SArray*      blockSchema;
+  };
+
+  union{
+    struct{
+      int64_t          sleepTime;
+    };
+    struct{
+      int32_t          createTableNum;
+      SArray*          createTableLen;
+      SArray*          createTableReq;
+    };
+  };
+
 } SMqDataRsp;
 
-int32_t tEncodeMqDataRsp(SEncoder* pEncoder, const void* pRsp);
-int32_t tDecodeMqDataRsp(SDecoder* pDecoder, void* pRsp);
-void    tDeleteMqDataRsp(void* pRsp);
+int32_t tEncodeMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pObj);
+int32_t tDecodeMqDataRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);
+void    tDeleteMqDataRsp(SMqDataRsp* pRsp);
 
-typedef struct {
-  SMqDataRspCommon common;
-  int32_t          createTableNum;
-  SArray*          createTableLen;
-  SArray*          createTableReq;
-} STaosxRsp;
-
-int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const void* pRsp);
-int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, void* pRsp);
-void    tDeleteSTaosxRsp(void* pRsp);
+int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const SMqDataRsp* pRsp);
+int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);
+void    tDeleteSTaosxRsp(SMqDataRsp* pRsp);
 
 typedef struct SMqBatchMetaRsp {
   SMqRspHead   head;  // not serialize
