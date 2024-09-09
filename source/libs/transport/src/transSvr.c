@@ -625,26 +625,15 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
 void uvOnSendCb(uv_write_t* req, int status) {
   STUB_RAND_NETWORK_ERR(status);
 
-  queue q;
-  QUEUE_INIT(&q);
-
-  STransReq* userReq = transReqQueueRemove(req);
+  STransReq* userReq = req->data;
   SSvrConn*  conn = userReq->conn;
-
-  queue* src = &userReq->node;
-  while (!QUEUE_IS_EMPTY(src)) {
-    queue* head = QUEUE_HEAD(src);
-    QUEUE_REMOVE(head);
-    QUEUE_PUSH(&q, head);
-    // }
-  }
-  // QUEUE_MOVE(src, &q);
+  queue*     src = &userReq->node;
 
   tDebug("%s conn %p send data", transLabel(conn->pInst), conn);
 
   if (status == 0) {
-    while (!QUEUE_IS_EMPTY(&q)) {
-      queue* head = QUEUE_HEAD(&q);
+    while (!QUEUE_IS_EMPTY(src)) {
+      queue* head = QUEUE_HEAD(&src);
       QUEUE_REMOVE(head);
 
       SSvrMsg* smsg = QUEUE_DATA(head, SSvrMsg, sendReq);
@@ -660,6 +649,7 @@ void uvOnSendCb(uv_write_t* req, int status) {
       conn->broken = true;
     }
   }
+  taosMemoryFree(userReq);
   transUnrefSrvHandle(conn);
 }
 static void uvOnPipeWriteCb(uv_write_t* req, int status) {
@@ -793,10 +783,10 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
   STransReq* pWreq = taosMemoryCalloc(1, sizeof(STransReq));
   pWreq->conn = pConn;
   QUEUE_INIT(&pWreq->q);
-
   QUEUE_MOVE(&sendReqNode, &pWreq->node);
+  pWreq->req.data = pWreq;
 
-  uv_write_t* req = transReqQueuePush(&pConn->wreqQueue, pWreq);
+  uv_write_t* req = &pWreq->req;
   if (req == NULL) {
     if (!uv_is_closing((uv_handle_t*)(pConn->pTcp))) {
       tError("conn %p failed to write data, reason:%s", pConn, tstrerror(TSDB_CODE_OUT_OF_MEMORY));

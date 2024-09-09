@@ -351,9 +351,10 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType);
 
 // request list
 typedef struct STransReq {
-  queue q;
-  queue node;
-  void* conn;
+  queue      q;     // gloabl queue node
+  queue      node;  // req queue node
+  void*      conn;
+  uv_write_t req;
 } STransReq;
 
 void  transReqQueueInit(queue* q);
