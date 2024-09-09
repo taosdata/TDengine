@@ -45,6 +45,7 @@ void metaReaderClear(SMetaReader *pReader) {
   }
   tDecoderClear(&pReader->coder);
   tdbFree(pReader->pBuf);
+  pReader->pBuf = NULL;
 }
 
 int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t uid) {
