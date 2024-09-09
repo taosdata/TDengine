@@ -20,7 +20,7 @@ import time
 class RestartDnodes(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.dbname = 'db_test_replica3'
+        self.dbname = 'db_test_replica2'
         self.ntbname = 'ntb'
         self.stbname = 'stb'
         self.ctbname = 'ctb'
