@@ -98,13 +98,12 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
 void streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* totalSize, int32_t* totalBlocks) {
   int32_t code = TSDB_CODE_SUCCESS;
   void*   pExecutor = pTask->exec.pExecutor;
-
-  *totalBlocks = 0;
-  *totalSize = 0;
-
   int32_t size = 0;
   int32_t numOfBlocks = 0;
   SArray* pRes = NULL;
+
+  *totalBlocks = 0;
+  *totalSize = 0;
 
   while (1) {
     if (pRes == NULL) {
@@ -131,7 +130,8 @@ void streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* to
       if (pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
         SSDataBlock             block = {0};
         const SStreamDataBlock* pRetrieveBlock = (const SStreamDataBlock*)pItem;
-        int32_t                 num = taosArrayGetSize(pRetrieveBlock->blocks);
+
+        int32_t num = taosArrayGetSize(pRetrieveBlock->blocks);
         if (num != 1) {
           stError("s-task:%s invalid retrieve block number:%d, ignore", pTask->id.idStr, num);
           continue;
@@ -244,9 +244,10 @@ static void streamScanHistoryDataImpl(SStreamTask* pTask, SArray* pRes, int32_t*
     SSDataBlock* output = NULL;
     uint64_t     ts = 0;
     code = qExecTask(exec, &output, &ts);
-    if (code != TSDB_CODE_TSC_QUERY_KILLED && code != TSDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_TSC_QUERY_KILLED && code != TSDB_CODE_SUCCESS) {  // if out of memory occurs, quit
       stError("s-task:%s scan-history data error occurred code:%s, continue scan-history", pTask->id.idStr,
               tstrerror(code));
+      qResetTaskCode(exec);
       continue;
     }
 
@@ -596,12 +597,32 @@ void streamProcessTransstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) 
 // static void streamTaskSetIdleInfo(SStreamTask* pTask, int32_t idleTime) { pTask->status.schedIdleTime = idleTime; }
 static void setLastExecTs(SStreamTask* pTask, int64_t ts) { pTask->status.lastExecTs = ts; }
 
+static void doRecordThroughput(STaskExecStatisInfo* pInfo, int64_t totalBlocks, int64_t totalSize, int64_t blockSize,
+                               double st, const char* id) {
+  double el = (taosGetTimestampMs() - st) / 1000.0;
+
+  stDebug("s-task:%s batch of input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%" PRId64, id,
+          el, SIZE_IN_MiB(totalSize), totalBlocks);
+
+  pInfo->outputDataBlocks += totalBlocks;
+  pInfo->outputDataSize += totalSize;
+  if (fabs(el - 0.0) <= DBL_EPSILON) {
+    pInfo->procsThroughput = 0;
+    pInfo->outputThroughput = 0;
+  } else {
+    pInfo->outputThroughput = (totalSize / el);
+    pInfo->procsThroughput = (blockSize / el);
+  }
+}
+
 static void doStreamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pBlock, int32_t num) {
   const char*      id = pTask->id.idStr;
   int32_t          blockSize = 0;
   int64_t          st = taosGetTimestampMs();
   SCheckpointInfo* pInfo = &pTask->chkInfo;
   int64_t          ver = pInfo->processedVer;
+  int64_t          totalSize = 0;
+  int32_t          totalBlocks = 0;
 
   stDebug("s-task:%s start to process batch blocks, num:%d, type:%s", id, num, streamQueueItemGetTypeStr(pBlock->type));
 
@@ -611,23 +632,8 @@ static void doStreamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pBlock, i
     return;
   }
 
-  int64_t totalSize = 0;
-  int32_t totalBlocks = 0;
   streamTaskExecImpl(pTask, pBlock, &totalSize, &totalBlocks);
-
-  double el = (taosGetTimestampMs() - st) / 1000.0;
-  stDebug("s-task:%s batch of input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%d", id, el,
-          SIZE_IN_MiB(totalSize), totalBlocks);
-
-  pTask->execInfo.outputDataBlocks += totalBlocks;
-  pTask->execInfo.outputDataSize += totalSize;
-  if (fabs(el - 0.0) <= DBL_EPSILON) {
-    pTask->execInfo.procsThroughput = 0;
-    pTask->execInfo.outputThroughput = 0;
-  } else {
-    pTask->execInfo.outputThroughput = (totalSize / el);
-    pTask->execInfo.procsThroughput = (blockSize / el);
-  }
+  doRecordThroughput(&pTask->execInfo, totalBlocks, totalSize, blockSize, st, pTask->id.idStr);
 
   // update the currentVer if processing the submit blocks.
   if (!(pInfo->checkpointVer <= pInfo->nextProcessVer && ver >= pInfo->checkpointVer)) {
