@@ -3630,6 +3630,14 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
     return NULL;
   }
   code = transHeapGet(pHeap, &pConn);
+  if (pConn && taosHashGetSize(pConn->pQTable) > 0) {
+    tDebug("get conn %p from heap cache for key:%s, status:%d, refCnt:%d", pConn, key, pConn->inHeap, pConn->reqRefCnt);
+    return NULL;
+  } /*else {
+    // tDebug("failed to get conn from heap cache for key:%s", key);
+    // return NULL;
+  }*/
+
   if (code != 0) {
     tDebug("failed to get conn from heap cache for key:%s", key);
     return NULL;
