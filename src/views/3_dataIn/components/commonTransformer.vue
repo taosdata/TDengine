@@ -1427,12 +1427,18 @@ export default {
             break;
         }
         let keys = Object.keys(value.parser.parse[tagKey])
-        this.parseruleForm.type = keys.filter(item => item != 'depth').toString(); 
+        if (keys.includes('plugin_type')) {
+          this.parseruleForm.type = value.parser.parse[tagKey]['plugin_type'];
+          this.parseruleForm.expression = value.parser.parse[tagKey]['plugin_params'];
+        } else {
+          this.parseruleForm.type = keys.filter(item => item != 'depth').toString(); 
 
-        if (this.parseruleForm.type == 'json') {
-          this.parseruleForm.depth = value.parser.parse[tagKey]['depth']
+          if (this.parseruleForm.type == 'json') {
+            this.parseruleForm.depth = value.parser.parse[tagKey]['depth']
+          }
+          this.parseruleForm.expression = value.parser.parse[tagKey][this.parseruleForm.type].toString();
         }
-        this.parseruleForm.expression = value.parser.parse[tagKey][this.parseruleForm.type].toString();
+
         // this.parseruleForm.expression = 
         //   this.parseruleForm.type == "regex"
         //     ? Object.values(value.parser.parse[tagKey]).toString()
