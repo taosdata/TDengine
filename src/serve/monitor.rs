@@ -810,6 +810,15 @@ impl IntoMetrics for IpcMetrics {
             self.failed_raw_blocks.load(SeqCst)
         ));
 
+        let guard = scc::ebr::Guard::new();
+        let iter = self.extras.iter(&guard);
+        for (key, value) in iter {
+            vec.push(Metric {
+                name: key.to_string(),
+                value: *value as f64,
+            });
+        }
+
         vec
     }
 }

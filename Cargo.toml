@@ -74,6 +74,7 @@ strum = { version = "0.25", features = ["derive"] }
 multi_index_map = "0.11.0"
 semver = "1.0.22"
 humantime = "2.1"
+scc = { version = "2", features = ["serde"] }
 
 twelf = { version = "0.13.0", default-features = false, features = [
     "toml",

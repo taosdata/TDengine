@@ -65,6 +65,6 @@ failed_points: Number of points failed to write in this task run
 written_raw_blocks: Number of raw blocks successfully written in this task run
 failed_raw_blocks: Number of raw blocks failed to write in this task run
 kafka_consumers: Number of Kafka consumers created
-kafka_total_partitions: Total number of partitions in the Kafka topic
+kafka_total_partitions: Total number of partitions of Kafka topic
 kafka_consuming_partitions: Number of partitions being consumed
 kafka_consumed_messages: Number of messages has been consumed
