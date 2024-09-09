@@ -649,20 +649,6 @@ void tFreeSSubmitRsp(SSubmitRsp* pRsp);
     (s)->flags &= (~COL_IDX_ON); \
   } while (0)
 
-enum {
-  RES_TYPE__QUERY = 1,
-  RES_TYPE__TMQ,
-  RES_TYPE__TMQ_META,
-  RES_TYPE__TMQ_METADATA,
-  RES_TYPE__TMQ_BATCH_META,
-};
-
-#define TD_RES_QUERY(res)          (*(int8_t*)(res) == RES_TYPE__QUERY)
-#define TD_RES_TMQ(res)            (*(int8_t*)(res) == RES_TYPE__TMQ)
-#define TD_RES_TMQ_META(res)       (*(int8_t*)(res) == RES_TYPE__TMQ_META)
-#define TD_RES_TMQ_METADATA(res)   (*(int8_t*)(res) == RES_TYPE__TMQ_METADATA)
-#define TD_RES_TMQ_BATCH_META(res) (*(int8_t*)(res) == RES_TYPE__TMQ_BATCH_META)
-
 #define SSCHMEA_TYPE(s)  ((s)->type)
 #define SSCHMEA_FLAGS(s) ((s)->flags)
 #define SSCHMEA_COLID(s) ((s)->colId)
@@ -4055,19 +4041,6 @@ int32_t tDecodeMqMetaRsp(SDecoder* pDecoder, SMqMetaRsp* pRsp);
 void    tDeleteMqMetaRsp(SMqMetaRsp* pRsp);
 
 #define MQ_DATA_RSP_VERSION 100
-
-//typedef struct {
-//  SMqRspHead   head;
-//  STqOffsetVal rspOffset;
-//  STqOffsetVal reqOffset;
-//  int32_t      blockNum;
-//  int8_t       withTbName;
-//  int8_t       withSchema;
-//  SArray*      blockDataLen;
-//  SArray*      blockData;
-//  SArray*      blockTbName;
-//  SArray*      blockSchema;
-//} SMqDataRspCommon;
 
 typedef struct {
   struct {
