@@ -183,7 +183,7 @@ SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t waterma
 }
 
 static SScalableBf *getSBf(SUpdateInfo *pInfo, TSKEY ts) {
-  if (ts <= 0) {
+  if (ts < 0) {
     return NULL;
   }
   if (pInfo->minTS < 0) {
