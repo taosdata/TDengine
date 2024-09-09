@@ -165,8 +165,8 @@ static int32_t sendReport(void* pTransporter, SEpSet* epSet, char* pCont, MONITO
   pInfo->requestId = tGenIdPI64();
   pInfo->requestObjRefId = 0;
 
-  int64_t transporterId = 0;
-  return asyncSendMsgToServer(pTransporter, epSet, &transporterId, pInfo);
+  // int64_t transporterId = 0;
+  return asyncSendMsgToServer(pTransporter, epSet, NULL, pInfo);
 
 FAILED:
   if (taosCloseFile(&(((MonitorSlowLogData*)param)->pFile)) != 0) {

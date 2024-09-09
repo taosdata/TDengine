@@ -2158,6 +2158,11 @@ static int32_t loadTombFromBlk(const TTombBlkArray *pTombBlkArray, SCacheRowsRea
 
     uint64_t        uid = uidList[j];
     STableLoadInfo *pInfo = getTableLoadInfo(pReader, uid);
+    if (!pInfo) {
+      (void)tTombBlockDestroy(&block);
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+
     if (pInfo->pTombData == NULL) {
       pInfo->pTombData = taosArrayInit(4, sizeof(SDelData));
     }
@@ -2200,8 +2205,18 @@ static int32_t loadTombFromBlk(const TTombBlkArray *pTombBlkArray, SCacheRowsRea
 
       if (newTable) {
         pInfo = getTableLoadInfo(pReader, uid);
+        if (!pInfo) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          finished = true;
+          break;
+        }
         if (pInfo->pTombData == NULL) {
           pInfo->pTombData = taosArrayInit(4, sizeof(SDelData));
+          if (!pInfo->pTombData) {
+            code = TSDB_CODE_OUT_OF_MEMORY;
+            finished = true;
+            break;
+          }
         }
       }
 
@@ -2998,6 +3013,8 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
 
         uint64_t        uid = pIter->idx.uid;
         STableLoadInfo *pInfo = getTableLoadInfo(pIter->pr, uid);
+        TSDB_CHECK_NULL(pInfo, code, lino, _err, TSDB_CODE_OUT_OF_MEMORY);
+
         if (pInfo->pTombData == NULL) {
           pInfo->pTombData = taosArrayInit(4, sizeof(SDelData));
           TSDB_CHECK_NULL(pInfo->pTombData, code, lino, _err, TSDB_CODE_OUT_OF_MEMORY);
@@ -3204,6 +3221,10 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
         break;
       }
       // high version's column value
+      if (slotIds[iCol] > pTSchema->numOfCols - 1) {
+        continue;
+      }
+
       SLastCol *lastColVal = (SLastCol *)taosArrayGet(pColArray, iCol);
       if (lastColVal->colVal.cid != pTSchema->columns[slotIds[iCol]].colId) {
         continue;

@@ -687,7 +687,9 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->msgBuf);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
-  (void)tsem_destroy(&pRequest->body.rspSem);
+  if (TSDB_CODE_SUCCESS != tsem_destroy(&pRequest->body.rspSem)) {
+    tscError("failed to destroy semaphore");
+  }
 
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->targetTableList);
@@ -700,7 +702,9 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->pDb);
   taosArrayDestroy(pRequest->dbList);
   if (pRequest->body.interParam) {
-    (void)tsem_destroy(&((SSyncQueryParam *)pRequest->body.interParam)->sem);
+    if (TSDB_CODE_SUCCESS != tsem_destroy(&((SSyncQueryParam *)pRequest->body.interParam)->sem)) {
+      tscError("failed to destroy semaphore in pRequest");
+    }
   }
   taosMemoryFree(pRequest->body.interParam);
 

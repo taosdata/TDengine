@@ -128,6 +128,7 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 
 // dmMonitor.c
 void dmSendMonitorReport();
+void dmMonitorCleanExpiredSamples();
 void dmSendAuditRecords();
 void dmGetVnodeLoads(SMonVloadInfo *pInfo);
 void dmGetVnodeLoadsLite(SMonVloadInfo *pInfo);

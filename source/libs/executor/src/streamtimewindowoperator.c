@@ -718,6 +718,11 @@ static void doBuildPullDataBlock(SArray* array, int32_t* pIndex, SSDataBlock* pB
   SColumnInfoData* pGroupId = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   SColumnInfoData* pCalStartTs = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
   SColumnInfoData* pCalEndTs = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
+  SColumnInfoData* pTbName = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
+  SColumnInfoData* pPrimaryKey = NULL;
+  if (taosArrayGetSize(pBlock->pDataBlock) > PRIMARY_KEY_COLUMN_INDEX) {
+    pPrimaryKey = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, PRIMARY_KEY_COLUMN_INDEX);
+  }
   for (; (*pIndex) < size; (*pIndex)++) {
     SPullWindowInfo* pWin = taosArrayGet(array, (*pIndex));
     code = colDataSetVal(pStartTs, pBlock->info.rows, (const char*)&pWin->window.skey, false);
@@ -734,6 +739,11 @@ static void doBuildPullDataBlock(SArray* array, int32_t* pIndex, SSDataBlock* pB
 
     code = colDataSetVal(pCalEndTs, pBlock->info.rows, (const char*)&pWin->calWin.ekey, false);
     QUERY_CHECK_CODE(code, lino, _end);
+
+    colDataSetNULL(pTbName, pBlock->info.rows);
+    if (pPrimaryKey != NULL) {
+      colDataSetNULL(pPrimaryKey, pBlock->info.rows);
+    }
 
     pBlock->info.rows++;
   }
@@ -1876,7 +1886,7 @@ _end:
 int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
                                                      SExecTaskInfo* pTaskInfo, int32_t numOfChild,
                                                      SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
@@ -3744,7 +3754,7 @@ _end:
 
 int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
                                                   SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   SSessionWinodwPhysiNode*       pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
   int32_t                        numOfCols = 0;
@@ -4071,7 +4081,7 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
 int32_t createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
                                                        SExecTaskInfo* pTaskInfo, int32_t numOfChild,
                                                        SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
@@ -4921,7 +4931,7 @@ _end:
 
 int32_t createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                          SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -5238,7 +5248,7 @@ _end:
 
 int32_t createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                          SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;

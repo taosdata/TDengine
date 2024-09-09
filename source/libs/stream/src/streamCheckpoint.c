@@ -673,6 +673,15 @@ void streamTaskSetFailedCheckpointId(SStreamTask* pTask) {
   }
 }
 
+void streamTaskSetCheckpointFailed(SStreamTask* pTask) {
+  streamMutexLock(&pTask->lock);
+  ETaskStatus status = streamTaskGetStatus(pTask).state;
+  if (status == TASK_STATUS__CK) {
+    streamTaskSetFailedCheckpointId(pTask);
+  }
+  streamMutexUnlock(&pTask->lock);
+}
+
 static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* list) {
   int32_t code = 0;
   int32_t cap = strlen(path) + 64;
@@ -1111,26 +1120,20 @@ void streamTaskGetTriggerRecvStatus(SStreamTask* pTask, int32_t* pRecved, int32_
 
 // record the dispatch checkpoint trigger info in the list
 // memory insufficient may cause the stream computing stopped
-void streamTaskInitTriggerDispatchInfo(SStreamTask* pTask) {
+int32_t streamTaskInitTriggerDispatchInfo(SStreamTask* pTask) {
   SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
+  int64_t                now = taosGetTimestampMs();
 
-  int64_t now = taosGetTimestampMs();
   streamMutexLock(&pInfo->lock);
-
-  // outputQ should be empty here
-  if (streamQueueGetNumOfUnAccessedItems(pTask->outputq.queue) > 0) {
-    stFatal("s-task:%s items are still in outputQ, failed to init trigger dispatch info", pTask->id.idStr);
-    return;
-  }
-
   pInfo->dispatchTrigger = true;
   if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
     STaskDispatcherFixed* pDispatch = &pTask->outputInfo.fixedDispatcher;
 
     STaskTriggerSendInfo p = {.sendTs = now, .recved = false, .nodeId = pDispatch->nodeId, .taskId = pDispatch->taskId};
     void* px = taosArrayPush(pInfo->pDispatchTriggerList, &p);
-    if (px == NULL) {
-      // pause the stream task, if memory not enough
+    if (px == NULL) { // pause the stream task, if memory not enough
+      streamMutexUnlock(&pInfo->lock);
+      return terrno;
     }
   } else {
     for (int32_t i = 0; i < streamTaskGetNumOfDownstream(pTask); ++i) {
@@ -1141,13 +1144,15 @@ void streamTaskInitTriggerDispatchInfo(SStreamTask* pTask) {
 
       STaskTriggerSendInfo p = {.sendTs = now, .recved = false, .nodeId = pVgInfo->vgId, .taskId = pVgInfo->taskId};
       void* px = taosArrayPush(pInfo->pDispatchTriggerList, &p);
-      if (px == NULL) {
-        // pause the stream task, if memory not enough
+      if (px == NULL) { // pause the stream task, if memory not enough
+        streamMutexUnlock(&pInfo->lock);
+        return terrno;
       }
     }
   }
 
   streamMutexUnlock(&pInfo->lock);
+  return 0;
 }
 
 int32_t streamTaskGetNumOfConfirmed(SActiveCheckpointInfo* pInfo) {

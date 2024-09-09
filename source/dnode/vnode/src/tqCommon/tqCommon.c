@@ -410,7 +410,7 @@ int32_t tqStreamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   tDecoderClear(&decoder);
 
   if (code) {
-    tqError("vgId:%d failed to decode retrieve msg, quit handling it", pMeta->vgId);
+    tqError("vgId:%d failed to decode retrieve msg, discard it", pMeta->vgId);
     return code;
   }
 
@@ -420,8 +420,15 @@ int32_t tqStreamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     tqError("vgId:%d process retrieve req, failed to acquire task:0x%x, it may have been dropped already", pMeta->vgId,
             req.dstTaskId);
     tCleanupStreamRetrieveReq(&req);
-    return -1;
+    return code;
   }
+
+  // enqueue
+  tqDebug("s-task:%s (vgId:%d level:%d) recv retrieve req from task:0x%x(vgId:%d),QID:0x%" PRIx64, pTask->id.idStr,
+          pTask->pMeta->vgId, pTask->info.taskLevel, req.srcTaskId, req.srcNodeId, req.reqId);
+
+  // if task is in ck status, set current ck failed
+  streamTaskSetCheckpointFailed(pTask);
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     code = streamProcessRetrieveReq(pTask, &req);
@@ -431,14 +438,19 @@ int32_t tqStreamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     code = streamTaskBroadcastRetrieveReq(pTask, &req);
   }
 
-  SRpcMsg rsp = {.info = pMsg->info, .code = 0};
-  streamTaskSendRetrieveRsp(&req, &rsp);
+  if (code != TSDB_CODE_SUCCESS) {  // return error not send rsp manually
+    tqError("s-task:0x%x vgId:%d failed to process retrieve request from 0x%x, code:%s", req.dstTaskId, req.dstNodeId,
+            req.srcTaskId, tstrerror(code));
+  } else {   // send rsp manually only on success.
+    SRpcMsg rsp = {.info = pMsg->info, .code = 0};
+    streamTaskSendRetrieveRsp(&req, &rsp);
+  }
 
   streamMetaReleaseTask(pMeta, pTask);
   tCleanupStreamRetrieveReq(&req);
 
   // always return success, to disable the auto rsp
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t tqStreamTaskProcessCheckReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {

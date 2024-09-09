@@ -1924,7 +1924,7 @@ SExprInfo* createExpr(SNodeList* pNodeList, int32_t* numOfExprs) {
 }
 
 int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** pExprInfo, int32_t* numOfExprs) {
-  QRY_OPTR_CHECK(pExprInfo);
+  QRY_PARAM_CHECK(pExprInfo);
 
   int32_t code = 0;
   int32_t numOfFuncs = LIST_LENGTH(pNodeList);
