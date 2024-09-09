@@ -1073,7 +1073,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
         (*pMetaRsp)->tableType = TSDB_CHILD_TABLE;
         (*pMetaRsp)->tuid = pReq->uid;
         (*pMetaRsp)->suid = pReq->ctb.suid;
-        strcpy((*pMetaRsp)->tbName, pReq->name);
+        tstrncpy((*pMetaRsp)->tbName, pReq->name, sizeof((*pMetaRsp)->tbName));
       } else {
         (void)metaUpdateMetaRsp(pReq->uid, pReq->name, &pReq->ntb.schemaRow, *pMetaRsp);
         for (int32_t i = 0; i < pReq->colCmpr.nCols; i++) {
@@ -1631,7 +1631,8 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
       pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].type = pAlterTbReq->type;
       pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].flags = pAlterTbReq->flags;
       pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].colId = entry.ntbEntry.ncid++;
-      strcpy(pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].name, pAlterTbReq->colName);
+      tstrncpy(pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].name, pAlterTbReq->colName,
+               sizeof(pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].name));
 
       ++pMeta->pVnode->config.vndStats.numOfNTimeSeries;
       metaTimeSeriesNotifyCheck(pMeta);
@@ -1727,7 +1728,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         goto _err;
       }
       pSchema->version++;
-      strcpy(pColumn->name, pAlterTbReq->colNewName);
+      tstrncpy(pColumn->name, pAlterTbReq->colNewName, sizeof(pColumn->name));
       break;
   }
 

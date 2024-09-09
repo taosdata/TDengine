@@ -181,7 +181,6 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
       }
     } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-      //      strcpy(val.colName, pTagSchema->name);
       if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
           pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
         val.pData = (uint8_t*)bind[c].buffer;
@@ -521,7 +520,6 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
       }
     } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-      //      strcpy(val.colName, pTagSchema->name);
       if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
           pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
         val.pData = (uint8_t*)bind[c].buffer;
@@ -875,7 +873,7 @@ int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSc
 
     for (int32_t i = 0; i < numOfBound; ++i) {
       schema = &pSchema[boundColumns[i]];
-      strcpy((*fields)[i].name, schema->name);
+      tstrncpy((*fields)[i].name, schema->name, sizeof((*fields)[i].name));
       (*fields)[i].type = schema->type;
       (*fields)[i].bytes = schema->bytes;
     }

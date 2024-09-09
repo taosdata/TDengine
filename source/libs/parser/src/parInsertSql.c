@@ -492,7 +492,6 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
   }
 #endif
 
-  //  strcpy(val->colName, pSchema->name);
   val->cid = pSchema->colId;
   val->type = pSchema->type;
 

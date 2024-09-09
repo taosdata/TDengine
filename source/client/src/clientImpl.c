@@ -37,7 +37,6 @@ void setQueryRequest(int64_t rId) {
     pReq->isQuery = true;
     (void)releaseRequest(rId);
   }
-
 }
 
 static bool stringLengthCheck(const char* str, size_t maxsize) {
@@ -2617,7 +2616,7 @@ int32_t appendTbToReq(SHashObj* pHash, int32_t pos1, int32_t len1, int32_t pos2,
     if (NULL == db.pTables) {
       return terrno;
     }
-    (void)strcpy(db.dbFName, dbFName);
+    tstrncpy(db.dbFName, dbFName, sizeof(db.dbFName));
     if (NULL == taosArrayPush(db.pTables, &name)) {
       return terrno;
     }
@@ -3015,7 +3014,8 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   pRequest->inCallback = true;
   int64_t this = pRequest->self;
-  if (tsQueryTbNotExistAsEmpty && TD_RES_QUERY(&pRequest->resType) && pRequest->isQuery && (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
+  if (tsQueryTbNotExistAsEmpty && TD_RES_QUERY(&pRequest->resType) && pRequest->isQuery &&
+      (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
     code = TSDB_CODE_SUCCESS;
     pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
   }

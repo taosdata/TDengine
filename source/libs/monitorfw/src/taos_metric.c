@@ -32,7 +32,7 @@ char *taos_metric_type_map[4] = {"counter", "gauge", "histogram", "summary"};
 
 taos_metric_t *taos_metric_new(taos_metric_type_t metric_type, const char *name, const char *help,
                                size_t label_key_count, const char **label_keys) {
-  int r = 0;
+  int            r = 0;
   taos_metric_t *self = (taos_metric_t *)taos_malloc(sizeof(taos_metric_t));
   if (self == NULL) return NULL;
   memset(self, 0, sizeof(taos_metric_t));
@@ -40,8 +40,9 @@ taos_metric_t *taos_metric_new(taos_metric_type_t metric_type, const char *name,
   int len = strlen(name) + 1;
   self->name = taos_malloc(len);
   memset(self->name, 0, len);
-  strcpy(self->name, name);
-  //self->name = name;
+  strncat(self->name, name, len - 1);
+  self->name[len - 1] = 0;
+  // self->name = name;
   self->help = help;
 
   const char **k = (const char **)taos_malloc(sizeof(const char *) * label_key_count);
@@ -64,7 +65,6 @@ taos_metric_t *taos_metric_new(taos_metric_type_t metric_type, const char *name,
   self->samples = taos_map_new();
 
   if (metric_type == TAOS_HISTOGRAM) {
-
   } else {
     r = taos_map_set_free_value_fn(self->samples, &taos_metric_sample_free_generic);
     if (r) {
@@ -95,7 +95,7 @@ int taos_metric_destroy(taos_metric_t *self) {
   int r = 0;
   int ret = 0;
 
-  if(self->samples != NULL){
+  if (self->samples != NULL) {
     r = taos_map_destroy(self->samples);
     self->samples = NULL;
     if (r) ret = r;
@@ -131,7 +131,7 @@ int taos_metric_destroy(taos_metric_t *self) {
 }
 
 int taos_metric_destroy_generic(void *item) {
-  int r = 0;
+  int            r = 0;
   taos_metric_t *self = (taos_metric_t *)item;
   r = taos_metric_destroy(self);
   self = NULL;
@@ -158,7 +158,8 @@ taos_metric_sample_t *taos_metric_sample_from_labels(taos_metric_t *self, const 
   return NULL;
 
   // Get l_value
-  r = taos_metric_formatter_load_l_value(self->formatter, self->name, NULL, self->label_key_count, self->label_keys, label_values);
+  r = taos_metric_formatter_load_l_value(self->formatter, self->name, NULL, self->label_key_count, self->label_keys,
+                                         label_values);
   if (r) {
     TAOS_METRIC_SAMPLE_FROM_LABELS_HANDLE_UNLOCK();
   }
@@ -180,8 +181,7 @@ taos_metric_sample_t *taos_metric_sample_from_labels(taos_metric_t *self, const 
     }
   }
   r = pthread_rwlock_unlock(self->rwlock);
-  if (r) TAOS_LOG(TAOS_PTHREAD_RWLOCK_UNLOCK_ERROR); 
+  if (r) TAOS_LOG(TAOS_PTHREAD_RWLOCK_UNLOCK_ERROR);
   taos_free((void *)l_value);
   return sample;
 }
-

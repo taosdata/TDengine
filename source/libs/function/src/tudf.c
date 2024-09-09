@@ -51,7 +51,7 @@ typedef struct SUdfdData {
 SUdfdData udfdGlobal = {0};
 
 int32_t udfStartUdfd(int32_t startDnodeId);
-void udfStopUdfd();
+void    udfStopUdfd();
 
 static int32_t udfSpawnUdfd(SUdfdData *pData);
 void           udfUdfdExit(uv_process_t *process, int64_t exitStatus, int termSignal);
@@ -67,7 +67,7 @@ void udfUdfdExit(uv_process_t *process, int64_t exitStatus, int termSignal) {
   } else {
     fnInfo("udfd process restart");
     int32_t code = udfSpawnUdfd(pData);
-    if(code != 0) {
+    if (code != 0) {
       fnError("udfd process restart failed with code:%d", code);
     }
   }
@@ -133,7 +133,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
 
   char   pathTaosdLdLib[512] = {0};
   size_t taosdLdLibPathLen = sizeof(pathTaosdLdLib);
-  int ret = uv_os_getenv("LD_LIBRARY_PATH", pathTaosdLdLib, &taosdLdLibPathLen);
+  int    ret = uv_os_getenv("LD_LIBRARY_PATH", pathTaosdLdLib, &taosdLdLibPathLen);
   if (ret != UV_ENOBUFS) {
     taosdLdLibPathLen = strlen(pathTaosdLdLib);
   }
@@ -157,7 +157,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   if (taosFqdn != NULL) {
     taosFqdnEnvItem = taosMemoryMalloc(strlen("TAOS_FQDN=") + strlen(taosFqdn) + 1);
     if (taosFqdnEnvItem != NULL) {
-      strcpy(taosFqdnEnvItem, "TAOS_FQDN=");
+      tstrncpy(taosFqdnEnvItem, "TAOS_FQDN=", strlen("TAOS_FQDN=") + strlen(taosFqdn) + 1);
       TAOS_STRCAT(taosFqdnEnvItem, taosFqdn);
       fnInfo("[UDFD]Succsess to set TAOS_FQDN:%s", taosFqdn);
     } else {
@@ -166,7 +166,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
     }
   }
 
-  char *envUdfd[] = {dnodeIdEnvItem, thrdPoolSizeEnvItem, ldLibPathEnvItem,taosFqdnEnvItem, NULL};
+  char *envUdfd[] = {dnodeIdEnvItem, thrdPoolSizeEnvItem, ldLibPathEnvItem, taosFqdnEnvItem, NULL};
 
   options.env = envUdfd;
 
@@ -197,7 +197,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   } else {
     fnInfo("udfd is initialized");
   }
-  if(taosFqdnEnvItem) taosMemoryFree(taosFqdnEnvItem);
+  if (taosFqdnEnvItem) taosMemoryFree(taosFqdnEnvItem);
   return err;
 }
 
@@ -226,7 +226,7 @@ static void udfWatchUdfd(void *args) {
   uv_walk(&pData->loop, udfUdfdCloseWalkCb, NULL);
   num = uv_run(&pData->loop, UV_RUN_DEFAULT);
   fnInfo("udfd loop exit with %d active handles, line:%d", num, __LINE__);
-  if(uv_loop_close(&pData->loop) != 0) {
+  if (uv_loop_close(&pData->loop) != 0) {
     fnError("udfd loop close failed, lino:%d", __LINE__);
   }
   return;
@@ -235,7 +235,7 @@ _exit:
   if (terrno != 0) {
     (void)uv_barrier_wait(&pData->barrier);
     atomic_store_32(&pData->spawnErr, terrno);
-    if(uv_loop_close(&pData->loop) != 0) {
+    if (uv_loop_close(&pData->loop) != 0) {
       fnError("udfd loop close failed, lino:%d", __LINE__);
     }
     fnError("udfd thread exit with code:%d lino:%d", terrno, terrln);
@@ -266,10 +266,10 @@ int32_t udfStartUdfd(int32_t startDnodeId) {
   int32_t err = atomic_load_32(&pData->spawnErr);
   if (err != 0) {
     uv_barrier_destroy(&pData->barrier);
-    if(uv_async_send(&pData->stopAsync) != 0) {
+    if (uv_async_send(&pData->stopAsync) != 0) {
       fnError("start udfd: failed to send stop async");
     }
-    if(uv_thread_join(&pData->thread)!= 0) {
+    if (uv_thread_join(&pData->thread) != 0) {
       fnError("start udfd: failed to join udfd thread");
     }
     pData->needCleanUp = false;
@@ -294,10 +294,10 @@ void udfStopUdfd() {
   atomic_store_32(&pData->stopCalled, 1);
   pData->needCleanUp = false;
   uv_barrier_destroy(&pData->barrier);
-  if(uv_async_send(&pData->stopAsync) != 0) {
+  if (uv_async_send(&pData->stopAsync) != 0) {
     fnError("stop udfd: failed to send stop async");
   }
-  if(uv_thread_join(&pData->thread) != 0) {
+  if (uv_thread_join(&pData->thread) != 0) {
     fnError("stop udfd: failed to join udfd thread");
   }
 
@@ -429,8 +429,8 @@ typedef struct SUdfcProxy {
   QUEUE      uvProcTaskQueue;
 
   uv_mutex_t udfStubsMutex;
-  SArray    *udfStubs;  // SUdfcFuncStub
-  SArray    *expiredUdfStubs; //SUdfcFuncStub
+  SArray    *udfStubs;         // SUdfcFuncStub
+  SArray    *expiredUdfStubs;  // SUdfcFuncStub
 
   uv_mutex_t udfcUvMutex;
   int8_t     initialized;
@@ -511,7 +511,7 @@ enum {
   UDFC_STATE_STOPPING,    // stopping after udfcClose
 };
 
-void getUdfdPipeName(char *pipeName, int32_t size);
+void    getUdfdPipeName(char *pipeName, int32_t size);
 int32_t encodeUdfSetupRequest(void **buf, const SUdfSetupRequest *setup);
 void   *decodeUdfSetupRequest(const void *buf, SUdfSetupRequest *request);
 int32_t encodeUdfInterBuf(void **buf, const SUdfInterBuf *state);
@@ -796,12 +796,12 @@ void *decodeUdfResponse(const void *buf, SUdfResponse *rsp) {
       buf = decodeUdfTeardownResponse(buf, &rsp->teardownRsp);
       break;
     default:
-      rsp->code =  TSDB_CODE_UDF_INTERNAL_ERROR;
+      rsp->code = TSDB_CODE_UDF_INTERNAL_ERROR;
       fnError("decode udf response, invalid udf response type %d", rsp->type);
       break;
   }
-  if(buf == NULL) {
-    rsp->code =  terrno;
+  if (buf == NULL) {
+    rsp->code = terrno;
     fnError("decode udf response failed, code:0x%x", rsp->code);
   }
   return (void *)buf;
@@ -842,12 +842,12 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
   udfBlock->numOfRows = block->info.rows;
   udfBlock->numOfCols = taosArrayGetSize(block->pDataBlock);
   udfBlock->udfCols = taosMemoryCalloc(taosArrayGetSize(block->pDataBlock), sizeof(SUdfColumn *));
-  if((udfBlock->udfCols) == NULL) {
+  if ((udfBlock->udfCols) == NULL) {
     return terrno;
   }
   for (int32_t i = 0; i < udfBlock->numOfCols; ++i) {
     udfBlock->udfCols[i] = taosMemoryCalloc(1, sizeof(SUdfColumn));
-    if(udfBlock->udfCols[i] == NULL) {
+    if (udfBlock->udfCols[i] == NULL) {
       return terrno;
     }
     SColumnInfoData *col = (SColumnInfoData *)taosArrayGet(block->pDataBlock, i);
@@ -861,18 +861,18 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
     if (IS_VAR_DATA_TYPE(udfCol->colMeta.type)) {
       udfCol->colData.varLenCol.varOffsetsLen = sizeof(int32_t) * udfBlock->numOfRows;
       udfCol->colData.varLenCol.varOffsets = taosMemoryMalloc(udfCol->colData.varLenCol.varOffsetsLen);
-      if(udfCol->colData.varLenCol.varOffsets == NULL) {
+      if (udfCol->colData.varLenCol.varOffsets == NULL) {
         return terrno;
       }
       memcpy(udfCol->colData.varLenCol.varOffsets, col->varmeta.offset, udfCol->colData.varLenCol.varOffsetsLen);
       udfCol->colData.varLenCol.payloadLen = colDataGetLength(col, udfBlock->numOfRows);
       udfCol->colData.varLenCol.payload = taosMemoryMalloc(udfCol->colData.varLenCol.payloadLen);
-      if(udfCol->colData.varLenCol.payload == NULL) {
+      if (udfCol->colData.varLenCol.payload == NULL) {
         return terrno;
       }
       if (col->reassigned) {
         for (int32_t row = 0; row < udfCol->colData.numOfRows; ++row) {
-          char* pColData = col->pData + col->varmeta.offset[row];
+          char   *pColData = col->pData + col->varmeta.offset[row];
           int32_t colSize = 0;
           if (col->info.type == TSDB_DATA_TYPE_JSON) {
             colSize = getJsonValueLen(pColData);
@@ -889,7 +889,7 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
       udfCol->colData.fixLenCol.nullBitmapLen = BitmapLen(udfCol->colData.numOfRows);
       int32_t bitmapLen = udfCol->colData.fixLenCol.nullBitmapLen;
       udfCol->colData.fixLenCol.nullBitmap = taosMemoryMalloc(udfCol->colData.fixLenCol.nullBitmapLen);
-      if(udfCol->colData.fixLenCol.nullBitmap == NULL) {
+      if (udfCol->colData.fixLenCol.nullBitmap == NULL) {
         return terrno;
       }
       char *bitmap = udfCol->colData.fixLenCol.nullBitmap;
@@ -923,7 +923,7 @@ int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
     if (udfColDataIsNull(udfCol, i)) {
       colDataSetNULL(col, i);
     } else {
-      char* data = udfColDataGetData(udfCol, i);
+      char *data = udfColDataGetData(udfCol, i);
       code = colDataSetVal(col, i, data, false);
       TAOS_CHECK_GOTO(code, &lino, _exit);
     }
@@ -945,32 +945,32 @@ int32_t convertScalarParamToDataBlock(SScalarParam *input, int32_t numOfCols, SS
   }
 
   // create the basic block info structure
-  for(int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pInfo = input[i].columnData;
-    SColumnInfoData d = {0};
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData *pInfo = input[i].columnData;
+    SColumnInfoData  d = {0};
     d.info = pInfo->info;
 
     TAOS_CHECK_GOTO(blockDataAppendColInfo(output, &d), &lino, _exit);
   }
 
-  TAOS_CHECK_GOTO(blockDataEnsureCapacity(output, numOfRows),  &lino, _exit);
+  TAOS_CHECK_GOTO(blockDataEnsureCapacity(output, numOfRows), &lino, _exit);
 
-  for(int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pDest = taosArrayGet(output->pDataBlock, i);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData *pDest = taosArrayGet(output->pDataBlock, i);
 
-    SColumnInfoData* pColInfoData = input[i].columnData;
+    SColumnInfoData *pColInfoData = input[i].columnData;
     TAOS_CHECK_GOTO(colDataAssign(pDest, pColInfoData, input[i].numOfRows, &output->info), &lino, _exit);
 
     if (input[i].numOfRows < numOfRows) {
       int32_t startRow = input[i].numOfRows;
-      int expandRows = numOfRows - startRow;
-      bool isNull = colDataIsNull_s(pColInfoData, (input+i)->numOfRows - 1);
+      int     expandRows = numOfRows - startRow;
+      bool    isNull = colDataIsNull_s(pColInfoData, (input + i)->numOfRows - 1);
       if (isNull) {
         colDataSetNNULL(pDest, startRow, expandRows);
       } else {
-        char* src = colDataGetData(pColInfoData, (input + i)->numOfRows - 1);
+        char *src = colDataGetData(pColInfoData, (input + i)->numOfRows - 1);
         for (int j = 0; j < expandRows; ++j) {
-          TAOS_CHECK_GOTO(colDataSetVal(pDest, startRow+j, src, false), &lino, _exit);
+          TAOS_CHECK_GOTO(colDataSetVal(pDest, startRow + j, src, false), &lino, _exit);
         }
       }
     }
@@ -992,7 +992,7 @@ int32_t convertDataBlockToScalarParm(SSDataBlock *input, SScalarParam *output) {
   output->numOfRows = input->info.rows;
 
   output->columnData = taosMemoryMalloc(sizeof(SColumnInfoData));
-  if(output->columnData == NULL) {
+  if (output->columnData == NULL) {
     return terrno;
   }
   memcpy(output->columnData, taosArrayGet(input->pDataBlock, 0), sizeof(SColumnInfoData));
@@ -1004,11 +1004,11 @@ int32_t convertDataBlockToScalarParm(SSDataBlock *input, SScalarParam *output) {
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // memory layout |---SUdfAggRes----|-----final result-----|---inter result----|
 typedef struct SUdfAggRes {
-  int8_t finalResNum;
-  int8_t interResNum;
+  int8_t  finalResNum;
+  int8_t  interResNum;
   int32_t interResBufLen;
-  char  *finalResBuf;
-  char  *interResBuf;
+  char   *finalResBuf;
+  char   *interResBuf;
 } SUdfAggRes;
 
 void    onUdfcPipeClose(uv_handle_t *handle);
@@ -1056,10 +1056,10 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock);
 
 void cleanupNotExpiredUdfs();
 void cleanupExpiredUdfs();
-int compareUdfcFuncSub(const void *elem1, const void *elem2) {
-  SUdfcFuncStub *stub1 = (SUdfcFuncStub *)elem1;
-  SUdfcFuncStub *stub2 = (SUdfcFuncStub *)elem2;
-  return strcmp(stub1->udfName, stub2->udfName);
+int  compareUdfcFuncSub(const void *elem1, const void *elem2) {
+   SUdfcFuncStub *stub1 = (SUdfcFuncStub *)elem1;
+   SUdfcFuncStub *stub2 = (SUdfcFuncStub *)elem2;
+   return strcmp(stub1->udfName, stub2->udfName);
 }
 
 int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
@@ -1142,21 +1142,22 @@ void releaseUdfFuncHandle(char *udfName, UdfcFuncHandle handle) {
 void cleanupExpiredUdfs() {
   int32_t i = 0;
   SArray *expiredUdfStubs = taosArrayInit(16, sizeof(SUdfcFuncStub));
-  if(expiredUdfStubs == NULL) {
+  if (expiredUdfStubs == NULL) {
     fnError("cleanupExpiredUdfs: failed to init array");
     return;
   }
   while (i < taosArrayGetSize(gUdfcProxy.expiredUdfStubs)) {
     SUdfcFuncStub *stub = taosArrayGet(gUdfcProxy.expiredUdfStubs, i);
     if (stub->refCount == 0) {
-      fnInfo("tear down udf. expired. udf name: %s, handle: %p, ref count: %d", stub->udfName, stub->handle, stub->refCount);
+      fnInfo("tear down udf. expired. udf name: %s, handle: %p, ref count: %d", stub->udfName, stub->handle,
+             stub->refCount);
       (void)doTeardownUdf(stub->handle);
     } else {
-      fnInfo("udf still in use. expired. udf name: %s, ref count: %d, create time: %" PRId64 ", handle: %p", stub->udfName,
-             stub->refCount, stub->createTime, stub->handle);
+      fnInfo("udf still in use. expired. udf name: %s, ref count: %d, create time: %" PRId64 ", handle: %p",
+             stub->udfName, stub->refCount, stub->createTime, stub->handle);
       UdfcFuncHandle handle = stub->handle;
       if (handle != NULL && ((SUdfcUvSession *)handle)->udfUvPipe != NULL) {
-        if(taosArrayPush(expiredUdfStubs, stub) == NULL) {
+        if (taosArrayPush(expiredUdfStubs, stub) == NULL) {
           fnError("cleanupExpiredUdfs: failed to push udf stub to array");
         }
       } else {
@@ -1339,7 +1340,8 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
     return code;
   }
 
-  SUdfInterBuf state = {.buf = udfRes->interResBuf, .bufLen = udfRes->interResBufLen, .numOfResult = udfRes->interResNum};
+  SUdfInterBuf state = {
+      .buf = udfRes->interResBuf, .bufLen = udfRes->interResBufLen, .numOfResult = udfRes->interResNum};
   SUdfInterBuf newState = {0};
 
   udfCode = doCallUdfAggProcess(session, inputBlock, &state, &newState);
@@ -1383,8 +1385,9 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock) {
   udfRes->interResBuf = (char *)udfRes + sizeof(SUdfAggRes) + session->bytes;
 
   SUdfInterBuf resultBuf = {0};
-  SUdfInterBuf state = {.buf = udfRes->interResBuf, .bufLen = udfRes->interResBufLen, .numOfResult = udfRes->interResNum};
-  int32_t      udfCallCode = 0;
+  SUdfInterBuf state = {
+      .buf = udfRes->interResBuf, .bufLen = udfRes->interResBufLen, .numOfResult = udfRes->interResNum};
+  int32_t udfCallCode = 0;
   udfCallCode = doCallUdfAggFinalize(session, &state, &resultBuf);
   if (udfCallCode != 0) {
     fnError("udfAggFinalize error. doCallUdfAggFinalize step. udf code:%d", udfCallCode);
@@ -1440,7 +1443,7 @@ int32_t udfcGetUdfTaskResultFromUvTask(SClientUdfTask *task, SClientUvTaskNode *
       SUdfResponse rsp = {0};
       void        *buf = decodeUdfResponse(uvTask->rspBuf.base, &rsp);
       code = rsp.code;
-      if(code != 0) {
+      if (code != 0) {
         fnError("udfc get udf task result failure. code: %d", code);
       }
 
@@ -1466,18 +1469,18 @@ int32_t udfcGetUdfTaskResultFromUvTask(SClientUdfTask *task, SClientUvTaskNode *
       taosMemoryFree(uvTask->rspBuf.base);
     } else {
       code = uvTask->errCode;
-      if(code != 0) {
+      if (code != 0) {
         fnError("udfc get udf task result failure. code: %d, line:%d", code, __LINE__);
       }
     }
   } else if (uvTask->type == UV_TASK_CONNECT) {
     code = uvTask->errCode;
-    if(code != 0) {
+    if (code != 0) {
       fnError("udfc get udf task result failure. code: %d, line:%d", code, __LINE__);
     }
   } else if (uvTask->type == UV_TASK_DISCONNECT) {
     code = uvTask->errCode;
-    if(code != 0) {
+    if (code != 0) {
       fnError("udfc get udf task result failure. code: %d, line:%d", code, __LINE__);
     }
   }
@@ -1631,7 +1634,7 @@ void onUdfcPipeConnect(uv_connect_t *connect, int status) {
   uvTask->errCode = status;
 
   int32_t code = uv_read_start((uv_stream_t *)uvTask->pipe, udfcAllocateBuffer, onUdfcPipeRead);
-  if(code != 0) {
+  if (code != 0) {
     fnError("udfc client connection %p read start failed. code: %d(%s)", uvTask->pipe, code, uv_strerror(code));
     uvTask->errCode = code;
   }
@@ -1670,13 +1673,12 @@ int32_t udfcInitializeUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvT
     }
     request.msgLen = bufLen;
     void *bufBegin = taosMemoryMalloc(bufLen);
-    if(bufBegin == NULL) {
+    if (bufBegin == NULL) {
       fnError("udfc create uv task, malloc buffer failed. size: %d", bufLen);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     void *buf = bufBegin;
-    if(encodeUdfRequest(&buf, &request) <= 0)
-    {
+    if (encodeUdfRequest(&buf, &request) <= 0) {
       fnError("udfc create uv task, encode request failed. size: %d", bufLen);
       taosMemoryFree(bufBegin);
       return TSDB_CODE_UDF_UV_EXEC_FAILURE;
@@ -1687,9 +1689,8 @@ int32_t udfcInitializeUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvT
   } else if (uvTaskType == UV_TASK_DISCONNECT) {
     uvTask->pipe = task->session->udfUvPipe;
   }
-  if (uv_sem_init(&uvTask->taskSem, 0) != 0)
-  {
-    if (uvTaskType == UV_TASK_REQ_RSP)  {
+  if (uv_sem_init(&uvTask->taskSem, 0) != 0) {
+    if (uvTaskType == UV_TASK_REQ_RSP) {
       taosMemoryFree(uvTask->reqBuf.base);
     }
     fnError("udfc create uv task, init semaphore failed.");
@@ -1725,7 +1726,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
   switch (uvTask->type) {
     case UV_TASK_CONNECT: {
       uv_pipe_t *pipe = taosMemoryMalloc(sizeof(uv_pipe_t));
-      if(pipe == NULL) {
+      if (pipe == NULL) {
         fnError("udfc event loop start connect task malloc pipe failed.");
         return TSDB_CODE_OUT_OF_MEMORY;
       }
@@ -1737,7 +1738,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
       uvTask->pipe = pipe;
 
       SClientUvConn *conn = taosMemoryCalloc(1, sizeof(SClientUvConn));
-      if(conn == NULL) {
+      if (conn == NULL) {
         fnError("udfc event loop start connect task malloc conn failed.");
         taosMemoryFree(pipe);
         return terrno;
@@ -1752,7 +1753,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
       pipe->data = conn;
 
       uv_connect_t *connReq = taosMemoryMalloc(sizeof(uv_connect_t));
-      if(connReq == NULL) {
+      if (connReq == NULL) {
         fnError("udfc event loop start connect task malloc connReq failed.");
         taosMemoryFree(pipe);
         taosMemoryFree(conn);
@@ -1769,7 +1770,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
         code = TSDB_CODE_UDF_PIPE_NOT_EXIST;
       } else {
         uv_write_t *write = taosMemoryMalloc(sizeof(uv_write_t));
-        if(write == NULL) {
+        if (write == NULL) {
           fnError("udfc event loop start req_rsp task malloc write failed.");
           return TSDB_CODE_OUT_OF_MEMORY;
         }
@@ -1866,7 +1867,7 @@ void udfStopAsyncCb(uv_async_t *async) {
 }
 
 void constructUdfService(void *argsThread) {
-  int32_t code = 0, lino = 0;
+  int32_t     code = 0, lino = 0;
   SUdfcProxy *udfc = (SUdfcProxy *)argsThread;
   code = uv_loop_init(&udfc->uvLoop);
   TAOS_CHECK_GOTO(code, &lino, _exit);
@@ -1901,7 +1902,7 @@ _exit:
 
 int32_t udfcOpen() {
   int32_t code = 0, lino = 0;
-  int8_t old = atomic_val_compare_exchange_8(&gUdfcProxy.initialized, 0, 1);
+  int8_t  old = atomic_val_compare_exchange_8(&gUdfcProxy.initialized, 0, 1);
   if (old == 1) {
     return 0;
   }
@@ -1919,12 +1920,12 @@ int32_t udfcOpen() {
   code = uv_mutex_init(&proxy->udfStubsMutex);
   TAOS_CHECK_GOTO(code, &lino, _exit);
   proxy->udfStubs = taosArrayInit(8, sizeof(SUdfcFuncStub));
-  if(proxy->udfStubs == NULL) {
+  if (proxy->udfStubs == NULL) {
     fnError("udfc init failed. udfStubs: %p", proxy->udfStubs);
     return -1;
   }
   proxy->expiredUdfStubs = taosArrayInit(8, sizeof(SUdfcFuncStub));
-  if(proxy->expiredUdfStubs == NULL) {
+  if (proxy->expiredUdfStubs == NULL) {
     taosArrayDestroy(proxy->udfStubs);
     fnError("udfc init failed. expiredUdfStubs: %p", proxy->expiredUdfStubs);
     return -1;
@@ -1948,10 +1949,10 @@ int32_t udfcClose() {
 
   SUdfcProxy *udfc = &gUdfcProxy;
   udfc->udfcState = UDFC_STATE_STOPPING;
-  if(uv_async_send(&udfc->loopStopAsync) != 0) {
+  if (uv_async_send(&udfc->loopStopAsync) != 0) {
     fnError("udfc close error to send stop async");
   }
-  if(uv_thread_join(&udfc->loopThread) != 0 ) {
+  if (uv_thread_join(&udfc->loopThread) != 0) {
     fnError("udfc close errir to join loop thread");
   }
   uv_mutex_destroy(&udfc->taskQueueMutex);
@@ -1966,9 +1967,9 @@ int32_t udfcClose() {
 }
 
 int32_t udfcRunUdfUvTask(SClientUdfTask *task, int8_t uvTaskType) {
-  int32_t code = 0, lino = 0;
+  int32_t            code = 0, lino = 0;
   SClientUvTaskNode *uvTask = taosMemoryCalloc(1, sizeof(SClientUvTaskNode));
-  if(uvTask == NULL) {
+  if (uvTask == NULL) {
     fnError("udfc client task: %p failed to allocate memory for uvTask", task);
     return terrno;
   }
@@ -1998,14 +1999,14 @@ _exit:
 }
 
 int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
-  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
+  int32_t         code = TSDB_CODE_SUCCESS, lino = 0;
   SClientUdfTask *task = taosMemoryCalloc(1, sizeof(SClientUdfTask));
-  if(task == NULL) {
+  if (task == NULL) {
     fnError("doSetupUdf, failed to allocate memory for task");
     return terrno;
   }
   task->session = taosMemoryCalloc(1, sizeof(SUdfcUvSession));
-  if(task->session == NULL) {
+  if (task->session == NULL) {
     fnError("doSetupUdf, failed to allocate memory for session");
     taosMemoryFree(task);
     return terrno;
@@ -2051,7 +2052,7 @@ int32_t callUdf(UdfcFuncHandle handle, int8_t callType, SSDataBlock *input, SUdf
     return TSDB_CODE_UDF_PIPE_NOT_EXIST;
   }
   SClientUdfTask *task = taosMemoryCalloc(1, sizeof(SClientUdfTask));
-  if(task == NULL) {
+  if (task == NULL) {
     fnError("udfc call udf. failed to allocate memory for task");
     return terrno;
   }
@@ -2155,8 +2156,8 @@ int32_t doCallUdfAggFinalize(UdfcFuncHandle handle, SUdfInterBuf *interBuf, SUdf
 int32_t doCallUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t numOfCols, SScalarParam *output) {
   int8_t      callType = TSDB_UDF_CALL_SCALA_PROC;
   SSDataBlock inputBlock = {0};
-  int32_t code = convertScalarParamToDataBlock(input, numOfCols, &inputBlock);
-  if(code != 0) {
+  int32_t     code = convertScalarParamToDataBlock(input, numOfCols, &inputBlock);
+  if (code != 0) {
     fnError("doCallUdfScalarFunc, convertScalarParamToDataBlock failed. code: %d", code);
     return code;
   }
@@ -2166,13 +2167,14 @@ int32_t doCallUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t 
     err = convertDataBlockToScalarParm(&resultBlock, output);
     taosArrayDestroy(resultBlock.pDataBlock);
   }
-  
+
   blockDataFreeRes(&inputBlock);
   return err;
 }
 
 int32_t doTeardownUdf(UdfcFuncHandle handle) {
-  int32_t code = TSDB_CODE_SUCCESS, lino = 0;;
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
+  ;
   SUdfcUvSession *session = (SUdfcUvSession *)handle;
 
   if (session->udfUvPipe == NULL) {
@@ -2182,7 +2184,7 @@ int32_t doTeardownUdf(UdfcFuncHandle handle) {
   }
 
   SClientUdfTask *task = taosMemoryCalloc(1, sizeof(SClientUdfTask));
-  if(task == NULL) {
+  if (task == NULL) {
     fnError("doTeardownUdf, failed to allocate memory for task");
     taosMemoryFree(session);
     return terrno;

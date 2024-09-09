@@ -26,9 +26,9 @@
     (pDst)->fldname = (pSrc)->fldname; \
   } while (0)
 
-#define COPY_CHAR_ARRAY_FIELD(fldname)        \
-  do {                                        \
-    strcpy((pDst)->fldname, (pSrc)->fldname); \
+#define COPY_CHAR_ARRAY_FIELD(fldname)                                   \
+  do {                                                                   \
+    tstrncpy((pDst)->fldname, (pSrc)->fldname, sizeof((pDst)->fldname)); \
   } while (0)
 
 #define COPY_OBJECT_FIELD(fldname, size)                  \
@@ -133,7 +133,8 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
 static int32_t columnDefNodeCopy(const SColumnDefNode* pSrc, SColumnDefNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(colName);
   COPY_OBJECT_FIELD(dataType, sizeof(SDataType));
-  COPY_SCALAR_FIELD(sma);;
+  COPY_SCALAR_FIELD(sma);
+  ;
   CLONE_NODE_FIELD(pOptions);
   return TSDB_CODE_SUCCESS;
 }
@@ -262,7 +263,7 @@ static SVgroupsInfo* vgroupsInfoClone(const SVgroupsInfo* pSrc) {
 }
 
 static SArray* functParamClone(const SArray* pSrc) {
-  int32_t       len = sizeof(SArray) + pSrc->capacity * pSrc->elemSize;
+  int32_t len = sizeof(SArray) + pSrc->capacity * pSrc->elemSize;
 
   SArray* pDst = taosArrayInit(pSrc->capacity, pSrc->elemSize);
   if (NULL == pDst) {
@@ -282,7 +283,6 @@ static SArray* functParamClone(const SArray* pSrc) {
 
   return pDst;
 }
-
 
 static int32_t realTableNodeCopy(const SRealTableNode* pSrc, SRealTableNode* pDst) {
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
@@ -429,7 +429,6 @@ static int32_t windowOffsetCopy(const SWindowOffsetNode* pSrc, SWindowOffsetNode
   return TSDB_CODE_SUCCESS;
 }
 
-
 static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pTargets);
   CLONE_NODE_FIELD(pConditions);
@@ -521,7 +520,7 @@ static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   CLONE_NODE_FIELD(pLeftOnCond);
   CLONE_NODE_FIELD(pRightOnCond);
   COPY_SCALAR_FIELD(timeRangeTarget);
-  COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));  
+  COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -868,7 +867,7 @@ static int32_t setOperatorCopy(const SSetOperator* pSrc, SSetOperator* pDst) {
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(timeLineResMode);
   COPY_SCALAR_FIELD(timeLineFromOrderBy);
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -877,7 +876,7 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SNode* pDst = NULL;
+  SNode*  pDst = NULL;
   int32_t code = nodesMakeNode(nodeType(pNode), &pDst);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
@@ -1074,7 +1073,7 @@ int32_t nodesCloneList(const SNodeList* pList, SNodeList** ppList) {
   SNodeList* pDst = NULL;
   SNode*     pNode;
   FOREACH(pNode, pList) {
-    SNode* pNew = NULL;
+    SNode*  pNew = NULL;
     int32_t code = nodesCloneNode(pNode, &pNew);
     if (TSDB_CODE_SUCCESS != code) {
       nodesDestroyList(pDst);

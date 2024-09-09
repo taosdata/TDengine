@@ -234,8 +234,7 @@ int32_t setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* 
       if (pCreateTableReq->name == NULL) {
         return terrno;
       }
-
-      strcpy(pCreateTableReq->name, pDataBlock->info.parTbName);
+      tstrncpy(pCreateTableReq->name, pDataBlock->info.parTbName, strlen(pDataBlock->info.parTbName));
       buildCtbNameAddGroupId(stbFullName, pCreateTableReq->name, gid);
 //      tqDebug("gen name from:%s", pDataBlock->info.parTbName);
     } else {
