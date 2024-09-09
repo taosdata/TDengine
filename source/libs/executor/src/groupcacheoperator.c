@@ -1444,7 +1444,7 @@ static int32_t groupCacheTableCacheEnd(SOperatorInfo* pOperator, SOperatorParam*
 int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                      SGroupCachePhysiNode* pPhyciNode, SExecTaskInfo* pTaskInfo,
                                      SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
   int32_t code = TSDB_CODE_SUCCESS;
 
   SGroupCacheOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SGroupCacheOperatorInfo));

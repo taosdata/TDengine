@@ -93,7 +93,7 @@ void streamOperatorReloadState(SOperatorInfo* pOperator) {
 
 int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* pProjPhyNode, SExecTaskInfo* pTaskInfo,
                                   SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t code = TSDB_CODE_SUCCESS;
   SProjectOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SProjectOperatorInfo));
@@ -262,7 +262,7 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
 }
 
 int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
 
   SProjectOperatorInfo* pProjectInfo = pOperator->info;
   SOptrBasicInfo*       pInfo = &pProjectInfo->binfo;
@@ -441,7 +441,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
 int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pNode,
                                                  SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
   int32_t code = 0;
   int32_t lino = 0;
   int32_t numOfRows = 4096;
@@ -572,7 +572,7 @@ SSDataBlock* doApplyIndefinitFunction1(SOperatorInfo* pOperator) {
 }
 
 int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
 
   SIndefOperatorInfo* pIndefInfo = pOperator->info;
   SOptrBasicInfo*     pInfo = &pIndefInfo->binfo;
@@ -717,7 +717,7 @@ int32_t setFunctionResultOutput(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo,
 }
 
 int32_t setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols, SArray** pResList) {
-  QRY_OPTR_CHECK(pResList);
+  QRY_PARAM_CHECK(pResList);
   SArray* pList = taosArrayInit(4, sizeof(int32_t));
   if (pList == NULL) {
     return terrno;

@@ -858,7 +858,7 @@ _end:
 
 int32_t createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                          SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   SStreamEventWinodwPhysiNode* pEventNode = (SStreamEventWinodwPhysiNode*)pPhyNode;
   int32_t                      tsSlotId = ((SColumnNode*)pEventNode->window.pTspk)->slotId;

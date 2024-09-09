@@ -1280,7 +1280,7 @@ void freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType
 
 FORCE_INLINE int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam,
                                                     SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
 
   int32_t code = 0;
   if (pOperator->pDownstreamGetParams && pOperator->pDownstreamGetParams[idx]) {

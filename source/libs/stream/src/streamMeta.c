@@ -1224,7 +1224,7 @@ void streamMetaWUnLock(SStreamMeta* pMeta) {
 }
 
 int32_t streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta, SArray** pList) {
-  QRY_OPTR_CHECK(pList);
+  QRY_PARAM_CHECK(pList);
 
   int32_t code = 0;
   SArray* pTaskList = taosArrayDup(pMeta->pTaskList, NULL);

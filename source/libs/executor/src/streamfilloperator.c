@@ -1364,7 +1364,7 @@ static void setValueForFillInfo(SStreamFillSupporter* pFillSup, SStreamFillInfo*
 
 int32_t createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysiNode* pPhyFillNode,
                                      SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
