@@ -32,15 +32,14 @@ struct ParserConfig {
 }
 
 impl ParserConfig {
-    fn new(
-        value_key_pattern: Regex,
-        value_type_key: Option<String>,
-        white_type_key: Option<String>,
-    ) -> Self {
+    fn new(config_param: &str) -> Self {
+        let ctx_parts = config_param.split(",").collect::<Vec<&str>>();
+        let regstr = format!(r#"{}\d{{4}}"#, ctx_parts[0]);
+    
         ParserConfig {
-            value_key_pattern,
-            value_type_key,
-            white_type_key,
+            value_key_pattern: Regex::new(&regstr).unwrap(),
+            value_type_key: ctx_parts.get(1).map(|s| s.to_string()),
+            white_type_key: ctx_parts.get(2).map(|s| s.to_string()),
         }
     }
 
@@ -91,23 +90,11 @@ impl ParserConfig {
     }
 }
 
-// static mut PARSER: *mut Parser = std::ptr::null_mut();
 #[no_mangle]
 pub extern "C" fn parser_new(ctx: *const c_char, len: i32) -> ParserResponse {
     let ctx = unsafe { std::slice::from_raw_parts(ctx as *const u8, len as usize) };
-    // let ctx = unsafe { std::mem::transmute(ctx) };
-
     let ctx = std::str::from_utf8(ctx).unwrap();
-    let ctx_parts = ctx.split(",").collect::<Vec<&str>>();
-    let ctx_parts_len = ctx_parts.len();
-
-    let regstr = format!(r#"{}\d{{4}}"#, ctx_parts[0]);
-
-    let parser_config = ParserConfig {
-        value_key_pattern: Regex::new(&regstr).unwrap(),
-        value_type_key: ctx_parts.get(1).map(|s| s.to_string()),
-        white_type_key: ctx_parts.get(2).map(|s| s.to_string()),
-    };
+    let parser_config = ParserConfig::new(ctx);
 
     let parser_config = Box::into_raw(Box::new(parser_config));
     ParserResponse {
@@ -143,9 +130,6 @@ pub unsafe extern "C" fn parser_mutate(
 
     let input_len = input_l as usize;
     let input_string = std::str::from_utf8(std::slice::from_raw_parts(input_p, input_len)).unwrap();
-
-    // println!("input_string: {}", input_string);
-
     let value = serde_json::from_str::<serde_json::Value>(input_string).unwrap();
 
     let output_string = match value {
@@ -155,7 +139,6 @@ pub unsafe extern "C" fn parser_mutate(
         }
         _ => "".to_string(),
     };
-    // println!("output_string: {}", output_string);
 
     set_output(output_string, output_p, output_l);
     std::ptr::null()
@@ -165,4 +148,78 @@ pub unsafe extern "C" fn parser_mutate(
 pub unsafe extern "C" fn parser_free(p: *mut c_void) {
     let parser_config = Box::from_raw(p as *mut ParserConfig);
     drop(parser_config);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_object_with_data_type() {
+        let parser_config = ParserConfig::new("U,DATA_TYPE,1");
+        let object = json!({
+            "DATA_DATE": "2021-01-01",
+            "DATA_TYPE": "1",
+            "U0001": 1.0,
+            "U0002": 2.0,
+            "U0003": 3.0,
+            "DEV_ID": "8100000888",
+        });
+        let object = object.as_object().unwrap();
+
+        let parsed_data = parser_config.parse_object(object.clone());
+        assert_eq!(parsed_data.len(), 3);
+        assert_eq!(parsed_data[0].get("_val1").unwrap().as_f64().unwrap(), 1.0);
+        assert_eq!(parsed_data[0].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:01:00+08:00");
+        assert_eq!(parsed_data[1].get("_val1").unwrap().as_f64().unwrap(), 2.0);
+        assert_eq!(parsed_data[1].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:02:00+08:00");
+        assert_eq!(parsed_data[2].get("_val1").unwrap().as_f64().unwrap(), 3.0);
+        assert_eq!(parsed_data[2].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:03:00+08:00");
+    }
+
+    #[test]
+    fn test_parse_object_without_data_type() {
+        let parser_config = ParserConfig::new("U");
+        let object = json!({
+            "DATA_DATE": "2021-01-01",
+            "DATA_TYPE": "1",
+            "U0001": 1.0,
+            "U0002": 2.0,
+            "U0003": 3.0,
+            "DEV_ID": "8100000888",
+        });
+        let object = object.as_object().unwrap();
+
+        let parsed_data = parser_config.parse_object(object.clone());
+        assert_eq!(parsed_data.len(), 3);
+        assert_eq!(parsed_data[0].get("_val").unwrap().as_f64().unwrap(), 1.0);
+        assert_eq!(parsed_data[0].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:01:00+08:00");
+        assert_eq!(parsed_data[1].get("_val").unwrap().as_f64().unwrap(), 2.0);
+        assert_eq!(parsed_data[1].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:02:00+08:00");
+        assert_eq!(parsed_data[2].get("_val").unwrap().as_f64().unwrap(), 3.0);
+        assert_eq!(parsed_data[2].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:03:00+08:00");
+    }
+
+    #[test]
+    fn test_parse_object_exception_missing_data_type() {
+        let parser_config = ParserConfig::new("U,DATA_TYPE");
+        let object = json!({
+            "DATA_DATE": "2021-01-01",
+            "U0001": 1.0,
+            "U0002": 2.0,
+            "U0003": 3.0,
+            "DEV_ID": "8100000888",
+        });
+        let object = object.as_object().unwrap();
+
+        let parsed_data = parser_config.parse_object(object.clone());
+        assert_eq!(parsed_data.len(), 3);
+        assert_eq!(parsed_data[0].get("_val").unwrap().as_f64().unwrap(), 1.0);
+        assert_eq!(parsed_data[0].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:01:00+08:00");
+        assert_eq!(parsed_data[1].get("_val").unwrap().as_f64().unwrap(), 2.0);
+        assert_eq!(parsed_data[1].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:02:00+08:00");
+        assert_eq!(parsed_data[2].get("_val").unwrap().as_f64().unwrap(), 3.0);
+        assert_eq!(parsed_data[2].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:03:00+08:00");
+    }
+
 }
