@@ -588,6 +588,10 @@ int32_t vnodeAsync(SVAChannelID *channelID, EVAPriority priority, int32_t (*exec
 }
 
 void vnodeAWait(SVATaskID *taskID) {
+  if (taskID == NULL || taskID->async < MIN_ASYNC_ID || taskID->async > MAX_ASYNC_ID || taskID->id <= 0) {
+    return;
+  }
+
   SVAsync *async = vnodeAsyncs[taskID->async];
   SVATask *task = NULL;
   SVATask  task2 = {
