@@ -141,7 +141,7 @@ _exit:
 
 static int32_t tsdbCompactFSetCloseReader(SCompactor2 *compactor) {
   TARRAY2_CLEAR(compactor->ctx->sttReaderArr, tsdbSttFileReaderClose);
-  TAOS_UNUSED(tsdbDataFileReaderClose(&compactor->ctx->dataReader));
+  tsdbDataFileReaderClose(&compactor->ctx->dataReader);
   return 0;
 }
 
@@ -215,8 +215,8 @@ _exit:
 }
 
 static int32_t tsdbCompactFSetCloseIter(SCompactor2 *compactor) {
-  TAOS_UNUSED(tsdbIterMergerClose(&compactor->ctx->dataIterMerger));
-  TAOS_UNUSED(tsdbIterMergerClose(&compactor->ctx->tombIterMerger));
+  tsdbIterMergerClose(&compactor->ctx->dataIterMerger);
+  tsdbIterMergerClose(&compactor->ctx->tombIterMerger);
   TARRAY2_CLEAR(compactor->ctx->tombIterArr, tsdbIterClose);
   TARRAY2_CLEAR(compactor->ctx->dataIterArr, tsdbIterClose);
   return 0;
