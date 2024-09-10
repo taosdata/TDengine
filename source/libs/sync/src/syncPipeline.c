@@ -84,6 +84,7 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = pMatch->index, .prevLogTerm = pMatch->term};
   pBuf->entries[index % pBuf->size] = tmp;
   pBuf->endIndex = index + 1;
+  pBuf->entrySize += pEntry->bytes;
 
   syncLogBufferValidate(pBuf);
   taosThreadMutexUnlock(&pBuf->mutex);
@@ -698,9 +699,21 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   for (SyncIndex index = pBuf->startIndex; index < until; index++) {
     SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
     ASSERT(pEntry != NULL);
+    pBuf->entrySize -= pEntry->bytes;
     syncEntryDestroy(pEntry);
     memset(&pBuf->entries[(index + pBuf->size) % pBuf->size], 0, sizeof(pBuf->entries[0]));
     pBuf->startIndex = index + 1;
+  }
+  if (pBuf->entrySize > 20 * 1024 * 1024) {
+    for (SyncIndex index = pBuf->startIndex; index < until - 1; ++index) {
+      SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
+      if (pEntry != NULL) {
+        pBuf->entrySize -= pEntry->bytes;
+        syncEntryDestroy(pEntry);
+        memset(&pBuf->entries[(index + pBuf->size) % pBuf->size], 0, sizeof(pBuf->entries[0]));
+        pBuf->startIndex = index + 1;
+      }
+    }
   }
 
   ret = 0;
