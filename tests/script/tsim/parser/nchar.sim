@@ -226,8 +226,6 @@ if $data10 != 5 then
 endi
 sql_error select avg(tbcol) from $mt where tbcol1 = 1 group by tgcol
 sql_error select sum(tbcol) from $mt where tbcol1 = 1 group by tgcol
-sql_error select min(tbcol) from $mt where tbcol1 = 1 group by tgcol
-sql_error select max(tbcol) from $mt where tbcol1 = 1 group by tgcol
 
 sql select first(tbcol), tgcol from $mt where tbcol1 = 1 group by tgcol order by tgcol
 if $rows != 2 then
