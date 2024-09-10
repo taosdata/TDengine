@@ -10780,7 +10780,7 @@ _exit:
 int32_t tDecodeMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
   TAOS_CHECK_RETURN(tDecodeMqDataRspCommon(pDecoder, pRsp));
   if (!tDecodeIsEnd(pDecoder)) {
-    TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &((SMqDataRsp *)pRsp)->sleepTime));
+    TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pRsp->sleepTime));
   }
 
   return 0;

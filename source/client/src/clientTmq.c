@@ -24,12 +24,12 @@
 #include "tref.h"
 #include "ttimer.h"
 
-#define tqFatalC(...) do { if (tqDebugFlag & DEBUG_FATAL) { taosPrintLog("TQ  FATAL ", DEBUG_FATAL, tqDebugFlag, __VA_ARGS__); }}     while(0)
-#define tqErrorC(...) do { if (tqDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, tqDebugFlag, __VA_ARGS__); }}     while(0)
-#define tqWarnC(...)  do { if (tqDebugFlag & DEBUG_WARN)  { taosPrintLog("TQ  WARN ", DEBUG_WARN, tqDebugFlag, __VA_ARGS__); }}       while(0)
-#define tqInfoC(...)  do { if (tqDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  ", DEBUG_INFO, tqDebugFlag, __VA_ARGS__); }}            while(0)
-#define tqDebugC(...) do { if (tqDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
-#define tqTraceC(...) do { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ  ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
+#define tqFatalC(...) do { if (cDebugFlag & DEBUG_FATAL || tqClientDebug) { taosPrintLog("TQ  FATAL ", DEBUG_FATAL, tqDebugFlag, __VA_ARGS__); }}     while(0)
+#define tqErrorC(...) do { if (cDebugFlag & DEBUG_ERROR || tqClientDebug) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, tqDebugFlag, __VA_ARGS__); }}     while(0)
+#define tqWarnC(...)  do { if (cDebugFlag & DEBUG_WARN || tqClientDebug)  { taosPrintLog("TQ  WARN ", DEBUG_WARN, tqDebugFlag, __VA_ARGS__); }}       while(0)
+#define tqInfoC(...)  do { if (cDebugFlag & DEBUG_INFO || tqClientDebug)  { taosPrintLog("TQ  ", DEBUG_INFO, tqDebugFlag, __VA_ARGS__); }}            while(0)
+#define tqDebugC(...) do { if (cDebugFlag & DEBUG_DEBUG || tqClientDebug) { taosPrintLog("TQ  ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
+#define tqTraceC(...) do { if (cDebugFlag & DEBUG_TRACE || tqClientDebug) { taosPrintLog("TQ  ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
 
 #define EMPTY_BLOCK_POLL_IDLE_DURATION 10
 #define DEFAULT_AUTO_COMMIT_INTERVAL   5000
@@ -910,7 +910,7 @@ int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
     (void)taosReleaseRef(tmqMgmt.rsetId, refId);
   }
 
-  tqDebugFlag = rsp.debugFlag;
+  tqClientDebug = rsp.debugFlag;
   tDestroySMqHbRsp(&rsp);
 
 END:
@@ -2004,11 +2004,12 @@ static void tmqGetRawDataRowsPrecisionFromRes(void* pRetrieve, void** rawData, i
 }
 
 static void tmqBuildRspFromWrapperInner(SMqPollRspWrapper* pWrapper, SMqClientVg* pVg, int64_t* numOfRows,
-                                        SMqRspObj* pRspObj, SMqDataRsp* pDataRsp) {
+                                        SMqRspObj* pRspObj) {
   pRspObj->resIter = -1;
   pRspObj->resInfo.totalRows = 0;
   pRspObj->resInfo.precision = TSDB_TIME_PRECISION_MILLI;
 
+  SMqDataRsp* pDataRsp = &pRspObj->dataRsp;
   bool needTransformSchema = !pDataRsp->withSchema;
   if (!pDataRsp->withSchema) {  // withSchema is false if subscribe subquery, true if subscribe db or stable
     pDataRsp->withSchema = true;
@@ -2276,12 +2277,12 @@ static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
       }
       pRspObj->resType = pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_DATA_RSP ? RES_TYPE__TMQ : RES_TYPE__TMQ_METADATA;
       int64_t numOfRows = 0;
-      tmqBuildRspFromWrapperInner(pollRspWrapper, pVg, &numOfRows, pRspObj, &pRspObj->dataRsp);
+      tmqBuildRspFromWrapperInner(pollRspWrapper, pVg, &numOfRows, pRspObj);
       tmq->totalRows += numOfRows;
       pVg->emptyBlockReceiveTs = 0;
       if (tmq->replayEnable) {
         pVg->blockReceiveTs = taosGetTimestampMs();
-        pVg->blockSleepForReplay = pollRspWrapper->dataRsp.sleepTime;
+        pVg->blockSleepForReplay = pRspObj->dataRsp.sleepTime;
         if (pVg->blockSleepForReplay > 0) {
           if (taosTmrStart(tmqReplayTask, pVg->blockSleepForReplay, (void*)(tmq->refId), tmqMgmt.timer) == NULL) {
             tqErrorC("consumer:0x%" PRIx64 " failed to start replay timer, vgId:%d, sleep:%" PRId64,
@@ -2291,7 +2292,7 @@ static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
       }
       tqDebugC("consumer:0x%" PRIx64 " process poll rsp, vgId:%d, offset:%s, blocks:%d, rows:%" PRId64
                    ", vg total:%" PRId64 ", total:%" PRId64 ",QID:0x%" PRIx64,
-               tmq->consumerId, pVg->vgId, buf, pollRspWrapper->dataRsp.blockNum, numOfRows, pVg->numOfRows, tmq->totalRows,
+               tmq->consumerId, pVg->vgId, buf, pRspObj->dataRsp.blockNum, numOfRows, pVg->numOfRows, tmq->totalRows,
                pollRspWrapper->reqId);
     }
   } else if (pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_META_RSP || pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_BATCH_META_RSP) {

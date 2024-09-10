@@ -377,8 +377,11 @@ void taos_free_result(TAOS_RES *res) {
     return;
   }
   SMqRspObj *pRsp = (SMqRspObj *)res;
-  if (TD_RES_TMQ_METADATA(res) || TD_RES_TMQ(res)) {
+  if (TD_RES_TMQ(res)) {
     tDeleteMqDataRsp(&pRsp->dataRsp);
+    doFreeReqResultInfo(&pRsp->resInfo);
+  } else if (TD_RES_TMQ_METADATA(res)) {
+    tDeleteSTaosxRsp(&pRsp->dataRsp);
     doFreeReqResultInfo(&pRsp->resInfo);
   } else if (TD_RES_TMQ_META(res)) {
     tDeleteMqMetaRsp(&pRsp->metaRsp);

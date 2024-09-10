@@ -244,7 +244,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   }
 
   storeOffsetRows(pMnode, &req, pConsumer);
-  rsp.debugFlag = tqDebugFlag;
+  rsp.debugFlag = tqClientDebug;
   code = buildMqHbRsp(pMsg, &rsp);
 
 END:
