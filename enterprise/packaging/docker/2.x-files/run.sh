@@ -100,6 +100,7 @@ function check_taosd() {
                 # dump the taosd
                 SUFFIX=$(date +"%Y%m%d%H%M")
                 gcore -a -o /var/log/corefile/taosd.core.${SUFFIX} `pidof taosd`
+                logger "ERROR" "generated corefile /var/log/corefile/taosd.core.${SUFFIX} for taosd"
                 # alert the message
                 post_error_msg
                 # kill the taosd
