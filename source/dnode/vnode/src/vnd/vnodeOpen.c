@@ -502,7 +502,7 @@ _err:
   if (pVnode->pTsdb) (void)tsdbClose(&pVnode->pTsdb);
   if (pVnode->pSma) (void)smaClose(pVnode->pSma);
   if (pVnode->pMeta) (void)metaClose(&pVnode->pMeta);
-  if (pVnode->freeList) (void)vnodeCloseBufPool(pVnode);
+  if (pVnode->freeList) vnodeCloseBufPool(pVnode);
 
   taosMemoryFree(pVnode);
   return NULL;
@@ -517,7 +517,7 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
-    (void)vnodeAWait(&pVnode->commitTask);
+    vnodeAWait(&pVnode->commitTask);
     (void)vnodeAChannelDestroy(&pVnode->commitChannel, true);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
@@ -526,7 +526,7 @@ void vnodeClose(SVnode *pVnode) {
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
     (void)smaClose(pVnode->pSma);
     if (pVnode->pMeta) metaClose(&pVnode->pMeta);
-    (void)vnodeCloseBufPool(pVnode);
+    vnodeCloseBufPool(pVnode);
 
     // destroy handle
     (void)tsem_destroy(&pVnode->syncSem);

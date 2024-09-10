@@ -204,7 +204,7 @@ static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
         TAOS_CHECK_GOTO(tsdbSttFileReaderOpen(fobj->fname, &config, &reader), &lino, _exit);
 
         if ((code = TARRAY2_APPEND(merger->sttReaderArr, reader))) {
-          (void)tsdbSttFileReaderClose(&reader);
+          tsdbSttFileReaderClose(&reader);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
       }

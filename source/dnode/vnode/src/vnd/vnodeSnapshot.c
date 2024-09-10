@@ -586,7 +586,7 @@ _exit:
 }
 
 extern int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb);
-extern int32_t tsdbEnableBgTask(STsdb *pTsdb);
+extern void    tsdbEnableBgTask(STsdb *pTsdb);
 
 static int32_t vnodeCancelAndDisableAllBgTask(SVnode *pVnode) {
   (void)tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
@@ -596,7 +596,7 @@ static int32_t vnodeCancelAndDisableAllBgTask(SVnode *pVnode) {
 }
 
 static int32_t vnodeEnableBgTask(SVnode *pVnode) {
-  (void)tsdbEnableBgTask(pVnode->pTsdb);
+  tsdbEnableBgTask(pVnode->pTsdb);
   (void)vnodeAChannelInit(1, &pVnode->commitChannel);
   return 0;
 }
