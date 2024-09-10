@@ -93,12 +93,12 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(config->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
-    (void)tsdbSttFileReaderClose(reader);
+    tsdbSttFileReaderClose(reader);
   }
   return code;
 }
 
-int32_t tsdbSttFileReaderClose(SSttFileReader **reader) {
+void tsdbSttFileReaderClose(SSttFileReader **reader) {
   if (reader[0]) {
     for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->local); ++i) {
       tBufferDestroy(reader[0]->local + i);
@@ -110,7 +110,6 @@ int32_t tsdbSttFileReaderClose(SSttFileReader **reader) {
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
   }
-  return 0;
 }
 
 // SSttFSegReader

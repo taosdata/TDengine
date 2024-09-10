@@ -355,7 +355,11 @@ static STsdbFSetPartList* tsdbSnapGetFSetPartList(STFileSystem* fs) {
       terrno = code;
       break;
     }
-    (void)TARRAY2_SORT_INSERT(pList, pItem, tsdbFSetPartCmprFn);
+    code = TARRAY2_SORT_INSERT(pList, pItem, tsdbFSetPartCmprFn);
+    if (code) {
+      terrno = code;
+      break;
+    }
   }
   (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
 

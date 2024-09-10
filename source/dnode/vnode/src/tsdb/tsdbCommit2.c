@@ -418,7 +418,7 @@ static int32_t tsdbCommitInfoDestroy(STsdb *pTsdb) {
       taosMemoryFree(info);
     }
 
-    TAOS_UNUSED(vHashDestroy(&pTsdb->commitInfo->ht));
+    vHashDestroy(&pTsdb->commitInfo->ht);
     taosArrayDestroy(pTsdb->commitInfo->arr);
     pTsdb->commitInfo->arr = NULL;
     taosMemoryFreeClear(pTsdb->commitInfo);

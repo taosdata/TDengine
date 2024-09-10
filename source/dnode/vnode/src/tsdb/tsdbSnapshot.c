@@ -104,7 +104,7 @@ static int32_t tsdbSnapReadFileSetOpenReader(STsdbSnapReader* reader) {
       TSDB_CHECK_CODE(code, lino, _exit);
 
       if ((code = TARRAY2_APPEND(reader->sttReaderArr, sttReader))) {
-        TAOS_UNUSED(tsdbSttFileReaderClose(&sttReader));
+        tsdbSttFileReaderClose(&sttReader);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
@@ -449,7 +449,7 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** reader) {
 
   STsdb* tsdb = reader[0]->tsdb;
 
-  TAOS_UNUSED(tTombBlockDestroy(reader[0]->tombBlock));
+  tTombBlockDestroy(reader[0]->tombBlock);
   tBlockDataDestroy(reader[0]->blockData);
 
   tsdbIterMergerClose(&reader[0]->dataIterMerger);

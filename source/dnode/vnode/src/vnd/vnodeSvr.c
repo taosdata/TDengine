@@ -2041,7 +2041,7 @@ _exit:
 }
 
 extern int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb);
-extern int32_t tsdbEnableBgTask(STsdb *pTsdb);
+extern void    tsdbEnableBgTask(STsdb *pTsdb);
 
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   bool walChanged = false;
@@ -2143,10 +2143,10 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
     if (req.sttTrigger > 1 && pVnode->config.sttTrigger > 1) {
       pVnode->config.sttTrigger = req.sttTrigger;
     } else {
-      (void)vnodeAWait(&pVnode->commitTask);
+      vnodeAWait(&pVnode->commitTask);
       (void)tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
       pVnode->config.sttTrigger = req.sttTrigger;
-      (void)tsdbEnableBgTask(pVnode->pTsdb);
+      tsdbEnableBgTask(pVnode->pTsdb);
     }
   }
 

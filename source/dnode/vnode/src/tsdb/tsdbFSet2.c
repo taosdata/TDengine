@@ -627,8 +627,8 @@ void tsdbTFileSetClear(STFileSet **fset) {
   }
 }
 
-int32_t tsdbTFileSetRemove(STFileSet *fset) {
-  if (fset == NULL) return 0;
+void tsdbTFileSetRemove(STFileSet *fset) {
+  if (fset == NULL) return;
 
   for (tsdb_ftype_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
     if (fset->farr[ftype] != NULL) {
@@ -638,8 +638,6 @@ int32_t tsdbTFileSetRemove(STFileSet *fset) {
   }
 
   TARRAY2_DESTROY(fset->lvlArr, tsdbSttLvlRemove);
-
-  return 0;
 }
 
 SSttLvl *tsdbTFileSetGetSttLvl(STFileSet *fset, int32_t level) {

@@ -252,7 +252,7 @@ static int32_t apply_commit(STFileSystem *fs) {
     if (fset1 && fset2) {
       if (fset1->fid < fset2->fid) {
         // delete fset1
-        (void)tsdbTFileSetRemove(fset1);
+        tsdbTFileSetRemove(fset1);
         i1++;
       } else if (fset1->fid > fset2->fid) {
         // create new file set with fid of fset2->fid
@@ -271,7 +271,7 @@ static int32_t apply_commit(STFileSystem *fs) {
       }
     } else if (fset1) {
       // delete fset1
-      (void)tsdbTFileSetRemove(fset1);
+      tsdbTFileSetRemove(fset1);
       i1++;
     } else {
       // create new file set with fid of fset2->fid
@@ -794,11 +794,10 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   return 0;
 }
 
-int32_t tsdbEnableBgTask(STsdb *pTsdb) {
+void tsdbEnableBgTask(STsdb *pTsdb) {
   (void)taosThreadMutexLock(&pTsdb->mutex);
   pTsdb->bgTaskDisabled = false;
   (void)taosThreadMutexUnlock(&pTsdb->mutex);
-  return 0;
 }
 
 int32_t tsdbCloseFS(STFileSystem **fs) {
