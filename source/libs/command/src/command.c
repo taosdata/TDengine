@@ -344,28 +344,20 @@ static const char* encryptAlgorithmStr(int8_t encryptAlgorithm) {
   return TSDB_CACHE_MODEL_NONE_STR;
 }
 
-static int32_t formatDurationOrKeep(char** buffer, int32_t timeInMinutes) {
+int32_t formatDurationOrKeep(char* buffer, int32_t timeInMinutes) {
     int len = 0;
     if (timeInMinutes % 1440 == 0) {
         int days = timeInMinutes / 1440;
-        len = snprintf(NULL, 0, "%dd", days);
-        *buffer = (char*)taosMemoryCalloc(len + 1, sizeof(char));
-        if(*buffer == NULL) return terrno;
-        sprintf(*buffer, "%dd", days);
+        len = sprintf(buffer, "%dd", days);
     } else if (timeInMinutes % 60 == 0) {
         int hours = timeInMinutes / 60;
-        len = snprintf(NULL, 0, "%dh", hours);
-        *buffer = (char*)taosMemoryCalloc(len + 1, sizeof(char));
-        if(*buffer == NULL) return terrno;
-        sprintf(*buffer, "%dh", hours);
+        len = sprintf(buffer, "%dh", hours);
     } else {
-        len = snprintf(NULL, 0, "%dm", timeInMinutes);
-        *buffer = (char*)taosMemoryCalloc(len + 1, sizeof(char));
-        if(*buffer == NULL) return terrno;
-        sprintf(*buffer, "%dm", timeInMinutes);
+        len = sprintf(buffer, "%dm", timeInMinutes);
     }
-    return TSDB_CODE_SUCCESS;
+    return len;
 }
+
 
 static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName, char* dbFName, SDbCfgInfo* pCfg) {
   QRY_ERR_RET(blockDataEnsureCapacity(pBlock, 1));
@@ -404,25 +396,17 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
   } else if (pCfg->hashPrefix < 0) {
     hashPrefix = pCfg->hashPrefix + dbFNameLen + 1;
   }
-  char* durationStr = NULL;
-  char* keep0Str = NULL;
-  char* keep1Str = NULL;
-  char* keep2Str = NULL;
-  int32_t codeDuration = formatDurationOrKeep(&durationStr, pCfg->daysPerFile);
-  int32_t codeKeep0 = formatDurationOrKeep(&keep0Str, pCfg->daysToKeep0);
-  int32_t codeKeep1 = formatDurationOrKeep(&keep1Str, pCfg->daysToKeep1);
-  int32_t codeKeep2 = formatDurationOrKeep(&keep2Str, pCfg->daysToKeep2);
-  if(codeDuration != TSDB_CODE_SUCCESS || codeKeep0 != TSDB_CODE_SUCCESS || codeKeep1 != TSDB_CODE_SUCCESS || codeKeep2 != TSDB_CODE_SUCCESS) {
-    int32_t firstErrorCode = codeDuration != TSDB_CODE_SUCCESS ? codeDuration :
-                        codeKeep0 != TSDB_CODE_SUCCESS ? codeKeep0 :
-                        codeKeep1 != TSDB_CODE_SUCCESS ? codeKeep1 : codeKeep2;
-    taosMemoryFree(pRetentions);
-    taosMemoryFree(durationStr);
-    taosMemoryFree(keep0Str);
-    taosMemoryFree(keep1Str);
-    taosMemoryFree(keep2Str);
-    return firstErrorCode;
-  }
+
+  char durationStr[128] = {0};
+  char keep0Str[128] = {0};
+  char keep1Str[128] = {0};
+  char keep2Str[128] = {0};
+
+  int32_t lenDuration = formatDurationOrKeep(durationStr, pCfg->daysPerFile);
+  int32_t lenKeep0 = formatDurationOrKeep(keep0Str, pCfg->daysToKeep0);
+  int32_t lenKeep1 = formatDurationOrKeep(keep1Str, pCfg->daysToKeep1);
+  int32_t lenKeep2 = formatDurationOrKeep(keep2Str, pCfg->daysToKeep2);
+
   if (IS_SYS_DBNAME(dbName)) {
     len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE DATABASE `%s`", dbName);
   } else {
@@ -449,10 +433,6 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
   }
 
   taosMemoryFree(pRetentions);
-  taosMemoryFree(durationStr);
-  taosMemoryFree(keep0Str);
-  taosMemoryFree(keep1Str);
-  taosMemoryFree(keep2Str);
 
   (varDataLen(buf2)) = len;
 
