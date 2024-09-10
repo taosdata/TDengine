@@ -1068,6 +1068,7 @@ static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock*
     TAOS_ROW pRow = taos_fetch_row(pRes);
     if (NULL == pRow[0] || NULL == pRow[1] || NULL == pRow[2]) {
       tscError("invalid data from vnode");
+      blockDataDestroy(*pBlock);
       return TSDB_CODE_TSC_INTERNAL_ERROR;
     }
     int64_t ts = *(int64_t*)pRow[0];
@@ -1102,8 +1103,11 @@ void postSubQueryFetchCb(void* param, TAOS_RES* res, int32_t rowNum) {
   }
 
   SSDataBlock* pBlock = NULL;
-  if (TSDB_CODE_SUCCESS != createResultBlock(res, rowNum, &pBlock)) {
-    tscError("0x%" PRIx64 ", create result block failed,QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
+  pRequest->code = createResultBlock(res, rowNum, &pBlock);
+  if (TSDB_CODE_SUCCESS != pRequest->code) {
+    tscError("0x%" PRIx64 ", create result block failed,QID:0x%" PRIx64 " %s", pRequest->self, pRequest->requestId,
+             tstrerror(pRequest->code));
+    returnToUser(pRequest);
     return;
   }
 

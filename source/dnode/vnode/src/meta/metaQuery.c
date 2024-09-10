@@ -54,8 +54,8 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   STbDbKey tbDbKey = {.version = version, .uid = uid};
 
   // query table.db
-  if (tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pReader->pBuf, &pReader->szBuf) < 0) {
-    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  if ((code = tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pReader->pBuf, &pReader->szBuf)) < 0) {
+    return terrno = (TSDB_CODE_NOT_FOUND == code ? TSDB_CODE_PAR_TABLE_NOT_EXIST : code);
   }
 
   // decode the entry
@@ -98,8 +98,9 @@ int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
   SMeta *pMeta = pReader->pMeta;
 
   SMetaInfo info;
-  if (metaGetInfo(pMeta, uid, &info, pReader) == TSDB_CODE_NOT_FOUND) {
-    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  int32_t code = metaGetInfo(pMeta, uid, &info, pReader);
+  if (TSDB_CODE_SUCCESS != code) {
+    return terrno = (TSDB_CODE_NOT_FOUND == code ? TSDB_CODE_PAR_TABLE_NOT_EXIST : code);
   }
 
   return metaGetTableEntryByVersion(pReader, info.version, uid);
@@ -1584,10 +1585,9 @@ int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo, SMetaReader *pR
   }
 
   // search TDB
-  if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData) < 0) {
+  if ((code = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData)) < 0) {
     // not found
     if (!lock) metaULock(pMeta);
-    code = TSDB_CODE_NOT_FOUND;
     goto _exit;
   }
 
