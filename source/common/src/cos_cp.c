@@ -210,10 +210,10 @@ static int32_t cos_cp_save_json(cJSON const* json, SCheckpoint* checkpoint) {
     TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
   }
   if (taosLSeekFile(fp, 0, SEEK_SET) < 0) {
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
   if (taosWriteFile(fp, data, strlen(data)) < 0) {
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   if (taosFsyncFile(fp) < 0) {

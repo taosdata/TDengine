@@ -116,7 +116,7 @@ static int32_t tsdbSaveFSToFile(STsdbFS *pFS, const char *fname) {
 
   int64_t n = taosWriteFile(pFD, pData, size);
   if (n < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   if (taosFsyncFile(pFD) < 0) {
@@ -296,8 +296,8 @@ static int32_t load_fs(const char *fname, STsdbFS *pFS) {
   }
 
   int64_t size;
-  if (taosFStatFile(pFD, &size, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  code = taosFStatFile(pFD, &size, NULL);
+  if (code != 0) {
     (void)taosCloseFile(&pFD);
     TSDB_CHECK_CODE(code, lino, _exit);
   }

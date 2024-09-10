@@ -90,10 +90,10 @@ static int32_t generateConfigFile(char* confDir) {
 #endif
   );
   uDebug("[rsync] conf:%s", confContent);
-  if (taosWriteFile(pFile, confContent, strlen(confContent)) <= 0) {
+  if (taosWriteFile(pFile, confContent, strlen(confContent)) != TSDB_CODE_SUCCESS) {
     uError("[rsync] write conf file error," ERRNO_ERR_FORMAT, ERRNO_ERR_DATA);
     (void)taosCloseFile(&pFile);
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     return code;
   }
 

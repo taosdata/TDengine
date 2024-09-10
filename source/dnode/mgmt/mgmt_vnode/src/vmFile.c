@@ -120,8 +120,8 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
   }
 
   int64_t size = 0;
-  if (taosFStatFile(pFile, &size, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
     dError("failed to fstat mnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
@@ -240,7 +240,7 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
 
   int32_t len = strlen(buffer);
   if (taosWriteFile(pFile, buffer, len) <= 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
   if (taosFsyncFile(pFile) < 0) {

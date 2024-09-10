@@ -397,7 +397,7 @@ static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char* tmpP
   }
 
   if (taosLSeekFile(pFile, 0, SEEK_END) < 0) {
-    tscError("failed to seek file:%p code: %d", pFile, errno);
+    tscError("failed to seek file:%p code: %d", pFile, terrno);
     return;
   }
   if (taosWriteFile(pFile, slowLogData->data, strlen(slowLogData->data) + 1) < 0) {
@@ -409,7 +409,7 @@ static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char* tmpP
 static char* readFile(TdFilePtr pFile, int64_t* offset, int64_t size) {
   tscDebug("[monitor] readFile slow begin pFile:%p, offset:%" PRId64 ", size:%" PRId64, pFile, *offset, size);
   if (taosLSeekFile(pFile, *offset, SEEK_SET) < 0) {
-    tscError("failed to seek file:%p code: %d", pFile, errno);
+    tscError("failed to seek file:%p code: %d", pFile, terrno);
     return NULL;
   }
 

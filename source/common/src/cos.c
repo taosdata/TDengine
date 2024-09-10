@@ -132,7 +132,7 @@ int32_t s3CheckCfg() {
     }
     if (taosWriteFile(fp, testdata, strlen(testdata)) < 0) {
       (void)fprintf(stderr, "failed to write test file: %s.\n", path);
-      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _next);
+      TAOS_CHECK_GOTO(terrno, &lino, _next);
     }
     if (taosFsyncFile(fp) < 0) {
       (void)fprintf(stderr, "failed to fsync test file: %s.\n", path);
@@ -872,7 +872,7 @@ upload:
 
     if (i > 0 && cp.parts[i - 1].completed) {
       if (taosLSeekFile(data->infileFD, cp.parts[i].offset, SEEK_SET) < 0) {
-        TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
+        TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
     }
 
@@ -1076,7 +1076,7 @@ static int32_t s3PutObjectFromFileOffsetByEp(const char *file, const char *objec
   }
   if (taosLSeekFile(data.infileFD, offset, SEEK_SET) < 0) {
     (void)taosCloseFile(&data.infileFD);
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
 
   data.totalContentLength = data.totalOriginalContentLength = data.contentLength = data.originalContentLength =

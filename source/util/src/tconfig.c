@@ -1255,11 +1255,16 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
       TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
     }
     size_t fileSize = taosLSeekFile(pFile, 0, SEEK_END);
+    if(fileSize <= 0) {
+      (void)taosCloseFile(&pFile);
+      (void)printf("load json file error: %s\n", filepath);
+      TAOS_CHECK_EXIT(terrno);
+    }
     char  *buf = taosMemoryMalloc(fileSize + 1);
     if (!buf) {
       (void)taosCloseFile(&pFile);
       (void)printf("load json file error: %s, failed to alloc memory\n", filepath);
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
 
     buf[fileSize] = 0;

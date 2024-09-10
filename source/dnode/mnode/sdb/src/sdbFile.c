@@ -168,26 +168,21 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
 }
 
 static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
-  int32_t code = 0;
   int64_t sver = SDB_FILE_VER;
   if (taosWriteFile(pFile, &sver, sizeof(int64_t)) != sizeof(int64_t)) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    TAOS_RETURN(code);
+    return terrno;
   }
 
   if (taosWriteFile(pFile, &pSdb->applyIndex, sizeof(int64_t)) != sizeof(int64_t)) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    TAOS_RETURN(code);
+    return terrno;
   }
 
   if (taosWriteFile(pFile, &pSdb->applyTerm, sizeof(int64_t)) != sizeof(int64_t)) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    TAOS_RETURN(code);
+    return terrno;
   }
 
   if (taosWriteFile(pFile, &pSdb->applyConfig, sizeof(int64_t)) != sizeof(int64_t)) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    TAOS_RETURN(code);
+    return terrno;
   }
 
   for (int32_t i = 0; i < SDB_TABLE_SIZE; ++i) {
@@ -196,8 +191,7 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
       maxId = pSdb->maxId[i];
     }
     if (taosWriteFile(pFile, &maxId, sizeof(int64_t)) != sizeof(int64_t)) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      TAOS_RETURN(code);
+      return terrno;
     }
   }
 
@@ -207,15 +201,13 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
       ver = pSdb->tableVer[i];
     }
     if (taosWriteFile(pFile, &ver, sizeof(int64_t)) != sizeof(int64_t)) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      TAOS_RETURN(code);
+      return terrno;
     }
   }
 
   char reserve[SDB_RESERVE_SIZE] = {0};
   if (taosWriteFile(pFile, reserve, sizeof(reserve)) != sizeof(reserve)) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    TAOS_RETURN(code);
+    return terrno;
   }
 
   return 0;
@@ -440,7 +432,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
         pRaw->status = pRow->status;
 
         if (taosWriteFile(pFile, pRaw, sizeof(SSdbRaw)) != sizeof(SSdbRaw)) {
-          code = TAOS_SYSTEM_ERROR(errno);
+          code = terrno;
           taosHashCancelIterate(hash, ppRow);
           sdbFreeRaw(pRaw);
           break;
@@ -472,7 +464,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
         }
 
         if (taosWriteFile(pFile, newData, newDataLen) != newDataLen) {
-          code = TAOS_SYSTEM_ERROR(errno);
+          code = terrno;
           taosHashCancelIterate(hash, ppRow);
           sdbFreeRaw(pRaw);
           break;
@@ -484,7 +476,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
 
         int32_t cksum = taosCalcChecksum(0, (const uint8_t *)pRaw, sizeof(SSdbRaw) + pRaw->dataLen);
         if (taosWriteFile(pFile, &cksum, sizeof(int32_t)) != sizeof(int32_t)) {
-          code = TAOS_SYSTEM_ERROR(errno);
+          code = errno;
           taosHashCancelIterate(hash, ppRow);
           sdbFreeRaw(pRaw);
           break;
@@ -784,7 +776,7 @@ int32_t sdbDoWrite(SSdb *pSdb, SSdbIter *pIter, void *pBuf, int32_t len) {
   int32_t code = 0;
   int32_t writelen = taosWriteFile(pIter->file, pBuf, len);
   if (writelen != len) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     mError("failed to write len:%d since %s, total:%" PRId64, len, tstrerror(code), pIter->total);
     TAOS_RETURN(code);
   }

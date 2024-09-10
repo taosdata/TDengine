@@ -62,8 +62,8 @@ int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
   }
 
   int64_t size = 0;
-  if (taosFStatFile(pFile, &size, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
     dError("failed to fstat file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
@@ -154,7 +154,7 @@ int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
 
   int32_t len = strlen(buffer);
   if (taosWriteFile(pFile, buffer, len) <= 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
   if (taosFsyncFile(pFile) < 0) {
@@ -244,7 +244,7 @@ static int32_t dmWriteCheckCodeFile(char *file, char *realfile, char *key, bool 
   }
 
   if (taosWriteFile(pFile, opts.result, len) <= 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
 
@@ -282,7 +282,7 @@ static int32_t dmWriteEncryptCodeFile(char *file, char *realfile, char *encryptC
 
   int32_t len = strlen(encryptCode);
   if (taosWriteFile(pFile, encryptCode, len) <= 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
   if (taosFsyncFile(pFile) < 0) {
@@ -320,8 +320,8 @@ static int32_t dmCompareEncryptKey(char *file, char *key, bool toLogFile) {
     goto _OVER;
   }
 
-  if (taosFStatFile(pFile, &size, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
     encryptError("failed to fstat dnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
@@ -461,8 +461,8 @@ static int32_t dmReadEncryptCodeFile(char *file, char **output) {
   }
 
   int64_t size = 0;
-  if (taosFStatFile(pFile, &size, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
     dError("failed to fstat dnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }

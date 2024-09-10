@@ -1669,7 +1669,7 @@ int32_t chkpAddExtraInfo(char* pChkpIdDir, int64_t chkpId, int64_t processId) {
   }
 
   if (nBytes != taosWriteFile(pFile, buf, nBytes)) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     stError("failed to write file to add extra info, file:%s, reason:%s", pDst, tstrerror(code));
     goto _EXIT;
   }
@@ -4970,7 +4970,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
 
   nBytes = taosWriteFile(pFile, content, strlen(content));
   if (nBytes != strlen(content)) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     stError("chkp failed to write meta file: %s,reason:%s", dstDir, tstrerror(code));
     (void)taosCloseFile(&pFile);
     goto _ERROR;

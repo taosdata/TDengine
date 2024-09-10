@@ -58,10 +58,10 @@ int32_t raftStoreReadFile(SSyncNode *pNode) {
   }
 
   int64_t size = 0;
-  if (taosFStatFile(pFile, &size, NULL) < 0) {
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
     sError("vgId:%d, failed to fstat raft store file:%s since %s", pNode->vgId, file, terrstr());
-
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _OVER);
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
   pData = taosMemoryMalloc(size + 1);
@@ -130,7 +130,7 @@ int32_t raftStoreWriteFile(SSyncNode *pNode) {
   if (pFile == NULL) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _OVER);
 
   int32_t len = strlen(buffer);
-  if (taosWriteFile(pFile, buffer, len) <= 0) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _OVER);
+  if (taosWriteFile(pFile, buffer, len) <= 0) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
 
   if (taosFsyncFile(pFile) < 0) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _OVER);
 

@@ -154,7 +154,7 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
 
     int64_t n = taosLSeekFile(pFD->pFD, offset, SEEK_SET);
     if (n < 0) {
-      TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
 
     (void)taosCalcChecksumAppend(0, pFD->pBuf, pFD->szPage);
@@ -183,7 +183,7 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
 
     n = taosWriteFile(pFD->pFD, pFD->pBuf, pFD->szPage);
     if (n < 0) {
-      TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
 
     if (pFD->szFile < pFD->pgno) {
@@ -220,7 +220,7 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
   // seek
   int64_t n = taosLSeekFile(pFD->pFD, offset, SEEK_SET);
   if (n < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   // read
@@ -373,7 +373,7 @@ static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, boo
       // read last chunk
       int64_t ret = taosLSeekFile(pFD->pFD, chunksize * (chunkno - pFD->lcn) + cOffset, SEEK_SET);
       if (ret < 0) {
-        TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+        TSDB_CHECK_CODE(code = terrno, lino, _exit);
       }
 
       ret = taosReadFile(pFD->pFD, buf + n, nRead);

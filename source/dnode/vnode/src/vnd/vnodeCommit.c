@@ -185,7 +185,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   }
 
   if (taosWriteFile(pFile, data, strlen(data)) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   if (taosFsyncFile(pFile) < 0) {
@@ -236,9 +236,8 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
     TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
   }
 
-  if (taosFStatFile(pFile, &size, NULL) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
-  }
+  code = taosFStatFile(pFile, &size, NULL);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   pData = taosMemoryMalloc(size + 1);
   if (pData == NULL) {

@@ -106,7 +106,7 @@ static FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, in
     int64_t ret = taosLSeekFile(pFile, offset, SEEK_SET);
     if (ret < 0) {
       wError("vgId:%d, failed to lseek file due to %s. offset:%" PRId64 "", pWal->cfg.vgId, strerror(errno), offset);
-      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _err);
+      TAOS_CHECK_GOTO(terrno, &lino, _err);
     }
 
     if (readSize != taosReadFile(pFile, buf, readSize)) {
@@ -169,9 +169,9 @@ static FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, in
         }
         int64_t ret = taosLSeekFile(pFile, offset + readSize, SEEK_SET);
         if (ret < 0) {
-          wError("vgId:%d, failed to lseek file due to %s. offset:%" PRId64 "", pWal->cfg.vgId, strerror(errno),
+          wError("vgId:%d, failed to lseek file due to %s. offset:%" PRId64 "", pWal->cfg.vgId, strerror(terrno),
                  offset);
-          code = TAOS_SYSTEM_ERROR(errno);
+          code = terrno;
           break;
         }
         if (extraSize != taosReadFile(pFile, buf + readSize, extraSize)) {
@@ -518,7 +518,7 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
 
 static int32_t walReadLogHead(TdFilePtr pLogFile, int64_t offset, SWalCkHead* pCkHead) {
   if (taosLSeekFile(pLogFile, offset, SEEK_SET) < 0) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
 
   if (taosReadFile(pLogFile, pCkHead, sizeof(SWalCkHead)) != sizeof(SWalCkHead)) {
@@ -578,14 +578,14 @@ static int32_t walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
   // determine the last valid entry end, i.e. offset
   while ((offset -= sizeof(SWalIdxEntry)) >= 0) {
     if (taosLSeekFile(pIdxFile, offset, SEEK_SET) < 0) {
-      wError("vgId:%d, failed to seek file due to %s. offset:%" PRId64 ", file:%s", pWal->cfg.vgId, strerror(errno),
+      wError("vgId:%d, failed to seek file due to %s. offset:%" PRId64 ", file:%s", pWal->cfg.vgId, strerror(terrno),
              offset, fnameStr);
 
-      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _err);
+      TAOS_CHECK_GOTO(terrno, &lino, _err);
     }
 
     if (taosReadFile(pIdxFile, &idxEntry, sizeof(SWalIdxEntry)) != sizeof(SWalIdxEntry)) {
-      wError("vgId:%d, failed to read file due to %s. offset:%" PRId64 ", file:%s", pWal->cfg.vgId, strerror(errno),
+      wError("vgId:%d, failed to read file due to %s. offset:%" PRId64 ", file:%s", pWal->cfg.vgId, strerror(terrno),
              offset, fnameStr);
 
       TAOS_CHECK_GOTO(terrno, &lino, _err);
@@ -628,7 +628,7 @@ static int32_t walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
     wError("vgId:%d, failed to seek file since %s. offset:%" PRId64 ", file:%s", pWal->cfg.vgId, terrstr(), offset,
            fnameStr);
 
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _err);
+    TAOS_CHECK_GOTO(terrno, &lino, _err);
   }
 
   int64_t count = 0;
@@ -654,7 +654,7 @@ static int32_t walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
     if (pWal->cfg.level != TAOS_WAL_SKIP && taosWriteFile(pIdxFile, &idxEntry, sizeof(SWalIdxEntry)) < 0) {
       wError("vgId:%d, failed to append file since %s. file:%s", pWal->cfg.vgId, terrstr(), fnameStr);
 
-      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _err);
+      TAOS_CHECK_GOTO(terrno, &lino, _err);
     }
     count++;
   }
@@ -950,7 +950,7 @@ int32_t walSaveMeta(SWal* pWal) {
   if (pWal->cfg.level != TAOS_WAL_SKIP && len != taosWriteFile(pMetaFile, serialized, len)) {
     wError("vgId:%d, failed to write file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), tmpFnameStr);
 
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _err);
+    TAOS_CHECK_GOTO(terrno, &lino, _err);
   }
 
   if (pWal->cfg.level != TAOS_WAL_SKIP && taosFsyncFile(pMetaFile) < 0) {

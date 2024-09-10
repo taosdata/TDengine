@@ -136,13 +136,12 @@ static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) { return pageSize 
 static int32_t doFlushBufPageImpl(SDiskbasedBuf* pBuf, int64_t offset, const char* pData, int32_t size) {
   int32_t ret = taosLSeekFile(pBuf->pFile, offset, SEEK_SET);
   if (ret == -1) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = terrno;
     return terrno;
   }
 
   ret = (int32_t)taosWriteFile(pBuf->pFile, pData, size);
   if (ret != size) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
 
@@ -249,7 +248,7 @@ static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
 
   int32_t ret = taosLSeekFile(pBuf->pFile, pg->offset, SEEK_SET);
   if (ret == -1) {
-    ret = TAOS_SYSTEM_ERROR(errno);
+    ret = terrno;
     return ret;
   }
 

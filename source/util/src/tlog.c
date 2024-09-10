@@ -545,9 +545,9 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
 
   // only an estimate for number of lines
   int64_t filesize = 0;
-  if (taosFStatFile(tsLogObj.logHandle->pFile, &filesize, NULL) < 0) {
+  if (taosFStatFile(tsLogObj.logHandle->pFile, &filesize, NULL) != 0) {
     (void)printf("\nfailed to fstat log file:%s, reason:%s\n", name, strerror(errno));
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
   tsLogObj.lines = (int32_t)(filesize / 60);
 
@@ -1003,7 +1003,6 @@ _return:
 
   if (pFile) (void)taosCloseFile(&pFile);
 
-  terrno = TAOS_SYSTEM_ERROR(errno);
   taosPrintLog(flags, level, dflag, "crash signal is %d", signum);
 
 #ifdef _TD_DARWIN_64

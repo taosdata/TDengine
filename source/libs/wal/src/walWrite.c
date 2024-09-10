@@ -207,7 +207,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   if (code < 0) {
     TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
 
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
   // read idx file and get log file pos
   SWalIdxEntry entry;
@@ -232,7 +232,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
     // TODO
     TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
 
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
   // validate offset
   SWalCkHead head;
@@ -536,13 +536,13 @@ static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
       pWal->stopDnode();
     }
 
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
 
   // check alignment of idx entries
   int64_t endOffset = taosLSeekFile(pWal->pIdxFile, 0, SEEK_END);
   if (endOffset < 0) {
-    wFatal("vgId:%d, failed to seek end of WAL idxfile due to %s. ver:%" PRId64 "", pWal->cfg.vgId, strerror(errno),
+    wFatal("vgId:%d, failed to seek end of WAL idxfile due to %s. ver:%" PRId64 "", pWal->cfg.vgId, strerror(terrno),
            ver);
     taosMsleep(100);
     exit(EXIT_FAILURE);
@@ -578,7 +578,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
   if (pWal->cfg.level != TAOS_WAL_SKIP &&
       taosWriteFile(pWal->pLogFile, &pWal->writeHead, sizeof(SWalCkHead)) != sizeof(SWalCkHead)) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
 
@@ -634,7 +634,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   }
 
   if (pWal->cfg.level != TAOS_WAL_SKIP && taosWriteFile(pWal->pLogFile, (char *)buf, cyptedBodyLen) != cyptedBodyLen) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
 

@@ -437,19 +437,22 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
 
 int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
   if (pFile == NULL || pFile->hFile == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
 #if FILE_WITH_LOCK
-  taosThreadRwlockWrlock(&(pFile->rwlock));
+  (void)taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
 
   DWORD bytesWritten;
   if (!WriteFile(pFile->hFile, buf, count, &bytesWritten, NULL)) {
+    errno = GetLastError();
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(errno);
     bytesWritten = -1;
   }
 
 #if FILE_WITH_LOCK
-  taosThreadRwlockUnlock(&(pFile->rwlock));
+  (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
   return bytesWritten;
 }
@@ -490,6 +493,7 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
 
 int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
   if (pFile == NULL || pFile->hFile == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return -1;
   }
 #if FILE_WITH_LOCK
@@ -499,11 +503,15 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
   LARGE_INTEGER liOffset;
   liOffset.QuadPart = offset;
   if (!SetFilePointerEx(pFile->hFile, liOffset, NULL, whence)) {
+    errno = GetLastError();
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(errno);
     return -1;
   }
 
   liOffset.QuadPart = 0;
   if (!SetFilePointerEx(pFile->hFile, liOffset, &liOffset, FILE_CURRENT)) {
+    errno = GetLastError();
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(errno);
     return -1;
   }
 #if FILE_WITH_LOCK
@@ -514,13 +522,16 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
 
 int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
   if (pFile == NULL || pFile->hFile == NULL) {
-    return 0;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
 
   if (size != NULL) {
     LARGE_INTEGER fileSize;
     if (!GetFileSizeEx(pFile->hFile, &fileSize)) {
-      return -1;  // Error getting file size
+      errno = GetLastError();
+      terrno = TAOS_SYSTEM_WINAPI_ERROR(errno);
+      return terrno;  // Error getting file size
     }
     *size = fileSize.QuadPart;
   }
@@ -528,7 +539,9 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
   if (mtime != NULL) {
     FILETIME creationTime, lastAccessTime, lastWriteTime;
     if (!GetFileTime(pFile->hFile, &creationTime, &lastAccessTime, &lastWriteTime)) {
-      return -1;  // Error getting file time
+      errno = GetLastError();
+      terrno = TAOS_SYSTEM_WINAPI_ERROR(errno);
+      return terrno;  // Error getting file time
     }
     // Convert the FILETIME structure to a time_t value
     ULARGE_INTEGER ull;
@@ -854,7 +867,7 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
 int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
   if (pFile == NULL || pFile->fd < 0) {
     terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    return -1;
   }
 #if FILE_WITH_LOCK
   (void)taosThreadRwlockRdlock(&(pFile->rwlock));
@@ -873,7 +886,7 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
 
   if (code) {
     terrno = code;
-    return terrno;
+    return -1;
   }
 
   return ret;
@@ -890,16 +903,11 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
     return terrno;
   }
 
-#ifdef WINDOWS
-  struct __stat64 fileStat;
-  int32_t         code = _fstat64(pFile->fd, &fileStat);
-#else
   struct stat fileStat;
   int32_t code = fstat(pFile->fd, &fileStat);
-#endif
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    return code;
+    return terrno;
   }
 
   if (size != NULL) {

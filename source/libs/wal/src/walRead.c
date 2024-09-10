@@ -137,7 +137,7 @@ static int32_t walReadSeekFilePos(SWalReader *pReader, int64_t fileFirstVer, int
     wError("vgId:%d, failed to seek idx file, index:%" PRId64 ", pos:%" PRId64 ", since %s", pReader->pWal->cfg.vgId,
            ver, offset, terrstr());
 
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
   SWalIdxEntry entry = {0};
   if ((ret = taosReadFile(pIdxTFile, &entry, sizeof(SWalIdxEntry))) != sizeof(SWalIdxEntry)) {
@@ -158,7 +158,7 @@ static int32_t walReadSeekFilePos(SWalReader *pReader, int64_t fileFirstVer, int
     wError("vgId:%d, failed to seek log file, index:%" PRId64 ", pos:%" PRId64 ", since %s", pReader->pWal->cfg.vgId,
            ver, entry.offset, terrstr());
 
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -303,7 +303,7 @@ int32_t walSkipFetchBody(SWalReader *pRead) {
   }
   int64_t code = taosLSeekFile(pRead->pLogFile, cryptedBodyLen, SEEK_CUR);
   if (code < 0) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
 
   pRead->curVersion++;

@@ -272,9 +272,10 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     }
 
     int64_t size;
-    if (taosFStatFile(pFile, &size, NULL) < 0) {
+    code = taosFStatFile(pFile, &size, NULL);
+    if (code != 0) {
       (void)taosCloseFile(&pFile);
-      TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + size + 1);

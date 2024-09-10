@@ -315,16 +315,16 @@ static int32_t saveBlocksToDisk(SGroupCacheOperatorInfo* pGCache, SGcDownstreamC
     }
     
     int32_t ret = taosLSeekFile(pFd->fd, pHead->basic.offset, SEEK_SET);
-    if (ret == -1) {
+    if (ret < 0) {
       releaseFdToFileCtx(pFd);
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = terrno;
       goto _return;
     }
     
     ret = (int32_t)taosWriteFile(pFd->fd, pHead->pBuf, pHead->basic.bufSize);
     if (ret != pHead->basic.bufSize) {
       releaseFdToFileCtx(pFd);
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = terrno;
       goto _return;
     }
     
@@ -548,8 +548,8 @@ static int32_t readBlockFromDisk(SGroupCacheOperatorInfo* pGCache, SGroupCacheDa
   }
   
   int32_t ret = taosLSeekFile(pFileFd->fd, pBasic->offset, SEEK_SET);
-  if (ret == -1) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  if (ret < 0) {
+    code = terrno;
     goto _return;
   }
 

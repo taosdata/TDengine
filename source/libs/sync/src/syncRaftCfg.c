@@ -156,7 +156,7 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
 
   int32_t len = strlen(buffer);
   if (taosWriteFile(pFile, buffer, len) <= 0) {
-    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
+    TAOS_CHECK_EXIT(terrno);
   }
 
   if (taosFsyncFile(pFile) < 0) {
@@ -265,8 +265,8 @@ int32_t syncReadCfgFile(SSyncNode *pNode) {
   }
 
   int64_t size = 0;
-  if (taosFStatFile(pFile, &size, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
     sError("vgId:%d, failed to fstat sync cfg file:%s since %s", pNode->vgId, file, tstrerror(code));
     goto _OVER;
   }

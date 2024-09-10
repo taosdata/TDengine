@@ -1178,7 +1178,7 @@ int32_t taosWinSocketInit() {
     WSADATA wsaData;
     wVersionRequested = MAKEWORD(1, 1);
     if (WSAStartup(wVersionRequested, &wsaData) != 0) {
-      atomic_store_8(&flag, 0)
+      atomic_store_8(&flag, 0);
       int errorCode = WSAGetLastError();
       return terrno = TAOS_SYSTEM_WINSOCKET_ERROR(errorCode);
     }
