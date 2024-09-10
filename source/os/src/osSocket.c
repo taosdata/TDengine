@@ -1170,19 +1170,23 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
   return (int)fd;
 }
 
-void taosWinSocketInit() {
+int32_t taosWinSocketInit() {
 #ifdef WINDOWS
-  static char flag = 0;
-  if (flag == 0) {
+  static int8_t flag = 0;
+  if (atomic_val_compare_exchange_8(&flag, 0, 1) == 0) {
     WORD    wVersionRequested;
     WSADATA wsaData;
     wVersionRequested = MAKEWORD(1, 1);
-    if (WSAStartup(wVersionRequested, &wsaData) == 0) {
-      flag = 1;
+    if (WSAStartup(wVersionRequested, &wsaData) != 0) {
+      atomic_store_8(&flag, 0)
+      int errorCode = WSAGetLastError();
+      return terrno = TAOS_SYSTEM_WINSOCKET_ERROR(errorCode);
     }
   }
+  return 0;
 #else
 #endif
+  return 0;
 }
 
 uint64_t taosHton64(uint64_t val) {

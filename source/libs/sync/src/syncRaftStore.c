@@ -72,7 +72,7 @@ int32_t raftStoreReadFile(SSyncNode *pNode) {
   if (taosReadFile(pFile, pData, size) != size) {
     sError("vgId:%d, failed to read raft store file:%s since %s", pNode->vgId, file, terrstr());
 
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
   pData[size] = '\0';

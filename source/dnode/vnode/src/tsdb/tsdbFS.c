@@ -310,7 +310,7 @@ static int32_t load_fs(const char *fname, STsdbFS *pFS) {
   }
 
   if (taosReadFile(pFD, pData, size) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     (void)taosCloseFile(&pFD);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -711,10 +711,7 @@ static int32_t tsdbFSCommit(STsdb *pTsdb) {
   if (!taosCheckExistFile(current_t)) goto _exit;
 
   // rename the file
-  if (taosRenameFile(current_t, current) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  TSDB_CHECK_CODE(taosRenameFile(current_t, current), lino, _exit);
 
   // Load the new FS
   code = tsdbFSCreate(&fs);

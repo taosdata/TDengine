@@ -296,7 +296,7 @@ int32_t remoteChkp_readMetaData(char* path, SSChkpMetaOnS3** pMeta) {
 
   char buf[256] = {0};
   if (taosReadFile(pFile, buf, sizeof(buf)) <= 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _EXIT;
   }
 
@@ -367,8 +367,8 @@ int32_t remoteChkp_validAndCvtMeta(char* path, SSChkpMetaOnS3* pMeta, int64_t ch
       goto _EXIT;
     }
 
-    if (taosRenameFile(src, dst) != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
+    code = taosRenameFile(src, dst);
+    if (code != 0) {
       goto _EXIT;
     }
 
@@ -507,7 +507,6 @@ int32_t rebuildFromRemoteChkp_s3(const char* key, char* chkpPath, int64_t chkpId
   if (taosIsDir(defaultPath)) {
     code = taosRenameFile(defaultPath, defaultTmp);
     if (code != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
       goto _EXIT;
     } else {
       rename = 1;
@@ -1609,7 +1608,7 @@ int32_t chkpLoadExtraInfo(char* pChkpIdDir, int64_t* chkpId, int64_t* processId)
   }
 
   if (taosReadFile(pFile, buf, sizeof(buf)) <= 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     stError("failed to read file to load extra info, file:%s, reason:%s", pDst, tstrerror(code));
     goto _EXIT;
   }

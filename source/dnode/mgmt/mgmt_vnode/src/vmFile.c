@@ -133,7 +133,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
   }
 
   if (taosReadFile(pFile, pData, size) != size) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to read vnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
@@ -253,12 +253,8 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _OVER;
   }
-  if (taosRenameFile(file, realfile) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
 
-  code = 0;
   dInfo("succeed to write vnodes file:%s, vnodes:%d", realfile, numOfVnodes);
 
 _OVER:

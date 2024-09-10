@@ -96,7 +96,7 @@ int32_t mmReadFile(const char *path, SMnodeOpt *pOption) {
   }
 
   if (taosReadFile(pFile, pData, size) != size) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to read mnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
@@ -215,10 +215,7 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _OVER;
   }
-  if (taosRenameFile(file, realfile) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
 
   dInfo("succeed to write mnode file:%s, deloyed:%d", realfile, pOption->deploy);
 

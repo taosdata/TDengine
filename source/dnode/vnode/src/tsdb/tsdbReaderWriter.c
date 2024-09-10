@@ -226,7 +226,7 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
   // read
   n = taosReadFile(pFD->pFD, pFD->pBuf, pFD->szPage);
   if (n < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   } else if (n < pFD->szPage) {
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
@@ -378,7 +378,7 @@ static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, boo
 
       ret = taosReadFile(pFD->pFD, buf + n, nRead);
       if (ret < 0) {
-        TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+        TSDB_CHECK_CODE(code = terrno, lino, _exit);
       } else if (ret < nRead) {
         TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
       }

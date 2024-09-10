@@ -112,7 +112,7 @@ static FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, in
     if (readSize != taosReadFile(pFile, buf, readSize)) {
       wError("vgId:%d, failed to read file due to %s. readSize:%" PRId64 ", file:%s", pWal->cfg.vgId, strerror(errno),
              readSize, fnameStr);
-      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _err);
+      TAOS_CHECK_GOTO(terrno, &lino, _err);
     }
 
     char*       candidate = NULL;
@@ -177,7 +177,7 @@ static FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, in
         if (extraSize != taosReadFile(pFile, buf + readSize, extraSize)) {
           wError("vgId:%d, failed to read file due to %s. offset:%" PRId64 ", extraSize:%" PRId64 ", file:%s",
                  pWal->cfg.vgId, strerror(errno), offset + readSize, extraSize, fnameStr);
-          code = TAOS_SYSTEM_ERROR(errno);
+          code = terrno;
           break;
         }
       }
@@ -522,7 +522,7 @@ static int32_t walReadLogHead(TdFilePtr pLogFile, int64_t offset, SWalCkHead* pC
   }
 
   if (taosReadFile(pLogFile, pCkHead, sizeof(SWalCkHead)) != sizeof(SWalCkHead)) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
 
   if (walValidHeadCksum(pCkHead) != 0) {
@@ -588,7 +588,7 @@ static int32_t walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
       wError("vgId:%d, failed to read file due to %s. offset:%" PRId64 ", file:%s", pWal->cfg.vgId, strerror(errno),
              offset, fnameStr);
 
-      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _err);
+      TAOS_CHECK_GOTO(terrno, &lino, _err);
     }
 
     if (idxEntry.ver > pFileInfo->lastVer) {
@@ -1028,7 +1028,7 @@ int32_t walLoadMeta(SWal* pWal) {
     (void)taosCloseFile(&pFile);
     taosMemoryFree(buf);
 
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
   // load into fileInfoSet
   code = walMetaDeserialize(pWal, buf);

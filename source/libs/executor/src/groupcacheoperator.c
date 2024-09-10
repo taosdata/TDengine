@@ -562,7 +562,7 @@ static int32_t readBlockFromDisk(SGroupCacheOperatorInfo* pGCache, SGroupCacheDa
   ret = (int32_t)taosReadFile(pFileFd->fd, *ppBuf, pBasic->bufSize);
   if (ret != pBasic->bufSize) {
     taosMemoryFreeClear(*ppBuf);
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _return;
   }
 

@@ -447,7 +447,7 @@ TdDirPtr taosOpenDir(const char *dirname) {
   if (INVALID_HANDLE_VALUE == pDir->hFind) {
     taosMemoryFree(pDir);
     DWORD errorCode = GetLastError();
-    terrno = TAOS_SYSTEM_ERROR(errorCode);
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(errorCode);
     return NULL;
   }
   return pDir;
@@ -529,7 +529,7 @@ int32_t taosCloseDir(TdDirPtr *ppDir) {
   }
 #ifdef WINDOWS
   if(!FindClose((*ppDir)->hFind)) {
-    terrno = TAOS_SYSTEM_ERROR(GetLastError());
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     return terrno;
   }
   taosMemoryFree(*ppDir);

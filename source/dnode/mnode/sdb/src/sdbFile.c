@@ -86,8 +86,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
   int64_t sver = 0;
   int32_t ret = taosReadFile(pFile, &sver, sizeof(int64_t));
   if (ret < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    TAOS_RETURN(code);
+    return terrno;
   }
   if (ret != sizeof(int64_t)) {
     code = TSDB_CODE_FILE_CORRUPTED;
@@ -100,8 +99,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
 
   ret = taosReadFile(pFile, &pSdb->applyIndex, sizeof(int64_t));
   if (ret < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    TAOS_RETURN(code);
+    return terrno;
   }
   if (ret != sizeof(int64_t)) {
     code = TSDB_CODE_FILE_CORRUPTED;
@@ -110,8 +108,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
 
   ret = taosReadFile(pFile, &pSdb->applyTerm, sizeof(int64_t));
   if (ret < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    TAOS_RETURN(code);
+    return terrno;
   }
   if (ret != sizeof(int64_t)) {
     code = TSDB_CODE_FILE_CORRUPTED;
@@ -120,8 +117,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
 
   ret = taosReadFile(pFile, &pSdb->applyConfig, sizeof(int64_t));
   if (ret < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    TAOS_RETURN(code);
+    return terrno;
   }
   if (ret != sizeof(int64_t)) {
     code = TSDB_CODE_FILE_CORRUPTED;
@@ -132,8 +128,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
     int64_t maxId = 0;
     ret = taosReadFile(pFile, &maxId, sizeof(int64_t));
     if (ret < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      TAOS_RETURN(code);
+      return terrno;
     }
     if (ret != sizeof(int64_t)) {
       code = TSDB_CODE_FILE_CORRUPTED;
@@ -148,8 +143,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
     int64_t ver = 0;
     ret = taosReadFile(pFile, &ver, sizeof(int64_t));
     if (ret < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      TAOS_RETURN(code);
+      return terrno;
     }
     if (ret != sizeof(int64_t)) {
       code = TSDB_CODE_FILE_CORRUPTED;
@@ -163,8 +157,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
   char reserve[SDB_RESERVE_SIZE] = {0};
   ret = taosReadFile(pFile, reserve, sizeof(reserve));
   if (ret < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    TAOS_RETURN(code);
+    return terrno;
   }
   if (ret != sizeof(reserve)) {
     code = TSDB_CODE_FILE_CORRUPTED;
@@ -274,7 +267,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     if (ret == 0) break;
 
     if (ret < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = terrno;
       mError("failed to read sdb file:%s since %s", file, tstrerror(code));
       goto _OVER;
     }
@@ -305,7 +298,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
 
     ret = taosReadFile(pFile, pRaw->pData, readLen);
     if (ret < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = terrno;
       mError("failed to read sdb file:%s since %s, ret:%" PRId64 " readLen:%d", file, tstrerror(code), ret, readLen);
       goto _OVER;
     }
@@ -523,7 +516,6 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
   if (code == 0) {
     code = taosRenameFile(tmpfile, curfile);
     if (code != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
       mError("failed to write sdb file:%s since %s", curfile, tstrerror(code));
     }
   }
@@ -693,7 +685,7 @@ int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len) {
 
   int32_t readlen = taosReadFile(pIter->file, pBuf, maxlen);
   if (readlen < 0 || readlen > maxlen) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     mError("sdbiter:%p, failed to read snapshot since %s, total:%" PRId64, pIter, tstrerror(code), pIter->total);
     *ppBuf = NULL;
     *len = 0;
@@ -758,8 +750,8 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, i
 
   char datafile[PATH_MAX] = {0};
   snprintf(datafile, sizeof(datafile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
-  if (taosRenameFile(pIter->name, datafile) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  code = taosRenameFile(pIter->name, datafile);
+  if (code != 0) {
     mError("sdbiter:%p, failed to rename file %s to %s since %s", pIter, pIter->name, datafile, tstrerror(code));
     goto _OVER;
   }

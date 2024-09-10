@@ -256,7 +256,7 @@ static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   void* pPage = (void*)GET_PAYLOAD_DATA(pg);
   ret = (int32_t)taosReadFile(pBuf->pFile, pPage, pg->length);
   if (ret != pg->length) {
-    ret = TAOS_SYSTEM_ERROR(errno);
+    ret = terrno;
     return ret;
   }
 

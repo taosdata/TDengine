@@ -144,7 +144,7 @@ static int32_t walReadSeekFilePos(SWalReader *pReader, int64_t fileFirstVer, int
     if (ret < 0) {
       wError("vgId:%d, failed to read idx file, since %s", pReader->pWal->cfg.vgId, terrstr());
 
-      TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+      TAOS_RETURN(terrno);
     } else {
       wError("vgId:%d, read idx file incompletely, read bytes %" PRId64 ", bytes should be %ld",
              pReader->pWal->cfg.vgId, ret, sizeof(SWalIdxEntry));
@@ -270,7 +270,7 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver) {
       continue;
     } else {
       if (contLen < 0) {
-        TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+        TAOS_RETURN(terrno);
       } else {
         TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
       }
@@ -345,7 +345,7 @@ int32_t walFetchBody(SWalReader *pRead) {
       wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64 ", since %s, 0x%" PRIx64, vgId,
              pReadHead->version, ver, tstrerror(terrno), id);
 
-      TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+      TAOS_RETURN(terrno);
     } else {
       wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64
              ", since file corrupted, 0x%" PRIx64,
@@ -426,7 +426,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
       TAOS_UNUSED(taosThreadMutexUnlock(&pReader->mutex));
 
       if (contLen < 0) {
-        TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+        TAOS_RETURN(terrno);
       } else {
         TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
       }
@@ -467,7 +467,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     TAOS_UNUSED(taosThreadMutexUnlock(&pReader->mutex));
 
     if (contLen < 0) {
-      TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+      TAOS_RETURN(terrno);
     } else {
       TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
     }

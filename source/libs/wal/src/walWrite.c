@@ -214,7 +214,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   if (taosReadFile(pIdxFile, &entry, sizeof(SWalIdxEntry)) != sizeof(SWalIdxEntry)) {
     TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
 
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
 
   walBuildLogName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
@@ -240,7 +240,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   if (size != sizeof(SWalCkHead)) {
     TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
 
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
   code = walValidHeadCksum(&head);
 

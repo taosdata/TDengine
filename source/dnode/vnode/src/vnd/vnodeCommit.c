@@ -211,8 +211,9 @@ int vnodeCommitInfo(const char *dir) {
   snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME);
   snprintf(tfname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME_TMP);
 
-  if (taosRenameFile(tfname, fname) < 0) {
-    return terrno = TAOS_SYSTEM_ERROR(errno);
+  int32_t code = taosRenameFile(tfname, fname);
+  if (code < 0) {
+    return code;
   }
 
   vInfo("vnode info is committed, dir:%s", dir);
@@ -245,7 +246,7 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
   }
 
   if (taosReadFile(pFile, pData, size) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   pData[size] = '\0';

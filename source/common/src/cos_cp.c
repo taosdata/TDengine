@@ -175,7 +175,7 @@ int32_t cos_cp_load(char const* filepath, SCheckpoint* checkpoint) {
 
   int64_t n = taosReadFile(fd, cp_body, size);
   if (n < 0) {
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   } else if (n != size) {
     TAOS_CHECK_GOTO(TSDB_CODE_FILE_CORRUPTED, &lino, _exit);
   }

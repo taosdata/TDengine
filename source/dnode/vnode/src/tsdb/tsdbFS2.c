@@ -130,7 +130,7 @@ static int32_t load_json(const char *fname, cJSON **json) {
   }
 
   if (taosReadFile(fp, data, size) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(code), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
   data[size] = '\0';
 
@@ -309,10 +309,7 @@ static int32_t commit_edit(STFileSystem *fs) {
 
   int32_t code;
   int32_t lino;
-  if ((code = taosRenameFile(current_t, current))) {
-    code = TAOS_SYSTEM_ERROR(code);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  TSDB_CHECK_CODE(taosRenameFile(current_t, current), lino, _exit);
 
   code = apply_commit(fs);
   TSDB_CHECK_CODE(code, lino, _exit);

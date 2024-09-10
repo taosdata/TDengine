@@ -75,7 +75,7 @@ int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
   }
 
   if (taosReadFile(pFile, content, size) != size) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to read file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
@@ -166,12 +166,8 @@ int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _OVER;
   }
-  if (taosRenameFile(file, realfile) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
 
-  code = 0;
   dInfo("succeed to write file:%s, deloyed:%d", realfile, deployed);
 
 _OVER:
@@ -262,10 +258,7 @@ static int32_t dmWriteCheckCodeFile(char *file, char *realfile, char *key, bool 
     goto _OVER;
   }
 
-  if (taosRenameFile(file, realfile) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
 
   encryptDebug("succeed to write checkCode file:%s", realfile);
 
@@ -302,10 +295,7 @@ static int32_t dmWriteEncryptCodeFile(char *file, char *realfile, char *encryptC
     goto _OVER;
   }
 
-  if (taosRenameFile(file, realfile) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
 
   encryptDebug("succeed to write encryptCode file:%s", realfile);
 
@@ -338,12 +328,12 @@ static int32_t dmCompareEncryptKey(char *file, char *key, bool toLogFile) {
 
   content = taosMemoryMalloc(size);
   if (content == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
   if (taosReadFile(pFile, content, size) != size) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     encryptError("failed to read dnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
@@ -484,7 +474,7 @@ static int32_t dmReadEncryptCodeFile(char *file, char **output) {
   }
 
   if (taosReadFile(pFile, content, size) != size) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to read dnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }

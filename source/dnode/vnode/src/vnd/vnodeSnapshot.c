@@ -289,7 +289,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     if (taosReadFile(pFile, ((SSnapDataHdr *)(*ppData))->data, size) < 0) {
       taosMemoryFree(*ppData);
       (void)taosCloseFile(&pFile);
-      TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
 
     (void)taosCloseFile(&pFile);
