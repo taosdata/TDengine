@@ -24,10 +24,13 @@
 
 #if !defined(ASSERT_NOT_CORE) && !defined(WINDOWS)
 #define _TD_DM_CHECK_OFFSET
-#define DM_CHECK_OFFSET(p1, p2, offset, flag)                                  \
-  do {                                                                         \
-    int32_t off = POINTER_DISTANCE((p1), (p2));                                \
-    ASSERTS((offset) == abs(off), "%s offset: %d!=%d", (flag), off, (offset)); \
+#define DM_CHECK_OFFSET(p1, p2, offset, flag)             \
+  do {                                                    \
+    int32_t off = POINTER_DISTANCE((p1), (p2));           \
+    if ((offset) != abs(off)) {                           \
+      dError("%s offset: %d!=%d", (flag), off, (offset)); \
+      return TSDB_CODE_INTERNAL_ERROR;                    \
+    }                                                     \
   } while (0)
 #endif
 
@@ -45,6 +48,7 @@ typedef enum {
 } DM_ENG_TYPE;
 
 #define DM_ENG_FVER_MAX DM_ENG_FVER_1
+#define DM_OS_ST_NAME_LEN 64
 
 #define DM_ENGINE_FILE "dnode.info"
 #define DM_ENGINE_FILE_T "dnode.info.t"
@@ -72,6 +76,15 @@ typedef struct {
 #define STR_STR_SIGN ("ia")
 #define STR_STR_COMM ("unit")
 
+#define STR_CASE_STR_CHECK(s, d) \
+  do {                           \
+    (void)strtolower(s, s);      \
+    (void)strtolower(d, d);      \
+    if (STR_STR_CMP(s, d)) {     \
+      DM_ERR_RTN(0);             \
+    }                            \
+  } while (0)
+
 #define DM_ERR_RTN(c) \
   do {                \
     code = (c);       \
@@ -93,7 +106,7 @@ static int32_t dmWriteVars(SEngineInfo *pInfo);
 // implementations
 
 #ifdef _TD_DM_CHECK_OFFSET
-static void dmCheckOffset(SDnode *pDnode) {
+static int32_t dmCheckOffset(SDnode *pDnode) {
   SDnodeData     *pData = &pDnode->data;
   TdThreadRwlock *pLock = &pData->lock;
   int32_t        *pDnodeId = &pData->dnodeId;
@@ -105,6 +118,8 @@ static void dmCheckOffset(SDnode *pDnode) {
   DM_CHECK_OFFSET(pDnodeId, pData, 0, "data dnodeId");
   DM_CHECK_OFFSET(pEngineVer, pData, 4, "data engineVer");
   DM_CHECK_OFFSET(pClusterId, pData, 8, "data clusterId");
+
+  return TSDB_CODE_SUCCESS;
 }
 #endif
 
@@ -122,7 +137,7 @@ static int32_t dmInitPrerequisites() {
   if (STR_STR_CMP(stName, STR_STR_SIGN)) {
     DM_ERR_RTN(0);
   }
-  if (taosGetOsReleaseName(reName, stName, ver, 64) != 0) {
+  if (taosGetOsReleaseName(reName, stName, ver, DM_OS_ST_NAME_LEN) != 0) {
     int32_t errCode = TAOS_SYSTEM_ERROR(errno);
     if (errCode != 0) code = errCode;
     TAOS_CHECK_GOTO(code, NULL, _exit);
@@ -137,10 +152,10 @@ static int32_t dmInitPrerequisites() {
     }
   } else {
     int32_t size = sizeof(dmOS) / sizeof(dmOS[0]);
+    char    os[DM_OS_ST_NAME_LEN] = {0};
     for (int32_t i = 2; i < size; ++i) {
-      if (STR_CASE_CMP(stName, dmOS[i])) {
-        DM_ERR_RTN(0);
-      }
+      tstrncpy(os, dmOS[i], DM_OS_ST_NAME_LEN);
+      STR_CASE_STR_CHECK(stName, os);
     }
   }
 
@@ -550,7 +565,7 @@ int32_t dmInitModule(SDnode *pDnode) {
   int32_t lino = 0;
 
 #ifdef _TD_DM_CHECK_OFFSET
-  dmCheckOffset(pDnode);
+  TAOS_CHECK_GOTO(dmCheckOffset(pDnode), &lino, _exit);
 #endif
 
   TAOS_CHECK_GOTO(dmInitPrerequisites(), &lino, _exit);

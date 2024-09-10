@@ -6,6 +6,10 @@ set -e
 # OPTIONS=`getopt  --options 'ho:r:e:f' --longoptions 'help,os:,arch:,repo:,force' -- "$@"`
 FORCE=0
 current_os=`uname`
+cusName="TDengine"
+cusEmail="support@taosdata.com"
+cusPrompt="taos"
+
 usage() {
   cat << EOF
 Usage:
@@ -22,6 +26,9 @@ Build taoskeeper in latest tag.
 -f, --force                                 Force rebuild and pack
 -e, --repo                                  Code repositories
 -t, --tag                                   tag
+-N, --cusName                               Custom name
+-M, --cusEmail                              Custom Email
+-P, --cusPrompt                             Custom Prompt
 EOF
 }
 
@@ -62,7 +69,11 @@ build_binary() {
     true
   else
     if [ "$REPO" = "taoskeeperinternal" ]; then
-      go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeperinternal/version.Version=$latestv' -X 'github.com/taosdata/taoskeeperinternal/version.Gitinfo=$gitinfo' -X 'github.com/taosdata/taoskeeperinternal/version.BuildInfo=$buildinfo'" -o taoskeeper main.go
+      if [ "${cusName}" = "TDengine" ]  && [ "${cusEmail}" = "support@taosdata.com" ] && [ "${cusPrompt}" = "taos" ]; then
+        go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeperinternal/version.Version=$latestv' -X 'github.com/taosdata/taoskeeperinternal/version.Gitinfo=$gitinfo' -X 'github.com/taosdata/taoskeeperinternal/version.BuildInfo=$buildinfo'" -o taoskeeper main.go
+      else
+        go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeperinternal/version.CUS_NAME=$cusName' -X 'github.com/taosdata/taoskeeperinternal/version.CUS_EMAIL=$cusEmail' -X 'github.com/taosdata/taoskeeperinternal/version.CUS_PROMPT=$cusPrompt' -X 'github.com/taosdata/taoskeeper/version.CUS_NAME=$cusName' -X 'github.com/taosdata/taoskeeper/version.CUS_EMAIL=$cusEmail' -X 'github.com/taosdata/taoskeeper/version.CUS_PROMPT=$cusPrompt' -X 'github.com/taosdata/taoskeeperinternal/version.Version=$latestv' -X 'github.com/taosdata/taoskeeperinternal/version.Gitinfo=$gitinfo' -X 'github.com/taosdata/taoskeeperinternal/version.BuildInfo=$buildinfo'" -o taoskeeper main.go
+      fi
     elif [ "$REPO" = "taoskeeper" ]; then
       go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeper/version.Version=$latestv' -X 'github.com/taosdata/taoskeeper/version.Gitinfo=$gitinfo' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=$buildinfo'" -o taoskeeper main.go
          # if os != darwin, use upx to compress binary
@@ -76,7 +87,7 @@ build_binary() {
 }
 
 # eval set -- "$OPTIONS"
-while getopts "ho:r:e:f:t:" arg
+while getopts "ho:r:e:f:t:N:M:P:" arg
 do
   case $arg in
   h)
@@ -97,6 +108,15 @@ do
     ;;
   t)
     export TAG=$OPTARG
+    ;;
+  N)
+    export cusName=$OPTARG
+    ;;
+  M)
+    export cusEmail=$OPTARG
+    ;;
+  P)
+    export cusPrompt=$OPTARG
     ;;
   ?)
     break

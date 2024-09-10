@@ -107,7 +107,6 @@ connectorDir="${baseDir}/${branch}/connector"
 exampleDir="${communityDir}/examples"
 taosxDir="${baseDir}/${branch}/taosx"
 explorerDir="${baseDir}/${branch}/explorer"
-cfg_dir="${communityDir}/packaging/cfg"
 install_dir="${baseDir}/${branch}/install_dir"
 
 if [ "$versionType" == "community" ]; then
@@ -116,6 +115,7 @@ if [ "$versionType" == "community" ]; then
     debugDir="${communityDir}/debug"
     keeperDir="${baseDir}/${branch}/taoskeeper"
     archiveDir="/nas/TDengine/v${version}/community"
+    cfg_dir="${communityDir}/packaging/cfg"
 else
     if [ "$versionType" == "enterprise" ]; then 
         serverPackageName="${productName}-enterprise-${version}"
@@ -127,6 +127,7 @@ else
     debugDir="${internalDir}/debug"    
     keeperDir="${baseDir}/${branch}/taoskeeperinternal"
     archiveDir="/nas/TDengine/v${version}/enterprise"
+    cfg_dir="${internalDir}/enterprise/packaging/cfg"
 fi
 
 ostype=`uname`
@@ -214,8 +215,7 @@ function industry_options() {
             -DTD_PRODUCT_NAME=\"${TD_INDUSTRY_NAME}\" \
             -DTD_FUNC_STREAM=false \
             -DTD_FUNC_SUBSCRIPTION=false \
-            -DTD_FUNC_AUDIT=false \
-            -DTD_FUNC_CSV=false \
+            -DTD_FUNC_AUDIT=false \            
             -DTD_FUNC_VIEW=false \
             -DTD_FUNC_MULTI_TIER_STORAGE=false \
             -DTD_FUNC_DATA_BAK_RESTORE=false \
@@ -223,6 +223,7 @@ function industry_options() {
             -DTD_FUNC_ACTIVE_ACTIVE=false \
             -DTD_FUNC_DUAL_REPLICA_HA=false \
             -DTD_FUNC_DB_ENCRYPTION=false \
+            -DTD_FUNC_DATA_SYNC=false \
             -DTD_DATAIN_OPC_DA=false \
             -DTD_DATAIN_OPC_UA=false \
             -DTD_DATAIN_PI=false \
@@ -237,7 +238,8 @@ function industry_options() {
             -DTD_DATAIN_POSTGRES=false \
             -DTD_DATAIN_ORACLE=false \
             -DTD_DATAIN_MSSQL=false \
-            -DTD_DATAIN_MONGODB=false" \
+            -DTD_DATAIN_MONGODB=false \
+            -DTD_DATAIN_CSV=false"
     fi
     echo $options
 }
@@ -469,8 +471,8 @@ function preparepkg() {
 
     # copy cfg files
     cp ${cfg_dir}/${prefix}.cfg ${install_dir}/cfg/ || :
-    if [ -f "${cfg_dir}/${prefix}d.service" ]; then
-        cp ${cfg_dir}/${prefix}d.service ${install_dir}/cfg || :
+    if [ -f "${communityDir}/packaging/cfg/${prefix}d.service" ]; then
+        cp ${communityDir}/packaging/cfg/${prefix}d.service ${install_dir}/cfg || :
     fi
 
     if [ -f "${debugDir}/test/cfg/${prefix}adapter.toml" ]; then
@@ -532,7 +534,8 @@ function preparepkg() {
     if [ "${versionType}" != "community" ]; then
         # copy taosx         
         cp -r ${taosxDir}/release/taosx ${install_dir} || :        
-        cp ${taosxDir}/packaging/uninstall.sh ${install_dir}/taosx || :        
+        cp ${taosxDir}/packaging/uninstall.sh ${install_dir}/taosx/uninstall_taosx.sh || :
+        sed -i "s/uninstall.sh/uninstall_taosx.sh/g" ${install_dir}/taosx/uninstall_taosx.sh
     else
         # copy explorer
         cp ${explorerDir}/target/release/${prefix}-explorer ${install_dir}/bin || :
@@ -550,7 +553,7 @@ function preparepkg() {
         sed -i 's/verMode=edge/verMode=cluster/g' ${install_dir}/install.sh
         sed -i "s/PREFIX=\"taos\"/PREFIX=\"${prefix}\"/g" ${install_dir}/install.sh
         sed -i "s/productName=\"TDengine\"/productName=\"${productName}\"/g" ${install_dir}/install.sh
-        cusDomain=`echo "${cusEmail2}" | sed 's/^[^@]*@//'`
+        cusDomain=`echo "${productEmail}" | sed 's/^[^@]*@//'`
         sed -i "s/emailName=\"taosdata.com\"/emailName=\"${cusDomain}\"/g" ${install_dir}/install.sh
 
         sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh
@@ -724,7 +727,7 @@ function make_linux_pkg() {
             fi
             mkdir -p ${output_dir}
             
-            cd ${communityDir}/packaging/deb            
+            cd ${communityDir}/packaging/deb
             ${csudo}./makedeb.sh ${debugDir} ${output_dir} ${version} ${os_arch} ${os_type} ${verMode} stable
             cp ${output_dir}/*.deb ${archiveDir}
         else

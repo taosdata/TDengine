@@ -36,105 +36,115 @@ void tFreeViewObj(SViewObj *pView) {
 
 int32_t tSerializeSViewObj(void *buf, int32_t bufLen, const SViewObj *pObj) {
   SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
   tEncoderInit(&encoder, buf, bufLen);
 
-  if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeCStr(&encoder, pObj->fullname) < 0) return -1;
-  if (tEncodeCStr(&encoder, pObj->name) < 0) return -1;
-  if (tEncodeCStr(&encoder, pObj->dbFName) < 0) return -1;
-  if (tEncodeCStr(&encoder, pObj->user) < 0) return -1;
-  if (tEncodeCStr(&encoder, pObj->querySql) < 0) return -1;
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->fullname));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->name));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->dbFName));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->user));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->querySql));
   if (NULL != pObj->parameters) {
-    if (tEncodeI8(&encoder, 1) < 0) return -1;
-    if (tEncodeCStr(&encoder, pObj->parameters) < 0) return -1;
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->parameters));
   } else {
-    if (tEncodeI8(&encoder, 0) < 0) return -1;
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0));
   }
   if (NULL != pObj->defaultValues) {
-    if (tEncodeI8(&encoder, 1) < 0) return -1;
-    //TODO
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1));
+    // TODO
   } else {
-    if (tEncodeI8(&encoder, 0) < 0) return -1;
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0));
   }
   if (NULL != pObj->targetTable) {
-    if (tEncodeI8(&encoder, 1) < 0) return -1;
-    if (tEncodeCStr(&encoder, pObj->targetTable) < 0) return -1;
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->targetTable));
   } else {
-    if (tEncodeI8(&encoder, 0) < 0) return -1;
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0));
   }
-  if (tEncodeU64(&encoder, pObj->viewId) < 0) return -1;
-  if (tEncodeU64(&encoder, pObj->dbId) < 0) return -1;
-  if (tEncodeI64(&encoder, pObj->createdTime) < 0) return -1;
-  if (tEncodeI32(&encoder, pObj->version) < 0) return -1;
-  if (tEncodeI8(&encoder, pObj->precision) < 0) return -1;
-  if (tEncodeI8(&encoder, pObj->type) < 0) return -1;
-  if (tEncodeI32(&encoder, pObj->numOfCols) < 0) return -1;
+  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pObj->viewId));
+  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pObj->dbId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->createdTime));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->version));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pObj->precision));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pObj->type));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->numOfCols));
   for (int32_t i = 0; i < pObj->numOfCols; ++i) {
     SSchema *pSchema = &pObj->pSchema[i];
-    if (tEncodeSSchema(&encoder, pSchema) < 0) return -1;
+    TAOS_CHECK_EXIT(tEncodeSSchema(&encoder, pSchema));
   }
 
   tEndEncode(&encoder);
 
-  int32_t tlen = encoder.pos;
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
   tEncoderClear(&encoder);
   return tlen;
 }
 
 int32_t tDeserializeSViewObj(void *buf, int32_t bufLen, SViewObj *pObj) {
-  int8_t ex = 0;
+  int8_t   ex = 0;
   SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
   tDecoderInit(&decoder, buf, bufLen);
 
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pObj->fullname) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pObj->name) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pObj->dbFName) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pObj->user) < 0) return -1;
-  if (tDecodeCStrAlloc(&decoder, &pObj->querySql) < 0) return -1;
-  if (tDecodeI8(&decoder, &ex) < 0) return -1;
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->fullname));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->name));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->dbFName));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->user));
+  TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &pObj->querySql));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &ex));
   if (0 != ex) {
-    if (tDecodeCStrAlloc(&decoder, &pObj->parameters) < 0) return -1;
+    TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &pObj->parameters));
   } else {
     pObj->parameters = NULL;
   }
-  if (tDecodeI8(&decoder, &ex) < 0) return -1;
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &ex));
   if (0 != ex) {
-    //TODO
+    // TODO
   } else {
     pObj->defaultValues = NULL;
   }
-  if (tDecodeI8(&decoder, &ex) < 0) return -1;
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &ex));
   if (0 != ex) {
-    if (tDecodeCStrAlloc(&decoder, &pObj->targetTable) < 0) return -1;
+    TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &pObj->targetTable));
   } else {
     pObj->targetTable = NULL;
   }
-  if (tDecodeU64(&decoder, &pObj->viewId) < 0) return -1;
-  if (tDecodeU64(&decoder, &pObj->dbId) < 0) return -1;
-  if (tDecodeI64(&decoder, &pObj->createdTime) < 0) return -1;
-  if (tDecodeI32(&decoder, &pObj->version) < 0) return -1;
-  if (tDecodeI8(&decoder, &pObj->precision) < 0) return -1;
-  if (tDecodeI8(&decoder, &pObj->type) < 0) return -1;
-  if (tDecodeI32(&decoder, &pObj->numOfCols) < 0) return -1;
+  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pObj->viewId));
+  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pObj->dbId));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->createdTime));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->version));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pObj->precision));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pObj->type));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->numOfCols));
 
   if (pObj->numOfCols > 0) {
     pObj->pSchema = taosMemoryCalloc(pObj->numOfCols, sizeof(SSchema));
     if (pObj->pSchema == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
+      TAOS_CHECK_EXIT(terrno);
     }
 
     for (int32_t i = 0; i < pObj->numOfCols; ++i) {
-      SSchema* pSchema = pObj->pSchema + i;
-      if (tDecodeSSchema(&decoder, pSchema) < 0) return -1;
+      SSchema *pSchema = pObj->pSchema + i;
+      TAOS_CHECK_EXIT(tDecodeSSchema(&decoder, pSchema));
     }
   }
 
   tEndDecode(&decoder);
 
+_exit:
   tDecoderClear(&decoder);
-  return 0;
+  return code;
 }
 
 
@@ -867,7 +877,7 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
 
 static void mndCancelGetNextViewImpl(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_VIEW);
 }
 
 
