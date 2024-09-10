@@ -155,6 +155,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(data_sources_in_one)
             .service(data_source_collection)
             .service(data_source_sample)
+            .service(list_all_parser_plugins)
             .service(download_all_data_set_file)
             .service(download_pi_default_config)
             .service(download_point_template_file)
@@ -412,6 +413,7 @@ impl Cli {
                 data_sources_in_one,
                 data_source_collection,
                 data_source_sample,
+                list_all_parser_plugins,
                 download_all_data_set_file,
                 init_download_file_task,
                 check_point_file_ready,

@@ -20,6 +20,8 @@ rayon = { workspace = true }
 tonic = { workspace = true, features = ["gzip"] }
 zerocopy = { workspace = true }
 
+dlopen2 = "0.7.0"
+
 regex = { workspace = true }
 
 arrow-cast-guess-precision = "0.4.0"

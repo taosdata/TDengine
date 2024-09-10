@@ -30,6 +30,7 @@ use thiserror::Error;
 pub mod cast;
 mod join;
 mod json;
+pub mod plugin;
 mod regex;
 mod split;
 mod udt;
@@ -102,6 +103,7 @@ pub enum FieldParser {
     Split(Split),
     Udt(Udt),
     Join(Join),
+    Plugin(plugin::ParserPlugin),
     // Json must be the last one, because it has default value. If not, other parsers will be ignored.
     Json(Json),
 }
@@ -119,6 +121,7 @@ impl Parse for FieldParser {
             FieldParser::Udt(udt) => udt.parse_array(field, array),
             FieldParser::Cast(cast) => cast.parse_array(field, array),
             FieldParser::Regex(regex) => regex.parse_array(field, array),
+            FieldParser::Plugin(plugin) => plugin.parse_array(field, array),
 
             FieldParser::Alias { alias } => {
                 let batch = RecordBatch::try_from_iter([(alias, array.clone())])?;
@@ -135,6 +138,18 @@ impl ParserImpl {
     pub fn new(map: LinkedHashMap<String, FieldParser>) -> Self {
         Self(map)
     }
+
+    // pub fn list_plugins() -> LinkedHashMap<String, FieldParser> {
+    //     let mut map = LinkedHashMap::new();
+    //     map.insert("regex".to_string(), FieldParser::Regex(Regex::default()));
+    //     map.insert("cast".to_string(), FieldParser::Cast(Cast::default()));
+    //     map.insert("alias".to_string(), FieldParser::Alias { alias: "".to_string() });
+    //     map.insert("split".to_string(), FieldParser::Split(Split::default()));
+    //     map.insert("udt".to_string(), FieldParser::Udt(Udt::default()));
+    //     map.insert("join".to_string(), FieldParser::Join(Join::default()));
+    //     map.insert("json".to_string(), FieldParser::Json(Json::default()));
+    //     map
+    // }
 }
 impl std::ops::Deref for ParserImpl {
     type Target = LinkedHashMap<String, FieldParser>;

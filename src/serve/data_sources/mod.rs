@@ -22,6 +22,7 @@ use taosx_core::runners::opc::config::OPCConfig;
 use taosx_core::{dsv::DataSourceValidation, utils::license, QueryDataSourceReq};
 use taosx_core::{get_data_dir, list_datasets_from, plugins, validate_dsn, DataSetsReq};
 use taosx_core::{
+    plugins::transform::parse::plugin::ParserPlugin,
     plugins::transform::sample::DsSampleIn,
     runners::pi::{
         parse_query_datasource_params,
@@ -230,6 +231,21 @@ pub(super) async fn data_source_sample(
             .json(output)),
         Err(err) => Err(Failed::from_error(err)),
     }
+}
+
+#[utoipa::path(
+    tag = "transform parser plugins",
+    responses(
+        (status = 200, description = "list all the parser plugins", body = Vec<String>),
+    )
+)]
+#[get("/transform/parser/plugins")]
+pub(super) async fn list_all_parser_plugins() -> impl Responder {
+    let plugins = ParserPlugin::list_all_plugins();
+    // let plugins = vec!["hebeipower".to_string(), "taos".to_string()];
+    HttpResponse::Ok()
+        .content_type(ContentType::json())
+        .json(plugins)
 }
 
 #[test]
