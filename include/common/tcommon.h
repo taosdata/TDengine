@@ -322,6 +322,7 @@ typedef struct STableBlockDistInfo {
 
 int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDistInfo* pInfo);
 int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo* pInfo);
+int32_t formatDurationOrKeep(char* buffer, int32_t timeInMinutes);
 
 enum {
   FUNC_PARAM_TYPE_VALUE = 0x1,
