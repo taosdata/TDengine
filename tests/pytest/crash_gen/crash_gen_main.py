@@ -1835,11 +1835,6 @@ class TaskCreateDb(StateTransitionTask):
         if dbName == "db_0" and Config.getConfig().use_shadow_db:
             self.execWtSql(wt, "create database {} {} {} ".format("db_s", repStr, updatePostfix))
 
-"""
-cachesize
-"""
-
-
 class TaskDropDb(StateTransitionTask):
     @classmethod
     def getEndState(cls):
