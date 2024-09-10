@@ -343,11 +343,8 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     pTsmaStat->pTSma = pTSma;
-    pTsmaStat->pTSchema = metaGetTbTSchema(SMA_META(pSma), pTSma->dstTbUid, -1, 1);
-    if (!pTsmaStat->pTSchema) {
-      code = TSDB_CODE_TSMA_INVALID_PTR;
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+    code = metaGetTbTSchemaNotNull(SMA_META(pSma), pTSma->dstTbUid, -1, 1, &pTsmaStat->pTSchema);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (pTsmaStat->pTSma->indexUid != indexUid) {
