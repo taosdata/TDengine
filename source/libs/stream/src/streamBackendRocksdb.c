@@ -904,7 +904,7 @@ _EXIT:
   streamMutexDestroy(&pHandle->mutex);
   streamMutexDestroy(&pHandle->cfMutex);
   taosHashCleanup(pHandle->cfInst);
-  (void)tdListFree(pHandle->list);
+  pHandle->list = tdListFree(pHandle->list);
   taosMemoryFree(pHandle);
   stDebug("failed to init stream backend at %s", backendPath);
   taosMemoryFree(backendPath);
@@ -937,7 +937,7 @@ void streamBackendCleanup(void* arg) {
     head = tdListPopHead(pHandle->list);
   }
 
-  (void)tdListFree(pHandle->list);
+  pHandle->list = tdListFree(pHandle->list);
   streamMutexDestroy(&pHandle->mutex);
 
   streamMutexDestroy(&pHandle->cfMutex);

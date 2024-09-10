@@ -105,8 +105,10 @@ static int32_t tsdbSaveFSToFile(STsdbFS *pFS, const char *fname) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-  (void)tsdbFSToBinary(pData, pFS);
-  (void)taosCalcChecksumAppend(0, pData, size);
+  int32_t tsize = tsdbFSToBinary(pData, pFS);
+
+  code = taosCalcChecksumAppend(0, pData, size);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // save to file
   pFD = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
