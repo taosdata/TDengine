@@ -14,7 +14,7 @@ addr = "0.0.0.0"
 # explorer server instance id
 # 
 # The instanceId of each instance is unique on the host
-instanceId = 31
+# instanceId = 31
 
 # IPv6 listen address.
 
@@ -101,4 +101,4 @@ cors = true
 
 # Log downgrade when the remaining disk space reaches this size, only logging `ERROR` level logs
 # 
-# reservedDiskSize = "20GB"
+# reservedDiskSize = "2GB"
