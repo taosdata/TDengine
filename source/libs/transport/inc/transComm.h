@@ -183,7 +183,6 @@ typedef struct {
   int32_t  compatibilityVer;
   uint32_t magicNum;
   STraceId traceId;
-  uint64_t ahandle;  // ahandle assigned by client
   int64_t  qid;
   uint32_t code;  // del later
   uint32_t msgType;

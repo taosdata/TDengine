@@ -1517,7 +1517,7 @@ void cliSendBatch_shareConn(SCliConn* pConn) {
     STransMsgHead* pHead = transHeadFromCont(pReq->pCont);
 
     if (pHead->comp == 0) {
-      pHead->ahandle = pCtx != NULL ? (uint64_t)pCtx->ahandle : 0;
+      // pHead->ahandle = pCtx != NULL ? (uint64_t)pCtx->ahandle : 0;
       pHead->noResp = REQUEST_NO_RESP(pReq) ? 1 : 0;
       pHead->persist = REQUEST_PERSIS_HANDLE(pReq) ? 1 : 0;
       pHead->msgType = pReq->msgType;

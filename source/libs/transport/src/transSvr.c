@@ -484,7 +484,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
     tError("%s conn %p recv invalid packet, failed to decompress", transLabel(pInst), pConn);
     return false;
   }
-  pHead->ahandle = htole64(pHead->ahandle);
+  // pHead->ahandle = htole64(pHead->ahandle);
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
 
@@ -763,12 +763,16 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
   if (pConn->broken) {
     return;
   }
-  queue sendReqNode;
-  QUEUE_INIT(&sendReqNode);
+
+  SWriteReq* pWreq = taosMemoryCalloc(1, sizeof(SWriteReq));
+  pWreq->conn = pConn;
+  QUEUE_INIT(&pWreq->q);
+  QUEUE_INIT(&pWreq->node);
+  pWreq->req.data = pWreq;
 
   uv_buf_t* pBuf = NULL;
   int32_t   bufNum = 0;
-  code = uvBuildToSendData(pConn, &pBuf, &bufNum, &sendReqNode);
+  code = uvBuildToSendData(pConn, &pBuf, &bufNum, &pWreq->node);
   if (code != 0) {
     tError("%s conn %p failed to send data", transLabel(pConn->pInst), pConn);
     return;
@@ -779,12 +783,6 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
   }
 
   transRefSrvHandle(pConn);
-
-  SWriteReq* pWreq = taosMemoryCalloc(1, sizeof(SWriteReq));
-  pWreq->conn = pConn;
-  QUEUE_INIT(&pWreq->q);
-  QUEUE_MOVE(&sendReqNode, &pWreq->node);
-  pWreq->req.data = pWreq;
 
   uv_write_t* req = &pWreq->req;
   if (req == NULL) {
@@ -1711,7 +1709,7 @@ void transRefSrvHandle(void* handle) {
   }
   SSvrConn* pConn = handle;
   pConn->ref++;
-  tTrace("conn %p ref count:%d", handle, pConn->ref);
+  tTrace("conn %p ref count:%d", pConn, pConn->ref);
 }
 
 void transUnrefSrvHandle(void* handle) {
@@ -1720,7 +1718,7 @@ void transUnrefSrvHandle(void* handle) {
   }
   SSvrConn* pConn = handle;
   pConn->ref--;
-  tTrace("conn %p ref count:%d", handle, pConn->ref);
+  tTrace("conn %p ref count:%d", pConn, pConn->ref);
   if (pConn->ref == 0) {
     destroyConn((SSvrConn*)handle, true);
   }
