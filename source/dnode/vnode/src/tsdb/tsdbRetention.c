@@ -112,7 +112,7 @@ static int32_t tsdbDoCopyFile(SRTNer *rtner, const STFileObj *from, const STFile
   TdFilePtr fdFrom = NULL;
   TdFilePtr fdTo = NULL;
 
-  (void)tsdbTFileName(rtner->tsdb, to, fname);
+  tsdbTFileName(rtner->tsdb, to, fname);
 
   fdFrom = taosOpenFile(from->fname, TD_FILE_READ);
   if (fdFrom == NULL) {
@@ -425,7 +425,7 @@ static int32_t tsdbCopyFileS3(SRTNer *rtner, const STFileObj *from, const STFile
   TdFilePtr fdFrom = NULL;
   // TdFilePtr fdTo = NULL;
 
-  (void)tsdbTFileName(rtner->tsdb, to, fname);
+  tsdbTFileName(rtner->tsdb, to, fname);
 
   fdFrom = taosOpenFile(from->fname, TD_FILE_READ);
   if (fdFrom == NULL) {
@@ -484,7 +484,7 @@ static int32_t tsdbMigrateDataFileLCS3(SRTNer *rtner, const STFileObj *fobj, int
   TAOS_CHECK_GOTO(TARRAY2_APPEND(&rtner->fopArr, op), &lino, _exit);
 
   char fname[TSDB_FILENAME_LEN];
-  (void)tsdbTFileName(rtner->tsdb, &op.nf, fname);
+  tsdbTFileName(rtner->tsdb, &op.nf, fname);
   char   *object_name = taosDirEntryBaseName(fname);
   char    object_name_prefix[TSDB_FILENAME_LEN];
   int32_t node_id = vnodeNodeId(rtner->tsdb->pVnode);
@@ -585,7 +585,7 @@ static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, int64
   TAOS_CHECK_GOTO(TARRAY2_APPEND(&rtner->fopArr, op), &lino, _exit);
 
   char fname[TSDB_FILENAME_LEN];
-  (void)tsdbTFileName(rtner->tsdb, &op.nf, fname);
+  tsdbTFileName(rtner->tsdb, &op.nf, fname);
   char   *object_name = taosDirEntryBaseName(fname);
   char    object_name_prefix[TSDB_FILENAME_LEN];
   int32_t node_id = vnodeNodeId(rtner->tsdb->pVnode);

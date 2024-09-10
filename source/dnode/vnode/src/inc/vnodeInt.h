@@ -130,8 +130,8 @@ void  vnodeBufPoolRef(SVBufPool* pPool);
 void  vnodeBufPoolUnRef(SVBufPool* pPool, bool proactive);
 int   vnodeDecodeInfo(uint8_t* pData, SVnodeInfo* pInfo);
 
-int32_t vnodeBufPoolRegisterQuery(SVBufPool* pPool, SQueryNode* pQNode);
-void    vnodeBufPoolDeregisterQuery(SVBufPool* pPool, SQueryNode* pQNode, bool proactive);
+void vnodeBufPoolRegisterQuery(SVBufPool* pPool, SQueryNode* pQNode);
+void vnodeBufPoolDeregisterQuery(SVBufPool* pPool, SQueryNode* pQNode, bool proactive);
 
 // meta
 typedef struct SMStbCursor SMStbCursor;
@@ -161,6 +161,8 @@ int             metaTtlFindExpired(SMeta* pMeta, int64_t timePointMs, SArray* tb
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 int             metaUpdateChangeTimeWithLock(SMeta* pMeta, tb_uid_t uid, int64_t changeTimeMs);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
+int32_t         metaGetTbTSchemaNotNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
+int32_t         metaGetTbTSchemaMaybeNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
 int32_t         metaGetTbTSchemaEx(SMeta* pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema** ppTSchema);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
@@ -221,7 +223,7 @@ int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
 int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
-int32_t tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
+void    tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
 int64_t tsdbGetEarliestTs(STsdb* pTsdb);
 
 // tq

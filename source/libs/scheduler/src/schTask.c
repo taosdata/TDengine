@@ -1134,6 +1134,7 @@ int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
   qwMsg.msg = pTask->plan;
   qwMsg.msgType = pTask->plan->msgType;
   qwMsg.connInfo.handle = pJob->conn.pTrans;
+  qwMsg.pWorkerCb = pJob->pWorkerCb;
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     explainRes = taosArrayInit(pJob->taskNum, sizeof(SExplainLocalRsp));

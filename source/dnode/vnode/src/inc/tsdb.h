@@ -243,7 +243,7 @@ int32_t  tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
 void     tsdbMemTableDestroy(SMemTable *pMemTable, bool proactive);
 STbData *tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid);
 int32_t  tsdbRefMemTable(SMemTable *pMemTable, SQueryNode *pQNode);
-int32_t  tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode, bool proactive);
+void     tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode, bool proactive);
 // STbDataIter
 int32_t tsdbTbDataIterCreate(STbData *pTbData, STsdbRowKey *pFrom, int8_t backward, STbDataIter **ppIter);
 void   *tsdbTbDataIterDestroy(STbDataIter *pIter);
@@ -377,7 +377,7 @@ struct STsdb {
   struct {
     SVHashTable *ht;
     SArray      *arr;
-  } * commitInfo;
+  } *commitInfo;
 };
 
 struct TSDBKEY {
@@ -679,7 +679,7 @@ typedef struct STFileSetRange STFileSetRange;
 typedef TARRAY2(STFileSetRange *) TFileSetRangeArray;  // disjoint ranges
 
 int32_t tsdbTFileSetRangeClear(STFileSetRange **fsr);
-int32_t tsdbTFileSetRangeArrayDestroy(TFileSetRangeArray **ppArr);
+void    tsdbTFileSetRangeArrayDestroy(TFileSetRangeArray **ppArr);
 
 // fset partition
 enum {
@@ -898,7 +898,7 @@ typedef struct SSttDataInfoForTable {
 
 int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoForTable *pTableInfo);
 void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
-int32_t tMergeTreeNext(SMergeTree *pMTree, bool* pHasNext);
+int32_t tMergeTreeNext(SMergeTree *pMTree, bool *pHasNext);
 void    tMergeTreePinSttBlock(SMergeTree *pMTree);
 void    tMergeTreeUnpinSttBlock(SMergeTree *pMTree);
 bool    tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
@@ -914,13 +914,13 @@ typedef enum {
   READER_EXEC_ROWS = 0x2,
 } EExecMode;
 
-#define LAST_COL_VERSION_1 (0x1) // add primary key, version
-#define LAST_COL_VERSION_2 (0x2) // add cache status
+#define LAST_COL_VERSION_1 (0x1)  // add primary key, version
+#define LAST_COL_VERSION_2 (0x2)  // add cache status
 #define LAST_COL_VERSION   LAST_COL_VERSION_2
 
 typedef enum {
-  TSDB_LAST_CACHE_VALID = 0, // last_cache has valid data
-  TSDB_LAST_CACHE_NO_CACHE,  // last_cache has no data, but tsdb may have data
+  TSDB_LAST_CACHE_VALID = 0,  // last_cache has valid data
+  TSDB_LAST_CACHE_NO_CACHE,   // last_cache has no data, but tsdb may have data
 } ELastCacheStatus;
 
 typedef struct {
@@ -1068,6 +1068,8 @@ typedef enum {
 // utils
 ETsdbFsState tsdbSnapGetFsState(SVnode *pVnode);
 int32_t      tsdbSnapPrepDescription(SVnode *pVnode, SSnapshot *pSnap);
+
+void tsdbRemoveFile(const char *path);
 
 #ifdef __cplusplus
 }

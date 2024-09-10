@@ -286,7 +286,7 @@ _exit:
   return;
 }
 
-int32_t vnodeBufPoolRegisterQuery(SVBufPool *pPool, SQueryNode *pQNode) {
+void vnodeBufPoolRegisterQuery(SVBufPool *pPool, SQueryNode *pQNode) {
   (void)taosThreadMutexLock(&pPool->mutex);
 
   pQNode->pNext = pPool->qList.pNext;
@@ -296,7 +296,6 @@ int32_t vnodeBufPoolRegisterQuery(SVBufPool *pPool, SQueryNode *pQNode) {
   pPool->nQuery++;
 
   (void)taosThreadMutexUnlock(&pPool->mutex);
-  return 0;
 }
 
 void vnodeBufPoolDeregisterQuery(SVBufPool *pPool, SQueryNode *pQNode, bool proactive) {

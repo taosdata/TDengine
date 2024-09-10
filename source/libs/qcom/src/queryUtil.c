@@ -671,3 +671,7 @@ void freeDbCfgInfo(SDbCfgInfo* pInfo) {
   }
   taosMemoryFree(pInfo);
 }
+
+void* getTaskPoolWorkerCb() {
+  return taskQueue.wrokrerPool.pCb;
+}

@@ -636,7 +636,7 @@ typedef struct SCheckpointConsensusInfo {
   int64_t streamId;
 } SCheckpointConsensusInfo;
 
-int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
+void    streamSetupScheduleTrigger(SStreamTask* pTask);
 
 // dispatch related
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
@@ -705,7 +705,7 @@ int32_t streamTaskSetActiveCheckpointInfo(SStreamTask* pTask, int64_t activeChec
 void    streamTaskSetFailedChkptInfo(SStreamTask* pTask, int32_t transId, int64_t checkpointId);
 bool    streamTaskAlreadySendTrigger(SStreamTask* pTask, int32_t downstreamNodeId);
 void    streamTaskGetTriggerRecvStatus(SStreamTask* pTask, int32_t* pRecved, int32_t* pTotal);
-void    streamTaskInitTriggerDispatchInfo(SStreamTask* pTask);
+int32_t streamTaskInitTriggerDispatchInfo(SStreamTask* pTask);
 void    streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId);
 int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId, int32_t downstreamNodeId,
                                            SRpcHandleInfo* pInfo, int32_t code);
@@ -793,6 +793,7 @@ void    streamTaskSetReqConsenChkptId(SStreamTask* pTask, int64_t ts);
 int32_t streamTimerGetInstance(tmr_h* pTmr);
 void    streamTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId, int32_t vgId,
                        const char* pMsg);
+void    streamTmrStop(tmr_h tmrId);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
@@ -810,6 +811,7 @@ int32_t streamTaskBuildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRp
 int32_t streamSendChkptReportMsg(SStreamTask* pTask, SCheckpointInfo* pCheckpointInfo, int8_t dropRelHTask);
 int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SVUpdateCheckpointInfoReq* pReq);
 int32_t streamTaskCreateActiveChkptInfo(SActiveCheckpointInfo** pRes);
+void    streamTaskSetCheckpointFailed(SStreamTask* pTask);
 
 // stream task state machine, and event handling
 int32_t streamCreateStateMachine(SStreamTask* pTask);

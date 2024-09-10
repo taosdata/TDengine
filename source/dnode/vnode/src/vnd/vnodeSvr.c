@@ -754,8 +754,7 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("message in vnode query queue is processing");
-  if ((pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_VND_TMQ_CONSUME) &&
-      !syncIsReadyForRead(pVnode->sync)) {
+  if ((pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_VND_TMQ_CONSUME) && !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
@@ -1477,15 +1476,16 @@ static int32_t vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, 
   tInitSubmitBlkIter(msgIter, pBlock, &blkIter);
   if (blkIter.row == NULL) return 0;
 
-  pSchema = metaGetTbTSchema(pMeta, msgIter->suid, TD_ROW_SVER(blkIter.row), 1);  // TODO: use the real schema
-  if (pSchema) {
-    suid = msgIter->suid;
-    rv = TD_ROW_SVER(blkIter.row);
-  }
-  if (!pSchema) {
+  int32_t code = metaGetTbTSchemaNotNull(pMeta, msgIter->suid, TD_ROW_SVER(blkIter.row), 1,
+                                         &pSchema);  // TODO: use the real schema
+  if (TSDB_CODE_SUCCESS != code) {
     printf("%s:%d no valid schema\n", tags, __LINE__);
-    return -1;
+    return code;
   }
+
+  suid = msgIter->suid;
+  rv = TD_ROW_SVER(blkIter.row);
+
   char __tags[128] = {0};
   snprintf(__tags, 128, "%s: uid %" PRIi64 " ", tags, msgIter->uid);
   while ((row = tGetSubmitBlkNext(&blkIter))) {
@@ -1510,10 +1510,10 @@ typedef struct SSubmitReqConvertCxt {
 
 static int32_t vnodeResetTableCxt(SMeta *pMeta, SSubmitReqConvertCxt *pCxt) {
   taosMemoryFreeClear(pCxt->pTbSchema);
-  pCxt->pTbSchema = metaGetTbTSchema(pMeta, pCxt->msgIter.suid > 0 ? pCxt->msgIter.suid : pCxt->msgIter.uid,
-                                     pCxt->msgIter.sversion, 1);
-  if (NULL == pCxt->pTbSchema) {
-    return TSDB_CODE_INVALID_MSG;
+  int32_t code = metaGetTbTSchemaNotNull(pMeta, pCxt->msgIter.suid > 0 ? pCxt->msgIter.suid : pCxt->msgIter.uid,
+                                         pCxt->msgIter.sversion, 1, &pCxt->pTbSchema);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
   }
   tdSTSRowIterInit(&pCxt->rowIter, pCxt->pTbSchema);
 
@@ -2166,7 +2166,7 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
   }
 
   if (tsdbChanged) {
-    (void)tsdbSetKeepCfg(pVnode->pTsdb, &pVnode->config.tsdbCfg);
+    tsdbSetKeepCfg(pVnode->pTsdb, &pVnode->config.tsdbCfg);
   }
 
   return 0;
