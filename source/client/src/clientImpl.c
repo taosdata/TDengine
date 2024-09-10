@@ -841,6 +841,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
          .chkKillParam = (void*)pRequest->self,
          .pExecRes = &res,
          .source = pRequest->source,
+         .pWorkerCb = getTaskPoolWorkerCb(),
   };
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
@@ -1358,6 +1359,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
            .chkKillParam = (void*)pRequest->self,
            .pExecRes = NULL,
            .source = pRequest->source,
+           .pWorkerCb = getTaskPoolWorkerCb(),
     };
     if (TSDB_CODE_SUCCESS == code) {
       code = schedulerExecJob(&req, &pRequest->body.queryJob);
