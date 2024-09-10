@@ -43,7 +43,7 @@ int32_t doMakePointFunc(double x, double y, unsigned char **output) {
 
   *output = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
   if (*output == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -74,7 +74,7 @@ int32_t doGeomFromTextFunc(const char *input, unsigned char **output) {
   // make a zero ending string
   inputGeom = taosMemoryCalloc(1, varDataLen(input) + 1);
   if (inputGeom == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
   (void)memcpy(inputGeom, varDataVal(input), varDataLen(input));
@@ -83,7 +83,7 @@ int32_t doGeomFromTextFunc(const char *input, unsigned char **output) {
 
   *output = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
   if (*output == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -114,7 +114,7 @@ int32_t doAsTextFunc(unsigned char *input, char **output) {
   size_t size = strlen(outputWKT);
   *output = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
   if (*output == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
