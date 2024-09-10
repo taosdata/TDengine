@@ -30,7 +30,7 @@ if [ ! -d "$TAOSDCLOG" ]; then
   echo "taosd -C log folder created: $TAOSDCLOG"
   cp /etc/taos/taos.cfg /var/log/taos.cfg
   echo "logKeepDays 3" >> /var/log/taos.cfg
-  sed -i 's/\/var\/log/\/var\/log\/taosd_c/g' taos.cfg
+  sed -i 's/\/var\/log/\/var\/log\/taosd_c/g' /var/log/taos.cfg
   cat /var/log/taos.cfg
 else
   echo "taosd -C log folder already exists: $TAOSDCLOG"
