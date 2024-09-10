@@ -411,7 +411,7 @@ _error:
   return TSDB_CODE_OUT_OF_MEMORY;
 }
 
-static char* doExtractPage(SDiskbasedBuf* pBuf, bool* newPage) {
+static char* doExtractPage(SDiskbasedBuf* pBuf) {
   char* availablePage = NULL;
   if (NO_IN_MEM_AVAILABLE_PAGES(pBuf)) {
     availablePage = evictBufPage(pBuf);
@@ -425,7 +425,6 @@ static char* doExtractPage(SDiskbasedBuf* pBuf, bool* newPage) {
     if (availablePage == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
     }
-    *newPage = true;
   }
 
   return availablePage;
@@ -434,8 +433,7 @@ static char* doExtractPage(SDiskbasedBuf* pBuf, bool* newPage) {
 void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
   pBuf->statis.getPages += 1;
 
-  bool  newPage = false;
-  char* availablePage = doExtractPage(pBuf, &newPage);
+  char* availablePage = doExtractPage(pBuf);
   if (availablePage == NULL) {
     return NULL;
   }
@@ -451,9 +449,7 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
     code = lruListPushFront(pBuf->lruList, pi);
     if (TSDB_CODE_SUCCESS != code) {
       taosMemoryFree(pi);
-      if (newPage) {
-        taosMemoryFree(availablePage);
-      }
+      taosMemoryFree(availablePage);
       terrno = code;
       return NULL;
     }
@@ -464,9 +460,7 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
     // register page id info
     pi = registerNewPageInfo(pBuf, *pageId);
     if (pi == NULL) {
-      if (newPage) {
-        taosMemoryFree(availablePage);
-      }
+      taosMemoryFree(availablePage);
       return NULL;
     }
 
@@ -480,7 +474,7 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
     if (TSDB_CODE_SUCCESS == code) {
       pBuf->totalBufSize += pBuf->pageSize;
     } else {
-      if (newPage) taosMemoryFree(availablePage);
+      taosMemoryFree(availablePage);
       (void)taosArrayPop(pBuf->pIdList);
       (void)tSimpleHashRemove(pBuf->all, pageId, sizeof(int32_t));
       taosMemoryFree(pi);
@@ -538,8 +532,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
     return (void*)(GET_PAYLOAD_DATA(*pi));
   } else {  // not in memory
 
-    bool newPage = false;
-    (*pi)->pData = doExtractPage(pBuf, &newPage);
+    (*pi)->pData = doExtractPage(pBuf);
 
     // failed to evict buffer page, return with error code.
     if ((*pi)->pData == NULL) {
@@ -551,7 +544,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
 
     int32_t code = lruListPushFront(pBuf->lruList, *pi);
     if (TSDB_CODE_SUCCESS != code) {
-      if (newPage) taosMemoryFree((*pi)->pData);
+      taosMemoryFree((*pi)->pData);
       terrno = code;
       return NULL;
     }
@@ -561,9 +554,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
     if (HAS_DATA_IN_DISK(*pi)) {
       int32_t code = loadPageFromDisk(pBuf, *pi);
       if (code != 0) {
-        if (newPage) {
-          taosMemoryFree((*pi)->pData);
-        }
+        taosMemoryFree((*pi)->pData);
 
         terrno = code;
         return NULL;
