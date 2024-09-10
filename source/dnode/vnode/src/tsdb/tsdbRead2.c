@@ -4580,6 +4580,8 @@ int32_t tsdbSetTableList2(STsdbReader* pReader, const void* pTableList, int32_t 
     clearBlockScanInfo(*p);
   }
 
+  tSimpleHashClear(pReader->status.pTableMap);
+
   if (size < num) {
     code = ensureBlockScanInfoBuf(&pReader->blockInfoBuf, num);
     if (code) {
@@ -4596,7 +4598,6 @@ int32_t tsdbSetTableList2(STsdbReader* pReader, const void* pTableList, int32_t 
     pReader->status.uidList.tableUidList = (uint64_t*)p1;
   }
 
-  tSimpleHashClear(pReader->status.pTableMap);
   STableUidList* pUidList = &pReader->status.uidList;
   pUidList->currentIndex = 0;
 
@@ -4745,13 +4746,15 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
   //  no valid error code set in metaGetTbTSchema, so let's set the error code here.
   //  we should proceed in case of tmq processing.
   if (pCond->suid != 0) {
-    pReader->info.pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pReader->info.suid, -1, 1);
+    code = metaGetTbTSchemaMaybeNull(pReader->pTsdb->pVnode->pMeta, pReader->info.suid, -1, 1, &pReader->info.pSchema);
+    TSDB_CHECK_CODE(code, lino, _err);
     if (pReader->info.pSchema == NULL) {
       tsdbWarn("failed to get table schema, suid:%" PRIu64 ", ver:-1, %s", pReader->info.suid, pReader->idStr);
     }
   } else if (numOfTables > 0) {
     STableKeyInfo* pKey = pTableList;
-    pReader->info.pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pKey->uid, -1, 1);
+    code = metaGetTbTSchemaMaybeNull(pReader->pTsdb->pVnode->pMeta, pKey->uid, -1, 1, &pReader->info.pSchema);
+    TSDB_CHECK_CODE(code, lino, _err);
     if (pReader->info.pSchema == NULL) {
       tsdbWarn("failed to get table schema, uid:%" PRIu64 ", ver:-1, %s", pKey->uid, pReader->idStr);
     }

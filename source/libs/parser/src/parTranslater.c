@@ -2307,6 +2307,7 @@ static bool hasInvalidFuncNesting(SNodeList* pParameterList) {
 
 static int32_t getFuncInfo(STranslateContext* pCxt, SFunctionNode* pFunc) {
   // the time precision of the function execution environment
+  pFunc->dual = pCxt->dual;
   pFunc->node.resType.precision = getPrecisionFromCurrStmt(pCxt->pCurrStmt, TSDB_TIME_PRECISION_MILLI);
   int32_t code = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
   if (TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION == code) {
@@ -6708,11 +6709,13 @@ static int32_t replaceOrderByAliasForSelect(STranslateContext* pCxt, SSelectStmt
 static int32_t translateSelectWithoutFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrStmt = (SNode*)pSelect;
   pCxt->currClause = SQL_CLAUSE_SELECT;
+  pCxt->dual = true;
   return translateExprList(pCxt, pSelect->pProjectionList);
 }
 
 static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrStmt = (SNode*)pSelect;
+  pCxt->dual = false;
   int32_t code = translateFrom(pCxt, &pSelect->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
     pSelect->precision = ((STableNode*)pSelect->pFromTable)->precision;

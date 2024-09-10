@@ -45,6 +45,7 @@ void metaReaderClear(SMetaReader *pReader) {
   }
   tDecoderClear(&pReader->coder);
   tdbFree(pReader->pBuf);
+  pReader->pBuf = NULL;
 }
 
 int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t uid) {
@@ -612,6 +613,22 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
   taosMemoryFree(pSW->pSchema);
   taosMemoryFree(pSW);
   return pTSchema;
+}
+
+int32_t metaGetTbTSchemaNotNull(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema) {
+  *ppTSchema = metaGetTbTSchema(pMeta, uid, sver, lock);
+  if(*ppTSchema == NULL) {
+    return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t metaGetTbTSchemaMaybeNull(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema) {
+  *ppTSchema = metaGetTbTSchema(pMeta, uid, sver, lock);
+  if(*ppTSchema == NULL && terrno == TSDB_CODE_OUT_OF_MEMORY) {
+    return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema **ppTSchema) {
