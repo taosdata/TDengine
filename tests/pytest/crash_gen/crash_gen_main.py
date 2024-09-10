@@ -313,9 +313,10 @@ class ThreadCoordinator:
         return False
 
     def _hasAbortedTask(self):  # from execution of previous step
+        print("------- self._executedTasks: {}".format(self._executedTasks))
         for task in self._executedTasks:
             if task.isAborted():
-                # print("Task aborted: {}".format(task))
+                print("------- Task aborted: {}".format(task))
                 # hasAbortedTask = True
                 return True
         return False
@@ -1499,6 +1500,7 @@ class Task():
                     shortTid,
                     err, wt.getDbConn().getLastSql())
                 self.logDebug(errMsg)
+                self.logError(f'-------------------\nProgram ABORTED Due to Unexpected TAOS Error:{errMsg}\n-------------------')
                 if Config.getConfig().debug:
                     # raise # so that we see full stack
                     traceback.print_exc()
@@ -2063,7 +2065,7 @@ class TdSuperTable:
 
     def exists(self, dbc):
         dbc.execute("USE " + self._dbName)
-        return dbc.existsSuperTable(self._stName)
+        return dbc.existsSuperTable(self._dbName, self._stName)
 
     # TODO: odd semantic, create() method is usually static?
     def create(self, dbc, cols: TdColumns, tags: TdTags, dropIfExists=False):
@@ -2073,7 +2075,7 @@ class TdSuperTable:
         dbc.execute("USE " + dbName)
         fullTableName = dbName + '.' + self._stName
 
-        if dbc.existsSuperTable(self._stName):
+        if dbc.existsSuperTable(self._dbName, self._stName):
             if dropIfExists:
                 dbc.execute("DROP TABLE {}".format(fullTableName))
 
@@ -2149,7 +2151,7 @@ class TdSuperTable:
 
     def hasRegTables(self, dbc: DbConn):
 
-        if dbc.existsSuperTable(self._stName):
+        if dbc.existsSuperTable(self._dbName, self._stName):
 
             return dbc.query("SELECT * FROM {}.{}".format(self._dbName, self._stName)) > 0
         else:
@@ -2954,7 +2956,6 @@ class TdSuperTable:
         Returns:
         - timeRangeFilter (str): The generated time range filter.
         """
-        
         useTag = random.choice([True, False]) if rand is None else True
         if useTag:
             start_time, end_time = self.getTimeRange(tbname, tsCol)
@@ -3109,7 +3110,7 @@ class TdSuperTable:
             return f"SELECT {', '.join(selectPartList)} FROM {self._dbName}.{tbname} GROUP BY {groupKeyStr} {self.getOrderByValue(groupKeyStr)} {self.getSlimitValue()};"
         else:
             groupKeyStr = "tbname"
-        randomSelectPart = f'`{random.choice(selectPartList)}`'
+        randomSelectPart = f'`{random.choice(selectPartList)}`' if len(selectPartList) > 0 else groupKeyStr
         return f"SELECT {', '.join(selectPartList)} FROM {self._dbName}.{tbname} {self.getTimeRangeFilter(tbname, tsCol)} {self.getPartitionValue(groupKeyStr)} {self.getWindowStr(self.getRandomWindow(), colDict)} {self.getSlidingValue()} {self.getOrderByValue(randomSelectPart)} {self.getSlimitValue()};"
 
 
@@ -3255,9 +3256,9 @@ class TaskDropSuperTable(StateTransitionTask):
                     else:
                         print("f", end="", flush=True)
 
-        # Drop the super table itself
-        tblName = self._db.getFixedSuperTableName()
-        self.execWtSql(wt, "drop table {}.{}".format(self._db.getName(), tblName))
+        # # Drop the super table itself
+        # tblName = self._db.getFixedSuperTableName()
+        # self.execWtSql(wt, "drop table {}.{}".format(self._db.getName(), tblName))
 
 
 class TaskAlterTags(StateTransitionTask):
@@ -3733,6 +3734,8 @@ class TaskAddData(StateTransitionTask):
             regTableName = self.getRegTableName(j)  # "db.reg_table_{}".format(i
             fullStableName = db.getName() + '.' + self._getStableName(db)
             fullRegTableName = db.getName() + '.' + regTableName
+            self._lockTableIfNeeded(
+                fullRegTableName)  # so that we are verify read-back. TODO: deal with exceptions before unlock
 
             try:
                 sql = "INSERT INTO {} using {}({}) TAGS({}) ({}) VALUES ({});".format(  # removed: tags ('{}', {})
@@ -3746,6 +3749,7 @@ class TaskAddData(StateTransitionTask):
                 dbc.execute(sql)
                 # Logging.info("Data added: {}".format(sql))
             except:  # Any exception at all
+                self._unlockTableIfNeeded(fullRegTableName)
                 raise CrashGenError("func _addDataByAutoCreateTable_n error")
 
     def _addDataByMultiTable_n(self, db: Database, dbc):  # implied: NOT in batches
@@ -3760,6 +3764,8 @@ class TaskAddData(StateTransitionTask):
             colStrs = self._getTagColStrForSql(db, dbc)[0]
             regTableName = regTables[i]  # "db.reg_table_{}".format(i
             fullRegTableName = db.getName() + '.' + regTableName
+            self._lockTableIfNeeded(
+                fullRegTableName)  # so that we are verify read-back. TODO: deal with exceptions before unlock
             # TODO multi stb insert
             sql += " {} VALUES ({})".format(
                 fullRegTableName,
@@ -3769,6 +3775,7 @@ class TaskAddData(StateTransitionTask):
             dbc.execute(sql)
             Logging.info("Data added: {}".format(sql))
         except:  # Any exception at all
+            self._unlockTableIfNeeded(fullRegTableName)
             raise CrashGenError("func _addDataByMultiTable_n error")
 
     def _getStmtBindLines(self, db: Database, dbc):

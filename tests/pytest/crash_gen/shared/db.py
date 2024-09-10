@@ -166,8 +166,8 @@ class DbConn:
         # print("dbs = {}, str = {}, ret2={}, type2={}".format(dbs, dbName,ret2, type(dbName)))
         return dbName in dbs # TODO: super weird type mangling seen, once here
 
-    def existsSuperTable(self, stName):
-        self.query("show stables")
+    def existsSuperTable(self, dbName, stName):
+        self.query(f"show {dbName}.stables")
         sts = [v[0] for v in self.getQueryResult()]
         return stName in sts
 
