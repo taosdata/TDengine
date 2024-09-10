@@ -32,15 +32,21 @@ struct ParserConfig {
 }
 
 impl ParserConfig {
-    fn new(config_param: &str) -> Self {
+    fn new(config_param: &str) -> Result<Self, String> {
+        tracing::info!("hebeipower config_param: {:?}", config_param);
         let ctx_parts = config_param.split(",").collect::<Vec<&str>>();
-        let regstr = format!(r#"{}\d{{4}}"#, ctx_parts[0]);
-    
-        ParserConfig {
-            value_key_pattern: Regex::new(&regstr).unwrap(),
+        if ctx_parts.len() < 1 || ctx_parts[0] == "" {
+            return Err("Invalid config".to_string());
+        }
+
+        let regex = format!(r#"{}\d{{4}}"#, ctx_parts[0]);
+        let regex = Regex::new(&regex).map_err(|err| format!("{:?}", err))?;
+
+        Ok(ParserConfig {
+            value_key_pattern: regex,
             value_type_key: ctx_parts.get(1).map(|s| s.to_string()),
             white_type_key: ctx_parts.get(2).map(|s| s.to_string()),
-        }
+        })
     }
 
     fn parse_object(&self, object: Map<String, JsonValue>) -> Vec<Map<String, JsonValue>> {
@@ -93,10 +99,15 @@ impl ParserConfig {
 #[no_mangle]
 pub extern "C" fn parser_new(ctx: *const c_char, len: i32) -> ParserResponse {
     let ctx = unsafe { std::slice::from_raw_parts(ctx as *const u8, len as usize) };
-    let ctx = std::str::from_utf8(ctx).unwrap();
-    let parser_config = ParserConfig::new(ctx);
+    let parser_config = std::str::from_utf8(ctx).map(|s| ParserConfig::new(s));
+    if parser_config.is_err() {
+        return ParserResponse {
+            e: 1,
+            p: std::ptr::null_mut(),
+        };
+    }
 
-    let parser_config = Box::into_raw(Box::new(parser_config));
+    let parser_config = Box::into_raw(Box::new(parser_config.unwrap()));
     ParserResponse {
         e: 0,
         p: parser_config as *mut c_void,
@@ -129,18 +140,38 @@ pub unsafe extern "C" fn parser_mutate(
     let parser_config = (p as *mut ParserConfig).as_mut().unwrap();
 
     let input_len = input_l as usize;
-    let input_string = std::str::from_utf8(std::slice::from_raw_parts(input_p, input_len)).unwrap();
-    let value = serde_json::from_str::<serde_json::Value>(input_string).unwrap();
+    let output_string = std::str::from_utf8(std::slice::from_raw_parts(input_p, input_len))
+        .map(|s| serde_json::from_str::<serde_json::Value>(s))
+        .map(|value| match value {
+            Ok(JsonValue::Object(object)) => {
+                let parsed_data = parser_config.parse_object(object);
+                let r = serde_json::to_string(&parsed_data);
+                if r.is_err() {
+                    tracing::error!("Failed to serialize parsed data: {:?}", r.err());
+                    return "[]".to_string();
+                }
+                r.unwrap()
+            }
+            Ok(_) => {
+                tracing::error!("raw data is not a json object");
+                "[]".to_string()
+            }
+            Err(err) => {
+                tracing::error!("raw data can't be parsed as json: {:?}", err);
+                "[]".to_string()
+            }
+        });
 
-    let output_string = match value {
-        JsonValue::Object(object) => {
-            let parsed_data = parser_config.parse_object(object);
-            serde_json::to_string(&parsed_data).unwrap()
+    match output_string {
+        Ok(s) => {
+            set_output(s, output_p, output_l);
         }
-        _ => "".to_string(),
-    };
+        Err(err) => {
+            tracing::error!("Failed to parse input data: {:?}", err);
+            set_output("[]".to_string(), output_p, output_l);
+        }
+    }
 
-    set_output(output_string, output_p, output_l);
     std::ptr::null()
 }
 
@@ -155,8 +186,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_parser_config_error() {
+        let parser_config = ParserConfig::new("");
+        assert!(parser_config.is_err());
+    }
+
+    #[test]
     fn test_parse_object_with_data_type() {
-        let parser_config = ParserConfig::new("U,DATA_TYPE,1");
+        let parser_config = ParserConfig::new("U,DATA_TYPE,1").unwrap();
         let object = json!({
             "DATA_DATE": "2021-01-01",
             "DATA_TYPE": "1",
@@ -170,16 +207,25 @@ mod tests {
         let parsed_data = parser_config.parse_object(object.clone());
         assert_eq!(parsed_data.len(), 3);
         assert_eq!(parsed_data[0].get("_val1").unwrap().as_f64().unwrap(), 1.0);
-        assert_eq!(parsed_data[0].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:01:00+08:00");
+        assert_eq!(
+            parsed_data[0].get("_ts").unwrap().as_str().unwrap(),
+            "2021-01-01T00:01:00+08:00"
+        );
         assert_eq!(parsed_data[1].get("_val1").unwrap().as_f64().unwrap(), 2.0);
-        assert_eq!(parsed_data[1].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:02:00+08:00");
+        assert_eq!(
+            parsed_data[1].get("_ts").unwrap().as_str().unwrap(),
+            "2021-01-01T00:02:00+08:00"
+        );
         assert_eq!(parsed_data[2].get("_val1").unwrap().as_f64().unwrap(), 3.0);
-        assert_eq!(parsed_data[2].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:03:00+08:00");
+        assert_eq!(
+            parsed_data[2].get("_ts").unwrap().as_str().unwrap(),
+            "2021-01-01T00:03:00+08:00"
+        );
     }
 
     #[test]
     fn test_parse_object_without_data_type() {
-        let parser_config = ParserConfig::new("U");
+        let parser_config = ParserConfig::new("U").unwrap();
         let object = json!({
             "DATA_DATE": "2021-01-01",
             "DATA_TYPE": "1",
@@ -193,16 +239,25 @@ mod tests {
         let parsed_data = parser_config.parse_object(object.clone());
         assert_eq!(parsed_data.len(), 3);
         assert_eq!(parsed_data[0].get("_val").unwrap().as_f64().unwrap(), 1.0);
-        assert_eq!(parsed_data[0].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:01:00+08:00");
+        assert_eq!(
+            parsed_data[0].get("_ts").unwrap().as_str().unwrap(),
+            "2021-01-01T00:01:00+08:00"
+        );
         assert_eq!(parsed_data[1].get("_val").unwrap().as_f64().unwrap(), 2.0);
-        assert_eq!(parsed_data[1].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:02:00+08:00");
+        assert_eq!(
+            parsed_data[1].get("_ts").unwrap().as_str().unwrap(),
+            "2021-01-01T00:02:00+08:00"
+        );
         assert_eq!(parsed_data[2].get("_val").unwrap().as_f64().unwrap(), 3.0);
-        assert_eq!(parsed_data[2].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:03:00+08:00");
+        assert_eq!(
+            parsed_data[2].get("_ts").unwrap().as_str().unwrap(),
+            "2021-01-01T00:03:00+08:00"
+        );
     }
 
     #[test]
     fn test_parse_object_exception_missing_data_type() {
-        let parser_config = ParserConfig::new("U,DATA_TYPE");
+        let parser_config = ParserConfig::new("U,DATA_TYPE").unwrap();
         let object = json!({
             "DATA_DATE": "2021-01-01",
             "U0001": 1.0,
@@ -215,11 +270,19 @@ mod tests {
         let parsed_data = parser_config.parse_object(object.clone());
         assert_eq!(parsed_data.len(), 3);
         assert_eq!(parsed_data[0].get("_val").unwrap().as_f64().unwrap(), 1.0);
-        assert_eq!(parsed_data[0].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:01:00+08:00");
+        assert_eq!(
+            parsed_data[0].get("_ts").unwrap().as_str().unwrap(),
+            "2021-01-01T00:01:00+08:00"
+        );
         assert_eq!(parsed_data[1].get("_val").unwrap().as_f64().unwrap(), 2.0);
-        assert_eq!(parsed_data[1].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:02:00+08:00");
+        assert_eq!(
+            parsed_data[1].get("_ts").unwrap().as_str().unwrap(),
+            "2021-01-01T00:02:00+08:00"
+        );
         assert_eq!(parsed_data[2].get("_val").unwrap().as_f64().unwrap(), 3.0);
-        assert_eq!(parsed_data[2].get("_ts").unwrap().as_str().unwrap(), "2021-01-01T00:03:00+08:00");
+        assert_eq!(
+            parsed_data[2].get("_ts").unwrap().as_str().unwrap(),
+            "2021-01-01T00:03:00+08:00"
+        );
     }
-
 }
