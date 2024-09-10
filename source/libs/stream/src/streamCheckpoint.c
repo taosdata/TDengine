@@ -235,6 +235,16 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     return code;
   }
 
+  if (pActiveInfo->failedId >= checkpointId) {
+    stError("s-task:%s vgId:%d checkpointId:%" PRId64 " transId:%d, has been marked failed, failedId:%" PRId64
+            "discard the checkpoint-trigger block",
+            id, vgId, checkpointId, transId, pActiveInfo->failedId);
+    streamMutexUnlock(&pTask->lock);
+
+    streamFreeQitem((SStreamQueueItem*)pBlock);
+    return code;
+  }
+
   if (pTask->chkInfo.checkpointId == checkpointId) {
     {  // send checkpoint-ready msg to upstream
       SRpcMsg msg = {0};
@@ -531,15 +541,20 @@ int32_t streamTaskProcessCheckpointReadyRsp(SStreamTask* pTask, int32_t upstream
 }
 
 void streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg) {
+  SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
+
   pTask->chkInfo.startTs = 0;             // clear the recorded start time
   streamTaskOpenAllUpstreamInput(pTask);  // open inputQ for all upstream tasks
 
-  streamMutexLock(&pTask->chkInfo.pActiveInfo->lock);
-  streamTaskClearActiveInfo(pTask->chkInfo.pActiveInfo);
+  streamMutexLock(&pInfo->lock);
+  streamTaskClearActiveInfo(pInfo);
   if (clearChkpReadyMsg) {
-    streamClearChkptReadyMsg(pTask->chkInfo.pActiveInfo);
+    streamClearChkptReadyMsg(pInfo);
   }
-  streamMutexUnlock(&pTask->chkInfo.pActiveInfo->lock);
+  streamMutexUnlock(&pInfo->lock);
+
+  stDebug("s-task:%s clear active checkpointInfo, failed checkpointId:%"PRId64", current checkpointId:%"PRId64,
+      pTask->id.idStr, pInfo->failedId, pTask->chkInfo.checkpointId);
 }
 
 int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SVUpdateCheckpointInfoReq* pReq) {
@@ -669,7 +684,7 @@ void streamTaskSetFailedCheckpointId(SStreamTask* pTask) {
     stWarn("s-task:%s checkpoint-info is cleared now, not set the failed checkpoint info", pTask->id.idStr);
   } else {
     pInfo->failedId = pInfo->activeId;
-    stDebug("s-task:%s mark the checkpointId:%" PRId64 " (transId:%d) failed", pTask->id.idStr, pInfo->activeId,
+    stDebug("s-task:%s mark and set the failed checkpointId:%" PRId64 " (transId:%d)", pTask->id.idStr, pInfo->activeId,
             pInfo->transId);
   }
 }

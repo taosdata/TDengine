@@ -726,9 +726,10 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
 }
 
 int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
-  const char*       id = pTask->id.idStr;
-  int32_t           code = 0;
-  SStreamDataBlock* pBlock = NULL;
+  const char*            id = pTask->id.idStr;
+  int32_t                code = 0;
+  SStreamDataBlock*      pBlock = NULL;
+  SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
 
   int32_t numOfElems = streamQueueGetNumOfItems(pTask->outputq.queue);
   if (numOfElems > 0) {
@@ -746,10 +747,15 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
     return 0;
   }
 
-  if (pTask->chkInfo.pActiveInfo->dispatchTrigger) {
-    stDebug("s-task:%s already send checkpoint-trigger, no longer dispatch any other data", id);
-    atomic_store_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL);
-    return 0;
+  if (pInfo->dispatchTrigger) {
+    if ((pInfo->activeId != 0) && (pInfo->failedId < pInfo->activeId)) {
+      stDebug("s-task:%s already send checkpoint-trigger, no longer dispatch any other data", id);
+      atomic_store_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL);
+      return 0;
+    } else {
+      stDebug("s-task:%s dispatch trigger set, and ignore since current active checkpointId:%" PRId64 " failed", id,
+              pInfo->activeId);
+    }
   }
 
   if (pTask->msgInfo.pData != NULL) {
@@ -788,8 +794,10 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
     if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
       // outputQ should be empty here, otherwise, set the checkpoint failed due to the retrieve req happens
       if (streamQueueGetNumOfUnAccessedItems(pTask->outputq.queue) > 0) {
-        stError("s-task:%s items are still in outputQ due to downstream retrieve, failed to init trigger dispatch",
-                pTask->id.idStr);
+        stError(
+            "s-task:%s items are still in outputQ due to downstream retrieve, failed to init and discard "
+            "checkpoint-trigger dispatch",
+            pTask->id.idStr);
         streamTaskSetCheckpointFailed(pTask);
         clearBufferedDispatchMsg(pTask);
         continue;
@@ -1477,6 +1485,8 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   int32_t           notRsp = 0;
   int32_t           numOfFailed = 0;
   bool              triggerDispatchRsp = false;
+
+  taosMsleep(500);
 
   // we only set the dispatch msg info for current checkpoint trans
   streamMutexLock(&pTask->lock);
