@@ -243,8 +243,15 @@ def doTest(dataType, typeName, algo, resultFile):
 def main():
     # test types 
     dataTypes = [
-        '{"type": "bool",    "name": "bc", "max": 1,   "min": 0, "count":10, "compress":"@COMPRESS"}',
-        '{"type": "tinyint", "name": "ti", "max": 100, "min": 0, "count":10, "compress":"@COMPRESS"}'
+        '{"type": "bool",     "count":100, "min": 0,   "max": 1,       "compress":"@COMPRESS"}',
+        '{"type": "tinyint",  "count":100, "min": 0,   "max": 100,     "compress":"@COMPRESS"}',
+        '{"type": "smallint", "count":100, "min": 0,   "max": 1000,    "compress":"@COMPRESS"}',
+        '{"type": "int",      "count":100, "min": 0,   "max": 100000,  "compress":"@COMPRESS"}',
+        '{"type": "bigint",   "count":100, "min": 0,   "max": 1000000, "compress":"@COMPRESS"}',
+        '{"type": "float",    "count":100, "min": 0,   "max": 1000,    "compress":"@COMPRESS"}',
+        '{"type": "double",   "count":100, "min": 0,   "max": 1000,    "compress":"@COMPRESS"}',
+        '{"type": "binary",   "count":100, "len": 64,  "compress":"@COMPRESS"}',
+        '{"type": "nchar",    "count":100, "len": 64,  "compress":"@COMPRESS"}'
     ]
 
     # test compress method
@@ -273,7 +280,7 @@ def main():
                 continue
             # do test
             doTest(dataType, typeName, algo, resultFile)
-
+        appendFileContext(resultFile, "    \n")
 
 if __name__ == "__main__":
     print("welcome use TDengine compress rate test tools.\n")
