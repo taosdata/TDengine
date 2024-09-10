@@ -69,6 +69,8 @@ class TDTestCase(TBase):
 
         sc.dnodeStop(3)
         while 1:
+            if clusterComCheck.checkDnodes(4): break
+        while 1:
             leader_status = clusterComCheck.check_vgroups_status_with_offline(vgroup_numbers=self.vgroupNum, db_replica=self.replicaVar)
             if leader_status >= 0: break
         leader_status = clusterComCheck.check_vgroups_status_with_offline(vgroup_numbers=self.vgroupNum, db_replica=self.replicaVar)
@@ -76,6 +78,8 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 0, leader_status)
         
         sc.dnodeStop(2)
+        while 1:
+            if clusterComCheck.checkDnodes(3): break
         while 1:
             leader_status = clusterComCheck.check_vgroups_status_with_offline(vgroup_numbers=self.vgroupNum, db_replica=self.replicaVar)
             if leader_status >= 0: break

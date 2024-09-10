@@ -44,7 +44,7 @@ class ClusterComCheck:
             tdSql.query("select * from information_schema.ins_dnodes")
             # tdLog.debug(tdSql.res)
             status=0
-            for i in range(dnodeNumbers):
+            for i in range(len(tdSql.res)):
                 if tdSql.res[i][4] == "ready":
                     status+=1
             # tdLog.info(status)
