@@ -602,9 +602,10 @@ void monSendReport(SMonInfo *pMonitor) {
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
     char          tmp[100] = {0};
-    (void)sprintf(tmp, "%s?qid=%" PRId64, tsMonUri, tGenQid64(tsMonitor.dnodeId));
-    uDebug("report cont to %s", tmp);
-    if (taosSendHttpReport(tsMonitor.cfg.server, tmp, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
+    (void)sprintf(tmp, "%" PRId64, tGenQid64(tsMonitor.dnodeId));
+    uDebug("report cont with QID:%s", tmp);
+    if (taosSendHttpReportWithQID(tsMonitor.cfg.server, tsMonUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag,
+                                  tmp) != 0) {
       uError("failed to send monitor msg");
     }
     taosMemoryFree(pCont);
@@ -623,9 +624,10 @@ void monSendReportBasic(SMonInfo *pMonitor) {
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
     char          tmp[100] = {0};
-    (void)sprintf(tmp, "%s?qid=%" PRId64, tsMonFwBasicUri, tGenQid64(tsMonitor.dnodeId));
-    uDebug("report cont basic to %s", tmp);
-    if (taosSendHttpReport(tsMonitor.cfg.server, tmp, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
+    (void)sprintf(tmp, "%" PRId64, tGenQid64(tsMonitor.dnodeId));
+    uDebug("report cont basic with QID:%s", tmp);
+    if (taosSendHttpReportWithQID(tsMonitor.cfg.server, tsMonFwBasicUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag,
+                                  tmp) != 0) {
       uError("failed to send monitor msg");
     }
     taosMemoryFree(pCont);
@@ -677,10 +679,11 @@ void monSendContent(char *pCont, const char *uri) {
   }
   if (pCont != NULL) {
     char tmp[100] = {0};
-    (void)sprintf(tmp, "%s?qid=%" PRId64, uri, tGenQid64(tsMonitor.dnodeId));
-    uInfoL("report client cont to %s", tmp);
+    (void)sprintf(tmp, "%" PRId64, tGenQid64(tsMonitor.dnodeId));
+    uInfoL("report client cont with QID:%s", tmp);
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
-    if (taosSendHttpReport(tsMonitor.cfg.server, tmp, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
+    if (taosSendHttpReportWithQID(tsMonitor.cfg.server, uri, tsMonitor.cfg.port, pCont, strlen(pCont), flag, tmp) !=
+        0) {
       uError("failed to send monitor msg");
     }
   }
