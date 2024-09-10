@@ -69,7 +69,7 @@ static int32_t destroy_fs(STFileSystem **fs) {
 int32_t current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype) {
   int32_t offset = 0;
 
-  (void)vnodeGetPrimaryDir(pTsdb->path, pTsdb->pVnode->diskPrimary, pTsdb->pVnode->pTfs, fname, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pTsdb->path, pTsdb->pVnode->diskPrimary, pTsdb->pVnode->pTfs, fname, TSDB_FILENAME_LEN);
   offset = strlen(fname);
   snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, gCurrentFname[ftype]);
 

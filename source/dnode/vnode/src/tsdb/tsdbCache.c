@@ -117,7 +117,7 @@ typedef struct {
 
 static void tsdbGetRocksPath(STsdb *pTsdb, char *path) {
   SVnode *pVnode = pTsdb->pVnode;
-  (void)vnodeGetPrimaryDir(pTsdb->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pTsdb->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
 
   int32_t offset = strlen(path);
   snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%scache.rdb", TD_DIRSEP);

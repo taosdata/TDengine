@@ -79,7 +79,7 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
 
     // open fd
     char fname[TSDB_FILENAME_LEN];
-    (void)tsdbTFileName(tsdb, &file, fname);
+    tsdbTFileName(tsdb, &file, fname);
 
     TAOS_CHECK_GOTO(tsdbOpenFile(fname, tsdb, TD_FILE_READ | TD_FILE_WRITE, &ctx->fd, 0), &lino, _exit);
 
