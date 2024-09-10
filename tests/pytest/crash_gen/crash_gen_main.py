@@ -1727,6 +1727,77 @@ class TaskCreateDb(StateTransitionTask):
     def canBeginFrom(cls, state: AnyState):
         return state.canCreateDb()
 
+    def convert_from_hours(self, hours, unit):
+        """
+        Convert hours to the specified unit.
+        """
+        if unit == 'm':
+            return int(hours * 60)  # Convert hours to minutes
+        elif unit == 'h':
+            return int(hours)       # Keep hours unchanged
+        elif unit == 'd':
+            return max(1, int(hours / 24))  # Convert hours to days, minimum 1 day
+
+    def convert_to_hours(self, value, unit):
+        """
+        Convert the given time value and unit into hours.
+        """
+        if unit == 'm':
+            return value / 60  # Convert minutes to hours
+        elif unit == 'd':
+            return value * 24  # Convert days to hours
+
+    def random_duration_and_keeps(self):
+        # Randomly select the unit and value for duration
+        units = ['m', 'h', 'd']
+        duration_unit = random.choice(['m', 'd'])  # Only choose minutes or days
+        if duration_unit == 'm':
+            duration = random.randint(60, 1440)  # From 1 hour to 1 day in minutes
+        elif duration_unit == 'd':
+            duration = random.randint(1, 3)      # From 1 to 3 days
+
+        # Convert duration to hours for calculation purposes
+        duration_hours = self.convert_to_hours(duration, duration_unit)
+
+        # Ensure keep0, keep1, keep2 are increasing and follow the relation with duration
+        min_keep0_hours = 3 * duration_hours
+        keep0_hours = random.uniform(min_keep0_hours, min_keep0_hours + 100)
+        keep1_hours = random.uniform(keep0_hours, keep0_hours + 100)
+        keep2_hours = random.uniform(keep1_hours, keep1_hours + 100)
+
+        # Randomly choose units for keeps and convert times
+        keep0_unit = random.choice(units)
+        keep1_unit = random.choice(units)
+        keep2_unit = random.choice(units)
+
+        keep0 = f"{self.convert_from_hours(keep0_hours, keep0_unit)}{keep0_unit}"
+        keep1 = f"{self.convert_from_hours(keep1_hours, keep1_unit)}{keep1_unit}"
+        keep2 = f"{self.convert_from_hours(keep2_hours, keep2_unit)}{keep2_unit}"
+
+        duration_with_unit = f"{duration}{duration_unit}"
+        keep_val = random.choice([keep0, keep1, keep2, f'{keep0},{keep1},{keep2}'])
+        return duration_with_unit, keep_val
+
+
+    def get_min_maxrows(self):
+        """
+        Selects a random number of rows within the specified boundaries.
+
+        Returns:
+            tuple: A tuple containing the minimum and maximum number of rows selected.
+        Raises:
+            ValueError: If the maximum number of rows is less than the minimum number of rows.
+        """
+        minrows = random.randint(*DataBoundary.MINROWS_BOUNDARY.value)
+        maxrows_min = max(minrows + 1, DataBoundary.MINROWS_BOUNDARY.value[0])
+        if DataBoundary.MINROWS_BOUNDARY.value[1] < maxrows_min:
+            raise ValueError("maxrows < minrows")
+        maxrows = random.randint(maxrows_min, DataBoundary.MINROWS_BOUNDARY.value[1])
+        if Dice.throw(2) == 0:
+            return minrows, maxrows
+        else:
+            return 100, 1000
+
     # Actually creating the database(es)
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # was: self.execWtSql(wt, "create database db")
@@ -1741,14 +1812,32 @@ class TaskCreateDb(StateTransitionTask):
         buffer = random.randint(3, 128)
         walRetentionPeriod = random.randint(1, 10000)
         dbName = self._db.getName()
-        self.execWtSql(wt, "create database {} {} {} vgroups {} cachemodel '{}' buffer {} wal_retention_period {}  ".format(dbName, repStr,
+        duration_with_unit, keep_val = self.random_duration_and_keeps()
+        minrows, maxrows = self.get_min_maxrows()
+        stt_trigger = Dice.choice(DataBoundary.STT_TRIGGER_BOUNDARY.value)
+        precision = Dice.choice(DataBoundary.PRECISION_BOUNDARY.value)
+        comp = Dice.choice(DataBoundary.COMP_BOUNDARY.value)
+        cachesize = Dice.choice(DataBoundary.CACHESIZE_BOUNDARY.value)
+        self.execWtSql(wt, "create database {} {} {} vgroups {} cachemodel '{}' cachesize {} buffer {} wal_retention_period {} duration {} keep {} minrows {} maxrows {} stt_trigger {} precision {} comp {}".format(dbName, repStr,
                                                                                                     updatePostfix,
                                                                                                     vg_nums,
                                                                                                     cache_model,
+                                                                                                    cachesize,
                                                                                                     buffer,
-                                                                                                    walRetentionPeriod))
+                                                                                                    walRetentionPeriod,
+                                                                                                    duration_with_unit,
+                                                                                                    keep_val,
+                                                                                                    minrows,
+                                                                                                    maxrows,
+                                                                                                    stt_trigger,
+                                                                                                    precision,
+                                                                                                    comp))
         if dbName == "db_0" and Config.getConfig().use_shadow_db:
             self.execWtSql(wt, "create database {} {} {} ".format("db_s", repStr, updatePostfix))
+
+"""
+cachesize
+"""
 
 
 class TaskDropDb(StateTransitionTask):

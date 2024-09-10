@@ -90,6 +90,12 @@ class DataBoundary(Enum):
     TOP_BOUNDARY = [1, 100]
     MAVG_BOUNDARY = [1, 1000]
     CONCAT_BOUNDARY = [2, 8]
+    MINROWS_BOUNDARY = [10, 1000000]
+    MAXROWS_BOUNDARY = [200, 10000000]
+    STT_TRIGGER_BOUNDARY = [1, 16]
+    PRECISION_BOUNDARY = ['ms', 'us', 'ns']
+    COMP_BOUNDARY = [0, 1, 2]
+    CACHESIZE_BOUNDARY = [1, 65536]
     LIMIT_BOUNDARY = 100
     TIME_UNIT = ['b', 'u', 'a', 's', 'm', 'h', 'd', 'w']
     STATECOUNT_UNIT = ["LT", "LE", "EQ", "NE", "GE", "GT"]
