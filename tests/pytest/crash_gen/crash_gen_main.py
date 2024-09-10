@@ -2303,23 +2303,37 @@ class TdSuperTable:
         return ", ".join(trans_tagStrs_to_string_list)
 
     def _checkStableExists(self, dbc, table):
+        """
+        Check if a table exists in the stable list of a database.
+
+        Args:
+            dbc (DatabaseConnection): The database connection object.
+            table (str): The name of the table to check.
+
+        Returns:
+            bool: True if the table exists in the stable list, False otherwise.
+        """
         dbc.query("show {}.stables".format(self._dbName))
         stCols = dbc.getQueryResult()
         tables = [row[0] for row in stCols]
         return table in tables
 
-    def _getTags(self, dbc) -> dict:
-        # if self._checkStableExists(dbc, self._stName):
+    def _getTags(self, dbc):
+        """
+        Retrieves the tags from the specified database table.
+
+        Args:
+            dbc: The database connection object.
+
+        Returns:
+            A dictionary containing the tags retrieved from the table, where the keys are the tag names and the values are the tag types.
+        """
         dbc.query("DESCRIBE {}.{}".format(self._dbName, self._stName))
         stCols = dbc.getQueryResult()
-        # print(stCols)
         ret = {row[0]: row[1] for row in stCols if row[3] == 'TAG'}  # name:type
-        # print("Tags retrieved: {}".format(ret))
         return ret
-        # else:
-        #     return False
 
-    def _getCols(self, dbc) -> dict:
+    def _getCols(self, dbc):
         """
         Retrieve the columns of a table from the database.
 
@@ -2478,21 +2492,21 @@ class TdSuperTable:
         return f"TIMEDIFF({expr1}, {expr2})"
 
     def formatDiff(self, expr1):
-            """
-            Formats the difference between the given expression and a randomly chosen ignore value.
+        """
+        Formats the difference between the given expression and a randomly chosen ignore value.
 
-            Args:
-                expr1 (str): The expression to calculate the difference for.
+        Args:
+            expr1 (str): The expression to calculate the difference for.
 
-            Returns:
-                str: The formatted difference string.
+        Returns:
+            str: The formatted difference string.
 
-            """
-            ignore_val = random.choice(DataBoundary.DIFF_IGNORE_BOUNDARY.value)
-            if ignore_val == 0:
-                return f"DIFF({expr1})"
-            else:
-                return f"DIFF({expr1}, {ignore_val})"
+        """
+        ignore_val = random.choice(DataBoundary.DIFF_IGNORE_BOUNDARY.value)
+        if ignore_val == 0:
+            return f"DIFF({expr1})"
+        else:
+            return f"DIFF({expr1}, {ignore_val})"
 
     def formatTimeTruncate(self, expr):
         """
@@ -2852,6 +2866,16 @@ class TdSuperTable:
         return ",".join(funcStrList), groupKey
 
     def getFuncCategory(self, doAggr):
+        """
+        Returns the category of the function based on the value of doAggr.
+
+        Parameters:
+        - doAggr (int): Determines the category of the function. 
+                        0 for aggregate functions, 1 for normal functions, and any other value for special functions.
+
+        Returns:
+        - str: The category of the function. Possible values are "aggFuncs", "nFuncs", or "spFuncs".
+        """
         if doAggr == 0:
             return "aggFuncs"
         elif doAggr == 1:
@@ -2965,20 +2989,20 @@ class TdSuperTable:
         return timeRangeFilter
 
     def getPartitionValue(self, col, rand=None):
-            """
-            Returns the partition value based on the given column.
+        """
+        Returns the partition value based on the given column.
 
-            Args:
-                col (str): The column to partition by.
-                rand (bool, optional): If True, a random partition value will be used. Defaults to None.
+        Args:
+            col (str): The column to partition by.
+            rand (bool, optional): If True, a random partition value will be used. Defaults to None.
 
-            Returns:
-                str: The partition value.
+        Returns:
+            str: The partition value.
 
-            """
-            useTag = random.choice([True, False]) if rand is None else True
-            partitionVal = f'PARTITION BY {col}' if useTag else ""
-            return partitionVal
+        """
+        useTag = random.choice([True, False]) if rand is None else True
+        partitionVal = f'PARTITION BY {col}' if useTag else ""
+        return partitionVal
 
     def getPartitionObj(self, rand=None):
         """
@@ -3396,6 +3420,18 @@ class TaskAddData(StateTransitionTask):
             self._unlockTableIfNeeded(fullTableName)
 
     def _addDataInBatch_n(self, db, dbc, regTableName, te: TaskExecutor):
+        """
+        Adds data in batch to the specified table.
+
+        Args:
+            db (Database): The database object.
+            dbc (DatabaseConnection): The database connection object.
+            regTableName (str): The name of the regular table.
+            te (TaskExecutor): The task executor object.
+
+        Returns:
+            None
+        """
         numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
 
         fullTableName = db.getName() + '.' + regTableName
@@ -3416,12 +3452,33 @@ class TaskAddData(StateTransitionTask):
             self._unlockTableIfNeeded(fullTableName)
 
     def _checkStableExists(self, dbc, table):
+        """
+        Check if a table exists in the stable list of a database.
+
+        Args:
+            dbc (DatabaseConnection): The database connection object.
+            table (str): The name of the table to check.
+
+        Returns:
+            bool: True if the table exists in the stable list, False otherwise.
+        """
         dbc.query("show {}.stables".format(self._dbName))
         stCols = dbc.getQueryResult()
         tables = [row[0] for row in stCols]
         return table in tables
 
     def _getCols(self, db: Database, dbc, regTableName):
+        """
+        Get the columns of a table in the database.
+
+        Args:
+            db (Database): The database object.
+            dbc: The database connection object.
+            regTableName (str): The name of the table.
+
+        Returns:
+            dict: A dictionary containing the columns of the table, where the keys are the column names and the values are the column types.
+        """
         # if self._checkStableExists(dbc, regTableName):
         dbc.query("DESCRIBE {}.{}".format(db.getName(), regTableName))
         stCols = dbc.getQueryResult()
@@ -3431,17 +3488,37 @@ class TaskAddData(StateTransitionTask):
         #     return False
 
     def getMeta(self, db: Database, dbc: DbConn, customStable=None):
+        """
+        Retrieves metadata information from the specified database and table.
+
+        Args:
+            db (Database): The database object.
+            dbc (DbConn): The database connection object.
+            customStable (str, optional): The name of the table. Defaults to None.
+
+        Returns:
+            tuple: A tuple containing two dictionaries. The first dictionary contains column names as keys and their corresponding data types as values. The second dictionary contains tag names as keys and their corresponding data types as values.
+        """
         stableName = self._getStableName(db, customStable)
-        # if self._checkStableExists(dbc, stableName):
         dbc.query("DESCRIBE {}.{}".format(db.getName(), stableName))
         sts = dbc.getQueryResult()
         cols = {row[0]: row[1] for row in sts if row[3] != 'TAG'}
         tags = {row[0]: row[1] for row in sts if row[3] == 'TAG'}
         return cols, tags
-        # else:
-        #     return False
 
     def _getVals(self, db: Database, dbc: DbConn, tagNameList, customStable=None):
+        """
+        Retrieves random values from the specified database and table.
+
+        Args:
+            db (Database): The database object.
+            dbc (DbConn): The database connection object.
+            tagNameList (list): A list of tag names to select from.
+            customStable (str, optional): The name of the stable table. Defaults to None.
+
+        Returns:
+            object: A randomly selected row from the specified table.
+        """
         stableName = self._getStableName(db, customStable)
         selectedTagCols = ",".join(tagNameList)
         # if self._checkStableExists(dbc, stableName):
@@ -3452,10 +3529,35 @@ class TaskAddData(StateTransitionTask):
         #     return False
 
     def _getStableName(self, db: Database, customStable=None):
+        """
+        Get the stable name from the database.
+
+        Args:
+            db (Database): The database object.
+            customStable (str, optional): Custom stable name. Defaults to None.
+
+        Returns:
+            str: The stable name.
+        """
         sTable = db.getFixedSuperTable().getName() if customStable is None else customStable
         return sTable
 
     def _getRandomCols(self, db: Database, dbc: DbConn):
+        """
+        Randomly selects a specified number of columns from a database table.
+
+        Args:
+            db (Database): The database object.
+            dbc (DbConn): The database connection object.
+
+        Returns:
+            tuple: A tuple containing two elements:
+                - A string representing the randomly selected columns separated by commas.
+                - A dictionary representing the selected columns and their corresponding data types.
+        Raises:
+            None
+
+        """
         cols = self.getMeta(db, dbc)[0]
         # if not cols:
         #     return "No table exists"
@@ -3472,6 +3574,16 @@ class TaskAddData(StateTransitionTask):
             return "No TIMESTAMP type key found in the dictionary."
 
     def _getRandomTags(self, db: Database, dbc: DbConn):
+        """
+        Get random tags from the database.
+
+        Args:
+            db (Database): The database object.
+            dbc (DbConn): The database connection object.
+
+        Returns:
+            tuple: A tuple containing a string of random tags separated by commas, and a dictionary of the selected tags.
+        """
         tags = self.getMeta(db, dbc)[1]
         # if not tags:
         #     return "No table exists"
@@ -3480,6 +3592,18 @@ class TaskAddData(StateTransitionTask):
         return ",".join(random_keys), {key: tags[key] for key in random_keys}
 
     def _getTagColStrForSql(self, db: Database, dbc, customTagCols=None, default="cols"):
+        """
+        Get the tag column string for SQL query.
+
+        Args:
+            db (Database): The database object.
+            dbc: The database connection object.
+            customTagCols (dict, optional): Custom tag columns. Defaults to None.
+            default (str, optional): Default value for meta index. Defaults to "cols".
+
+        Returns:
+            tuple: A tuple containing the tag column string and the tag column values.
+        """
         meta_idx = 0 if default == "cols" else 1
         tagCols = self.getMeta(db, dbc)[meta_idx] if not customTagCols else customTagCols
         # if not tagCols:
@@ -3629,6 +3753,21 @@ class TaskAddData(StateTransitionTask):
                 os.fsync(self.fAddLogDone.fileno())
 
     def _addData_n(self, db: Database, dbc, regTableName, te: TaskExecutor):  # implied: NOT in batches
+        """
+        Adds data to the specified table in the database.
+
+        Args:
+            db (Database): The database object.
+            dbc: The database connection object.
+            regTableName (str): The name of the table to add data to.
+            te (TaskExecutor): The task executor object.
+
+        Raises:
+            CrashGenError: If an unexpected error occurs during the data addition process.
+
+        Returns:
+            None
+        """
         numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
         for j in range(numRecords):  # number of records per table
             colStrs = self._getTagColStrForSql(db, dbc)[0]
@@ -3724,7 +3863,20 @@ class TaskAddData(StateTransitionTask):
                 self.fAddLogDone.flush()
                 os.fsync(self.fAddLogDone.fileno())
 
-    def _addDataByAutoCreateTable_n(self, db: Database, dbc):  # implied: NOT in batches
+    def _addDataByAutoCreateTable_n(self, db: Database, dbc):
+        """
+        Adds data to the database by automatically creating tables.
+
+        Args:
+            db (Database): The database object.
+            dbc: The database connection object.
+
+        Raises:
+            CrashGenError: If an error occurs while adding data.
+
+        Returns:
+            None
+        """
         numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
         for j in range(numRecords):  # number of records per table
             colNames, colValues = self._getRandomCols(db, dbc)
@@ -3752,7 +3904,20 @@ class TaskAddData(StateTransitionTask):
                 self._unlockTableIfNeeded(fullRegTableName)
                 raise CrashGenError("func _addDataByAutoCreateTable_n error")
 
-    def _addDataByMultiTable_n(self, db: Database, dbc):  # implied: NOT in batches
+    def _addDataByMultiTable_n(self, db: Database, dbc):
+        """
+        Adds data to multiple tables in the database.
+
+        Args:
+            db (Database): The database object.
+            dbc: The database connection object.
+
+        Returns:
+            None
+
+        Raises:
+            CrashGenError: If an exception occurs while adding data.
+        """
         if dbc.query("show {}.tables".format(db.getName())) == 0:  # no tables
             return
         #self.tdSql.execute(f'insert into {dbname}.tb3 using {dbname}.stb3 tags (31, 32) values (now, 31, 32) {dbname}.tb4 using {dbname}.stb4 tags (41, 42) values (now, 41, 42)')
@@ -3779,6 +3944,19 @@ class TaskAddData(StateTransitionTask):
             raise CrashGenError("func _addDataByMultiTable_n error")
 
     def _getStmtBindLines(self, db: Database, dbc):
+        """
+        Retrieves statement and bind lines from the database.
+
+        Args:
+            db (Database): The database object.
+            dbc: The database connection object.
+
+        Returns:
+            tuple: A tuple containing the lines, cols, and tags.
+                - lines: A list of tuples representing the statement and bind lines.
+                - cols: The columns of the database table.
+                - tags: The tags of the database table.
+        """
         if dbc.query("show {}.tables".format(db.getName())) == 0:  # no tables
             return
         res = dbc.getQueryResult()
@@ -3796,10 +3974,31 @@ class TaskAddData(StateTransitionTask):
         return lines, cols, tags
 
     def _transTs(self, ts):
-        # dt = datetime.datetime.strptime(ts, '%Y-%m-%d %H:%M:%S.%f')
+        """
+        Convert a timestamp to milliseconds.
+
+        Args:
+            ts (datetime.datetime): The timestamp to be converted.
+
+        Returns:
+            int: The converted timestamp in milliseconds.
+        """
         return int(ts.timestamp() * 1000)
 
     def bind_row_by_row(self, stmt: taos.TaosStmt, lines, tag_dict, col_dict):
+        """
+        Binds rows of data to a TaosStmt object row by row.
+
+        Args:
+            stmt (taos.TaosStmt): The TaosStmt object to bind the data to.
+            lines (list): The list of rows containing the data to bind.
+            tag_dict (dict): A dictionary mapping tag names to their corresponding types.
+            col_dict (dict): A dictionary mapping column names to their corresponding types.
+
+        Returns:
+            taos.TaosStmt: The TaosStmt object with the data bound.
+
+        """
         tb_name = None
         for row in lines:
             if tb_name != row[0]:
@@ -3821,7 +4020,7 @@ class TaskAddData(StateTransitionTask):
             for j, col_name in enumerate(col_dict):
                 bind_type = col_dict[col_name].lower()
                 if "unsigned" in col_dict[col_name].lower():
-                        bind_type = bind_type.replace("unsigned", "_unsigned")
+                    bind_type = bind_type.replace("unsigned", "_unsigned")
                 if j == 0:
                     getattr(values[j], col_dict[col_name].lower())(self._transTs(row[1 + j]))  # Dynamically call the appropriate binding method
                 else:
@@ -3833,6 +4032,16 @@ class TaskAddData(StateTransitionTask):
         return stmt
 
     def _addDataBySTMT(self, db: Database, dbc):
+        """
+        Add data to the database using prepared statements.
+
+        Args:
+            db (Database): The database object.
+            dbc: The dbc object.
+
+        Returns:
+            None
+        """
         lines, col_dict, tag_dict = self._getStmtBindLines(db, dbc)
         # TODO replace dbc
         conn = taos.connect(database=db.getName())
@@ -3894,7 +4103,20 @@ class TaskAddData(StateTransitionTask):
     def _transSmlVal(self, ):
         pass
 
-    def _addDataByInfluxdbLine(self, db: Database, dbc):  # implied: NOT in batches
+    def _addDataByInfluxdbLine(self, db: Database, dbc):
+        """
+        Add data to InfluxDB using InfluxDB line protocol.
+
+        Args:
+            db (Database): The InfluxDB database.
+            dbc: The InfluxDB client.
+
+        Raises:
+            CrashGenError: If there is an error adding data to InfluxDB.
+
+        Returns:
+            None
+        """
         dbc.query('show {}.stables like "influxdb_%"'.format(db.getName()))
         res = dbc.getQueryResult()
         newCreateStable = f'influxdb_{TDCom.get_long_name(8)}'
