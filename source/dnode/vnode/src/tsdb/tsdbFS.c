@@ -111,7 +111,7 @@ static int32_t tsdbSaveFSToFile(STsdbFS *pFS, const char *fname) {
   // save to file
   pFD = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFD == NULL) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   int64_t n = taosWriteFile(pFD, pData, size);
@@ -176,7 +176,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
   if (pTsdb->fs.pDelFile) {
     tsdbDelFileName(pTsdb, pTsdb->fs.pDelFile, fname);
     if (taosStatFile(fname, &size, NULL, NULL)) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
@@ -190,7 +190,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
     // head =========
     tsdbHeadFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pHeadF, fname);
     if (taosStatFile(fname, &size, NULL, NULL)) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     // if (size != tsdbLogicToFileSize(pSet->pHeadF->size, pTsdb->pVnode->config.tsdbPageSize)) {
@@ -201,7 +201,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
     // data =========
     tsdbDataFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pDataF, fname);
     if (taosStatFile(fname, &size, NULL, NULL)) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     // if (size < tsdbLogicToFileSize(pSet->pDataF->size, pTsdb->pVnode->config.tsdbPageSize)) {
@@ -216,7 +216,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
     // sma =============
     tsdbSmaFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pSmaF, fname);
     if (taosStatFile(fname, &size, NULL, NULL)) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     // if (size < tsdbLogicToFileSize(pSet->pSmaF->size, pTsdb->pVnode->config.tsdbPageSize)) {
@@ -232,7 +232,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
     for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) {
       tsdbSttFileName(pTsdb, pSet->diskId, pSet->fid, pSet->aSttF[iStt], fname);
       if (taosStatFile(fname, &size, NULL, NULL)) {
-        code = TAOS_SYSTEM_ERROR(errno);
+        code = terrno;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
       // if (size != tsdbLogicToFileSize(pSet->aSttF[iStt]->size, pTsdb->pVnode->config.tsdbPageSize)) {
@@ -291,7 +291,7 @@ static int32_t load_fs(const char *fname, STsdbFS *pFS) {
   // load binary
   TdFilePtr pFD = taosOpenFile(fname, TD_FILE_READ);
   if (pFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

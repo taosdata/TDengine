@@ -267,7 +267,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
 
     TdFilePtr pFile = taosOpenFile(fName, TD_FILE_READ);
     if (NULL == pFile) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 

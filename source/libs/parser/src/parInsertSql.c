@@ -2268,7 +2268,7 @@ static int32_t parseDataFromFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
   }
   pStmt->fp = taosOpenFile(filePathStr, TD_FILE_READ | TD_FILE_STREAM);
   if (NULL == pStmt->fp) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   return parseDataFromFileImpl(pCxt, pStmt, rowsDataCxt);

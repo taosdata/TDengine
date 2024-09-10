@@ -106,7 +106,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
   snprintf(file, sizeof(file), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dInfo("vnode file:%s not exist, reason:%s", file, tstrerror(code));
     code = 0;
     return code;
@@ -114,7 +114,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
 
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to open vnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
@@ -234,7 +234,7 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
 

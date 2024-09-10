@@ -56,7 +56,7 @@ int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
 
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to open file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
@@ -148,7 +148,7 @@ int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
 
@@ -158,7 +158,7 @@ int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
     goto _OVER;
   }
   if (taosFsyncFile(pFile) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
 
@@ -188,7 +188,7 @@ int32_t dmCheckRunning(const char *dataDir, TdFilePtr *pFile) {
 
   *pFile = taosOpenFile(filepath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_CLOEXEC);
   if (*pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to open file:%s since %s", filepath, tstrerror(code));
     return code;
   }
@@ -199,7 +199,7 @@ int32_t dmCheckRunning(const char *dataDir, TdFilePtr *pFile) {
     ret = taosLockFile(*pFile);
     if (ret == 0) break;
 
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     taosMsleep(1000);
     retryTimes++;
     dError("failed to lock file:%s since %s, retryTimes:%d", filepath, tstrerror(code), retryTimes);
@@ -239,7 +239,7 @@ static int32_t dmWriteCheckCodeFile(char *file, char *realfile, char *key, bool 
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
 
@@ -276,7 +276,7 @@ static int32_t dmWriteEncryptCodeFile(char *file, char *realfile, char *encryptC
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
 
@@ -286,7 +286,7 @@ static int32_t dmWriteEncryptCodeFile(char *file, char *realfile, char *encryptC
     goto _OVER;
   }
   if (taosFsyncFile(pFile) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
 
@@ -315,7 +315,7 @@ static int32_t dmCompareEncryptKey(char *file, char *key, bool toLogFile) {
 
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     encryptError("failed to open dnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
@@ -455,7 +455,7 @@ static int32_t dmReadEncryptCodeFile(char *file, char **output) {
 
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to open dnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }

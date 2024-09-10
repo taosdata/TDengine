@@ -71,13 +71,13 @@ int32_t mmReadFile(const char *path, SMnodeOpt *pOption) {
   }
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    dInfo("mnode file:%s not exist, reason:%s", file, tstrerror(TAOS_SYSTEM_ERROR(errno)));
+    dInfo("mnode file:%s not exist, reason:%s", file, tstrerror(terrno));
     return 0;
   }
 
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to open mnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
@@ -197,7 +197,7 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
 
@@ -207,7 +207,7 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
     goto _OVER;
   }
   if (taosFsyncFile(pFile) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
 

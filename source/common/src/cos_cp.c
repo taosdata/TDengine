@@ -10,7 +10,7 @@ int32_t cos_cp_open(char const* cp_path, SCheckpoint* checkpoint) {
   TdFilePtr fd = taosOpenFile(cp_path, TD_FILE_WRITE | TD_FILE_CREATE /* | TD_FILE_TRUNC*/ | TD_FILE_WRITE_THROUGH);
   if (!fd) {
     uError("%s Failed to open %s", __func__, cp_path);
-    TAOS_CHECK_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_CHECK_RETURN(terrno);
   }
 
   checkpoint->thefile = fd;
@@ -162,7 +162,7 @@ int32_t cos_cp_load(char const* filepath, SCheckpoint* checkpoint) {
 
   TdFilePtr fd = taosOpenFile(filepath, TD_FILE_READ);
   if (!fd) {
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   int64_t size = -1;
@@ -207,7 +207,7 @@ static int32_t cos_cp_save_json(cJSON const* json, SCheckpoint* checkpoint) {
 
   TdFilePtr fp = checkpoint->thefile;
   if (taosFtruncateFile(fp, 0) < 0) {
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
   if (taosLSeekFile(fp, 0, SEEK_SET) < 0) {
     TAOS_CHECK_GOTO(terrno, &lino, _exit);

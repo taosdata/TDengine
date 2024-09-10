@@ -556,9 +556,9 @@ _NEXT:
 
   uint8_t* buf = taosMemoryCalloc(1, sizeof(SStreamSnapBlockHdr) + kBlockSize);
   int64_t  nread = taosPReadFile(pSnapFile->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pSnapFile->offset);
-  if (nread == -1) {
+  if (nread < 0) {
     taosMemoryFree(buf);
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     stError("%s snap failed to read snap, file name:%s, type:%d,reason:%s", STREAM_STATE_TRANSFER, item->name,
             item->type, tstrerror(code));
     return code;

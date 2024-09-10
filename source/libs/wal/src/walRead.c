@@ -175,7 +175,7 @@ static int32_t walReadChangeFile(SWalReader *pReader, int64_t fileFirstVer) {
   if (pLogFile == NULL) {
     wError("vgId:%d, cannot open file %s, since %s", pReader->pWal->cfg.vgId, fnameStr, terrstr());
 
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
 
   pReader->pLogFile = pLogFile;
@@ -185,7 +185,7 @@ static int32_t walReadChangeFile(SWalReader *pReader, int64_t fileFirstVer) {
   if (pIdxFile == NULL) {
     wError("vgId:%d, cannot open file %s, since %s", pReader->pWal->cfg.vgId, fnameStr, terrstr());
 
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
 
   pReader->pIdxFile = pIdxFile;

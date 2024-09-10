@@ -46,14 +46,14 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
 
       pFD->pFD = taosOpenFile(lc_path, flag);
       if (pFD->pFD == NULL) {
-        TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+        TSDB_CHECK_CODE(code = terrno, lino, _exit);
       }
       if (taosStatFile(lc_path, &lc_size, NULL, NULL) < 0) {
-        TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+        TSDB_CHECK_CODE(code = terrno, lino, _exit);
       }
     } else {
       tsdbInfo("no file: %s", path);
-      TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
     pFD->s3File = 1;
   }
@@ -73,7 +73,7 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
   // not check file size when reading data files.
   if (flag != TD_FILE_READ /* && !pFD->s3File*/) {
     if (!lc_size && taosStatFile(path, &pFD->szFile, NULL, NULL) < 0) {
-      TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
   }
 

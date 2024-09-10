@@ -181,7 +181,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // save info to a vnode_tmp.json
   pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   if (taosWriteFile(pFile, data, strlen(data)) < 0) {
@@ -189,7 +189,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   }
 
   if (taosFsyncFile(pFile) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
 _exit:
@@ -233,7 +233,7 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
   // read info
   pFile = taosOpenFile(fname, TD_FILE_READ);
   if (pFile == NULL) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   code = taosFStatFile(pFile, &size, NULL);

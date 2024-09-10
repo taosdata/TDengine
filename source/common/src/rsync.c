@@ -58,7 +58,7 @@ static int32_t generateConfigFile(char* confDir) {
   TdFilePtr pFile = taosOpenFile(confDir, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     uError("[rsync] open conf file error, dir:%s," ERRNO_ERR_FORMAT, confDir, ERRNO_ERR_DATA);
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
 #ifdef WINDOWS

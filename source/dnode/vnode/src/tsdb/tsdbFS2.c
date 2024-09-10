@@ -89,7 +89,7 @@ static int32_t save_json(const cJSON *json, const char *fname) {
 
   fp = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (fp == NULL) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(code), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   if (taosWriteFile(fp, data, strlen(data)) < 0) {
@@ -97,7 +97,7 @@ static int32_t save_json(const cJSON *json, const char *fname) {
   }
 
   if (taosFsyncFile(fp) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(code), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
 _exit:
@@ -116,7 +116,7 @@ static int32_t load_json(const char *fname, cJSON **json) {
 
   TdFilePtr fp = taosOpenFile(fname, TD_FILE_READ);
   if (fp == NULL) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   int64_t size;

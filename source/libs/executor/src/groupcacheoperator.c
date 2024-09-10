@@ -204,7 +204,7 @@ static FORCE_INLINE int32_t initOpenCacheFile(SGroupCacheFileFd* pFileFd, char* 
   TdFilePtr newFd = taosOpenFile(filename, TD_FILE_CREATE|TD_FILE_READ|TD_FILE_WRITE|TD_FILE_AUTO_DEL);
   //TdFilePtr newFd = taosOpenFile(filename, TD_FILE_CREATE|TD_FILE_READ|TD_FILE_WRITE);
   if (NULL == newFd) {
-    QRY_ERR_RET(TAOS_SYSTEM_ERROR(errno));
+    QRY_ERR_RET(terrno);
   }
   pFileFd->fd = newFd;
   int32_t code = taosThreadMutexInit(&pFileFd->mutex, NULL);
