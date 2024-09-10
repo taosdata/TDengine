@@ -430,7 +430,7 @@ static int32_t tsdbMemTombIterOpen(STsdbIter *iter) {
 }
 
 static int32_t tsdbDataIterClose(STsdbIter *iter) {
-  (void)tBrinBlockDestroy(iter->dataData->brinBlock);
+  tBrinBlockDestroy(iter->dataData->brinBlock);
   tBlockDataDestroy(iter->dataData->blockData);
   return 0;
 }
@@ -699,12 +699,11 @@ int32_t tsdbIterMergerOpen(const TTsdbIterArray *iterArray, SIterMerger **merger
   return tsdbIterMergerNext(merger[0]);
 }
 
-int32_t tsdbIterMergerClose(SIterMerger **merger) {
+void tsdbIterMergerClose(SIterMerger **merger) {
   if (merger[0]) {
     taosMemoryFree(merger[0]);
     merger[0] = NULL;
   }
-  return 0;
 }
 
 int32_t tsdbIterMergerNext(SIterMerger *merger) {

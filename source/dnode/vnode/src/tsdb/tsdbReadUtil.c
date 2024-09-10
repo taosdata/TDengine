@@ -490,7 +490,7 @@ int32_t getNextBrinRecord(SBrinRecordIter* pIter, SBrinRecord** pRecord) {
       return TSDB_CODE_INVALID_PARA;
     }
 
-    (void)tBrinBlockClear(&pIter->block);
+    tBrinBlockClear(&pIter->block);
     int32_t code = tsdbDataFileReadBrinBlock(pIter->pReader, pIter->pCurrentBlk, &pIter->block);
     if (code != TSDB_CODE_SUCCESS) {
       tsdbError("failed to read brinBlock from file, code:%s", tstrerror(code));
@@ -507,7 +507,7 @@ int32_t getNextBrinRecord(SBrinRecordIter* pIter, SBrinRecord** pRecord) {
   return code;
 }
 
-void clearBrinBlockIter(SBrinRecordIter* pIter) { (void)tBrinBlockDestroy(&pIter->block); }
+void clearBrinBlockIter(SBrinRecordIter* pIter) { tBrinBlockDestroy(&pIter->block); }
 
 // initialize the file block access order
 //  sort the file blocks according to the offset of each data block in the files
@@ -1038,7 +1038,7 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
   }
 
   if (index >= pStatisBlock->numOfRecords) {
-    code = tStatisBlockDestroy(pStatisBlock);
+    tStatisBlockDestroy(pStatisBlock);
     taosMemoryFreeClear(pStatisBlock);
     *pNumOfRows = num;
     return code;
@@ -1049,7 +1049,7 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
   while (i < TARRAY2_SIZE(pStatisBlkArray) && uidIndex < numOfTables) {
     p = &pStatisBlkArray->data[i];
     if (p->minTbid.suid > suid) {
-      code = tStatisBlockDestroy(pStatisBlock);
+      tStatisBlockDestroy(pStatisBlock);
       taosMemoryFreeClear(pStatisBlock);
       *pNumOfRows = num;
       return code;
@@ -1072,7 +1072,7 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
     }
   }
 
-  int32_t ret = tStatisBlockDestroy(pStatisBlock);
+  tStatisBlockDestroy(pStatisBlock);
   taosMemoryFreeClear(pStatisBlock);
   *pNumOfRows = num;
   return code;
@@ -1085,7 +1085,8 @@ _err:
 
 // load next stt statistics block
 static int32_t loadNextStatisticsBlock(SSttFileReader* pSttFileReader, STbStatisBlock* pStatisBlock,
-                                    const TStatisBlkArray* pStatisBlkArray, int32_t numOfRows, int32_t* i, int32_t* j) {
+                                       const TStatisBlkArray* pStatisBlkArray, int32_t numOfRows, int32_t* i,
+                                       int32_t* j) {
   if ((*j) >= numOfRows) {
     (*i) += 1;
     (*j) = 0;
@@ -1217,7 +1218,7 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
       uint64_t*    pUidList = pReader->status.uidList.tableUidList;
       int32_t      n = 0;
       code = getNumOfRowsInSttBlock(pIter->pReader, pIter->pBlockLoadInfo, pStatisBlkArray, pConf->suid, pUidList,
-                                          numOfTables, &n);
+                                    numOfTables, &n);
       numOfRows += n;
       if (code) {
         tsdbError("%s failed to get rows in stt blocks, code:%s", pstr, tstrerror(code));

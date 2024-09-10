@@ -537,7 +537,7 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
   }
 
 _end:
-  ret = tStatisBlockDestroy(&block);
+  tStatisBlockDestroy(&block);
   if (code != 0) {
     tsdbError("%s error happens at:%s line number: %d, code:%s", id, __func__, lino, tstrerror(code));
   } else {

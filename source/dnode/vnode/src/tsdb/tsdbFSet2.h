@@ -57,7 +57,6 @@ int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset);
 // cmpr
 int32_t tsdbTFileSetCmprFn(const STFileSet **fset1, const STFileSet **fset2);
 // edit
-int32_t tsdbSttLvlClear(SSttLvl **lvl);
 int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op);
 int32_t tsdbTFileSetApplyEdit(STsdb *pTsdb, const STFileSet *fset1, STFileSet *fset);
 // max commit id
@@ -68,7 +67,7 @@ SSttLvl *tsdbTFileSetGetSttLvl(STFileSet *fset, int32_t level);
 bool tsdbTFileSetIsEmpty(const STFileSet *fset);
 // stt
 int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl);
-int32_t tsdbSttLvlClear(SSttLvl **lvl);
+void    tsdbSttLvlClear(SSttLvl **lvl);
 // open channel
 int32_t tsdbTFileSetOpenChannel(STFileSet *fset);
 

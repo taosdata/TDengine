@@ -1015,29 +1015,6 @@ static int32_t tsdbCacheUpdateValue(SValue *pOld, SValue *pNew) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-#ifdef BUILD_NO_CALL
-static void tsdbCacheUpdateLastCol(SLastCol *pLastCol, SRowKey *pRowKey, SColVal *pColVal) {
-  // update rowkey
-  pLastCol->rowKey.ts = pRowKey->ts;
-  pLastCol->rowKey.numOfPKs = pRowKey->numOfPKs;
-  for (int8_t i = 0; i < pRowKey->numOfPKs; i++) {
-    SValue *pPKValue = &pLastCol->rowKey.pks[i];
-    SValue *pNewPKValue = &pRowKey->pks[i];
-
-    (void)tsdbCacheUpdateValue(pPKValue, pNewPKValue);
-  }
-
-  // update colval
-  pLastCol->colVal.cid = pColVal->cid;
-  pLastCol->colVal.flag = pColVal->flag;
-  (void)tsdbCacheUpdateValue(&pLastCol->colVal.value, &pColVal->value);
-
-  if (!pLastCol->dirty) {
-    pLastCol->dirty = 1;
-  }
-}
-#endif
-
 static void tsdbCacheUpdateLastColToNone(SLastCol *pLastCol, ELastCacheStatus cacheStatus) {
   // update rowkey
   pLastCol->rowKey.ts = TSKEY_MIN;
@@ -2538,7 +2515,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
     if (!state->pBrinBlock) {
       state->pBrinBlock = &state->brinBlock;
     } else {
-      (void)tBrinBlockClear(&state->brinBlock);
+      tBrinBlockClear(&state->brinBlock);
     }
 
     TAOS_CHECK_GOTO(tsdbDataFileReadBrinBlock(state->pr->pFileReader, pBrinBlk, &state->brinBlock), &lino, _err);
@@ -2550,7 +2527,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
   if (SFSNEXTROW_BRINBLOCK == state->state) {
   _next_brinrecord:
     if (state->iBrinRecord < 0) {  // empty brin block, goto _next_brinindex
-      (void)tBrinBlockClear(&state->brinBlock);
+      tBrinBlockClear(&state->brinBlock);
       goto _next_brinindex;
     }
 
@@ -2809,7 +2786,7 @@ int32_t clearNextRowFromFS(void *iter) {
   }
 
   if (state->pBrinBlock) {
-    (void)tBrinBlockDestroy(state->pBrinBlock);
+    tBrinBlockDestroy(state->pBrinBlock);
     state->pBrinBlock = NULL;
   }
 
@@ -2842,7 +2819,7 @@ static void clearLastFileSet(SFSNextRowIter *state) {
   }
 
   if (state->pr->pFileReader) {
-    (void)tsdbDataFileReaderClose(&state->pr->pFileReader);
+    tsdbDataFileReaderClose(&state->pr->pFileReader);
     state->pr->pFileReader = NULL;
 
     state->pr->pCurFileSet = NULL;
@@ -2927,9 +2904,7 @@ _err:
   TAOS_RETURN(code);
 }
 
-static int32_t nextRowIterClose(CacheNextRowIter *pIter) {
-  int32_t code = 0;
-
+static void nextRowIterClose(CacheNextRowIter *pIter) {
   for (int i = 0; i < 3; ++i) {
     if (pIter->input[i].nextRowClearFn) {
       (void)pIter->input[i].nextRowClearFn(pIter->input[i].iter);
@@ -2943,9 +2918,6 @@ static int32_t nextRowIterClose(CacheNextRowIter *pIter) {
   if (pIter->pMemDelData) {
     taosArrayDestroy(pIter->pMemDelData);
   }
-
-_err:
-  TAOS_RETURN(code);
 }
 
 // iterate next row non deleted backward ts, version (from high to low)
@@ -3260,7 +3232,7 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
   }
   *ppLastArray = pColArray;
 
-  (void)nextRowIterClose(&iter);
+  nextRowIterClose(&iter);
   taosArrayDestroy(aColArray);
 
   TAOS_RETURN(code);
@@ -3381,7 +3353,7 @@ static int32_t mergeLastRowCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray,
   }
   *ppLastArray = pColArray;
 
-  (void)nextRowIterClose(&iter);
+  nextRowIterClose(&iter);
   taosArrayDestroy(aColArray);
 
   TAOS_RETURN(code);

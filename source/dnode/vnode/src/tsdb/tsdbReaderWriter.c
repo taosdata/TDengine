@@ -125,9 +125,12 @@ void tsdbCloseFile(STsdbFD **ppFD) {
   STsdbFD *pFD = *ppFD;
   if (pFD) {
     taosMemoryFree(pFD->pBuf);
-    // if (!pFD->s3File) {
-    (void)taosCloseFile(&pFD->pFD);
-    //}
+    int32_t code = taosCloseFile(&pFD->pFD);
+    if (code) {
+      tsdbError("failed to close file: %s, code:%d reason:%s", pFD->path, code, tstrerror(code));
+    } else {
+      tsdbTrace("close file: %s", pFD->path);
+    }
     taosMemoryFree(pFD);
     *ppFD = NULL;
   }
