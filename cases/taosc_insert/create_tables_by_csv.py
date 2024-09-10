@@ -24,6 +24,7 @@ from shapely import wkb
 from shapely.geometry.base import BaseGeometry
 import re
 import datetime
+import json
 
 class CreateTablesByCSV(TDCase):
     def init(self):
@@ -58,7 +59,7 @@ class CreateTablesByCSV(TDCase):
         
         
     def create_db(self):
-        self.tdCom.createDb(self.dbname)
+        self.tdCom.createDb(self.dbname, vgroups=10)
     
     def create_stb(self, tag_type_str=None):
         tag_type_str = self.tdCom.gen_default_tag_str() if tag_type_str is None else tag_type_str
@@ -537,64 +538,69 @@ class CreateTablesByCSV(TDCase):
         self.init_env(custom_type=custom_type)
         self.gen_csv(ctable_count=table_count, row_count=table_count, custom_type=custom_type)
         self.tdSql.execute(f'create table using {self.dbname}.{self.stbname} (t1,tbname) file "{self.csv_file}"')
-        # self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file)
-        # self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
-        # self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb2")
-        # self.check_res(self.stbname, self.common_tag_name_str, self.csv_file, 2)
-        # self.create_tables_by_csv(tag_fields=self.batch_create_table_str, if_not_exists=True, csv=self.csv_file)
-        # self.check_res(self.stbname, self.common_tag_name_str, self.csv_file, 2)
+        for i in range(1, table_count+1):
+            self.tdSql.execute(f'insert into {self.dbname}.ctb{i} values (now+{i}s, {i})')
+        self.tdSql.query(f'select * from {self.dbname}.{self.stbname} order by ts')
+        res = self.tdSql.query_data
+        c1_expected_res = [x for x in range(1, table_count+1)]
+        t1_expected_list = [{'id':x,'loc+':'fff'} for x in range(0, table_count)]
+        t1_expected_res = [json.dumps(item) for item in t1_expected_list]
+        t1_expected_res = [json.dumps(json.loads(item), separators=(',', ':')) for item in t1_expected_res]
+        self.tdSql.checkEqual(list(map(lambda x:x[1], res)), c1_expected_res)
+        t1_query_res = [json.dumps(json.loads(item), separators=(',', ':')) for item in list(map(lambda x:x[2], res))]
+        self.tdSql.checkEqual(t1_query_res, t1_expected_res)
 
     def run(self):
         # self.gen_csv(custom_tag_count=128)
         # print(self.tdCom.gen_default_tag_str())
         # return
-        # self.create_ctables_by_tag_and_tbname()
-        # self.create_ctables_by_notag_and_tbname()
-        # self.create_ctables_by_128tag_and_tbname(use_except=True)
-        # self.create_ctables_by_tag_and_tbname_with_note()
+        self.create_ctables_by_tag_and_tbname()
+        self.create_ctables_by_notag_and_tbname()
+        self.create_ctables_by_128tag_and_tbname(use_except=True)
+        self.create_ctables_by_tag_and_tbname_with_note()
         # # return
-        # self.create_exists_ctables_without_if_not_exists()
-        # self.create_ctables_with_disorder_tagtype_legal()
-        # self.create_ctables_with_disorder_tagtype_illegal()
-        # self.create_ctables_with_no_stables()
+        self.create_exists_ctables_without_if_not_exists()
+        self.create_ctables_with_disorder_tagtype_legal()
+        self.create_ctables_with_disorder_tagtype_illegal()
+        self.create_ctables_with_no_stables()
         # TODO confirm TD-30865
-        # self.create_ctables_with_dup_tagname()
-        # self.create_ctables_by_tag_and_notbname()
-        # self.create_ctables_by_no_contained_tag()
-        # self.create_ctables_by_not_existed_csv()
-        # self.create_ctables_with_part_error_rows()
-        # self.create_ctables_with_exceed_tags()
-        # self.create_ctables_csv_split_without_comma()
-        # self.create_ctables_by_illegal_tbname()
-        # self.create_ctables_by_193len_tbname()
-        # self.create_ctables_str_type_check()
-        # self.create_ctables_str_cross_border()
-        # self.create_ctables_bool_type_check()
-        # self.create_ctables_numeric_cross_border()
-        # self.create_ctables_float_cross_border()
-        # self.create_ctables_by_txt_or_xlsx()
-        # ! TD-30811	
+        self.create_ctables_with_dup_tagname()
+        self.create_ctables_by_tag_and_notbname()
+        self.create_ctables_by_no_contained_tag()
+        self.create_ctables_by_not_existed_csv()
+        self.create_ctables_with_part_error_rows()
+        self.create_ctables_with_exceed_tags()
+        self.create_ctables_csv_split_without_comma()
+        self.create_ctables_by_illegal_tbname()
+        self.create_ctables_by_193len_tbname()
+        self.create_ctables_str_type_check()
+        self.create_ctables_str_cross_border()
+        self.create_ctables_bool_type_check()
+        self.create_ctables_numeric_cross_border()
+        self.create_ctables_float_cross_border()
+        self.create_ctables_by_txt_or_xlsx()
+        # #  TODO
         # self.creating_but_killed()
-        # self.threading_create_ctables()
-        # self.threading_create_ctables(part_except=True)
-        # self.threading_create_ctables(dup_tbname=True)
-        # self.create_ctables_by_exchange_tag_and_tbname(idx1=-1, idx2=-2)
-        # self.create_ctables_by_exchange_tag_and_tbname(idx1=-1, idx2=0)
+        self.threading_create_ctables()
+        self.threading_create_ctables(part_except=True)
+        self.threading_create_ctables(dup_tbname=True)
+        self.create_ctables_by_exchange_tag_and_tbname(idx1=-1, idx2=-2)
+        self.create_ctables_by_exchange_tag_and_tbname(idx1=-1, idx2=0)
         self.create_ctables_by_json_tag_and_tbname()
         # perf test
         
-        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=1)
-        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=2)
-        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=4)
-        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=8)
-        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=16)
-        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=32)
+        self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=1)
+        self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=2)
+        self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=4)
+        self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=8)
+        self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=16)
+        self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=32)
         # ! TD-30856
         # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=1000000, custom_tag_count=32)
         # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=10000000, custom_tag_count=32)
         
         # stability
-        # self.create_ctables_by_tag_and_tbname_perf(5000)
+        self.create_ctables_by_tag_and_tbname_perf(100000000)
         
         
         
