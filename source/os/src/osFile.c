@@ -1213,7 +1213,7 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
     return -1;
   }
 
-  return 0;
+  return ret;
 }
 
 int32_t taosFsyncFile(TdFilePtr pFile) {
