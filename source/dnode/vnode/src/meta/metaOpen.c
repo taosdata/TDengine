@@ -59,7 +59,7 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   (void)metaInitLock(pMeta);
 
   pMeta->path = (char *)&pMeta[1];
-  strcpy(pMeta->path, path);
+  tstrncpy(pMeta->path, path, strlen(path) + 1);
   (void)taosRealPath(pMeta->path, NULL, strlen(path) + 1);
 
   pMeta->pVnode = pVnode;

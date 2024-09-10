@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "metaTtl.h"
 #include "meta.h"
+#include "metaTtl.h"
 
 typedef struct {
   TTB   *pNewTtlIdx;
@@ -60,7 +60,7 @@ int32_t ttlMgrOpen(STtlManger **ppTtlMgr, TDB *pEnv, int8_t rollback, const char
     tdbOsFree(pTtlMgr);
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
-  (void)strcpy(logBuffer, logPrefix);
+  tstrncpy(logBuffer, logPrefix, strlen(logPrefix) + 1);
   pTtlMgr->logPrefix = logBuffer;
   pTtlMgr->flushThreshold = flushThreshold;
 
@@ -350,7 +350,8 @@ int32_t ttlMgrUpdateChangeTime(STtlManger *pTtlMgr, const STtlUpdCtimeCtx *pUpdC
                                .changeTimeMsDirty = pUpdCtimeCtx->changeTimeMs};
   STtlDirtyEntry dirtryEntry = {.type = ENTRY_TYPE_UPSERT};
 
-  code = taosHashPut(pTtlMgr->pTtlCache, &pUpdCtimeCtx->uid, sizeof(pUpdCtimeCtx->uid), &cacheEntry, sizeof(cacheEntry));
+  code =
+      taosHashPut(pTtlMgr->pTtlCache, &pUpdCtimeCtx->uid, sizeof(pUpdCtimeCtx->uid), &cacheEntry, sizeof(cacheEntry));
   if (TSDB_CODE_SUCCESS != code) {
     metaError("%s, ttlMgr update ctime failed to update cache since %s", pTtlMgr->logPrefix, tstrerror(code));
     goto _out;
@@ -359,8 +360,7 @@ int32_t ttlMgrUpdateChangeTime(STtlManger *pTtlMgr, const STtlUpdCtimeCtx *pUpdC
   code = taosHashPut(pTtlMgr->pDirtyUids, &pUpdCtimeCtx->uid, sizeof(pUpdCtimeCtx->uid), &dirtryEntry,
                      sizeof(dirtryEntry));
   if (TSDB_CODE_SUCCESS != code) {
-    metaError("%s, ttlMgr update ctime failed to update dirty uids since %s", pTtlMgr->logPrefix,
-              tstrerror(code));
+    metaError("%s, ttlMgr update ctime failed to update dirty uids since %s", pTtlMgr->logPrefix, tstrerror(code));
     goto _out;
   }
 
@@ -420,7 +420,7 @@ int32_t ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
     STtlCacheEntry *cacheEntry = taosHashGet(pTtlMgr->pTtlCache, pUid, sizeof(*pUid));
     if (cacheEntry == NULL) {
       metaError("%s, ttlMgr flush failed to get ttl cache, uid: %" PRId64 ", type: %d", pTtlMgr->logPrefix, *pUid,
-               pEntry->type);
+                pEntry->type);
       continue;
     }
 

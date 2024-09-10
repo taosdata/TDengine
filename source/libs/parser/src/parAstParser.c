@@ -209,15 +209,15 @@ static int32_t isTbnameEqCondOperator(SOperatorNode* pOperator, char** ppTableNa
   if (pOperator->opType != OP_TYPE_EQUAL) {
     return TSDB_CODE_SUCCESS;
   }
-  
-  SValueNode*    pValueNode = NULL;
+
+  SValueNode* pValueNode = NULL;
   if (nodeType(pOperator->pLeft) == QUERY_NODE_FUNCTION &&
       0 == strcasecmp(((SFunctionNode*)(pOperator->pLeft))->functionName, "tbname") &&
       nodeType(pOperator->pRight) == QUERY_NODE_VALUE) {
     pValueNode = (SValueNode*)pOperator->pRight;
   } else if (nodeType(pOperator->pRight) == QUERY_NODE_FUNCTION &&
-     0 == strcasecmp(((SFunctionNode*)(pOperator->pRight))->functionName, "tbname") &&
-     nodeType(pOperator->pLeft) == QUERY_NODE_VALUE) {
+             0 == strcasecmp(((SFunctionNode*)(pOperator->pRight))->functionName, "tbname") &&
+             nodeType(pOperator->pLeft) == QUERY_NODE_VALUE) {
     pValueNode = (SValueNode*)pOperator->pLeft;
   } else {
     return TSDB_CODE_SUCCESS;
@@ -232,13 +232,14 @@ static EDealRes collectMetaKeyFromOperator(SCollectMetaKeyFromExprCxt* pCxt, SOp
   if (!pCxt->tbnameCollect) {
     return DEAL_RES_CONTINUE;
   }
-  
+
   char*   pTableName = NULL;
   int32_t code = isTbnameEqCondOperator((SOperatorNode*)pOpNode, &pTableName);
   if (TSDB_CODE_SUCCESS != code) return DEAL_RES_CONTINUE;
   if (pTableName) {
     SSelectStmt* pSelect = (SSelectStmt*)pCxt->pComCxt->pStmt;
-    pCxt->errCode = collectMetaKeyFromRealTableImpl(pCxt->pComCxt, ((SRealTableNode*)pSelect->pFromTable)->table.dbName, pTableName, AUTH_TYPE_READ);
+    pCxt->errCode = collectMetaKeyFromRealTableImpl(pCxt->pComCxt, ((SRealTableNode*)pSelect->pFromTable)->table.dbName,
+                                                    pTableName, AUTH_TYPE_READ);
   }
 
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
@@ -464,8 +465,7 @@ static int32_t collectMetaKeyFromExplain(SCollectMetaKeyCxt* pCxt, SExplainStmt*
 
 static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStmt* pStmt) {
   SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
-  strcpy(name.dbname, pStmt->dbName);
-  strcpy(name.tname, pStmt->tableName);
+  tstrncpy(name.dbname, pStmt->dbName, sizeof(name.dbname));
   int32_t code = catalogRemoveTableMeta(pCxt->pParseCxt->pCatalog, &name);
 #ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code) {
@@ -485,7 +485,7 @@ static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateS
       reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pSubtable && NULL != pStmt->pQuery) {
     SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
-    int32_t code = nodesCloneNode(pStmt->pSubtable, &pSelect->pSubtable);
+    int32_t      code = nodesCloneNode(pStmt->pSubtable, &pSelect->pSubtable);
     if (NULL == pSelect->pSubtable) {
       return code;
     }
@@ -749,8 +749,8 @@ static int32_t collectMetaKeyFromShowCreateDatabase(SCollectMetaKeyCxt* pCxt, SS
 
 static int32_t collectMetaKeyFromShowCreateTable(SCollectMetaKeyCxt* pCxt, SShowCreateTableStmt* pStmt) {
   SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
-  strcpy(name.dbname, pStmt->dbName);
-  strcpy(name.tname, pStmt->tableName);
+  tstrncpy(name.dbname, pStmt->dbName, sizeof(name.dbname));
+  tstrncpy(name.tname, pStmt->tableName, sizeof(name.tname));
   int32_t code = catalogRemoveTableMeta(pCxt->pParseCxt->pCatalog, &name);
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveTableCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
@@ -767,8 +767,8 @@ static int32_t collectMetaKeyFromShowCreateTable(SCollectMetaKeyCxt* pCxt, SShow
 
 static int32_t collectMetaKeyFromShowCreateView(SCollectMetaKeyCxt* pCxt, SShowCreateViewStmt* pStmt) {
   SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
-  strcpy(name.dbname, pStmt->dbName);
-  strcpy(name.tname, pStmt->viewName);
+  tstrncpy(name.dbname, pStmt->dbName, sizeof(name.dbname));
+  tstrncpy(name.tname, pStmt->viewName, sizeof(name.tname));
   char dbFName[TSDB_DB_FNAME_LEN];
   (void)tNameGetFullDbName(&name, dbFName);
   int32_t code = catalogRemoveViewMeta(pCxt->pParseCxt->pCatalog, dbFName, 0, pStmt->viewName, 0);
@@ -809,8 +809,8 @@ static int32_t collectMetaKeyFromInsert(SCollectMetaKeyCxt* pCxt, SInsertStmt* p
 
 static int32_t collectMetaKeyFromShowBlockDist(SCollectMetaKeyCxt* pCxt, SShowTableDistributedStmt* pStmt) {
   SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
-  strcpy(name.dbname, pStmt->dbName);
-  strcpy(name.tname, pStmt->tableName);
+  tstrncpy(name.dbname, pStmt->dbName, sizeof(name.dbname));
+  tstrncpy(name.tname, pStmt->tableName, sizeof(name.tname));
   int32_t code = catalogRemoveTableMeta(pCxt->pParseCxt->pCatalog, &name);
   if (TSDB_CODE_SUCCESS == code) {
     code = collectMetaKeyFromRealTableImpl(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_READ);

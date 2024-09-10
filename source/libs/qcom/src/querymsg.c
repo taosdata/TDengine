@@ -581,14 +581,14 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
   }
 
   STableMetaOutput *pOut = output;
-  strcpy(pOut->dbFName, metaRsp.dbFName);
+  tstrncpy(pOut->dbFName, metaRsp.dbFName,sizeof(pOut->dbFName));
   pOut->dbId = metaRsp.dbId;
 
   if (metaRsp.tableType == TSDB_CHILD_TABLE) {
     SET_META_TYPE_BOTH_TABLE(pOut->metaType);
 
-    strcpy(pOut->ctbName, metaRsp.tbName);
-    strcpy(pOut->tbName, metaRsp.stbName);
+    tstrncpy(pOut->ctbName, metaRsp.tbName, sizeof(pOut->ctbName));
+    tstrncpy(pOut->tbName, metaRsp.stbName, sizeof(pOut->tbName));
 
     pOut->ctbMeta.vgId = metaRsp.vgId;
     pOut->ctbMeta.tableType = metaRsp.tableType;
@@ -598,7 +598,7 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
     code = queryCreateTableMetaFromMsg(&metaRsp, true, &pOut->tbMeta);
   } else {
     SET_META_TYPE_TABLE(pOut->metaType);
-    strcpy(pOut->tbName, metaRsp.tbName);
+    tstrncpy(pOut->tbName, metaRsp.tbName, sizeof(pOut->tbName));
     code = queryCreateTableMetaFromMsg(&metaRsp, (metaRsp.tableType == TSDB_SUPER_TABLE), &pOut->tbMeta);
   }
 

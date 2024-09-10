@@ -22,7 +22,7 @@
 #include "tref.h"
 #include "trpc.h"
 
-FORCE_INLINE int32_t schAcquireJob(int64_t refId, SSchJob** ppJob) {
+FORCE_INLINE int32_t schAcquireJob(int64_t refId, SSchJob **ppJob) {
   qDebug("sch acquire jobId:0x%" PRIx64, refId);
   *ppJob = (SSchJob *)taosAcquireRef(schMgmt.jobRef, refId);
   if (NULL == *ppJob) {
@@ -41,7 +41,7 @@ FORCE_INLINE int32_t schReleaseJob(int64_t refId) {
   return taosReleaseRef(schMgmt.jobRef, refId);
 }
 
-int32_t schDumpEpSet(SEpSet *pEpSet, char** ppRes) {
+int32_t schDumpEpSet(SEpSet *pEpSet, char **ppRes) {
   *ppRes = NULL;
   if (NULL == pEpSet) {
     return TSDB_CODE_SUCCESS;
@@ -186,16 +186,17 @@ void schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask) {
 
   SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
   if (NULL == addr) {
-    SCH_TASK_ELOG("fail to get the %dth condidateAddr in task, totalNum:%d", pTask->candidateIdx, (int32_t)taosArrayGetSize(pTask->candidateAddrs));
+    SCH_TASK_ELOG("fail to get the %dth condidateAddr in task, totalNum:%d", pTask->candidateIdx,
+                  (int32_t)taosArrayGetSize(pTask->candidateAddrs));
     return;
   }
-  
-  SQueryNodeEpId  epId = {0};
+
+  SQueryNodeEpId epId = {0};
 
   epId.nodeId = addr->nodeId;
 
   SEp *pEp = SCH_GET_CUR_EP(addr);
-  TAOS_STRCPY(epId.ep.fqdn, pEp->fqdn);
+  tstrncpy(epId.ep.fqdn, pEp->fqdn, sizeof(epId.ep.fqdn));
   epId.ep.port = pEp->port;
 
   SCH_LOCK(SCH_READ, &schMgmt.hbLock);
@@ -224,16 +225,17 @@ int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
 
   SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
   if (NULL == addr) {
-    SCH_TASK_ELOG("fail to get the %dth condidateAddr in task, totalNum:%d", pTask->candidateIdx, (int32_t)taosArrayGetSize(pTask->candidateAddrs));
+    SCH_TASK_ELOG("fail to get the %dth condidateAddr in task, totalNum:%d", pTask->candidateIdx,
+                  (int32_t)taosArrayGetSize(pTask->candidateAddrs));
     return TSDB_CODE_SCH_INTERNAL_ERROR;
   }
 
-  SQueryNodeEpId  epId = {0};
+  SQueryNodeEpId epId = {0};
 
   epId.nodeId = addr->nodeId;
 
   SEp *pEp = SCH_GET_CUR_EP(addr);
-  TAOS_STRCPY(epId.ep.fqdn, pEp->fqdn);
+  tstrncpy(epId.ep.fqdn, pEp->fqdn, sizeof(epId.ep.fqdn));
   epId.ep.port = pEp->port;
 
   SCH_ERR_RET(schRegisterHbConnection(pJob, pTask, &epId));
@@ -334,7 +336,7 @@ void schFreeRpcCtx(SRpcCtx *pCtx) {
 
 void schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask) {
   *pTask = NULL;
-  
+
   int32_t s = taosHashGetSize(pTaskList);
   if (s <= 0) {
     return;

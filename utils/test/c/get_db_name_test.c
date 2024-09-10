@@ -19,9 +19,10 @@
 #include <string.h>
 #include <time.h>
 #include "taos.h"
-#include "types.h"
 #include "tlog.h"
+#include "types.h"
 
+#undef strcpy
 int get_db_test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 

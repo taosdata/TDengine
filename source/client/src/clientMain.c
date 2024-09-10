@@ -949,7 +949,7 @@ int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {
     if (required) *required = strlen(pTscObj->db) + 1;
     TSC_ERR_JRET(TSDB_CODE_INVALID_PARA);
   } else {
-    (void)strcpy(database, pTscObj->db);
+    tstrncpy(database, pTscObj->db, len);
     code = 0;
   }
 _return:

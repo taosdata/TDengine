@@ -16,6 +16,8 @@
 #ifndef _TD_TEST_BASE_H_
 #define _TD_TEST_BASE_H_
 
+#define ALLOW_FORBID_FUNC
+
 #include <gtest/gtest.h>
 #include "os.h"
 

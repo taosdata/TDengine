@@ -378,7 +378,7 @@ static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char* tmpP
       return;
     }
     pClient->lastCheckTime = taosGetMonoTimestampMs();
-    (void)strcpy(pClient->path, path);
+    tstrncpy(pClient->path, path, PATH_MAX);
     pClient->offset = 0;
     pClient->pFile = pFile;
     if (taosHashPut(monitorSlowLogHash, &slowLogData->clusterId, LONG_BYTES, &pClient, POINTER_BYTES) != 0) {

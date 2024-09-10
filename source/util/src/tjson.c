@@ -15,9 +15,9 @@
 
 #define _DEFAULT_SOURCE
 
-#include "tjson.h"
 #include "cJSON.h"
 #include "taoserror.h"
+#include "tjson.h"
 
 SJson* tjsonCreateObject() {
   SJson* pJson = cJSON_CreateObject();
@@ -199,7 +199,7 @@ int32_t tjsonGetStringValue(const SJson* pJson, const char* pName, char* pVal) {
   if (NULL == p) {
     return TSDB_CODE_SUCCESS;
   }
-  strcpy(pVal, p);
+  tstrncpy(pVal, p, strlen(p) + 1);
   return TSDB_CODE_SUCCESS;
 }
 

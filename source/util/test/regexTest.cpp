@@ -9,6 +9,7 @@
 #include "regex.h"
 #include "osDef.h"
 #include "tcompare.h"
+#undef strcpy
 
 extern "C" {
   typedef struct UsingRegex UsingRegex;

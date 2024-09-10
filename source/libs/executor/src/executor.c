@@ -564,12 +564,12 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* table
   *sversion = pSchemaInfo->sw->version;
   *tversion = pSchemaInfo->tversion;
   if (pSchemaInfo->dbname) {
-    strcpy(dbName, pSchemaInfo->dbname);
+    tstrncpy(dbName, pSchemaInfo->dbname, sizeof(dbName));
   } else {
     dbName[0] = 0;
   }
   if (pSchemaInfo->tablename) {
-    strcpy(tableName, pSchemaInfo->tablename);
+    tstrncpy(tableName, pSchemaInfo->tablename, sizeof(tableName));
   } else {
     tableName[0] = 0;
   }
@@ -846,7 +846,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
     *useconds = pTaskInfo->cost.elapsedTime;
   }
 
-  (void) cleanUpUdfs();
+  (void)cleanUpUdfs();
 
   int32_t  current = (*pRes != NULL) ? (*pRes)->info.rows : 0;
   uint64_t total = pTaskInfo->pRoot->resultInfo.totalRows;

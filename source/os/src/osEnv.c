@@ -71,21 +71,21 @@ int32_t osDefaultInit() {
     tmpDir = getenv("temp");
   }
   if (tmpDir != NULL) {
-    (void)strcpy(tsTempDir, tmpDir);
+    tstrncpy(tsTempDir, tmpDir, sizeof(tsTempDir));
   }
-  (void)strcpy(tsOsName, "Windows");
+  tstrncpy(tsOsName, "Windows", sizeof(tsOsName));
 #elif defined(_TD_DARWIN_64)
-  (void)strcpy(tsOsName, "Darwin");
+  tstrncpy(tsOsName, "Darwin", sizeof(tsOsName));
 #else
-  (void)strcpy(tsOsName, "Linux");
+  tstrncpy(tsOsName, "Linux", sizeof(tsOsName));
 #endif
   if (configDir[0] == 0) {
-    (void)strcpy(configDir, TD_CFG_DIR_PATH);
+    tstrncpy(configDir, TD_CFG_DIR_PATH, sizeof(configDir));
   }
-  (void)strcpy(tsDataDir, TD_DATA_DIR_PATH);
-  (void)strcpy(tsLogDir, TD_LOG_DIR_PATH);
+  tstrncpy(tsDataDir, TD_DATA_DIR_PATH, sizeof(tsDataDir));
+  tstrncpy(tsLogDir, TD_LOG_DIR_PATH, sizeof(tsLogDir));
   if(strlen(tsTempDir) == 0){
-    (void)strcpy(tsTempDir, TD_TMP_DIR_PATH);
+    tstrncpy(tsTempDir, TD_TMP_DIR_PATH, sizeof(tsTempDir));
   }
 
   return code;

@@ -27,7 +27,7 @@
 #include "tskiplist.h"
 #include "tutil.h"
 using namespace std;
-
+#undef strcpy
 #define NUM_OF_THREAD 10
 
 class DebugInfo {

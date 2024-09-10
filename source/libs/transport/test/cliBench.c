@@ -20,6 +20,7 @@
 #include "trpc.h"
 #include "tutil.h"
 #include "tversion.h"
+#undef strcpy
 
 typedef struct {
   int      index;

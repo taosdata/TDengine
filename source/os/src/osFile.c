@@ -91,7 +91,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
     tmpPath[len++] = '\\';
   }
 
-  strcpy(tmpPath + len, TD_TMP_FILE_PREFIX);
+  tstrncpy(tmpPath + len, TD_TMP_FILE_PREFIX, sizeof(tmpPath) - len);
   if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
     strcat(tmpPath, fileNamePrefix);
     strcat(tmpPath, "-%d-%s");
@@ -112,7 +112,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
     tmpPath[len++] = '/';
   }
 
-  (void)strcpy(tmpPath + len, TD_TMP_FILE_PREFIX);
+  tstrncpy(tmpPath + len, TD_TMP_FILE_PREFIX, sizeof(tmpPath) - len);
   if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
     (void)strcat(tmpPath, fileNamePrefix);
     (void)strcat(tmpPath, "-%d-%s");

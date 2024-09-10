@@ -16,9 +16,9 @@
 #include "query.h"
 #include "qworker.h"
 #include "schInt.h"
+#include "tglobal.h"
 #include "tmsg.h"
 #include "tref.h"
-#include "tglobal.h"
 
 SSchedulerMgmt schMgmt = {
     .jobRef = -1,
@@ -35,8 +35,8 @@ int32_t schedulerInit() {
   schMgmt.cfg.schPolicy = SCHEDULE_DEFAULT_POLICY;
   schMgmt.cfg.enableReSchedule = false;
 
-  qDebug("schedule init, policy: %d, maxNodeTableNum: %" PRId64", reSchedule:%d",
-    schMgmt.cfg.schPolicy, schMgmt.cfg.maxNodeTableNum, schMgmt.cfg.enableReSchedule);
+  qDebug("schedule init, policy: %d, maxNodeTableNum: %" PRId64 ", reSchedule:%d", schMgmt.cfg.schPolicy,
+         schMgmt.cfg.maxNodeTableNum, schMgmt.cfg.enableReSchedule);
 
   schMgmt.jobRef = taosOpenRef(schMgmt.cfg.maxJobNum, schFreeJobImpl);
   if (schMgmt.jobRef < 0) {
@@ -114,15 +114,15 @@ int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
     }
 
     for (int32_t m = 0; m < pLevel->taskNum; ++m) {
-      SSchTask     *pTask = taosArrayGet(pLevel->subTasks, m);
+      SSchTask *pTask = taosArrayGet(pLevel->subTasks, m);
       if (NULL == pTask) {
         qError("failed to get task %d, total: %d", m, pLevel->taskNum);
         SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
       }
-      
+
       SQuerySubDesc subDesc = {0};
       subDesc.tid = pTask->taskId;
-      TAOS_STRCPY(subDesc.status, jobTaskStatusStr(pTask->status));
+      tstrncpy(subDesc.status, jobTaskStatusStr(pTask->status), sizeof(subDesc.status));
 
       if (NULL == taosArrayPush(pSub, &subDesc)) {
         qError("taosArrayPush task %d failed, error: %x, ", m, terrno);
@@ -177,9 +177,9 @@ void schedulerFreeJob(int64_t *jobId, int32_t errCode) {
   }
 
   SCH_JOB_DLOG("start to free job 0x%" PRIx64 ", code:%s", *jobId, tstrerror(errCode));
-  (void)schHandleJobDrop(pJob, errCode); // ignore any error
+  (void)schHandleJobDrop(pJob, errCode);  // ignore any error
 
-  (void)schReleaseJob(*jobId); // ignore error
+  (void)schReleaseJob(*jobId);  // ignore error
   *jobId = 0;
 }
 
@@ -195,7 +195,7 @@ void schedulerDestroy(void) {
       if (refId == 0) {
         break;
       }
-      (void)taosRemoveRef(schMgmt.jobRef, pJob->refId); // ignore error
+      (void)taosRemoveRef(schMgmt.jobRef, pJob->refId);  // ignore error
 
       pJob = taosIterateRef(schMgmt.jobRef, refId);
     }

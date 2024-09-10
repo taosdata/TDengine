@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "filter.h"
 #include "functionMgt.h"
 #include "planInt.h"
 #include "scalar.h"
-#include "filter.h"
 
 static char* getUsageErrFormat(int32_t errCode) {
   switch (errCode) {
@@ -68,14 +68,14 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
         return DEAL_RES_ERROR;
       }
       pCol->node.resType = pExpr->resType;
-      strcpy(pCol->colName, pExpr->aliasName);
+      tstrncpy(pCol->colName, pExpr->aliasName, sizeof(pCol->colName));
       if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
         SFunctionNode* pFunc = (SFunctionNode*)pNode;
         if (pFunc->funcType == FUNCTION_TYPE_TBNAME) {
           SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
           if (NULL != pVal) {
-            strcpy(pCol->tableAlias, pVal->literal);
-            strcpy(pCol->tableName, pVal->literal);
+            tstrncpy(pCol->tableAlias, pVal->literal, sizeof(pCol->tableAlias));
+            tstrncpy(pCol->tableName, pVal->literal, sizeof(pCol->tableName));
           }
         }
       }
@@ -159,7 +159,6 @@ SLogicNode* getLogicNodeRootNode(SLogicNode* pCurr) {
 
   return NULL;
 }
-
 
 static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel requirement) {
   if ((SCAN_TYPE_TABLE != pScan->scanType && SCAN_TYPE_TABLE_MERGE != pScan->scanType) ||
@@ -437,7 +436,7 @@ static bool stbHasPartTag(SNodeList* pPartKeys) {
 
 bool getBatchScanOptionFromHint(SNodeList* pList) {
   SNode* pNode = NULL;
-  bool batchScan = true;
+  bool   batchScan = true;
   FOREACH(pNode, pList) {
     SHintNode* pHint = (SHintNode*)pNode;
     if (pHint->option == HINT_BATCH_SCAN) {
@@ -512,9 +511,8 @@ bool getHashJoinOptHint(SNodeList* pList) {
   return false;
 }
 
-
 int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t     code = TSDB_CODE_SUCCESS;
   SLogicNode* pCurr = (SLogicNode*)pNode;
   FOREACH(pNode, pCurr->pTargets) {
     SColumnNode* pCol = (SColumnNode*)pNode;
@@ -530,7 +528,7 @@ int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
       break;
     }
   }
-  
+
   if (TSDB_CODE_SUCCESS == code) {
     FOREACH(pNode, pCurr->pChildren) {
       code = collectTableAliasFromNodes(pNode, ppRes);
@@ -552,8 +550,7 @@ bool isPartTagAgg(SAggLogicNode* pAgg) {
     return false;
   }
   if (pAgg->pGroupKeys) {
-    return stbHasPartTag(pAgg->pGroupKeys) &&
-      stbNotSystemScan((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0));
+    return stbHasPartTag(pAgg->pGroupKeys) && stbNotSystemScan((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0));
   }
   return stbHasPartTag(stbGetPartKeys((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0)));
 }
@@ -563,7 +560,7 @@ bool isPartTableWinodw(SWindowLogicNode* pWindow) {
 }
 
 int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, bool* pCloned) {
-  SLimitNode* pLimit = NULL, *pSlimit = NULL;
+  SLimitNode *pLimit = NULL, *pSlimit = NULL;
   int32_t     code = 0;
   bool        cloned = false;
   if (pParent->pLimit && (cloneWhat & CLONE_LIMIT)) {
@@ -611,11 +608,11 @@ bool keysHasCol(SNodeList* pKeys) {
 
 SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
   SFunctionNode* pFunc = NULL;
-  int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (pFunc) {
-    strcpy(pFunc->functionName, "_group_key");
-    strcpy(pFunc->node.aliasName, pGroupCol->node.aliasName);
-    strcpy(pFunc->node.userAlias, pGroupCol->node.userAlias);
+    tstrncpy(pFunc->functionName, "_group_key", sizeof(pFunc->functionName));
+    tstrncpy(pFunc->node.aliasName, pGroupCol->node.aliasName, sizeof(pFunc->node.aliasName));
+    tstrncpy(pFunc->node.userAlias, pGroupCol->node.userAlias, sizeof(pFunc->node.userAlias));
     SNode* pNew = NULL;
     code = nodesCloneNode((SNode*)pGroupCol, &pNew);
     if (TSDB_CODE_SUCCESS == code) {
@@ -653,10 +650,9 @@ int32_t getTimeRangeFromNode(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, b
   return code;
 }
 
-
 static EDealRes tagScanNodeHasTbnameFunc(SNode* pNode, void* pContext) {
   if (QUERY_NODE_FUNCTION == nodeType(pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pNode)->funcType ||
-        (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType)) {
+      (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType)) {
     *(bool*)pContext = true;
     return DEAL_RES_END;
   }
@@ -674,8 +670,6 @@ static bool tagScanNodeHasTbname(SNode* pKeys) {
   nodesWalkExpr(pKeys, tagScanNodeHasTbnameFunc, &hasTbname);
   return hasTbname;
 }
-
-
 
 int32_t tagScanSetExecutionMode(SScanLogicNode* pScan) {
   pScan->onlyMetaCtbIdx = false;
@@ -695,7 +689,7 @@ int32_t tagScanSetExecutionMode(SScanLogicNode* pScan) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SNode* pCond = NULL;
+  SNode*  pCond = NULL;
   int32_t code = nodesCloneNode(pScan->node.pConditions, &pCond);
   if (TSDB_CODE_SUCCESS != code) {
     return code;

@@ -305,7 +305,7 @@ void parseArgument(int32_t argc, char* argv[]) {
   }
 
   for (int32_t i = 0; i < g_stConfInfo.payloadLen; i++) {
-    strcpy(&g_payload[i], "a");
+    tstrncpy(&g_payload[i], "a", sizeof(char));
   }
 
   initLogFile();
@@ -593,8 +593,9 @@ static int32_t data_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
     }
   }
 
-  taosFprintfFile(g_fp, "dbName: %s, topic: %s, vgroupId:%d, currentRows:%d\n", dbName != NULL ? dbName : "invalid table",
-                  tmq_get_topic_name(msg), vgroupId, pInfo->rowsOfPerVgroups[index][1]);
+  taosFprintfFile(g_fp, "dbName: %s, topic: %s, vgroupId:%d, currentRows:%d\n",
+                  dbName != NULL ? dbName : "invalid table", tmq_get_topic_name(msg), vgroupId,
+                  pInfo->rowsOfPerVgroups[index][1]);
 
   while (1) {
     TAOS_ROW row = taos_fetch_row(msg);
@@ -621,11 +622,12 @@ static int32_t data_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
     taos_print_row(buf, row, fields, numOfFields);
 
     if (0 != g_stConfInfo.showRowFlag) {
-      taosFprintfFile(g_fp, "time:%" PRId64 " tbname:%s, rows[%d]: %s\n", taosGetTimestampMs(), (tbName != NULL ? tbName : "null table"), totalRows, buf);
+      taosFprintfFile(g_fp, "time:%" PRId64 " tbname:%s, rows[%d]: %s\n", taosGetTimestampMs(),
+                      (tbName != NULL ? tbName : "null table"), totalRows, buf);
       // if (0 != g_stConfInfo.saveRowFlag) {
       //   saveConsumeContentToTbl(pInfo, buf);
       // }
-//      taosFsyncFile(g_fp);
+      //      taosFsyncFile(g_fp);
     }
 
     totalRows++;
@@ -864,7 +866,7 @@ void loop_consume(SThreadInfo* pInfo) {
   taosFprintfFile(g_fp, "==== consumerId: %d, consumeMsgCnt: %" PRId64 ", consumeRowCnt: %" PRId64 "\n",
                   pInfo->consumerId, pInfo->consumeMsgCnt, pInfo->consumeRowCnt);
 
-  if(taosFsyncFile(pInfo->pConsumeRowsFile) < 0){
+  if (taosFsyncFile(pInfo->pConsumeRowsFile) < 0) {
     printf("taosFsyncFile error:%s", strerror(errno));
   }
   taosCloseFile(&pInfo->pConsumeRowsFile);

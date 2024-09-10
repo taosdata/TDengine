@@ -15,6 +15,8 @@
 #include "tskiplist.h"
 #include "tutil.h"
 
+#undef strcpy
+
 static std::string dir = TD_TMP_DIR_PATH "json";
 static std::string logDir = TD_TMP_DIR_PATH "log";
 

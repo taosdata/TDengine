@@ -69,8 +69,8 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
   metaRsp.dbId = pVnode->config.dbId;
-  (void)strcpy(metaRsp.tbName, infoReq.tbName);
-  (void)memcpy(metaRsp.dbFName, infoReq.dbFName, sizeof(metaRsp.dbFName));
+  tstrncpy(metaRsp.tbName, infoReq.tbName, sizeof(metaRsp.tbName));
+  tstrncpy(metaRsp.dbFName, infoReq.dbFName, sizeof(metaRsp.dbFName));
 
   (void)sprintf(tableFName, "%s.%s", infoReq.dbFName, infoReq.tbName);
   code = vnodeValidateTableHash(pVnode, tableFName);
@@ -91,7 +91,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   metaRsp.tuid = mer1.me.uid;
 
   if (mer1.me.type == TSDB_SUPER_TABLE) {
-    (void)strcpy(metaRsp.stbName, mer1.me.name);
+    tstrncpy(metaRsp.stbName, mer1.me.name, sizeof(metaRsp.stbName));
     schema = mer1.me.stbEntry.schemaRow;
     schemaTag = mer1.me.stbEntry.schemaTag;
     metaRsp.suid = mer1.me.uid;
@@ -99,7 +99,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
     if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit2;
 
-    (void)strcpy(metaRsp.stbName, mer2.me.name);
+    tstrncpy(metaRsp.stbName, mer2.me.name, sizeof(metaRsp.stbName));
     metaRsp.suid = mer2.me.uid;
     schema = mer2.me.stbEntry.schemaRow;
     schemaTag = mer2.me.stbEntry.schemaTag;
@@ -206,7 +206,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     goto _exit;
   }
 
-  (void)strcpy(cfgRsp.tbName, cfgReq.tbName);
+  tstrncpy(cfgRsp.tbName, cfgReq.tbName, sizeof(cfgRsp.tbName));
   (void)memcpy(cfgRsp.dbFName, cfgReq.dbFName, sizeof(cfgRsp.dbFName));
 
   (void)sprintf(tableFName, "%s.%s", cfgReq.dbFName, cfgReq.tbName);
@@ -232,7 +232,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_LOCK);
     if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit;
 
-    (void)strcpy(cfgRsp.stbName, mer2.me.name);
+    tstrncpy(cfgRsp.stbName, mer2.me.name, sizeof(cfgRsp.stbName));
     schema = mer2.me.stbEntry.schemaRow;
     schemaTag = mer2.me.stbEntry.schemaTag;
     cfgRsp.ttl = mer1.me.ctbEntry.ttlDays;

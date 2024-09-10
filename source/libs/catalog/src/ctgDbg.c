@@ -79,7 +79,8 @@ void ctgdUserCallback(SMetaData *pResult, void *param, int32_t code) {
     num = taosArrayGetSize(pResult->pDbInfo);
     for (int32_t i = 0; i < num; ++i) {
       SDbInfo *pDb = taosArrayGet(pResult->pDbInfo, i);
-      qDebug("db %d dbInfo: vgVer:%d, tbNum:%d, stateTs:%" PRId64 " dbId:0x%" PRIx64, i, pDb->vgVer, pDb->tbNum, pDb->stateTs, pDb->dbId);
+      qDebug("db %d dbInfo: vgVer:%d, tbNum:%d, stateTs:%" PRId64 " dbId:0x%" PRIx64, i, pDb->vgVer, pDb->tbNum,
+             pDb->stateTs, pDb->dbId);
     }
   } else {
     qDebug("empty db info");
@@ -175,23 +176,21 @@ int32_t ctgdLaunchAsyncCall(SCatalog *pCtg, SRequestConnInfo *pConn, uint64_t re
   tNameFromString(&name, "1.db1.st1", T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
   taosArrayPush(req.pTableMeta, &name);
   taosArrayPush(req.pTableHash, &name);
-
-  strcpy(dbFName, "1.db1");
+  tstrncpy(dbFName, "1.db1", sizeof(dbFName));
   taosArrayPush(req.pDbVgroup, dbFName);
   taosArrayPush(req.pDbCfg, dbFName);
   taosArrayPush(req.pDbInfo, dbFName);
-  strcpy(dbFName, "1.db2");
+  tstrncpy(dbFName, "1.db2", sizeof(dbFName));
   taosArrayPush(req.pDbVgroup, dbFName);
   taosArrayPush(req.pDbCfg, dbFName);
   taosArrayPush(req.pDbInfo, dbFName);
 
-  strcpy(funcName, "udf1");
+  tstrncpy(funcName, "udf1", sizeof(funcName));
   taosArrayPush(req.pUdf, funcName);
-  strcpy(funcName, "udf2");
+  tstrncpy(funcName, "udf2", sizeof(funcName));
   taosArrayPush(req.pUdf, funcName);
-
-  strcpy(user.user, "root");
-  strcpy(user.dbFName, "1.db1");
+  tstrncpy(user.user, "root", sizeof(user.user));
+  tstrncpy(user.dbFName, "1.db1", sizeof(user.dbFName));
   user.type = AUTH_TYPE_READ;
   taosArrayPush(req.pUser, &user);
   user.type = AUTH_TYPE_WRITE;
@@ -199,8 +198,8 @@ int32_t ctgdLaunchAsyncCall(SCatalog *pCtg, SRequestConnInfo *pConn, uint64_t re
   user.type = AUTH_TYPE_OTHER;
   taosArrayPush(req.pUser, &user);
 
-  strcpy(user.user, "user1");
-  strcpy(user.dbFName, "1.db2");
+  tstrncpy(user.user, "user1", sizeof(user.user));
+  tstrncpy(user.dbFName, "1.db2", sizeof(user.dbFName));
   user.type = AUTH_TYPE_READ;
   taosArrayPush(req.pUser, &user);
   user.type = AUTH_TYPE_WRITE;
@@ -261,18 +260,18 @@ int32_t ctgdEnableDebug(char *option, bool enable) {
 
   if (0 == strcasecmp(option, "stopUpdate")) {
     SCatalog *pCtg = NULL;
-    
+
     void *pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);
     while (pIter) {
       pCtg = *(SCatalog **)pIter;
 
       pCtg->stopUpdate = enable;
-      
+
       pIter = taosHashIterate(gCtgMgmt.pCluster, pIter);
     }
-    
+
     qDebug("catalog stopUpdate set to %d", enable);
-    
+
     return TSDB_CODE_SUCCESS;
   }
 
@@ -293,9 +292,9 @@ int32_t ctgdHandleDbgCommand(char *command) {
   char *dup = taosStrdup(command);
   char *option = NULL;
   char *param = NULL;
-  
+
   int32_t i = 0;
-  bool newItem = true;
+  bool    newItem = true;
   while (*(dup + i)) {
     if (isspace(*(dup + i))) {
       *(dup + i) = 0;
@@ -308,7 +307,7 @@ int32_t ctgdHandleDbgCommand(char *command) {
       ++i;
       continue;
     }
-    
+
     newItem = false;
     if (NULL == option) {
       option = dup + i;
@@ -355,7 +354,6 @@ int32_t ctgdGetOneHandle(SCatalog **pHandle) {
 
   return TSDB_CODE_SUCCESS;
 }
-
 
 int32_t ctgdGetStatNum(char *option, void *res) {
   if (0 == strcasecmp(option, "runtime.numOfOpDequeue")) {
@@ -499,45 +497,46 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
       }
     }
 
-    ctgDebug("[%d] db [%.*s][0x%" PRIx64
-             "] %s: metaNum:%d, viewNum:%d, stbNum:%d, vgVersion:%d, stateTs:%" PRId64 ", hashMethod:%d, prefix:%d, suffix:%d, vgNum:%d",
-             i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted ? "deleted" : "", metaNum, viewNum, stbNum, vgVersion, stateTs, 
-             hashMethod, hashPrefix, hashSuffix, vgNum);
+    ctgDebug("[%d] db [%.*s][0x%" PRIx64 "] %s: metaNum:%d, viewNum:%d, stbNum:%d, vgVersion:%d, stateTs:%" PRId64
+             ", hashMethod:%d, prefix:%d, suffix:%d, vgNum:%d",
+             i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted ? "deleted" : "", metaNum, viewNum, stbNum,
+             vgVersion, stateTs, hashMethod, hashPrefix, hashSuffix, vgNum);
 
     if (dbCache->vgCache.vgInfo) {
       int32_t i = 0;
-      void *pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, NULL);
+      void   *pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, NULL);
       while (pVgIter) {
-        SVgroupInfo * pVg = (SVgroupInfo *)pVgIter;
+        SVgroupInfo *pVg = (SVgroupInfo *)pVgIter;
 
-        ctgDebug("The %04dth VG [id:%d, hashBegin:%u, hashEnd:%u, numOfTable:%d, epNum:%d, inUse:%d]",
-                 i++, pVg->vgId, pVg->hashBegin, pVg->hashEnd, pVg->numOfTable, pVg->epSet.numOfEps, pVg->epSet.inUse);
+        ctgDebug("The %04dth VG [id:%d, hashBegin:%u, hashEnd:%u, numOfTable:%d, epNum:%d, inUse:%d]", i++, pVg->vgId,
+                 pVg->hashBegin, pVg->hashEnd, pVg->numOfTable, pVg->epSet.numOfEps, pVg->epSet.inUse);
 
         for (int32_t n = 0; n < pVg->epSet.numOfEps; ++n) {
           SEp *pEp = &pVg->epSet.eps[n];
           ctgDebug("\tEp %d [fqdn:%s, port:%d]", n, pEp->fqdn, pEp->port);
         }
-        
-        pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, pVgIter);      
+
+        pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, pVgIter);
       }
     }
 
     if (dbCache->cfgCache.cfgInfo) {
       SDbCfgInfo *pCfg = dbCache->cfgCache.cfgInfo;
-      ctgDebug("[%d] db [%.*s][0x%" PRIx64
-               "] %s: cfgVersion:%d, numOfVgroups:%d, numOfStables:%d, buffer:%d, cacheSize:%d, pageSize:%d, pages:%d"
-               ", daysPerFile:%d, daysToKeep0:%d, daysToKeep1:%d, daysToKeep2:%d, minRows:%d, maxRows:%d, walFsyncPeriod:%d"
-               ", hashPrefix:%d, hashSuffix:%d, walLevel:%d, precision:%d, compression:%d, replications:%d, strict:%d"
-               ", cacheLast:%d, tsdbPageSize:%d, walRetentionPeriod:%d, walRollPeriod:%d, walRetentionSize:%" PRId64 ""
-               ", walSegmentSize:%" PRId64 ", numOfRetensions:%d, schemaless:%d, sstTrigger:%d",
-               i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted ? "deleted" : "", 
-               pCfg->cfgVersion, pCfg->numOfVgroups, pCfg->numOfStables, pCfg->buffer,
-               pCfg->cacheSize, pCfg->pageSize, pCfg->pages, pCfg->daysPerFile, pCfg->daysToKeep0,
-               pCfg->daysToKeep1, pCfg->daysToKeep2, pCfg->minRows, pCfg->maxRows, pCfg->walFsyncPeriod,
-               pCfg->hashPrefix, pCfg->hashSuffix, pCfg->walLevel, pCfg->precision, pCfg->compression,
-               pCfg->replications, pCfg->strict, pCfg->cacheLast, pCfg->tsdbPageSize, pCfg->walRetentionPeriod,
-               pCfg->walRollPeriod, pCfg->walRetentionSize, pCfg->walSegmentSize, pCfg->numOfRetensions,
-               pCfg->schemaless, pCfg->sstTrigger);
+      ctgDebug(
+          "[%d] db [%.*s][0x%" PRIx64
+          "] %s: cfgVersion:%d, numOfVgroups:%d, numOfStables:%d, buffer:%d, cacheSize:%d, pageSize:%d, pages:%d"
+          ", daysPerFile:%d, daysToKeep0:%d, daysToKeep1:%d, daysToKeep2:%d, minRows:%d, maxRows:%d, walFsyncPeriod:%d"
+          ", hashPrefix:%d, hashSuffix:%d, walLevel:%d, precision:%d, compression:%d, replications:%d, strict:%d"
+          ", cacheLast:%d, tsdbPageSize:%d, walRetentionPeriod:%d, walRollPeriod:%d, walRetentionSize:%" PRId64
+          ""
+          ", walSegmentSize:%" PRId64 ", numOfRetensions:%d, schemaless:%d, sstTrigger:%d",
+          i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted ? "deleted" : "", pCfg->cfgVersion,
+          pCfg->numOfVgroups, pCfg->numOfStables, pCfg->buffer, pCfg->cacheSize, pCfg->pageSize, pCfg->pages,
+          pCfg->daysPerFile, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2, pCfg->minRows, pCfg->maxRows,
+          pCfg->walFsyncPeriod, pCfg->hashPrefix, pCfg->hashSuffix, pCfg->walLevel, pCfg->precision, pCfg->compression,
+          pCfg->replications, pCfg->strict, pCfg->cacheLast, pCfg->tsdbPageSize, pCfg->walRetentionPeriod,
+          pCfg->walRollPeriod, pCfg->walRetentionSize, pCfg->walSegmentSize, pCfg->numOfRetensions, pCfg->schemaless,
+          pCfg->sstTrigger);
     }
 
     ++i;
@@ -551,10 +550,11 @@ void ctgdShowClusterCache(SCatalog *pCtg) {
   }
 
   ctgDebug("## cluster 0x%" PRIx64 " %p cache Info BEGIN ##", pCtg->clusterId, pCtg);
-  ctgDebug("db:%d tbmeta:%d viewmeta:%d stb:%d dbRent:%d stbRent:%d viewRent:%d", ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM),
-           ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM), ctgdGetClusterCacheNum(pCtg, CTG_DBG_VIEW_NUM), 
-           ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_NUM), ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM), 
-           ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM), ctgdGetClusterCacheNum(pCtg, CTG_DBG_VIEW_RENT_NUM));
+  ctgDebug("db:%d tbmeta:%d viewmeta:%d stb:%d dbRent:%d stbRent:%d viewRent:%d",
+           ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM), ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM),
+           ctgdGetClusterCacheNum(pCtg, CTG_DBG_VIEW_NUM), ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_NUM),
+           ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM), ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM),
+           ctgdGetClusterCacheNum(pCtg, CTG_DBG_VIEW_RENT_NUM));
 
   ctgdShowDBCache(pCtg, pCtg->dbCache);
 
@@ -569,22 +569,22 @@ int32_t ctgdShowStatInfo(void) {
   CTG_API_ENTER();
 
   SCtgCacheStat cache;
-  uint64_t cacheSize = 0;
-  
+  uint64_t      cacheSize = 0;
+
   ctgGetGlobalCacheStat(&cache);
   ctgGetGlobalCacheSize(&cacheSize);
 
   qDebug("## Global Stat Info %s ##", "begin");
   qDebug("##            \t%s \t%s \t%s ##", "Num", "Hit", "Nhit");
   for (int32_t i = 0; i < CTG_CI_MAX_VALUE; ++i) {
-    qDebug("#  %s \t%" PRIu64 " \t%" PRIu64 " \t%" PRIu64 " #", gCtgStatItem[i].name, cache.cacheNum[i], cache.cacheHit[i], cache.cacheNHit[i]);
+    qDebug("#  %s \t%" PRIu64 " \t%" PRIu64 " \t%" PRIu64 " #", gCtgStatItem[i].name, cache.cacheNum[i],
+           cache.cacheHit[i], cache.cacheNHit[i]);
   }
   qDebug("## Global Stat Info %s ##", "end");
   qDebug("## Global Cache Size: %" PRIu64, cacheSize);
 
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 }
-
 
 int32_t ctgdShowCacheInfo(void) {
   if (!gCTGDebug.cacheEnable) {

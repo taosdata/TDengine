@@ -14,9 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tconfig.h"
 #include "cJSON.h"
 #include "taoserror.h"
+#include "tconfig.h"
 #include "tenv.h"
 #include "tglobal.h"
 #include "tgrant.h"
@@ -475,7 +475,7 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
     } break;
     case CFG_DTYPE_FLOAT:
     case CFG_DTYPE_DOUBLE: {
-      float  dval = 0;
+      float   dval = 0;
       int32_t code = parseCfgReal(pVal, &dval);
       if (code != TSDB_CODE_SUCCESS) {
         cfgUnLock(pCfg);
@@ -1100,21 +1100,21 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
       int32_t len = 0;
       char    newValue[1024] = {0};
 
-      strcpy(newValue, value);
+      tstrncpy(newValue, value, sizeof(newValue));
 
       int32_t count = 1;
       while (vlen < 1024) {
         (void)paGetToken(value + vlen + 1 * count, &tmp, &len);
         if (len == 0) break;
         tmp[len] = 0;
-        strcpy(newValue + vlen, tmp);
+        tstrncpy(newValue + vlen, tmp, sizeof(newValue) - vlen);
         vlen += len;
         count++;
       }
 
       code = cfgSetItem(pConfig, name, newValue, CFG_STYPE_CFG_FILE, true);
       if (TSDB_CODE_SUCCESS != code && TSDB_CODE_CFG_NOT_FOUND != code) {
-        (void)printf("cfg:%s, value:%s failed since %s\n", name,newValue, tstrerror(code));
+        (void)printf("cfg:%s, value:%s failed since %s\n", name, newValue, tstrerror(code));
         break;
       }
     } else {

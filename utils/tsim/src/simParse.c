@@ -894,14 +894,14 @@ void simInitsimCmdList() {
   /* internal command */
   cmdno = SIM_CMD_EXP;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "exp");
+  tstrncpy(simCmdList[cmdno].name, "exp", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = NULL;
   simCmdList[cmdno].executeCmd = simExecuteExpCmd;
 
   cmdno = SIM_CMD_IF;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "if");
+  tstrncpy(simCmdList[cmdno].name, "if", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseIfCmd;
   simCmdList[cmdno].executeCmd = NULL;
@@ -909,7 +909,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_ELIF;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "elif");
+  tstrncpy(simCmdList[cmdno].name, "elif", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseElifCmd;
   simCmdList[cmdno].executeCmd = NULL;
@@ -917,7 +917,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_ELSE;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "else");
+  tstrncpy(simCmdList[cmdno].name, "else", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseElseCmd;
   simCmdList[cmdno].executeCmd = NULL;
@@ -925,7 +925,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_ENDI;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "endi");
+  tstrncpy(simCmdList[cmdno].name, "endi", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseEndiCmd;
   simCmdList[cmdno].executeCmd = NULL;
@@ -933,7 +933,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_WHILE;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "while");
+  tstrncpy(simCmdList[cmdno].name, "while", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseWhileCmd;
   simCmdList[cmdno].executeCmd = NULL;
@@ -941,7 +941,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_ENDW;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "endw");
+  tstrncpy(simCmdList[cmdno].name, "endw", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseEndwCmd;
   simCmdList[cmdno].executeCmd = NULL;
@@ -950,7 +950,7 @@ void simInitsimCmdList() {
 #if 0
   cmdno = SIM_CMD_SWITCH;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "switch");
+  tstrncpy(simCmdList[cmdno].name, "switch", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseSwitchCmd;
   simCmdList[cmdno].executeCmd = NULL;
@@ -958,7 +958,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_CASE;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "case");
+  tstrncpy(simCmdList[cmdno].name, "case", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseCaseCmd;
   simCmdList[cmdno].executeCmd = NULL;
@@ -966,7 +966,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_DEFAULT;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "default");
+  tstrncpy(simCmdList[cmdno].name, "default", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseDefaultCmd;
   simCmdList[cmdno].executeCmd = NULL;
@@ -974,7 +974,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_BREAK;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "break");
+  tstrncpy(simCmdList[cmdno].name, "break", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseBreakCmd;
   simCmdList[cmdno].executeCmd = NULL;
@@ -982,7 +982,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_CONTINUE;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "continue");
+  tstrncpy(simCmdList[cmdno].name, "continue", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseContinueCmd;
   simCmdList[cmdno].executeCmd = NULL;
@@ -990,7 +990,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_ENDS;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "ends");
+  tstrncpy(simCmdList[cmdno].name, "ends", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseEndsCmd;
   simCmdList[cmdno].executeCmd = NULL;
@@ -999,7 +999,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_SLEEP;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "sleep");
+  tstrncpy(simCmdList[cmdno].name, "sleep", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseSleepCmd;
   simCmdList[cmdno].executeCmd = simExecuteSleepCmd;
@@ -1007,7 +1007,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_GOTO;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "goto");
+  tstrncpy(simCmdList[cmdno].name, "goto", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseGotoCmd;
   simCmdList[cmdno].executeCmd = simExecuteGotoCmd;
@@ -1015,7 +1015,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_RUN;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "run");
+  tstrncpy(simCmdList[cmdno].name, "run", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseRunCmd;
   simCmdList[cmdno].executeCmd = simExecuteRunCmd;
@@ -1023,7 +1023,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_RUN_BACK;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "run_back");
+  tstrncpy(simCmdList[cmdno].name, "run_back", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseRunBackCmd;
   simCmdList[cmdno].executeCmd = simExecuteRunBackCmd;
@@ -1031,7 +1031,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_SYSTEM;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "system");
+  tstrncpy(simCmdList[cmdno].name, "system", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseSystemCmd;
   simCmdList[cmdno].executeCmd = simExecuteSystemCmd;
@@ -1039,7 +1039,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_SYSTEM_CONTENT;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "system_content");
+  tstrncpy(simCmdList[cmdno].name, "system_content", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseSystemContentCmd;
   simCmdList[cmdno].executeCmd = simExecuteSystemContentCmd;
@@ -1047,7 +1047,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_PRINT;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "print");
+  tstrncpy(simCmdList[cmdno].name, "print", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParsePrintCmd;
   simCmdList[cmdno].executeCmd = simExecutePrintCmd;
@@ -1055,7 +1055,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_SQL;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "sql");
+  tstrncpy(simCmdList[cmdno].name, "sql", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseSqlCmd;
   simCmdList[cmdno].executeCmd = simExecuteSqlCmd;
@@ -1063,7 +1063,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_SQL_ERROR;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "sql_error");
+  tstrncpy(simCmdList[cmdno].name, "sql_error", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseSqlErrorCmd;
   simCmdList[cmdno].executeCmd = simExecuteSqlErrorCmd;
@@ -1071,7 +1071,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_SQL_SLOW;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "sql_slow");
+  tstrncpy(simCmdList[cmdno].name, "sql_slow", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseSqlSlowCmd;
   simCmdList[cmdno].executeCmd = simExecuteSqlSlowCmd;
@@ -1080,14 +1080,14 @@ void simInitsimCmdList() {
   /* test is only an internal command */
   cmdno = SIM_CMD_TEST;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "test");
+  tstrncpy(simCmdList[cmdno].name, "test", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = NULL;
   simCmdList[cmdno].executeCmd = simExecuteTestCmd;
 
   cmdno = SIM_CMD_RETURN;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "return");
+  tstrncpy(simCmdList[cmdno].name, "return", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseReturnCmd;
   simCmdList[cmdno].executeCmd = simExecuteReturnCmd;
@@ -1095,7 +1095,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_SET_BI_MODE;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "set_bi_mode");
+  tstrncpy(simCmdList[cmdno].name, "set_bi_mode", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseSetBIModeCmd;
   simCmdList[cmdno].executeCmd = simExecuteSetBIModeCmd;
@@ -1104,7 +1104,7 @@ void simInitsimCmdList() {
 #if 0
   cmdno = SIM_CMD_LINE_INSERT;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "line_insert");
+  tstrncpy(simCmdList[cmdno].name, "line_insert", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseLineInsertCmd;
   simCmdList[cmdno].executeCmd = simExecuteLineInsertCmd;
@@ -1112,7 +1112,7 @@ void simInitsimCmdList() {
 
   cmdno = SIM_CMD_LINE_INSERT_ERROR;
   simCmdList[cmdno].cmdno = cmdno;
-  strcpy(simCmdList[cmdno].name, "line_insert_error");
+  tstrncpy(simCmdList[cmdno].name, "line_insert_error", sizeof(simCmdList[cmdno].name));
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseLineInsertErrorCmd;
   simCmdList[cmdno].executeCmd = simExecuteLineInsertErrorCmd;
