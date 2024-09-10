@@ -846,7 +846,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   }
 
   // recycle
-  SyncIndex until = pBuf->commitIndex - TSDB_SYNC_LOG_BUFFER_RETENTION;
+  SyncIndex until = pBuf->commitIndex;  // - TSDB_SYNC_LOG_BUFFER_RETENTION;
   for (SyncIndex index = pBuf->startIndex; index < until; index++) {
     SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
     if (pEntry == NULL) return TSDB_CODE_SYN_INTERNAL_ERROR;
