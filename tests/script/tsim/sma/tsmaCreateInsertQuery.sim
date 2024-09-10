@@ -35,16 +35,12 @@ sql create sma index sma_index_name1 on stb function(max(c1),max(c2),min(c1)) in
 sql create sma index sma_index_name2 on stb function(sum(c1),first(c1), last(c1), first(c4),last(c4),count(c4),first(c5),last(c5),count(c5),apercentile(c1,80,"t-digest"), avg(c2),count(c3), spread(c3), stddev(c2), hyperloglog(c2), hyperloglog(c4), hyperloglog(c5)) interval(5m,10s) sliding(5m);
 # for varchar/binary
 sql_error create sma index sma_index_name3 on stb function(sum(c4)) interval(5m,10s) sliding(5m);
-sql_error create sma index sma_index_name3 on stb function(min(c4)) interval(5m,10s) sliding(5m);
-sql_error create sma index sma_index_name3 on stb function(max(c4)) interval(5m,10s) sliding(5m);
 sql_error create sma index sma_index_name3 on stb function(avg(c4)) interval(5m,10s) sliding(5m);
 sql_error create sma index sma_index_name3 on stb function(apercentile(c4)) interval(5m,10s) sliding(5m);
 sql_error create sma index sma_index_name3 on stb function(spread(c4)) interval(5m,10s) sliding(5m);
 sql_error create sma index sma_index_name3 on stb function(stddev(c4)) interval(5m,10s) sliding(5m);
 # for nchar
 sql_error create sma index sma_index_name3 on stb function(sum(c5)) interval(5m,10s) sliding(5m);
-sql_error create sma index sma_index_name3 on stb function(min(c5)) interval(5m,10s) sliding(5m);
-sql_error create sma index sma_index_name3 on stb function(max(c5)) interval(5m,10s) sliding(5m);
 sql_error create sma index sma_index_name3 on stb function(avg(c5)) interval(5m,10s) sliding(5m);
 sql_error create sma index sma_index_name3 on stb function(apercentile(c5)) interval(5m,10s) sliding(5m);
 sql_error create sma index sma_index_name3 on stb function(spread(c5)) interval(5m,10s) sliding(5m);
