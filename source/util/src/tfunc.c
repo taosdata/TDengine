@@ -17,6 +17,14 @@
 #include "tfunc.h"
 #include <curl/curl.h>
 
+typedef struct {
+  int64_t       ver;
+  SHashObj     *hash;  // funcname -> SAFuncUrl
+  TdThreadMutex lock;
+} SAFuncMgmt;
+
+static SAFuncMgmt tsFuncs = {0};
+
 const char *taosFuncStr(EAFuncType type) {
   switch (type) {
     case AFUNC_TYPE_ANOMALY_WINDOW:
@@ -43,16 +51,76 @@ EAFuncType taosFuncInt(const char *name) {
 }
 
 int32_t taosFuncInit() {
-  // CURL_GLOBAL_NOTHING
   if (curl_global_init(CURL_GLOBAL_ALL) != 0) {
-    return -1;
-  } else {
     uError("failed to init curl env");
-    return 0;
+    return -1;
+  }
+
+  tsFuncs.ver = 0;
+  taosThreadMutexInit(&tsFuncs.lock, NULL);
+  tsFuncs.hash = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
+  if (tsFuncs.hash == NULL) {
+    uError("failed to init tfunc hash");
+    return -1;
+  }
+
+  uInfo("afunc env is initialized");
+  return 0;
+}
+
+void taosFuncFreeHash(SHashObj *hash) {
+  void *pIter = taosHashIterate(hash, NULL);
+  while (pIter != NULL) {
+    SAFuncUrl *pUrl = (SAFuncUrl *)pIter;
+    taosMemoryFree(pUrl->url);
+    pIter = taosHashIterate(hash, pIter);
+  }
+  taosHashCleanup(hash);
+}
+
+void taosFuncCleanup() {
+  curl_global_cleanup();
+  taosThreadMutexDestroy(&tsFuncs.lock);
+  taosFuncFreeHash(tsFuncs.hash);
+  tsFuncs.hash = NULL;
+  uInfo("afunc env is cleaned up");
+}
+
+void taosFuncUpdate(int64_t newVer, SHashObj *pHash) {
+  if (newVer > tsFuncs.ver) {
+    taosThreadMutexLock(&tsFuncs.lock);
+    SHashObj *hash = tsFuncs.hash;
+    tsFuncs.ver = newVer;
+    tsFuncs.hash = pHash;
+    taosThreadMutexUnlock(&tsFuncs.lock);
+    taosFuncFreeHash(hash);
+  } else {
+    taosFuncFreeHash(pHash);
   }
 }
 
-void taosFuncCleanup() { curl_global_cleanup(); }
+int32_t taosFuncGetUrl(const char *funcName, EAFuncType type, char *url, int32_t urlLen) {
+  int32_t code = 0;
+  char    name[TSDB_FUNC_NAME_LEN + 12] = {0};
+  int32_t nameLen = snprintf(name, sizeof(name) - 1, "%s:%d", funcName, type);
+
+  taosThreadMutexLock(&tsFuncs.lock);
+  SAFuncUrl *pUrl = taosHashAcquire(tsFuncs.hash, name, nameLen);
+  if (pUrl != NULL) {
+    tstrncpy(url, pUrl->url, urlLen);
+    uInfo("func:%s, type:%s, url:%s", funcName, taosFuncStr(type), url);
+  } else {
+    url[0] = 0;
+    terrno = TSDB_CODE_MND_AFUNC_NOT_FOUND;
+    code = terrno;
+    uInfo("func:%s,type:%s, url not found", funcName, taosFuncStr(type));
+  }
+  taosThreadMutexUnlock(&tsFuncs.lock);
+
+  return code;
+}
+
+int64_t taosFuncGetVersion() { return tsFuncs.ver; }
 
 static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void *userdata) {
   SCurlResp *pRsp = userdata;

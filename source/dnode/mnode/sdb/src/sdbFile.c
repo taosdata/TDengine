@@ -21,6 +21,9 @@
 #include "tglobal.h"
 #include "wal.h"
 
+#define SDB_TABLE_SIZE_EXTRA   SDB_MAX
+#define SDB_RESERVE_SIZE_EXTRA (512 - (SDB_TABLE_SIZE_EXTRA - 24) * 2 * sizeof(int64_t))
+
 #define SDB_TABLE_SIZE   24
 #define SDB_RESERVE_SIZE 512
 #define SDB_FILE_VER     1
@@ -160,7 +163,39 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
     }
   }
 
-  char reserve[SDB_RESERVE_SIZE] = {0};
+  for (int32_t i = SDB_TABLE_SIZE; i < SDB_TABLE_SIZE_EXTRA; ++i) {
+    int64_t maxId = 0;
+    ret = taosReadFile(pFile, &maxId, sizeof(int64_t));
+    if (ret < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      TAOS_RETURN(code);
+    }
+    if (ret != sizeof(int64_t)) {
+      code = TSDB_CODE_FILE_CORRUPTED;
+      TAOS_RETURN(code);
+    }
+    if (i < SDB_MAX) {
+      pSdb->maxId[i] = maxId;
+    }
+  }
+
+  for (int32_t i = SDB_TABLE_SIZE; i < SDB_TABLE_SIZE_EXTRA; ++i) {
+    int64_t ver = 0;
+    ret = taosReadFile(pFile, &ver, sizeof(int64_t));
+    if (ret < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      TAOS_RETURN(code);
+    }
+    if (ret != sizeof(int64_t)) {
+      code = TSDB_CODE_FILE_CORRUPTED;
+      TAOS_RETURN(code);
+    }
+    if (i < SDB_MAX) {
+      pSdb->tableVer[i] = ver;
+    }
+  }
+
+  char reserve[SDB_RESERVE_SIZE_EXTRA] = {0};
   ret = taosReadFile(pFile, reserve, sizeof(reserve));
   if (ret < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
@@ -219,7 +254,29 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
     }
   }
 
-  char reserve[SDB_RESERVE_SIZE] = {0};
+  for (int32_t i = SDB_TABLE_SIZE; i < SDB_TABLE_SIZE_EXTRA; ++i) {
+    int64_t maxId = 0;
+    if (i < SDB_MAX) {
+      maxId = pSdb->maxId[i];
+    }
+    if (taosWriteFile(pFile, &maxId, sizeof(int64_t)) != sizeof(int64_t)) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      TAOS_RETURN(code);
+    }
+  }
+
+  for (int32_t i = SDB_TABLE_SIZE; i < SDB_TABLE_SIZE_EXTRA; ++i) {
+    int64_t ver = 0;
+    if (i < SDB_MAX) {
+      ver = pSdb->tableVer[i];
+    }
+    if (taosWriteFile(pFile, &ver, sizeof(int64_t)) != sizeof(int64_t)) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      TAOS_RETURN(code);
+    }
+  }
+
+  char reserve[SDB_RESERVE_SIZE_EXTRA] = {0};
   if (taosWriteFile(pFile, reserve, sizeof(reserve)) != sizeof(reserve)) {
     code = TAOS_SYSTEM_ERROR(errno);
     TAOS_RETURN(code);

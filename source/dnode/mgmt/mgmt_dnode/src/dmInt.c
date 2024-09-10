@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 #include "libs/function/tudf.h"
+#include "tfunc.h"
 
 static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   int32_t code = 0;
@@ -78,6 +79,10 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 
   if ((code = udfStartUdfd(pMgmt->pData->dnodeId)) != 0) {
     dError("failed to start udfd");
+  }
+
+  if ((code = taosFuncInit()) != 0) {
+    dError("failed to start afunc");
   }
 
   pOutput->pMgmt = pMgmt;

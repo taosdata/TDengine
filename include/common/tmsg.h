@@ -1099,6 +1099,22 @@ int32_t tSerializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq
 int32_t tDeserializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq* pReq);
 
 typedef struct {
+  int32_t dnodeId;
+  int64_t afuncVer;
+} SRetrieveAfuncReq;
+
+typedef struct {
+  int64_t   ver;
+  SHashObj* hash;  // funcname -> SAFuncUrl
+} SRetrieveAFuncRsp;
+
+int32_t tSerializeRetrieveAfuncReq(void* buf, int32_t bufLen, SRetrieveAfuncReq* pReq);
+int32_t tDeserializeRetrieveAfuncReq(void* buf, int32_t bufLen, SRetrieveAfuncReq* pReq);
+int32_t tSerializeRetrieveAfuncRsp(void* buf, int32_t bufLen, SRetrieveAFuncRsp* pRsp);
+int32_t tDeserializeRetrieveAfuncRsp(void* buf, int32_t bufLen, SRetrieveAFuncRsp* pRsp);
+void    tFreeRetrieveAfuncRsp(SRetrieveAFuncRsp* pRsp);
+
+typedef struct {
   int8_t alterType;
   int8_t superUser;
   int8_t sysInfo;
@@ -1770,6 +1786,7 @@ typedef struct {
   SArray*     pVloads;  // array of SVnodeLoad
   int32_t     statusSeq;
   int64_t     ipWhiteVer;
+  int64_t     afuncVer;
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
@@ -1835,6 +1852,7 @@ typedef struct {
   SArray*   pDnodeEps;  // Array of SDnodeEp
   int32_t   statusSeq;
   int64_t   ipWhiteVer;
+  int64_t   afuncVer;
 } SStatusRsp;
 
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);

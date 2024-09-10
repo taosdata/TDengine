@@ -41,6 +41,7 @@
 #include "tmsgdef.h"
 
 #include "tcol.h"
+#include "tfunc.h"
 #include "tlog.h"
 
 #define DECODESQL()                                                                 \
@@ -1491,6 +1492,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   }
 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->ipWhiteVer));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->afuncVer));
   TAOS_CHECK_EXIT(tSerializeSMonitorParas(&encoder, &pReq->clusterCfg.monitorParas));
 
   tEndEncode(&encoder);
@@ -1613,6 +1615,9 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->ipWhiteVer));
   }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->afuncVer));
+  }
 
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDeserializeSMonitorParas(&decoder, &pReq->clusterCfg.monitorParas));
@@ -1690,6 +1695,7 @@ int32_t tSerializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->statusSeq));
 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->ipWhiteVer));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->afuncVer));
   tEndEncode(&encoder);
 
 _exit:
@@ -1741,6 +1747,11 @@ int32_t tDeserializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->ipWhiteVer));
   }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->afuncVer));
+  }
+
   tEndDecode(&decoder);
 _exit:
   tDecoderClear(&decoder);
@@ -2080,6 +2091,149 @@ int32_t tDeserializeRetrieveIpWhite(void *buf, int32_t bufLen, SRetrieveIpWhiteR
 _exit:
   tDecoderClear(&decoder);
   return code;
+}
+
+int32_t tSerializeRetrieveAfuncReq(void *buf, int32_t bufLen, SRetrieveAfuncReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->dnodeId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->afuncVer));
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeRetrieveAfuncReq(void *buf, int32_t bufLen, SRetrieveAfuncReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->dnodeId));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->afuncVer));
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeRetrieveAfuncRsp(void *buf, int32_t bufLen, SRetrieveAFuncRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  int32_t numOfFuncs = 0;
+  void   *pIter = taosHashIterate(pRsp->hash, NULL);
+  while (pIter != NULL) {
+    SAFuncUrl  *pUrl = (SAFuncUrl *)pIter;
+    size_t      nameLen = 0;
+    const char *name = taosHashGetKey(pIter, &nameLen);
+    if (nameLen > 0 && nameLen <= TSDB_FUNC_KEY_LEN && pUrl->urlLen > 0) {
+      numOfFuncs++;
+    }
+    pIter = taosHashIterate(pRsp->hash, pIter);
+  }
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->ver));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, numOfFuncs));
+
+  pIter = taosHashIterate(pRsp->hash, NULL);
+  while (pIter != NULL) {
+    SAFuncUrl  *pUrl = (SAFuncUrl *)pIter;
+    size_t      nameLen = 0;
+    const char *name = taosHashGetKey(pIter, &nameLen);
+    if (nameLen > 0 && pUrl->urlLen > 0) {
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, nameLen));
+      TAOS_CHECK_EXIT(tEncodeBinary(&encoder, name, nameLen));
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, pUrl->anode));
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, pUrl->type));
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, pUrl->urlLen));
+      TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pUrl->url, pUrl->urlLen));
+    }
+    pIter = taosHashIterate(pRsp->hash, pIter);
+  }
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeRetrieveAfuncRsp(void *buf, int32_t bufLen, SRetrieveAFuncRsp *pRsp) {
+  if (pRsp->hash == NULL) {
+    pRsp->hash = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
+    if (pRsp->hash == NULL) {
+      terrno = TSDB_CODE_OUT_OF_BUFFER;
+      return terrno;
+    }
+  }
+
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  int32_t   numOfFuncs = 0;
+  int32_t   nameLen;
+  int32_t   type;
+  char      name[TSDB_FUNC_KEY_LEN];
+  SAFuncUrl url = {0};
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->ver));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numOfFuncs));
+
+  for (int32_t f = 0; f < numOfFuncs; ++f) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nameLen));
+    if (nameLen > 0 && nameLen <= TSDB_FUNC_NAME_LEN) {
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, name));
+    }
+
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &url.anode));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &type));
+    url.type = (EAFuncType)type;
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &url.urlLen));
+    if (url.urlLen > 0) {
+      TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&url.url, NULL) < 0);
+    }
+
+    TAOS_CHECK_EXIT(taosHashPut(pRsp->hash, name, nameLen, &url, sizeof(SAFuncUrl)));
+  }
+
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeRetrieveAfuncRsp(SRetrieveAFuncRsp *pRsp) {
+  taosFuncFreeHash(pRsp->hash);
+  pRsp->hash = NULL;
 }
 
 void tFreeSCreateUserReq(SCreateUserReq *pReq) {
@@ -2999,38 +3153,50 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSMCreateAnodeReq(void* buf, int32_t bufLen, SMCreateAnodeReq* pReq) {
+int32_t tSerializeSMCreateAnodeReq(void *buf, int32_t bufLen, SMCreateAnodeReq *pReq) {
   SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
   tEncoderInit(&encoder, buf, bufLen);
 
-  if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->urlLen) < 0) return -1;
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->urlLen));
   if (pReq->urlLen > 0) {
-    if (tEncodeBinary(&encoder, pReq->url, pReq->urlLen) < 0) return -1;
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->url, pReq->urlLen));
   }
   ENCODESQL();
   tEndEncode(&encoder);
 
-  int32_t tlen = encoder.pos;
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
   tEncoderClear(&encoder);
   return tlen;
 }
 
 int32_t tDeserializeSMCreateAnodeReq(void *buf, int32_t bufLen, SMCreateAnodeReq *pReq) {
   SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+
   tDecoderInit(&decoder, buf, bufLen);
 
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->urlLen) < 0) return -1;
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->urlLen));
   if (pReq->urlLen > 0) {
-    if (tDecodeBinaryAlloc(&decoder, (void **)&pReq->url, NULL) < 0) return -1;
+    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->url, NULL));
   }
 
   DECODESQL();
   tEndDecode(&decoder);
 
+_exit:
   tDecoderClear(&decoder);
-  return 0;
+  return code;
 }
 
 void tFreeSMCreateAnodeReq(SMCreateAnodeReq *pReq) {
@@ -3038,7 +3204,7 @@ void tFreeSMCreateAnodeReq(SMCreateAnodeReq *pReq) {
   FREESQL();
 }
 
-int32_t tSerializeSMDropAnodeReq(void* buf, int32_t bufLen, SMDropAnodeReq* pReq) {
+int32_t tSerializeSMDropAnodeReq(void *buf, int32_t bufLen, SMDropAnodeReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
 
@@ -3052,7 +3218,7 @@ int32_t tSerializeSMDropAnodeReq(void* buf, int32_t bufLen, SMDropAnodeReq* pReq
   return tlen;
 }
 
-int32_t tDeserializeSMDropAnodeReq(void* buf, int32_t bufLen, SMDropAnodeReq* pReq) {
+int32_t tDeserializeSMDropAnodeReq(void *buf, int32_t bufLen, SMDropAnodeReq *pReq) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 

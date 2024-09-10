@@ -20,6 +20,7 @@
 #include "libs/function/tudf.h"
 #include "tgrant.h"
 #include "tcompare.h"
+#include "tfunc.h"
 // clang-format on
 
 #define DM_INIT_AUDIT()                       \
@@ -202,6 +203,7 @@ void dmCleanup() {
   walCleanUp();
   (void)udfcClose();
   udfStopUdfd();
+  taosFuncCleanup();
   taosStopCacheRefreshWorker();
   (void)dmDiskClose();
   DestroyRegexCache();

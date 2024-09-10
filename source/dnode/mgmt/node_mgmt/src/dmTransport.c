@@ -17,6 +17,7 @@
 #include "dmMgmt.h"
 #include "qworker.h"
 #include "tversion.h"
+#include "tfunc.h"
 
 static inline void dmSendRsp(SRpcMsg *pMsg) { (void)rpcSendResponse(pMsg); }
 
@@ -95,6 +96,17 @@ static bool dmIsForbiddenIp(int8_t forbidden, char *user, uint32_t clientIp) {
     return false;
   }
 }
+
+static void dmUpdateAfunc(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
+  SRetrieveAFuncRsp rsp = {0};
+  if (tDeserializeRetrieveAfuncRsp(pRpc->pCont, pRpc->contLen, &rsp) == 0) {
+    taosFuncUpdate(rsp.ver, rsp.hash);
+    rsp.hash = NULL;
+  }
+  tFreeRetrieveAfuncRsp(&rsp);
+  rpcFreeCont(pRpc->pCont);
+}
+
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
@@ -135,10 +147,12 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
         dmSetMnodeEpSet(&pDnode->data, pEpSet);
       }
       break;
-    case TDMT_MND_RETRIEVE_IP_WHITE_RSP: {
+    case TDMT_MND_RETRIEVE_IP_WHITE_RSP:
       dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
-    } break;
+    case TDMT_MND_RETRIEVE_AFUNC_RSP:
+      dmUpdateAfunc(&pDnode->data, pTrans->serverRpc, pRpc);
+      return;
     default:
       break;
   }

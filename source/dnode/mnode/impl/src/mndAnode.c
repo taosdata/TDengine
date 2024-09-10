@@ -35,6 +35,7 @@ static int32_t  mndAnodeActionDelete(SSdb *pSdb, SAnodeObj *pObj);
 static int32_t  mndProcessCreateAnodeReq(SRpcMsg *pReq);
 static int32_t  mndProcessUpdateAnodeReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropAnodeReq(SRpcMsg *pReq);
+static int32_t  mndProcessAfuncReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextAnode(SMnode *pMnode, void *pIter);
 static int32_t  mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -56,6 +57,7 @@ int32_t mndInitAnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ANODE, mndProcessCreateAnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_UPDATE_ANODE, mndProcessUpdateAnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_ANODE, mndProcessDropAnodeReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_AFUNC, mndProcessAfuncReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ANODE, mndRetrieveAnodes);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ANODE, mndCancelGetNextAnode);
@@ -627,7 +629,7 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     for (int32_t f = 0; f < pObj->numOfFuncs; ++f) {
       SAnodeFunc *pFunc = &pObj->pFuncs[f];
       for (int32_t t = 0; t < pFunc->typeLen; ++t) {
-        int32_t type = pFunc->types[t];
+        EAFuncType type = pFunc->types[t];
 
         cols = 0;
         SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -780,5 +782,70 @@ static int32_t mndGetAnodeStatus(SAnodeObj *pObj, char *status) {
 
 _OVER:
   if (pJson != NULL) cJSON_Delete(pJson);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessAfuncReq(SRpcMsg *pReq) {
+  SMnode           *pMnode = pReq->info.node;
+  SSdb             *pSdb = pMnode->pSdb;
+  int32_t           code = -1;
+  SAnodeObj        *pObj = NULL;
+  SAFuncUrl         url;
+  int32_t           nameLen;
+  char              name[TSDB_FUNC_KEY_LEN];
+  SRetrieveAfuncReq req = {0};
+  SRetrieveAFuncRsp rsp = {0};
+
+  TAOS_CHECK_GOTO(tDeserializeRetrieveAfuncReq(pReq->pCont, pReq->contLen, &req), NULL, _OVER);
+
+  rsp.ver = sdbGetTableVer(pSdb, SDB_ANODE);
+  if (req.afuncVer != rsp.ver) {
+    mInfo("dnode:%d, update afunc old ver:%" PRId64 " to new ver:%" PRId64, req.dnodeId, req.afuncVer, rsp.ver);
+    rsp.hash = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
+    if (rsp.hash == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _OVER;
+    }
+
+    void *pIter = NULL;
+    while (1) {
+      SAnodeObj *pAnode = NULL;
+      pIter = sdbFetch(pSdb, SDB_ANODE, pIter, (void **)&pAnode);
+      if (pIter == NULL) break;
+
+      url.anode = pAnode->id;
+      for (int32_t f = 0; f < pAnode->numOfFuncs; ++f) {
+        SAnodeFunc *pFunc = &pAnode->pFuncs[f];
+        for (int32_t t = 0; t < pFunc->typeLen; ++t) {
+          url.type = pFunc->types[t];
+          nameLen = snprintf(name, sizeof(name) - 1, "%s:%d", pFunc->name, url.type);
+
+          SAFuncUrl *pOldUrl = taosHashAcquire(rsp.hash, name, nameLen);
+          if (pOldUrl == NULL || (pOldUrl != NULL && pOldUrl->anode < url.anode)) {
+            url.url = taosMemoryMalloc(TSDB_URL_LEN + TSDB_FUNC_TYPE_LEN + 1);
+            url.urlLen =
+                snprintf(url.url, TSDB_URL_LEN + TSDB_FUNC_TYPE_LEN, "%s/%s", pAnode->url, taosFuncStr(url.type)) + 1;
+            if (taosHashPut(rsp.hash, name, nameLen, &url, sizeof(SAFuncUrl)) != 0) {
+              taosMemoryFree(url.url);
+              sdbRelease(pSdb, pAnode);
+              goto _OVER;
+            }
+          }
+        }
+
+        sdbRelease(pSdb, pAnode);
+      }
+    }
+  }
+
+  int32_t contLen = tSerializeRetrieveAfuncRsp(NULL, 0, &rsp);
+  void   *pHead = rpcMallocCont(contLen);
+  (void)tSerializeRetrieveAfuncRsp(pHead, contLen, &rsp);
+
+  pReq->info.rspLen = contLen;
+  pReq->info.rsp = pHead;
+
+_OVER:
+  tFreeRetrieveAfuncRsp(&rsp);
   TAOS_RETURN(code);
 }
