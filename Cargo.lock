@@ -1930,6 +1930,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "dlopen2"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e1297103d2bbaea85724fcee6294c2d50b1081f9ad47d0f6f6f61eda65315a6"
+dependencies = [
+ "dlopen2_derive",
+ "libc",
+ "once_cell",
+ "winapi",
+]
+
+[[package]]
 name = "dlopen2_derive"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6604,7 +6616,7 @@ dependencies = [
  "bytes",
  "cfg-if",
  "derive_more",
- "dlopen2",
+ "dlopen2 0.6.1",
  "fun_time",
  "itertools 0.13.0",
  "lazy_static",
@@ -6863,6 +6875,7 @@ dependencies = [
  "csv-async",
  "dashmap",
  "deadpool",
+ "dlopen2 0.7.0",
  "dotenv",
  "either",
  "encoding_rs",
