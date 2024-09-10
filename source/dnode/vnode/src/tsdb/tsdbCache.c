@@ -1597,7 +1597,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
 
     LRUStatus status = taosLRUCacheInsert(pCache, &idxKey->key, ROCKS_KEY_LEN, pLastCol, charge, tsdbCacheDeleter, NULL,
                                           TAOS_LRU_PRIORITY_LOW, &pTsdb->flushState);
-    if (status != TAOS_LRU_STATUS_OK) {
+    if (TAOS_LRU_STATUS_OK != status && TAOS_LRU_STATUS_OK_OVERWRITTEN != status) {
       tsdbError("vgId:%d, %s failed at line %d status %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__, status);
       tsdbCacheFreeSLastColItem(pLastCol);
       taosMemoryFree(pLastCol);
@@ -1710,7 +1710,7 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
 
       LRUStatus status = taosLRUCacheInsert(pCache, &idxKey->key, ROCKS_KEY_LEN, pLastCol, charge, tsdbCacheDeleter,
                                             NULL, TAOS_LRU_PRIORITY_LOW, &pTsdb->flushState);
-      if (status != TAOS_LRU_STATUS_OK) {
+      if (TAOS_LRU_STATUS_OK != status && TAOS_LRU_STATUS_OK_OVERWRITTEN != status) {
         tsdbError("vgId:%d, %s failed at line %d status %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__, status);
         tsdbCacheFreeSLastColItem(pLastCol);
         taosMemoryFreeClear(pLastCol);
