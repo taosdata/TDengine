@@ -11,14 +11,14 @@ port = 6060
 # Default is 0.0.0.0
 addr = "0.0.0.0"
 
-# explorer server instance id
-# 
-# The instanceId of each instance is unique on the host
-instanceId = 31
-
 # IPv6 listen address.
 
 # ipv6 = "::1"
+
+# explorer server instance id
+# 
+# The instanceId of each instance is unique on the host
+# instanceId = 1
 
 # Explorer server log level.
 # Default is "info"
@@ -89,7 +89,7 @@ cors = true
 
 # Compress archived log files or not
 # 
-# compress = true
+# compress = false
 
 # The number of log files retained by the current explorer server instance in the `path` directory
 # 
@@ -101,4 +101,4 @@ cors = true
 
 # Log downgrade when the remaining disk space reaches this size, only logging `ERROR` level logs
 # 
-# reservedDiskSize = "20GB"
+# reservedDiskSize = "2GB"
