@@ -401,7 +401,7 @@ HANDLE taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
   }
   if (h == INVALID_HANDLE_VALUE) {
     DWORD  dwError = GetLastError();
-    terrno = TAOS_SYSTEM_WINAPI_ERROR(error);
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(dwError);
     // LPVOID lpMsgBuf;
     // FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, dwError, 0, (LPTSTR)&lpMsgBuf, 0,
     //               NULL);
