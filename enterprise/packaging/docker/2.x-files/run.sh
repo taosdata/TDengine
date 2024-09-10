@@ -35,13 +35,13 @@ if [ ! -d "$TAOSDCLOG" ]; then
 else
   echo "taosd -C log folder already exists: $TAOSDCLOG"
 fi
-taosd -C -c '/var/log' > /var/log/taosdc_out
-FQDN=$(cat /var/log/taosdc_out|grep -E 'fqdn.*(\S+)' -o |head -n1|sed 's/fqdn *//')
-FIRSET_EP=$(cat /var/log/taosdc_out|grep -E 'firstEp.*(\S+)' -o|head -n1|sed 's/firstEp *//')
+TAODCONF=$(taosd -C -c '/var/log')
+FQDN=$(echo "$TAODCONF"|grep -E 'fqdn.*(\S+)' -o |head -n1|sed 's/fqdn *//')
+FIRSET_EP=$(echo "$TAODCONF"|grep -E 'firstEp.*(\S+)' -o|head -n1|sed 's/firstEp *//')
 # parse first ep host and port
 FIRST_EP_HOST=${FIRSET_EP%:*}
 FIRST_EP_PORT=${FIRSET_EP#*:}
-SERVER_PORT=$(cat /var/log/taosdc_out|grep -E 'serverPort.*(\S+)' -o|head -n1|sed 's/serverPort *//')
+SERVER_PORT=$(echo "$TAODCONF"|grep -E 'serverPort.*(\S+)' -o|head -n1|sed 's/serverPort *//')
 SERVER_PORT=${SERVER_PORT:-6030}
 ENDPOINT=$FQDN:$SERVER_PORT
 function logger() {
