@@ -1255,7 +1255,11 @@ int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHa
       .recvTs = taosGetTimestampMs(), .transId = pReq->transId, .checkpointId = pReq->checkpointId};
 
   // todo retry until it success
-  (void)streamTaskBuildCheckpointSourceRsp(pReq, pRpcInfo, &info.msg, TSDB_CODE_SUCCESS);
+  int32_t code = streamTaskBuildCheckpointSourceRsp(pReq, pRpcInfo, &info.msg, TSDB_CODE_SUCCESS);
+  if (code) {
+    stError("s-task:%s failed to build checkpoint-source rsp, code:%s", pTask->id.idStr, tstrerror(code));
+    return code;
+  }
 
   SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
   streamMutexLock(&pActiveInfo->lock);

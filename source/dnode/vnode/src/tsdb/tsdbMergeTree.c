@@ -379,6 +379,7 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
   int32_t lino = 0;
   void   *px = NULL;
   int32_t startIndex = 0;
+  int32_t ret = 0;
 
   int32_t numOfBlocks = TARRAY2_SIZE(pStatisBlkArray);
   if (numOfBlocks <= 0) {
@@ -487,7 +488,9 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
       } else {
         STbStatisRecord record = {0};
         while (i < rows) {
-          (void)tStatisBlockGet(&block, i, &record);
+          code = tStatisBlockGet(&block, i, &record);
+          TSDB_CHECK_CODE(code, lino, _end);
+
           if (record.suid != suid) {
             break;
           }
@@ -534,7 +537,7 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
   }
 
 _end:
-  (void) tStatisBlockDestroy(&block);
+  ret = tStatisBlockDestroy(&block);
   if (code != 0) {
     tsdbError("%s error happens at:%s line number: %d, code:%s", id, __func__, lino, tstrerror(code));
   } else {
@@ -678,7 +681,11 @@ int32_t tLDataIterOpen2(SLDataIter *pIter, SSttFileReader *pSttFileReader, int32
 }
 
 void tLDataIterClose2(SLDataIter *pIter) {
-  (void)tsdbSttFileReaderClose(&pIter->pReader);  // always return 0
+  int32_t code = tsdbSttFileReaderClose(&pIter->pReader);  // always return 0
+  if (code != 0) {
+    tsdbError("%" PRId64 " failed to close tsdb file reader, code:%s", pIter->cid, tstrerror(code));
+  }
+
   pIter->pReader = NULL;
 }
 
