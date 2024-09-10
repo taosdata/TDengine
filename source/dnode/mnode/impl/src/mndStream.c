@@ -786,7 +786,9 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   if (pStream != NULL && code == 0) {
     if (createReq.igExists) {
       mInfo("stream:%s, already exist, ignore exist is set", createReq.name);
-      goto _OVER;
+      mndReleaseStream(pMnode, pStream);
+      tFreeSCMCreateStreamReq(&createReq);
+      return code;
     } else {
       code = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
       goto _OVER;
