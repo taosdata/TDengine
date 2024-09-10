@@ -1026,6 +1026,7 @@ int32_t minmaxFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultIn
 
   buf->nullTupleSaved = false;
   buf->nullTuplePos.pageId = -1;
+  buf->str = NULL;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1101,11 +1102,21 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
         colDataSetFloat(pCol, currentRow, &v);
         break;
       }
+      case TSDB_DATA_TYPE_VARBINARY:
+      case TSDB_DATA_TYPE_VARCHAR:
+      case TSDB_DATA_TYPE_NCHAR: {
+        code = colDataSetVal(pCol, currentRow, pRes->str, false);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
+        break;
+      }
     }
   } else {
     colDataSetNULL(pCol, currentRow);
   }
 
+  taosMemoryFreeClear(pRes->str);
   if (pCtx->subsidiaries.num > 0) {
     if (pEntryInfo->numOfRes > 0) {
       code = setSelectivityValue(pCtx, pBlock, &pRes->tuplePos, currentRow);
@@ -2155,6 +2166,8 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       tMemBucketDestroy(pMemBucket);
       return functionFinalize(pCtx, pBlock);
     }
+  } else {
+    return functionFinalize(pCtx, pBlock);
   }
 
 _fin_error:

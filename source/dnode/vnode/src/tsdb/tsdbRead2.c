@@ -4580,6 +4580,8 @@ int32_t tsdbSetTableList2(STsdbReader* pReader, const void* pTableList, int32_t 
     clearBlockScanInfo(*p);
   }
 
+  tSimpleHashClear(pReader->status.pTableMap);
+
   if (size < num) {
     code = ensureBlockScanInfoBuf(&pReader->blockInfoBuf, num);
     if (code) {
@@ -4596,7 +4598,6 @@ int32_t tsdbSetTableList2(STsdbReader* pReader, const void* pTableList, int32_t 
     pReader->status.uidList.tableUidList = (uint64_t*)p1;
   }
 
-  tSimpleHashClear(pReader->status.pTableMap);
   STableUidList* pUidList = &pReader->status.uidList;
   pUidList->currentIndex = 0;
 

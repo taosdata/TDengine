@@ -28,6 +28,28 @@ from frame import *
 
 
 class TDTestCase(TBase):
+    def alterCachemodel(self):
+        """Add test case for altering cache model(TS-5390)
+        """
+        # drop database if exists
+        tdSql.execute(f"drop database if exists db3590;")
+        # create database with cachemodel 'none'
+        tdSql.execute(f"create database db3590 vgroups 1 replica 1 cachemodel 'none';")
+        tdSql.execute("use db3590;")
+        tdSql.execute("create table ntb1 (ts timestamp, ival1 int);")
+        tdSql.execute("insert into  ntb1 values(now, 1);")
+        tdSql.execute("flush database db3590;")
+        # alter table schema
+        tdSql.execute("alter table ntb1 add column ival2 int;")
+        tdSql.execute("insert into  ntb1 values(now, 2, NULL);")
+        # alter table schema again
+        tdSql.execute("alter table ntb1 add column ival3 int;")
+        # alter database with cachemodel 'both‘
+        tdSql.execute("alter database db3590 cachemodel 'both';")
+        # wait for cachemodel avaiable
+        time.sleep(5)
+        tdSql.query("select last(*) from ntb1;")
+
     def alterTtlConfig(self):
         """Add test case for altering ttl config
         """
@@ -86,6 +108,8 @@ class TDTestCase(TBase):
         self.alterSupportVnodes()
         # TS-5191
         self.alterTtlConfig()
+        # TS-5390
+        self.alterCachemodel()
 
         tdLog.success(f"{__file__} successfully executed")
 
