@@ -210,7 +210,7 @@ static void vnodeSnapReaderDestroyTsdbRanges(SVSnapReader *pReader) {
   for (int32_t j = 0; j < TSDB_RETENTION_MAX; ++j) {
     TFileSetRangeArray **ppRanges = vnodeSnapReaderGetTsdbRanges(pReader, tsdbTyps[j]);
     if (ppRanges == NULL) continue;
-    (void)tsdbTFileSetRangeArrayDestroy(ppRanges);
+    tsdbTFileSetRangeArrayDestroy(ppRanges);
   }
 }
 
@@ -648,7 +648,7 @@ static void vnodeSnapWriterDestroyTsdbRanges(SVSnapWriter *pWriter) {
   for (int32_t j = 0; j < TSDB_RETENTION_MAX; ++j) {
     TFileSetRangeArray **ppRanges = vnodeSnapWriterGetTsdbRanges(pWriter, tsdbTyps[j]);
     if (ppRanges == NULL) continue;
-    (void)tsdbTFileSetRangeArrayDestroy(ppRanges);
+    tsdbTFileSetRangeArrayDestroy(ppRanges);
   }
 }
 

@@ -43,9 +43,13 @@ static const struct {
     [TSDB_FTYPE_STT] = {"stt", stt_to_json, stt_from_json},
 };
 
-void remove_file(const char *fname) {
-  (void)taosRemoveFile(fname);
-  tsdbInfo("file:%s is removed", fname);
+void tsdbRemoveFile(const char *fname) {
+  int32_t code = taosRemoveFile(fname);
+  if (code) {
+    tsdbError("failed to remove file:%s, code:%d, error:%s", fname, code, tstrerror(code));
+  } else {
+    tsdbInfo("file:%s is removed", fname);
+  }
 }
 
 static int32_t tfile_to_json(const STFile *file, cJSON *json) {
@@ -269,7 +273,7 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
   tsdbTrace("unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     if (fobj->state == TSDB_FSTATE_DEAD) {
-      remove_file(fobj->fname);
+      tsdbRemoveFile(fobj->fname);
     }
     taosMemoryFree(fobj);
   }
@@ -279,7 +283,7 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
 
 static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
   if (fobj->f->type != TSDB_FTYPE_DATA || fobj->f->lcn < 1) {
-    remove_file(fobj->fname);
+    tsdbRemoveFile(fobj->fname);
     return;
   }
 
@@ -295,7 +299,7 @@ static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
     }
     snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", fobj->f->lcn);
 
-    remove_file(lc_path);
+    tsdbRemoveFile(lc_path);
 
   } else {
     // delete by data file prefix
@@ -324,7 +328,7 @@ static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
     }
     snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", fobj->f->lcn);
 
-    remove_file(lc_path);
+    tsdbRemoveFile(lc_path);
   }
 }
 

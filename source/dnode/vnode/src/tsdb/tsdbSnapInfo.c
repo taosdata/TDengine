@@ -191,7 +191,7 @@ int32_t tsdbFSetPartListToRangeDiff(STsdbFSetPartList* pList, TFileSetRangeArray
 
 _err:
   if (pDiff) {
-    (void)tsdbTFileSetRangeArrayDestroy(&pDiff);
+    tsdbTFileSetRangeArrayDestroy(&pDiff);
   }
   return code;
 }

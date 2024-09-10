@@ -524,7 +524,7 @@ static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, S
     if (sttBlk->maxVer < blockData->aVersion[iRow]) sttBlk->maxVer = blockData->aVersion[iRow];
   }
 
-  (void)tsdbWriterUpdVerRange(range, sttBlk->minVer, sttBlk->maxVer);
+  tsdbWriterUpdVerRange(range, sttBlk->minVer, sttBlk->maxVer);
   TAOS_CHECK_RETURN(tBlockDataCompress(blockData, info, buffers, buffers + 4));
 
   sttBlk->bInfo.offset = *fileSize;
@@ -837,7 +837,7 @@ static void tsdbSttFWriterDoClose(SSttFileWriter *writer) {
   tDestroyTSchema(writer->skmRow->pTSchema);
   tDestroyTSchema(writer->skmTb->pTSchema);
   tTombBlockDestroy(writer->tombBlock);
-  (void)tStatisBlockDestroy(writer->staticBlock);
+  tStatisBlockDestroy(writer->staticBlock);
   tBlockDataDestroy(writer->blockData);
   TARRAY2_DESTROY(writer->tombBlkArray, NULL);
   TARRAY2_DESTROY(writer->statisBlkArray, NULL);
@@ -874,7 +874,7 @@ static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, TFileOpArray *o
       .fid = writer->config->fid,
       .nf = writer->file[0],
   };
-  (void)tsdbTFileUpdVerRange(&op.nf, writer->ctx->range);
+  tsdbTFileUpdVerRange(&op.nf, writer->ctx->range);
 
   TAOS_CHECK_GOTO(TARRAY2_APPEND(opArray, op), &lino, _exit);
 
@@ -890,7 +890,7 @@ static int32_t tsdbSttFWriterCloseAbort(SSttFileWriter *writer) {
   char fname[TSDB_FILENAME_LEN];
   tsdbTFileName(writer->config->tsdb, writer->file, fname);
   tsdbCloseFile(&writer->fd);
-  (void)taosRemoveFile(fname);
+  tsdbRemoveFile(fname);
   return 0;
 }
 
