@@ -12,7 +12,9 @@ REBOOT_COUNT_RESET_FILE=/var/log/reset_reboot
 START_TAOSD_MAX_NUMBER=${START_TAOSD_MAX_NUMBER:-3}
 start_taosd_count=0
 START_TAOSADAPTER_MAX_NUMBER=${START_TAOSADAPTER_MAX_NUMBER:-3}
+TAOSD_ERROR_MAX_NUMBER=${START_TAOSADAPTER_MAX_NUMBER:-10}
 start_taosadapter_count=0
+taosd_error_count=0
 SLEEP_INTERVAL=${SLEEP_INTERVAL:-10}
 DNODE_CREATED=0
 MNODE_CREATED=0
@@ -90,12 +92,24 @@ function check_taosd() {
         fi
     fi
     if [ $ret -ne 0 ]; then
-        logger "INFO" "check taosd error $ret"
+        logger "INFO" "checked taosd and got error $ret for $taosd_error_count times"
         if [ "x$1" != "xignore" ]; then
-            set_service_state "error" "taosd check failed $ret"
+            taosd_error_count=$(( taosd_error_count + 1 ))
+            set_service_state "error" "taosd checking failed with $ret for $taosd_error_count times"
+            if [ ${taosd_error_count} -gt ${TAOSD_ERROR_MAX_NUMBER} ]; then
+                # dump the taosd
+                SUFFIX=$(date +"%Y%m%d%H%M")
+                gcore -a -o /var/log/corefile/taosd.core.${SUFFIX} `pidof taosd`
+                # alert the message
+                post_error_msg
+                # kill the taosd
+                kill `pidof taosd`
+                logger "ERROR" "sent -15 to kill taosd"
+            fi 
         fi
     else
         set_service_state "ready" "ok"
+        taosd_error_count=0
     fi
 }
 function post_error_msg() {
