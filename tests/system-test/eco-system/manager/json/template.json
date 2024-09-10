@@ -25,11 +25,11 @@
                 {
                     "name": "meters",
                     "child_table_exists": "no",
-                    "childtable_count": 10000,
+                    "childtable_count": 100,
                     "childtable_prefix": "d",
                     "data_source": "rand",
                     "insert_mode": "taosc",
-                    "insert_rows": 100,
+                    "insert_rows": 100000,
                     "timestamp_step": 1000,
                     "start_timestamp": "2020-10-01 00:00:00.000",
                     "columns": [

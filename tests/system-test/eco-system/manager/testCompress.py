@@ -20,9 +20,9 @@ from datetime import datetime
 ###################################################################
 
 # -*- coding: utf-8 -*-
-dataDir = "/var/lib/taos"
+dataDir = "/var/lib/taos/"
 templateFile = "json/template.json"
-Number  = 0
+Number = 0
 
 def showLog(str):
     print(str)
@@ -134,7 +134,7 @@ def generateJsonFile(datatype, typeName, algo):
     context = readFileContext(templateFile)
     context = context.replace("@DATATYPE", datatype)
     # write to file
-    fileName = f"json/{typeName}.json"
+    fileName = f"json/{algo}_{typeName}.json"
     if os.path.exists(fileName):
       os.remove(fileName)
     writeFileContext(fileName, context)
@@ -163,8 +163,9 @@ def taosdStop():
 
 def cleanAndStartTaosd():
     
+    # stop
     taosdStop()
-    # clear  
+    # clean
     exec(f"rm -rf {dataDir}")
     # start
     taosdStart()
@@ -188,7 +189,8 @@ def findContextValue(context, label):
     return context[start:end]
 
 
-def writeTemplateInfo(resultFile):
+def writeTemplateInfo(resultFile, dataTypes):
+    # create info
     context = readFileContext(templateFile)
     vgroups    = findContextValue(context, "vgroups")
     childCount = findContextValue(context, "childtable_count")
@@ -196,6 +198,10 @@ def writeTemplateInfo(resultFile):
     line = f"vgroups = {vgroups}\nchildtable_count = {childCount}\ninsert_rows = {insertRows}\n\n"
     print(line)
     appendFileContext(resultFile, line)
+
+    # datatype info
+    for dataType in dataTypes:
+        appendFileContext(resultFile, "  " + dataType + "\n")
 
 def totalCompressRate(typeName, algo, resultFile):
     global Number
@@ -210,8 +216,17 @@ def totalCompressRate(typeName, algo, resultFile):
     command = 'taos -s "show table distributed dbrate.meters\G;"'
     rets = runRetList(command)
     print(rets)
+
     str1 = rets[5]
-    str2 = str1.split(" ")[6]
+    arr = str1.split(" ")
+
+    # Total_Size KB
+    str2 = arr[2]
+    pos  = str2.find("=[")
+    totalSize = int(float(str2[pos+2:])/1024)
+
+    # Compression_Ratio
+    str2 = arr[6]
     pos  = str2.find("=[")
     rate = str2[pos+2:]
     print("rate =" + rate)
@@ -223,7 +238,7 @@ def totalCompressRate(typeName, algo, resultFile):
     # appand to file
     
     Number += 1
-    context =  "%10s %10s %10s %10s %10s\n"%( Number, algo, typeName, str(dataSizeMB)+"M", rate+"%")
+    context =  "%10s %10s %10s %10s %10s %10s\n"%( Number, algo, typeName, str(totalSize)+" MB", str(dataSizeMB)+" MB", rate+"%")
     showLog(context)
     appendFileContext(resultFile, context)
 
@@ -234,6 +249,7 @@ def doTest(dataType, typeName, algo, resultFile):
 
     # json
     jsonFile = generateJsonFile(dataType, typeName, algo)
+
     # run taosBenchmark
     exec(f"taosBenchmark -f {jsonFile}")
 
@@ -242,32 +258,63 @@ def doTest(dataType, typeName, algo, resultFile):
 
 def main():
     # test types 
+
+    '''
+    # min max large
     dataTypes = [
-        '{"type": "bool",     "count":100, "min": 0,   "max": 1,       "compress":"@COMPRESS"}',
-        '{"type": "tinyint",  "count":100, "min": 0,   "max": 100,     "compress":"@COMPRESS"}',
-        '{"type": "smallint", "count":100, "min": 0,   "max": 1000,    "compress":"@COMPRESS"}',
-        '{"type": "int",      "count":100, "min": 0,   "max": 100000,  "compress":"@COMPRESS"}',
-        '{"type": "bigint",   "count":100, "min": 0,   "max": 1000000, "compress":"@COMPRESS"}',
-        '{"type": "float",    "count":100, "min": 0,   "max": 1000,    "compress":"@COMPRESS"}',
-        '{"type": "double",   "count":100, "min": 0,   "max": 1000,    "compress":"@COMPRESS"}',
+        '{"type": "bool",     "count":100, "min": 0,       "max": 1,       "compress":"@COMPRESS"}',
+        '{"type": "tinyint",  "count":100, "min": -100,    "max": 100,     "compress":"@COMPRESS"}',
+        '{"type": "smallint", "count":100, "min": -1000,   "max": 1000,    "compress":"@COMPRESS"}',
+        '{"type": "int",      "count":100, "min": -10000,  "max": 100000,  "compress":"@COMPRESS"}',
+        '{"type": "bigint",   "count":100, "min": -100000, "max": 1000000, "compress":"@COMPRESS"}',
+        '{"type": "float",    "count":100, "min": -1000,   "max": 1000,    "compress":"@COMPRESS"}',
+        '{"type": "double",   "count":100, "min": -1000,   "max": 1000,    "compress":"@COMPRESS"}',
         '{"type": "binary",   "count":100, "len": 64,  "compress":"@COMPRESS"}',
         '{"type": "nchar",    "count":100, "len": 64,  "compress":"@COMPRESS"}'
     ]
 
+    # min max small
+    dataTypes = [
+        '{"type": "bool",     "count":100, "min": 0,     "max": 1,      "compress":"@COMPRESS"}',
+        '{"type": "tinyint",  "count":100, "min": 80,    "max": 100,    "compress":"@COMPRESS"}',
+        '{"type": "smallint", "count":100, "min": 800,   "max": 1000,   "compress":"@COMPRESS"}',
+        '{"type": "int",      "count":100, "min": 8000,  "max": 10000,  "compress":"@COMPRESS"}',
+        '{"type": "bigint",   "count":100, "min": 80000, "max": 100000, "compress":"@COMPRESS"}',
+        '{"type": "float",    "count":100, "min": 0,     "max": 10,     "compress":"@COMPRESS"}',
+        '{"type": "double",   "count":100, "min": 0,     "max": 10,     "compress":"@COMPRESS"}',
+        '{"type": "binary",   "count":100, "len": 64,    "compress":"@COMPRESS"}',
+        '{"type": "nchar",    "count":100, "len": 64,    "compress":"@COMPRESS"}'
+    ]
+
+    '''
+    # random data
+    dataTypes = [
+        '{"type": "bool",     "count":100, "min": 0,       "max": 1,       "compress":"@COMPRESS"}',
+        '{"type": "tinyint",  "count":100, "compress":"@COMPRESS"}',
+        '{"type": "smallint", "count":100, "compress":"@COMPRESS"}',
+        '{"type": "int",      "count":100, "compress":"@COMPRESS"}',
+        '{"type": "bigint",   "count":100, "compress":"@COMPRESS"}',
+        '{"type": "float",    "count":100, "compress":"@COMPRESS"}',
+        '{"type": "double",   "count":100, "compress":"@COMPRESS"}',
+        '{"type": "binary",   "count":100, "len": 64,  "compress":"@COMPRESS"}',
+        '{"type": "nchar",    "count":100, "len": 64,  "compress":"@COMPRESS"}'
+    ]
+
+
     # test compress method
-    algos = ["lz4", "zlib", "zstd", "xz", "tsz"]
+    algos = ["lz4", "zlib", "zstd", "xz", "tsz", "disabled"]
 
     # record result
     resultFile = "./result.txt"
     timestamp = time.time()
-
     now = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp))
     context  = f"\n----------------------  test rate ({now}) ---------------------------------\n"
+
     appendFileContext(resultFile, context)
     # json info
-    writeTemplateInfo(resultFile)
+    writeTemplateInfo(resultFile, dataTypes)
     # head
-    context = "%10s %10s %10s %10s %10s\n"%("No","compress","dataType", "dataSize","rate")
+    context = "%10s %10s %10s %10s %10s %10s\n"%("No","compress","dataType", "dataSize", "realSize","rate")
     appendFileContext(resultFile, context)
 
 
@@ -281,6 +328,11 @@ def main():
             # do test
             doTest(dataType, typeName, algo, resultFile)
         appendFileContext(resultFile, "    \n")
+
+    timestamp = time.time()
+    now = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp))
+    appendFileContext(resultFile, f"\n{now} finished test!\n")
+
 
 if __name__ == "__main__":
     print("welcome use TDengine compress rate test tools.\n")
