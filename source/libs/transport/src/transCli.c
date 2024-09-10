@@ -55,7 +55,7 @@ typedef struct {
 } SCliBatch;
 
 typedef struct SCliConn {
-  T_REF_DECLARE()
+  int32_t      ref;
   uv_connect_t connReq;
   uv_stream_t* stream;
   queue        wreqQueue;
@@ -100,6 +100,18 @@ typedef struct SCliConn {
   int8_t    connnected;
   SHashObj* pQTable;
 } SCliConn;
+
+// #define TRANS_CONN_REF_INC(tconn) \
+//   do {                            \
+//     if (tcond) (tconn)->ref++;    \
+//   } while (0)
+
+// #define TRANS_CONN_REF_DEC(tcond) if (tcond) (tconn)\
+//   do {                            \
+//     if (tcond) (tconn)->ref--;    \
+//   } while (0)
+
+#define TRANS_CONN_REF_GET(tconn) ((tconn) ? (tconn)->ref : 0)
 
 typedef struct {
   SCliConn* conn;
@@ -252,7 +264,7 @@ static FORCE_INLINE void cliMayUpdateFqdnCache(SHashObj* cache, char* dst);
 // process data read from server, add decompress etc later
 // handle except about conn
 static void cliHandleExcept(SCliConn* conn, int32_t code);
-static void cliReleaseUnfinishedMsg(SCliConn* conn);
+// static void cliReleaseUnfinishedMsg(SCliConn* conn);
 static void cliHandleFastFail(SCliConn* pConn, int status);
 
 static void doNotifyCb(SCliReq* pReq, SCliThrd* pThrd, int32_t code);
@@ -328,59 +340,59 @@ int32_t transHeapDelete(SHeap* heap, SCliConn* p);
 #define CONN_PERSIST_TIME(para)   ((para) <= 90000 ? 90000 : (para))
 #define CONN_GET_INST_LABEL(conn) (((STrans*)(((SCliThrd*)(conn)->hostThrd)->pInst))->label)
 
-#define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                         \
-  do {                                                                    \
-    int i = 0, sz = transQueueSize(&conn->reqs);                          \
-    for (; i < sz; i++) {                                                 \
-      pReq = transQueueGet(&conn->reqs, i);                               \
-      if (pReq->ctx != NULL && (uint64_t)pReq->ctx->ahandle == ahandle) { \
-        break;                                                            \
-      }                                                                   \
-    }                                                                     \
-    if (i == sz) {                                                        \
-      pReq = NULL;                                                        \
-    } else {                                                              \
-      pReq = transQueueRm(&conn->reqs, i);                                \
-    }                                                                     \
-  } while (0)
+// #define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                         \
+//   do {                                                                    \
+//     int i = 0, sz = transQueueSize(&conn->reqs);                          \
+//     for (; i < sz; i++) {                                                 \
+//       pReq = transQueueGet(&conn->reqs, i);                               \
+//       if (pReq->ctx != NULL && (uint64_t)pReq->ctx->ahandle == ahandle) { \
+//         break;                                                            \
+//       }                                                                   \
+//     }                                                                     \
+//     if (i == sz) {                                                        \
+//       pReq = NULL;                                                        \
+//     } else {                                                              \
+//       pReq = transQueueRm(&conn->reqs, i);                                \
+//     }                                                                     \
+//   } while (0)
 
-#define CONN_GET_NEXT_SENDMSG(conn)              \
-  do {                                           \
-    int i = 0;                                   \
-    do {                                         \
-      pCliMsg = transQueueGet(&conn->reqs, i++); \
-      if (pCliMsg && 0 == pCliMsg->sent) {       \
-        break;                                   \
-      }                                          \
-    } while (pCliMsg != NULL);                   \
-    if (pCliMsg == NULL) {                       \
-      goto _RETURN;                              \
-    }                                            \
-  } while (0)
+// #define CONN_GET_NEXT_SENDMSG(conn)              \
+//   do {                                           \
+//     int i = 0;                                   \
+//     do {                                         \
+//       pCliMsg = transQueueGet(&conn->reqs, i++); \
+//       if (pCliMsg && 0 == pCliMsg->sent) {       \
+//         break;                                   \
+//       }                                          \
+//     } while (pCliMsg != NULL);                   \
+//     if (pCliMsg == NULL) {                       \
+//       goto _RETURN;                              \
+//     }                                            \
+//   } while (0)
 
-static int32_t cliConnFindToSendMsg(SCliConn* pConn, SCliReq** pReq) {
-  int32_t code = 0;
-  for (int32_t i = 0; i < transQueueSize(&pConn->reqs); i++) {
-    SCliReq* p = transQueueGet(&pConn->reqs, i);
-    if (p->sent == 0) {
-      *pReq = p;
-      return 0;
-    }
-  }
-  return TSDB_CODE_OUT_OF_RANGE;
-}
-#define CONN_SET_PERSIST_BY_APP(conn) \
-  do {                                \
-    if (conn->status == ConnNormal) { \
-      conn->status = ConnAcquire;     \
-      transRefCliHandle(conn);        \
-    }                                 \
-  } while (0)
+// static int32_t cliConnFindToSendMsg(SCliConn* pConn, SCliReq** pReq) {
+//   int32_t code = 0;
+//   for (int32_t i = 0; i < transQueueSize(&pConn->reqs); i++) {
+//     SCliReq* p = transQueueGet(&pConn->reqs, i);
+//     if (p->sent == 0) {
+//       *pReq = p;
+//       return 0;
+//     }
+//   }
+//   return TSDB_CODE_OUT_OF_RANGE;
+// }
+// #define CONN_SET_PERSIST_BY_APP(conn) \
+//   do {                                \
+//     if (conn->status == ConnNormal) { \
+//       conn->status = ConnAcquire;     \
+//       transRefCliHandle(conn);        \
+//     }                                 \
+//   } while (0)
 
 #define CONN_NO_PERSIST_BY_APP(conn) \
-  (((conn)->status == ConnNormal || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
-#define CONN_RELEASE_BY_SERVER(conn) \
-  (((conn)->status == ConnRelease || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
+  (((conn)->status == ConnNormal || (conn)->status == ConnInPool) && TRANS_CONN_REF_GET(conn) == 1)
+// #define CONN_RELEASE_BY_SERVER(conn) \
+//   (((conn)->status == ConnRelease || (conn)->status == ConnInPool) && TRANS_CONN_REF_GET(conn) == 1)
 
 #define REQUEST_NO_RESP(msg)         ((msg)->info.noResp == 1)
 #define REQUEST_PERSIS_HANDLE(msg)   ((msg)->info.persistHandle == 1)
@@ -400,63 +412,63 @@ static int32_t cliConnFindToSendMsg(SCliConn* pConn, SCliReq** pReq) {
 
 static void* cliWorkThread(void* arg);
 
-static void cliReleaseUnfinishedMsg(SCliConn* conn) {
-  SCliThrd* pThrd = conn->hostThrd;
+// static void cliReleaseUnfinishedMsg(SCliConn* conn) {
+//   SCliThrd* pThrd = conn->hostThrd;
 
-  for (int i = 0; i < transQueueSize(&conn->reqs); i++) {
-    SCliReq* msg = transQueueGet(&conn->reqs, i);
-    if (msg != NULL && msg->ctx != NULL && msg->ctx->ahandle != (void*)0x9527) {
-      if (conn->ctx.freeFunc != NULL && msg->ctx->ahandle != NULL) {
-        conn->ctx.freeFunc(msg->ctx->ahandle);
-      } else if (msg->msg.info.notFreeAhandle == 0 && msg->ctx->ahandle != NULL && pThrd->destroyAhandleFp != NULL) {
-        tDebug("%s conn %p destroy unfinished ahandle %p", CONN_GET_INST_LABEL(conn), conn, msg->ctx->ahandle);
-        pThrd->destroyAhandleFp(msg->ctx->ahandle);
-      }
-    }
-    destroyReq(msg);
-  }
-  transQueueClear(&conn->reqs);
-  memset(&conn->ctx, 0, sizeof(conn->ctx));
-}
-bool cliMaySendCachedMsg(SCliConn* conn) {
-  if (!transQueueEmpty(&conn->reqs)) {
-    SCliReq* pCliMsg = NULL;
-    CONN_GET_NEXT_SENDMSG(conn);
-    (void)cliSend2(conn);
-    return true;
-  }
-  return false;
-_RETURN:
-  return false;
-}
-bool cliConnSendSeqMsg(int64_t refId, SCliConn* conn) {
-  if (refId == 0) return false;
-  SExHandle* exh = transAcquireExHandle(transGetRefMgt(), refId);
-  if (exh == NULL) {
-    tDebug("release conn %p, refId: %" PRId64 "", conn, refId);
-    return false;
-  }
-  taosWLockLatch(&exh->latch);
-  if (exh->handle == NULL) exh->handle = conn;
-  exh->inited = 1;
-  exh->pThrd = conn->hostThrd;
-  if (!QUEUE_IS_EMPTY(&exh->q)) {
-    queue* h = QUEUE_HEAD(&exh->q);
-    QUEUE_REMOVE(h);
-    taosWUnLockLatch(&exh->latch);
-    SCliReq* t = QUEUE_DATA(h, SCliReq, seqq);
-    transCtxMerge(&conn->ctx, &t->ctx->userCtx);
-    (void)transQueuePush(&conn->reqs, t);
-    tDebug("pop from conn %p, refId: %" PRId64 "", conn, refId);
-    (void)transReleaseExHandle(transGetRefMgt(), refId);
-    (void)cliSend2(conn);
-    return true;
-  }
-  taosWUnLockLatch(&exh->latch);
-  tDebug("empty conn %p, refId: %" PRId64 "", conn, refId);
-  (void)transReleaseExHandle(transGetRefMgt(), refId);
-  return false;
-}
+//   for (int i = 0; i < transQueueSize(&conn->reqs); i++) {
+//     SCliReq* msg = transQueueGet(&conn->reqs, i);
+//     if (msg != NULL && msg->ctx != NULL && msg->ctx->ahandle != (void*)0x9527) {
+//       if (conn->ctx.freeFunc != NULL && msg->ctx->ahandle != NULL) {
+//         conn->ctx.freeFunc(msg->ctx->ahandle);
+//       } else if (msg->msg.info.notFreeAhandle == 0 && msg->ctx->ahandle != NULL && pThrd->destroyAhandleFp != NULL) {
+//         tDebug("%s conn %p destroy unfinished ahandle %p", CONN_GET_INST_LABEL(conn), conn, msg->ctx->ahandle);
+//         pThrd->destroyAhandleFp(msg->ctx->ahandle);
+//       }
+//     }
+//     destroyReq(msg);
+//   }
+//   transQueueClear(&conn->reqs);
+//   memset(&conn->ctx, 0, sizeof(conn->ctx));
+// }
+// bool cliMaySendCachedMsg(SCliConn* conn) {
+//   if (!transQueueEmpty(&conn->reqs)) {
+//     SCliReq* pCliMsg = NULL;
+//     CONN_GET_NEXT_SENDMSG(conn);
+//     (void)cliSend2(conn);
+//     return true;
+//   }
+//   return false;
+// _RETURN:
+//   return false;
+// }
+// bool cliConnSendSeqMsg(int64_t refId, SCliConn* conn) {
+//   if (refId == 0) return false;
+//   SExHandle* exh = transAcquireExHandle(transGetRefMgt(), refId);
+//   if (exh == NULL) {
+//     tDebug("release conn %p, refId: %" PRId64 "", conn, refId);
+//     return false;
+//   }
+//   taosWLockLatch(&exh->latch);
+//   if (exh->handle == NULL) exh->handle = conn;
+//   exh->inited = 1;
+//   exh->pThrd = conn->hostThrd;
+//   if (!QUEUE_IS_EMPTY(&exh->q)) {
+//     queue* h = QUEUE_HEAD(&exh->q);
+//     QUEUE_REMOVE(h);
+//     taosWUnLockLatch(&exh->latch);
+//     SCliReq* t = QUEUE_DATA(h, SCliReq, seqq);
+//     transCtxMerge(&conn->ctx, &t->ctx->userCtx);
+//     (void)transQueuePush(&conn->reqs, t);
+//     tDebug("pop from conn %p, refId: %" PRId64 "", conn, refId);
+//     (void)transReleaseExHandle(transGetRefMgt(), refId);
+//     (void)cliSend2(conn);
+//     return true;
+//   }
+//   taosWUnLockLatch(&exh->latch);
+//   tDebug("empty conn %p, refId: %" PRId64 "", conn, refId);
+//   (void)transReleaseExHandle(transGetRefMgt(), refId);
+//   return false;
+// }
 
 int32_t cliGetConnTimer(SCliThrd* pThrd, SCliConn* pConn) {
   uv_timer_t* timer = taosArrayGetSize(pThrd->timerList) > 0 ? *(uv_timer_t**)taosArrayPop(pThrd->timerList) : NULL;
@@ -624,8 +636,10 @@ void cliHandleResp2(SCliConn* conn) {
       code = cliBuildRespFromCont(NULL, &resp, pHead);
       code = cliNotifyCb(conn, NULL, &resp);
       return;
+    } else {
+      tDebug("%s conn %p recv unexpected packet, seqNum:%d,qId:%ld reason:%s", CONN_GET_INST_LABEL(conn), conn, seq,
+             qId, tstrerror(code));
     }
-
     if (code != 0) {
       tDebug("%s conn %p recv unexpected packet, seqNum:%d, reason:%s", CONN_GET_INST_LABEL(conn), conn, seq,
              tstrerror(code));
@@ -664,7 +678,7 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
   // if (transQueueEmpty(&pConn->reqs)) {
   //   if (pConn->broken == true && CONN_NO_PERSIST_BY_APP(pConn)) {
   //     tTrace("%s conn %p handle except, persist:0", CONN_GET_INST_LABEL(pConn), pConn);
-  //     if (T_REF_VAL_GET(pConn) > 1) transUnrefCliHandle(pConn);
+  //     if (TRANS_CONN_REF_GET(pConn) > 1) transUnrefCliHandle(pConn);
   //     transUnrefCliHandle(pConn);
   //     return;
   //   }
@@ -725,13 +739,13 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
   //     }
   //   }
   //   destroyReq(pReq);
-  //   tTrace("%s conn %p start to destroy, ref:%d", CONN_GET_INST_LABEL(pConn), pConn, T_REF_VAL_GET(pConn));
+  //   tTrace("%s conn %p start to destroy, ref:%d", CONN_GET_INST_LABEL(pConn), pConn, TRANS_CONN_REF_GET(pConn));
   // } while (!transQueueEmpty(&pConn->reqs));
-  // if (T_REF_VAL_GET(pConn) > 1) transUnrefCliHandle(pConn);
+  // if (TRANS_CONN_REF_GET(pConn) > 1) transUnrefCliHandle(pConn);
   // transUnrefCliHandle(pConn);
 }
 void cliHandleExcept(SCliConn* conn, int32_t code) {
-  tTrace("%s conn %p except ref:%d", CONN_GET_INST_LABEL(conn), conn, T_REF_VAL_GET(conn));
+  tTrace("%s conn %p except ref:%d", CONN_GET_INST_LABEL(conn), conn, TRANS_CONN_REF_GET(conn));
   if (code != TSDB_CODE_RPC_FQDN_ERROR) {
     code = -1;
   }
@@ -742,7 +756,7 @@ void cliConnTimeout(uv_timer_t* handle) {
   SCliConn* conn = handle->data;
   SCliThrd* pThrd = conn->hostThrd;
 
-  tTrace("%s conn %p conn timeout, ref:%d", CONN_GET_INST_LABEL(conn), conn, T_REF_VAL_GET(conn));
+  tTrace("%s conn %p conn timeout, ref:%d", CONN_GET_INST_LABEL(conn), conn, TRANS_CONN_REF_GET(conn));
 
   cliResetConnTimer(conn);
   cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, conn->dstAddr);
@@ -751,7 +765,7 @@ void cliConnTimeout(uv_timer_t* handle) {
 void cliReadTimeoutCb(uv_timer_t* handle) {
   // set up timeout cb
   SCliConn* conn = handle->data;
-  tTrace("%s conn %p timeout, ref:%d", CONN_GET_INST_LABEL(conn), conn, T_REF_VAL_GET(conn));
+  tTrace("%s conn %p timeout, ref:%d", CONN_GET_INST_LABEL(conn), conn, TRANS_CONN_REF_GET(conn));
   (void)uv_read_stop(conn->stream);
   cliHandleExceptImpl(conn, TSDB_CODE_RPC_TIMEOUT);
 }
@@ -1043,7 +1057,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
 
   SCliThrd* thrd = conn->hostThrd;
   cliResetConnTimer(conn);
-  if (T_REF_VAL_GET(conn) > 1) {
+  if (TRANS_CONN_REF_GET(conn) > 1) {
     transUnrefCliHandle(conn);
   }
   cliDestroyConnMsgs(conn, false);
@@ -1189,7 +1203,7 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   }
   if (nread < 0) {
     tDebug("%s conn %p read error:%s, ref:%d", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread),
-           T_REF_VAL_GET(conn));
+           TRANS_CONN_REF_GET(conn));
     conn->broken = true;
     cliHandleExcept(conn, -1);
   }
@@ -1427,7 +1441,7 @@ static void cliHandleBatch_shareConnExcept(SCliConn* conn) {
     }
   }
 
-  if (T_REF_VAL_GET(conn) > 1) transUnrefCliHandle(conn);
+  if (TRANS_CONN_REF_GET(conn) > 1) transUnrefCliHandle(conn);
   transUnrefCliHandle(conn);
 }
 
@@ -1784,7 +1798,7 @@ static void cliHandleRelease(SCliThrd* pThrd, SCliReq* pReq) {
   (void)transReleaseExHandle(transGetRefMgt(), refId);
   tDebug("%s conn %p start to release to inst", CONN_GET_INST_LABEL(conn), conn);
 
-  if (T_REF_VAL_GET(conn) == 2) {
+  if (TRANS_CONN_REF_GET(conn) == 2) {
     transUnrefCliHandle(conn);
     if (!transQueuePush(&conn->reqs, pReq)) {
       return;
@@ -1824,7 +1838,7 @@ static void cliHandleFreeById(SCliThrd* pThrd, SCliReq* pReq) {
     // already recv, and notify upper layer
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _exception);
   } else {
-    while (T_REF_VAL_GET(conn) >= 1) {
+    while (TRANS_CONN_REF_GET(conn) >= 1) {
       transUnrefCliHandle(conn);
     }
     return;
@@ -2306,7 +2320,7 @@ static void cliAsyncCb(uv_async_t* handle) {
 
 void cliDestroyConnMsgs(SCliConn* conn, bool destroy) {
   transCtxCleanup(&conn->ctx);
-  cliReleaseUnfinishedMsg(conn);
+  // cliReleaseUnfinishedMsg(conn);
   if (destroy == 1) {
     transQueueDestroy(&conn->reqs);
   } else {
@@ -3062,21 +3076,25 @@ void transCloseClient(void* arg) {
   taosMemoryFree(cli);
 }
 void transRefCliHandle(void* handle) {
+  int32_t ref = 0;
   if (handle == NULL) {
     return;
   }
-  int ref = T_REF_INC((SCliConn*)handle);
-  tTrace("%s conn %p ref %d", CONN_GET_INST_LABEL((SCliConn*)handle), handle, ref);
-  UNUSED(ref);
+  SCliConn* conn = (SCliConn*)handle;
+  conn->ref++;
+
+  tTrace("%s conn %p ref %d", CONN_GET_INST_LABEL(conn), conn, conn->ref);
 }
 void transUnrefCliHandle(void* handle) {
   if (handle == NULL) {
     return;
   }
-  int ref = T_REF_DEC((SCliConn*)handle);
-  tTrace("%s conn %p ref:%d", CONN_GET_INST_LABEL((SCliConn*)handle), handle, ref);
-  if (ref == 0) {
-    cliDestroyConn((SCliConn*)handle, true);
+  SCliConn* conn = (SCliConn*)handle;
+  conn->ref--;
+
+  tTrace("%s conn %p ref:%d", CONN_GET_INST_LABEL(conn), conn, conn->ref);
+  if (conn->ref == 0) {
+    cliDestroyConn(conn, true);
   }
 }
 static FORCE_INLINE SCliThrd* transGetWorkThrdFromHandle(STrans* trans, int64_t handle) {

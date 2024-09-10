@@ -38,8 +38,8 @@ typedef struct SSvrConn {
   void*       hostThrd;
   STransQueue srvMsgs;
 
-  SSvrRegArg regArg;
-  bool       broken;  // conn broken;
+  // SSvrRegArg regArg;
+  bool broken;  // conn broken;
 
   ConnStatus status;
 
@@ -168,7 +168,7 @@ static void uvNotifyLinkBrokenToApp(SSvrConn* conn);
 static FORCE_INLINE void      destroySmsg(SSvrMsg* smsg);
 static FORCE_INLINE SSvrConn* createConn(void* hThrd);
 static FORCE_INLINE void      destroyConn(SSvrConn* conn, bool clear /*clear handle or not*/);
-static FORCE_INLINE void      destroyConnRegArg(SSvrConn* conn);
+// static FORCE_INLINE void      destroyConnRegArg(SSvrConn* conn);
 
 static int32_t reallocConnRef(SSvrConn* conn);
 
@@ -597,14 +597,14 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   tDebug("%s conn %p read error:%s", transLabel(pInst), conn, uv_err_name(nread));
   if (nread < 0) {
     conn->broken = true;
-    if (conn->status == ConnAcquire) {
-      if (conn->regArg.init) {
-        tTrace("%s conn %p broken, notify server app", transLabel(pInst), conn);
-        STrans* pInst = conn->pInst;
-        (*pInst->cfp)(pInst->parent, &(conn->regArg.msg), NULL);
-        memset(&conn->regArg, 0, sizeof(conn->regArg));
-      }
-    }
+    // if (conn->status == ConnAcquire) {
+    //   if (conn->regArg.init) {
+    //     tTrace("%s conn %p broken, notify server app", transLabel(pInst), conn);
+    //     STrans* pInst = conn->pInst;
+    //     (*pInst->cfp)(pInst->parent, &(conn->regArg.msg), NULL);
+    //     memset(&conn->regArg, 0, sizeof(conn->regArg));
+    //   }
+    // }
     destroyConn(conn, true);
   }
 }
@@ -916,40 +916,6 @@ static void uvShutDownCb(uv_shutdown_t* req, int status) {
   uv_close((uv_handle_t*)req->handle, uvDestroyConn);
   taosMemoryFree(req);
 }
-// static bool uvRecvReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
-//   if ((pHead)->release == 1 && (pHead->msgLen) == sizeof(*pHead)) {
-//     tTrace("conn %p received release request", pConn);
-//     STraceId traceId = pHead->traceId;
-//     (void)transClearBuffer(&pConn->readBuf);
-//     transFreeMsg(transContFromHead((char*)pHead));
-//     if (pConn->status != ConnAcquire) {
-//       return true;
-//     }
-//     pConn->status = ConnRelease;
-
-//     STransMsg tmsg = {.code = 0,
-//                       .info.handle = (void*)pConn,
-//                       .info.traceId = traceId,
-//                       .info.ahandle = (void*)0x9527,
-//                       .info.seqNum = htonl(pHead->seqNum)};
-//     SSvrMsg*  srvMsg = taosMemoryCalloc(1, sizeof(SSvrMsg));
-//     srvMsg->msg = tmsg;
-//     srvMsg->type = Release;
-//     srvMsg->pConn = pConn;
-//     if (!transQueuePush(&pConn->srvMsgs, srvMsg)) {
-//       return true;
-//     }
-//     if (pConn->regArg.init) {
-//       tTrace("conn %p release, notify server app", pConn);
-//       STrans* pInst = pConn->pInst;
-//       (*pInst->cfp)(pInst->parent, &(pConn->regArg.msg), NULL);
-//       memset(&pConn->regArg, 0, sizeof(pConn->regArg));
-//     }
-//     uvStartSendRespImpl(srvMsg);
-//     return true;
-//   }
-//   return false;
-// }
 static void uvWorkDoTask(uv_work_t* req) {
   // doing time-consumeing task
   // only auth conn currently, add more func later
@@ -1233,7 +1199,7 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
     TAOS_CHECK_GOTO(code, &lino, _end);
   }
 
-  memset(&pConn->regArg, 0, sizeof(pConn->regArg));
+  // memset(&pConn->regArg, 0, sizeof(pConn->regArg));
   pConn->broken = false;
   pConn->status = ConnNormal;
 
@@ -1311,12 +1277,12 @@ static FORCE_INLINE void destroyConn(SSvrConn* conn, bool clear) {
     }
   }
 }
-static FORCE_INLINE void destroyConnRegArg(SSvrConn* conn) {
-  if (conn->regArg.init == 1) {
-    transFreeMsg(conn->regArg.msg.pCont);
-    conn->regArg.init = 0;
-  }
-}
+// static FORCE_INLINE void destroyConnRegArg(SSvrConn* conn) {
+//   if (conn->regArg.init == 1) {
+//     transFreeMsg(conn->regArg.msg.pCont);
+//     conn->regArg.init = 0;
+//   }
+// }
 static int32_t reallocConnRef(SSvrConn* conn) {
   if (conn->refId > 0) {
     (void)transReleaseExHandle(uvGetConnRefOfThrd(conn->hostThrd), conn->refId);
@@ -1373,7 +1339,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
 
   taosHashCleanup(conn->pQTable);
   taosMemoryFree(conn->pTcp);
-  destroyConnRegArg(conn);
+  // destroyConnRegArg(conn);
   (void)transDestroyBuffer(&conn->readBuf);
   taosMemoryFree(conn);
 
