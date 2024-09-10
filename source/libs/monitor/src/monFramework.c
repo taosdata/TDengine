@@ -767,9 +767,12 @@ void monSendPromReport() {
   }
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
-    if (taosSendHttpReport(tsMonitor.cfg.server, tsMonFwUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
+    char          tmp[100] = {0};
+    (void)sprintf(tmp, "%s?qid=%" PRId64, tsMonFwUri, tGenQid64(tsMonitor.dnodeId));
+    uDebug("report cont to %s", tmp);
+    if (taosSendHttpReport(tsMonitor.cfg.server, tmp, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
       uError("failed to send monitor msg");
-    }else{
+    } else {
       (void)taos_collector_registry_clear_batch(TAOS_COLLECTOR_REGISTRY_DEFAULT);
     }
     taosMemoryFreeClear(pCont);
