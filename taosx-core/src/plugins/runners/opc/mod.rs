@@ -535,25 +535,10 @@ async fn opc_datasets_by_csv(opc_type: OpcType, csv: String) -> anyhow::Result<V
     let mut rdr = CsvParser::open_csv_file(csv).await?;
 
     let header = rdr.headers().await?;
-    let point_id_idx = match opc_type {
-        OpcType::OPCUA => {
-            let point_id_idx = header
-                .iter()
-                .position(|h| h == "point_id")
-                .ok_or(anyhow::anyhow!("point_id not found in csv header"))?;
-            point_id_idx
-        }
-        OpcType::OPCDA => {
-            let point_id_idx = header
-                .iter()
-                .position(|h| h == "tag_name")
-                .ok_or(anyhow::anyhow!("tag_name not found in csv header"))?;
-            point_id_idx
-        }
-        OpcType::FAKE => {
-            bail!("invalid opc type");
-        }
-    };
+
+    let header = CsvHeader::try_new(opc_type.clone(), header)?;
+    let point_id_idx = header.id_index();
+    let enabled_idx = header.enabled_index();
 
     let mut datasets = vec![];
     let mut records = rdr.records();
@@ -564,6 +549,10 @@ async fn opc_datasets_by_csv(opc_type: OpcType, csv: String) -> anyhow::Result<V
             record,
             point_id_idx
         ))?;
+
+        if record.get(enabled_idx).unwrap_or("1") == "0" {
+            continue;
+        }
 
         datasets.push(DataSet {
             id: point_id.to_string(),
