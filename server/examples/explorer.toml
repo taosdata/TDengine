@@ -89,7 +89,7 @@ cors = true
 
 # Compress archived log files or not
 # 
-# compress = true
+# compress = false
 
 # The number of log files retained by the current explorer server instance in the `path` directory
 # 

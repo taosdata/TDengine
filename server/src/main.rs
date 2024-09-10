@@ -1281,7 +1281,7 @@ impl Default for LogOpts {
         Self {
             path: Some(get_default_log_path()),
             level: None,
-            compress: Some(true),
+            compress: Some(false),
             rotation_count: Some(30),
             rotation_size: Some("1GB".to_string()),
             reserved_disk_size: Some("2GB".to_string()),
