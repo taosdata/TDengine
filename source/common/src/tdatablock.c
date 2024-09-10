@@ -731,6 +731,10 @@ int32_t blockDataMergeNRows(SSDataBlock* pDest, const SSDataBlock* pSrc, int32_t
 }
 
 void blockDataShrinkNRows(SSDataBlock* pBlock, int32_t numOfRows) {
+  if (numOfRows == 0) {
+    return;
+  }
+  
   if (numOfRows >= pBlock->info.rows) {
     blockDataCleanup(pBlock);
     return;
@@ -2936,7 +2940,7 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, cha
 
 // return length of encoded data, return -1 if failed
 int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
-  blockDataCheck(pBlock);
+  blockDataCheck(pBlock, false);
 
   int32_t dataLen = 0;
 
@@ -3180,7 +3184,7 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
 
   *pEndPos = pStart;
 
-  blockDataCheck(pBlock);
+  blockDataCheck(pBlock, false);
 
   return code;
 }
@@ -3392,14 +3396,14 @@ int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
   return nextRowIdx;
 }
 
-void blockDataCheck(const SSDataBlock* pDataBlock) {
+void blockDataCheck(const SSDataBlock* pDataBlock, bool forceChk) {
   if (NULL == pDataBlock || pDataBlock->info.rows == 0) {
     return;
   }
 
   ASSERT(pDataBlock->info.rows > 0);
 
-  if (!pDataBlock->info.dataLoad) {
+  if (!pDataBlock->info.dataLoad && !forceChk) {
     return;
   }
 
@@ -3456,4 +3460,5 @@ void blockDataCheck(const SSDataBlock* pDataBlock) {
 
   return;
 }
+
 

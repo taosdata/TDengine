@@ -528,6 +528,7 @@ static void seqJoinLaunchNewRetrieveImpl(SOperatorInfo* pOperator, SSDataBlock**
   qDebug("%s dynamic post task begin", GET_TASKID(pOperator->pTaskInfo));
   code = pOperator->pDownstream[1]->fpSet.getNextExtFn(pOperator->pDownstream[1], pParam, ppRes);
   if (*ppRes && (code == 0)) {
+    blockDataCheck(*ppRes, false);
     pPost->isStarted = true;
     pStbJoin->execInfo.postBlkNum++;
     pStbJoin->execInfo.postBlkRows += (*ppRes)->info.rows;
