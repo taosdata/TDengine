@@ -2426,7 +2426,6 @@ static void destroyThrdObj(SCliThrd* pThrd) {
     taosMemoryFree(timer);
   }
 
-  (void)uv_loop_close(pThrd->loop);
   taosArrayDestroy(pThrd->timerList);
   taosMemoryFree(pThrd->loop);
   taosHashCleanup(pThrd->fqdn2ipCache);
