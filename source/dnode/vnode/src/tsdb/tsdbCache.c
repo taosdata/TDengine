@@ -582,6 +582,8 @@ _exit:
         taosMemoryFree(pCol->rowKey.pks[j].pData);
       }
     }
+
+    (void)memset(pCol, 0, sizeof(SLastCol));
   }
 
   TAOS_RETURN(code);
@@ -643,7 +645,9 @@ static int32_t tsdbCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, i
   LRUStatus status = taosLRUCacheInsert(pCache, pLastKey, ROCKS_KEY_LEN, pLastCol, charge, tsdbCacheDeleter, NULL,
                                         TAOS_LRU_PRIORITY_LOW, &pTsdb->flushState);
   if (status != TAOS_LRU_STATUS_OK) {
-    // code = -1;
+    tsdbError("vgId:%d, %s failed at line %d status %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__, status);
+    tsdbCacheFreeSLastColItem(pLastCol);
+    code = TSDB_CODE_FAILED;
   }
 
 _exit:
@@ -1104,8 +1108,9 @@ static int32_t tsdbCachePutToLRU(STsdb *pTsdb, SLastKey *pLastKey, SLastCol *pLa
   LRUStatus status = taosLRUCacheInsert(pTsdb->lruCache, pLastKey, ROCKS_KEY_LEN, pLRULastCol, charge, tsdbCacheDeleter,
                                         NULL, TAOS_LRU_PRIORITY_LOW, &pTsdb->flushState);
   if (TAOS_LRU_STATUS_OK != status && TAOS_LRU_STATUS_OK_OVERWRITTEN != status) {
-    tsdbError("tsdb/cache/putlru: vgId:%d, failed to insert status %d.", TD_VID(pTsdb->pVnode), status);
-    code = TSDB_CODE_INVALID_DATA_FMT;
+    tsdbError("vgId:%d, %s failed at line %d status %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__, status);
+    tsdbCacheFreeSLastColItem(pLRULastCol);
+    code = TSDB_CODE_FAILED;
   }
 
 _exit:
@@ -1217,23 +1222,23 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
         tsdbError("tsdb/cache: vgId:%d, deserialize failed since %s.", TD_VID(pTsdb->pVnode), tstrerror(code));
       }
       */
-      SLastCol *PToFree = pLastCol;
+      SLastCol *pToFree = pLastCol;
 
       if (pLastCol && pLastCol->cacheStatus == TSDB_LAST_CACHE_NO_CACHE) {
         if ((code = tsdbCachePutToLRU(pTsdb, &idxKey->key, pLastCol)) != TSDB_CODE_SUCCESS) {
           tsdbError("tsdb/cache: vgId:%d, put lru failed at line %d since %s.", TD_VID(pTsdb->pVnode), lino,
                     tstrerror(code));
-          taosMemoryFreeClear(PToFree);
+          taosMemoryFreeClear(pToFree);
           break;
         }
 
         // cache invalid => skip update
-        taosMemoryFreeClear(PToFree);
+        taosMemoryFreeClear(pToFree);
         continue;
       }
 
       if (IS_LAST_KEY(idxKey->key) && !COL_VAL_IS_VALUE(pColVal)) {
-        taosMemoryFreeClear(PToFree);
+        taosMemoryFreeClear(pToFree);
         continue;
       }
 
@@ -1247,18 +1252,18 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
         if ((code = tsdbCachePutToRocksdb(pTsdb, &idxKey->key, &lastColTmp)) != TSDB_CODE_SUCCESS) {
           tsdbError("tsdb/cache: vgId:%d, put rocks failed at line %d since %s.", TD_VID(pTsdb->pVnode), lino,
                     tstrerror(code));
-          taosMemoryFreeClear(PToFree);
+          taosMemoryFreeClear(pToFree);
           break;
         }
         if ((code = tsdbCachePutToLRU(pTsdb, &idxKey->key, &lastColTmp)) != TSDB_CODE_SUCCESS) {
           tsdbError("tsdb/cache: vgId:%d, put lru failed at line %d since %s.", TD_VID(pTsdb->pVnode), lino,
                     tstrerror(code));
-          taosMemoryFreeClear(PToFree);
+          taosMemoryFreeClear(pToFree);
           break;
         }
       }
 
-      taosMemoryFreeClear(PToFree);
+      taosMemoryFreeClear(pToFree);
     }
 
     rocksMayWrite(pTsdb, true, false);
@@ -1586,14 +1591,17 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     pLastCol = pTmpLastCol;
     code = tsdbCacheReallocSLastCol(pLastCol, &charge);
     if (TSDB_CODE_SUCCESS != code) {
-      taosMemoryFree(pTmpLastCol);
+      taosMemoryFree(pLastCol);
       TAOS_CHECK_EXIT(code);
     }
 
     LRUStatus status = taosLRUCacheInsert(pCache, &idxKey->key, ROCKS_KEY_LEN, pLastCol, charge, tsdbCacheDeleter, NULL,
                                           TAOS_LRU_PRIORITY_LOW, &pTsdb->flushState);
-    if (status != TAOS_LRU_STATUS_OK) {
-      // code = -1;
+    if (TAOS_LRU_STATUS_OK != status && TAOS_LRU_STATUS_OK_OVERWRITTEN != status) {
+      tsdbError("vgId:%d, %s failed at line %d status %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__, status);
+      tsdbCacheFreeSLastColItem(pLastCol);
+      taosMemoryFree(pLastCol);
+      TAOS_CHECK_EXIT(TSDB_CODE_FAILED);
     }
 
     // store result back to rocks cache
@@ -1672,14 +1680,13 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
     }
 
     (void)tsdbCacheDeserialize(values_list[i], values_list_sizes[i], &pLastCol);
-    SLastCol *PToFree = pLastCol;
+    SLastCol *pToFree = pLastCol;
     SIdxKey  *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[j];
     if (pLastCol && pLastCol->cacheStatus != TSDB_LAST_CACHE_NO_CACHE) {
       SLastCol *pTmpLastCol = taosMemoryCalloc(1, sizeof(SLastCol));
       if (!pTmpLastCol) {
-        taosMemoryFreeClear(PToFree);
-        code = terrno;
-        goto _exit;
+        taosMemoryFreeClear(pToFree);
+        TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
       }
 
       size_t charge = 0;
@@ -1687,18 +1694,28 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
       pLastCol = pTmpLastCol;
       code = tsdbCacheReallocSLastCol(pLastCol, &charge);
       if (TSDB_CODE_SUCCESS != code) {
-        taosMemoryFree(pTmpLastCol);
-        taosMemoryFreeClear(PToFree);
-        goto _exit;
+        taosMemoryFreeClear(pLastCol);
+        taosMemoryFreeClear(pToFree);
+        TAOS_CHECK_EXIT(code);
       }
 
       SLastCol lastCol = *pLastCol;
-      TAOS_CHECK_EXIT(tsdbCacheReallocSLastCol(&lastCol, NULL));
+      code = tsdbCacheReallocSLastCol(&lastCol, NULL);
+      if (TSDB_CODE_SUCCESS != code) {
+        tsdbCacheFreeSLastColItem(pLastCol);
+        taosMemoryFreeClear(pLastCol);
+        taosMemoryFreeClear(pToFree);
+        TAOS_CHECK_EXIT(code);
+      }
 
       LRUStatus status = taosLRUCacheInsert(pCache, &idxKey->key, ROCKS_KEY_LEN, pLastCol, charge, tsdbCacheDeleter,
                                             NULL, TAOS_LRU_PRIORITY_LOW, &pTsdb->flushState);
-      if (status != TAOS_LRU_STATUS_OK) {
-        code = -1;
+      if (TAOS_LRU_STATUS_OK != status && TAOS_LRU_STATUS_OK_OVERWRITTEN != status) {
+        tsdbError("vgId:%d, %s failed at line %d status %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__, status);
+        tsdbCacheFreeSLastColItem(pLastCol);
+        taosMemoryFreeClear(pLastCol);
+        taosMemoryFreeClear(pToFree);
+        TAOS_CHECK_EXIT(TSDB_CODE_FAILED);
       }
 
       taosArraySet(pLastArray, idxKey->idx, &lastCol);
@@ -1708,7 +1725,7 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
       ++j;
     }
 
-    taosMemoryFreeClear(PToFree);
+    taosMemoryFreeClear(pToFree);
   }
 
   if (TARRAY_SIZE(remainCols) > 0) {
