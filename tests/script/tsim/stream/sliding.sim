@@ -608,7 +608,7 @@ $loop_count = 0
 print step 7
 
 loop4:
-sleep 100
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then

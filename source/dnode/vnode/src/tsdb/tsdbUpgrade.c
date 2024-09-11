@@ -23,8 +23,6 @@
 #include "tsdbDataFileRW.h"
 #include "tsdbFS2.h"
 #include "tsdbSttFileRW.h"
-// extern int32_t save_fs(const TFileSetArray *arr, const char *fname);
-// extern int32_t current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype);
 
 static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *reader, STFileSet *fset) {
   int32_t code = 0;
@@ -79,7 +77,7 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
 
     // open fd
     char fname[TSDB_FILENAME_LEN];
-    (void)tsdbTFileName(tsdb, &file, fname);
+    tsdbTFileName(tsdb, &file, fname);
 
     TAOS_CHECK_GOTO(tsdbOpenFile(fname, tsdb, TD_FILE_READ | TD_FILE_WRITE, &ctx->fd, 0), &lino, _exit);
 
@@ -167,7 +165,7 @@ _exit:
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
   }
   TARRAY2_DESTROY(ctx->brinBlkArray, NULL);
-  (void)tBrinBlockDestroy(ctx->brinBlock);
+  tBrinBlockDestroy(ctx->brinBlock);
   tBlockDataDestroy(ctx->blockData);
   tMapDataClear(ctx->mDataBlk);
   taosArrayDestroy(ctx->aBlockIdx);
@@ -321,7 +319,7 @@ static int32_t tsdbUpgradeStt(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *r
   if (TARRAY2_SIZE(lvl->fobjArr) > 0) {
     TAOS_CHECK_GOTO(TARRAY2_APPEND(fset->lvlArr, lvl), &lino, _exit);
   } else {
-    (void)tsdbSttLvlClear(&lvl);
+    tsdbSttLvlClear(&lvl);
   }
 
 _exit:
@@ -612,7 +610,7 @@ static int32_t tsdbUpgradeFileSystem(STsdb *tsdb, int8_t rollback) {
 
   // save new file system
   char fname[TSDB_FILENAME_LEN];
-  (void)current_fname(tsdb, fname, TSDB_FCURRENT);
+  current_fname(tsdb, fname, TSDB_FCURRENT);
   TAOS_CHECK_GOTO(save_fs(fileSetArray, fname), &lino, _exit);
 
 _exit:
@@ -632,6 +630,6 @@ int32_t tsdbCheckAndUpgradeFileSystem(STsdb *tsdb, int8_t rollback) {
 
   TAOS_CHECK_RETURN(tsdbUpgradeFileSystem(tsdb, rollback));
 
-  (void)taosRemoveFile(fname);
+  tsdbRemoveFile(fname);
   return 0;
 }

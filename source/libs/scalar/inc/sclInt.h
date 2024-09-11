@@ -30,7 +30,7 @@ typedef struct SOperatorValueType {
 
 typedef struct SScalarCtx {
   int32_t            code;
-  bool               dual;
+  bool               dual;       /* whether select stmt has from stmt */
   SArray*            pBlockList; /* element is SSDataBlock* */
   SHashObj*          pRes;       /* element is SScalarParam */
   void*              param;      // additional parameter (meta actually) for acquire value such as tbname/tags values

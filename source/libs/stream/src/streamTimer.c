@@ -42,13 +42,16 @@ int32_t streamTimerGetInstance(tmr_h* pTmr) {
 
 void streamTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId, int32_t vgId,
                     const char* pMsg) {
-//  while (1) {
-    bool ret = taosTmrReset(fp, mseconds, param, handle, pTmrId);
-    if (ret) {
-//      break;
-    }
-//    stError("vgId:%d failed to reset tmr: %s, try again", vgId, pMsg);
-//  }
+  bool ret = taosTmrReset(fp, mseconds, param, handle, pTmrId);
+  if (ret) {
+  }
+}
+
+void streamTmrStop(tmr_h tmrId) {
+  bool stop = taosTmrStop(tmrId);
+  if (stop) {
+    // todo
+  }
 }
 
 int32_t streamCleanBeforeQuitTmr(SStreamTmrInfo* pInfo, SStreamTask* pTask) {

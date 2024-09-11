@@ -1478,6 +1478,7 @@ int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64
   ctx->explainRes = explainRes;
 
   rHandle.pMsgCb = taosMemoryCalloc(1, sizeof(SMsgCb));
+  rHandle.pWorkerCb = qwMsg->pWorkerCb;
   if (NULL == rHandle.pMsgCb) {
     QW_ERR_JRET(terrno);
   }

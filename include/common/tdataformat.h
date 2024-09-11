@@ -378,6 +378,19 @@ typedef struct {
 int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
                           SArray *rowArray);
 
+// stmt2 binding
+int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen);
+
+typedef struct {
+  int32_t          columnId;
+  int32_t          type;
+  int32_t          bytes;
+  TAOS_STMT2_BIND *bind;
+} SBindInfo2;
+
+int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
+                           SArray *rowArray);
+
 #endif
 
 #ifdef __cplusplus

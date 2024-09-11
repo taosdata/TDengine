@@ -251,8 +251,8 @@ _exit:
 }
 
 static int32_t tsdbCommitCloseIter(SCommitter2 *committer) {
-  TAOS_UNUSED(tsdbIterMergerClose(&committer->tombIterMerger));
-  TAOS_UNUSED(tsdbIterMergerClose(&committer->dataIterMerger));
+  tsdbIterMergerClose(&committer->tombIterMerger);
+  tsdbIterMergerClose(&committer->dataIterMerger);
   TARRAY2_CLEAR(committer->tombIterArray, tsdbIterClose);
   TARRAY2_CLEAR(committer->dataIterArray, tsdbIterClose);
   return 0;
@@ -418,7 +418,7 @@ static int32_t tsdbCommitInfoDestroy(STsdb *pTsdb) {
       taosMemoryFree(info);
     }
 
-    TAOS_UNUSED(vHashDestroy(&pTsdb->commitInfo->ht));
+    vHashDestroy(&pTsdb->commitInfo->ht);
     taosArrayDestroy(pTsdb->commitInfo->arr);
     pTsdb->commitInfo->arr = NULL;
     taosMemoryFreeClear(pTsdb->commitInfo);
@@ -669,7 +669,7 @@ int32_t tsdbCommitBegin(STsdb *tsdb, SCommitInfo *info) {
     (void)taosThreadMutexLock(&tsdb->mutex);
     tsdb->imem = NULL;
     (void)taosThreadMutexUnlock(&tsdb->mutex);
-    TAOS_UNUSED(tsdbUnrefMemTable(imem, NULL, true));
+    tsdbUnrefMemTable(imem, NULL, true);
   } else {
     SCommitter2 committer = {0};
 
@@ -717,7 +717,7 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
     (void)taosThreadMutexUnlock(&tsdb->mutex);
 
     TAOS_UNUSED(tsdbCommitInfoDestroy(tsdb));
-    TAOS_UNUSED(tsdbUnrefMemTable(pMemTable, NULL, true));
+    tsdbUnrefMemTable(pMemTable, NULL, true);
   }
 
 _exit:

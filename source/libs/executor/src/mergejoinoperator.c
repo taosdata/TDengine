@@ -1867,7 +1867,7 @@ int32_t mJoinSetImplFp(SMJoinOperatorInfo* pJoin) {
 
 int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                            SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t oldNum = numOfDownstream;
   bool newDownstreams = false;

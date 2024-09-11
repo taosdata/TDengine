@@ -210,7 +210,7 @@ static void vnodeSnapReaderDestroyTsdbRanges(SVSnapReader *pReader) {
   for (int32_t j = 0; j < TSDB_RETENTION_MAX; ++j) {
     TFileSetRangeArray **ppRanges = vnodeSnapReaderGetTsdbRanges(pReader, tsdbTyps[j]);
     if (ppRanges == NULL) continue;
-    (void)tsdbTFileSetRangeArrayDestroy(ppRanges);
+    tsdbTFileSetRangeArrayDestroy(ppRanges);
   }
 }
 
@@ -261,7 +261,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     char    fName[TSDB_FILENAME_LEN];
     int32_t offset = 0;
 
-    (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, fName, TSDB_FILENAME_LEN);
+    vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, fName, TSDB_FILENAME_LEN);
     offset = strlen(fName);
     snprintf(fName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME);
 
@@ -586,7 +586,7 @@ _exit:
 }
 
 extern int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb);
-extern int32_t tsdbEnableBgTask(STsdb *pTsdb);
+extern void    tsdbEnableBgTask(STsdb *pTsdb);
 
 static int32_t vnodeCancelAndDisableAllBgTask(SVnode *pVnode) {
   (void)tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
@@ -596,7 +596,7 @@ static int32_t vnodeCancelAndDisableAllBgTask(SVnode *pVnode) {
 }
 
 static int32_t vnodeEnableBgTask(SVnode *pVnode) {
-  (void)tsdbEnableBgTask(pVnode->pTsdb);
+  tsdbEnableBgTask(pVnode->pTsdb);
   (void)vnodeAChannelInit(1, &pVnode->commitChannel);
   return 0;
 }
@@ -648,7 +648,7 @@ static void vnodeSnapWriterDestroyTsdbRanges(SVSnapWriter *pWriter) {
   for (int32_t j = 0; j < TSDB_RETENTION_MAX; ++j) {
     TFileSetRangeArray **ppRanges = vnodeSnapWriterGetTsdbRanges(pWriter, tsdbTyps[j]);
     if (ppRanges == NULL) continue;
-    (void)tsdbTFileSetRangeArrayDestroy(ppRanges);
+    tsdbTFileSetRangeArrayDestroy(ppRanges);
   }
 }
 
@@ -682,7 +682,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
                               .applyTerm = pWriter->info.state.commitTerm};
     pVnode->statis = pWriter->info.statis;
     char dir[TSDB_FILENAME_LEN] = {0};
-    (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+    vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
     code = vnodeCommitInfo(dir);
     if (code) goto _exit;
@@ -773,7 +773,7 @@ static int32_t vnodeSnapWriteInfo(SVSnapWriter *pWriter, uint8_t *pData, uint32_
 
   // modify info as needed
   char dir[TSDB_FILENAME_LEN] = {0};
-  (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
   SVnodeStats vndStats = pWriter->info.config.vndStats;
   pWriter->info.config = pVnode->config;
