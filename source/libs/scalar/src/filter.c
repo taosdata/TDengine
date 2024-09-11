@@ -1729,11 +1729,9 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
       return DEAL_RES_IGNORE_CHILD;
     }
 
-    ctx->code = TSDB_CODE_APP_ERROR;
-
     fltError("invalid condition type, type:%d", node->condType);
 
-    return DEAL_RES_ERROR;
+    FLT_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
   if (QUERY_NODE_OPERATOR == nType) {
