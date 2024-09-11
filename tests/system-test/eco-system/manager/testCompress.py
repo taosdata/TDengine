@@ -203,7 +203,7 @@ def writeTemplateInfo(resultFile, dataTypes):
     for dataType in dataTypes:
         appendFileContext(resultFile, "  " + dataType + "\n")
 
-def totalCompressRate(typeName, algo, resultFile):
+def totalCompressRate(typeName, algo, resultFile, writeSecond):
     global Number
     # flush
     command = 'taos -s "flush database dbrate;"'
@@ -238,7 +238,7 @@ def totalCompressRate(typeName, algo, resultFile):
     # appand to file
     
     Number += 1
-    context =  "%10s %10s %10s %10s %10s %10s\n"%( Number, algo, typeName, str(totalSize)+" MB", str(dataSizeMB)+" MB", rate+"%")
+    context =  "%10s %10s %10s %10s %10s %10s %10s\n"%( Number, algo, typeName, str(totalSize)+" MB", str(dataSizeMB)+" MB", rate+"%", writeSecond + " s")
     showLog(context)
     appendFileContext(resultFile, context)
 
@@ -251,10 +251,12 @@ def doTest(dataType, typeName, algo, resultFile):
     jsonFile = generateJsonFile(dataType, typeName, algo)
 
     # run taosBenchmark
+    t1 = time.time()
     exec(f"taosBenchmark -f {jsonFile}")
+    t2 = time.time()
 
     # total compress rate
-    totalCompressRate(typeName, algo, resultFile)
+    totalCompressRate(typeName, algo, resultFile, str(int(t2-t1)))
 
 def main():
     # test types 
@@ -315,7 +317,7 @@ def main():
     # json info
     writeTemplateInfo(resultFile, dataTypes)
     # head
-    context = "\n%10s %10s %10s %10s %10s %10s\n"%("No","compress","dataType", "dataSize", "realSize","rate")
+    context = "\n%10s %10s %10s %10s %10s %10s %10s\n"%("No","compress","dataType", "dataSize", "realSize","rate", "insertSeconds")
     appendFileContext(resultFile, context)
 
 
