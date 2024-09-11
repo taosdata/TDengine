@@ -1014,12 +1014,36 @@ static SSDataBlock* startNextGroupScan(SOperatorInfo* pOperator) {
   return NULL;
 }
 
+static int32_t doInitReader(STableScanInfo* pInfo, SExecTaskInfo* pTaskInfo, SStorageAPI* pAPI, int32_t* pNum,
+                            STableKeyInfo** pList) {
+  const char* idStr = GET_TASKID(pTaskInfo);
+  initNextGroupScan(pInfo, pList, pNum);
+//  if (code) {
+//    qError("%s failed to init groupScan Info, code:%s at line:%d", idStr, tstrerror(code), __LINE__);
+//    return code;
+//  }
+
+  if (pInfo->base.dataReader != NULL) {
+    qError("%s tsdb reader should be null", idStr);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int32_t code = pAPI->tsdReader.tsdReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, *pList, *pNum, pInfo->pResBlock,
+                                       (void**)&pInfo->base.dataReader, idStr, &pInfo->pIgnoreTables);
+  if (code) {
+    qError("%s failed to open tsdbReader, code:%s at line:%d", idStr, tstrerror(code), __LINE__);
+  }
+
+  return code;
+}
+
 static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
   STableScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
   int32_t         num = 0;
   STableKeyInfo*  pList = NULL;
+  int32_t         code = 0;
 
   if (pInfo->currentGroupId == -1) {
     if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
@@ -1028,16 +1052,13 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
     }
 
     taosRLockLatch(&pTaskInfo->lock);
-    initNextGroupScan(pInfo, &pList, &num);
+    code = doInitReader(pInfo, pTaskInfo, pAPI, &num, &pList);
     taosRUnLockLatch(&pTaskInfo->lock);
 
-    ASSERT(pInfo->base.dataReader == NULL);
-  
-    int32_t code = pAPI->tsdReader.tsdReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, pList, num, pInfo->pResBlock,
-                                  (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->pIgnoreTables);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
+
     if (pInfo->filesetDelimited) {
       pAPI->tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
     }
