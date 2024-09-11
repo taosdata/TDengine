@@ -565,3 +565,17 @@ export function getExampleList(demo_data, parsed) {
   }
   return demo_string_arr;
 }
+
+export function compareVersion(currentVersion, targetVersion) {
+  const v1Arr = currentVersion.split('.');
+  const compareOperator = targetVersion.match(/^[><=]+/)?.[0] || '>';
+  const v2Arr = targetVersion.replace(compareOperator, '').split('.');
+  while (v1Arr.length || v2Arr.length) {
+    const v1 = Number(v1Arr.shift() || 0);
+    const v2 = Number(v2Arr.shift() || 0);
+    if (v1 > v2) return compareOperator.includes('>');
+    if (v1 < v2) return compareOperator.includes('<');
+    if (v1 == v2 && v1Arr.length == 0 && v2Arr.length == 0) return compareOperator.includes('=');
+  }
+  return false;
+}
