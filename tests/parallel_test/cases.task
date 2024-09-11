@@ -1453,6 +1453,7 @@
 ,,y,script,./test.sh -f tsim/compute/diff2.sim
 ,,y,script,./test.sh -f tsim/compute/first.sim
 ,,y,script,./test.sh -f tsim/compute/interval.sim
+,,y,script,./test.sh -f tsim/compute/interval1.sim
 ,,y,script,./test.sh -f tsim/compute/last_row.sim
 ,,y,script,./test.sh -f tsim/compute/last.sim
 ,,y,script,./test.sh -f tsim/compute/leastsquare.sim
