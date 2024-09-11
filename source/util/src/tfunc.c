@@ -19,7 +19,6 @@
 
 #define TSDB_AFUNC_FUNC_PREFIX  "func="
 #define TSDB_AFUNC_SPLIT        ","
-#define TSDB_AFUNC_ROWS_SPLIT   "rows="
 
 typedef struct {
   int64_t       ver;
@@ -103,31 +102,32 @@ void taosFuncUpdate(int64_t newVer, SHashObj *pHash) {
   }
 }
 
-int32_t taosFuncGetName(const char *option, char *name, int32_t nameLen) {
-  char *pos1 = strstr(option, TSDB_AFUNC_FUNC_PREFIX);
+bool taosFuncGetParaStr(const char *option, const char *paraName, char *paraValue, int32_t paraValueMaxLen) {
+  char *pos1 = strstr(option, paraName);
   char *pos2 = strstr(option, TSDB_AFUNC_SPLIT);
   if (pos1 != NULL) {
-    if (nameLen > 0) {
-      if (pos2 == NULL) {
-        tstrncpy(name, pos1 + 5, nameLen);
-      } else {
-        tstrncpy(name, pos1, MIN((int32_t)(pos2 - pos1), nameLen));
+    if (paraValueMaxLen > 0) {
+      int32_t copyLen = paraValueMaxLen;
+      if (pos2 != NULL) {
+        copyLen = (int32_t)(pos2 - pos1 - strlen(paraName) + 1);
+        copyLen = MIN(copyLen, paraValueMaxLen);
       }
+      tstrncpy(paraValue, pos1 + strlen(paraName), copyLen);
     }
-    return 0;
+    return true;
   } else {
-    return -1;
+    return false;
   }
 }
 
-int32_t taosFuncGetRows(const char *option, int32_t *rows) {
-  char *pos1 = strstr(option, TSDB_AFUNC_ROWS_SPLIT);
+bool taosFuncGetParaInt(const char *option, const char *paraName, int32_t *paraValue) {
+  char *pos1 = strstr(option, paraName);
   char *pos2 = strstr(option, TSDB_AFUNC_SPLIT);
   if (pos1 != NULL) {
-    *rows = taosStr2Int32(pos1 + 5, NULL, 10);
-    return 0;
+    *paraValue = taosStr2Int32(pos1 + strlen(paraName) + 1, NULL, 10);
+    return true;
   } else {
-    return -1;
+    return false;
   }
 }
 

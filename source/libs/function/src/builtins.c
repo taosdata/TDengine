@@ -2087,8 +2087,8 @@ static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   }
 
   uint8_t valType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
-  if (!IS_NUMERIC_TYPE(valType)) {
-    return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast 1st parameter should be numeric");
+  if (!IS_NUMERIC_TYPE(valType) && !IS_BOOLEAN_TYPE(valType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast 1st parameter should be numeric or bool");
   }
 
   uint8_t optionType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
@@ -2102,7 +2102,7 @@ static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   }
 
   SValueNode* pValue = (SValueNode*)pOption;
-  if (taosFuncGetName(pValue->literal, NULL, 0) != 0) {
+  if (!taosFuncGetParaStr(pValue->literal, "func=", NULL, 0) != 0) {
     return invaildFuncParaValueErrMsg(pErrBuf, len, "forecast 2nd parameter should include 'func'");
   }
 
