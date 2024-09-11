@@ -9,7 +9,7 @@ sql CREATE DATABASE `alphacloud_alphaess` BUFFER 512 CACHESIZE 1024 CACHEMODEL '
 
 sql use alphacloud_alphaess;
 
-sql create stable st(ts TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `uk` VARCHAR(64) ENCODE 'disabled' COMPRESS 'lz4' LEVEL 'medium' PRIMARY KEY ) tags(ta int,tb int,tc int);
+sql create stable st(ts TIMESTAMP , `uk` VARCHAR(64) ) tags(ta int,tb int,tc int);
 
 sql create table t1 using st tags(1,1,1);
 
