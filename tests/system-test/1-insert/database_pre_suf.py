@@ -284,7 +284,6 @@ class TDTestCase:
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i, fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , 
                         fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr()))
 
-        time.sleep(1)
         tdSql.query("select count(*) from stable_1;")
         tdSql.checkData(0,0,10*num_random*n)
         tdSql.query("select count(*) from hn_table_1_r;")
@@ -292,10 +291,6 @@ class TDTestCase:
         
         # stream data check
         tdCom.check_stream_task_status(stream_name,vgroups,90)
-        print("sleep 30s")
-        time.sleep(30)
-
-        print("check--------------------------------------------------------------------------")
         tdSql.query("select startts,wend,max_int from stream_max_stable_1 ;")
         tdSql.checkRows(20)
         tdSql.query("select sum(max_int) from stream_max_stable_1 ;")
