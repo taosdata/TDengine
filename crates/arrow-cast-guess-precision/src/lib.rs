@@ -103,7 +103,7 @@ const fn guess_precision(timestamp: i64) -> TimeUnit {
 
 /// Guessing precision from an array of integers.
 ///
-/// The array should be an [Int64Array](arrow_array::Int64Array).
+/// The array should be an [Int64Array](arrow::array::Int64Array).
 #[inline]
 fn guess_precision_in_array(array: &dyn Array) -> Option<TimeUnit> {
     let v = array.as_any().downcast_ref::<Int64Array>().unwrap();
@@ -286,14 +286,14 @@ pub fn cast_with_options(
 
 #[cfg(test)]
 mod test {
-    use arrow_array::TimestampNanosecondArray;
+    use arrow::array::TimestampNanosecondArray;
 
     use super::*;
 
     #[test]
     fn test_int_to_timestamp() {
         let data = vec![1701325744956, 1701325744956];
-        let array = arrow_array::Int64Array::from(data);
+        let array = arrow::array::Int64Array::from(data);
         let array = crate::cast(
             &array,
             &arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
@@ -311,7 +311,7 @@ mod test {
     #[test]
     fn test_string_to_timestamp() {
         let string = vec!["1701325744956", "1701325744956"];
-        let array = arrow_array::StringArray::from(string);
+        let array = arrow::array::StringArray::from(string);
         let array = crate::cast(
             &array,
             &arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
