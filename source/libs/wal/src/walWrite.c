@@ -23,7 +23,7 @@
 int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
   int32_t code = 0;
 
-  TAOS_UNUSED(taosThreadMutexLock(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
 
   wInfo("vgId:%d, restore from snapshot, version %" PRId64, pWal->cfg.vgId, ver);
 
@@ -34,7 +34,7 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
     SWalRef *pRef = *(SWalRef **)pIter;
     if (pRef->refVer != -1 && pRef->refVer <= ver) {
       taosHashCancelIterate(pWal->pRefHash, pIter);
-      TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+      TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
       TAOS_RETURN(TSDB_CODE_FAILED);
     }
@@ -51,7 +51,7 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
       walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
       if (taosRemoveFile(fnameStr) < 0) {
         wError("vgId:%d, restore from snapshot, cannot remove file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
-        TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+        TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
         TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
       }
@@ -60,7 +60,7 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
       walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
       if (taosRemoveFile(fnameStr) < 0) {
         wError("vgId:%d, cannot remove file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
-        TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+        TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
         TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
       }
@@ -81,7 +81,7 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
   pWal->vers.snapshotVer = ver;
   pWal->vers.verInSnapshotting = -1;
 
-  TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -160,12 +160,12 @@ static int64_t walChangeWrite(SWal *pWal, int64_t ver) {
 }
 
 int32_t walRollback(SWal *pWal, int64_t ver) {
-  TAOS_UNUSED(taosThreadMutexLock(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
   wInfo("vgId:%d, wal rollback for version %" PRId64, pWal->cfg.vgId, ver);
   int64_t code;
   char    fnameStr[WAL_FILE_LEN];
   if (ver > pWal->vers.lastVer || ver <= pWal->vers.commitVer || ver <= pWal->vers.snapshotVer) {
-    TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
     TAOS_RETURN(TSDB_CODE_WAL_INVALID_VER);
   }
@@ -175,7 +175,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
     // change current files
     code = walChangeWrite(pWal, ver);
     if (code < 0) {
-      TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+      TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
       TAOS_RETURN(code);
     }
@@ -198,21 +198,21 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   TAOS_UNUSED(taosCloseFile(&pWal->pIdxFile));
   TdFilePtr pIdxFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
   if (pIdxFile == NULL) {
-    TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
     TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
   int64_t idxOff = walGetVerIdxOffset(pWal, ver);
   code = taosLSeekFile(pIdxFile, idxOff, SEEK_SET);
   if (code < 0) {
-    TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
     TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
   // read idx file and get log file pos
   SWalIdxEntry entry;
   if (taosReadFile(pIdxFile, &entry, sizeof(SWalIdxEntry)) != sizeof(SWalIdxEntry)) {
-    TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
     TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
@@ -223,14 +223,14 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   wDebug("vgId:%d, wal truncate file %s", pWal->cfg.vgId, fnameStr);
   if (pLogFile == NULL) {
     // TODO
-    TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
     TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
   code = taosLSeekFile(pLogFile, entry.offset, SEEK_SET);
   if (code < 0) {
     // TODO
-    TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
     TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
@@ -238,19 +238,19 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   SWalCkHead head;
   int64_t    size = taosReadFile(pLogFile, &head, sizeof(SWalCkHead));
   if (size != sizeof(SWalCkHead)) {
-    TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
     TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
   code = walValidHeadCksum(&head);
 
   if (code != 0) {
-    TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
     TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
   }
   if (head.head.version != ver) {
-    TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
     TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
   }
@@ -258,13 +258,13 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   // truncate old files
   code = taosFtruncateFile(pLogFile, entry.offset);
   if (code < 0) {
-    TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
     TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
   code = taosFtruncateFile(pIdxFile, idxOff);
   if (code < 0) {
-    TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
     TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
@@ -278,13 +278,13 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   code = walSaveMeta(pWal);
   if (code < 0) {
     wError("vgId:%d, failed to save meta since %s", pWal->cfg.vgId, terrstr());
-    TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
     TAOS_RETURN(code);
   }
 
   // unlock
-  TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -375,7 +375,7 @@ int32_t walBeginSnapshot(SWal *pWal, int64_t ver, int64_t logRetention) {
     TAOS_RETURN(TSDB_CODE_FAILED);
   }
 
-  TAOS_UNUSED(taosThreadMutexLock(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
   pWal->vers.verInSnapshotting = ver;
   pWal->vers.logRetention = logRetention;
 
@@ -391,7 +391,7 @@ int32_t walBeginSnapshot(SWal *pWal, int64_t ver, int64_t logRetention) {
   }
 
 _exit:
-  TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
   TAOS_RETURN(code);
 }
@@ -399,7 +399,7 @@ _exit:
 int32_t walEndSnapshot(SWal *pWal) {
   int32_t code = 0, lino = 0;
 
-  TAOS_UNUSED(taosThreadMutexLock(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
   int64_t ver = pWal->vers.verInSnapshotting;
 
   wDebug("vgId:%d, wal end snapshot for version %" PRId64 ", log retention %" PRId64 " first ver %" PRId64
@@ -508,7 +508,7 @@ int32_t walEndSnapshot(SWal *pWal) {
   taosArrayClear(pWal->toDeleteFiles);
 
 _exit:
-  taosThreadMutexUnlock(&pWal->mutex);
+  taosThreadRwlockWrlock(&pWal->mutex);
 
   if (code) {
     wError("vgId:%d, %s failed at line %d since %s", pWal->cfg.vgId, __func__, lino, tstrerror(code));
@@ -719,7 +719,7 @@ int32_t walAppendLog(SWal *pWal, int64_t index, tmsg_t msgType, SWalSyncInfo syn
                      int32_t bodyLen) {
   int32_t code = 0, lino = 0;
 
-  TAOS_UNUSED(taosThreadMutexLock(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
 
   if (index != pWal->vers.lastVer + 1) {
     TAOS_CHECK_GOTO(TSDB_CODE_WAL_INVALID_VER, &lino, _exit);
@@ -738,7 +738,7 @@ _exit:
     wError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 
-  TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
   return code;
 }
 
@@ -749,7 +749,7 @@ int32_t walFsync(SWal *pWal, bool forceFsync) {
     return code;
   }
 
-  TAOS_UNUSED(taosThreadMutexLock(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
   if (forceFsync || (pWal->cfg.level == TAOS_WAL_FSYNC && pWal->cfg.fsyncPeriod == 0)) {
     wTrace("vgId:%d, fileId:%" PRId64 ".log, do fsync", pWal->cfg.vgId, walGetCurFileFirstVer(pWal));
     if (taosFsyncFile(pWal->pLogFile) < 0) {
@@ -758,7 +758,7 @@ int32_t walFsync(SWal *pWal, bool forceFsync) {
       code = TAOS_SYSTEM_ERROR(errno);
     }
   }
-  TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
   return code;
 }

@@ -684,7 +684,7 @@ _err:
 int64_t walGetVerRetention(SWal* pWal, int64_t bytes) {
   int64_t ver = -1;
   int64_t totSize = 0;
-  (void)taosThreadMutexLock(&pWal->mutex);
+  (void)taosThreadRwlockRdlock(&pWal->mutex);
   int32_t fileIdx = taosArrayGetSize(pWal->fileInfoSet);
   while (--fileIdx) {
     SWalFileInfo* pInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
@@ -694,7 +694,7 @@ int64_t walGetVerRetention(SWal* pWal, int64_t bytes) {
     }
     totSize += pInfo->fileSize;
   }
-  (void)taosThreadMutexUnlock(&pWal->mutex);
+  (void)taosThreadRwlockUnlock(&pWal->mutex);
   return ver + 1;
 }
 
