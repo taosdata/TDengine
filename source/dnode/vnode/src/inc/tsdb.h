@@ -280,7 +280,7 @@ void    tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t);
 // tsdbReaderWriter.c ==============================================================================================
 // SDataFReader
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet);
-int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
+void    tsdbDataFReaderClose(SDataFReader **ppReader);
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx);
 int32_t tsdbReadDataBlk(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *mDataBlk);
 int32_t tsdbReadSttBlk(SDataFReader *pReader, int32_t iStt, SArray *aSttBlk);
@@ -678,8 +678,8 @@ typedef TARRAY2(STFileSet *) TFileSetArray;
 typedef struct STFileSetRange STFileSetRange;
 typedef TARRAY2(STFileSetRange *) TFileSetRangeArray;  // disjoint ranges
 
-int32_t tsdbTFileSetRangeClear(STFileSetRange **fsr);
-void    tsdbTFileSetRangeArrayDestroy(TFileSetRangeArray **ppArr);
+void tsdbTFileSetRangeClear(STFileSetRange **fsr);
+void tsdbTFileSetRangeArrayDestroy(TFileSetRangeArray **ppArr);
 
 // fset partition
 enum {

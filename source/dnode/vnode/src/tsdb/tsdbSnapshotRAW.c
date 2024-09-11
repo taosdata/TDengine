@@ -157,10 +157,9 @@ static int32_t tsdbSnapRAWReadFileSetOpenIter(STsdbSnapRAWReader* reader) {
   return 0;
 }
 
-static int32_t tsdbSnapRAWReadFileSetCloseIter(STsdbSnapRAWReader* reader) {
+static void tsdbSnapRAWReadFileSetCloseIter(STsdbSnapRAWReader* reader) {
   reader->dataIter->count = 0;
   reader->dataIter->idx = 0;
-  return 0;
 }
 
 static int64_t tsdbSnapRAWReadPeek(SDataFileRAWReader* reader) {
@@ -260,7 +259,7 @@ _exit:
 }
 
 static int32_t tsdbSnapRAWReadEnd(STsdbSnapRAWReader* reader) {
-  (void)tsdbSnapRAWReadFileSetCloseIter(reader);
+  tsdbSnapRAWReadFileSetCloseIter(reader);
   tsdbSnapRAWReadFileSetCloseReader(reader);
   reader->ctx->fset = NULL;
   return 0;
@@ -410,7 +409,9 @@ static int32_t tsdbSnapRAWWriteFileSetBegin(STsdbSnapRAWWriter* writer, int32_t 
   int32_t level = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
   code = tfsAllocDisk(writer->tsdb->pVnode->pTfs, level, &writer->ctx->did);
   TSDB_CHECK_CODE(code, lino, _exit);
-  (void)tfsMkdirRecurAt(writer->tsdb->pVnode->pTfs, writer->tsdb->path, writer->ctx->did);
+
+  code = tfsMkdirRecurAt(writer->tsdb->pVnode->pTfs, writer->tsdb->path, writer->ctx->did);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tsdbSnapRAWWriteFileSetOpenWriter(writer);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -489,7 +490,7 @@ int32_t tsdbSnapRAWWriterClose(STsdbSnapRAWWriter** writer, int8_t rollback) {
   }
 
   TARRAY2_DESTROY(writer[0]->fopArr, NULL);
-  (void)tsdbFSDestroyCopySnapshot(&writer[0]->fsetArr);
+  tsdbFSDestroyCopySnapshot(&writer[0]->fsetArr);
 
   taosMemoryFree(writer[0]);
   writer[0] = NULL;

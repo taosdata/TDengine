@@ -153,7 +153,8 @@ static int32_t tsdbDataIterNext(STsdbIter *iter, const TABLEID *tbid) {
 
       for (; iter->dataData->brinBlockIdx < iter->dataData->brinBlock->numOfRecords; iter->dataData->brinBlockIdx++) {
         SBrinRecord record[1];
-        (void)tBrinBlockGet(iter->dataData->brinBlock, iter->dataData->brinBlockIdx, record);
+        code = tBrinBlockGet(iter->dataData->brinBlock, iter->dataData->brinBlockIdx, record);
+        if (code) return code;
 
         if (iter->filterByVersion && (record->maxVer < iter->range[0] || record->minVer > iter->range[1])) {
           continue;
@@ -224,7 +225,7 @@ static int32_t tsdbMemTableIterNext(STsdbIter *iter, const TABLEID *tbid) {
 
       iter->row->row = row[0];
 
-      (void)tsdbTbDataIterNext(iter->memtData->tbIter);
+      TAOS_UNUSED(tsdbTbDataIterNext(iter->memtData->tbIter));
       goto _exit;
     }
 
