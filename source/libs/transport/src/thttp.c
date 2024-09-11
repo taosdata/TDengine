@@ -266,7 +266,10 @@ static int32_t httpCreateMsg(const char* server, const char* uri, uint16_t port,
   msg->server = taosStrdup(server);
   msg->uri = taosStrdup(uri);
   msg->cont = taosMemoryMalloc(contLen);
-  if (qid != NULL) msg->qid = taosStrdup(qid);
+  if (qid != NULL)
+    msg->qid = taosStrdup(qid);
+  else
+    msg->qid = NULL;
   if (msg->server == NULL || msg->uri == NULL || msg->cont == NULL) {
     httpDestroyMsg(msg);
     *httpMsg = NULL;

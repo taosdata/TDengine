@@ -602,7 +602,7 @@ void monSendReport(SMonInfo *pMonitor) {
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
     char          tmp[100] = {0};
-    (void)sprintf(tmp, "%" PRId64, tGenQid64(tsMonitor.dnodeId));
+    (void)snprintf(tmp, 100, "%" PRId64, tGenQid64(tsMonitor.dnodeId));
     uDebug("report cont with QID:%s", tmp);
     if (taosSendHttpReportWithQID(tsMonitor.cfg.server, tsMonUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag,
                                   tmp) != 0) {
