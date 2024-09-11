@@ -582,9 +582,8 @@ int32_t doSendCheckMsg(SStreamTask* pTask, SDownstreamStatusInfo* p) {
 
   if (code) {
     stError("s-task:%s failed to send check msg to downstream, code:%s", pTask->id.idStr, tstrerror(code));
-  } else {
-    return code;
   }
+  return code;
 }
 
 void getCheckRspStatus(STaskCheckInfo* pInfo, int64_t el, int32_t* numOfReady, int32_t* numOfFault,
