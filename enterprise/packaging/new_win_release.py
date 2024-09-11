@@ -14,8 +14,8 @@ from threading import Thread
 current_os = platform.system()
 test_process = ''
 scrip_dir = os.getcwd()
-directory = "E:\\workspace"
-branch = "main"
+directory = "D:\\workspace"
+branch = "3.0"
 internal_dir = os.path.join(directory, branch, "TDinternal")
 community_dir = os.path.join(internal_dir, "community")
 build_dir = os.path.join(community_dir, "debug")
@@ -130,9 +130,9 @@ def industry_options():
     TD_INDUSTRY_NAME = "TDengine " + industry_name + " Edition"
     if industry_name == "Power" and td_version.verType == "industry":
         options = (f" -DTD_INDUSTRY=true -DTD_PRODUCT_NAME=\"{TD_INDUSTRY_NAME}\" -DTD_FUNC_STREAM=false "
-            "-DTD_FUNC_SUBSCRIPTION=false -DTD_FUNC_AUDIT=false -DTD_FUNC_CSV=false -DTD_FUNC_VIEW=false "
+            "-DTD_FUNC_SUBSCRIPTION=false -DTD_FUNC_AUDIT=false -DTD_DATAIN_CSV=false -DTD_FUNC_VIEW=false "
             "-DTD_FUNC_MULTI_TIER_STORAGE=false -DTD_FUNC_DATA_BAK_RESTORE=false -DTD_FUNC_OBJECT_STORAGE=false "
-            "-DTD_FUNC_ACTIVE_ACTIVE=false -DTD_FUNC_DUAL_REPLICA_HA=false -DTD_FUNC_DB_ENCRYPTION=false "
+            "-DTD_FUNC_ACTIVE_ACTIVE=false -DTD_FUNC_DUAL_REPLICA_HA=false -DTD_FUNC_DB_ENCRYPTION=false -DTD_FUNC_DATA_SYNC=false"
             "-DTD_DATAIN_OPC_DA=false -DTD_DATAIN_OPC_UA=false -DTD_DATAIN_PI=false -DTD_DATAIN_KAFKA=false "
             "-DTD_DATAIN_INFLUXDB=false -DTD_DATAIN_MQTT=false -DTD_DATAIN_AVEVAHISTORIAN=false "
             "-DTD_DATAIN_OPENTSDB=false -DTD_DATAIN_TDENGINE_2_6=false -DTD_DATAIN_TDENGINE_3_0=false "
@@ -143,8 +143,8 @@ def parse_arguments():
     global tdCustomer, td_version, install_info, test_process, scrip_dir, upload, check_commit, industry_name
     
     parser = argparse.ArgumentParser(description='Release TDengine on Windows')
-    parser.add_argument('-D', '--directory', type=str, help='set packaging script directory (default: E:\\workspace)', default="E:\\workspace")
-    parser.add_argument('-B', '--branch', type=str, help='set branch of the package (default: main)', default="main")
+    parser.add_argument('-D', '--directory', type=str, help='set packaging script directory (default: D:\\workspace)', default="D:\\workspace")
+    parser.add_argument('-B', '--branch', type=str, help='set branch of the package (default: 3.0)', default="3.0")
     parser.add_argument('-v', '--version', type=str, help='Set version type (default: community)', default="enterprise")
     parser.add_argument('-n', '--number', type=str, help='Set version number (default: 1.0.0)', default="")
     parser.add_argument('-N', '--customer-name', type=str, help='Set customer name', default="TDengine")
@@ -198,7 +198,7 @@ def git_pull(repo_dir, source_branch, target):
         repo.git.checkout("--", ".")
         logging.info(f"{repo_dir}: restore changed files")
         repo.git.reset("--hard")
-        logging.info(f"{repo_dir}: reset to HEAD done")
+        logging.info(f"{repo_dir}: reset to HEAD done")        
     except:
         pass
     
@@ -420,9 +420,77 @@ def process_build_keeper():
     
     verify_commit_id(keeper_dir, "taoskeeper.exe", keeper_dir)
     
-def process_download_odbc():
-    subprocess.call("powershell -command \"Start-BitsTransfer -Source https://github.com/taosdata/taos_odbc/releases/download/v1.0.0.0/taos_odbc_install_files.zip -Destination taos_odbc_install_files.zip\"")
-    subprocess.call(f"powershell -command \"Expand-Archive taos_odbc_install_files.zip {install_info.install_dir}\"")
+def process_build_taosws_32bit():
+    taosws_dir = os.path.join(community_dir, "tools", "taosws-rs")
+    os.chdir(taosws_dir)    
+    
+    build_dir = os.path.join(taosws_dir, "target", "i686-pc-windows-msvc")
+    
+    if(os.path.exists(build_dir)):
+        shutil.rmtree(build_dir)
+    
+    subprocess.check_call("rustup toolchain install stable-i686", shell=True)
+    subprocess.check_call("rustup target add i686-pc-windows-msvc", shell=True)
+    subprocess.check_call("cargo build --target=i686-pc-windows-msvc", shell=True)
+    
+    dll_dir = os.path.join(build_dir, "debug")
+    x86_target_lib_dir = os.path.join(install_info.install_dir, "taos_odbc", "x86", "lib")
+    if not os.path.exists(x86_target_lib_dir):
+        os.makedirs(x86_target_lib_dir)
+    x86_target_bin_dir = os.path.join(install_info.install_dir, "taos_odbc", "x86", "bin")
+    print(f"x86 target bin dir:  {x86_target_bin_dir}")
+    if not os.path.exists(x86_target_bin_dir):
+        os.makedirs(x86_target_bin_dir) 
+        
+    os.system("copy /Y {}\\taosws.dll.lib {}\\taosws.lib".format(dll_dir, x86_target_lib_dir))
+    os.system("xcopy /YS {}\\taosws.dll {}".format(dll_dir, x86_target_bin_dir))
+    
+    print("32bit taosws build done")
+
+def process_build_odbc():
+    odbc_dir = os.path.join(directory, branch, "taos_odbc")
+    os.chdir(odbc_dir)
+    print("current path: {0}".format(os.getcwd()))
+    
+    #build 32 bit ODBC
+    os.system("vcvarsall.bat amd64_x86")
+    print("vcvarsall.bat amd64_x86")
+    os.system("rm -rf .externals && rm -rf build32")
+    os.system('''cmake --no-warn-unused-cli -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DWS_FOR_TEST:STRING=127.0.0.1:6041 -DSERVER_FOR_TEST:STRING=127.0.0.1:6030  -B build32 -G "Visual Studio 17 2022" -A Win32''')
+    os.system("cmake --build build32 --config Debug -j 8")
+    
+    x86_dll_dir = os.path.join(odbc_dir, "build32", "src", "Debug")           
+    x86_target_lib_dir = os.path.join(install_info.install_dir, "taos_odbc", "x86", "lib")
+    x86_target_bin_dir = os.path.join(install_info.install_dir, "taos_odbc", "x86", "bin")    
+    os.system("xcopy /YS {}\\taos_odbc.dll {}".format(x86_dll_dir, x86_target_bin_dir)) 
+    os.system("xcopy /YS {}\\taos_odbc.lib {}".format(x86_dll_dir, x86_target_lib_dir))    
+    
+    x86_template_dir = os.path.join(odbc_dir, "build32", "templates")
+    os.system("xcopy /YS {}\\win_odbcinst.ini {}\\taos_odbc\\x86".format(x86_template_dir, install_info.install_dir))
+    
+    # build 64 bit ODBC    
+    
+    driver_dir = os.path.join(install_info.install_dir, "driver")
+    x64_target_lib_dir = os.path.join(install_info.install_dir, "taos_odbc", "x64", "lib")
+    if not os.path.exists(x64_target_lib_dir):
+        os.makedirs(x64_target_lib_dir)
+    os.system("copy /Y {}\\taosws.lib {}\\taosws.lib".format(driver_dir, x64_target_lib_dir))
+    os.system("copy /Y {}\\taos.lib {}\\taos.lib".format(driver_dir, x64_target_lib_dir))
+                    
+    os.system("vcvarsall.bat x64")
+    os.system("rm .externals -rf && rm build64 -rf")
+    subprocess.call("cmake --no-warn-unused-cli -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DWS_FOR_TEST:STRING=127.0.0.1:6041 -DSERVER_FOR_TEST:STRING=127.0.0.1:6030 -B build64 -G \"Visual Studio 17 2022\" -A x64")
+    subprocess.call("cmake --build build64 --config Debug -j 8")
+    
+    x64_dll_dir = os.path.join(odbc_dir, "build64", "src", "Debug")
+    x64_target_bin_dir = os.path.join(install_info.install_dir, "taos_odbc", "x64", "bin")
+    if not os.path.exists(x64_target_bin_dir):
+        os.makedirs(x64_target_bin_dir)            
+    os.system("xcopy /YS {}\\taos_odbc.dll {}".format(x64_dll_dir, x64_target_bin_dir))
+    os.system("xcopy /YS {}\\taos_odbc.lib {}".format(x64_dll_dir, x64_target_lib_dir))
+    
+    x64_template_dir = os.path.join(odbc_dir, "build64", "templates")
+    os.system("xcopy /YS {}\\win_odbcinst.ini {}\\taos_odbc\\x64".format(x64_template_dir, install_info.install_dir))    
 
 def process_add_enterprice_extent():
     connector_install_dir = os.path.join(install_info.install_dir, "connector")
@@ -551,10 +619,6 @@ def process_package_server():
 
     logging.info(f"packaging {install_info.packagServerName} server...")
     write_server_install_file()
-    
-    odbc_dir = os.path.join(install_info.install_dir, "taos_odbc")
-    if os.path.exists(odbc_dir):
-        shutil.rmtree(odbc_dir)
     
     try:
         subprocess.check_call(f"iscc /DMyAppInstallName=\"{install_info.packagServerName}\" \
@@ -761,7 +825,8 @@ if __name__ == "__main__":
     p3.join()
     
     process_install()    
-    process_download_odbc()
+    process_build_taosws_32bit()
+    process_build_odbc()
     process_add_enterprice_extent()    
     process_package_client()
     
