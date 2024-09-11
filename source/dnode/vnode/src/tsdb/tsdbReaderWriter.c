@@ -46,14 +46,14 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
 
       pFD->pFD = taosOpenFile(lc_path, flag);
       if (pFD->pFD == NULL) {
-        TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+        TSDB_CHECK_CODE(code = terrno, lino, _exit);
       }
       if (taosStatFile(lc_path, &lc_size, NULL, NULL) < 0) {
-        TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+        TSDB_CHECK_CODE(code = terrno, lino, _exit);
       }
     } else {
       tsdbInfo("no file: %s", path);
-      TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
     pFD->s3File = 1;
   }
@@ -73,7 +73,7 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
   // not check file size when reading data files.
   if (flag != TD_FILE_READ /* && !pFD->s3File*/) {
     if (!lc_size && taosStatFile(path, &pFD->szFile, NULL, NULL) < 0) {
-      TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
   }
 
@@ -157,7 +157,7 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
 
     int64_t n = taosLSeekFile(pFD->pFD, offset, SEEK_SET);
     if (n < 0) {
-      TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
 
     code = taosCalcChecksumAppend(0, pFD->pBuf, pFD->szPage);
@@ -187,7 +187,7 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
 
     n = taosWriteFile(pFD->pFD, pFD->pBuf, pFD->szPage);
     if (n < 0) {
-      TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
 
     if (pFD->szFile < pFD->pgno) {
@@ -224,13 +224,13 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
   // seek
   int64_t n = taosLSeekFile(pFD->pFD, offset, SEEK_SET);
   if (n < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   // read
   n = taosReadFile(pFD->pFD, pFD->pBuf, pFD->szPage);
   if (n < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   } else if (n < pFD->szPage) {
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
@@ -377,12 +377,12 @@ static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, boo
       // read last chunk
       int64_t ret = taosLSeekFile(pFD->pFD, chunksize * (chunkno - pFD->lcn) + cOffset, SEEK_SET);
       if (ret < 0) {
-        TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+        TSDB_CHECK_CODE(code = terrno, lino, _exit);
       }
 
       ret = taosReadFile(pFD->pFD, buf + n, nRead);
       if (ret < 0) {
-        TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+        TSDB_CHECK_CODE(code = terrno, lino, _exit);
       } else if (ret < nRead) {
         TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
       }

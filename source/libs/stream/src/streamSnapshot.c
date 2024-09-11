@@ -271,7 +271,7 @@ int32_t snapFileReadMeta(SBackendSnapFile2* pSnapFile) {
   int32_t  code = 0;
   TdDirPtr pDir = taosOpenDir(pSnapFile->path);
   if (NULL == pDir) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     stError("%s failed to open %s, reason:%s", STREAM_STATE_TRANSFER, pSnapFile->path, tstrerror(code));
     return code;
   }
@@ -556,9 +556,9 @@ _NEXT:
 
   uint8_t* buf = taosMemoryCalloc(1, sizeof(SStreamSnapBlockHdr) + kBlockSize);
   int64_t  nread = taosPReadFile(pSnapFile->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pSnapFile->offset);
-  if (nread == -1) {
+  if (nread < 0) {
     taosMemoryFree(buf);
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     stError("%s snap failed to read snap, file name:%s, type:%d,reason:%s", STREAM_STATE_TRANSFER, item->name,
             item->type, tstrerror(code));
     return code;
@@ -696,7 +696,7 @@ int32_t streamSnapWriteImpl(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t
   if (strlen(pHdr->name) == strlen(pItem->name) && strcmp(pHdr->name, pItem->name) == 0) {
     int64_t bytes = taosPWriteFile(pSnapFile->fd, pHdr->data, pHdr->size, pSnapFile->offset);
     if (bytes != pHdr->size) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = terrno;
       stError("%s failed to write snap, file name:%s, reason:%s", STREAM_STATE_TRANSFER, pHdr->name, tstrerror(code));
       goto _err;
     } else {
@@ -735,7 +735,7 @@ int32_t streamSnapWriteImpl(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t
 
     // open fd again, let's close fd during handle errors.
     if (taosPWriteFile(pSnapFile->fd, pHdr->data, pHdr->size, pSnapFile->offset) != pHdr->size) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = terrno;
       stError("%s failed to write snap, file name:%s, reason:%s", STREAM_STATE_TRANSFER, pHdr->name, tstrerror(code));
       goto _err;
     }

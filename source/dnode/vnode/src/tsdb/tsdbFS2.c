@@ -84,15 +84,15 @@ static int32_t save_json(const cJSON *json, const char *fname) {
 
   fp = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (fp == NULL) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(code), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   if (taosWriteFile(fp, data, strlen(data)) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(code), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   if (taosFsyncFile(fp) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(code), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
 _exit:
@@ -111,12 +111,13 @@ static int32_t load_json(const char *fname, cJSON **json) {
 
   TdFilePtr fp = taosOpenFile(fname, TD_FILE_READ);
   if (fp == NULL) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   int64_t size;
-  if (taosFStatFile(fp, &size, NULL) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(code), lino, _exit);
+  code = taosFStatFile(fp, &size, NULL);
+  if (code != 0) {
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   data = taosMemoryMalloc(size + 1);
@@ -125,7 +126,7 @@ static int32_t load_json(const char *fname, cJSON **json) {
   }
 
   if (taosReadFile(fp, data, size) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(code), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
   data[size] = '\0';
 
@@ -304,10 +305,7 @@ static int32_t commit_edit(STFileSystem *fs) {
 
   int32_t code;
   int32_t lino;
-  if ((code = taosRenameFile(current_t, current))) {
-    code = TAOS_SYSTEM_ERROR(code);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  TSDB_CHECK_CODE(taosRenameFile(current_t, current), lino, _exit);
 
   code = apply_commit(fs);
   TSDB_CHECK_CODE(code, lino, _exit);
