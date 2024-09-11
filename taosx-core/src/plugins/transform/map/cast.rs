@@ -1,7 +1,8 @@
 use arrow::{
-    array::{ArrayRef, StringArray},
+    array::{ArrayRef, BinaryArray, StringArray},
     record_batch::RecordBatch,
 };
+use arrow_schema::DataType;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -22,21 +23,85 @@ impl ValueBuilder for CastValueBuilder {
         schema
             .index_of(&self.cast)
             .map(|index| {
-                let mut values = Vec::new();
-                // get column values and judge if some of them are null
-                let array = record.column(index);
-                for i in 0..array.len() {
-                    if array.is_null(i) || array.taos_value(i).is_null() {
-                        if let Some(default) = &self.default {
-                            values.push(Some(default.clone()));
-                        } else {
-                            values.push(None);
+                match schema.field(index).data_type() {
+                    DataType::Utf8 => {
+                        let value = record.column(index).as_any().downcast_ref::<StringArray>();
+                        let mut array = Vec::new();
+                        if let Some(value) = value {
+                            value.iter().for_each(|v| {
+                                if v.is_some_and(|v| v.len() > 0) {
+                                    array.push(v);
+                                } else if let Some(default) = &self.default {
+                                    array.push(Some(default));
+                                } else {
+                                    array.push(None);
+                                }
+                            });
+                            return Ok(Arc::new(StringArray::from(array)) as ArrayRef);
                         }
-                    } else {
-                        values.push(Some(format!("{}", array.taos_value(i))));
+                    }
+                    DataType::Binary => {
+                        let value = record.column(index).as_any().downcast_ref::<BinaryArray>();
+                        let mut array = Vec::new();
+                        if let Some(value) = value {
+                            value.iter().for_each(|v| {
+                                if v.is_some_and(|v| v.len() > 0) {
+                                    array.push(v.and_then(|v| std::str::from_utf8(v).ok()));
+                                } else if let Some(default) = &self.default {
+                                    array.push(Some(default.as_str()));
+                                } else {
+                                    array.push(None);
+                                }
+                            });
+                            return Ok(Arc::new(StringArray::from(array)) as ArrayRef);
+                        }
+                    }
+                    DataType::Int8
+                    | DataType::Int16
+                    | DataType::Int32
+                    | DataType::Int64
+                    | DataType::UInt8
+                    | DataType::UInt16
+                    | DataType::UInt32
+                    | DataType::UInt64
+                    | DataType::Boolean => {
+                        return Ok(record.column(index).clone());
+                    }
+                    _ => {
+                        let mut values = Vec::new();
+                        // get column values and judge if some of them are null
+                        let array = record.column(index);
+                        for i in 0..array.len() {
+                            if array.is_null(i) || array.taos_value(i).is_null() {
+                                if let Some(default) = &self.default {
+                                    values.push(Some(default.clone()));
+                                } else {
+                                    values.push(None);
+                                }
+                            } else {
+                                values.push(Some(format!("{}", array.taos_value(i))));
+                            }
+                        }
+                        return Ok(Arc::new(StringArray::from(values)) as ArrayRef);
                     }
                 }
-                return Ok(Arc::new(StringArray::from(values)) as ArrayRef);
+                Ok(record.column(index).clone())
+                // let mut values = Vec::new();
+                // // get column values and judge if some of them are null
+                // let array = record.column(index);
+                // dbg!(&array);
+                // for i in 0..array.len() {
+                //     if array.is_null(i) || array.taos_value(i).is_null() {
+                //         if let Some(default) = &self.default {
+                //             values.push(Some(default.clone()));
+                //         } else {
+                //             values.push(None);
+                //         }
+                //     } else {
+                //         values.push(Some(format!("{}", array.taos_value(i))));
+                //     }
+                // }
+                // return Ok(Arc::new(StringArray::from(values)) as ArrayRef);
             })
             .unwrap_or_else(|_| {
                 if let Some(default) = &self.default {
@@ -55,8 +120,8 @@ impl ValueBuilder for CastValueBuilder {
 mod tests {
     use arrow::{
         array::{
-            Array, BooleanArray, Float32Array, Int16Array, Int32Array, NullArray,
-            TimestampNanosecondArray,
+            Array, BooleanArray, Float32Array, Int16Array, Int32Array, Int64Array, NullArray,
+            TimestampMillisecondArray, TimestampNanosecondArray,
         },
         datatypes::DataType,
     };
@@ -295,6 +360,86 @@ mod tests {
         );
     }
 
+    /// Test cast for [TD-31997]
+    ///
+    /// When there're string array contains 0, cast timestamp to milliseconds would result in nanoseconds.
+    /// Then insertion would fail with 0x060B: Timestamp data out of range.
+    ///
+    /// [TD-31997](https://jira.taosdata.com:18080/browse/TD-31997)
+    #[test]
+    fn test_intstr_as_timestamp() {
+        let builder: CastValueBuilder = serde_json::from_str(r#"{"cast": "intstr"}"#).unwrap();
+        let batch = init_record_batch();
+
+        let (field, value) = builder
+            .build_field(
+                "n1",
+                &batch,
+                Some(IpcDataType::Timestamp(arrow_schema::TimeUnit::Nanosecond)),
+            )
+            .unwrap();
+
+        dbg!(&field, &value);
+
+        assert_eq!(field.name(), "n1");
+        assert_eq!(
+            *field.data_type(),
+            DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None)
+        );
+        assert_eq!(value.len(), 3);
+        let array = value
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        assert!(array.is_valid(0));
+
+        let batch = RecordBatch::try_from_iter([
+            (
+                "f1",
+                Arc::new(StringArray::from(vec!["a", "b", "c"])) as ArrayRef,
+            ),
+            (
+                "int",
+                Arc::new(Int64Array::from(vec![
+                    1726020111607,
+                    1726020114616,
+                    1726020608010,
+                ])) as ArrayRef,
+            ),
+            (
+                "intstr",
+                Arc::new(StringArray::from(vec![
+                    "0",
+                    "1726020114616",
+                    "1726020608010",
+                ])) as ArrayRef,
+            ),
+        ])
+        .unwrap();
+        let (field, value) = builder
+            .build_field(
+                "n1",
+                &batch,
+                Some(IpcDataType::Timestamp(arrow_schema::TimeUnit::Millisecond)),
+            )
+            .unwrap();
+
+        dbg!(&field, &value);
+
+        assert_eq!(field.name(), "n1");
+        assert_eq!(
+            *field.data_type(),
+            DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None)
+        );
+        assert_eq!(value.len(), 3);
+        let array = value
+            .as_any()
+            .downcast_ref::<TimestampMillisecondArray>()
+            .unwrap();
+        assert!(array.is_valid(0));
+        assert_eq!(array.value(1), 1726020114616);
+    }
+
     #[test]
     fn test_int_as_timestamp() {
         let builder: CastValueBuilder = serde_json::from_str(r#"{"cast": "int"}"#).unwrap();
@@ -319,6 +464,51 @@ mod tests {
         let array = value
             .as_any()
             .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        assert!(array.is_valid(0));
+
+        let batch = RecordBatch::try_from_iter([
+            (
+                "f1",
+                Arc::new(StringArray::from(vec!["a", "b", "c"])) as ArrayRef,
+            ),
+            (
+                "int",
+                Arc::new(Int64Array::from(vec![
+                    1726020111607,
+                    1726020114616,
+                    1726020608010,
+                ])) as ArrayRef,
+            ),
+            (
+                "intstr",
+                Arc::new(StringArray::from(vec![
+                    "1726020111607",
+                    "1726020114616",
+                    "1726020608010",
+                ])) as ArrayRef,
+            ),
+        ])
+        .unwrap();
+        let (field, value) = builder
+            .build_field(
+                "n1",
+                &batch,
+                Some(IpcDataType::Timestamp(arrow_schema::TimeUnit::Millisecond)),
+            )
+            .unwrap();
+
+        dbg!(&field, &value);
+
+        assert_eq!(field.name(), "n1");
+        assert_eq!(
+            *field.data_type(),
+            DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None)
+        );
+        assert_eq!(value.len(), 3);
+        let array = value
+            .as_any()
+            .downcast_ref::<TimestampMillisecondArray>()
             .unwrap();
         assert!(array.is_valid(0));
     }

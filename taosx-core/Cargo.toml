@@ -22,7 +22,7 @@ zerocopy = { workspace = true }
 
 regex = { workspace = true }
 
-arrow-cast-guess-precision = "0.4.0"
+arrow-cast-guess-precision = { workspace = true }
 arrow-compute-ext = { workspace = true }
 ring-channel = "0.12"
 

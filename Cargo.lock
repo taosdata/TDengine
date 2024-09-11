@@ -530,12 +530,10 @@ dependencies = [
 [[package]]
 name = "arrow-cast-guess-precision"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4eb95c2b69479f1819e2c9754805ed3a0e9a643bbfb3bfceaac3bdd884c1582a"
 dependencies = [
- "arrow-array",
- "arrow-cast",
+ "arrow",
  "arrow-schema",
+ "chrono",
 ]
 
 [[package]]
