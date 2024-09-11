@@ -102,8 +102,8 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     let placeholders = config
         .task
         .subtable_fields
-        .iter()
-        .map(|(k, v)| (k.clone(), v.replace("${v}", "{\"$ne\":\"\"}")))
+        .keys()
+        .map(|k| (k.clone(), format!("{}: {{\"$ne\":\"\"}}", k)))
         .collect::<HashMap<String, String>>();
     for (key, value) in placeholders.iter() {
         config.task.sql = config

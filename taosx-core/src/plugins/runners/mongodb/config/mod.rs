@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::BTreeMap, str::FromStr};
 
 use crate::plugins::config::AdvancedOptions;
 use crate::runners::mongodb::config::connect::ConnectConfig;
@@ -58,7 +58,7 @@ impl MongoDBConfig {
 pub struct TaskConfig {
     pub database: String,
     pub collection: String,
-    pub subtable_fields: HashMap<String, String>,
+    pub subtable_fields: BTreeMap<String, String>,
     pub sql: String,
     pub sort: Option<String>,
     pub start: DateTime<Utc>,
@@ -102,18 +102,18 @@ impl TaskConfig {
             .ok_or_else(|| anyhow::anyhow!("collection is required"))?)
     }
 
-    fn parse_subtable_fields(dsn: &Dsn) -> HashMap<String, String> {
+    fn parse_subtable_fields(dsn: &Dsn) -> BTreeMap<String, String> {
         let subtable_fields = dsn.params.get("subtable_fields");
-        // transform "name,sn" to HashMap<String, String>
+        // transform "name,sn" to BTreeMap<String, String>
         if let Some(subtable_fields) = subtable_fields {
             if !subtable_fields.is_empty() {
                 return subtable_fields
                     .split(",")
                     .map(|s| (s.to_string(), format!("\"{}\":${{v}}", s)))
-                    .collect::<HashMap<String, String>>();
+                    .collect::<BTreeMap<String, String>>();
             }
         }
-        return HashMap::new();
+        return BTreeMap::new();
     }
 
     fn parse_sql(dsn: &Dsn) -> anyhow::Result<String> {

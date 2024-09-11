@@ -171,7 +171,7 @@ pub async fn migrate_history_by_interval(
     tracing::debug!("schema: {:?}", schema);
 
     // get break point
-    let breakpoint = get_breakpoint(config.task_id, &config.task.sql);
+    let breakpoint = get_breakpoint(config.task_id, &config.sub_task_id.clone().unwrap());
     if breakpoint.is_some() {
         config.task.start = breakpoint.unwrap();
         tracing::info!("migrate mongodb from breakpoint: {}", config.task.start);
@@ -179,7 +179,6 @@ pub async fn migrate_history_by_interval(
     tracing::info!("migrate mongodb start, config: {:?}", config);
 
     let (tx, rx) = flume::bounded(0);
-    // set sub task id
     let config_clone = config.clone();
     // consumer
     let consumer =
@@ -345,7 +344,7 @@ pub async fn set_breakpoint(
     Ok(())
 }
 
-fn get_breakpoint(task_id: Option<i64>, subtask_sql: &String) -> Option<DateTime<Utc>> {
+fn get_breakpoint(task_id: Option<i64>, sub_task_id: &String) -> Option<DateTime<Utc>> {
     // get break point by task_id, if not found, return None
     if task_id.is_none() {
         return None;
@@ -356,9 +355,8 @@ fn get_breakpoint(task_id: Option<i64>, subtask_sql: &String) -> Option<DateTime
     match breakpoints {
         Ok(breakpoints) => {
             let mut earliest = None;
-            for (sub_task_id, breakpoint) in breakpoints {
-                if sub_task_id.starts_with(format!("{MIGRATE_TASK_PREFIX}-{subtask_sql}").as_str())
-                {
+            for (key, breakpoint) in breakpoints {
+                if key.starts_with(format!("{MIGRATE_TASK_PREFIX}-{sub_task_id}").as_str()) {
                     // parse breakpoint to DateTime
                     let date_time = DateTime::parse_from_rfc3339(&breakpoint)
                         .map(|dt| Some(dt.with_timezone(&Utc)))
