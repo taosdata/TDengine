@@ -171,11 +171,42 @@ POW(expr, power)
 #### ROUND
 
 ```sql
-ROUND(expr)
+ROUND(expr[, digits])
 ```
 
 **Description**: The rounded value of a specific field.
- **More explanations**: The restrictions are same as those of the `CEIL` function.
+
+**Return value type**: Same as the `expr` field being used.
+
+**Applicable data types**: 
+- `expr`: Numeric.
+- `digits`: Numeric.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**Usage**: 
+- if `expr` or `digits` is NULL, return NULL。
+- Rounds the `expr` to `digits` decimal places, `digits` defaults to 0 if not specified.
+- If the input value is of INTEGER type, it will always return an INTEGER, regardless of the value of `digits`, and no decimal places will be retained.
+- A `digits` value greater than zero indicates that the function will round the result to `digits` decimal places. If the number of decimal places is less than `digits`, no rounding is performed, and the result is returned directly.
+- A `digits` value less than zero indicates that the function will drop the decimal places and round the number to the left of the decimal point by `digits` places. If the number of digits to the left of the decimal point is less than `digits`, the result will be 0.
+- Since DECIMAL type is not supported at the moment, this function will return results in DOUBLE or FLOAT for numbers with decimal places. However, DOUBLE and FLOAT have precision limits, so when the number of digits is too large, using this function may not yield meaningful results.
+- This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+
+**examples**: 
+```sql
+taos> select round(8888.88);
+      round(8888.88)       |
+============================
+      8889.000000000000000 |
+
+taos> select round(8888.88,-1);
+     round(8888.88,-1)     |
+============================
+      8890.000000000000000 |
+```
 
 
 #### SIN
@@ -232,6 +263,298 @@ TAN(expr)
 
 **Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
 
+#### PI
+```sql
+PI()
+```
+
+**Description**: Returns the value of π.
+
+**Return value type**: DOUBLE.
+
+**Applicable data types**: None.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**Usage**: 
+- π ≈ 3.141592653589793.
+- This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+
+**Examples**: 
+```sql
+taos> select pi();
+           pi()            |
+============================
+         3.141592653589793 |
+```
+
+##### TRUNCATE
+```sql
+TRUNCATE(expr, digits)
+```
+
+**Description**: Returns the number `expr`, truncated to `digits` decimal places.
+
+**Return value type**: Same as the `expr` field being used.
+
+**Applicable data types**: 
+- `expr`: Numeric.
+- `digits`: Numeric.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**Usage**: 
+- If `expr` or `digits` is NULL, the function returns NULL.
+- Truncation is performed directly based on the specified number of digits, without rounding.
+- A `digits` value greater than zero indicates that the function will truncate the result to `digits` decimal places. If the number of decimal places is less than `digits`, no truncation is performed, and the result is returned as is.
+- A `digits` value equal to zero indicates that the decimal places will be dropped.
+- A `digits` value less than zero indicates that the decimal places will be dropped, and the digits to the left of the decimal point, up to `digits` positions, will be replaced with `0`. If the number of digits to the left of the decimal point is less than `digits`, the result will be 0.
+- Since DECIMAL type is not supported at the moment, this function will use DOUBLE and FLOAT to represent results with decimal places. However, DOUBLE and FLOAT have precision limits, so using this function with a large number of digits may not yield meaningful results.
+- This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+
+**Examples**: 
+```sql
+taos> select truncate(8888.88, 0);
+ truncate(8888.88, 0)    |
+============================
+    8888.000000000000000 |
+     
+taos> select truncate(8888.88, -1);
+ truncate(8888.88, -1)   |
+============================
+    8880.000000000000000 |
+```
+
+#### EXP
+```sql
+EXP(expr)
+```
+**Description**: Returns the value of e (the base of natural logarithms) raised to the power of `expr`.
+
+**Return value type**: DOUBLE.
+
+**Applicable data types**: Numeric.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**Usage**: 
+- if `expr` is NULL, the function returns NULL.
+- This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+
+**Examples**: 
+```sql
+taos> select exp(2);
+          exp(2)           |
+============================
+         7.389056098930650 |
+```
+
+#### LN
+```sql
+LN(expr)
+```
+
+**Description**: Returns the natural logarithm of `expr`.
+
+**Return value type**: DOUBLE.
+
+**Applicable data types**: Numeric.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**Usage**: 
+- if `expr` is NULL, the function returns NULL.
+- if `expr` less than or equal to 0, the function returns NULL.
+- This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+
+**Examples**: 
+```sql
+taos> select ln(10);
+          ln(10)           |
+============================
+         2.302585092994046 |
+```
+
+#### MOD
+```sql
+MOD(expr1, expr2)
+```
+
+**Description**: Modulo operation. Returns the remainder of `epxr1` divided by `expr2`.
+
+**Return value type**: DOUBLE.
+
+**Applicable data types**: Numeric.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**Usage**: 
+- if `expr2` is 0, the function returns NULL.
+- if `expr` or `expr2` is NULL, the function returns NULL.
+- This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+
+**Examples**: 
+``` sql
+taos> select mod(10,3);
+         mod(10,3)         |
+============================
+         1.000000000000000 |
+
+taos> select mod(1,0);
+         mod(1,0)          |
+============================
+ NULL                      |
+```
+
+#### RAND
+```sql
+RAND([seed])
+```
+
+**Description**: Returns a random floating-point value `v` in the range `0 <= v < 1.0`.
+
+**Return value type**: DOUBLE.
+
+**Applicable data types**: 
+- `seed`: INTEGER.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**Usage**: 
+- If an integer argument `seed` is specified, it is used as the seed value. With a seed, `RAND(seed)` returns the same value each time
+- This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+
+**Examples**: 
+``` sql
+taos> select rand();
+          rand()           |
+============================
+         0.202092426923147 |
+         
+taos> select rand();
+          rand()           |
+============================
+         0.131537788143166 |
+         
+taos> select rand(1);
+          rand(1)          |
+============================
+         0.000007826369259 |
+         
+taos> select rand(1);
+          rand(1)          |
+============================
+         0.000007826369259 |
+```
+
+#### SIGN
+```sql
+SIGN(expr)
+```
+
+**Description**: Returns the sign of the argument.
+
+**Return value type**: Same as the `expr` field being used.
+
+**Applicable data types**: Numeric.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**Usage**: 
+- if `expr` is negative, returns -1.
+- if `expr` is positive, returns 1.
+- if `expr` is 0, returns 0.
+- if `expr` is NULL, returns NULL.
+- This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+
+**Examples**: 
+```sql
+taos> select sign(-1);
+       sign(-1)        |
+========================
+                    -1 |
+
+taos> select sign(1);
+        sign(1)        |
+========================
+                     1 |
+
+taos> select sign(0);
+        sign(0)        |
+========================
+                     0 |
+```
+
+#### DEGREES
+```sql
+DEGREES(expr)
+```
+
+**Description**: Returns the argument `expr`, converted from radians to degrees.
+
+**Return value type**: DOUBLE.
+
+**Applicable data types**: Numeric.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**Usage**: 
+- if `expr` is NULL, the function returns NULL.
+- degree = radian * 180 / π。
+- This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+
+**Examples**: 
+```sql
+taos> select degrees(PI());
+       degrees(pi())       |
+============================
+       180.000000000000000 |
+```
+
+#### RADIANS
+```sql
+RADIANS(expr)
+```
+
+**Description**: Returns the argument `expr`, converted from degrees to radians.
+
+**Return value type**: DOUBLE.
+
+**Applicable data types**: Numeric.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**Usage**: 
+- if `expr` is NULL, the function returns NULL.
+- radian = degree * π / 180.
+- This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+
+**Examples**: 
+```sql
+taos> select radians(180);
+       radians(180)        |
+============================
+         3.141592653589793 |
+```
+
 ### Concatenation Functions
 
 Concatenation functions take strings as input and produce string or numeric values as output.
@@ -251,6 +574,23 @@ CHAR_LENGTH(expr)
 **Nested query**: It can be used in both the outer query and inner query in a nested query.
 
 **Applicable table types**: standard tables and supertables
+
+**More explanations**:
+- Unlike the LENGTH() function, the CHAR_LENGTH() function treats multi-byte characters, such as Chinese characters, as a single character with a length of 1, whereas LENGTH() calculates the byte count, resulting in a length of 3. For example, CHAR_LENGTH('你好') = 2 and LENGTH('你好') = 6.
+- If expr is NULL, the function returns NULL.
+
+**Examples**: 
+```sql
+taos> select char_length('Hello world');
+ char_length('Hello world') |
+=============================
+                         11 |
+ 
+taos> select char_length('你好 世界');
+      char_length('你好 世界') |
+===============================
+                            5 |
+```
 
 #### CONCAT
 
@@ -353,23 +693,150 @@ LTRIM(expr)
 
 **Applicable table types**: standard tables and supertables
 
-
-#### SUBSTR
-
+#### TRIM
 ```sql
-SUBSTR(expr, pos [, len])
+TRIM([{LEADING | TRAILING | BOTH} [remstr] FROM] expr)
+TRIM([remstr FROM] expr)
 ```
 
-**Description**: The sub-string starting from `pos` with length of `len` from the original string `str` - If `len` is not specified, it means from `pos` to the end.
+**Description**: Returns the string `expr` with all `remstr` prefixes or suffixes removed.
 
-**Return value type**: Same as input
+**Return value type**: Same as the `expr` field being used.
 
-**Applicable data types**: VARCHAR and NCHAR Parameter `pos` can be an positive or negative integer; If it's positive, the starting position will be counted from the beginning of the string; if it's negative, the starting position will be counted from the end of the string.
+**Applicable data types**: 
+- remstr: VARCHAR,NCHAR.
+- epxr: VARCHAR,NCHAR.
 
 **Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable table types**: table, STable
+**Applicable table types**: standard tables and supertables
 
+**More explanations**: 
+- The first optional variable [LEADING | BOTH | TRAILING] specifies which side of the string to trim:
+    - LEADING will remove the specified characters from the beginning of the string.
+    - TRAILING will remove the specified characters from the end of the string.
+    - BOTH (the default) will remove the specified characters from both the beginning and the end of the string.
+- The second optional variable [remstr] specifies the string to be trimmed:
+    - If `remstr` is not specified, spaces will be removed by default.
+    - `remstr` can contain multiple characters. For example, `trim('ab' from 'abacd')` will treat 'ab' as a whole and trim it, resulting in 'acd'.
+- If `expr` is NULL, the function returns NULL.
+- This function is multibyte-safe.
+
+**Examples**: 
+```sql
+taos> select trim('        a         ');
+ trim('        a         ') |
+=============================
+ a                          |
+ 
+taos> select trim(leading from '        a         ');
+ trim(leading from '        a         ') |
+==========================================
+ a                                       |
+ 
+
+taos> select trim(leading 'b' from 'bbbbbbbba         ');
+ trim(leading 'b' from 'bbbbbbbba         ') |
+==============================================
+ a                                           |
+ 
+taos> select trim(both 'b' from 'bbbbbabbbbbb');
+ trim(both 'b' from 'bbbbbabbbbbb') |
+=====================================
+ a                                  |
+```
+
+#### SUBSTRING/SUBSTR
+```sql
+SUBSTRING/SUBSTR(expr, pos [, len])
+SUBSTRING/SUBSTR(expr FROM pos [FOR len])
+```
+**Description**: The forms without a `len` argument return a substring from string `expr` starting at position `pos`. The forms with a `len` argument return a substring `len` characters long from string `expr`, starting at position `pos`.
+
+**Return value type**: Same as the `expr` field being used.
+
+**Applicable data types**: 
+- `expr`: VARCHAR,NCHAR.
+- `pos`: INTEGER.
+- `len`: INTEGER.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**More explanations**: 
+- If `pos` is positive, the result is the substring of `expr` starting at the `pos` position, counting from left to right.
+- If `pos` is negative, the result is the substring of `expr` starting at the `pos` position, counting from right to left.
+- If any argument is NULL, the function returns NULL.
+- This function is multibyte-safe.
+- If `len` is less than 1, the function returns an empty string.
+- `pos` is 1-based, and if `pos` is 0, the function returns an empty string.
+- If `pos` + `len` exceeds the length of `expr`, the result is the substring starting from `pos` to the end of the string, equivalent to executing `substring(expr, pos)`.
+
+**Examples**: 
+```sql
+taos> select substring('tdengine', 0);
+ substring('tdengine', 0) |
+===========================
+                          |
+
+taos> select substring('tdengine', 3);
+ substring('tdengine', 3) |
+===========================
+ engine                   |
+
+taos> select substring('tdengine', 3,3);
+ substring('tdengine', 3,3) |
+=============================
+ eng                        |
+
+taos> select substring('tdengine', -3,3);
+ substring('tdengine', -3,3) |
+==============================
+ ine                         |
+
+taos> select substring('tdengine', -3,-3);
+ substring('tdengine', -3,-3) |
+===============================
+                              |
+```
+
+#### SUBSTRING_INDEX
+```sql
+SUBSTRING_INDEX(expr, delim, count)
+```
+
+**Description**: Returns the substring from string `expr` before `count` occurrences of the delimiter `delim`.
+
+**Return value type**: Same as the `expr` field being used.
+
+**Applicable data types**: 
+- `expr`: VARCHAR,NCHAR.
+- `delim`: VARCHAR, NCHAR.
+- `count`: INTEGER.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**More explanations**: 
+- If `count` is positive, everything to the left of the final delimiter (counting from the left) is returned.
+- If `count` is negative, everything to the right of the final delimiter (counting from the right) is returned
+- If any argument is NULL, the function returns NULL.
+- This function is multibyte-safe.
+
+**Examples**: 
+```sql
+taos> select substring_index('www.taosdata.com','.',2);
+ substring_index('www.taosdata.com','.',2) |
+============================================
+ www.taosdata                              |
+
+taos> select substring_index('www.taosdata.com','.',-2);
+ substring_index('www.taosdata.com','.',-2) |
+=============================================
+ taosdata.com                               |
+```
 
 #### UPPER
 
@@ -387,6 +854,183 @@ UPPER(expr)
 
 **Applicable table types**: table, STable
 
+#### CHAR
+```sql
+CHAR(expr1 [, expr2] [, epxr3] ...)
+```
+
+**Description**: Interprets each argument `expr` as an integer and returns a string consisting of the characters given by the code values of those integers.
+
+**Return value type**: VARCHAR.
+
+**Applicable data types**: INTEGER,VARCHAR,NCHAR.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**More explanations**: 
+- Arguments larger than 255 are converted into multiple result bytes. For example, CHAR(256) is equivalent to CHAR(1,0), and CHAR(256*256) is equivalent to CHAR(1,0,0):
+- NULL values are skipped.
+- If the input parameter is of string type, it will be converted to a numeric type for processing.
+- If the input parameter corresponds to non-printable characters, the return value will still include those characters, but they may not be visible.
+
+**Examples**: 
+```sql
+taos> select char(77);
+ char(77) |
+===========
+ M        |
+ 
+taos> select char(77,77);
+ char(77,77) |
+==============
+ MM          |
+ 
+taos> select char(77 * 256 + 77);
+ char(77 * 256 + 77) |
+======================
+ MM                  |
+ 
+taos> select char(77,NULL,77);
+ char(77,null,77) |
+===================
+ MM               |
+```
+
+#### ASCII
+```sql
+ASCII(expr)
+```
+
+**Description**: Returns the numeric value of the leftmost character of the string `expr`.
+
+**Return value type**: BIGINT.
+
+**Applicable data types**: VARCHAR, NCHAR.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**More explanations**: 
+- If `expr` is NULL, the function returns NULL.
+- If `expr` is an empty string, the function returns 0.
+- If the first character of expr is a multibyte character, only the ASCII code corresponding to the first byte of that character will be returned.
+
+**Examples**: 
+```sql
+taos> select ascii('testascii');
+ ascii('testascii') |
+=====================
+                116 |
+```
+
+#### POSITION
+```sql
+POSITION(expr1 IN expr2)
+```
+
+**Description**: Returns the position of the first occurrence of substring `expr1` in string `expr2`
+
+**Return value type**: BIGINT.
+
+**Applicable data types**: 
+- `expr1`: VARCHAR, NCHAR.
+- `expr2`: VARCHAR, NCHAR.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**More explanations**: 
+- If `expr1` or `expr2` is NULL, the function returns NULL.
+- If `expr2` is not found in `expr1`, the function returns 0.
+- If `expr2` is an empty string, it is considered to always match successfully in `expr1`, and the function returns 1.
+- The returned position is 1-based.
+- This function is multibyte-safe.
+
+**Examples**: 
+```sql
+taos> select position('a' in 'cba');
+ position('a' in 'cba') |
+=========================
+                      3 |
+ 
+ 
+taos> select position('' in 'cba');
+ position('' in 'cba') |
+========================
+                     1 |
+ 
+taos> select position('d' in 'cba');
+ position('d' in 'cba') |
+=========================
+                      0 |
+```
+
+#### REPLACE
+```sql
+REPLACE(expr, from_str, to_str)
+```
+**Description**: Returns the string `expr` with all occurrences of the string `from_str` replaced by the string `to_str`.
+
+**Return value type**: Same as the `expr` field being used.
+
+**Applicable data types**: 
+- `expr`: VARCHAR, NCHAR.
+- `from_str`: VARCHAR, NCHAR.
+- `to_str`: VARCHAR, NCHAR.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**More explanations**: 
+- This function is case-sensitive.
+- If any argument is NULL, the function returns NULL.
+- This function is multibyte-safe.
+
+**Examples**: 
+```sql
+taos> select replace('aabbccAABBCC', 'AA', 'DD');
+ replace('aabbccAABBCC', 'AA', 'DD') |
+======================================
+ aabbccDDBBCC                        |
+```
+
+#### REPEAT
+```sql
+REPEAT(expr, count)
+```
+**Description**: Returns a string consisting of the string `expr` repeated `count` times.
+
+**Return value type**: Same as the `expr` field being used.
+
+**Applicable data types**: 
+- `expr`:  VARCHAR,NCHAR.
+- `count`: INTEGER.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**More explanations**: 
+- If `count` is less than 1, returns an empty string.
+- if `expr` or `count` is NULL, the function returns NULL.
+
+**Examples**: 
+```sql
+taos> select repeat('abc',5);
+      repeat('abc',5)      |
+============================
+ abcabcabcabcabc           |
+            
+taos> select repeat('abc',-1);
+ repeat('abc',-1) |
+===================
+                  |
+```
 
 ### Conversion Functions
 
@@ -609,11 +1253,14 @@ NOW()
 TIMEDIFF(expr1, expr2 [, time_unit])
 ```
 
-**Description**: The difference between two timestamps, and rounded to the time unit specified by `time_unit`
+**Description**: Returns `expr1 − expr2`, and rounded to the time unit specified by `time_unit`
 
 **Return value type**: BIGINT
 
-**Applicable column types**: UNIX-style timestamps in BIGINT and TIMESTAMP format and other timestamps in VARCHAR and NCHAR format
+**Applicable column types**: 
+- `expr1`: UNIX-style timestamps in BIGINT and TIMESTAMP format and other timestamps in VARCHAR and NCHAR format.
+- `expr2`: UNIX-style timestamps in BIGINT and TIMESTAMP format and other timestamps in VARCHAR and NCHAR format
+- `time_unit`: See "More explanations".
 
 **Applicable table types**: standard tables and supertables
 
@@ -622,10 +1269,24 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 **More explanations**:
 - Time unit specified by `time_unit` can be:
           1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks)
-- The precision of the returned timestamp is same as the precision set for the current data base in use
-- If the input data is not formatted as a timestamp, the returned value is null.
+- If the time unit `time_unit` is not specified, the precision of the returned time difference will be consistent with the current DATABASE time precision setting.
+- If the input contains a string that does not conform to the date-time format, the function returns NULL.
+- If `expr1` or `expr2` is NULL, the function returns NULL.
+- If `time_unit` is NULL, it is equivalent to not specifying a time unit.
+- The precision of the input timestamp is determined by the table being queried. If no table is specified, the precision defaults to milliseconds.
 
+**Examples**:
+```sql
+taos> select timediff('2022-01-01 08:00:00', '2022-01-01 08:00:01',1s);
+ timediff('2022-01-01 08:00:00', '2022-01-01 08:00:01',1s) |
+============================================================
+                                                        -1 |
 
+taos> select timediff('2022-01-01 08:00:01', '2022-01-01 08:00:00',1s);
+ timediff('2022-01-01 08:00:01', '2022-01-01 08:00:00',1s) |
+============================================================
+                                                         1 |
+```
 #### TIMETRUNCATE
 
 ```sql
@@ -693,6 +1354,148 @@ TODAY()
                 b(nanosecond), u(microsecond), a(millisecond)), s(second), m(minute), h(hour), d(day), w(week)
 - The precision of the returned timestamp is same as the precision set for the current data base in use
 
+#### WEEK
+```sql
+WEEK(expr [, mode])
+```
+**Description**: This function returns the week number for `expr`.
+
+**Return value type**: BIGINT.
+
+**Applicable column types**: 
+- `expr`: UNIX-style timestamps in BIGINT and TIMESTAMP format and other timestamps in VARCHAR and NCHAR format.
+- `mode`: INTEGERS in the range of 0-7.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**More explanations**: 
+- If `expr` is NULL, the function returns NULL.
+- The precision of the input timestamp is determined by the table being queried. If no table is specified, the precision defaults to milliseconds.
+- The following table describes how the `mode` argument works.
+
+|Mode	| First day of week	 | Range	 | Week 1 is the first week …    |
+|-------|------------------|-------|-------------------------------|
+|0	| Sunday	          | 0-53	 | with a Sunday in this year    |
+|1	| Monday	          | 0-53	 | with 4 or more days this year |
+|2	| Sunday	          | 1-53	 | with a Sunday in this year    |
+|3	| Monday	          | 1-53	 | with 4 or more days this year |
+|4	| Sunday	          | 0-53	 | with 4 or more days this year |
+|5	| Monday	          | 0-53	 | with a Monday in this year    |
+|6	| Sunday	          | 1-53	 | with 4 or more days this year |
+|7	| Monday	          | 1-53	 | with a Monday in this year    |
+
+- When the return value range is 0 - 53, dates before the 1st week are considered as week 0.
+- When the return value range is 1 - 53, dates before the 1st week are considered as the last week of the previous year.
+- Taking `2000-01-01` as an example:
+    - In `mode=0`, the return value is `0` because the first Sunday of that year is `2000-01-02`, and week 1 starts from `2000-01-02`. Thus, `2000-01-01` falls in week 0, and the function returns 0.
+    - In `mode=1`, the return value is also `0` because the week containing `2000-01-01` only has two days, `2000-01-01 (Saturday)` and `2000-01-02 (Sunday)`. Week 1 starts from `2000-01-03`, so `2000-01-01` is part of week 0, and the function returns 0.
+    - In `mode=2`, the return value is `52` because week 1 starts from `2000-01-02`, and the return value range is 1-53. Therefore, `2000-01-01` is considered part of the last week of the previous year, which is week 52 of 1999, and the function returns 52.
+
+**Examples**: 
+```sql
+taos> select week('2000-01-01',0);
+ week('2000-01-01',0)  |
+========================
+                     0 |
+
+taos> select week('2000-01-01',1);
+ week('2000-01-01',1)  |
+========================
+                     0 |
+
+taos> select week('2000-01-01',2);
+ week('2000-01-01',2)  |
+========================
+                    52 |
+
+taos> select week('2000-01-01',3);
+ week('2000-01-01',3)  |
+========================
+                    52 |
+```
+
+#### WEEKOFYEAR
+```sql
+WEEKOFYEAR(expr)
+```
+**Description**: Returns the calendar week of the `expr` as a number.
+
+**Return value type**: BIGINT.
+
+**Applicable column types**: UNIX-style timestamps in BIGINT and TIMESTAMP format and other timestamps in VARCHAR and NCHAR format.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**More explanations**: 
+- WEEKOFYEAR() is a compatibility function that is equivalent to WEEK(expr,3).
+- If `expr` is NULL, the function returns NULL.
+- The precision of the input timestamp is determined by the table being queried. If no table is specified, the precision defaults to milliseconds.
+
+**Examples**: 
+```sql
+taos> select weekofyear('2000-01-01');
+ weekofyear('2000-01-01') |
+===========================
+                       52 |
+```
+
+#### WEEKDAY
+```sql
+WEEKDAY(expr)
+```
+**Description**: Returns the weekday index for `expr`.
+
+**Return value type**: BIGINT.
+
+**Applicable column types**: UNIX-style timestamps in BIGINT and TIMESTAMP format and other timestamps in VARCHAR and NCHAR format.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**More explanations**: 
+- Return value 0 = Monday, 1 = Tuesday, … 6 = Sunday.
+- If `expr` is NULL, the function returns NULL.
+- The precision of the input timestamp is determined by the table being queried. If no table is specified, the precision defaults to milliseconds.
+
+**Examples**: 
+```sql
+taos> select weekday('2000-01-01');
+ weekday('2000-01-01') |
+========================
+                     5 |
+```
+
+#### DAYOFWEEK
+```sql
+DAYOFWEEK(expr)
+```
+**Description**: Returns the weekday index for `expr`.
+
+**Return value type**: BIGINT.
+
+**Applicable column types**: UNIX-style timestamps in BIGINT and TIMESTAMP format and other timestamps in VARCHAR and NCHAR format.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**More explanations**: 
+- Return value 1 = Sunday, 2 = Monday, …, 7 = Saturday.
+- If `expr` is NULL, the function returns NULL.
+- The precision of the input timestamp is determined by the table being queried. If no table is specified, the precision defaults to milliseconds.
+
+**Examples**: 
+```sql
+taos> select dayofweek('2000-01-01');
+ dayofweek('2000-01-01') |
+==========================
+                       7 |
+```
 
 ## Aggregate Functions
 
@@ -815,13 +1618,13 @@ SPREAD(expr)
 **Applicable table types**: standard tables and supertables
 
 
-### STDDEV
+### STDDEV/STDDEV_POP
 
 ```sql
-STDDEV(expr)
+STDDEV/STDDEV_POP(expr)
 ```
 
-**Description**: Standard deviation of a specific column in a table or STable
+**Description**: Population standard deviation of a specific column in a table or STable
 
 **Return value type**: DOUBLE
 
@@ -829,6 +1632,52 @@ STDDEV(expr)
 
 **Applicable table types**: standard tables and supertables
 
+**Examples**:
+```sql
+taos> select id from test_stddev;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+
+taos> select stddev_pop(id) from test_stddev;
+      stddev_pop(id)       |
+============================
+         1.414213562373095 |
+```
+
+### VAR_POP
+```sql
+VAR_POP(expr)
+```
+
+**Description**: Population standard variance of a specific column in a table or STable
+
+**Return value type**: DOUBLE
+
+**Applicable data types**: Numeric
+
+**Applicable table types**: standard tables and supertables
+
+**Examples**:
+```sql
+taos> select id from test_var;
+     id      |
+==============
+           3 |
+           1 |
+           2 |
+           4 |
+           5 |
+
+taos> select var_pop(id) from test_var;
+        var_pop(id)        |
+============================
+         2.000000000000000 |
+```
 
 ### SUM
 
@@ -1054,10 +1903,11 @@ MAX(expr)
 
 **Return value type**:Same as the data type of the column being operated upon
 
-**Applicable data types**: Numeric
+**Applicable data types**: Numeric, VARCHAR，NCHAR.
 
 **Applicable table types**: standard tables and supertables
 
+**More explanations**: MAX() may take a string argument; in such cases, it returns the maximum string value.
 
 ### MIN
 
@@ -1069,10 +1919,11 @@ MIN(expr)
 
 **Return value type**:Same as the data type of the column being operated upon
 
-**Applicable data types**: Numeric
+**Applicable data types**: Numeric, VARCHAR，NCHAR.
 
 **Applicable table types**: standard tables and supertables
 
+**More explanations**: MIN() may take a string argument; in such cases, it returns the minimum string value.
 
 ### MODE
 
@@ -1415,7 +2266,7 @@ ST_GeomFromText(VARCHAR WKT expr)
 
 **Applicable table types**: standard tables and supertables
 
-**Explanations**：
+**Explanations**: 
 - The input can be one of WTK string, like POINT, LINESTRING, POLYGON, MULTIPOINT, MULTILINESTRING, MULTIPOLYGON, GEOMETRYCOLLECTION.
 - The output is a GEOMETRY data type, internal defined as binary string.
 
@@ -1437,7 +2288,7 @@ ST_AsText(GEOMETRY geom)
 
 **Applicable table types**: standard tables and supertables
 
-**Explanations**：
+**Explanations**: 
 - The output can be one of WTK string, like POINT, LINESTRING, POLYGON, MULTIPOINT, MULTILINESTRING, MULTIPOLYGON, GEOMETRYCOLLECTION.
 
 ### Geometry Relationships Functions
@@ -1458,7 +2309,7 @@ ST_Intersects(GEOMETRY geomA, GEOMETRY geomB)
 
 **Applicable table types**: standard tables and supertables
 
-**Explanations**：
+**Explanations**: 
 - Geometries intersect if they have any point in common.
 
 
@@ -1476,7 +2327,7 @@ ST_Equals(GEOMETRY geomA, GEOMETRY geomB)
 
 **Applicable table types**: standard tables and supertables
 
-**Explanations**：
+**Explanations**: 
 - 'Spatially equal' means ST_Contains(A,B) = true and ST_Contains(B,A) = true, and the ordering of points can be different but represent the same geometry structure.
 
 
@@ -1494,7 +2345,7 @@ ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
 
 **Applicable table types**: standard tables and supertables
 
-**Explanations**：
+**Explanations**: 
 - A and B have at least one point in common, and the common points lie in at least one boundary.
 - For Point/Point inputs the relationship is always FALSE, since points do not have a boundary.
 
@@ -1513,7 +2364,7 @@ ST_Covers(GEOMETRY geomA, GEOMETRY geomB)
 
 **Applicable table types**: standard tables and supertables
 
-**Explanations**：
+**Explanations**: 
 - A covers B means no point of B lies outside (in the exterior of) A.
 
 
@@ -1531,7 +2382,7 @@ ST_Contains(GEOMETRY geomA, GEOMETRY geomB)
 
 **Applicable table types**: standard tables and supertables
 
-**Explanations**：
+**Explanations**: 
 - A contains B if and only if all points of B lie inside (i.e. in the interior or boundary of) A (or equivalently, no points of B lie in the exterior of A), and the interiors of A and B have at least one point in common.
 
 
@@ -1549,5 +2400,5 @@ ST_ContainsProperly(GEOMETRY geomA, GEOMETRY geomB)
 
 **Applicable table types**: standard tables and supertables
 
-**Explanations**：
+**Explanations**: 
 - There is no point of B that lies on the boundary of A or in the exterior of A.
