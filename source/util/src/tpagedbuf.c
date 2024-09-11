@@ -663,8 +663,8 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
 
   taosArrayDestroy(pBuf->pIdList);
 
-  (void)tdListFree(pBuf->lruList);
-  (void)tdListFree(pBuf->freePgList);
+  pBuf->lruList = tdListFree(pBuf->lruList);
+  pBuf->freePgList = tdListFree(pBuf->freePgList);
 
   taosArrayDestroy(pBuf->emptyDummyIdList);
   taosArrayDestroy(pBuf->pFree);

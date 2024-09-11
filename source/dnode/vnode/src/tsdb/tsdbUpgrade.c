@@ -568,7 +568,7 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
   }
-  (void)tsdbDelFReaderClose(&reader);
+  tsdbDelFReaderClose(&reader);
   taosArrayDestroy(aDelIdx);
   return code;
 }

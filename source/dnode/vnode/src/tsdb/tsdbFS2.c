@@ -365,7 +365,7 @@ static int32_t tsdbFSDoScanAndFixFile(STFileSystem *fs, const STFileObj *fobj) {
 
     if (tsS3Enabled && fobj->f->lcn > 1) {
       char fname1[TSDB_FILENAME_LEN];
-      (void)tsdbTFileLastChunkName(fs->tsdb, fobj->f, fname1);
+      tsdbTFileLastChunkName(fs->tsdb, fobj->f, fname1);
       if (!taosCheckExistFile(fname1)) {
         code = TSDB_CODE_FILE_CORRUPTED;
         tsdbError("vgId:%d %s failed since file:%s does not exist", TD_VID(fs->tsdb->pVnode), __func__, fname1);
@@ -648,10 +648,9 @@ _exit:
   return code;
 }
 
-static int32_t close_file_system(STFileSystem *fs) {
+static void close_file_system(STFileSystem *fs) {
   TARRAY2_CLEAR(fs->fSetArr, tsdbTFileSetClear);
   TARRAY2_CLEAR(fs->fSetArrTmp, tsdbTFileSetClear);
-  return 0;
 }
 
 static int32_t fset_cmpr_fn(const struct STFileSet *pSet1, const struct STFileSet *pSet2) {
@@ -800,13 +799,13 @@ void tsdbEnableBgTask(STsdb *pTsdb) {
   (void)taosThreadMutexUnlock(&pTsdb->mutex);
 }
 
-int32_t tsdbCloseFS(STFileSystem **fs) {
-  if (fs[0] == NULL) return 0;
+void tsdbCloseFS(STFileSystem **fs) {
+  if (fs[0] == NULL) return;
 
   (void)tsdbDisableAndCancelAllBgTask((*fs)->tsdb);
-  (void)close_file_system(fs[0]);
+  close_file_system(fs[0]);
   destroy_fs(fs);
-  return 0;
+  return;
 }
 
 int64_t tsdbFSAllocEid(STFileSystem *fs) {
@@ -1026,13 +1025,12 @@ int32_t tsdbFSCreateRefSnapshotWithoutLock(STFileSystem *fs, TFileSetArray **fse
   return code;
 }
 
-int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
+void tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
   if (fsetArr[0]) {
     TARRAY2_DESTROY(fsetArr[0], tsdbTFileSetClear);
     taosMemoryFreeClear(fsetArr[0]);
     fsetArr[0] = NULL;
   }
-  return 0;
 }
 
 static SHashObj *tsdbFSetRangeArrayToHash(TFileSetRangeArray *pRanges) {
@@ -1174,7 +1172,7 @@ _out:
 
 void tsdbFSDestroyRefRangedSnapshot(TFileSetRangeArray **fsrArr) { tsdbTFileSetRangeArrayDestroy(fsrArr); }
 
-int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset) {
+void tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset) {
   int16_t sttTrigger = tsdb->pVnode->config.sttTrigger;
 
   tsdbFSGetFSet(tsdb->pFS, fid, fset);
@@ -1195,8 +1193,6 @@ int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset) {
     }
     tsdbInfo("vgId:%d begin task on file set:%d", TD_VID(tsdb->pVnode), fid);
   }
-
-  return 0;
 }
 
 int32_t tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid) {

@@ -399,7 +399,7 @@ void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
   }
 }
 
-int32_t tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
+void tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
   SVnode *pVnode = pTsdb->pVnode;
   STfs   *pTfs = pVnode->pTfs;
 
@@ -428,7 +428,6 @@ int32_t tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
              f->lcn,                            //
              g_tfile_info[f->type].suffix);
   }
-  return 0;
 }
 
 bool tsdbIsSameTFile(const STFile *f1, const STFile *f2) {

@@ -5967,7 +5967,7 @@ void tsdbUntakeReadSnap2(STsdbReader* pReader, STsdbReadSnap* pSnap, bool proact
     if (pSnap->pNode) taosMemoryFree(pSnap->pNode);
     if (pSnap->pINode) taosMemoryFree(pSnap->pINode);
 
-    (void) tsdbFSDestroyRefSnapshot(&pSnap->pfSetArray);
+    tsdbFSDestroyRefSnapshot(&pSnap->pfSetArray);
 
     taosMemoryFree(pSnap);
   }

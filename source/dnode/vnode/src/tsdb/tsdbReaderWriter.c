@@ -819,7 +819,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbDelFReaderClose(SDelFReader **ppReader) {
+void tsdbDelFReaderClose(SDelFReader **ppReader) {
   int32_t      code = 0;
   SDelFReader *pReader = *ppReader;
 
@@ -832,7 +832,6 @@ int32_t tsdbDelFReaderClose(SDelFReader **ppReader) {
   }
 
   *ppReader = NULL;
-  return code;
 }
 
 int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData) {

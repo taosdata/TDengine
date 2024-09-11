@@ -86,7 +86,7 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, lino, tstrerror(code));
-    (void)tsdbCloseFS(&pTsdb->pFS);
+    tsdbCloseFS(&pTsdb->pFS);
     (void)taosThreadMutexDestroy(&pTsdb->mutex);
     taosMemoryFree(pTsdb);
   } else {
@@ -109,7 +109,7 @@ int32_t tsdbClose(STsdb **pTsdb) {
     (*pTsdb)->mem = NULL;
     (void)taosThreadMutexUnlock(&(*pTsdb)->mutex);
 
-    (void)tsdbCloseFS(&(*pTsdb)->pFS);
+    tsdbCloseFS(&(*pTsdb)->pFS);
     tsdbCloseCache(*pTsdb);
 #ifdef TD_ENTERPRISE
     (void)tsdbCloseCompMonitor(*pTsdb);

@@ -373,7 +373,8 @@ static int32_t tsdbDataIterOpen(STsdbIter *iter) {
   iter->dataData->brinBlkArrayIdx = 0;
 
   // SBrinBlock
-  (void)tBrinBlockInit(iter->dataData->brinBlock);
+  code = tBrinBlockInit(iter->dataData->brinBlock);
+  if (code) return code;
   iter->dataData->brinBlockIdx = 0;
 
   // SBlockData
