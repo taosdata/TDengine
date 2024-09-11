@@ -201,21 +201,23 @@ static int32_t walReadSeekVerImpl(SWalReader *pReader, int64_t ver) {
   // bsearch in fileSet
   SWalFileInfo tmpInfo;
   tmpInfo.firstVer = ver;
+  taosThreadMutexLock(&pWal->mutex);
   SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
   if (pRet == NULL) {
     wError("failed to find WAL log file with ver:%" PRId64, ver);
-
+    taosThreadMutexUnlock(&pWal->mutex);
     TAOS_RETURN(TSDB_CODE_WAL_INVALID_VER);
   }
 
   if (pReader->curFileFirstVer != pRet->firstVer) {
     // error code was set inner
-    TAOS_CHECK_RETURN(walReadChangeFile(pReader, pRet->firstVer));
+    TAOS_CHECK_RETURN_WITH_MUTEX(walReadChangeFile(pReader, pRet->firstVer), &pWal->mutex);
   }
 
   // error code was set inner
-  TAOS_CHECK_RETURN(walReadSeekFilePos(pReader, pRet->firstVer, ver));
+  TAOS_CHECK_RETURN_WITH_MUTEX(walReadSeekFilePos(pReader, pRet->firstVer, ver), &pWal->mutex);
 
+  taosThreadMutexUnlock(&pWal->mutex);
   wDebug("vgId:%d, wal version reset from %" PRId64 " to %" PRId64, pReader->pWal->cfg.vgId, pReader->curVersion, ver);
 
   pReader->curVersion = ver;

@@ -73,14 +73,14 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
   char buf[TSDB_PASSWORD_LEN + 1];
 
   buf[TSDB_PASSWORD_LEN] = 0;
-  (void)sprintf(buf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0], context.digest[1],
-          context.digest[2], context.digest[3], context.digest[4], context.digest[5], context.digest[6],
-          context.digest[7], context.digest[8], context.digest[9], context.digest[10], context.digest[11],
-          context.digest[12], context.digest[13], context.digest[14], context.digest[15]);
+  (void)sprintf(buf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0],
+                context.digest[1], context.digest[2], context.digest[3], context.digest[4], context.digest[5],
+                context.digest[6], context.digest[7], context.digest[8], context.digest[9], context.digest[10],
+                context.digest[11], context.digest[12], context.digest[13], context.digest[14], context.digest[15]);
   (void)memcpy(target, buf, TSDB_PASSWORD_LEN);
 }
 
-static FORCE_INLINE int32_t taosHashBinary(char* pBuf, int32_t len) {
+static FORCE_INLINE int32_t taosHashBinary(char *pBuf, int32_t len) {
   uint64_t hashVal = MurmurHash3_64(pBuf, len);
   return sprintf(pBuf, "%" PRIu64, hashVal);
 }
@@ -161,8 +161,7 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 
 #define TCONTAINER_OF(ptr, type, member) ((type *)((char *)(ptr)-offsetof(type, member)))
 
-#define TAOS_GET_TERRNO(code) \
- (terrno == 0 ? code : terrno)
+#define TAOS_GET_TERRNO(code) (terrno == 0 ? code : terrno)
 
 #define TAOS_RETURN(CODE)     \
   do {                        \
@@ -175,6 +174,15 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     if (__c != TSDB_CODE_SUCCESS) { \
       TAOS_RETURN(__c);             \
     }                               \
+  } while (0)
+
+#define TAOS_CHECK_RETURN_WITH_MUTEX(CMD, MUTEX) \
+  do {                                           \
+    int32_t __c = (CMD);                         \
+    if (__c != TSDB_CODE_SUCCESS) {              \
+      taosThreadMutexUnlock(MUTEX);              \
+      TAOS_RETURN(__c);                          \
+    }                                            \
   } while (0)
 
 #define TAOS_CHECK_GOTO(CMD, LINO, LABEL) \
