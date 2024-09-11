@@ -98,14 +98,24 @@ function check_taosd() {
             set_service_state "error" "taosd checking failed with $ret for $taosd_error_count times"
             if [ ${taosd_error_count} -gt ${TAOSD_ERROR_MAX_NUMBER} ]; then
                 # dump the taosd
+                taosd_error_count=0
                 SUFFIX=$(date +"%Y%m%d%H%M")
-                gcore -a -o /var/log/corefile/taosd.core.${SUFFIX} `pidof taosd`
-                logger "ERROR" "generated corefile /var/log/corefile/taosd.core.${SUFFIX} for taosd"
+                if [[ ! -d "${BACKUP_CORE_FOLDER}" ]]; then
+                    echo "${BACKUP_CORE_FOLDER} does not exist and create it"
+                    mkdir -p ${BACKUP_CORE_FOLDER}
+                fi
+                taosdTID=$(pidof taosd)
+                gcore -a -o ${BACKUP_CORE_FOLDER}/taosd.core.${SUFFIX} $taosdTID
+                logger "ERROR" "generated corefile ${BACKUP_CORE_FOLDER}/taosd.core.${SUFFIX} for taosd $taosdTID"
                 # alert the message
                 post_error_msg
-                # kill the taosd
-                kill `pidof taosd`
-                logger "ERROR" "sent -15 to kill taosd"
+                # kill the taosd with -15 if failed with -9
+                if kill $taosdTID; then
+                    logger "ERROR" "Killed taosd $taosdTID with -15"
+                else
+                    logger "ERROR" "Failed to kill the taosd $taosdTID with -15 and try to kill it with -9"
+                    kill -9 $taosdTID;
+                fi
             fi 
         fi
     else
