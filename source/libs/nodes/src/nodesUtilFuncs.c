@@ -120,7 +120,7 @@ static int32_t callocNodeChunk(SNodeAllocator* pAllocator, SNodeMemChunk** pOutC
   SNodeMemChunk* pNewChunk = taosMemoryCalloc(1, sizeof(SNodeMemChunk) + pAllocator->chunkSize);
   if (NULL == pNewChunk) {
     if (pOutChunk) *pOutChunk = NULL;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pNewChunk->pBuf = (char*)(pNewChunk + 1);
   pNewChunk->availableSize = pAllocator->chunkSize;
@@ -141,7 +141,7 @@ static int32_t callocNodeChunk(SNodeAllocator* pAllocator, SNodeMemChunk** pOutC
 static int32_t nodesCallocImpl(int32_t size, void** pOut) {
   if (NULL == g_pNodeAllocator) {
     *pOut = taosMemoryCalloc(1, size);
-    if (!*pOut) return TSDB_CODE_OUT_OF_MEMORY;
+    if (!*pOut) return terrno;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -180,7 +180,7 @@ void nodesFree(void* p) {
 static int32_t createNodeAllocator(int32_t chunkSize, SNodeAllocator** pAllocator) {
   *pAllocator = taosMemoryCalloc(1, sizeof(SNodeAllocator));
   if (NULL == *pAllocator) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (*pAllocator)->chunkSize = chunkSize;
   int32_t code = callocNodeChunk(*pAllocator, NULL);
