@@ -24,6 +24,8 @@
 extern "C" {
 #endif
 
+#define TSDB_AFUNC_DEFAULT_ROWS 60
+
 typedef struct {
   char   *data;
   int64_t dataLen;
@@ -43,6 +45,8 @@ int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp);
 
 void    taosFuncUpdate();
 int32_t taosFuncGetUrl(const char *funcName, EAFuncType type, char *url, int32_t urlLen);
+int32_t taosFuncGetName(const char *option, char *name, int32_t nameLen);
+int32_t taosFuncGetRows(const char *option, int32_t *rows);
 int64_t taosFuncGetVersion();
 void    taosFuncUpdate(int64_t newVer, SHashObj *pHash);
 void    taosFuncFreeHash(SHashObj *pHash);

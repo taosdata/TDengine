@@ -21,6 +21,7 @@
 #include "geomFunc.h"
 #include "taoserror.h"
 #include "ttime.h"
+#include "tfunc.h"
 
 static int32_t buildFuncErrMsg(char* pErrBuf, int32_t len, int32_t errCode, const char* pFormat, ...) {
   va_list vArgList;
@@ -2079,6 +2080,42 @@ static int32_t translateMode(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateUniqueMode(pFunc, pErrBuf, len, false);
 }
 
+static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (2 != numOfParams) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, "forecast params should be 2");
+  }
+
+  uint8_t valType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (!IS_NUMERIC_TYPE(valType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast 1st parameter should be numeric");
+  }
+
+  uint8_t optionType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+  if (TSDB_DATA_TYPE_BINARY != optionType) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast 2nd parameter should be varchar");
+  }
+
+  SNode* pOption = nodesListGetNode(pFunc->pParameterList, 1);
+  if (QUERY_NODE_VALUE != nodeType(pOption)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast 2nd parameter should be value");
+  }
+
+  SValueNode* pValue = (SValueNode*)pOption;
+  if (taosFuncGetName(pValue->literal, NULL, 0) != 0) {
+    return invaildFuncParaValueErrMsg(pErrBuf, len, "forecast 2nd parameter should include 'func'");
+  }
+
+  pValue->notReserved = true;
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[valType].bytes, .type = valType};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateForecastConfidence(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (numOfParams > 2) {
@@ -3622,6 +3659,38 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = functionFinalize,
     .estimateReturnRowsFunc = diffEstReturnRows,
     .processFuncByRow  = diffFunctionByRow,
+  },
+  {
+    .name = "forecast",
+    .type = FUNCTION_TYPE_FORECAST,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC |
+                      FUNC_MGT_FORBID_FILL_FUNC,
+    .translateFunc = translateForecast,
+    .getEnvFunc   = getForecastFuncEnv,
+    .initFunc     = forecastFunctionSetup,
+    .processFunc  = forecastFunction,
+    .sprocessFunc = forecastScalarFunction,
+    .finalizeFunc = forecastFinalize,
+  },
+  {
+    .name = "_flow",
+    .type = FUNCTION_TYPE_FORECAST_LOW,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateForecastConfidence,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_fhigh",
+    .type = FUNCTION_TYPE_FORECAST_HIGH,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateForecastConfidence,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
   },
   {
     .name = "statecount",

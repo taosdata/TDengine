@@ -296,6 +296,7 @@ typedef enum ELogicConditionType {
 #define TSDB_URL_LEN              256
 #define TSDB_FUNC_TYPE_LEN        32
 #define TSDB_FUNC_KEY_LEN         (TSDB_FUNC_NAME_LEN + 10)
+#define TSDB_FUNC_URL_LEN         (TSDB_URL_LEN + TSDB_FUNC_TYPE_LEN + 1)
 
 #define TSDB_MAX_EP_NUM 10
 

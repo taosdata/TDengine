@@ -334,6 +334,8 @@ static SKeyword keywordTable[] = {
     {"_WDURATION",           TK_WDURATION},
     {"_WEND",                TK_WEND},
     {"_WSTART",              TK_WSTART},
+    {"_FLOW",                TK_FLOW},
+    {"_FHIGH",               TK_FHIGH},
     {"ALIVE",                TK_ALIVE},
     {"VARBINARY",            TK_VARBINARY},
     {"S3_CHUNKSIZE",         TK_S3_CHUNKSIZE},

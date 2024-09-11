@@ -17,6 +17,10 @@
 #include "tfunc.h"
 #include <curl/curl.h>
 
+#define TSDB_AFUNC_FUNC_PREFIX  "func="
+#define TSDB_AFUNC_SPLIT        ","
+#define TSDB_AFUNC_ROWS_SPLIT   "rows="
+
 typedef struct {
   int64_t       ver;
   SHashObj     *hash;  // funcname -> SAFuncUrl
@@ -99,9 +103,37 @@ void taosFuncUpdate(int64_t newVer, SHashObj *pHash) {
   }
 }
 
+int32_t taosFuncGetName(const char *option, char *name, int32_t nameLen) {
+  char *pos1 = strstr(option, TSDB_AFUNC_FUNC_PREFIX);
+  char *pos2 = strstr(option, TSDB_AFUNC_SPLIT);
+  if (pos1 != NULL) {
+    if (nameLen > 0) {
+      if (pos2 == NULL) {
+        tstrncpy(name, pos1 + 5, nameLen);
+      } else {
+        tstrncpy(name, pos1, MIN((int32_t)(pos2 - pos1), nameLen));
+      }
+    }
+    return 0;
+  } else {
+    return -1;
+  }
+}
+
+int32_t taosFuncGetRows(const char *option, int32_t *rows) {
+  char *pos1 = strstr(option, TSDB_AFUNC_ROWS_SPLIT);
+  char *pos2 = strstr(option, TSDB_AFUNC_SPLIT);
+  if (pos1 != NULL) {
+    *rows = taosStr2Int32(pos1 + 5, NULL, 10);
+    return 0;
+  } else {
+    return -1;
+  }
+}
+
 int32_t taosFuncGetUrl(const char *funcName, EAFuncType type, char *url, int32_t urlLen) {
   int32_t code = 0;
-  char    name[TSDB_FUNC_NAME_LEN + 12] = {0};
+  char    name[TSDB_FUNC_KEY_LEN] = {0};
   int32_t nameLen = snprintf(name, sizeof(name) - 1, "%s:%d", funcName, type);
 
   taosThreadMutexLock(&tsFuncs.lock);
