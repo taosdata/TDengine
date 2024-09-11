@@ -191,7 +191,7 @@ int32_t tsdbFSetPartListToRangeDiff(STsdbFSetPartList* pList, TFileSetRangeArray
 
 _err:
   if (pDiff) {
-    (void)tsdbTFileSetRangeArrayDestroy(&pDiff);
+    tsdbTFileSetRangeArrayDestroy(&pDiff);
   }
   return code;
 }
@@ -355,7 +355,11 @@ static STsdbFSetPartList* tsdbSnapGetFSetPartList(STFileSystem* fs) {
       terrno = code;
       break;
     }
-    (void)TARRAY2_SORT_INSERT(pList, pItem, tsdbFSetPartCmprFn);
+    code = TARRAY2_SORT_INSERT(pList, pItem, tsdbFSetPartCmprFn);
+    if (code) {
+      terrno = code;
+      break;
+    }
   }
   (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
 

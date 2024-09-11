@@ -71,9 +71,9 @@ int32_t vHashInit(SVHashTable** ht, uint32_t (*hash)(const void*), int32_t (*com
   return 0;
 }
 
-int32_t vHashDestroy(SVHashTable** ht) {
+void vHashDestroy(SVHashTable** ht) {
   if (ht == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+    return;
   }
 
   if (*ht) {
@@ -81,7 +81,6 @@ int32_t vHashDestroy(SVHashTable** ht) {
     taosMemoryFree(*ht);
     (*ht) = NULL;
   }
-  return 0;
 }
 
 int32_t vHashPut(SVHashTable* ht, void* obj) {

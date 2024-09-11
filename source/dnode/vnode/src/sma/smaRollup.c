@@ -392,10 +392,9 @@ int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
     return terrno;
   }
 
-  STSchema *pTSchema = metaGetTbTSchema(SMA_META(pSma), suid, -1, 1);
-  if (!pTSchema) {
-    TAOS_CHECK_EXIT(TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION);
-  }
+  STSchema *pTSchema;
+  code = metaGetTbTSchemaNotNull(SMA_META(pSma), suid, -1, 1,  &pTSchema);
+  TAOS_CHECK_EXIT(code);
   pRSmaInfo->pSma = pSma;
   pRSmaInfo->pTSchema = pTSchema;
   pRSmaInfo->suid = suid;

@@ -204,7 +204,7 @@ static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
         TAOS_CHECK_GOTO(tsdbSttFileReaderOpen(fobj->fname, &config, &reader), &lino, _exit);
 
         if ((code = TARRAY2_APPEND(merger->sttReaderArr, reader))) {
-          (void)tsdbSttFileReaderClose(&reader);
+          tsdbSttFileReaderClose(&reader);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
       }
@@ -339,9 +339,9 @@ static int32_t tsdbMergeFileSetEndCloseWriter(SMerger *merger) {
 }
 
 static int32_t tsdbMergeFileSetEndCloseIter(SMerger *merger) {
-  (void)tsdbIterMergerClose(&merger->tombIterMerger);
+  tsdbIterMergerClose(&merger->tombIterMerger);
   TARRAY2_CLEAR(merger->tombIterArr, tsdbIterClose);
-  (void)tsdbIterMergerClose(&merger->dataIterMerger);
+  tsdbIterMergerClose(&merger->dataIterMerger);
   TARRAY2_CLEAR(merger->dataIterArr, tsdbIterClose);
   return 0;
 }
@@ -463,7 +463,7 @@ static int32_t tsdbMergeGetFSet(SMerger *merger) {
   STFileSet *fset;
 
   (void)taosThreadMutexLock(&merger->tsdb->mutex);
-  (void)tsdbFSGetFSet(merger->tsdb->pFS, merger->fid, &fset);
+  tsdbFSGetFSet(merger->tsdb->pFS, merger->fid, &fset);
   if (fset == NULL) {
     (void)taosThreadMutexUnlock(&merger->tsdb->mutex);
     return 0;
