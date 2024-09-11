@@ -1749,7 +1749,7 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
 
   if (strcasecmp(option, "enableWhiteList") == 0) {
     int32_t enableWhitelist = atoi(value);
-    uInfo("enablewhitelist set from %d to %d", tsAsyncLog, enableWhitelist);
+    uInfo("enablewhitelist set from %d to %d", tsEnableWhiteList, enableWhitelist);
     tsEnableWhiteList = enableWhitelist > 0 ? true : false;
     return;
   }
