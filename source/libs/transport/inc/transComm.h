@@ -94,10 +94,6 @@ typedef void* queue[2];
 /* Return the structure holding the given element. */
 #define QUEUE_DATA(e, type, field) ((type*)((void*)((char*)(e)-offsetof(type, field))))
 
-typedef struct {
-  queue q;
-} queueWrapper;
-
 // #define TRANS_RETRY_COUNT_LIMIT 100   // retry count limit
 // #define TRANS_RETRY_INTERVAL    15    // retry interval (ms)
 #define TRANS_CONN_TIMEOUT 3000  // connect timeout (ms)

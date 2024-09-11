@@ -403,16 +403,16 @@ bool filteBySeq(void* key, void* arg) {
   }
 }
 int32_t cliGetReqBySeq(SCliConn* conn, int32_t seq, SCliReq** pReq) {
-  int32_t      code = 0;
-  queueWrapper set;
-  QUEUE_INIT(&set.q)
+  int32_t code = 0;
+  queue   set;
+  QUEUE_INIT(&set)
   transQueueRemoveByFilter(&conn->reqsSentOut, filteBySeq, &seq, &set, 1);
 
-  if (QUEUE_IS_EMPTY(&set.q)) {
+  if (QUEUE_IS_EMPTY(&set)) {
     return TSDB_CODE_OUT_OF_RANGE;
   }
 
-  queue*   e = QUEUE_HEAD(&set.q);
+  queue*   e = QUEUE_HEAD(&set);
   SCliReq* p = QUEUE_DATA(e, SCliReq, q);
 
   *pReq = p;
@@ -481,13 +481,13 @@ int32_t cliConnMayHandleState_releaseReq(SCliConn* conn, STransMsgHead* pHead) {
     tDebug("%s %p reqToSend:%d, sentOut:%d", CONN_GET_INST_LABEL(conn), conn, transQueueSize(&conn->reqsToSend),
            transQueueSize(&conn->reqsSentOut));
 
-    queueWrapper set;
-    QUEUE_INIT(&set.q);
+    queue set;
+    QUEUE_INIT(&set);
     transQueueRemoveByFilter(&conn->reqsSentOut, filterByQid, &qId, &set, -1);
     transQueueRemoveByFilter(&conn->reqsToSend, filterByQid, &qId, &set, -1);
 
-    while (!QUEUE_IS_EMPTY(&set.q)) {
-      queue*   el = QUEUE_HEAD(&set.q);
+    while (!QUEUE_IS_EMPTY(&set)) {
+      queue*   el = QUEUE_HEAD(&set);
       SCliReq* pReq = QUEUE_DATA(el, SCliReq, q);
       QUEUE_REMOVE(el);
       if (pReq->msg.info.notFreeAhandle == 0 && pThrd != NULL && pThrd->destroyAhandleFp != NULL) {
@@ -1317,12 +1317,12 @@ bool fileToRmReq(void* h, void* arg) {
   return false;
 }
 static void cliConnRmReqs(SCliConn* conn) {
-  queueWrapper set;
-  QUEUE_INIT(&set.q);
+  queue set;
+  QUEUE_INIT(&set);
 
   transQueueRemoveByFilter(&conn->reqsSentOut, fileToRmReq, NULL, &set, -1);
-  while (!QUEUE_IS_EMPTY(&set.q)) {
-    queue* el = QUEUE_HEAD(&set.q);
+  while (!QUEUE_IS_EMPTY(&set)) {
+    queue* el = QUEUE_HEAD(&set);
     QUEUE_REMOVE(el);
     SCliReq* pReq = QUEUE_DATA(el, SCliReq, q);
     destroyReq(pReq);

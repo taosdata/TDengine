@@ -471,14 +471,14 @@ void* transQueueGet(STransQueue* q, int idx) {
 }
 
 void transQueueRemoveByFilter(STransQueue* q, bool (*filter)(void* e, void* arg), void* arg, void* dst, int32_t size) {
-  queueWrapper* d = dst;
-  queue*        node = QUEUE_NEXT(&q->node);
+  queue* d = dst;
+  queue* node = QUEUE_NEXT(&q->node);
   while (node != &q->node) {
     queue* next = QUEUE_NEXT(node);
     if (filter(node, arg)) {
       QUEUE_REMOVE(node);
       q->size--;
-      QUEUE_PUSH(&d->q, node);
+      QUEUE_PUSH(d, node);
       if (--size == 0) {
         break;
       }
