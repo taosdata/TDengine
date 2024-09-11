@@ -1152,7 +1152,7 @@ bool isPrimaryKeyImpl(SNode* pExpr) {
         FUNCTION_TYPE_LAST_ROW == pFunc->funcType || FUNCTION_TYPE_TIMETRUNCATE == pFunc->funcType) {
       return isPrimaryKeyImpl(nodesListGetNode(pFunc->pParameterList, 0));
     } else if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType ||
-               FUNCTION_TYPE_IROWTS == pFunc->funcType) { // todo: forecast pseudo column
+               FUNCTION_TYPE_IROWTS == pFunc->funcType) {
       return true;
     }
   } else if (QUERY_NODE_OPERATOR == nodeType(pExpr)) {
@@ -3616,10 +3616,6 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
     return rewriteExprToSelectTagFunc(pCxt->pTranslateCxt, pNode);
   }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
-    if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
-      SFunctionNode* pFunc = (SFunctionNode*)*pNode;
-      qInfo("doCheckAggColCoexist with function name:%s", pFunc->functionName);
-    }
     pCxt->existCol = true;
   }
   return DEAL_RES_CONTINUE;

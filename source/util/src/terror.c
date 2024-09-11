@@ -354,6 +354,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_FUNC,      "Anode too many functi
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_LONG_FUNC_NAME, "Anode too long function name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_TYPE,      "Anode too many function type")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_AFUNC_NOT_FOUND,          "AFunc not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_AFUNC_NOT_FOUND,          "AFunc not loaded")
 
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
