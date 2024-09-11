@@ -10,6 +10,7 @@ use log::LevelFilter;
 use reqwest::RequestBuilder;
 use rustls::server::ServerConfig;
 use rustls_pemfile::{certs, private_key};
+use serde_with::serde_as;
 use std::{
     collections::HashMap,
     fmt::Display,
@@ -1242,6 +1243,7 @@ struct Args {
     data_dir: Option<String>,
 }
 
+#[serde_as]
 #[derive(Parser, Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct LogOpts {
@@ -1249,7 +1251,8 @@ struct LogOpts {
     path: Option<PathBuf>,
     #[clap(long = "log.level", env = "EXPLORER_LOG_LEVEL")]
     level: Option<LevelFilter>,
-    #[clap(long = "log.compress", env = "EXPLORER_LOG_COMPRESS")]
+    #[clap(long = "log.compress", env = "EXPLORER_LOG_COMPRESS", value_parser = compress_bool_parser)]
+    #[serde_as(as = "Option::<serde_with::BoolFromInt<serde_with::formats::Strict>>")]
     compress: Option<bool>,
     #[clap(long = "log.rotationCount", env = "EXPLORER_LOG_ROTATION_COUNT")]
     rotation_count: Option<usize>,
@@ -1286,6 +1289,14 @@ impl Default for LogOpts {
             rotation_size: Some("1GB".to_string()),
             reserved_disk_size: Some("2GB".to_string()),
         }
+    }
+}
+
+fn compress_bool_parser(input: &str) -> anyhow::Result<bool> {
+    match input.to_lowercase().as_str() {
+        "true" | "1" => Ok(true),
+        "false" | "0" => Ok(false),
+        _ => bail!("unsupported bool value: {input}"),
     }
 }
 
