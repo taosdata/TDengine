@@ -550,7 +550,7 @@ _exit:
   // finish task
   if (compactor.fset) {
     TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
-    TAOS_UNUSED(tsdbFinishTaskOnFileSet(tsdb, compactArg->fid));
+    tsdbFinishTaskOnFileSet(tsdb, compactArg->fid);
     TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   }
 
