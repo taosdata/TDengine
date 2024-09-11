@@ -1398,10 +1398,21 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     thrd->quit = false;
     thrd->pTransInst = shandle;
     thrd->pWhiteList = uvWhiteListCreate();
+    if (thrd->pWhiteList == NULL) {
+      destroyWorkThrdObj(thrd);
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto End;
+    }
 
-    srv->pThreadObj[i] = thrd;
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
+    if (srv->pipe[i] == NULL) {
+      destroyWorkThrdObj(thrd);
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto End;
+    }
+
     thrd->pipe = &(srv->pipe[i][1]);  // init read
+    srv->pThreadObj[i] = thrd;
 
     if ((code = addHandleToWorkloop(thrd, pipeName)) != 0) {
       goto End;
@@ -1415,6 +1426,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
       tError("failed to create worker-thread:%d", i);
       goto End;
     }
+    thrd->inited = 1;
   }
 #else
 

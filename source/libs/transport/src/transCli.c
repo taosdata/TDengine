@@ -2422,7 +2422,6 @@ static void destroyThrdObj(SCliThrd* pThrd) {
   tDebug("thread destroy %" PRId64, pThrd->pid);
   for (int i = 0; i < taosArrayGetSize(pThrd->timerList); i++) {
     uv_timer_t* timer = taosArrayGetP(pThrd->timerList, i);
-    (void)uv_timer_stop(timer);
     taosMemoryFree(timer);
   }
 
