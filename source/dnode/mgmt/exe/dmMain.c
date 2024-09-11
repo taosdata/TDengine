@@ -438,12 +438,10 @@ int mainWindows(int argc, char **argv) {
   }
 
   if (global.deleteTrans) {
-    TdFilePtr pFile;
-    int32_t code = 0;
-    if ((code = dmCheckRunning(tsDataDir, &pFile)) != 0) {
-      printf("failed to generate encrypt code since taosd is running, please stop it first, reason:%s",
-             tstrerror(code));
-      return code;
+    TdFilePtr pFile = dmCheckRunning(tsDataDir);
+    if (pFile == NULL) {
+      printf("failed to generate encrypt code since taosd is running, please stop it first, reason:%s", terrstr());
+      return -1;
     }
 
     mndDeleteTrans();
