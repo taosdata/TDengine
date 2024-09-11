@@ -986,7 +986,7 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
     }
 
     pInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
-    setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
+    setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
     blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
@@ -1423,7 +1423,7 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
       projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL);
     }    
     // the pDataBlock are always the same one, no need to call this again
-    setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
+    setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
     blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
 
     doSessionWindowAggImpl(pOperator, pInfo, pBlock);

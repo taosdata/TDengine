@@ -1825,6 +1825,13 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "%s function is not supported in partition query", pFunc->functionName);
   }
+
+  if (NULL != pSelect->pWindow) {
+    if (QUERY_NODE_EVENT_WINDOW == nodeType(pSelect->pWindow)) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "%s function is not supported in event window", pFunc->functionName);
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
