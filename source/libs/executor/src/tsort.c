@@ -1308,8 +1308,7 @@ static int32_t getRowBufFromExtMemFile(SSortHandle* pHandle, int32_t regionId, i
       return terrno;
     }
 
-    // todo
-    (void)taosSeekCFile(pMemFile->pTdFile, pRegion->fileOffset, SEEK_SET);
+    TAOS_CHECK_RETURN(taosSeekCFile(pMemFile->pTdFile, pRegion->fileOffset, SEEK_SET));
 
     int32_t readBytes = TMIN(pMemFile->blockSize, pRegion->regionSize);
     int32_t ret = taosReadFromCFile(pRegion->buf, readBytes, 1, pMemFile->pTdFile);
