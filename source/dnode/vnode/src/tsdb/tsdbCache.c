@@ -577,7 +577,7 @@ static void tsdbCacheDeleter(const void *key, size_t klen, void *value, void *ud
   SLastCol *pLastCol = (SLastCol *)value;
 
   if (pLastCol->dirty) {
-    tsdbCacheFlushDirty(key, klen, pLastCol, ud);
+    (void)tsdbCacheFlushDirty(key, klen, pLastCol, ud);
   }
 
   for (uint8_t i = 0; i < pLastCol->rowKey.numOfPKs; ++i) {
