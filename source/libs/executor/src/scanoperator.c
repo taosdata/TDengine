@@ -4697,6 +4697,10 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
 
   while (pInfo->curPos < size && count < pOperator->resultInfo.capacity) {
     code = doTagScanOneTable(pOperator, pRes, count, &mr, &pTaskInfo->storageAPI);
+    if (TSDB_CODE_SUCCESS != code) {
+      (*ppRes) = NULL;
+      return code;
+    }
     ++count;
     if (++pInfo->curPos >= size) {
       setOperatorCompleted(pOperator);
