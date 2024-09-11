@@ -629,21 +629,30 @@ void uvOnSendCb(uv_write_t* req, int status) {
   SSvrConn*  conn = userReq->conn;
   queue*     src = &userReq->node;
 
-  tDebug("%s conn %p send data", transLabel(conn->pInst), conn);
-
+  tDebug("%s conn %p send data out ", transLabel(conn->pInst), conn);
   if (status == 0) {
     while (!QUEUE_IS_EMPTY(src)) {
       queue* head = QUEUE_HEAD(&src);
       QUEUE_REMOVE(head);
 
-      SSvrMsg* smsg = QUEUE_DATA(head, SSvrMsg, sendReq);
-
+      SSvrMsg*  smsg = QUEUE_DATA(head, SSvrMsg, sendReq);
       STraceId* trace = &smsg->msg.info.traceId;
       tGDebug("%s conn %p msg already send out, seqNum:%d, qid:%ld", transLabel(conn->pInst), conn,
               smsg->msg.info.seqNum, smsg->msg.info.qId);
       destroySmsg(smsg);
     }
   } else {
+    while (!QUEUE_IS_EMPTY(src)) {
+      queue* head = QUEUE_HEAD(&src);
+      QUEUE_REMOVE(head);
+
+      SSvrMsg*  smsg = QUEUE_DATA(head, SSvrMsg, sendReq);
+      STraceId* trace = &smsg->msg.info.traceId;
+      tGDebug("%s conn %p failed to send, seqNum:%d, qid:%ld, reason:%s", transLabel(conn->pInst), conn,
+              smsg->msg.info.seqNum, smsg->msg.info.qId, uv_err_name(status));
+      destroySmsg(smsg);
+    }
+
     if (!uv_is_closing((uv_handle_t*)(conn->pTcp))) {
       tError("conn %p failed to write data, %s", conn, uv_err_name(status));
       conn->broken = true;
@@ -766,7 +775,6 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
 
   SWriteReq* pWreq = taosMemoryCalloc(1, sizeof(SWriteReq));
   pWreq->conn = pConn;
-  QUEUE_INIT(&pWreq->q);
   QUEUE_INIT(&pWreq->node);
   pWreq->req.data = pWreq;
 

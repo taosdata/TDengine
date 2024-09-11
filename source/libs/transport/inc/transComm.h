@@ -363,8 +363,9 @@ void  transReqQueueClear(queue* q);
 
 // queue sending msgs
 typedef struct {
-  SArray* q;
+  queue node;
   void (*freeFunc)(const void* arg);
+  int32_t size;
 } STransQueue;
 
 /*
@@ -377,7 +378,7 @@ int32_t transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg));
  * put arg into queue
  * if queue'size > 1, return false; else return true
  */
-bool transQueuePush(STransQueue* queue, void* arg);
+int32_t transQueuePush(STransQueue* queue, void* arg);
 /*
  * the size of queue
  */
@@ -391,9 +392,20 @@ void* transQueuePop(STransQueue* queue);
  */
 void* transQueueGet(STransQueue* queue, int i);
 /*
+ * head elm from queue
+ */
+
+void* tranQueueHead(STransQueue* q);
+/*
  * rm ith from queue
  */
+
 void* transQueueRm(STransQueue* queue, int i);
+/*
+ * remove el from queue
+ */
+
+void transQueueRemove(STransQueue* q, void* e);
 /*
  * queue empty or not
  */
