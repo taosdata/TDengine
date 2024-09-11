@@ -3397,13 +3397,14 @@ int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
 }
 
 void blockDataCheck(const SSDataBlock* pDataBlock, bool forceChk) {
-  return;
+  //return;
   
   if (NULL == pDataBlock || pDataBlock->info.rows == 0) {
     return;
   }
 
-#define BLOCK_DATA_CHECK_TRESSA(o) ;
+//#define BLOCK_DATA_CHECK_TRESSA(o) ;
+#define BLOCK_DATA_CHECK_TRESSA(o) ASSERT(o)
 
   BLOCK_DATA_CHECK_TRESSA(pDataBlock->info.rows > 0);
 
@@ -3439,6 +3440,8 @@ void blockDataCheck(const SSDataBlock* pDataBlock, bool forceChk) {
           BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] < pCol->varmeta.length);
           if (pCol->reassigned) {
             BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] >= 0);
+          } else if (0 == r) {
+            nextPos = pCol->varmeta.offset[r];
           } else {
             BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] == nextPos);
           }
