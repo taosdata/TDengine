@@ -3,6 +3,7 @@ use actix_files::NamedFile;
 use anyhow::Context;
 use chrono::TimeZone;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
+use deadpool::managed::PoolError;
 use favorites::FavoritesSql;
 use geos::{Geom, Geometry};
 use http_auth_basic::Credentials;
@@ -68,35 +69,35 @@ struct UserPool {
 
 static TAOS_POOL: OnceLock<scc::HashMap<String, UserPool>> = OnceLock::new();
 
-async fn global_pool(dsn: &Dsn) -> deadpool::managed::Pool<Manager<TaosBuilder>> {
+async fn global_pool(dsn: &Dsn) -> Option<deadpool::managed::Pool<Manager<TaosBuilder>>> {
     let map = TAOS_POOL.get_or_init(|| scc::HashMap::new());
     let mut dsn_simple = dsn.clone();
     dsn_simple.password = None;
 
-    let user_pool = map
-        .entry(dsn_simple.to_string())
-        .or_insert_with(|| {
-            let builder = taos::TaosBuilder::from_dsn(dsn).expect("Failed to create TaosBuilder");
-            let pool = builder.pool().expect("Failed to create Taos pool");
-            UserPool {
-                password: dsn.password.clone().unwrap_or_default(),
-                pool,
+    let user_pool = map.get(&dsn_simple.to_string());
+    user_pool
+        .filter(|pool| pool.password == dsn.password.clone().unwrap_or_default())
+        .map(|pool| Some(pool.pool.clone()))
+        .unwrap_or_else(|| {
+            let builder = taos::TaosBuilder::from_dsn(dsn);
+            if builder.is_err() {
+                tracing::error!("Failed to create taosbuilder: {:?}", builder.err());
+                return None;
             }
+            let pool = builder.unwrap().pool();
+            if pool.is_err() {
+                tracing::error!("Failed to create pool: {:?}", pool.err());
+                return None;
+            }
+
+            let pool = pool.unwrap();
+            let user_pool = UserPool {
+                password: dsn.password.clone().unwrap_or_default(),
+                pool: pool.clone(),
+            };
+            let _ = map.insert(dsn_simple.to_string(), user_pool);
+            Some(pool)
         })
-        .get()
-        .clone();
-    if user_pool.password == dsn.password.clone().unwrap_or_default() {
-        user_pool.pool.clone()
-    } else {
-        let builder = taos::TaosBuilder::from_dsn(dsn).expect("Failed to create TaosBuilder");
-        let pool = builder.pool().expect("Failed to create Taos pool");
-        let user_pool = UserPool {
-            password: dsn.password.clone().unwrap_or_default(),
-            pool,
-        };
-        let _ = map.upsert(dsn_simple.to_string(), user_pool.clone());
-        user_pool.pool.clone()
-    }
 }
 
 #[actix_web::main]
@@ -1338,7 +1339,15 @@ impl Args {
 
         // taos connection pool
         let pool = global_pool(&dsn).await;
-        let conn = pool.get().await.expect("Failed to get connection");
+        if pool.is_none() {
+            return Err(RestErrResponse::new(
+                "inner error: failed to get connection pool",
+            ));
+        }
+        let conn = pool.unwrap().get().await.map_err(|err| match err {
+            PoolError::Backend(inner_err) => RestErrResponse::new(format!("{inner_err:#}")),
+            _ => RestErrResponse::new(format!("Failed to get connection: {err:#}")),
+        })?;
 
         let tz = if let Some(tz) = tz {
             chrono_tz::Tz::from_str(tz).unwrap_or(chrono_tz::Tz::UTC)
@@ -1429,7 +1438,15 @@ impl Args {
         let dsn = self.build_dsn(header)?;
         // taos connection pool
         let pool = global_pool(&dsn).await;
-        let conn = pool.get().await.expect("Failed to get connection");
+        if pool.is_none() {
+            return Err(RestErrResponse::new(
+                "inner error: failed to get connection pool",
+            ));
+        }
+        let conn = pool.unwrap().get().await.map_err(|err| match err {
+            PoolError::Backend(inner_err) => RestErrResponse::new(format!("{inner_err:#}")),
+            _ => RestErrResponse::new(format!("Failed to get connection: {err:#}")),
+        })?;
         // server version
         let server_version = conn.server_version().await;
         let server_version = match server_version {
