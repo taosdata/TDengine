@@ -110,6 +110,9 @@ pub(super) struct Cli {
 
     #[clap(long, env = "REPEAT_INTERVAL")]
     pub repeat_interval: Option<u64>,
+
+    #[clap(long, env = "TAOSX_REQUEST_TIMEOUT")]
+    pub request_timeout: Option<u64>,
 }
 
 impl Cli {
@@ -125,6 +128,7 @@ impl Cli {
         update_if_none!(database_url);
         update_if_none!(secret_prefix);
         update_if_none!(do_not_resume);
+        update_if_none!(request_timeout);
         update_if_none!(grpc);
         self
     }

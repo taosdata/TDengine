@@ -15,6 +15,7 @@ pub mod monitor;
 pub mod port_pool;
 pub mod rhai_syntax_validator;
 pub mod sql;
+pub mod timeout;
 pub mod trace;
 
 pub fn value_equals(value: &Value, other: &Value) -> bool {

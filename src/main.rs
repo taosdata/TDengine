@@ -28,6 +28,8 @@ use tracing_subscriber::{
 };
 use twelf::{config, Layer};
 
+use crate::serve::monitor;
+use taosx_core::utils::timeout::Timeout;
 use taosx_core::{
     get_data_dir,
     runners::{get_logs_home_dir, get_plugins_home_dir},
@@ -37,8 +39,6 @@ use taosx_core::{
     get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
     set_env_plugins_home_dir,
 };
-
-use crate::serve::monitor;
 
 #[cfg(all(feature = "mimalloc", feature = "jemallocator"))]
 compile_error!("Only one allocator can be specified");
@@ -311,6 +311,7 @@ impl Args {
                     take_or_not!(grpc);
                     take_or_not!(database_url);
                     take_or_not!(secret_prefix);
+                    take_or_not!(request_timeout);
                     take_or_not!(do_not_resume);
                 }
                 cli.merge_from(serve);
@@ -699,6 +700,8 @@ fn main() -> Result<()> {
         Commands::Privileges(privileges) => runtime.block_on(privileges.run(args.opt_args)),
         Commands::Replica(replica) => runtime.block_on(replica.run(args.opt_args)),
         Commands::Serve(serve) => {
+            Timeout::set_default_timeout(serve.request_timeout);
+
             let serve = || {
                 let _ = tracing::info_span!("serve").entered();
                 let addr = serve.get_listen_address();

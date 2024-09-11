@@ -194,17 +194,18 @@ impl KafkaTaskConfig {
     }
 
     fn parse_client_id(dsn: &Dsn) -> anyhow::Result<Option<String>> {
-        dsn.params
+        let client_id = dsn
+            .params
             .get("client_id")
-            .map(String::as_str)
             .map(|s| {
-                let result = s.parse::<String>();
-                match result {
-                    Ok(d) => Ok(Some(d)),
-                    Err(e) => Err(anyhow::anyhow!("invalid client_id: {}, cause: {}", s, e)),
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s.to_string())
                 }
             })
-            .unwrap_or(Ok(None))
+            .flatten();
+        Ok(client_id)
     }
 
     fn parse_enable_group_instance_id(dsn: &Dsn) -> bool {
