@@ -708,7 +708,9 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   bool      isVnode = pNode->vgId > 1;
   SyncIndex until = pBuf->commitIndex - TSDB_SYNC_LOG_BUFFER_RETENTION;
   do {
-    if (pBuf->startIndex >= pBuf->commitIndex) {
+    if ((pBuf->startIndex >= pBuf->commitIndex) ||
+        !((pBuf->startIndex < until) || (isVnode && pBuf->bytes >= TSDB_SYNC_LOG_BUFFER_THRESHOLD &&
+                                         atomic_load_64(&sSyncLogBufferBytes) >= tsLogBufferMemoryAllowed))) {
       break;
     }
     SSyncRaftEntry* pEntry = pBuf->entries[(pBuf->startIndex + pBuf->size) % pBuf->size].pItem;
@@ -717,10 +719,6 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
              ", commitIndex:%" PRId64 ", endIndex:%" PRId64 ", term:%" PRId64,
              pNode->vgId, pEntry->index, pBuf->startIndex, until, pBuf->commitIndex, pBuf->endIndex, pEntry->term);
       return TSDB_CODE_SYN_INTERNAL_ERROR;
-    }
-    if (!((pBuf->startIndex < until) || (isVnode && pBuf->bytes >= TSDB_SYNC_LOG_BUFFER_THRESHOLD &&
-                                         atomic_load_64(&sSyncLogBufferBytes) >= tsLogBufferMemoryAllowed))) {
-      break;
     }
     if (isVnode) {
       pBuf->bytes -= pEntry->bytes;
