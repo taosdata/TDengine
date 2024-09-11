@@ -182,6 +182,8 @@ impl TaskMetrics for IpcMetrics {
         self.written_raw_blocks.store(0, SeqCst);
         self.failed_raw_blocks.store(0, SeqCst);
         self.failed_batches.store(0, SeqCst);
+
+        self.extras.retain(|k, _| k.contains("total"));
     }
 
     fn com(&self) -> &CommonMetrics {

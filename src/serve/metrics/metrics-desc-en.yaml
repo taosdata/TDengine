@@ -68,3 +68,4 @@ kafka_consumers: Number of Kafka consumers created
 kafka_total_partitions: Total number of partitions of Kafka topic
 kafka_consuming_partitions: Number of partitions being consumed
 kafka_consumed_messages: Number of messages has been consumed
+total_kafka_consumed_messages: Total consumed messages since task started

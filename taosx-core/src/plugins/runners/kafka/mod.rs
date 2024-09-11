@@ -56,6 +56,8 @@ const METRIC_CONSUMERS: FastStr = FastStr::from_static_str("kafka_consumers");
 const METRIC_TOTAL_PARTITIONS: FastStr = FastStr::from_static_str("kafka_total_partitions");
 const METRIC_CONSUMING_PARTITIONS: FastStr = FastStr::from_static_str("kafka_consuming_partitions");
 const METRIC_CONSUMED_MESSAGES: FastStr = FastStr::from_static_str("kafka_consumed_messages");
+const METRIC_TOTAL_CONSUMED_MESSAGES: FastStr =
+    FastStr::from_static_str("total_kafka_consumed_messages");
 
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match is_valid_impl(dsn) {
@@ -805,6 +807,9 @@ impl<'a> MessagesSender<'a> {
         context
             .metrics()
             .add_extra_metric(&METRIC_CONSUMED_MESSAGES, chunk.len() as _);
+        context
+            .metrics()
+            .add_extra_metric(&METRIC_TOTAL_CONSUMED_MESSAGES, chunk.len() as _);
         let chunks = chunk.iter().chunk_by(|msg| (msg.topic(), msg.partition()));
 
         let permit = context.sem.acquire().await;
