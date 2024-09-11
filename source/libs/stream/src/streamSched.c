@@ -19,7 +19,7 @@
 static void streamTaskResumeHelper(void* param, void* tmrId);
 static void streamTaskSchedHelper(void* param, void* tmrId);
 
-int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
+void streamSetupScheduleTrigger(SStreamTask* pTask) {
   if (pTask->info.delaySchedParam != 0 && pTask->info.fillHistory == 0) {
     int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
     stDebug("s-task:%s setup scheduler trigger, ref:%d delay:%" PRId64 " ms", pTask->id.idStr, ref,
@@ -29,8 +29,6 @@ int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
         taosTmrStart(streamTaskSchedHelper, (int32_t)pTask->info.delaySchedParam, pTask, streamTimer);
     pTask->schedInfo.status = TASK_TRIGGER_STATUS__INACTIVE;
   }
-
-  return 0;
 }
 
 int32_t streamTrySchedExec(SStreamTask* pTask) {
@@ -47,7 +45,7 @@ int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int3
   SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
   if (pRunReq == NULL) {
     stError("vgId:%d failed to create msg to start stream task:0x%x exec, type:%d, code:%s", vgId, taskId, execType,
-            terrstr());
+            tstrerror(terrno));
     return terrno;
   }
 
@@ -94,7 +92,7 @@ void streamTaskResumeHelper(void* param, void* tmrId) {
   SStreamTaskState  p = streamTaskGetStatus(pTask);
 
   if (p.state == TASK_STATUS__DROPPING || p.state == TASK_STATUS__STOP) {
-    (void) streamTaskSetSchedStatusInactive(pTask);
+    int8_t status = streamTaskSetSchedStatusInactive(pTask);
 
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug("s-task:%s status:%s not resume task, ref:%d", pId->idStr, p.name, ref);

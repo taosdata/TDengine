@@ -387,7 +387,7 @@ void tsdbCacherowsReaderClose(void* pReader) {
   }
 
   if (p->pFileReader) {
-    (void) tsdbDataFileReaderClose(&p->pFileReader);
+    tsdbDataFileReaderClose(&p->pFileReader);
     p->pFileReader = NULL;
   }
 

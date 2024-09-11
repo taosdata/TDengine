@@ -44,7 +44,7 @@ int32_t iIntersection(SArray *in, SArray *out) {
   }
   MergeIndex *mi = taosMemoryCalloc(sz, sizeof(MergeIndex));
   if (mi == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   for (int i = 0; i < sz; i++) {
     SArray *t = taosArrayGetP(in, i);
