@@ -533,7 +533,7 @@ static int32_t tsdbCompact(void *arg) {
 
   // begin task
   TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
-  TAOS_UNUSED(tsdbBeginTaskOnFileSet(tsdb, compactArg->fid, &fset));
+  tsdbBeginTaskOnFileSet(tsdb, compactArg->fid, &fset);
   if (fset && (code = tsdbTFileSetInitCopy(tsdb, fset, &compactor.fset))) {
     TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
     TSDB_CHECK_CODE(code, lino, _exit);
