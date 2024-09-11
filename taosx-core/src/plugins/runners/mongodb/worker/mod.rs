@@ -264,7 +264,14 @@ pub async fn get_all_distinct_values(
                 for (k, _) in config.task.subtable_fields.iter() {
                     let values = query
                         .select_distinct_values(&database, &collection, k)
-                        .await?;
+                        .await;
+                    let values = match values {
+                        Ok(values) => values,
+                        Err(e) => {
+                            tracing::error!("get distinct values error: {}", e);
+                            Vec::new()
+                        }
+                    };
                     // transform to string set
                     let values = values
                         .iter()
