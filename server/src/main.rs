@@ -10,7 +10,6 @@ use log::LevelFilter;
 use reqwest::RequestBuilder;
 use rustls::server::ServerConfig;
 use rustls_pemfile::{certs, private_key};
-use serde_with::serde_as;
 use std::{
     collections::HashMap,
     fmt::Display,
@@ -176,7 +175,7 @@ async fn main() -> anyhow::Result<()> {
         &format!("{}explorer", env!("CUS_PROMPT")),
         *INSTANCE_ID.get().unwrap(),
     )
-    .compress(compress.unwrap())
+    .compress(compress.unwrap().to_bool())
     .reserved_disk_size(&reserved_disk_size.unwrap())
     .rotation_count(rotation_count.unwrap() as u16)
     .rotation_size(&rotation_size.unwrap())
@@ -1243,7 +1242,6 @@ struct Args {
     data_dir: Option<String>,
 }
 
-#[serde_as]
 #[derive(Parser, Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct LogOpts {
@@ -1252,14 +1250,31 @@ struct LogOpts {
     #[clap(long = "log.level", env = "EXPLORER_LOG_LEVEL")]
     level: Option<LevelFilter>,
     #[clap(long = "log.compress", env = "EXPLORER_LOG_COMPRESS", value_parser = compress_bool_parser)]
-    #[serde_as(as = "Option::<serde_with::BoolFromInt<serde_with::formats::Strict>>")]
-    compress: Option<bool>,
+    compress: Option<CompressType>,
     #[clap(long = "log.rotationCount", env = "EXPLORER_LOG_ROTATION_COUNT")]
     rotation_count: Option<usize>,
     #[clap(long = "log.rotationSize", env = "EXPLORER_LOG_ROTATION_SIZE")]
     rotation_size: Option<String>,
     #[clap(long = "log.reservedDiskSize", env = "EXPLORER_LOG_RESERVED_DISK_SIZE")]
     reserved_disk_size: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[serde(untagged)]
+enum CompressType {
+    B(bool),
+    N(u8),
+}
+
+impl CompressType {
+    fn to_bool(self) -> bool {
+        match self {
+            CompressType::B(v) => v,
+            CompressType::N(1) => true,
+            CompressType::N(0) => false,
+            _ => panic!("invalid compress value"),
+        }
+    }
 }
 
 impl LogOpts {
@@ -1284,7 +1299,7 @@ impl Default for LogOpts {
         Self {
             path: Some(get_default_log_path()),
             level: None,
-            compress: Some(false),
+            compress: Some(CompressType::B(false)),
             rotation_count: Some(30),
             rotation_size: Some("1GB".to_string()),
             reserved_disk_size: Some("2GB".to_string()),
@@ -1292,11 +1307,11 @@ impl Default for LogOpts {
     }
 }
 
-fn compress_bool_parser(input: &str) -> anyhow::Result<bool> {
+fn compress_bool_parser(input: &str) -> anyhow::Result<CompressType> {
     match input.to_lowercase().as_str() {
-        "true" | "1" => Ok(true),
-        "false" | "0" => Ok(false),
-        _ => bail!("unsupported bool value: {input}"),
+        "true" | "1" => Ok(CompressType::B(true)),
+        "false" | "0" => Ok(CompressType::B(false)),
+        _ => bail!("unsupported compress value: {input}"),
     }
 }
 
@@ -1645,7 +1660,28 @@ mod tests {
         let log = args.log.unwrap();
         assert_eq!(log.path.unwrap(), PathBuf::from("aaa"));
         assert_eq!(log.level.unwrap(), LevelFilter::Warn);
-        assert!(log.compress.unwrap());
+        assert!(log.compress.unwrap().to_bool());
+        assert_eq!(log.rotation_count.unwrap(), 33);
+        assert_eq!(log.rotation_size.unwrap(), "3GB");
+        assert_eq!(log.reserved_disk_size.unwrap(), "30GB");
+    }
+
+    #[test]
+    fn parse_log_opts_compress_number() {
+        let s = r#"
+            [log]
+            path = "aaa"
+            level = "warn"
+            compress = 1
+            rotationCount = 33
+            rotationSize = "3GB"
+            reservedDiskSize = "30GB"
+        "#;
+        let args: Args = toml::from_str(s).unwrap();
+        let log = args.log.unwrap();
+        assert_eq!(log.path.unwrap(), PathBuf::from("aaa"));
+        assert_eq!(log.level.unwrap(), LevelFilter::Warn);
+        assert!(log.compress.unwrap().to_bool());
         assert_eq!(log.rotation_count.unwrap(), 33);
         assert_eq!(log.rotation_size.unwrap(), "3GB");
         assert_eq!(log.reserved_disk_size.unwrap(), "30GB");

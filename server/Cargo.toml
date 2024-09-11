@@ -58,7 +58,6 @@ taoslog = { git = "https://github.com/taosdata/taoslog-rs.git", rev = "69af92942
 ] }
 http = "0.2.12"
 bitfield = "0.16.1"
-serde_with = "3.9.0"
 
 [dependencies.taos]
 # path = "../taos-connector-rust/taos"
