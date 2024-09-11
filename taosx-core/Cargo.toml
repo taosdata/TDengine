@@ -24,7 +24,7 @@ dlopen2 = "0.7.0"
 
 regex = { workspace = true }
 
-arrow-cast-guess-precision = "0.4.0"
+arrow-cast-guess-precision = { workspace = true }
 arrow-compute-ext = { workspace = true }
 ring-channel = "0.12"
 

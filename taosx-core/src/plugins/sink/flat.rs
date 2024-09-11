@@ -1484,7 +1484,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
 }
 
 #[framed]
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(precision = %target_precision))]
 pub async fn ipc_flat_stream_worker_concurrent(
     pool: &TaosPool,
     stream: impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>> + Unpin,

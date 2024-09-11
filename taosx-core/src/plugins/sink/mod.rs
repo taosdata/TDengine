@@ -2831,7 +2831,7 @@ async fn consume_flat_record(
                     Err(err) => {
                         let errstr = format!("{:#}", err);
                         if errstr.contains("Timestamp data out of range") {
-                            tracing::warn!("Contains invalid timestamp, filter out them");
+                            tracing::warn!(message = ?message, "Contains invalid timestamp, filter out them");
                             // filter timestamp.
                             let min = get_minimum_timestamp(
                                 pool,
