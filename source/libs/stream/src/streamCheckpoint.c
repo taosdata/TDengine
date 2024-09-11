@@ -49,7 +49,7 @@ int32_t createChkptTriggerBlock(SStreamTask* pTask, int32_t checkpointType, int6
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (pBlock == NULL) {
     taosFreeQitem(pChkpoint);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pBlock->info.type = STREAM_CHECKPOINT;
@@ -704,7 +704,7 @@ static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* l
 
   char* filePath = taosMemoryCalloc(1, cap);
   if (filePath == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t nBytes = snprintf(filePath, cap, "%s%s%s", path, TD_DIRSEP, "META_TMP");
@@ -1296,7 +1296,7 @@ int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char
 
   char* buf = taosMemoryCalloc(1, cap);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   nBytes = snprintf(buf, cap, "%s/%s", id, fname);

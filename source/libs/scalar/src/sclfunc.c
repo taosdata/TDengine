@@ -618,7 +618,7 @@ static int32_t trimHelper(char *orgStr, char* remStr, int32_t orgLen, int32_t re
 static int32_t convVarcharToNchar(char *input, char **output, int32_t inputLen, int32_t *outputLen) {
   *output = taosMemoryCalloc(inputLen * TSDB_NCHAR_SIZE, 1);
   if (NULL == *output) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   bool ret = taosMbsToUcs4(input, inputLen, (TdUcs4 *)*output, inputLen * TSDB_NCHAR_SIZE, outputLen);
   if (!ret) {
@@ -631,7 +631,7 @@ static int32_t convVarcharToNchar(char *input, char **output, int32_t inputLen, 
 static int32_t convNcharToVarchar(char *input, char **output, int32_t inputLen, int32_t *outputLen) {
   *output = taosMemoryCalloc(inputLen, 1);
   if (NULL == *output) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   *outputLen = taosUcs4ToMbs((TdUcs4 *)input, inputLen, *output);
   if (*outputLen < 0) {
@@ -814,7 +814,7 @@ static int32_t concatCopyHelper(const char *input, char *output, bool hasNchar, 
   if (hasNchar && type == TSDB_DATA_TYPE_VARCHAR) {
     TdUcs4 *newBuf = taosMemoryCalloc((varDataLen(input) + 1) * TSDB_NCHAR_SIZE, 1);
     if (NULL == newBuf) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     int32_t len = varDataLen(input);
     bool    ret = taosMbsToUcs4(varDataVal(input), len, newBuf, (varDataLen(input) + 1) * TSDB_NCHAR_SIZE, &len);
@@ -853,10 +853,10 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   char             *outputBuf = NULL;
 
   if (NULL == pInputData) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
   if (NULL == input) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
 
   int32_t inputLen = 0;
@@ -882,7 +882,7 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
   outputBuf = taosMemoryCalloc(outputLen, 1);
   if (NULL == outputBuf) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
 
   for (int32_t k = 0; k < numOfRows; ++k) {
@@ -928,7 +928,7 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   char             *outputBuf = NULL;
 
   if (NULL == pInputData) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
 
   int32_t inputLen = 0;
@@ -960,7 +960,7 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
   outputBuf = taosMemoryCalloc(outputLen, 1);
   if (NULL == outputBuf) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
 
   for (int32_t k = 0; k < numOfRows; ++k) {
@@ -1016,7 +1016,7 @@ static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScala
   int32_t outputLen = pInputData->varmeta.length;
   char   *outputBuf = taosMemoryCalloc(outputLen, 1);
   if (outputBuf == NULL) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   char   *output = outputBuf;
@@ -1070,7 +1070,7 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   }
   char *outputBuf = taosMemoryCalloc(outputLen, 1);
   if (outputBuf == NULL) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   char   *output = outputBuf;
@@ -1528,7 +1528,7 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
 
   char *outputBuf = taosMemoryCalloc(outputLen + VARSTR_HEADER_SIZE, 1);
   if (NULL == outputBuf) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   for (int32_t i = 0; i < numOfRows; ++i) {
@@ -1643,7 +1643,7 @@ int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
   }
   char *outputBuf = taosMemoryCalloc(outputLen + VARSTR_HEADER_SIZE, 1);
   if (NULL == outputBuf) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   for (int32_t k = 0; k < numOfRows; ++k) {
@@ -1741,7 +1741,7 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
   char *outputBuf = taosMemoryCalloc(outputLen, 1);
   if (outputBuf == NULL) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   char   *output = outputBuf;
@@ -1834,7 +1834,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   char   *buf = taosMemoryMalloc(bufSize);
 
   if (convBuf == NULL || output == NULL || buf == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _end;
   }
 
@@ -2403,7 +2403,7 @@ int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
   int32_t code = 0;
 
   if (format == NULL || out == NULL) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[1].columnData, i) || colDataIsNull_s(pInput[0].columnData, i)) {
@@ -4230,7 +4230,7 @@ static int32_t getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *
     intervals = taosMemoryCalloc(numOfBins, sizeof(double));
     if (NULL == intervals) {
       cJSON_Delete(binDesc);
-      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCL_ERR_RET(terrno);
     }
     if (cJSON_IsNumber(width) && factor == NULL && binType == LINEAR_BIN) {
       // linear bin process
@@ -4295,7 +4295,7 @@ static int32_t getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *
     intervals = taosMemoryCalloc(numOfBins, sizeof(double));
     if (NULL == intervals) {
       cJSON_Delete(binDesc);
-      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCL_ERR_RET(terrno);
     }
     cJSON *bin = binDesc->child;
     if (bin == NULL) {
@@ -4327,7 +4327,7 @@ static int32_t getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *
   *binNum = numOfBins - 1;
   *bins = taosMemoryCalloc(numOfBins, sizeof(SHistoFuncBin));
   if (NULL == bins) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   for (int32_t i = 0; i < *binNum; ++i) {
     (*bins)[i].lower = intervals[i] < intervals[i + 1] ? intervals[i] : intervals[i + 1];

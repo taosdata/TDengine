@@ -13288,7 +13288,7 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   req.ntb.schemaRow.pSchema = taosMemoryCalloc(req.ntb.schemaRow.nCols, sizeof(SSchema));
   if (NULL == req.name || NULL == req.ntb.schemaRow.pSchema) {
     tdDestroySVCreateTbReq(&req);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if (pStmt->ignoreExists) {
     req.flags |= TD_CREATE_IF_NOT_EXISTS;

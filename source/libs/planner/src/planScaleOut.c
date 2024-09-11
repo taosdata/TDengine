@@ -47,7 +47,7 @@ static int32_t doSetScanVgroup(SLogicNode* pNode, const SVgroupInfo* pVgroup, bo
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
     pScan->pVgroupList = taosMemoryCalloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
     if (NULL == pScan->pVgroupList) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     memcpy(pScan->pVgroupList->vgroups, pVgroup, sizeof(SVgroupInfo));
     *pFound = true;
