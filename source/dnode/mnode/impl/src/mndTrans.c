@@ -64,7 +64,7 @@ static int32_t mndProcessKillTransReq(SRpcMsg *pReq);
 static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextTrans(SMnode *pMnode, void *pIter);
 
-int32_t tsMaxTransId = 0;
+static int32_t tsMaxTransId = 0;
 
 int32_t mndInitTrans(SMnode *pMnode) {
   SSdbTable table = {
@@ -605,8 +605,9 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
   }
 
   int32_t sdbMaxId = sdbGetMaxId(pMnode->pSdb, SDB_TRANS);
-  int32_t oldId = atomic_load_32(&tsMaxTransId);
-  pTrans->id = TMAX(sdbMaxId, oldId);
+  sdbReadLock(pMnode->pSdb, SDB_TRANS);
+  pTrans->id = TMAX(sdbMaxId, tsMaxTransId + 1);
+  sdbUnLock(pMnode->pSdb, SDB_TRANS);
   pTrans->stage = TRN_STAGE_PREPARE;
   pTrans->policy = policy;
   pTrans->conflict = conflict;
@@ -1031,7 +1032,9 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   mInfo("trans:%d, prepare transaction", pTrans->id);
   if ((code = mndTransSync(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
-    atomic_store_32(&tsMaxTransId, pTrans->id);
+    sdbReadLock(pMnode->pSdb, SDB_TRANS);
+    tsMaxTransId = TMAX(pTrans->id, tsMaxTransId);
+    sdbUnLock(pMnode->pSdb, SDB_TRANS);
     TAOS_RETURN(code);
   }
   mInfo("trans:%d, prepare finished", pTrans->id);
