@@ -345,12 +345,12 @@ static const char* encryptAlgorithmStr(int8_t encryptAlgorithm) {
 }
 
 int32_t formatDurationOrKeep(char* buffer, int32_t timeInMinutes) {
-    int len = 0;
+    int32_t len = 0;
     if (timeInMinutes % 1440 == 0) {
-        int days = timeInMinutes / 1440;
+        int32_t days = timeInMinutes / 1440;
         len = sprintf(buffer, "%dd", days);
     } else if (timeInMinutes % 60 == 0) {
-        int hours = timeInMinutes / 60;
+        int32_t hours = timeInMinutes / 60;
         len = sprintf(buffer, "%dh", hours);
     } else {
         len = sprintf(buffer, "%dm", timeInMinutes);
