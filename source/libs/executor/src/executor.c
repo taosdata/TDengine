@@ -1412,5 +1412,5 @@ void qResetTaskCode(qTaskInfo_t tinfo) {
 
   int32_t code = pTaskInfo->code;
   pTaskInfo->code = 0;
-  qDebug("%s reset task code to be success, prev:%s", pTaskInfo->id.taskId, tstrerror(code));
+  qDebug("0x%x reset task code to be success, prev:%s", pTaskInfo->id.taskId, tstrerror(code));
 }
