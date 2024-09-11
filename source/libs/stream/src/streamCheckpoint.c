@@ -174,6 +174,16 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     return TSDB_CODE_SUCCESS;
   }
 
+  if (pActiveInfo->failedId >= checkpointId) {
+    stError("s-task:%s vgId:%d checkpointId:%" PRId64 " transId:%d, has been marked failed, failedId:%" PRId64
+                "discard the checkpoint-trigger block",
+            id, vgId, checkpointId, transId, pActiveInfo->failedId);
+    taosThreadMutexUnlock(&pTask->lock);
+
+    streamFreeQitem((SStreamQueueItem*)pBlock);
+    return code;
+  }
+
   if (pTask->chkInfo.checkpointId == checkpointId) {
     {  // send checkpoint-ready msg to upstream
       SRpcMsg msg = {0};
@@ -424,13 +434,20 @@ int32_t streamTaskProcessCheckpointReadyRsp(SStreamTask* pTask, int32_t upstream
 }
 
 void streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg) {
-  pTask->chkInfo.startTs = 0;  // clear the recorded start time
+  SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
 
-  streamTaskClearActiveInfo(pTask->chkInfo.pActiveInfo);
+  pTask->chkInfo.startTs = 0;             // clear the recorded start time
   streamTaskOpenAllUpstreamInput(pTask);  // open inputQ for all upstream tasks
+
+  taosThreadMutexLock(&pInfo->lock);
+  streamTaskClearActiveInfo(pInfo);
   if (clearChkpReadyMsg) {
-    streamClearChkptReadyMsg(pTask->chkInfo.pActiveInfo);
+    streamClearChkptReadyMsg(pInfo);
   }
+  taosThreadMutexUnlock(&pInfo->lock);
+
+  stDebug("s-task:%s clear active checkpointInfo, failed checkpointId:%"PRId64", current checkpointId:%"PRId64,
+          pTask->id.idStr, pInfo->failedId, pTask->chkInfo.checkpointId);
 }
 
 int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SVUpdateCheckpointInfoReq* pReq) {
