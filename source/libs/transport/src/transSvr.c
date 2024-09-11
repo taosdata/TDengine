@@ -188,13 +188,11 @@ static void sendQuitToWorkThrd(SWorkThrd* pThrd);
 static int32_t addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName);
 static int32_t addHandleToAcceptloop(void* arg);
 
-#define SRV_RELEASE_UV(loop)               \
-  do {                                     \
-    if (loop && uv_loop_alive(loop)) {     \
-      (void)uv_walk(loop, uvWalkCb, NULL); \
-      (void)uv_run(loop, UV_RUN_DEFAULT);  \
-      (void)uv_loop_close(loop);           \
-    }                                      \
+#define SRV_RELEASE_UV(loop)             \
+  do {                                   \
+    (void)uv_walk(loop, uvWalkCb, NULL); \
+    (void)uv_run(loop, UV_RUN_DEFAULT);  \
+    (void)uv_loop_close(loop);           \
   } while (0);
 
 #define ASYNC_ERR_JRET(thrd)                            \
