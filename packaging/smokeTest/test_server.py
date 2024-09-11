@@ -58,6 +58,9 @@ def setup_module(get_config):
     else:
         cmd = "mkdir -p ../../debug/build/bin/"
     subprocess.getoutput(cmd)
+    if config["system"] == "Linux":  # add tmq_sim
+        cmd = "cp ../../../debug/build/bin/tmq_sim ../../debug/build/bin/."
+        subprocess.getoutput(cmd)
     if config["system"] == "Darwin":
         cmd = "sudo cp /usr/local/bin/taos*  ../../debug/build/bin/"
     elif config["system"] == "Windows":
