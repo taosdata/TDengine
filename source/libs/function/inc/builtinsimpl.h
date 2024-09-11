@@ -38,6 +38,7 @@ typedef struct SSumRes {
 typedef struct SMinmaxResInfo {
   bool      assign;  // assign the first value or not
   int64_t   v;
+  char      *str;
   STuplePos tuplePos;
 
   STuplePos nullTuplePos;

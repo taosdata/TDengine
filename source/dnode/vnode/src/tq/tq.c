@@ -758,7 +758,7 @@ int32_t tqBuildStreamTask(void* pTqObj, SStreamTask* pTask, int64_t nextProcessV
   }
 
   streamTaskResetUpstreamStageInfo(pTask);
-  (void)streamSetupScheduleTrigger(pTask);
+  streamSetupScheduleTrigger(pTask);
 
   SCheckpointInfo* pChkInfo = &pTask->chkInfo;
   tqSetRestoreVersionInfo(pTask);
@@ -808,6 +808,7 @@ static void doStartFillhistoryStep2(SStreamTask* pTask, SStreamTask* pStreamTask
   const char*    id = pTask->id.idStr;
   int64_t        nextProcessedVer = pStreamTask->hTaskInfo.haltVer;
   SVersionRange* pStep2Range = &pTask->step2Range;
+  int32_t        vgId = pTask->pMeta->vgId;
 
   // if it's an source task, extract the last version in wal.
   bool done = streamHistoryTaskSetVerRangeStep2(pTask, nextProcessedVer);
@@ -843,12 +844,15 @@ static void doStartFillhistoryStep2(SStreamTask* pTask, SStreamTask* pStreamTask
     tqDebug("s-task:%s wal reader start scan WAL verRange:%" PRId64 "-%" PRId64 ", set sched-status:%d", id, dstVer,
             pStep2Range->maxVer, TASK_SCHED_STATUS__INACTIVE);
 
-    (void)streamTaskSetSchedStatusInactive(pTask);
+    int8_t status = streamTaskSetSchedStatusInactive(pTask);
 
     // now the fill-history task starts to scan data from wal files.
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
     if (code == TSDB_CODE_SUCCESS) {
-      (void)tqScanWalAsync(pTq, false);
+      code = tqScanWalAsync(pTq, false);
+      if (code) {
+        tqError("vgId:%d failed to start scan wal file, code:%s", vgId, tstrerror(code));
+      }
     }
   }
 }
@@ -1007,7 +1011,10 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
 
   // let's continue scan data in the wal files
   if (code == 0 && (pReq->reqType >= 0 || pReq->reqType == STREAM_EXEC_T_RESUME_TASK)) {
-    (void)tqScanWalAsync(pTq, false);  // it's ok to failed
+    code = tqScanWalAsync(pTq, false);  // it's ok to failed
+    if (code) {
+      tqError("vgId:%d failed to start scan wal file, code:%s", pTq->pStreamMeta->vgId, tstrerror(code));
+    }
   }
 
   return code;
@@ -1109,7 +1116,11 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
     tqError("vgId:%d failed to decode checkpoint-source msg, code:%s", vgId, tstrerror(code));
 
     SRpcMsg rsp = {0};
-    (void)streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    int32_t ret = streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    if (ret) {  // suppress the error in build checkpointsource rsp
+      tqError("s-task:0x%x failed to build checkpoint-source rsp, code:%s", req.taskId, tstrerror(code));
+    }
+
     tmsgSendRsp(&rsp);         // error occurs
     return TSDB_CODE_SUCCESS;  // always return success to mnode, todo: handle failure of build and send msg to mnode
   }
@@ -1118,7 +1129,11 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   if (!vnodeIsRoleLeader(pTq->pVnode)) {
     tqDebug("vgId:%d not leader, ignore checkpoint-source msg, s-task:0x%x", vgId, req.taskId);
     SRpcMsg rsp = {0};
-    (void)streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    int32_t ret = streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    if (ret) {  // suppress the error in build checkpointsource rsp
+      tqError("s-task:0x%x failed to build checkpoint-source rsp, code:%s", req.taskId, tstrerror(code));
+    }
+
     tmsgSendRsp(&rsp);         // error occurs
     return TSDB_CODE_SUCCESS;  // always return success to mnode, todo: handle failure of build and send msg to mnode
   }
@@ -1128,19 +1143,26 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
             ", transId:%d s-task:0x%x ignore it",
             vgId, req.checkpointId, req.transId, req.taskId);
     SRpcMsg rsp = {0};
-    (void)streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    int32_t ret = streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    if (ret) {  // suppress the error in build checkpointsource rsp
+      tqError("s-task:0x%x failed to build checkpoint-source rsp, code:%s", req.taskId, tstrerror(code));
+    }
+
     tmsgSendRsp(&rsp);         // error occurs
     return TSDB_CODE_SUCCESS;  // always return success to mnode, , todo: handle failure of build and send msg to mnode
   }
 
   SStreamTask* pTask = NULL;
   code = streamMetaAcquireTask(pMeta, req.streamId, req.taskId, &pTask);
-  if (pTask == NULL) {
+  if (pTask == NULL || code != 0) {
     tqError("vgId:%d failed to find s-task:0x%x, ignore checkpoint msg. checkpointId:%" PRId64
             " transId:%d it may have been destroyed",
             vgId, req.taskId, req.checkpointId, req.transId);
     SRpcMsg rsp = {0};
-    (void)streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    int32_t ret = streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    if (ret) {  // suppress the error in build checkpointsource rsp
+      tqError("s-task:%s failed to build checkpoint-source rsp, code:%s", pTask->id.idStr, tstrerror(code));
+    }
     tmsgSendRsp(&rsp);  // error occurs
     return TSDB_CODE_SUCCESS;
   }
@@ -1153,7 +1175,11 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
     streamMetaReleaseTask(pMeta, pTask);
 
     SRpcMsg rsp = {0};
-    (void)streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    int32_t ret = streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    if (ret) {  // suppress the error in build checkpointsource rsp
+      tqError("s-task:%s failed to build checkpoint-source rsp, code:%s", pTask->id.idStr, tstrerror(code));
+    }
+
     tmsgSendRsp(&rsp);         // error occurs
     return TSDB_CODE_SUCCESS;  // todo retry handle error
   }
@@ -1171,7 +1197,11 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
       streamMetaReleaseTask(pMeta, pTask);
 
       SRpcMsg rsp = {0};
-      (void)streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+      int32_t ret = streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+      if (ret) {  // suppress the error in build checkpointsource rsp
+        tqError("s-task:%s failed to build checkpoint-source rsp, code:%s", pTask->id.idStr, tstrerror(code));
+      }
+
       tmsgSendRsp(&rsp);  // error occurs
       return TSDB_CODE_SUCCESS;
     }
@@ -1205,7 +1235,11 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
       streamMetaReleaseTask(pMeta, pTask);
 
       SRpcMsg rsp = {0};
-      (void)streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+      int32_t ret = streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+      if (ret) {  // suppress the error in build checkpointsource rsp
+        tqError("s-task:%s failed to build checkpoint-source rsp, code:%s", pTask->id.idStr, tstrerror(code));
+      }
+
       tmsgSendRsp(&rsp);  // error occurs
 
       return TSDB_CODE_SUCCESS;
@@ -1234,7 +1268,10 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   code = streamAddCheckpointSourceRspMsg(&req, &pMsg->info, pTask);
   if (code != TSDB_CODE_SUCCESS) {
     SRpcMsg rsp = {0};
-    (void)streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    int32_t ret = streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    if (ret) {  // suppress the error in build checkpointsource rsp
+      tqError("s-task:%s failed to build checkpoint-source rsp, code:%s", pTask->id.idStr, tstrerror(code));
+    }
     tmsgSendRsp(&rsp);  // error occurs
     return TSDB_CODE_SUCCESS;
   }

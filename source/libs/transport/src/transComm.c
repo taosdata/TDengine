@@ -20,6 +20,7 @@
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
 static int32_t refMgt;
+static int32_t svrRefMgt;
 static int32_t instMgt;
 static int32_t transSyncMsgMgt;
 
@@ -704,12 +705,14 @@ bool transEpSetIsEqual2(SEpSet* a, SEpSet* b) {
 
 static void transInitEnv() {
   refMgt = transOpenRefMgt(50000, transDestroyExHandle);
+  svrRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
   instMgt = taosOpenRef(50, rpcCloseImpl);
   transSyncMsgMgt = taosOpenRef(50, transDestroySyncMsg);
   (void)uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1");
 }
 static void transDestroyEnv() {
   transCloseRefMgt(refMgt);
+  transCloseRefMgt(svrRefMgt);
   transCloseRefMgt(instMgt);
   transCloseRefMgt(transSyncMsgMgt);
 }
@@ -724,6 +727,7 @@ int32_t transInit() {
 }
 
 int32_t transGetRefMgt() { return refMgt; }
+int32_t transGetSvrRefMgt() { return svrRefMgt; }
 int32_t transGetInstMgt() { return instMgt; }
 int32_t transGetSyncMsgMgt() { return transSyncMsgMgt; }
 

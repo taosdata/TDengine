@@ -59,7 +59,7 @@ int32_t tsdbIterNext(STsdbIter *iter);
 
 // SIterMerger ===============
 int32_t tsdbIterMergerOpen(const TTsdbIterArray *iterArray, SIterMerger **merger, bool isTomb);
-int32_t tsdbIterMergerClose(SIterMerger **merger);
+void    tsdbIterMergerClose(SIterMerger **merger);
 int32_t tsdbIterMergerNext(SIterMerger *merger);
 int32_t tsdbIterMergerSkipTableData(SIterMerger *merger, const TABLEID *tbid);
 

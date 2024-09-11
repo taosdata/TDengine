@@ -996,7 +996,7 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
   SSDataBlock*        pRes = pJoin->finBlk;
   int64_t             st = 0;
 
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
   if (pOperator->cost.openCost == 0) {
     st = taosGetTimestampUs();
   }
@@ -1182,7 +1182,7 @@ int32_t hJoinInitResBlocks(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinN
 
 int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                            SHashJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t             code = TSDB_CODE_SUCCESS;
   SHJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SHJoinOperatorInfo));

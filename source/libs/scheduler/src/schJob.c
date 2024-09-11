@@ -836,6 +836,7 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   pJob->userRes.execFp = pReq->execFp;
   pJob->userRes.cbParam = pReq->cbParam;
   pJob->source = pReq->source;
+  pJob->pWorkerCb = pReq->pWorkerCb;
 
   if (pReq->pNodeList == NULL || taosArrayGetSize(pReq->pNodeList) <= 0) {
     qDebug("qid:0x%" PRIx64 " input exec nodeList is empty", pReq->pDag->queryId);

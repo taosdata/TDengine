@@ -41,7 +41,7 @@ typedef struct SBlockOrderInfo {
 #define BMCharPos(bm_, r_)       ((bm_)[(r_) >> NBIT])
 #define colDataIsNull_f(bm_, r_) ((BMCharPos(bm_, r_) & (1u << (7u - BitPos(r_)))) == (1u << (7u - BitPos(r_))))
 
-#define QRY_OPTR_CHECK(_o)           \
+#define QRY_PARAM_CHECK(_o)           \
   do {                               \
     if ((_o) == NULL) {              \
       return TSDB_CODE_INVALID_PARA; \

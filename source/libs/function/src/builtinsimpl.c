@@ -1026,6 +1026,7 @@ int32_t minmaxFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultIn
 
   buf->nullTupleSaved = false;
   buf->nullTuplePos.pageId = -1;
+  buf->str = NULL;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1101,11 +1102,21 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
         colDataSetFloat(pCol, currentRow, &v);
         break;
       }
+      case TSDB_DATA_TYPE_VARBINARY:
+      case TSDB_DATA_TYPE_VARCHAR:
+      case TSDB_DATA_TYPE_NCHAR: {
+        code = colDataSetVal(pCol, currentRow, pRes->str, false);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
+        break;
+      }
     }
   } else {
     colDataSetNULL(pCol, currentRow);
   }
 
+  taosMemoryFreeClear(pRes->str);
   if (pCtx->subsidiaries.num > 0) {
     if (pEntryInfo->numOfRes > 0) {
       code = setSelectivityValue(pCtx, pBlock, &pRes->tuplePos, currentRow);
@@ -2105,7 +2116,8 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   tMemBucket* pMemBucket = ppInfo->pMemBucket;
   if (pMemBucket != NULL && pMemBucket->total > 0) {  // check for null
     if (pCtx->numOfParams > 2) {
-      char   buf[512] = {0};
+      char   buf[3200] = {0};
+      // max length of double num is 317, e.g. use %.6lf to print -1.0e+308, consider the comma and bracket, 3200 is enough.
       size_t len = 1;
 
       varDataVal(buf)[0] = '[';
@@ -2154,6 +2166,8 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       tMemBucketDestroy(pMemBucket);
       return functionFinalize(pCtx, pBlock);
     }
+  } else {
+    return functionFinalize(pCtx, pBlock);
   }
 
 _fin_error:
@@ -3162,7 +3176,7 @@ static int32_t doSaveLastrow(SqlFunctionCtx* pCtx, char* pData, int32_t rowIndex
     (void)memcpy(pInfo->buf, pData, pInfo->bytes);
   }
 
-  if (pCtx->hasPrimaryKey) {
+  if (pCtx->hasPrimaryKey && !colDataIsNull_s(pkCol, rowIndex)) {
     char* pkData = colDataGetData(pkCol, rowIndex);
     if (IS_VAR_DATA_TYPE(pInfo->pkType)) {
       pInfo->pkBytes = varDataTLen(pkData);
@@ -6008,6 +6022,7 @@ int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   pInfo->buf = taosMemoryMalloc(pInfo->colBytes);
   if (NULL == pInfo->buf) {
     taosHashCleanup(pInfo->pHash);
+    pInfo->pHash = NULL;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -6016,6 +6031,7 @@ int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
 
 static void modeFunctionCleanup(SModeInfo * pInfo) {
   taosHashCleanup(pInfo->pHash);
+  pInfo->pHash = NULL;
   taosMemoryFreeClear(pInfo->buf);
 }
 
@@ -6434,63 +6450,74 @@ int32_t blockDistFunction(SqlFunctionCtx* pCtx) {
 
 int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDistInfo* pInfo) {
   SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
   tEncoderInit(&encoder, buf, bufLen);
 
-  if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeU32(&encoder, pInfo->rowSize) < 0) return -1;
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeU32(&encoder, pInfo->rowSize));
 
-  if (tEncodeU16(&encoder, pInfo->numOfFiles) < 0) return -1;
-  if (tEncodeU32(&encoder, pInfo->numOfBlocks) < 0) return -1;
-  if (tEncodeU32(&encoder, pInfo->numOfTables) < 0) return -1;
+  TAOS_CHECK_EXIT(tEncodeU16(&encoder, pInfo->numOfFiles));
+  TAOS_CHECK_EXIT(tEncodeU32(&encoder, pInfo->numOfBlocks));
+  TAOS_CHECK_EXIT(tEncodeU32(&encoder, pInfo->numOfTables));
 
-  if (tEncodeU64(&encoder, pInfo->totalSize) < 0) return -1;
-  if (tEncodeU64(&encoder, pInfo->totalRows) < 0) return -1;
-  if (tEncodeI32(&encoder, pInfo->maxRows) < 0) return -1;
-  if (tEncodeI32(&encoder, pInfo->minRows) < 0) return -1;
-  if (tEncodeI32(&encoder, pInfo->defMaxRows) < 0) return -1;
-  if (tEncodeI32(&encoder, pInfo->defMinRows) < 0) return -1;
-  if (tEncodeU32(&encoder, pInfo->numOfInmemRows) < 0) return -1;
-  if (tEncodeU32(&encoder, pInfo->numOfSttRows) < 0) return -1;
-  if (tEncodeU32(&encoder, pInfo->numOfVgroups) < 0) return -1;
+  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pInfo->totalSize));
+  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pInfo->totalRows));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->maxRows));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->minRows));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->defMaxRows));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->defMinRows));
+  TAOS_CHECK_EXIT(tEncodeU32(&encoder, pInfo->numOfInmemRows));
+  TAOS_CHECK_EXIT(tEncodeU32(&encoder, pInfo->numOfSttRows));
+  TAOS_CHECK_EXIT(tEncodeU32(&encoder, pInfo->numOfVgroups));
 
   for (int32_t i = 0; i < tListLen(pInfo->blockRowsHisto); ++i) {
-    if (tEncodeI32(&encoder, pInfo->blockRowsHisto[i]) < 0) return -1;
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->blockRowsHisto[i]));
   }
 
   tEndEncode(&encoder);
 
-  int32_t tlen = encoder.pos;
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
   tEncoderClear(&encoder);
   return tlen;
 }
 
 int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo* pInfo) {
   SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
   tDecoderInit(&decoder, buf, bufLen);
 
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeU32(&decoder, &pInfo->rowSize) < 0) return -1;
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pInfo->rowSize));
 
-  if (tDecodeU16(&decoder, &pInfo->numOfFiles) < 0) return -1;
-  if (tDecodeU32(&decoder, &pInfo->numOfBlocks) < 0) return -1;
-  if (tDecodeU32(&decoder, &pInfo->numOfTables) < 0) return -1;
+  TAOS_CHECK_EXIT(tDecodeU16(&decoder, &pInfo->numOfFiles));
+  TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pInfo->numOfBlocks));
+  TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pInfo->numOfTables));
 
-  if (tDecodeU64(&decoder, &pInfo->totalSize) < 0) return -1;
-  if (tDecodeU64(&decoder, &pInfo->totalRows) < 0) return -1;
-  if (tDecodeI32(&decoder, &pInfo->maxRows) < 0) return -1;
-  if (tDecodeI32(&decoder, &pInfo->minRows) < 0) return -1;
-  if (tDecodeI32(&decoder, &pInfo->defMaxRows) < 0) return -1;
-  if (tDecodeI32(&decoder, &pInfo->defMinRows) < 0) return -1;
-  if (tDecodeU32(&decoder, &pInfo->numOfInmemRows) < 0) return -1;
-  if (tDecodeU32(&decoder, &pInfo->numOfSttRows) < 0) return -1;
-  if (tDecodeU32(&decoder, &pInfo->numOfVgroups) < 0) return -1;
+  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pInfo->totalSize));
+  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pInfo->totalRows));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pInfo->maxRows));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pInfo->minRows));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pInfo->defMaxRows));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pInfo->defMinRows));
+  TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pInfo->numOfInmemRows));
+  TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pInfo->numOfSttRows));
+  TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pInfo->numOfVgroups));
 
   for (int32_t i = 0; i < tListLen(pInfo->blockRowsHisto); ++i) {
-    if (tDecodeI32(&decoder, &pInfo->blockRowsHisto[i]) < 0) return -1;
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pInfo->blockRowsHisto[i]));
   }
 
+_exit:
   tDecoderClear(&decoder);
-  return 0;
+  return code;
 }
 
 int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {

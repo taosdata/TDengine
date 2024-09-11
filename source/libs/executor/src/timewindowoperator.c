@@ -1231,7 +1231,7 @@ void destroyIntervalOperatorInfo(void* param) {
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSupp);
 
-  (void)tdListFree(pInfo->binfo.resultRowInfo.openWindow);
+  pInfo->binfo.resultRowInfo.openWindow = tdListFree(pInfo->binfo.resultRowInfo.openWindow);
 
   taosArrayDestroy(pInfo->pInterpCols);
   pInfo->pInterpCols = NULL;
@@ -1320,7 +1320,7 @@ _end:
 
 int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                    SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
@@ -1616,7 +1616,7 @@ _end:
 // todo make this as an non-blocking operator
 int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWinodwPhysiNode* pStateNode,
                                       SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
@@ -1727,7 +1727,7 @@ void destroySWindowOperatorInfo(void* param) {
 
 int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPhysiNode* pSessionNode,
                                      SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
@@ -2027,7 +2027,7 @@ static int32_t mergeAlignedIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock
 
 int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMergeAlignedIntervalPhysiNode* pNode,
                                                       SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t                               code = TSDB_CODE_SUCCESS;
   int32_t                               lino = 0;
@@ -2132,7 +2132,7 @@ typedef struct SGroupTimeWindow {
 
 void destroyMergeIntervalOperatorInfo(void* param) {
   SMergeIntervalAggOperatorInfo* miaInfo = (SMergeIntervalAggOperatorInfo*)param;
-  (void)tdListFree(miaInfo->groupIntervals);
+  miaInfo->groupIntervals = tdListFree(miaInfo->groupIntervals);
   destroyIntervalOperatorInfo(&miaInfo->intervalAggOperatorInfo);
 
   taosMemoryFreeClear(param);
@@ -2162,7 +2162,8 @@ static int32_t outputPrevIntervalResult(SOperatorInfo* pOperatorInfo, uint64_t t
 
     STimeWindow* prevWin = &prevGrpWin->window;
     if ((ascScan && newWin->skey > prevWin->ekey) || ((!ascScan) && newWin->skey < prevWin->ekey)) {
-      (void)tdListPopNode(miaInfo->groupIntervals, listNode);
+      SListNode* tmp = tdListPopNode(miaInfo->groupIntervals, listNode);
+      taosMemoryFreeClear(tmp);
     }
   }
 
@@ -2365,7 +2366,7 @@ _end:
 
 int32_t createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeIntervalPhysiNode* pIntervalPhyNode,
                                                SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t                        code = TSDB_CODE_SUCCESS;
   int32_t                        lino = 0;

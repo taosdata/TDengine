@@ -137,7 +137,7 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
   if (pCt == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pCt->colVal = term->colVal;
@@ -206,7 +206,7 @@ static int32_t cacheSearchTerm_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
   if (pCt == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pCt->colVal = term->colVal;
@@ -584,7 +584,7 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   // encode data
   CacheTerm* ct = taosMemoryCalloc(1, sizeof(CacheTerm));
   if (ct == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   // set up key
   ct->colType = term->colType;
@@ -594,7 +594,7 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
     ct->colVal = (char*)taosMemoryCalloc(1, sizeof(char) * (term->nColVal + 1));
     if (ct->colVal == NULL) {
       taosMemoryFree(ct);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     memcpy(ct->colVal, term->colVal, term->nColVal);
   }

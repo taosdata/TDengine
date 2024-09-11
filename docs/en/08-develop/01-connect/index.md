@@ -90,7 +90,7 @@ If `maven` is used to manage the projects, what needs to be done is only adding 
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.3.0</version>
+  <version>3.3.2</version>
 </dependency>
 ```
 

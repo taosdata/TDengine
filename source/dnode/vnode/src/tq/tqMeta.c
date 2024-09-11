@@ -16,64 +16,79 @@
 #include "tq.h"
 
 int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle) {
-  if (tStartEncode(pEncoder) < 0) return -1;
-  if (tEncodeCStr(pEncoder, pHandle->subKey) < 0) return -1;
-  if (tEncodeI8(pEncoder, pHandle->fetchMeta) < 0) return -1;
-  if (tEncodeI64(pEncoder, pHandle->consumerId) < 0) return -1;
-  if (tEncodeI64(pEncoder, pHandle->snapshotVer) < 0) return -1;
-  if (tEncodeI32(pEncoder, pHandle->epoch) < 0) return -1;
-  if (tEncodeI8(pEncoder, pHandle->execHandle.subType) < 0) return -1;
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartEncode(pEncoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pHandle->subKey));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pHandle->fetchMeta));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pHandle->consumerId));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pHandle->snapshotVer));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pHandle->epoch));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pHandle->execHandle.subType));
   if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-    if (tEncodeCStr(pEncoder, pHandle->execHandle.execCol.qmsg) < 0) return -1;
+    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pHandle->execHandle.execCol.qmsg));
   } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
     int32_t size = taosHashGetSize(pHandle->execHandle.execDb.pFilterOutTbUid);
-    if (tEncodeI32(pEncoder, size) < 0) return -1;
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, size));
     void* pIter = NULL;
     pIter = taosHashIterate(pHandle->execHandle.execDb.pFilterOutTbUid, pIter);
     while (pIter) {
       int64_t* tbUid = (int64_t*)taosHashGetKey(pIter, NULL);
-      if (tEncodeI64(pEncoder, *tbUid) < 0) return -1;
+      TAOS_CHECK_EXIT(tEncodeI64(pEncoder, *tbUid));
       pIter = taosHashIterate(pHandle->execHandle.execDb.pFilterOutTbUid, pIter);
     }
   } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
-    if (tEncodeI64(pEncoder, pHandle->execHandle.execTb.suid) < 0) return -1;
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pHandle->execHandle.execTb.suid));
     if (pHandle->execHandle.execTb.qmsg != NULL) {
-      if (tEncodeCStr(pEncoder, pHandle->execHandle.execTb.qmsg) < 0) return -1;
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pHandle->execHandle.execTb.qmsg));
     }
   }
   tEndEncode(pEncoder);
-  return pEncoder->pos;
+_exit:
+  if (code) {
+    return code;
+  } else {
+    return pEncoder->pos;
+  }
 }
 
 int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
-  if (tStartDecode(pDecoder) < 0) return -1;
-  if (tDecodeCStrTo(pDecoder, pHandle->subKey) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pHandle->fetchMeta) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pHandle->consumerId) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pHandle->snapshotVer) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pHandle->epoch) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pHandle->execHandle.subType) < 0) return -1;
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartDecode(pDecoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pHandle->subKey));
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pHandle->fetchMeta));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pHandle->consumerId));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pHandle->snapshotVer));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pHandle->epoch));
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pHandle->execHandle.subType));
   if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-    if (tDecodeCStrAlloc(pDecoder, &pHandle->execHandle.execCol.qmsg) < 0) return -1;
+    TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pHandle->execHandle.execCol.qmsg));
   } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
     pHandle->execHandle.execDb.pFilterOutTbUid =
         taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-    if (pHandle->execHandle.execDb.pFilterOutTbUid == NULL) return -1;
+    if (pHandle->execHandle.execDb.pFilterOutTbUid == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
     int32_t size = 0;
-    if (tDecodeI32(pDecoder, &size) < 0) return -1;
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &size));
     for (int32_t i = 0; i < size; i++) {
       int64_t tbUid = 0;
-      if (tDecodeI64(pDecoder, &tbUid) < 0) return -1;
-      if (taosHashPut(pHandle->execHandle.execDb.pFilterOutTbUid, &tbUid, sizeof(int64_t), NULL, 0) != 0) return -1;
+      TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &tbUid));
+      TAOS_CHECK_EXIT(taosHashPut(pHandle->execHandle.execDb.pFilterOutTbUid, &tbUid, sizeof(int64_t), NULL, 0));
     }
   } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
-    if (tDecodeI64(pDecoder, &pHandle->execHandle.execTb.suid) < 0) return -1;
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pHandle->execHandle.execTb.suid));
     if (!tDecodeIsEnd(pDecoder)) {
-      if (tDecodeCStrAlloc(pDecoder, &pHandle->execHandle.execTb.qmsg) < 0) return -1;
+      TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pHandle->execHandle.execTb.qmsg));
     }
   }
   tEndDecode(pDecoder);
-  return 0;
+
+_exit:
+  return code;
 }
 
 int32_t tqMetaDecodeCheckInfo(STqCheckInfo* info, void* pVal, int32_t vLen) {

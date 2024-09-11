@@ -601,7 +601,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
   (void)taosThreadOnce(&initPoolOnce, initRefPool);
 
-  qDebug("start to create task, TID:0x%" PRIx64 "QID:0x%" PRIx64 ", vgId:%d", taskId, pSubplan->id.queryId, vgId);
+  qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d", taskId, pSubplan->id.queryId, vgId);
 
   int32_t code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model);
   if (code != TSDB_CODE_SUCCESS || NULL == *pTask) {
@@ -904,8 +904,14 @@ void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
     }
     SExchangeInfo* pExchangeInfo = taosAcquireRef(exchangeObjRefPool, pStop->refId);
     if (pExchangeInfo) {
-      (void)tsem_post(&pExchangeInfo->ready);
-      (void)taosReleaseRef(exchangeObjRefPool, pStop->refId);
+      int32_t code = tsem_post(&pExchangeInfo->ready);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      }
+      code = taosReleaseRef(exchangeObjRefPool, pStop->refId);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      }
     }
   }
 
@@ -1626,4 +1632,12 @@ int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
   pTaskInfo->pRoot->fpSet.reloadStreamStateFn(pTaskInfo->pRoot);
   return 0;
+}
+
+void qResetTaskCode(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+
+  int32_t code = pTaskInfo->code;
+  pTaskInfo->code = 0;
+  qDebug("0x%" PRIx64 " reset task code to be success, prev:%s", pTaskInfo->id.taskId, tstrerror(code));
 }

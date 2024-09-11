@@ -19,7 +19,7 @@
 extern int32_t tsdbOpenCompMonitor(STsdb *tsdb);
 extern int32_t tsdbCloseCompMonitor(STsdb *tsdb);
 
-int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
+void tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
   STsdbKeepCfg *pKeepCfg = &pTsdb->keepCfg;
   pKeepCfg->precision = pCfg->precision;
   pKeepCfg->days = pCfg->days;
@@ -27,7 +27,6 @@ int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
   pKeepCfg->keep1 = pCfg->keep1;
   pKeepCfg->keep2 = pCfg->keep2;
   pKeepCfg->keepTimeOffset = pCfg->keepTimeOffset;
-  return 0;
 }
 
 int64_t tsdbGetEarliestTs(STsdb *pTsdb) {
@@ -59,7 +58,7 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
   pTsdb->pVnode = pVnode;
   (void)taosThreadMutexInit(&pTsdb->mutex, NULL);
   if (!pKeepCfg) {
-    (void)tsdbSetKeepCfg(pTsdb, &pVnode->config.tsdbCfg);
+    tsdbSetKeepCfg(pTsdb, &pVnode->config.tsdbCfg);
   } else {
     memcpy(&pTsdb->keepCfg, pKeepCfg, sizeof(STsdbKeepCfg));
   }

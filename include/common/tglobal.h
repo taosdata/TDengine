@@ -158,6 +158,7 @@ extern int32_t tsCacheLazyLoadThreshold;  // cost threshold for last/last_row lo
 
 // query client
 extern int32_t tsQueryPolicy;
+extern bool    tsQueryTbNotExistAsEmpty;
 extern int32_t tsQueryRspPolicy;
 extern int64_t tsQueryMaxConcurrentTables;
 extern int32_t tsQuerySmaOptimize;
