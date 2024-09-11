@@ -290,7 +290,7 @@ static void httpDestroyMsg(SHttpMsg* msg) {
   taosMemoryFree(msg->server);
   taosMemoryFree(msg->uri);
   taosMemoryFree(msg->cont);
-  taosMemoryFree(msg->qid);
+  if (msg->qid != NULL) taosMemoryFree(msg->qid);
   taosMemoryFree(msg);
 }
 static void httpDestroyMsgWrapper(void* cont, void* param) {
