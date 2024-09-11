@@ -237,7 +237,7 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
 
   if (pActiveInfo->failedId >= checkpointId) {
     stError("s-task:%s vgId:%d checkpointId:%" PRId64 " transId:%d, has been marked failed, failedId:%" PRId64
-            "discard the checkpoint-trigger block",
+            " discard the checkpoint-trigger block",
             id, vgId, checkpointId, transId, pActiveInfo->failedId);
     streamMutexUnlock(&pTask->lock);
 
