@@ -193,13 +193,13 @@ int32_t streamBroadcastToUpTasks(SStreamTask* pTask, const SSDataBlock* pBlock) 
 // no need to do anything if failed
 int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet) {
   void*   buf = NULL;
-  int32_t code = -1;
+  int32_t code = 0;
   SRpcMsg msg = {0};
 
   int32_t tlen;
   tEncodeSize(tEncodeStreamTaskCheckReq, pReq, tlen, code);
   if (code < 0) {
-    return -1;
+    return code;
   }
 
   buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
@@ -217,8 +217,8 @@ int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, 
     tEncoderClear(&encoder);
     return code;
   }
-  tEncoderClear(&encoder);
 
+  tEncoderClear(&encoder);
   initRpcMsg(&msg, TDMT_VND_STREAM_TASK_CHECK, buf, tlen + sizeof(SMsgHead));
   stDebug("s-task:%s (level:%d) send check msg to s-task:0x%" PRIx64 ":0x%x (vgId:%d)", pTask->id.idStr,
           pTask->info.taskLevel, pReq->streamId, pReq->downstreamTaskId, nodeId);
