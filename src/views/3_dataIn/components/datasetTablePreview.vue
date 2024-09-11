@@ -17,10 +17,9 @@
       style="width: 100%"
       :max-height="defaultHeight-99"
       ref='table'
-      :data="tableData.filter(data => (!searchName || data.name.toLowerCase().includes(searchName.toLowerCase())) &&
-      (!searchId || data.id.toLowerCase().includes(searchId.toLowerCase())) &&
-      (!searchEnabled || data.enabled.toString().toLowerCase().includes(searchEnabled.toLowerCase())))"
+      :data="tableData"
       size="medium"
+      v-loading="loading"
     >
       <el-table-column
         prop="id"
@@ -33,6 +32,7 @@
             v-model="searchId"
             size="mini"
             :placeholder="$t('filter')"
+            @change="searchInputChange"
           >
             <template slot="prepend">id</template>
           </el-input>
@@ -49,6 +49,7 @@
             v-model="searchName"
             size="mini"
             :placeholder="$t('filter')"
+            @change="searchInputChange"
           >
             <template slot="prepend">name</template>
           </el-input>
@@ -65,6 +66,7 @@
             v-model="searchEnabled"
             size="mini"
             :placeholder="$t('filter')"
+            @change="searchInputChange"
           >
             <template slot="prepend">enabled</template>
           </el-input>
@@ -77,7 +79,7 @@
       layout="total, prev, pager, next"
       :current-page.sync="currentPage"
       :page-size="pageSize"
-      :hide-on-single-page="true"
+      :hide-on-single-page="false"
       :total="total"
       @current-change="handlePageChange"
     ></el-pagination>
@@ -92,9 +94,7 @@
         style="width: 100%"
         :max-height="fullTableHeight"
         ref='table'
-        :data="tableData.filter(data => (!searchName || data.name.toLowerCase().includes(searchName.toLowerCase())) &&
-        (!searchId || data.id.toLowerCase().includes(searchId.toLowerCase())) &&
-        (!searchEnabled || data.enabled.toString().toLowerCase().includes(searchEnabled.toLowerCase())))"
+        :data="tableData"
         size="small">
         <el-table-column
           prop="id"
@@ -107,6 +107,7 @@
               v-model="searchId"
               size="mini"
               :placeholder="$t('filter')"
+              @change="searchInputChange"
             >
               <template slot="prepend">id</template>
             </el-input>
@@ -123,6 +124,7 @@
               v-model="searchName"
               size="mini"
               :placeholder="$t('filter')"
+              @change="searchInputChange"
             >
               <template slot="prepend">name</template>
             </el-input>
@@ -139,6 +141,7 @@
               v-model="searchEnabled"
               size="mini"
               :placeholder="$t('filter')"
+              @change="searchInputChange"
             >
               <template slot="prepend">enabled</template>
             </el-input>
@@ -151,7 +154,7 @@
         layout="total, prev, pager, next"
         :current-page.sync="currentPage"
         :page-size="pageSize"
-        :hide-on-single-page="true"
+        :hide-on-single-page="false"
         :total="total"
         @current-change="handlePageChange"
       ></el-pagination>
@@ -173,7 +176,7 @@ export default {
   data() {
     return {
       loading: true,
-      tableData: [],
+      tableData: [],//表格实际展示的数据
       pageSize: 200,
       total: 10,
       currentPage: 1,
@@ -185,6 +188,8 @@ export default {
       searchEnabled: '',
       drawer: false,
       fullTableHeight: 600,
+      list: [],// 全部的点位数据
+      filterTableData: [],//增加过滤条件的全部数据
     };
   },
   mounted() {
@@ -213,18 +218,39 @@ export default {
     }
   },
   methods: {
-    handlePageChange(currentPage) {
-      this.getDatasetsData()
+    async searchInputChange() {
+      this.loading = true;
+      this.currentPage = 1;
+      if (!this.searchId && !this.searchName && !this.searchEnabled) {
+        this.getTableData(this.list);
+        this.filterTableData = this.list;
+      } else {
+        this.filterTableData = await this.list.filter(data => (!this.searchName || data.name.toLowerCase().includes(this.searchName.toLowerCase())) &&
+        (!this.searchId || data.id.toLowerCase().includes(this.searchId.toLowerCase())) &&
+        (!this.searchEnabled || data.enabled.toString().toLowerCase().includes(this.searchEnabled.toLowerCase())))
+        this.getTableData(this.filterTableData)
+      }
+      this.loading = false;
     },
-
+    handlePageChange(currentPage) {
+      this.currentPage = currentPage
+      this.getTableData(this.filterTableData)
+    },
+    getTableData(data) {
+      this.total = data.length;
+      this.tableData = data.slice(
+        this.pageSize * (this.currentPage - 1),
+        this.pageSize * this.currentPage
+      );
+    },
     async getDatasetsData() {
-      let res = await getDatasets(this.ticket,this.currentPage,this.pageSize)
+      let res = await getDatasets(this.ticket,this.currentPage,1000000)
       if (res?.code == 0) {
         let { page, page_size, list, total} = res?.data
         this.currentPage = page
-        this.pageSize = page_size
-        this.total = total
-        this.tableData = list || []
+        this.list = list;
+        this.filterTableData = list;
+        this.getTableData(list)
       }
       this.$store.commit("app/SET_COMPLETE",false)
       this.getEleTop()
