@@ -733,6 +733,8 @@ static FORCE_INLINE int32_t getBlkFromDownstreamOperator(struct SOperatorInfo* p
     }
   }
 
+  blockDataCheck(pBlock, false);
+
   *ppRes = pBlock;
   return code;
 }
