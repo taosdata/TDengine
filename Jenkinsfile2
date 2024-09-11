@@ -96,7 +96,7 @@ def pre_test(){
             cd ${WK}
             git checkout ''' + env.CHANGE_TARGET + '''
             cd ${WKC}
-            git checkout ''' + env.CHANGE_TARGET + '''
+            git checkout enh/TD-31890-6
         '''
     }
     if (env.CHANGE_URL =~ /\/TDengine\//) {
@@ -217,7 +217,7 @@ def pre_test_win(){
             bat '''
                 cd %WIN_COMMUNITY_ROOT%
                 git remote prune origin
-                git pull  origin ''' + env.CHANGE_TARGET + '''
+                git pull  origin enh/TD-31890-6
             '''
             bat '''
                 cd %WIN_COMMUNITY_ROOT%
