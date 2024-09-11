@@ -362,7 +362,6 @@ struct STsdb {
   SMemTable           *imem;
   STsdbFS              fs;  // old
   SLRUCache           *lruCache;
-  SCacheFlushState     flushState;
   TdThreadMutex        lruMutex;
   SLRUCache           *biCache;
   TdThreadMutex        biMutex;
