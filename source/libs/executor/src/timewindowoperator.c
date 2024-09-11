@@ -1082,7 +1082,7 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
     }
 
     pInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
-    code = setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
+    code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
 
     code = blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
@@ -1567,7 +1567,7 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
       QUERY_CHECK_CODE(code, lino, _end);
     }
     // the pDataBlock are always the same one, no need to call this again
-    code = setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
+    code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
 
     code = blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
