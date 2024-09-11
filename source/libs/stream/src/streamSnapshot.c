@@ -347,7 +347,7 @@ int32_t streamBackendSnapInitFile(char* metaPath, SStreamTaskSnap* pSnap, SBacke
 
   char* path = taosMemoryCalloc(1, cap);
   if (path == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   nBytes = snprintf(path, cap, "%s%s%s%s%s%" PRId64 "", pSnap->dbPrefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP,
@@ -492,7 +492,7 @@ int32_t streamSnapReaderOpen(void* pMeta, int64_t sver, int64_t chkpId, char* pa
   // impl later
   SStreamSnapReader* pReader = taosMemoryCalloc(1, sizeof(SStreamSnapReader));
   if (pReader == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t code = streamSnapHandleInit(&pReader->handle, (char*)path, pMeta);
@@ -632,7 +632,7 @@ int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, char* path
   int32_t            code = 0;
   SStreamSnapWriter* pWriter = taosMemoryCalloc(1, sizeof(SStreamSnapWriter));
   if (pWriter == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SStreamSnapHandle* pHandle = &pWriter->handle;

@@ -51,7 +51,7 @@ int32_t streamQueueOpen(int64_t cap, SStreamQueue** pQ) {
 
   SStreamQueue* pQueue = taosMemoryCalloc(1, sizeof(SStreamQueue));
   if (pQueue == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   code = taosOpenQueue(&pQueue->pQueue);
@@ -372,7 +372,7 @@ int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask) {
 
   pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (pBlock == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
 

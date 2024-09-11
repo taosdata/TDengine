@@ -111,7 +111,7 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
   if (pTask == NULL) {
     stError("s-task:0x%" PRIx64 " failed malloc new stream task, size:%d, code:%s", streamId,
             (int32_t)sizeof(SStreamTask), tstrerror(terrno));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pTask->ver = SSTREAM_TASK_VER;
@@ -489,7 +489,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   if (pOutputInfo->pTokenBucket == NULL) {
     stError("s-task:%s failed to prepare the tokenBucket, code:%s", pTask->id.idStr,
             tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   // 2MiB per second for sink task
@@ -1196,7 +1196,7 @@ void streamTaskSetFailedChkptInfo(SStreamTask* pTask, int32_t transId, int64_t c
 int32_t streamTaskCreateActiveChkptInfo(SActiveCheckpointInfo** pRes) {
   SActiveCheckpointInfo* pInfo = taosMemoryCalloc(1, sizeof(SActiveCheckpointInfo));
   if (pInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t code = taosThreadMutexInit(&pInfo->lock, NULL);

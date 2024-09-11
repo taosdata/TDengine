@@ -1237,7 +1237,7 @@ _return:
 int32_t schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
   SSchTaskCtx *param = taosMemoryCalloc(1, sizeof(SSchTaskCtx));
   if (NULL == param) {
-    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCH_ERR_RET(terrno);
   }
 
   param->jobRid = pJob->refId;
