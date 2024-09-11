@@ -272,6 +272,7 @@ def main():
         '{"type": "binary",   "count":100, "len": 64,  "compress":"@COMPRESS"}',
         '{"type": "nchar",    "count":100, "len": 64,  "compress":"@COMPRESS"}'
     ]
+    '''
 
     # min max small
     dataTypes = [
@@ -299,7 +300,7 @@ def main():
         '{"type": "binary",   "count":100, "len": 64,  "compress":"@COMPRESS"}',
         '{"type": "nchar",    "count":100, "len": 64,  "compress":"@COMPRESS"}'
     ]
-
+    '''
 
     # test compress method
     algos = ["lz4", "zlib", "zstd", "xz", "tsz", "disabled"]
@@ -314,7 +315,7 @@ def main():
     # json info
     writeTemplateInfo(resultFile, dataTypes)
     # head
-    context = "%10s %10s %10s %10s %10s %10s\n"%("No","compress","dataType", "dataSize", "realSize","rate")
+    context = "\n%10s %10s %10s %10s %10s %10s\n"%("No","compress","dataType", "dataSize", "realSize","rate")
     appendFileContext(resultFile, context)
 
 
