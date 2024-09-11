@@ -255,7 +255,8 @@ static int32_t tsdbDoRetention(SRTNer *rtner) {
     SDiskID did;
 
     TAOS_CHECK_GOTO(tfsAllocDisk(rtner->tsdb->pVnode->pTfs, expLevel, &did), &lino, _exit);
-    (void)tfsMkdirRecurAt(rtner->tsdb->pVnode->pTfs, rtner->tsdb->path, did);
+    code = tfsMkdirRecurAt(rtner->tsdb->pVnode->pTfs, rtner->tsdb->path, did);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     // data
     for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX && (fobj = fset->farr[ftype], 1); ++ftype) {
@@ -337,7 +338,7 @@ static int32_t tsdbRetention(void *arg) {
 _exit:
   if (rtner.fset) {
     (void)taosThreadMutexLock(&pTsdb->mutex);
-    (void)tsdbFinishTaskOnFileSet(pTsdb, rtnArg->fid);
+    tsdbFinishTaskOnFileSet(pTsdb, rtnArg->fid);
     (void)taosThreadMutexUnlock(&pTsdb->mutex);
   }
 

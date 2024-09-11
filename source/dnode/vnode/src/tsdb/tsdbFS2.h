@@ -41,14 +41,14 @@ int32_t tsdbOpenFS(STsdb *pTsdb, STFileSystem **fs, int8_t rollback);
 void    tsdbCloseFS(STFileSystem **fs);
 // snapshot
 int32_t tsdbFSCreateCopySnapshot(STFileSystem *fs, TFileSetArray **fsetArr);
-int32_t tsdbFSDestroyCopySnapshot(TFileSetArray **fsetArr);
+void    tsdbFSDestroyCopySnapshot(TFileSetArray **fsetArr);
 int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr);
 int32_t tsdbFSCreateRefSnapshotWithoutLock(STFileSystem *fs, TFileSetArray **fsetArr);
 void    tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr);
 
 int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TFileSetRangeArray *pExclude, TFileSetArray **fsetArr,
                                        TFileOpArray *fopArr);
-int32_t tsdbFSDestroyCopyRangedSnapshot(TFileSetArray **fsetArr);
+void    tsdbFSDestroyCopyRangedSnapshot(TFileSetArray **fsetArr);
 int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TFileSetRangeArray *pRanges,
                                       TFileSetRangeArray **fsrArr);
 void    tsdbFSDestroyRefRangedSnapshot(TFileSetRangeArray **fsrArr);
@@ -62,7 +62,7 @@ int32_t tsdbFSEditAbort(STFileSystem *fs);
 void    tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
 int32_t tsdbFSCheckCommit(STsdb *tsdb, int32_t fid);
 void    tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset);
-int32_t tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid);
+void    tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid);
 // utils
 int32_t save_fs(const TFileSetArray *arr, const char *fname);
 void    current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype);

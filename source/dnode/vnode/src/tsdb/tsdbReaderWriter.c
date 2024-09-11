@@ -160,7 +160,8 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
       TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
     }
 
-    (void)taosCalcChecksumAppend(0, pFD->pBuf, pFD->szPage);
+    code = taosCalcChecksumAppend(0, pFD->pBuf, pFD->szPage);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     if (encryptAlgorithm == DND_CA_SM4) {
       // if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_TSDB) == DND_CS_TSDB){
@@ -635,9 +636,8 @@ _exit:
   return code;
 }
 
-int32_t tsdbDataFReaderClose(SDataFReader **ppReader) {
-  int32_t code = 0;
-  if (*ppReader == NULL) return code;
+void tsdbDataFReaderClose(SDataFReader **ppReader) {
+  if (*ppReader == NULL) return;
 
   // head
   tsdbCloseFile(&(*ppReader)->pHeadFD);
@@ -660,7 +660,6 @@ int32_t tsdbDataFReaderClose(SDataFReader **ppReader) {
   }
   taosMemoryFree(*ppReader);
   *ppReader = NULL;
-  return code;
 }
 
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx) {

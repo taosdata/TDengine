@@ -847,7 +847,7 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, uint32_t cmpr
   for (int i = 0; i < brinBlock->numOfRecords; i++) {
     SBrinRecord record;
 
-    (void)tBrinBlockGet(brinBlock, i, &record);
+    TAOS_CHECK_RETURN(tBrinBlockGet(brinBlock, i, &record));
     if (i == 0) {
       brinBlk.minTbid.suid = record.suid;
       brinBlk.minTbid.uid = record.uid;
@@ -1160,7 +1160,8 @@ static int32_t tsdbDataFileDoWriteTableOldData(SDataFileWriter *writer, const ST
 
       for (; writer->ctx->brinBlockIdx < writer->ctx->brinBlock->numOfRecords; writer->ctx->brinBlockIdx++) {
         SBrinRecord record;
-        (void)tBrinBlockGet(writer->ctx->brinBlock, writer->ctx->brinBlockIdx, &record);
+        code = tBrinBlockGet(writer->ctx->brinBlock, writer->ctx->brinBlockIdx, &record);
+        TSDB_CHECK_CODE(code, lino, _exit);
         if (record.uid != writer->ctx->tbid->uid) {
           writer->ctx->tbHasOldData = false;
           goto _exit;
@@ -1170,7 +1171,8 @@ static int32_t tsdbDataFileDoWriteTableOldData(SDataFileWriter *writer, const ST
           goto _exit;
         } else {
           SBrinRecord record[1];
-          (void)tBrinBlockGet(writer->ctx->brinBlock, writer->ctx->brinBlockIdx, record);
+          code = tBrinBlockGet(writer->ctx->brinBlock, writer->ctx->brinBlockIdx, record);
+          TSDB_CHECK_CODE(code, lino, _exit);
           if (tsdbRowKeyCmprNullAsLargest(key, &record->lastKey) > 0) {  // key > record->lastKey
             if (writer->blockData->nRow > 0) {
               TAOS_CHECK_GOTO(tsdbDataFileDoWriteBlockData(writer, writer->blockData), &lino, _exit);
