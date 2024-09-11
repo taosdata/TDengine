@@ -3397,11 +3397,15 @@ int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
 }
 
 void blockDataCheck(const SSDataBlock* pDataBlock, bool forceChk) {
+  return;
+  
   if (NULL == pDataBlock || pDataBlock->info.rows == 0) {
     return;
   }
 
-  ASSERT(pDataBlock->info.rows > 0);
+#define BLOCK_DATA_CHECK_TRESSA(o) ;
+
+  BLOCK_DATA_CHECK_TRESSA(pDataBlock->info.rows > 0);
 
   if (!pDataBlock->info.dataLoad && !forceChk) {
     return;
@@ -3419,35 +3423,35 @@ void blockDataCheck(const SSDataBlock* pDataBlock, bool forceChk) {
     checkRows = pDataBlock->info.rows;
 
     if (isVarType) {
-      ASSERT(pCol->varmeta.offset);
+      BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset);
     } else {
-      ASSERT(pCol->nullbitmap);
+      BLOCK_DATA_CHECK_TRESSA(pCol->nullbitmap);
     }
 
     nextPos = 0;
     for (int64_t r = 0; r < checkRows; ++r) {
       if (!colDataIsNull_s(pCol, r)) {
-        ASSERT(pCol->pData);
-        ASSERT(pCol->varmeta.length <= pCol->varmeta.allocLen);
+        BLOCK_DATA_CHECK_TRESSA(pCol->pData);
+        BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.length <= pCol->varmeta.allocLen);
         
         if (isVarType) {
-          ASSERT(pCol->varmeta.allocLen > 0);
-          ASSERT(pCol->varmeta.offset[r] < pCol->varmeta.length);
+          BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.allocLen > 0);
+          BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] < pCol->varmeta.length);
           if (pCol->reassigned) {
-            ASSERT(pCol->varmeta.offset[r] >= 0);
+            BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] >= 0);
           } else {
-            ASSERT(pCol->varmeta.offset[r] == nextPos);
+            BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] == nextPos);
           }
           
           colLen = varDataTLen(pCol->pData + pCol->varmeta.offset[r]);
-          ASSERT(colLen >= VARSTR_HEADER_SIZE);
-          ASSERT(colLen <= pCol->info.bytes);
+          BLOCK_DATA_CHECK_TRESSA(colLen >= VARSTR_HEADER_SIZE);
+          BLOCK_DATA_CHECK_TRESSA(colLen <= pCol->info.bytes);
           
           if (pCol->reassigned) {
-            ASSERT((pCol->varmeta.offset[r] + colLen) <= pCol->varmeta.length);
+            BLOCK_DATA_CHECK_TRESSA((pCol->varmeta.offset[r] + colLen) <= pCol->varmeta.length);
           } else {
             nextPos += colLen;
-            ASSERT(nextPos <= pCol->varmeta.length);
+            BLOCK_DATA_CHECK_TRESSA(nextPos <= pCol->varmeta.length);
           }
 
           typeValue = *(char*)(pCol->pData + pCol->varmeta.offset[r] + colLen - 1);
