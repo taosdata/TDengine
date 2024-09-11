@@ -202,7 +202,7 @@ static int32_t rewriteExprsForSelect(SNodeList* pExprs, SSelectStmt* pSelect, ES
   if (NULL != pRewriteExprs) {
     cxt.pOutputs = taosMemoryCalloc(LIST_LENGTH(pExprs), sizeof(bool));
     if (NULL == cxt.pOutputs) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   nodesRewriteSelectStmt(pSelect, clause, doRewriteExpr, &cxt);

@@ -2153,7 +2153,7 @@ static int32_t loadTombFromBlk(const TTombBlkArray *pTombBlkArray, SCacheRowsRea
     uint64_t        uid = uidList[j];
     STableLoadInfo *pInfo = getTableLoadInfo(pReader, uid);
     if (!pInfo) {
-      (void)tTombBlockDestroy(&block);
+      tTombBlockDestroy(&block);
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
 
@@ -2225,7 +2225,7 @@ static int32_t loadTombFromBlk(const TTombBlkArray *pTombBlkArray, SCacheRowsRea
       }
     }
 
-    (void)tTombBlockDestroy(&block);
+    tTombBlockDestroy(&block);
 
     if (finished) {
       TAOS_RETURN(code);
@@ -2685,12 +2685,14 @@ static int32_t getNextRowFromMem(void *iter, TSDBROW **ppRow, bool *pIgnoreEarli
   switch (state->state) {
     case SMEMNEXTROW_ENTER: {
       if (state->pMem != NULL) {
+        /*
         if (state->pMem->maxKey <= state->lastTs) {
           *ppRow = NULL;
           *pIgnoreEarlierTs = true;
 
           TAOS_RETURN(code);
         }
+        */
         tsdbTbDataIterOpen(state->pMem, NULL, 1, &state->iter);
 
         TSDBROW *pMemRow = tsdbTbDataIterGet(&state->iter);

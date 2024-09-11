@@ -617,6 +617,8 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
   code = TSDB_CODE_SUCCESS;
 
 _err:
+  blockDataCheck(pBlock, true);
+
   colDataDestroy(p);
   taosMemoryFree(p);
   return code;

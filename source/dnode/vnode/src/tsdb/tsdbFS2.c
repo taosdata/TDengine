@@ -252,7 +252,7 @@ static int32_t apply_commit(STFileSystem *fs) {
     if (fset1 && fset2) {
       if (fset1->fid < fset2->fid) {
         // delete fset1
-        (void)tsdbTFileSetRemove(fset1);
+        tsdbTFileSetRemove(fset1);
         i1++;
       } else if (fset1->fid > fset2->fid) {
         // create new file set with fid of fset2->fid
@@ -271,7 +271,7 @@ static int32_t apply_commit(STFileSystem *fs) {
       }
     } else if (fset1) {
       // delete fset1
-      (void)tsdbTFileSetRemove(fset1);
+      tsdbTFileSetRemove(fset1);
       i1++;
     } else {
       // create new file set with fid of fset2->fid
@@ -365,7 +365,7 @@ static int32_t tsdbFSDoScanAndFixFile(STFileSystem *fs, const STFileObj *fobj) {
 
     if (tsS3Enabled && fobj->f->lcn > 1) {
       char fname1[TSDB_FILENAME_LEN];
-      (void)tsdbTFileLastChunkName(fs->tsdb, fobj->f, fname1);
+      tsdbTFileLastChunkName(fs->tsdb, fobj->f, fname1);
       if (!taosCheckExistFile(fname1)) {
         code = TSDB_CODE_FILE_CORRUPTED;
         tsdbError("vgId:%d %s failed since file:%s does not exist", TD_VID(fs->tsdb->pVnode), __func__, fname1);
@@ -648,10 +648,9 @@ _exit:
   return code;
 }
 
-static int32_t close_file_system(STFileSystem *fs) {
+static void close_file_system(STFileSystem *fs) {
   TARRAY2_CLEAR(fs->fSetArr, tsdbTFileSetClear);
   TARRAY2_CLEAR(fs->fSetArrTmp, tsdbTFileSetClear);
-  return 0;
 }
 
 static int32_t fset_cmpr_fn(const struct STFileSet *pSet1, const struct STFileSet *pSet2) {
@@ -748,8 +747,8 @@ _exit:
   return code;
 }
 
-static void    tsdbFSSetBlockCommit(STFileSet *fset, bool block);
-extern int32_t tsdbStopAllCompTask(STsdb *tsdb);
+static void tsdbFSSetBlockCommit(STFileSet *fset, bool block);
+extern void tsdbStopAllCompTask(STsdb *tsdb);
 
 int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   STFileSystem *fs = pTsdb->pFS;
@@ -784,30 +783,32 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   // destroy all channels
   for (int32_t i = 0; i < taosArrayGetSize(channelArray); i++) {
     SVAChannelID *channel = taosArrayGet(channelArray, i);
-    (void)vnodeAChannelDestroy(channel, true);
+    int32_t       code = vnodeAChannelDestroy(channel, true);
+    if (code) {
+      tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, tstrerror(code));
+    }
   }
   taosArrayDestroy(channelArray);
 
 #ifdef TD_ENTERPRISE
-  (void)tsdbStopAllCompTask(pTsdb);
+  tsdbStopAllCompTask(pTsdb);
 #endif
   return 0;
 }
 
-int32_t tsdbEnableBgTask(STsdb *pTsdb) {
+void tsdbEnableBgTask(STsdb *pTsdb) {
   (void)taosThreadMutexLock(&pTsdb->mutex);
   pTsdb->bgTaskDisabled = false;
   (void)taosThreadMutexUnlock(&pTsdb->mutex);
-  return 0;
 }
 
-int32_t tsdbCloseFS(STFileSystem **fs) {
-  if (fs[0] == NULL) return 0;
+void tsdbCloseFS(STFileSystem **fs) {
+  if (fs[0] == NULL) return;
 
-  (void)tsdbDisableAndCancelAllBgTask((*fs)->tsdb);
-  (void)close_file_system(fs[0]);
+  TAOS_UNUSED(tsdbDisableAndCancelAllBgTask((*fs)->tsdb));
+  close_file_system(fs[0]);
   destroy_fs(fs);
-  return 0;
+  return;
 }
 
 int64_t tsdbFSAllocEid(STFileSystem *fs) {
@@ -985,13 +986,12 @@ int32_t tsdbFSCreateCopySnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
   return code;
 }
 
-int32_t tsdbFSDestroyCopySnapshot(TFileSetArray **fsetArr) {
+void tsdbFSDestroyCopySnapshot(TFileSetArray **fsetArr) {
   if (fsetArr[0]) {
     TARRAY2_DESTROY(fsetArr[0], tsdbTFileSetClear);
     taosMemoryFree(fsetArr[0]);
     fsetArr[0] = NULL;
   }
-  return 0;
 }
 
 int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
@@ -1027,13 +1027,12 @@ int32_t tsdbFSCreateRefSnapshotWithoutLock(STFileSystem *fs, TFileSetArray **fse
   return code;
 }
 
-int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
+void tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
   if (fsetArr[0]) {
     TARRAY2_DESTROY(fsetArr[0], tsdbTFileSetClear);
     taosMemoryFreeClear(fsetArr[0]);
     fsetArr[0] = NULL;
   }
-  return 0;
 }
 
 static SHashObj *tsdbFSetRangeArrayToHash(TFileSetRangeArray *pRanges) {
@@ -1104,7 +1103,7 @@ _out:
   return code;
 }
 
-int32_t tsdbFSDestroyCopyRangedSnapshot(TFileSetArray **fsetArr) { return tsdbFSDestroyCopySnapshot(fsetArr); }
+void tsdbFSDestroyCopyRangedSnapshot(TFileSetArray **fsetArr) { tsdbFSDestroyCopySnapshot(fsetArr); }
 
 int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TFileSetRangeArray *pRanges,
                                       TFileSetRangeArray **fsrArr) {
@@ -1160,7 +1159,7 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
   (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
 
   if (code) {
-    (void)tsdbTFileSetRangeClear(&fsr1);
+    tsdbTFileSetRangeClear(&fsr1);
     TARRAY2_DESTROY(fsrArr[0], tsdbTFileSetRangeClear);
     fsrArr[0] = NULL;
   }
@@ -1175,7 +1174,7 @@ _out:
 
 void tsdbFSDestroyRefRangedSnapshot(TFileSetRangeArray **fsrArr) { tsdbTFileSetRangeArrayDestroy(fsrArr); }
 
-int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset) {
+void tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset) {
   int16_t sttTrigger = tsdb->pVnode->config.sttTrigger;
 
   tsdbFSGetFSet(tsdb->pFS, fid, fset);
@@ -1196,11 +1195,9 @@ int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset) {
     }
     tsdbInfo("vgId:%d begin task on file set:%d", TD_VID(tsdb->pVnode), fid);
   }
-
-  return 0;
 }
 
-int32_t tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid) {
+void tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid) {
   int16_t sttTrigger = tsdb->pVnode->config.sttTrigger;
   if (sttTrigger == 1) {
     STFileSet *fset = NULL;
@@ -1213,6 +1210,4 @@ int32_t tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid) {
       tsdbInfo("vgId:%d finish task on file set:%d", TD_VID(tsdb->pVnode), fid);
     }
   }
-
-  return 0;
 }

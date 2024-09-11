@@ -117,7 +117,7 @@ static int32_t tsdbDataFileRAWWriterCloseAbort(SDataFileRAWWriter *writer) {
   return 0;
 }
 
-static int32_t tsdbDataFileRAWWriterDoClose(SDataFileRAWWriter *writer) { return 0; }
+static void tsdbDataFileRAWWriterDoClose(SDataFileRAWWriter *writer) { return; }
 
 static int32_t tsdbDataFileRAWWriterCloseCommit(SDataFileRAWWriter *writer, TFileOpArray *opArr) {
   int32_t code = 0;
@@ -200,7 +200,7 @@ int32_t tsdbDataFileRAWWriterClose(SDataFileRAWWriter **writer, bool abort, TFil
     } else {
       TAOS_CHECK_GOTO(tsdbDataFileRAWWriterCloseCommit(writer[0], opArr), &lino, _exit);
     }
-    (void)tsdbDataFileRAWWriterDoClose(writer[0]);
+    tsdbDataFileRAWWriterDoClose(writer[0]);
   }
   taosMemoryFree(writer[0]);
   writer[0] = NULL;

@@ -314,7 +314,7 @@ int32_t createMetaHbInfo(int64_t* pRid, SMetaHbInfo** pRes) {
   *pRes = NULL;
   SMetaHbInfo* pInfo = taosMemoryCalloc(1, sizeof(SMetaHbInfo));
   if (pInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pInfo->hbTmr = taosTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamTimer);

@@ -903,7 +903,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("stream:%s, failed to create at line:%d since %s", createReq.name, lino, terrstr(code));
+    mError("stream:%s, failed to create at line:%d since %s", createReq.name, lino, tstrerror(code));
   } else {
     mDebug("stream:%s create stream completed", createReq.name);
     code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -1121,7 +1121,7 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
 
   code = mndTransPrepare(pMnode, pTrans);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("failed to prepare checkpoint trans since %s", terrstr(code));
+    mError("failed to prepare checkpoint trans since %s", tstrerror(code));
   } else {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }

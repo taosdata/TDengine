@@ -66,6 +66,7 @@ static int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock);
 int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
   int32_t code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
+  blockDataCheck(*ppBlock, false);
   return code;
 }
 
@@ -524,6 +525,7 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   if ((*pResBlock) != NULL) {
     pOperator->resultInfo.totalRows += (*pResBlock)->info.rows;
+    blockDataCheck(*pResBlock, false);
   } else {
     setOperatorCompleted(pOperator);
   }

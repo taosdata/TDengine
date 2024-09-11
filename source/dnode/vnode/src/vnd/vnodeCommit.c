@@ -272,7 +272,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   int64_t lastCommitted = pInfo->info.state.committed;
 
   // wait last commit task
-  (void)vnodeAWait(&pVnode->commitTask);
+  vnodeAWait(&pVnode->commitTask);
 
   code = syncNodeGetConfig(pVnode->sync, &pVnode->config.syncCfg);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -293,7 +293,8 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   code = vnodeSaveInfo(dir, &pInfo->info);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  (void)tsdbPreCommit(pVnode->pTsdb);
+  code = tsdbPreCommit(pVnode->pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   code = metaPrepareAsyncCommit(pVnode->pMeta);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -395,10 +396,15 @@ _exit:
   return code;
 }
 
-int vnodeSyncCommit(SVnode *pVnode) {
-  (void)vnodeAsyncCommit(pVnode);
-  (void)vnodeAWait(&pVnode->commitTask);
-  return 0;
+int32_t vnodeSyncCommit(SVnode *pVnode) {
+  int32_t lino;
+  int32_t code = vnodeAsyncCommit(pVnode);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  vnodeAWait(&pVnode->commitTask);
+
+_exit:
+  vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  return code;
 }
 
 static int vnodeCommitImpl(SCommitInfo *pInfo) {
@@ -419,7 +425,8 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
 
   vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
-  (void)syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
+  code = syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tsdbCommitBegin(pVnode->pTsdb, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -456,7 +463,8 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     return -1;
   }
 
-  (void)syncEndSnapshot(pVnode->sync);
+  code = syncEndSnapshot(pVnode->sync);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {

@@ -403,7 +403,11 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   pMemTable->aBucket[idx] = pTbData;
   pMemTable->nTbData++;
 
-  (void)tRBTreePut(pMemTable->tbDataTree, pTbData->rbtn);
+  if (tRBTreePut(pMemTable->tbDataTree, pTbData->rbtn) == NULL) {
+    taosWUnLockLatch(&pMemTable->latch);
+    code = TSDB_CODE_INTERNAL_ERROR;
+    goto _exit;
+  }
 
   taosWUnLockLatch(&pMemTable->latch);
 

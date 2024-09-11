@@ -731,6 +731,10 @@ int32_t blockDataMergeNRows(SSDataBlock* pDest, const SSDataBlock* pSrc, int32_t
 }
 
 void blockDataShrinkNRows(SSDataBlock* pBlock, int32_t numOfRows) {
+  if (numOfRows == 0) {
+    return;
+  }
+  
   if (numOfRows >= pBlock->info.rows) {
     blockDataCleanup(pBlock);
     return;
@@ -2936,6 +2940,8 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, cha
 
 // return length of encoded data, return -1 if failed
 int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
+  blockDataCheck(pBlock, false);
+
   int32_t dataLen = 0;
 
   // todo extract method
@@ -3177,6 +3183,9 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
   }
 
   *pEndPos = pStart;
+
+  blockDataCheck(pBlock, false);
+
   return code;
 }
 
@@ -3386,3 +3395,77 @@ int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
 
   return nextRowIdx;
 }
+
+void blockDataCheck(const SSDataBlock* pDataBlock, bool forceChk) {
+  return;
+  
+  if (NULL == pDataBlock || pDataBlock->info.rows == 0) {
+    return;
+  }
+
+#define BLOCK_DATA_CHECK_TRESSA(o) ;
+//#define BLOCK_DATA_CHECK_TRESSA(o) A S S E R T(o)
+
+  BLOCK_DATA_CHECK_TRESSA(pDataBlock->info.rows > 0);
+
+  if (!pDataBlock->info.dataLoad && !forceChk) {
+    return;
+  }
+
+  bool isVarType = false;
+  int32_t colLen = 0;
+  int32_t nextPos = 0;
+  int64_t checkRows = 0;
+  int64_t typeValue = 0;
+  int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
+  for (int32_t i = 0; i < colNum; ++i) {
+    SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pDataBlock->pDataBlock, i);
+    isVarType = IS_VAR_DATA_TYPE(pCol->info.type);
+    checkRows = pDataBlock->info.rows;
+
+    if (isVarType) {
+      BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset);
+    } else {
+      BLOCK_DATA_CHECK_TRESSA(pCol->nullbitmap);
+    }
+
+    nextPos = 0;
+    for (int64_t r = 0; r < checkRows; ++r) {
+      if (!colDataIsNull_s(pCol, r)) {
+        BLOCK_DATA_CHECK_TRESSA(pCol->pData);
+        BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.length <= pCol->varmeta.allocLen);
+        
+        if (isVarType) {
+          BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.allocLen > 0);
+          BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] < pCol->varmeta.length);
+          if (pCol->reassigned) {
+            BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] >= 0);
+          } else if (0 == r) {
+            nextPos = pCol->varmeta.offset[r];
+          } else {
+            BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] == nextPos);
+          }
+          
+          colLen = varDataTLen(pCol->pData + pCol->varmeta.offset[r]);
+          BLOCK_DATA_CHECK_TRESSA(colLen >= VARSTR_HEADER_SIZE);
+          BLOCK_DATA_CHECK_TRESSA(colLen <= pCol->info.bytes);
+          
+          if (pCol->reassigned) {
+            BLOCK_DATA_CHECK_TRESSA((pCol->varmeta.offset[r] + colLen) <= pCol->varmeta.length);
+          } else {
+            nextPos += colLen;
+            BLOCK_DATA_CHECK_TRESSA(nextPos <= pCol->varmeta.length);
+          }
+
+          typeValue = *(char*)(pCol->pData + pCol->varmeta.offset[r] + colLen - 1);
+        } else {
+          GET_TYPED_DATA(typeValue, int64_t, pCol->info.type, colDataGetNumData(pCol, r));
+        }
+      }
+    }
+  }
+
+  return;
+}
+
+

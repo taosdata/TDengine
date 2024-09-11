@@ -111,7 +111,7 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
   if (pTask == NULL) {
     stError("s-task:0x%" PRIx64 " failed malloc new stream task, size:%d, code:%s", streamId,
             (int32_t)sizeof(SStreamTask), tstrerror(terrno));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pTask->ver = SSTREAM_TASK_VER;
@@ -489,7 +489,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   if (pOutputInfo->pTokenBucket == NULL) {
     stError("s-task:%s failed to prepare the tokenBucket, code:%s", pTask->id.idStr,
             tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   // 2MiB per second for sink task
@@ -1190,12 +1190,13 @@ void streamTaskSetFailedChkptInfo(SStreamTask* pTask, int32_t transId, int64_t c
   pTask->chkInfo.pActiveInfo->transId = transId;
   pTask->chkInfo.pActiveInfo->activeId = checkpointId;
   pTask->chkInfo.pActiveInfo->failedId = checkpointId;
+  stDebug("s-task:%s set failed checkpointId:%"PRId64, pTask->id.idStr, checkpointId);
 }
 
 int32_t streamTaskCreateActiveChkptInfo(SActiveCheckpointInfo** pRes) {
   SActiveCheckpointInfo* pInfo = taosMemoryCalloc(1, sizeof(SActiveCheckpointInfo));
   if (pInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t code = taosThreadMutexInit(&pInfo->lock, NULL);
@@ -1239,12 +1240,13 @@ void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo) {
   taosMemoryFree(pInfo);
 }
 
+//NOTE: clear the checkpoint id, and keep the failed id
 void streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo) {
-  pInfo->activeId = 0;  // clear the checkpoint id
+  pInfo->activeId = 0;
   pInfo->transId = 0;
   pInfo->allUpstreamTriggerRecv = 0;
   pInfo->dispatchTrigger = false;
-  pInfo->failedId = 0;
+//  pInfo->failedId = 0;
 
   taosArrayClear(pInfo->pDispatchTriggerList);
   taosArrayClear(pInfo->pCheckpointReadyRecvList);

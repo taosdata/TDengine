@@ -201,7 +201,7 @@ int32_t tfileReaderCreate(IFileCtx* ctx, TFileReader** pReader) {
   int32_t      code = 0;
   TFileReader* reader = taosMemoryCalloc(1, sizeof(TFileReader));
   if (reader == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   reader->ctx = ctx;
   reader->remove = false;
@@ -609,7 +609,7 @@ int32_t tfileWriterCreate(IFileCtx* ctx, TFileHeader* header, TFileWriter** pWri
   int32_t      code = 0;
   TFileWriter* tw = taosMemoryCalloc(1, sizeof(TFileWriter));
   if (tw == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     indexError("index: %" PRIu64 " failed to alloc TFilerWriter since %s", header->suid, tstrerror(code));
     return code;
   }
@@ -661,7 +661,7 @@ int32_t tfileWriterPut(TFileWriter* tw, void* data, bool order) {
   int32_t cap = 4 * 1024;
   char*   buf = taosMemoryCalloc(1, cap);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (size_t i = 0; i < sz; i++) {
@@ -1137,7 +1137,7 @@ static int32_t tfileGetFileList(const char* path, SArray** ppResult) {
     size_t len = strlen(path) + 1 + strlen(file) + 1;
     char*  buf = taosMemoryCalloc(1, len);
     if (buf == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+      TAOS_CHECK_GOTO(terrno, NULL, _exception);
     }
 
     sprintf(buf, "%s/%s", path, file);

@@ -77,9 +77,8 @@ static int32_t tsdbMergerClose(SMerger *merger) {
   return 0;
 }
 
-static int32_t tsdbMergeFileSetEndCloseReader(SMerger *merger) {
+static void tsdbMergeFileSetEndCloseReader(SMerger *merger) {
   TARRAY2_CLEAR(merger->sttReaderArr, tsdbSttFileReaderClose);
-  return 0;
 }
 
 static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
@@ -204,7 +203,7 @@ static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
         TAOS_CHECK_GOTO(tsdbSttFileReaderOpen(fobj->fname, &config, &reader), &lino, _exit);
 
         if ((code = TARRAY2_APPEND(merger->sttReaderArr, reader))) {
-          (void)tsdbSttFileReaderClose(&reader);
+          tsdbSttFileReaderClose(&reader);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
       }
@@ -219,7 +218,7 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(merger->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
-    (void)tsdbMergeFileSetEndCloseReader(merger);
+    tsdbMergeFileSetEndCloseReader(merger);
   }
   return code;
 }
@@ -271,7 +270,9 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
 
   TAOS_CHECK_GOTO(tfsAllocDisk(merger->tsdb->pVnode->pTfs, level, &did), &lino, _exit);
 
-  (void)tfsMkdirRecurAt(merger->tsdb->pVnode->pTfs, merger->tsdb->path, did);
+  code = tfsMkdirRecurAt(merger->tsdb->pVnode->pTfs, merger->tsdb->path, did);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   SFSetWriterConfig config = {
       .tsdb = merger->tsdb,
       .toSttOnly = true,
@@ -354,7 +355,7 @@ static int32_t tsdbMergeFileSetEnd(SMerger *merger) {
 
   TAOS_CHECK_GOTO(tsdbMergeFileSetEndCloseIter(merger), &lino, _exit);
 
-  TAOS_CHECK_GOTO(tsdbMergeFileSetEndCloseReader(merger), &lino, _exit);
+  tsdbMergeFileSetEndCloseReader(merger);
 
   // edit file system
   TAOS_CHECK_GOTO(tsdbFSEditBegin(merger->tsdb->pFS, merger->fopArr, TSDB_FEDIT_MERGE), &lino, _exit);

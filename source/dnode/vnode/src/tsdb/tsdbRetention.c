@@ -71,8 +71,8 @@ static int32_t tsdbDoCopyFileLC(SRTNer *rtner, const STFileObj *from, const STFi
   char      fname_from[TSDB_FILENAME_LEN];
   char      fname_to[TSDB_FILENAME_LEN];
 
-  (void)tsdbTFileLastChunkName(rtner->tsdb, from->f, fname_from);
-  (void)tsdbTFileLastChunkName(rtner->tsdb, to, fname_to);
+  tsdbTFileLastChunkName(rtner->tsdb, from->f, fname_from);
+  tsdbTFileLastChunkName(rtner->tsdb, to, fname_to);
 
   fdFrom = taosOpenFile(fname_from, TD_FILE_READ);
   if (fdFrom == NULL) {
@@ -255,7 +255,8 @@ static int32_t tsdbDoRetention(SRTNer *rtner) {
     SDiskID did;
 
     TAOS_CHECK_GOTO(tfsAllocDisk(rtner->tsdb->pVnode->pTfs, expLevel, &did), &lino, _exit);
-    (void)tfsMkdirRecurAt(rtner->tsdb->pVnode->pTfs, rtner->tsdb->path, did);
+    code = tfsMkdirRecurAt(rtner->tsdb->pVnode->pTfs, rtner->tsdb->path, did);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     // data
     for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX && (fobj = fset->farr[ftype], 1); ++ftype) {
@@ -316,7 +317,7 @@ static int32_t tsdbRetention(void *arg) {
 
   // begin task
   (void)taosThreadMutexLock(&pTsdb->mutex);
-  (void)tsdbBeginTaskOnFileSet(pTsdb, rtnArg->fid, &fset);
+  tsdbBeginTaskOnFileSet(pTsdb, rtnArg->fid, &fset);
   if (fset && (code = tsdbTFileSetInitCopy(pTsdb, fset, &rtner.fset))) {
     (void)taosThreadMutexUnlock(&pTsdb->mutex);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -337,7 +338,7 @@ static int32_t tsdbRetention(void *arg) {
 _exit:
   if (rtner.fset) {
     (void)taosThreadMutexLock(&pTsdb->mutex);
-    (void)tsdbFinishTaskOnFileSet(pTsdb, rtnArg->fid);
+    tsdbFinishTaskOnFileSet(pTsdb, rtnArg->fid);
     (void)taosThreadMutexUnlock(&pTsdb->mutex);
   }
 
@@ -693,7 +694,7 @@ static int32_t tsdbDoS3Migrate(SRTNer *rtner) {
       TAOS_CHECK_GOTO(TSDB_CODE_INVALID_PARA, &lino, _exit);
     }
     char fname1[TSDB_FILENAME_LEN];
-    (void)tsdbTFileLastChunkName(rtner->tsdb, fobj->f, fname1);
+    tsdbTFileLastChunkName(rtner->tsdb, fobj->f, fname1);
 
     if (taosCheckExistFile(fname1)) {
       int32_t mtime = 0;

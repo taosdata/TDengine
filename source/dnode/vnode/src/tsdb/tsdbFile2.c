@@ -249,8 +249,8 @@ int32_t tsdbTFileObjRef(STFileObj *fobj) {
   (void)taosThreadMutexLock(&fobj->mutex);
 
   if (fobj->ref <= 0 || fobj->state != TSDB_FSTATE_LIVE) {
-    (void)taosThreadMutexUnlock(&fobj->mutex);
     tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, fobj->ref);
+    (void)taosThreadMutexUnlock(&fobj->mutex);
     return TSDB_CODE_FAILED;
   }
 
@@ -335,8 +335,8 @@ static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
 int32_t tsdbTFileObjRemove(STFileObj *fobj) {
   (void)taosThreadMutexLock(&fobj->mutex);
   if (fobj->state != TSDB_FSTATE_LIVE || fobj->ref <= 0) {
-    (void)taosThreadMutexUnlock(&fobj->mutex);
     tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, fobj->ref);
+    (void)taosThreadMutexUnlock(&fobj->mutex);
     return TSDB_CODE_FAILED;
   }
   fobj->state = TSDB_FSTATE_DEAD;
@@ -399,7 +399,7 @@ void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
   }
 }
 
-int32_t tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
+void tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
   SVnode *pVnode = pTsdb->pVnode;
   STfs   *pTfs = pVnode->pTfs;
 
@@ -428,7 +428,6 @@ int32_t tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
              f->lcn,                            //
              g_tfile_info[f->type].suffix);
   }
-  return 0;
 }
 
 bool tsdbIsSameTFile(const STFile *f1, const STFile *f2) {
