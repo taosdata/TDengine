@@ -439,7 +439,7 @@ void transReqQueueClear(queue* q) {
 
 int32_t transQueueInit(STransQueue* wq, void (*freeFunc)(void* arg)) {
   QUEUE_INIT(&wq->node);
-  wq->freeFunc = (void (*)(const void*))freeFunc;
+  wq->freeFunc = (void (*)(void*))freeFunc;
   wq->size = 0;
   return 0;
 }
@@ -453,9 +453,10 @@ int32_t transQueuePush(STransQueue* q, void* arg) {
 void* transQueuePop(STransQueue* q) {
   if (q->size == 0) return NULL;
 
-  queue* tail = QUEUE_HEAD(&q->node);
-  QUEUE_REMOVE(tail);
-  return tail;
+  queue* head = QUEUE_HEAD(&q->node);
+  QUEUE_REMOVE(head);
+  q->size--;
+  return head;
 }
 int32_t transQueueSize(STransQueue* q) { return q->size; }
 
@@ -470,14 +471,14 @@ void* transQueueGet(STransQueue* q, int idx) {
 }
 
 void transQueueRemoveByFilter(STransQueue* q, bool (*filter)(void* e, void* arg), void* arg, void* dst, int32_t size) {
-  queue* d = dst;
-  queue* node = QUEUE_NEXT(&q->node);
+  queueWrapper* d = dst;
+  queue*        node = QUEUE_NEXT(&q->node);
   while (node != &q->node) {
     queue* next = QUEUE_NEXT(node);
     if (filter(node, arg)) {
       QUEUE_REMOVE(node);
       q->size--;
-      QUEUE_PUSH(d, node);
+      QUEUE_PUSH(&d->q, node);
       if (--size == 0) {
         break;
       }
@@ -516,7 +517,7 @@ void transQueueRemove(STransQueue* q, void* e) {
 bool transQueueEmpty(STransQueue* q) { return q->size == 0 ? true : false; }
 
 void transQueueClear(STransQueue* q) {
-  while (!QUEUE_IS_EMPTY(q->node)) {
+  while (!QUEUE_IS_EMPTY(&q->node)) {
     queue* h = QUEUE_HEAD(&q->node);
     QUEUE_REMOVE(h);
     if (q->freeFunc != NULL) (q->freeFunc)(h);
