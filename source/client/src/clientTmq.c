@@ -2896,7 +2896,10 @@ int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
       tmqFreeRspWrapper((SMqRspWrapper*)pWrapper);
       taosFreeQitem(pWrapper);
     } else {
-      (void)taosWriteQitem(tmq->mqueue, pWrapper);
+      if (taosWriteQitem(tmq->mqueue, pWrapper) != 0){
+        tmqFreeRspWrapper((SMqRspWrapper*)pWrapper);
+        taosFreeQitem(pWrapper);
+      }
     }
   }
 
