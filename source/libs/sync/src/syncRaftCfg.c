@@ -150,13 +150,13 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
-    code = terrno ? terrno : TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     TAOS_CHECK_EXIT(code);
   }
 
   int32_t len = strlen(buffer);
   if (taosWriteFile(pFile, buffer, len) <= 0) {
-    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
+    TAOS_CHECK_EXIT(terrno);
   }
 
   if (taosFsyncFile(pFile) < 0) {
@@ -164,9 +164,7 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
   }
 
   (void)taosCloseFile(&pFile);
-  if (taosRenameFile(file, realfile) != 0) {
-    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
-  }
+  TAOS_CHECK_EXIT(taosRenameFile(file, realfile));
 
   sInfo("vgId:%d, succeed to write sync cfg file:%s, len:%d, lastConfigIndex:%" PRId64 ", changeVersion:%d",
         pNode->vgId, realfile, len, pNode->raftCfg.lastConfigIndex, pNode->raftCfg.cfg.changeVersion);
@@ -261,14 +259,14 @@ int32_t syncReadCfgFile(SSyncNode *pNode) {
 
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     sError("vgId:%d, failed to open sync cfg file:%s since %s", pNode->vgId, file, tstrerror(code));
     goto _OVER;
   }
 
   int64_t size = 0;
-  if (taosFStatFile(pFile, &size, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
     sError("vgId:%d, failed to fstat sync cfg file:%s since %s", pNode->vgId, file, tstrerror(code));
     goto _OVER;
   }
@@ -280,7 +278,7 @@ int32_t syncReadCfgFile(SSyncNode *pNode) {
   }
 
   if (taosReadFile(pFile, pData, size) != size) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     sError("vgId:%d, failed to read sync cfg file:%s since %s", pNode->vgId, file, tstrerror(code));
     goto _OVER;
   }

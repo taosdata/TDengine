@@ -1136,7 +1136,7 @@ int tdbPagerRestoreJournals(SPager *pPager) {
   tdbDirPtr      pDir = taosOpenDir(pPager->pEnv->dbName);
   if (pDir == NULL) {
     tdbError("failed to open %s since %s", pPager->pEnv->dbName, strerror(errno));
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   SArray *pTxnList = taosArrayInit(16, sizeof(int64_t));
@@ -1182,7 +1182,7 @@ int tdbPagerRollback(SPager *pPager) {
   tdbDirPtr      pDir = taosOpenDir(pPager->pEnv->dbName);
   if (pDir == NULL) {
     tdbError("failed to open %s since %s", pPager->pEnv->dbName, strerror(errno));
-    return terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   while ((pDirEntry = tdbReadDir(pDir)) != NULL) {

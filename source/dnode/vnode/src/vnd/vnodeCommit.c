@@ -181,15 +181,15 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // save info to a vnode_tmp.json
   pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   if (taosWriteFile(pFile, data, strlen(data)) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   if (taosFsyncFile(pFile) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
 _exit:
@@ -211,8 +211,9 @@ int vnodeCommitInfo(const char *dir) {
   snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME);
   snprintf(tfname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME_TMP);
 
-  if (taosRenameFile(tfname, fname) < 0) {
-    return terrno = TAOS_SYSTEM_ERROR(errno);
+  int32_t code = taosRenameFile(tfname, fname);
+  if (code < 0) {
+    return code;
   }
 
   vInfo("vnode info is committed, dir:%s", dir);
@@ -232,12 +233,11 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
   // read info
   pFile = taosOpenFile(fname, TD_FILE_READ);
   if (pFile == NULL) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
-  if (taosFStatFile(pFile, &size, NULL) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
-  }
+  code = taosFStatFile(pFile, &size, NULL);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   pData = taosMemoryMalloc(size + 1);
   if (pData == NULL) {
@@ -245,7 +245,7 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
   }
 
   if (taosReadFile(pFile, pData, size) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   pData[size] = '\0';
