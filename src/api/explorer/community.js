@@ -3396,6 +3396,17 @@ export function getDataSources(lang) {
             "connection_option": false,
             "params": [
               {
+                "name": "subtable_fields",
+                "display": "Subtable Fields",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "Fields and query statements used for splitting sub tables.",
+                "description": "Fields and query statements used for splitting sub tables.",
+                "required": false,
+                "placeholder": "select distinct col_name1,col_name2 from table",
+              },
+              {
                 "name": "sql",
                 "display": "SQL Template",
                 "hint": {
@@ -3623,6 +3634,17 @@ export function getDataSources(lang) {
             "connection_option": false,
             "params": [
               {
+                "name": "subtable_fields",
+                "display": "Subtable Fields",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "Fields and query statements used for splitting sub tables.",
+                "description": "Fields and query statements used for splitting sub tables.",
+                "required": false,
+                "placeholder": "select distinct col_name1,col_name2 from table",
+              },
+              {
                 "name": "sql",
                 "display": "SQL Template",
                 "hint": {
@@ -3812,6 +3834,17 @@ export function getDataSources(lang) {
             "collapsible": false,
             "connection_option": false,
             "params": [
+              {
+                "name": "subtable_fields",
+                "display": "Subtable Fields",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "Fields and query statements used for splitting sub tables.",
+                "description": "Fields and query statements used for splitting sub tables.",
+                "required": false,
+                "placeholder": "select distinct col_name1,col_name2 from table",
+              },
               {
                 "name": "sql",
                 "display": "SQL Template",
@@ -4070,6 +4103,17 @@ export function getDataSources(lang) {
             "collapsible": false,
             "connection_option": false,
             "params": [
+              {
+                "name": "subtable_fields",
+                "display": "Subtable Fields",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "Fields and query statements used for splitting sub tables.",
+                "description": "Fields and query statements used for splitting sub tables.",
+                "required": false,
+                "placeholder": "select distinct col_name1,col_name2 from table",
+              },
               {
                 "name": "sql",
                 "display": "SQL Template",
@@ -7936,6 +7980,17 @@ export function getDataSources(lang) {
             "connection_option": false,
             "params": [
               {
+                "name": "subtable_fields",
+                "display": "子表字段",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "用于拆分子表的字段。",
+                "description": "用于拆分子表的字段。",
+                "required": false,
+                "placeholder": "select distinct col_name1,col_name2 from table",
+              },
+              {
                 "name": "sql",
                 "display": "SQL 模板",
                 "hint": {
@@ -8163,6 +8218,17 @@ export function getDataSources(lang) {
             "connection_option": false,
             "params": [
               {
+                "name": "subtable_fields",
+                "display": "子表字段",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "用于拆分子表的字段。",
+                "description": "用于拆分子表的字段。",
+                "required": false,
+                "placeholder": "select distinct col_name1,col_name2 from table",
+              },
+              {
                 "name": "sql",
                 "display": "SQL 模板",
                 "hint": {
@@ -8352,6 +8418,17 @@ export function getDataSources(lang) {
             "collapsible": false,
             "connection_option": false,
             "params": [
+              {
+                "name": "subtable_fields",
+                "display": "子表字段",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "用于拆分子表的字段。",
+                "description": "用于拆分子表的字段。",
+                "required": false,
+                "placeholder": "select distinct col_name1,col_name2 from table",
+              },
               {
                 "name": "sql",
                 "display": "SQL 模板",
@@ -8610,6 +8687,17 @@ export function getDataSources(lang) {
             "collapsible": false,
             "connection_option": false,
             "params": [
+              {
+                "name": "subtable_fields",
+                "display": "子表字段",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "用于拆分子表的字段。",
+                "description": "用于拆分子表的字段。",
+                "required": false,
+                "placeholder": "select distinct col_name1,col_name2 from table",
+              },
               {
                 "name": "sql",
                 "display": "SQL 模板",
