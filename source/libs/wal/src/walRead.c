@@ -202,22 +202,28 @@ static int32_t walReadSeekVerImpl(SWalReader *pReader, int64_t ver) {
   SWalFileInfo tmpInfo;
   tmpInfo.firstVer = ver;
   taosThreadMutexLock(&pWal->mutex);
-  SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
-  if (pRet == NULL) {
+  SWalFileInfo *gloablPRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
+  if (gloablPRet == NULL) {
     wError("failed to find WAL log file with ver:%" PRId64, ver);
     taosThreadMutexUnlock(&pWal->mutex);
     TAOS_RETURN(TSDB_CODE_WAL_INVALID_VER);
   }
-
+  SWalFileInfo *pRet = taosMemoryMalloc(sizeof(SWalFileInfo));
+  if (pRet == NULL) {
+    wError("failed to allocate memory for localRet");
+    taosThreadMutexUnlock(&pWal->mutex);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  TAOS_MEMCPY(pRet, gloablPRet, sizeof(SWalFileInfo));
+  taosThreadMutexUnlock(&pWal->mutex);
   if (pReader->curFileFirstVer != pRet->firstVer) {
     // error code was set inner
-    TAOS_CHECK_RETURN_WITH_MUTEX(walReadChangeFile(pReader, pRet->firstVer), &pWal->mutex);
+    TAOS_CHECK_RETURN_WITH_FREE(walReadChangeFile(pReader, pRet->firstVer), pRet);
   }
 
   // error code was set inner
-  TAOS_CHECK_RETURN_WITH_MUTEX(walReadSeekFilePos(pReader, pRet->firstVer, ver), &pWal->mutex);
-
-  taosThreadMutexUnlock(&pWal->mutex);
+  TAOS_CHECK_RETURN_WITH_FREE(walReadSeekFilePos(pReader, pRet->firstVer, ver), pRet);
+  taosMemoryFree(pRet);
   wDebug("vgId:%d, wal version reset from %" PRId64 " to %" PRId64, pReader->pWal->cfg.vgId, pReader->curVersion, ver);
 
   pReader->curVersion = ver;
