@@ -391,12 +391,12 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   ASSERT(index - pBuf->startIndex < pBuf->size);
   ASSERT(pBuf->entries[index % pBuf->size].pItem == NULL);
   SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = prevIndex, .prevLogTerm = prevTerm};
+  pBuf->entries[index % pBuf->size] = tmp;
   if(pNode->vgId > 1){
     pBuf->bytes += pEntry->bytes;
     atomic_add_fetch_64(&sSyncLogBufferBytes, (int64_t)pEntry->bytes);
   }
   pEntry = NULL;
-  pBuf->entries[index % pBuf->size] = tmp;
 
   // update end index
   pBuf->endIndex = TMAX(index + 1, pBuf->endIndex);
