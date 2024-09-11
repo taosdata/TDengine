@@ -344,8 +344,7 @@ int32_t tqProcessPollPush(STQ* pTq, SRpcMsg* pMsg) {
                        .pCont = pHandle->msg->pCont,
                        .contLen = pHandle->msg->contLen,
                        .info = pHandle->msg->info};
-        int32_t ret = tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg);
-        if (ret != 0){
+        if (tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg) != 0){
           tqError("vgId:%d tmsgPutToQueue failed, consumer:0x%" PRIx64, vgId, pHandle->consumerId);
         }
         taosMemoryFree(pHandle->msg);

@@ -978,7 +978,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
 OVER:
   tDestroySMqHbReq(&req);
   if (tmrId != NULL) {
-    int32_t ret = taosTmrReset(tmqSendHbReq, tmq->heartBeatIntervalMs, param, tmqMgmt.timer, &tmq->hbLiveTimer);
+    bool ret = taosTmrReset(tmqSendHbReq, tmq->heartBeatIntervalMs, param, tmqMgmt.timer, &tmq->hbLiveTimer);
     if (!ret){
       tscError("failed to reset timer fo tmq hb");
     }
@@ -1021,9 +1021,9 @@ void tmqHandleAllDelayedTask(tmq_t* pTmq) {
         continue;
       }
       tscDebug("consumer:0x%" PRIx64 " retrieve ep from mnode in 1s", pTmq->consumerId);
-      code = taosTmrReset(tmqAssignAskEpTask, DEFAULT_ASKEP_INTERVAL, (void*)(pTmq->refId), tmqMgmt.timer,
+      bool ret = taosTmrReset(tmqAssignAskEpTask, DEFAULT_ASKEP_INTERVAL, (void*)(pTmq->refId), tmqMgmt.timer,
                          &pTmq->epTimer);
-      if (!code){
+      if (!ret){
         tscError("failed to reset timer fo tmq ask ep");
       }
     } else if (*pTaskType == TMQ_DELAYED_TASK__COMMIT) {
@@ -1031,9 +1031,9 @@ void tmqHandleAllDelayedTask(tmq_t* pTmq) {
       asyncCommitAllOffsets(pTmq, pCallbackFn, pTmq->commitCbUserParam);
       tscDebug("consumer:0x%" PRIx64 " next commit to vnode(s) in %.2fs", pTmq->consumerId,
                pTmq->autoCommitInterval / 1000.0);
-      code = taosTmrReset(tmqAssignDelayedCommitTask, pTmq->autoCommitInterval, (void*)(pTmq->refId), tmqMgmt.timer,
+      bool ret = taosTmrReset(tmqAssignDelayedCommitTask, pTmq->autoCommitInterval, (void*)(pTmq->refId), tmqMgmt.timer,
                          &pTmq->commitTimer);
-      if (!code){
+      if (!ret){
         tscError("failed to reset timer fo commit");
       }
     } else {
