@@ -19,6 +19,7 @@ use crate::serve::{controller::TaskControllerRef, task::Failed};
 pub use definition::*;
 pub use point_loader::*;
 use taosx_core::runners::opc::config::OPCConfig;
+use taosx_core::utils::timeout::{Timeout, TimeoutType};
 use taosx_core::{dsv::DataSourceValidation, utils::license, QueryDataSourceReq};
 use taosx_core::{get_data_dir, list_datasets_from, plugins, validate_dsn, DataSetsReq};
 use taosx_core::{
@@ -291,8 +292,6 @@ pub struct DsnAgentQuery {
     timeout: Option<u64>,
 }
 
-const DEFAULT_REQUEST_TIMEOUT: u64 = 30; // 30s
-
 /// check data source validation by dsn
 #[utoipa::path(
     get,
@@ -316,7 +315,15 @@ pub(super) async fn data_source_is_valid(
     let _ = std::env::set_current_dir(get_data_dir());
 
     let query = query.into_inner();
-    let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+
+    let timeout_sec = query.timeout.unwrap_or_else(|| {
+        let dsn = query.dsn.clone().into_dsn();
+        if let Ok(dsn) = dsn {
+            Timeout::get(TimeoutType::ValidateDataSource(dsn))
+        } else {
+            Timeout::get(TimeoutType::Default)
+        }
+    });
     let span = Span::current();
     let result = timeout(
         Duration::from_secs(timeout_sec),
@@ -380,7 +387,14 @@ pub(super) async fn data_source_sink_is_valid(
     let _ = std::env::set_current_dir(get_data_dir());
 
     let query = query.into_inner();
-    let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+    let timeout_sec = query.timeout.unwrap_or_else(|| {
+        let dsn = query.from.clone().into_dsn();
+        if let Ok(dsn) = dsn {
+            Timeout::get(TimeoutType::ValidateDataSource(dsn))
+        } else {
+            Timeout::get(TimeoutType::Default)
+        }
+    });
     let span = Span::current();
     let result = timeout(
         Duration::from_secs(timeout_sec),
@@ -461,7 +475,14 @@ pub(super) async fn get_sample(
     let query = query.into_inner();
 
     // 获取示例数据的超时时间应该小于 query 中的timeout
-    let query_timeout = query.timeout.clone().unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+    let query_timeout = query.timeout.clone().unwrap_or_else(|| {
+        let dsn = query.dsn.clone().into_dsn();
+        if let Ok(dsn) = dsn {
+            Timeout::get(TimeoutType::GetSample(dsn))
+        } else {
+            Timeout::get(TimeoutType::Default)
+        }
+    });
     let dsn = query.dsn.clone().into_dsn();
     if let Err(err) = dsn {
         tracing::error!("parse dsn error: {:?}", err);
@@ -669,7 +690,7 @@ pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl 
     let _ = std::env::set_current_dir(get_data_dir());
 
     let query = query.into_inner();
-    let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+    let timeout_sec = query.timeout.unwrap_or(Timeout::get(TimeoutType::Default));
 
     let result = timeout(
         Duration::from_secs(timeout_sec),
