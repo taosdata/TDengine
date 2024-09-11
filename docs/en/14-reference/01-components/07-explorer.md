@@ -4,7 +4,7 @@ sidebar_label: Taos-Explorer
 description: User guide about taosExplorer
 ---
 
-taos-explorer is a web service which provides GUI based interactive database management tool.
+taos-explorer is a web service which provides GUI based interactive database management tool. To ensure the best experience when accessing taosExplorer, please use Chrome version 79 or higher, Edge version 79 or higher.
 
 ## Install
 
