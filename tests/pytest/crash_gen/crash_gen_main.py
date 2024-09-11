@@ -1818,7 +1818,7 @@ class TaskCreateDb(StateTransitionTask):
         precision = Dice.choice(DataBoundary.PRECISION_BOUNDARY.value)
         comp = Dice.choice(DataBoundary.COMP_BOUNDARY.value)
         cachesize = Dice.choice(DataBoundary.CACHESIZE_BOUNDARY.value)
-        self.execWtSql(wt, "create database {} {} {} vgroups {} cachemodel '{}' cachesize {} buffer {} wal_retention_period {} duration {} keep {} minrows {} maxrows {} stt_trigger {} precision {} comp {}".format(dbName, repStr,
+        self.execWtSql(wt, 'create database {} {} {} vgroups {} cachemodel "{}" cachesize {} buffer {} wal_retention_period {} duration {} keep {} minrows {} maxrows {} stt_trigger {} precision "{}" comp {}'.format(dbName, repStr,
                                                                                                     updatePostfix,
                                                                                                     vg_nums,
                                                                                                     cache_model,
