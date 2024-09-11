@@ -372,7 +372,7 @@ typedef struct {
  * init queue
  * note: queue'size is small, default 1
  */
-int32_t transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg));
+int32_t transQueueInit(STransQueue* queue, void (*freeFunc)(void* arg));
 
 /*
  * put arg into queue
@@ -396,6 +396,10 @@ void* transQueueGet(STransQueue* queue, int i);
  */
 
 void* tranQueueHead(STransQueue* q);
+/*
+ *  remove all match elm from queue
+ */
+void transQueueRemoveByFilter(STransQueue* q, bool (*filter)(void* e, void* arg), void* arg, void* dst, int32_t size);
 /*
  * rm ith from queue
  */
