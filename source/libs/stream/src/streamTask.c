@@ -999,6 +999,7 @@ int32_t streamTaskSetFailedChkptInfo(SStreamTask* pTask, int32_t transId, int64_
   pTask->chkInfo.pActiveInfo->transId = transId;
   pTask->chkInfo.pActiveInfo->activeId = checkpointId;
   pTask->chkInfo.pActiveInfo->failedId = checkpointId;
+  stDebug("s-task:%s set failed checkpointId:%"PRId64, pTask->id.idStr, checkpointId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1042,7 +1043,7 @@ void streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo) {
   pInfo->transId = 0;
   pInfo->allUpstreamTriggerRecv = 0;
   pInfo->dispatchTrigger = false;
-  pInfo->failedId = 0;
+//  pInfo->failedId = 0;
 
   taosArrayClear(pInfo->pDispatchTriggerList);
   taosArrayClear(pInfo->pCheckpointReadyRecvList);
