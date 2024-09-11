@@ -1486,8 +1486,6 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   int32_t           numOfFailed = 0;
   bool              triggerDispatchRsp = false;
 
-  taosMsleep(500);
-
   // we only set the dispatch msg info for current checkpoint trans
   streamMutexLock(&pTask->lock);
   triggerDispatchRsp = (streamTaskGetStatus(pTask).state == TASK_STATUS__CK) &&
