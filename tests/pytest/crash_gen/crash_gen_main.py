@@ -1727,6 +1727,15 @@ class TaskCreateDb(StateTransitionTask):
     def canBeginFrom(cls, state: AnyState):
         return state.canCreateDb()
 
+    def convert_to_hours(self, value, unit):
+        """
+        Convert the given time value and unit into hours.
+        """
+        if unit == 'm':
+            return value / 60  # Convert minutes to hours
+        elif unit == 'd':
+            return value * 24  # Convert days to hours
+
     def convert_from_hours(self, hours, unit):
         """
         Convert hours to the specified unit.
@@ -1737,15 +1746,6 @@ class TaskCreateDb(StateTransitionTask):
             return int(hours)       # Keep hours unchanged
         elif unit == 'd':
             return max(1, int(hours / 24))  # Convert hours to days, minimum 1 day
-
-    def convert_to_hours(self, value, unit):
-        """
-        Convert the given time value and unit into hours.
-        """
-        if unit == 'm':
-            return value / 60  # Convert minutes to hours
-        elif unit == 'd':
-            return value * 24  # Convert days to hours
 
     def random_duration_and_keeps(self):
         # Randomly select the unit and value for duration
@@ -1759,9 +1759,12 @@ class TaskCreateDb(StateTransitionTask):
         # Convert duration to hours for calculation purposes
         duration_hours = self.convert_to_hours(duration, duration_unit)
 
-        # Ensure keep0, keep1, keep2 are increasing and follow the relation with duration
-        min_keep0_hours = 3 * duration_hours
-        keep0_hours = random.uniform(min_keep0_hours, min_keep0_hours + 100)
+        # Minimum of 10 years in hours for the initial keep
+        min_years = 10
+        min_keep_hours = min_years * 365 * 24 + 3 * duration_hours  # Adding 3 times the duration_hours
+
+        # Ensure keep0, keep1, keep2 are increasing and start from at least the calculated minimum
+        keep0_hours = random.uniform(min_keep_hours, min_keep_hours + 100)
         keep1_hours = random.uniform(keep0_hours, keep0_hours + 100)
         keep2_hours = random.uniform(keep1_hours, keep1_hours + 100)
 
