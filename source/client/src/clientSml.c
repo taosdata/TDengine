@@ -116,7 +116,7 @@ static int32_t smlCheckAuth(SSmlHandle *info, SRequestConnInfo *conn, const char
       return TSDB_CODE_SML_INVALID_DATA;
     }
   } else {
-    (void)toName(info->taos->acctId, info->pRequest->pDb, pTabName, &pAuth.tbName); //ignore
+    toName(info->taos->acctId, info->pRequest->pDb, pTabName, &pAuth.tbName); //ignore
   }
   pAuth.type = type;
 
@@ -1113,7 +1113,10 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
 
   pReq.commentLen = -1;
   pReq.igExists = true;
-  (void)tNameExtractFullName(pName, pReq.name);
+  code = tNameExtractFullName(pName, pReq.name);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto end;
+  }
 
   pCmdMsg.epSet = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
   pCmdMsg.msgType = TDMT_MND_CREATE_STB;
