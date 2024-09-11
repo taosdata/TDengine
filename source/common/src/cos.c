@@ -1412,7 +1412,7 @@ static int32_t s3GetObjectToFileByEp(const char *object_name, const char *fileNa
 
   TdFilePtr pFile = taosOpenFile(fileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    uError("[s3] open file error, errno:%d, fileName:%s", terrno, fileName);
+    uError("[s3] open file error, terrno:%d, fileName:%s", terrno, fileName);
     TAOS_RETURN(terrno);
   }
 

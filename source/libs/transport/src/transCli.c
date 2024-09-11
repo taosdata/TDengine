@@ -3087,7 +3087,7 @@ int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
   code = tsem_init(sem, 0, 0);
   if (code != 0) {
     taosMemoryFree(sem);
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _RETURN1);
+    TAOS_CHECK_GOTO(terrno, NULL, _RETURN1);
   }
 
   if (pReq->info.traceId.msgId == 0) TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
@@ -3250,9 +3250,8 @@ int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq,
   }
 
   code = tsem2_timewait(pSyncMsg->pSem, timeoutMs);
-  if (code < 0) {
-    pRsp->code = TSDB_CODE_TIMEOUT_ERROR;
-    code = TSDB_CODE_TIMEOUT_ERROR;
+  if (code != 0) {
+    pRsp->code = code;
   } else {
     memcpy(pRsp, pSyncMsg->pRsp, sizeof(STransMsg));
     pSyncMsg->pRsp->pCont = NULL;
@@ -3260,7 +3259,6 @@ int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq,
       epsetAssign(pEpSet, &pSyncMsg->epSet);
       *epUpdated = 1;
     }
-    code = 0;
   }
 _RETURN:
   (void)transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);

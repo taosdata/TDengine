@@ -197,7 +197,6 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
 
   code = taosGetAppName(tmp, NULL);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
     TAOS_CHECK_GOTO(code, NULL, _exit);
   }
   TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "appName", tmp), NULL, _exit);

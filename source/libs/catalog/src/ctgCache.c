@@ -3239,7 +3239,7 @@ void *ctgUpdateThreadFunc(void *param) {
 
   while (true) {
     if (tsem_wait(&gCtgMgmt.queue.reqSem)) {
-      qError("ctg tsem_wait failed, error:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+      qError("ctg tsem_wait failed, error:%s", tstrerror(terrno));
     }
 
     if (atomic_load_8((int8_t *)&gCtgMgmt.queue.stopQueue)) {
