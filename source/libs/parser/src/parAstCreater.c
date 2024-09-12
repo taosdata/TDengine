@@ -2354,19 +2354,20 @@ _err:
   return NULL;
 }
 
-SNode* createDropTableStmt(SAstCreateContext* pCxt, SNodeList* pTables) {
+SNode* createDropTableStmt(SAstCreateContext* pCxt, bool withOpt, SNodeList* pTables) {
   CHECK_PARSER_STATUS(pCxt);
   SDropTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->pTables = pTables;
+  pStmt->withUid = withOpt;
   return (SNode*)pStmt;
 _err:
   nodesDestroyList(pTables);
   return NULL;
 }
 
-SNode* createDropSuperTableStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable) {
+SNode* createDropSuperTableStmt(SAstCreateContext* pCxt, bool withOpt, bool ignoreNotExists, SNode* pRealTable) {
   CHECK_PARSER_STATUS(pCxt);
   SDropSuperTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_SUPER_TABLE_STMT, (SNode**)&pStmt);
@@ -2374,6 +2375,7 @@ SNode* createDropSuperTableStmt(SAstCreateContext* pCxt, bool ignoreNotExists, S
   strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
   strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
   pStmt->ignoreNotExists = ignoreNotExists;
+  pStmt->withUid = withOpt;
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 _err:

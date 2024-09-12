@@ -1525,7 +1525,8 @@ int32_t ctgMakeVgArray(SDBVgInfo* dbInfo) {
   }
 
   if (dbInfo->vgHash && NULL == dbInfo->vgArray) {
-    dbInfo->vgArray = taosArrayInit(100, sizeof(SVgroupInfo));
+    int32_t vgSize = taosHashGetSize(dbInfo->vgHash);
+    dbInfo->vgArray = taosArrayInit(vgSize, sizeof(SVgroupInfo));
     if (NULL == dbInfo->vgArray) {
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }

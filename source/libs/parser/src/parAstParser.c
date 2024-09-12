@@ -377,15 +377,26 @@ static int32_t collectMetaKeyFromCreateSubTableFromFile(SCollectMetaKeyCxt*     
 static int32_t collectMetaKeyFromDropTable(SCollectMetaKeyCxt* pCxt, SDropTableStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
+  char    tableName[50] = "aa\u00bf\u200bstb0";
   FOREACH(pNode, pStmt->pTables) {
     SDropTableClause* pClause = (SDropTableClause*)pNode;
     code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
     if (TSDB_CODE_SUCCESS == code) {
+      code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pClause->dbName, tableName, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
       code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pClause->dbName, tableName, pCxt->pMetaCache);
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName,
                                     pClause->tableName, AUTH_TYPE_WRITE, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName,
+                                    tableName, AUTH_TYPE_WRITE, pCxt->pMetaCache);
     }
     if (TSDB_CODE_SUCCESS != code) {
       break;

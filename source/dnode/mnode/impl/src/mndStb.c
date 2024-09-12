@@ -3588,6 +3588,11 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     (void)colDataSetVal(pColInfo, numOfRows, (const char *)rollup, false);
 
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (pColInfo) {
+      (void)colDataSetVal(pColInfo, numOfRows, (const char *)(&pStb->uid), false);
+    }
+
     numOfRows++;
     sdbRelease(pSdb, pStb);
   }
