@@ -40,6 +40,7 @@ impl RawMessage {
             data: None,
         }
     }
+
     pub fn data_only(mid: usize, raw: RawMeta, data: Vec<RawBlock>) -> Self {
         Self {
             mid,
@@ -48,14 +49,7 @@ impl RawMessage {
             data: Some(data),
         }
     }
-    pub fn raw_only(mid: usize, raw: RawMeta) -> Self {
-        Self {
-            mid,
-            raw,
-            meta: None,
-            data: None,
-        }
-    }
+
     pub fn meta_data(
         mid: usize,
         raw: RawMeta,

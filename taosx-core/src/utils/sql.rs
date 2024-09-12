@@ -4,14 +4,131 @@ use arrow::{array::Array, record_batch::RecordBatch};
 use arrow_schema::ArrowError;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
+use serde::Deserialize;
 use taos::{
     taos_query::{common::Describe, Manager},
-    AsyncQueryable, Error as TaosError, RawBlock, TaosBuilder, TaosPool,
+    AsyncFetchable, AsyncQueryable, Error as TaosError, RawBlock, TaosBuilder, TaosPool,
 };
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
 type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>;
+
+const SQL_CURRENT_DATABASE: &str = "select database()";
+const SQL_SHOW_DATABASES: &str = "show databases";
+
+pub async fn get_v2_precision(taos: &taos::Taos) -> Result<taos::Precision, TaosError> {
+    let database = taos
+        .query_one::<_, String>(SQL_CURRENT_DATABASE)
+        .in_current_span()
+        .await?
+        .ok_or_else(|| TaosError::new(0xFFFF, "Database is not specified"))?;
+
+    #[derive(Deserialize)]
+    struct Database {
+        name: String,
+        precision: taos::Precision,
+    }
+
+    let mut databases = taos.query(SQL_SHOW_DATABASES).in_current_span().await?;
+
+    use futures::stream::TryStreamExt;
+    databases
+        .deserialize::<Database>()
+        .try_filter_map(|db| {
+            std::future::ready(Ok(if db.name == database {
+                Some(db.precision)
+            } else {
+                None
+            }))
+        })
+        .try_next()
+        .await?
+        .ok_or_else(|| TaosError::new(0xFFFF, "Can't get precision"))
+}
+
+pub async fn get_current_precision(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    _req_id: u64,
+    max_retries: u32,
+    cancel: &CancellationToken,
+) -> Result<taos::Precision, TaosError> {
+    const SQL_PRECISION: &str =
+        "select `precision` from information_schema.ins_databases where name = database()";
+    if taos.is_none() {
+        taos.replace(
+            reconnect_with_max_retries(pool, max_retries, cancel)
+                .in_current_span()
+                .await?,
+        );
+    }
+
+    let mut reconnected = false;
+    loop {
+        match taos
+            .as_ref()
+            .unwrap()
+            .query_one::<_, taos::Precision>(SQL_PRECISION)
+            .in_current_span()
+            .await
+        {
+            Ok(n) => {
+                return n.ok_or_else(|| TaosError::new(0xFFFF, "Can't get precision"));
+            }
+            Err(err) => {
+                if max_retries == 0 {
+                    return Err(err.context("Can't get precision"));
+                }
+                let code = err.code();
+                let errno: i32 = code.into();
+                match errno {
+                    0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                        if reconnected {
+                            return Err(err.context("Can't get precision"));
+                        }
+                        taos.replace(
+                            reconnect_with_max_retries(pool, max_retries, cancel)
+                                .in_current_span()
+                                .await?,
+                        );
+                        reconnected = true;
+                        continue;
+                    }
+                    _ => return Err(err.context("Can't get precision")),
+                }
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_precision() {
+    use taos::AsyncTBuilder;
+    let dsn = "taos://";
+    let pool = taos::TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
+    let taos = pool.get().await.unwrap();
+    taos.exec_many([
+        "drop database if exists test_min_timestamp",
+        "create database if not exists test_min_timestamp precision 'ns'",
+        "use test_min_timestamp",
+        "create table if not exists test (ts timestamp, v int)",
+        "insert into test values (now(), 1)",
+    ])
+    .await
+    .unwrap();
+    let mut taos = Some(taos);
+
+    let min = chrono::Utc::now();
+    let t = get_current_precision(&pool, &mut taos, 0, 0, &CancellationToken::new())
+        .await
+        .unwrap();
+    assert!(t == taos::Precision::Nanosecond);
+    taos.unwrap()
+        .exec_many(["drop database if exists test_min_timestamp"])
+        .await
+        .unwrap();
+}
 
 #[tracing::instrument(skip_all)]
 pub async fn get_minimum_timestamp(

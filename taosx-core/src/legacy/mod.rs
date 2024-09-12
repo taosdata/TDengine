@@ -24,8 +24,7 @@ use tracing::{debug, info, instrument, warn, Instrument};
 use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
     legacy::scheduler::Todo,
-    utils::breakpoints::BreakpointDb,
-    utils::constants::VERSION_3_3_0,
+    utils::{breakpoints::BreakpointDb, constants::VERSION_3_3_0, sql::get_v2_precision},
     Action,
 };
 
@@ -367,7 +366,10 @@ struct WriteContext {
     target_opts: TargetOpts,
     metrics_arc: Arc<CoreMetrics>,
     remap: Option<Arc<HashMap<String, String>>>,
+    with_precision: Option<Precision>,
 }
+
+// #[instrument(skip_all, fields(precision = ?context.target_precision))]
 async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResult<()> {
     // write block
     let to = &context
@@ -395,6 +397,10 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
         block.with_field_names(names);
     }
     block.with_table_name(new_table_name);
+    if let Some(precision) = context.with_precision {
+        // block.with_precision(precision);
+        block = block.cast_precision(precision);
+    }
 
     loop {
         let ok = to.write_raw_block(&block).await;
@@ -478,26 +484,29 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
                 new.with_field_names(block.field_names());
                 // dbg!(&new);
                 // new.pretty_format();
-                to.write_raw_block(&new).await.map_err(|err| {
-                    anyhow::format_err!(
-                        "[{}:{}]write raw block of table {table} ({} rows): {}\nData:{}",
-                        std::file!(),
-                        std::line!(),
-                        new.nrows(),
-                        err,
-                        new.pretty_format()
-                    )
-                })?;
+                to.write_raw_block(&new)
+                    .await
+                    .with_context(|| new.pretty_format().to_string())
+                    .with_context(|| {
+                        anyhow::format_err!(
+                            "[{}:{}]write raw block of table {table} ({} rows)",
+                            std::file!(),
+                            std::line!(),
+                            new.nrows(),
+                        )
+                    })?;
             } else {
-                return Err(err).with_context(|| {
-                    format!(
-                        "[{}:{}]write raw block of table {table} ({} rows): {}",
-                        std::file!(),
-                        std::line!(),
-                        block.nrows(),
-                        err_str
-                    )
-                })?;
+                return Err(err)
+                    .with_context(|| block.pretty_format().to_string())
+                    .with_context(|| {
+                        format!(
+                            "[{}:{}]write raw block of table {table} ({} rows): {}",
+                            std::file!(),
+                            std::line!(),
+                            block.nrows(),
+                            err_str
+                        )
+                    })?;
             }
         }
         break;
@@ -595,6 +604,7 @@ async fn sync_single_table_partial(
     remap: Option<&Arc<HashMap<String, String>>>,
     target_opts: &TargetOpts,
     target_is_v3: bool,
+    with_precision: Option<Precision>,
     metrics_arc: &Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
     tracing::debug!("Syncing table {table} with range: {}", opts.time_range);
@@ -661,6 +671,7 @@ async fn sync_single_table_partial(
             target_opts: target_opts.clone(),
             metrics_arc: metrics_arc.clone(),
             remap: remap.map(Clone::clone),
+            with_precision,
         });
 
         if target_opts.blocks_chunk_size.get() == 1 {
@@ -707,7 +718,10 @@ async fn sync_single_table_partial(
 
         let mut stmt = Stmt::init(to).await.context("initialize stmt")?;
         let mut prepare = false;
-        while let Some(block) = blocks.try_next().await? {
+        while let Some(mut block) = blocks.try_next().await? {
+            if let Some(precision) = with_precision {
+                block = block.cast_precision(precision);
+            }
             // dbg!(res.summary());
             if !prepare {
                 stmt.prepare(&sql)
@@ -1106,12 +1120,15 @@ pub async fn sync_super_table_schema_with_subs(
                 .zip(&tag_name_vec)
                 .filter_map(|((l, r), tag)| if l == r { None } else { Some((tag, l, r)) })
             {
-                let sql = format!("alter table `{n}` set tag `{tag}` = {}", l.to_sql_value());
+                let sql = format!(
+                    "alter table `{n}` set tag `{tag}` = {}",
+                    l.to_sql_value_with_rfc3339()
+                );
                 let sql = transform_sql_with_remap(sql, remap);
                 if let Err(err) = to.exec(&sql).await {
                     tracing::error!(
                         "Altering table `{n}` tag `{tag}` to {} error: {err:?}",
-                        l.to_sql_value()
+                        l.to_sql_value_with_rfc3339()
                     );
                 } else {
                     updated_tags += 1;
@@ -1131,7 +1148,10 @@ pub async fn sync_super_table_schema_with_subs(
     let new_stable_name = transform_tbname_with_actions(name, actions, true)?;
     for (child, row) in non_exists {
         let new_table_name = transform_tbname_with_actions(&child, actions, false)?;
-        let tags = row.into_iter().map(|v| v.to_sql_value()).join(",");
+        let tags = row
+            .into_iter()
+            .map(|v| v.to_sql_value_with_rfc3339())
+            .join(",");
         // let tag_names = tag_name_vec.iter().map(|s| format!("`{s}`")).join(",");
         let e = transform_sql_with_remap(
             format!("  IF NOT EXISTS `{new_table_name}` USING `{new_stable_name}` ({tag_names}) TAGS({tags})"),
@@ -2976,22 +2996,6 @@ async fn legacy_to_taos_impl(
     tracing::debug!("Getting connection from target connection pool...");
     let target_taos = to_pool.get().await?;
 
-    tracing::debug!("Checking precisions...");
-    let precision_of_from = source_taos
-        .query("select 1")
-        .await
-        .context("Get precision from source error")?
-        .precision();
-    let precision_of_to = target_taos
-        .query("select 1")
-        .await
-        .context("Get precision from target error")?
-        .precision();
-    if precision_of_from != precision_of_to {
-        anyhow::bail!("from and to databases have different precision");
-    }
-    tracing::debug!("Use precision: {}", precision_of_from);
-
     let v1: String = source_taos.server_version().await?.to_string();
     let source_is_v3 = !v1.starts_with("2");
     let v2: String = target_taos.server_version().await?.to_string();
@@ -3005,6 +3009,50 @@ async fn legacy_to_taos_impl(
             bail!("Source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
         }
     }
+
+    tracing::debug!("Checking precisions...");
+    const SQL_PRECISION: &str =
+        "select `precision` from information_schema.ins_databases where name = database()";
+    let precision_of_from: Precision = if source_is_v3 {
+        source_taos
+            .query_one(SQL_PRECISION)
+            .await
+            .context("Get precision from source error")?
+            .ok_or_else(|| anyhow::format_err!("Cannot get precision from source"))?
+    } else {
+        get_v2_precision(&source_taos)
+            .await
+            .with_context(|| anyhow::anyhow!("Source (2.x) precision could no be detected"))?
+    };
+    let precision_of_to: Precision = if target_is_v3 {
+        target_taos
+            .query_one(SQL_PRECISION)
+            .await
+            .context("Get precision from target error")?
+            .ok_or_else(|| anyhow::format_err!("Cannot get precision from target"))?
+    } else {
+        get_v2_precision(&target_taos)
+            .await
+            .with_context(|| anyhow::anyhow!("Target (2.x) precision could no be detected"))?
+    };
+    if precision_of_from > precision_of_to {
+        anyhow::bail!(
+            "Cannot convert from source to target precision: {} -> {}",
+            precision_of_from,
+            precision_of_to
+        );
+    }
+    let with_precision = if precision_of_from < precision_of_to {
+        tracing::warn!(
+            "Cast precision from {} to {}",
+            precision_of_from,
+            precision_of_to
+        );
+        Some(precision_of_to)
+    } else {
+        tracing::debug!("Use precision: {}", precision_of_from);
+        None
+    };
 
     metrics
         .read_concurrency
@@ -3054,6 +3102,7 @@ async fn legacy_to_taos_impl(
         metrics_arc.clone(),
         source_is_v3,
         target_is_v3,
+        with_precision,
         cancel.clone(),
         breakpoints,
     )
