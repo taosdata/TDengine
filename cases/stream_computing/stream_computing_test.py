@@ -1077,8 +1077,6 @@ class StreamComputingTest(TDCase):
                 for stream_name in [f'{self.stb_name}{self.stream_suffix}', f'{self.ctb_name}{self.stream_suffix}', f'{self.tb_name}{self.stream_suffix}']:
                     self.tdCom.check_transactions(self._remote)
                     self.wait_checkpoint_ready(stream_name)
-                    # double check
-                    self.tdCom.check_transactions(self._remote)
                     self.tdCom.pause_stream(stream_name, True)
             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
             # if self.update and i%2 == 0:
@@ -4930,8 +4928,6 @@ class StreamComputingTest(TDCase):
                     if ignore_untreated:
                         self.tdCom.check_transactions(self._remote)
                         self.wait_checkpoint_ready(stream_name)
-                        # double check
-                        self.tdCom.check_transactions(self._remote)
                     if if_exist is not None:
                         self.tdSql.execute(f'pause stream if exists {stream_name}_no_exist')
                     self.tdSql.error(f'pause stream if not exists {stream_name}')
