@@ -20,13 +20,13 @@ import time
 class RestartDnodes(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.dbname = 'db_test_replica2'
+        self.dbname = 'db_test_replica3'
         self.ntbname = 'ntb'
         self.stbname = 'stb'
         self.ctbname = 'ctb'
         self.ts = 1537146000000
         self.str_length = 20
-        self.default_replica = 2
+        self.default_replica = 3
         self.ready_sleep = 60
         self._remote: Remote = Remote(self.logger)
         self.column_dict = {

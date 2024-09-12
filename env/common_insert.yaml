@@ -32,6 +32,7 @@ settings:
         asyncLog: 0
         maxQueryTimeRange: 3
         disableCount: 0
+        queryTableNotExistAsEmpty: false
 
   - name: taosAdapter
     fqdn: [ceph01]

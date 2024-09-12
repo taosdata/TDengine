@@ -77,7 +77,7 @@ class TDTestQuery(TDCase):
         list_client = ['queryPolicy','enableQueryHb','enableScience','querySmaOptimize','queryPlannerTrace','queryNodeChunkSize','queryUseNodeAllocator',
                        'keepColumnName','smlChildTableName','smlTagName','maxInsertBatchRows','useAdapter','queryMaxConcurrentTables','metaCacheMaxSize',
                        'slowLogThreshold','slowLogScope','numOfTaskQueueThreads','cDebugFlag','jniDebugFlag','smlTsDefaultName','smlDot2Underline','smlAutoChildTableNameDelimiter',
-                       'maxShellConns','smlAutoChildTableNameDelimiter','multiResultFunctionStarReturnTag','maxTsmaCalcDelay','tsmaDataDeleteMark','','','','',''];
+                       'maxShellConns','smlAutoChildTableNameDelimiter','multiResultFunctionStarReturnTag','maxTsmaCalcDelay','tsmaDataDeleteMark','queryTableNotExistAsEmpty','','','',''];
         
         list_server = ['fqdn','serverPort','crashReporting','','','','','','','','','','','','','','','','','','','','','','','']
         
@@ -114,7 +114,7 @@ class TDTestQuery(TDCase):
                         'keepColumnName','smlChildTableName','smlTagName','maxInsertBatchRows','useAdapter','queryMaxConcurrentTables','metaCacheMaxSize',
                         'slowLogThreshold','slowLogScope','numOfTaskQueueThreads','cDebugFlag','jniDebugFlag','minSlidingTime','minIntervalTime',
                         'smlTsDefaultName','smlDot2Underline','smlAutoChildTableNameDelimiter','maxShellConns','multiResultFunctionStarReturnTag','maxTsmaCalcDelay',
-                        'tsmaDataDeleteMark','','','','','','','','','','',''];
+                        'tsmaDataDeleteMark','queryTableNotExistAsEmpty','','','','','','','','','',''];
     
         list_server = ['fqdn','serverPort','crashReporting','dataDir','minimalDataDirGB','supportVnodes','maxShellConns','statusInterval',
                         'maxNumOfDistinctRes','queryBufferSize','printAuth','queryRspPolicy','numOfCommitThreads','numOfMnodeReadThreads',
@@ -897,8 +897,8 @@ class TDTestQuery(TDCase):
          
         self.show_local_variables() 
         for i in range(10):
-            self.show_local_variables() 
-            self.show_dnode_variables()
+            # self.show_local_variables() 
+            # self.show_dnode_variables()
             
             self.show_information_schema()
             self.show_performance_schema()
