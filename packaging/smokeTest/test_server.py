@@ -5,6 +5,7 @@ from versionCheckAndUninstallforPytest import UninstallTaos
 import platform
 import re
 import time
+import signal
 
 system = platform.system()
 current_path = os.path.abspath(os.path.dirname(__file__))
@@ -96,6 +97,29 @@ def run_command(request):
 
 
 class TestServer:
+    @pytest.mark.all
+    def test_taosd_up(self, setup_module):
+        # start process
+        if system == 'Windows':
+            cmd = "..\\..\\debug\\build\\bin\\taosd.exe"
+        else:
+            cmd = "../../debug/build/bin/taosd"
+        process = subprocess.Popen(
+            [cmd],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        # monitor output
+        while True:
+            line = process.stdout.readline()
+            if not line:
+                break
+            print(line.strip())
+            if "succeed to write dnode" in line:
+                # 发送终止信号
+                os.kill(process.pid, signal.SIGTERM)
+                break
     @pytest.mark.all
     def test_execute_cases(self, setup_module, run_command):
         # assert the result
