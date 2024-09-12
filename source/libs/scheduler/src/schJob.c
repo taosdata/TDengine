@@ -512,6 +512,7 @@ int32_t schNotifyUserFetchRes(SSchJob *pJob) {
 }
 
 void schPostJobRes(SSchJob *pJob, SCH_OP_TYPE op) {
+  int32_t code = 0;
   SCH_LOCK(SCH_WRITE, &pJob->opStatus.lock);
 
   if (SCH_OP_NULL == pJob->opStatus.op) {
@@ -526,7 +527,10 @@ void schPostJobRes(SSchJob *pJob, SCH_OP_TYPE op) {
 
   if (SCH_JOB_IN_SYNC_OP(pJob)) {
     SCH_UNLOCK(SCH_WRITE, &pJob->opStatus.lock);
-    (void)tsem_post(&pJob->rspSem);  // ignore error
+    code = tsem_post(&pJob->rspSem);
+    if (code) {
+      ctgError("tsem_post failed for syncOp, error:%s", tstrerror(code));
+    }
   } else if (SCH_JOB_IN_ASYNC_EXEC_OP(pJob)) {
     SCH_UNLOCK(SCH_WRITE, &pJob->opStatus.lock);
     (void)schNotifyUserExecRes(pJob);  // ignore error
@@ -771,7 +775,10 @@ void schFreeJobImpl(void *job) {
   taosMemoryFreeClear(pJob->userRes.execRes);
   taosMemoryFreeClear(pJob->fetchRes);
   taosMemoryFreeClear(pJob->sql);
-  (void)tsem_destroy(&pJob->rspSem);  // ignore error
+  int32_t code = tsem_destroy(&pJob->rspSem); 
+  if (code) {
+    qError("tsem_destroy failed, error:%s", tstrerror(code));
+  }
   taosMemoryFree(pJob);
 
   int32_t jobNum = atomic_sub_fetch_32(&schMgmt.jobNum, 1);
@@ -790,7 +797,12 @@ int32_t schJobFetchRows(SSchJob *pJob) {
 
     if (schChkCurrentOp(pJob, SCH_OP_FETCH, true)) {
       SCH_JOB_DLOG("sync wait for rsp now, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
-      (void)tsem_wait(&pJob->rspSem);  // ignore error
+      code = tsem_wait(&pJob->rspSem); 
+      if (code) {
+        qError("tsem_wait for fetch rspSem failed, error:%s", tstrerror(code));
+        SCH_RET(code);
+      }
+
       SCH_RET(schDumpJobFetchRes(pJob, pJob->userRes.fetchRes));
     }
   } else {
@@ -895,7 +907,10 @@ _return:
   } else if (pJob->refId < 0) {
     schFreeJobImpl(pJob);
   } else {
-    (void)taosRemoveRef(schMgmt.jobRef, pJob->refId);  // ignore error
+    code = taosRemoveRef(schMgmt.jobRef, pJob->refId);
+    if (code) {
+      SCH_JOB_DLOG("taosRemoveRef job refId:0x%" PRIx64 " from jobRef, error:%s", pJob->refId, tstrerror(code));
+    }
   }
 
   SCH_RET(code);
@@ -909,7 +924,11 @@ int32_t schExecJob(SSchJob *pJob, SSchedulerReq *pReq) {
 
   if (pReq->syncReq) {
     SCH_JOB_DLOG("sync wait for rsp now, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
-    (void)tsem_wait(&pJob->rspSem);  // ignore error
+    code = tsem_wait(&pJob->rspSem);
+    if (code) {
+      qError("qid:0x%" PRIx64 " tsem_wait sync rspSem failed, error:%s", pReq->pDag->queryId, tstrerror(code));
+      SCH_ERR_RET(code);
+    }
   }
 
   SCH_JOB_DLOG("job exec done, job status:%s, jobId:0x%" PRIx64, SCH_GET_JOB_STATUS_STR(pJob), pJob->refId);

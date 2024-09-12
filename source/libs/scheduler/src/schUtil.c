@@ -86,6 +86,7 @@ void schFreeHbTrans(SSchHbTrans *pTrans) {
 }
 
 void schCleanClusterHb(void *pTrans) {
+  int32_t code = 0;
   SCH_LOCK(SCH_WRITE, &schMgmt.hbLock);
 
   SSchHbTrans *hb = taosHashIterate(schMgmt.hbConnections, NULL);
@@ -93,7 +94,10 @@ void schCleanClusterHb(void *pTrans) {
     if (hb->trans.pTrans == pTrans) {
       SQueryNodeEpId *pEpId = taosHashGetKey(hb, NULL);
       schFreeHbTrans(hb);
-      (void)taosHashRemove(schMgmt.hbConnections, pEpId, sizeof(SQueryNodeEpId));
+      code = taosHashRemove(schMgmt.hbConnections, pEpId, sizeof(SQueryNodeEpId));
+      if (code) {
+        qError("taosHashRemove hb connection failed, error:%s", tstrerror(code));
+      }
     }
 
     hb = taosHashIterate(schMgmt.hbConnections, hb);
@@ -116,7 +120,10 @@ int32_t schRemoveHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *ep
   int64_t taskNum = atomic_load_64(&hb->taskNum);
   if (taskNum <= 0) {
     schFreeHbTrans(hb);
-    (void)taosHashRemove(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId));
+    code = taosHashRemove(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId));
+    if (code) {
+      SCH_TASK_WLOG("taosHashRemove hb connection failed, error:%s", tstrerror(code));
+    }
   }
   SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
 

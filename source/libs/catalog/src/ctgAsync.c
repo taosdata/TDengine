@@ -1007,7 +1007,11 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
     CTG_ERR_JRET(terrno);
   }
 
-  (void)taosAcquireRef(gCtgMgmt.jobPool, pJob->refId);
+  void* p = taosAcquireRef(gCtgMgmt.jobPool, pJob->refId);
+  if (NULL == p) {
+    ctgError("acquire job from ref failed, refId:%" PRId64 ", error: %s", pJob->refId, tstrerror(terrno));
+    CTG_ERR_JRET(terrno);
+  }
 
   double el = (taosGetTimestampUs() - st) / 1000.0;
   qDebug("qid:0x%" PRIx64 ", jobId: 0x%" PRIx64 " initialized, task num %d, forceUpdate %d, elapsed time:%.2f ms",
@@ -1406,7 +1410,11 @@ int32_t ctgCallUserCb(void* param) {
 
   qDebug("qid:0x%" PRIx64 " ctg end to call user cb", pJob->queryId);
 
-  (void)taosRemoveRef(gCtgMgmt.jobPool, pJob->refId);
+  int64_t refId = pJob->refId;
+  int32_t code = taosRemoveRef(gCtgMgmt.jobPool, refId);
+  if (code) {
+    qError("qid:0x%" PRIx64 " remove ctg job %" PRId64 " from jobPool failed, error:%s", pJob->queryId, refId, tstrerror(code));
+  }
 
   return TSDB_CODE_SUCCESS;
 }
