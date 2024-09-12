@@ -60,7 +60,7 @@ static int32_t mndInsInitMeta(SHashObj *hash) {
     TAOS_CHECK_RETURN(mndInitInfosTableSchema(pInfosTableMeta[i].schema, pInfosTableMeta[i].colNum, &meta.pSchemas));
 
     if (taosHashPut(hash, meta.tbName, strlen(meta.tbName), &meta, sizeof(meta))) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TAOS_RETURN(code);
     }
   }
