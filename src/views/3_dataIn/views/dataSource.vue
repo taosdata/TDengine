@@ -1137,6 +1137,28 @@ export default {
         ).then(async () => {
           await this.handleClearInterval();
           let result = await excuteFn({ids});
+          if (result?.message) {
+            this.$message({
+              dangerouslyUseHTMLString: true,
+              message: `
+              <strong>
+                ${result.message}
+              </strong><br/>
+              <ul>
+                ${result.data.map(item => {
+                  return '<li>id:'+ item.id + ' '+ item.error + '</li>'
+                }).join('')}
+              </ul>`,
+              type: "warning",
+              duration: 30000,
+              showClose: true
+            });
+          } else {
+            this.$message({
+              type: 'success',
+              message: `${this.$t('operateSucc')}`
+            })
+          }
           this.$refs.dataSourceTable.clearSelection();
           await this.refresh();
           await this.$nextTick(() => {
