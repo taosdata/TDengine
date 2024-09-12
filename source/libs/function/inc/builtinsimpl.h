@@ -135,6 +135,7 @@ int32_t getIrateInfoSize();
 int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx);
 
 bool              getFirstLastFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool              firstLastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t           firstFunction(SqlFunctionCtx* pCtx);
 int32_t           firstFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t           lastFunction(SqlFunctionCtx* pCtx);
