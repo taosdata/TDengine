@@ -118,7 +118,7 @@ class TestServer:
                 break
             print(line.strip())
             if "succeed to write dnode" in line:
-                time.sleep(5)
+                time.sleep(20)
                 # 发送终止信号
                 os.kill(process.pid, signal.SIGTERM)
                 break
