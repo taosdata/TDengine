@@ -593,7 +593,7 @@ int32_t qBuildStmtFinOutput1(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDa
   SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = insBuildVgDataBlocks(pAllVgHash, pVgDataBlocks, &pStmt->pDataBlocks, true);
+    code = insBuildVgDataBlocks(pAllVgHash, pVgDataBlocks, &pStmt->pDataBlocks1, true);
   }
 
   return code;
@@ -821,7 +821,7 @@ static int32_t buildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uin
 
 static void destroyVgDataBlocks(void* p) {
   SVgDataBlocks* pVg = p;
-  taosMemoryFree(pVg->pData);
+  taosMemoryFree(pVg->pData1);
   taosMemoryFree(pVg);
 }
 
@@ -848,7 +848,7 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
       //      uError("td23101 3vgId:%d, numEps:%d", src->vgId, dst->vg.epSet.numOfEps);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = buildSubmitReq(src->vgId, src->pData, &dst->pData, &dst->size);
+      code = buildSubmitReq(src->vgId, src->pData, &dst->pData1, &dst->size);
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = (NULL == taosArrayPush(pDataBlocks, &dst) ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_SUCCESS);
@@ -859,6 +859,7 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
     if (NULL == *pVgDataBlocks) {
       *pVgDataBlocks = pDataBlocks;
     }
+    parserInfo("buildVgDataBlocks1, append:%d, pVgDataBlocks:%" PRId64, append, taosArrayGetSize(*pVgDataBlocks));
     return code;
   }
 
@@ -867,6 +868,8 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
   } else {
     taosArrayDestroyP(pDataBlocks, destroyVgDataBlocks);
   }
+
+  parserInfo("buildVgDataBlocks2, append:%d, pVgDataBlocks:%" PRId64, append, taosArrayGetSize(*pVgDataBlocks));
 
   return code;
 }

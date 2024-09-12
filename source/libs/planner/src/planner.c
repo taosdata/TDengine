@@ -151,8 +151,8 @@ int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
   if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType && NULL == pSubplan->pNode) {
     SDataInserterNode* insert = (SDataInserterNode*)pSubplan->pDataSink;
     *pLen = insert->size;
-    *pStr = insert->pData;
-    insert->pData = NULL;
+    *pStr = insert->pData2;
+    insert->pData2 = NULL;
     return TSDB_CODE_SUCCESS;
   }
   return nodesNodeToString((const SNode*)pSubplan, false, pStr, pLen);
@@ -164,8 +164,8 @@ int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
   if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType && NULL == pSubplan->pNode) {
     SDataInserterNode* insert = (SDataInserterNode*)pSubplan->pDataSink;
     *pLen = insert->size;
-    *pStr = insert->pData;
-    insert->pData = NULL;
+    *pStr = insert->pData2;
+    insert->pData2 = NULL;
     return TSDB_CODE_SUCCESS;
   }
   return nodesNodeToMsg((const SNode*)pSubplan, pStr, pLen);

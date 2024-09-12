@@ -499,7 +499,7 @@ int32_t smlBuildOutput(SQuery* handle, SHashObj* pVgHash) {
     uError("insMergeTableDataCxt failed");
     return code;
   }
-  code = insBuildVgDataBlocks(pVgHash, pStmt->pVgDataBlocks, &pStmt->pDataBlocks, false);
+  code = insBuildVgDataBlocks(pVgHash, pStmt->pVgDataBlocks, &pStmt->pDataBlocks1, false);
   if (code != TSDB_CODE_SUCCESS) {
     uError("insBuildVgDataBlocks failed");
     return code;

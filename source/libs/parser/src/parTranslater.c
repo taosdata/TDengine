@@ -13336,7 +13336,8 @@ static int32_t serializeVgroupCreateTableBatch(SVgroupCreateTableBatch* pTbBatch
   }
 
   tlen += sizeof(SMsgHead);
-  void* buf = taosMemoryMalloc(tlen);
+  void* buf = taosMemoryMalloc(tlen);  //
+  uInfo("serializeVgroupCreateTableBatch buf:%p", buf)
   if (NULL == buf) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -13358,7 +13359,7 @@ static int32_t serializeVgroupCreateTableBatch(SVgroupCreateTableBatch* pTbBatch
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pVgData->vg = pTbBatch->info;
-  pVgData->pData = buf;
+  pVgData->pData1 = buf;
   pVgData->size = tlen;
   pVgData->numOfTables = (int32_t)taosArrayGetSize(pTbBatch->req.pArray);
   if (NULL == taosArrayPush(pBufArray, &pVgData)) {
@@ -13388,7 +13389,8 @@ int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray) {
     return code;
   }
   pNewStmt->sqlNodeType = nodeType(pQuery->pRoot);
-  pNewStmt->pDataBlocks = pBufArray;
+  parserInfo("rewriteToVnodeModifyOpStmt");
+  pNewStmt->pDataBlocks1 = pBufArray;
   nodesDestroyNode(pQuery->pRoot);
   pQuery->pRoot = (SNode*)pNewStmt;
   return TSDB_CODE_SUCCESS;
@@ -13398,7 +13400,8 @@ static void destroyCreateTbReqArray(SArray* pArray) {
   size_t size = taosArrayGetSize(pArray);
   for (size_t i = 0; i < size; ++i) {
     SVgDataBlocks* pVg = taosArrayGetP(pArray, i);
-    taosMemoryFreeClear(pVg->pData);
+    uInfo("destroyCreateTbReqArray pData1:%p", pVg->pData1);
+    taosMemoryFreeClear(pVg->pData1);
     taosMemoryFreeClear(pVg);
   }
   taosArrayDestroy(pArray);
@@ -13912,6 +13915,7 @@ static int32_t parseCsvFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt, SParseFi
   char*   pLine = NULL;
   int64_t readLen = 0;
   int32_t lineCount = 0;
+  int32_t count = 0;
   while (TSDB_CODE_SUCCESS == code && (readLen = taosGetLineFile(fp, &pLine)) != -1) {
     if (('\r' == pLine[readLen - 1]) || ('\n' == pLine[readLen - 1])) {
       pLine[--readLen] = '\0';
@@ -13959,12 +13963,28 @@ static int32_t parseCsvFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt, SParseFi
     pParFileCxt->pTag = NULL;
     taosArrayClearEx(pParFileCxt->aTagVals, clearTagValArrayFp);
     lineCount++;
-    if (lineCount == maxLineCount) break;
+    if (lineCount == maxLineCount) break;  //
+
+    /*
+        count++;
+        if (count > 10000) {
+          parserInfo("begin to exit");
+          // exit(0);
+        }*/
+    // parserInfo("%d rows executed", count);
   }
 
   if (TSDB_CODE_SUCCESS != code) {
     taosArrayClearEx(pParFileCxt->aCreateTbData, clearCreateTbArrayFp);
   }
+
+  /*
+    parserInfo("%d parseCsvFile, aCreateTbData:%" PRId64 ", pTbNameHash:%d, aTagIndexs:%" PRId64 ", aTagNames:%" PRId64
+               ", aTagVals:%" PRId64,
+               lineCount, taosArrayGetSize(pParFileCxt->aCreateTbData), taosHashGetSize(pParFileCxt->pTbNameHash),
+               taosArrayGetSize(pParFileCxt->aTagIndexs), taosArrayGetSize(pParFileCxt->aTagNames),
+               taosArrayGetSize(pParFileCxt->aTagVals));
+               */
 
   taosMemoryFree(pLine);
   return code;
@@ -13986,6 +14006,7 @@ static void destructParseFileContext(SParseFileContext** ppParFileCxt) {
   taosMemoryFree(pParFileCxt);
 
   *ppParFileCxt = NULL;
+  parserInfo("destructParseFileContext");
 
   return;
 }
@@ -14116,6 +14137,8 @@ _ERR:
 static void resetParseFileContext(SParseFileContext* pParFileCxt) {
   taosArrayClear(pParFileCxt->aCreateTbData);
   taosArrayClearEx(pParFileCxt->aTagVals, clearTagValArrayFp);
+  taosHashClear(pParFileCxt->pTbNameHash);
+  // parserInfo("resetParseFileContext");
 }
 
 static int32_t createSubTableFromFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt, SVnodeModifyOpStmt* pModifyStmt) {
@@ -14244,47 +14267,61 @@ static int32_t rewriteCreateTableFromFile(STranslateContext* pCxt, SQuery* pQuer
     taosHashCleanup(pModifyStmt->pVgroupsHashObj);
     return code;
   }
+  //parserInfo("rewriteCreateTableFromFile, pVgroupsHashObj:%" PRId64, taosHashGetSize(pModifyStmt->pVgroupsHashObj));
 
-  SArray* pBufArray = NULL;
-  code = serializeVgroupsCreateTableBatch(pModifyStmt->pVgroupsHashObj, &pBufArray);
+  // SArray* pBufArray = NULL;
+  code = serializeVgroupsCreateTableBatch(pModifyStmt->pVgroupsHashObj, &pModifyStmt->pDataBlocks1);
   taosHashClear(pModifyStmt->pVgroupsHashObj);
   if (TSDB_CODE_SUCCESS != code) {
     if (TSDB_CODE_INVALID_MSG_LEN == code) {
       qError("maxInsertBatchRows may need to be reduced, current:%d", tsMaxInsertBatchRows);
-    }
+    }  //
     taosHashCleanup(pModifyStmt->pVgroupsHashObj);
     return code;
   }
-
-  pModifyStmt->pDataBlocks = pBufArray;
+  parserInfo("rewriteCreateTableFromFile, pDataBlocks1:%" PRId64 "-%p", taosArrayGetSize(pModifyStmt->pDataBlocks1), pModifyStmt->pDataBlocks1);
+  // parserInfo("rewriteCreateTableFromFile, pBufArray:%" PRId64 ", pDataBlocks:%" PRId64, taosArrayGetSize(pBufArray),
+  //            taosArrayGetSize(pModifyStmt->pDataBlocks));
+  // pModifyStmt->pDataBlocks = pBufArray;
   nodesDestroyNode(pQuery->pRoot);
   pQuery->pRoot = (SNode*)pModifyStmt;
 
   return TSDB_CODE_SUCCESS;
 }
-
+int32_t count = 0;
 int32_t continueCreateTbFromFile(SParseContext* pParseCxt, SQuery** pQuery) {
   SVnodeModifyOpStmt* pModifyStmt = (SVnodeModifyOpStmt*)(*pQuery)->pRoot;
+
+  // parserInfo("continueCreateTbFromFile, pVgroupsHashObj:%" PRId64, taosHashGetSize(pModifyStmt->pVgroupsHashObj));
 
   SMsgBuf tmpBuf = {0};
   tmpBuf.buf = taosMemoryMalloc(1024);
   int32_t code = createSubTableFromFile(&tmpBuf, pParseCxt, pModifyStmt);
   if (TSDB_CODE_SUCCESS != code) goto _OUT;
 
-  SArray* pBufArray = NULL;
-  code = serializeVgroupsCreateTableBatch(pModifyStmt->pVgroupsHashObj, &pBufArray);
+  // SArray* pBufArray = NULL;
+  code = serializeVgroupsCreateTableBatch(pModifyStmt->pVgroupsHashObj, &pModifyStmt->pDataBlocks1);
   taosHashClear(pModifyStmt->pVgroupsHashObj);
   if (TSDB_CODE_SUCCESS != code) {
     goto _OUT;
   }
+  parserInfo("continueCreateTbFromFile, pDataBlocks1:%" PRId64 "-%p", taosArrayGetSize(pModifyStmt->pDataBlocks1),pModifyStmt->pDataBlocks1);
+  // parserInfo("continueCreateTbFromFile, pBufArray:%" PRId64 ", pDataBlocks:%" PRId64, taosArrayGetSize(pBufArray),
+  //            taosArrayGetSize(pModifyStmt->pDataBlocks));
 
-  pModifyStmt->pDataBlocks = pBufArray;
+  // pModifyStmt->pDataBlocks = pBufArray;
   (*pQuery)->execStage = QUERY_EXEC_STAGE_SCHEDULE;
   if (!pModifyStmt->fileProcessing) {
     (*pQuery)->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
   }
   code = TSDB_CODE_SUCCESS;
-
+/*
+  count++;
+  if (count > 10) {
+    parserInfo("begin to exit");
+    exit(0);
+  }
+*/
 _OUT:
   taosMemoryFreeClear(tmpBuf.buf);
   return code;
@@ -14391,7 +14428,7 @@ static int32_t serializeVgroupDropTableBatch(SVgroupDropTableBatch* pTbBatch, SA
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pVgData->vg = pTbBatch->info;
-  pVgData->pData = buf;
+  pVgData->pData1 = buf;
   pVgData->size = tlen;
   pVgData->numOfTables = (int32_t)taosArrayGetSize(pTbBatch->req.pArray);
   if (NULL == taosArrayPush(pBufArray, &pVgData)) {
@@ -14841,7 +14878,7 @@ static int32_t serializeAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pSt
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     pVgData->vg = vg;
-    pVgData->pData = pMsg;
+    pVgData->pData1 = pMsg;
     pVgData->size = tlen;
     pVgData->numOfTables = 1;
     if (NULL == taosArrayPush(pArray, &pVgData)) {
@@ -14946,7 +14983,7 @@ static int32_t serializeFlushVgroup(SVgroupInfo* pVg, SArray* pBufArray) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pVgData->vg = *pVg;
-  pVgData->pData = buf;
+  pVgData->pData1 = buf;
   pVgData->size = len;
   if (NULL == taosArrayPush(pBufArray, &pVgData)) {
     code = TSDB_CODE_OUT_OF_MEMORY;

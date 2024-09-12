@@ -19,6 +19,7 @@
 #include "querynodes.h"
 #include "taos.h"
 #include "taoserror.h"
+#include "tarray.h"
 #include "tdatablock.h"
 #include "thash.h"
 #include "tref.h"
@@ -754,9 +755,11 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
 
 static void destroyVgDataBlockArray(SArray* pArray) {
   size_t size = taosArrayGetSize(pArray);
+  //uInfo("destroyVgDataBlockArray size = %zu", size);
   for (size_t i = 0; i < size; ++i) {
     SVgDataBlocks* pVg = taosArrayGetP(pArray, i);
-    taosMemoryFreeClear(pVg->pData);
+    uInfo("destroyVgDataBlockArray pVg->pData = %p", pVg->pData1);
+    taosMemoryFreeClear(pVg->pData1);
     taosMemoryFreeClear(pVg);
   }
   taosArrayDestroy(pArray);
@@ -1062,7 +1065,8 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_VNODE_MODIFY_STMT: {
       SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pNode;
-      destroyVgDataBlockArray(pStmt->pDataBlocks);
+      uInfo("destroyVgDataBlockArray pDataBlocks1:%zu", taosArrayGetSize(pStmt->pDataBlocks1));
+      destroyVgDataBlockArray(pStmt->pDataBlocks1);
       taosMemoryFreeClear(pStmt->pTableMeta);
       nodesDestroyNode(pStmt->pTagCond);
       taosArrayDestroy(pStmt->pTableTag);
@@ -1423,7 +1427,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY: {
       SVnodeModifyLogicNode* pLogicNode = (SVnodeModifyLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
-      destroyVgDataBlockArray(pLogicNode->pDataBlocks);
+      uInfo("destroyVgDataBlockArray pDataBlocks2:%zu-%p", taosArrayGetSize(pLogicNode->pDataBlocks2), pLogicNode->pDataBlocks2);
+      destroyVgDataBlockArray(pLogicNode->pDataBlocks2);
       // pVgDataBlocks is weak reference
       nodesDestroyNode(pLogicNode->pAffectedRows);
       nodesDestroyNode(pLogicNode->pStartTs);
@@ -1687,7 +1692,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_INSERT: {
       SDataInserterNode* pSink = (SDataInserterNode*)pNode;
       destroyDataSinkNode((SDataSinkNode*)pSink);
-      taosMemoryFreeClear(pSink->pData);
+      uInfo("nodesDestroyNode pData2:%p", pSink->pData2);
+      taosMemoryFreeClear(pSink->pData2);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
@@ -1763,6 +1769,7 @@ int32_t nodesListAppend(SNodeList* pList, SNode* pNode) {
   p->pPrev = pList->pTail;
   pList->pTail = p;
   ++(pList->length);
+  //uInfo("nodesListAppend pList:%d", pList->length);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1784,6 +1791,7 @@ int32_t nodesListMakeAppend(SNodeList** pList, SNode* pNode) {
       return code;
     }
   }
+  uInfo("nodesListMakeAppend pList:%d", (*pList)->length);
   return nodesListAppend(*pList, pNode);
 }
 

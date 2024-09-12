@@ -1810,7 +1810,8 @@ static int32_t createVnodeModifLogicNode(SLogicPlanContext* pCxt, SVnodeModifyOp
     return code;
   }
   pModif->modifyType = MODIFY_TABLE_TYPE_INSERT;
-  TSWAP(pModif->pDataBlocks, pStmt->pDataBlocks);
+  uInfo("createVnodeModifLogicNode TSWAP");
+  TSWAP(pModif->pDataBlocks2, pStmt->pDataBlocks1);
   pModif->msgType = getMsgType(pStmt->sqlNodeType);
   *pLogicNode = (SLogicNode*)pModif;
   return TSDB_CODE_SUCCESS;

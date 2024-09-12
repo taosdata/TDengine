@@ -232,7 +232,7 @@ typedef struct SVnodeModifyLogicNode {
   SLogicNode       node;
   EModifyTableType modifyType;
   int32_t          msgType;
-  SArray*          pDataBlocks;
+  SArray*          pDataBlocks2;
   SVgDataBlocks*   pVgDataBlocks;
   SNode*           pAffectedRows;  // SColumnNode
   SNode*           pStartTs;       // SColumnNode
@@ -744,7 +744,7 @@ typedef struct SDataInserterNode {
   SDataSinkNode sink;
   int32_t       numOfTables;
   uint32_t      size;
-  void*         pData;
+  void*         pData2;
 } SDataInserterNode;
 
 typedef struct SQueryInserterNode {

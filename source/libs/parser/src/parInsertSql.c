@@ -2149,6 +2149,7 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
   int64_t readLen = 0;
   bool    firstLine = (pStmt->fileProcessing == false);
   pStmt->fileProcessing = false;
+  int32_t count = 0;
   while (TSDB_CODE_SUCCESS == code && (readLen = taosGetLineFile(pStmt->fp, &pLine)) != -1) {
     if (('\r' == pLine[readLen - 1]) || ('\n' == pLine[readLen - 1])) {
       pLine[--readLen] = '\0';
@@ -2197,6 +2198,13 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
     }
 
     firstLine = false;
+
+    // count++;
+    // if (count > 10000) {
+    //   parserInfo("begin to exit");
+    //   exit(0);
+    // }
+    // parserInfo("0x%" PRIx64 " %d rows executed", pCxt->pComCxt->requestId, count);
   }
   taosMemoryFree(pLine);
 
@@ -2570,7 +2578,7 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
   taosHashClear(pStmt->pTableCxtHashObj);
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = insBuildVgDataBlocks(pStmt->pVgroupsHashObj, pStmt->pVgDataBlocks, &pStmt->pDataBlocks, false);
+    code = insBuildVgDataBlocks(pStmt->pVgroupsHashObj, pStmt->pVgDataBlocks, &pStmt->pDataBlocks1, false);
   }
 
   return code;
@@ -2720,7 +2728,7 @@ static int32_t buildTagNameFromMeta(STableMeta* pMeta, SArray** pTagName) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   SSchema* pSchema = getTableTagSchema(pMeta);
-  int32_t code = 0;
+  int32_t  code = 0;
   for (int32_t i = 0; i < pMeta->tableInfo.numOfTags; ++i) {
     if (NULL == taosArrayPush(*pTagName, pSchema[i].name)) {
       code = TSDB_CODE_OUT_OF_MEMORY;

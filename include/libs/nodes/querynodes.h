@@ -509,7 +509,7 @@ typedef struct SVgDataBlocks {
   SVgroupInfo vg;
   int32_t     numOfTables;  // number of tables in current submit block
   uint32_t    size;
-  void*       pData;  // SSubmitReq + SSubmitBlk + ...
+  void*       pData1;  // SSubmitReq + SSubmitBlk + ...
 } SVgDataBlocks;
 
 typedef void (*FFreeTableBlockHash)(SHashObj*);
@@ -523,7 +523,7 @@ typedef void (*FDestroyParseFileContext)(struct SParseFileContext**);
 typedef struct SVnodeModifyOpStmt {
   ENodeType             nodeType;
   ENodeType             sqlNodeType;
-  SArray*               pDataBlocks;  // data block for each vgroup, SArray<SVgDataBlocks*>.
+  SArray*               pDataBlocks1;  // data block for each vgroup, SArray<SVgDataBlocks*>.
   uint32_t              insertType;   // insert data from [file|sql statement| bound statement]
   const char*           pSql;         // current sql statement position
   int32_t               totalRowsNum;

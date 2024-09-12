@@ -93,14 +93,15 @@ static int32_t scaleOutForMerge(SScaleOutContext* pCxt, SLogicSubplan* pSubplan,
 static int32_t scaleOutForInsertValues(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level,
                                        SNodeList* pGroup) {
   SVnodeModifyLogicNode* pNode = (SVnodeModifyLogicNode*)pSubplan->pNode;
-  size_t                 numOfVgroups = taosArrayGetSize(pNode->pDataBlocks);
+  size_t                 numOfVgroups = taosArrayGetSize(pNode->pDataBlocks2);
   int32_t code = 0;
   for (int32_t i = 0; i < numOfVgroups; ++i) {
     SLogicSubplan* pNewSubplan = singleCloneSubLogicPlan(pCxt, pSubplan, level);
     if (NULL == pNewSubplan) {
       return terrno;
     }
-    ((SVnodeModifyLogicNode*)pNewSubplan->pNode)->pVgDataBlocks = (SVgDataBlocks*)taosArrayGetP(pNode->pDataBlocks, i);
+    ((SVnodeModifyLogicNode*)pNewSubplan->pNode)->pVgDataBlocks = (SVgDataBlocks*)taosArrayGetP(pNode->pDataBlocks2, i);
+    //uInfo("scaleOutForInsertValues pGroup:%d", pGroup->length);
     if (TSDB_CODE_SUCCESS != (code = nodesListStrictAppend(pGroup, (SNode*)pNewSubplan))) {
       return code;
     }
@@ -176,6 +177,7 @@ static int32_t pushHierarchicalPlanForNormal(SNodeList* pParentsGroup, SNodeList
   SNode*  pChild = NULL;
   FOREACH(pChild, pCurrentGroup) {
     if (topLevel) {
+      //uInfo("pushHierarchicalPlanForNormal pParentsGroup:%d", pParentsGroup->length);
       code = nodesListAppend(pParentsGroup, pChild);
     } else {
       SNode* pParent = NULL;
@@ -224,6 +226,7 @@ static int32_t doScaleOut(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32
       break;
   }
 
+  //uInfo("pushHierarchicalPlan");
   if (TSDB_CODE_SUCCESS == code) {
     code = pushHierarchicalPlan(pParentsGroup, pCurrentGroup);
   }

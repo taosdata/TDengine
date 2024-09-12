@@ -1483,7 +1483,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   }
   tEncoderClear(&coder);
 
-  pVgData->pData = pMsg;
+  pVgData->pData1 = pMsg;
   pVgData->size = tlen;
 
   pVgData->numOfTables = 1;
@@ -1518,7 +1518,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
 end:
   uDebug(LOG_ID_TAG " alter table return, meta:%p, len:%d, msg:%s", LOG_ID_VALUE, meta, metaLen, tstrerror(code));
   taosArrayDestroy(pArray);
-  if (pVgData) taosMemoryFreeClear(pVgData->pData);
+  if (pVgData) taosMemoryFreeClear(pVgData->pData1);
   taosMemoryFreeClear(pVgData);
   destroyRequest(pRequest);
   tDecoderClear(&dcoder);
