@@ -12,7 +12,9 @@ REBOOT_COUNT_RESET_FILE=/var/log/reset_reboot
 START_TAOSD_MAX_NUMBER=${START_TAOSD_MAX_NUMBER:-3}
 start_taosd_count=0
 START_TAOSADAPTER_MAX_NUMBER=${START_TAOSADAPTER_MAX_NUMBER:-3}
+TAOSD_ERROR_MAX_NUMBER=${TAOSD_ERROR_MAX_NUMBER:-10}
 start_taosadapter_count=0
+taosd_error_count=0
 SLEEP_INTERVAL=${SLEEP_INTERVAL:-10}
 DNODE_CREATED=0
 MNODE_CREATED=0
@@ -23,13 +25,25 @@ if [ "$TZ" != "" ]; then
     ln -sf /usr/share/zoneinfo/$TZ /etc/localtime
     echo $TZ >/etc/timezone
 fi
-
-FQDN=$(taosd -C|grep -E 'fqdn.*(\S+)' -o |head -n1|sed 's/fqdn *//')
-FIRSET_EP=$(taosd -C|grep -E 'firstEp.*(\S+)' -o|head -n1|sed 's/firstEp *//')
+# copy taos.cfg to /var/log
+TAOSDCLOG="/var/log/taosd_c"
+if [ ! -d "$TAOSDCLOG" ]; then
+  mkdir -p "$TAOSDCLOG"
+  echo "taosd -C log folder created: $TAOSDCLOG"
+  cp /etc/taos/taos.cfg /var/log/taos.cfg
+  echo "logKeepDays 3" >> /var/log/taos.cfg
+  sed -i 's/\/var\/log/\/var\/log\/taosd_c/g' /var/log/taos.cfg
+  cat /var/log/taos.cfg
+else
+  echo "taosd -C log folder already exists: $TAOSDCLOG"
+fi
+TAODCONF=$(taosd -C -c '/var/log')
+FQDN=$(echo "$TAODCONF"|grep -E 'fqdn.*(\S+)' -o |head -n1|sed 's/fqdn *//')
+FIRSET_EP=$(echo "$TAODCONF"|grep -E 'firstEp.*(\S+)' -o|head -n1|sed 's/firstEp *//')
 # parse first ep host and port
 FIRST_EP_HOST=${FIRSET_EP%:*}
 FIRST_EP_PORT=${FIRSET_EP#*:}
-SERVER_PORT=$(taosd -C|grep -E 'serverPort.*(\S+)' -o|head -n1|sed 's/serverPort *//')
+SERVER_PORT=$(echo "$TAODCONF"|grep -E 'serverPort.*(\S+)' -o|head -n1|sed 's/serverPort *//')
 SERVER_PORT=${SERVER_PORT:-6030}
 ENDPOINT=$FQDN:$SERVER_PORT
 function logger() {
@@ -41,7 +55,7 @@ logger "INFO" "FQDN is $FQDN, FIRSTEP is $FIRST_EP_HOST and ENDPOINT is $ENDPOIN
                       
 ulimit -c unlimited
 # set core files pattern, maybe failed
-# sysctl -w kernel.core_pattern=/corefile/core-$FQDN-%e-%p >/dev/null >&1
+sysctl -w kernel.core_pattern=/corefile/core-$FQDN-%e-%p >/dev/null >&1
 
 logger "INFO" "ADMIN_URL: ${ADMIN_URL}"
 logger "INFO" "TAOS_TIMEOUT_SECOND: ${TAOS_TIMEOUT_SECOND}"
@@ -78,12 +92,41 @@ function check_taosd() {
         fi
     fi
     if [ $ret -ne 0 ]; then
-        logger "INFO" "check taosd error $ret"
+        logger "INFO" "checked taosd and got error $ret for $taosd_error_count times"
         if [ "x$1" != "xignore" ]; then
-            set_service_state "error" "taosd check failed $ret"
+            taosd_error_count=$(( taosd_error_count + 1 ))
+            set_service_state "error" "taosd checking failed with $ret for $taosd_error_count times"
+            if [ ${taosd_error_count} -gt ${TAOSD_ERROR_MAX_NUMBER} ]; then
+                # dump the taosd
+                taosd_error_count=0
+                SUFFIX=$(date +"%Y%m%d%H%M")
+                if [[ ! -d "${BACKUP_CORE_FOLDER}" ]]; then
+                    echo "${BACKUP_CORE_FOLDER} does not exist and create it"
+                    mkdir -p ${BACKUP_CORE_FOLDER}
+                fi
+                logger "INFO" "sleep 5s to generate core file"
+                sleep 5
+                # generate core file 
+                taosdTID=$(pidof taosd)
+                if gcore -a -o "$BACKUP_CORE_FOLDER/taosd.core.$SUFFIX" "$taosdTID"; then 
+                    logger "INFO" "generated corefile ${BACKUP_CORE_FOLDER}/taosd.core.${SUFFIX} for taosd $taosdTID"
+                else
+                    logger "ERROR" "failed to generate corefile ${BACKUP_CORE_FOLDER}/taosd.core.${SUFFIX} for taosd $taosdTID"  
+                fi
+                # alert the message
+                post_error_msg
+                # kill the taosd with -15 if failed with -9
+                if kill -15 $taosdTID; then
+                    logger "INFO" "killed taosd $taosdTID with -15"
+                else
+                    logger "ERROR" "failed to kill the taosd $taosdTID with -15 and try to kill it with -9"
+                    kill -9 $taosdTID;
+                fi
+            fi 
         fi
     else
         set_service_state "ready" "ok"
+        taosd_error_count=0
     fi
 }
 function post_error_msg() {
@@ -102,6 +145,7 @@ function post_error_msg() {
                 \"taosVersion\":\"${taos_version}\",\
                 \"alertMsg\":\"${service_msg}\"}" \
                 ${ADMIN_URL}/${ALERT_URL} 2>&1 | tee -a /var/log/run.log
+            echo "" >> /var/log/run.log
         fi
     fi
 }
@@ -354,24 +398,6 @@ function initDnodeAndMnode {
             else 
                 MNODE_CREATED=1
                 logger "INFO" "Mnode $MNODETmp already created"
-            fi
-            # third check snode created
-            SNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT  -w 2000 -s "show snodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
-            if [[ "$SNODETmp" == "" ]]; then
-                DNODEID=$(echo "$DNODETmp" | sed -e 's/^[[:space:]]*//')
-                if [[ "$DNODEID" != "" ]]; then
-                    taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create snode on dnode $DNODEID;"
-                    SNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show snodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
-                    if [[ "$SNODETmp" != "" ]]; then
-                        SNODE_CREATED=1
-                        logger "INFO" "Created the snode for dnode $DNODEID"
-                    else 
-                        logger "ERROR" "failed to create snode for dnode $ENDPOINT through taos"
-                    fi
-                fi
-            else 
-                SNODE_CREATED=1
-                logger "INFO" "Snode $SNODETmp already created"
             fi
         else
             # check admin_user created or not
