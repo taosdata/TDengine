@@ -1701,7 +1701,7 @@ int stmtClose2(TAOS_STMT2* stmt) {
     pStmt->bindThreadInUse = false;
   }
 
-  if (pStmt->options.asyncExecFn) {
+  if (pStmt->options.asyncExecFn && !pStmt->semWaited) {
     (void)tsem_wait(&pStmt->asyncQuerySem);
   }
 
