@@ -113,7 +113,10 @@ int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, boo
      return code;
    }
 
-   (void)tsem_wait(&syncParam->sem);
+   if (tsem_wait(&syncParam->sem)) {
+     tscError("tsem_wait view syncParam sem failed, error:%s", tstrerror(terrno));
+     return terrno;
+   }
 
    code = taosAsyncRecover();
    if (TSDB_CODE_SUCCESS != code) {
