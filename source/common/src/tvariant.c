@@ -96,6 +96,7 @@ static int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint
     return TSDB_CODE_SUCCESS;
   }
 
+  errno = EINVAL;
   return TSDB_CODE_FAILED;
 }
 
