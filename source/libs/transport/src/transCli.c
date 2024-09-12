@@ -100,6 +100,8 @@ typedef struct SCliConn {
   int8_t    registered;
   int8_t    connnected;
   SHashObj* pQTable;
+  int8_t    inited;
+  void*     initPacket;
 } SCliConn;
 
 // #define TRANS_CONN_REF_INC(tconn) \
@@ -1350,6 +1352,26 @@ static void cliSendBatch_shareConnCb(uv_write_t* req, int status) {
     cliSendBatch_shareConn(conn);
   }
 }
+bool cliConnMayBuildInitPacket(SCliConn* pConn, STransMsgHead** pHead, int32_t msgLen) {
+  SCliThrd* pThrd = pConn->hostThrd;
+  STrans*   pInst = pThrd->pInst;
+  if (pConn->inited == 1) {
+    return false;
+  }
+  STransMsgHead* tHead = taosMemoryCalloc(1, msgLen + strlen(pInst->user));
+  memcpy(tHead, pHead, TRANS_MSG_OVERHEAD);
+  memcpy(tHead + TRANS_MSG_OVERHEAD, pInst->user, strlen(pInst->user));
+
+  memcpy(tHead + TRANS_MSG_OVERHEAD + strlen(pInst->user), (char*)pHead + TRANS_MSG_OVERHEAD,
+         msgLen - TRANS_MSG_OVERHEAD);
+
+  tHead->toInit = 1;
+  *pHead = tHead;
+
+  pConn->initPacket = tHead;
+  pConn->inited = 1;
+  return true;
+}
 void cliSendBatch_shareConn(SCliConn* pConn) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pInst = pThrd->pInst;
@@ -1379,14 +1401,16 @@ void cliSendBatch_shareConn(SCliConn* pConn) {
 
     STransMsgHead* pHead = transHeadFromCont(pReq->pCont);
 
+    if (cliConnMayBuildInitPacket(pConn, &pHead, msgLen)) {
+    } else {
+      pHead->toInit = 0;
+    }
+
     if (pHead->comp == 0) {
-      // pHead->ahandle = pCtx != NULL ? (uint64_t)pCtx->ahandle : 0;
       pHead->noResp = REQUEST_NO_RESP(pReq) ? 1 : 0;
-      pHead->persist = REQUEST_PERSIS_HANDLE(pReq) ? 1 : 0;
       pHead->msgType = pReq->msgType;
       pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
-      pHead->release = REQUEST_RELEASE_HANDLE(pCliMsg) ? 1 : 0;
-      memcpy(pHead->user, pInst->user, strlen(pInst->user));
+      // memcpy(pHead->user, pInst->user, strlen(pInst->user));
       pHead->traceId = pReq->info.traceId;
       pHead->magicNum = htonl(TRANS_MAGIC_NUM);
       pHead->version = TRANS_VER;

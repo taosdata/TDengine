@@ -172,8 +172,7 @@ typedef struct {
   char version : 4;  // RPC version
   char comp : 2;     // compression algorithm, 0:no compression 1:lz4
   char noResp : 2;   // noResp bits, 0: resp, 1: resp
-  char persist : 2;  // persist handle,0: no persit, 1: persist handle
-  char release : 2;
+  char toInit : 2;   // 0: sent user info or not
   char secured : 2;
   char spi : 2;
   char hasEpSet : 2;  // contain epset or not, 0(default): no epset, 1: contain epset

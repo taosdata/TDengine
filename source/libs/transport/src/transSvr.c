@@ -462,6 +462,11 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
   }
   return 0;
 }
+
+bool uvExtractFisrtInitPacket() {
+  
+  return true; 
+} 
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pInst = pConn->pInst;
   SWorkThrd* pThrd = pConn->hostThrd;
@@ -685,7 +690,6 @@ static int uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
     pMsg->contLen = 0;
   }
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
-  // pHead->ahandle = (uint64_t)pMsg->info.ahandle;
   pHead->traceId = pMsg->info.traceId;
   pHead->hasEpSet = pMsg->info.hasEpSet;
   pHead->magicNum = htonl(TRANS_MAGIC_NUM);
@@ -704,7 +708,7 @@ static int uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
 
   pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
   // pHead->msgType = pMsg->msgType;
-  pHead->release = smsg->type == Release ? 1 : 0;
+  // pHead->release = smsg->type == Release ? 1 : 0;
   pHead->code = htonl(pMsg->code);
   pHead->msgLen = htonl(pMsg->contLen + sizeof(STransMsgHead));
 
