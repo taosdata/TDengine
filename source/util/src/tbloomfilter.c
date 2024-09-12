@@ -44,7 +44,7 @@ int32_t tBloomFilterInit(uint64_t expectedEntries, double errorRate, SBloomFilte
   }
   SBloomFilter* pBF = taosMemoryCalloc(1, sizeof(SBloomFilter));
   if (pBF == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _error);
   }
   pBF->expectedEntries = expectedEntries;
@@ -65,7 +65,7 @@ int32_t tBloomFilterInit(uint64_t expectedEntries, double errorRate, SBloomFilte
   pBF->buffer = taosMemoryCalloc(pBF->numUnits, sizeof(uint64_t));
   if (pBF->buffer == NULL) {
     tBloomFilterDestroy(pBF);
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _error);
   }
   (*ppBF) = pBF;
@@ -152,7 +152,7 @@ int32_t tBloomFilterDecode(SDecoder* pDecoder, SBloomFilter** ppBF) {
   int32_t       lino = 0;
   SBloomFilter* pBF = taosMemoryCalloc(1, sizeof(SBloomFilter));
   if (!pBF) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _error);
   }
   pBF->buffer = NULL;

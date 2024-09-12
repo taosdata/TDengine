@@ -1279,7 +1279,7 @@ int32_t syncLogBufferCreate(SSyncLogBuffer** ppBuf) {
   int32_t         code = 0;
   SSyncLogBuffer* pBuf = taosMemoryCalloc(1, sizeof(SSyncLogBuffer));
   if (pBuf == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exit);
+    TAOS_CHECK_GOTO(terrno, NULL, _exit);
   }
 
   pBuf->size = sizeof(pBuf->entries) / sizeof(pBuf->entries[0]);
