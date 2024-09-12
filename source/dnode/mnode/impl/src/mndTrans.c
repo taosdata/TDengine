@@ -1032,7 +1032,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   mInfo("trans:%d, prepare transaction", pTrans->id);
   if ((code = mndTransSync(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
-    sdbReadLock(pMnode->pSdb, SDB_TRANS);
+    sdbWriteLock(pMnode->pSdb, SDB_TRANS);
     tsMaxTransId = TMAX(pTrans->id, tsMaxTransId);
     sdbUnLock(pMnode->pSdb, SDB_TRANS);
     TAOS_RETURN(code);
