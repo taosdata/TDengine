@@ -7,7 +7,9 @@ use flume::{Receiver, Sender};
 use futures::FutureExt;
 use futures_util::{StreamExt, TryStreamExt};
 use itertools::Itertools;
-use taos::{AsyncFetchable, AsyncQueryable, AsyncRows, BorrowedValue, ResultSet, Taos, TaosPool};
+use taos::{
+    AsyncFetchable, AsyncQueryable, AsyncRows, BorrowedValue, Precision, ResultSet, Taos, TaosPool,
+};
 use tokio::{
     sync::{oneshot, Mutex},
     task::{JoinHandle, JoinSet},
@@ -84,6 +86,7 @@ async fn worker(
     actions: Vec<Action>,
     source_is_v3: bool,
     target_is_v3: bool,
+    with_precision: Option<Precision>,
     breakpoints: Option<BreakpointDb>,
 ) -> anyhow::Result<()> {
     let metrics = metrics_arc.legacy();
@@ -379,6 +382,7 @@ async fn worker(
                                     remap.as_ref(),
                                     &opts,
                                     target_is_v3,
+                                    with_precision,
                                     &metrics_arc,
                                 )
                                 .in_current_span()
@@ -673,6 +677,7 @@ impl Scheduler {
         metrics: Arc<CoreMetrics>,
         source_is_v3: bool,
         target_is_v3: bool,
+        with_precision: Option<Precision>,
         cancellation: CancellationToken,
         breakpoints: Option<BreakpointDb>,
     ) -> Self {
@@ -694,6 +699,7 @@ impl Scheduler {
                 actions.clone(),
                 source_is_v3,
                 target_is_v3,
+                with_precision,
                 breakpoints.clone(),
             )
             .in_current_span();
