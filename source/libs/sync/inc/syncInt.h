@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "sync.h"
-#include "tdef.h"
+#include "tglobal.h"
 #include "trpc.h"
 #include "ttimer.h"
 
