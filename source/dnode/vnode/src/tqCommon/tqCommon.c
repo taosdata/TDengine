@@ -586,6 +586,10 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
                                      bool isLeader, bool restored) {
   int32_t code = 0;
   int32_t vgId = pMeta->vgId;
+  int32_t numOfTasks = 0;
+  int32_t taskId = -1;
+  int64_t streamId = -1;
+  bool    added = false;
 
   if (tsDisableStream) {
     tqInfo("vgId:%d stream disabled, not deploy stream tasks", vgId);
@@ -613,13 +617,12 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   }
 
   // 2.save task, use the latest commit version as the initial start version of stream task.
-  int32_t taskId = pTask->id.taskId;
-  int64_t streamId = pTask->id.streamId;
-  bool    added = false;
+  taskId = pTask->id.taskId;
+  streamId = pTask->id.streamId;
 
   streamMetaWLock(pMeta);
   code = streamMetaRegisterTask(pMeta, sversion, pTask, &added);
-  int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
+  numOfTasks = streamMetaGetNumOfTasks(pMeta);
   streamMetaWUnLock(pMeta);
 
   if (code < 0) {
@@ -654,7 +657,7 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
       tqDebug("vgId:%d not leader, not launch stream task s-task:0x%x", vgId, taskId);
     }
   } else {
-    tqWarn("vgId:%d failed to add s-task:0x%x, since already exists in meta store", vgId, taskId);
+    tqWarn("vgId:%d failed to add s-task:0x%x, since already exists in meta store, total:%d", vgId, taskId, numOfTasks);
     tFreeStreamTask(pTask);
   }
 

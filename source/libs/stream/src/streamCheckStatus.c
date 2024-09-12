@@ -268,6 +268,7 @@ int32_t streamTaskSendCheckRsp(const SStreamMeta* pMeta, int32_t vgId, SStreamTa
   SRpcMsg rspMsg = {.code = 0, .pCont = buf, .contLen = sizeof(SMsgHead) + len, .info = *pRpcInfo};
   tmsgSendRsp(&rspMsg);
 
+  code = (code >= 0)? 0:code;
   return code;
 }
 
