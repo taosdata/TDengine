@@ -122,7 +122,7 @@ static FORCE_INLINE TExeCond tCompareContains(void* a, void* b, int8_t type) {
 #define CHECKCOMERROR(expr) \
   do {                      \
     if ((expr) != 0) {      \
-      return ERROR;         \
+      return FAILED;        \
     }                       \
   } while (0)
 
