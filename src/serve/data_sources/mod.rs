@@ -490,7 +490,6 @@ pub(super) async fn get_sample(
 ) -> impl Responder {
     let query = query.into_inner();
 
-    // 获取示例数据的超时时间应该小于 query 中的timeout
     let query_timeout = query.timeout.clone().unwrap_or_else(|| {
         let dsn = query.dsn.clone().into_dsn();
         if let Ok(dsn) = dsn {
@@ -499,28 +498,14 @@ pub(super) async fn get_sample(
             Timeout::get(TimeoutType::Default)
         }
     });
-    let dsn = query.dsn.clone().into_dsn();
-    if let Err(err) = dsn {
-        tracing::error!("parse dsn error: {:?}", err);
-        return Err(Failed::new(
-            Code::FAILED,
-            format!("parse dsn error: {}", err.to_string()),
-            (),
-        ));
-    }
+    let query_timeout = Duration::from_secs(query_timeout);
+    tracing::debug!(
+        "get sample from: {}, timeout: {:?}",
+        query.dsn.as_str(),
+        query_timeout
+    );
 
-    let dsn = dsn.unwrap();
-    let sample_timeout = plugins::parse_sample_timeout(&dsn).as_secs();
-    let timeout_sec = core::cmp::max(query_timeout, sample_timeout) + 5;
-    tracing::debug!(?query_timeout, ?sample_timeout, ?timeout_sec);
-
-    let result = timeout(
-        Duration::from_secs(timeout_sec),
-        get_sample_impl(controller, query),
-    )
-    .await;
-
-    match result {
+    match timeout(query_timeout, get_sample_impl(controller, query)).await {
         Ok(Ok(sample)) => Ok(HttpResponse::Ok().json(sample)),
         Ok(Err(err)) => {
             tracing::error!("failed to get sample from data source, cause: {:?}", err);

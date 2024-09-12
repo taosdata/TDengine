@@ -1,12 +1,11 @@
+use crate::runners::historian::config::connect::ConnectConfig;
+use crate::runners::historian::config::HistorianTable;
 use chrono::{DateTime, Local, Utc};
 use futures_util::TryStreamExt;
 use itertools::Itertools;
 use tiberius::{AuthMethod, Client, Config, QueryStream};
 use tokio::net::TcpStream;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
-
-use crate::runners::historian::config::connect::ConnectConfig;
-use crate::runners::historian::config::HistorianTable;
 
 pub struct HistorianQuery {
     client: Client<Compat<TcpStream>>,
@@ -59,6 +58,7 @@ impl HistorianQuery {
             );
         }
 
+        tracing::debug!("query sql: {}", sql);
         Ok(self.client.query(sql.as_str(), &[]).await?)
     }
 
@@ -82,7 +82,7 @@ impl HistorianQuery {
             end.to_rfc3339()
         );
 
-        tracing::debug!("sql: {}", sql);
+        tracing::debug!("query sql: {}", sql);
         Ok(self.client.query(sql.as_str(), &[]).await?)
     }
 
@@ -92,6 +92,7 @@ impl HistorianQuery {
             HistorianTable::Live => "exec sp_columns Live".to_string(),
         };
 
+        tracing::debug!("query sql: {}", sql);
         Ok(self.client.query(sql.as_str(), &[]).await?)
     }
 
@@ -102,6 +103,7 @@ impl HistorianQuery {
     ) -> anyhow::Result<QueryStream> {
         let sql = get_tags_with_condition_sql(top_n, condition);
 
+        tracing::debug!("query sql: {}", sql);
         Ok(self.client.query(sql.as_str(), &[]).await?)
     }
 
@@ -130,6 +132,7 @@ impl HistorianQuery {
 
         let sql = top_n_sql(top_n, table, tags, begin_time, end_time);
 
+        tracing::debug!("query sql: {}", sql);
         Ok(self.client.query(sql.as_str(), &[]).await?)
     }
 }
