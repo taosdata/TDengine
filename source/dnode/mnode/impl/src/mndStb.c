@@ -3533,14 +3533,12 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     pDb = mndAcquireDb(pMnode, pShow->db);
     if (pDb == NULL) return terrno;
   }
-  int64_t uid = pDb->uid;
-  mndReleaseDb(pMnode, pDb);
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
     if (pShow->pIter == NULL) break;
 
-    if (pStb->dbUid != uid) {
+    if (pDb != NULL && pStb->dbUid != pDb->uid) {
       sdbRelease(pSdb, pStb);
       continue;
     }
@@ -3630,6 +3628,10 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     numOfRows++;
     sdbRelease(pSdb, pStb);
+  }
+
+  if (pDb != NULL) {
+    mndReleaseDb(pMnode, pDb);
   }
 
   goto _OVER;
