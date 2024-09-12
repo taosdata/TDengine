@@ -1494,7 +1494,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   streamMutexLock(&pTask->lock);
   SStreamTaskState s = streamTaskGetStatus(pTask);
   triggerDispatchRsp = (s.state == TASK_STATUS__CK) && (pInfo->activeId == pMsgInfo->checkpointId) &&
-                       (pInfo->transId != pMsgInfo->transId);
+                       (pInfo->transId == pMsgInfo->transId);
   tmpCheckpointId = pInfo->activeId;
   tmpTranId = pInfo->transId;
   pStatus = s.name;
