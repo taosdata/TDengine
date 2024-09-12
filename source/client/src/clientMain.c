@@ -216,7 +216,7 @@ int32_t fetchWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
     taosMemoryFree(pMsg->pEpSet);
     taosMemoryFree(pInfo);
     tFreeSGetUserWhiteListRsp(&wlRsp);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int i = 0; i < wlRsp.numWhiteLists; ++i) {
@@ -1526,7 +1526,7 @@ int taos_get_table_vgId(TAOS *taos, const char *db, const char *table, int *vgId
   conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
   SName tableName;
-  (void)toName(pTscObj->acctId, db, table, &tableName);
+  toName(pTscObj->acctId, db, table, &tableName);
 
   SVgroupInfo vgInfo;
   code = catalogGetTableHashVgroup(pCtg, &conn, &tableName, &vgInfo);

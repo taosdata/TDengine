@@ -946,7 +946,8 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
          pReq.suid);
   STscObj* pTscObj = pRequest->pTscObj;
   SName    tableName = {0};
-  RAW_RETURN_CHECK(tNameExtractFullName(toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName), pReq.name));
+  toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName);
+  RAW_RETURN_CHECK(tNameExtractFullName(&tableName, pReq.name));
   SCmdMsgInfo pCmdMsg = {0};
   pCmdMsg.epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   pCmdMsg.msgType = TDMT_MND_CREATE_STB;
@@ -1021,7 +1022,7 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
                            .requestObjRefId = pRequest->self,
                            .mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp)};
   SName            pName = {0};
-  (void)toName(pRequest->pTscObj->acctId, pRequest->pDb, req.name,
+  toName(pRequest->pTscObj->acctId, pRequest->pDb, req.name,
                &pName);  // ignore the return value, always return pName
   STableMeta* pTableMeta = NULL;
   code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
@@ -1045,7 +1046,8 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
          pReq.suid);
   STscObj* pTscObj = pRequest->pTscObj;
   SName    tableName = {0};
-  if (tNameExtractFullName(toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName), pReq.name) != 0) {
+  toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName);
+  if (tNameExtractFullName(&tableName, pReq.name) != 0) {
     code = TSDB_CODE_INVALID_PARA;
     goto end;
   }
@@ -1150,7 +1152,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
 
     SVgroupInfo pInfo = {0};
     SName       pName = {0};
-    (void)toName(pTscObj->acctId, pRequest->pDb, pCreateReq->name, &pName);
+    toName(pTscObj->acctId, pRequest->pDb, pCreateReq->name, &pName);
     code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &pInfo);
     if (code != TSDB_CODE_SUCCESS) {
       goto end;
@@ -1163,7 +1165,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
       SName       sName = {0};
       tb_uid_t    oldSuid = pCreateReq->ctb.suid;
       //      pCreateReq->ctb.suid = processSuid(pCreateReq->ctb.suid, pRequest->pDb);
-      (void)toName(pTscObj->acctId, pRequest->pDb, pCreateReq->ctb.stbName, &sName);
+      toName(pTscObj->acctId, pRequest->pDb, pCreateReq->ctb.stbName, &sName);
       code = catalogGetTableMeta(pCatalog, &conn, &sName, &pTableMeta);
       if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
         code = TSDB_CODE_SUCCESS;
@@ -1307,7 +1309,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
 
     SVgroupInfo pInfo = {0};
     SName       pName = {0};
-    (void)toName(pTscObj->acctId, pRequest->pDb, pDropReq->name, &pName);
+    toName(pTscObj->acctId, pRequest->pDb, pDropReq->name, &pName);
     RAW_RETURN_CHECK(catalogGetTableHashVgroup(pCatalog, &conn, &pName, &pInfo));
 
     STableMeta* pTableMeta = NULL;
@@ -1451,7 +1453,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
 
   SVgroupInfo pInfo = {0};
   SName       pName = {0};
-  (void)toName(pTscObj->acctId, pRequest->pDb, req.tbName, &pName);
+  toName(pTscObj->acctId, pRequest->pDb, req.tbName, &pName);
   RAW_RETURN_CHECK(catalogGetTableHashVgroup(pCatalog, &conn, &pName, &pInfo));
   pArray = taosArrayInit(1, sizeof(void*));
   RAW_NULL_CHECK(pArray);
