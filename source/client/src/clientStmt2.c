@@ -1667,7 +1667,6 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     STMT_ERR_RET(stmtCleanExecInfo(pStmt, (code ? false : true), false));
 
     ++pStmt->sql.runTimes;
-
   } else {
     SSqlCallbackWrapper* pWrapper = taosMemoryCalloc(1, sizeof(SSqlCallbackWrapper));
     if (pWrapper == NULL) {
@@ -1718,6 +1717,7 @@ int stmtClose2(TAOS_STMT2* stmt) {
   STMT_ERR_RET(stmtCleanSQLInfo(pStmt));
 
   if (pStmt->options.asyncExecFn) {
+    (void)tsem_wait(&pStmt->asyncQuerySem);
     (void)tsem_destroy(&pStmt->asyncQuerySem);
   }
   taosMemoryFree(stmt);
