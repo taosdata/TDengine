@@ -529,7 +529,7 @@ void schPostJobRes(SSchJob *pJob, SCH_OP_TYPE op) {
     SCH_UNLOCK(SCH_WRITE, &pJob->opStatus.lock);
     code = tsem_post(&pJob->rspSem);
     if (code) {
-      ctgError("tsem_post failed for syncOp, error:%s", tstrerror(code));
+      SCH_JOB_ELOG("tsem_post failed for syncOp, error:%s", tstrerror(code));
     }
   } else if (SCH_JOB_IN_ASYNC_EXEC_OP(pJob)) {
     SCH_UNLOCK(SCH_WRITE, &pJob->opStatus.lock);

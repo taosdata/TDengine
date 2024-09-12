@@ -1061,7 +1061,7 @@ static int32_t getCacheBlkFromDownstreamOperator(struct SOperatorInfo* pOperator
       pWaitCtx->newFetch = true;
       code = taosHashRemove(pCtx->pWaitSessions, pSessionId, sizeof(*pSessionId));
       if (code) {
-        qError("taosHashRemove session %" PRId64 " from waitSession failed, error: %s", pSessionId, tstrerror(code));
+        qError("taosHashRemove session %" PRId64 " from waitSession failed, error: %s", *pSessionId, tstrerror(code));
         return code;
       }
       QRY_ERR_RET(tsem_post(&pWaitCtx->waitSem));

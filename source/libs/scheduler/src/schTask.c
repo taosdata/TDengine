@@ -1355,7 +1355,7 @@ void schDropTaskInHashList(SSchJob *pJob, SHashObj *list) {
     SCH_LOCK_TASK(pTask);
     if (pTask->delayTimer) {
       if (!taosTmrStopA(&pTask->delayTimer)) {
-        SCH_TASK_WLOG("stop delayTimer failed, status:%d", pTask->delayTimer);
+        SCH_TASK_WLOG("stop delayTimer failed, status:%d", pTask->status);
       }
     }
     schDropTaskOnExecNode(pJob, pTask);
