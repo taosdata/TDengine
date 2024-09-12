@@ -1,19 +1,20 @@
 name: PR-CI-workflow
 
 on:
-  workflow_dispatch:
-  pull_request:
-  # push:
+  # workflow_dispatch:
+  # pull_request:
+  push:
 
 env:
   RELEASE_HOST: 192.168.1.45
   # RUSTFLAGS: "-C instrument-coverage --cfg tokio_unstable"
   ARTIFACT_BASE_DIR: /data/artifacts
   COVERAGE_BASE_DIR: /data/coverage
-  DIR_PATH: ${{ github.event.number }}
-  # DIR_PATH: ${{ github.sha }}
+  # DIR_PATH: ${{ github.event.number }}
+  DIR_PATH: ${{ github.sha }}
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
   CONTAINER_DO_NOT_KEEP_FLAG: /etc/taos/taosxci_container_not_keep
+  REPORT_BASE_URL: http://192.168.1.45:8787
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -45,7 +46,7 @@ jobs:
 
       - name: Build taosx
         run: |
-          cargo build
+          cargo build --locked
       - name: taosx unit test
         # continue-on-error: true
         run: |
@@ -56,7 +57,7 @@ jobs:
           fi
       - name: Build agent
         run: |
-          cargo build --package taosx-agent
+          cargo build --package taosx-agent --locked
 
       - name: Copy files
         run: |
@@ -187,6 +188,13 @@ jobs:
       RPC_PORT: ${{ steps.run_container.outputs.rpc_port }}
       WINDOWS_AGENT_PROCESS_ID: ${{ steps.deploy_windows_agent.outputs.windows_agent_process_id }}
     steps:
+      - name: Update Repo
+        run: |
+          # 这里最好是 TestNG_taosx 已经被拉取到一个固定的位置
+          # 重新登录执行 git pull，因为当前的 git 仓库对应的是 taosx
+          ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && git pull"
+          # 将仓库复制一份到 artifacts 目录下
+          cp -r /data/github/TestNG_taosX $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX
       - name: run container
         id: run_container
         # 1. 寻找可用端口
@@ -197,7 +205,7 @@ jobs:
         run: |
           for port in $(seq 10000 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { rpc_port=$port; break; }; done && for port in $(seq $((rpc_port+1)) 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { explorer_port=$port; break; }; done && echo "First available rpc_port: $rpc_port, Second available explorer_port: $explorer_port"
 
-          run_container_id=$(docker run -d -v /data/github/TestNG_taosX/:/data/github/TestNG_taosX/ -v $ARTIFACT_BASE_DIR/$DIR_PATH:$ARTIFACT_BASE_DIR/$DIR_PATH -v $COVERAGE_BASE_DIR/$DIR_PATH:$COVERAGE_BASE_DIR/$DIR_PATH -p $rpc_port:6055 -p $explorer_port:6060 taosxci:latest)
+          run_container_id=$(docker run --privileged=true -d -v $ARTIFACT_BASE_DIR/$DIR_PATH:$ARTIFACT_BASE_DIR/$DIR_PATH -v $COVERAGE_BASE_DIR/$DIR_PATH:$COVERAGE_BASE_DIR/$DIR_PATH -p $rpc_port:6055 -p $explorer_port:6060 taosxci:latest)
           echo "container_id: $run_container_id"
           echo "rpc_port: $rpc_port"
           echo "container_id=$run_container_id" >> "$GITHUB_OUTPUT"
@@ -210,7 +218,7 @@ jobs:
           echo "container_id: ${{ steps.run_container.outputs.container_id }}"
           # 由于容器每次启动的时候都会有一个全新的 cluster id，所以 agent 的状态无法直接通过 explorer 查看
           echo "docker exec ${{ steps.run_container.outputs.container_id }} bash -c \"nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH/bin/ nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'\""
-          echo "run command: docker exec ${{ steps.run_container.outputs.container_id }} bash -c \"nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/  PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH/bin/ nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'\""
+          echo "run command: docker exec ${{ steps.run_container.outputs.container_id }} bash -c \"nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH/bin/ nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'\""
           docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH/bin/ nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'"
           docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/  PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH/bin/ nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'"
           docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup sh -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taos-explorer > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taos-explorer.log 2>&1 &'"
@@ -222,18 +230,12 @@ jobs:
           echo "RPC_PORT: ${{ steps.run_container.outputs.rpc_port }}"
           # 调用 windows 远程服务拉起 windows-agent
           echo $PATH
-          cd /data/github/TestNG_taosX && source setenv.sh && /root/.local/bin/poetry run python3 testng_taosx/ci_util.py ${{ steps.run_container.outputs.rpc_port }} eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
+          cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && source setenv.sh && /root/.local/bin/poetry run python3 testng_taosx/ci_util.py ${{ steps.run_container.outputs.rpc_port }} eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
 
   run_test:
     runs-on: [self-hosted, linux, x64, qa, test]
     needs: deploy_with_docker
     steps:
-      - name: Update Repo
-        run: |
-          # 这里最好是 TestNG_taosx 已经被拉取到一个固定的位置
-          # 重新登录执行 git pull，因为当前的 git 仓库对应的是 taosx
-          ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && git pull"
-      
       - name: Run Test
         continue-on-error: true
         run: |
@@ -241,25 +243,23 @@ jobs:
           # 删除之前的测试结果，以防重新执行的时候由于旧的数据导致计算通过率错误
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
           ls $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
-          # docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && poetry add pytest-xdist && poetry add pytest-rerunfailures && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile --reruns 3 --reruns-delay 2"
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && source ./setenv.sh && /root/.local/bin/poetry run pytest --cache-clear"
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && source ./setenv.sh && /root/.local/bin/poetry run pytest --cache-show"
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && source ./setenv.sh && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --last-failed --last-failed-no-failures all --cache-show --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file \" && /root/.local/bin/poetry run pytest --last-failed --last-failed-no-failures all --cache-show --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file ; done"
 
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX && source ./setenv.sh && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file \" && /root/.local/bin/poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file ; done"
+          pass_rate=$(cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && /root/.local/bin/poetry run python3 testng_taosx/ci_calculate_pass_rate.py $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile)
+          # 若通过率小于 100 则返回失败
+          echo "Pass Rate: $pass_rate"
+          awk "BEGIN {exit ($pass_rate < 100)}"
 
-          # docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && poetry add pytest-xdist && poetry add pytest-rerunfailures && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file --reruns 3 --reruns-delay 2\" && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file --reruns 3 --reruns-delay 2; done"
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, test]
     needs: [deploy_with_docker, run_test]
-    env:
-      REPORT_BASE_URL: http://192.168.1.45:8787
     steps:
       - name: allure report
         run: |
           allure generate $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile -o $COVERAGE_BASE_DIR/$DIR_PATH/allure_report/ --clean
           echo "see report at $REPORT_BASE_URL/$DIR_PATH/allure_report/"
-          pass_rate=$(cd /data/github/TestNG_taosX && /root/.local/bin/poetry run python3 testng_taosx/ci_calculate_pass_rate.py $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile)
-          # 若通过率小于 100 则返回失败
-          echo "Pass Rate: $pass_rate"
-          awk "BEGIN {exit ($pass_rate < 100)}"
       
   clean_up:
     runs-on: [self-hosted, linux, x64, qa, test]
@@ -267,14 +267,12 @@ jobs:
     if: always()
     steps:
       - name: Force stop taosx-agent & taosx
-        if: always()
+        if: success()
         # shell: bash {0}
         run: |
-          if [ -f "$CONTAINER_DO_NOT_KEEP_FLAG" ]; then
-            echo "stop and rm container ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}"
-            docker stop ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
-            docker rm ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
-          fi
+          echo "stop and rm container ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}"
+          docker stop ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
+          docker rm ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
   
 
   feishu_report:
@@ -285,6 +283,6 @@ jobs:
       - name: Send Feishu Message
         run: |
           curl -X POST -H "Content-Type: application/json" \
-          -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"${{ github.workflow }} run failed, \n see reason at: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\"}}" \
-          https://open.feishu.cn/open-apis/bot/v2/hook/ead5417f-20b9-425c-8ce7-f4b8dd008deb
+          -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"${{ github.workflow }} 运行失败，@${{ github.actor }}，\n Action 执行地址见: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }} \n 报告地址见：$REPORT_BASE_URL/$DIR_PATH/allure_report/\"}}" \
+          https://open.feishu.cn/open-apis/bot/v2/hook/209e9aba-167a-49de-8d7b-15e12abd7922 
         
