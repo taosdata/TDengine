@@ -353,7 +353,7 @@ static void *mndBuildKillCompactReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *pC
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
 
-  if ((contLen = tSerializeSVKillCompactReq((char *)pReq + sizeof(SMsgHead), contLen, &req)) <= 0) {
+  if ((contLen = tSerializeSVKillCompactReq((char *)pReq + sizeof(SMsgHead), contLen, &req)) < 0) {
     terrno = contLen;
     return NULL;
   }
@@ -616,8 +616,7 @@ void mndCompactSendProgressReq(SMnode *pMnode, SCompactObj *pCompact) {
       pHead->contLen = htonl(contLen);
       pHead->vgId = htonl(pDetail->vgId);
 
-      if ((contLen = tSerializeSQueryCompactProgressReq((char *)pHead + sizeof(SMsgHead), contLen - sizeof(SMsgHead),
-                                                        &req)) <= 0) {
+      if (tSerializeSQueryCompactProgressReq((char *)pHead + sizeof(SMsgHead), contLen - sizeof(SMsgHead), &req) <= 0) {
         sdbRelease(pMnode->pSdb, pDetail);
         continue;
       }
