@@ -154,7 +154,7 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
     }
     CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
     TExeCond cond = cmpFn(c->colVal, pCt->colVal, pCt->colType);
-    if (cond == ERROR) {
+    if (cond == FAILED) {
       code = terrno;
       goto _return;
     }
@@ -336,7 +336,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
         memcpy(p, c->colVal, strlen(c->colVal));
         cond = cmpFn(p + skip, term->colVal, dType);
         taosMemoryFree(p);
-        if (cond == ERROR) {
+        if (cond == FAILED) {
           code = terrno;
           goto _return;
         }

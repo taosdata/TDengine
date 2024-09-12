@@ -368,7 +368,7 @@ static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTRslt* tr,
     char*     ch = (char*)fstSliceData(s, NULL);
 
     TExeCond cond = cmpFn(ch, p, tem->colType);
-    if (ERROR == cond) {
+    if (FAILED == cond) {
       swsResultDestroy(rt);
       code = terrno;
       goto _return;
@@ -521,7 +521,7 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
       memcpy(tBuf, ch, sz);
       cond = cmpFn(tBuf + skip, tem->colVal, IDX_TYPE_GET_TYPE(tem->colType));
       taosMemoryFree(tBuf);
-      if (ERROR == cond) {
+      if (FAILED == cond) {
         swsResultDestroy(rt);
         code = terrno;
         goto _return;
