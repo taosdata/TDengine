@@ -375,7 +375,7 @@ export function getMetricsDesc(data) {
     })
 }
 
-export function getHistorianMsgbody(datatype,data,agentid){
+export function getSampleDataMsgbody(datatype,data,agentid){
     return request({
         baseURL: process.env.VUE_APP_X_API,
         url: `/ds/in/sample?dsn=${datatype}${data}` + (agentid ? `&via=${agentid}` : ''),

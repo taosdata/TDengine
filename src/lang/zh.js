@@ -128,7 +128,7 @@ export default {
   agoHour: "一小时前",
   agoMonth: "30天前",
   agoQuarter: "90天前",
-  filter: "过滤",
+  filter: "按回车过滤",
   name: "名称",
   timestamp: "时间戳",
   add: "新增",
@@ -1212,6 +1212,7 @@ export default {
       configuredcount:'已配置',
       unit:'条',
       dataLimit: '示例数据行数上限：',
+      timeout: '请求超时(秒)：',
       msgbodytypes: {
         type1: "清空",
         type2: "从服务器检索",
