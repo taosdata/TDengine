@@ -27,7 +27,7 @@ checksum = "0346d8c1f762b41b458ed3145eea914966bb9ad20b9be0d6d463b20d45586370"
 dependencies = [
  "actix-utils",
  "actix-web",
- "derive_more",
+ "derive_more 0.99.18",
  "futures-util",
  "log",
  "once_cell",
@@ -42,7 +42,7 @@ checksum = "f9e772b3bcafe335042b5db010ab7c09013dad6eac4915c91d8d50902769f331"
 dependencies = [
  "actix-utils",
  "actix-web",
- "derive_more",
+ "derive_more 0.99.18",
  "futures-util",
  "log",
  "once_cell",
@@ -61,7 +61,7 @@ dependencies = [
  "actix-web",
  "bitflags 2.6.0",
  "bytes",
- "derive_more",
+ "derive_more 0.99.18",
  "futures-core",
  "http-range",
  "log",
@@ -88,7 +88,7 @@ dependencies = [
  "brotli 6.0.0",
  "bytes",
  "bytestring",
- "derive_more",
+ "derive_more 0.99.18",
  "encoding_rs",
  "flate2",
  "futures-core",
@@ -131,7 +131,7 @@ dependencies = [
  "actix-utils",
  "actix-web",
  "bytes",
- "derive_more",
+ "derive_more 0.99.18",
  "futures-core",
  "futures-util",
  "httparse",
@@ -243,7 +243,7 @@ dependencies = [
  "bytestring",
  "cfg-if",
  "cookie",
- "derive_more",
+ "derive_more 0.99.18",
  "encoding_rs",
  "futures-core",
  "futures-util",
@@ -707,7 +707,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4dcb391558246d27a13f195c1e3a53eda422270fdd452bd57a5aa9c1da1bb198"
 dependencies = [
  "async-backtrace-attributes",
- "dashmap",
+ "dashmap 5.5.3",
  "futures",
  "loom",
  "once_cell",
@@ -1753,6 +1753,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "dashmap"
+version = "6.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5041cc499144891f3790297212f32a74fb938e5136a14943f338ef9e0ae276cf"
+dependencies = [
+ "cfg-if",
+ "crossbeam-utils",
+ "hashbrown 0.14.5",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core 0.9.10",
+]
+
+[[package]]
 name = "data-encoding"
 version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1862,6 +1876,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive_more"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
+dependencies = [
+ "derive_more-impl",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.77",
+ "unicode-xid",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1912,18 +1947,6 @@ checksum = "4ebda144c4fe02d1f7ea1a7d9641b6fc6b580adcfa024ae48797ecdeb6825b4d"
 dependencies = [
  "libc",
  "redox_users",
- "winapi",
-]
-
-[[package]]
-name = "dlopen2"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bc2c7ed06fd72a8513ded8d0d2f6fd2655a85d6885c48cae8625d80faf28c03"
-dependencies = [
- "dlopen2_derive",
- "libc",
- "once_cell",
  "winapi",
 ]
 
@@ -3328,7 +3351,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -3547,7 +3570,7 @@ checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 [[package]]
 name = "mdsn"
 version = "0.2.25"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#bfc8cfa5e1fae63df2fb126e2503fce656525e1e"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#f3c994ac65c313d1696e0779d5c7a84f328e0f43"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -3748,7 +3771,7 @@ dependencies = [
  "bson",
  "chrono",
  "derivative",
- "derive_more",
+ "derive_more 0.99.18",
  "flate2",
  "futures-core",
  "futures-executor",
@@ -4127,7 +4150,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 3.2.0",
+ "proc-macro-crate 1.3.1",
  "proc-macro2",
  "quote",
  "syn 2.0.77",
@@ -4834,7 +4857,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acf0c195eebb4af52c752bec4f52f645da98b6e92077a04110c7f349477ae5ac"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 2.0.77",
@@ -5568,7 +5591,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c58f8c84392efc0a126acce10fa59ff7b3d2ac06ab451a33f2741989b806b044"
 dependencies = [
  "once_cell",
- "ring",
  "rustls-pki-types",
  "rustls-webpki 0.102.7",
  "subtle",
@@ -5592,6 +5614,19 @@ name = "rustls-native-certs"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5bfb394eeed242e909609f56089eecfe5fda225042e8b171791b9c95f5931e5"
+dependencies = [
+ "openssl-probe",
+ "rustls-pemfile 2.1.3",
+ "rustls-pki-types",
+ "schannel",
+ "security-framework",
+]
+
+[[package]]
+name = "rustls-native-certs"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcaf18a4f2be7326cd874a5fa579fae794320a0f388d365dca7e480e55f83f8a"
 dependencies = [
  "openssl-probe",
  "rustls-pemfile 2.1.3",
@@ -6570,7 +6605,7 @@ checksum = "f764005d11ee5f36500a149ace24e00e3da98b0158b3e2d53a7495660d3f4d60"
 [[package]]
 name = "taos"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#bfc8cfa5e1fae63df2fb126e2503fce656525e1e"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#f3c994ac65c313d1696e0779d5c7a84f328e0f43"
 dependencies = [
  "async-trait",
  "bytes",
@@ -6585,10 +6620,10 @@ dependencies = [
 [[package]]
 name = "taos-error"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#bfc8cfa5e1fae63df2fb126e2503fce656525e1e"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#f3c994ac65c313d1696e0779d5c7a84f328e0f43"
 dependencies = [
  "anyhow",
- "derive_more",
+ "derive_more 1.0.0",
  "mdsn",
  "rustc_version",
  "serde",
@@ -6598,7 +6633,7 @@ dependencies = [
 [[package]]
 name = "taos-macros"
 version = "0.2.16"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#bfc8cfa5e1fae63df2fb126e2503fce656525e1e"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#f3c994ac65c313d1696e0779d5c7a84f328e0f43"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6608,14 +6643,14 @@ dependencies = [
 [[package]]
 name = "taos-optin"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#bfc8cfa5e1fae63df2fb126e2503fce656525e1e"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#f3c994ac65c313d1696e0779d5c7a84f328e0f43"
 dependencies = [
  "anyhow",
  "async-trait",
  "bytes",
  "cfg-if",
- "derive_more",
- "dlopen2 0.6.1",
+ "derive_more 1.0.0",
+ "dlopen2",
  "fun_time",
  "itertools 0.13.0",
  "lazy_static",
@@ -6630,7 +6665,7 @@ dependencies = [
 [[package]]
 name = "taos-query"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#bfc8cfa5e1fae63df2fb126e2503fce656525e1e"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#f3c994ac65c313d1696e0779d5c7a84f328e0f43"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6641,7 +6676,7 @@ dependencies = [
  "chrono",
  "deadpool",
  "derive_builder",
- "derive_more",
+ "derive_more 1.0.0",
  "either",
  "faststr",
  "futures",
@@ -6671,14 +6706,13 @@ dependencies = [
 [[package]]
 name = "taos-ws"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#bfc8cfa5e1fae63df2fb126e2503fce656525e1e"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#f3c994ac65c313d1696e0779d5c7a84f328e0f43"
 dependencies = [
  "anyhow",
  "async-trait",
  "bytes",
  "cfg-if",
- "dashmap",
- "derive_more",
+ "dashmap 6.1.0",
  "flume",
  "futures",
  "itertools 0.13.0",
@@ -6727,7 +6761,7 @@ dependencies = [
  "convert_case 0.6.0",
  "csv",
  "csv-async",
- "dashmap",
+ "dashmap 5.5.3",
  "dotenv",
  "faststr",
  "file-rotate",
@@ -6816,7 +6850,7 @@ dependencies = [
  "clap",
  "clap-verbosity-flag",
  "const_format",
- "dashmap",
+ "dashmap 5.5.3",
  "dotenv",
  "file-rotate",
  "flume",
@@ -6873,9 +6907,9 @@ dependencies = [
  "convert_case 0.6.0",
  "csv",
  "csv-async",
- "dashmap",
+ "dashmap 5.5.3",
  "deadpool",
- "dlopen2 0.7.0",
+ "dlopen2",
  "dotenv",
  "either",
  "encoding_rs",
@@ -7356,14 +7390,14 @@ dependencies = [
 
 [[package]]
 name = "tokio-tungstenite"
-version = "0.23.0"
-source = "git+https://github.com/taosdata/tokio-tungstenite.git?tag=v1.0.0#46ff221fc20037264f977b3af3fbef6f1a264785"
+version = "0.23.1"
+source = "git+https://github.com/taosdata/tokio-tungstenite.git?rev=19822e0#19822e01bff35630dbe95752c815f973e60c4b80"
 dependencies = [
  "futures-util",
  "log",
  "native-tls",
  "rustls 0.23.12",
- "rustls-native-certs 0.7.3",
+ "rustls-native-certs 0.8.0",
  "rustls-pki-types",
  "tokio",
  "tokio-native-tls",
@@ -7722,7 +7756,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.8.5",
+ "rand 0.7.3",
  "static_assertions",
 ]
 
@@ -8157,7 +8191,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
