@@ -244,8 +244,8 @@ jobs:
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
           ls $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
           
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && source ./setenv.sh && /root/.local/bin/poetry run pytest --cache-show"
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && source ./setenv.sh && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --last-failed --last-failed-no-failures all --cache-show --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file \" && /root/.local/bin/poetry run pytest --last-failed --last-failed-no-failures all --cache-show --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file ; done"
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && source ./setenv.sh && /root/.local/bin/poetry run /usr/local/bin/pytest --cache-show"
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && source ./setenv.sh && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file \" && /root/.local/bin/poetry run /usr/local/bin/pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file ; done"
 
           pass_rate=$(cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && /root/.local/bin/poetry run python3 testng_taosx/ci_calculate_pass_rate.py $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile)
           # 若通过率小于 100 则返回失败
@@ -264,11 +264,11 @@ jobs:
       
   clean_up:
     runs-on: [self-hosted, linux, x64, qa, test]
-    needs: [deploy_with_docker, run_test]
+    needs: [deploy_with_docker, run_test, generate_report]
     if: always()
     steps:
       - name: Force stop taosx-agent & taosx
-        if: success()
+        if: ${{ needs.deploy_with_docker.result == success() && needs.run_test.result == success() }}
         # shell: bash {0}
         run: |
           echo "stop and rm container ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}"
