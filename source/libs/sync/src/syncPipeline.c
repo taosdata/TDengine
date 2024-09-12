@@ -223,7 +223,7 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
       taken = true;
       if (pNode->vgId > 1) {
         pBuf->bytes += pEntry->bytes;
-        (void)tomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
+        (void)atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
       }
     }
 
