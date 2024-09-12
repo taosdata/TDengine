@@ -124,14 +124,20 @@ _end:
 }
 void rpcClose(void* arg) {
   tInfo("start to close rpc");
+  if (arg == NULL) {
+    return;
+  }
   (void)transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
   (void)transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
   tInfo("end to close rpc");
   return;
 }
 void rpcCloseImpl(void* arg) {
+  if (arg == NULL) return;
   SRpcInfo* pRpc = (SRpcInfo*)arg;
-  (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
+  if (pRpc->tcphandle != NULL) {
+    (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
+  }
   taosMemoryFree(pRpc);
 }
 
