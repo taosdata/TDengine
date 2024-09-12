@@ -2889,7 +2889,7 @@ int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj 
       }
     }
     TAOS_CHECK_RETURN(mndRestoreAddAlterVnodeTypeAction(pMnode, pTrans, db, &newVgroup, pDnode));
-    TAOS_CHECK_RETURN(mndRestoreAddAlterVnodeTypeAction(pMnode, pTrans, db, &newVgroup, pDnode));
+    TAOS_CHECK_RETURN(mndRestoreAddAlterVnodeTypeAction(pMnode, pTrans, db, &newVgroup, pAnotherDnode));
   } else if (newVgroup.replica == 3) {
     for (int i = 0; i < newVgroup.replica; i++) {
       if (newVgroup.vnodeGid[i].dnodeId == pDnode->id) {
