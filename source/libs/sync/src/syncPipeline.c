@@ -27,6 +27,7 @@
 #include "syncSnapshot.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
+#include "tglobal.h"
 
 static int64_t tsLogBufferMemoryUsed = 0;  // total bytes of vnode log buffer
 
