@@ -941,7 +941,7 @@ void taos_init_imp(void) {
     tscInitRes = TSDB_CODE_OUT_OF_MEMORY;
     return;
   }
-//  taosHashSetFreeFp(appInfo.pInstMap, destroyAppInst);   avoid heap use after free
+  taosHashSetFreeFp(appInfo.pInstMap, destroyAppInst);
   deltaToUtcInitOnce();
 
   char logDirName[64] = {0};

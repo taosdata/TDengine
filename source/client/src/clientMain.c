@@ -73,6 +73,8 @@ void taos_cleanup(void) {
     tscWarn("failed to cleanup task queue");
   }
 
+  tmqMgmtClose();
+
   int32_t id = clientReqRefPool;
   clientReqRefPool = -1;
   taosCloseRef(id);
@@ -87,9 +89,6 @@ void taos_cleanup(void) {
   tscDebug("rpc cleanup");
 
   taosConvDestroy();
-
-  tmqMgmtClose();
-
   DestroyRegexCache();
 
   tscInfo("all local resources released");
