@@ -290,7 +290,7 @@ pub async fn tmq_to_local(
     let version = builder.server_version().await?.to_owned();
     // parameters
     let stop_at = parse_stop_at(&from)?;
-    let max_file_size = parse_max_file_size(&from)?.unwrap_or(1024 * 1024 * 1024);
+    let max_file_size = parse_max_file_size(&to)?.unwrap_or(1024 * 1024 * 1024);
     let move_to = parse_move_to(&to)?;
     let compression_level = parse_compression_level(&to)?;
 
