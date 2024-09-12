@@ -7,6 +7,7 @@ import re
 import time
 import signal
 
+
 system = platform.system()
 current_path = os.path.abspath(os.path.dirname(__file__))
 if system == 'Windows':
