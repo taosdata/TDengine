@@ -367,9 +367,8 @@ static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTRslt* tr,
     FstSlice* s = &rt->data;
     char*     ch = (char*)fstSliceData(s, NULL);
 
-    terrno = TSDB_CODE_SUCCESS;
     TExeCond cond = cmpFn(ch, p, tem->colType);
-    if (TSDB_CODE_SUCCESS != terrno) {
+    if (ERROR == cond) {
       swsResultDestroy(rt);
       code = terrno;
       goto _return;
@@ -520,10 +519,9 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
         goto _return;
       }
       memcpy(tBuf, ch, sz);
-      terrno = TSDB_CODE_SUCCESS;
       cond = cmpFn(tBuf + skip, tem->colVal, IDX_TYPE_GET_TYPE(tem->colType));
       taosMemoryFree(tBuf);
-      if (TSDB_CODE_SUCCESS != terrno) {
+      if (ERROR == cond) {
         swsResultDestroy(rt);
         code = terrno;
         goto _return;

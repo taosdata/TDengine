@@ -118,6 +118,14 @@ static FORCE_INLINE TExeCond tCompareContains(void* a, void* b, int8_t type) {
   }
   return tCompare(func, QUERY_TERM, a, b, type);
 }
+
+#define CHECKCOMERROR(expr) \
+  do {                      \
+    if ((expr) != 0) {      \
+      return ERROR;         \
+    }                       \
+  } while (0)
+
 static FORCE_INLINE TExeCond tCompareEqual(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
   if (func == NULL) {
@@ -133,51 +141,51 @@ TExeCond tCompare(__compar_fn_t func, int8_t cmptype, void* a, void* b, int8_t d
 #if 1
   if (dtype == TSDB_DATA_TYPE_TIMESTAMP) {
     int64_t va;
-    taosStr2int64(a, &va);
+    CHECKCOMERROR(taosStr2int64(a, &va));
     int64_t vb;
-    taosStr2int64(b, &vb);
+    CHECKCOMERROR(taosStr2int64(b, &vb));
     return tDoCompare(func, cmptype, &va, &vb);
   } else if (dtype == TSDB_DATA_TYPE_BOOL || dtype == TSDB_DATA_TYPE_UTINYINT) {
     uint8_t va;
-    taosStr2int8(a, &va);
+    CHECKCOMERROR(taosStr2int8(a, &va));
     uint8_t vb;
-    taosStr2int8(b, &vb);
+    CHECKCOMERROR(taosStr2int8(b, &vb));
     return tDoCompare(func, cmptype, &va, &vb);
   } else if (dtype == TSDB_DATA_TYPE_TINYINT) {
     int8_t va;
-    taosStr2int8(a, &va);
+    CHECKCOMERROR(taosStr2int8(a, &va));
     int8_t vb;
-    taosStr2int8(b, &vb);
+    CHECKCOMERROR(taosStr2int8(b, &vb));
     return tDoCompare(func, cmptype, &va, &vb);
   } else if (dtype == TSDB_DATA_TYPE_SMALLINT) {
     int16_t va;
-    taosStr2int16(a, &va);
+    CHECKCOMERROR(taosStr2int16(a, &va));
     int16_t vb;
-    taosStr2int16(b, &vb);
+    CHECKCOMERROR(taosStr2int16(b, &vb));
     return tDoCompare(func, cmptype, &va, &vb);
   } else if (dtype == TSDB_DATA_TYPE_USMALLINT) {
     uint16_t va;
-    taosStr2int16(a, &va);
+    CHECKCOMERROR(taosStr2int16(a, &va));
     uint16_t vb;
-    taosStr2int16(b, &vb);
+    CHECKCOMERROR(taosStr2int16(b, &vb));
     return tDoCompare(func, cmptype, &va, &vb);
   } else if (dtype == TSDB_DATA_TYPE_INT) {
     int32_t va;
-    taosStr2int32(a, &va);
+    CHECKCOMERROR(taosStr2int32(a, &va));
     int32_t vb;
-    taosStr2int32(b, &vb);
+    CHECKCOMERROR(taosStr2int32(b, &vb));
     return tDoCompare(func, cmptype, &va, &vb);
   } else if (dtype == TSDB_DATA_TYPE_UINT) {
     uint32_t va;
-    taosStr2int32(a, &va);
+    CHECKCOMERROR(taosStr2int32(a, &va));
     uint32_t vb;
-    taosStr2int32(b, &vb);
+    CHECKCOMERROR(taosStr2int32(b, &vb));
     return tDoCompare(func, cmptype, &va, &vb);
   } else if (dtype == TSDB_DATA_TYPE_BIGINT) {
     int64_t va;
-    taosStr2int64(a, &va);
+    CHECKCOMERROR(taosStr2int64(a, &va));
     int64_t vb;
-    taosStr2int64(b, &vb);
+    CHECKCOMERROR(taosStr2int64(b, &vb));
     return tDoCompare(func, cmptype, &va, &vb);
   } else if (dtype == TSDB_DATA_TYPE_UBIGINT) {
     uint64_t va, vb;
