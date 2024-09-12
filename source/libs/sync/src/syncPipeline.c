@@ -106,7 +106,7 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   pBuf->endIndex = index + 1;
   if (pNode->vgId > 1) {
     pBuf->bytes += pEntry->bytes;
-    atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
+    (void)atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
   }
 
   (void)taosThreadMutexUnlock(&pBuf->mutex);
@@ -269,7 +269,7 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
       taken = true;
       if (pNode->vgId > 1) {
         pBuf->bytes += pEntry->bytes;
-        atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
+        (void)atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
       }
     }
 
@@ -299,7 +299,7 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
     pBuf->entries[(commitIndex + pBuf->size) % pBuf->size] = tmp;
     if (pNode->vgId > 1) {
       pBuf->bytes += pDummy->bytes;
-      atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pDummy->bytes);
+      (void)atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pDummy->bytes);
     }
 
     if (index < toIndex) {
@@ -489,7 +489,7 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   pBuf->entries[index % pBuf->size] = tmp;
   if (pNode->vgId > 1) {
     pBuf->bytes += pEntry->bytes;
-    atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
+    (void)atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
   }
   pEntry = NULL;
 
@@ -883,7 +883,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
     }
     if (isVnode) {
       pBuf->bytes -= pEntry->bytes;
-      atomic_sub_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
+      (void)atomic_sub_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
     }
     sDebug("vgId:%d, recycle log entry. index:%" PRId64 ", startIndex:%" PRId64 ", until:%" PRId64
            ", commitIndex:%" PRId64 ", endIndex:%" PRId64 ", term:%" PRId64 ", entry bytes:%u, buf bytes:%" PRId64
