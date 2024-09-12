@@ -150,10 +150,10 @@ typedef struct {
   SStmtExecInfo exec;
   SStmtBindInfo bInfo;
 
-  int64_t reqid;
-  int32_t errCode;
-  tsem_t  asyncQuerySem;
-
+  int64_t       reqid;
+  int32_t       errCode;
+  tsem_t        asyncQuerySem;
+  bool          semWaited;
   SStmtStatInfo stat;
 } STscStmt2;
 /*

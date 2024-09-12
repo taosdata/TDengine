@@ -1984,8 +1984,9 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
-  if (pStmt->options.asyncExecFn) {
+  if (pStmt->options.asyncExecFn && !pStmt->semWaited) {
     (void)tsem_wait(&pStmt->asyncQuerySem);
+    pStmt->semWaited = true;
   }
 
   int32_t code = 0;

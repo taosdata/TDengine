@@ -819,6 +819,7 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
   if (pStmt->options.asyncExecFn) {
     (void)tsem_init(&pStmt->asyncQuerySem, 0, 1);
   }
+  pStmt->semWaited = false;
 
   STMT_LOG_SEQ(STMT_INIT);
 
@@ -1678,6 +1679,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     pRequest->body.queryFp = asyncQueryCb;
     ((SSyncQueryParam*)(pRequest)->body.interParam)->userParam = pStmt;
 
+    pStmt->semWaited = false;
     launchAsyncQuery(pRequest, pStmt->sql.pQuery, NULL, pWrapper);
   }
 
