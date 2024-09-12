@@ -405,12 +405,9 @@ class MyTDSql:
                 f.write(f'{sql};\n')
 
     def recordSmlLine(self, line):
-        sql_file = os.path.join(os.path.dirname(self.cfgPath), "sml_line.txt")
-        with open(sql_file, 'a') as f:
-            if line.endswith(";"):
-                f.write(f'{line}\n')
-            else:
-                f.write(f'{line};\n')
+        line_file = os.path.join(os.path.dirname(self.cfgPath), "sml_line.txt")
+        with open(line_file, 'a') as f:
+            f.write(f'{line}\n')
 
     def influxdbLineInsert(self, line, ts_type=None, dbname=None):
         precision = None if ts_type is None else ts_type
