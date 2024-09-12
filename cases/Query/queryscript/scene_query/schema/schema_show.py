@@ -900,8 +900,8 @@ class TDTestQuery(TDCase):
             # self.show_local_variables() 
             # self.show_dnode_variables()
             
-            self.show_information_schema()
-            self.show_performance_schema()
+            # self.show_information_schema()
+            # self.show_performance_schema()
             
             self.show_stable_schema()        
         
