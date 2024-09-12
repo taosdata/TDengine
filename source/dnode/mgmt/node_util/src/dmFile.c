@@ -70,7 +70,7 @@ int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
 
   content = taosMemoryMalloc(size + 1);
   if (content == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -134,7 +134,7 @@ int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
 
   pJson = tjsonCreateObject();
   if (pJson == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -230,7 +230,7 @@ static int32_t dmWriteCheckCodeFile(char *file, char *realfile, char *key, bool 
   int32_t len = ENCRYPTED_LEN(sizeof(DM_KEY_INDICATOR));
   result = taosMemoryMalloc(len);
   if (result == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SCryptOpts opts;
@@ -338,7 +338,7 @@ static int32_t dmCompareEncryptKey(char *file, char *key, bool toLogFile) {
 
   content = taosMemoryMalloc(size);
   if (content == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -479,7 +479,7 @@ static int32_t dmReadEncryptCodeFile(char *file, char **output) {
 
   content = taosMemoryMalloc(size + 1);
   if (content == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 

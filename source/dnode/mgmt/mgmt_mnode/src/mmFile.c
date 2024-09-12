@@ -91,7 +91,7 @@ int32_t mmReadFile(const char *path, SMnodeOpt *pOption) {
 
   pData = taosMemoryMalloc(size + 1);
   if (pData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -134,14 +134,14 @@ static int32_t mmEncodeOption(SJson *pJson, const SMnodeOpt *pOption) {
 
     SJson *replicas = tjsonCreateArray();
     if (replicas == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if ((code = tjsonAddItemToObject(pJson, "replicas", replicas)) < 0) return code;
 
     for (int32_t i = 0; i < pOption->numOfTotalReplicas; ++i) {
       SJson *replica = tjsonCreateObject();
       if (replica == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       const SReplica *pReplica = pOption->replicas + i;
@@ -183,7 +183,7 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
   // terrno = TSDB_CODE_OUT_OF_MEMORY;
   pJson = tjsonCreateObject();
   if (pJson == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 

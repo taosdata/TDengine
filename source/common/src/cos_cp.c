@@ -170,7 +170,7 @@ int32_t cos_cp_load(char const* filepath, SCheckpoint* checkpoint) {
 
   cp_body = taosMemoryMalloc(size + 1);
   if (!cp_body) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   int64_t n = taosReadFile(fd, cp_body, size);

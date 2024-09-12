@@ -179,7 +179,7 @@ int32_t epsetToStr(const SEpSet* pEpSet, char* pBuf, int32_t cap) {
 int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime) {
   int32_t code = 0;
   SJson*  pJson = tjsonCreateObject();
-  if (pJson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (pJson == NULL) return terrno;
 
   char tmp[4096] = {0};
 
@@ -242,7 +242,7 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
 
   char* pCont = tjsonToString(pJson);
   if (pCont == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_CHECK_GOTO(code, NULL, _exit);
     goto _exit;
   }

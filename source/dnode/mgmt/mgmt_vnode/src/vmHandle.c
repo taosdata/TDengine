@@ -921,7 +921,7 @@ int32_t vmProcessArbHeartBeatReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   void *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    terrno = terrno;
     goto _OVER;
   }
 
