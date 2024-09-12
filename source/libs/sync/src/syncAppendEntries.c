@@ -142,6 +142,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     sError("vgId:%d, failed to get raft entry from append entries since %s", ths->vgId, terrstr());
     goto _IGNORE;
   }
+  int64_t index = pEntry->index;
 
   if (pMsg->prevLogIndex + 1 != pEntry->index || pEntry->term < 0) {
     sError("vgId:%d, invalid previous log index in msg. index:%" PRId64 ",  term:%" PRId64 ", prevLogIndex:%" PRId64
@@ -178,8 +179,12 @@ _SEND_RESPONSE:
     (void)syncNodeUpdateCommitIndex(ths, TMIN(pMsg->commitIndex, pReply->lastSendIndex));
   }
 
-  // ack, i.e. send response
-  (void)syncNodeSendMsgById(&pReply->destId, ths, &rpcRsp);
+  if (ths->vgId == 1 && index == 41) {
+    //  ack, i.e. send response
+    sInfo("vgId:%d, ignore ack, i.e. send response", ths->vgId);
+  } else {
+    (void)syncNodeSendMsgById(&pReply->destId, ths, &rpcRsp);
+  }
 
   // commit index, i.e. leader notice me
   if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE && syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
