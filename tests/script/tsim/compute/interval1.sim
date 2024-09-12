@@ -1,0 +1,33 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c timezone -v UTC
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+
+sql CREATE DATABASE `alphacloud_alphaess` BUFFER 512 CACHESIZE 1024 CACHEMODEL 'both' COMP 2 DURATION 10d WAL_FSYNC_PERIOD 3000 MAXROWS 4096 MINROWS 100 KEEP 365000d;
+
+sql use alphacloud_alphaess;
+
+sql create stable st(ts TIMESTAMP , `uk` VARCHAR(64) ) tags(ta int,tb int,tc int);
+
+sql create table t1 using st tags(1,1,1);
+
+sql insert into t1 values ("1970-01-29 05:04:53.000"," 22::     ");
+
+sql select _wstart, count(*) from st  interval(1y);
+
+if $rows != 1 then
+  print =====rows=$rows
+  return -1
+endi
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13 
+
+if $data01 != 1 then
+  print =====data00=$data00
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
