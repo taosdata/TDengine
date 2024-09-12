@@ -246,8 +246,7 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
       maxId = pSdb->maxId[i];
     }
     if (taosWriteFile(pFile, &maxId, sizeof(int64_t)) != sizeof(int64_t)) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      TAOS_RETURN(code);
+      return terrno;
     }
   }
 
@@ -257,8 +256,7 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
       ver = pSdb->tableVer[i];
     }
     if (taosWriteFile(pFile, &ver, sizeof(int64_t)) != sizeof(int64_t)) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      TAOS_RETURN(code);
+      return terrno;
     }
   }
 
