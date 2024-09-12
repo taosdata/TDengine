@@ -19,8 +19,8 @@
 #include "systable.h"
 #include "mndUser.h"
 
-#define SHOW_STEP_SIZE 100
-#define SHOW_COLS_STEP_SIZE 4096
+#define SHOW_STEP_SIZE            100
+#define SHOW_COLS_STEP_SIZE       4096
 #define SHOW_PRIVILEGES_STEP_SIZE 2048
 
 static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq);

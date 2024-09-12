@@ -328,7 +328,9 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
 
 int32_t loadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
-  return pOperator->fpSet.getNextFn(pOperator, ppBlock);
+  int32_t code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
+  blockDataCheck(*ppBlock, false);
+  return code;
 }
 
 // todo refactor: merged with fetch fp
@@ -611,6 +613,7 @@ int32_t fetchNextGroupSortDataBlock(void* param, SSDataBlock** ppBlock) {
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (block != NULL) {
+      blockDataCheck(block, false);
       if (block->info.id.groupId == grpSortOpInfo->currGroupId) {
         grpSortOpInfo->childOpStatus = CHILD_OP_SAME_GROUP;
         *ppBlock = block;

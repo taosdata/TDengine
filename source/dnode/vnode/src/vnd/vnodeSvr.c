@@ -754,8 +754,7 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("message in vnode query queue is processing");
-  if ((pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_VND_TMQ_CONSUME) &&
-      !syncIsReadyForRead(pVnode->sync)) {
+  if ((pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_VND_TMQ_CONSUME) && !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
@@ -1477,7 +1476,8 @@ static int32_t vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, 
   tInitSubmitBlkIter(msgIter, pBlock, &blkIter);
   if (blkIter.row == NULL) return 0;
 
-  int32_t code = metaGetTbTSchemaNotNull(pMeta, msgIter->suid, TD_ROW_SVER(blkIter.row), 1, &pSchema);  // TODO: use the real schema
+  int32_t code = metaGetTbTSchemaNotNull(pMeta, msgIter->suid, TD_ROW_SVER(blkIter.row), 1,
+                                         &pSchema);  // TODO: use the real schema
   if (TSDB_CODE_SUCCESS != code) {
     printf("%s:%d no valid schema\n", tags, __LINE__);
     return code;
@@ -1511,7 +1511,7 @@ typedef struct SSubmitReqConvertCxt {
 static int32_t vnodeResetTableCxt(SMeta *pMeta, SSubmitReqConvertCxt *pCxt) {
   taosMemoryFreeClear(pCxt->pTbSchema);
   int32_t code = metaGetTbTSchemaNotNull(pMeta, pCxt->msgIter.suid > 0 ? pCxt->msgIter.suid : pCxt->msgIter.uid,
-                                     pCxt->msgIter.sversion, 1, &pCxt->pTbSchema);
+                                         pCxt->msgIter.sversion, 1, &pCxt->pTbSchema);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -2041,7 +2041,7 @@ _exit:
 }
 
 extern int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb);
-extern int32_t tsdbEnableBgTask(STsdb *pTsdb);
+extern void    tsdbEnableBgTask(STsdb *pTsdb);
 
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   bool walChanged = false;
@@ -2143,10 +2143,10 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
     if (req.sttTrigger > 1 && pVnode->config.sttTrigger > 1) {
       pVnode->config.sttTrigger = req.sttTrigger;
     } else {
-      (void)vnodeAWait(&pVnode->commitTask);
+      vnodeAWait(&pVnode->commitTask);
       (void)tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
       pVnode->config.sttTrigger = req.sttTrigger;
-      (void)tsdbEnableBgTask(pVnode->pTsdb);
+      tsdbEnableBgTask(pVnode->pTsdb);
     }
   }
 
@@ -2166,7 +2166,7 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
   }
 
   if (tsdbChanged) {
-    (void)tsdbSetKeepCfg(pVnode->pTsdb, &pVnode->config.tsdbCfg);
+    tsdbSetKeepCfg(pVnode->pTsdb, &pVnode->config.tsdbCfg);
   }
 
   return 0;

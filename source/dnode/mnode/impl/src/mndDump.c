@@ -616,7 +616,7 @@ void mndDumpSdb() {
   char      file[] = "sdb.json";
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = terrno;
     mError("failed to write %s since %s", file, terrstr());
     return;
   }

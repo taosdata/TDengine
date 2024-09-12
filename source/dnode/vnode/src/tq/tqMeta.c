@@ -389,7 +389,10 @@ static int32_t tqMetaTransformInfo(TDB* pMetaDB, TTB* pOld, TTB* pNew) {
 END:
   tdbFree(pKey);
   tdbFree(pVal);
-  (void)tdbTbcClose(pCur);
+  int32_t ret = tdbTbcClose(pCur);
+  if (code == 0 && ret != 0) {
+    code = ret;
+  }
   return code;
 }
 
@@ -461,7 +464,12 @@ static int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
 END:
   tdbFree(pKey);
   tdbFree(pVal);
-  (void)tdbTbcClose(pCur);
+
+  int32_t ret = tdbTbcClose(pCur);
+  if (code == 0) {
+    code = ret;
+  }
+
   tDeleteSTqCheckInfo(&info);
   return code;
 }
@@ -476,13 +484,13 @@ int32_t tqMetaOpen(STQ* pTq) {
     TQ_ERR_GO_TO_END(tqMetaOpenTdb(pTq));
   } else {
     TQ_ERR_GO_TO_END(tqMetaTransform(pTq));
-    (void)taosRemoveFile(maindb);
+    TQ_ERR_GO_TO_END(taosRemoveFile(maindb));
   }
 
   TQ_ERR_GO_TO_END(tqBuildFName(&offsetNew, pTq->path, TQ_OFFSET_NAME));
   if(taosCheckExistFile(offsetNew)){
     TQ_ERR_GO_TO_END(tqOffsetRestoreFromFile(pTq, offsetNew));
-    (void)taosRemoveFile(offsetNew);
+    TQ_ERR_GO_TO_END(taosRemoveFile(offsetNew));
   }
 
   TQ_ERR_GO_TO_END(tqMetaRestoreCheckInfo(pTq));
@@ -518,7 +526,7 @@ int32_t tqMetaTransform(STQ* pTq) {
     if (taosCopyFile(offset, offsetNew) < 0) {
       tqError("copy offset file error");
     } else {
-      (void)taosRemoveFile(offset);
+      TQ_ERR_GO_TO_END(taosRemoveFile(offset));
     }
   }
 
@@ -527,22 +535,47 @@ END:
   taosMemoryFree(offsetNew);
 
   // return 0 always, so ignore
-  (void)tdbTbClose(pExecStore);
-  (void)tdbTbClose(pCheckStore);
-  (void)tdbClose(pMetaDB);
+  int32_t ret = tdbTbClose(pExecStore);
+  if (ret != 0) {
+    tqError("vgId:%d failed to close stream exec store, code:%s", pTq->pStreamMeta->vgId, tstrerror(ret));
+  }
+
+  ret = tdbTbClose(pCheckStore);
+  if (ret != 0) {
+    tqError("vgId:%d failed to close stream check store, code:%s", pTq->pStreamMeta->vgId, tstrerror(ret));
+  }
+
+  ret = tdbClose(pMetaDB);
+  if (ret != 0) {
+    tqError("vgId:%d failed to close stream meta db store, code:%s", pTq->pStreamMeta->vgId, tstrerror(ret));
+  }
 
   return code;
 }
 
 void tqMetaClose(STQ* pTq) {
+  int32_t code = 0;
   if (pTq->pExecStore) {
-    (void)tdbTbClose(pTq->pExecStore);
+    code = tdbTbClose(pTq->pExecStore);
+    if (code) {
+      tqError("vgId:%d failed to close tq exec store, code:%s", pTq->pStreamMeta->vgId, tstrerror(code));
+    }
   }
   if (pTq->pCheckStore) {
-    (void)tdbTbClose(pTq->pCheckStore);
+    code = tdbTbClose(pTq->pCheckStore);
+    if (code) {
+      tqError("vgId:%d failed to close tq check store, code:%s", pTq->pStreamMeta->vgId, tstrerror(code));
+    }
   }
   if (pTq->pOffsetStore) {
-    (void)tdbTbClose(pTq->pOffsetStore);
+    code = tdbTbClose(pTq->pOffsetStore);
+    if (code) {
+      tqError("vgId:%d failed to close tq offset store, code:%s", pTq->pStreamMeta->vgId, tstrerror(code));
+    }
   }
-  (void)tdbClose(pTq->pMetaDB);
+
+  code = tdbClose(pTq->pMetaDB);
+  if (code) {
+    tqError("vgId:%d failed to close tq meta db store, code:%s", pTq->pStreamMeta->vgId, tstrerror(code));
+  }
 }

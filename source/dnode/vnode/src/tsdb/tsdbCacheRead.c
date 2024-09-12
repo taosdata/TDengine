@@ -387,7 +387,7 @@ void tsdbCacherowsReaderClose(void* pReader) {
   }
 
   if (p->pFileReader) {
-    (void) tsdbDataFileReaderClose(&p->pFileReader);
+    tsdbDataFileReaderClose(&p->pFileReader);
     p->pFileReader = NULL;
   }
 
@@ -473,7 +473,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   }
 
   (void)taosThreadMutexLock(&pr->readerMutex);
-  code = tsdbTakeReadSnap2((STsdbReader*)pr, tsdbCacheQueryReseek, &pr->pReadSnap);
+  code = tsdbTakeReadSnap2((STsdbReader*)pr, tsdbCacheQueryReseek, &pr->pReadSnap, pr->idstr);
   if (code != TSDB_CODE_SUCCESS) {
     goto _end;
   }
