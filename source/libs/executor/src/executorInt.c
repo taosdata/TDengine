@@ -1012,6 +1012,10 @@ static void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_
   }
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
+    if (pCtx[i].fpSet.cleanup != NULL) {
+      pCtx[i].fpSet.cleanup(&pCtx[i]);
+    }
+
     if (pExpr != NULL) {
       SExprInfo* pExprInfo = &pExpr[i];
       for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {

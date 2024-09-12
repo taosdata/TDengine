@@ -290,13 +290,13 @@ int32_t remoteChkp_readMetaData(char* path, SSChkpMetaOnS3** pMeta) {
 
   pFile = taosOpenFile(path, TD_FILE_READ);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _EXIT;
   }
 
   char buf[256] = {0};
   if (taosReadFile(pFile, buf, sizeof(buf)) <= 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _EXIT;
   }
 
@@ -357,7 +357,7 @@ int32_t remoteChkp_validAndCvtMeta(char* path, SSChkpMetaOnS3* pMeta, int64_t ch
     }
 
     if (taosStatFile(src, NULL, NULL, NULL) != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = terrno;
       goto _EXIT;
     }
 
@@ -367,8 +367,8 @@ int32_t remoteChkp_validAndCvtMeta(char* path, SSChkpMetaOnS3* pMeta, int64_t ch
       goto _EXIT;
     }
 
-    if (taosRenameFile(src, dst) != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
+    code = taosRenameFile(src, dst);
+    if (code != 0) {
       goto _EXIT;
     }
 
@@ -507,7 +507,6 @@ int32_t rebuildFromRemoteChkp_s3(const char* key, char* chkpPath, int64_t chkpId
   if (taosIsDir(defaultPath)) {
     code = taosRenameFile(defaultPath, defaultTmp);
     if (code != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
       goto _EXIT;
     } else {
       rename = 1;
@@ -598,7 +597,7 @@ int32_t backendFileCopyFilesImpl(const char* src, const char* dst) {
   // copy file to dst
   TdDirPtr pDir = taosOpenDir(src);
   if (pDir == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _ERROR;
   }
 
@@ -1427,7 +1426,7 @@ int32_t chkpPreBuildDir(char* path, int64_t chkpId, char** chkpDir, char** chkpI
 
   code = taosMulModeMkDir(pChkpDir, 0755, true);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     stError("failed to prepare checkpoint dir, path:%s, reason:%s", path, tstrerror(code));
     goto _EXIT;
   }
@@ -1603,12 +1602,12 @@ int32_t chkpLoadExtraInfo(char* pChkpIdDir, int64_t* chkpId, int64_t* processId)
     // compatible with previous version
     *processId = -1;
     code = 0;
-    stWarn("failed to open file to load extra info, file:%s, reason:%s", pDst, tstrerror(TAOS_SYSTEM_ERROR(errno)));
+    stWarn("failed to open file to load extra info, file:%s, reason:%s", pDst, tstrerror(terrno));
     goto _EXIT;
   }
 
   if (taosReadFile(pFile, buf, sizeof(buf)) <= 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     stError("failed to read file to load extra info, file:%s, reason:%s", pDst, tstrerror(code));
     goto _EXIT;
   }
@@ -1656,7 +1655,7 @@ int32_t chkpAddExtraInfo(char* pChkpIdDir, int64_t chkpId, int64_t processId) {
 
   pFile = taosOpenFile(pDst, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     stError("failed to open file to add extra info, file:%s, reason:%s", pDst, tstrerror(code));
     goto _EXIT;
   }
@@ -1669,7 +1668,7 @@ int32_t chkpAddExtraInfo(char* pChkpIdDir, int64_t chkpId, int64_t processId) {
   }
 
   if (nBytes != taosWriteFile(pFile, buf, nBytes)) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     stError("failed to write file to add extra info, file:%s, reason:%s", pDst, tstrerror(code));
     goto _EXIT;
   }
@@ -4665,7 +4664,7 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
   TdDirPtr pDir = taosOpenDir(p->buf);
   if (pDir == NULL) {
     (void)taosThreadRwlockUnlock(&p->rwLock);
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   TdDirEntryPtr de = NULL;
@@ -4973,7 +4972,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
   }
 
   if (taosCopyFile(srcBuf, dstBuf) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     stError("failed to copy file from %s to %s, reason:%s", srcBuf, dstBuf, tstrerror(code));
     goto _ERROR;
   }
@@ -4986,7 +4985,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
 
   TdFilePtr pFile = taosOpenFile(dstDir, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     stError("chkp failed to create meta file: %s, reason:%s", dstDir, tstrerror(code));
     goto _ERROR;
   }
@@ -5003,7 +5002,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
 
   nBytes = taosWriteFile(pFile, content, strlen(content));
   if (nBytes != strlen(content)) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     stError("chkp failed to write meta file: %s,reason:%s", dstDir, tstrerror(code));
     (void)taosCloseFile(&pFile);
     goto _ERROR;

@@ -62,7 +62,7 @@ void taosSetQueueCapacity(STaosQueue *queue, int64_t size) { queue->itemLimit = 
 int32_t taosOpenQueue(STaosQueue **queue) {
   *queue = taosMemoryCalloc(1, sizeof(STaosQueue));
   if (*queue == NULL) {
-    return (terrno = TSDB_CODE_OUT_OF_MEMORY);
+    return terrno;
   }
 
   int32_t code = taosThreadMutexInit(&(*queue)->mutex, NULL);
@@ -162,7 +162,7 @@ int32_t taosAllocateQitem(int32_t size, EQItype itype, int64_t dataSize, void **
   STaosQnode *pNode = taosMemoryCalloc(1, sizeof(STaosQnode) + size);
   if (pNode == NULL) {
     (void)atomic_sub_fetch_64(&tsQueueMemoryUsed, size + dataSize);
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pNode->dataSize = dataSize;
@@ -260,7 +260,7 @@ int32_t taosReadQitem(STaosQueue *queue, void **ppItem) {
 int32_t taosAllocateQall(STaosQall **qall) {
   *qall = taosMemoryCalloc(1, sizeof(STaosQall));
   if (*qall == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   return 0;
 }
@@ -333,7 +333,7 @@ int32_t taosGetQitem(STaosQall *qall, void **ppItem) {
 int32_t taosOpenQset(STaosQset **qset) {
   *qset = taosMemoryCalloc(sizeof(STaosQset), 1);
   if (*qset == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (void)taosThreadMutexInit(&(*qset)->mutex, NULL);

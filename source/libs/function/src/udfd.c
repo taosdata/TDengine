@@ -994,7 +994,7 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
 
   TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
   if (file == NULL) {
-    fnError("udfd write udf shared library: %s failed, error: %d %s", path, errno, strerror(errno));
+    fnError("udfd write udf shared library: %s failed, error: %d %s", path, errno, strerror(terrno));
     return TSDB_CODE_FILE_CORRUPTED;
   }
   int64_t count = taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);

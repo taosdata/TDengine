@@ -64,7 +64,7 @@ static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
   pBuf->pFile =
       taosOpenFile(pBuf->path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
   if (pBuf->pFile == NULL) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -136,13 +136,12 @@ static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) { return pageSize 
 static int32_t doFlushBufPageImpl(SDiskbasedBuf* pBuf, int64_t offset, const char* pData, int32_t size) {
   int32_t ret = taosLSeekFile(pBuf->pFile, offset, SEEK_SET);
   if (ret == -1) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = terrno;
     return terrno;
   }
 
   ret = (int32_t)taosWriteFile(pBuf->pFile, pData, size);
   if (ret != size) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
 
@@ -249,14 +248,14 @@ static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
 
   int32_t ret = taosLSeekFile(pBuf->pFile, pg->offset, SEEK_SET);
   if (ret == -1) {
-    ret = TAOS_SYSTEM_ERROR(errno);
+    ret = terrno;
     return ret;
   }
 
   void* pPage = (void*)GET_PAYLOAD_DATA(pg);
   ret = (int32_t)taosReadFile(pBuf->pFile, pPage, pg->length);
   if (ret != pg->length) {
-    ret = TAOS_SYSTEM_ERROR(errno);
+    ret = terrno;
     return ret;
   }
 

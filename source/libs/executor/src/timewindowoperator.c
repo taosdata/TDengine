@@ -894,13 +894,7 @@ int64_t* extractTsCol(SSDataBlock* pBlock, const SIntervalAggOperatorInfo* pInfo
 
     tsCols = (int64_t*)pColDataInfo->pData;
     if(tsCols[0] == 0) {
-      pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-      T_LONG_JMP(pTaskInfo->env, terrno);
-    }
-
-    // no data in primary ts
-    if (tsCols[0] == 0 && tsCols[pBlock->info.rows - 1] == 0) {
-      return NULL;
+      qWarn("%s at line %d.block start ts:%" PRId64 ",end ts:%" PRId64, __func__, __LINE__, tsCols[0], tsCols[pBlock->info.rows - 1]);
     }
 
     if (tsCols[0] != 0 && (pBlock->info.window.skey == 0 && pBlock->info.window.ekey == 0)) {
