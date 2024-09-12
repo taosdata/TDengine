@@ -190,10 +190,10 @@ int64_t taosCopyFile(const char *from, const char *to) {
 
 _err:
 
-  if (pFileFrom != NULL) TAOS_UNUSED(taosCloseFile(&pFileFrom));
-  if (pFileTo != NULL) TAOS_UNUSED(taosCloseFile(&pFileTo));
+  if (pFileFrom != NULL) TAOS_SKIP_ERROR(taosCloseFile(&pFileFrom));
+  if (pFileTo != NULL) TAOS_SKIP_ERROR(taosCloseFile(&pFileTo));
   /* coverity[+retval] */
-  TAOS_UNUSED(taosRemoveFile(to));
+  TAOS_SKIP_ERROR(taosRemoveFile(to));
 
   terrno = code;
   return -1;
@@ -1485,14 +1485,14 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
 cmp_end:
 
   if (fd >= 0) {
-    (void)close(fd);
+    TAOS_SKIP_ERROR(close(fd));
   }
   if (pSrcFile) {
-    TAOS_UNUSED(taosCloseFile(&pSrcFile));
+    TAOS_SKIP_ERROR(taosCloseFile(&pSrcFile));
   }
 
   if (dstFp) {
-    TAOS_UNUSED(gzclose(dstFp));
+    TAOS_SKIP_ERROR(gzclose(dstFp));
   }
 
   taosMemoryFree(data);

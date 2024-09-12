@@ -323,8 +323,8 @@ void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
     }
   }
 
-  (void)taosCloseDir(&pDir);
-  (void)rmdir(dirname);
+  TAOS_UNUSED(taosCloseDir(&pDir));
+  TAOS_UNUSED(rmdir(dirname));
 }
 
 int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
