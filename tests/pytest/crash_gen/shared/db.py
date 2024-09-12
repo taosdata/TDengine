@@ -404,18 +404,27 @@ class MyTDSql:
             else:
                 f.write(f'{sql};\n')
 
+    def recordSmlLine(self, line):
+        sql_file = os.path.join(os.path.dirname(self.cfgPath), "sml_line.txt")
+        with open(sql_file, 'a') as f:
+            if line.endswith(";"):
+                f.write(f'{line}\n')
+            else:
+                f.write(f'{line};\n')
+
     def influxdbLineInsert(self, line, ts_type=None, dbname=None):
         precision = None if ts_type is None else ts_type
         try:
             self._conn.execute(f'use {dbname}')
             self._conn.schemaless_insert(line, TDSmlProtocolType.LINE.value, precision)
-            print(f"Inserted influxDb Line: {line}")
+            self.recordSmlLine(line)
+            Logging.info(f"Inserted influxDb Line: {line}")
         except SchemalessError as e:
-            print(f"SchemalessError: {e}")
-            raise
-        self.line = line
+            Logging.error(f"SchemalessError-{e}: {line}")
+            raise f"SchemalessError: {e}"
 
     def openTsdbTelnetLineInsert(self, line, ts_type=None):
+        # TODO finish
         precision = None if ts_type is None else ts_type
         self._conn.schemaless_insert([line], TDSmlProtocolType.TELNET.value, precision)
 
