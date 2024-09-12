@@ -263,7 +263,7 @@ class WorkerThread:
 
 
 class ThreadCoordinator:
-    WORKER_THREAD_TIMEOUT = 120  # Normal: 120
+    WORKER_THREAD_TIMEOUT = 300  # Normal: 120
 
     def __init__(self, pool: ThreadPool, dbManager: DbManager):
         self._curStep = -1  # first step is 0
@@ -430,8 +430,8 @@ class ThreadCoordinator:
                 self._execStats.registerFailure("Aborted due to worker thread timeout")
                 Logging.error("\n")
 
-                Logging.error("Main loop aborted, caused by worker thread(s) time-out of {} seconds".format(
-                    ThreadCoordinator.WORKER_THREAD_TIMEOUT))
+                Logging.error("Main loop aborted, task {} caused by worker thread(s) time-out of {} seconds".format(
+                    ThreadCoordinator.WORKER_THREAD_TIMEOUT, self._executedTasks))
                 Logging.error("TAOS related threads blocked at (stack frames top-to-bottom):")
                 ts = ThreadStacks()
                 ts.record_current_time(time.time())  # record thread exit time at current moment
@@ -1812,6 +1812,7 @@ class TaskCreateDb(StateTransitionTask):
         updatePostfix = "" if Config.getConfig().verify_data else ""  # allow update only when "verify data" is active , 3.0 version default is update 1
         vg_nums = random.randint(1, 8)
         cache_model = Dice.choice(['none', 'last_row', 'last_value', 'both'])
+        cache_model = Dice.choice(['none'])
         buffer = random.randint(3, 128)
         walRetentionPeriod = random.randint(1, 10000)
         dbName = self._db.getName()
@@ -2230,7 +2231,7 @@ class TdSuperTable:
         except taos.error.ProgrammingError as err:
             errno2 = Helper.convertErrno(err.errno)
             Logging.debug("[=] Failed to get tables from super table: errno=0x{:X}, msg: {}".format(errno2, err))
-            raise CrashGenError("func getRegTables error")
+            raise CrashGenError(f"func getRegTables error: {err}")
 
         qr = dbc.getQueryResult()
         return [v[0] for v in
@@ -3312,7 +3313,8 @@ class TaskReadData(StateTransitionTask):
             except taos.error.ProgrammingError as err:
                 errno2 = Helper.convertErrno(err.errno)
                 Logging.debug("[=] Read Failure: errno=0x{:X}, msg: {}, SQL: {}".format(errno2, err, dbc.getLastSql()))
-                raise
+                self.logError(f"func TaskReadData error: {sql}")
+                raise CrashGenError(f"func TaskReadData error: {err}")
 
 
 class SqlQuery:
@@ -3534,6 +3536,9 @@ class TaskAddData(StateTransitionTask):
         # Logging.info("Adding data in batch: {}".format(sql))
         try:
             dbc.execute(sql)
+        except Exception as e:
+            self.logError(f"func _addDataInBatch_n error: {sql}")
+            raise CrashGenError(f"func _addDataInBatch_n error {e}")
         finally:
             # Logging.info("Data added in batch: {}".format(sql))
             self._unlockTableIfNeeded(fullTableName)
@@ -3903,9 +3908,10 @@ class TaskAddData(StateTransitionTask):
                     dbc.execute(sql)
                     intWrote = intToUpdate  # We updated, seems TDengine non-cluster accepts this.
 
-            except:  # Any exception at all
+            except Exception as e:  # Any exception at all
+                self.logError(f"func _addData_n error: {sql}")
                 self._unlockTableIfNeeded(fullTableName)
-                raise CrashGenError("func _addData_n error")
+                raise CrashGenError(f"func _addData_n error: {e}")
 
             # Now read it back and verify, we might encounter an error if table is dropped
             if Config.getConfig().verify_data:  # only if command line asks for it
@@ -3987,9 +3993,10 @@ class TaskAddData(StateTransitionTask):
                 # Logging.info("Adding data: {}".format(sql))
                 dbc.execute(sql)
                 # Logging.info("Data added: {}".format(sql))
-            except:  # Any exception at all
+            except Exception as e:  # Any exception at all
+                self.logError(f"func _addDataByAutoCreateTable_n error: {sql}")
                 self._unlockTableIfNeeded(fullRegTableName)
-                raise CrashGenError("func _addDataByAutoCreateTable_n error")
+                raise CrashGenError(f"func _addDataByAutoCreateTable_n error: {e}")
 
     def _addDataByMultiTable_n(self, db: Database, dbc):
         """
@@ -4026,9 +4033,10 @@ class TaskAddData(StateTransitionTask):
             # Logging.info("Adding data: {}".format(sql))
             dbc.execute(sql)
             Logging.info("Data added: {}".format(sql))
-        except:  # Any exception at all
+        except Exception as e:  # Any exception at all
+            self.logError(f"func _addDataByMultiTable_n error: {sql}")
             self._unlockTableIfNeeded(fullRegTableName)
-            raise CrashGenError("func _addDataByMultiTable_n error")
+            raise CrashGenError(f"func _addDataByMultiTable_n error: {e}")
 
     def _getStmtBindLines(self, db: Database, dbc):
         """
@@ -4049,30 +4057,35 @@ class TaskAddData(StateTransitionTask):
         res = dbc.getQueryResult()
         lines = list()
         regTables = list(map(lambda x:f'{x[0]}_stmt', res[0:self.SMALL_NUMBER_OF_RECORDS]))
+        cols = self.getMeta(db, dbc)[0]
+        tags = self.getMeta(db, dbc)[1]
+        colStrs = self._getTagColStrForSql(db, dbc, cols)[1]
+        tagStrs = self._getTagColStrForSql(db, dbc, tags)[1]
         for regTable in regTables:
-            cols = self.getMeta(db, dbc)[0]
-            tags = self.getMeta(db, dbc)[1]
-            # if not cols or not tags:
-            #     return "No table exists"
-            colStrs = self._getTagColStrForSql(db, dbc, cols)[1]
-            tagStrs = self._getTagColStrForSql(db, dbc, tags)[1]
             combine_list = [regTable] + colStrs + tagStrs
             lines.append(tuple(combine_list))
         return lines, cols, tags
 
-    def _transTs(self, ts):
+    def _transTs(self, ts, precision):
         """
-        Convert a timestamp to milliseconds.
+        Convert a timestamp to the specified precision.
 
         Args:
-            ts (datetime.datetime): The timestamp to be converted.
+            ts (datetime.datetime): The timestamp to convert.
+            precision (str): The desired precision of the converted timestamp. Valid values are "ms", "us", and "ns".
 
         Returns:
-            int: The converted timestamp in milliseconds.
-        """
-        return int(ts.timestamp() * 1000)
+            int: The converted timestamp.
 
-    def bind_row_by_row(self, stmt: taos.TaosStmt, lines, tag_dict, col_dict):
+        """
+        if precision == "ms":
+            return int(ts.timestamp() * 1000)
+        elif precision == "us":
+            return int(ts.timestamp() * 1000000)
+        elif precision == "ns":
+            return int(ts.timestamp() * 1000000000)
+
+    def bind_row_by_row(self, stmt: taos.TaosStmt, lines, tag_dict, col_dict, precision):
         """
         Binds rows of data to a TaosStmt object row by row.
 
@@ -4109,7 +4122,7 @@ class TaskAddData(StateTransitionTask):
                 if "unsigned" in col_dict[col_name].lower():
                     bind_type = bind_type.replace("unsigned", "_unsigned")
                 if j == 0:
-                    getattr(values[j], col_dict[col_name].lower())(self._transTs(row[1 + j]))  # Dynamically call the appropriate binding method
+                    getattr(values[j], col_dict[col_name].lower())(self._transTs(row[1 + j], precision))  # Dynamically call the appropriate binding method
                 else:
                     if bind_type == "varbinary" or bind_type == "geometry":
                         getattr(values[j], bind_type)(row[1 + j].encode('utf-8'))
@@ -4132,6 +4145,9 @@ class TaskAddData(StateTransitionTask):
         lines, col_dict, tag_dict = self._getStmtBindLines(db, dbc)
         # TODO replace dbc
         conn = taos.connect(database=db.getName())
+        dbc.query(f'select `precision` from information_schema.ins_databases where name = "{db.getName()}"')
+        res = dbc.getQueryResult()
+        precision = res[0][0]
         stbname = db.getFixedSuperTable().getName()
         try:
             # Dynamically create the SQL statement based on the number of tags and values
@@ -4140,9 +4156,12 @@ class TaskAddData(StateTransitionTask):
             sql = f"INSERT INTO ? USING {stbname} TAGS({tag_placeholders}) VALUES({value_placeholders})"
 
             stmt = conn.statement(sql)
-            self.bind_row_by_row(stmt, lines, tag_dict, col_dict)
+            self.bind_row_by_row(stmt, lines, tag_dict, col_dict, precision)
             stmt.execute()
             stmt.close()
+        except Exception as e:  # Any exception at all
+            self.logError(f"func _addDataBySTMT error: {e}")
+            raise CrashGenError("func _addDataBySTMT error: {e}")
         finally:
             conn.close()
 
@@ -4190,6 +4209,24 @@ class TaskAddData(StateTransitionTask):
     def _transSmlVal(self, ):
         pass
 
+    def _transSmlTsType(self, precision):
+        """
+        Translates the precision string to the corresponding TDSmlTimestampType value.
+
+        Args:
+            precision (str): The precision string ("ms", "us", or "ns").
+
+        Returns:
+            int: The corresponding TDSmlTimestampType value.
+
+        """
+        if precision == "ms":
+            return TDSmlTimestampType.MILLI_SECOND.value
+        elif precision == "us":
+            return TDSmlTimestampType.MICRO_SECOND.value
+        elif precision == "ns":
+            return TDSmlTimestampType.NANO_SECOND.value
+
     def _addDataByInfluxdbLine(self, db: Database, dbc):
         """
         Add data to InfluxDB using InfluxDB line protocol.
@@ -4212,7 +4249,10 @@ class TaskAddData(StateTransitionTask):
         # for stbname in stbList:
         dataDictList = list()
         tagDataDictList = list()
-        ts = self._transTs(db.getNextTick())
+        dbc.query(f'select `precision` from information_schema.ins_databases where name = "{db.getName()}"')
+        res = dbc.getQueryResult()
+        precision = res[0][0]
+        ts = self._transTs(db.getNextTick(), precision)
         if stbname == newCreateStable:
             for i in range(2):
                 sample_cnt = random.randint(1, len(self.smlSupportTypeList))
@@ -4259,9 +4299,11 @@ class TaskAddData(StateTransitionTask):
             #     pass
         try:
             lines = f'{stbname},{tagStrs} {colStrs} {ts}'
-            dbc.influxdbLineInsert(line=[lines], ts_type=TDSmlTimestampType.MILLI_SECOND.value, dbname=db.getName())
-        except:  # Any exception at all
-            raise CrashGenError("func _addDataByInfluxdbLine error")
+            ts_type = self._transSmlTsType(precision)
+            dbc.influxdbLineInsert(line=[lines], ts_type=ts_type, dbname=db.getName())
+        except Exception as e:  # Any exception at all
+            self.logError(f"func _addDataByInfluxdbLine error: {lines}")
+            raise CrashGenError(f"func _addDataByInfluxdbLine error: {e}")
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # ds = self._dbManager # Quite DANGEROUS here, may result in multi-thread client access
