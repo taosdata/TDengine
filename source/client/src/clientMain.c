@@ -1526,7 +1526,7 @@ int taos_get_table_vgId(TAOS *taos, const char *db, const char *table, int *vgId
   conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
   SName tableName;
-  (void)toName(pTscObj->acctId, db, table, &tableName);
+  toName(pTscObj->acctId, db, table, &tableName);
 
   SVgroupInfo vgInfo;
   code = catalogGetTableHashVgroup(pCtg, &conn, &tableName, &vgInfo);
