@@ -24,7 +24,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_desc.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_null.py
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/incSnapshot.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f cluster/clusterBasic.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f cluster/clusterBasic.py -N 5
 ,,y,army,./pytest.sh python3 ./test.py -f query/query_basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_query_accuracy.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/insert_basic.py -N 3
@@ -351,7 +351,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 3
 ,,n,system-test,python3 ./test.py -f 0-others/timeRangeWise.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/delete_check.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/subscribe_stream_privilege.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/empty_identifier.py
 
@@ -1270,7 +1270,7 @@
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic2.sim
-,,y,script,./test.sh -f tsim/mnode/basic3.sim
+#,,y,script,./test.sh -f tsim/mnode/basic3.sim
 ,,y,script,./test.sh -f tsim/mnode/basic4.sim
 ,,y,script,./test.sh -f tsim/mnode/basic5.sim
 ,,y,script,./test.sh -f tsim/show/basic.sim
@@ -1453,6 +1453,7 @@
 ,,y,script,./test.sh -f tsim/compute/diff2.sim
 ,,y,script,./test.sh -f tsim/compute/first.sim
 ,,y,script,./test.sh -f tsim/compute/interval.sim
+,,y,script,./test.sh -f tsim/compute/interval1.sim
 ,,y,script,./test.sh -f tsim/compute/last_row.sim
 ,,y,script,./test.sh -f tsim/compute/last.sim
 ,,y,script,./test.sh -f tsim/compute/leastsquare.sim

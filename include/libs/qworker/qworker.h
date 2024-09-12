@@ -72,6 +72,7 @@ typedef struct SQWMsg {
   int32_t        msgLen;
   SQWMsgInfo     msgInfo;
   SRpcHandleInfo connInfo;
+  void          *pWorkerCb;
 } SQWMsg;
 
 int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const SMsgCb *pMsgCb);

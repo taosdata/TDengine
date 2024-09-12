@@ -150,7 +150,7 @@ int32_t updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, b
   int32_t      lino = 0;
   SUpdateInfo* pInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
   if (pInfo == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
   pInfo->pTsBuckets = NULL;
@@ -203,12 +203,12 @@ int32_t updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, b
   pInfo->pkColType = pkType;
   pInfo->pKeyBuff = taosMemoryCalloc(1, sizeof(TSKEY) + sizeof(int64_t) + pkLen);
   if (!pInfo->pKeyBuff) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
   pInfo->pValueBuff = taosMemoryCalloc(1, sizeof(TSKEY) + pkLen);
   if (!pInfo->pValueBuff) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
   if (pkLen != 0) {
@@ -231,7 +231,7 @@ _end:
 static int32_t getSBf(SUpdateInfo* pInfo, TSKEY ts, SScalableBf** ppSBf) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  if (ts <= 0) {
+  if (ts < 0) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }

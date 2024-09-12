@@ -505,12 +505,35 @@ class TDTestCase(TBase):
         tdSql.query("select var_pop(null) from ts_4893.meters;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, None)
-
     def test_error(self):
         tdSql.error(
             "select * from (select to_iso8601(ts, timezone()), timezone() from meters order by ts desc) limit 1000;",
             expectErrInfo="Not supported timzone format")  # TS-5340
+    def test_min(self):
+        self.test_normal_query("min")
 
+        tdSql.query("select min(var1), min(id) from ts_4893.d0;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'abc一二三abc一二三abc')
+        tdSql.checkData(0, 1, 0)
+    def test_max(self):
+        self.test_normal_query("max")
+        tdSql.query("select max(var1), max(id) from ts_4893.d0;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '一二三四五六七八九十')
+        tdSql.checkData(0, 1, 9999)
+    def test_rand(self):
+        tdSql.query("select rand();")
+        tdSql.checkRows(1)
+
+        tdSql.query("select rand(1);")
+        tdSql.checkRows(1)
+
+        tdSql.query("select rand(1) from ts_4893.meters limit 10;")
+        tdSql.checkRows(10)
+
+        tdSql.query("select rand(id) from ts_4893.d0 limit 10;")
+        tdSql.checkRows(10)
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -528,6 +551,7 @@ class TDTestCase(TBase):
         self.test_sign()
         self.test_degrees()
         self.test_radians()
+        self.test_rand()
 
         # char function
         self.test_char_length()
@@ -550,6 +574,10 @@ class TDTestCase(TBase):
         # agg function
         self.test_stddev()
         self.test_varpop()
+
+        # select function
+        self.test_min()
+        self.test_max()
 
         # error function
         self.test_error()

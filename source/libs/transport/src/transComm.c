@@ -70,7 +70,7 @@ int32_t transDecompressMsg(char** msg, int32_t len) {
 
   char* buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
@@ -106,7 +106,7 @@ int transSockInfo2Str(struct sockaddr* sockname, char* dst) {
 int32_t transInitBuffer(SConnBuffer* buf) {
   buf->buf = taosMemoryCalloc(1, BUFFER_CAP);
   if (buf->buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   buf->cap = BUFFER_CAP;
@@ -149,7 +149,7 @@ int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf) {
   if (total >= HEADSIZE && !p->invalid) {
     *buf = taosMemoryCalloc(1, total);
     if (*buf == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     memcpy(*buf, p->buf, total);
     if ((code = transResetBuffer(connBuf, resetBuf)) < 0) {
@@ -249,7 +249,7 @@ int32_t transSetConnOption(uv_tcp_t* stream, int keepalive) {
 int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAsyncPool** pPool) {
   SAsyncPool* pool = taosMemoryCalloc(1, sizeof(SAsyncPool));
   if (pool == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
     // return NULL;
   }
   int32_t code = 0;
@@ -258,7 +258,7 @@ int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAs
   pool->asyncs = taosMemoryCalloc(1, sizeof(uv_async_t) * pool->nAsync);
   if (pool->asyncs == NULL) {
     taosMemoryFree(pool);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int i = 0, err = 0;
@@ -267,7 +267,7 @@ int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAs
 
     SAsyncItem* item = taosMemoryCalloc(1, sizeof(SAsyncItem));
     if (item == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       break;
     }
     item->pThrd = arg;
@@ -560,7 +560,7 @@ int32_t transDQCreate(uv_loop_t* loop, SDelayQueue** queue) {
 
   timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
   if (timer == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   heap = heapCreate(timeCompare);
@@ -852,7 +852,7 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
   int32_t len = 0;
   char*   pBuf = taosMemoryCalloc(1, pList->num * 36);
   if (pBuf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int i = 0; i < pList->num; i++) {

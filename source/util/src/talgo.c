@@ -148,7 +148,7 @@ static void tqsortImpl(void *src, int32_t start, int32_t end, int64_t size, cons
 int32_t taosqsort(void *src, int64_t numOfElem, int64_t size, const void *param, __ext_compar_fn_t comparFn) {
   char *buf = taosMemoryCalloc(1, size);  // prepare the swap buffer
   if (NULL == buf) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   tqsortImpl(src, 0, (int32_t)numOfElem - 1, (int32_t)size, param, comparFn, buf);
   taosMemoryFreeClear(buf);
@@ -393,7 +393,7 @@ int32_t taosheapsort(void *base, int32_t size, int32_t len, const void *parcompa
 
   char *buf = taosMemoryCalloc(1, size);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (base && size > 0) {
@@ -454,7 +454,7 @@ static int32_t taosMergeSortHelper(void *src, int64_t numOfElem, int64_t size, c
   const int32_t THRESHOLD_SIZE = 6;
   char         *buf = taosMemoryCalloc(1, size);  // prepare the swap buffer
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int32_t start = 0; start < numOfElem - 1; start += THRESHOLD_SIZE) {

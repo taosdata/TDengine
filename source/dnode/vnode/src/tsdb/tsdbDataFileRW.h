@@ -51,7 +51,7 @@ typedef struct SDataFileReaderConfig {
 
 int32_t tsdbDataFileReaderOpen(const char *fname[/* TSDB_FTYPE_MAX */], const SDataFileReaderConfig *config,
                                SDataFileReader **reader);
-int32_t tsdbDataFileReaderClose(SDataFileReader **reader);
+void    tsdbDataFileReaderClose(SDataFileReader **reader);
 // .head
 int32_t tsdbDataFileReadBrinBlk(SDataFileReader *reader, const TBrinBlkArray **brinBlkArray);
 int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinBlk, SBrinBlock *brinBlock);
@@ -115,8 +115,8 @@ int32_t tsdbFileWriteTombFooter(STsdbFD *fd, const STombFooter *footer, int64_t 
                                 char *encryptKey);
 
 // utils
-int32_t tsdbWriterUpdVerRange(SVersionRange *range, int64_t minVer, int64_t maxVer);
-int32_t tsdbTFileUpdVerRange(STFile *f, SVersionRange range);
+void tsdbWriterUpdVerRange(SVersionRange *range, int64_t minVer, int64_t maxVer);
+void tsdbTFileUpdVerRange(STFile *f, SVersionRange range);
 
 #ifdef __cplusplus
 }

@@ -617,6 +617,8 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
   code = TSDB_CODE_SUCCESS;
 
 _err:
+  blockDataCheck(pBlock, true);
+
   colDataDestroy(p);
   taosMemoryFree(p);
   return code;
@@ -1010,6 +1012,10 @@ static void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_
   }
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
+    if (pCtx[i].fpSet.cleanup != NULL) {
+      pCtx[i].fpSet.cleanup(&pCtx[i]);
+    }
+
     if (pExpr != NULL) {
       SExprInfo* pExprInfo = &pExpr[i];
       for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
@@ -1280,7 +1286,7 @@ void freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType
 
 FORCE_INLINE int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam,
                                                     SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
 
   int32_t code = 0;
   if (pOperator->pDownstreamGetParams && pOperator->pDownstreamGetParams[idx]) {

@@ -1,0 +1,16 @@
+select MIN(id) from ts_4893.meters;
+select MIN(current) from ts_4893.meters;
+select MIN(voltage) from ts_4893.meters;
+select MIN(name) from ts_4893.meters;
+select MIN(nch1) from ts_4893.meters;
+select MIN(nch2) from ts_4893.meters;
+select MIN(var1) from ts_4893.meters;
+select MIN(var2) from ts_4893.meters;
+select MIN(id) from ts_4893.meters interval(60d);
+select MIN(current) from ts_4893.meters interval(60d);
+select MIN(voltage) from ts_4893.meters interval(60d);
+select MIN(name) from ts_4893.meters interval(60d);
+select MIN(nch1) from ts_4893.meters interval(60d);
+select MIN(nch2) from ts_4893.meters interval(60d);
+select MIN(var1) from ts_4893.meters interval(60d);
+select MIN(var2) from ts_4893.meters interval(60d);

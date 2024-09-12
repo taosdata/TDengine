@@ -264,7 +264,7 @@ int32_t uvWhiteListToStr(SWhiteUserList* plist, char* user, char** ppBuf) {
 
   char* pBuf = taosMemoryCalloc(1, tlen + 64);
   if (pBuf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t len = sprintf(pBuf, "user: %s, ver: %" PRId64 ", ip: {%s}", user, plist->ver, tmp);
@@ -303,7 +303,7 @@ int32_t uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteList* plist,
   if (ppUserList == NULL || *ppUserList == NULL) {
     SWhiteUserList* pUserList = taosMemoryCalloc(1, sizeof(SWhiteUserList));
     if (pUserList == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     pUserList->ver = ver;
@@ -1094,7 +1094,7 @@ static int32_t addHandleToAcceptloop(void* arg) {
   srv->pAcceptAsync = taosMemoryCalloc(1, sizeof(uv_async_t));
   if (srv->pAcceptAsync == NULL) {
     tError("failed to create async since %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   code = uv_async_init(srv->loop, srv->pAcceptAsync, uvAcceptAsyncCb);
@@ -1714,7 +1714,7 @@ int32_t transReleaseSrvHandle(void* handle) {
 
   SSvrMsg* m = taosMemoryCalloc(1, sizeof(SSvrMsg));
   if (m == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _return1;
   }
 
@@ -1764,7 +1764,7 @@ int32_t transSendResponse(const STransMsg* msg) {
 
   SSvrMsg* m = taosMemoryCalloc(1, sizeof(SSvrMsg));
   if (m == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _return1;
   }
 
@@ -1809,7 +1809,7 @@ int32_t transRegisterMsg(const STransMsg* msg) {
 
   SSvrMsg* m = taosMemoryCalloc(1, sizeof(SSvrMsg));
   if (m == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _return1;
   }
 
@@ -1853,7 +1853,7 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
 
     SSvrMsg* msg = taosMemoryCalloc(1, sizeof(SSvrMsg));
     if (msg == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       break;
     }
 

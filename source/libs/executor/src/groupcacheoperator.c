@@ -204,7 +204,7 @@ static FORCE_INLINE int32_t initOpenCacheFile(SGroupCacheFileFd* pFileFd, char* 
   TdFilePtr newFd = taosOpenFile(filename, TD_FILE_CREATE|TD_FILE_READ|TD_FILE_WRITE|TD_FILE_AUTO_DEL);
   //TdFilePtr newFd = taosOpenFile(filename, TD_FILE_CREATE|TD_FILE_READ|TD_FILE_WRITE);
   if (NULL == newFd) {
-    QRY_ERR_RET(TAOS_SYSTEM_ERROR(errno));
+    QRY_ERR_RET(terrno);
   }
   pFileFd->fd = newFd;
   int32_t code = taosThreadMutexInit(&pFileFd->mutex, NULL);
@@ -315,16 +315,16 @@ static int32_t saveBlocksToDisk(SGroupCacheOperatorInfo* pGCache, SGcDownstreamC
     }
     
     int32_t ret = taosLSeekFile(pFd->fd, pHead->basic.offset, SEEK_SET);
-    if (ret == -1) {
+    if (ret < 0) {
       releaseFdToFileCtx(pFd);
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = terrno;
       goto _return;
     }
     
     ret = (int32_t)taosWriteFile(pFd->fd, pHead->pBuf, pHead->basic.bufSize);
     if (ret != pHead->basic.bufSize) {
       releaseFdToFileCtx(pFd);
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = terrno;
       goto _return;
     }
     
@@ -548,8 +548,8 @@ static int32_t readBlockFromDisk(SGroupCacheOperatorInfo* pGCache, SGroupCacheDa
   }
   
   int32_t ret = taosLSeekFile(pFileFd->fd, pBasic->offset, SEEK_SET);
-  if (ret == -1) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  if (ret < 0) {
+    code = terrno;
     goto _return;
   }
 
@@ -562,7 +562,7 @@ static int32_t readBlockFromDisk(SGroupCacheOperatorInfo* pGCache, SGroupCacheDa
   ret = (int32_t)taosReadFile(pFileFd->fd, *ppBuf, pBasic->bufSize);
   if (ret != pBasic->bufSize) {
     taosMemoryFreeClear(*ppBuf);
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _return;
   }
 
@@ -732,6 +732,8 @@ static FORCE_INLINE int32_t getBlkFromDownstreamOperator(struct SOperatorInfo* p
       }
     }
   }
+
+  blockDataCheck(pBlock, false);
 
   *ppRes = pBlock;
   return code;
@@ -1444,7 +1446,7 @@ static int32_t groupCacheTableCacheEnd(SOperatorInfo* pOperator, SOperatorParam*
 int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                      SGroupCachePhysiNode* pPhyciNode, SExecTaskInfo* pTaskInfo,
                                      SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
   int32_t code = TSDB_CODE_SUCCESS;
 
   SGroupCacheOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SGroupCacheOperatorInfo));

@@ -146,6 +146,7 @@ void* rpcMallocCont(int64_t contLen) {
   char*   start = taosMemoryCalloc(1, size);
   if (start == NULL) {
     tError("failed to malloc msg, size:%" PRId64, size);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   } else {
     tTrace("malloc mem:%p size:%" PRId64, start, size);
@@ -161,10 +162,13 @@ void* rpcReallocCont(void* ptr, int64_t contLen) {
 
   char*   st = (char*)ptr - TRANS_MSG_OVERHEAD;
   int64_t sz = contLen + TRANS_MSG_OVERHEAD;
-  st = taosMemoryRealloc(st, sz);
-  if (st == NULL) {
+  char*   nst = taosMemoryRealloc(st, sz);
+  if (nst == NULL) {
+    taosMemoryFree(st);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
+  } else {
+    st = nst;
   }
 
   return st + TRANS_MSG_OVERHEAD;

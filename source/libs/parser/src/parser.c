@@ -76,33 +76,33 @@ bool qIsCreateTbFromFileSql(const char* pStr, size_t length) {
 }
 
 bool qParseDbName(const char* pStr, size_t length, char** pDbName) {
-  (void) length;
+  (void)length;
   int32_t index = 0;
-  SToken t;
+  SToken  t;
 
   if (NULL == pStr) {
     *pDbName = NULL;
     return false;
   }
 
-  t = tStrGetToken((char *) pStr, &index, false, NULL);
+  t = tStrGetToken((char*)pStr, &index, false, NULL);
   if (TK_INSERT != t.type && TK_IMPORT != t.type) {
     *pDbName = NULL;
     return false;
   }
 
-  t = tStrGetToken((char *) pStr, &index, false, NULL);
+  t = tStrGetToken((char*)pStr, &index, false, NULL);
   if (TK_INTO != t.type) {
     *pDbName = NULL;
     return false;
   }
 
-  t = tStrGetToken((char *) pStr, &index, false, NULL);
+  t = tStrGetToken((char*)pStr, &index, false, NULL);
   if (t.n == 0 || t.z == NULL) {
     *pDbName = NULL;
     return false;
   }
-  char *dotPos = strnchr(t.z, '.', t.n, true);
+  char* dotPos = strnchr(t.z, '.', t.n, true);
   if (dotPos != NULL) {
     int dbNameLen = dotPos - t.z;
     *pDbName = taosMemoryMalloc(dbNameLen + 1);
@@ -172,7 +172,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
     case TSDB_DATA_TYPE_VARBINARY:
       pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pVal->datum.p) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
       memcpy(varDataVal(pVal->datum.p), pParam->buffer, pVal->node.resType.bytes);
@@ -182,7 +182,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
     case TSDB_DATA_TYPE_GEOMETRY:
       pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pVal->datum.p) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
       strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
@@ -192,7 +192,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
       pVal->node.resType.bytes *= TSDB_NCHAR_SIZE;
       pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pVal->datum.p) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       int32_t output = 0;
@@ -331,13 +331,12 @@ int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, SSDataBlock
   return code;
 }
 
-
-static void destoryTablesReq(void *p) {
-  STablesReq *pRes = (STablesReq *)p;
+static void destoryTablesReq(void* p) {
+  STablesReq* pRes = (STablesReq*)p;
   taosArrayDestroy(pRes->pTables);
 }
 
-void destoryCatalogReq(SCatalogReq *pCatalogReq) {
+void destoryCatalogReq(SCatalogReq* pCatalogReq) {
   if (NULL == pCatalogReq) {
     return;
   }
@@ -368,7 +367,6 @@ void destoryCatalogReq(SCatalogReq *pCatalogReq) {
   taosArrayDestroy(pCatalogReq->pTableCfg);
   taosArrayDestroy(pCatalogReq->pTableTag);
 }
-
 
 void tfreeSParseQueryRes(void* p) {
   if (NULL == p) {
@@ -410,9 +408,7 @@ int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid) {
   return TSDB_CODE_FAILED;
 }
 
-int32_t qInitKeywordsTable() {
-  return taosInitKeywordsTable();
-}
+int32_t qInitKeywordsTable() { return taosInitKeywordsTable(); }
 
 void qCleanupKeywordsTable() { taosCleanupKeywordsTable(); }
 
@@ -429,6 +425,98 @@ int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx
     }
   } else {
     code = setValueByBindParam((SValueNode*)taosArrayGetP(pQuery->pPlaceholderValues, colIdx), pParams);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && (colIdx < 0 || colIdx + 1 == pQuery->placeholderNum)) {
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = NULL;
+    code = nodesCloneNode(pQuery->pPrepareRoot, &pQuery->pRoot);
+    if (NULL == pQuery->pRoot) {
+      code = code;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    rewriteExprAlias(pQuery->pRoot);
+  }
+  return code;
+}
+
+static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam) {
+  if (IS_VAR_DATA_TYPE(pVal->node.resType.type)) {
+    taosMemoryFreeClear(pVal->datum.p);
+  }
+
+  if (pParam->is_null && 1 == *(pParam->is_null)) {
+    pVal->node.resType.type = TSDB_DATA_TYPE_NULL;
+    pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t inputSize = (NULL != pParam->length ? *(pParam->length) : tDataTypes[pParam->buffer_type].bytes);
+  pVal->node.resType.type = pParam->buffer_type;
+  pVal->node.resType.bytes = inputSize;
+
+  switch (pParam->buffer_type) {
+    case TSDB_DATA_TYPE_VARBINARY:
+      pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
+      if (NULL == pVal->datum.p) {
+        return terrno;
+      }
+      varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
+      memcpy(varDataVal(pVal->datum.p), pParam->buffer, pVal->node.resType.bytes);
+      pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
+      break;
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY:
+      pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
+      if (NULL == pVal->datum.p) {
+        return terrno;
+      }
+      varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
+      strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
+      pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
+      break;
+    case TSDB_DATA_TYPE_NCHAR: {
+      pVal->node.resType.bytes *= TSDB_NCHAR_SIZE;
+      pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
+      if (NULL == pVal->datum.p) {
+        return terrno;
+      }
+
+      int32_t output = 0;
+      if (!taosMbsToUcs4(pParam->buffer, inputSize, (TdUcs4*)varDataVal(pVal->datum.p), pVal->node.resType.bytes,
+                         &output)) {
+        return errno;
+      }
+      varDataSetLen(pVal->datum.p, output);
+      pVal->node.resType.bytes = output + VARSTR_HEADER_SIZE;
+      break;
+    }
+    default: {
+      int32_t code = nodesSetValueNodeValue(pVal, pParam->buffer);
+      if (code) {
+        return code;
+      }
+      break;
+    }
+  }
+  pVal->translate = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colIdx) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (colIdx < 0) {
+    int32_t size = taosArrayGetSize(pQuery->pPlaceholderValues);
+    for (int32_t i = 0; i < size; ++i) {
+      code = setValueByBindParam2((SValueNode*)taosArrayGetP(pQuery->pPlaceholderValues, i), pParams + i);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+    }
+  } else {
+    code = setValueByBindParam2((SValueNode*)taosArrayGetP(pQuery->pPlaceholderValues, colIdx), pParams);
   }
 
   if (TSDB_CODE_SUCCESS == code && (colIdx < 0 || colIdx + 1 == pQuery->placeholderNum)) {

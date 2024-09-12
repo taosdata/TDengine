@@ -41,7 +41,6 @@ int32_t sclConvertToTsValueNode(int8_t precision, SValueNode *valueNode) {
 int32_t sclCreateColumnInfoData(SDataType *pType, int32_t numOfRows, SScalarParam *pParam) {
   SColumnInfoData *pColumnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
   if (pColumnData == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -99,7 +98,7 @@ int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockL
   int32_t       code = TSDB_CODE_SUCCESS;
   if (NULL == pLeft) {
     sclError("calloc %d failed", (int32_t)sizeof(SScalarParam));
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   pLeft->numOfRows = pb->info.rows;
@@ -131,7 +130,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
   SListCell     *cell = nodeList->pNodeList->pHead;
   SScalarParam   out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
   if (out.columnData == NULL) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
   int32_t len = 0;
   void   *buf = NULL;
@@ -485,7 +484,7 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarC
   SScalarParam *paramList = taosMemoryCalloc(*paramNum, sizeof(SScalarParam));
   if (NULL == paramList) {
     sclError("calloc %d failed", (int32_t)((*paramNum) * sizeof(SScalarParam)));
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   if (pParamList) {
@@ -581,7 +580,7 @@ int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScal
   SScalarParam *paramList = taosMemoryCalloc(paramNum, sizeof(SScalarParam));
   if (NULL == paramList) {
     sclError("calloc %d failed", (int32_t)(paramNum * sizeof(SScalarParam)));
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   SCL_ERR_JRET(sclSetOperatorValueType(node, ctx));
@@ -608,7 +607,7 @@ int32_t sclGetNodeRes(SNode *node, SScalarCtx *ctx, SScalarParam **res) {
   int32_t rowNum = 0;
   *res = taosMemoryCalloc(1, sizeof(**res));
   if (NULL == *res) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   SCL_ERR_RET(sclInitParam(node, *res, ctx, &rowNum));
@@ -1179,7 +1178,8 @@ EDealRes sclRewriteNonConstOperator(SNode **pNode, SScalarCtx *ctx) {
 EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode         *tnode = NULL;
-  if ((!fmIsScalarFunc(node->funcId) && (!ctx->dual)) || fmIsUserDefinedFunc(node->funcId)) {
+  if ((!fmIsScalarFunc(node->funcId) && (!ctx->dual)) ||
+      fmIsUserDefinedFunc(node->funcId)) {
     return DEAL_RES_CONTINUE;
   }
 
@@ -1585,7 +1585,10 @@ EDealRes sclWalkTarget(SNode *pNode, SScalarCtx *ctx) {
   block->info.rows = res->numOfRows;
 
   sclFreeParam(res);
-  (void)taosHashRemove(ctx->pRes, (void *)&target->pExpr, POINTER_BYTES);
+  ctx->code = taosHashRemove(ctx->pRes, (void *)&target->pExpr, POINTER_BYTES);
+  if (TSDB_CODE_SUCCESS != ctx->code) {
+    return DEAL_RES_ERROR;
+  }
   return DEAL_RES_CONTINUE;
 }
 
@@ -1811,7 +1814,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
     }
 
     sclFreeParam(res);
-    (void)taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
+    SCL_ERR_JRET(taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES));
   }
 
 _return:

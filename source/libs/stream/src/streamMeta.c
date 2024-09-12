@@ -357,13 +357,13 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
   if (pMeta == NULL) {
     stError("vgId:%d failed to prepare stream meta, alloc size:%" PRIzu ", out of memory", vgId, sizeof(SStreamMeta));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t len = strlen(path) + 64;
   char*   tpath = taosMemoryCalloc(1, len);
   if (tpath == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
 
@@ -630,7 +630,7 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
 
   buf = taosMemoryCalloc(1, len);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (pTask->ver < SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
@@ -1224,7 +1224,7 @@ void streamMetaWUnLock(SStreamMeta* pMeta) {
 }
 
 int32_t streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta, SArray** pList) {
-  QRY_OPTR_CHECK(pList);
+  QRY_PARAM_CHECK(pList);
 
   int32_t code = 0;
   SArray* pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
