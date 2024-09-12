@@ -112,7 +112,7 @@ static int taosLRUEntryTableInit(SLRUEntryTable *table, int maxUpperHashBits) {
   table->lengthBits = 4;
   table->list = taosMemoryCalloc(1 << table->lengthBits, sizeof(SLRUEntry *));
   if (!table->list) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   table->elems = 0;

@@ -15,7 +15,7 @@ static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void**
   } else if (pTblBuf->buffIdx < taosArrayGetSize(pTblBuf->pBufList)) {
     pTblBuf->pCurBuff = taosArrayGetP(pTblBuf->pBufList, pTblBuf->buffIdx++);
     if (NULL == pTblBuf->pCurBuff) {
-      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+      return TAOS_GET_TERRNO(terrno);
     }
     *pBuf = pTblBuf->pCurBuff;
     pTblBuf->buffOffset = pTblBuf->buffUnit;
@@ -186,7 +186,7 @@ int32_t stmtBackupQueryFields(STscStmt* pStmt) {
   pRes->fields = taosMemoryMalloc(size);
   pRes->userFields = taosMemoryMalloc(size);
   if (NULL == pRes->fields || NULL == pRes->userFields) {
-    STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    STMT_ERR_RET(terrno);
   }
   (void)memcpy(pRes->fields, pStmt->exec.pRequest->body.resInfo.fields, size);
   (void)memcpy(pRes->userFields, pStmt->exec.pRequest->body.resInfo.userFields, size);
@@ -204,7 +204,7 @@ int32_t stmtRestoreQueryFields(STscStmt* pStmt) {
   if (NULL == pStmt->exec.pRequest->body.resInfo.fields) {
     pStmt->exec.pRequest->body.resInfo.fields = taosMemoryMalloc(size);
     if (NULL == pStmt->exec.pRequest->body.resInfo.fields) {
-      STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      STMT_ERR_RET(terrno);
     }
     (void)memcpy(pStmt->exec.pRequest->body.resInfo.fields, pRes->fields, size);
   }
@@ -212,7 +212,7 @@ int32_t stmtRestoreQueryFields(STscStmt* pStmt) {
   if (NULL == pStmt->exec.pRequest->body.resInfo.userFields) {
     pStmt->exec.pRequest->body.resInfo.userFields = taosMemoryMalloc(size);
     if (NULL == pStmt->exec.pRequest->body.resInfo.userFields) {
-      STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      STMT_ERR_RET(terrno);
     }
     (void)memcpy(pStmt->exec.pRequest->body.resInfo.userFields, pRes->userFields, size);
   }
@@ -306,7 +306,7 @@ int32_t stmtCacheBlock(STscStmt* pStmt) {
   };
 
   if (taosHashPut(pStmt->sql.pTableCache, &cacheUid, sizeof(cacheUid), &cache, sizeof(cache))) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (pStmt->sql.autoCreateTbl) {
@@ -369,7 +369,7 @@ int32_t stmtParseSql(STscStmt* pStmt) {
   if (NULL == pStmt->sql.pBindInfo) {
     pStmt->sql.pBindInfo = taosMemoryMalloc(pTableCtx->boundColsInfo.numOfBound * sizeof(*pStmt->sql.pBindInfo));
     if (NULL == pStmt->sql.pBindInfo) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -612,7 +612,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
 
       if (taosHashPut(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName), &pNewBlock,
                       POINTER_BYTES)) {
-        STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        STMT_ERR_RET(terrno);
       }
 
       pStmt->exec.pCurrBlock = pNewBlock;
@@ -702,7 +702,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
 
     if (taosHashPut(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName), &pNewBlock,
                     POINTER_BYTES)) {
-      STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      STMT_ERR_RET(terrno);
     }
 
     pStmt->exec.pCurrBlock = pNewBlock;
@@ -722,7 +722,6 @@ int32_t stmtResetStmt(STscStmt* pStmt) {
 
   pStmt->sql.pTableCache = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == pStmt->sql.pTableCache) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     STMT_ERR_RET(terrno);
   }
 
@@ -739,7 +738,7 @@ int32_t stmtAsyncOutput(STscStmt* pStmt, void* param) {
       SArray** p = (SArray**)TARRAY_GET_ELEM(pStmt->sql.siInfo.pTableCols, i);
       *p = taosArrayInit(20, POINTER_BYTES);
       if (*p == NULL) {
-        STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        STMT_ERR_RET(terrno);
       }
     }
 
@@ -815,15 +814,15 @@ int32_t stmtInitTableBuf(STableBufInfo* pTblBuf) {
   pTblBuf->buffSize = pTblBuf->buffUnit * 1000;
   pTblBuf->pBufList = taosArrayInit(100, POINTER_BYTES);
   if (NULL == pTblBuf->pBufList) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   void* buff = taosMemoryMalloc(pTblBuf->buffSize);
   if (NULL == buff) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (taosArrayPush(pTblBuf->pBufList, &buff) == NULL){
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pTblBuf->pCurBuff = buff;
@@ -951,11 +950,11 @@ int32_t stmtInitStbInterlaceTableInfo(STscStmt* pStmt) {
   for (int32_t i = 0; i < STMT_TABLE_COLS_NUM; i++) {
     pTblCols = taosArrayInit(20, POINTER_BYTES);
     if (NULL == pTblCols) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     if (taosArrayPush(pStmt->sql.siInfo.pTableCols, &pTblCols) == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -1187,11 +1186,11 @@ static FORCE_INLINE int32_t stmtGetTableColsFromCache(STscStmt* pStmt, SArray** 
       for (int32_t i = 0; i < 100; i++) {
         pTblCols = taosArrayInit(20, POINTER_BYTES);
         if (NULL == pTblCols) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
 
         if (taosArrayPush(pStmt->sql.siInfo.pTableCols, &pTblCols) == NULL){
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
       }
     }

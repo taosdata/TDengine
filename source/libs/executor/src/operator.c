@@ -659,10 +659,6 @@ void destroyOperator(SOperatorInfo* pOperator) {
   freeResetOperatorParams(pOperator, OP_GET_PARAM, true);
   freeResetOperatorParams(pOperator, OP_NOTIFY_PARAM, true);
 
-  if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
-    pOperator->fpSet.closeFn(pOperator->info);
-  }
-
   if (pOperator->pDownstream != NULL) {
     for (int32_t i = 0; i < pOperator->numOfRealDownstream; ++i) {
       destroyOperator(pOperator->pDownstream[i]);
@@ -673,6 +669,12 @@ void destroyOperator(SOperatorInfo* pOperator) {
   }
 
   cleanupExprSupp(&pOperator->exprSupp);
+
+  // close operator after cleanup exprSupp, since we need to call cleanup of sqlFunctionCtx first to avoid mem leak.
+  if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
+    pOperator->fpSet.closeFn(pOperator->info);
+  }
+
   taosMemoryFreeClear(pOperator);
 }
 
@@ -868,12 +870,14 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInpu
 SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
   SSDataBlock* p = NULL;
   int32_t code = getNextBlockFromDownstreamImpl(pOperator, idx, true, &p);
+  blockDataCheck(p, false);
   return (code == 0)? p:NULL;
 }
 
 SSDataBlock* getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, int32_t idx) {
   SSDataBlock* p = NULL;
   int32_t code = getNextBlockFromDownstreamImpl(pOperator, idx, false, &p);
+  blockDataCheck(p, false);
   return (code == 0)? p:NULL;
 }
 

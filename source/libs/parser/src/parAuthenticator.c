@@ -172,6 +172,7 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
     SName name = {0};
     toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
     STableMeta* pTableMeta = NULL;
+    toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
     int32_t code = getTargetMetaImpl(
         pAuthCxt->pParseCxt, pAuthCxt->pMetaCache, &name, &pTableMeta, true);
     if (TSDB_CODE_SUCCESS == code && TSDB_VIEW_TABLE == pTableMeta->tableType) {

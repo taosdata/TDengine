@@ -1127,7 +1127,7 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** writer, int8_t rollback) {
   tsdbDataFileReaderClose(&writer[0]->ctx->dataReader);
 
   TARRAY2_DESTROY(writer[0]->fopArr, NULL);
-  TAOS_UNUSED(tsdbFSDestroyCopyRangedSnapshot(&writer[0]->fsetArr));
+  tsdbFSDestroyCopyRangedSnapshot(&writer[0]->fsetArr);
 
   for (int32_t i = 0; i < ARRAY_SIZE(writer[0]->buffers); ++i) {
     tBufferDestroy(writer[0]->buffers + i);

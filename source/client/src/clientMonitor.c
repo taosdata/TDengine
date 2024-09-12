@@ -34,11 +34,11 @@ static void processFileInTheEnd(TdFilePtr pFile, char* path) {
     return;
   }
   if (taosFtruncateFile(pFile, 0) != 0) {
-    tscError("failed to truncate file:%s, errno:%d", path, errno);
+    tscError("failed to truncate file:%s, errno:%d", path, terrno);
     return;
   }
   if (taosUnLockFile(pFile) != 0) {
-    tscError("failed to unlock file:%s, errno:%d", path, errno);
+    tscError("failed to unlock file:%s, errno:%d", path, terrno);
     return;
   }
   if (taosCloseFile(&(pFile)) != 0) {
@@ -388,7 +388,7 @@ static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char* tmpP
     tscInfo("[monitor] create slow log file:%s", path);
     pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND | TD_FILE_READ | TD_FILE_TRUNC);
     if (pFile == NULL) {
-      tscError("failed to open file:%s since %d", path, errno);
+      tscError("failed to open file:%s since %d", path, terrno);
       return;
     }
 
@@ -424,7 +424,7 @@ static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char* tmpP
   }
 
   if (taosLSeekFile(pFile, 0, SEEK_END) < 0) {
-    tscError("failed to seek file:%p code: %d", pFile, errno);
+    tscError("failed to seek file:%p code: %d", pFile, terrno);
     return;
   }
   if (taosWriteFile(pFile, slowLogData->data, strlen(slowLogData->data) + 1) < 0) {
@@ -436,7 +436,7 @@ static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char* tmpP
 static char* readFile(TdFilePtr pFile, int64_t* offset, int64_t size) {
   tscDebug("[monitor] readFile slow begin pFile:%p, offset:%" PRId64 ", size:%" PRId64, pFile, *offset, size);
   if (taosLSeekFile(pFile, *offset, SEEK_SET) < 0) {
-    tscError("failed to seek file:%p code: %d", pFile, errno);
+    tscError("failed to seek file:%p code: %d", pFile, terrno);
     return NULL;
   }
 
@@ -576,7 +576,7 @@ static void monitorSendSlowLogAtRunning(int64_t clusterId) {
   int64_t size = getFileSize(pClient->path);
   if (size <= pClient->offset) {
     if (taosFtruncateFile(pClient->pFile, 0) < 0) {
-      tscError("failed to truncate file:%p code: %d", pClient->pFile, errno);
+      tscError("failed to truncate file:%p code: %d", pClient->pFile, terrno);
     }
     tscDebug("[monitor] monitorSendSlowLogAtRunning truncate file to 0 file:%p", pClient->pFile);
     pClient->offset = 0;
@@ -633,7 +633,7 @@ static void monitorSendAllSlowLogAtQuit() {
 
 static void processFileRemoved(SlowLogClient* pClient) {
   if (taosUnLockFile(pClient->pFile) != 0) {
-    tscError("failed to unlock file:%s since %d", pClient->path, errno);
+    tscError("failed to unlock file:%s since %d", pClient->path, terrno);
     return;
   }
   int32_t ret = taosCloseFile(&(pClient->pFile));
@@ -645,7 +645,7 @@ static void processFileRemoved(SlowLogClient* pClient) {
   TdFilePtr pFile =
       taosOpenFile(pClient->path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND | TD_FILE_READ | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    tscError("failed to open file:%s since %d", pClient->path, errno);
+    tscError("failed to open file:%s since %d", pClient->path, terrno);
   } else {
     pClient->pFile = pFile;
   }
@@ -857,9 +857,10 @@ int32_t monitorInit() {
     return code;
   }
 
-  if (taosMulModeMkDir(tmpSlowLogPath, 0777, true) != 0) {
+  code = taosMulModeMkDir(tmpSlowLogPath, 0777, true);
+  if (code != 0) {
     tscError("failed to create dir:%s since %s", tmpSlowLogPath, terrstr());
-    return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    return code;
   }
 
   if (tsem2_init(&monitorSem, 0, 0) != 0) {

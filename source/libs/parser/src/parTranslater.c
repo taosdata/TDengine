@@ -2562,6 +2562,13 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "%s function is not supported in partition query", pFunc->functionName);
   }
+
+  if (NULL != pSelect->pWindow) {
+    if (QUERY_NODE_EVENT_WINDOW == nodeType(pSelect->pWindow) ||  QUERY_NODE_COUNT_WINDOW == nodeType(pSelect->pWindow)) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "%s function is not supported in count/event window", pFunc->functionName);
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -9591,7 +9598,6 @@ static int32_t translateCreateNormalIndex(STranslateContext* pCxt, SCreateIndexS
   int32_t     code = 0;
   SName       name = {0};
   STableMeta* pMeta = NULL;
-
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
   code = getTargetMeta(pCxt, &name, &pMeta, false);
   if (code) {
@@ -9714,8 +9720,8 @@ static int32_t buildCreateTopicReq(STranslateContext* pCxt, SCreateTopicStmt* pS
     toName(pCxt->pParseCxt->acctId, pStmt->subDbName, pStmt->subSTbName, &name);
     (void)tNameGetFullDbName(&name, pReq->subDbName);
     if (TSDB_CODE_SUCCESS == code) {
-      (void)tNameExtractFullName(&name, pReq->subStbName);
-      if (pStmt->pQuery != NULL) {
+      code = tNameExtractFullName(&name, pReq->subStbName);
+      if (TSDB_CODE_SUCCESS == code && pStmt->pQuery != NULL) {
         code = nodesNodeToString(pStmt->pQuery, false, &pReq->ast, NULL);
       }
     }
@@ -9839,7 +9845,7 @@ static int32_t buildQueryForTableTopic(STranslateContext* pCxt, SCreateTopicStmt
   SName            name = {0};
   STableMeta*      pMeta = NULL;
   toName(pParCxt->acctId, pStmt->subDbName, pStmt->subSTbName, &name);
-  int32_t          code = getTargetMeta(pCxt, &name, &pMeta, false);
+  int32_t code = getTargetMeta(pCxt, &name, &pMeta, false);
   if (code) {
     taosMemoryFree(pMeta);
     return code;
@@ -10082,7 +10088,7 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
   STableMeta*     pMeta = NULL;
   int8_t          tableType = 0;
   toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, &name);
-  int32_t         code = getTargetMeta(pCxt, &name, &pMeta, true);
+  int32_t code = getTargetMeta(pCxt, &name, &pMeta, true);
   if (NULL != pMeta) {
     tableType = pMeta->tableType;
     taosMemoryFree(pMeta);
@@ -11111,10 +11117,11 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   if ('\0' != pStmt->targetTabName[0]) {
     strcpy(name.dbname, pStmt->targetDbName);
     strcpy(name.tname, pStmt->targetTabName);
-    (void)tNameExtractFullName(&name, pReq->targetStbFullName);
+    code = tNameExtractFullName(&name, pReq->targetStbFullName);
   }
-
-  code = buildCreateStreamQuery(pCxt, pStmt, pReq);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCreateStreamQuery(pCxt, pStmt, pReq);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     pReq->sql = taosStrdup(pCxt->pParseCxt->pSql);
     if (NULL == pReq->sql) {
@@ -11385,7 +11392,7 @@ static int32_t translateDropView(STranslateContext* pCxt, SDropViewStmt* pStmt) 
 static int32_t readFromFile(char* pName, int32_t* len, char** buf) {
   int64_t filesize = 0;
   if (taosStatFile(pName, &filesize, NULL, NULL) < 0) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   *len = filesize;
@@ -11402,12 +11409,13 @@ static int32_t readFromFile(char* pName, int32_t* len, char** buf) {
   TdFilePtr tfile = taosOpenFile(pName, O_RDONLY | O_BINARY);
   if (NULL == tfile) {
     taosMemoryFreeClear(*buf);
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   int64_t s = taosReadFile(tfile, *buf, *len);
   if (s != *len) {
-    (void)taosCloseFile(&tfile);
+    int32_t code = taosCloseFile(&tfile);
+    qError("failed to close file: %s in %s:%d, err: %s", pName, __func__, __LINE__, tstrerror(code));
     taosMemoryFreeClear(*buf);
     return TSDB_CODE_APP_ERROR;
   }
@@ -13082,8 +13090,7 @@ static int32_t checkShowTags(STranslateContext* pCxt, const SShowStmt* pShow) {
   int32_t     code = 0;
   SName       name = {0};
   STableMeta* pTableMeta = NULL;
-  toName(pCxt->pParseCxt->acctId, ((SValueNode*)pShow->pDbName)->literal,
-         ((SValueNode*)pShow->pTbName)->literal, &name);
+  toName(pCxt->pParseCxt->acctId, ((SValueNode*)pShow->pDbName)->literal, ((SValueNode*)pShow->pTbName)->literal, &name);
   code = getTargetMeta(pCxt, &name, &pTableMeta, true);
   if (TSDB_CODE_SUCCESS != code) {
     code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
@@ -13291,7 +13298,7 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   req.ntb.schemaRow.pSchema = taosMemoryCalloc(req.ntb.schemaRow.nCols, sizeof(SSchema));
   if (NULL == req.name || NULL == req.ntb.schemaRow.pSchema) {
     tdDestroySVCreateTbReq(&req);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if (pStmt->ignoreExists) {
     req.flags |= TD_CREATE_IF_NOT_EXISTS;
@@ -14083,7 +14090,7 @@ static int32_t prepareReadCsvFile(STranslateContext* pCxt, SCreateSubTableFromFi
   if (NULL == pModifyStmt->fp) {
     fp = taosOpenFile(pCreateStmt->filePath, TD_FILE_READ | TD_FILE_STREAM);
     if (NULL == fp) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = terrno;
       goto _ERR;
     }
   }

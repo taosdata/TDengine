@@ -810,7 +810,7 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
   if (NULL == pJob) {
     qError("qid:0x%" PRIx64 " calloc %d failed", pReq->pDag->queryId, (int32_t)sizeof(SSchJob));
-    SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCH_ERR_JRET(terrno);
   }
 
   pJob->attr.explainMode = pReq->pDag->explainInfo.mode;

@@ -432,7 +432,7 @@ int32_t createHTaskLaunchInfo(SStreamMeta* pMeta, STaskId* pTaskId, int64_t hStr
                               SLaunchHTaskInfo** pInfo) {
   *pInfo = taosMemoryCalloc(1, sizeof(SLaunchHTaskInfo));
   if ((*pInfo) == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pInfo)->id.streamId = pTaskId->streamId;

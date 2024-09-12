@@ -5016,7 +5016,7 @@ int32_t tsdbReaderResume2(STsdbReader* pReader) {
   int32_t numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
   if (numOfTables > 0) {
     tsdbTrace("tsdb/reader: %p, take snapshot", pReader);
-    code = tsdbTakeReadSnap2(pReader, tsdbSetQueryReseek, &pReader->pReadSnap);
+    code = tsdbTakeReadSnap2(pReader, tsdbSetQueryReseek, &pReader->pReadSnap, pReader->idStr);
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
     }
@@ -5862,7 +5862,7 @@ int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_
   return code;
 }
 
-int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STsdbReadSnap** ppSnap) {
+int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STsdbReadSnap** ppSnap, const char* id) {
   int32_t        code = 0;
   STsdb*         pTsdb = pReader->pTsdb;
   SVersionRange* pRange = &pReader->info.verRange;
@@ -5872,7 +5872,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
   // lock
   code = taosThreadMutexLock(&pTsdb->mutex);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("failed to lock tsdb, code:%s", tstrerror(code));
+    tsdbError("%s failed to lock tsdb, code:%s", id, tstrerror(code));
     return code;
   }
 
@@ -5932,18 +5932,19 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
     }
 
     (void) taosThreadMutexUnlock(&pTsdb->mutex);
-    TSDB_CHECK_CODE(code, lino, _exit);}
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   // unlock
   (void) taosThreadMutexUnlock(&pTsdb->mutex);
   *ppSnap = pSnap;
 
-  tsdbTrace("vgId:%d, take read snapshot", TD_VID(pTsdb->pVnode));
+  tsdbTrace("%s vgId:%d, take read snapshot", id, TD_VID(pTsdb->pVnode));
   return code;
 
 _exit:
-  tsdbError("%s vgId:%d take read snapshot failed, line:%d code:%s", pReader->idStr, TD_VID(pTsdb->pVnode), lino,
-            tstrerror(code));
+  tsdbError("%s vgId:%d take read snapshot failed, line:%d code:%s", id, TD_VID(pTsdb->pVnode), lino, tstrerror(code));
+
   if (pSnap) {
     if (pSnap->pNode) taosMemoryFree(pSnap->pNode);
     if (pSnap->pINode) taosMemoryFree(pSnap->pINode);
@@ -5967,7 +5968,7 @@ void tsdbUntakeReadSnap2(STsdbReader* pReader, STsdbReadSnap* pSnap, bool proact
     if (pSnap->pNode) taosMemoryFree(pSnap->pNode);
     if (pSnap->pINode) taosMemoryFree(pSnap->pINode);
 
-    (void) tsdbFSDestroyRefSnapshot(&pSnap->pfSetArray);
+    tsdbFSDestroyRefSnapshot(&pSnap->pfSetArray);
 
     taosMemoryFree(pSnap);
   }

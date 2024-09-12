@@ -522,19 +522,19 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
   pBlock->info.hasVarCol = true;
 
   pBlock->pDataBlock = taosArrayInit(SHOW_VARIABLES_RESULT_COLS, sizeof(SColumnInfoData));
-  TSDB_CHECK_NULL(pBlock->pDataBlock, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(pBlock->pDataBlock, code, line, END, terrno);
   SColumnInfoData infoData = {0};
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD1_LEN;
-  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD2_LEN;
-  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD3_LEN;
-  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
   int32_t numOfCfg = taosArrayGetSize(pVars);
   code = blockDataEnsureCapacity(pBlock, numOfCfg);
@@ -542,26 +542,26 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
 
   for (int32_t i = 0, c = 0; i < numOfCfg; ++i, c = 0) {
     SVariablesInfo* pInfo = taosArrayGet(pVars, i);
-    TSDB_CHECK_NULL(pInfo, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+    TSDB_CHECK_NULL(pInfo, code, line, END, terrno);
 
     char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pInfo->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    TSDB_CHECK_NULL(pColInfo, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+    TSDB_CHECK_NULL(pColInfo, code, line, END, terrno);
     code = colDataSetVal(pColInfo, i, name, false);
     TSDB_CHECK_CODE(code, line, END);
 
     char value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(value, pInfo->value, TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    TSDB_CHECK_NULL(pColInfo, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+    TSDB_CHECK_NULL(pColInfo, code, line, END, terrno);
     code = colDataSetVal(pColInfo, i, value, false);
     TSDB_CHECK_CODE(code, line, END);
 
     char scope[TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(scope, pInfo->scope, TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    TSDB_CHECK_NULL(pColInfo, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+    TSDB_CHECK_NULL(pColInfo, code, line, END, terrno);
     code = colDataSetVal(pColInfo, i, scope, false);
     TSDB_CHECK_CODE(code, line, END);
   }
@@ -675,29 +675,29 @@ static int32_t buildCompactDbBlock(SCompactDbRsp* pRsp, SSDataBlock** block) {
   pBlock->info.hasVarCol = true;
 
   pBlock->pDataBlock = taosArrayInit(COMPACT_DB_RESULT_COLS, sizeof(SColumnInfoData));
-  TSDB_CHECK_NULL(pBlock->pDataBlock, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(pBlock->pDataBlock, code, line, END, terrno);
   SColumnInfoData infoData = {0};
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = COMPACT_DB_RESULT_FIELD1_LEN;
-  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
   infoData.info.type = TSDB_DATA_TYPE_INT;
   infoData.info.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
-  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = COMPACT_DB_RESULT_FIELD3_LEN;
-  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
   code = blockDataEnsureCapacity(pBlock, 1);
   TSDB_CHECK_CODE(code, line, END);
 
   SColumnInfoData* pResultCol = taosArrayGet(pBlock->pDataBlock, 0);
-  TSDB_CHECK_NULL(pResultCol, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(pResultCol, code, line, END, terrno);
   SColumnInfoData* pIdCol = taosArrayGet(pBlock->pDataBlock, 1);
-  TSDB_CHECK_NULL(pIdCol, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(pIdCol, code, line, END, terrno);
   SColumnInfoData* pReasonCol = taosArrayGet(pBlock->pDataBlock, 2);
-  TSDB_CHECK_NULL(pReasonCol, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(pReasonCol, code, line, END, terrno);
 
   char result[COMPACT_DB_RESULT_FIELD1_LEN] = {0};
   char reason[COMPACT_DB_RESULT_FIELD3_LEN] = {0};

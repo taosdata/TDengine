@@ -572,7 +572,7 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
   // begin tasks on file set
   for (int i = 0; i < taosArrayGetSize(tsdb->commitInfo->arr); i++) {
     SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
-    TAOS_UNUSED(tsdbBeginTaskOnFileSet(tsdb, info->fid, &fset));
+    tsdbBeginTaskOnFileSet(tsdb, info->fid, &fset);
     if (fset) {
       code = tsdbTFileSetInitCopy(tsdb, fset, &info->fset);
       if (code) {
@@ -710,7 +710,7 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
     for (int32_t i = 0; i < taosArrayGetSize(tsdb->commitInfo->arr); i++) {
       SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
       if (info->fset) {
-        TAOS_UNUSED(tsdbFinishTaskOnFileSet(tsdb, info->fid));
+        tsdbFinishTaskOnFileSet(tsdb, info->fid);
       }
     }
 
@@ -741,7 +741,7 @@ int32_t tsdbCommitAbort(STsdb *pTsdb) {
   for (int32_t i = 0; i < taosArrayGetSize(pTsdb->commitInfo->arr); i++) {
     SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(pTsdb->commitInfo->arr, i);
     if (info->fset) {
-      TAOS_UNUSED(tsdbFinishTaskOnFileSet(pTsdb, info->fid));
+      tsdbFinishTaskOnFileSet(pTsdb, info->fid);
     }
   }
   (void)taosThreadMutexUnlock(&pTsdb->mutex);

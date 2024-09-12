@@ -286,7 +286,7 @@ int32_t streamCreateStateMachine(SStreamTask* pTask) {
   if (pSM == NULL) {
     stError("s-task:%s failed to create task stateMachine, size:%d, code:%s", id, (int32_t)sizeof(SStreamTaskSM),
             tstrerror(terrno));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pSM->pTask = pTask;

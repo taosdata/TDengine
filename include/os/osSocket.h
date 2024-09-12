@@ -143,7 +143,7 @@ int32_t taosWriteMsg(TdSocketPtr pSocket, void *ptr, int32_t nbytes);
 int32_t taosReadMsg(TdSocketPtr pSocket, void *ptr, int32_t nbytes);
 int32_t taosNonblockwrite(TdSocketPtr pSocket, char *ptr, int32_t nbytes);
 int64_t taosCopyFds(TdSocketPtr pSrcSocket, TdSocketPtr pDestSocket, int64_t len);
-void    taosWinSocketInit();
+int32_t taosWinSocketInit();
 
 /*
  * set timeout(ms)

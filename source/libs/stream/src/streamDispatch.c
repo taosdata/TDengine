@@ -143,7 +143,7 @@ static int32_t buildStreamRetrieveReq(SStreamTask* pTask, const SSDataBlock* pBl
   int32_t len = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
 
   pRetrieve = taosMemoryCalloc(1, len);
-  if (pRetrieve == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (pRetrieve == NULL) return terrno;
 
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   pRetrieve->useconds = 0;
@@ -1485,8 +1485,6 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   int32_t           notRsp = 0;
   int32_t           numOfFailed = 0;
   bool              triggerDispatchRsp = false;
-
-  taosMsleep(500);
 
   // we only set the dispatch msg info for current checkpoint trans
   streamMutexLock(&pTask->lock);
