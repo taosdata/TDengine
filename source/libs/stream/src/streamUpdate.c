@@ -183,7 +183,7 @@ SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t waterma
 }
 
 static SScalableBf *getSBf(SUpdateInfo *pInfo, TSKEY ts) {
-  if (pInfo->minTS < 0) {
+  if (pInfo->minTS == INT64_MIN) {
     pInfo->minTS = (TSKEY)(ts / pInfo->interval * pInfo->interval);
   }
   int64_t index = (int64_t)((ts - pInfo->minTS) / pInfo->interval);
