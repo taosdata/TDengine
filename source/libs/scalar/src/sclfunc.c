@@ -2888,13 +2888,16 @@ int32_t floorFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 }
 
 int32_t randFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  if (!IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0]))) {
-    int32_t seed;
-    GET_TYPED_DATA(seed, int32_t, GET_PARAM_TYPE(&pInput[0]), pInput[0].columnData->pData);
-    taosSeedRand(seed);
-  }
+  int32_t seed;
   int32_t numOfRows = inputNum == 1 ? pInput[0].numOfRows : TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
   for (int32_t i = 0; i < numOfRows; ++i) {
+    // for constant seed, only set seed once
+    if ((pInput[0].numOfRows == 1 && i == 0) || (pInput[0].numOfRows != 1)) {
+      if (!IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) && !colDataIsNull_s(pInput[0].columnData, i)) {
+        GET_TYPED_DATA(seed, int32_t, GET_PARAM_TYPE(&pInput[0]), colDataGetData(pInput[0].columnData, i));
+        taosSeedRand(seed);
+      }
+    }
     double random_value = (double)(taosRand() % RAND_MAX) / RAND_MAX;
     colDataSetDouble(pOutput->columnData, i, &random_value);
   }

@@ -228,7 +228,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
     tscError("0x%" PRIx64 " failed to prepare sql string buffer, %s", (*pRequest)->self, sql);
     destroyRequest(*pRequest);
     *pRequest = NULL;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (void)strntolower((*pRequest)->sqlstr, sql, (int32_t)sqlLen);
@@ -247,7 +247,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
              (*pRequest)->self, (*pRequest)->requestId, pTscObj->id, sql);
     destroyRequest(*pRequest);
     *pRequest = NULL;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pRequest)->allocatorRefId = -1;
@@ -258,7 +258,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
                (*pRequest)->requestId, pTscObj->id, sql);
       destroyRequest(*pRequest);
       *pRequest = NULL;
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -595,7 +595,7 @@ int32_t buildVnodePolicyNodeList(SRequestObj* pRequest, SArray** pNodeList, SArr
 
       if (NULL == taosArrayPush(nodeList, &load)) {
         taosArrayDestroy(nodeList);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
   }
@@ -619,7 +619,7 @@ int32_t buildVnodePolicyNodeList(SRequestObj* pRequest, SArray** pNodeList, SArr
   }
   if (NULL == taosArrayAddBatch(nodeList, pData, mnodeNum)) {
     taosArrayDestroy(nodeList);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   tscDebug("0x%" PRIx64 " %s policy, use mnode list, num:%d", pRequest->requestId, policy, mnodeNum);
@@ -646,7 +646,7 @@ int32_t buildQnodePolicyNodeList(SRequestObj* pRequest, SArray** pNodeList, SArr
     }
     if (NULL == taosArrayAddBatch(nodeList, pData, qNodeNum)) {
       taosArrayDestroy(nodeList);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     tscDebug("0x%" PRIx64 " qnode policy, use qnode list, num:%d", pRequest->requestId, qNodeNum);
     goto _return;
@@ -665,7 +665,7 @@ int32_t buildQnodePolicyNodeList(SRequestObj* pRequest, SArray** pNodeList, SArr
   }
   if (NULL == taosArrayAddBatch(nodeList, pData, mnodeNum)) {
     taosArrayDestroy(nodeList);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   tscDebug("0x%" PRIx64 " qnode policy, use mnode list, num:%d", pRequest->requestId, mnodeNum);
@@ -699,7 +699,7 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
           }
 
           if (NULL == taosArrayPush(pDbVgList, &pRes->pRes)) {
-            code = TSDB_CODE_OUT_OF_MEMORY;
+            code = terrno;
             goto _return;
           }
         }
@@ -791,7 +791,7 @@ int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray*
           }
 
           if (NULL == taosArrayPush(pDbVgList, &pVgList)) {
-            code = TSDB_CODE_OUT_OF_MEMORY;
+            code = terrno;
             goto _return;
           }
         }
@@ -903,8 +903,7 @@ int32_t handleQueryExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog,
 
   pArray = taosArrayInit(tbNum, sizeof(STbSVersion));
   if (NULL == pArray) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int32_t i = 0; i < tbNum; ++i) {
@@ -915,7 +914,7 @@ int32_t handleQueryExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog,
     }
     STbSVersion tbSver = {.tbFName = tbInfo->tbFName, .sver = tbInfo->sversion, .tver = tbInfo->tversion};
     if (NULL == taosArrayPush(pArray, &tbSver)) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _return;
     }
   }
@@ -1662,7 +1661,7 @@ static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInf
   void*   pReq = taosMemoryMalloc(contLen);
   if (NULL == pReq) {
     taosMemoryFree(*pMsgSendInfo);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (-1 == tSerializeSConnectReq(pReq, contLen, &connectReq)) {
@@ -2050,7 +2049,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
       char* p = taosMemoryRealloc(pResultInfo->convertBuf[i], colLength[i]);
       if (p == NULL) {
         taosReleaseConv(idx, conv, C2M);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       pResultInfo->convertBuf[i] = p;
@@ -2441,7 +2440,6 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
     if (pResultInfo->decompBuf == NULL) {
       pResultInfo->decompBuf = taosMemoryMalloc(payloadLen);
       if (pResultInfo->decompBuf == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
         tscError("failed to prepare the decompress buffer, size:%d", payloadLen);
         return terrno;
       }
@@ -2450,7 +2448,6 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
       if (pResultInfo->decompBufSize < payloadLen) {
         char* p = taosMemoryRealloc(pResultInfo->decompBuf, payloadLen);
         if (p == NULL) {
-          terrno = TSDB_CODE_OUT_OF_MEMORY;
           tscError("failed to prepare the decompress buffer, size:%d", payloadLen);
           return terrno;
         }

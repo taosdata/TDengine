@@ -38,6 +38,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t vgId = pMeta->vgId;
   int64_t now = taosGetTimestampMs();
+  SArray* pTaskList = NULL;
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
   stInfo("vgId:%d start to consensus checkpointId for all %d task(s), start ts:%" PRId64, vgId, numOfTasks, now);
@@ -47,7 +48,6 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SArray* pTaskList = NULL;
   code = prepareBeforeStartTasks(pMeta, &pTaskList, now);
   if (code != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_SUCCESS;  // ignore the error and return directly
@@ -113,6 +113,9 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
         stDebug("s-task:%s downstream ready, no need to check downstream, check only related fill-history task",
                 pTask->id.idStr);
         code = streamLaunchFillHistoryTask(pTask);  // todo: how about retry launch fill-history task?
+        if (code) {
+          stError("s-task:%s failed to launch history task, code:%s", pTask->id.idStr, tstrerror(code));
+        }
       }
 
       code = streamMetaAddTaskLaunchResult(pMeta, pTaskId->streamId, pTaskId->taskId, pInfo->checkTs, pInfo->readyTs,
@@ -223,7 +226,7 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
   if (code) {
     if (code == TSDB_CODE_DUP_KEY) {
       stError("vgId:%d record start task result failed, s-task:0x%" PRIx64
-                  " already exist start results in meta start task result hashmap",
+              " already exist start results in meta start task result hashmap",
               vgId, id.taskId);
     } else {
       stError("vgId:%d failed to record start task:0x%" PRIx64 " results, start all tasks failed", vgId, id.taskId);

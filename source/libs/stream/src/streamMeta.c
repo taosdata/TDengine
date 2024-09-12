@@ -603,7 +603,7 @@ void streamMetaClose(SStreamMeta* pMeta) {
   }
   int32_t code = taosRemoveRef(streamMetaId, pMeta->rid);
   if (code) {
-    stError("vgId:%d failed to remove ref:%d, code:%s", pMeta->vgId, pMeta->rid, tstrerror(code));
+    stError("vgId:%d failed to remove ref:%" PRId64 ", code:%s", pMeta->vgId, pMeta->rid, tstrerror(code));
   }
 }
 
@@ -1465,7 +1465,7 @@ void streamMetaAddFailedTaskSelf(SStreamTask* pTask, int64_t failedTs) {
   int32_t startTs = pTask->execInfo.checkTs;
   int32_t code = streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, startTs, failedTs, false);
   if (code) {
-    stError("s-task:%s failed to add self task failed to start", pTask->id.idStr, tstrerror(code));
+    stError("s-task:%s failed to add self task failed to start, code:%s", pTask->id.idStr, tstrerror(code));
   }
 
   // automatically set the related fill-history task to be failed.
@@ -1473,7 +1473,7 @@ void streamMetaAddFailedTaskSelf(SStreamTask* pTask, int64_t failedTs) {
     STaskId* pId = &pTask->hTaskInfo.id;
     code = streamMetaAddTaskLaunchResult(pTask->pMeta, pId->streamId, pId->taskId, startTs, failedTs, false);
     if (code) {
-      stError("s-task:0x%" PRIx64 " failed to add self task failed to start", pId->taskId, tstrerror(code));
+      stError("s-task:0x%" PRIx64 " failed to add self task failed to start, code:%s", pId->taskId, tstrerror(code));
     }
   }
 }
