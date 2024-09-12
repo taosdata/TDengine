@@ -38,6 +38,8 @@ char *tstrdup(const char *str) {
 }
 
 #ifdef WINDOWS
+
+// No errors are expected to occur
 char *strsep(char **stringp, const char *delim) {
   char       *s;
   const char *spanp;
@@ -84,9 +86,57 @@ char *stpncpy(char *dest, const char *src, int n) {
 }
 #endif
 
-int64_t taosStr2int64(const char *str) {
-  char *endptr = NULL;
-  return strtoll(str, &endptr, 10);
+int32_t taosStr2int64(const char *str, int64_t *val) {
+  if (str == NULL || val == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  char   *endptr = NULL;
+  int64_t ret = strtoll(str, &endptr, 10);
+  if (errno == ERANGE && (ret == LLONG_MAX || ret == LLONG_MIN)) {
+    return TAOS_SYSTEM_ERROR(errno);
+  } else {
+    *val = ret;
+    return 0;
+  }
+}
+
+int32_t taosStr2int16(const char *str, int16_t *val) {
+  int64_t tmp = 0;
+  int32_t code = taosStr2int64(str, &tmp);
+  if (code) {
+    return code;
+  } else if (tmp > INT16_MAX || tmp < INT16_MIN) {
+    return TSDB_CODE_INVALID_PARA;
+  } else {
+    *val = (int16_t)tmp;
+    return 0;
+  }
+}
+
+int32_t taosStr2int32(const char *str, int32_t *val) {
+  int64_t tmp = 0;
+  int32_t code = taosStr2int64(str, &tmp);
+  if (code) {
+    return code;
+  } else if (tmp > INT32_MAX || tmp < INT32_MIN) {
+    return TSDB_CODE_INVALID_PARA;
+  } else {
+    *val = (int32_t)tmp;
+    return 0;
+  }
+}
+
+int32_t taosStr2int8(const char *str, int8_t *val) {
+  int64_t tmp = 0;
+  int32_t code = taosStr2int64(str, &tmp);
+  if (code) {
+    return code;
+  } else if (tmp > INT8_MAX || tmp < INT8_MIN) {
+    return TSDB_CODE_INVALID_PARA;
+  } else {
+    *val = (int8_t)tmp;
+    return 0;
+  }
 }
 
 int32_t tasoUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes) {
@@ -253,12 +303,12 @@ void taosReleaseConv(int32_t idx, iconv_t conv, ConvType type) {
 bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len) {
 #ifdef DISALLOW_NCHAR_WITHOUT_ICONV
   printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
-  return -1;
+  terrno = TSDB_CODE_APP_ERROR;
+  return false;
 #else
   (void)memset(ucs4, 0, ucs4_max_len);
 
   int32_t idx = -1;
-  int32_t code = 0;
   iconv_t conv = taosAcquireConv(&idx, M2C);
   if ((iconv_t)-1 == conv || (iconv_t)0 == conv) {
     return false;
@@ -267,9 +317,8 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
   size_t  ucs4_input_len = mbsLength;
   size_t  outLeft = ucs4_max_len;
   if (iconv(conv, (char **)&mbs, &ucs4_input_len, (char **)&ucs4, &outLeft) == -1) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(errno);
     taosReleaseConv(idx, conv, M2C);
-    terrno = code;
     return false;
   }
 
@@ -277,6 +326,8 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
   if (len != NULL) {
     *len = (int32_t)(ucs4_max_len - outLeft);
     if (*len < 0) {
+      // can not happen
+      terrno = TSDB_CODE_APP_ERROR;
       return false;
     }
   }
