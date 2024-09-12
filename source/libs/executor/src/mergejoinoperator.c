@@ -474,8 +474,11 @@ int32_t mJoinCopyMergeMidBlk(SMJoinMergeCtx* pCtx, SSDataBlock** ppMid, SSDataBl
     pCtx->midRemains = false;
   } else {
     int32_t copyRows = pMore->info.capacity - pMore->info.rows;
-    MJ_ERR_RET(blockDataMergeNRows(pMore, pLess, pLess->info.rows - copyRows, copyRows));
-    blockDataShrinkNRows(pLess, copyRows);
+    if (copyRows > 0) {
+      MJ_ERR_RET(blockDataMergeNRows(pMore, pLess, pLess->info.rows - copyRows, copyRows));
+      blockDataShrinkNRows(pLess, copyRows);
+    }
+    
     pCtx->midRemains = true;
   }
 
@@ -1742,6 +1745,7 @@ int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBloc
   if (pBlock && pBlock->info.rows > 0) {
     *pResBlock = pBlock;
   }
+
   return code;
 }
 
@@ -1867,7 +1871,7 @@ int32_t mJoinSetImplFp(SMJoinOperatorInfo* pJoin) {
 
 int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                            SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t oldNum = numOfDownstream;
   bool newDownstreams = false;

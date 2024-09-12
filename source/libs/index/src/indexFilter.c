@@ -197,7 +197,7 @@ static FORCE_INLINE int32_t sifGetValueFromNode(SNode *node, char **value) {
   }
   char *tv = taosMemoryCalloc(1, valLen + 1);
   if (tv == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   memcpy(tv, pData, valLen);
@@ -273,7 +273,7 @@ static int32_t sifInitParamValByCol(SNode *r, SNode *l, SIFParam *param, SIFCtx 
   }
   char *tv = taosMemoryCalloc(1, valLen + 1);
   if (tv == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   memcpy(tv, pData, valLen);
@@ -373,7 +373,7 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
   SIFParam *paramList = taosMemoryCalloc(nParam, sizeof(SIFParam));
 
   if (NULL == paramList) {
-    SIF_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SIF_ERR_RET(terrno);
   }
 
   if (nodeType(node->pLeft) == QUERY_NODE_OPERATOR &&
@@ -405,7 +405,7 @@ static int32_t sifInitParamList(SIFParam **params, SNodeList *nodeList, SIFCtx *
   SIFParam *tParams = taosMemoryCalloc(nodeList->length, sizeof(SIFParam));
   if (tParams == NULL) {
     indexError("failed to calloc, nodeList: %p", nodeList);
-    SIF_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SIF_ERR_RET(terrno);
   }
 
   SListCell *cell = nodeList->pHead;

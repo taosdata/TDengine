@@ -615,7 +615,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   tsKeepAliveIdle = TRANGE(tsKeepAliveIdle, 1, 72000);
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "keepAliveIdle", tsKeepAliveIdle, 1, 7200000, CFG_SCOPE_BOTH, CFG_DYN_ENT_BOTH));
 
-  tsNumOfTaskQueueThreads = tsNumOfCores;
+  tsNumOfTaskQueueThreads = tsNumOfCores * 2;
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 16);
 
   TAOS_CHECK_RETURN(

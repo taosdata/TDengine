@@ -55,36 +55,44 @@ void tFreeCompactObj(SCompactObj *pCompact) {}
 
 int32_t tSerializeSCompactObj(void *buf, int32_t bufLen, const SCompactObj *pObj) {
   SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
   tEncoderInit(&encoder, buf, bufLen);
 
-  if (tStartEncode(&encoder) < 0) return -1;
-
-  if (tEncodeI32(&encoder, pObj->compactId) < 0) return -1;
-  if (tEncodeCStr(&encoder, pObj->dbname) < 0) return -1;
-  if (tEncodeI64(&encoder, pObj->startTime) < 0) return -1;
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->compactId));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->dbname));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->startTime));
 
   tEndEncode(&encoder);
 
-  int32_t tlen = encoder.pos;
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
   tEncoderClear(&encoder);
   return tlen;
 }
 
 int32_t tDeserializeSCompactObj(void *buf, int32_t bufLen, SCompactObj *pObj) {
-  int8_t   ex = 0;
+  int32_t  code = 0;
+  int32_t  lino;
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
-  TAOS_CHECK_RETURN(tStartDecode(&decoder));
-
-  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->compactId));
-  TAOS_CHECK_RETURN(tDecodeCStrTo(&decoder, pObj->dbname));
-  TAOS_CHECK_RETURN(tDecodeI64(&decoder, &pObj->startTime));
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->compactId));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->dbname));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->startTime));
 
   tEndDecode(&decoder);
 
+_exit:
   tDecoderClear(&decoder);
-  return 0;
+  return code;
 }
 
 SSdbRaw *mndCompactActionEncode(SCompactObj *pCompact) {
@@ -646,8 +654,8 @@ void mndCompactSendProgressReq(SMnode *pMnode, SCompactObj *pCompact) {
 
 static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
   int32_t code = 0;
-  bool  needSave = false;
-  void *pIter = NULL;
+  bool    needSave = false;
+  void   *pIter = NULL;
   while (1) {
     SCompactDetailObj *pDetail = NULL;
     pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);

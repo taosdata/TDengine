@@ -180,7 +180,7 @@ ERetType extractOperatorInfo(SOperatorInfo* pOperator, STraverParam* pParam, con
 
 // QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN
 int32_t extractOperatorInTree(SOperatorInfo* pOperator, int32_t type, const char* id, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   if (pOperator == NULL) {
     qError("invalid operator, failed to find tableScanOperator %s", id);
@@ -282,7 +282,7 @@ int32_t stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdStr, SSto
 
 int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SNode* pTagCond,
                               SNode* pTagIndexCond, const char* pUser, const char* dbname, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t     code = 0;
   int32_t     type = nodeType(pPhyNode);
@@ -659,10 +659,6 @@ void destroyOperator(SOperatorInfo* pOperator) {
   freeResetOperatorParams(pOperator, OP_GET_PARAM, true);
   freeResetOperatorParams(pOperator, OP_NOTIFY_PARAM, true);
 
-  if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
-    pOperator->fpSet.closeFn(pOperator->info);
-  }
-
   if (pOperator->pDownstream != NULL) {
     for (int32_t i = 0; i < pOperator->numOfRealDownstream; ++i) {
       destroyOperator(pOperator->pDownstream[i]);
@@ -673,6 +669,12 @@ void destroyOperator(SOperatorInfo* pOperator) {
   }
 
   cleanupExprSupp(&pOperator->exprSupp);
+
+  // close operator after cleanup exprSupp, since we need to call cleanup of sqlFunctionCtx first to avoid mem leak.
+  if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
+    pOperator->fpSet.closeFn(pOperator->info);
+  }
+
   taosMemoryFreeClear(pOperator);
 }
 
@@ -868,17 +870,19 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInpu
 SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
   SSDataBlock* p = NULL;
   int32_t code = getNextBlockFromDownstreamImpl(pOperator, idx, true, &p);
+  blockDataCheck(p, false);
   return (code == 0)? p:NULL;
 }
 
 SSDataBlock* getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, int32_t idx) {
   SSDataBlock* p = NULL;
   int32_t code = getNextBlockFromDownstreamImpl(pOperator, idx, false, &p);
+  blockDataCheck(p, false);
   return (code == 0)? p:NULL;
 }
 
 int32_t optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SSDataBlock** pRes) {
-  QRY_OPTR_CHECK(pRes);
+  QRY_PARAM_CHECK(pRes);
 
   int32_t code = setOperatorParams(pOperator, pParam, OP_GET_PARAM);
   if (TSDB_CODE_SUCCESS != code) {

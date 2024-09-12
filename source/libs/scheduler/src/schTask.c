@@ -1134,6 +1134,7 @@ int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
   qwMsg.msg = pTask->plan;
   qwMsg.msgType = pTask->plan->msgType;
   qwMsg.connInfo.handle = pJob->conn.pTrans;
+  qwMsg.pWorkerCb = pJob->pWorkerCb;
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     explainRes = taosArrayInit(pJob->taskNum, sizeof(SExplainLocalRsp));
@@ -1236,7 +1237,7 @@ _return:
 int32_t schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
   SSchTaskCtx *param = taosMemoryCalloc(1, sizeof(SSchTaskCtx));
   if (NULL == param) {
-    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCH_ERR_RET(terrno);
   }
 
   param->jobRid = pJob->refId;

@@ -368,10 +368,9 @@ static void *mndBuildVDropSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSma,
   SEncoder encoder = {0};
   int32_t  contLen;
   SName    name = {0};
-  int32_t  ret = 0;
-
-  if ((ret = tNameFromString(&name, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) {
-    terrno = ret;
+  int32_t code = tNameFromString(&name, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  if (TSDB_CODE_SUCCESS != code) {
+    terrno = code;
     return NULL;
   }
 
@@ -1674,7 +1673,6 @@ static int32_t mndSetUpdateDbTsmaVersionPrepareLogs(SMnode *pMnode, STrans *pTra
   }
 
   TAOS_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY));
-  TAOS_RETURN(code);
 }
 
 static int32_t mndSetUpdateDbTsmaVersionCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
@@ -1691,7 +1689,6 @@ static int32_t mndSetUpdateDbTsmaVersionCommitLogs(SMnode *pMnode, STrans *pTran
   }
 
   TAOS_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
-  TAOS_RETURN(code);
 }
 
 static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {

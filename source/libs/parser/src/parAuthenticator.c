@@ -46,7 +46,7 @@ static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const c
     int32_t code = tNameSetDbName(&pAuth->tbName, pCxt->acctId, pDbName, strlen(pDbName));
     if (TSDB_CODE_SUCCESS != code) return code;
   } else {
-    (void)toName(pCxt->acctId, pDbName, pTabName, &pAuth->tbName);
+    toName(pCxt->acctId, pDbName, pTabName, &pAuth->tbName);
   }
   pAuth->type = type;
   pAuth->isView = isView;
@@ -171,8 +171,9 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
 #ifdef TD_ENTERPRISE
     SName name;
     STableMeta* pTableMeta = NULL;
+    toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
     int32_t code = getTargetMetaImpl(
-        pAuthCxt->pParseCxt, pAuthCxt->pMetaCache, toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name), &pTableMeta, true);
+        pAuthCxt->pParseCxt, pAuthCxt->pMetaCache, &name, &pTableMeta, true);
     if (TSDB_CODE_SUCCESS == code && TSDB_VIEW_TABLE == pTableMeta->tableType) {
       isView = true;
     }
