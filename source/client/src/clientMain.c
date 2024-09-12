@@ -1363,6 +1363,19 @@ void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
   doAsyncQuery(pUserReq, true);
 }
 
+typedef struct SAsyncFetchParam {
+  SRequestObj      *pReq;
+  __taos_async_fn_t fp;
+  void             *param;
+} SAsyncFetchParam;
+
+static int32_t doAsyncFetch(void* pParam) {
+  SAsyncFetchParam *param = pParam;
+  taosAsyncFetchImpl(param->pReq, param->fp, param->param);
+  taosMemoryFree(param);
+  return TSDB_CODE_SUCCESS;
+}
+
 void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   if (res == NULL || fp == NULL) {
     tscError("taos_fetch_rows_a invalid paras");
@@ -1370,6 +1383,7 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   }
   if (!TD_RES_QUERY(res)) {
     tscError("taos_fetch_rows_a res is NULL");
+    fp(param, res, TSDB_CODE_APP_ERROR);
     return;
   }
 
@@ -1379,7 +1393,20 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
     return;
   }
 
-  taosAsyncFetchImpl(pRequest, fp, param);
+  SAsyncFetchParam* pParam = taosMemoryCalloc(1, sizeof(SAsyncFetchParam));
+  if (!pParam) {
+    fp(param, res, terrno);
+    return;
+  }
+  pParam->pReq = pRequest;
+  pParam->fp = fp;
+  pParam->param = param;
+  int32_t code = taosAsyncExec(doAsyncFetch, pParam, NULL);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosMemoryFree(pParam);
+    fp(param, res, code);
+    return;
+  }
 }
 
 void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {

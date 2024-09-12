@@ -106,7 +106,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
   snprintf(file, sizeof(file), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dInfo("vnode file:%s not exist, reason:%s", file, tstrerror(code));
     code = 0;
     return code;
@@ -114,14 +114,14 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
 
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to open vnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
 
   int64_t size = 0;
-  if (taosFStatFile(pFile, &size, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
     dError("failed to fstat mnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
@@ -133,7 +133,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
   }
 
   if (taosReadFile(pFile, pData, size) != size) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to read vnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
@@ -234,13 +234,13 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
 
   int32_t len = strlen(buffer);
   if (taosWriteFile(pFile, buffer, len) <= 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
   if (taosFsyncFile(pFile) < 0) {
@@ -253,12 +253,8 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _OVER;
   }
-  if (taosRenameFile(file, realfile) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
 
-  code = 0;
   dInfo("succeed to write vnodes file:%s, vnodes:%d", realfile, numOfVnodes);
 
 _OVER:

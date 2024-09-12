@@ -203,14 +203,14 @@ int32_t dmReadEps(SDnodeData *pData) {
 
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to open dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
 
   int64_t size = 0;
-  if (taosFStatFile(pFile, &size, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
     dError("failed to fstat dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
@@ -222,7 +222,7 @@ int32_t dmReadEps(SDnodeData *pData) {
   }
 
   if (taosReadFile(pFile, content, size) != size) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to read dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
@@ -333,16 +333,15 @@ int32_t dmWriteEps(SDnodeData *pData) {
   }
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pFile == NULL) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _OVER);
+  if (pFile == NULL) TAOS_CHECK_GOTO(terrno, NULL, _OVER);
 
   int32_t len = strlen(buffer);
-  if (taosWriteFile(pFile, buffer, len) <= 0) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _OVER);
-  if (taosFsyncFile(pFile) < 0) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _OVER);
+  if (taosWriteFile(pFile, buffer, len) <= 0) TAOS_CHECK_GOTO(terrno, NULL, _OVER);
+  if (taosFsyncFile(pFile) < 0) TAOS_CHECK_GOTO(terrno, NULL, _OVER);
 
   (void)taosCloseFile(&pFile);
-  if (taosRenameFile(file, realfile) != 0) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _OVER);
+  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
 
-  code = 0;
   pData->updateTime = taosGetTimestampMs();
   dInfo("succeed to write dnode file:%s, num:%d ver:%" PRId64, realfile, (int32_t)taosArrayGetSize(pData->dnodeEps),
         pData->dnodeVer);
@@ -599,7 +598,7 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
   snprintf(file, sizeof(file), "%s%sdnode%sep.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dDebug("dnode file:%s not exist, reason:%s", file, tstrerror(code));
     code = 0;
     goto _OVER;
@@ -607,14 +606,14 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
 
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to open dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
 
   int64_t size = 0;
-  if (taosFStatFile(pFile, &size, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
     dError("failed to fstat dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
@@ -626,7 +625,7 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
   }
 
   if (taosReadFile(pFile, content, size) != size) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = terrno;
     dError("failed to read dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }

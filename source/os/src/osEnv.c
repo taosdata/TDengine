@@ -64,7 +64,10 @@ int32_t osDefaultInit() {
   }
 
 #ifdef WINDOWS
-  taosWinSocketInit();
+  code = taosWinSocketInit();
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   const char *tmpDir = getenv("tmp");
   if (tmpDir == NULL) {

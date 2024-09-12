@@ -179,7 +179,7 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
       int32_t len = pSrc->node.resType.bytes + 1;
       pDst->datum.p = taosMemoryCalloc(1, len);
       if (NULL == pDst->datum.p) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       memcpy(pDst->datum.p, pSrc->datum.p, len);
       break;
@@ -188,7 +188,7 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
       int32_t len = getJsonValueLen(pSrc->datum.p);
       pDst->datum.p = taosMemoryCalloc(1, len);
       if (NULL == pDst->datum.p) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       memcpy(pDst->datum.p, pSrc->datum.p, len);
       break;

@@ -6036,9 +6036,10 @@ static void modeFunctionCleanup(SModeInfo * pInfo) {
 }
 
 void modeFunctionCleanupExt(SqlFunctionCtx* pCtx) {
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  SModeInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  modeFunctionCleanup(pInfo);
+  if (pCtx == NULL || GET_RES_INFO(pCtx) == NULL || GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx)) == NULL) {
+    return;
+  }
+  modeFunctionCleanup(GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx)));
 }
 
 static int32_t saveModeTupleData(SqlFunctionCtx* pCtx, char* data, SModeInfo *pInfo, STuplePos* pPos) {

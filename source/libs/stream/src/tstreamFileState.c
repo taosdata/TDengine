@@ -663,7 +663,7 @@ static int32_t recoverStateRowBuff(SStreamFileState* pFileState, SRowBuffPos* pP
     if (pFileState->curRowCount < pFileState->maxRowCount) {
       pPos->pRowBuff = taosMemoryCalloc(1, pFileState->rowSize);
       if (!pPos->pRowBuff) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         QUERY_CHECK_CODE(code, lino, _end);
       }
       pFileState->curRowCount++;

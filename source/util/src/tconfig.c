@@ -136,7 +136,7 @@ static int32_t cfgCheckAndSetConf(SConfigItem *pItem, const char *conf) {
 static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
   char fullDir[PATH_MAX] = {0};
   if (taosExpandDir(inputDir, fullDir, PATH_MAX) != 0) {
-    int32_t code = TAOS_SYSTEM_ERROR(errno);
+    int32_t code = terrno;
     uError("failed to expand dir:%s since %s", inputDir, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -1009,7 +1009,7 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile) {
 
   TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
 
   while (!taosEOFFile(pFile)) {
@@ -1066,7 +1066,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
   TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     // success when the file does not exist
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     if (errno == ENOENT) {
       uInfo("failed to load from cfg file %s since %s, use default parameters", filepath, tstrerror(code));
       TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -1252,14 +1252,19 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
 
     TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ);
     if (pFile == NULL) {
-      TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
+      TAOS_CHECK_EXIT(terrno);
     }
     size_t fileSize = taosLSeekFile(pFile, 0, SEEK_END);
+    if(fileSize <= 0) {
+      (void)taosCloseFile(&pFile);
+      (void)printf("load json file error: %s\n", filepath);
+      TAOS_CHECK_EXIT(terrno);
+    }
     char  *buf = taosMemoryMalloc(fileSize + 1);
     if (!buf) {
       (void)taosCloseFile(&pFile);
       (void)printf("load json file error: %s, failed to alloc memory\n", filepath);
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
 
     buf[fileSize] = 0;

@@ -887,9 +887,9 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
     taosMemoryFree(pNode);
   }
 
-  (void)tdListFree(pPool->workers);
-  (void)tdListFree(pPool->backupWorkers);
-  (void)tdListFree(pPool->exitedWorkers);
+  pPool->workers = tdListFree(pPool->workers);
+  pPool->backupWorkers = tdListFree(pPool->backupWorkers);
+  pPool->exitedWorkers = tdListFree(pPool->exitedWorkers);
   taosMemoryFree(pPool->pCb);
 
   (void)taosThreadMutexDestroy(&pPool->poolLock);

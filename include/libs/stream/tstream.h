@@ -636,7 +636,7 @@ typedef struct SCheckpointConsensusInfo {
   int64_t streamId;
 } SCheckpointConsensusInfo;
 
-int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
+void    streamSetupScheduleTrigger(SStreamTask* pTask);
 
 // dispatch related
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
@@ -793,6 +793,7 @@ void    streamTaskSetReqConsenChkptId(SStreamTask* pTask, int64_t ts);
 int32_t streamTimerGetInstance(tmr_h* pTmr);
 void    streamTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId, int32_t vgId,
                        const char* pMsg);
+void    streamTmrStop(tmr_h tmrId);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
