@@ -27,8 +27,9 @@
 #include "syncSnapshot.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
+#include "tglobal.h"
 
-int64_t tsLogBufferMemoryUsed = 0;  // total bytes of vnode log buffer
+static int64_t tsLogBufferMemoryUsed = 0;  // total bytes of vnode log buffer
 
 static bool syncIsMsgBlock(tmsg_t type) {
   return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
