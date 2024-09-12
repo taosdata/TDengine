@@ -3505,7 +3505,6 @@ class TaskAddData(StateTransitionTask):
         try:
             dbc.execute(sql)
         finally:
-            # Logging.info("Data added in batch: {}".format(sql))
             self._unlockTableIfNeeded(fullTableName)
 
     def _addDataInBatch_n(self, db, dbc, regTableName, te: TaskExecutor):
@@ -3540,7 +3539,6 @@ class TaskAddData(StateTransitionTask):
             self.logError(f"func _addDataInBatch_n error: {sql}")
             raise CrashGenError(f"func _addDataInBatch_n error {e}")
         finally:
-            # Logging.info("Data added in batch: {}".format(sql))
             self._unlockTableIfNeeded(fullTableName)
 
     def _checkStableExists(self, dbc, table):
@@ -3781,7 +3779,6 @@ class TaskAddData(StateTransitionTask):
                     nextTick, intToWrite, nextColor)
                 # Logging.info("Adding data: {}".format(sql))
                 dbc.execute(sql)
-                # Logging.info("Data added: {}".format(sql))
                 intWrote = intToWrite
 
                 # Quick hack, attach an update statement here. TODO: create an "update" task
@@ -3890,9 +3887,7 @@ class TaskAddData(StateTransitionTask):
                     # ds.getFixedSuperTableName(),
                     # ds.getNextBinary(), ds.getNextFloat(),
                     colStrs)
-                # Logging.info("Adding data: {}".format(sql))
                 dbc.execute(sql)
-                # Logging.info("Data added: {}".format(sql))
                 intWrote = intToWrite
 
                 # Quick hack, attach an update statement here. TODO: create an "update" task
@@ -3990,9 +3985,7 @@ class TaskAddData(StateTransitionTask):
                     tagStrs,
                     colNames,
                     colStrs)
-                # Logging.info("Adding data: {}".format(sql))
                 dbc.execute(sql)
-                # Logging.info("Data added: {}".format(sql))
             except Exception as e:  # Any exception at all
                 self.logError(f"func _addDataByAutoCreateTable_n error: {sql}")
                 self._unlockTableIfNeeded(fullRegTableName)
@@ -4032,7 +4025,6 @@ class TaskAddData(StateTransitionTask):
         try:
             # Logging.info("Adding data: {}".format(sql))
             dbc.execute(sql)
-            Logging.info("Data added: {}".format(sql))
         except Exception as e:  # Any exception at all
             self.logError(f"func _addDataByMultiTable_n error: {sql}")
             self._unlockTableIfNeeded(fullRegTableName)
@@ -4421,7 +4413,6 @@ class TaskDeleteData(StateTransitionTask):
                     # print(sql)
                     # Logging.info("Adding data: {}".format(sql))
                     dbc.execute(sql)
-                    # Logging.info("Data added: {}".format(sql))
                     intWrote = intToWrite
 
                     # Quick hack, attach an update statement here. TODO: create an "update" task
@@ -4489,7 +4480,6 @@ class TaskDeleteData(StateTransitionTask):
                         fullTableName)
                     # Logging.info("Adding data: {}".format(sql))
                     dbc.execute(sql)
-                    # Logging.info("Data added: {}".format(sql))
 
                     # Quick hack, attach an update statement here. TODO: create an "update" task
                     if (not Config.getConfig().use_shadow_db) and Dice.throw(
