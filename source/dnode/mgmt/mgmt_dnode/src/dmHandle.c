@@ -64,7 +64,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   SRpcMsg rpcMsg = {.pCont = pHead,
                     .contLen = contLen,
                     .msgType = TDMT_MND_RETRIEVE_IP_WHITE,
-                    .info.ahandle = (void *)0x9527,
+                    .info.ahandle = 0,
                     .info.refId = 0,
                     .info.noResp = 0,
                     .info.handle = 0};
@@ -180,7 +180,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   SRpcMsg rpcMsg = {.pCont = pHead,
                     .contLen = contLen,
                     .msgType = TDMT_MND_STATUS,
-                    .info.ahandle = (void *)0x9527,
+                    .info.ahandle = 0,
                     .info.refId = 0,
                     .info.noResp = 0,
                     .info.handle = 0};
@@ -229,7 +229,7 @@ void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {
   SRpcMsg rpcMsg = {.pCont = pHead,
                     .contLen = contLen,
                     .msgType = TDMT_MND_NOTIFY,
-                    .info.ahandle = (void *)0x9527,
+                    .info.ahandle = 0,
                     .info.refId = 0,
                     .info.noResp = 1,
                     .info.handle = 0};

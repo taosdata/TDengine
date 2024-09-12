@@ -54,6 +54,7 @@ typedef struct SSvrConn {
   int     spi;
   char    info[64];
   char    user[TSDB_UNI_LEN];  // user ID for the link
+  int8_t  userInited;
   char    secret[TSDB_PASSWORD_LEN];
   char    ckey[TSDB_PASSWORD_LEN];  // ciphering key
 
@@ -463,10 +464,31 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
   return 0;
 }
 
-bool uvExtractFisrtInitPacket() {
-  
-  return true; 
-} 
+bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgLen) {
+  if (pConn->userInited) {
+    return false;
+  }
+
+  STrans*        pInst = pConn->pInst;
+  STransMsgHead* pHead = *ppHead;
+  int32_t        len = *msgLen;
+  if (pHead->withUserInfo) {
+    STransMsgHead* tHead = taosMemoryCalloc(1, len - sizeof(pInst->user));
+    memcpy((char*)tHead, (char*)pHead, TRANS_MSG_OVERHEAD);
+    memcpy((char*)tHead + TRANS_MSG_OVERHEAD, (char*)pHead + TRANS_MSG_OVERHEAD + sizeof(pInst->user),
+           len - sizeof(STransMsgHead) - sizeof(pInst->user));
+    tHead->msgLen = htonl(htonl(pHead->msgLen) - sizeof(pInst->user));
+
+    memcpy(pConn->user, (char*)pHead + TRANS_MSG_OVERHEAD, sizeof(pConn->user));
+    pConn->userInited = 1;
+
+    taosMemoryFree(pHead);
+    *ppHead = tHead;
+    *msgLen = len - sizeof(pInst->user);
+    return true;
+  }
+  return false;
+}
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pInst = pConn->pInst;
   SWorkThrd* pThrd = pConn->hostThrd;
@@ -479,6 +501,9 @@ static bool uvHandleReq(SSvrConn* pConn) {
     tError("%s conn %p read invalid packet", transLabel(pInst), pConn);
     return false;
   }
+  if (uvConnMayGetUserInfo(pConn, &pHead, &msgLen) == true) {
+  }
+
   if (resetBuf == 0) {
     tTrace("%s conn %p not reset read buf", transLabel(pInst), pConn);
   }
@@ -487,12 +512,10 @@ static bool uvHandleReq(SSvrConn* pConn) {
     tError("%s conn %p recv invalid packet, failed to decompress", transLabel(pInst), pConn);
     return false;
   }
-  // pHead->ahandle = htole64(pHead->ahandle);
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
 
   pConn->inType = pHead->msgType;
-  memcpy(pConn->user, pHead->user, strlen(pHead->user));
 
   int8_t forbiddenIp = 0;
   if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
@@ -697,6 +720,7 @@ static int uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
   pHead->version = TRANS_VER;
   pHead->seqNum = htonl(pMsg->info.seqNum);
   pHead->qid = taosHton64(pMsg->info.qId);
+  pHead->withUserInfo = pConn->userInited == 0 ? 1 : 0;
 
   // handle invalid drop_task resp, TD-20098
   if (pConn->inType == TDMT_SCH_DROP_TASK && pMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {

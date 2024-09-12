@@ -169,16 +169,15 @@ typedef struct {
 
 #define TRANS_VER 2
 typedef struct {
-  char version : 4;  // RPC version
-  char comp : 2;     // compression algorithm, 0:no compression 1:lz4
-  char noResp : 2;   // noResp bits, 0: resp, 1: resp
-  char toInit : 2;   // 0: sent user info or not
+  char version : 4;       // RPC version
+  char comp : 2;          // compression algorithm, 0:no compression 1:lz4
+  char noResp : 2;        // noResp bits, 0: resp, 1: resp
+  char withUserInfo : 2;  // 0: sent user info or not
   char secured : 2;
   char spi : 2;
   char hasEpSet : 2;  // contain epset or not, 0(default): no epset, 1: contain epset
 
   uint64_t timestamp;
-  char     user[TSDB_UNI_LEN];
   int32_t  compatibilityVer;
   uint32_t magicNum;
   STraceId traceId;

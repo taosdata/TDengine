@@ -100,8 +100,8 @@ typedef struct SCliConn {
   int8_t    registered;
   int8_t    connnected;
   SHashObj* pQTable;
-  int8_t    inited;
-  void*     initPacket;
+  int8_t    userInited;
+  void*     pInitUserReq;
 } SCliConn;
 
 // #define TRANS_CONN_REF_INC(tconn) \
@@ -523,6 +523,10 @@ void cliHandleResp2(SCliConn* conn) {
   SCliThrd* pThrd = conn->hostThrd;
   STrans*   pInst = pThrd->pInst;
 
+  if (conn->pInitUserReq) {
+    taosMemoryFree(conn->pInitUserReq);
+    conn->pInitUserReq = NULL;
+  }
   cliResetConnTimer(conn);
   SCliReq* pReq = NULL;
 
@@ -1123,8 +1127,8 @@ _exception:
 void cliDestroyMsg(void* arg) {
   queue*   e = arg;
   SCliReq* pReq = QUEUE_DATA(e, SCliReq, q);
-  if (pReq->msg.info.notFreeAhandle == 0) {
-    taosMemoryFree(pReq->ctx->ahandle);
+  if (pReq->msg.info.notFreeAhandle == 0 && pReq->ctx->ahandle != 0) {
+    // taosMemoryFree(pReq->ctx->ahandle);
   }
   destroyReq(pReq);
 }
@@ -1233,7 +1237,11 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
     transDQCancel(pThrd->timeoutQueue, conn->task);
     conn->task = NULL;
   }
-  // cliResetTimer(pThrd, conn);
+
+  if (conn->pInitUserReq) {
+    taosMemoryFree(conn->pInitUserReq);
+    conn->pInitUserReq = NULL;
+  }
 
   if (clear) {
     if (!uv_is_closing((uv_handle_t*)conn->stream)) {
@@ -1270,6 +1278,10 @@ static void cliDestroy(uv_handle_t* handle) {
   cliDestroyConnMsgs(conn, true);
   destroyCliConnQTable(conn);
 
+  if (conn->pInitUserReq) {
+    taosMemoryFree(conn->pInitUserReq);
+    conn->pInitUserReq = NULL;
+  }
   tTrace("%s conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
   transReqQueueClear(&conn->wreqQueue);
   (void)transDestroyBuffer(&conn->readBuf);
@@ -1352,24 +1364,26 @@ static void cliSendBatch_shareConnCb(uv_write_t* req, int status) {
     cliSendBatch_shareConn(conn);
   }
 }
-bool cliConnMayBuildInitPacket(SCliConn* pConn, STransMsgHead** pHead, int32_t msgLen) {
+bool cliConnMayAddUserInfo(SCliConn* pConn, STransMsgHead** ppHead, int32_t* msgLen) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pInst = pThrd->pInst;
-  if (pConn->inited == 1) {
+  if (pConn->userInited == 1) {
     return false;
   }
-  STransMsgHead* tHead = taosMemoryCalloc(1, msgLen + strlen(pInst->user));
-  memcpy(tHead, pHead, TRANS_MSG_OVERHEAD);
-  memcpy(tHead + TRANS_MSG_OVERHEAD, pInst->user, strlen(pInst->user));
+  STransMsgHead* pHead = *ppHead;
+  STransMsgHead* tHead = taosMemoryCalloc(1, *msgLen + sizeof(pInst->user));
+  memcpy((char*)tHead, (char*)pHead, TRANS_MSG_OVERHEAD);
+  memcpy((char*)tHead + TRANS_MSG_OVERHEAD, pInst->user, sizeof(pInst->user));
 
-  memcpy(tHead + TRANS_MSG_OVERHEAD + strlen(pInst->user), (char*)pHead + TRANS_MSG_OVERHEAD,
-         msgLen - TRANS_MSG_OVERHEAD);
+  memcpy((char*)tHead + TRANS_MSG_OVERHEAD + sizeof(pInst->user), (char*)pHead + TRANS_MSG_OVERHEAD,
+         *msgLen - TRANS_MSG_OVERHEAD);
 
-  tHead->toInit = 1;
-  *pHead = tHead;
+  tHead->withUserInfo = 1;
+  *ppHead = tHead;
+  *msgLen += sizeof(pInst->user);
 
-  pConn->initPacket = tHead;
-  pConn->inited = 1;
+  pConn->pInitUserReq = tHead;
+  pConn->userInited = 1;
   return true;
 }
 void cliSendBatch_shareConn(SCliConn* pConn) {
@@ -1397,20 +1411,20 @@ void cliSendBatch_shareConn(SCliConn* pConn) {
       pReq->contLen = 0;
     }
 
-    int msgLen = transMsgLenFromCont(pReq->contLen);
+    int32_t msgLen = transMsgLenFromCont(pReq->contLen);
 
     STransMsgHead* pHead = transHeadFromCont(pReq->pCont);
 
-    if (cliConnMayBuildInitPacket(pConn, &pHead, msgLen)) {
-    } else {
-      pHead->toInit = 0;
+    char*   content = pReq->pCont;
+    int32_t contLen = pReq->contLen;
+    if (cliConnMayAddUserInfo(pConn, &pHead, &msgLen)) {
+      content = transContFromHead(pHead);
+      contLen = transContLenFromMsg(msgLen);
     }
-
     if (pHead->comp == 0) {
       pHead->noResp = REQUEST_NO_RESP(pReq) ? 1 : 0;
       pHead->msgType = pReq->msgType;
       pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
-      // memcpy(pHead->user, pInst->user, strlen(pInst->user));
       pHead->traceId = pReq->info.traceId;
       pHead->magicNum = htonl(TRANS_MAGIC_NUM);
       pHead->version = TRANS_VER;
@@ -1421,8 +1435,8 @@ void cliSendBatch_shareConn(SCliConn* pConn) {
     pHead->qid = taosHton64(pReq->info.qId);
 
     if (pHead->comp == 0) {
-      if (pInst->compressSize != -1 && pInst->compressSize < pReq->contLen) {
-        msgLen = transCompressMsg(pReq->pCont, pReq->contLen) + sizeof(STransMsgHead);
+      if (pInst->compressSize != -1 && pInst->compressSize < contLen) {
+        msgLen = transCompressMsg(content, contLen) + sizeof(STransMsgHead);
         pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
       }
     } else {
@@ -2984,10 +2998,8 @@ int32_t transReleaseCliHandle(void* handle) {
     return TSDB_CODE_RPC_BROKEN_LINK;
   }
 
-  STransMsg tmsg = {.msgType = TDMT_SCH_TASK_RELEASE,
-                    .info.handle = handle,
-                    .info.ahandle = (void*)0x9527,
-                    .info.qId = (int64_t)handle};
+  STransMsg tmsg = {
+      .msgType = TDMT_SCH_TASK_RELEASE, .info.handle = handle, .info.ahandle = (void*)0, .info.qId = (int64_t)handle};
 
   TRACE_SET_MSGID(&tmsg.info.traceId, tGenIdPI64());
 
