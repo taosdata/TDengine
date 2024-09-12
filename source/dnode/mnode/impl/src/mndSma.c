@@ -379,6 +379,7 @@ static void *mndBuildVDropSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSma,
   tstrncpy(req.indexName, (char *)tNameGetTableName(&name), TSDB_INDEX_NAME_LEN);
 
   // get length
+  int32_t ret = 0;
   tEncodeSize(tEncodeSVDropTSmaReq, &req, contLen, ret);
   if (ret < 0) {
     return NULL;
