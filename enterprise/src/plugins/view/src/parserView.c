@@ -49,7 +49,7 @@ int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName) {
    pParseCxt->isView = true;
    int32_t code = getViewQuerySqlUser(pCxt, pName, &querySql, &user);
    if (TSDB_CODE_SUCCESS != code) {
-     code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
+     (void)generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
      goto _exit;
    }
    parserDebug("translate view %d.%s.%s, querySQL:%s, effectiveUser:%s", pName->acctId, pName->dbname, pName->tname, querySql, user);
