@@ -193,13 +193,13 @@ int32_t streamBroadcastToUpTasks(SStreamTask* pTask, const SSDataBlock* pBlock) 
 // no need to do anything if failed
 int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet) {
   void*   buf = NULL;
-  int32_t code = -1;
+  int32_t code = 0;
   SRpcMsg msg = {0};
 
   int32_t tlen;
   tEncodeSize(tEncodeStreamTaskCheckReq, pReq, tlen, code);
   if (code < 0) {
-    return -1;
+    return code;
   }
 
   buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
@@ -217,8 +217,8 @@ int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, 
     tEncoderClear(&encoder);
     return code;
   }
-  tEncoderClear(&encoder);
 
+  tEncoderClear(&encoder);
   initRpcMsg(&msg, TDMT_VND_STREAM_TASK_CHECK, buf, tlen + sizeof(SMsgHead));
   stDebug("s-task:%s (level:%d) send check msg to s-task:0x%" PRIx64 ":0x%x (vgId:%d)", pTask->id.idStr,
           pTask->info.taskLevel, pReq->streamId, pReq->downstreamTaskId, nodeId);
@@ -1477,20 +1477,27 @@ int32_t getFailedDispatchInfo(SDispatchMsgInfo* pMsgInfo, int64_t now) {
 }
 
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code) {
-  const char*       id = pTask->id.idStr;
-  int32_t           vgId = pTask->pMeta->vgId;
-  SDispatchMsgInfo* pMsgInfo = &pTask->msgInfo;
-  int64_t           now = taosGetTimestampMs();
-  bool              allRsp = false;
-  int32_t           notRsp = 0;
-  int32_t           numOfFailed = 0;
-  bool              triggerDispatchRsp = false;
+  const char*            id = pTask->id.idStr;
+  int32_t                vgId = pTask->pMeta->vgId;
+  SDispatchMsgInfo*      pMsgInfo = &pTask->msgInfo;
+  int64_t                now = taosGetTimestampMs();
+  bool                   allRsp = false;
+  int32_t                notRsp = 0;
+  int32_t                numOfFailed = 0;
+  bool                   triggerDispatchRsp = false;
+  SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
+  int64_t                tmpCheckpointId = -1;
+  int32_t                tmpTranId = -1;
+  const char*            pStatus = NULL;
 
   // we only set the dispatch msg info for current checkpoint trans
   streamMutexLock(&pTask->lock);
-  triggerDispatchRsp = (streamTaskGetStatus(pTask).state == TASK_STATUS__CK) &&
-                       (pTask->chkInfo.pActiveInfo->activeId == pMsgInfo->checkpointId) &&
-                       (pTask->chkInfo.pActiveInfo->transId != pMsgInfo->transId);
+  SStreamTaskState s = streamTaskGetStatus(pTask);
+  triggerDispatchRsp = (s.state == TASK_STATUS__CK) && (pInfo->activeId == pMsgInfo->checkpointId) &&
+                       (pInfo->transId == pMsgInfo->transId);
+  tmpCheckpointId = pInfo->activeId;
+  tmpTranId = pInfo->transId;
+  pStatus = s.name;
   streamMutexUnlock(&pTask->lock);
 
   streamMutexLock(&pMsgInfo->lock);
@@ -1498,8 +1505,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 
   // follower not handle the dispatch rsp
   if ((pTask->pMeta->role == NODE_ROLE_FOLLOWER) || (pTask->status.downstreamReady != 1)) {
-    stError("s-task:%s vgId:%d is follower or task just re-launched, not handle the dispatch rsp, discard it", id,
-            vgId);
+    stError("s-task:%s vgId:%d is follower or just re-launched, not handle the dispatch rsp, discard it", id, vgId);
     streamMutexUnlock(&pMsgInfo->lock);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
@@ -1557,8 +1563,9 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
             streamTaskSetTriggerDispatchConfirmed(pTask, pRsp->downstreamNodeId);
           } else {
             stWarn("s-task:%s checkpoint-trigger msg rsp for checkpointId:%" PRId64
-                   " transId:%d discard, since expired",
-                   pTask->id.idStr, pMsgInfo->checkpointId, pMsgInfo->transId);
+                   " transId:%d discard, current status:%s, active checkpointId:%" PRId64
+                   " active transId:%d, since expired",
+                   pTask->id.idStr, pMsgInfo->checkpointId, pMsgInfo->transId, pStatus, tmpCheckpointId, tmpTranId);
           }
         }
       }
