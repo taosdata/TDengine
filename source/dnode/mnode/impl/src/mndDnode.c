@@ -1472,10 +1472,10 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     int32_t code = mndMCfgGetValInt64(&cfgReq, optLen, &flag);
     if (code < 0) return code;
 
-    if (flag < TSDB_MAX_MSG_SIZE * 10LL || flag > TSDB_MAX_MSG_SIZE * 10000LL) {
+    if (flag < TSDB_MAX_MSG_SIZE * 10LL || INT64_MAX) {
       mError("dnode:%d, failed to config syncLogBufferMemoryAllowed since value:%" PRIi64 ". Valid range: [%" PRIi64
              ", %" PRIi64 "]",
-             cfgReq.dnodeId, flag, (int64_t)(TSDB_MAX_MSG_SIZE * 10LL), (int64_t)(TSDB_MAX_MSG_SIZE * 10000LL));
+             cfgReq.dnodeId, flag, (int64_t)(TSDB_MAX_MSG_SIZE * 10LL), INT64_MAX);
       terrno = TSDB_CODE_OUT_OF_RANGE;
       tFreeSMCfgDnodeReq(&cfgReq);
       return -1;
