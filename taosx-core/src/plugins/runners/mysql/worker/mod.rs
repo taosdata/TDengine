@@ -107,6 +107,13 @@ pub async fn migrate_history_by_subtable(
     // generate combinations
     let mut combinations = HashSet::new();
     generate_combinations(&filters, &config.task.sql, &mut combinations);
+    // if no distinct values, use the original sql
+    if combinations.is_empty() {
+        combinations.insert(SubSql {
+            sql: config.task.sql.clone(),
+            sub_values: String::new(),
+        });
+    }
 
     // migrate data by combinations
     let concurrency = cmp::max(config.advanced.read_concurrency.unwrap_or(1), 1);
