@@ -971,13 +971,11 @@ export default {
       if (isSupportType) {
         dsn += `&get_sample_timeout=3`
       }
-      if (this.$store.state.app.supportSQL) {
-        dsn += `&timeout=${this.timeout}`
-      }
       let result = await getSampleDataMsgbody(
         this.$store.state.app.currentDBType,
         encodeURIComponent(dsn),
-        this.sourceParent.sourceForm.agent
+        this.sourceParent.sourceForm.agent,
+        this.$store.state.app.supportSQL ? this.timeout : ''
       );
       if (result && Object.hasOwnProperty.call(result,'code')) {
         this.$error(result.message || result.desc)
