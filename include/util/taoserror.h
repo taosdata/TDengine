@@ -94,12 +94,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_RPC_ASYNC_MODULE_QUIT          TAOS_DEF_ERROR_CODE(0, 0x0027)
 #define TSDB_CODE_RPC_ASYNC_IN_PROCESS              TAOS_DEF_ERROR_CODE(0, 0x0028)
 #define TSDB_CODE_RPC_NO_STATE              TAOS_DEF_ERROR_CODE(0, 0x0029)
-
-
-
-
-
-
+#define TSDB_CODE_RPC_STATE_DROPED         TAOS_DEF_ERROR_CODE(0, 0x002A) 
 
 //common & util
 #define TSDB_CODE_OPS_NOT_SUPPORT               TAOS_DEF_ERROR_CODE(0, 0x0100) //
