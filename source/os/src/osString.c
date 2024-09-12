@@ -94,6 +94,8 @@ int32_t taosStr2int64(const char *str, int64_t *val) {
   int64_t ret = strtoll(str, &endptr, 10);
   if (errno == ERANGE && (ret == LLONG_MAX || ret == LLONG_MIN)) {
     return TAOS_SYSTEM_ERROR(errno);
+  } else if (errno == EINVAL && ret == 0) {
+    return TSDB_CODE_INVALID_PARA;
   } else {
     *val = ret;
     return 0;
@@ -106,7 +108,7 @@ int32_t taosStr2int16(const char *str, int16_t *val) {
   if (code) {
     return code;
   } else if (tmp > INT16_MAX || tmp < INT16_MIN) {
-    return TSDB_CODE_INVALID_PARA;
+    return TAOS_SYSTEM_ERROR(ERANGE);
   } else {
     *val = (int16_t)tmp;
     return 0;
@@ -119,7 +121,7 @@ int32_t taosStr2int32(const char *str, int32_t *val) {
   if (code) {
     return code;
   } else if (tmp > INT32_MAX || tmp < INT32_MIN) {
-    return TSDB_CODE_INVALID_PARA;
+    return TAOS_SYSTEM_ERROR(ERANGE);
   } else {
     *val = (int32_t)tmp;
     return 0;
@@ -132,7 +134,7 @@ int32_t taosStr2int8(const char *str, int8_t *val) {
   if (code) {
     return code;
   } else if (tmp > INT8_MAX || tmp < INT8_MIN) {
-    return TSDB_CODE_INVALID_PARA;
+    return TAOS_SYSTEM_ERROR(ERANGE);
   } else {
     *val = (int8_t)tmp;
     return 0;
@@ -336,17 +338,20 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
 #endif
 }
 
+// if success, return the number of bytes written to mbs ( >= 0)
+// otherwise return error code ( < 0)
 int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
 #ifdef DISALLOW_NCHAR_WITHOUT_ICONV
   printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
-  return -1;
+  terrno = TSDB_CODE_APP_ERROR;
+  return terrno;
 #else
 
   int32_t idx = -1;
   int32_t code = 0;
   iconv_t conv = taosAcquireConv(&idx, C2M);
   if ((iconv_t)-1 == conv || (iconv_t)0 == conv) {
-    return false;
+    return TSDB_CODE_APP_ERROR;
   }
   
   size_t  ucs4_input_len = ucs4_max_len;
@@ -364,10 +369,13 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
 #endif
 }
 
+// if success, return the number of bytes written to mbs ( >= 0)
+// otherwise return error code ( < 0)
 int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_t conv) {
 #ifdef DISALLOW_NCHAR_WITHOUT_ICONV
   printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
-  return -1;
+  terrno = TSDB_CODE_APP_ERROR;
+  return terrno;
 #else
 
   size_t ucs4_input_len = ucs4_max_len;
@@ -384,7 +392,8 @@ int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_t c
 bool taosValidateEncodec(const char *encodec) {
 #ifdef DISALLOW_NCHAR_WITHOUT_ICONV
   printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
-  return true;
+  terrno = TSDB_CODE_APP_ERROR;
+  return false;
 #else
   iconv_t cd = iconv_open(encodec, DEFAULT_UNICODE_ENCODEC);
   if (cd == (iconv_t)(-1)) {

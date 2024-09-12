@@ -129,6 +129,8 @@ extern int64_t          tsRandErrDivisor;
 extern int64_t          tsRandErrScope;
 extern threadlocal bool tsEnableRandErr;
 
+#define TAOS_UNUSED(expr) (void)(expr)
+
 #ifdef __cplusplus
 }
 #endif

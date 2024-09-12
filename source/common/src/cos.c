@@ -1871,7 +1871,6 @@ void s3EvictCache(const char *path, long object_size) {
   taosDirName(dir_name);
 
   if (taosGetDiskSize((char *)dir_name, &disk_size) < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
     vError("failed to get disk:%s size since %s", path, terrstr());
     return;
   }
