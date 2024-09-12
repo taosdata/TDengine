@@ -6,9 +6,9 @@ description: 有多种方式可以往 TDengine Cloud 实例里面写入数据。
 
 TDengine Cloud 在数据写入方面提供了三种数据写入的方式把外部数据写入到 TDengine Cloud 的实例里面。
 
-第一种是数据源的方式，用户通过简单易用的几步操作，就可以把远程的大量数据源方便的导入到 TDengine Cloud 的实例中。目前支持的数据类型包括 TDengine 订阅，InfluexDB，MQTT，PI，OPC-UA 和OPC-DA。其中 TDengine 订阅包括本地主机上或者云厂商服务器内部按照的 TDengine，以及 TDengine Cloud 的其他实例。
+第一种是数据源的方式，用户通过简单易用的几步操作，就可以把远程的大量数据源方便的导入到 TDengine Cloud 的实例中。目前支持的数据类型包括 TDengine 订阅，InfluxDB，MQTT，PI，OPC-UA 和OPC-DA。其中 TDengine 订阅包括本地主机上或者云厂商服务器内部按照的 TDengine，以及 TDengine Cloud 的其他实例。
 
-第二种是通过第三方工具或者通过REST接口的无模式支持的第三方协议往 TDengine Cloud 的实例里面写入数据，目前支持的第三方代理工具有 Telegraf 和 Prometheus，第三方协议有 InfluexDB，OpenTSDB JSON 和 OpenTSDB Telnet 协议。
+第二种是通过第三方工具或者通过REST接口的无模式支持的第三方协议往 TDengine Cloud 的实例里面写入数据，目前支持的第三方代理工具有 Telegraf 和 Prometheus，第三方协议有 InfluxDB，OpenTSDB JSON 和 OpenTSDB Telnet 协议。
 
 第三种是通过 CSV 文件的方式导入到 TDengine Cloud 实例中的某个数据库的某一张子表。特别注意，CSV文件每次只能上传一个。
 

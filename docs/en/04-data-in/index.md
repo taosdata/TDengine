@@ -6,9 +6,9 @@ description: This document describes the methods by which you can get data in to
 
 TDengine Cloud provides three types of data writing methods to write external data into TDengine Cloud instances.
 
-The first one is the data source method, which allows users to import a large number of remote data sources into TDengine Cloud instances through a few easy-to-use steps. Currently, the supported data types include TDengine subscription, InfluexDB, MQTT, PI, OPC-UA and OPC-DA, where TDengine subscription includes TDengine on local host or inside the cloud vendor's servers, as well as other instances of TDengine Cloud.
+The first one is the data source method, which allows users to import a large number of remote data sources into TDengine Cloud instances through a few easy-to-use steps. Currently, the supported data types include TDengine subscription, InfluxDB, MQTT, PI, OPC-UA and OPC-DA, where TDengine subscription includes TDengine on local host or inside the cloud vendor's servers, as well as other instances of TDengine Cloud.
 
-The second is to write data to TDengine Cloud instances through third-party tools or third-party protocols supported by schema-less REST interfaces. Currently supported third-party proxies include Telegraf and Prometheus, and third-party protocols include InfluexDB, OpenTSDB JSON, and OpenTSDB Telnet. Telnet protocol.
+The second is to write data to TDengine Cloud instances through third-party tools or third-party protocols supported by schema-less REST interfaces. Currently supported third-party proxies include Telegraf and Prometheus, and third-party protocols include InfluxDB, OpenTSDB JSON, and OpenTSDB Telnet. Telnet protocol.
 
 <!-- The third type is to import to a sub-table of a database in a TDengine Cloud instance by means of a CSV file. Note that only one CSV file can be uploaded at a time. -->
 

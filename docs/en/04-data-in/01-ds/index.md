@@ -4,7 +4,7 @@ title: Data Sources
 description: This document describes how to manage data sources in TDengine Cloud.
 ---
 
-TDengine Cloud provides a simple and fast one-stop data source management to facilitate users to import data from a lot of data sources into the database of TDengine Cloud instances. Currently supported data sources include TDengine, Legacy TDengine, InfluexDB, MQTT, PI system, OPC system and CSV. Users can migrate data from various data sources to TDengine Cloud instances by simply performing the creation steps in the data in page.
+TDengine Cloud provides a simple and fast one-stop data source management to facilitate users to import data from a lot of data sources into the database of TDengine Cloud instances. Currently supported data sources include TDengine, Legacy TDengine, InfluxDB, MQTT, PI system, OPC system and CSV. Users can migrate data from various data sources to TDengine Cloud instances by simply performing the creation steps in the data in page.
 
 This part of the data writing content is divided into two parts, the management of the data source itself and the management of the connection agent. Except for "TDengine Subscription" and "Old TDengine", all other data sources need to create the corresponding connection proxy first before creating the data source itself.
 
