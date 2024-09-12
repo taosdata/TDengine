@@ -121,7 +121,7 @@ pub async fn migrate_history_by_subtable(
         }
     }
     // generate combinations
-    let mut combinations = vec![];
+    let mut combinations = HashSet::new();
     generate_combinations(
         &placeholders,
         &config.task.sql,
@@ -129,6 +129,13 @@ pub async fn migrate_history_by_subtable(
         BTreeMap::new(),
         &mut combinations,
     );
+    // if no distinct values, use the original sql
+    if combinations.is_empty() {
+        combinations.insert(SubSql {
+            sql: config.task.sql.clone(),
+            sub_values: String::new(),
+        });
+    }
 
     // migrate data by combinations
     let concurrency = cmp::max(config.advanced.read_concurrency.unwrap_or(1), 1);
@@ -171,7 +178,7 @@ pub async fn migrate_history_by_interval(
     tracing::debug!("schema: {:?}", schema);
 
     // get break point
-    let breakpoint = get_breakpoint(config.task_id, &config.task.sql);
+    let breakpoint = get_breakpoint(config.task_id, &config.sub_task_id.clone().unwrap());
     if breakpoint.is_some() {
         config.task.start = breakpoint.unwrap();
         tracing::info!("migrate mongodb from breakpoint: {}", config.task.start);
@@ -179,7 +186,6 @@ pub async fn migrate_history_by_interval(
     tracing::info!("migrate mongodb start, config: {:?}", config);
 
     let (tx, rx) = flume::bounded(0);
-    // set sub task id
     let config_clone = config.clone();
     // consumer
     let consumer =
@@ -265,7 +271,14 @@ pub async fn get_all_distinct_values(
                 for (k, _) in config.task.subtable_fields.iter() {
                     let values = query
                         .select_distinct_values(&database, &collection, k)
-                        .await?;
+                        .await;
+                    let values = match values {
+                        Ok(values) => values,
+                        Err(e) => {
+                            tracing::error!("get distinct values error: {}", e);
+                            Vec::new()
+                        }
+                    };
                     // transform to string set
                     let values = values
                         .iter()
@@ -294,6 +307,7 @@ pub async fn get_all_distinct_values(
     Ok(filters)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct SubSql {
     sql: String,
     sub_values: String,
@@ -304,14 +318,14 @@ fn generate_combinations(
     template: &String,
     index: usize,
     current_values: BTreeMap<&str, String>,
-    result: &mut Vec<SubSql>,
+    result: &mut HashSet<SubSql>,
 ) {
     if index == data.len() {
         let mut filled_template = template.to_string();
         for (key, value) in current_values.iter() {
             filled_template = filled_template.replace(&format!("${{{}}}", key), &value.to_string());
         }
-        result.push(SubSql {
+        result.insert(SubSql {
             sql: filled_template,
             sub_values: current_values
                 .iter()
@@ -345,7 +359,7 @@ pub async fn set_breakpoint(
     Ok(())
 }
 
-fn get_breakpoint(task_id: Option<i64>, subtask_sql: &String) -> Option<DateTime<Utc>> {
+fn get_breakpoint(task_id: Option<i64>, sub_task_id: &String) -> Option<DateTime<Utc>> {
     // get break point by task_id, if not found, return None
     if task_id.is_none() {
         return None;
@@ -356,9 +370,8 @@ fn get_breakpoint(task_id: Option<i64>, subtask_sql: &String) -> Option<DateTime
     match breakpoints {
         Ok(breakpoints) => {
             let mut earliest = None;
-            for (sub_task_id, breakpoint) in breakpoints {
-                if sub_task_id.starts_with(format!("{MIGRATE_TASK_PREFIX}-{subtask_sql}").as_str())
-                {
+            for (key, breakpoint) in breakpoints {
+                if key.starts_with(format!("{MIGRATE_TASK_PREFIX}-{sub_task_id}").as_str()) {
                     // parse breakpoint to DateTime
                     let date_time = DateTime::parse_from_rfc3339(&breakpoint)
                         .map(|dt| Some(dt.with_timezone(&Utc)))
