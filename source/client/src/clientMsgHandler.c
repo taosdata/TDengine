@@ -386,9 +386,11 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
     SMCreateStbRsp createRsp = {0};
     SDecoder       coder = {0};
     tDecoderInit(&coder, pMsg->pData, pMsg->len);
-    code = tDecodeSMCreateStbRsp(&coder, &createRsp);  // pMsg->len == 0
-    if (code != TSDB_CODE_SUCCESS) {
-      setErrno(pRequest, code);
+    if (pMsg->len > 0){
+      code = tDecodeSMCreateStbRsp(&coder, &createRsp);  // pMsg->len == 0
+      if (code != TSDB_CODE_SUCCESS) {
+        setErrno(pRequest, code);
+      }
     }
     tDecoderClear(&coder);
 
@@ -477,9 +479,11 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     SMAlterStbRsp alterRsp = {0};
     SDecoder      coder = {0};
     tDecoderInit(&coder, pMsg->pData, pMsg->len);
-    code = tDecodeSMAlterStbRsp(&coder, &alterRsp);  // pMsg->len = 0
-    if (code != TSDB_CODE_SUCCESS) {
-      setErrno(pRequest, code);
+    if (pMsg->len > 0){
+      code = tDecodeSMAlterStbRsp(&coder, &alterRsp);  // pMsg->len == 0
+      if (code != TSDB_CODE_SUCCESS) {
+        setErrno(pRequest, code);
+      }
     }
     tDecoderClear(&coder);
 
