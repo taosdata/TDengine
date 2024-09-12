@@ -226,7 +226,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
 
   SSdbRaw *pRaw = taosMemoryMalloc(bufLen + 100);
   if (pRaw == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     mError("failed read sdb file since %s", tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -278,7 +278,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       bufLen = pRaw->dataLen * 2;
       SSdbRaw *pNewRaw = taosMemoryMalloc(bufLen + 100);
       if (pNewRaw == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         mError("failed read sdb file since malloc new sdbRaw size:%d failed", bufLen);
         goto _OVER;
       }
@@ -306,7 +306,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
 
       char *plantContent = taosMemoryMalloc(ENCRYPTED_LEN(pRaw->dataLen));
       if (plantContent == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _OVER;
       }
 
@@ -444,7 +444,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
           newDataLen = ENCRYPTED_LEN(pRaw->dataLen);
           newData = taosMemoryMalloc(newDataLen);
           if (newData == NULL) {
-            code = TSDB_CODE_OUT_OF_MEMORY;
+            code = terrno;
             taosHashCancelIterate(hash, ppRow);
             sdbFreeRaw(pRaw);
             break;

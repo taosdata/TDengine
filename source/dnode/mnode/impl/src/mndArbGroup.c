@@ -678,7 +678,7 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
     mndArbGroupSetAssignedLeader(&newGroup, candidateIndex);
     if (taosArrayPush(pUpdateArray, &newGroup) == NULL) {
       taosArrayDestroy(pUpdateArray);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     sdbRelease(pSdb, pArbGroup);
