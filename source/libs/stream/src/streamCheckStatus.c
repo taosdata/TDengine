@@ -316,7 +316,7 @@ void streamTaskCleanupCheckInfo(STaskCheckInfo* pInfo) {
   pInfo->pList = NULL;
 
   if (pInfo->checkRspTmr != NULL) {
-    (void)taosTmrStop(pInfo->checkRspTmr);
+    streamTmrStop(pInfo->checkRspTmr);
     pInfo->checkRspTmr = NULL;
   }
 

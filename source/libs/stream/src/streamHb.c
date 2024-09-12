@@ -331,7 +331,7 @@ void destroyMetaHbInfo(SMetaHbInfo* pInfo) {
     tCleanupStreamHbMsg(&pInfo->hbMsg);
 
     if (pInfo->hbTmr != NULL) {
-      (void) taosTmrStop(pInfo->hbTmr);
+      streamTmrStop(pInfo->hbTmr);
       pInfo->hbTmr = NULL;
     }
 

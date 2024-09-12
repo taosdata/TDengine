@@ -459,7 +459,10 @@ int32_t launchNotBuiltFillHistoryTask(SStreamTask* pTask) {
   int32_t code = createHTaskLaunchInfo(pMeta, &id, hStreamId, hTaskId, &pInfo);
   if (code) {
     stError("s-task:%s failed to launch related fill-history task, since Out Of Memory", idStr);
-    (void)streamMetaAddTaskLaunchResult(pMeta, hStreamId, hTaskId, pExecInfo->checkTs, pExecInfo->readyTs, false);
+    int32_t ret = streamMetaAddTaskLaunchResult(pMeta, hStreamId, hTaskId, pExecInfo->checkTs, pExecInfo->readyTs, false);
+    if (ret) {
+      stError("s-task:%s add task check downstream result failed, code:%s", idStr, tstrerror(ret));
+    }
     return code;
   }
 

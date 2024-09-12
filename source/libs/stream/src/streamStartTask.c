@@ -62,9 +62,12 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
     SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
     SStreamTask*   pTask = NULL;
     code = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId, &pTask);
-    if (pTask == NULL) {
-      stError("vgId:%d failed to acquire task:0x%x during start tasks", pMeta->vgId, pTaskId->taskId);
-      (void)streamMetaAddFailedTask(pMeta, pTaskId->streamId, pTaskId->taskId);
+    if ((pTask == NULL) || (code != 0)) {
+      stError("vgId:%d failed to acquire task:0x%x during start task, it may be dropped", pMeta->vgId, pTaskId->taskId);
+      int32_t ret = streamMetaAddFailedTask(pMeta, pTaskId->streamId, pTaskId->taskId);
+      if (ret) {
+        stError("s-task:0x%x add check downstream failed, core:%s", pTaskId->taskId, tstrerror(ret));
+      }
       continue;
     }
 
@@ -85,9 +88,13 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
 
     SStreamTask* pTask = NULL;
     code = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId, &pTask);
-    if (pTask == NULL) {
+    if ((pTask == NULL )|| (code != 0)) {
       stError("vgId:%d failed to acquire task:0x%x during start tasks", pMeta->vgId, pTaskId->taskId);
-      (void)streamMetaAddFailedTask(pMeta, pTaskId->streamId, pTaskId->taskId);
+      int32_t ret = streamMetaAddFailedTask(pMeta, pTaskId->streamId, pTaskId->taskId);
+      if (ret) {
+        stError("s-task:0x%x failed add check downstream failed, core:%s", pTaskId->taskId, tstrerror(ret));
+      }
+
       continue;
     }
 
@@ -105,11 +112,11 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
       if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
         stDebug("s-task:%s downstream ready, no need to check downstream, check only related fill-history task",
                 pTask->id.idStr);
-        (void)streamLaunchFillHistoryTask(pTask);  // todo: how about retry launch fill-history task?
+        code = streamLaunchFillHistoryTask(pTask);  // todo: how about retry launch fill-history task?
       }
 
-      (void)streamMetaAddTaskLaunchResult(pMeta, pTaskId->streamId, pTaskId->taskId, pInfo->checkTs, pInfo->readyTs,
-                                          true);
+      code = streamMetaAddTaskLaunchResult(pMeta, pTaskId->streamId, pTaskId->taskId, pInfo->checkTs, pInfo->readyTs,
+                                           true);
       streamMetaReleaseTask(pMeta, pTask);
       continue;
     }
@@ -333,9 +340,13 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
   stInfo("vgId:%d start task:0x%x by checking it's downstream status", vgId, taskId);
 
   code = streamMetaAcquireTask(pMeta, streamId, taskId, &pTask);
-  if (pTask == NULL) {
+  if ((pTask == NULL) || (code != 0)) {
     stError("vgId:%d failed to acquire task:0x%x when starting task", vgId, taskId);
-    (void)streamMetaAddFailedTask(pMeta, streamId, taskId);
+    int32_t ret = streamMetaAddFailedTask(pMeta, streamId, taskId);
+    if (ret) {
+      stError("s-task:0x%x add check downstream failed, core:%s", taskId, tstrerror(ret));
+    }
+
     return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
   }
 
@@ -431,7 +442,10 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
-    (void)streamTaskStop(pTask);
+    int32_t ret = streamTaskStop(pTask);
+    if (ret) {
+      stError("s-task:0x%x failed to stop task, code:%s", pTaskId->taskId, tstrerror(ret));
+    }
     streamMetaReleaseTask(pMeta, pTask);
   }
 
@@ -441,7 +455,7 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
   stDebug("vgId:%d stop all %d task(s) completed, elapsed time:%.2f Sec.", pMeta->vgId, num, el);
 
   streamMetaRUnLock(pMeta);
-  return 0;
+  return code;
 }
 
 int32_t streamTaskCheckIfReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
