@@ -397,7 +397,7 @@ class MyTDSql:
         return self.affectedRows
 
     def recordSql(self, sql):
-        sql_file = os.path.join(os.path.dirname(self.cfgPath), "test.sql")
+        sql_file = os.path.join(os.path.dirname(self.cfgPath), "log/sql.txt")
         with open(sql_file, 'a') as f:
             if sql.endswith(";"):
                 f.write(f'{sql}\n')
@@ -405,7 +405,7 @@ class MyTDSql:
                 f.write(f'{sql};\n')
 
     def recordSmlLine(self, line):
-        line_file = os.path.join(os.path.dirname(self.cfgPath), "sml_line.txt")
+        line_file = os.path.join(os.path.dirname(self.cfgPath), "log/sml_line.txt")
         with open(line_file, 'a') as f:
             f.write(f'{line}\n')
 

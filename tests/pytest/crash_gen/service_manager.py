@@ -90,8 +90,8 @@ class TdeInstance():
     def __repr__(self):
         return "[TdeInstance: {}, subdir={}]".format(
             self._buildDir, Helper.getFriendlyPath(self._subdir))
-    
-    def generateCfgFile(self):       
+
+    def generateCfgFile(self):
         # print("Logger = {}".format(logger))
         # buildPath = self.getBuildPath()
         # taosdPath = self._buildPath + "/build/bin/taosd"
@@ -114,37 +114,24 @@ class TdeInstance():
         # Now we have a good cfg dir
         cfgValues = {
             'runDir':   self.getRunDir(),
-            'ip':       '127.0.0.1', # TODO: change to a network addressable ip
+            'ip':       'localhost', # TODO: change to a network addressable ip
             'port':     self._port,
             'fepPort':  self._fepPort,
         }
         cfgTemplate = """
-dataDir {runDir}/data
-logDir  {runDir}/log
-
-charset UTF-8
-
 firstEp {ip}:{fepPort}
 fqdn {ip}
+dataDir {runDir}/data
+logDir  {runDir}/log
 serverPort {port}
-
-# was all 135 below
-dDebugFlag 135
-cDebugFlag 135
-rpcDebugFlag 135
-qDebugFlag 135
-# httpDebugFlag 143
-# asyncLog 0
-# tables 10
-maxtablesPerVnode 10
+debugFlag   135
+supportVnodes   1024
+numOfLogLines   300000000
+checkpointInterval      60
+snodeAddress    127.0.0.1:873
+logKeepDays     -1
+asyncLog 0
 rpcMaxTime 101
-# cache 2
-keep 36500
-# walLevel 2
-walLevel 1
-#
-# maxConnections 100
-quorum 2
 """
         cfgContent = cfgTemplate.format_map(cfgValues)
         f = open(cfgFile, "w")
@@ -237,7 +224,7 @@ quorum 2
         if self._subProcess is None:
             Logging.warning("Incorrect TI status for procIpcBatch-10 operation")
             return
-        self._subProcess.procIpcBatch(trimToTarget=10, forceOutput=True)  
+        self._subProcess.procIpcBatch(trimToTarget=10, forceOutput=True)
 
     def procIpcBatch(self):
         if self._subProcess is None:
@@ -300,7 +287,7 @@ class TdeSubProcess:
 
     def _start(self, cmdLine) -> Popen :
         ON_POSIX = 'posix' in sys.builtin_module_names
-        
+
         # Prepare environment variables for coverage information
         # Ref: https://stackoverflow.com/questions/2231227/python-subprocess-popen-with-a-modified-environment
         myEnv = os.environ.copy()
@@ -310,7 +297,7 @@ class TdeSubProcess:
         # print("Starting TDengine with env: ", myEnv.items())
         print("Starting TDengine: {}".format(cmdLine))
 
-        ret = Popen(            
+        ret = Popen(
             ' '.join(cmdLine), # ' '.join(cmdLine) if useShell else cmdLine,
             shell=True, # Always use shell, since we need to pass ENV vars
             stdout=PIPE,
@@ -623,12 +610,10 @@ class ServiceManager:
                     time.sleep(2.0)
                     proc.kill()
                 # print("Process: {}".format(proc.name()))
-            
             # self.svcMgrThread = ServiceManagerThread()  # create the object
-            
             for ti in self._tInsts:
-                ti.start()  
-                if not ti.isFirst():                                    
+                ti.start()
+                if not ti.isFirst():
                     tFirst = self._getFirstInstance()
                     tFirst.createDnode(ti.getDbTarget())
                 ti.printFirst10Lines()
@@ -725,7 +710,6 @@ class ServiceManagerThread:
 
         self._status.set(Status.STATUS_STARTING)
         # self._tdeSubProcess = TdeSubProcess.start(cmdLine) # TODO: verify process is running
-
         self._ipcQueue = Queue() # type: Queue
         self._thread = threading.Thread( # First thread captures server OUTPUT
             target=self.svcOutputReader,
@@ -738,7 +722,6 @@ class ServiceManagerThread:
             self.stop()
             raise CrashGenError("Failed to start thread to monitor STDOUT")
         Logging.info("Successfully started process to monitor STDOUT")
-
         self._thread2 = threading.Thread( # 2nd thread captures server ERRORs
             target=self.svcErrorReader,
             args=(subProc.getIpcStdErr(), self._ipcQueue, logDir))
@@ -776,7 +759,6 @@ class ServiceManagerThread:
         for col in cols:
             # print("col = {}".format(col))
             ep = col[1].split(':') # 10.1.30.2:6030
-            print("Found ep={}".format(ep))
             if tInst.getPort() == int(ep[1]): # That's us
                 # print("Valid Dnode matched!")
                 isValid = True # now we are valid
@@ -837,7 +819,7 @@ class ServiceManagerThread:
             except Empty:
                 break  # break out of for loop, no more trimming
 
-    TD_READY_MSG = "TDengine is initialized successfully"
+    TD_READY_MSG = "The daemon initialized successfully"
 
     def procIpcBatch(self, trimToTarget=0, forceOutput=False):
         '''
@@ -915,14 +897,13 @@ class ServiceManagerThread:
         :param queue: the queue where we dump the roughly parsed chunk-by-chunk text data
         :param logDir: where we should dump a verbatim output file
         '''
-        
+
         # Important Reference: https://stackoverflow.com/questions/375427/non-blocking-read-on-a-subprocess-pipe-in-python
         # print("This is the svcOutput Reader...")
         # stdOut.readline() # Skip the first output? TODO: remove?
         for tChunk in self._textChunkGenerator(ipcStdOut, logDir, 'stdout.log') :
             queue.put(tChunk) # tChunk garanteed not to be None
             self._printProgress("_i")
-
             if self._status.isStarting():  # we are starting, let's see if we have started
                 if tChunk.find(self.TD_READY_MSG) != -1:  # found
                     Logging.info("Waiting for the service to become FULLY READY")
