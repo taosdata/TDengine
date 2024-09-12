@@ -77,6 +77,7 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t opLen, int32_t *pOutValue);
+static int32_t mndMCfgGetValInt64(SMCfgDnodeReq *pInMCfgReq, int32_t opLen, int64_t *pOutValue);
 
 extern int32_t mndUpdClusterInfo(SRpcMsg *pReq);
 
@@ -1465,7 +1466,23 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     strcpy(dcfgReq.config, enableWhitelist_str);
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
     updateWhiteList = 1;
+  } else if (strncasecmp(cfgReq.config, "syncLogBufferMemoryAllowed", 14) == 0) {
+    int32_t optLen = strlen("syncLogBufferMemoryAllowed");
+    int64_t flag = -1;
+    int32_t code = mndMCfgGetValInt64(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
 
+    if (flag < TSDB_MAX_MSG_SIZE * 10LL || flag > TSDB_MAX_MSG_SIZE * 10000LL) {
+      mError("dnode:%d, failed to config syncLogBufferMemoryAllowed since value:%" PRIi64 ". Valid range: [%" PRIi64
+             ", %" PRIi64 "]",
+             cfgReq.dnodeId, flag, (int64_t)(TSDB_MAX_MSG_SIZE * 10LL), (int64_t)(TSDB_MAX_MSG_SIZE * 10000LL));
+      terrno = TSDB_CODE_OUT_OF_RANGE;
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, "syncLogBufferMemoryAllowed");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%" PRId64, flag);
   } else {
     bool findOpt = false;
     for (int32_t d = 0; d < optionSize; ++d) {
@@ -1683,9 +1700,7 @@ static void mndCancelGetNextDnode(SMnode *pMnode, void *pIter) {
   sdbCancelFetch(pSdb, pIter);
 }
 
-// get int32_t value from 'SMCfgDnodeReq'
-static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pMCfgReq, int32_t opLen, int32_t *pOutValue) {
-  terrno = 0;
+static int32_t mndMCfgGetValStr(SMCfgDnodeReq *pMCfgReq, int32_t opLen, char **ppOutValue) {
   if (' ' != pMCfgReq->config[opLen] && 0 != pMCfgReq->config[opLen]) {
     goto _err;
   }
@@ -1693,19 +1708,57 @@ static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pMCfgReq, int32_t opLen, int32_
   if (' ' == pMCfgReq->config[opLen]) {
     // 'key value'
     if (strlen(pMCfgReq->value) != 0) goto _err;
-    *pOutValue = atoi(pMCfgReq->config + opLen + 1);
+    *ppOutValue = pMCfgReq->config + opLen + 1;
   } else {
     // 'key' 'value'
     if (strlen(pMCfgReq->value) == 0) goto _err;
-    *pOutValue = atoi(pMCfgReq->value);
+    *ppOutValue = pMCfgReq->value;
   }
 
   return 0;
 
 _err:
   mError("dnode:%d, failed to config since invalid conf:%s", pMCfgReq->dnodeId, pMCfgReq->config);
-  terrno = TSDB_CODE_INVALID_CFG;
-  return -1;
+  return TSDB_CODE_INVALID_CFG;
+}
+
+// get int32_t value from 'SMCfgDnodeReq'
+static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pMCfgReq, int32_t opLen, int32_t *pOutValue) {
+  int32_t code = 0;
+  int64_t value = 0;
+  char   *pValStr = NULL;
+  code = mndMCfgGetValStr(pMCfgReq, opLen, &pValStr);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = toIntegerPure(pValStr, strlen(pValStr), 10, &value);
+    if (code) code = TAOS_SYSTEM_ERROR(errno);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    if (value < INT32_MIN || value > INT32_MAX) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+    } else {
+      *pOutValue = (int32_t)value;
+    }
+  }
+  return terrno = code;
+}
+
+static int32_t mndMCfgGetValInt64(SMCfgDnodeReq *pMCfgReq, int32_t opLen, int64_t *pOutValue) {
+  int32_t code = 0;
+  int64_t value = 0;
+  char   *pValStr = NULL;
+  code = mndMCfgGetValStr(pMCfgReq, opLen, &pValStr);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = toIntegerPure(pValStr, strlen(pValStr), 10, &value);
+    if (code) code = TAOS_SYSTEM_ERROR(errno);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    if (value < INT64_MIN || value > INT64_MAX) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+    } else {
+      *pOutValue = (int64_t)value;
+    }
+  }
+  return terrno = code;
 }
 
 SArray *mndGetAllDnodeFqdns(SMnode *pMnode) {
