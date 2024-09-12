@@ -618,6 +618,7 @@ static void httpHandleReq(SHttpMsg* msg) {
   cli->chanId = chanId;
   cli->addr = msg->server;
   cli->port = msg->port;
+  if (msg->qid != NULL) taosMemoryFree(msg->qid);
   taosMemoryFree(msg->uri);
   taosMemoryFree(msg);
 
