@@ -167,9 +167,6 @@ static void uvNotifyLinkBrokenToApp(SSvrConn* conn);
 static FORCE_INLINE void      destroySmsg(SSvrRespMsg* smsg);
 static FORCE_INLINE SSvrConn* createConn(void* hThrd);
 static FORCE_INLINE void      destroyConn(SSvrConn* conn, bool clear /*clear handle or not*/);
-// static FORCE_INLINE void      destroyConnRegArg(SSvrConn* conn);
-
-static int32_t reallocConnRef(SSvrConn* conn);
 
 int32_t uvGetConnRefOfThrd(SWorkThrd* thrd) { return thrd ? thrd->connRefMgt : -1; }
 
@@ -1309,43 +1306,26 @@ static FORCE_INLINE void destroyConn(SSvrConn* conn, bool clear) {
     }
   }
 }
-// static FORCE_INLINE void destroyConnRegArg(SSvrConn* conn) {
-//   if (conn->regArg.init == 1) {
-//     transFreeMsg(conn->regArg.msg.pCont);
-//     conn->regArg.init = 0;
-//   }
-// }
-static int32_t reallocConnRef(SSvrConn* conn) {
-  if (conn->refId > 0) {
-    (void)transReleaseExHandle(uvGetConnRefOfThrd(conn->hostThrd), conn->refId);
-    (void)transRemoveExHandle(uvGetConnRefOfThrd(conn->hostThrd), conn->refId);
-  }
-  // avoid app continue to send msg on invalid handle
-  SExHandle* exh = taosMemoryMalloc(sizeof(SExHandle));
-  if (exh == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+
+void uvConnDestroyAllState(SSvrConn* p) {
+  STrans*   pInst = p->pInst;
+  SHashObj* pQTable = p->pQTable;
+  if (pQTable == NULL) return;
+
+  void* pIter = taosHashIterate(pQTable, NULL);
+  while (pIter) {
+    SSvrRegArg* arg = pIter;
+    int64_t*    qid = taosHashGetKey(pIter, NULL);
+    (pInst->cfp)(pInst->parent, &(arg->msg), NULL);
+    tTrace("conn %p broken, notify server app, qid%ld", p, *qid);
+    pIter = taosHashIterate(pQTable, pIter);
   }
 
-  exh->handle = conn;
-  exh->pThrd = conn->hostThrd;
-  exh->refId = transAddExHandle(uvGetConnRefOfThrd(conn->hostThrd), exh);
-  if (exh->refId < 0) {
-    taosMemoryFree(exh);
-    return TSDB_CODE_REF_INVALID_ID;
-  }
-
-  QUEUE_INIT(&exh->q);
-  SExHandle* pSelf = transAcquireExHandle(uvGetConnRefOfThrd(conn->hostThrd), exh->refId);
-  if (pSelf != exh) {
-    tError("conn %p failed to acquire handle", conn);
-    taosMemoryFree(exh);
-    return TSDB_CODE_REF_INVALID_ID;
-  }
-
-  conn->refId = exh->refId;
-
-  return 0;
+  taosHashCleanup(pQTable);
+  pQTable = NULL;
+  return;
 }
+
 static void uvDestroyConn(uv_handle_t* handle) {
   SSvrConn* conn = handle->data;
 
@@ -1360,18 +1340,15 @@ static void uvDestroyConn(uv_handle_t* handle) {
   STrans* pInst = thrd->pInst;
   tDebug("%s conn %p destroy", transLabel(pInst), conn);
 
-  // for (int i = 0; i < transQueueSize(&conn->resps); i++) {
-  //   SSvrRespMsg* msg = transQueueGet(&conn->resps, i);
-  //   destroySmsg(msg);
-  // }
   transQueueDestroy(&conn->resps);
   transReqQueueClear(&conn->wreqQueue);
 
   QUEUE_REMOVE(&conn->queue);
 
-  taosHashCleanup(conn->pQTable);
   taosMemoryFree(conn->pTcp);
-  // destroyConnRegArg(conn);
+
+  uvConnDestroyAllState(conn);
+
   (void)transDestroyBuffer(&conn->readBuf);
   taosMemoryFree(conn);
 

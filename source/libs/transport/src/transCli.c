@@ -465,7 +465,9 @@ int32_t cliConnMayHandleState_releaseReq(SCliConn* conn, STransMsgHead* pHead) {
   if (pHead->msgType == TDMT_SCH_TASK_RELEASE || pHead->msgType == TDMT_SCH_TASK_RELEASE + 1) {
     int64_t   qId = taosHton64(pHead->qid);
     STraceId* trace = &pHead->traceId;
-    tGDebug("%s conn %p receive release req, qid:%ld", CONN_GET_INST_LABEL(conn), conn, qId);
+    int32_t   seqNum = htonl(pHead->seqNum);
+    tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, seqNum:%d, qid:%ld", CONN_GET_INST_LABEL(conn),
+            conn, TMSG_INFO(pHead->msgType), conn->dst, conn->src, pHead->msgLen, seqNum, qId);
 
     STransCtx* p = taosHashGet(conn->pQTable, &qId, sizeof(qId));
     transCtxCleanup(p);
@@ -569,8 +571,8 @@ void cliHandleResp2(SCliConn* conn) {
              qId, tstrerror(code));
     }
     if (code != 0) {
-      tDebug("%s conn %p recv unexpected packet, seqNum:%d, reason:%s", CONN_GET_INST_LABEL(conn), conn, seq,
-             tstrerror(code));
+      tDebug("%s conn %p recv unexpected packet, seqNum:%d, qId:%d, reason:%s", CONN_GET_INST_LABEL(conn), conn, seq,
+             qId, tstrerror(code));
       // TODO: notify cb
       if (cliMayRecycleConn(conn)) {
         return;
@@ -3433,7 +3435,7 @@ int32_t transAllocHandle(int64_t* refId) {
 
   QUEUE_INIT(&exh->q);
   taosInitRWLatch(&exh->latch);
-  tDebug("alloc qid:%ld", exh->refId);
+  tDebug("trans alloc qid:%ld", exh->refId);
   *refId = exh->refId;
   return 0;
 }
@@ -3459,7 +3461,7 @@ int32_t transFreeConnById(void* pInstRef, int64_t transpointId) {
   }
   pCli->type = Normal;
 
-  tDebug("release conn id %" PRId64 "", transpointId);
+  tDebug("%s release conn id %" PRId64 "", pInst->label, transpointId);
 
   STransMsg msg = {.msgType = TDMT_SCH_TASK_RELEASE, .info.handle = (void*)transpointId};
   msg.info.qId = transpointId;
@@ -3513,14 +3515,6 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
     return NULL;
   }
   code = transHeapGet(pHeap, &pConn);
-  // if (pConn && taosHashGetSifze(pConn->pQTable) > 0) {
-  //   tDebug("get conn %p from heap cache for key:%s, status:%d, refCnt:%d", pConn, key, pConn->inHeap,
-  //   pConn->reqRefCnt); return NULL;
-  // } /*else {
-  //   // tDebug("failed to get conn from heap cache for key:%s", key);
-  //   // return NULL;
-  // }*/
-
   if (code != 0) {
     tDebug("failed to get conn from heap cache for key:%s", key);
     return NULL;
