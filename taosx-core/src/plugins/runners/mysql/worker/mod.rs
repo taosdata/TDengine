@@ -6,6 +6,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Days, FixedOffset, Utc};
 use sqlx::{Column, Row, TypeInfo};
 use tokio::sync::Semaphore;
+use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 use crate::runners::mysql::appender::to_schema;
@@ -118,28 +119,37 @@ pub async fn migrate_history_by_subtable(
     // migrate data by combinations
     let concurrency = cmp::max(config.advanced.read_concurrency.unwrap_or(1), 1);
     let cancel_clone = cancel.clone();
-    let future_migrate = async move {
-        let semaphore = Arc::new(Semaphore::new(concurrency));
-        for sub_sql in combinations {
-            let semaphore = semaphore.clone();
-            // Acquire permit before sending request.
-            let _permit = semaphore.acquire_owned().await.unwrap();
-            // modify config and produce task
-            let cancel_clone = cancel_clone.clone();
-            let mut config_clone = config.clone();
-            config_clone.task.sql = sub_sql.sql;
-            config_clone.sub_task_id =
-                Some(format!("{MIGRATE_TASK_PREFIX}-{}", sub_sql.sub_values));
-            let _ = tokio::spawn(async move {
-                // do migrate
-                let _ = migrate_history_by_interval(config_clone, cancel_clone).await;
-                // Drop the permit after the request has been sent.
-                drop(_permit);
-            });
-        }
+    let semaphore = Arc::new(Semaphore::new(concurrency));
+    let mut migrate_join_set = JoinSet::new();
+    for sub_sql in combinations {
+        let semaphore = semaphore.clone();
+        // Acquire permit before sending request.
+        let _permit = semaphore.acquire_owned().await.unwrap();
+        // modify config and produce task
+        let cancel_clone = cancel_clone.clone();
+        let mut config_clone = config.clone();
+        config_clone.task.sql = sub_sql.sql;
+        config_clone.sub_task_id = Some(format!("{MIGRATE_TASK_PREFIX}-{}", sub_sql.sub_values));
+        // spawn migrate task
+        migrate_join_set.spawn(async move {
+            // do migrate
+            let _ = migrate_history_by_interval(config_clone, cancel_clone).await;
+            // Drop the permit after the request has been sent.
+            drop(_permit);
+        });
+    }
+    let futures = async {
+        while let Some(_) = migrate_join_set.join_next().await.transpose()? {}
+        anyhow::Ok(())
     };
+
     tokio::select! {
-        _ = future_migrate => {}
+        res = futures => {
+            if let Err(err) = &res {
+                tracing::error!("do migrate runtime error: {err:#}");
+            }
+            return res;
+        },
         _ = cancel.cancelled() => {}
     };
 
