@@ -2847,8 +2847,8 @@ int32_t mndBuildRaftAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pO
   TAOS_RETURN(code);
 }
 
-int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *db, SVgObj *pVgroup,
-                                         SDnodeObj *pDnode) {
+int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *db, SVgObj *pVgroup, SDnodeObj *pDnode,
+                                         SDnodeObj *pAnotherDnode) {
   int32_t code = 0;
   SVgObj  newVgroup = {0};
   memcpy(&newVgroup, pVgroup, sizeof(SVgObj));
@@ -2864,7 +2864,33 @@ int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj 
       }
     }
     TAOS_CHECK_RETURN(mndAddCreateVnodeAction(pMnode, pTrans, db, &newVgroup, &newVgroup.vnodeGid[selected]));
-  } else if (newVgroup.replica == 2 || newVgroup.replica == 3) {
+  } else if (newVgroup.replica == 2) {
+    for (int i = 0; i < newVgroup.replica; i++) {
+      if (newVgroup.vnodeGid[i].dnodeId == pDnode->id) {
+        newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_LEARNER;
+      } else {
+        newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_VOTER;
+      }
+    }
+    TAOS_CHECK_RETURN(mndRestoreAddAlterVnodeTypeAction(pMnode, pTrans, db, &newVgroup, pAnotherDnode));
+
+    for (int i = 0; i < newVgroup.replica; i++) {
+      if (newVgroup.vnodeGid[i].dnodeId == pDnode->id) {
+        newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_LEARNER;
+      } else {
+        newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_VOTER;
+      }
+    }
+    TAOS_CHECK_RETURN(mndRestoreAddCreateVnodeAction(pMnode, pTrans, db, &newVgroup, pDnode));
+
+    for (int i = 0; i < newVgroup.replica; i++) {
+      newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_VOTER;
+      if (newVgroup.vnodeGid[i].dnodeId == pDnode->id) {
+      }
+    }
+    TAOS_CHECK_RETURN(mndRestoreAddAlterVnodeTypeAction(pMnode, pTrans, db, &newVgroup, pDnode));
+    TAOS_CHECK_RETURN(mndRestoreAddAlterVnodeTypeAction(pMnode, pTrans, db, &newVgroup, pDnode));
+  } else if (newVgroup.replica == 3) {
     for (int i = 0; i < newVgroup.replica; i++) {
       if (newVgroup.vnodeGid[i].dnodeId == pDnode->id) {
         newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_LEARNER;
@@ -2881,7 +2907,6 @@ int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj 
     }
     TAOS_CHECK_RETURN(mndRestoreAddAlterVnodeTypeAction(pMnode, pTrans, db, &newVgroup, pDnode));
   }
-
   SSdbRaw *pVgRaw = mndVgroupActionEncode(&newVgroup);
   if (pVgRaw == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
