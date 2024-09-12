@@ -1358,6 +1358,25 @@ _err:
   return NULL;
 }
 
+SNode* createAnomalyWindowNode(SAstCreateContext* pCxt, SNode* pExpr, const SToken* pFuncOpt) {
+  SAnomalyWindowNode* pAnomaly = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ANOMALY_WINDOW, (SNode**)&pAnomaly);
+  CHECK_MAKE_NODE(pAnomaly);
+  pAnomaly->pCol = createPrimaryKeyCol(pCxt, NULL);
+  CHECK_MAKE_NODE(pAnomaly->pCol);
+  pAnomaly->pExpr = pExpr;
+  if (pFuncOpt == NULL) {
+    strcpy(pAnomaly->anomalyOpt, "func=arima");
+  } else {
+    (void)trimString(pFuncOpt->z, pFuncOpt->n, pAnomaly->anomalyOpt, sizeof(pAnomaly->anomalyOpt));
+  }
+  return (SNode*)pAnomaly;
+_err:
+  nodesDestroyNode((SNode*)pAnomaly);
+  return NULL;
+}
+
 SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode* pOffset, SNode* pSliding,
                                 SNode* pFill) {
   SIntervalWindowNode* interval = NULL;

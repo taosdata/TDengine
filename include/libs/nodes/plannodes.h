@@ -274,7 +274,8 @@ typedef enum EWindowType {
   WINDOW_TYPE_SESSION,
   WINDOW_TYPE_STATE,
   WINDOW_TYPE_EVENT,
-  WINDOW_TYPE_COUNT
+  WINDOW_TYPE_COUNT,
+  WINDOW_TYPE_ANOMALY
 } EWindowType;
 
 typedef enum EWindowAlgorithm {
@@ -315,6 +316,8 @@ typedef struct SWindowLogicNode {
   int64_t          windowCount;
   int64_t          windowSliding;
   SNodeList*       pTsmaSubplans;
+  SNode*           pAnomalyExpr;
+  char             anomalyOpt[TSDB_FUNC_OPTION_LEN];
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -703,6 +706,12 @@ typedef struct SCountWinodwPhysiNode {
 } SCountWinodwPhysiNode;
 
 typedef SCountWinodwPhysiNode SStreamCountWinodwPhysiNode;
+
+typedef struct SAnomalyWindowPhysiNode {
+  SWindowPhysiNode window;
+  SNode*           pAnomalyKey;
+  char             anomalyOpt[TSDB_FUNC_OPTION_LEN];
+} SAnomalyWindowPhysiNode;
 
 typedef struct SSortPhysiNode {
   SPhysiNode node;

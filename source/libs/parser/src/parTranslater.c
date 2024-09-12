@@ -5698,6 +5698,38 @@ static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelec
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkAnomalyExpr(STranslateContext* pCxt, SNode* pNode) {
+  int32_t type = ((SExprNode*)pNode)->resType.type;
+  if (!IS_MATHABLE_TYPE(type)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_TYPE);
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_COL);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateAnomalyWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
+      !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
+                                   "ANOMALY_WINDOW requires valid time series input");
+  }
+
+  SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pSelect->pWindow;
+  int32_t             code = checkAnomalyExpr(pCxt, pAnomaly->pExpr);
+  if (TSDB_CODE_SUCCESS == code) {
+    char *pos1 = strstr(pAnomaly->anomalyOpt, "func=");
+    if (pos1 == NULL) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_OPT);
+    }
+  }
+
+  return code;
+}
+
 static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   switch (nodeType(pSelect->pWindow)) {
     case QUERY_NODE_STATE_WINDOW:
@@ -5710,6 +5742,8 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
       return translateEventWindow(pCxt, pSelect);
     case QUERY_NODE_COUNT_WINDOW:
       return translateCountWindow(pCxt, pSelect);
+    case QUERY_NODE_ANOMALY_WINDOW:
+      return translateAnomalyWindow(pCxt, pSelect);
     default:
       break;
   }
@@ -9331,7 +9365,6 @@ static int32_t translateUpdateAnode(STranslateContext* pCxt, SUpdateAnodeStmt* p
   tFreeSMUpdateAnodeReq(&updateReq);
   return code;
 }
-
 
 static int32_t translateCreateDnode(STranslateContext* pCxt, SCreateDnodeStmt* pStmt) {
   SCreateDnodeReq createReq = {0};

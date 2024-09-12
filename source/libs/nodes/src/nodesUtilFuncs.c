@@ -413,6 +413,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SEventWindowNode), &pNode); break;
     case QUERY_NODE_COUNT_WINDOW:
       code = makeNode(type, sizeof(SCountWindowNode), &pNode); break;
+    case QUERY_NODE_ANOMALY_WINDOW:
+      code = makeNode(type, sizeof(SAnomalyWindowNode), &pNode); break;
     case QUERY_NODE_HINT:
       code = makeNode(type, sizeof(SHintNode), &pNode); break;
     case QUERY_NODE_VIEW:
@@ -724,6 +726,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SStreamEventWinodwPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
       code = makeNode(type, sizeof(SCountWinodwPhysiNode), &pNode); break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
+      code = makeNode(type, sizeof(SAnomalyWindowPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
       code = makeNode(type, sizeof(SStreamCountWinodwPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
@@ -1019,6 +1023,11 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_COUNT_WINDOW: {
       SCountWindowNode* pEvent = (SCountWindowNode*)pNode;
       nodesDestroyNode(pEvent->pCol);
+      break;
+    }
+    case QUERY_NODE_ANOMALY_WINDOW: {
+      SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pNode;
+      nodesDestroyNode(pAnomaly->pCol);
       break;
     }
     case QUERY_NODE_HINT: {
@@ -1664,6 +1673,11 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT: {
       SCountWinodwPhysiNode* pPhyNode = (SCountWinodwPhysiNode*)pNode;
+      destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY: {
+      SAnomalyWindowPhysiNode* pPhyNode = (SAnomalyWindowPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;
     }
