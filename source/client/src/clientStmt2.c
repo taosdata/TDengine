@@ -1263,10 +1263,6 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_BIND));
 
-  if (pStmt->options.asyncExecFn) {
-    (void)tsem_wait(&pStmt->asyncQuerySem);
-  }
-
   if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
       STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
     pStmt->bInfo.needParse = false;
@@ -1703,6 +1699,10 @@ int stmtClose2(TAOS_STMT2* stmt) {
     pStmt->bindThreadInUse = false;
   }
 
+  if (pStmt->options.asyncExecFn) {
+    (void)tsem_wait(&pStmt->asyncQuerySem);
+  }
+
   STMT_DLOG("stmt %p closed, stbInterlaceMode: %d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
             ", parseSqlNum=>%" PRId64 ", pStmt->stat.bindDataNum=>%" PRId64
             ", settbnameAPI:%u, bindAPI:%u, addbatchAPI:%u, execAPI:%u"
@@ -1717,7 +1717,6 @@ int stmtClose2(TAOS_STMT2* stmt) {
   STMT_ERR_RET(stmtCleanSQLInfo(pStmt));
 
   if (pStmt->options.asyncExecFn) {
-    (void)tsem_wait(&pStmt->asyncQuerySem);
     (void)tsem_destroy(&pStmt->asyncQuerySem);
   }
   taosMemoryFree(stmt);
