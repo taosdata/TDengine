@@ -1227,8 +1227,8 @@ static void checkRegexCache(void* param, void* tmrId) {
   if(sRegexCache.exit) {
     goto _exit;
   }
-  bool ret = taosTmrReset(checkRegexCache, REGEX_CACHE_CLEAR_TIME * 1000, param, sRegexCache.regexCacheTmr, &tmrId);
-  if (!ret) {
+  bool stopped = taosTmrReset(checkRegexCache, REGEX_CACHE_CLEAR_TIME * 1000, param, sRegexCache.regexCacheTmr, &tmrId);
+  if (stopped) {
     uError("failed to reset regex cache timer");
     goto _exit;
   }

@@ -292,7 +292,7 @@ int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData
 int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx);
 
 // tsdbRead.c ==============================================================================================
-int32_t tsdbTakeReadSnap2(STsdbReader *pReader, _query_reseek_func_t reseek, STsdbReadSnap **ppSnap);
+int32_t tsdbTakeReadSnap2(STsdbReader *pReader, _query_reseek_func_t reseek, STsdbReadSnap **ppSnap, const char* id);
 void    tsdbUntakeReadSnap2(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proactive);
 int32_t tsdbGetTableSchema(SMeta *pMeta, int64_t uid, STSchema **pSchema, int64_t *suid);
 
@@ -342,7 +342,6 @@ typedef struct {
   rocksdb_writeoptions_t              *writeoptions;
   rocksdb_readoptions_t               *readoptions;
   rocksdb_writebatch_t                *writebatch;
-  rocksdb_writebatch_t                *rwritebatch;
   STSchema                            *pTSchema;
 } SRocksCache;
 
@@ -363,7 +362,6 @@ struct STsdb {
   SMemTable           *imem;
   STsdbFS              fs;  // old
   SLRUCache           *lruCache;
-  SCacheFlushState     flushState;
   TdThreadMutex        lruMutex;
   SLRUCache           *biCache;
   TdThreadMutex        biMutex;
