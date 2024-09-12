@@ -265,7 +265,7 @@ static int32_t mndCreateFunc(SMnode *pMnode, SRpcMsg *pReq, SCreateFuncReq *pCre
   func.codeSize = pCreate->codeLen;
   func.pCode = taosMemoryMalloc(func.codeSize);
   if (func.pCode == NULL || func.pCode == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -528,13 +528,13 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
   retrieveRsp.numOfFuncs = retrieveReq.numOfFuncs;
   retrieveRsp.pFuncInfos = taosArrayInit(retrieveReq.numOfFuncs, sizeof(SFuncInfo));
   if (retrieveRsp.pFuncInfos == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto RETRIEVE_FUNC_OVER;
   }
 
   retrieveRsp.pFuncExtraInfos = taosArrayInit(retrieveReq.numOfFuncs, sizeof(SFuncExtraInfo));
   if (retrieveRsp.pFuncExtraInfos == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto RETRIEVE_FUNC_OVER;
   }
 
@@ -563,28 +563,28 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
       funcInfo.codeSize = pFunc->codeSize;
       funcInfo.pCode = taosMemoryCalloc(1, funcInfo.codeSize);
       if (funcInfo.pCode == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        terrno = terrno;
         goto RETRIEVE_FUNC_OVER;
       }
       (void)memcpy(funcInfo.pCode, pFunc->pCode, pFunc->codeSize);
       if (funcInfo.commentSize > 0) {
         funcInfo.pComment = taosMemoryCalloc(1, funcInfo.commentSize);
         if (funcInfo.pComment == NULL) {
-          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          terrno = terrno;
           goto RETRIEVE_FUNC_OVER;
         }
         (void)memcpy(funcInfo.pComment, pFunc->pComment, pFunc->commentSize);
       }
     }
     if (taosArrayPush(retrieveRsp.pFuncInfos, &funcInfo) == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      terrno = terrno;
       goto RETRIEVE_FUNC_OVER;
     }
     SFuncExtraInfo extraInfo = {0};
     extraInfo.funcVersion = pFunc->funcVersion;
     extraInfo.funcCreatedTime = pFunc->createdTime;
     if (taosArrayPush(retrieveRsp.pFuncExtraInfos, &extraInfo) == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      terrno = terrno;
       goto RETRIEVE_FUNC_OVER;
     }
 
@@ -594,7 +594,7 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
   int32_t contLen = tSerializeSRetrieveFuncRsp(NULL, 0, &retrieveRsp);
   void   *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto RETRIEVE_FUNC_OVER;
   }
 

@@ -110,16 +110,21 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
 
     buf = rpcMallocCont(sizeof(SMsgHead) + len);
     if (buf == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      return code;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     ((SMsgHead*)buf)->vgId = htonl(pEpInfo->nodeId);
     void*    abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
     SEncoder encoder;
     tEncoderInit(&encoder, abuf, len);
-    (void)tEncodeStreamRetrieveReq(&encoder, req);
+    code = tEncodeStreamRetrieveReq(&encoder, req);
     tEncoderClear(&encoder);
+
+    if (code < 0) {
+      stError("s-task:%s failed encode stream retrieve req, code:%s", pTask->id.idStr, tstrerror(code));
+      rpcFreeCont(buf);
+      return code;
+    }
 
     SRpcMsg rpcMsg = {0};
     initRpcMsg(&rpcMsg, TDMT_STREAM_RETRIEVE, buf, len + sizeof(SMsgHead));
@@ -639,8 +644,11 @@ void streamStartMonitorDispatchData(SStreamTask* pTask, int64_t waitDuration) {
 
 int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, SSDataBlock* pDataBlock, int64_t groupId,
                                 int64_t now) {
+  bool     found = false;
   uint32_t hashValue = 0;
-  SArray*  vgInfo = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
+  int32_t  numOfVgroups = 0;
+
+  SArray* vgInfo = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
   if (pTask->pNameMap == NULL) {
     pTask->pNameMap = tSimpleHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   }
@@ -665,8 +673,9 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
         }
       }
     } else {
-      (void)buildCtbNameByGroupIdImpl(pTask->outputInfo.shuffleDispatcher.stbFullName, groupId,
-                                      pDataBlock->info.parTbName);
+      int32_t code = buildCtbNameByGroupIdImpl(pTask->outputInfo.shuffleDispatcher.stbFullName, groupId,
+                                               pDataBlock->info.parTbName);
+      stError("s-task:%s failed to build child table name, code:%s", pTask->id.idStr, tstrerror(code));
     }
 
     snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->outputInfo.shuffleDispatcher.dbInfo.db,
@@ -685,8 +694,7 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     }
   }
 
-  bool    found = false;
-  int32_t numOfVgroups = taosArrayGetSize(vgInfo);
+  numOfVgroups = taosArrayGetSize(vgInfo);
 
   // TODO: optimize search
   streamMutexLock(&pTask->msgInfo.lock);
@@ -730,6 +738,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   int32_t                code = 0;
   SStreamDataBlock*      pBlock = NULL;
   SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
+  int32_t                old = 0;
 
   int32_t numOfElems = streamQueueGetNumOfItems(pTask->outputq.queue);
   if (numOfElems > 0) {
@@ -740,8 +749,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   }
 
   // to make sure only one dispatch is running
-  int8_t old =
-      atomic_val_compare_exchange_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL, TASK_OUTPUT_STATUS__WAIT);
+  old = atomic_val_compare_exchange_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL, TASK_OUTPUT_STATUS__WAIT);
   if (old != TASK_OUTPUT_STATUS__NORMAL) {
     stDebug("s-task:%s wait for dispatch rsp, not dispatch now, output status:%d", id, old);
     return 0;
@@ -1247,14 +1255,20 @@ int32_t streamTaskBuildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRp
   void* abuf = POINTER_SHIFT(pBuf, sizeof(SMsgHead));
 
   tEncoderInit(&encoder, (uint8_t*)abuf, len);
-  (void)tEncodeStreamCheckpointSourceRsp(&encoder, &rsp);
+  code = tEncodeStreamCheckpointSourceRsp(&encoder, &rsp);
   tEncoderClear(&encoder);
 
+  if (code < 0) {
+    rpcFreeCont(pBuf);
+    return code;
+  }
+
+  code = TMIN(code, 0);
   initRpcMsg(pMsg, 0, pBuf, sizeof(SMsgHead) + len);
 
   pMsg->code = setCode;
   pMsg->info = *pRpcInfo;
-  return 0;
+  return code;
 }
 
 int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo,

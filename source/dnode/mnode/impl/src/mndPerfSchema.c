@@ -58,7 +58,7 @@ int32_t mndPerfsInitMeta(SHashObj *hash) {
     TAOS_CHECK_RETURN(mndInitPerfsTableSchema(pSysDbTableMeta[i].schema, pSysDbTableMeta[i].colNum, &meta.pSchemas));
 
     if (taosHashPut(hash, meta.tbName, strlen(meta.tbName), &meta, sizeof(meta))) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TAOS_RETURN(code);
     }
   }
@@ -129,7 +129,7 @@ int32_t mndInitPerfs(SMnode *pMnode) {
   int32_t code = 0;
   pMnode->perfsMeta = taosHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (pMnode->perfsMeta == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 
