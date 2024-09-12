@@ -114,7 +114,7 @@ int32_t tsem_destroy(tsem_t* sem) {
 
 int32_t tsem_init(tsem_t *psem, int flags, unsigned int count) {
   *psem = dispatch_semaphore_create(count);
-  if (*psem == NULL) return TAO_SYTAOS_SYSTEM_ERROR(errno);
+  if (*psem == NULL) return TAOS_SYSTEM_ERROR(errno);
   return 0;
 }
 
@@ -250,16 +250,15 @@ int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
   ts.tv_sec += ts.tv_nsec / 1000000000;
   ts.tv_nsec %= 1000000000;
 
-  while ((ret = sem_timedwait(sem, &ts)) == -1 && errno == EINTR) {
-    continue;
-  }
-  if(ETIMEDOUT == errno) {
-    return TSDB_CODE_TIMEOUT_ERROR;
-  }
-
-  if (-1 == ret) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return terrno;
+  while ((ret = sem_timedwait(sem, &ts)) == -1) {
+    if(errno == EINTR) {
+      continue;
+    } else if(errno == ETIMEDOUT) {
+      return TSDB_CODE_TIMEOUT_ERROR;
+    } else {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return terrno;
+    }
   }
 
   return 0;
