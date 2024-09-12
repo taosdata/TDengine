@@ -195,6 +195,7 @@ jobs:
           ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && git pull"
           # 将仓库复制一份到 artifacts 目录下
           cp -r /data/github/TestNG_taosX $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX
+          rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX/.pytest_cache
       - name: run container
         id: run_container
         # 1. 寻找可用端口
@@ -237,13 +238,12 @@ jobs:
     needs: deploy_with_docker
     steps:
       - name: Run Test
-        continue-on-error: true
         run: |
           echo "container_id: ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}"
           # 删除之前的测试结果，以防重新执行的时候由于旧的数据导致计算通过率错误
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
           ls $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && source ./setenv.sh && /root/.local/bin/poetry run pytest --cache-clear"
+          
           docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && source ./setenv.sh && /root/.local/bin/poetry run pytest --cache-show"
           docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && source ./setenv.sh && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --last-failed --last-failed-no-failures all --cache-show --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file \" && /root/.local/bin/poetry run pytest --last-failed --last-failed-no-failures all --cache-show --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file ; done"
 
@@ -255,6 +255,7 @@ jobs:
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, test]
     needs: [deploy_with_docker, run_test]
+    if: ${{ needs.run_test.result == success() || needs.run_test.result == failure() }}
     steps:
       - name: allure report
         run: |
@@ -263,7 +264,7 @@ jobs:
       
   clean_up:
     runs-on: [self-hosted, linux, x64, qa, test]
-    needs: [deploy_with_docker, run_test, generate_report]
+    needs: [deploy_with_docker, run_test]
     if: always()
     steps:
       - name: Force stop taosx-agent & taosx
