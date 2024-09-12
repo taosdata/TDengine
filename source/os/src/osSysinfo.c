@@ -599,7 +599,7 @@ int32_t taosGetCpuCores(float *numOfCores, bool physical) {
   if(*numOfCores <= 0) {
     return TAOS_SYSTEM_ERROR(errno);
   }
-  return;
+  return 0;
 #else
   if (physical) {
     *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
