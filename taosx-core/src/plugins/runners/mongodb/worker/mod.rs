@@ -121,7 +121,7 @@ pub async fn migrate_history_by_subtable(
         }
     }
     // generate combinations
-    let mut combinations = vec![];
+    let mut combinations = HashSet::new();
     generate_combinations(
         &placeholders,
         &config.task.sql,
@@ -129,6 +129,13 @@ pub async fn migrate_history_by_subtable(
         BTreeMap::new(),
         &mut combinations,
     );
+    // if no distinct values, use the original sql
+    if combinations.is_empty() {
+        combinations.insert(SubSql {
+            sql: config.task.sql.clone(),
+            sub_values: String::new(),
+        });
+    }
 
     // migrate data by combinations
     let concurrency = cmp::max(config.advanced.read_concurrency.unwrap_or(1), 1);
@@ -300,6 +307,7 @@ pub async fn get_all_distinct_values(
     Ok(filters)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct SubSql {
     sql: String,
     sub_values: String,
@@ -310,14 +318,14 @@ fn generate_combinations(
     template: &String,
     index: usize,
     current_values: BTreeMap<&str, String>,
-    result: &mut Vec<SubSql>,
+    result: &mut HashSet<SubSql>,
 ) {
     if index == data.len() {
         let mut filled_template = template.to_string();
         for (key, value) in current_values.iter() {
             filled_template = filled_template.replace(&format!("${{{}}}", key), &value.to_string());
         }
-        result.push(SubSql {
+        result.insert(SubSql {
             sql: filled_template,
             sub_values: current_values
                 .iter()
