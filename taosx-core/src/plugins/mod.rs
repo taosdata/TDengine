@@ -276,7 +276,7 @@ fn parse_sample_limit(dsn: &Dsn) -> usize {
         .unwrap_or(5)
 }
 
-pub fn parse_sample_timeout(dsn: &Dsn) -> Duration {
+fn parse_sample_timeout(dsn: &Dsn) -> Duration {
     dsn.params
         .get("get_sample_timeout")
         .and_then(|v| v.parse::<u64>().ok())
