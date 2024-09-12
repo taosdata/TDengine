@@ -178,7 +178,7 @@ int32_t smlBuildTableInfo(int numRows, const char *measure, int32_t measureLen, 
   if (tag->cols == NULL) {
     uError("SML:smlBuildTableInfo failed to allocate memory");
     taosMemoryFree(tag);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   *tInfo = tag;
@@ -210,7 +210,7 @@ int32_t smlBuildSuperTableInfo(SSmlHandle *info, SSmlLineInfo *currElement, SSml
   if (currElement->measureEscaped) {
     measure = (char *)taosMemoryMalloc(measureLen);
     if (measure == NULL){
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     (void)memcpy(measure, currElement->measure, measureLen);
     PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
@@ -251,11 +251,11 @@ int32_t smlBuildSuperTableInfo(SSmlHandle *info, SSmlLineInfo *currElement, SSml
 
     if (i < pTableMeta->tableInfo.numOfColumns) {
       if(taosArrayPush((*sMeta)->cols, &kv) == NULL){
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     } else {
       if(taosArrayPush((*sMeta)->tags, &kv) == NULL){
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
   }
@@ -328,7 +328,7 @@ END:
 int32_t smlJoinMeasureTag(SSmlLineInfo *elements) {
   elements->measureTag = (char *)taosMemoryMalloc(elements->measureLen + elements->tagsLen);
   if (elements->measureTag == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (void)memcpy(elements->measureTag, elements->measure, elements->measureLen);
   (void)memcpy(elements->measureTag + elements->measureLen, elements->tags, elements->tagsLen);
@@ -455,14 +455,14 @@ int32_t smlParseEndTelnetJson(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *
     if (elements->colArray == NULL) {
       elements->colArray = taosArrayInit(16, sizeof(SSmlKv));
       if (elements->colArray == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
     if (taosArrayPush(elements->colArray, kvTs) == NULL){
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if (taosArrayPush(elements->colArray, kv) == NULL){
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   info->preLine = *elements;
@@ -937,7 +937,7 @@ static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols, bool 
   int32_t code = TSDB_CODE_SUCCESS;
   SHashObj *hashTmp = taosHashInit(length, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (hashTmp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto END;
   }
   int32_t   i = 0;
@@ -997,7 +997,7 @@ static int32_t smlBuildFieldsList(SSmlHandle *info, SSchema *schemaField, SHashO
       field.bytes = getBytes(kv->type, kv->length);
       (void)memcpy(field.name, kv->key, kv->keyLen);
       if (taosArrayPush(results, &field) == NULL){
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     } else if (action == SCHEMA_ACTION_CHANGE_COLUMN_SIZE || action == SCHEMA_ACTION_CHANGE_TAG_SIZE) {
       uint16_t *index = (uint16_t *)taosHashGet(schemaHash, kv->key, kv->keyLen);
@@ -1046,7 +1046,7 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
 
   pReq.pColumns = taosArrayInit(pReq.numOfColumns, sizeof(SFieldWithOptions));
   if (pReq.pColumns == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto end;
   }
   for (int32_t i = 0; i < pReq.numOfColumns; ++i) {
@@ -1059,7 +1059,7 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
     setFieldWithOptions(&fieldWithOption, pField);
     setDefaultOptionsForField(&fieldWithOption);
     if (taosArrayPush(pReq.pColumns, &fieldWithOption) == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto end;
     }
   }
@@ -1106,7 +1106,7 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
     field.bytes = TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
     tstrncpy(field.name, tsSmlTagName, sizeof(field.name));
     if (taosArrayPush(pReq.pTags, &field) == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto end;
     }
   }
@@ -1127,7 +1127,7 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
   }
   pCmdMsg.pMsg = taosMemoryMalloc(pCmdMsg.msgLen);
   if (NULL == pCmdMsg.pMsg) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto end;
   }
 
@@ -1188,7 +1188,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
     void  *superTable = taosHashGetKey(tmp, &superTableLen);
     char  *measure = taosMemoryMalloc(superTableLen);
     if (measure == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto end;
     }
     (void)memcpy(measure, superTable, superTableLen);
@@ -1208,12 +1208,12 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
       uDebug("SML:0x%" PRIx64 " smlModifyDBSchemas create table:%s", info->id, pName.tname);
       SArray *pColumns = taosArrayInit(taosArrayGetSize(sTableData->cols), sizeof(SField));
       if (pColumns == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto end;
       }
       SArray *pTags = taosArrayInit(taosArrayGetSize(sTableData->tags), sizeof(SField));
       if (pTags == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         taosArrayDestroy(pColumns);
         goto end;
       }
@@ -1255,7 +1255,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
       hashTmp = taosHashInit(pTableMeta->tableInfo.numOfTags, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
                              HASH_NO_LOCK);
       if (hashTmp == NULL){
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto end;
       }
       for (uint16_t i = pTableMeta->tableInfo.numOfColumns;
@@ -1281,14 +1281,14 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         SArray *pColumns =
             taosArrayInit(taosArrayGetSize(sTableData->cols) + pTableMeta->tableInfo.numOfColumns, sizeof(SField));
         if (pColumns == NULL){
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           goto end;
         }
         SArray *pTags =
             taosArrayInit(taosArrayGetSize(sTableData->tags) + pTableMeta->tableInfo.numOfTags, sizeof(SField));
         if (pTags == NULL){
           taosArrayDestroy(pColumns);
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           goto end;
         }
         for (uint16_t i = 0; i < pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags; i++) {
@@ -1300,14 +1300,14 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
             if (taosArrayPush(pColumns, &field) == NULL){
               taosArrayDestroy(pColumns);
               taosArrayDestroy(pTags);
-              code = TSDB_CODE_OUT_OF_MEMORY;
+              code = terrno;
               goto end;
             }
           } else {
             if (taosArrayPush(pTags, &field) == NULL){
               taosArrayDestroy(pColumns);
               taosArrayDestroy(pTags);
-              code = TSDB_CODE_OUT_OF_MEMORY;
+              code = terrno;
               goto end;
             }
           }
@@ -1377,14 +1377,14 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         SArray *pColumns =
             taosArrayInit(taosArrayGetSize(sTableData->cols) + pTableMeta->tableInfo.numOfColumns, sizeof(SField));
         if (pColumns == NULL){
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           goto end;
         }
         SArray *pTags =
             taosArrayInit(taosArrayGetSize(sTableData->tags) + pTableMeta->tableInfo.numOfTags, sizeof(SField));
         if (pTags == NULL){
           taosArrayDestroy(pColumns);
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           goto end;
         }
         for (uint16_t i = 0; i < pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags; i++) {
@@ -1396,14 +1396,14 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
             if (taosArrayPush(pColumns, &field) == NULL){
               taosArrayDestroy(pColumns);
               taosArrayDestroy(pTags);
-              code = TSDB_CODE_OUT_OF_MEMORY;
+              code = terrno;
               goto end;
             }
           } else {
             if (taosArrayPush(pTags, &field) == NULL){
               taosArrayDestroy(pColumns);
               taosArrayDestroy(pTags);
-              code = TSDB_CODE_OUT_OF_MEMORY;
+              code = terrno;
               goto end;
             }
           }
@@ -1500,7 +1500,7 @@ static int32_t smlInsertMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols
     int     ret = taosHashPut(metaHash, kv->key, kv->keyLen, &i, SHORT_BYTES);
     if (ret == 0) {
       if (taosArrayPush(metaArray, kv) == NULL){
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       if(taosHashGet(checkDuplicate, kv->key, kv->keyLen) != NULL) {
         return TSDB_CODE_PAR_DUPLICATED_COLUMN;
@@ -1550,7 +1550,7 @@ static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols
       int     ret = taosHashPut(metaHash, kv->key, kv->keyLen, &size, SHORT_BYTES);
       if (ret == 0) {
         if(taosArrayPush(metaArray, kv) == NULL){
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
         if(taosHashGet(checkDuplicate, kv->key, kv->keyLen) != NULL) {
           return TSDB_CODE_PAR_DUPLICATED_COLUMN;
@@ -1649,7 +1649,7 @@ int32_t smlBuildSmlInfo(TAOS *taos, SSmlHandle **handle) {
   info->superTables = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (info->pVgHash == NULL || info->childTables == NULL || info->superTables == NULL || info->tableUids == NULL) {
     uError("create SSmlHandle hash obj failed");
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto FAILED;
   }
   taosHashSetFreeFp(info->superTables, smlDestroySTableMeta);
@@ -1668,7 +1668,7 @@ int32_t smlBuildSmlInfo(TAOS *taos, SSmlHandle **handle) {
 
   if (info->tagJsonArray == NULL || info->valueJsonArray == NULL || info->preLineTagKV == NULL) {
     uError("SML:0x%" PRIx64 " failed to allocate memory", info->id);
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto FAILED;
   }
 
@@ -1684,7 +1684,7 @@ static int32_t smlPushCols(SArray *colsArray, SArray *cols) {
   SHashObj *kvHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (!kvHash) {
     uError("SML:smlDealCols failed to allocate memory");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   for (size_t i = 0; i < taosArrayGetSize(cols); i++) {
     SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, i);
@@ -1706,7 +1706,7 @@ static int32_t smlPushCols(SArray *colsArray, SArray *cols) {
 
   if (taosArrayPush(colsArray, &kvHash) == NULL) {
     taosHashCleanup(kvHash);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1802,12 +1802,12 @@ static int32_t smlInsertData(SSmlHandle *info) {
   if (info->pRequest->dbList == NULL) {
     info->pRequest->dbList = taosArrayInit(1, TSDB_DB_FNAME_LEN);
     if (info->pRequest->dbList == NULL){
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   char *data = (char *)taosArrayReserve(info->pRequest->dbList, 1);
   if (data == NULL){
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
   tstrncpy(pName.dbname, info->pRequest->pDb, sizeof(pName.dbname));
@@ -1820,7 +1820,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
     int   measureLen = tableData->sTableNameLen;
     char *measure = (char *)taosMemoryMalloc(tableData->sTableNameLen);
     if (measure == NULL){
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     (void)memcpy(measure, tableData->sTableName, tableData->sTableNameLen);
     PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
@@ -1831,11 +1831,11 @@ static int32_t smlInsertData(SSmlHandle *info) {
     if (info->pRequest->tableList == NULL) {
       info->pRequest->tableList = taosArrayInit(1, sizeof(SName));
       if (info->pRequest->tableList == NULL){
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
     if (taosArrayPush(info->pRequest->tableList, &pName) == NULL){
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     tstrncpy(pName.tname, tableData->childTableName, sizeof(pName.tname));
