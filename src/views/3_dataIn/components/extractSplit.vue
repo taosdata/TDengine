@@ -585,9 +585,13 @@ export default {
                   }
                 }
               )
-          :this.$store.state.app.supportSQL?isall?this.$store.state.app.topParse.input:[].concat({
-            [`${this.itemData.columnname}`]:this.$store.state.app.topParse.input[0][this.itemData.columnname]
-          }): inputList,
+          :this.$store.state.app.supportSQL?isall?this.$store.state.app.topParse.input:[].concat(
+            this.$store.state.app.topParse.input.map((item,index) => {
+              return {
+                [`${this.itemData.columnname}`]: 
+                  this.$store.state.app.topParse.input[index][this.itemData.columnname]
+              }
+          })): inputList,
       };
 
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);

@@ -395,7 +395,7 @@ export default {
     },
     isShowAddOpcPoint() {
       // 重新上传了一个 csv,此时的任务还没有提交，因此csv没有生效，所有也不应该显示增加点位按钮
-      return this.value != '*' && this.value === this.oldValue && this.isEdit
+      return this.oldValue && this.value != '*' && this.value === this.oldValue && this.isEdit
     },
     lang() {
      return localStorage.getItem('local_language');
@@ -538,7 +538,11 @@ export default {
           this.$error(result?.message);
           return
         }
-        Message.success(this.$t("dataIn.addPointSucc"));
+        Message.success({
+          message: this.$t("dataIn.addPointSucc"),
+          duration: 30000,
+          showClose: true
+        });
         this.requestIng = false;
         this.opcPointForm.opcCsvHeaders.map(item => {
           if (item.name == 'point_id') {

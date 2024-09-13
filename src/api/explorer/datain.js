@@ -392,10 +392,10 @@ export function getMetricsDesc(data) {
     })
 }
 
-export function getHistorianMsgbody(datatype,data,agentid){
+export function getSampleDataMsgbody(datatype,data,agentid,timeout){
     return request({
         baseURL: process.env.VUE_APP_X_API,
-        url: `/ds/in/sample?dsn=${datatype}${data}` + (agentid ? `&via=${agentid}` : ''),
+        url: `/ds/in/sample?dsn=${datatype}${data}` + (agentid ? `&via=${agentid}` : '') + (timeout ? `&timeout=${timeout}` : ''),
         method: 'get',
         transformResponse: [function (data) {
             try {

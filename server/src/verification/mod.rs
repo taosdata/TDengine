@@ -1,5 +1,6 @@
 use captcha::filters::{Dots, Noise, Wave};
 use captcha::{Captcha, Geometry};
+use http::HeaderMap;
 use lazy_static::lazy_static;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
@@ -10,6 +11,10 @@ use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
+use taoslog::utils::{QidMetadataGetter, QidMetadataSetter, Span};
+use taoslog::QidManager;
+
+use crate::qid::Qid;
 
 pub fn sign_string(input: &str) -> String {
     let mut hasher = Sha1::new();
@@ -163,6 +168,10 @@ async fn request_cloud(
     let string_to_sign = format!("{}&nonce={}&ts={}", params_to_sign, nonce, ts);
     let sign = sign_string(&string_to_sign);
 
+    let mut qid: Qid = Span.get_qid().unwrap_or_else(Qid::init);
+    qid.set_cloud();
+    qid.add_sequence_id();
+
     log::info!("post url: {}, request body:{}", url, json_body);
 
     // 连接超时时间为30秒，请求超时时间为60秒
@@ -171,8 +180,11 @@ async fn request_cloud(
         .timeout(Duration::from_secs(60))
         .build()?;
 
+    let mut headers = HeaderMap::new();
+    headers.set_qid(&qid);
     let response = http_client
         .request(method, &url)
+        .headers(headers)
         .header(
             reqwest::header::CONTENT_TYPE,
             reqwest::header::HeaderValue::from_static("application/json"),

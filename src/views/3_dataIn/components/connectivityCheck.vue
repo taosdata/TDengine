@@ -78,8 +78,12 @@ export default {
     }
   },
   mounted() {
-    if (this.isEdit && !this.isCopy) {
-      this.clickCheckBtn()
+    if (this.isEdit) {
+      if (this.isCopy && this.type === 'opcua') {
+        this.clickCheckBtn()
+      } else if (!this.isCopy) {
+        this.clickCheckBtn()
+      }
     }
     if (this.isView) {
       const type = this.sourceParent.sourceForm.type

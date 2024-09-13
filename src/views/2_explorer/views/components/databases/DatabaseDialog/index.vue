@@ -115,7 +115,7 @@ export default {
     },
     toDbCreatePage() {
       this.$store.commit("dbs/HANDLE_CLOSE_DIALOG");
-      this.$store.commit("console/SET_TAB_NAME", this.$t("add"));
+      this.$store.commit("console/SET_TAB_NAME", "add");
       this.$store.state.console.partActive = "detail";
       this.$store.state.console.currentComponent = "DatabaseCreate";
     },

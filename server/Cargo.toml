@@ -42,15 +42,23 @@ sha1 = "0.10.6"
 rand = "0.8.4"
 lazy_static = "1.4.0"
 captcha = "0.0.9"
-
+deadpool = "0.10"
 
 const-str = "0.5.7"
 const_format = "0.2.32"
-shadow-rs = "0.28.0"
+shadow-rs = { version = "0.33", default-features = false }
 geos = { version = "9.0.0", features = ["static"] }
 hex = "0.4.3"
 chrono = "0.4"
 chrono-tz = "0.9.0"
+scc = "2.1.16"
+
+taoslog = { git = "https://github.com/taosdata/taoslog-rs.git", rev = "b862912838dc7c0532117d696bdbdf0f2a7914ce", features = [
+	"ansi",
+] }
+http = "0.2.12"
+bitfield = "0.16.1"
+serde_with = "3.9.0"
 
 [dependencies.taos]
 # path = "../taos-connector-rust/taos"
@@ -60,7 +68,7 @@ default-features = false
 features = ["ws-rustls", "optin", "deadpool"]
 
 [build-dependencies]
-shadow-rs = "0.28.0"
+shadow-rs = { version = "0.33", default-features = false }
 
 [dev-dependencies]
 zstd = "0"

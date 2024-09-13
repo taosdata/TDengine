@@ -388,16 +388,18 @@ export function getDSN(driver = "tmq", subject = null) {
   let url = localStorage.getItem("base_url");
   if (url.includes("://")) {
     let parsed_url = new URL(url);
+    let host = parsed_url.host;
     let scheme = null;
     if (parsed_url.protocol == "http:") {
       scheme = "+ws";
     } else if (parsed_url.protocol == "https:") {
       scheme = "+wss";
     } else {
-      scheme = "+" + parsed_url.protocol.replace(":", "");
+      driver = ''
+      scheme = parsed_url.protocol.replace(":", "");
+      host = parsed_url.pathname.split('//')[1];
     }
 
-    let host = parsed_url.host;
     let user = localStorage.getItem("username") || "";
     let decrypted = encodeURIComponent(decrypt(localStorage.getItem("pwd")));
     let pass = decrypted || "";

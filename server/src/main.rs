@@ -1,7 +1,9 @@
 use actix_cors::Cors;
 use actix_files::NamedFile;
 use anyhow::Context;
+use chrono::TimeZone;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
+use deadpool::managed::{Object, PoolError};
 use favorites::FavoritesSql;
 use geos::{Geom, Geometry};
 use http_auth_basic::Credentials;
@@ -9,7 +11,7 @@ use log::LevelFilter;
 use reqwest::RequestBuilder;
 use rustls::server::ServerConfig;
 use rustls_pemfile::{certs, private_key};
-use chrono::TimeZone;
+use serde_with::{serde_as, FromInto};
 use std::{
     collections::HashMap,
     fmt::Display,
@@ -17,11 +19,13 @@ use std::{
     io::{BufReader, Read},
     path::PathBuf,
     str::FromStr,
+    sync::OnceLock,
     time::Duration,
 };
 use taos::*;
+use taos_query::Manager;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tracing::{error, info, instrument, Level};
+use tracing::{error, info};
 use tracing_actix_web::TracingLogger;
 
 use actix_embed::Embed;
@@ -30,28 +34,85 @@ use actix_web::{
     dev::{fn_service, ServiceRequest, ServiceResponse},
     error::{self, JsonPayloadError, PayloadError},
     http::header::{ContentType, AUTHORIZATION, X_FORWARDED_FOR},
-    middleware::{Compress, Logger},
+    middleware::Compress,
     post,
     web::{self, Query},
     App, HttpRequest, HttpResponse, HttpServer, Responder, ResponseError,
 };
-
+use anyhow::bail;
 use clap::Parser;
+use qid::{headers_with_qid, Qid, DEFAULT_INSTANCE_ID, INSTANCE_ID};
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
+use taoslog::{
+    layer::TaosLayer,
+    middleware::TaosRootSpanBuilder,
+    utils::{QidMetadataGetter, QidMetadataSetter, Span},
+    writer::RollingFileAppender,
+    QidManager,
+};
+use tracing::debug;
+use tracing_subscriber::{
+    filter,
+    layer::{Layer, SubscriberExt},
+    util::SubscriberInitExt,
+};
 
 mod favorites;
+mod qid;
 pub mod verification;
 
-fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
-    match level {
-        LevelFilter::Off => None,
-        LevelFilter::Error => Some(Level::ERROR),
-        LevelFilter::Warn => Some(Level::WARN),
-        LevelFilter::Info => Some(Level::INFO),
-        LevelFilter::Debug => Some(Level::DEBUG),
-        LevelFilter::Trace => Some(Level::TRACE),
+#[derive(Clone)]
+struct UserPool {
+    password: String,
+    pool: deadpool::managed::Pool<Manager<TaosBuilder>>,
+}
+
+static TAOS_POOL: OnceLock<scc::HashMap<String, UserPool>> = OnceLock::new();
+
+async fn get_connection(dsn: &Dsn) -> Result<Object<Manager<TaosBuilder>>, String> {
+    let map = TAOS_POOL.get_or_init(|| scc::HashMap::new());
+    let mut dsn_simple = dsn.clone();
+    dsn_simple.password = None;
+
+    let user_pool = map
+        .get(&dsn_simple.to_string())
+        .filter(|pool| pool.password == dsn.password.clone().unwrap_or_default())
+        .map(|pool| pool.pool.clone());
+
+    if user_pool.is_some() {
+        return user_pool.unwrap().get().await.map_err(|err| match err {
+            PoolError::Backend(inner_err) => format!("{inner_err:#}"),
+            err => format!("Failed to get connection: {err:#}"),
+        });
     }
+
+    let builder = taos::TaosBuilder::from_dsn(dsn);
+    if builder.is_err() {
+        tracing::error!("Failed to create taosbuilder: {:?}", builder.err());
+        return Err("inner error: failed to get connection pool".to_string());
+    }
+    let pool = builder.unwrap().pool();
+    if pool.is_err() {
+        tracing::error!("Failed to create pool: {:?}", pool.err());
+        return Err("inner error: failed to get connection pool".to_string());
+    }
+
+    let pool = pool.unwrap();
+    let conn = pool.get().await.map_err(|err| match err {
+        PoolError::Backend(inner_err) => format!("{inner_err:#}"),
+        err => format!("Failed to get connection: {err:#}"),
+    });
+
+    if conn.is_ok() {
+        let new_user_pool = UserPool {
+            password: dsn.password.clone().unwrap_or_default(),
+            pool: pool.clone(),
+        };
+        tracing::debug!("create new pool for {:?}", dsn);
+        let _ = map.upsert(dsn_simple.to_string(), new_user_pool);
+    }
+    conn
 }
 
 #[actix_web::main]
@@ -86,23 +147,78 @@ async fn main() -> anyhow::Result<()> {
         println!("No configuration file found, use default arguments.");
         args
     };
-    let log_level = args
-        .log_level
-        .or(args.verbose.as_ref().map(|v| v.log_level_filter()))
-        .unwrap_or(LevelFilter::Info);
+
     args.cfg_path = Some(path);
 
-    let subscriber = tracing_subscriber::fmt()
-        .with_level(true)
-        .with_thread_ids(true)
-        .with_thread_names(true)
-        .with_max_level(log_level_to_tracing_level(log_level))
-        .compact();
-    if atty::is(atty::Stream::Stdout) {
-        subscriber.pretty().init();
-    } else {
-        subscriber.with_ansi(false).init();
+    // init instance id
+    args.instance_id =
+        Some(*INSTANCE_ID.get_or_init(|| args.instance_id.unwrap_or(DEFAULT_INSTANCE_ID)));
+
+    match args.log.as_mut() {
+        Some(opts) => opts.merge_from(LogOpts::default()),
+        None => args.log = Some(LogOpts::default()),
     }
+
+    let Some(LogOpts {
+        path,
+        level,
+        compress,
+        rotation_count,
+        keep_days,
+        rotation_size,
+        reserved_disk_size,
+    }) = args.log.clone()
+    else {
+        bail!("Log opts not found")
+    };
+
+    let log_level = level
+        .or(args.log_level)
+        .or(args.verbose.as_ref().map(|v| v.log_level_filter()))
+        .map(|level_filter| match level_filter {
+            log::LevelFilter::Off => filter::LevelFilter::OFF,
+            log::LevelFilter::Error => filter::LevelFilter::ERROR,
+            log::LevelFilter::Warn => filter::LevelFilter::WARN,
+            log::LevelFilter::Info => filter::LevelFilter::INFO,
+            log::LevelFilter::Debug => filter::LevelFilter::DEBUG,
+            log::LevelFilter::Trace => filter::LevelFilter::TRACE,
+        })
+        .unwrap_or(filter::LevelFilter::INFO);
+
+    // init logger
+    let mut layers = Vec::with_capacity(2);
+    let appender = RollingFileAppender::builder(
+        path.unwrap(),
+        &format!("{}explorer", env!("CUS_PROMPT")),
+        *INSTANCE_ID.get().unwrap(),
+    )
+    .compress(compress.unwrap())
+    .reserved_disk_size(&reserved_disk_size.unwrap())
+    .rotation_count(rotation_count.unwrap())
+    .keep_days(keep_days.unwrap())
+    .rotation_size(&rotation_size.unwrap())
+    .build()
+    .unwrap();
+
+    layers.push(
+        TaosLayer::<Qid>::new(appender)
+            .with_filter(log_level)
+            .boxed(),
+    );
+
+    if cfg!(debug_assertions) {
+        layers.push(
+            TaosLayer::<Qid, _, _>::new(std::io::stdout)
+                .with_ansi()
+                .with_filter(log_level)
+                .boxed(),
+        );
+    }
+
+    tracing_subscriber::registry().with(layers).init();
+
+    let span = tracing::info_span!("main");
+    let _entered = span.enter();
 
     const EXPLORER_PORT: u16 = 6060;
     const EXPLORER_CLUSTER: &str = "http://localhost:6041";
@@ -129,8 +245,11 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     };
-
     let favorites = FavoritesSql::new(&data_dir).await?;
+
+    args.data_dir = Some(data_dir);
+
+    print_config_values(&args);
 
     let server = HttpServer::new(move || {
         let cors = if cors {
@@ -152,9 +271,8 @@ async fn main() -> anyhow::Result<()> {
                 .max_age(3600)
         };
         let app = App::new()
-            .wrap(TracingLogger::default())
+            .wrap(TracingLogger::<TaosRootSpanBuilder<Qid>>::new())
             .wrap(cors)
-            .wrap(Logger::default())
             .wrap(Compress::default())
             .app_data(web::Data::new(reqwest::Client::new()))
             .app_data(app_args.clone())
@@ -312,6 +430,26 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn print_config_values(args: &Args) {
+    // TODO: use proc_macro to generate method to get all current configurations
+    let v = serde_json::to_vec(args).unwrap();
+    let map = serde_json::from_slice::<HashMap<String, serde_json::Value>>(&v).unwrap();
+    let mut s = String::new();
+    tracing::info!("explorer version: {}", build::PKG_VERSION);
+    tracing::info!("commit id: {}", build::COMMIT_HASH);
+    tracing::info!("build time: {}", build::BUILD_TIME);
+    s += "global config\n";
+    s += "=======================================================================\n";
+    for (k, v) in map {
+        if v.is_null() {
+            continue;
+        }
+        s += &format!("{:<18}{:<22}{}\n", ' ', k, v);
+    }
+    s += "=======================================================================";
+    tracing::info!("{s}");
+}
+
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub(crate) struct R<T> {
     code: u32,
@@ -408,10 +546,16 @@ async fn profile(args: web::Data<Args>, client: web::Data<reqwest::Client>) -> i
     if args.profile.x_api.is_none() {
         return HttpResponse::Ok().json(&args.profile);
     }
+
+    let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
+    qid.set_taosx();
+    qid.add_sequence_id();
+    Span.set_qid(&qid);
+
     let mut profile = args.profile.clone();
     let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/profile");
-    let client = client.get(url);
+    let client = client.get(url).headers(headers_with_qid(&qid));
     let client = client.timeout(Duration::from_secs(10));
 
     if let Ok(resp) = client.send().await {
@@ -704,11 +848,17 @@ async fn proxy(
     client: web::Data<reqwest::Client>,
     url: &str,
 ) -> Result<HttpResponse, actix_web::Error> {
+    let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
+    qid.set_taosx();
+    qid.add_sequence_id();
+    Span.set_qid(&qid);
     if req.headers().contains_key("upgrade") {
         // Websocket proxy.
 
         // Forward the request.
-        let builder = real_ip_forward(&req, client.get(url));
+        let mut builder = client.get(url);
+        builder = builder.headers(headers_with_qid(&qid));
+        let builder = real_ip_forward(&req, builder);
 
         let target_response = builder.send().await.unwrap();
 
@@ -761,8 +911,11 @@ async fn proxy(
                 }
             }
         });
+
+        debug!(url, "proxy to taosx");
         let builder = client
             .request(req.method().clone(), url)
+            .headers(headers_with_qid(&qid))
             .timeout(Duration::from_secs(u64::MAX))
             .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
         let builder = real_ip_forward(&req, builder);
@@ -796,6 +949,7 @@ async fn rest_proxy(
         .get(AUTHORIZATION)
         .and_then(|header| header.to_str().ok())
         .unwrap_or_default();
+
     let sql = get_body_from_payload(payload).await.unwrap();
     let tz = query.get("tz");
     match args.query(header, &sql, tz).await {
@@ -837,7 +991,7 @@ struct ImportRequest {
     #[serde(default)]
     whitelist: bool,
 }
-#[instrument(skip_all)]
+
 async fn import(
     args: web::Data<Args>,
     client: web::Data<reqwest::Client>,
@@ -881,9 +1035,15 @@ async fn import(
     let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/privileges/migrate");
 
+    let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
+    qid.set_taosx();
+    qid.add_sequence_id();
+    Span.set_qid(&qid);
+    debug!(url, "proxy to taosx");
     client
         .post(url)
         .json(&migrate)
+        .headers(headers_with_qid(&qid))
         .send()
         .await
         .map_err(RestErrResponse::new)
@@ -897,7 +1057,7 @@ fn reqwest_into_http_response(res: reqwest::Response) -> HttpResponse {
     }
     client_resp.streaming(res.bytes_stream())
 }
-#[instrument(skip_all)]
+
 async fn x_api(
     args: web::Data<Args>,
     client: web::Data<reqwest::Client>,
@@ -925,6 +1085,10 @@ async fn x_api_doc(
     if args.profile.x_api.is_none() {
         return Ok(HttpResponse::NotFound().finish());
     }
+    let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
+    qid.set_taosx();
+    Span.set_qid(&qid);
+
     let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/api-doc/openapi.json");
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -937,9 +1101,14 @@ async fn x_api_doc(
             }
         }
     });
+
+    qid.add_sequence_id();
+    Span.set_qid(&qid);
+    debug!(url, "proxy to taosx");
     let builder = client
         .request(req.method().clone(), url)
         .timeout(Duration::from_secs(u64::MAX))
+        .headers(headers_with_qid(&qid))
         .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
     let builder = real_ip_forward(&req, builder);
     let res = builder
@@ -1031,7 +1200,7 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     )
 };
 
-#[derive(Parser, Debug, Clone, Deserialize, Default)]
+#[derive(Parser, Debug, Clone, Serialize, Deserialize, Default)]
 #[clap(name = env!("CUS_CLI_NAME"), author, version = CLAP_SHORT_VERSION, about, long_about = include_str!(env!("CUS_README")))]
 struct Args {
     /// Configuration file
@@ -1044,6 +1213,13 @@ struct Args {
 
     #[clap(long, global = true, env = "EXPLORER_ADDR")]
     addr: Option<String>,
+
+    #[clap(long, global = true, env = "EXPLORER_INSTANCE_ID")]
+    #[serde(rename = "instanceId")]
+    instance_id: Option<u8>,
+
+    #[clap(flatten)]
+    log: Option<LogOpts>,
 
     #[clap(long, global = true, env = "EXPLORER_IPV6")]
     ipv6: Option<String>,
@@ -1084,6 +1260,121 @@ struct Args {
     data_dir: Option<String>,
 }
 
+#[serde_as]
+#[derive(Parser, Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct LogOpts {
+    #[clap(id = "log.path", long = "log.path", env = "EXPLORER_LOG_PATH")]
+    path: Option<PathBuf>,
+    #[clap(id = "log.level", long = "log.level", env = "EXPLORER_LOG_LEVEL")]
+    level: Option<LevelFilter>,
+    #[clap(
+        id = "log.compress",
+        long = "log.compress",
+        env = "EXPLORER_LOG_COMPRESS",
+        num_args = 0..=1,
+        default_missing_value = "true",
+        value_parser = compress_arg_parser,
+    )]
+    #[serde_as(as = "Option<FromInto<CompressType>>")]
+    compress: Option<bool>,
+    #[clap(
+        id = "log.rotationCount",
+        long = "log.rotationCount",
+        env = "EXPLORER_LOG_ROTATION_COUNT"
+    )]
+    rotation_count: Option<u16>,
+    #[clap(
+        id = "log.keepDays",
+        long = "log.keepDays",
+        env = "EXPLORER_LOG_KEEP_DAYS"
+    )]
+    keep_days: Option<u16>,
+    #[clap(
+        id = "log.rotationSize",
+        long = "log.rotationSize",
+        env = "EXPLORER_LOG_ROTATION_SIZE"
+    )]
+    rotation_size: Option<String>,
+    #[clap(
+        id = "log.reservedDiskSize",
+        long = "log.reservedDiskSize",
+        env = "EXPLORER_LOG_RESERVED_DISK_SIZE"
+    )]
+    reserved_disk_size: Option<String>,
+}
+
+fn compress_arg_parser(value: &str) -> Result<bool, clap::Error> {
+    match value.to_lowercase().as_str() {
+        "0" | "false" => Ok(false),
+        _ => Ok(true),
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[serde(untagged)]
+enum CompressType {
+    B(bool),
+    N(u8),
+}
+
+impl From<CompressType> for bool {
+    fn from(value: CompressType) -> Self {
+        match value {
+            CompressType::B(v) => v,
+            CompressType::N(1) => true,
+            CompressType::N(0) => false,
+            _ => panic!("invalid compress value"),
+        }
+    }
+}
+
+impl From<bool> for CompressType {
+    fn from(value: bool) -> Self {
+        Self::B(value)
+    }
+}
+
+impl LogOpts {
+    fn merge_from(&mut self, rhs: Self) {
+        macro_rules! update_if_none {
+            ($field: ident) => {
+                if self.$field.is_none() {
+                    self.$field = rhs.$field
+                }
+            };
+        }
+        update_if_none!(path);
+        update_if_none!(compress);
+        update_if_none!(rotation_count);
+        update_if_none!(keep_days);
+        update_if_none!(rotation_size);
+        update_if_none!(reserved_disk_size);
+    }
+}
+
+impl Default for LogOpts {
+    fn default() -> Self {
+        Self {
+            path: Some(get_default_log_path()),
+            level: None,
+            compress: Some(false),
+            rotation_count: Some(30),
+            keep_days: Some(30),
+            rotation_size: Some("1GB".to_string()),
+            reserved_disk_size: Some("1GB".to_string()),
+        }
+    }
+}
+
+fn get_default_log_path() -> PathBuf {
+    if cfg!(windows) {
+        PathBuf::from(format!("C:\\{}\\log", env!("CUS_NAME")))
+    } else {
+        PathBuf::from(format!("/var/log/{}", env!("CUS_PROMPT")))
+    }
+}
+
 #[derive(Parser, Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(default)]
 struct Ssl {
@@ -1118,9 +1409,15 @@ impl Args {
         sql: &str,
         tz: Option<&String>,
     ) -> Result<RestOkResponse, RestErrResponse> {
-        log::info!("SQL: {}, TZ: {:?}", sql, tz);
+        let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
+        qid.set_taos();
+        qid.add_sequence_id();
+        Span.set_qid(&qid);
 
-        let conn = TaosBuilder::from_dsn(dsn)?.build().await?;
+        // taos connection pool
+        let conn = get_connection(&dsn)
+            .await
+            .map_err(|err| RestErrResponse::new(err))?;
 
         let tz = if let Some(tz) = tz {
             chrono_tz::Tz::from_str(tz).unwrap_or(chrono_tz::Tz::UTC)
@@ -1128,8 +1425,8 @@ impl Args {
             chrono_tz::Tz::UTC
         };
 
-        log::info!("Got connection, querying");
-        let mut set = conn.query(sql).await?;
+        debug!("Got connection, querying");
+        let mut set = conn.query_with_req_id(sql, qid.get()).await?;
         // dml and cud return empty set
         if set.fields().is_empty() {
             let affect_rows = set.affected_rows();
@@ -1145,7 +1442,7 @@ impl Args {
             .iter()
             .map(|f| (f.name().to_string(), f.ty().to_string(), f.bytes()))
             .collect_vec();
-        log::info!("Got fields {column_meta:?}, fetching data.");
+        debug!("Got fields {column_meta:?}, fetching data.");
         let data = set
             .to_records()
             .await?
@@ -1169,7 +1466,7 @@ impl Args {
                     .collect_vec()
             })
             .collect_vec();
-        log::info!("SQL result: {data:?}");
+        debug!("SQL result: {data:?}");
         Ok(RestOkResponse {
             code: Code::SUCCESS,
             column_meta,
@@ -1184,19 +1481,7 @@ impl Args {
         sql: &str,
         tz: Option<&String>,
     ) -> Result<RestOkResponse, RestErrResponse> {
-        //token
-        let credentials =
-            Credentials::from_header(header.to_string()).map_err(RestErrResponse::new)?;
-        let mut dsn: Dsn = self
-            .profile
-            .cluster
-            .as_deref()
-            .unwrap_or("taos://localhost:6030")
-            .parse()
-            .map_err(RestErrResponse::new)?;
-        dsn.username = Some(credentials.user_id);
-        dsn.password = Some(credentials.password);
-
+        let dsn = self.build_dsn(header)?;
         self.query_inner(dsn, sql, tz).await
     }
 
@@ -1220,20 +1505,10 @@ impl Args {
         header: &str,
         license: &RenewLicense,
     ) -> Result<RestOkResponse, RestErrResponse> {
-        // token
-        let credentials =
-            Credentials::from_header(header.to_string()).map_err(RestErrResponse::new)?;
-        // connection
-        let mut dsn: Dsn = self
-            .profile
-            .cluster
-            .as_deref()
-            .unwrap_or("taos://localhost:6030")
-            .parse()
-            .map_err(RestErrResponse::new)?;
-        dsn.username = Some(credentials.user_id);
-        dsn.password = Some(credentials.password);
-        let conn = TaosBuilder::from_dsn(dsn)?.build().await?;
+        let dsn = self.build_dsn(header)?;
+        let conn = get_connection(&dsn)
+            .await
+            .map_err(|err| RestErrResponse::new(err))?;
         // server version
         let server_version = conn.server_version().await;
         let server_version = match server_version {
@@ -1245,13 +1520,18 @@ impl Args {
         };
         let (a, b, c) = get_main_version_from_server_version(&server_version.to_string()).unwrap();
         // check version and use different function
+        let mut qid: Qid = Span.get_qid().unwrap_or(Qid::init());
+        qid.set_taos();
         if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
             if let Some(active_code) = license.active_code.as_ref() {
                 if !active_code.is_empty() {
                     let sql = format!("alter cluster 'activeCode' '{active_code}'");
-                    conn.exec(&sql).await.map_err(|err| {
-                        RestErrResponse::new(format!("Invalid cluster active code: {err:#}"))
-                    })?;
+                    qid.add_sequence_id();
+                    conn.exec_with_req_id(&sql, qid.get())
+                        .await
+                        .map_err(|err| {
+                            RestErrResponse::new(format!("Invalid cluster active code: {err:#}"))
+                        })?;
                 }
             } else {
                 return Err(RestErrResponse {
@@ -1269,17 +1549,25 @@ impl Args {
             if let Some(active_code) = license.active_code.as_ref() {
                 if !active_code.is_empty() {
                     let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
-                    conn.exec(&sql).await.map_err(|err| {
-                        RestErrResponse::new(format!("Invalid cluster active code: {err:#}"))
-                    })?;
+                    qid.add_sequence_id();
+                    Span.set_qid(&qid);
+                    conn.exec_with_req_id(&sql, qid.get())
+                        .await
+                        .map_err(|err| {
+                            RestErrResponse::new(format!("Invalid cluster active code: {err:#}"))
+                        })?;
                 }
             }
             if let Some(c_active_code) = license.c_active_code.as_ref() {
                 if !c_active_code.is_empty() {
                     let sql = format!("alter all dnodes 'cActiveCode' '{c_active_code}'");
-                    conn.exec(&sql).await.map_err(|err| {
-                        RestErrResponse::new(format!("Invalid connector active code: {err:#}"))
-                    })?;
+                    qid.add_sequence_id();
+                    Span.set_qid(&qid);
+                    conn.exec_with_req_id(&sql, qid.get())
+                        .await
+                        .map_err(|err| {
+                            RestErrResponse::new(format!("Invalid connector active code: {err:#}"))
+                        })?;
                 }
             }
         }
@@ -1387,18 +1675,105 @@ pub fn get_main_version_from_server_version(version: &String) -> anyhow::Result<
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use std::{path::PathBuf, str::FromStr};
 
-#[test]
-fn test_timezone() {
-    let tz = "Asia/Muscat";
-    let offset = chrono_tz::Tz::from_str(tz).unwrap();
-    dbg!(offset);
+    use chrono::TimeZone;
+    use clap::CommandFactory;
+    use log::LevelFilter;
+    use taos::*;
 
-    let ts = taos_query::common::Timestamp::Milliseconds(1722255496870);
-    let ts_with_tz = offset.from_utc_datetime(&ts.to_naive_datetime());
-    dbg!(ts_with_tz);
+    use crate::Args;
 
-    let str = serde_json::Value::String(ts_with_tz.to_rfc3339());
-    dbg!(str);
+    #[test]
+    fn test_timezone() {
+        let tz = "Asia/Muscat";
+        let offset = chrono_tz::Tz::from_str(tz).unwrap();
+        dbg!(offset);
+
+        let ts = taos_query::common::Timestamp::Milliseconds(1722255496870);
+        let ts_with_tz = offset.from_utc_datetime(&ts.to_naive_datetime());
+        dbg!(ts_with_tz);
+
+        let str = serde_json::Value::String(ts_with_tz.to_rfc3339());
+        dbg!(str);
+    }
+
+    #[test]
+    fn parse_log_opts() {
+        let s = r#"
+            [log]
+            path = "aaa"
+            level = "warn"
+            compress = true
+            rotationCount = 33
+            rotationSize = "3GB"
+            reservedDiskSize = "30GB"
+        "#;
+        let args: Args = toml::from_str(s).unwrap();
+        let log = args.log.unwrap();
+        assert_eq!(log.path.unwrap(), PathBuf::from("aaa"));
+        assert_eq!(log.level.unwrap(), LevelFilter::Warn);
+        assert!(log.compress.unwrap());
+        assert_eq!(log.rotation_count.unwrap(), 33);
+        assert_eq!(log.rotation_size.unwrap(), "3GB");
+        assert_eq!(log.reserved_disk_size.unwrap(), "30GB");
+    }
+
+    #[test]
+    fn parse_log_opts_compress_number() {
+        let s = r#"
+            [log]
+            path = "aaa"
+            level = "warn"
+            compress = 1
+            rotationCount = 33
+            rotationSize = "3GB"
+            reservedDiskSize = "30GB"
+        "#;
+        let args: Args = toml::from_str(s).unwrap();
+        let log = args.log.unwrap();
+        assert_eq!(log.path.unwrap(), PathBuf::from("aaa"));
+        assert_eq!(log.level.unwrap(), LevelFilter::Warn);
+        assert!(log.compress.unwrap());
+        assert_eq!(log.rotation_count.unwrap(), 33);
+        assert_eq!(log.rotation_size.unwrap(), "3GB");
+        assert_eq!(log.reserved_disk_size.unwrap(), "30GB");
+    }
+
+    #[test]
+    fn parse_log_opts_clap() {
+        let cli = format!("{}-explorer", env!("CUS_CLI_NAME"));
+        let matches = Args::command()
+            .try_get_matches_from([
+                &cli,
+                "--log.path",
+                "/var/log/taos",
+                "--log.level",
+                "info",
+                "--log.compress",
+                "--log.rotationCount",
+                "3",
+                "--log.rotationSize",
+                "3GB",
+                "--log.reservedDiskSize",
+                "3GB",
+            ])
+            .unwrap();
+        assert_eq!(
+            matches.get_one("log.path"),
+            Some(&PathBuf::from("/var/log/taos"))
+        );
+        assert_eq!(matches.get_one("log.level"), Some(&log::LevelFilter::Info));
+        assert_eq!(matches.get_one("log.compress"), Some(&true));
+        assert_eq!(matches.get_one("log.rotationCount"), Some(&3usize));
+        assert_eq!(
+            matches.get_one("log.rotationSize"),
+            Some(&"3GB".to_string())
+        );
+        assert_eq!(
+            matches.get_one("log.reservedDiskSize"),
+            Some(&"3GB".to_string())
+        )
+    }
 }

@@ -772,7 +772,7 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
     }
     children.push(config);
     params.forEach(param => {
-      const { display, description, short_description, name, hint, placeholder = '', required = false, value, multiple, pattern, patternMsg, grid_two = false, type_value, edit_disabled } = param;
+      const { display, description, short_description, name, hint, placeholder = '', required = false, value, multiple, pattern, patternMsg, grid_two = false, type_value, edit_disabled, validator } = param;
       const paramConfig = {
         label: display,
         description: description ?? short_description,
@@ -850,7 +850,8 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
         pattern: pattern || null,
         patternMsg,
         grid_two,
-        type_value
+        type_value,
+        validator
       };
       handleHintType(paramConfig, hint, value);
       // 2024-05-17，pibackfill remove the special rule
@@ -1511,4 +1512,18 @@ export function getGroupsObj(data) {
 
 export function getFieldClassMarkName(field) {
   return field.replace(/[^\w-]/g, '-');
+}
+
+export function checkJson (_, value, callback) {
+  function isValidJSON(text) {
+      try {
+        return Object.keys(JSON.parse(text)).length !== 0;
+      } catch (error) {
+        return false;
+      }
+  }
+  if (value && !isValidJSON(value)) {
+    return callback(new Error(i18n.t('dataIn.jsonTip')))
+  }
+  return callback()
 }

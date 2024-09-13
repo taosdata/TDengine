@@ -3396,6 +3396,17 @@ export function getDataSources(lang) {
             "connection_option": false,
             "params": [
               {
+                "name": "subtable_fields",
+                "display": "Subtable Fields",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "Fields and query statements used for splitting sub tables.",
+                "description": "Fields and query statements used for splitting sub tables.",
+                "required": false,
+                "placeholder": "select distinct col_name1,col_name2 from table",
+              },
+              {
                 "name": "sql",
                 "display": "SQL Template",
                 "hint": {
@@ -3623,6 +3634,17 @@ export function getDataSources(lang) {
             "connection_option": false,
             "params": [
               {
+                "name": "subtable_fields",
+                "display": "Subtable Fields",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "Fields and query statements used for splitting sub tables.",
+                "description": "Fields and query statements used for splitting sub tables.",
+                "required": false,
+                "placeholder": "select distinct col_name1,col_name2 from table",
+              },
+              {
                 "name": "sql",
                 "display": "SQL Template",
                 "hint": {
@@ -3812,6 +3834,17 @@ export function getDataSources(lang) {
             "collapsible": false,
             "connection_option": false,
             "params": [
+              {
+                "name": "subtable_fields",
+                "display": "Subtable Fields",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "Fields and query statements used for splitting sub tables.",
+                "description": "Fields and query statements used for splitting sub tables.",
+                "required": false,
+                "placeholder": "select distinct col_name1,col_name2 from table",
+              },
               {
                 "name": "sql",
                 "display": "SQL Template",
@@ -4071,6 +4104,17 @@ export function getDataSources(lang) {
             "connection_option": false,
             "params": [
               {
+                "name": "subtable_fields",
+                "display": "Subtable Fields",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "Fields and query statements used for splitting sub tables.",
+                "description": "Fields and query statements used for splitting sub tables.",
+                "required": false,
+                "placeholder": "select distinct col_name1,col_name2 from table",
+              },
+              {
                 "name": "sql",
                 "display": "SQL Template",
                 "hint": {
@@ -4317,8 +4361,8 @@ export function getDataSources(lang) {
                   "required": false,
                   "display": "Authenticate DB",
                   "placeholder": "Authenticate DB",
-                  "short_description": "The database for authentication.\n",
-                  "description": "The database for authentication.The default is admin in the SCRAM authentication mechanism, $external in GSSAPI and MONGODB-X509, and the default is the database name or $external in PLAIN.\n",
+                  "short_description": "The default database for storing user information in MongoDB is admin.\n",
+                  "description": "The default database for storing user information in MongoDB is admin.\n",
                 },
               ],
             }
@@ -4343,21 +4387,6 @@ export function getDataSources(lang) {
                 "description": "Identifies a client.",
                 "placeholder": "For example: TDengine",
               },
-              {
-                "name": "compressors",
-                "display": "Compressor",
-                "hint": {
-                  "type": "str",
-                  "choices": [
-                    "snappy",
-                    "zlib",
-                    "zstd"
-                  ]
-                },
-                "short_description": "Used to compress messages sent to the server and decompress messages received from the server.",
-                "description": "Used to compress messages sent to the server and decompress messages received from the server.",
-                "placeholder": "Please select a compressor",
-              }
             ]
           },
           {
@@ -4405,7 +4434,7 @@ export function getDataSources(lang) {
                   "type": "str"
                 },
                 "short_description": "The source database.",
-                "description": "The source database.\n",
+                "description": "Source database in MongoDB, can be dynamically configured using placeholders, available placeholder list: \n<ul><li>${Y} Full Gregorian year representation, zero-filled 4-digit integer </li><li>${y} Gregorian year divided by 100, Zero padding of two integers </li><li>${M} integer (1-12) month </li><li>${m} in integer (01-12) </li><li>${B} in English whole put together </li><li>${b} in English abbreviations (3 A letter) </li><li>${D} date Numbers (1-31) </li><li>${d} date Numbers (01-31) </li><li>${J} the first day of the year (1-366) </li><li>${j} the first day of the year (001 - 366) </li><li>${F} is equivalent to ${Y}-${m}-${d}</li></ul>\n",
                 "required": true,
                 "placeholder": "database_${Y}",
               },
@@ -4416,9 +4445,20 @@ export function getDataSources(lang) {
                   "type": "str"
                 },
                 "short_description": "The source collection.",
-                "description": "The source collection.\n",
+                "description": "Set in MongoDB, can be dynamically configured using placeholders, available placeholder list: \n<ul><li>${Y} Full Gregorian year representation, zero-filled 4-digit integer </li><li>${y} Gregorian year divided by 100, Zero padding of two integers </li><li>${M} integer (1-12) month </li><li>${m} in integer (01-12) </li><li>${B} in English whole put together </li><li>${b} in English abbreviations (3 A letter) </li><li>${D} date Numbers (1-31) </li><li>${d} date Numbers (01-31) </li><li>${J} the first day of the year (1-366) </li><li>${j} the first day of the year (001 - 366) </li><li>${F} is equivalent to ${Y}-${m}-${d}</li></ul>",
                 "required": true,
                 "placeholder": "collection_${md}",
+              },
+              {
+                "name": "subtable_fields",
+                "display": "Subtable Fields",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "Fields and query statements used for splitting sub tables.",
+                "description": "Fields and query statements used for splitting sub tables.",
+                "required": false,
+                "placeholder": "col_name1,col_name2,...",
               },
               {
                 "name": "sql",
@@ -4431,6 +4471,18 @@ export function getDataSources(lang) {
                 "required": true,
                 "placeholder": "{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}",
                 "grid_two": true,
+              },
+              {
+                "name": "sort",
+                "display": "Sort",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "Sorting of query statements.",
+                "description": "Sorting of query statements.\n\n\n1.`{\"createtime\":1}`:MongoDB query results are returned in `createtime` order.\n\n2.`{\"createdate\":1, \"createtime\":1}`:MongoDB query results are returned in `createdate` and `createtime` order.",
+                "required": false,
+                "placeholder": "{\"createtime\":1}",
+                "validator": "checkJson"
               },
               {
                 "name": "start",
@@ -7928,6 +7980,17 @@ export function getDataSources(lang) {
             "connection_option": false,
             "params": [
               {
+                "name": "subtable_fields",
+                "display": "子表字段",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "用于拆分子表的字段。",
+                "description": "用于拆分子表的字段。",
+                "required": false,
+                "placeholder": "select distinct col_name1,col_name2 from table",
+              },
+              {
                 "name": "sql",
                 "display": "SQL 模板",
                 "hint": {
@@ -8155,6 +8218,17 @@ export function getDataSources(lang) {
             "connection_option": false,
             "params": [
               {
+                "name": "subtable_fields",
+                "display": "子表字段",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "用于拆分子表的字段。",
+                "description": "用于拆分子表的字段。",
+                "required": false,
+                "placeholder": "select distinct col_name1,col_name2 from table",
+              },
+              {
                 "name": "sql",
                 "display": "SQL 模板",
                 "hint": {
@@ -8344,6 +8418,17 @@ export function getDataSources(lang) {
             "collapsible": false,
             "connection_option": false,
             "params": [
+              {
+                "name": "subtable_fields",
+                "display": "子表字段",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "用于拆分子表的字段。",
+                "description": "用于拆分子表的字段。",
+                "required": false,
+                "placeholder": "select distinct col_name1,col_name2 from table",
+              },
               {
                 "name": "sql",
                 "display": "SQL 模板",
@@ -8603,6 +8688,17 @@ export function getDataSources(lang) {
             "connection_option": false,
             "params": [
               {
+                "name": "subtable_fields",
+                "display": "子表字段",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "用于拆分子表的字段。",
+                "description": "用于拆分子表的字段。",
+                "required": false,
+                "placeholder": "select distinct col_name1,col_name2 from table",
+              },
+              {
                 "name": "sql",
                 "display": "SQL 模板",
                 "hint": {
@@ -8849,8 +8945,8 @@ export function getDataSources(lang) {
                   "required": false,
                   "display": "认证数据库",
                   "placeholder": "认证数据库",
-                  "short_description": "进行身份验证的数据库。\n",
-                  "description": "进行身份验证的数据库，在 SCRAM 身份验证机制中默认为 “admin”，GSSAPI 和 MONGODB-X509 默认为 “$external”，PLAIN 默认为数据库名称或 “$external”。\n",
+                  "short_description": "MongoDB 中存储用户信息的数据库，默认为 admin。\n",
+                  "description": "MongoDB 中存储用户信息的数据库，默认为 admin。\n",
                 },
               ],
             }
@@ -8875,21 +8971,6 @@ export function getDataSources(lang) {
                 "description": "用于标识客户端。",
                 "placeholder": "示例: TDengine",
               },
-              {
-                "name": "compressors",
-                "display": "压缩器",
-                "hint": {
-                  "type": "str",
-                  "choices": [
-                    "snappy",
-                    "zlib",
-                    "zstd"
-                  ]
-                },
-                "short_description": "用于压缩发送到服务器的消息和解压缩从服务器接收的消息。",
-                "description": "用于压缩发送到服务器的消息和解压缩从服务器接收的消息。",
-                "placeholder": "请选择压缩器",
-              }
             ]
           },
           {
@@ -8937,7 +9018,7 @@ export function getDataSources(lang) {
                   "type": "str"
                 },
                 "short_description": "源数据库。",
-                "description": "源数据库。\n",
+                "description": "MongoDB 中源数据库，可以使用占位符进行动态配置，可用占位符列表：\n<ul><li>${Y} 完整的公历年表示，零填充的 4 位整数</li><li>${y} 公历年除以 100，零填充的 2 位整数</li><li>${M} 整数月份（1 - 12）</li><li>${m} 整数月份（01 - 12）</li><li>${B} 月份英文全拼</li><li>${b} 月份英文的缩写（3 个字母）</li><li>${D} 日期的数字表示（1 - 31）</li><li>${d} 日期的数字表示（01 - 31）</li><li>${J} 一年中的第几天（1 - 366）</li><li>${j} 一年中的第几天（001 - 366）</li><li>${F} 相当于 ${Y}-${m}-${d}</li></ul>\n",
                 "required": true,
                 "placeholder": "database_${Y}",
               },
@@ -8948,9 +9029,20 @@ export function getDataSources(lang) {
                   "type": "str"
                 },
                 "short_description": "源集合。",
-                "description": "源集合。\n",
+                "description": "MongoDB 中集合，可以使用占位符进行动态配置，可用占位符列表：\n<ul><li>${Y} 完整的公历年表示，零填充的 4 位整数</li><li>${y} 公历年除以 100，零填充的 2 位整数</li><li>${M} 整数月份（1 - 12）</li><li>${m} 整数月份（01 - 12）</li><li>${B} 月份英文全拼</li><li>${b} 月份英文的缩写（3 个字母）</li><li>${D} 日期的数字表示（1 - 31）</li><li>${d} 日期的数字表示（01 - 31）</li><li>${J} 一年中的第几天（1 - 366）</li><li>${j} 一年中的第几天（001 - 366）</li><li>${F} 相当于 ${Y}-${m}-${d}</li></ul>",
                 "required": true,
                 "placeholder": "collection_${md}",
+              },
+              {
+                "name": "subtable_fields",
+                "display": "子表字段",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "用于拆分子表的字段。",
+                "description": "用于拆分子表的字段。",
+                "required": false,
+                "placeholder": "col_name1,col_name2,...",
               },
               {
                 "name": "sql",
@@ -8963,6 +9055,18 @@ export function getDataSources(lang) {
                 "required": true,
                 "placeholder": "{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}",
                 "grid_two": true,
+              },
+              {
+                "name": "sort",
+                "display": "查询排序",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "执行查询时的排序条件。",
+                "description": "执行查询时的排序条件。\n\n1.`{\"createtime\":1}`：MongoDB 查询结果按 `createtime` 正序返回。\n\n2.`{\"createdate\":1, \"createtime\":1}`：MongoDB 查询结果按 `createdate` 正序、`createtime` 正序返回。",
+                "required": false,
+                "placeholder": "{\"createtime\":1}",
+                "validator": "checkJson"
               },
               {
                 "name": "start",

@@ -134,7 +134,7 @@ export default {
   agoHour: "Last Hour",
   agoMonth: "Last 30 days",
   agoQuarter: "Last 90 days",
-  filter: "Filter",
+  filter: "Press enter filterr",
   add: "Add",
   addSucc: "Add Success!",
   del: "Delete",
@@ -503,7 +503,7 @@ export default {
     createAt: "Created at",
     showTable: "Show Table",
     delStable: "Delete STable",
-    databaseControl: "Database {dbName} Access Control",
+    databaseControl: "Database {0} Access Control",
     operations: "Operations",
     delTable: "Delete Table",
     createDatabase: "Create Database",
@@ -626,7 +626,7 @@ export default {
     selectAll: "Select All",
     checkFail: "Please check the field name or type",
     tableNameTip:
-      "Table name can only consist of letters, numbers and underscores, but cannot start with numbers. It is case-insensitive, if you need a case-sensitive name, add ` before and after the name, such as `testTable`.",
+      "Table names are defaultly only allowed to consist of letters, numbers, and underscores, and cannot start with a number. The default is not case-sensitive. If you want to create a name that contains special characters or starts with a number or is case-sensitive, please add a ` before or after the name, for example, such as `testTable`.Special characters cannot be included \".\".",
     runSqlTip: "Run the first or selected SQL statement",
     performanceRelatedParameters: "Performance Related Parameters",
     dataPersistenceParameters: "Data Persistence Parameters",
@@ -637,6 +637,7 @@ export default {
     backslashTip: 'If you need a case-sensitive name, add ` before and after the name, such as `testDB`.',
   },
   dataIn: {
+    jsonTip: 'Please enter the correct json format',
     start: 'start',
     stop: 'stop',
     delete: 'delete',
@@ -1424,6 +1425,7 @@ export default {
       configuredcount:'Configured',
       unit:'Piece',
       dataLimit: 'Sample data limit:',
+      timeout: 'Timeout(s):',
       msgbodytypes: {
         type1: "Clear",
         type2: "Retrieve From Server",

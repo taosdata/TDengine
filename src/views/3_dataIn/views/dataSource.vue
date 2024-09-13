@@ -977,6 +977,7 @@ export default {
     async refresh() {
       await this.getList();
       await this.handleTaskActivities();
+      this.$refs.dataSourceTable.clearSelection();
     },
     async refreshCurrentTask(data) {
       try {
@@ -1004,10 +1005,24 @@ export default {
             return item;
           })[0]
         );
+        this.refreshCurrentSelection(data.taskid)
         Message.success(this.$t("datasource.refreshsuccess"));
       } catch (error) {
         console.log(error);
       }
+    },
+    // 先勾选再刷新单独任务的时候更新勾选的数据
+    refreshCurrentSelection(taskid) {
+      if (this.multipleSelection.length <= 0) return;
+      let filterRow = this.topicList.filter(
+        (item) => item.taskid == taskid
+      );
+      this.multipleSelection = this.multipleSelection.map(item => {
+        if (item.taskid == taskid) {
+          item = {...filterRow[0]}
+        }
+        return item;
+      })
     },
     //显示添加数据源弹窗
     showAddDialog() {},
@@ -1098,7 +1113,6 @@ export default {
     },
     handleSelectionChange(val) {
       this.multipleSelection = val;
-      console.log("val", val);
     },
     filterBatchIds(permitStatus) {
       let result = [];
@@ -1110,29 +1124,50 @@ export default {
       return result;
     },
     handlerConfirm(content, excuteFn, ids, showConfirmButton) {
-      this.$confirm(
-        content,
-        this.$t("datasource.warning"),
-        {
-          confirmButtonText: this.$t("datasource.ok"),
-          cancelButtonText: this.$t("datasource.cancel"),
-          type: "warning",
-          confirmButtonClass: showConfirmButton ? '' : "not-show"
-        }
-      ).then(async () => {
-        await this.handleClearInterval();
-        let result = await excuteFn({ids});
-        if (result?.message) {
-          this.handleSetInterval();
-          Message.warning(result.message);
-          return;
-        }
-        this.$refs.dataSourceTable.clearSelection();
-        await this.refresh();
-        await this.$nextTick(() => {
-          this.handleSetInterval();
+      try {
+        this.$confirm(
+          content,
+          this.$t("datasource.warning"),
+          {
+            confirmButtonText: this.$t("datasource.ok"),
+            cancelButtonText: this.$t("datasource.cancel"),
+            type: "warning",
+            confirmButtonClass: showConfirmButton ? '' : "not-show"
+          }
+        ).then(async () => {
+          await this.handleClearInterval();
+          let result = await excuteFn({ids});
+          if (result?.message) {
+            this.$message({
+              dangerouslyUseHTMLString: true,
+              message: `
+              <strong>
+                ${result.message}
+              </strong><br/>
+              <ul>
+                ${result.data.map(item => {
+                  return '<li>id:'+ item.id + ' '+ item.error + '</li>'
+                }).join('')}
+              </ul>`,
+              type: "warning",
+              duration: 30000,
+              showClose: true
+            });
+          } else {
+            this.$message({
+              type: 'success',
+              message: `${this.$t('operateSucc')}`
+            })
+          }
+          this.$refs.dataSourceTable.clearSelection();
+          await this.refresh();
+          await this.$nextTick(() => {
+            this.handleSetInterval();
+          });
         });
-      });
+      } catch (err){
+        return Promise.reject(err);
+      }
     },
     async handleBatchTask(type) {
       let ids = [];
