@@ -75,16 +75,13 @@ class TestDuration(TDCase):
             elif param_value == 3650: # days
                 self.tdSql.checkEqual(db_field, '3650d')
             elif param_value == '60m': # minutes
-                trans_value = int(re.sub('\D','', param_value))
                 self.tdSql.checkEqual(db_field, '1h')
             elif param_value == '5256000m': # minutes
-                trans_value = int(re.sub('\D','', param_value))
                 self.tdSql.checkEqual(db_field, f'3650d')
             elif param_value == '24h' or param_value =='87600h': # hours
                 trans_value = int(re.sub('\D','', param_value))
                 self.tdSql.checkEqual(db_field, f'{int(trans_value / 24)}d')
             elif param_value == '1d' or param_value == '3650d':
-                trans_value = int(re.sub('\D','', param_value))
                 self.tdSql.checkEqual(db_field, param_value)
             self.tdRest.request(f'show {dbname}.vgroups')
              # TODO
