@@ -1466,7 +1466,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     strcpy(dcfgReq.config, enableWhitelist_str);
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
     updateWhiteList = 1;
-  } else if (strncasecmp(cfgReq.config, "syncLogBufferMemoryAllowed", 14) == 0) {
+  } else if (strncasecmp(cfgReq.config, "syncLogBufferMemoryAllowed", 27) == 0) {
     int32_t optLen = strlen("syncLogBufferMemoryAllowed");
     int64_t flag = -1;
     int32_t code = mndMCfgGetValInt64(&cfgReq, optLen, &flag);
