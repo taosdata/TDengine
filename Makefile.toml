@@ -6,7 +6,7 @@ default_to_workspace = false
 
 [env]
 VER_NUMBER = { script = [
-  "git tag |grep ver-|sed s/ver-//|tail -n1",
+  "git tag |grep ver-|sed s/ver-//|sort -V|tail -n1",
 ], condition = { env_not_set = [
   "VER_NUMBER",
 ] } }
