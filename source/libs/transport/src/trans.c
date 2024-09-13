@@ -21,7 +21,7 @@ void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int32_t numOf
 void (*taosCloseHandle[])(void* arg) = {transCloseServer, transCloseClient};
 
 void (*taosRefHandle[])(void* handle) = {transRefSrvHandle, transRefCliHandle};
-void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, transUnrefCliHandle};
+void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, NULL};
 
 int (*transReleaseHandle[])(void* handle) = {transReleaseSrvHandle, transReleaseCliHandle};
 
