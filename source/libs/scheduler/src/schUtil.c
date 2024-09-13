@@ -41,6 +41,15 @@ FORCE_INLINE int32_t schReleaseJob(int64_t refId) {
   return taosReleaseRef(schMgmt.jobRef, refId);
 }
 
+FORCE_INLINE int32_t schReleaseJobEx(int64_t refId, int32_t* released) {
+  if (0 == refId) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  qDebug("sch release ex jobId:0x%" PRIx64, refId);
+  return taosReleaseRefEx(schMgmt.jobRef, refId, released);
+}
+
 int32_t schDumpEpSet(SEpSet *pEpSet, char** ppRes) {
   *ppRes = NULL;
   if (NULL == pEpSet) {
@@ -189,7 +198,7 @@ void schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask) {
     SCH_TASK_ELOG("fail to get the %dth condidateAddr in task, totalNum:%d", pTask->candidateIdx, (int32_t)taosArrayGetSize(pTask->candidateAddrs));
     return;
   }
-  
+
   SQueryNodeEpId  epId = {0};
 
   epId.nodeId = addr->nodeId;
@@ -334,7 +343,7 @@ void schFreeRpcCtx(SRpcCtx *pCtx) {
 
 void schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask) {
   *pTask = NULL;
-  
+
   int32_t s = taosHashGetSize(pTaskList);
   if (s <= 0) {
     return;
