@@ -667,8 +667,8 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       val = *pVal;
     } else {
       pCache->cacheHit += 1;
-      STableCachedVal* pVal = taosLRUCacheValue(pCache->pTableMetaEntryCache, h);
-      val = *pVal;
+      STableCachedVal* pValTmp = taosLRUCacheValue(pCache->pTableMetaEntryCache, h);
+      val = *pValTmp;
 
       bool bRes = taosLRUCacheRelease(pCache->pTableMetaEntryCache, h, false);
       qTrace("release LRU cache, res %d", bRes);
@@ -720,12 +720,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
         if (IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {
           taosMemoryFree(data);
         }
-        if (code) {
-          if (freeReader) {
-            pHandle->api.metaReaderFn.clearReader(&mr);
-          }
-          return code;
-        }
+        QUERY_CHECK_CODE(code, lino, _end);
       } else {  // todo opt for json tag
         for (int32_t i = 0; i < pBlock->info.rows; ++i) {
           code = colDataSetVal(pColInfoData, i, data, false);
