@@ -9,6 +9,8 @@ use chrono::NaiveDate;
 use serde::Deserialize;
 use serde_with::serde_as;
 use taos::Dsn;
+use taoslog::utils::{QidMetadataGetter, Span};
+use taoslog::QidManager;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
@@ -23,6 +25,7 @@ pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::{get_table_progress, tmq_offsets, tmq_to_td};
 pub use transform::Action;
 use utils::port_pool::PortPool;
+use utils::trace::Qid;
 
 // use crate::plugins::transform::*;
 use crate::runners::historian::historian_to_taos;
@@ -208,7 +211,6 @@ pub struct TaskOpts {
     // pub port_pool: OnceCell<PortPool>
     pub breakpoints: Option<String>,
     pub transferred: Option<Arc<Transferred>>,
-    pub span: tracing::Span,
     pub task_id: Option<String>,
     pub notify: TaskNotifySender,
 }
@@ -226,7 +228,7 @@ impl TaskOpts {
         self.cancel.cancel();
     }
 
-    #[instrument(skip_all)]
+    #[instrument(name = "task::spawned", skip_all, fields(task.id = self.task_id))]
     pub async fn run(&self, port_pool: &PortPool) -> Result<(), anyhow::Error> {
         let Self {
             from,
@@ -241,11 +243,18 @@ impl TaskOpts {
             // port_pool,
             breakpoints,
             transferred,
-            span,
             task_id,
             notify,
             ..
         } = self;
+        let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
+        qid.set_task_id(
+            task_id
+                .as_ref()
+                .and_then(|id| id.parse::<u16>().ok())
+                .unwrap_or_default(),
+        );
+        // debug_assert!(qid.task_id() > 0);
         // Run task
         {
             match (from.driver.as_str(), to.driver.as_str()) {
@@ -319,7 +328,6 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        span.clone(),
                         task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
@@ -335,7 +343,6 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        span.clone(),
                         task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
@@ -351,7 +358,6 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        span.clone(),
                         task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
@@ -367,7 +373,6 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        span.clone(),
                         task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
@@ -383,7 +388,6 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        span.clone(),
                         task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
@@ -398,7 +402,6 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        span.clone(),
                         task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
@@ -430,7 +433,6 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        span.clone(),
                         task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
@@ -447,7 +449,6 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        span.clone(),
                         task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
@@ -464,7 +465,6 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        span.clone(),
                         notify.clone(),
                     )
                     .await?;
@@ -480,7 +480,6 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        span.clone(),
                         task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
@@ -497,7 +496,6 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        span.clone(),
                         task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
@@ -514,7 +512,6 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        span.clone(),
                         task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
@@ -531,7 +528,6 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        span.clone(),
                         task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
@@ -548,7 +544,6 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        span.clone(),
                         task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )

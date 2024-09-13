@@ -9,8 +9,11 @@ use taos::{
     taos_query::{common::Describe, Manager},
     AsyncFetchable, AsyncQueryable, Error as TaosError, RawBlock, TaosBuilder, TaosPool,
 };
+use taoslog::{utils::QidMetadataGetter, QidManager};
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
+
+use super::trace::Qid;
 
 type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>;
 
@@ -134,7 +137,6 @@ async fn test_precision() {
 pub async fn get_minimum_timestamp(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
-    _req_id: u64,
     max_retries: u32,
     cancel: &CancellationToken,
 ) -> Result<DateTime<Utc>, TaosError> {
@@ -228,7 +230,7 @@ async fn test_min_timestamp() {
     let mut taos = Some(taos);
 
     let min = chrono::Utc::now();
-    let t = get_minimum_timestamp(&pool, &mut taos, 0, 0, &CancellationToken::new())
+    let t = get_minimum_timestamp(&pool, &mut taos, 0, &CancellationToken::new())
         .await
         .unwrap();
     assert!(t >= min);
@@ -294,7 +296,10 @@ pub async fn exec_sql_with_connection_retries(
         .in_current_span()
         .await
     {
-        Ok(n) => Ok(n),
+        Ok(n) => {
+            tracing::trace!("exec sql successfully");
+            Ok(n)
+        }
         Err(err) => {
             if max_retries == 0 {
                 return Err(err.context(format!("exec sql `{}`", sql)));
@@ -380,7 +385,7 @@ pub async fn write_raw_block_with_connection_retries(
     }
 }
 
-#[tracing::instrument(skip(pool, taos))]
+// #[tracing::instrument(skip(pool, taos))]
 pub async fn describe_table_with_connection_retries(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
@@ -388,6 +393,7 @@ pub async fn describe_table_with_connection_retries(
     max_retries: u32,
     cancel: &CancellationToken,
 ) -> Result<Describe, TaosError> {
+    let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
     if taos.is_none() {
         taos.replace(
             reconnect_with_max_retries(pool, max_retries, cancel)
@@ -396,6 +402,7 @@ pub async fn describe_table_with_connection_retries(
         );
     }
 
+    qid.add_sub_batch_id();
     match taos
         .as_ref()
         .unwrap()
@@ -417,6 +424,7 @@ pub async fn describe_table_with_connection_retries(
                             .in_current_span()
                             .await?,
                     );
+                    qid.add_sub_batch_id();
                     taos.as_ref()
                         .unwrap()
                         .describe(table)

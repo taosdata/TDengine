@@ -9,9 +9,7 @@ members = [
     "crates/futures-ext",
 ]
 
-exclude = [
-    "crates/transform/parsers/hebeipower",
-]
+exclude = ["crates/transform/parsers/hebeipower"]
 
 [workspace.dependencies]
 chrono = { version = "0.4.37" }
@@ -40,6 +38,12 @@ metrics-util = "0.16.0"
 bytes = "1.4.0"
 sysinfo = "0.30.5"
 
+serde_with = { version = "3", features = ["chrono"] }
+
+taoslog = { git = "https://github.com/taosdata/taoslog-rs.git", rev = "ab50118d3cd089f88f5521a39d06061e83b50fe6", features = [
+    "ansi",
+] }
+http = "0.2.12"
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
 version = "0.12"
@@ -161,7 +165,7 @@ dotenv = "0.15.0"
 flume = "0.11.0"
 futures-util = "0.3"
 r2d2 = "0.8.10"
-serde_with = { version = "3", features = ["chrono"] }
+serde_with.workspace = true
 tokio-cron-scheduler = { git = "https://github.com/zitsen/tokio-cron-scheduler.git" }
 
 bitvec = "1"
@@ -178,7 +182,6 @@ tracing-subscriber = { version = "0.3", features = [
     "local-time",
     "env-filter",
 ] }
-tracing-appender = "0.2.3"
 tracing = { version = "0.1", features = ["log"] }
 atty = "0.2.14"
 file-rotate = "0.7.5"
@@ -198,6 +201,12 @@ taosx-metrics = { path = "./taosx-metrics" }
 gethostname = "0.4.3"
 prettytable = "0.10.0"
 
+taoslog.workspace = true
+http.workspace = true
+notify = "6.1.1"
+
+parse-size = "=1.0.0"
+
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator = { version = "0.6.0", optional = true }
 tikv-jemalloc-sys = { version = "0.6.0", features = [
@@ -206,7 +215,7 @@ tikv-jemalloc-sys = { version = "0.6.0", features = [
     "profiling",
 ], optional = true }
 tikv-jemalloc-ctl = { version = "0.6.0", optional = true }
-jemalloc_pprof = { version = "0.4.2", git = "https://github.com/polarsignals/rust-jemalloc-pprof.git", optional = true }
+jemalloc_pprof = { version = "0.6.0", git = "https://github.com/polarsignals/rust-jemalloc-pprof.git", optional = true }
 
 [build-dependencies]
 sqlx = { version = "0.7", features = ["sqlite", "chrono", "mysql"] }

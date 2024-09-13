@@ -12,13 +12,13 @@ use dashmap::DashMap;
 use metrics::atomics::AtomicU64;
 use multi_index_map::MultiIndexMap;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taoslog::{utils::QidMetadataGetter, QidManager};
 use tokio::sync::{oneshot, Mutex, RwLock};
 use tokio_cron_scheduler::JobScheduler;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument, warn, Instrument};
 use uuid::Uuid;
 
-use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::{
     core_metrics::{
         auto_save_task_metrics, init_task_metrics, save_task_metrics_finally, CoreMetrics,
@@ -30,6 +30,7 @@ use taosx_core::{
     TaskNotify, TaskNotifyReceiver,
 };
 use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, DataSet, TaskOpts};
+use taosx_core::{plugins::transform::sample::DsSampleIn, utils::trace::Qid};
 
 use crate::serve::controller::{
     agent::Activity,
@@ -101,13 +102,7 @@ async fn task_opts_init(
             }
         }
         _ => {}
-    }
-
-    let span = tracing::info_span!(
-        parent: None,
-        "task::spawned",
-        task.id = id,
-    );
+    };
 
     let breakpoints = load_breakpoints(id);
 
@@ -130,7 +125,6 @@ async fn task_opts_init(
             with_agent: None,
             breakpoints,
             transferred: None,
-            span: span.clone(),
             task_id: Some(id.to_string()),
             notify,
         },
@@ -1434,7 +1428,7 @@ impl TaskJob {
                         tracing::warn!("agent activities listener error: {:#}", err);
                     }
                 }
-            });
+            }.in_current_span());
         } else {
             tokio::spawn(
                 async move {
@@ -1633,6 +1627,8 @@ impl TaskJob {
 
 #[instrument(skip_all, fields(task.id = task.task.id))]
 pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalState>) {
+    let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
+    qid.set_task_id(task.task.id as u16);
     if task.operator.is_suspended() || task.operator.is_stopped() {
         tracing::info!("task suspended");
         return;

@@ -15,7 +15,7 @@ use tempfile::NamedTempFile;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
-use tracing::{instrument, Span};
+use tracing::instrument;
 
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
@@ -137,7 +137,6 @@ pub async fn opc_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
-    span: Span,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
@@ -182,7 +181,6 @@ pub async fn opc_to_taos(
         &cancel,
         with_agent,
         transferred,
-        span,
         task_id.clone(),
         notify,
     )

@@ -9,7 +9,6 @@ use sqlx::mysql::MySqlRow;
 use sqlx::{Column, Row, TypeInfo};
 use taos::Dsn;
 use tokio_util::sync::CancellationToken;
-use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
 use crate::plugins::transform::sample::DsSampleIn;
@@ -177,7 +176,6 @@ pub async fn mysql_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
-    span: Span,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
@@ -210,7 +208,6 @@ pub async fn mysql_to_taos(
         &cancel,
         with_agent,
         transferred,
-        span,
         task_id.clone(),
         notify,
     )
@@ -596,7 +593,6 @@ mod tests {
         let cancel = CancellationToken::new();
         let with_agent = None;
         let transferred = None;
-        let span = tracing::info_span!("test_mysql_to_taos");
         let task_id = Some(1);
         let (notify, _) = flume::unbounded();
 
@@ -610,7 +606,6 @@ mod tests {
             cancel,
             with_agent,
             transferred,
-            span,
             task_id,
             notify,
         );

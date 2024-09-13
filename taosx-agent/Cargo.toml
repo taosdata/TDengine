@@ -33,7 +33,7 @@ arrow = { workspace = true, features = ["chrono-tz"] }
 arrow-flight = { workspace = true }
 chrono = { workspace = true }
 chrono-tz = { workspace = true }
-tonic = { workspace = true, features=["gzip"] }
+tonic = { workspace = true, features = ["gzip"] }
 shadow-rs = { workspace = true }
 metrics = { workspace = true }
 futures = "0.3"
@@ -57,10 +57,13 @@ taosx-core = { path = "../taosx-core" }
 taosx-metrics = { path = "../taosx-metrics" }
 
 time = { version = "0.3", features = ["formatting", "macros"] }
-tracing-subscriber = { version = "0.3", features = ["time", "local-time", "env-filter"] }
-tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = [
+  "time",
+  "local-time",
+  "env-filter",
+] }
 
-file-rotate = "0.7.5"
+taoslog = { workspace = true }
 bytes = { workspace = true }
 sysinfo = { workspace = true }
 

@@ -1,3 +1,13 @@
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    net::SocketAddr,
+    path::PathBuf,
+    pin::Pin,
+    sync::{atomic::Ordering, Arc},
+    time::Duration,
+};
+
 use anyhow::Context;
 use arrow::{
     array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array},
@@ -21,30 +31,21 @@ use metrics::{atomics::AtomicU64, counter, gauge, histogram, IntoLabels};
 use semver::VersionReq;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{
-    collections::HashMap,
-    net::SocketAddr,
-    path::PathBuf,
-    pin::Pin,
-    sync::{atomic::Ordering, Arc},
-    time::Duration,
-};
 use taos::{Dsn, IntoDsn};
+use taoslog::{utils::QidMetadataSetter, QidManager};
 #[cfg(unix)]
 use tokio::net::UnixListener;
 use tokio::sync::RwLock;
 #[cfg(unix)]
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::{transport::Server, Request, Response, Status, Streaming};
-use tracing::{error, info, instrument, warn};
+use tracing::{error, info, instrument, warn, Instrument};
 use uuid::Uuid;
 
 use taosx_core::{
-    core_metrics::get_metrics, utils::get_string_content_from_param_value, TaskMetricItem,
-};
-use taosx_core::{
-    get_data_dir, utils::trace::TraceStreamId, CheckResponse, HeartbeatResponse, ListResponse,
-    PutFileResp, QueryDataSourceResp,
+    core_metrics::get_metrics, get_data_dir, utils::get_string_content_from_param_value,
+    utils::trace::Qid, CheckResponse, HeartbeatResponse, ListResponse, PutFileResp,
+    QueryDataSourceResp, TaskMetricItem,
 };
 use taosx_ipc::types::SampleResponse;
 use taosx_metrics::MetricsEvents;
@@ -494,6 +495,7 @@ impl FlightServiceImpl {
 impl FlightService for FlightServiceImpl {
     type HandshakeStream =
         Pin<Box<dyn Stream<Item = Result<HandshakeResponse, Status>> + Send + Sync + 'static>>;
+
     async fn handshake(
         &self,
         req: Request<Streaming<HandshakeRequest>>,
@@ -615,10 +617,17 @@ impl FlightService for FlightServiceImpl {
             .ok_or_else(|| Status::unavailable("Task id should be set"))
             .unwrap();
         let task_id: i64 = task_id.to_str().unwrap().parse().unwrap();
-        let stream_trace_id = match meta.get("x-trace-id") {
-            Some(stream_trace_id) => stream_trace_id.to_str().unwrap(),
-            None => "0000",
+        let qid_str = match meta.get(taoslog::utils::QID_HEADER_KEY) {
+            Some(stream_trace_id) => Cow::Borrowed(stream_trace_id.to_str().unwrap()),
+            None => {
+                tracing::warn!(task_id, "qid not found in put stream");
+                Cow::Owned(Qid::init().display().to_string())
+            }
         };
+        let qid = Qid::from(u64::from_str_radix(&qid_str[2..], 16).expect("invalid qid"));
+        taoslog::utils::Span.set_qid(&qid);
+
+        tracing::info!("received qid str: {qid_str}, task_id: {task_id}");
 
         // let message = req.try_next().await?;
 
@@ -628,7 +637,7 @@ impl FlightService for FlightServiceImpl {
             req,
             self.notify_sender.clone(),
             addr,
-            TraceStreamId::from_hex(stream_trace_id),
+            qid,
             self.spawn_sender.clone(),
         )
         .await
@@ -1033,7 +1042,7 @@ impl FlightService for FlightServiceImpl {
                 }
             }
             Ok::<_, anyhow::Error>(())
-        });
+        }.in_current_span());
         let stream: Self::DoExchangeStream = Box::pin({
             let schema = Arc::new(Schema::new(Fields::from(vec![
                 Field::new(
@@ -1065,12 +1074,12 @@ impl FlightService for FlightServiceImpl {
         &self,
         request: Request<Action>,
     ) -> Result<Response<Self::DoActionStream>, Status> {
+        taoslog::utils::Span.set_qid(&Qid::init());
         let (_meta, _part, action) = request.into_parts();
         // dbg!(_meta, _part, &action);
         match action.r#type.as_str() {
             "TaskStatus" => {
                 // task.
-
                 let mut status: TaskActivity = serde_json::from_slice(&action.body)
                     .map_err(|err| Status::invalid_argument(format!("{err}: {:?}", action.body)))?;
 

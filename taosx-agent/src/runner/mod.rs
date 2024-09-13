@@ -15,7 +15,7 @@ use serde_json::json;
 use taosx_core::{Activity, LevelFilter, RespAction, TaskNotify, TaskOpts};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-// use tracing::{info, warn};
+use tracing::Instrument;
 
 use crate::agent::Task;
 
@@ -130,7 +130,6 @@ pub fn spawn_runner(
                                 )),
                                 breakpoints: task.breakpoints,
                                 transferred: None,
-                                span: tracing::info_span!("agent::tasks::run"),
                                 task_id: Some(task.id.to_string()),
                                 notify: task_tx,
                             };
@@ -488,7 +487,7 @@ pub fn spawn_runner(
                     break Ok(());
                 }
             }
-        }),
+        }.in_current_span()),
         tasks_origin,
         tx,
         status_rx,

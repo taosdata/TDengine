@@ -33,7 +33,7 @@ use taos::Dsn;
 use tokio::task::JoinSet;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, instrument, warn, Instrument, Span};
+use tracing::{error, instrument, warn, Instrument};
 
 use taosx_ipc::ack::{AckReaderBuilder, LushAck};
 use taosx_ipc::prelude::ArrowDataType;
@@ -240,7 +240,6 @@ pub async fn kafka_to_taos(
     upstream_cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
-    span: Span,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
@@ -279,7 +278,6 @@ pub async fn kafka_to_taos(
         &cancel,
         with_agent,
         transferred,
-        span,
         task_id.clone(),
         notify.clone(),
     )

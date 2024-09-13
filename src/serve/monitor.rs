@@ -25,6 +25,7 @@ use taosx_metrics::TaosXRecorder;
 use taosx_metrics::TaosXRecorderHandle;
 use tokio::sync::RwLock;
 use tracing::instrument;
+use tracing::Instrument;
 
 #[derive(Parser, Debug, Deserialize, Serialize, Default, Clone)]
 #[serde(default)]
@@ -135,60 +136,66 @@ impl Monitor {
         let taosx_id = self.taosx_id;
         let controller = self.controller.clone();
         let monitor_enabled = self.cfg.fqdn.is_some();
-        tokio::spawn(async move {
-            init_agents(controller.clone()).await.unwrap();
-            use sysinfo::*;
-            tracing::info!("start update process metrics task");
-            let duration = Duration::from_secs(monitor_interval);
-            let mut interval = tokio::time::interval(duration);
-            let mut sys = System::new_all();
-            let process_id = get_current_pid();
-            if process_id.is_err() {
-                let err = process_id.unwrap_err();
-                tracing::error!(
-                    "stop update process metrics task since get process id error: {err}"
-                );
-                return;
+        tokio::spawn(
+            async move {
+                init_agents(controller.clone()).await.unwrap();
+                use sysinfo::*;
+                tracing::info!("start update process metrics task");
+                let duration = Duration::from_secs(monitor_interval);
+                let mut interval = tokio::time::interval(duration);
+                let mut sys = System::new_all();
+                let process_id = get_current_pid();
+                if process_id.is_err() {
+                    let err = process_id.unwrap_err();
+                    tracing::error!(
+                        "stop update process metrics task since get process id error: {err}"
+                    );
+                    return;
+                }
+                let process_id = process_id.unwrap();
+                loop {
+                    interval.tick().await;
+                    let _ = process_metrics(
+                        &mut sys,
+                        taosx_id,
+                        process_id,
+                        controller.clone(),
+                        monitor_interval,
+                        monitor_enabled,
+                    )
+                    .await;
+                }
             }
-            let process_id = process_id.unwrap();
-            loop {
-                interval.tick().await;
-                let _ = process_metrics(
-                    &mut sys,
-                    taosx_id,
-                    process_id,
-                    controller.clone(),
-                    monitor_interval,
-                    monitor_enabled,
-                )
-                .await;
-            }
-        });
+            .in_current_span(),
+        );
         let tasks = self.tasks.clone();
         if let Some(fqdn) = &self.cfg.fqdn {
             tracing::info!("nonitor is enabled");
             let url = format!("http://{}:{}/general-metric", fqdn, self.cfg.port);
             let controller = self.controller.clone();
-            tokio::spawn(async move {
-                tracing::info!("start send metrics task");
-                let exporter = TaosKeeperExporter { url: &url };
-                let mut interval = tokio::time::interval(Duration::from_secs(monitor_interval));
-                loop {
-                    interval.tick().await;
-                    let snapshot: taosx_metrics::Snapshot = recorder_handle.snapshot();
-                    let records = snapshot2records(snapshot);
-                    let mut tables = records2tables(records);
-                    add_extra_tags_to_tables(controller.clone(), &mut tables).await;
-                    add_task_metrics_tables(tasks.clone(), &mut tables, taosx_id).await;
-                    let stables = grouptables2stable(tables);
-                    if stables.is_empty() {
-                        continue;
+            tokio::spawn(
+                async move {
+                    tracing::info!("start send metrics task");
+                    let exporter = TaosKeeperExporter { url: &url };
+                    let mut interval = tokio::time::interval(Duration::from_secs(monitor_interval));
+                    loop {
+                        interval.tick().await;
+                        let snapshot: taosx_metrics::Snapshot = recorder_handle.snapshot();
+                        let records = snapshot2records(snapshot);
+                        let mut tables = records2tables(records);
+                        add_extra_tags_to_tables(controller.clone(), &mut tables).await;
+                        add_task_metrics_tables(tasks.clone(), &mut tables, taosx_id).await;
+                        let stables = grouptables2stable(tables);
+                        if stables.is_empty() {
+                            continue;
+                        }
+                        let body = stable2json(stables);
+                        tracing::trace!("data send to taoskeeper: {}", &body);
+                        exporter.push_taoskeeper(body).await;
                     }
-                    let body = stable2json(stables);
-                    tracing::trace!("data send to taoskeeper: {}", &body);
-                    exporter.push_taoskeeper(body).await;
                 }
-            });
+                .in_current_span(),
+            );
         }
         handle_clone
     }

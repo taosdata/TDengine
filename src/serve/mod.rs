@@ -6,7 +6,6 @@ use actix_multipart::form::MultipartFormConfig;
 use actix_web::web;
 use actix_web::{
     get,
-    middleware::Compat,
     web::{resource, Data, PayloadConfig, ServiceConfig},
     App, HttpResponse, HttpServer, Responder,
 };
@@ -15,6 +14,8 @@ use clap::Parser;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
+use taoslog::middleware::TaosRootSpanBuilder;
+use taosx_core::utils::trace::Qid;
 use tracing::{info, instrument, Instrument};
 use tracing_actix_web::TracingLogger;
 use utoipa::{OpenApi, ToSchema};
@@ -31,7 +32,6 @@ use crate::serve::controller::agent::{
     Activity, ActivityOrder, Agent, AgentActivityFilter, AgentConnectors, AgentProps, AgentStatus,
     AgentToken, AgentUpdates, AgentWithToken, LevelFilter,
 };
-use crate::serve::middleware::TaosXRootSpanBuilder;
 use crate::serve::opc::AddPointReq;
 use crate::serve::opc::GetPointsHeaderReq;
 use crate::serve::opc::PointDetail;
@@ -51,7 +51,6 @@ mod agent;
 mod controller;
 mod data_sources;
 mod metrics;
-mod middleware;
 pub mod monitor;
 mod privileges;
 mod routes;
@@ -464,7 +463,7 @@ impl Cli {
             // This factory closure is called on each worker thread independently.
             App::new()
                 .wrap(cors)
-                .wrap(Compat::new(TracingLogger::<TaosXRootSpanBuilder>::new()))
+                .wrap(TracingLogger::<TaosRootSpanBuilder<Qid>>::new())
                 .app_data(recorder.clone())
                 .app_data(PayloadConfig::new(std::usize::MAX))
                 .app_data(

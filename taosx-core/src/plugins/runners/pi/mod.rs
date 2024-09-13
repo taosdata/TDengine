@@ -14,7 +14,7 @@ use serde_json::Value;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
-use tracing::{instrument, Span};
+use tracing::instrument;
 
 pub mod config;
 pub mod transform;
@@ -55,7 +55,6 @@ pub async fn pi_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
-    span: Span,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
@@ -177,7 +176,6 @@ pub async fn pi_to_taos(
         &cancel,
         with_agent,
         transferred,
-        span,
         task_id.clone(),
         notify.clone(),
     )

@@ -160,19 +160,27 @@ mongodb = { version = "3.0.0", features = [
     "zstd-compression",
     "zlib-compression",
     "snappy-compression",
-    "openssl-tls"
+    "openssl-tls",
 ] }
 
 #rdkafka = { version = "0.36.2", features = ["dynamic-linking"] }
 rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl", "tracing"] }
+
+taoslog.workspace = true
+http.workspace = true
+bitfield = { version = "0.16.1" }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
 openssl = "0.10.55"
 
 [target.'cfg(not(windows))'.dependencies]
-rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl", "gssapi-vendored"] }
-#rdkafka = { version = "0.36.2", features = ["dynamic-linking"] }
+rdkafka = { version = "0.36.2", features = [
+    "cmake-build",
+    "ssl",
+    "gssapi-vendored",
+] }
+# rdkafka = { version = "0.36.2", features = ["dynamic-linking"] }
 
 
 [target.'cfg(unix)'.dependencies]
@@ -180,7 +188,7 @@ libc = "0.2"
 
 [target.'cfg(all(unix, not(target_arch = "loongarch64")))'.dependencies]
 openssl = { version = "0.10.55", features = ["vendored"] }
-#openssl = { version = "0.10.55" }
+# openssl = { version = "0.10.55" }
 
 [target.'cfg(target_arch="loongarch64")'.dependencies]
 openssl = { version = "0.10.55" }

@@ -112,7 +112,6 @@ pub async fn build_ipc(
     cancel: &CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
-    span: Span,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<IpcHandler> {
@@ -133,7 +132,6 @@ pub async fn build_ipc(
             parser,
             connector,
             transferred,
-            span,
             task_id,
             notify,
         )

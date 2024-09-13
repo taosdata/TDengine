@@ -6,7 +6,15 @@ use std::{
 };
 
 use itertools::Itertools;
-use taosx_core::{sink::lush::TableTagCache, utils::breakpoints::BreakpointDb, DataSet};
+use taoslog::{
+    utils::{QidMetadataSetter, Span},
+    QidManager,
+};
+use taosx_core::{
+    sink::lush::TableTagCache,
+    utils::{breakpoints::BreakpointDb, trace::Qid},
+    DataSet,
+};
 use thiserror::Error;
 use tokio::sync::{Mutex, Notify, RwLock};
 use tokio_cron_scheduler::{Job, JobScheduler};
@@ -15,7 +23,7 @@ use anyhow::{Context, Result};
 use taos::{Dsn, IntoDsn};
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
-use tracing::{info, instrument};
+use tracing::{info, instrument, Instrument};
 
 use crate::serve::scheduler::runner::{TaskJob, TaskState};
 
@@ -122,31 +130,34 @@ impl TaskScheduler {
 
         let notify_receiver = owned_notify_sender.subscribe();
         use tokio::sync::broadcast::error::RecvError;
-        tokio::spawn(async move {
-            tokio::pin!(notify_receiver);
-            loop {
-                tokio::select! {
-                    _ = shutdown_notifier_clone.notified() => {
-                        break;
-                    }
-                    res = notify_receiver.recv() => {
-                        match res {
-                            Ok(act) => {
-                                tracing::info!(?act);
-                            }
-                            Err(RecvError::Closed) => {
-                                break;
-                            }
-                            Err(err) => {
-                                continue;
+        tokio::spawn(
+            async move {
+                tokio::pin!(notify_receiver);
+                loop {
+                    tokio::select! {
+                        _ = shutdown_notifier_clone.notified() => {
+                            break;
+                        }
+                        res = notify_receiver.recv() => {
+                            match res {
+                                Ok(act) => {
+                                    tracing::info!(?act);
+                                }
+                                Err(RecvError::Closed) => {
+                                    break;
+                                }
+                                Err(err) => {
+                                    continue;
+                                }
                             }
                         }
                     }
                 }
+                // This will cause recursive barrier lock.
+                // shutdown_barrier_clone.wait().await;
             }
-            // This will cause recursive barrier lock.
-            // shutdown_barrier_clone.wait().await;
-        });
+            .in_current_span(),
+        );
 
         let notify_created = scheduler.context.notify_created_tx.subscribe();
         let shutdown_notifier_clone = shutdown_notifier.clone();
@@ -240,33 +251,36 @@ impl TaskScheduler {
         let global_state_in_notify_handler = global_state.clone();
         let lush_table_cache_in_notify_handler = lush_table_cache.clone();
         let task_breakpoint_db_in_notify_handler = task_breakpoint_db.clone();
-        tokio::spawn(async move {
-            let global = global_state_in_notify_handler;
-            let lush_table_cache = lush_table_cache_in_notify_handler;
-            let task_breakpoint_db = task_breakpoint_db_in_notify_handler;
-            tokio::pin!(notify_rx);
-            loop {
-                match notify_rx.recv().await {
-                    Ok((job_id, state)) => {
-                        tracing::info!("job notify: {:?} {:?}", job_id, state);
-                        notify::notify_by_job_id(
-                            &tasks_index_map,
-                            &global,
-                            &job_id,
-                            &state,
-                            &lush_table_cache,
-                            &task_breakpoint_db,
-                        )
-                        .await;
-                    }
-                    Err(err) => {
-                        tracing::error!("job create error: {:?}", err);
-                        break;
+        tokio::spawn(
+            async move {
+                let global = global_state_in_notify_handler;
+                let lush_table_cache = lush_table_cache_in_notify_handler;
+                let task_breakpoint_db = task_breakpoint_db_in_notify_handler;
+                tokio::pin!(notify_rx);
+                loop {
+                    match notify_rx.recv().await {
+                        Ok((job_id, state)) => {
+                            tracing::info!("job notify: {:?} {:?}", job_id, state);
+                            notify::notify_by_job_id(
+                                &tasks_index_map,
+                                &global,
+                                &job_id,
+                                &state,
+                                &lush_table_cache,
+                                &task_breakpoint_db,
+                            )
+                            .await;
+                        }
+                        Err(err) => {
+                            tracing::error!("job create error: {:?}", err);
+                            break;
+                        }
                     }
                 }
+                shutdown_barrier_clone.wait().await;
             }
-            shutdown_barrier_clone.wait().await;
-        });
+            .in_current_span(),
+        );
 
         let global_state_in_drop_handler = global_state.clone();
         scheduler

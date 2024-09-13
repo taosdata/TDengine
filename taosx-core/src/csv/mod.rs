@@ -134,23 +134,15 @@ async fn csv_to_taos_with_channel(
     parser: Option<Parser>,
     to: Dsn,
     cancel: CancellationToken,
-    span: Span,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> Result<()> {
     let builder = taos::TaosBuilder::from_dsn(to)?;
     let pool = builder.pool()?;
     let worker_cancel = cancel.child_token();
-    let (msg, ack) = channel_based_transformer(
-        pool,
-        worker_cancel,
-        parser,
-        Some("csv"),
-        span.clone(),
-        task_id,
-        notify,
-    )
-    .await?;
+    let (msg, ack) =
+        channel_based_transformer(pool, worker_cancel, parser, Some("csv"), task_id, notify)
+            .await?;
 
     let ack_handler = tokio::spawn(async move {
         let mut count = 0;
@@ -223,11 +215,10 @@ pub async fn csv_to_taos(
     cancel: CancellationToken,
     _with_agent: Option<(i64, String, String)>,
     _transferred: Option<Arc<Transferred>>,
-    span: Span,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> Result<()> {
-    csv_to_taos_with_channel(from, parser, to, cancel, span, task_id, notify).await
+    csv_to_taos_with_channel(from, parser, to, cancel, task_id, notify).await
 
     // let port = port_pool
     //     .get()

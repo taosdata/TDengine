@@ -3,7 +3,6 @@ use std::sync::Arc;
 use anyhow::bail;
 use taos::*;
 use tokio_util::sync::CancellationToken;
-use tracing::Span;
 
 use crate::{utils::port_pool::PortPool, Action, Parser, TaskNotifySender, Transferred};
 
@@ -17,10 +16,8 @@ pub async fn fake_to_taos(
     cancel: CancellationToken,
     _with_agent: Option<(i64, String, String)>,
     _transferred: Option<Arc<Transferred>>,
-    span: Span,
     notify: TaskNotifySender,
 ) -> anyhow::Result<()> {
-    let _ = span.entered();
     tracing::info!("fake_to_taos: from: {:?}, to: {:?}", from, to);
 
     let _ = notify.send(crate::TaskNotify::info("started"));

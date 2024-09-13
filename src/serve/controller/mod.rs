@@ -1330,11 +1330,6 @@ impl TaskController {
                     with_agent: None,
                     breakpoints: None,
                     transferred: None,
-                    span: tracing::info_span!(
-                        "task::delete",
-                        task.id = id,
-                        trace_id = tracing::field::Empty
-                    ),
                     task_id: Some(task.id.to_string()),
                     notify: tx,
                 };

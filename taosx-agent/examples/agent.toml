@@ -7,6 +7,11 @@
 #
 #token = ""
 
+# server instance id
+# 
+# The instanceId of each instance is unique on the host
+# instanceId = 64
+
 # Log level
 #
 #log_level = "debug"
@@ -18,3 +23,34 @@
 # enable communication data compression between Agent and taosX
 #
 # compression = true
+
+# log configuration
+[log]
+# All log files are stored in this directory
+# 
+# path = "/var/log/taos" # on linux/macOS
+# path = "C:\\TDengine\\log" # on windows
+
+# log filter level
+#
+# level = "info"
+
+# Compress archived log files or not
+# 
+# compress = false
+
+# The number of log files retained by the current explorer server instance in the `path` directory
+# 
+# rotationCount = 30
+
+# Rotate when the log file reaches this size
+# 
+# rotationSize = "1GB"
+
+# Log downgrade when the remaining disk space reaches this size, only logging `ERROR` level logs
+# 
+# reservedDiskSize = "1GB"
+
+# The number of days log files are retained
+#
+# keepDays = 30

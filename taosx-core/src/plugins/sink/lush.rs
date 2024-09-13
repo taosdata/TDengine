@@ -7,7 +7,7 @@ use super::{
 use crate::{
     plugins::runners::pi::transform::{PIElementModelConfig, PIPointModelConfig, SuperTableConfig},
     runners::pi::transform::PiModelType,
-    utils::{breakpoints::BreakpointDb, sql::values_to_sqls},
+    utils::{breakpoints::BreakpointDb, sql::values_to_sqls, trace::Qid},
 };
 use anyhow::{anyhow, Context};
 use arrow::array::{ArrayRef, StringArray, UInt16Builder};
@@ -24,6 +24,10 @@ use serde::Serialize;
 use std::sync::Arc;
 use taos::Dsn;
 use taos::{taos_query::Manager, AsyncQueryable, TaosBuilder, TaosPool, Ty};
+use taoslog::{
+    utils::{QidMetadataGetter, Span},
+    QidManager,
+};
 use taosx_ipc::stream::reader::LushInsertAttrs;
 use thiserror::Error;
 
@@ -31,7 +35,7 @@ use tracing::{error, instrument, Instrument};
 
 use crate::{
     core_metrics::TaskMetrics, plugins::transform::MessageArrowRecords,
-    sink::DEFAULT_MAX_RETRIES_FOR_CONNECTION, utils::trace::RequestID,
+    sink::DEFAULT_MAX_RETRIES_FOR_CONNECTION,
 };
 
 use super::ipc_metric::IpcMetrics;
@@ -411,7 +415,6 @@ pub async fn write(
     pool: &TaosPool,
     super_table_name: &str,
     target_precision: taos::Precision,
-    req_id: &RequestID,
     messages: Vec<MessageArrowRecords>,
     metrics: &IpcMetrics,
     skip_null: bool,
@@ -440,7 +443,7 @@ pub async fn write(
         let mut error = Ok(());
         loop {
             retry += 1;
-            match write_lush_stable_with_sql(pool, taos, req_id, &records, metrics)
+            match write_lush_stable_with_sql(pool, taos, &records, metrics)
                 .in_current_span()
                 .await
             {
@@ -453,7 +456,7 @@ pub async fn write(
                     WriteError::TableNotExits(_) => {
                         if let Some(stable_sql) = messages[0].stable_sql() {
                             tracing::info!("{stable_sql}");
-                            assert_create_table(pool, taos, &stable_sql, req_id, true, metrics)
+                            assert_create_table(pool, taos, &stable_sql, true, metrics)
                                 .in_current_span()
                                 .await?;
                         }
@@ -462,18 +465,17 @@ pub async fn write(
                             tracing::info!("{sql}");
                             for retry in 0..12 {
                                 if let Err(err) =
-                                    assert_create_table(pool, taos, &sql, req_id, false, metrics)
+                                    assert_create_table(pool, taos, &sql, false, metrics)
                                         .in_current_span()
                                         .await
                                 {
                                     match err {
                                         WriteError::ContainerLengthTooShort(field) => {
                                             // 尝试修改超级表
-                                            if let Err(alter) = alter_stable(
-                                                pool, taos, stable, &field, &messages, req_id,
-                                            )
-                                            .in_current_span()
-                                            .await
+                                            if let Err(alter) =
+                                                alter_stable(pool, taos, stable, &field, &messages)
+                                                    .in_current_span()
+                                                    .await
                                             {
                                                 tracing::error!(
                                                     stable,
@@ -502,10 +504,9 @@ pub async fn write(
                         }
                     }
                     WriteError::ContainerLengthTooShort(field) => {
-                        if let Err(alter) =
-                            alter_stable(pool, taos, stable, &field, &messages, req_id)
-                                .in_current_span()
-                                .await
+                        if let Err(alter) = alter_stable(pool, taos, stable, &field, &messages)
+                            .in_current_span()
+                            .await
                         {
                             tracing::error!(stable, field, "Alter table error: {alter:#}");
                             let context = format!("Try alter table {stable} field `{field}` round {retry} error: {alter:#}");
@@ -589,7 +590,6 @@ pub async fn create_sub_tables(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
     stable: &str,
-    req_id: &RequestID,
     messages: &Vec<MessageArrowRecords>,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<()> {
@@ -604,17 +604,16 @@ pub async fn create_sub_tables(
                 tracing::error!("Create sub table {table_name} retry exceeded {retry}");
                 return error;
             }
-            if let Err(err) = assert_create_table(pool, taos, &sql, req_id, false, metrics)
+            if let Err(err) = assert_create_table(pool, taos, &sql, false, metrics)
                 .in_current_span()
                 .await
             {
                 match err {
                     WriteError::ContainerLengthTooShort(field) => {
                         // 尝试修改超级表
-                        if let Err(alter) =
-                            alter_stable(pool, taos, stable, &field, &messages, req_id)
-                                .in_current_span()
-                                .await
+                        if let Err(alter) = alter_stable(pool, taos, stable, &field, &messages)
+                            .in_current_span()
+                            .await
                         {
                             tracing::error!(stable, field, "Alter table error: {alter:#}");
                             let context = format!("Try alter table {stable} field `{field}` round {retry} error: {alter:#}");
@@ -646,10 +645,13 @@ async fn alter_stable(
     stable: &str,
     field: &str,
     messages: &[MessageArrowRecords],
-    req_id: &RequestID,
 ) -> anyhow::Result<()> {
     let alter_table_max_retry = 3;
     let mut retry = 0;
+
+    let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
+    // debug_assert!(qid.task_id() > 0);
+    // debug_assert!(qid.batch_id() > 0);
     loop {
         retry += 1;
         let desc = taos.as_ref().unwrap().describe(stable).await;
@@ -669,10 +671,7 @@ async fn alter_stable(
                     }
                 }
                 _ => {
-                    tracing::error!(
-                        req_id = req_id.trace_id_str(),
-                        "Describe table error: {err:#}"
-                    );
+                    tracing::error!("Describe table error: {err:#}");
                     return Err(err).with_context(|| "Describe {stable} error: Retries exceeded");
                 }
             }
@@ -693,7 +692,6 @@ async fn alter_stable(
             });
             if f.length() >= length {
                 tracing::debug!(
-                    req_id = req_id.trace_id_str(),
                     stable,
                     field,
                     "Expect tag length {length} is less than or equal to current length {}",
@@ -709,10 +707,12 @@ async fn alter_stable(
                 length
             );
             tracing::info!(sql = sql, "Alter table");
+            qid.add_sub_batch_id();
             match taos
                 .as_ref()
                 .unwrap()
-                .exec_with_req_id(&sql, req_id.next())
+                .exec_with_req_id(&sql, qid.get())
+                .in_current_span()
                 .await
             {
                 Err(err) => {
@@ -721,11 +721,7 @@ async fn alter_stable(
                     let errno: i32 = code.into();
                     match errno {
                         0x264B | 0x036F => {
-                            tracing::warn!(
-                                req_id = req_id.trace_id_str(),
-                                sql,
-                                "Ignore alter table error: {err:#}"
-                            );
+                            tracing::warn!(sql, "Ignore alter table error: {err:#}");
                             return Ok(());
                         }
                         0x03D3 => {
@@ -745,18 +741,17 @@ async fn alter_stable(
                             }
                         }
                         _ => {
-                            tracing::error!(
-                                req_id = req_id.trace_id_str(),
-                                sql,
-                                "Alter table error: {err:#}"
-                            );
+                            tracing::error!(sql, "Alter table error: {err:#}");
                             return Err(err).with_context(|| sql).with_context(|| {
                                 format!("Alter table {stable} tag `{field}` error")
                             });
                         }
                     }
                 }
-                _ => return Ok(()),
+                _ => {
+                    tracing::trace!("exec sql successfully");
+                    return Ok(());
+                }
             }
         } else {
             let length = length.unwrap_or_else(|| {
@@ -765,7 +760,6 @@ async fn alter_stable(
             });
             if f.length() >= length {
                 tracing::debug!(
-                    req_id = req_id.trace_id_str(),
                     stable,
                     field,
                     "Expect column length {length} is less than or equal to current length {}",
@@ -780,11 +774,13 @@ async fn alter_stable(
                 f.ty(),
                 length,
             );
+            qid.add_sub_batch_id();
             tracing::info!(sql = sql, "Alter table");
             match taos
                 .as_ref()
                 .unwrap()
-                .exec_with_req_id(&sql, req_id.next())
+                .exec_with_req_id(&sql, qid.get())
+                .in_current_span()
                 .await
             {
                 Err(err) => {
@@ -793,11 +789,7 @@ async fn alter_stable(
                     let errno: i32 = code.into();
                     match errno {
                         0x264B | 0x036F => {
-                            tracing::warn!(
-                                req_id = req_id.trace_id_str(),
-                                sql,
-                                "Ignore alter table error: {err:#}"
-                            );
+                            tracing::warn!(sql, "Ignore alter table error: {err:#}");
                             return Ok(());
                         }
                         0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
@@ -812,18 +804,17 @@ async fn alter_stable(
                             }
                         }
                         _ => {
-                            tracing::error!(
-                                req_id = req_id.trace_id_str(),
-                                sql,
-                                "Alter table error: {err:#}"
-                            );
+                            tracing::error!(sql, "Alter table error: {err:#}");
                             return Err(err).with_context(|| sql).with_context(|| {
                                 format!("Alter table {stable} column `{field}` error")
                             });
                         }
                     }
                 }
-                _ => return Ok(()),
+                _ => {
+                    tracing::trace!("exec sql successfully");
+                    return Ok(());
+                }
             }
         }
     }
@@ -882,16 +873,20 @@ pub async fn assert_create_table(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
     sql: &str,
-    req_id: &RequestID,
     is_stable: bool,
     metrics: &IpcMetrics,
 ) -> Result<(), WriteError> {
     let mut write_retries = 0;
+    let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
+    // debug_assert!(qid.task_id() > 0);
+    // debug_assert!(qid.batch_id() > 0);
     loop {
+        qid.add_sub_batch_id();
         if let Err(err) = taos
             .as_ref()
             .unwrap()
-            .exec_with_req_id(sql, req_id.next())
+            .exec_with_req_id(sql, qid.get())
+            .in_current_span()
             .await
         {
             let code = err.code();
@@ -927,7 +922,6 @@ pub async fn assert_create_table(
                 }
                 _ => {
                     tracing::error!(
-                        req_id = req_id.trace_id_str(),
                         "Create {} error: {err:#}, sql={}",
                         if is_stable { "stable" } else { "table" },
                         sql
@@ -941,6 +935,7 @@ pub async fn assert_create_table(
                 }
             }
         } else {
+            tracing::trace!("exec sql successfully");
             if is_stable {
                 // stable
                 metrics.add_created_stables(1);
@@ -962,20 +957,23 @@ lazy_static! {
 async fn write_lush_stable_with_sql(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
-    req_id: &RequestID,
     records: &Records,
     metrics: &IpcMetrics,
 ) -> Result<usize, WriteError> {
     let mut write_retries = 0;
     let sql = records.sql();
+    let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
     loop {
+        qid.add_sub_batch_id();
         match taos
             .as_ref()
             .unwrap()
-            .exec_with_req_id(sql, req_id.next())
+            .exec_with_req_id(sql, qid.get())
+            .in_current_span()
             .await
         {
             Ok(n) => {
+                tracing::trace!("exec sql successfully");
                 metrics.add_inserted_sqls(1 as u64);
                 metrics.add_written_rows(n as u64);
                 break Ok(n);
@@ -1020,7 +1018,6 @@ async fn write_lush_stable_with_sql(
                     _ => {
                         tracing::error!(
                             sql = truncate_sql_in_log_message(sql),
-                            req_id = req_id.trace_id_str(),
                             "Write SQL error: {err:#}"
                         );
                         break Err(err).context("Write sql error").map_err(Into::into);
@@ -1096,13 +1093,9 @@ pub fn get_table_name_from_table_id(
 }
 
 #[instrument(skip_all)]
-pub(crate) async fn drop_table(
-    pool: &TaosPool,
-    table_name: &str,
-    req_id: &RequestID,
-) -> anyhow::Result<()> {
+pub(crate) async fn drop_table(pool: &TaosPool, table_name: &str) -> anyhow::Result<()> {
     let sql = format!("DROP TABLE IF EXISTS `{}`", table_name);
-    exec_sql(pool, &sql, req_id).await
+    exec_sql(pool, &sql).await
 }
 
 #[instrument(skip_all)]
@@ -1110,10 +1103,9 @@ pub(crate) async fn delete_table_data(
     pool: &TaosPool,
     table_name: &str,
     condition: &str,
-    req_id: &RequestID,
 ) -> anyhow::Result<()> {
     let sql = format!("DELETE FROM `{}` WHERE {}", table_name, condition);
-    exec_sql(pool, &sql, req_id).await
+    exec_sql(pool, &sql).await
 }
 
 #[instrument(skip_all)]
@@ -1121,10 +1113,9 @@ pub(crate) async fn alter_table(
     pool: &TaosPool,
     table_name: &str,
     alter_table_clause: &str,
-    req_id: &RequestID,
 ) -> anyhow::Result<()> {
     let sql = format!("ALTER TABLE `{}` {}", table_name, alter_table_clause);
-    exec_sql(pool, &sql, req_id).await
+    exec_sql(pool, &sql).await
 }
 
 #[instrument(skip_all)]
@@ -1132,21 +1123,30 @@ pub(crate) async fn insert_into_table(
     pool: &TaosPool,
     table_name: &str,
     column_values: &str,
-    req_id: &RequestID,
 ) -> anyhow::Result<()> {
     let sql = format!("INSERT INTO `{}` {}", table_name, column_values);
-    exec_sql(pool, &sql, req_id).await
+    exec_sql(pool, &sql).await
 }
 
 #[instrument(skip_all)]
-pub(crate) async fn exec_sql(pool: &TaosPool, sql: &str, req_id: &RequestID) -> anyhow::Result<()> {
-    tracing::debug!("exec_sql:{}, req_id={}", sql, req_id);
+pub(crate) async fn exec_sql(pool: &TaosPool, sql: &str) -> anyhow::Result<()> {
+    tracing::debug!("exec_sql: {sql}");
     let mut taos = Some(pool.get().await.context("get connection error")?);
     let mut write_retries = 0;
+    let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
+    // debug_assert!(qid.task_id() > 0);
+    // debug_assert!(qid.batch_id() > 0);
     loop {
-        let req_id = req_id.next();
-        match taos.as_ref().unwrap().exec_with_req_id(sql, req_id).await {
+        qid.add_sub_batch_id();
+        match taos
+            .as_ref()
+            .unwrap()
+            .exec_with_req_id(sql, qid.get())
+            .in_current_span()
+            .await
+        {
             Ok(_) => {
+                tracing::trace!("exec sql successfully");
                 break Ok(());
             }
             Err(err) => {
@@ -1163,16 +1163,11 @@ pub(crate) async fn exec_sql(pool: &TaosPool, sql: &str, req_id: &RequestID) -> 
                         taos.replace(pool.get().await?);
                     }
                     0x2603 | 0x0618 => {
-                        tracing::warn!("Table not exists, sql={}, req_id={}", sql, req_id);
+                        tracing::warn!("Table not exists, sql={}", sql);
                         return Ok(());
                     }
                     _ => {
-                        tracing::error!(
-                            "Exec SQL error: {:#}, sql={}, req_id={}",
-                            err,
-                            sql,
-                            req_id,
-                        );
+                        tracing::error!("Exec SQL error: {:#}, sql={}", err, sql,);
                         break Err(err).context("Exec sql error").map_err(Into::into);
                     }
                 }

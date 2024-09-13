@@ -8,7 +8,6 @@ use serde_json::json;
 use taos::Dsn;
 use tiberius::ColumnData;
 use tokio_util::sync::CancellationToken;
-use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
 use crate::plugins::transform::sample::DsSampleIn;
@@ -159,7 +158,6 @@ pub async fn mssql_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
-    span: Span,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
@@ -192,7 +190,6 @@ pub async fn mssql_to_taos(
         &cancel,
         with_agent,
         transferred,
-        span,
         task_id.clone(),
         notify,
     )
@@ -554,7 +551,6 @@ mod tests {
             cancel,
             with_agent,
             transferred,
-            span,
             task_id,
             notify,
         );
