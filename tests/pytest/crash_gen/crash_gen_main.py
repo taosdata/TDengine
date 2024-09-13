@@ -1812,7 +1812,6 @@ class TaskCreateDb(StateTransitionTask):
         updatePostfix = "" if Config.getConfig().verify_data else ""  # allow update only when "verify data" is active , 3.0 version default is update 1
         vg_nums = random.randint(1, 8)
         cache_model = Dice.choice(['none', 'last_row', 'last_value', 'both'])
-        cache_model = Dice.choice(['none'])
         buffer = random.randint(3, 128)
         walRetentionPeriod = random.randint(1, 10000)
         dbName = self._db.getName()
