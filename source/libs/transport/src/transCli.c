@@ -2018,13 +2018,21 @@ static FORCE_INLINE void destroyCmsg(void* arg) {
   transFreeMsg(pMsg->msg.pCont);
   taosMemoryFree(pMsg);
 }
+
+static void destroyAhandleImpl(SCliThrd* pThrd, SCliMsg* pMsg) {
+  if (pThrd != NULL && pThrd->destroyAhandleFp != NULL) {
+    if (pMsg && pMsg->msg.info.notFreeAhandle == 0 && pMsg->msg.info.ahandle != NULL &&
+        pMsg->msg.info.ahandle != (void*)9527) {
+      pThrd->destroyAhandleFp(pMsg->msg.info.ahandle);
+    }
+  }
+}
 static FORCE_INLINE void destroyCmsgWrapper(void* arg, void* param) {
   if (arg == NULL) return;
 
   SCliMsg* pMsg = arg;
   if (param != NULL) {
-    SCliThrd* pThrd = param;
-    if (pThrd->destroyAhandleFp) (*pThrd->destroyAhandleFp)(pMsg->msg.info.ahandle);
+    destroyAhandleImpl((SCliThrd*)param, pMsg);
   }
   destroyCmsg(pMsg);
 }
@@ -2036,12 +2044,7 @@ static FORCE_INLINE void destroyCmsgAndAhandle(void* param) {
   SCliMsg*  pMsg = arg->param1;
   SCliThrd* pThrd = arg->param2;
 
-  tTrace("destroy Ahandle A");
-  if (pThrd != NULL && pThrd->destroyAhandleFp != NULL) {
-    tTrace("destroy Ahandle B");
-    pThrd->destroyAhandleFp(pMsg->ctx->ahandle);
-  }
-  tTrace("destroy Ahandle C");
+  destroyAhandleImpl(pThrd, pMsg);
 
   transDestroyConnCtx(pMsg->ctx);
   transFreeMsg(pMsg->msg.pCont);

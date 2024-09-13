@@ -15,8 +15,8 @@
 
 #include "cJSON.h"
 #include "clientInt.h"
-#include "clientMonitor.h"
 #include "clientLog.h"
+#include "clientMonitor.h"
 #include "command.h"
 #include "scheduler.h"
 #include "tdatablock.h"
@@ -158,7 +158,7 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     tscDebug("new app inst mgr %p, user:%s, ip:%s, port:%d", p, user, epSet.epSet.eps[0].fqdn, epSet.epSet.eps[0].port);
 
     pInst = &p;
-    
+
     clientSlowQueryMonitorInit(p->instKey);
     clientSQLReqMonitorInit(p->instKey);
   } else {
@@ -520,7 +520,8 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
     pResInfo->userFields[i].bytes = pSchema[i].bytes;
     pResInfo->userFields[i].type = pSchema[i].type;
 
-    if (pSchema[i].type == TSDB_DATA_TYPE_VARCHAR || pSchema[i].type == TSDB_DATA_TYPE_VARBINARY || pSchema[i].type == TSDB_DATA_TYPE_GEOMETRY) {
+    if (pSchema[i].type == TSDB_DATA_TYPE_VARCHAR || pSchema[i].type == TSDB_DATA_TYPE_VARBINARY ||
+        pSchema[i].type == TSDB_DATA_TYPE_GEOMETRY) {
       pResInfo->userFields[i].bytes -= VARSTR_HEADER_SIZE;
     } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR || pSchema[i].type == TSDB_DATA_TYPE_JSON) {
       pResInfo->userFields[i].bytes = (pResInfo->userFields[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
@@ -1237,7 +1238,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       break;
     }
     case QUERY_EXEC_MODE_EMPTY_RESULT:
-      pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;      
+      pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
       tscDebug("0x%" PRIx64 " empty result query", pRequest->requestId);
       pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
       break;
@@ -1805,7 +1806,7 @@ int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols) {
 }
 
 static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, int32_t numOfRows) {
-  char* p = (char*)pResultInfo->pData;
+  char*   p = (char*)pResultInfo->pData;
   int32_t blockVersion = *(int32_t*)p;
 
   // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
@@ -2070,7 +2071,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
 
   char* pStart = p;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    if(blockVersion == BLOCK_VERSION_1){
+    if (blockVersion == BLOCK_VERSION_1) {
       colLength[i] = htonl(colLength[i]);
     }
     if (colLength[i] >= dataLen) {
@@ -2160,7 +2161,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   void*              clientRpc = NULL;
   SServerStatusRsp   statusRsp = {0};
   SEpSet             epSet = {.inUse = 0, .numOfEps = 1};
-  SRpcMsg            rpcMsg = {.info.ahandle = (void*)0x9526, .msgType = TDMT_DND_SERVER_STATUS};
+  SRpcMsg            rpcMsg = {.info.ahandle = (void*)0x9527, .msgType = TDMT_DND_SERVER_STATUS};
   SRpcMsg            rpcRsp = {0};
   SRpcInit           rpcInit = {0};
   char               pass[TSDB_PASSWORD_LEN + 1] = {0};
@@ -2585,7 +2586,7 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
 void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param) {
   if (pRequest->syncQuery && pRequest->body.param != param) {
     if (pRequest->body.param) {
-      tsem_destroy(&((SSyncQueryParam *)pRequest->body.param)->sem);
+      tsem_destroy(&((SSyncQueryParam*)pRequest->body.param)->sem);
     }
     taosMemoryFree(pRequest->body.param);
     pRequest->syncQuery = false;
@@ -2630,6 +2631,6 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
   int32_t code = schedulerFetchRows(pRequest->body.queryJob, &req);
   if (TSDB_CODE_SUCCESS != code) {
     tscError("0x%" PRIx64 " failed to schedule fetch rows", pRequest->requestId);
-    pRequest->body.fetchFp(param, pRequest, code);    
+    pRequest->body.fetchFp(param, pRequest, code);
   }
 }
