@@ -543,14 +543,14 @@ void mndSyncCheckTimeout(SMnode *pMnode) {
     if (delta > MNODE_TIMEOUT_SEC) {
       mError("trans:%d, failed to propose since timeout, start:%d cur:%d delta:%d seq:%" PRId64, pMgmt->transId,
              pMgmt->transSec, curSec, delta, pMgmt->transSeq);
-      pMgmt->transId = 0;
-      pMgmt->transSec = 0;
-      pMgmt->transSeq = 0;
-      terrno = TSDB_CODE_SYN_TIMEOUT;
-      pMgmt->errCode = TSDB_CODE_SYN_TIMEOUT;
-      if (tsem_post(&pMgmt->syncSem) < 0) {
-        mError("failed to post sem");
-      }
+      // pMgmt->transId = 0;
+      // pMgmt->transSec = 0;
+      // pMgmt->transSeq = 0;
+      // terrno = TSDB_CODE_SYN_TIMEOUT;
+      // pMgmt->errCode = TSDB_CODE_SYN_TIMEOUT;
+      //if (tsem_post(&pMgmt->syncSem) < 0) {
+      //  mError("failed to post sem");
+      //}
     } else {
       mDebug("trans:%d, waiting for sync confirm, start:%d cur:%d delta:%d seq:%" PRId64, pMgmt->transId,
              pMgmt->transSec, curSec, curSec - pMgmt->transSec, pMgmt->transSeq);
