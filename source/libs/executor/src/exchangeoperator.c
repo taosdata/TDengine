@@ -528,9 +528,8 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t          index = pWrapper->sourceIndex;
-  int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, index);
-  *pRpcHandle = -1;
+  int32_t index = pWrapper->sourceIndex;
+  // int64_t*         pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, index);
   SSourceDataInfo* pSourceDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, index);
   if (!pSourceDataInfo) {
     return terrno;
