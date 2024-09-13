@@ -229,9 +229,8 @@ int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
   return code;
 }
 
-int32_t taosReadQitem(STaosQueue *queue, void **ppItem) {
+void taosReadQitem(STaosQueue *queue, void **ppItem) {
   STaosQnode *pNode = NULL;
-  int32_t     code = 0;
 
   (void)taosThreadMutexLock(&queue->mutex);
 
@@ -247,14 +246,11 @@ int32_t taosReadQitem(STaosQueue *queue, void **ppItem) {
     if (queue->qset) {
       (void)atomic_sub_fetch_32(&queue->qset->numOfItems, 1);
     }
-    code = 1;
     uTrace("item:%p is read out from queue:%p, items:%d mem:%" PRId64, *ppItem, queue, queue->numOfItems,
            queue->memOfItems);
   }
 
   (void)taosThreadMutexUnlock(&queue->mutex);
-
-  return code;
 }
 
 int32_t taosAllocateQall(STaosQall **qall) {

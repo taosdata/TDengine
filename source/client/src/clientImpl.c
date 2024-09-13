@@ -77,7 +77,10 @@ bool chkRequestKilled(void* param) {
   return killed;
 }
 
-void cleanupAppInfo() { taosHashCleanup(appInfo.pInstMap); }
+void cleanupAppInfo() {
+  taosHashCleanup(appInfo.pInstMap);
+  taosHashCleanup(appInfo.pInstMapByClusterId);
+}
 
 static int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
                                SAppInstInfo* pAppInfo, int connType, STscObj** pTscObj);
@@ -2868,7 +2871,6 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
   }
   int32_t code = tsem_init(&param->sem, 0, 0);
   if (TSDB_CODE_SUCCESS != code) {
-    terrno = code;
     taosMemoryFree(param);
     return NULL;
   }
@@ -2876,7 +2878,6 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
   taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, source);
   code = tsem_wait(&param->sem);
   if (TSDB_CODE_SUCCESS != code) {
-    terrno = code;
     taosMemoryFree(param);
     return NULL;
   }
@@ -2907,7 +2908,6 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
   }
   int32_t code = tsem_init(&param->sem, 0, 0);
   if (TSDB_CODE_SUCCESS != code) {
-    terrno = code;
     taosMemoryFree(param);
     return NULL;
   }
@@ -2915,7 +2915,6 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
   taosAsyncQueryImplWithReqid(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, reqid);
   code = tsem_wait(&param->sem);
   if (TSDB_CODE_SUCCESS != code) {
-    terrno = code;
     taosMemoryFree(param);
     return NULL;
   }

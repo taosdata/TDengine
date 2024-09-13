@@ -153,9 +153,8 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
       break;
     }
     CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
-    terrno = TSDB_CODE_SUCCESS;
     TExeCond cond = cmpFn(c->colVal, pCt->colVal, pCt->colType);
-    if (terrno != TSDB_CODE_SUCCESS) {
+    if (cond == FAILED) {
       code = terrno;
       goto _return;
     }
@@ -335,10 +334,9 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
           goto _return;
         }
         memcpy(p, c->colVal, strlen(c->colVal));
-        terrno = TSDB_CODE_SUCCESS;
         cond = cmpFn(p + skip, term->colVal, dType);
         taosMemoryFree(p);
-        if (terrno != TSDB_CODE_SUCCESS) {
+        if (cond == FAILED) {
           code = terrno;
           goto _return;
         }

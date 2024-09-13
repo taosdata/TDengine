@@ -414,7 +414,9 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_LOG_TASK_START_TS(_task)                     \
   do {                                                   \
     int64_t us = taosGetTimestampUs();                   \
-    (void)taosArrayPush((_task)->profile.execTime, &us); \
+    if (NULL == taosArrayPush((_task)->profile.execTime, &us)) { \
+      qError("taosArrayPush task execTime failed, error:%s", tstrerror(terrno));  \
+    }                                                                             \
     if (0 == (_task)->execId) {                          \
       (_task)->profile.startTs = us;                     \
     }                                                    \

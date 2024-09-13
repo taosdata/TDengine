@@ -215,7 +215,7 @@ int32_t taosInitSlowLog() {
 
 int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc) {
   if (atomic_val_compare_exchange_8(&tsLogInited, 0, 1) != 0) return 0;
-  osUpdate();
+  TAOS_CHECK_RETURN(osUpdate());
 
   TAOS_CHECK_RETURN(taosInitNormalLog(logName, maxFiles));
   if (tsc){
@@ -908,7 +908,7 @@ static void *taosAsyncOutputLog(void *param) {
     updateCron++;
     taosMsleep(writeInterval);
     if (count > 1000) {
-      osUpdate();
+      TAOS_UNUSED(osUpdate());
       count = 0;
     }
 

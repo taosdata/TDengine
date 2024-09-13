@@ -298,6 +298,7 @@ void tmq_conf_destroy(tmq_conf_t* conf) {
 }
 
 tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value) {
+  int32_t code = 0;
   if (conf == NULL || key == NULL || value == NULL) {
     return TMQ_CONF_INVALID;
   }
@@ -324,8 +325,9 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "auto.commit.interval.ms") == 0) {
-    int64_t tmp = taosStr2int64(value);
-    if (tmp < 0 || EINVAL == errno || ERANGE == errno) {
+    int64_t tmp;
+    code = taosStr2int64(value, &tmp);
+    if (tmp < 0 || code != 0) {
       return TMQ_CONF_INVALID;
     }
     conf->autoCommitInterval = (tmp > INT32_MAX ? INT32_MAX : tmp);
@@ -333,8 +335,9 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "session.timeout.ms") == 0) {
-    int64_t tmp = taosStr2int64(value);
-    if (tmp < 6000 || tmp > 1800000) {
+    int64_t tmp;
+    code = taosStr2int64(value, &tmp);
+    if (tmp < 6000 || tmp > 1800000 || code != 0) {
       return TMQ_CONF_INVALID;
     }
     conf->sessionTimeoutMs = tmp;
@@ -342,8 +345,9 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "heartbeat.interval.ms") == 0) {
-    int64_t tmp = taosStr2int64(value);
-    if (tmp < 1000 || tmp >= conf->sessionTimeoutMs) {
+    int64_t tmp;
+    code = taosStr2int64(value, &tmp);
+    if (tmp < 1000 || tmp >= conf->sessionTimeoutMs || code != 0) {
       return TMQ_CONF_INVALID;
     }
     conf->heartBeatIntervalMs = tmp;
@@ -351,8 +355,9 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "max.poll.interval.ms") == 0) {
-    int64_t tmp = taosStr2int64(value);
-    if (tmp < 1000 || tmp > INT32_MAX) {
+    int32_t tmp;
+    code = taosStr2int32(value, &tmp);
+    if (tmp < 1000 || code != 0) {
       return TMQ_CONF_INVALID;
     }
     conf->maxPollIntervalMs = tmp;
@@ -414,8 +419,9 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "td.connect.port") == 0) {
-    int64_t tmp = taosStr2int64(value);
-    if (tmp <= 0 || tmp > 65535) {
+    int64_t tmp;
+    code = taosStr2int64(value, &tmp);
+    if (tmp <= 0 || tmp > 65535 || code != 0) {
       return TMQ_CONF_INVALID;
     }
 
@@ -435,7 +441,9 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     }
   }
   if (strcasecmp(key, "msg.consume.excluded") == 0) {
-    conf->sourceExcluded = (taosStr2int64(value) != 0) ? TD_REQ_FROM_TAOX : 0;
+    int64_t tmp;
+    code = taosStr2int64(value, &tmp);
+    conf->sourceExcluded = (0 == code && tmp != 0) ? TD_REQ_FROM_TAOX : 0;
     return TMQ_CONF_OK;
   }
 
@@ -444,7 +452,9 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "msg.enable.batchmeta") == 0) {
-    conf->enableBatchMeta = (taosStr2int64(value) != 0) ? true : false;
+    int64_t tmp;
+    code = taosStr2int64(value, &tmp);
+    conf->enableBatchMeta = (0 == code && tmp != 0) ? true : false;
     return TMQ_CONF_OK;
   }
 
@@ -2896,7 +2906,10 @@ int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
       tmqFreeRspWrapper((SMqRspWrapper*)pWrapper);
       taosFreeQitem(pWrapper);
     } else {
-      (void)taosWriteQitem(tmq->mqueue, pWrapper);
+      if (taosWriteQitem(tmq->mqueue, pWrapper) != 0){
+        tmqFreeRspWrapper((SMqRspWrapper*)pWrapper);
+        taosFreeQitem(pWrapper);
+      }
     }
   }
 

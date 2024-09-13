@@ -444,7 +444,7 @@ static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove) {
   } else {
     uTrace("rsetId:%d rid:%" PRId64 " is not there, failed to release/remove", rsetId, rid);
     terrno = TSDB_CODE_REF_NOT_EXIST;
-    code = -1;
+    code = terrno;
   }
 
   taosUnlockList(pSet->lockedBy + hash);

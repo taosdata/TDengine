@@ -174,6 +174,19 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 2, None)
         tdLog.info("Finish test_last_with_primarykey_str_rt")
 
+    def test_ts5389(self):
+        """add test case to cover the crash issue of ts-5389
+        """
+        tdSql.execute("create database db_ts5389;")
+        tdSql.execute("use db_ts5389;")
+        tdSql.execute("create stable trackers(ts timestamp, reg_firmware_rev double) tags(site nchar(8), tracker nchar(16), zone nchar(2));")
+        tdSql.execute("create table tr1 using trackers tags ('MI-01', 'N29-26', '12');")
+        tdSql.execute("create table tr2 using trackers tags ('MI-01', 'N29-6', '11');")
+        tdSql.execute("insert into tr1 values(now,null);")
+        tdSql.execute("insert into tr2 values(now,null);")
+        tdSql.query("select distinct site,zone,tracker,last(reg_firmware_rev) from trackers where ts > now() -1h and site='MI-01' partition by site;")
+        tdSql.checkRows(1)
+
     def run(self):
         self.prepare_data()
         # regular table
@@ -182,9 +195,12 @@ class TDTestCase(TBase):
         # child tables
         self.test_last_with_primarykey_int_ct()
         self.test_last_with_primarykey_str_ct()
+        # ts-5389
+        self.test_ts5389()
 
     def stop(self):
         tdSql.execute("drop database db_td30816;")
+        tdSql.execute("drop database db_ts5389;")
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
