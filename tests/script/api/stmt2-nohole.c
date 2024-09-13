@@ -14,12 +14,12 @@ int64_t genReqid() {
   return count;
 }
 
-sem_t sem;
+// sem_t sem;
 
 void stmtAsyncQueryCb(void* param, TAOS_RES* pRes, int code) {
   int affected_rows = taos_affected_rows(pRes);
   printf("\033[31maffected rows:%d\033[0m\n", affected_rows);
-  (void)sem_post(&sem);
+  //(void)sem_post(&sem);
   return;
   /*
   SSP_CB_PARAM* qParam = (SSP_CB_PARAM*)param;
@@ -319,7 +319,7 @@ _bind_again:
   taos_stmt2_free_fields(stmt, fields);
   */
   // if (taos_stmt_execute(stmt) != 0) {
-  (void)sem_init(&sem, 0, 0);
+  //(void)sem_init(&sem, 0, 0);
   start = clock();
   // if (taos_stmt2_exec(stmt, NULL, stmtAsyncQueryCb, NULL) != 0) {
   if (taos_stmt2_exec(stmt, NULL) != 0) {
@@ -330,9 +330,9 @@ _bind_again:
   end = clock();
   printf("exec time:%f\n", (double)(end - start) / CLOCKS_PER_SEC);
 
-  sem_wait(&sem);
-  (void)sem_destroy(&sem);
-  if (++run_time < 2) {
+  // sem_wait(&sem);
+  //(void)sem_destroy(&sem);
+  if (++run_time < 20) {
     goto _bind_again;
   }
   taos_stmt2_close(stmt);

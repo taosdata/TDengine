@@ -140,7 +140,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
 
   SHashObj *hash = taosHashInit(64, taosGetDefaultHashFunction(hashType), true, HASH_ENTRY_LOCK);
   if (hash == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pSdb->maxId[sdbType] = 0;

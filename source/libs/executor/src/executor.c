@@ -234,8 +234,7 @@ int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
   }
 
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-
-  int32_t code = doSetStreamOpOpen(pTaskInfo->pRoot, GET_TASKID(pTaskInfo));
+  int32_t        code = doSetStreamOpOpen(pTaskInfo->pRoot, GET_TASKID(pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed to set the stream block data", GET_TASKID(pTaskInfo));
   } else {

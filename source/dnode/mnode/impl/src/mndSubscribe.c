@@ -201,7 +201,7 @@ static int32_t mndGetOrCreateRebSub(SHashObj *pHash, const char *key, SMqRebInfo
   if (pRebInfo == NULL) {
     pRebInfo = tNewSMqRebSubscribe(key);
     if (pRebInfo == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto END;
     }
     code = taosHashPut(pHash, key, strlen(key) + 1, pRebInfo, sizeof(SMqRebInfo));
@@ -412,7 +412,7 @@ static int32_t processSubOffsetRows(SMnode *pMnode, const SMqRebInputObj *pInput
     pOutput->pSub->offsetRows = taosArrayInit(4, sizeof(OffsetRows));
     if(pOutput->pSub->offsetRows == NULL) {
       taosRUnLockLatch(&pSub->lock);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto END;
     }
   }

@@ -243,7 +243,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
     pShow = mndCreateShowObj(pMnode, &retrieveReq);
     if (pShow == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       mError("failed to process show-meta req since %s", tstrerror(code));
       TAOS_RETURN(code);
     }

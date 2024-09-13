@@ -1187,7 +1187,9 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   int32_t schNum = taosHashGetSize(mgmt->schHash);
   if (schNum <= 0) {
     QW_UNLOCK(QW_READ, &mgmt->schLock);
-    (void)taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer); // ignore error
+    if (taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer)) {
+      qError("reset qworker hb timer error, timer stoppped");
+    }
     (void)qwRelease(refId); // ignore error
     return;
   }
@@ -1199,7 +1201,9 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
     taosMemoryFree(rspList);
     taosArrayDestroy(pExpiredSch);
     QW_ELOG("calloc %d SQWHbInfo failed, code:%x", schNum, terrno);
-    (void)taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer); // ignore error
+    if (taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer)) {
+      qError("reset qworker hb timer error, timer stoppped");
+    }
     (void)qwRelease(refId); // ignore error
     return;
   }
@@ -1255,7 +1259,10 @@ _return:
   taosMemoryFreeClear(rspList);
   taosArrayDestroy(pExpiredSch);
 
-  (void)taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer); // ignore error
+  if (taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer)) {
+    qError("reset qworker hb timer error, timer stoppped");
+  }
+
   (void)qwRelease(refId); // ignore error
 }
 

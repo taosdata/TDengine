@@ -297,7 +297,7 @@ void *tSimpleHashGet(SSHashObj *pHashObj, const void *key, size_t keyLen) {
 }
 
 int32_t tSimpleHashRemove(SSHashObj *pHashObj, const void *key, size_t keyLen) {
-  int32_t code = TSDB_CODE_FAILED;
+  int32_t code = TSDB_CODE_INVALID_PARA;
   if (!pHashObj || !key) {
     return code;
   }
