@@ -546,10 +546,10 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
   SRpcMsg req = {.msgType = TDMT_MND_APPLY_MSG, .contLen = sdbGetRawTotalSize(pRaw)};
-  if (req.contLen <= 0) return TSDB_CODE_OUT_OF_MEMORY;
+  if (req.contLen <= 0) return terrno;
 
   req.pCont = rpcMallocCont(req.contLen);
-  if (req.pCont == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (req.pCont == NULL) return terrno;
   memcpy(req.pCont, pRaw, req.contLen);
 
   (void)taosThreadMutexLock(&pMgmt->lock);

@@ -318,7 +318,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   }
   void *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _OVER);
+    TAOS_CHECK_GOTO(terrno, NULL, _OVER);
   }
 
   contLen = tSerializeSConnectRsp(pRsp, contLen, &connectRsp);
@@ -555,7 +555,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
   hbRsp.info = taosArrayInit(kvNum, sizeof(SKv));
   if (NULL == hbRsp.info) {
     mError("taosArrayInit %d rsp kv failed", kvNum);
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     tFreeClientHbRsp(&hbRsp);
     TAOS_RETURN(code);
   }
@@ -699,7 +699,7 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   batchRsp.svrTimestamp = taosGetTimestampSec();
   batchRsp.rsps = taosArrayInit(0, sizeof(SClientHbRsp));
   if (batchRsp.rsps == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
   batchRsp.monitorParas.tsEnableMonitor = tsEnableMonitor;
   batchRsp.monitorParas.tsMonitorInterval = tsMonitorInterval;
@@ -732,7 +732,7 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   }
   void *buf = rpcMallocCont(tlen);
   if (!buf) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
   tlen = tSerializeSClientHbBatchRsp(buf, tlen, &batchRsp);
   if (tlen < 0) {
@@ -820,7 +820,7 @@ static int32_t mndProcessSvrVerReq(SRpcMsg *pReq) {
   }
   void *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
   contLen = tSerializeSServerVerRsp(pRsp, contLen, &rsp);
   if (contLen < 0) {

@@ -349,7 +349,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   if (pFailedChkpt == NULL || pOrphanTasks == NULL) {
     taosArrayDestroy(pFailedChkpt);
     taosArrayDestroy(pOrphanTasks);
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   streamMutexLock(&execInfo.lock);

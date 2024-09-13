@@ -216,7 +216,7 @@ static int32_t buildMqHbRsp(SRpcMsg *pMsg, SMqHbRsp *rsp){
   }
   void   *buf = rpcMallocCont(tlen);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if(tSerializeSMqHbRsp(buf, tlen, rsp) <= 0){
@@ -261,7 +261,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
   rsp->topics = taosArrayInit(numOfTopics, sizeof(SMqSubTopicEp));
   if (rsp->topics == NULL) {
     taosRUnLockLatch(&pConsumer->lock);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   // handle all topics subscribed by this consumer
@@ -318,7 +318,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
       taosRUnLockLatch(&pConsumer->lock);
       taosRUnLockLatch(&pSub->lock);
       mndReleaseSubscribe(pMnode, pSub);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     for (int32_t j = 0; j < vgNum; j++) {
@@ -339,7 +339,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
         taosRUnLockLatch(&pConsumer->lock);
         taosRUnLockLatch(&pSub->lock);
         mndReleaseSubscribe(pMnode, pSub);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
     if (taosArrayPush(rsp->topics, &topicEp) == NULL) {
@@ -347,7 +347,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
       taosRUnLockLatch(&pConsumer->lock);
       taosRUnLockLatch(&pSub->lock);
       mndReleaseSubscribe(pMnode, pSub);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     taosRUnLockLatch(&pSub->lock);
     mndReleaseSubscribe(pMnode, pSub);
@@ -362,7 +362,7 @@ static int32_t buildAskEpRsp(SRpcMsg *pMsg, SMqAskEpRsp *rsp, int32_t serverEpoc
   int32_t tlen = sizeof(SMqRspHead) + tEncodeSMqAskEpRsp(NULL, rsp);
   void   *buf = rpcMallocCont(tlen);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SMqRspHead *pHead = buf;
