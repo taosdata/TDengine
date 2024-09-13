@@ -48,7 +48,10 @@ int32_t taosGetPId() { return GetCurrentProcessId(); }
 int32_t taosGetAppName(char* name, int32_t* len) {
   char filepath[1024] = {0};
 
-  GetModuleFileName(NULL, filepath, MAX_PATH);
+  if (GetModuleFileName(NULL, filepath, MAX_PATH) == 0) {
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    return terrno;
+  }
   char* sub = strrchr(filepath, '.');
   if (sub != NULL) {
     *sub = '\0';
@@ -70,7 +73,12 @@ int32_t taosGetAppName(char* name, int32_t* len) {
 }
 
 int32_t tsem_wait(tsem_t* sem) {
-  return WaitForSingleObject(*sem, INFINITE);
+  DWORD ret = WaitForSingleObject(*sem, INFINITE);
+  if(ret == WAIT_OBJECT_0) {
+    return 0;
+  } else {
+    return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+  }
 }
 
 int32_t tsem_timewait(tsem_t* sem, int64_t timeout_ms) {
@@ -78,61 +86,65 @@ int32_t tsem_timewait(tsem_t* sem, int64_t timeout_ms) {
   if (result == WAIT_OBJECT_0) {
     return 0;  // Semaphore acquired
   } else if (result == WAIT_TIMEOUT) {
-    return -1;  // Timeout reached
+    return TSDB_CODE_TIMEOUT_ERROR;  // Timeout reached
   } else {
-    return result;
+    return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
   }
 }
 
 // Inter-process sharing is not currently supported. The pshared parameter is invalid.
-int tsem_init(tsem_t* sem, int pshared, unsigned int value) {
+int32_t tsem_init(tsem_t* sem, int pshared, unsigned int value) {
   *sem = CreateSemaphore(NULL, value, LONG_MAX, NULL);
-  return (*sem != NULL) ? 0 : -1;
+  return (*sem != NULL) ? 0 : TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
 }
 
-int tsem_post(tsem_t* sem) {
+int32_t tsem_post(tsem_t* sem) {
   if (ReleaseSemaphore(*sem, 1, NULL)) return 0;
-  return -1;
+  return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
 }
 
-int tsem_destroy(tsem_t* sem) {
+int32_t tsem_destroy(tsem_t* sem) {
   if (CloseHandle(*sem)) return 0;
-  return -1;
+  return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
 }
 
 #elif defined(_TD_DARWIN_64)
 
 #include <libproc.h>
 
-int tsem_init(tsem_t *psem, int flags, unsigned int count) {
+int32_t tsem_init(tsem_t *psem, int flags, unsigned int count) {
   *psem = dispatch_semaphore_create(count);
-  if (*psem == NULL) return -1;
+  if (*psem == NULL) return TAOS_SYSTEM_ERROR(errno);
   return 0;
 }
 
-int tsem_destroy(tsem_t *psem) {
-  if (psem == NULL || *psem == NULL) return -1;
+int32_t tsem_destroy(tsem_t *psem) {
+  // if (psem == NULL || *psem == NULL) return -1;
   // dispatch_release(*psem);
   // *psem = NULL;
   return 0;
 }
 
-int tsem_post(tsem_t *psem) {
+int32_t tsem_post(tsem_t *psem) {
   if (psem == NULL || *psem == NULL) return -1;
-  dispatch_semaphore_signal(*psem);
+  (void)dispatch_semaphore_signal(*psem);
   return 0;
 }
 
-int tsem_wait(tsem_t *psem) {
+int32_t tsem_wait(tsem_t *psem) {
   if (psem == NULL || *psem == NULL) return -1;
   dispatch_semaphore_wait(*psem, DISPATCH_TIME_FOREVER);
   return 0;
 }
 
-int tsem_timewait(tsem_t *psem, int64_t milis) {
+int32_t tsem_timewait(tsem_t *psem, int64_t milis) {
   if (psem == NULL || *psem == NULL) return -1;
   dispatch_time_t time = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(milis * USEC_PER_SEC));
-  return dispatch_semaphore_wait(*psem, time);
+  if(dispatch_semaphore_wait(*psem, time) == 0) {
+    return 0;
+  } else {
+    return TSDB_CODE_TIMEOUT_ERROR;
+  }
 }
 
 bool taosCheckPthreadValid(TdThread thread) { return thread != 0; }
@@ -216,6 +228,14 @@ int32_t taosGetAppName(char* name, int32_t* len) {
   return 0;
 }
 
+int32_t tsem_init(tsem_t *psem, int flags, unsigned int count) {
+  if(sem_init(psem, flags, count) == 0) {
+    return 0;
+  } else {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+}
+
 int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
   int ret = 0;
 
@@ -230,16 +250,18 @@ int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
   ts.tv_sec += ts.tv_nsec / 1000000000;
   ts.tv_nsec %= 1000000000;
 
-  while ((ret = sem_timedwait(sem, &ts)) == -1 && errno == EINTR) {
-    continue;
+  while ((ret = sem_timedwait(sem, &ts)) == -1) {
+    if(errno == EINTR) {
+      continue;
+    } else if(errno == ETIMEDOUT) {
+      return TSDB_CODE_TIMEOUT_ERROR;
+    } else {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return terrno;
+    }
   }
 
-  if (-1 == ret) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return terrno;
-  }
-
-  return ret;
+  return 0;
 }
 
 int32_t tsem_wait(tsem_t* sem) {
@@ -283,6 +305,22 @@ int tsem2_init(tsem2_t* sem, int pshared, unsigned int value) {
   sem->count = value;
   
   return 0;
+}
+
+int32_t tsem_post(tsem_t* psem) {
+  if (sem_post(psem) == 0) {
+    return 0;
+  } else {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+}
+
+int32_t tsem_destroy(tsem_t *sem) {
+  if (sem_destroy(sem) == 0) {
+    return 0;
+  } else {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
 }
 
 int tsem2_post(tsem2_t *sem) {
@@ -364,7 +402,11 @@ int32_t tsem2_timewait(tsem2_t* sem, int64_t ms) {
       ret = taosThreadCondTimedWait(&sem->cond, &sem->mutex, &ts);
       if (ret != 0) {
         (void)taosThreadMutexUnlock(&sem->mutex);
-        return ret;
+        if (errno == ETIMEDOUT) {
+          return TSDB_CODE_TIMEOUT_ERROR;
+        } else {
+          return TAOS_SYSTEM_ERROR(errno);
+        }
       }
     }
   }

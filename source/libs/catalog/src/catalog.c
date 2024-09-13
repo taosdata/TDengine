@@ -853,7 +853,7 @@ int32_t catalogInit(SCatalogCfg* cfg) {
   }
 
   if (tsem_init(&gCtgMgmt.queue.reqSem, 0, 0)) {
-    qError("tsem_init failed, error:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+    qError("tsem_init failed, terror:%s", tstrerror(terrno));
     CTG_ERR_RET(TSDB_CODE_CTG_SYS_ERROR);
   }
 

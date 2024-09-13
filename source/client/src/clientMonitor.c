@@ -34,19 +34,19 @@ static void processFileInTheEnd(TdFilePtr pFile, char* path) {
     return;
   }
   if (taosFtruncateFile(pFile, 0) != 0) {
-    tscError("failed to truncate file:%s, errno:%d", path, terrno);
+    tscError("failed to truncate file:%s, terrno:%d", path, terrno);
     return;
   }
   if (taosUnLockFile(pFile) != 0) {
-    tscError("failed to unlock file:%s, errno:%d", path, terrno);
+    tscError("failed to unlock file:%s, terrno:%d", path, terrno);
     return;
   }
   if (taosCloseFile(&(pFile)) != 0) {
-    tscError("failed to close file:%s, errno:%d", path, errno);
+    tscError("failed to close file:%s, terrno:%d", path, terrno);
     return;
   }
   if (taosRemoveFile(path) != 0) {
-    tscError("failed to remove file:%s, errno:%d", path, errno);
+    tscError("failed to remove file:%s, terrno:%d", path, terrno);
     return;
   }
 }

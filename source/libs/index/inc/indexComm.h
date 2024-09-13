@@ -30,7 +30,7 @@ char* idxPackJsonData(SIndexTerm* itm);
 char* idxPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip);
 char* idxPackJsonDataPrefixNoType(SIndexTerm* itm, int32_t* skip);
 
-typedef enum { MATCH, CONTINUE, BREAK } TExeCond;
+typedef enum { MATCH, CONTINUE, BREAK, FAILED } TExeCond;
 
 typedef TExeCond (*_cache_range_compare)(void* a, void* b, int8_t type);
 

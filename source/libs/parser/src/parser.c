@@ -198,7 +198,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
       int32_t output = 0;
       if (!taosMbsToUcs4(pParam->buffer, inputSize, (TdUcs4*)varDataVal(pVal->datum.p), pVal->node.resType.bytes,
                          &output)) {
-        return errno;
+        return terrno;
       }
       varDataSetLen(pVal->datum.p, output);
       pVal->node.resType.bytes = output + VARSTR_HEADER_SIZE;
@@ -486,7 +486,7 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam) {
       int32_t output = 0;
       if (!taosMbsToUcs4(pParam->buffer, inputSize, (TdUcs4*)varDataVal(pVal->datum.p), pVal->node.resType.bytes,
                          &output)) {
-        return errno;
+        return terrno;
       }
       varDataSetLen(pVal->datum.p, output);
       pVal->node.resType.bytes = output + VARSTR_HEADER_SIZE;

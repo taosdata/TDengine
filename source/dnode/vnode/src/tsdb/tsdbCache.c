@@ -1841,9 +1841,9 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
         TAOS_CHECK_EXIT(code);
       } else {
         if (!remainCols) {
-          remainCols = taosArrayInit(numCols * 2, sizeof(SLastKey));
+          remainCols = taosArrayInit(numCols * 2, sizeof(SIdxKey));
         }
-        if (!taosArrayPush(remainCols, &lastKey)) {
+        if (!taosArrayPush(remainCols, &(SIdxKey){i, lastKey})) {
           TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
         }
       }
@@ -1871,7 +1871,9 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
       code = terrno;
       goto _exit;
     }
-    ((SLastKey *)key)[0] = *(SLastKey *)taosArrayGet(remainCols, i);
+    SIdxKey* idxKey = taosArrayGet(remainCols, i);
+
+    ((SLastKey *)key)[0] = idxKey->key;
 
     keys_list[i] = key;
     keys_list_sizes[i] = klen;
@@ -1887,10 +1889,11 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
   for (int i = 0; i < numKeys; ++i) {
     SLastCol *pLastCol = NULL;
     (void)tsdbCacheDeserialize(values_list[i], values_list_sizes[i], &pLastCol);
-    SLastKey *pLastKey = (SLastKey *)keys_list[i];
+    SIdxKey* idxKey = taosArrayGet(remainCols, i);
+    SLastKey *pLastKey = &idxKey->key;
     if (NULL != pLastCol && (pLastCol->rowKey.ts <= eKey && pLastCol->rowKey.ts >= sKey)) {
       SLastCol noCacheCol = {.rowKey.ts = TSKEY_MIN,
-                             .colVal = COL_VAL_NONE(pLastKey->cid, pTSchema->columns[i].type),
+                             .colVal = COL_VAL_NONE(pLastKey->cid, pTSchema->columns[idxKey->idx].type),
                              .cacheStatus = TSDB_LAST_CACHE_NO_CACHE};
 
       if ((code = tsdbCachePutToRocksdb(pTsdb, pLastKey, &noCacheCol)) != TSDB_CODE_SUCCESS) {
@@ -1938,7 +1941,7 @@ _exit:
 
 int32_t tsdbOpenCache(STsdb *pTsdb) {
   int32_t code = 0, lino = 0;
-  size_t  cfgCapacity = pTsdb->pVnode->config.cacheLastSize * 1024 * 1024;
+  size_t  cfgCapacity = (size_t)pTsdb->pVnode->config.cacheLastSize * 1024 * 1024;
 
   SLRUCache *pCache = taosLRUCacheInit(cfgCapacity, 0, .5);
   if (pCache == NULL) {
