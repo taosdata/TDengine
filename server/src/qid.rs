@@ -1,22 +1,26 @@
 use std::sync::{
-    atomic::{self, AtomicU64},
+    atomic::{self, AtomicU32},
     OnceLock,
 };
 
 use bitfield::bitfield;
 use http::HeaderMap;
-use taoslog::{utils::QidMetadataSetter, QidManager};
+use taoslog::{
+    utils::{QidMetadataSetter, Span},
+    QidManager,
+};
 
 pub(crate) static INSTANCE_ID: OnceLock<u8> = OnceLock::new();
 pub(crate) const DEFAULT_INSTANCE_ID: u8 = 1;
 
-static SEQUENCE_ID: OnceLock<AtomicU64> = OnceLock::new();
+static SESSION_ID: OnceLock<AtomicU32> = OnceLock::new();
 
 bitfield! {
     pub struct Qid(u64);
 
     u8, extension_id, set_extension_id: 7,0;
-    u64, sequence_id, set_sequence_id: 47,8;
+    u8, sequence_id, set_sequence_id: 15,8;
+    u32, session_id, set_session_id: 47,16;
     u8, downstream_id, set_downstream_id: 55, 48;
     u8, instance_id, set_instance_id: 63, 56;
 }
@@ -24,19 +28,22 @@ bitfield! {
 impl Qid {
     pub(crate) fn set_taosx(&mut self) {
         self.set_downstream_id(1);
+        Span.set_qid(self);
     }
 
     pub(crate) fn set_taos(&mut self) {
         self.set_downstream_id(2);
+        Span.set_qid(self);
     }
 
     pub(crate) fn set_cloud(&mut self) {
-        self.set_downstream_id(3)
+        self.set_downstream_id(3);
+        Span.set_qid(self);
     }
 
     pub(crate) fn add_sequence_id(&mut self) {
-        let global = SEQUENCE_ID.get_or_init(|| AtomicU64::new(1));
-        self.set_sequence_id(global.fetch_add(1, atomic::Ordering::SeqCst));
+        self.set_sequence_id(self.sequence_id() + 1);
+        Span.set_qid(self);
     }
 }
 
@@ -51,6 +58,17 @@ impl QidManager for Qid {
         let mut this = Self(0);
         this.set_instance_id(*INSTANCE_ID.get().unwrap());
         this
+    }
+
+    fn init_on_request(_request: &actix_web::dev::ServiceRequest) -> Self {
+        let mut qid = Self::init();
+
+        let session_id = SESSION_ID
+            .get_or_init(|| AtomicU32::new(0))
+            .fetch_add(1, atomic::Ordering::Relaxed);
+        qid.set_session_id(session_id);
+
+        qid
     }
 
     fn get(&self) -> u64 {
