@@ -1889,7 +1889,12 @@ int stmtGetParamTbName(TAOS_STMT2* stmt, int* nums) {
     STMT_ERR_RET(stmtParseSql(pStmt));
   }
 
-  *nums = STMT_TYPE_MULTI_INSERT == pStmt->sql.type ? 1 : 0;
+  if (TSDB_CODE_TSC_STMT_TBNAME_ERROR == pStmt->errCode) {
+    *nums = 1;
+    pStmt->errCode = TSDB_CODE_SUCCESS;
+  } else {
+    *nums = STMT_TYPE_MULTI_INSERT == pStmt->sql.type ? 1 : 0;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
