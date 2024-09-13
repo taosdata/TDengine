@@ -684,7 +684,7 @@ _err:
 int64_t walGetVerRetention(SWal* pWal, int64_t bytes) {
   int64_t ver = -1;
   int64_t totSize = 0;
-  (void)taosThreadRwlockRdlock(&pWal->mutex);
+  (void)walThreadRwlockRdlock(&pWal->mutex);
   int32_t fileIdx = taosArrayGetSize(pWal->fileInfoSet);
   while (--fileIdx) {
     SWalFileInfo* pInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
@@ -694,7 +694,7 @@ int64_t walGetVerRetention(SWal* pWal, int64_t bytes) {
     }
     totSize += pInfo->fileSize;
   }
-  (void)taosThreadRwlockUnlock(&pWal->mutex);
+  (void)walThreadRwlockUnlock(&pWal->mutex);
   return ver + 1;
 }
 
@@ -1048,4 +1048,22 @@ int32_t walRemoveMeta(SWal* pWal) {
   char fnameStr[WAL_FILE_LEN];
   (void)walBuildMetaName(pWal, metaVer, fnameStr);
   return taosRemoveFile(fnameStr);
+}
+
+void printStackTrace() {
+    void *buffer[100];
+    int nptrs = backtrace(buffer, 100);
+    char **symbols = backtrace_symbols(buffer, nptrs);
+
+    if (symbols == NULL) {
+        perror("backtrace_symbols");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("Stack trace:\n");
+    for (int i = 0; i < nptrs; i++) {
+        sprintf("%s\n", symbols[i]);
+    }
+
+    taosMemoryFree(symbols);
 }

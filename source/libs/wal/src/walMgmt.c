@@ -215,15 +215,15 @@ int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
 int32_t walPersist(SWal *pWal) {
   int32_t code = 0;
 
-  TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
+  TAOS_UNUSED(walThreadRwlockWrlock(&pWal->mutex));
   code = walSaveMeta(pWal);
-  TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
+  TAOS_UNUSED(walThreadRwlockUnlock(&pWal->mutex));
 
   TAOS_RETURN(code);
 }
 
 void walClose(SWal *pWal) {
-  TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
+  TAOS_UNUSED(walThreadRwlockWrlock(&pWal->mutex));
   (void)walSaveMeta(pWal);
   TAOS_UNUSED(taosCloseFile(&pWal->pLogFile));
   pWal->pLogFile = NULL;
@@ -243,7 +243,7 @@ void walClose(SWal *pWal) {
   }
   taosHashCleanup(pWal->pRefHash);
   pWal->pRefHash = NULL;
-  (void)taosThreadRwlockUnlock(&pWal->mutex);
+  (void)walThreadRwlockUnlock(&pWal->mutex);
 
   if (pWal->cfg.level == TAOS_WAL_SKIP) {
     wInfo("vgId:%d, remove all wals, path:%s", pWal->cfg.vgId, pWal->path);

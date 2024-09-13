@@ -21,6 +21,7 @@
 #include "tcoding.h"
 #include "tcommon.h"
 #include "tcompare.h"
+#include <execinfo.h>
 #include "wal.h"
 
 #ifdef __cplusplus
@@ -153,6 +154,7 @@ static inline void walResetVer(SWalVer* pVer) {
   pVer->lastVer = -1;
 }
 
+void printStackTrace();
 int32_t walLoadMeta(SWal* pWal);
 int32_t walSaveMeta(SWal* pWal);
 int32_t walRemoveMeta(SWal* pWal);
@@ -169,6 +171,21 @@ int32_t walMetaDeserialize(SWal* pWal, const char* bytes);
 int32_t decryptBody(SWalCfg* cfg, SWalCkHead* pHead, int32_t plainBodyLen, const char* func);
 
 int64_t walGetSeq();
+
+static int32_t walThreadRwlockWrlock(TdThreadRwlock *rwlock){
+  printStackTrace();
+  return taosThreadRwlockWrlock(rwlock);
+}
+
+static int32_t walThreadRwlockRdlock(TdThreadRwlock *rwlock){
+  printStackTrace();
+  return taosThreadRwlockRdlock(rwlock);
+}
+
+static int32_t walThreadRwlockUnlock(TdThreadRwlock *rwlock){
+  printStackTrace();
+  return taosThreadRwlockUnlock(rwlock);
+}
 
 #ifdef __cplusplus
 }
