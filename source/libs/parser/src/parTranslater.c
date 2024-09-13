@@ -10546,6 +10546,11 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
                                      "Stream interp unsupported window close");
     }
 
+    if (pStmt->pOptions->triggerType == STREAM_TRIGGER_MAX_DELAY) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Stream interp unsupported max delay");
+    }
+
     if ((SRealTableNode*)pSelect->pFromTable && ((SRealTableNode*)pSelect->pFromTable)->pMeta &&
         TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
         !hasTbnameFunction(pSelect->pPartitionByList)) {

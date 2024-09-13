@@ -61,6 +61,8 @@ sql_error create stream streams2_5_3 trigger window_close IGNORE EXPIRED 0 IGNOR
 sql_error create stream streams2_5_4 trigger window_close IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt2_5_4 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(NULL);
 sql_error create stream streams2_5_5 trigger window_close IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt2_5_5 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(value,11,22,33,44);
 
+run tsim/stream/checkTaskStatus.sim
+
 print step2_6
 
 sql create stream streams2_6_1 trigger at_once FILL_HISTORY 1 IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt2_6_1 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(prev);
@@ -75,7 +77,7 @@ sql_error create stream streams2_6_8 trigger force_window_close FILL_HISTORY 1 I
 sql_error create stream streams2_6_9 trigger force_window_close FILL_HISTORY 1 IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt2_6_9 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(NULL);
 sql_error create stream streams2_6_10 trigger force_window_close FILL_HISTORY 1 IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt2_6_10 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(value,11,22,33,44);
 
-
+run tsim/stream/checkTaskStatus.sim
 
 print step3
 
@@ -103,6 +105,13 @@ sql create stream streams3_0_5 trigger force_window_close FILL_HISTORY 0 IGNORE 
 
 run tsim/stream/checkTaskStatus.sim
 
-run tsim/stream/checkTaskStatus.sim
+print step4
+
+sql_error create stream streams4_1 trigger max_delay 1s FILL_HISTORY 0 IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt4_1 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(prev);
+sql_error create stream streams4_2 trigger max_delay 1s FILL_HISTORY 0 IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt4_2 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(next);
+sql_error create stream streams4_3 trigger max_delay 1s FILL_HISTORY 0 IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt4_3 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(linear);
+sql_error create stream streams4_4 trigger max_delay 1s FILL_HISTORY 0 IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt4_4 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(NULL);
+sql_error create stream streams4_5 trigger max_delay 1s FILL_HISTORY 0 IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt4_5 as select interp(a), _isfilled as a1, interp(b), _isfilled as a2, interp(c), _isfilled as a3, interp(d) from t1 every(1s) fill(value,11,22,33,44);
+
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
