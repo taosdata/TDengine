@@ -194,7 +194,7 @@ jobs:
           # 重新登录执行 git pull，因为当前的 git 仓库对应的是 taosx
           ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && git pull"
           # 将仓库复制一份到 artifacts 目录下
-          cp -r /data/github/TestNG_taosX $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX
+          cp -r /data/github/TestNG_taosX $ARTIFACT_BASE_DIR/$DIR_PATH/
           rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX/.pytest_cache
       - name: run container
         id: run_container
@@ -244,7 +244,7 @@ jobs:
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
           ls $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
           
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && source ./setenv.sh && /root/.local/bin/poetry run /usr/local/bin/pytest --cache-show"
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && poetry config virtualenvs.in-project true && source $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX/.venv/bin/activate && source ./setenv.sh && poetry run /usr/local/bin/pytest --cache-show"
           docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && source ./setenv.sh && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file \" && /root/.local/bin/poetry run /usr/local/bin/pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file ; done"
 
           pass_rate=$(cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && /root/.local/bin/poetry run python3 testng_taosx/ci_calculate_pass_rate.py $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile)
