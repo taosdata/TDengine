@@ -291,10 +291,11 @@ pub async fn kafka_to_taos(
         ipc_port.get(),
         aborted_cloned,
         notify.clone(),
-        metrics_arc,
+        metrics_arc.clone(),
     )
     .in_current_span()
     .await?;
+    metrics_arc.ipc().set_extra_metric(&METRIC_CONSUMERS, 0);
     tokio::spawn(async move {
         tokio::select! {
             // application exit with error code
@@ -326,6 +327,7 @@ pub async fn kafka_to_taos(
                             // wait for completion
                             tokio::time::sleep(Duration::from_millis(100)).await;
                             join_set.abort_all();
+                            metrics_arc.ipc().set_extra_metric(&METRIC_CONSUMERS, 0);
                             // stop the connector
                             tracing::info!("Kafka task timeout");
                             ipc.close().await?;
@@ -333,6 +335,7 @@ pub async fn kafka_to_taos(
                         }
                         tokio::time::sleep(Duration::from_millis(100)).await;
                         join_set.abort_all();
+                        metrics_arc.ipc().set_extra_metric(&METRIC_CONSUMERS, 0);
                         match ipc.try_recv_error() {
                             Ok(res) => {
                                 tracing::error!("IPC Error: {res}");
@@ -346,6 +349,7 @@ pub async fn kafka_to_taos(
                     Err(err) => {
                         cancel.cancel();
                         join_set.abort_all();
+                        metrics_arc.ipc().set_extra_metric(&METRIC_CONSUMERS, 0);
                         let _ = ipc.send(());
                         anyhow::bail!("Kafka exit with error: {:#}", err);
                     }
@@ -355,16 +359,17 @@ pub async fn kafka_to_taos(
                 tracing::info!("have received worker thread panicked message, terminate child process");
                 cancel.cancel();
                 join_set.abort_all();
+                metrics_arc.ipc().set_extra_metric(&METRIC_CONSUMERS, 0);
                 if let Some(err) = err {
                     let _ = ipc.send(()).await;
                     let _ = ipc.close().await;
-                    join_set.abort_all();
                     anyhow::bail!("Kafka writer error: {err:#}");
                 }
             },
             _ = upstream_cancel.cancelled() => {
                 tracing::info!("Kafka task cancelled");
                 join_set.abort_all();
+                metrics_arc.ipc().set_extra_metric(&METRIC_CONSUMERS, 0);
             }
         }
         // send an empty tuple
