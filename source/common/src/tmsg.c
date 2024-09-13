@@ -10346,7 +10346,11 @@ int32_t tDecodeSMCreateStbRsp(SDecoder *pDecoder, SMCreateStbRsp *pRsp) {
   }
   tEndDecode(pDecoder);
 
+  return code;
+
 _exit:
+  tFreeSTableMetaRsp(pRsp->pMeta);
+  taosMemoryFreeClear(pRsp->pMeta);
   return code;
 }
 

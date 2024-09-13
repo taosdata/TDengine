@@ -77,7 +77,10 @@ bool chkRequestKilled(void* param) {
   return killed;
 }
 
-void cleanupAppInfo() { taosHashCleanup(appInfo.pInstMap); }
+void cleanupAppInfo() {
+  taosHashCleanup(appInfo.pInstMap);
+  taosHashCleanup(appInfo.pInstMapByClusterId);
+}
 
 static int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
                                SAppInstInfo* pAppInfo, int connType, STscObj** pTscObj);
