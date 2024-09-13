@@ -96,7 +96,7 @@ def pre_test(){
             cd ${WK}
             git checkout ''' + env.CHANGE_TARGET + '''
             cd ${WKC}
-            git checkout fix/restore-2-replica
+            git checkout ''' + env.CHANGE_TARGET + '''
         '''
     }
     if (env.CHANGE_URL =~ /\/TDengine\//) {
@@ -205,7 +205,7 @@ def pre_test_win(){
         '''
         bat '''
             cd %WIN_COMMUNITY_ROOT%
-            git checkout fix/restore-2-replica
+            git checkout ''' + env.CHANGE_TARGET + '''
         '''
     }
     script {
