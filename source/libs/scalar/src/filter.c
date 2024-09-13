@@ -2912,6 +2912,8 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
   uint32_t         uidx = 0;
   uint32_t         code = TSDB_CODE_SUCCESS;
   SArray          *group = taosArrayInit(FILTER_DEFAULT_GROUP_SIZE, sizeof(SFilterGroup));
+  SFilterGroup     ng = {0};
+
   if (group == NULL) {
     FLT_ERR_JRET(terrno);
   }
@@ -2927,10 +2929,7 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
 
   for (int32_t i = 0; i < gResNum; ++i) {
     res = gRes[i];
-
     optr = (res->colNum > 1) ? LOGIC_COND_TYPE_AND : LOGIC_COND_TYPE_OR;
-
-    SFilterGroup ng = {0};
 
     for (uint32_t m = 0; m < res->colNum; ++m) {
       colInfo = &res->colInfo[res->colIdx[m]];
@@ -2944,27 +2943,15 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
         for (int32_t n = 0; n < usize; ++n) {
           SFilterUnit *u = (SFilterUnit *)taosArrayGetP((SArray *)colInfo->info, n);
           if (NULL == u) {
-            code = TSDB_CODE_OUT_OF_RANGE;
-            break;
+            FLT_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
           }
           code = filterAddUnitFromUnit(info, &oinfo, u, &uidx);
-          if (TSDB_CODE_SUCCESS != code) {
-            break;
-          }
+          FLT_ERR_JRET(code);
           code = filterAddUnitToGroup(&ng, uidx);
-          if (TSDB_CODE_SUCCESS != code) {
-            break;
-          }
-        }
-        if (TSDB_CODE_SUCCESS != code) {
-          break;
+          FLT_ERR_JRET(code);
         }
 
         continue;
-      }
-      if (TSDB_CODE_SUCCESS != code) {
-        filterFreeGroup((void*)&ng);
-        FLT_ERR_JRET(code);
       }
 
       if (colInfo->type != RANGE_TYPE_MR_CTX) {
@@ -2973,23 +2960,27 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
       }
 
       code = filterAddGroupUnitFromCtx(info, &oinfo, colInfo->info, res->colIdx[m], &ng, optr, group);
-      if (TSDB_CODE_SUCCESS != code) {
-        filterFreeGroup((void*)&ng);
-        FLT_ERR_JRET(code);
-      }
+      FLT_ERR_JRET(code);
     }
 
     if (ng.unitNum > 0) {
       if (NULL == taosArrayPush(group, &ng)) {
-        filterFreeGroup((void*)&ng);
         FLT_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
       }
+      ng = (SFilterGroup){0};
     }
   }
   FLT_ERR_JRET(filterConvertGroupFromArray(info, group));
 
-_return:
   taosArrayDestroy(group);
+
+  filterFreeInfo(&oinfo);
+  return 0;
+
+_return:
+  filterFreeGroup((void*)&ng);
+
+  taosArrayDestroyEx(group, filterFreeGroup);
 
   filterFreeInfo(&oinfo);
 
