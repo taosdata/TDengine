@@ -193,9 +193,6 @@ jobs:
           # 这里最好是 TestNG_taosx 已经被拉取到一个固定的位置
           # 重新登录执行 git pull，因为当前的 git 仓库对应的是 taosx
           ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && git pull"
-          # 将仓库复制一份到 artifacts 目录下
-          cp -r /data/github/TestNG_taosX $ARTIFACT_BASE_DIR/$DIR_PATH/
-          rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX/.pytest_cache
       - name: run container
         id: run_container
         # 1. 寻找可用端口
@@ -208,6 +205,10 @@ jobs:
 
           run_container_id=$(docker run --privileged=true -d -v $ARTIFACT_BASE_DIR/$DIR_PATH:$ARTIFACT_BASE_DIR/$DIR_PATH -v $COVERAGE_BASE_DIR/$DIR_PATH:$COVERAGE_BASE_DIR/$DIR_PATH -p $rpc_port:6055 -p $explorer_port:6060 taosxci:latest)
           echo "container_id: $run_container_id"
+          # 复制 TestNG_taosX 并删除 .pytest_cache
+          docker exec $run_container_id bash -c "ls /data/github/ || mkdir -p /data/github/"
+          docker cp /data/github/TestNG_taosX $run_container_id:/data/github
+          docker exec $run_container_id bash -c "rm -rf /data/github/TestNG_taosX/.pytest_cache"
           echo "rpc_port: $rpc_port"
           echo "container_id=$run_container_id" >> "$GITHUB_OUTPUT"
           echo "rpc_port=$rpc_port" >> "$GITHUB_OUTPUT"
@@ -231,7 +232,7 @@ jobs:
           echo "RPC_PORT: ${{ steps.run_container.outputs.rpc_port }}"
           # 调用 windows 远程服务拉起 windows-agent
           echo $PATH
-          cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && source setenv.sh && /root/.local/bin/poetry run python3 testng_taosx/ci_util.py ${{ steps.run_container.outputs.rpc_port }} eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
+          cd /data/github/TestNG_taosX/ && source setenv.sh && /root/.local/bin/poetry run python3 testng_taosx/ci_util.py ${{ steps.run_container.outputs.rpc_port }} eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
 
   run_test:
     runs-on: [self-hosted, linux, x64, qa, test]
@@ -244,10 +245,10 @@ jobs:
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
           ls $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
           
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && poetry config virtualenvs.in-project true && source $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX/.venv/bin/activate && poetry install && source ./setenv.sh && poetry run pytest --cache-show"
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && source ./setenv.sh && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file \" && poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file ; done"
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX/ && poetry config virtualenvs.in-project true && source ./setenv.sh && poetry run pytest --cache-show"
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX/ && source ./setenv.sh && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file \" && poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file ; done"
 
-          pass_rate=$(cd $ARTIFACT_BASE_DIR/$DIR_PATH/TestNG_taosX && /root/.local/bin/poetry run python3 testng_taosx/ci_calculate_pass_rate.py $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile)
+          pass_rate=$(cd /data/github/TestNG_taosX/ && /root/.local/bin/poetry run python3 testng_taosx/ci_calculate_pass_rate.py $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile)
           # 若通过率小于 100 则返回失败
           echo "Pass Rate: $pass_rate"
           awk "BEGIN {exit ($pass_rate < 100)}"
