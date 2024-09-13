@@ -883,15 +883,13 @@ int32_t taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone)
   {
     int n = readlink("/etc/localtime", buf, sizeof(buf));
     if (n < 0) {
-      printf("read /etc/localtime error, reason:%s\n", strerror(errno));
-      return;
+      return TSDB_CODE_TIME_ERROR;
     }
     buf[n] = '\0';
 
     char *zi = strstr(buf, "zoneinfo");
     if (!zi) {
-      printf("parsing /etc/localtime failed\n");
-      return;
+      return TSDB_CODE_TIME_ERROR;
     }
     tz = zi + strlen("zoneinfo") + 1;
 
