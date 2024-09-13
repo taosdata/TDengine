@@ -72,6 +72,7 @@ int32_t tsElectInterval = 25 * 1000;
 int32_t tsHeartbeatInterval = 1000;
 int32_t tsHeartbeatTimeout = 20 * 1000;
 int32_t tsSnapReplMaxWaitN = 128;
+int64_t tsLogBufferMemoryAllowed = 0;  // bytes
 
 // vnode
 int64_t tsVndCommitMaxIntervalMs = 600 * 1000;
@@ -627,6 +628,12 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
                   CFG_SCOPE_SERVER) != 0)
     return -1;
 
+  tsLogBufferMemoryAllowed = tsTotalMemoryKB * 1024 * 0.1;
+  tsLogBufferMemoryAllowed = TRANGE(tsLogBufferMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
+  if (cfgAddInt64(pCfg, "syncLogBufferMemoryAllowed", tsLogBufferMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX,
+                  CFG_SCOPE_SERVER) != 0)
+    return -1;
+
   if (cfgAddInt64(pCfg, "vndCommitMaxInterval", tsVndCommitMaxIntervalMs, 1000, 1000 * 60 * 60, CFG_SCOPE_SERVER) != 0)
     return -1;
 
@@ -852,6 +859,14 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
     tsQueueMemoryAllowed = totalMemoryKB * 1024 * 0.1;
     tsQueueMemoryAllowed = TRANGE(tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
     pItem->i64 = tsQueueMemoryAllowed;
+    pItem->stype = stype;
+  }
+
+  pItem = cfgGetItem(tsCfg, "syncLogBufferMemoryAllowed");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    tsLogBufferMemoryAllowed = totalMemoryKB * 1024 * 0.1;
+    tsLogBufferMemoryAllowed = TRANGE(tsLogBufferMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
+    pItem->i64 = tsLogBufferMemoryAllowed;
     pItem->stype = stype;
   }
 
@@ -1093,6 +1108,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsHeartbeatInterval = cfgGetItem(pCfg, "syncHeartbeatInterval")->i32;
   tsHeartbeatTimeout = cfgGetItem(pCfg, "syncHeartbeatTimeout")->i32;
   tsSnapReplMaxWaitN = cfgGetItem(pCfg, "syncSnapReplMaxWaitN")->i32;
+  tsLogBufferMemoryAllowed = cfgGetItem(pCfg, "syncLogBufferMemoryAllowed")->i64;
 
   tsVndCommitMaxIntervalMs = cfgGetItem(pCfg, "vndCommitMaxInterval")->i64;
 
@@ -1733,7 +1749,7 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
 
   if (strcasecmp(option, "enableWhiteList") == 0) {
     int32_t enableWhitelist = atoi(value);
-    uInfo("enablewhitelist set from %d to %d", tsAsyncLog, enableWhitelist);
+    uInfo("enablewhitelist set from %d to %d", tsEnableWhiteList, enableWhitelist);
     tsEnableWhiteList = enableWhitelist > 0 ? true : false;
     return;
   }
