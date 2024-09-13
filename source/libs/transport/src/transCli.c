@@ -2022,7 +2022,7 @@ static FORCE_INLINE void destroyCmsg(void* arg) {
 static void destroyAhandleImpl(SCliThrd* pThrd, SCliMsg* pMsg) {
   if (pThrd != NULL && pThrd->destroyAhandleFp != NULL) {
     if (pMsg && pMsg->msg.info.notFreeAhandle == 0 && pMsg->msg.info.ahandle != NULL &&
-        pMsg->msg.info.ahandle != (void*)9527) {
+        pMsg->msg.info.ahandle != (void*)0x9527) {
       pThrd->destroyAhandleFp(pMsg->msg.info.ahandle);
     }
   }
