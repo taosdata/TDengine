@@ -434,13 +434,14 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
     void* p = taosHashGet(pConn->pQTable, &qId, sizeof(qId));
     if (p == NULL) {
       code = TSDB_CODE_RPC_NO_STATE;
-      tTrace("conn %p recv release, and releady release by server qid%ld", pConn, qId);
-      // notify cli already release, cli release resouce
+      tTrace("conn %p recv release, and releady release by server qid:%ld", pConn, qId);
     } else {
       SSvrRegArg* arg = p;
       (pInst->cfp)(pInst->parent, &(arg->msg), NULL);
-      tTrace("conn %p recv release, notify server app, qid%ld", pConn, qId);
+      tTrace("conn %p recv release, notify server app, qid:%ld", pConn, qId);
+
       (void)taosHashRemove(pConn->pQTable, &qId, sizeof(qId));
+      tTrace("conn %p clear state,qid:%ld", pConn, qId);
     }
 
     STransMsg tmsg = {.code = code,
@@ -458,7 +459,7 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
 
     uvStartSendRespImpl(srvMsg);
     taosMemoryFree(pHead);
-    return 1;
+    return code;
   }
   return 0;
 }
@@ -501,6 +502,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
     return false;
   }
   if (uvConnMayGetUserInfo(pConn, &pHead, &msgLen) == true) {
+    tDebug("%s conn %p get user info", transLabel(pInst), pConn);
   }
 
   if (resetBuf == 0) {
@@ -833,7 +835,7 @@ int32_t uvMayHandleReleaseResp(SSvrRespMsg* pMsg) {
   if (pMsg->msg.msgType == TDMT_SCH_TASK_RELEASE && qid > 0) {
     SSvrRegArg* p = taosHashGet(pConn->pQTable, &qid, sizeof(qid));
     if (p == NULL) {
-      tError("%s conn %p already release qid %ld", transLabel(pConn->pInst), pConn, qid);
+      tError("%s conn %p already release qid:%ld", transLabel(pConn->pInst), pConn, qid);
       return TSDB_CODE_RPC_NO_STATE;
     } else {
       transFreeMsg(p->msg.pCont);
