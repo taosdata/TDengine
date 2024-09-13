@@ -3150,7 +3150,7 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
     int32_t stateNum = taosHashGetSize(pConn->pQTable);
 
     if (shouldSWitchToOtherConn(reqsNum, reqsSentOut, stateNum)) {
-      tDebug("conn %p has %d reqs, %d sentout and %s status in process, switch to other conn", pConn, reqsNum,
+      tDebug("conn %p has %d reqs, %d sentout and %d status in process, switch to other conn", pConn, reqsNum,
              reqsSentOut, stateNum);
       return NULL;
     }
