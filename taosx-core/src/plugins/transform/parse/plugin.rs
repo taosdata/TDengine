@@ -114,7 +114,7 @@ impl ParserObject {
 
 impl PluginLib {
     fn new_parser(&self, ctx: &str) -> Result<ParserObject, String> {
-        let parser_response = self.parser_new(ctx.as_ptr() as *const i8, ctx.len() as i32);
+        let parser_response = self.parser_new(ctx.as_ptr() as _, ctx.len() as i32);
         if parser_response.e != 0 {
             return Err("parser_new failed".to_string());
         }
