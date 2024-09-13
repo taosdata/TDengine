@@ -365,7 +365,7 @@ script = """
 echo Build taosX release binaries with taosx/dev image.
 mkdir -p target/centos7
 docker compose run --remove-orphans --rm build \
-  cargo build --release -p taosx
+  cargo build --release $@
 """
 
 [tasks.build-centos7-sani]
