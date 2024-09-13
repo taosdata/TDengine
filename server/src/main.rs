@@ -3,7 +3,7 @@ use actix_files::NamedFile;
 use anyhow::Context;
 use chrono::TimeZone;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
-use deadpool::managed::PoolError;
+use deadpool::managed::{Object, PoolError};
 use favorites::FavoritesSql;
 use geos::{Geom, Geometry};
 use http_auth_basic::Credentials;
@@ -69,35 +69,49 @@ struct UserPool {
 
 static TAOS_POOL: OnceLock<scc::HashMap<String, UserPool>> = OnceLock::new();
 
-async fn global_pool(dsn: &Dsn) -> Option<deadpool::managed::Pool<Manager<TaosBuilder>>> {
+async fn get_connection(dsn: &Dsn) -> Result<Object<Manager<TaosBuilder>>, String> {
     let map = TAOS_POOL.get_or_init(|| scc::HashMap::new());
     let mut dsn_simple = dsn.clone();
     dsn_simple.password = None;
 
-    let user_pool = map.get(&dsn_simple.to_string());
-    user_pool
+    let user_pool = map
+        .get(&dsn_simple.to_string())
         .filter(|pool| pool.password == dsn.password.clone().unwrap_or_default())
-        .map(|pool| Some(pool.pool.clone()))
-        .unwrap_or_else(|| {
-            let builder = taos::TaosBuilder::from_dsn(dsn);
-            if builder.is_err() {
-                tracing::error!("Failed to create taosbuilder: {:?}", builder.err());
-                return None;
-            }
-            let pool = builder.unwrap().pool();
-            if pool.is_err() {
-                tracing::error!("Failed to create pool: {:?}", pool.err());
-                return None;
-            }
+        .map(|pool| pool.pool.clone());
 
-            let pool = pool.unwrap();
-            let user_pool = UserPool {
-                password: dsn.password.clone().unwrap_or_default(),
-                pool: pool.clone(),
-            };
-            let _ = map.insert(dsn_simple.to_string(), user_pool);
-            Some(pool)
-        })
+    if user_pool.is_some() {
+        return user_pool.unwrap().get().await.map_err(|err| match err {
+            PoolError::Backend(inner_err) => format!("{inner_err:#}"),
+            err => format!("Failed to get connection: {err:#}"),
+        });
+    }
+
+    let builder = taos::TaosBuilder::from_dsn(dsn);
+    if builder.is_err() {
+        tracing::error!("Failed to create taosbuilder: {:?}", builder.err());
+        return Err("inner error: failed to get connection pool".to_string());
+    }
+    let pool = builder.unwrap().pool();
+    if pool.is_err() {
+        tracing::error!("Failed to create pool: {:?}", pool.err());
+        return Err("inner error: failed to get connection pool".to_string());
+    }
+
+    let pool = pool.unwrap();
+    let conn = pool.get().await.map_err(|err| match err {
+        PoolError::Backend(inner_err) => format!("{inner_err:#}"),
+        err => format!("Failed to get connection: {err:#}"),
+    });
+
+    if conn.is_ok() {
+        let new_user_pool = UserPool {
+            password: dsn.password.clone().unwrap_or_default(),
+            pool: pool.clone(),
+        };
+        tracing::debug!("create new pool for {:?}", dsn);
+        let _ = map.upsert(dsn_simple.to_string(), new_user_pool);
+    }
+    conn
 }
 
 #[actix_web::main]
@@ -1338,16 +1352,9 @@ impl Args {
         Span.set_qid(&qid);
 
         // taos connection pool
-        let pool = global_pool(&dsn).await;
-        if pool.is_none() {
-            return Err(RestErrResponse::new(
-                "inner error: failed to get connection pool",
-            ));
-        }
-        let conn = pool.unwrap().get().await.map_err(|err| match err {
-            PoolError::Backend(inner_err) => RestErrResponse::new(format!("{inner_err:#}")),
-            _ => RestErrResponse::new(format!("Failed to get connection: {err:#}")),
-        })?;
+        let conn = get_connection(&dsn)
+            .await
+            .map_err(|err| RestErrResponse::new(err))?;
 
         let tz = if let Some(tz) = tz {
             chrono_tz::Tz::from_str(tz).unwrap_or(chrono_tz::Tz::UTC)
@@ -1436,17 +1443,9 @@ impl Args {
         license: &RenewLicense,
     ) -> Result<RestOkResponse, RestErrResponse> {
         let dsn = self.build_dsn(header)?;
-        // taos connection pool
-        let pool = global_pool(&dsn).await;
-        if pool.is_none() {
-            return Err(RestErrResponse::new(
-                "inner error: failed to get connection pool",
-            ));
-        }
-        let conn = pool.unwrap().get().await.map_err(|err| match err {
-            PoolError::Backend(inner_err) => RestErrResponse::new(format!("{inner_err:#}")),
-            _ => RestErrResponse::new(format!("Failed to get connection: {err:#}")),
-        })?;
+        let conn = get_connection(&dsn)
+            .await
+            .map_err(|err| RestErrResponse::new(err))?;
         // server version
         let server_version = conn.server_version().await;
         let server_version = match server_version {
