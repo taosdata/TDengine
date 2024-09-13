@@ -270,10 +270,10 @@ jobs:
     runs-on: [self-hosted, linux, x64, qa, test]
     # needs: [deploy_with_docker, run_test, generate_report]
     needs: [deploy_with_docker, run_test]
-    if: always()
+    if: ${{ needs.deploy_with_docker.result == success() && needs.run_test.result == success() }}
+    # if: always()
     steps:
       - name: Force stop taosx-agent & taosx
-        if: ${{ needs.deploy_with_docker.result == success() && needs.run_test.result == success() }}
         # shell: bash {0}
         run: |
           echo "stop and rm container ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}"
