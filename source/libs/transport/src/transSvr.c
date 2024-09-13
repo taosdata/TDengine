@@ -565,6 +565,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   transMsg.info.noResp = pHead->noResp == 1 ? 1 : 0;
   transMsg.info.seqNum = htonl(pHead->seqNum);
   transMsg.info.qId = taosHton64(pHead->qid);
+  transMsg.info.msgType = pHead->msgType;
 
   // uvMaySetConnAcquired(pConn, pHead);
 
@@ -1807,6 +1808,9 @@ int32_t transSendResponse(const STransMsg* msg) {
 
   STransMsg tmsg = *msg;
   tmsg.info.refId = refId;
+  if (tmsg.info.qId == 0) {
+    tmsg.msgType = msg->info.msgType + 1;
+  }
 
   SWorkThrd* pThrd = exh->pThrd;
   ASYNC_ERR_JRET(pThrd);
@@ -1816,8 +1820,8 @@ int32_t transSendResponse(const STransMsg* msg) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _return1;
   }
-
   m->msg = tmsg;
+
   m->type = Normal;
 
   STraceId* trace = (STraceId*)&msg->info.traceId;

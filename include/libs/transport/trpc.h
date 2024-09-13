@@ -66,6 +66,7 @@ typedef struct SRpcHandleInfo {
   int32_t      seqNum;  // msg seq
   int64_t      qId;     // queryId Get from client, other req's qId = -1;
   int32_t      refIdMgt;
+  int32_t      msgType;
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {
