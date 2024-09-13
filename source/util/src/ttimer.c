@@ -492,6 +492,9 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* han
 
   if (timer == NULL) {
     *pTmrId = taosTmrStart(fp, mseconds, param, handle);
+    if (NULL == *pTmrId) {
+      stopped = true;
+    }
     return stopped;
   }
 

@@ -581,7 +581,10 @@ void qwDestroyImpl(void *pMgmt) {
   int32_t schStatusCount = 0;
   qDebug("start to destroy qworker, type:%d, id:%d, handle:%p", nodeType, nodeId, mgmt);
 
-  (void)taosTmrStop(mgmt->hbTimer); //ignore error
+  if (taosTmrStop(mgmt->hbTimer)) {
+    qTrace("stop qworker hb timer may failed");
+  }
+  
   mgmt->hbTimer = NULL;
   taosTmrCleanUp(mgmt->timer);
 

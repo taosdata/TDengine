@@ -687,13 +687,14 @@ int32_t streamTaskStop(SStreamTask* pTask) {
 
   int32_t code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_STOP);
   if (code) {
-    stError("failed to handle STOP event, s-task:%s", id);
+    stError("failed to handle STOP event, s-task:%s, code:%s", id, tstrerror(code));
+    return code;
   }
 
   if (pTask->info.taskLevel != TASK_LEVEL__SINK && pTask->exec.pExecutor != NULL) {
     code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
     if (code != TSDB_CODE_SUCCESS) {
-      stError("s-task:%s failed to kill task related query handle", id);
+      stError("s-task:%s failed to kill task related query handle, code:%s", id, tstrerror(code));
     }
   }
 
@@ -865,7 +866,7 @@ int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskI
   pReq->head.vgId = vgId;
   pReq->taskId = pTaskId->taskId;
   pReq->streamId = pTaskId->streamId;
-  pReq->resetRelHalt = resetRelHalt;  // todo: remove this attribute
+  pReq->resetRelHalt = resetRelHalt;
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_DROP, .pCont = pReq, .contLen = sizeof(SVDropStreamTaskReq)};
   int32_t code = tmsgPutToQueue(pMsgCb, WRITE_QUEUE, &msg);
@@ -1052,14 +1053,13 @@ int32_t streamTaskSendCheckpointReq(SStreamTask* pTask) {
   tEncodeSize(tEncodeStreamTaskCheckpointReq, &req, tlen, code);
   if (code < 0) {
     stError("s-task:%s vgId:%d encode stream task req checkpoint failed, code:%s", id, vgId, tstrerror(code));
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
 
   void* buf = rpcMallocCont(tlen);
   if (buf == NULL) {
-    stError("s-task:%s vgId:%d encode stream task req checkpoint msg failed, code:%s", id, vgId,
-            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    return -1;
+    stError("s-task:%s vgId:%d encode stream task req checkpoint msg failed, code:Out of memory", id, vgId);
+    return terrno;
   }
 
   SEncoder encoder;
@@ -1068,8 +1068,9 @@ int32_t streamTaskSendCheckpointReq(SStreamTask* pTask) {
     rpcFreeCont(buf);
     tEncoderClear(&encoder);
     stError("s-task:%s vgId:%d encode stream task req checkpoint msg failed, code:%s", id, vgId, tstrerror(code));
-    return -1;
+    return code;
   }
+
   tEncoderClear(&encoder);
 
   SRpcMsg msg = {0};

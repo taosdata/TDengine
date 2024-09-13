@@ -184,6 +184,7 @@ void schedulerFreeJob(int64_t *jobId, int32_t errCode) {
 }
 
 void schedulerDestroy(void) {
+  int32_t code = 0;
   atomic_store_8((int8_t *)&schMgmt.exit, 1);
 
   if (schMgmt.jobRef >= 0) {
@@ -195,7 +196,10 @@ void schedulerDestroy(void) {
       if (refId == 0) {
         break;
       }
-      (void)taosRemoveRef(schMgmt.jobRef, pJob->refId); // ignore error
+      code = taosRemoveRef(schMgmt.jobRef, pJob->refId);
+      if (code) {
+        qWarn("taosRemoveRef job refId:%" PRId64 " failed, error:%s", pJob->refId, tstrerror(code));
+      }
 
       pJob = taosIterateRef(schMgmt.jobRef, refId);
     }

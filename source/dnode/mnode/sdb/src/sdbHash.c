@@ -165,7 +165,6 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   if (taosHashPut(hash, pRow->pObj, keySize, &pRow, sizeof(void *)) != 0) {
     sdbUnLock(pSdb, type);
     sdbFreeRow(pSdb, pRow, false);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 

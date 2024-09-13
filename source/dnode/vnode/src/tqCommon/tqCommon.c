@@ -1238,6 +1238,10 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
         pMeta->vgId, req.taskId);
     // ignore this code to avoid error code over write
     int32_t ret = streamMetaAddFailedTask(pMeta, req.streamId, req.taskId);
+    if (ret) {
+      tqError("s-task:0x%x failed add check downstream failed, core:%s", req.taskId, tstrerror(ret));
+    }
+
     return code;
   }
 

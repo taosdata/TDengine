@@ -104,7 +104,7 @@ void taosRemoveDir(const char *dirname) {
     if (taosDirEntryIsDir(de)) {
       taosRemoveDir(filename);
     } else {
-      (void)taosRemoveFile(filename);
+      TAOS_UNUSED(taosRemoveFile(filename));
       // printf("file:%s is removed\n", filename);
     }
   }
@@ -315,7 +315,7 @@ void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
       if (fileSec <= 100) continue;
       int32_t days = (int32_t)(TABS(sec - fileSec) / 86400 + 1);
       if (days > keepDays) {
-        (void)taosRemoveFile(filename);
+        TAOS_UNUSED(taosRemoveFile(filename));
          uInfo("file:%s is removed, days:%d keepDays:%d, sed:%"PRId64, filename, days, keepDays, fileSec);
       } else {
         // printf("file:%s won't be removed, days:%d keepDays:%d", filename, days, keepDays);
@@ -323,8 +323,8 @@ void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
     }
   }
 
-  (void)taosCloseDir(&pDir);
-  (void)rmdir(dirname);
+  TAOS_UNUSED(taosCloseDir(&pDir));
+  TAOS_UNUSED(rmdir(dirname));
 }
 
 int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {

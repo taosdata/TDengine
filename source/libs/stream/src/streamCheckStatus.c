@@ -322,11 +322,8 @@ void streamTaskCleanupCheckInfo(STaskCheckInfo* pInfo) {
   pInfo->pList = NULL;
 
   if (pInfo->checkRspTmr != NULL) {
-    bool succ = taosTmrStop(pInfo->checkRspTmr);
+    streamTmrStop(pInfo->checkRspTmr);
     pInfo->checkRspTmr = NULL;
-    if (!succ) {
-      stError("failed to stop checkrsp tmr");  // todo: add id
-    }
   }
 
   streamMutexDestroy(&pInfo->checkInfoLock);
