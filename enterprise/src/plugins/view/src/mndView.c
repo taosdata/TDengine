@@ -426,7 +426,7 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
     mndTransDrop(pTrans);
     goto _OVER;
   }
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY), NULL, _OVER);
 
   if (NULL != pNewUserDuped) {
     SSdbRaw *pUserRaw = mndUserActionEncode(pNewUserDuped);
@@ -436,7 +436,7 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
       mndTransDrop(pTrans);
       goto _OVER;
     }    
-    (void)sdbSetRawStatus(pUserRaw, SDB_STATUS_READY);
+    TAOS_CHECK_GOTO(sdbSetRawStatus(pUserRaw, SDB_STATUS_READY), NULL, _OVER);
   }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
@@ -473,7 +473,12 @@ static int32_t mndDropView(SMnode *pMnode, SRpcMsg *pReq, SViewObj *pView) {
     mndTransDrop(pTrans);
     return terrno;
   }
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+  int32_t code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+  if (code) {
+    mError("trans:%d, failed to sdbSetRawStatus SDB_STATUS_DROPPED, error:%s", pTrans->id, tstrerror(code));
+    mndTransDrop(pTrans);
+    return code;
+  }
 
   if (mndUserRemoveView(pMnode, pTrans, pView->fullname)) {
     mError("trans:%d, failed to append user dropo view commit log since %s", pTrans->id, terrstr());
@@ -747,6 +752,7 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
   SViewObj   *pView = NULL;
   char       *sep = NULL;
   SDbObj     *pDb = NULL;
+  int32_t     code = 0;
   
   if (strlen(pShow->db) > 0) {
     sep = strchr(pShow->db, '.');
@@ -780,83 +786,84 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
     STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->name, sizeof(tmpBuf));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (NULL == pColInfo) {
-      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+      TAOS_CHECK_GOTO(TSDB_CODE_QRY_INVALID_INPUT, NULL, _return);
     }
-    TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false));
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), NULL, _return);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (NULL == pColInfo) {
-      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+      TAOS_CHECK_GOTO(TSDB_CODE_QRY_INVALID_INPUT, NULL, _return);
     }
     if (pDb != NULL || !IS_SYS_DBNAME(pView->dbFName)) {
       SName name = {0};
-      (void)tNameFromString(&name, pView->dbFName, T_NAME_ACCT | T_NAME_DB);
+      TAOS_CHECK_GOTO(tNameFromString(&name, pView->dbFName, T_NAME_ACCT | T_NAME_DB), NULL, _return);
       (void)tNameGetDbName(&name, varDataVal(tmpBuf));
     } else {
       tstrncpy(varDataVal(tmpBuf), pView->dbFName, TSDB_SHOW_SQL_LEN);
     }
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
-    TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false));
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), NULL, _return);
 
     STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->user, sizeof(tmpBuf));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (NULL == pColInfo) {
-      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+      TAOS_CHECK_GOTO(TSDB_CODE_QRY_INVALID_INPUT, NULL, _return);
     }
-    TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false));
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), NULL, _return);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (NULL == pColInfo) {
-      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+      TAOS_CHECK_GOTO(TSDB_CODE_QRY_INVALID_INPUT, NULL, _return);
     }
-    TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)&pView->createdTime, false));
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pView->createdTime, false), NULL, _return);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (NULL == pColInfo) {
-      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+      TAOS_CHECK_GOTO(TSDB_CODE_QRY_INVALID_INPUT, NULL, _return);
     }
     mndGenerateViewTypeStr(varDataVal(tmpBuf), pView->type);
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
-    TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false));
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), NULL, _return);
 
     STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->querySql, sizeof(tmpBuf));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (NULL == pColInfo) {
-      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+      sdbRelease(pSdb, pView);
+      TAOS_CHECK_GOTO(TSDB_CODE_QRY_INVALID_INPUT, NULL, _return);
     }
-    TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false));
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), NULL, _return);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (NULL == pColInfo) {
-      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+      TAOS_CHECK_GOTO(TSDB_CODE_QRY_INVALID_INPUT, NULL, _return);
     }
     if (NULL != pView->parameters) {
       STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->parameters, sizeof(tmpBuf));
-      TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false));
+      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), NULL, _return);
     } else {
-      TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, NULL, true));
+      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, NULL, true), NULL, _return);
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (NULL == pColInfo) {
-      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+      TAOS_CHECK_GOTO(TSDB_CODE_QRY_INVALID_INPUT, NULL, _return);
     }
     if (NULL != pView->defaultValues) {
       mndGenerateViewDefValsListStr(varDataVal(tmpBuf), sizeof(tmpBuf) - VARSTR_HEADER_SIZE, pView->numOfCols, pView->defaultValues);
-      TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false));
+      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), NULL, _return);
     } else {
-      TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, NULL, true));
+      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, NULL, true), NULL, _return);
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (NULL == pColInfo) {
-      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+      TAOS_CHECK_GOTO(TSDB_CODE_QRY_INVALID_INPUT, NULL, _return);
     }
     if (NULL != pView->targetTable) {
       STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->targetTable, sizeof(tmpBuf));
-      TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false));
+      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), NULL, _return);
     } else {
-      TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, NULL, true));
+      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, NULL, true), NULL, _return);
     }
 
 /*
@@ -871,7 +878,17 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
   }
 
   pShow->numOfRows += numOfRows;
-  mndReleaseDb(pMnode, pDb);
+
+_return:
+
+  if (pSdb && pView) {
+    sdbRelease(pSdb, pView);
+  }
+
+  if (pMnode && pDb) {
+    mndReleaseDb(pMnode, pDb);
+  }
+  
   return numOfRows;
 }
 

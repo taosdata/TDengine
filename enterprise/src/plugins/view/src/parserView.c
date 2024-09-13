@@ -18,7 +18,8 @@
 
 int32_t getViewMetaFromMetaCache(STranslateContext* pCxt, SName* pName, SViewMeta** ppViewMeta) {
   char fullName[TSDB_TABLE_FNAME_LEN];
-  (void)tNameExtractFullName(pName, fullName);
+  TAOS_CHECK_RETURN(tNameExtractFullName(pName, fullName));
+  
   return getMetaDataFromHash(fullName, strlen(fullName), pCxt->pMetaCache->pViews, (void**)ppViewMeta);
 }
 
