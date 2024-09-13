@@ -1445,7 +1445,7 @@ int32_t mndAddAlterVnodeConfirmAction(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   int32_t   contLen = sizeof(SMsgHead);
   SMsgHead *pHead = taosMemoryMalloc(contLen);
   if (pHead == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pHead->contLen = htonl(contLen);
@@ -1484,7 +1484,7 @@ int32_t mndAddChangeConfigAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SV
   SMsgHead *pHead = taosMemoryMalloc(totallen);
   if (pHead == NULL) {
     taosMemoryFree(pReq);
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pHead->contLen = htonl(totallen);
@@ -2847,8 +2847,8 @@ int32_t mndBuildRaftAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pO
   TAOS_RETURN(code);
 }
 
-int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *db, SVgObj *pVgroup,
-                                         SDnodeObj *pDnode) {
+int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *db, SVgObj *pVgroup, SDnodeObj *pDnode,
+                                         SDnodeObj *pAnotherDnode) {
   int32_t code = 0;
   SVgObj  newVgroup = {0};
   memcpy(&newVgroup, pVgroup, sizeof(SVgObj));
@@ -2864,7 +2864,33 @@ int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj 
       }
     }
     TAOS_CHECK_RETURN(mndAddCreateVnodeAction(pMnode, pTrans, db, &newVgroup, &newVgroup.vnodeGid[selected]));
-  } else if (newVgroup.replica == 2 || newVgroup.replica == 3) {
+  } else if (newVgroup.replica == 2) {
+    for (int i = 0; i < newVgroup.replica; i++) {
+      if (newVgroup.vnodeGid[i].dnodeId == pDnode->id) {
+        newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_LEARNER;
+      } else {
+        newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_VOTER;
+      }
+    }
+    TAOS_CHECK_RETURN(mndRestoreAddAlterVnodeTypeAction(pMnode, pTrans, db, &newVgroup, pAnotherDnode));
+
+    for (int i = 0; i < newVgroup.replica; i++) {
+      if (newVgroup.vnodeGid[i].dnodeId == pDnode->id) {
+        newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_LEARNER;
+      } else {
+        newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_VOTER;
+      }
+    }
+    TAOS_CHECK_RETURN(mndRestoreAddCreateVnodeAction(pMnode, pTrans, db, &newVgroup, pDnode));
+
+    for (int i = 0; i < newVgroup.replica; i++) {
+      newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_VOTER;
+      if (newVgroup.vnodeGid[i].dnodeId == pDnode->id) {
+      }
+    }
+    TAOS_CHECK_RETURN(mndRestoreAddAlterVnodeTypeAction(pMnode, pTrans, db, &newVgroup, pDnode));
+    TAOS_CHECK_RETURN(mndRestoreAddAlterVnodeTypeAction(pMnode, pTrans, db, &newVgroup, pAnotherDnode));
+  } else if (newVgroup.replica == 3) {
     for (int i = 0; i < newVgroup.replica; i++) {
       if (newVgroup.vnodeGid[i].dnodeId == pDnode->id) {
         newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_LEARNER;
@@ -2881,7 +2907,6 @@ int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj 
     }
     TAOS_CHECK_RETURN(mndRestoreAddAlterVnodeTypeAction(pMnode, pTrans, db, &newVgroup, pDnode));
   }
-
   SSdbRaw *pVgRaw = mndVgroupActionEncode(&newVgroup);
   if (pVgRaw == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -3067,7 +3092,7 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
   if (dbObj.cfg.pRetensions != NULL) {
     dbObj.cfg.pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);
     if (dbObj.cfg.pRetensions == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _OVER;
     }
   }

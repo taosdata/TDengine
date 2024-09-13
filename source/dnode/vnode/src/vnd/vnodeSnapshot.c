@@ -267,14 +267,15 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
 
     TdFilePtr pFile = taosOpenFile(fName, TD_FILE_READ);
     if (NULL == pFile) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     int64_t size;
-    if (taosFStatFile(pFile, &size, NULL) < 0) {
+    code = taosFStatFile(pFile, &size, NULL);
+    if (code != 0) {
       (void)taosCloseFile(&pFile);
-      TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + size + 1);
@@ -289,7 +290,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     if (taosReadFile(pFile, ((SSnapDataHdr *)(*ppData))->data, size) < 0) {
       taosMemoryFree(*ppData);
       (void)taosCloseFile(&pFile);
-      TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
 
     (void)taosCloseFile(&pFile);
@@ -586,7 +587,7 @@ _exit:
 }
 
 extern int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb);
-extern int32_t tsdbEnableBgTask(STsdb *pTsdb);
+extern void    tsdbEnableBgTask(STsdb *pTsdb);
 
 static int32_t vnodeCancelAndDisableAllBgTask(SVnode *pVnode) {
   (void)tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
@@ -596,7 +597,7 @@ static int32_t vnodeCancelAndDisableAllBgTask(SVnode *pVnode) {
 }
 
 static int32_t vnodeEnableBgTask(SVnode *pVnode) {
-  (void)tsdbEnableBgTask(pVnode->pTsdb);
+  tsdbEnableBgTask(pVnode->pTsdb);
   (void)vnodeAChannelInit(1, &pVnode->commitChannel);
   return 0;
 }

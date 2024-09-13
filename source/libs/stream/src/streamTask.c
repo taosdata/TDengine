@@ -111,7 +111,7 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
   if (pTask == NULL) {
     stError("s-task:0x%" PRIx64 " failed malloc new stream task, size:%d, code:%s", streamId,
             (int32_t)sizeof(SStreamTask), tstrerror(terrno));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pTask->ver = SSTREAM_TASK_VER;
@@ -489,7 +489,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   if (pOutputInfo->pTokenBucket == NULL) {
     stError("s-task:%s failed to prepare the tokenBucket, code:%s", pTask->id.idStr,
             tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   // 2MiB per second for sink task
@@ -687,13 +687,14 @@ int32_t streamTaskStop(SStreamTask* pTask) {
 
   int32_t code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_STOP);
   if (code) {
-    stError("failed to handle STOP event, s-task:%s", id);
+    stError("failed to handle STOP event, s-task:%s, code:%s", id, tstrerror(code));
+    return code;
   }
 
   if (pTask->info.taskLevel != TASK_LEVEL__SINK && pTask->exec.pExecutor != NULL) {
     code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
     if (code != TSDB_CODE_SUCCESS) {
-      stError("s-task:%s failed to kill task related query handle", id);
+      stError("s-task:%s failed to kill task related query handle, code:%s", id, tstrerror(code));
     }
   }
 
@@ -865,7 +866,7 @@ int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskI
   pReq->head.vgId = vgId;
   pReq->taskId = pTaskId->taskId;
   pReq->streamId = pTaskId->streamId;
-  pReq->resetRelHalt = resetRelHalt;  // todo: remove this attribute
+  pReq->resetRelHalt = resetRelHalt;
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_DROP, .pCont = pReq, .contLen = sizeof(SVDropStreamTaskReq)};
   int32_t code = tmsgPutToQueue(pMsgCb, WRITE_QUEUE, &msg);
@@ -1052,14 +1053,13 @@ int32_t streamTaskSendCheckpointReq(SStreamTask* pTask) {
   tEncodeSize(tEncodeStreamTaskCheckpointReq, &req, tlen, code);
   if (code < 0) {
     stError("s-task:%s vgId:%d encode stream task req checkpoint failed, code:%s", id, vgId, tstrerror(code));
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
 
   void* buf = rpcMallocCont(tlen);
   if (buf == NULL) {
-    stError("s-task:%s vgId:%d encode stream task req checkpoint msg failed, code:%s", id, vgId,
-            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    return -1;
+    stError("s-task:%s vgId:%d encode stream task req checkpoint msg failed, code:Out of memory", id, vgId);
+    return terrno;
   }
 
   SEncoder encoder;
@@ -1068,8 +1068,9 @@ int32_t streamTaskSendCheckpointReq(SStreamTask* pTask) {
     rpcFreeCont(buf);
     tEncoderClear(&encoder);
     stError("s-task:%s vgId:%d encode stream task req checkpoint msg failed, code:%s", id, vgId, tstrerror(code));
-    return -1;
+    return code;
   }
+
   tEncoderClear(&encoder);
 
   SRpcMsg msg = {0};
@@ -1190,12 +1191,13 @@ void streamTaskSetFailedChkptInfo(SStreamTask* pTask, int32_t transId, int64_t c
   pTask->chkInfo.pActiveInfo->transId = transId;
   pTask->chkInfo.pActiveInfo->activeId = checkpointId;
   pTask->chkInfo.pActiveInfo->failedId = checkpointId;
+  stDebug("s-task:%s set failed checkpointId:%"PRId64, pTask->id.idStr, checkpointId);
 }
 
 int32_t streamTaskCreateActiveChkptInfo(SActiveCheckpointInfo** pRes) {
   SActiveCheckpointInfo* pInfo = taosMemoryCalloc(1, sizeof(SActiveCheckpointInfo));
   if (pInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t code = taosThreadMutexInit(&pInfo->lock, NULL);
@@ -1239,12 +1241,13 @@ void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo) {
   taosMemoryFree(pInfo);
 }
 
+//NOTE: clear the checkpoint id, and keep the failed id
 void streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo) {
-  pInfo->activeId = 0;  // clear the checkpoint id
+  pInfo->activeId = 0;
   pInfo->transId = 0;
   pInfo->allUpstreamTriggerRecv = 0;
   pInfo->dispatchTrigger = false;
-  pInfo->failedId = 0;
+//  pInfo->failedId = 0;
 
   taosArrayClear(pInfo->pDispatchTriggerList);
   taosArrayClear(pInfo->pCheckpointReadyRecvList);

@@ -35,6 +35,8 @@ extern STaosError errors[];
 #define TAOS_DEF_ERROR_CODE(mod, code) ((int32_t)((0x80000000 | ((mod)<<16) | (code))))
 
 #define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))
+#define TAOS_SYSTEM_WINAPI_ERROR(code)      (0x81ff0000 | (code))
+#define TAOS_SYSTEM_WINSOCKET_ERROR(code)   (0x82ff0000 | (code))
 #define TAOS_SUCCEEDED(err)                 ((err) >= 0)
 #define TAOS_FAILED(err)                    ((err) < 0)
 
@@ -153,6 +155,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_MSG_PREPROCESSED              TAOS_DEF_ERROR_CODE(0, 0x0136) // internal
 #define TSDB_CODE_OUT_OF_BUFFER                 TAOS_DEF_ERROR_CODE(0, 0x0137)
 #define TSDB_CODE_INTERNAL_ERROR                TAOS_DEF_ERROR_CODE(0, 0x0138)
+#define TSDB_CODE_SOCKET_ERROR                  TAOS_DEF_ERROR_CODE(0, 0x0139)
 
 //client
 #define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)

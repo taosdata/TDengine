@@ -300,7 +300,7 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
 
   if (taosReadFile(pFile, (void *)email, maxLen) < 0) {
     taosCloseFile(&pFile);
-    return -1;
+    return terrno;
   }
 
   taosCloseFile(&pFile);

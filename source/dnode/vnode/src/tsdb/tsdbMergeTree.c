@@ -681,11 +681,7 @@ int32_t tLDataIterOpen2(SLDataIter *pIter, SSttFileReader *pSttFileReader, int32
 }
 
 void tLDataIterClose2(SLDataIter *pIter) {
-  int32_t code = tsdbSttFileReaderClose(&pIter->pReader);  // always return 0
-  if (code != 0) {
-    tsdbError("%" PRId64 " failed to close tsdb file reader, code:%s", pIter->cid, tstrerror(code));
-  }
-
+  tsdbSttFileReaderClose(&pIter->pReader);
   pIter->pReader = NULL;
 }
 

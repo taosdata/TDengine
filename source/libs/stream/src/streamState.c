@@ -483,7 +483,7 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
   }
   *pVal = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
   if (!(*pVal)) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 

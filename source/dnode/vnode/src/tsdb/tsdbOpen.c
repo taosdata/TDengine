@@ -17,7 +17,7 @@
 #include "tsdbFS2.h"
 
 extern int32_t tsdbOpenCompMonitor(STsdb *tsdb);
-extern int32_t tsdbCloseCompMonitor(STsdb *tsdb);
+extern void    tsdbCloseCompMonitor(STsdb *tsdb);
 
 void tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
   STsdbKeepCfg *pKeepCfg = &pTsdb->keepCfg;
@@ -65,19 +65,23 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
 
   // create dir
   if (pVnode->pTfs) {
-    (void)tfsMkdir(pVnode->pTfs, pTsdb->path);
+    code = tfsMkdir(pVnode->pTfs, pTsdb->path);
+    TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    (void)taosMkDir(pTsdb->path);
+    code = taosMkDir(pTsdb->path);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // open tsdb
-  TAOS_CHECK_GOTO(tsdbOpenFS(pTsdb, &pTsdb->pFS, rollback), &lino, _exit);
+  code = tsdbOpenFS(pTsdb, &pTsdb->pFS, rollback);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   if (pTsdb->pFS->fsstate == TSDB_FS_STATE_INCOMPLETE && force == false) {
     TAOS_CHECK_GOTO(TSDB_CODE_NEED_RETRY, &lino, _exit);
   }
 
-  TAOS_CHECK_GOTO(tsdbOpenCache(pTsdb), &lino, _exit);
+  code = tsdbOpenCache(pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 #ifdef TD_ENTERPRISE
   TAOS_CHECK_GOTO(tsdbOpenCompMonitor(pTsdb), &lino, _exit);
@@ -86,7 +90,7 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, lino, tstrerror(code));
-    (void)tsdbCloseFS(&pTsdb->pFS);
+    tsdbCloseFS(&pTsdb->pFS);
     (void)taosThreadMutexDestroy(&pTsdb->mutex);
     taosMemoryFree(pTsdb);
   } else {
@@ -109,10 +113,10 @@ int32_t tsdbClose(STsdb **pTsdb) {
     (*pTsdb)->mem = NULL;
     (void)taosThreadMutexUnlock(&(*pTsdb)->mutex);
 
-    (void)tsdbCloseFS(&(*pTsdb)->pFS);
+    tsdbCloseFS(&(*pTsdb)->pFS);
     tsdbCloseCache(*pTsdb);
 #ifdef TD_ENTERPRISE
-    (void)tsdbCloseCompMonitor(*pTsdb);
+    tsdbCloseCompMonitor(*pTsdb);
 #endif
     (void)taosThreadMutexDestroy(&(*pTsdb)->mutex);
     taosMemoryFreeClear(*pTsdb);

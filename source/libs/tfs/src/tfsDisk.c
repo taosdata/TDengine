@@ -22,7 +22,7 @@ int32_t tfsNewDisk(int32_t level, int32_t id, int8_t disable, const char *path, 
   STfsDisk *pDisk = NULL;
 
   if ((pDisk = taosMemoryCalloc(1, sizeof(STfsDisk))) == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   if ((pDisk->path = taosStrdup(path)) == NULL) {

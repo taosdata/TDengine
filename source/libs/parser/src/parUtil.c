@@ -463,7 +463,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
       int32_t valLen = (int32_t)strlen(jsonValue);
       char*   tmp = taosMemoryCalloc(1, valLen * TSDB_NCHAR_SIZE);
       if (!tmp) {
-        retCode = TSDB_CODE_OUT_OF_MEMORY;
+        retCode = terrno;
         goto end;
       }
       val.type = TSDB_DATA_TYPE_NCHAR;
@@ -1039,7 +1039,7 @@ int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, S
 int32_t buildTableMetaFromViewMeta(STableMeta** pMeta, SViewMeta* pViewMeta) {
   *pMeta = taosMemoryCalloc(1, sizeof(STableMeta) + pViewMeta->numOfCols * sizeof(SSchema));
   if (NULL == *pMeta) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (*pMeta)->uid = pViewMeta->viewId;
   (*pMeta)->vgId = MNODE_HANDLE;
