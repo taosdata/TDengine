@@ -219,6 +219,7 @@ typedef struct {
 #define NUM_TO_STRING(_inputType, _input, _outputBytes, _output)                       \
   do {                                                                                 \
     switch (_inputType) {                                                              \
+      case TSDB_DATA_TYPE_BOOL:                                                        \
       case TSDB_DATA_TYPE_TINYINT:                                                     \
         snprintf(_output, (int32_t)(_outputBytes), "%d", *(int8_t *)(_input));         \
         break;                                                                         \
