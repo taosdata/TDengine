@@ -3120,6 +3120,15 @@ static int32_t getOrCreateHeap(SHashObj* pConnHeapCache, char* key, SHeap** pHea
   return code;
 }
 
+static FORCE_INLINE int8_t shouldSWitchToOtherConn(int32_t reqNum, int32_t sentNum, int32_t stateNum) {
+  int32_t total = reqNum + sentNum + stateNum;
+  if (total >= 16) {
+    return 1;
+  }
+
+  return 0;
+}
+
 static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
   int       code = 0;
   SHeap*    pHeap = NULL;
@@ -3130,13 +3139,22 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
     return NULL;
   }
   code = transHeapGet(pHeap, &pConn);
+
   if (code != 0) {
     tDebug("failed to get conn from heap cache for key:%s", key);
     return NULL;
   } else {
     tDebug("get conn %p from heap cache for key:%s, status:%d, refCnt:%d", pConn, key, pConn->inHeap, pConn->reqRefCnt);
-  }
+    int32_t reqsNum = transQueueSize(&pConn->reqsToSend);
+    int32_t reqsSentOut = transQueueSize(&pConn->reqsSentOut);
+    int32_t stateNum = taosHashGetSize(pConn->pQTable);
 
+    if (shouldSWitchToOtherConn(reqsNum, reqsSentOut, stateNum)) {
+      tDebug("conn %p has %d reqs, %d sentout and %s status in process, switch to other conn", pConn, reqsNum,
+             reqsSentOut, stateNum);
+      return NULL;
+    }
+  }
   return pConn;
 }
 static int32_t addConnToHeapCache(SHashObj* pConnHeapCacahe, SCliConn* pConn) {
