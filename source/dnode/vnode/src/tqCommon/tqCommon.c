@@ -78,7 +78,7 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
     pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, vgId, pTask->id.taskId);
     if (pTask->exec.pExecutor == NULL) {
       tqError("s-task:%s failed to create exec taskInfo, failed to expand task", pTask->id.idStr);
-      return -1;
+      return terrno;
     }
     qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
   }
@@ -840,7 +840,7 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
         int32_t idle = taosGetTimestampMs() - execTs;
         tqDebug("s-task:%s task resume to run after idle for:%dms from:%" PRId64, pTask->id.idStr, idle, execTs);
 
-        streamResumeTask(pTask);
+        code = streamResumeTask(pTask);
       } else {
         int8_t status = streamTaskSetSchedStatusInactive(pTask);
         tqDebug("vgId:%d s-task:%s ignore run req since not in ready state, status:%s, sched-status:%d", vgId,
@@ -849,7 +849,7 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
       streamMetaReleaseTask(pMeta, pTask);
     }
 
-    return 0;
+    return code;
   }
 
   SStreamTask* pTask = NULL;
