@@ -443,11 +443,12 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
       (void)taosHashRemove(pConn->pQTable, &qId, sizeof(qId));
     }
 
-    STransMsg    tmsg = {.code = code,
-                         .msgType = pHead->msgType + 1,
-                         .info.qId = qId,
-                         .info.traceId = pHead->traceId,
-                         .info.seqNum = htonl(pHead->seqNum)};
+    STransMsg tmsg = {.code = code,
+                      .msgType = pHead->msgType + 1,
+                      .info.qId = qId,
+                      .info.traceId = pHead->traceId,
+                      .info.seqNum = htonl(pHead->seqNum)};
+
     SSvrRespMsg* srvMsg = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
     srvMsg->msg = tmsg;
     srvMsg->type = Normal;
@@ -456,6 +457,7 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
     transQueuePush(&pConn->resps, &srvMsg->q);
 
     uvStartSendRespImpl(srvMsg);
+    taosMemoryFree(pHead);
     return 1;
   }
   return 0;
@@ -507,6 +509,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   if (transDecompressMsg((char**)&pHead, msgLen) < 0) {
     tError("%s conn %p recv invalid packet, failed to decompress", transLabel(pInst), pConn);
+    taosMemoryFree(pHead);
     return false;
   }
   pHead->code = htonl(pHead->code);
