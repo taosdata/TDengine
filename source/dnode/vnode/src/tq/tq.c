@@ -102,7 +102,6 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
 
 int32_t tqInitialize(STQ* pTq) {
   int32_t vgId = TD_VID(pTq->pVnode);
-
   int32_t code = streamMetaOpen(pTq->path, pTq, tqBuildStreamTask, tqExpandStreamTask, vgId, -1,
                                 tqStartTaskCompleteCallback, &pTq->pStreamMeta);
   if (code != TSDB_CODE_SUCCESS) {
@@ -110,7 +109,6 @@ int32_t tqInitialize(STQ* pTq) {
   }
 
   streamMetaLoadAllTasks(pTq->pStreamMeta);
-
   return tqMetaOpen(pTq);
 }
 
@@ -713,8 +711,7 @@ end:
 static void freePtr(void* ptr) { taosMemoryFree(*(void**)ptr); }
 
 int32_t tqBuildStreamTask(void* pTqObj, SStreamTask* pTask, int64_t nextProcessVer) {
-  STQ* pTq = (STQ*)pTqObj;
-
+  STQ*    pTq = (STQ*)pTqObj;
   int32_t vgId = TD_VID(pTq->pVnode);
   tqDebug("s-task:0x%x start to build task", pTask->id.taskId);
 
@@ -744,16 +741,25 @@ int32_t tqBuildStreamTask(void* pTqObj, SStreamTask* pTask, int64_t nextProcessV
     SSchemaWrapper* pschemaWrapper = pOutputInfo->tbSink.pSchemaWrapper;
     pOutputInfo->tbSink.pTSchema = tBuildTSchema(pschemaWrapper->pSchema, pschemaWrapper->nCols, ver1);
     if (pOutputInfo->tbSink.pTSchema == NULL) {
-      return -1;
+      return terrno;
     }
 
     pOutputInfo->tbSink.pTblInfo = tSimpleHashInit(10240, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    if (pOutputInfo->tbSink.pTblInfo == NULL) {
+      tqError("vgId:%d failed init sink tableInfo, code:%s", vgId, tstrerror(terrno));
+      return terrno;
+    }
+
     tSimpleHashSetFreeFp(pOutputInfo->tbSink.pTblInfo, freePtr);
   }
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     SWalFilterCond cond = {.deleteMsg = 1};  // delete msg also extract from wal files
     pTask->exec.pWalReader = walOpenReader(pTq->pVnode->pWal, &cond, pTask->id.taskId);
+    if (pTask->exec.pWalReader == NULL) {
+      tqError("vgId:%d failed init wal reader, code:%s", vgId, tstrerror(terrno));
+      return terrno;
+    }
   }
 
   streamTaskResetUpstreamStageInfo(pTask);
