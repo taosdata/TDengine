@@ -1240,6 +1240,13 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = createColumnByRewriteExpr(pFill->pWStartTs, &pFill->node.pTargets);
   }
 
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pHaving) {
+    pFill->node.pConditions = nodesCloneNode(pSelect->pHaving);
+    if (NULL == pFill->node.pConditions) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pFill;
   } else {
