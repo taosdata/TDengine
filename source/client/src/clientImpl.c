@@ -1276,9 +1276,9 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
   }
 
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
-    code = removeMeta(pRequest->pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
-    if (TSDB_CODE_SUCCESS != code) {
-      tscError("0x%" PRIx64 " remove meta failed,QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
+    int ret = removeMeta(pRequest->pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
+    if (TSDB_CODE_SUCCESS != ret) {
+      tscError("0x%" PRIx64 " remove meta failed,code:%d,QID:0x%" PRIx64, pRequest->self, ret, pRequest->requestId);
     }
   }
 
