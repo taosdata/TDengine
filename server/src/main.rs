@@ -1266,7 +1266,14 @@ struct LogOpts {
     path: Option<PathBuf>,
     #[clap(id = "log.level", long = "log.level", env = "EXPLORER_LOG_LEVEL")]
     level: Option<LevelFilter>,
-    #[clap(id = "log.compress", long = "log.compress", env = "EXPLORER_LOG_COMPRESS", action = clap::ArgAction::SetTrue)]
+    #[clap(
+        id = "log.compress",
+        long = "log.compress",
+        env = "EXPLORER_LOG_COMPRESS",
+        num_args = 0..=1,
+        default_missing_value = "true",
+        value_parser = compress_arg_parser,
+    )]
     #[serde_as(as = "Option<FromInto<CompressType>>")]
     compress: Option<bool>,
     #[clap(
@@ -1287,6 +1294,13 @@ struct LogOpts {
         env = "EXPLORER_LOG_RESERVED_DISK_SIZE"
     )]
     reserved_disk_size: Option<String>,
+}
+
+fn compress_arg_parser(value: &str) -> Result<bool, clap::Error> {
+    match value.to_lowercase().as_str() {
+        "0" | "false" => Ok(false),
+        _ => Ok(true),
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
@@ -1338,7 +1352,7 @@ impl Default for LogOpts {
             compress: Some(false),
             rotation_count: Some(30),
             rotation_size: Some("1GB".to_string()),
-            reserved_disk_size: Some("2GB".to_string()),
+            reserved_disk_size: Some("1GB".to_string()),
         }
     }
 }
