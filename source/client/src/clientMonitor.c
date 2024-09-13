@@ -767,7 +767,8 @@ static void* monitorThreadFunc(void* param) {
     }
 
     MonitorSlowLogData* slowLogData = NULL;
-    if (taosReadQitem(monitorQueue, (void**)&slowLogData) != 0) {
+    taosReadQitem(monitorQueue, (void**)&slowLogData);
+    if (slowLogData != NULL) {
       if (slowLogData->type == SLOW_LOG_READ_BEGINNIG && quitCnt == 0) {
         if (slowLogData->pFile != NULL) {
           monitorSendSlowLogAtBeginning(slowLogData->clusterId, &(slowLogData->fileName), slowLogData->pFile,
