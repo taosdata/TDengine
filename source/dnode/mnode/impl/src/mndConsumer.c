@@ -511,6 +511,11 @@ static int32_t getTopicAddDelete(SMqConsumerObj *pExistedConsumer, SMqConsumerOb
       }
     }
   }
+  // no topics need to be rebalanced
+  if (taosArrayGetSize(pConsumerNew->rebNewTopics) == 0 && taosArrayGetSize(pConsumerNew->rebRemovedTopics) == 0) {
+    code = TSDB_CODE_TMQ_NO_NEED_REBALANCE;
+  }
+
 END:
   return code;
 }
@@ -581,6 +586,10 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   if(ubSubscribe){
     SMqConsumerObj *pConsumerTmp = NULL;
     MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, subscribe.consumerId, &pConsumerTmp));
+    if (taosArrayGetSize(pConsumerTmp->assignedTopics) == 0){
+      mndReleaseConsumer(pMnode, pConsumerTmp);
+      goto END;
+    }
     mndReleaseConsumer(pMnode, pConsumerTmp);
   }
   MND_TMQ_RETURN_CHECK(checkAndSortTopic(pMnode, subscribe.topicNames));
@@ -599,7 +608,7 @@ END:
   mndTransDrop(pTrans);
   tDeleteSMqConsumerObj(pConsumerNew);
   taosArrayDestroyP(subscribe.topicNames, (FDelete)taosMemoryFree);
-  return code;
+  return (code == TSDB_CODE_TMQ_NO_NEED_REBALANCE || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) ? 0 : code;
 }
 
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
