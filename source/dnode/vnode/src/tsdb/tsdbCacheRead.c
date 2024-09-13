@@ -410,7 +410,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
           }
           double cost = (taosGetTimestampUs() - st) / 1000.0;
           if (cost > tsCacheLazyLoadThreshold) {
-            pr->lastTs = totalLastTs;
+            // pr->lastTs = totalLastTs;
           }
         }
       }
