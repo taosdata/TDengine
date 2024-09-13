@@ -97,7 +97,16 @@ int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t
           sdbRelease(pSdb, pVgroup);
           goto _OVER;
         }
-        if ((code = mndBuildRestoreAlterVgroupAction(pMnode, pTrans, db, pVgroup, pDnode)) != 0) {
+
+        SDnodeObj *pAnotherDnode = NULL;
+        if (pVgroup->replica == 2) {
+          for (int i = 0; i < pVgroup->replica; i++) {
+            if (pVgroup->vnodeGid[i].dnodeId != pDnode->id) {
+              pAnotherDnode = mndAcquireDnode(pMnode, pVgroup->vnodeGid[i].dnodeId);
+            }
+          }
+        }
+        if ((code = mndBuildRestoreAlterVgroupAction(pMnode, pTrans, db, pVgroup, pDnode, pAnotherDnode)) != 0) {
           sdbCancelFetch(pSdb, pIter);
           mndReleaseDb(pMnode, db);
           sdbRelease(pSdb, pVgroup);
