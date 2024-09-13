@@ -39,6 +39,12 @@
               }}
               <el-input-number v-model="limitOffset" size="small" :min="1" :max="100" controls-position="right" @change="handleLimit"></el-input-number>
             </el-col>
+            <el-col :class="['flexBetween','mt5']" v-if="$store.state.app.supportSQL">
+              {{
+                $t("datasource.transformer.timeout")
+              }}
+              <el-input-number v-model="timeout" size="small" :min="1" :max="600" controls-position="right" @change="handleLimit"></el-input-number>
+            </el-col>
             <el-col
               name="second"
               :class="['mt5','msg-right']"
@@ -664,7 +670,7 @@
 <script>
 import ExtractSplit from "./extractSplit.vue";
 import FilterExpression from "./filterExpression.vue";
-import { getParser, checkParseData, getHistorianMsgbody } from "@/api/explorer/datain";
+import { getParser, checkParseData, getSampleDataMsgbody } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import CreateSTB from "./createSTB.vue";
@@ -812,6 +818,7 @@ export default {
       currentCol: "",
       mappingParser: {},
       limitOffset: 5,
+      timeout: 30,
       request: false,
       visiblePop1: false,
       visiblePop2: false,
@@ -870,6 +877,9 @@ export default {
       this.msgForm.msgbody = this.$store.state.app.csvTransformerParser.msgBody;
       await this.submitParse();
     }
+    if (this.$store.state.app.currentDBType == 'avevaHistorian') {
+      this.timeout = 120;
+    } 
     await this.getInitStables();
     this.statisticCol();
   },
@@ -961,10 +971,11 @@ export default {
       if (isSupportType) {
         dsn += `&get_sample_timeout=3`
       }
-      let result = await getHistorianMsgbody(
+      let result = await getSampleDataMsgbody(
         this.$store.state.app.currentDBType,
         encodeURIComponent(dsn),
-        this.sourceParent.sourceForm.agent
+        this.sourceParent.sourceForm.agent,
+        this.$store.state.app.supportSQL ? this.timeout : ''
       );
       if (result && Object.hasOwnProperty.call(result,'code')) {
         this.$error(result.message || result.desc)
@@ -1348,7 +1359,7 @@ export default {
       if (this.$store.state.app.supportSQL) {
         let dsn = this.$store.state.app.historiandsn;
         dsn += `&sample_data_limit=${this.limitOffset}`
-        let result = await getHistorianMsgbody(
+        let result = await getSampleDataMsgbody(
           this.$store.state.app.currentDBType,
           encodeURIComponent(dsn),
           this.sourceParent.sourceForm.agent

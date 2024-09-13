@@ -134,7 +134,7 @@ export default {
   agoHour: "Last Hour",
   agoMonth: "Last 30 days",
   agoQuarter: "Last 90 days",
-  filter: "Filter",
+  filter: "Press enter filterr",
   add: "Add",
   addSucc: "Add Success!",
   del: "Delete",
@@ -1425,6 +1425,7 @@ export default {
       configuredcount:'Configured',
       unit:'Piece',
       dataLimit: 'Sample data limit:',
+      timeout: 'Timeout(s):',
       msgbodytypes: {
         type1: "Clear",
         type2: "Retrieve From Server",

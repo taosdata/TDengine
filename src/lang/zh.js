@@ -128,7 +128,7 @@ export default {
   agoHour: "一小时前",
   agoMonth: "30天前",
   agoQuarter: "90天前",
-  filter: "过滤",
+  filter: "按回车过滤",
   name: "名称",
   timestamp: "时间戳",
   add: "新增",
@@ -200,7 +200,7 @@ export default {
   nanoseconds: '纳秒',
   communityTip: "仅企业版和云服务可用，了解更多，请访问 TDengine <a href='https://www.taosdata.com/tdengine-enterprise?utm_source=oss+&utm_medium=user&utm_campaign=explorer' target='_blank'>官网</a>。",
   communityDemoDataTip: '当前列表仅为示例数据',
-  fullszhcreen: "全屏显示",
+  fullscreen: "全屏显示",
   import: "导入",
   dockerTip: "如果以 docker 方式启动，请使用映射后的 ip:port 替换 {0}。",
   statuses: {
@@ -1212,6 +1212,7 @@ export default {
       configuredcount:'已配置',
       unit:'条',
       dataLimit: '示例数据行数上限：',
+      timeout: '请求超时(秒)：',
       msgbodytypes: {
         type1: "清空",
         type2: "从服务器检索",

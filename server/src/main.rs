@@ -11,6 +11,7 @@ use log::LevelFilter;
 use reqwest::RequestBuilder;
 use rustls::server::ServerConfig;
 use rustls_pemfile::{certs, private_key};
+use serde_with::{serde_as, FromInto};
 use std::{
     collections::HashMap,
     fmt::Display,
@@ -1257,21 +1258,59 @@ struct Args {
     data_dir: Option<String>,
 }
 
+#[serde_as]
 #[derive(Parser, Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct LogOpts {
-    #[clap(long = "log.path", env = "EXPLORER_LOG_PATH")]
+    #[clap(id = "log.path", long = "log.path", env = "EXPLORER_LOG_PATH")]
     path: Option<PathBuf>,
-    #[clap(long = "log.level", env = "EXPLORER_LOG_LEVEL")]
+    #[clap(id = "log.level", long = "log.level", env = "EXPLORER_LOG_LEVEL")]
     level: Option<LevelFilter>,
-    #[clap(long = "log.compress", env = "EXPLORER_LOG_COMPRESS")]
+    #[clap(id = "log.compress", long = "log.compress", env = "EXPLORER_LOG_COMPRESS", action = clap::ArgAction::SetTrue)]
+    #[serde_as(as = "Option<FromInto<CompressType>>")]
     compress: Option<bool>,
-    #[clap(long = "log.rotationCount", env = "EXPLORER_LOG_ROTATION_COUNT")]
+    #[clap(
+        id = "log.rotationCount",
+        long = "log.rotationCount",
+        env = "EXPLORER_LOG_ROTATION_COUNT"
+    )]
     rotation_count: Option<usize>,
-    #[clap(long = "log.rotationSize", env = "EXPLORER_LOG_ROTATION_SIZE")]
+    #[clap(
+        id = "log.rotationSize",
+        long = "log.rotationSize",
+        env = "EXPLORER_LOG_ROTATION_SIZE"
+    )]
     rotation_size: Option<String>,
-    #[clap(long = "log.reservedDiskSize", env = "EXPLORER_LOG_RESERVED_DISK_SIZE")]
+    #[clap(
+        id = "log.reservedDiskSize",
+        long = "log.reservedDiskSize",
+        env = "EXPLORER_LOG_RESERVED_DISK_SIZE"
+    )]
     reserved_disk_size: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[serde(untagged)]
+enum CompressType {
+    B(bool),
+    N(u8),
+}
+
+impl From<CompressType> for bool {
+    fn from(value: CompressType) -> Self {
+        match value {
+            CompressType::B(v) => v,
+            CompressType::N(1) => true,
+            CompressType::N(0) => false,
+            _ => panic!("invalid compress value"),
+        }
+    }
+}
+
+impl From<bool> for CompressType {
+    fn from(value: bool) -> Self {
+        Self::B(value)
+    }
 }
 
 impl LogOpts {
@@ -1616,6 +1655,7 @@ mod tests {
     use std::{path::PathBuf, str::FromStr};
 
     use chrono::TimeZone;
+    use clap::CommandFactory;
     use log::LevelFilter;
     use taos::*;
 
@@ -1654,5 +1694,62 @@ mod tests {
         assert_eq!(log.rotation_count.unwrap(), 33);
         assert_eq!(log.rotation_size.unwrap(), "3GB");
         assert_eq!(log.reserved_disk_size.unwrap(), "30GB");
+    }
+
+    #[test]
+    fn parse_log_opts_compress_number() {
+        let s = r#"
+            [log]
+            path = "aaa"
+            level = "warn"
+            compress = 1
+            rotationCount = 33
+            rotationSize = "3GB"
+            reservedDiskSize = "30GB"
+        "#;
+        let args: Args = toml::from_str(s).unwrap();
+        let log = args.log.unwrap();
+        assert_eq!(log.path.unwrap(), PathBuf::from("aaa"));
+        assert_eq!(log.level.unwrap(), LevelFilter::Warn);
+        assert!(log.compress.unwrap());
+        assert_eq!(log.rotation_count.unwrap(), 33);
+        assert_eq!(log.rotation_size.unwrap(), "3GB");
+        assert_eq!(log.reserved_disk_size.unwrap(), "30GB");
+    }
+
+    #[test]
+    fn parse_log_opts_clap() {
+        let cli = format!("{}-explorer", env!("CUS_CLI_NAME"));
+        let matches = Args::command()
+            .try_get_matches_from([
+                &cli,
+                "--log.path",
+                "/var/log/taos",
+                "--log.level",
+                "info",
+                "--log.compress",
+                "--log.rotationCount",
+                "3",
+                "--log.rotationSize",
+                "3GB",
+                "--log.reservedDiskSize",
+                "3GB",
+            ])
+            .unwrap();
+        assert_eq!(
+            matches.get_one("log.path"),
+            Some(&PathBuf::from("/var/log/taos"))
+        );
+        assert_eq!(matches.get_one("log.level"), Some(&log::LevelFilter::Info));
+        assert_eq!(matches.get_one("log.compress"), Some(&true));
+        assert_eq!(matches.get_one("log.rotationCount"), Some(&3usize));
+        assert_eq!(
+            matches.get_one("log.rotationSize"),
+            Some(&"3GB".to_string())
+        );
+        assert_eq!(
+            matches.get_one("log.reservedDiskSize"),
+            Some(&"3GB".to_string())
+        )
     }
 }

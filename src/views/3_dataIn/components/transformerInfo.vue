@@ -341,7 +341,7 @@
 <script>
 import ExtractSplit from "./extractSplit.vue";
 import FilterExpression from "./filterExpression.vue";
-import { getParser, checkParseData, getHistorianMsgbody } from "@/api/explorer/datain";
+import { getParser, checkParseData, getSampleDataMsgbody } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import CreateSTB from "./createSTB.vue";
@@ -633,7 +633,7 @@ export default {
         this.$parent.$parent.$parent.currentDefinition
       );
       dsn += `&sample_data_limit=${this.limitOffset}`
-      let result = await getHistorianMsgbody(
+      let result = await getSampleDataMsgbody(
         this.$store.state.app.currentDBType,
         encodeURIComponent(dsn),
         this.sourceParent.sourceForm.agent
@@ -979,7 +979,7 @@ export default {
       if (this.$store.state.app.supportSQL) {
         let dsn = this.$store.state.app.historiandsn;
         dsn += `&sample_data_limit=${this.limitOffset}`
-        let result = await getHistorianMsgbody(
+        let result = await getSampleDataMsgbody(
           this.$store.state.app.currentDBType,
           encodeURIComponent(dsn),
           this.sourceParent.sourceForm.agent

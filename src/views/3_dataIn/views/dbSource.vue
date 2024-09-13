@@ -44,8 +44,8 @@ export default {
     TDengineVersion() {
       return localStorage.getItem('agent_version');
     },
-    isLessThen3_3_3_0() {
-      return compareVersion(this.TDengineVersion, '<3.3.3.0')
+    isLessThan3_3_2_12() {
+      return compareVersion(this.TDengineVersion, '<3.3.2.12')
     }
   },
   watch: {
@@ -66,8 +66,8 @@ export default {
         if (this.$INDUSTRY) {
           let array = JSON.parse(localStorage.getItem('allLicenseNameData')) || [];
           const filterRes = array.filter(item => ['csv'].includes(item.grant_name));
-          if (this.isLessThen3_3_3_0) {
-            // 3_3_3_0 之前默认保留 csv 数据源，不参与授权
+          if (this.isLessThan3_3_2_12) {
+            // 3_3_2_12 之前默认保留 csv 数据源，不参与授权
             if (filterRes.length < 0) {
               array.push({
                 grant_name: "csv"
