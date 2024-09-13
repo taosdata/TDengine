@@ -34,6 +34,7 @@
 #include "systable.h"
 #include "thttp.h"
 #include "tjson.h"
+#include "command.h"
 
 #define DB_VER_NUMBER   1
 #define DB_RESERVE_SIZE 27
@@ -1557,7 +1558,7 @@ static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bo
   }
 
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 
@@ -1728,7 +1729,7 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
   int32_t code = 0;
   pRsp->pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
   if (pRsp->pVgroupInfos == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 
@@ -2321,18 +2322,25 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     (void)colDataSetVal(pColInfo, rows, (const char *)strictVstr, false);
 
     char    durationVstr[128] = {0};
-    int32_t len = sprintf(&durationVstr[VARSTR_HEADER_SIZE], "%dm", pDb->cfg.daysPerFile);
+    int32_t len = formatDurationOrKeep(&durationVstr[VARSTR_HEADER_SIZE], pDb->cfg.daysPerFile);
+
     varDataSetLen(durationVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     (void)colDataSetVal(pColInfo, rows, (const char *)durationVstr, false);
 
-    char keepVstr[128] = {0};
+    char keepVstr[512] = {0};
+    char keep0Str[128] = {0};
+    char keep1Str[128] = {0};
+    char keep2Str[128] = {0};
+
+    int32_t lenKeep0 = formatDurationOrKeep(keep0Str, pDb->cfg.daysToKeep0);
+    int32_t lenKeep1 = formatDurationOrKeep(keep1Str, pDb->cfg.daysToKeep1);
+    int32_t lenKeep2 = formatDurationOrKeep(keep2Str, pDb->cfg.daysToKeep2);
+
     if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
-      len = sprintf(&keepVstr[VARSTR_HEADER_SIZE], "%dm,%dm,%dm", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2,
-                    pDb->cfg.daysToKeep0);
+        len = sprintf(&keepVstr[VARSTR_HEADER_SIZE], "%s,%s,%s", keep1Str, keep2Str, keep0Str);
     } else {
-      len = sprintf(&keepVstr[VARSTR_HEADER_SIZE], "%dm,%dm,%dm", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1,
-                    pDb->cfg.daysToKeep2);
+        len = sprintf(&keepVstr[VARSTR_HEADER_SIZE], "%s,%s,%s", keep0Str, keep1Str, keep2Str);
     }
     varDataSetLen(keepVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

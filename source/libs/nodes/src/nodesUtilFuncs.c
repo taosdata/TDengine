@@ -235,7 +235,10 @@ void nodesDestroyAllocatorSet() {
     int64_t         refId = 0;
     while (NULL != pAllocator) {
       refId = pAllocator->self;
-      (void)taosRemoveRef(g_allocatorReqRefPool, refId);
+      int32_t code = taosRemoveRef(g_allocatorReqRefPool, refId);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesError("failed to remove ref at: %s:%d, rsetId:%d, refId:%"PRId64, __func__, __LINE__, g_allocatorReqRefPool, refId);
+      }
       pAllocator = taosIterateRef(g_allocatorReqRefPool, refId);
     }
     taosCloseRef(g_allocatorReqRefPool);
@@ -328,7 +331,10 @@ void nodesDestroyAllocator(int64_t allocatorId) {
     return;
   }
 
-  (void)taosRemoveRef(g_allocatorReqRefPool, allocatorId);
+  int32_t code = taosRemoveRef(g_allocatorReqRefPool, allocatorId);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesError("failed to remove ref at: %s:%d, rsetId:%d, refId:%"PRId64, __func__, __LINE__, g_allocatorReqRefPool, allocatorId);
+  }
 }
 
 static int32_t makeNode(ENodeType type, int32_t size, SNode** ppNode) {
@@ -1092,7 +1098,10 @@ void nodesDestroyNode(SNode* pNode) {
         pStmt->destroyParseFileCxt(&pStmt->pParFileCxt);
       }
 
-      (void)taosCloseFile(&pStmt->fp);
+      int32_t code = taosCloseFile(&pStmt->fp);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesError("failed to close file: %s:%d", __func__, __LINE__);
+      }
       break;
     }
     case QUERY_NODE_CREATE_DATABASE_STMT:

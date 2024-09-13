@@ -174,9 +174,12 @@ int64_t taosCopyFile(const char *from, const char *to) {
   }
 
   code = taosFsyncFile(pFileTo);
+  if (code != 0) {
+    goto _err;
+  }
 
-  (void)taosCloseFile(&pFileFrom);
-  (void)taosCloseFile(&pFileTo);
+  TAOS_UNUSED(taosCloseFile(&pFileFrom));
+  TAOS_UNUSED(taosCloseFile(&pFileTo));
 
   if (code != 0) {
     terrno = code;
@@ -187,10 +190,10 @@ int64_t taosCopyFile(const char *from, const char *to) {
 
 _err:
 
-  if (pFileFrom != NULL) (void)taosCloseFile(&pFileFrom);
-  if (pFileTo != NULL) (void)taosCloseFile(&pFileTo);
+  if (pFileFrom != NULL) TAOS_SKIP_ERROR(taosCloseFile(&pFileFrom));
+  if (pFileTo != NULL) TAOS_SKIP_ERROR(taosCloseFile(&pFileTo));
   /* coverity[+retval] */
-  (void)taosRemoveFile(to);
+  TAOS_SKIP_ERROR(taosRemoveFile(to));
 
   terrno = code;
   return -1;
@@ -1120,8 +1123,8 @@ int32_t taosCloseFile(TdFilePtr *ppFile) {
   (void)taosThreadRwlockWrlock(&((*ppFile)->rwlock));
 #endif
   if ((*ppFile)->fp != NULL) {
-    (void)fflush((*ppFile)->fp);
-    (void)fclose((*ppFile)->fp);
+    TAOS_UNUSED(fflush((*ppFile)->fp));
+    TAOS_UNUSED(fclose((*ppFile)->fp));
     (*ppFile)->fp = NULL;
   }
 #ifdef WINDOWS
@@ -1471,21 +1474,25 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   while (!feof(pSrcFile->fp)) {
     len = (int32_t)fread(data, 1, compressSize, pSrcFile->fp);
     if (len > 0) {
-      (void)gzwrite(dstFp, data, len);
+      if(gzwrite(dstFp, data, len) == 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        ret = terrno;
+        goto cmp_end;
+      }
     }
   }
 
 cmp_end:
 
   if (fd >= 0) {
-    (void)close(fd);
+    TAOS_SKIP_ERROR(close(fd));
   }
   if (pSrcFile) {
-    (void)taosCloseFile(&pSrcFile);
+    TAOS_SKIP_ERROR(taosCloseFile(&pSrcFile));
   }
 
   if (dstFp) {
-    (void)gzclose(dstFp);
+    TAOS_SKIP_ERROR(gzclose(dstFp));
   }
 
   taosMemoryFree(data);

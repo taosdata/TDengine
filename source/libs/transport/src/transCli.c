@@ -99,12 +99,11 @@ typedef struct SCliMsg {
 } SCliMsg;
 
 typedef struct SCliThrd {
-  TdThread      thread;  // tid
-  int64_t       pid;     // pid
-  uv_loop_t*    loop;
-  SAsyncPool*   asyncPool;
-  uv_prepare_t* prepare;
-  void*         pool;  // conn pool
+  TdThread    thread;  // tid
+  int64_t     pid;     // pid
+  uv_loop_t*  loop;
+  SAsyncPool* asyncPool;
+  void*       pool;  // conn pool
   // timer handles
   SArray* timerList;
   // msg queue
@@ -167,7 +166,6 @@ static void cliSendCb(uv_write_t* req, int status);
 static void cliConnCb(uv_connect_t* req, int status);
 static void cliAsyncCb(uv_async_t* handle);
 static void cliIdleCb(uv_idle_t* handle);
-static void cliPrepareCb(uv_prepare_t* handle);
 
 static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd);
 static void cliSendBatchCb(uv_write_t* req, int status);
@@ -231,7 +229,9 @@ static FORCE_INLINE void transDestroyConnCtx(STransConnCtx* ctx);
 // thread obj
 static int32_t createThrdObj(void* trans, SCliThrd** pThrd);
 static void    destroyThrdObj(SCliThrd* pThrd);
-static void    cliWalkCb(uv_handle_t* handle, void* arg);
+
+int32_t     cliSendQuit(SCliThrd* thrd);
+static void cliWalkCb(uv_handle_t* handle, void* arg);
 
 #define CLI_RELEASE_UV(loop)              \
   do {                                    \
@@ -619,7 +619,11 @@ void* createConnPool(int size) {
   return taosHashInit(size, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 }
 void* destroyConnPool(SCliThrd* pThrd) {
-  void*      pool = pThrd->pool;
+  void* pool = pThrd->pool;
+  if (pool == NULL) {
+    return NULL;
+  }
+
   SConnList* connList = taosHashIterate((SHashObj*)pool, NULL);
   while (connList != NULL) {
     while (!QUEUE_IS_EMPTY(&connList->conns)) {
@@ -874,7 +878,7 @@ static int32_t allocConnRef(SCliConn* conn, bool update) {
 
   SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
   if (exh == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
@@ -974,7 +978,7 @@ static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn) {
   int32_t   code = 0;
   SCliConn* conn = taosMemoryCalloc(1, sizeof(SCliConn));
   if (conn == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   // read/write stream handle
@@ -996,7 +1000,7 @@ static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn) {
   if (timer == NULL) {
     timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
     if (timer == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _failed);
+      TAOS_CHECK_GOTO(terrno, NULL, _failed);
     }
 
     tDebug("no available timer, create a timer %p", timer);
@@ -1951,7 +1955,7 @@ static int32_t createBatchList(SCliBatchList** ppBatchList, char* key, char* ip,
   SCliBatchList* pBatchList = taosMemoryCalloc(1, sizeof(SCliBatchList));
   if (pBatchList == NULL) {
     tError("failed to create batch list, reason:%s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   QUEUE_INIT(&pBatchList->wq);
   pBatchList->port = port;
@@ -1991,7 +1995,7 @@ static int32_t createBatch(SCliBatch** ppBatch, SCliBatchList* pList, SCliMsg* p
   SCliBatch* pBatch = taosMemoryCalloc(1, sizeof(SCliBatch));
   if (pBatch == NULL) {
     tError("failed to create batch, reason:%s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   QUEUE_INIT(&pBatch->wq);
@@ -2119,33 +2123,6 @@ static void cliAsyncCb(uv_async_t* handle) {
 
   if (pThrd->stopMsg != NULL) cliHandleQuit(pThrd->stopMsg, pThrd);
 }
-static void cliPrepareCb(uv_prepare_t* handle) {
-  SCliThrd* thrd = handle->data;
-  tTrace("prepare work start");
-
-  SAsyncPool* pool = thrd->asyncPool;
-  for (int i = 0; i < pool->nAsync; i++) {
-    uv_async_t* async = &(pool->asyncs[i]);
-    SAsyncItem* item = async->data;
-
-    queue wq;
-    (void)taosThreadMutexLock(&item->mtx);
-    QUEUE_MOVE(&item->qmsg, &wq);
-    (void)taosThreadMutexUnlock(&item->mtx);
-
-    int count = 0;
-    while (!QUEUE_IS_EMPTY(&wq)) {
-      queue* h = QUEUE_HEAD(&wq);
-      QUEUE_REMOVE(h);
-
-      SCliMsg* pMsg = QUEUE_DATA(h, SCliMsg, q);
-      (*cliAsyncHandle[pMsg->type])(pMsg, thrd);
-      count++;
-    }
-  }
-  tTrace("prepare work end");
-  if (thrd->stopMsg != NULL) cliHandleQuit(thrd->stopMsg, thrd);
-}
 
 void cliDestroyConnMsgs(SCliConn* conn, bool destroy) {
   transCtxCleanup(&conn->ctx);
@@ -2260,6 +2237,12 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
 _err:
   if (cli) {
+    for (int i = 0; i < cli->numOfThreads; i++) {
+      if (cli->pThreadObj[i]) {
+        (void)cliSendQuit(cli->pThreadObj[i]);
+        destroyThrdObj(cli->pThreadObj[i]);
+      }
+    }
     taosMemoryFree(cli->pThreadObj);
     taosMemoryFree(cli);
   }
@@ -2315,7 +2298,7 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
 
   SCliThrd* pThrd = (SCliThrd*)taosMemoryCalloc(1, sizeof(SCliThrd));
   if (pThrd == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
   QUEUE_INIT(&pThrd->msg);
@@ -2323,7 +2306,7 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
 
   pThrd->loop = (uv_loop_t*)taosMemoryMalloc(sizeof(uv_loop_t));
   if (pThrd->loop == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
   code = uv_loop_init(pThrd->loop);
@@ -2337,37 +2320,6 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
   if (code != 0) {
     tError("failed to init async pool since:%s", tstrerror(code));
     TAOS_CHECK_GOTO(code, NULL, _end);
-  }
-
-  pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
-  if (pThrd->prepare == NULL) {
-    tError("failed to create prepre since:%s", tstrerror(code));
-    TAOS_CHECK_GOTO(code, NULL, _end);
-  }
-
-  code = uv_prepare_init(pThrd->loop, pThrd->prepare);
-  if (code != 0) {
-    tError("failed to create prepre since:%s", uv_err_name(code));
-    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _end);
-  }
-  pThrd->prepare->data = pThrd;
-
-  int32_t timerSize = 64;
-  pThrd->timerList = taosArrayInit(timerSize, sizeof(void*));
-  if (pThrd->timerList == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
-  }
-
-  for (int i = 0; i < timerSize; i++) {
-    uv_timer_t* timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
-    if (timer == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
-    }
-    (void)uv_timer_init(pThrd->loop, timer);
-    if (taosArrayPush(pThrd->timerList, &timer) == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
-    }
   }
 
   pThrd->pool = createConnPool(4);
@@ -2402,6 +2354,23 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
   }
 
+  int32_t timerSize = 64;
+  pThrd->timerList = taosArrayInit(timerSize, sizeof(void*));
+  if (pThrd->timerList == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+  }
+
+  for (int i = 0; i < timerSize; i++) {
+    uv_timer_t* timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
+    if (timer == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    }
+    (void)uv_timer_init(pThrd->loop, timer);
+    if (taosArrayPush(pThrd->timerList, &timer) == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    }
+  }
   pThrd->nextTimeout = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
   pThrd->pTransInst = trans;
   pThrd->quit = false;
@@ -2411,17 +2380,22 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
 
 _end:
   if (pThrd) {
+    (void)taosThreadMutexDestroy(&pThrd->msgMtx);
+
     (void)uv_loop_close(pThrd->loop);
     taosMemoryFree(pThrd->loop);
-    taosMemoryFree(pThrd->prepare);
-    (void)taosThreadMutexDestroy(&pThrd->msgMtx);
     transAsyncPoolDestroy(pThrd->asyncPool);
     for (int i = 0; i < taosArrayGetSize(pThrd->timerList); i++) {
       uv_timer_t* timer = taosArrayGetP(pThrd->timerList, i);
+      (void)uv_timer_stop(timer);
       taosMemoryFree(timer);
     }
     taosArrayDestroy(pThrd->timerList);
-    taosMemoryFree(pThrd->prepare);
+
+    (void)destroyConnPool(pThrd);
+    transDQDestroy(pThrd->delayQueue, NULL);
+    transDQDestroy(pThrd->timeoutQueue, NULL);
+    transDQDestroy(pThrd->waitConnQueue, NULL);
     taosHashCleanup(pThrd->fqdn2ipCache);
     taosHashCleanup(pThrd->failFastCache);
     taosHashCleanup(pThrd->batchCache);
@@ -2450,8 +2424,8 @@ static void destroyThrdObj(SCliThrd* pThrd) {
     uv_timer_t* timer = taosArrayGetP(pThrd->timerList, i);
     taosMemoryFree(timer);
   }
+
   taosArrayDestroy(pThrd->timerList);
-  taosMemoryFree(pThrd->prepare);
   taosMemoryFree(pThrd->loop);
   taosHashCleanup(pThrd->fqdn2ipCache);
   taosHashCleanup(pThrd->failFastCache);
@@ -2486,7 +2460,7 @@ int32_t cliSendQuit(SCliThrd* thrd) {
   int32_t  code = 0;
   SCliMsg* msg = taosMemoryCalloc(1, sizeof(SCliMsg));
   if (msg == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   msg->type = Quit;
@@ -2894,7 +2868,7 @@ int32_t transReleaseCliHandle(void* handle) {
 
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
   if (pCtx == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pCtx->ahandle = tmsg.info.ahandle;
@@ -2902,7 +2876,7 @@ int32_t transReleaseCliHandle(void* handle) {
   SCliMsg* cmsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   if (cmsg == NULL) {
     taosMemoryFree(pCtx);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   cmsg->msg = tmsg;
   cmsg->st = taosGetTimestampUs();
@@ -2923,7 +2897,7 @@ static int32_t transInitMsg(void* shandle, const SEpSet* pEpSet, STransMsg* pReq
   if (pReq->info.traceId.msgId == 0) TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
   if (pCtx == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   epsetAssign(&pCtx->epSet, pEpSet);
@@ -2937,7 +2911,7 @@ static int32_t transInitMsg(void* shandle, const SEpSet* pEpSet, STransMsg* pReq
   SCliMsg* cliMsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   if (cliMsg == NULL) {
     taosMemoryFree(pCtx);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   cliMsg->ctx = pCtx;
@@ -3071,7 +3045,7 @@ int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
 
   STransMsg* pTransRsp = taosMemoryCalloc(1, sizeof(STransMsg));
   if (pTransRsp == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _RETURN1);
+    TAOS_CHECK_GOTO(terrno, NULL, _RETURN1);
   }
 
   SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle);
@@ -3081,13 +3055,13 @@ int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
 
   tsem_t* sem = taosMemoryCalloc(1, sizeof(tsem_t));
   if (sem == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _RETURN1);
+    TAOS_CHECK_GOTO(terrno, NULL, _RETURN1);
   }
 
   code = tsem_init(sem, 0, 0);
   if (code != 0) {
     taosMemoryFree(sem);
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _RETURN1);
+    TAOS_CHECK_GOTO(terrno, NULL, _RETURN1);
   }
 
   if (pReq->info.traceId.msgId == 0) TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
@@ -3096,7 +3070,7 @@ int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
   if (pCtx == NULL) {
     (void)tsem_destroy(sem);
     taosMemoryFree(sem);
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _RETURN1);
+    TAOS_CHECK_GOTO(terrno, NULL, _RETURN1);
   }
 
   epsetAssign(&pCtx->epSet, pEpSet);
@@ -3111,7 +3085,7 @@ int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
     (void)tsem_destroy(sem);
     taosMemoryFree(sem);
     taosMemoryFree(pCtx);
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _RETURN1);
+    TAOS_CHECK_GOTO(terrno, NULL, _RETURN1);
   }
 
   cliMsg->ctx = pCtx;
@@ -3150,7 +3124,7 @@ int32_t transCreateSyncMsg(STransMsg* pTransMsg, int64_t* refId) {
   int32_t  code = 0;
   tsem2_t* sem = taosMemoryCalloc(1, sizeof(tsem2_t));
   if (sem == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (tsem2_init(sem, 0, 0) != 0) {
@@ -3159,7 +3133,7 @@ int32_t transCreateSyncMsg(STransMsg* pTransMsg, int64_t* refId) {
 
   STransSyncMsg* pSyncMsg = taosMemoryCalloc(1, sizeof(STransSyncMsg));
   if (pSyncMsg == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _EXIT);
+    TAOS_CHECK_GOTO(terrno, NULL, _EXIT);
   }
 
   taosInitRWLatch(&pSyncMsg->latch);
@@ -3194,7 +3168,7 @@ int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq,
 
   STransMsg* pTransMsg = taosMemoryCalloc(1, sizeof(STransMsg));
   if (pTransMsg == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _RETURN2);
+    TAOS_CHECK_GOTO(terrno, NULL, _RETURN2);
   }
 
   SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle);
@@ -3206,7 +3180,7 @@ int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq,
 
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
   if (pCtx == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _RETURN2);
+    TAOS_CHECK_GOTO(terrno, NULL, _RETURN2);
   }
 
   epsetAssign(&pCtx->epSet, pEpSet);
@@ -3229,7 +3203,7 @@ int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq,
   SCliMsg* cliMsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   if (cliMsg == NULL) {
     taosMemoryFree(pCtx);
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _RETURN2);
+    TAOS_CHECK_GOTO(terrno, NULL, _RETURN2);
   }
 
   cliMsg->ctx = pCtx;
@@ -3250,9 +3224,8 @@ int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq,
   }
 
   code = tsem2_timewait(pSyncMsg->pSem, timeoutMs);
-  if (code < 0) {
-    pRsp->code = TSDB_CODE_TIMEOUT_ERROR;
-    code = TSDB_CODE_TIMEOUT_ERROR;
+  if (code != 0) {
+    pRsp->code = code;
   } else {
     memcpy(pRsp, pSyncMsg->pRsp, sizeof(STransMsg));
     pSyncMsg->pRsp->pCont = NULL;
@@ -3260,7 +3233,6 @@ int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq,
       epsetAssign(pEpSet, &pSyncMsg->epSet);
       *epUpdated = 1;
     }
-    code = 0;
   }
 _RETURN:
   (void)transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
@@ -3294,7 +3266,7 @@ int32_t transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
   for (int8_t i = 0; i < pTransInst->numOfThreads; i++) {
     STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
     if (pCtx == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       break;
     }
 
@@ -3303,7 +3275,7 @@ int32_t transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
     SCliMsg* cliMsg = taosMemoryCalloc(1, sizeof(SCliMsg));
     if (cliMsg == NULL) {
       taosMemoryFree(pCtx);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       break;
     }
 
@@ -3330,7 +3302,7 @@ int32_t transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
 int32_t transAllocHandle(int64_t* refId) {
   SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
   if (exh == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
@@ -3369,7 +3341,7 @@ int32_t transFreeConnById(void* shandle, int64_t transpointId) {
 
   SCliMsg* pCli = taosMemoryCalloc(1, sizeof(SCliMsg));
   if (pCli == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+    TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
   pCli->type = FreeById;
 

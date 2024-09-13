@@ -110,6 +110,8 @@ typedef struct SFirstLastRes {
   int32_t   pkBytes;
   int8_t    pkType;
   STuplePos pos;
+  STuplePos nullTuplePos;
+  bool      nullTupleSaved;
   char      buf[];
 } SFirstLastRes;
 

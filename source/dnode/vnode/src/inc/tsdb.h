@@ -342,7 +342,6 @@ typedef struct {
   rocksdb_writeoptions_t              *writeoptions;
   rocksdb_readoptions_t               *readoptions;
   rocksdb_writebatch_t                *writebatch;
-  rocksdb_writebatch_t                *rwritebatch;
   STSchema                            *pTSchema;
 } SRocksCache;
 
@@ -363,7 +362,6 @@ struct STsdb {
   SMemTable           *imem;
   STsdbFS              fs;  // old
   SLRUCache           *lruCache;
-  SCacheFlushState     flushState;
   TdThreadMutex        lruMutex;
   SLRUCache           *biCache;
   TdThreadMutex        biMutex;

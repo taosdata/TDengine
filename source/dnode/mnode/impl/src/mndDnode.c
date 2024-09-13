@@ -461,7 +461,7 @@ int32_t mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
     }
 
     if(taosArrayPush(pDnodeInfo, &dInfo) == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       sdbCancelFetch(pSdb, pIter);
       break;
     }
@@ -618,7 +618,7 @@ static int32_t mndUpdateDnodeObj(SMnode *pMnode, SDnodeObj *pDnode) {
   }
   pReq = rpcMallocCont(contLen);
   if (pReq == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   (void)tSerializeSDnodeInfoReq(pReq, contLen, &infoReq);
@@ -980,7 +980,7 @@ static int32_t mndProcessDnodeListReq(SRpcMsg *pReq) {
   rsp.dnodeList = taosArrayInit(5, sizeof(SEpSet));
   if (NULL == rsp.dnodeList) {
     mError("failed to alloc epSet while process dnode list req");
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1006,7 +1006,7 @@ static int32_t mndProcessDnodeListReq(SRpcMsg *pReq) {
   int32_t rspLen = tSerializeSDnodeListRsp(NULL, 0, &rsp);
   void   *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1064,7 +1064,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   rsp.variables = taosArrayInit(16, sizeof(SVariablesInfo));
   if (NULL == rsp.variables) {
     mError("failed to alloc SVariablesInfo array while process show variables req");
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1074,7 +1074,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
   (void)strcpy(info.scope, "server");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1082,7 +1082,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsTimezoneStr);
   (void)strcpy(info.scope, "both");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1090,7 +1090,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsLocale);
   (void)strcpy(info.scope, "both");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1098,7 +1098,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
   (void)strcpy(info.scope, "both");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1106,7 +1106,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsEnableMonitor);
   (void)strcpy(info.scope, "server");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1114,7 +1114,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsMonitorInterval);
   (void)strcpy(info.scope, "server");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1122,7 +1122,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogThreshold);
   (void)strcpy(info.scope, "server");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1130,7 +1130,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogMaxLen);
   (void)strcpy(info.scope, "server");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1140,14 +1140,14 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", scopeStr);
   (void)strcpy(info.scope, "server");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
   int32_t rspLen = tSerializeSShowVariablesRsp(NULL, 0, &rsp);
   void   *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 

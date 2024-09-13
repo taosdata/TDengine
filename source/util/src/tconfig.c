@@ -45,7 +45,7 @@ extern char **environ;
 int32_t cfgInit(SConfig **ppCfg) {
   SConfig *pCfg = taosMemoryCalloc(1, sizeof(SConfig));
   if (pCfg == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pCfg->array = taosArrayInit(32, sizeof(SConfigItem));
@@ -1458,7 +1458,7 @@ struct SConfigIter {
 int32_t cfgCreateIter(SConfig *pConf, SConfigIter **ppIter) {
   SConfigIter *pIter = taosMemoryCalloc(1, sizeof(SConfigIter));
   if (pIter == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pIter->pConf = pConf;

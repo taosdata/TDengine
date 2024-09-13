@@ -706,7 +706,9 @@ void ctgProcessTimerEvent(void *param, void *tmrId) {
       int32_t code = ctgClearCacheEnqueue(NULL, true, false, false, false);
       if (code) {
         qError("clear cache enqueue failed, error:%s", tstrerror(code));
-        (void)taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer);
+        if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
+          qError("reset catalog cache monitor timer error, timer stoppped");
+        }
       }
 
       goto _return;
@@ -714,7 +716,9 @@ void ctgProcessTimerEvent(void *param, void *tmrId) {
   }
 
   qTrace("reset catalog timer");
-  (void)taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer);
+  if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
+    qError("reset catalog cache monitor timer error, timer stoppped");
+  }
 
 _return:
 
@@ -849,7 +853,7 @@ int32_t catalogInit(SCatalogCfg* cfg) {
   }
 
   if (tsem_init(&gCtgMgmt.queue.reqSem, 0, 0)) {
-    qError("tsem_init failed, error:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+    qError("tsem_init failed, terror:%s", tstrerror(terrno));
     CTG_ERR_RET(TSDB_CODE_CTG_SYS_ERROR);
   }
 
@@ -1517,10 +1521,16 @@ int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SC
 _return:
 
   if (pJob) {
-    (void)taosReleaseRef(gCtgMgmt.jobPool, pJob->refId);
+    int32_t code2 = taosReleaseRef(gCtgMgmt.jobPool, pJob->refId);
+    if (TSDB_CODE_SUCCESS) {
+      qError("release catalog job refId %" PRId64 "falied, error:%s", pJob->refId, tstrerror(code2));
+    }
 
     if (code) {
-      (void)taosRemoveRef(gCtgMgmt.jobPool, pJob->refId);
+      code2 = taosRemoveRef(gCtgMgmt.jobPool, pJob->refId);
+      if (TSDB_CODE_SUCCESS) {
+        qError("remove catalog job refId %" PRId64 "falied, error:%s", pJob->refId, tstrerror(code2));
+      }
     }
   }
 
@@ -1967,7 +1977,9 @@ void catalogDestroy(void) {
   }
 
   if (gCtgMgmt.cacheTimer) {
-    (void)taosTmrStop(gCtgMgmt.cacheTimer);
+    if (taosTmrStop(gCtgMgmt.cacheTimer)) {
+      qTrace("stop catalog cache timer may failed");
+    }
     gCtgMgmt.cacheTimer = NULL;
     taosTmrCleanUp(gCtgMgmt.timer);
     gCtgMgmt.timer = NULL;

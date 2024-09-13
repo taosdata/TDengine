@@ -16,11 +16,22 @@
 #include "streamInt.h"
 
 void streamMutexLock(TdThreadMutex *pMutex) {
-  (void) taosThreadMutexLock(pMutex);
+  int32_t code = taosThreadMutexLock(pMutex);
+  if (code) {
+    stError("%p mutex lock failed, code:%s", pMutex, tstrerror(code));
+  }
 }
 
 void streamMutexUnlock(TdThreadMutex *pMutex) {
-  (void) taosThreadMutexUnlock(pMutex);
+  int32_t code = taosThreadMutexUnlock(pMutex);
+  if (code) {
+    stError("%p mutex unlock failed, code:%s", pMutex, tstrerror(code));
+  }
 }
 
-void streamMutexDestroy(TdThreadMutex *pMutex) { (void) taosThreadMutexDestroy(pMutex); }
+void streamMutexDestroy(TdThreadMutex *pMutex) {
+  int32_t code = taosThreadMutexDestroy(pMutex);
+  if (code) {
+    stError("%p mutex destroy, code:%s", pMutex, tstrerror(code));
+  }
+}

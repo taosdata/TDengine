@@ -298,6 +298,7 @@ void tmq_conf_destroy(tmq_conf_t* conf) {
 }
 
 tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value) {
+  int32_t code = 0;
   if (conf == NULL || key == NULL || value == NULL) {
     return TMQ_CONF_INVALID;
   }
@@ -324,8 +325,9 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "auto.commit.interval.ms") == 0) {
-    int64_t tmp = taosStr2int64(value);
-    if (tmp < 0 || EINVAL == errno || ERANGE == errno) {
+    int64_t tmp;
+    code = taosStr2int64(value, &tmp);
+    if (tmp < 0 || code != 0) {
       return TMQ_CONF_INVALID;
     }
     conf->autoCommitInterval = (tmp > INT32_MAX ? INT32_MAX : tmp);
@@ -333,8 +335,9 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "session.timeout.ms") == 0) {
-    int64_t tmp = taosStr2int64(value);
-    if (tmp < 6000 || tmp > 1800000) {
+    int64_t tmp;
+    code = taosStr2int64(value, &tmp);
+    if (tmp < 6000 || tmp > 1800000 || code != 0) {
       return TMQ_CONF_INVALID;
     }
     conf->sessionTimeoutMs = tmp;
@@ -342,8 +345,9 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "heartbeat.interval.ms") == 0) {
-    int64_t tmp = taosStr2int64(value);
-    if (tmp < 1000 || tmp >= conf->sessionTimeoutMs) {
+    int64_t tmp;
+    code = taosStr2int64(value, &tmp);
+    if (tmp < 1000 || tmp >= conf->sessionTimeoutMs || code != 0) {
       return TMQ_CONF_INVALID;
     }
     conf->heartBeatIntervalMs = tmp;
@@ -351,8 +355,9 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "max.poll.interval.ms") == 0) {
-    int64_t tmp = taosStr2int64(value);
-    if (tmp < 1000 || tmp > INT32_MAX) {
+    int32_t tmp;
+    code = taosStr2int32(value, &tmp);
+    if (tmp < 1000 || code != 0) {
       return TMQ_CONF_INVALID;
     }
     conf->maxPollIntervalMs = tmp;
@@ -414,8 +419,9 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "td.connect.port") == 0) {
-    int64_t tmp = taosStr2int64(value);
-    if (tmp <= 0 || tmp > 65535) {
+    int64_t tmp;
+    code = taosStr2int64(value, &tmp);
+    if (tmp <= 0 || tmp > 65535 || code != 0) {
       return TMQ_CONF_INVALID;
     }
 
@@ -435,7 +441,9 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     }
   }
   if (strcasecmp(key, "msg.consume.excluded") == 0) {
-    conf->sourceExcluded = (taosStr2int64(value) != 0) ? TD_REQ_FROM_TAOX : 0;
+    int64_t tmp;
+    code = taosStr2int64(value, &tmp);
+    conf->sourceExcluded = (0 == code && tmp != 0) ? TD_REQ_FROM_TAOX : 0;
     return TMQ_CONF_OK;
   }
 
@@ -444,7 +452,9 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "msg.enable.batchmeta") == 0) {
-    conf->enableBatchMeta = (taosStr2int64(value) != 0) ? true : false;
+    int64_t tmp;
+    code = taosStr2int64(value, &tmp);
+    conf->enableBatchMeta = (0 == code && tmp != 0) ? true : false;
     return TMQ_CONF_OK;
   }
 
@@ -1094,7 +1104,7 @@ int32_t tmq_subscription(tmq_t* tmq, tmq_list_t** topics) {
   if (*topics == NULL) {
     *topics = tmq_list_new();
     if (*topics == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   taosRLockLatch(&tmq->lock);
@@ -1353,7 +1363,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
 
   req.topicNames = taosArrayInit(sz, sizeof(void*));
   if (req.topicNames == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto FAIL;
   }
 
@@ -1394,7 +1404,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
     }
 
     if (taosArrayPush(req.topicNames, &topicFName) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       taosMemoryFree(topicFName);
       goto FAIL;
     }
@@ -1404,7 +1414,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   int32_t tlen = tSerializeSCMSubscribeReq(NULL, &req);
   buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto FAIL;
   }
 
@@ -2017,7 +2027,7 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
 
   pParam = taosMemoryMalloc(sizeof(SMqPollCbParam));
   if (pParam == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     taosMemoryFreeClear(msg);
     return code;
   }
@@ -2713,7 +2723,7 @@ int32_t tmq_commit_sync(tmq_t* tmq, const TAOS_RES* pRes) {
   SSyncCommitInfo* pInfo = taosMemoryMalloc(sizeof(SSyncCommitInfo));
   if (pInfo == NULL) {
     tscError("failed to allocate memory for sync commit");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if (tsem2_init(&pInfo->sem, 0, 0) != 0) {
     tscError("failed to init sem for sync commit");
@@ -2785,7 +2795,7 @@ int32_t tmq_commit_offset_sync(tmq_t* tmq, const char* pTopicName, int32_t vgId,
   SSyncCommitInfo* pInfo = taosMemoryMalloc(sizeof(SSyncCommitInfo));
   if (pInfo == NULL) {
     tscError("consumer:0x%" PRIx64 " failed to prepare seek operation", tmq->consumerId);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (tsem2_init(&pInfo->sem, 0, 0) != 0) {
@@ -2922,7 +2932,7 @@ FAIL:
 
 int32_t syncAskEp(tmq_t* pTmq) {
   SAskEpInfo* pInfo = taosMemoryMalloc(sizeof(SAskEpInfo));
-  if (pInfo == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (pInfo == NULL) return terrno;
   if (tsem2_init(&pInfo->sem, 0, 0) != 0) {
     taosMemoryFree(pInfo);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
@@ -3427,7 +3437,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
 
     pCommon->pList = taosArrayInit(4, sizeof(tmq_topic_assignment));
     if (pCommon->pList == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto end;
     }
     if (tsem2_init(&pCommon->rsp, 0, 0) != 0) {
@@ -3445,7 +3455,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       }
       SMqVgWalInfoParam* pParam = taosMemoryMalloc(sizeof(SMqVgWalInfoParam));
       if (pParam == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto end;
       }
 
@@ -3649,7 +3659,7 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   if (pParam == NULL) {
     taosMemoryFree(msg);
     taosMemoryFree(sendInfo);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if (tsem2_init(&pParam->sem, 0, 0) != 0) {
     taosMemoryFree(msg);

@@ -1993,7 +1993,7 @@ static int32_t mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pPrevNodeLis
 
   if (pInfo->pUpdateNodeList == NULL || pInfo->pDBMap == NULL) {
     mndDestroyVgroupChangeInfo(pInfo);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t numOfNodes = taosArrayGetSize(pPrevNodeList);
@@ -2164,7 +2164,7 @@ static int32_t refreshNodeListFromExistedStreams(SMnode *pMnode, SArray *pNodeLi
 
   SHashObj *pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   if (pHash == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   while (1) {
@@ -2215,7 +2215,7 @@ static int32_t refreshNodeListFromExistedStreams(SMnode *pMnode, SArray *pNodeLi
     if (p == NULL) {
       mError("failed to put entry into node list, nodeId:%d, code: out of memory", pEntry->nodeId);
       if (code == 0) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
       }
       continue;
     }
