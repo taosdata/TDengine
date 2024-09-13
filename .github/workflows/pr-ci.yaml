@@ -270,8 +270,7 @@ jobs:
     runs-on: [self-hosted, linux, x64, qa, test]
     # needs: [deploy_with_docker, run_test, generate_report]
     needs: [deploy_with_docker, run_test]
-    if: ${{ needs.deploy_with_docker.result == success() && needs.run_test.result == success() }}
-    # if: always()
+    if: success()
     steps:
       - name: Force stop taosx-agent & taosx
         # shell: bash {0}
