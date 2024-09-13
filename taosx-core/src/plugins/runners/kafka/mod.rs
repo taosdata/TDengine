@@ -253,6 +253,15 @@ pub async fn kafka_to_taos(
         serde_json::to_string(&parser)?,
         to
     );
+    if with_agent.is_some() {
+        let _ = crate::core_metrics::init_task_metrics(
+            &from,
+            &to,
+            task_id.ok_or_else(|| anyhow::anyhow!("No task id with agent runner"))?,
+            None,
+        )
+        .await;
+    }
     let metrics_arc = get_metrics_arc_from_i64(task_id).await;
 
     let ipc_port = port_pool
