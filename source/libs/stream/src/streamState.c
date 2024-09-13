@@ -101,8 +101,10 @@ int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
 SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, int32_t taskId) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
+
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   stDebug("open stream state %p, %s", pState, path);
+
   if (pState == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     QUERY_CHECK_CODE(code, lino, _end);
@@ -138,7 +140,7 @@ SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, i
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("0x%x %s failed at line %d since %s", taskId, __func__, lino, tstrerror(code));
   }
   return NULL;
 }
