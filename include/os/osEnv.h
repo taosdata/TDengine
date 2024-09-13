@@ -55,7 +55,7 @@ extern SDiskSpace tsLogSpace;
 extern SDiskSpace tsTempSpace;
 
 int32_t osDefaultInit();
-void osUpdate();
+int32_t osUpdate();
 void osCleanup();
 
 bool osLogSpaceAvailable();
