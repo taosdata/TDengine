@@ -577,7 +577,6 @@ void cliHandleResp(SCliConn* conn) {
   if (cliMayRecycleConn(conn)) {
     return;
   }
-  transRefCliHandle(conn);
   (void)uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
 }
 
@@ -832,10 +831,6 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (int[]){1}, sizeof(int));
 
   SCliConn* conn = handle->data;
-  int32_t   ref = transUnrefCliHandle(conn);
-  if (ref <= 0) {
-    return;
-  }
 
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {
@@ -861,7 +856,8 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
   if (nread < 0) {
-    tDebug("%s conn %p read error:%s, ref:%d", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread), ref);
+    tDebug("%s conn %p read error:%s, ref:%d", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread),
+           transGetRefCount(conn));
     conn->broken = true;
     transUnrefCliHandle(conn);
   }
@@ -1097,7 +1093,6 @@ static void cliSendBatch_shareConnCb(uv_write_t* req, int status) {
     return;
   }
 
-  transRefCliHandle(conn);
   (void)uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
   taosMemoryFree(req);
 
@@ -1548,10 +1543,10 @@ int32_t clConnMayUpdateReqCtx(SCliConn* pConn, SCliReq* pReq) {
   STransCtx* pUserCtx = taosHashGet(pConn->pQTable, &qid, sizeof(qid));
   if (pUserCtx == NULL) {
     code = taosHashPut(pConn->pQTable, &qid, sizeof(qid), &pCtx->userCtx, sizeof(pCtx->userCtx));
-    tDebug("%s conn %p add conn %p of statue ctx, qid:%ld", transLabel(pThrd->pInst), pConn, qid);
+    tDebug("%s conn %p add statue ctx, qid:%ld", transLabel(pThrd->pInst), pConn, qid);
   } else {
     transCtxMerge(pUserCtx, &pCtx->userCtx);
-    tDebug("%s conn %s update conn %p of statue ctx, qid:%ld", transLabel(pThrd->pInst), pConn, qid);
+    tDebug("%s conn %s update statue ctx, qid:%ld", transLabel(pThrd->pInst), pConn, qid);
   }
   return 0;
 }
@@ -1568,11 +1563,11 @@ int32_t cliMayGetStateByQid(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn) {
     if (pReq->ctx == NULL) {
       return TSDB_CODE_RPC_STATE_DROPED;
     }
-    tDebug("failed to get statue, qid:%ld", qid);
+    tDebug("%s conn %p failed to get statue, qid:%ld", transLabel(pThrd->pInst), pConn, qid);
     return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
   } else {
     *pConn = pState->conn;
-    tDebug("succ to get conn of statue, qid:%ld", qid);
+    tDebug("%s conn %p succ to get conn of statue, qid:%ld", transLabel(pThrd->pInst), pConn, qid);
   }
   return 0;
 }
@@ -1587,9 +1582,9 @@ int32_t cliMayUpdateState(SCliThrd* pThrd, SCliReq* pReq, SCliConn* pConn) {
   SReqState state = {.conn = pConn, .arg = NULL};
   code = taosHashPut(pThrd->pIdConnTable, &qid, sizeof(qid), &state, sizeof(state));
   if (code != 0) {
-    tDebug("failed to add conn %p of statue, qid:%ld", pConn, qid);
+    tDebug("%s conn %p failed to statue, qid:%ld", transLabel(pThrd->pInst), pConn, qid);
   } else {
-    tDebug("succ to add conn %p of statue, qid:%ld (1)", pConn, qid);
+    tDebug("%s conn %p succ to add statue, qid:%ld (1)", transLabel(pThrd->pInst), pConn, qid);
   }
 
   (void)clConnMayUpdateReqCtx(pConn, pReq);
