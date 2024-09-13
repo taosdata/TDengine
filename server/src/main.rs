@@ -70,6 +70,15 @@ struct UserPool {
 
 static TAOS_POOL: OnceLock<scc::HashMap<String, UserPool>> = OnceLock::new();
 
+fn clear_pool(dsn: &Dsn, username: String) {
+    let map = TAOS_POOL.get_or_init(|| scc::HashMap::new());
+    let mut dsn_simple = dsn.clone();
+    dsn_simple.username = Some(username);
+    dsn_simple.password = None;
+    tracing::info!("clear pool for {:?}", dsn_simple);
+    map.remove(&dsn_simple.to_string());
+}
+
 async fn get_connection(dsn: &Dsn) -> Result<Object<Manager<TaosBuilder>>, String> {
     let map = TAOS_POOL.get_or_init(|| scc::HashMap::new());
     let mut dsn_simple = dsn.clone();
@@ -295,6 +304,10 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/-/taosd-info", web::post().to(report_taosd_info))
             .route("/api/-/isbinding", web::to(check_binding))
             .route("/api-doc/openapi.json", web::to(x_api_doc))
+            .route(
+                "/api/-/password/{username}",
+                web::post().to(modify_password),
+            )
             .route(
                 "/api/-/favorites/sql",
                 web::post().to(favorites::add_favorites_sql),
@@ -925,6 +938,39 @@ async fn proxy(
             .map_err(error::ErrorInternalServerError)
             .map(reqwest_into_http_response)
     }
+}
+
+async fn modify_password(
+    args: web::Data<Args>,
+    _client: web::Data<reqwest::Client>,
+    _path: web::Path<String>,
+    req: HttpRequest,
+    payload: web::Payload,
+    username: web::Path<String>,
+    query: Query<HashMap<String, String>>,
+) -> impl Responder {
+    let header = req
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|header| header.to_str().ok())
+        .unwrap_or_default();
+
+    let sql = get_body_from_payload(payload).await.unwrap();
+    let tz = query.get("tz");
+    let response = match args.query(header, &sql, tz).await {
+        Ok(ok) => {
+            // 清除 username 对应的 user_pool
+            let _ = args.build_dsn(header).and_then(|dsn| {
+                clear_pool(&dsn, username.to_string());
+                Ok(())
+            });
+
+            HttpResponse::Ok().json(ok)
+        }
+        Err(err) => HttpResponse::InternalServerError().json(err),
+    };
+
+    response
 }
 
 async fn rest_proxy(

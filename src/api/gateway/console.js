@@ -28,6 +28,18 @@ export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.ap
   });
 }
 
+export function modifyUserPassword(username, sqlStr) {
+  return request({
+    baseURL: process.env.VUE_APP_BASE_URL,
+    url: `/api/-/password/${username}?tz=${getLocalTimezone()}`,
+    method: 'post',
+    headers: {
+      "Content-Type": "text/plain"
+    },
+    data: sqlStr
+  });
+}
+
 export function executeDBOperations(sql, appId = store.getters.appId) {
   return request({
     baseURL: process.env.VUE_APP_BASE_URL,

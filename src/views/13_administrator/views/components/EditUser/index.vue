@@ -104,7 +104,7 @@
 </template>
 
 <script>
-import { sendSQLReq } from "@/api/gateway/console";
+import { sendSQLReq, modifyUserPassword } from "@/api/gateway/console";
 import { Message } from "element-ui";
 // import { validPassword } from "@/utils/validate.js";
 
@@ -329,7 +329,8 @@ export default {
         });
     },
     async alterUser() {
-      return await sendSQLReq(
+      return await modifyUserPassword(
+        this.user, 
         `alter USER \`${this.user}\` PASS '${this.ruleForm.pwd}';`
       )
         .then((res) => {

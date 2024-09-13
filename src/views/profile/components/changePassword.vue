@@ -71,7 +71,7 @@
 
 <script>
 import { validEmail, validPassword } from "@/utils/validate.js";
-import { sendSQLReq } from "@/api/gateway/console";
+import { modifyUserPassword } from "@/api/gateway/console";
 import { deleteCookieItem } from "@/utils/index";
 import { decrypt } from "@/utils/index";
 export default {
@@ -163,7 +163,8 @@ export default {
         if (valid) {
           this.requestIng = true;
           let username = localStorage.getItem("username");
-          await sendSQLReq(
+          await modifyUserPassword(
+            username,
             `ALTER USER \`${username}\` PASS '${this.changeForm.new_password}'`
           )
             .then((res) => {
