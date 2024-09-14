@@ -93,8 +93,8 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 4   |       vgroups        | INT              | 数据库中有多少个 vgroup。需要注意，`vgroups` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                          |
 | 6   |       replica        | INT              | 副本数。需要注意，`replica` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                           |
 | 7   |        strict        | VARCHAR(4)       | 废弃参数 |
-| 8   |       duration       | VARCHAR(10)      | 单文件存储数据的时间跨度。需要注意，`duration` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                         |
-| 9   |         keep         | VARCHAR(32)      | 数据保留时长。需要注意，`keep` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                     |
+| 8   |       duration       | VARCHAR(10)      | 单文件存储数据的时间跨度。需要注意，`duration` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。内部存储单位为分钟，查询时有可能转换为天或小时展示                         |
+| 9   |         keep         | VARCHAR(32)      | 数据保留时长。需要注意，`keep` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。  内部存储单位为分钟，查询时有可能转换为天或小时展示                                   |
 | 10  |        buffer        | INT              | 每个 vnode 写缓存的内存块大小，单位 MB。需要注意，`buffer` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。           |
 | 11  |       pagesize       | INT              | 每个 VNODE 中元数据存储引擎的页大小，单位为 KB。需要注意，`pagesize` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。   |
 | 12  |        pages         | INT              | 每个 vnode 元数据存储引擎的缓存页个数。需要注意，`pages` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。            |

@@ -217,7 +217,7 @@ int32_t dmReadEps(SDnodeData *pData) {
 
   content = taosMemoryMalloc(size + 1);
   if (content == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -321,7 +321,7 @@ int32_t dmWriteEps(SDnodeData *pData) {
   TAOS_CHECK_GOTO(dmInitDndInfo(pData), NULL, _OVER);
 
   pJson = tjsonCreateObject();
-  if (pJson == NULL) TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _OVER);
+  if (pJson == NULL) TAOS_CHECK_GOTO(terrno, NULL, _OVER);
 
   pData->engineVer = tsVersion;
 
@@ -329,7 +329,7 @@ int32_t dmWriteEps(SDnodeData *pData) {
 
   buffer = tjsonToString(pJson);
   if (buffer == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _OVER);
+    TAOS_CHECK_GOTO(terrno, NULL, _OVER);
   }
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
@@ -574,7 +574,7 @@ static int32_t dmDecodeEpPairs(SJson *pJson, SDnodeData *pData) {
     tjsonGetUInt16ValueFromDouble(dnode, "new_port", pair.newPort, code);
     if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
 
-    if (taosArrayPush(pData->oldDnodeEps, &pair) == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+    if (taosArrayPush(pData->oldDnodeEps, &pair) == NULL) return terrno;
   }
 
   return code;
@@ -620,7 +620,7 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
 
   content = taosMemoryMalloc(size + 1);
   if (content == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -640,7 +640,7 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
 
   pData->oldDnodeEps = taosArrayInit(1, sizeof(SDnodeEpPair));
   if (pData->oldDnodeEps == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     dError("failed to calloc dnodeEp array since %s", strerror(errno));
     goto _OVER;
   }

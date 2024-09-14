@@ -77,7 +77,10 @@ bool chkRequestKilled(void* param) {
   return killed;
 }
 
-void cleanupAppInfo() { taosHashCleanup(appInfo.pInstMap); }
+void cleanupAppInfo() {
+  taosHashCleanup(appInfo.pInstMap);
+  taosHashCleanup(appInfo.pInstMapByClusterId);
+}
 
 static int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
                                SAppInstInfo* pAppInfo, int connType, STscObj** pTscObj);
@@ -1162,6 +1165,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
         (void)atomic_add_fetch_64((int64_t*)&pActivity->numOfInsertRows, pResult->numOfRows);
       }
     }
+    schedulerFreeJob(&pRequest->body.queryJob, 0);
   }
 
   taosMemoryFree(pResult);
@@ -1276,9 +1280,9 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
   }
 
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
-    code = removeMeta(pRequest->pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
-    if (TSDB_CODE_SUCCESS != code) {
-      tscError("0x%" PRIx64 " remove meta failed,QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
+    int ret = removeMeta(pRequest->pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
+    if (TSDB_CODE_SUCCESS != ret) {
+      tscError("0x%" PRIx64 " remove meta failed,code:%d,QID:0x%" PRIx64, pRequest->self, ret, pRequest->requestId);
     }
   }
 

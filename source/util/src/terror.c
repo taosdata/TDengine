@@ -112,6 +112,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FAILED_TO_CONNECT_S3,         "Failed to connect to 
 TAOS_DEFINE_ERROR(TSDB_CODE_MSG_PREPROCESSED,             "Message has been processed in preprocess")
 TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_BUFFER,                "Out of buffer")
 TAOS_DEFINE_ERROR(TSDB_CODE_INTERNAL_ERROR,               "Internal error")
+TAOS_DEFINE_ERROR(TSDB_CODE_TIME_ERROR,                   "Internal error in time")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
@@ -806,6 +807,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_SAME_COMMITTED_VALUE,       "Same committed valu
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_REPLAY_NEED_ONE_VGROUP,     "Replay need only one vgroup if subscribe super table")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT,         "Replay is disabled if subscribe db or stable")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NO_TABLE_QUALIFIED,         "No table qualified for query")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NO_NEED_REBALANCE,          "No need rebalance")
 
 // stream
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_NOT_EXIST,          "Stream task not exist")

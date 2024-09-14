@@ -109,8 +109,8 @@ void taosRemoveDir(const char *dirname) {
     }
   }
 
-  (void)taosCloseDir(&pDir);
-  (void)rmdir(dirname);
+  TAOS_UNUSED(taosCloseDir(&pDir));
+  TAOS_UNUSED(rmdir(dirname));
 
   // printf("dir:%s is removed\n", dirname);
   return;
@@ -374,7 +374,7 @@ int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
 bool taosIsDir(const char *dirname) {
   TdDirPtr pDir = taosOpenDir(dirname);
   if (pDir != NULL) {
-    (void)taosCloseDir(&pDir);
+    TAOS_SKIP_ERROR(taosCloseDir(&pDir));
     return true;
   }
   return false;

@@ -408,9 +408,9 @@ typedef struct SStateStore {
   SStreamStateCur* (*streamStateSessionSeekKeyCurrentPrev)(SStreamState* pState, const SSessionKey* key);
   SStreamStateCur* (*streamStateSessionSeekKeyCurrentNext)(SStreamState* pState, const SSessionKey* key);
 
-  struct SStreamFileState* (*streamFileStateInit)(int64_t memSize, uint32_t keySize, uint32_t rowSize,
-                                                  uint32_t selectRowSize, GetTsFun fp, void* pFile, TSKEY delMark,
-                                                  const char* id, int64_t ckId, int8_t type);
+  int32_t (*streamFileStateInit)(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
+                                 GetTsFun fp, void* pFile, TSKEY delMark, const char* id, int64_t ckId, int8_t type,
+                                 struct SStreamFileState** ppFileState);
 
   void (*streamFileStateDestroy)(struct SStreamFileState* pFileState);
   void (*streamFileStateClear)(struct SStreamFileState* pFileState);

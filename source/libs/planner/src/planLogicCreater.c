@@ -1312,6 +1312,10 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = createColumnByRewriteExpr(pFill->pWStartTs, &pFill->node.pTargets);
   }
 
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pHaving) {
+    code = nodesCloneNode(pSelect->pHaving, &pFill->node.pConditions);
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pFill;
   } else {
