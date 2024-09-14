@@ -70,7 +70,7 @@ jobs:
     steps:
       - name: Build explorer
         run: |
-          ssh root@$RELEASE_HOST "cd /data/github/explorer && git pull && yarn install && yarn build:bin"
+          ssh root@$RELEASE_HOST "cd /data/github/explorer && git pull --prune && yarn install && yarn build:bin"
 
       - name: Copy files
         run: |
@@ -192,7 +192,7 @@ jobs:
         run: |
           # 这里最好是 TestNG_taosx 已经被拉取到一个固定的位置
           # 重新登录执行 git pull，因为当前的 git 仓库对应的是 taosx
-          ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && git pull"
+          ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && git pull --prune"
       - name: run container
         id: run_container
         # 1. 寻找可用端口
