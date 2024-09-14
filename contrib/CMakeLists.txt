@@ -615,7 +615,9 @@ if (${BUILD_PCRE2})
     add_subdirectory(pcre2 EXCLUDE_FROM_ALL)
 endif(${BUILD_PCRE2})
 
-add_subdirectory(azure-cmake EXCLUDE_FROM_ALL)
+if(${TD_LINUX})
+  add_subdirectory(azure-cmake EXCLUDE_FROM_ALL)
+endif(${TD_LINUX})
 
 # ================================================================================================
 # Build test
