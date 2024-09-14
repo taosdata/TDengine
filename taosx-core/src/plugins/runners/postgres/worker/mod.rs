@@ -1,6 +1,11 @@
 use std::cmp;
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::str::FromStr;
+use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Days, FixedOffset, Utc};
+use sqlx::{Column, Row, TypeInfo};
+use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
 use crate::runners::postgres::appender::to_schema;
@@ -17,12 +22,138 @@ const MIGRATE_TASK_PREFIX: &str = "mig";
 
 /// migrate data
 pub async fn migrate_history(
-    mut config: PostgresConfig,
+    config: PostgresConfig,
     cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     // mark the current time
-    let now = Utc::now();
+    let mut now = Utc::now();
+    // origin task end
+    let origin_end = config.task.end.clone();
 
+    let mut config_clone = config.clone();
+    let cancel_clone = cancel.clone();
+    // if origin end is None, or origin end is greater than now, set end to now
+    if origin_end.is_none() || origin_end.unwrap() > now {
+        config_clone.task.end = Some(now);
+    }
+    // migrate history by subtable
+    let future_migrate = migrate_history_by_subtable(config_clone, cancel_clone);
+    let cancel_clone = cancel.clone();
+    tokio::select! {
+        res = future_migrate => {
+            res?;
+        }
+        _ = cancel_clone.cancelled() => {
+            tracing::info!("Migrate cancelled");
+            return Ok(());
+        }
+    };
+
+    let cancel_clone = cancel.clone();
+    // sync live data
+    let future_sync = async move {
+        // loop to migrate until the end of the task
+        while origin_end.is_none() || origin_end.unwrap() > now {
+            // from 'now' marked by the beginning of the task
+            let real_start = now - config.task.delay;
+            let real_end = Utc::now() - config.task.delay;
+            // every 10 seconds
+            if real_end - real_start > chrono::Duration::seconds(10) {
+                tracing::trace!(
+                    "migrate postgres from live data, start: {}, end: {}",
+                    real_start,
+                    real_end
+                );
+                // create a new window
+                let mut config_clone = config.clone();
+                config_clone.task.start = real_start;
+                config_clone.task.end = Some(real_end);
+                let _ = migrate_history_by_subtable(config_clone, cancel_clone.clone()).await;
+                // move the window
+                now = real_end;
+            }
+            // sleep 2 second
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        }
+        return ();
+    };
+    tokio::select! {
+        _ = future_sync => {}
+        _ = cancel.cancelled() => {
+            tracing::info!("Migrate cancelled");
+        }
+    };
+
+    tracing::info!("migrate postgres finished");
+    Ok(())
+}
+
+/// migrate data
+pub async fn migrate_history_by_subtable(
+    config: PostgresConfig,
+    cancel: CancellationToken,
+) -> anyhow::Result<()> {
+    // additional filters, get distinct values
+    let config_clone = config.clone();
+    let cancel_clone = cancel.clone();
+    let filters;
+    let future_get_distinct = get_all_distinct_values(&config_clone);
+    tokio::select! {
+        res = future_get_distinct => {
+            filters = res?;
+        }
+        _ = cancel_clone.cancelled() => {
+            return Ok(());
+        }
+    };
+
+    // generate combinations
+    let mut combinations = HashSet::new();
+    generate_combinations(&filters, &config.task.sql, &mut combinations);
+    // if no distinct values, use the original sql
+    if combinations.is_empty() {
+        combinations.insert(SubSql {
+            sql: config.task.sql.clone(),
+            sub_values: String::new(),
+        });
+    }
+
+    // migrate data by combinations
+    let concurrency = cmp::max(config.advanced.read_concurrency.unwrap_or(1), 1);
+    let cancel_clone = cancel.clone();
+    let future_migrate = async move {
+        let semaphore = Arc::new(Semaphore::new(concurrency));
+        for sub_sql in combinations {
+            let semaphore = semaphore.clone();
+            // Acquire permit before sending request.
+            let _permit = semaphore.acquire_owned().await.unwrap();
+            // modify config and produce task
+            let cancel_clone = cancel_clone.clone();
+            let mut config_clone = config.clone();
+            config_clone.task.sql = sub_sql.sql;
+            config_clone.sub_task_id =
+                Some(format!("{MIGRATE_TASK_PREFIX}-{}", sub_sql.sub_values));
+            let _ = tokio::spawn(async move {
+                // do migrate
+                let _ = migrate_history_by_interval(config_clone, cancel_clone).await;
+                // Drop the permit after the request has been sent.
+                drop(_permit);
+            });
+        }
+    };
+    tokio::select! {
+        _ = future_migrate => {}
+        _ = cancel.cancelled() => {}
+    };
+
+    Ok(())
+}
+
+/// migrate data
+pub async fn migrate_history_by_interval(
+    mut config: PostgresConfig,
+    cancel: CancellationToken,
+) -> anyhow::Result<()> {
     // schema
     let mut query =
         PostgresQuery::try_new(config.connect.clone(), config.task.time_zone.clone()).await?;
@@ -37,7 +168,7 @@ pub async fn migrate_history(
     tracing::debug!("schema: {:?}", schema);
 
     // get break point
-    let breakpoint = get_breakpoint(config.task_id);
+    let breakpoint = get_breakpoint(config.task_id, &config.sub_task_id.clone().unwrap());
     if breakpoint.is_some() {
         config.task.start = breakpoint.unwrap();
         tracing::info!("migrate postgres from breakpoint: {}", config.task.start);
@@ -45,92 +176,237 @@ pub async fn migrate_history(
     tracing::info!("migrate postgres start, config: {:?}", config);
 
     let (tx, rx) = flume::bounded(0);
-    let concurrency = cmp::max(config.advanced.read_concurrency.unwrap_or(1), 1);
-    // consume task
-    let mut consumers = Vec::new();
-    for sub_task_index in 1..=concurrency {
-        let receiver = rx.clone();
-        let mut config_clone = config.clone();
-        let schema_clone = schema.clone();
-        // set sub task id
-        config_clone.sub_task_id = Some(format!("{MIGRATE_TASK_PREFIX}-{sub_task_index}"));
-
-        // consumer
-        let consumer = tokio::spawn(async move {
-            Consumer::new(config_clone, schema_clone)
-                .consume(receiver)
-                .await
-        });
-        consumers.push(consumer);
-    }
-
-    // sync live data, if end is None
-    if config.task.end.is_none() {
-        let config_live = config.clone();
-        let tx_live = tx.clone();
-        // from 'now' marked by the beginning of the task
-        let mut real_start = now - config_live.task.delay;
-        // loop to produce task
-        let future_produce = async move {
-            loop {
-                let real_end = Utc::now() - config_live.task.delay;
-                // every 10 seconds
-                if real_end - real_start > chrono::Duration::seconds(10) {
-                    tracing::trace!(
-                        "migrate postgres from live data, start: {}, end: {}",
-                        real_start,
-                        real_end
-                    );
-                    // create a new window
-                    let mut config_clone = config_live.clone();
-                    config_clone.task.start = real_start;
-                    config_clone.task.end = Some(real_end);
-
-                    // produce task
-                    let producer = Producer::new(&config_clone);
-                    let _ = producer.produce(tx_live.clone()).await;
-
-                    // move the window
-                    real_start = real_end;
-                }
-                // sleep 2 second
-                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-            }
-        };
-
-        // produce task
-        let producer = Producer::new(&config);
-        let _ = producer.produce(tx).await?;
-
-        // consumer join
-        let future_consume = async move {
-            for consumer in consumers {
-                consumer.await??;
-            }
-            anyhow::Ok(())
-        };
-
-        tokio::select! {
-            _ = future_produce => {}
-            res = future_consume => {
-                res?;
-            }
-            _ = cancel.cancelled() => {
-                tracing::info!("Migrate cancelled");
-            }
-        };
-    } else {
-        // produce task
-        let producer = Producer::new(&config);
-        let _ = producer.produce(tx).await?;
-
-        // consumer join
-        for consumer in consumers {
-            consumer.await??;
+    let config_clone = config.clone();
+    // consumer
+    let consumer =
+        tokio::spawn(async move { Consumer::new(config_clone, schema).consume(rx).await });
+    // produce task
+    let producer = Producer::new(&config);
+    let future_produce = producer.produce(tx);
+    tokio::select! {
+        _ = future_produce => {}
+        _ = cancel.cancelled() => {
+            return Ok(());
         }
-    }
-    tracing::info!("migrate postgres finished");
+    };
+
+    // consumer join
+    let future_consume = async move {
+        consumer.await??;
+        anyhow::Ok(())
+    };
+    tokio::select! {
+        res = future_consume => {
+            res?;
+        }
+        _ = cancel.cancelled() => {}
+    };
+
     Ok(())
+}
+
+pub async fn get_all_distinct_values(
+    config: &PostgresConfig,
+) -> anyhow::Result<Vec<HashMap<String, String>>> {
+    // connect to database
+    let mut query =
+        PostgresQuery::try_new(config.connect.clone(), config.task.time_zone.clone()).await?;
+    // additional filters, get distinct values
+    let mut filters = Vec::new();
+
+    let start = config.task.start;
+    let end = match config.task.end {
+        Some(end) => end,
+        None => Utc::now(),
+    };
+    let time_zone = FixedOffset::from_str(&config.task.time_zone.to_string())?;
+    let interval = config.task.interval;
+
+    // split the query into multiple windows
+    let window_start = start.clone();
+    // with time zone
+    let mut window_start_with_tz = window_start.with_timezone(&time_zone);
+    let end_with_tz = end.with_timezone(&time_zone);
+
+    let mut current_distinct_sql = String::new();
+
+    while window_start_with_tz < end_with_tz {
+        // calculate the end of the window
+        let mut window_end_with_tz = window_start_with_tz + interval;
+        // when the window across days, we need to adjust the end to the start of the next day
+        if window_end_with_tz.date_naive() > window_start_with_tz.date_naive() {
+            window_end_with_tz = window_start_with_tz
+                .date_naive()
+                .checked_add_days(Days::new(1))
+                .unwrap()
+                .and_hms_opt(0, 0, 0)
+                .unwrap()
+                .and_local_timezone(time_zone)
+                .unwrap();
+        }
+
+        // generate new table name
+        let mut config = config.clone();
+        config.task.start = window_start_with_tz.with_timezone(&Utc);
+        config.task.end = Some(window_end_with_tz.with_timezone(&Utc));
+        let distinct_sql = config.task.generate_distinct_sql()?;
+
+        // get distinct values
+        if !distinct_sql.is_empty() && current_distinct_sql != distinct_sql {
+            let values = query.select_distinct_values(&distinct_sql).await;
+            let values = match values {
+                Ok(values) => values,
+                Err(e) => {
+                    tracing::error!("get distinct values error: {}", e);
+                    Vec::new()
+                }
+            };
+            // transform to string set
+            filters.extend(
+                values
+                    .iter()
+                    .map(|v| {
+                        // parse row to HashMap
+                        v.columns()
+                            .iter()
+                            .filter_map(|col| {
+                                let col_cidx = col.ordinal();
+                                let col_name = col.name().to_string();
+                                let col_type = col.type_info().name();
+
+                                match col_type {
+                                    "BOOL" => {
+                                        let val = v.try_get::<Option<bool>, _>(col_cidx);
+                                        if let Ok(Some(col_value)) = val {
+                                            Some((
+                                                col_name.clone(),
+                                                format!("{}={}", col_name, col_value),
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    "CHAR" => {
+                                        let val = v.try_get::<Option<String>, _>(col_cidx);
+                                        if let Ok(Some(col_value)) = val {
+                                            Some((
+                                                col_name.clone(),
+                                                format!("{}='{}'", col_name, col_value),
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    "SMALLINT" | "SMALLSERIAL" | "INT2" => {
+                                        let val = v.try_get::<Option<i16>, _>(col_cidx);
+                                        if let Ok(Some(col_value)) = val {
+                                            Some((
+                                                col_name.clone(),
+                                                format!("{}={}", col_name, col_value),
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    "INT" | "SERIAL" | "INT4" => {
+                                        let val = v.try_get::<Option<i32>, _>(col_cidx);
+                                        if let Ok(Some(col_value)) = val {
+                                            Some((
+                                                col_name.clone(),
+                                                format!("{}={}", col_name, col_value),
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    "BIGINT" | "BIGSERIAL" | "INT8" => {
+                                        let val = v.try_get::<Option<i64>, _>(col_cidx);
+                                        if let Ok(Some(col_value)) = val {
+                                            Some((
+                                                col_name.clone(),
+                                                format!("{}={}", col_name, col_value),
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    "REAL" | "FLOAT4" => {
+                                        let val = v.try_get::<Option<f32>, _>(col_cidx);
+                                        if let Ok(Some(col_value)) = val {
+                                            Some((
+                                                col_name.clone(),
+                                                format!("{}={}", col_name, col_value),
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    "DOUBLE PRECISION" | "FLOAT8" => {
+                                        let val = v.try_get::<Option<f64>, _>(col_cidx);
+                                        if let Ok(Some(col_value)) = val {
+                                            Some((
+                                                col_name.clone(),
+                                                format!("{}={}", col_name, col_value),
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    "VARCHAR" | "CHAR(N)" | "TEXT" | "NAME" | "CITEXT" => {
+                                        let val = v.try_get::<Option<String>, _>(col_cidx);
+                                        if let Ok(Some(col_value)) = val {
+                                            Some((
+                                                col_name.clone(),
+                                                format!("{}='{}'", col_name, col_value),
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    _ => None,
+                                }
+                            })
+                            .collect::<HashMap<String, String>>()
+                    })
+                    .collect::<Vec<HashMap<String, String>>>(),
+            );
+            current_distinct_sql = distinct_sql;
+        }
+        // move the window
+        window_start_with_tz = window_end_with_tz;
+    }
+    Ok(filters)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct SubSql {
+    sql: String,
+    sub_values: String,
+}
+
+fn generate_combinations(
+    filters: &Vec<HashMap<String, String>>,
+    template: &String,
+    result: &mut HashSet<SubSql>,
+) {
+    filters.iter().for_each(|filter| {
+        let mut distinct_values = BTreeMap::new();
+        for (key, value) in filter.iter() {
+            distinct_values.insert(key.as_str(), value.clone());
+        }
+        let mut filled_template = template.to_string();
+        for (key, value) in distinct_values.iter() {
+            filled_template = filled_template.replace(&format!("${{{}}}", key), &value.to_string());
+        }
+        result.insert(SubSql {
+            sql: filled_template,
+            sub_values: distinct_values
+                .iter()
+                .map(|(_, v)| format!("{}", v))
+                .collect::<Vec<String>>()
+                .join(","),
+        });
+    });
 }
 
 pub async fn set_breakpoint(
@@ -146,7 +422,7 @@ pub async fn set_breakpoint(
     Ok(())
 }
 
-fn get_breakpoint(task_id: Option<i64>) -> Option<DateTime<Utc>> {
+fn get_breakpoint(task_id: Option<i64>, sub_task_id: &String) -> Option<DateTime<Utc>> {
     // get break point by task_id, if not found, return None
     if task_id.is_none() {
         return None;
@@ -157,8 +433,8 @@ fn get_breakpoint(task_id: Option<i64>) -> Option<DateTime<Utc>> {
     match breakpoints {
         Ok(breakpoints) => {
             let mut earliest = None;
-            for (sub_task_id, breakpoint) in breakpoints {
-                if sub_task_id.starts_with(MIGRATE_TASK_PREFIX) {
+            for (key, breakpoint) in breakpoints {
+                if key.starts_with(format!("{MIGRATE_TASK_PREFIX}-{sub_task_id}").as_str()) {
                     // parse breakpoint to DateTime
                     let date_time = DateTime::parse_from_rfc3339(&breakpoint)
                         .map(|dt| Some(dt.with_timezone(&Utc)))
@@ -203,7 +479,10 @@ mod tests {
         let mut config = PostgresConfig::from_dsn(&dsn).unwrap();
 
         config.task_id = Some(1);
-        config.sub_task_id = Some("mig-1".to_string());
+        config.sub_task_id = Some(format!(
+            "mig-{}-1",
+            config.sub_task_id.unwrap_or("sub_task_id".to_string())
+        ));
         let breakpoint = DateTime::parse_from_rfc3339("2024-04-01T00:00:00Z")
             .map(|dt| dt.with_timezone(&Utc))
             .unwrap();
@@ -218,7 +497,7 @@ mod tests {
         test_set_breakpoint();
         // get breakpoint
         let task_id = Some(1);
-        let breakpoint = get_breakpoint(task_id);
+        let breakpoint = get_breakpoint(task_id, &String::new());
 
         if breakpoint.is_some() {
             assert_eq!(
