@@ -149,6 +149,9 @@ int32_t mJoinTrimKeepOneRow(SSDataBlock* pBlock, int32_t totalRows, const bool* 
             len = varDataTLen(p1);
           }
           char* p2 = taosMemoryMalloc(len);
+          if (NULL == p2) {
+            MJ_ERR_RET(terrno);
+          }
           TAOS_MEMCPY(p2, p1, len);
           code = colDataSetVal(pDst, numOfRows, p2, false);
           if (code) {
