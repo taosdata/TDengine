@@ -1080,7 +1080,7 @@ static int run_exec_by_case(TAOS_STMT *stmt, const exec_case_t *_case, TAOS_MULT
       char temp[4096] = {0};
       rows++;
       taos_print_row(temp, row, fields, num_fields);
-      LOGE("%s", temp);
+      LOGE("%d:%s", rows, temp);
     }
   }
 
@@ -1291,6 +1291,16 @@ static int run_exec(TAOS *conn)
         {__LINE__, {EXEC_COL_END}},
       },
     },{
+      .line      = __LINE__,
+      .sql       = "select * from t",
+      .is_insert = 0,
+      .params    = {
+        {__LINE__, {EXEC_COL_END}},
+      },
+      .cells     = {
+        {__LINE__, {EXEC_COL_END}},
+      },
+    },{
       // TODO: do convertion
       .line      = __LINE__,
       .sql       = "insert into ? (ts, nm, i32) values (?,?,?)",
@@ -1304,6 +1314,16 @@ static int run_exec(TAOS *conn)
         {__LINE__, {"def", "1726146779017", "def14", "14", EXEC_COL_END}},
         {__LINE__, {"aef", "1726146779126", "aef13", "93", EXEC_COL_END}},
         {__LINE__, {"aef", "1726146779127", "aef14", "94", EXEC_COL_END}},
+        {__LINE__, {EXEC_COL_END}},
+      },
+      .cells     = {
+        {__LINE__, {EXEC_COL_END}},
+      },
+    },{
+      .line      = __LINE__,
+      .sql       = "select tbname, * from st",
+      .is_insert = 0,
+      .params    = {
         {__LINE__, {EXEC_COL_END}},
       },
       .cells     = {
