@@ -801,8 +801,8 @@ bool streamTaskSetSchedStatusWait(SStreamTask* pTask) {
     pTask->status.schedStatus = TASK_SCHED_STATUS__WAITING;
     ret = true;
   }
-  streamMutexUnlock(&pTask->lock);
 
+  streamMutexUnlock(&pTask->lock);
   return ret;
 }
 
