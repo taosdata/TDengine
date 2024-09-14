@@ -1000,6 +1000,7 @@ class StreamComputingTest(TDCase):
         self.delete = delete
         self.case_name = sys._getframe().f_code.co_name
         if pause:
+            self.range_count = self.record_range_count
             self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1], "checkpointInterval": self.tmp_checkpointInterval}, self.endpoint, True)
         # if interval_value is None:
         #     interval_value = f'{self.dataDict["interval"]}s'
