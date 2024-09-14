@@ -57,7 +57,6 @@ typedef struct SCliConn {
   int32_t      ref;
   uv_connect_t connReq;
   uv_stream_t* stream;
-  queue        wreqQueue;
 
   uv_timer_t* timer;  // read timer, forbidden
 
@@ -909,8 +908,6 @@ static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int
   conn->broken = false;
   QUEUE_INIT(&conn->q);
 
-  transReqQueueInit(&conn->wreqQueue);
-
   TAOS_CHECK_GOTO(transQueueInit(&conn->reqsToSend, cliDestroyMsg), NULL, _failed);
   TAOS_CHECK_GOTO(transQueueInit(&conn->reqsSentOut, cliDestroyMsg), NULL, _failed);
 
@@ -1007,7 +1004,6 @@ static void cliDestroy(uv_handle_t* handle) {
   destroyWQ(&conn->wq);
 
   tTrace("%s conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
-  transReqQueueClear(&conn->wreqQueue);
   (void)transDestroyBuffer(&conn->readBuf);
 
   taosMemoryFree(conn);

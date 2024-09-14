@@ -412,29 +412,32 @@ void transReqQueueInit(queue* q) {
   QUEUE_INIT(q);
 }
 void* transReqQueuePush(queue* q, SWriteReq* userReq) {
-  uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
-  req->data = userReq;
+  return NULL;
+  // uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
+  // req->data = userReq;
 
-  QUEUE_PUSH(q, &userReq->q);
-  return req;
+  // QUEUE_PUSH(q, &userReq->q);
+  // return req;
 }
 void* transReqQueueRemove(void* arg) {
-  void*       ret = NULL;
-  uv_write_t* req = arg;
+  return NULL;
+  // void*       ret = NULL;
+  // uv_write_t* req = arg;
 
-  SWriteReq* userReq = req ? req->data : NULL;
-  if (req == NULL) return NULL;
-  QUEUE_REMOVE(&userReq->q);
+  // SWriteReq* userReq = req ? req->data : NULL;
+  // if (req == NULL) return NULL;
+  // QUEUE_REMOVE(&userReq->q);
 
-  return userReq;
+  // return userReq;
 }
 void transReqQueueClear(queue* q) {
-  while (!QUEUE_IS_EMPTY(q)) {
-    queue* h = QUEUE_HEAD(q);
-    QUEUE_REMOVE(h);
-    SWriteReq* req = QUEUE_DATA(h, SWriteReq, q);
-    taosMemoryFree(req);
-  }
+  return;
+  // while (!QUEUE_IS_EMPTY(q)) {
+  //   queue* h = QUEUE_HEAD(q);
+  //   QUEUE_REMOVE(h);
+  //   SWriteReq* req = QUEUE_DATA(h, SWriteReq, q);
+  //   taosMemoryFree(req);
+  // }
 }
 
 int32_t transQueueInit(STransQueue* wq, void (*freeFunc)(void* arg)) {
@@ -883,3 +886,39 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
 //   STUB_RAND_NETWORK_ERR(status)
 //   return status;
 // }
+
+int32_t initWQ(queue* wq) {
+  QUEUE_INIT(wq);
+  for (int i = 0; i < 4; i++) {
+    SWReqsWrapper* w = taosMemoryCalloc(1, sizeof(SWReqsWrapper));
+    w->wreq.data = w;
+    w->arg = NULL;
+    QUEUE_PUSH(wq, &w->q);
+  }
+  return 0;
+}
+void destroyWQ(queue* wq) {
+  while (!QUEUE_IS_EMPTY(wq)) {
+    queue* h = QUEUE_HEAD(wq);
+    QUEUE_REMOVE(h);
+    SWReqsWrapper* w = QUEUE_DATA(h, SWReqsWrapper, q);
+    taosMemoryFree(w);
+  }
+}
+
+uv_write_t* allocWReqFromWQ(queue* wq, void* arg) {
+  if (!QUEUE_IS_EMPTY(wq)) {
+    queue* node = QUEUE_HEAD(wq);
+    QUEUE_REMOVE(node);
+    SWReqsWrapper* w = QUEUE_DATA(node, SWReqsWrapper, q);
+    w->arg = arg;
+    return &w->wreq;
+  } else {
+    SWReqsWrapper* w = taosMemoryCalloc(1, sizeof(SWReqsWrapper));
+    w->wreq.data = w;
+    w->arg = arg;
+    return &w->wreq;
+  }
+}
+
+void freeWReqToWQ(queue* wq, SWReqsWrapper* w) { QUEUE_PUSH(wq, &w->q); }

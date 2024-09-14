@@ -27,7 +27,6 @@ typedef struct {
 typedef struct SSvrConn {
   int32_t    ref;
   uv_tcp_t*  pTcp;
-  queue      wreqQueue;
   uv_timer_t pTimer;
 
   queue       queue;
@@ -1227,7 +1226,6 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
   }
 
-  transReqQueueInit(&pConn->wreqQueue);
   QUEUE_INIT(&pConn->queue);
 
   if ((code = transQueueInit(&pConn->resps, uvDestroyResp)) != 0) {
@@ -1359,7 +1357,6 @@ static void uvDestroyConn(uv_handle_t* handle) {
   tDebug("%s conn %p destroy", transLabel(pInst), conn);
 
   transQueueDestroy(&conn->resps);
-  transReqQueueClear(&conn->wreqQueue);
 
   QUEUE_REMOVE(&conn->queue);
 
