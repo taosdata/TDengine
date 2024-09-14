@@ -289,7 +289,11 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type) {
   }
 
   *idx = startId;
-  return gConv[type][startId].conv;
+  if ((iconv_t)0 == gConv[type][startId].conv) {
+    return (iconv_t)-1;
+  } else {
+    return gConv[type][startId].conv;
+  }
 }
 
 void taosReleaseConv(int32_t idx, iconv_t conv, ConvType type) {
