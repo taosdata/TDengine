@@ -1315,9 +1315,10 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d,QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
-      if (TSDB_CODE_SUCCESS != refreshMeta(pRequest->pTscObj, pRequest)) {
-        tscWarn("0x%" PRIx64 " refresh meta failed, code:%d - %s,QID:0x%" PRIx64, pRequest->self, code, tstrerror(code),
-                pRequest->requestId);
+      code = refreshMeta(pRequest->pTscObj, pRequest);
+      if (code != 0){
+        tscWarn("0x%" PRIx64 " refresh meta failed, code:%d - %s,QID:0x%" PRIx64, pRequest->self, code,
+                tstrerror(code), pRequest->requestId);
       }
       pRequest->prevCode = code;
       doAsyncQuery(pRequest, true);
@@ -1524,7 +1525,7 @@ int taos_get_table_vgId(TAOS *taos, const char *db, const char *table, int *vgId
 
   conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
-  SName tableName;
+  SName tableName = {0};
   toName(pTscObj->acctId, db, table, &tableName);
 
   SVgroupInfo vgInfo;

@@ -112,8 +112,8 @@ int32_t tqScanWalInFuture(STQ* pTq, int32_t numOfTasks, int32_t idleDuration) {
   if (pMeta->scanInfo.scanTimer == NULL) {
     pMeta->scanInfo.scanTimer = taosTmrStart(doStartScanWal, idleDuration, pParam, pTimer);
   } else {
-    code = taosTmrReset(doStartScanWal, idleDuration, pParam, pTimer, &pMeta->scanInfo.scanTimer);
-    if (code) {
+    bool ret = taosTmrReset(doStartScanWal, idleDuration, pParam, pTimer, &pMeta->scanInfo.scanTimer);
+    if (!ret) {
       tqError("vgId:%d failed to start scan wal in:%dms", vgId, idleDuration);
     }
   }
