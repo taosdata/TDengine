@@ -82,11 +82,13 @@ static int32_t   mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void      mndCancelGetNextApp(SMnode *pMnode, void *pIter);
 static int32_t   mndProcessSvrVerReq(SRpcMsg *pReq);
 
+#define CACHE_OBJ_KEEP_TIME 3 // s
+
 int32_t mndInitProfile(SMnode *pMnode) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   // in ms
-  int32_t checkTime = tsShellActivityTimer * 2 * 1000;
+  int32_t checkTime = CACHE_OBJ_KEEP_TIME * 1000;
   pMgmt->connCache = taosCacheInit(TSDB_DATA_TYPE_UINT, checkTime, false, (__cache_free_fn_t)mndFreeConn, "conn");
   if (pMgmt->connCache == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -129,8 +131,6 @@ void mndCleanupProfile(SMnode *pMnode) {
     pMgmt->appCache = NULL;
   }
 }
-
-#define CACHE_OBJ_KEEP_TIME 3 // s
 
 static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, uint32_t ip, uint16_t port,
                                int32_t pid, const char *app, int64_t startTime) {
