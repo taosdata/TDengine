@@ -36,6 +36,7 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
   int64_t      st = taosGetTimestampMs();
   int64_t      streamId = 0;
   int32_t      taskId = 0;
+  int32_t      code = 0;
 
   tqDebug("s-task:%s vgId:%d start to expand stream task", pTask->id.idStr, vgId);
 
@@ -52,7 +53,7 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
     pTask->pState = streamStateOpen(pMeta->path, pTask, streamId, taskId);
     if (pTask->pState == NULL) {
       tqError("s-task:%s (vgId:%d) failed to open state for task, expand task failed", pTask->id.idStr, vgId);
-      return -1;
+      return terrno;
     } else {
       tqDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
     }
@@ -75,18 +76,23 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
   initStorageAPI(&handle.api);
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE || pTask->info.taskLevel == TASK_LEVEL__AGG) {
-    pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, vgId, pTask->id.taskId);
-    if (pTask->exec.pExecutor == NULL) {
-      tqError("s-task:%s failed to create exec taskInfo, failed to expand task", pTask->id.idStr);
-      return -1;
+    code = qCreateStreamExecTaskInfo(&pTask->exec.pExecutor, pTask->exec.qmsg, &handle, vgId, pTask->id.taskId);
+    if (code) {
+      tqError("s-task:%s failed to expand task, code:%s", pTask->id.idStr, tstrerror(code));
+      return code;
     }
-    qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
+
+    code = qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
+    if (code) {
+
+      return code;
+    }
   }
 
   double el = (taosGetTimestampMs() - st) / 1000.0;
   tqDebug("s-task:%s vgId:%d expand stream task completed, elapsed time:%.2fsec", pTask->id.idStr, vgId, el);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 void tqSetRestoreVersionInfo(SStreamTask* pTask) {
@@ -840,7 +846,7 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
         int32_t idle = taosGetTimestampMs() - execTs;
         tqDebug("s-task:%s task resume to run after idle for:%dms from:%" PRId64, pTask->id.idStr, idle, execTs);
 
-        streamResumeTask(pTask);
+        code = streamResumeTask(pTask);
       } else {
         int8_t status = streamTaskSetSchedStatusInactive(pTask);
         tqDebug("vgId:%d s-task:%s ignore run req since not in ready state, status:%s, sched-status:%d", vgId,
@@ -849,7 +855,7 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
       streamMetaReleaseTask(pMeta, pTask);
     }
 
-    return 0;
+    return code;
   }
 
   SStreamTask* pTask = NULL;
