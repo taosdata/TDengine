@@ -416,19 +416,6 @@ impl Worker {
 
     fn try_mutate_data(&mut self, data: &mut Vec<RawBlock>) -> Result<()> {
         for raw in data {
-            let source_table_name = raw.table_name().and_then(|name| {
-                if name.is_empty() {
-                    None
-                } else {
-                    Some(name.to_owned())
-                }
-            });
-            tracing::trace!(
-                source.table = source_table_name,
-                "sync block with {} rows {} cols",
-                raw.nrows(),
-                raw.ncols()
-            );
             if let Some(name) = self.table.as_ref() {
                 if self.options.actions.is_empty() {
                     raw.with_table_name(name.to_string());
@@ -1050,8 +1037,8 @@ impl Worker {
         }
 
         if let Some(data) = message.data.as_mut() {
-            self.try_mutate_data(data)?;
             if raw_changed || self.options.strategy.by_block() {
+                self.try_mutate_data(data)?;
                 self.write_blocks(data).in_current_span().await?;
                 return Ok(());
             }
@@ -1164,9 +1151,11 @@ impl Worker {
                     // Table not exist error codes or invalid input.
                     0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 | 0x0118 | 0x4000 => {
                         tracing::debug!("Fallback to block-by-block method due to: {err:#}.");
+                        self.try_mutate_data(data)?;
                         self.write_blocks(data).await?;
                     }
                     _ => {
+                        self.try_mutate_data(data)?;
                         // metrics.add_write_raw_fails(1);
                         tracing::error!("Write data error: {err}");
                         // let block = data.fetch_raw_block().await;
