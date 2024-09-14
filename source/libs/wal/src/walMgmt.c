@@ -81,6 +81,15 @@ void walCleanUp() {
   }
 }
 
+static int32_t walInitLock(SWal *pWal) {
+  TdThreadRwlockAttr attr;
+  (void)taosThreadRwlockAttrInit(&attr);
+  (void)taosThreadRwlockAttrSetKindNP(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+  (void)taosThreadRwlockInit(&pWal->mutex, &attr);
+  (void)taosThreadRwlockAttrDestroy(&attr);
+  return 0;
+}
+
 SWal *walOpen(const char *path, SWalCfg *pCfg) {
   SWal *pWal = taosMemoryCalloc(1, sizeof(SWal));
   if (pWal == NULL) {
@@ -88,7 +97,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     return NULL;
   }
 
-  if (taosThreadRwlockInit(&pWal->mutex, NULL) < 0) {
+  if (walInitLock(pWal) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     taosMemoryFree(pWal);
     return NULL;
