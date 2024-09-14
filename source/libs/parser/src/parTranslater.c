@@ -14449,22 +14449,22 @@ int32_t serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap, SArray** pOut) 
   return code;
 }
 
-static int32_t rewriteDropTableWithUid(STranslateContext* pCxt, SDropTableStmt* pStmt) {
-  if (!pStmt->withUid) return TSDB_CODE_SUCCESS;
+// static int32_t rewriteDropTablewithOpt(STranslateContext* pCxt, SDropTableStmt* pStmt) {
+//   if (!pStmt->withOpt) return TSDB_CODE_SUCCESS;
 
-  SNode*      pNode = NULL;
-  const char* pTableName = NULL;
-  FOREACH(pNode, pStmt->pTables) {
-    SDropTableClause* pClause = (SDropTableClause*)pNode;
-    pTableName = "aa\u00bf\u200bstb0";
-    if (!pTableName) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, "Table does not exist: '%s'",
-                                     pClause->tableName);
-    }
-    tstrncpy(pClause->tableName, pTableName, TSDB_TABLE_NAME_LEN);
-  }
-  return TSDB_CODE_SUCCESS;
-}
+//   SNode*      pNode = NULL;
+//   const char* pTableName = NULL;
+//   FOREACH(pNode, pStmt->pTables) {
+//     SDropTableClause* pClause = (SDropTableClause*)pNode;
+//     pTableName = "aa\u00bf\u200bstb0";
+//     if (!pTableName) {
+//       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, "Table does not exist: '%s'",
+//                                      pClause->tableName);
+//     }
+//     tstrncpy(pClause->tableName, pTableName, TSDB_TABLE_NAME_LEN);
+//   }
+//   return TSDB_CODE_SUCCESS;
+// }
 
 static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
   SDropTableStmt* pStmt = (SDropTableStmt*)pQuery->pRoot;
@@ -14472,7 +14472,7 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
   SNode*          pNode;
   SArray*         pTsmas = NULL;
 
-  TAOS_CHECK_RETURN(rewriteDropTableWithUid(pCxt, pStmt));
+  // TAOS_CHECK_RETURN(rewriteDropTablewithOpt(pCxt, pStmt));
 
   SHashObj* pVgroupHashmap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   if (NULL == pVgroupHashmap) {

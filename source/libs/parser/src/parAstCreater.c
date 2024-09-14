@@ -2360,7 +2360,7 @@ SNode* createDropTableStmt(SAstCreateContext* pCxt, bool withOpt, SNodeList* pTa
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->pTables = pTables;
-  pStmt->withUid = withOpt;
+  pStmt->withOpt = withOpt;
   return (SNode*)pStmt;
 _err:
   nodesDestroyList(pTables);
@@ -2375,7 +2375,7 @@ SNode* createDropSuperTableStmt(SAstCreateContext* pCxt, bool withOpt, bool igno
   strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
   strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
   pStmt->ignoreNotExists = ignoreNotExists;
-  pStmt->withUid = withOpt;
+  pStmt->withOpt = withOpt;
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 _err:
