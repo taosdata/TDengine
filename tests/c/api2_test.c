@@ -1278,7 +1278,7 @@ static int run_exec(TAOS *conn)
     },{
       // TODO: do convertion
       .line      = __LINE__,
-      .sql       = "insert into ?                         (ts, nm, i32) values(?, ?, ?)",
+      .sql       = "insert into ? (ts, nm, i32) values(?, ?, ?)",
       .is_insert = 1,
       .params    = {
         {__LINE__, {"t", "1726146978100", "yes", "987", EXEC_COL_END}},
