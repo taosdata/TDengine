@@ -88,6 +88,9 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 #endif
 
 void toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName) {
+  if (pName == NULL){
+    return;
+  }
   pName->type = TSDB_TABLE_NAME_T;
   pName->acctId = acctId;
   snprintf(pName->dbname, sizeof(pName->dbname), "%s", pDbName);

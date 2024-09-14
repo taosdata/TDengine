@@ -119,7 +119,7 @@ int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
         qError("failed to get task %d, total: %d", m, pLevel->taskNum);
         SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
       }
-      
+
       SQuerySubDesc subDesc = {0};
       subDesc.tid = pTask->taskId;
       TAOS_STRCPY(subDesc.status, jobTaskStatusStr(pTask->status));
@@ -179,8 +179,11 @@ void schedulerFreeJob(int64_t *jobId, int32_t errCode) {
   SCH_JOB_DLOG("start to free job 0x%" PRIx64 ", code:%s", *jobId, tstrerror(errCode));
   (void)schHandleJobDrop(pJob, errCode); // ignore any error
 
-  (void)schReleaseJob(*jobId); // ignore error
-  *jobId = 0;
+  int32_t released = false;
+  (void)schReleaseJobEx(*jobId, &released);  // ignore error
+  if (released) {
+    *jobId = 0;
+  }
 }
 
 void schedulerDestroy(void) {

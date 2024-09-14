@@ -771,7 +771,10 @@ void* stmtBindThreadFunc(void* param) {
       continue;
     }
 
-    (void)stmtAsyncOutput(pStmt, asyncParam);
+    int ret = stmtAsyncOutput(pStmt, asyncParam);
+    if (ret != 0){
+      qError("stmtAsyncOutput failed, reason:%s", tstrerror(ret));
+    }
   }
 
   qInfo("stmt bind thread stopped");

@@ -120,7 +120,12 @@ int32_t taosReadFromSocket(TdSocketPtr pSocket, void *buf, int32_t len, int32_t 
 
 int32_t taosCloseSocketNoCheck1(SocketFd fd) {
 #ifdef WINDOWS
-  return closesocket(fd);
+  int ret = closesocket(fd);
+  if (ret == SOCKET_ERROR) {
+    int errorCode = WSAGetLastError();
+    return terrno = TAOS_SYSTEM_WINSOCKET_ERROR(errorCode);
+  }
+  return 0;
 #else
   int32_t code = close(fd);
   if (-1 == code) {
@@ -770,10 +775,7 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
 
   TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
   if (pSocket == NULL) {
-    code = terrno;
-    (void)taosCloseSocketNoCheck1(fd);
-    terrno = code;
-    
+    TAOS_SKIP_ERROR(taosCloseSocketNoCheck1(fd));
     return false;
   }
   pSocket->refId = 0;
@@ -782,22 +784,18 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
   /* set REUSEADDR option, so the portnumber can be re-used */
   reuse = 1;
   if (taosSetSockOpt(pSocket, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(reuse)) < 0) {
-    code = terrno;
-    (void)taosCloseSocket(&pSocket);
-    terrno = code;
-    
+    TAOS_SKIP_ERROR(taosCloseSocket(&pSocket));
     return false;
   }
   
   /* bind socket to server address */
   if (-1 == bind(pSocket->fd, (struct sockaddr *)&serverAdd, sizeof(serverAdd))) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    (void)taosCloseSocket(&pSocket);
-    terrno = code;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    TAOS_SKIP_ERROR(taosCloseSocket(&pSocket));
     return false;
   }
   
-  (void)taosCloseSocket(&pSocket);
+  TAOS_SKIP_ERROR(taosCloseSocket(&pSocket));
   
   return true;
 }
@@ -1160,9 +1158,8 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
 #else  // Linux like systems
   uint32_t conn_timeout_ms = timeout;
   if (-1 == setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
-    int32_t code = TAOS_SYSTEM_ERROR(errno);
-    (void)taosCloseSocketNoCheck1(fd);
-    terrno = code;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    TAOS_SKIP_ERROR(taosCloseSocketNoCheck1(fd));
     return -1;
   }
 #endif

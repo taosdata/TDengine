@@ -229,7 +229,7 @@ int32_t doSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       resetLimitInfoForNextGroup(&pInfo->limitInfo);
     }
 
-    (void)applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo);
+    bool limitReached = applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo);
 
     if (p->info.rows > 0) {
       break;

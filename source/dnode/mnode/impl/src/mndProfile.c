@@ -91,7 +91,7 @@ int32_t mndInitProfile(SMnode *pMnode) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   // in ms
-  int32_t checkTime = tsShellActivityTimer * 2 * 1000;
+  int32_t checkTime = CACHE_OBJ_KEEP_TIME * 1000;
   pMgmt->connCache = taosCacheInit(TSDB_DATA_TYPE_UINT, checkTime, false, (__cache_free_fn_t)mndFreeConn, "conn");
   if (pMgmt->connCache == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
