@@ -1255,11 +1255,11 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
     } else if (tableType == TSDB_NORMAL_TABLE) {
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
-      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.btime, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&mr.me.ntbEntry.btime, false);
 
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
-      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.schemaRow.nCols, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&mr.me.ntbEntry.schemaRow.nCols, false);
 
       // super table name
       pColInfoData = taosArrayGet(p->pDataBlock, 4);
