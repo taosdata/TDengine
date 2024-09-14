@@ -23,7 +23,7 @@ use crate::utils::validate_table_column_name;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum GeneratePointMappingBy {
     Rule(OpcPointMappingRule),
-    Csv(Vec<String>),
+    Csv((Vec<String>, Option<String>)),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -247,8 +247,14 @@ impl OpcModelConfig {
                 let t = rule.gen_table_config(Some(value_type.clone()))?;
                 Ok((p, t))
             }
-            GeneratePointMappingBy::Csv(csv_files) => {
-                let parser = CsvParser::try_new(self.opc_type.clone(), csv_files.clone())?;
+            GeneratePointMappingBy::Csv((csv_files, csv_origin)) => {
+                let parser = match csv_origin {
+                    None => CsvParser::try_new(self.opc_type.clone(), csv_files.clone())?,
+                    Some(csv_origin) => {
+                        CsvParser::try_new(self.opc_type.clone(), vec![format!("@{}", csv_origin)])?
+                    }
+                };
+
                 let (p, t) = parser.parse_one(point_id).await?.ok_or(anyhow::anyhow!(
                     "point_id: {} not found in csv files: {:?}",
                     point_id,
@@ -281,8 +287,13 @@ impl OpcModelConfig {
             Some(GeneratePointMappingBy::Rule(_rule)) => {
                 bail!("generate transform map by GeneratePointMappingBy::Rule is not supported")
             }
-            Some(GeneratePointMappingBy::Csv(csv)) => {
-                let parser = CsvParser::try_new(self.opc_type.clone(), csv.clone())?;
+            Some(GeneratePointMappingBy::Csv((csv, csv_origin))) => {
+                let parser = match csv_origin {
+                    None => CsvParser::try_new(self.opc_type.clone(), csv.clone())?,
+                    Some(csv_origin) => {
+                        CsvParser::try_new(self.opc_type.clone(), vec![format!("@{}", csv_origin)])?
+                    }
+                };
                 parser.parse_transform(column_name).await
             }
         }

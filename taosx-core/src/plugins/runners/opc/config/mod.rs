@@ -51,7 +51,7 @@ pub struct OPCConfig {
     pub collect: Option<CollectConfig>,
 
     #[serde(skip)]
-    pub points_mode: Option<PointsMode>,
+    pub points_mode: Option<PointsMode>, // 数据点位的模式, csv 或 command
     #[serde(skip)]
     model_config: Option<OpcModelConfig>,
 }
@@ -71,32 +71,34 @@ impl OPCConfig {
         let connect = ConnectConfig::from_dsn(dsn)?;
         let report = ReportConfig::from_dsn(dsn, ipc_port)?;
 
-        let csv_config_file = Self::parse_csv_config_file(dsn);
-        let (points_mode, model_config) = if csv_config_file.is_some() {
-            // 上传 csv 配置文件
-            let parser = CsvParser::from_dsn(dsn)?;
-            let model_config = parser.parse().await?;
-            (PointsMode::ByCsv, model_config)
-        } else {
-            // 选择数据点位
-            // 1. 执行 taosx-opc point 查询点位
-            let points = opc_datasets_impl(dsn.clone()).await?;
-            // 2. 从 dsn 中解析点位到 TDengine 的映射规则
-            let rule = OpcPointMappingRule::from_dsn(dsn)?;
-            // 3. 生成 model_config
-            let (point_map, table_map) = rule.generate(points)?;
+        let points_mode = PointsMode::from_dsn(dsn)?;
+        // OPC model config
+        let model_config = match points_mode {
+            PointsMode::ByCsv => {
+                // 上传 csv 配置文件
+                let mut parser = CsvParser::from_dsn(dsn)?;
+                parser.set_csv_origin(Self::parse_csv_origin(dsn));
+                parser.parse().await?
+            }
+            PointsMode::ByCommand => {
+                // 选择数据点位
+                // 1. 执行 taosx-opc point 查询点位
+                let points = opc_datasets_impl(dsn.clone()).await?;
+                // 2. 从 dsn 中解析点位到 TDengine 的映射规则
+                let rule = OpcPointMappingRule::from_dsn(dsn)?;
+                // 3. 生成 model_config
+                let (point_map, table_map) = rule.generate(points)?;
 
-            let model_config = OpcModelConfig {
-                opc_type: opc_type.clone(),
-                generate_rule: Some(GeneratePointMappingBy::Rule(rule)),
-                point_config_map: point_map,
-                table_config_map: table_map,
-            };
-
-            // opc_model_config
-            (PointsMode::ByCommand, model_config)
+                OpcModelConfig {
+                    opc_type: opc_type.clone(),
+                    generate_rule: Some(GeneratePointMappingBy::Rule(rule)),
+                    point_config_map: point_map,
+                    table_config_map: table_map,
+                }
+            }
         };
 
+        // points config
         let points_config = PointsConfig::from_dsn(dsn)?;
 
         // 这里把 model_config 中的点位写到 dsn 中，是为了在 collect 中使用。
@@ -348,6 +350,18 @@ impl OPCConfig {
             validate_table_column_name("primary_key", &primary_key_alias).ok()?;
             Some(primary_key_alias)
         }))
+    }
+
+    pub fn parse_csv_origin(dsn: &Dsn) -> Option<String> {
+        dsn.params
+            .get("csv_config_file_origin")
+            .map(|v| {
+                if v.is_empty() {
+                    return None;
+                }
+                Some(v.to_string())
+            })
+            .flatten()
     }
 }
 
