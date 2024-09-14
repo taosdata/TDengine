@@ -93,6 +93,10 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
   path[len - 1] = 'p';
 
   HANDLE file = CreateFile(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (file == INVALID_HANDLE_VALUE) {
+    FreeLibrary(dll);
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
 
   MINIDUMP_EXCEPTION_INFORMATION mei;
   mei.ThreadId = GetCurrentThreadId();
@@ -333,7 +337,10 @@ bool getWinVersionReleaseName(char *releaseName, int32_t maxLen) {
   UINT              uLen;
   VS_FIXEDFILEINFO *pFileInfo;
 
-  GetWindowsDirectory(szFileName, MAX_PATH);
+  int ret = GetWindowsDirectory(szFileName, MAX_PATH);
+  if (ret == 0) {
+    return false;
+  }
   wsprintf(szFileName, L"%s%s", szFileName, L"\\explorer.exe");
   dwLen = GetFileVersionInfoSize(szFileName, &dwHandle);
   if (dwLen == 0) {
@@ -373,12 +380,12 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
 
   if(sName) snprintf(sName, maxLen, "macOS");
   if (sysctl(osversion_name, 2, osversion, &osversion_len, NULL, 0) == -1) {
-    return -1;
+    return TAOS_SYSTEM_ERROR(errno);
   }
 
   uint32_t major, minor;
-  if (sscanf(osversion, "%u.%u", &major, &minor) != 2) {
-      return -1;
+  if (sscanf(osversion, "%u.%u", &major, &minor) == EOF) {
+      return TAOS_SYSTEM_ERROR(errno);
   }
   if (major >= 20) {
       major -= 9; // macOS 11 and newer
@@ -433,8 +440,11 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
 #ifdef WINDOWS
   char  value[100];
   DWORD bufferSize = sizeof(value);
-  RegGetValue(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", "ProcessorNameString",
+  LSTATUS ret = RegGetValue(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", "ProcessorNameString",
               RRF_RT_ANY, NULL, (PVOID)&value, &bufferSize);
+  if (ret != ERROR_SUCCESS) {
+    return TAOS_SYSTEM_ERROR(ret);
+  }
   tstrncpy(cpuModel, value, maxLen);
   SYSTEM_INFO si;
   memset(&si, 0, sizeof(SYSTEM_INFO));
@@ -696,7 +706,7 @@ int32_t taosGetTotalMemory(int64_t *totalKB) {
   MEMORYSTATUSEX memsStat;
   memsStat.dwLength = sizeof(memsStat);
   if (!GlobalMemoryStatusEx(&memsStat)) {
-    return -1;
+    return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
   }
 
   *totalKB = memsStat.ullTotalPhys / 1024;
@@ -705,6 +715,9 @@ int32_t taosGetTotalMemory(int64_t *totalKB) {
   return 0;
 #else
   *totalKB = (int64_t)(sysconf(_SC_PHYS_PAGES) * tsPageSizeKB);
+  if(*totalKB <= 0) {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
   return 0;
 #endif
 }
@@ -760,7 +773,7 @@ int32_t taosGetSysMemory(int64_t *usedKB) {
   MEMORYSTATUSEX memsStat;
   memsStat.dwLength = sizeof(memsStat);
   if (!GlobalMemoryStatusEx(&memsStat)) {
-    return -1;
+    return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
   }
 
   int64_t nMemFree = memsStat.ullAvailPhys / 1024;
@@ -773,6 +786,9 @@ int32_t taosGetSysMemory(int64_t *usedKB) {
   return 0;
 #else
   *usedKB = sysconf(_SC_AVPHYS_PAGES) * tsPageSizeKB;
+  if(*usedKB <= 0) {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
   return 0;
 #endif
 }
@@ -832,7 +848,7 @@ int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int
     if (write_bytes) *write_bytes = 0;
     return 0;
   }
-  return -1;
+  return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
 #elif defined(_TD_DARWIN_64)
   if (rchars) *rchars = 0;
   if (wchars) *wchars = 0;
@@ -1022,7 +1038,10 @@ void taosKillSystem() {
 int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
 #ifdef WINDOWS
   GUID guid;
-  CoCreateGuid(&guid);
+  HRESULT h = CoCreateGuid(&guid);
+  if (h != S_OK) {
+    return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+  }
   snprintf(uid, uidlen, "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X", guid.Data1, guid.Data2, guid.Data3,
            guid.Data4[0], guid.Data4[1], guid.Data4[2], guid.Data4[3], guid.Data4[4], guid.Data4[5], guid.Data4[6],
            guid.Data4[7]);
@@ -1226,14 +1245,13 @@ SysNameInfo taosGetSysNameInfo() {
   }
 
   char     localHostName[512];
-  taosGetlocalhostname(localHostName, 512);
+  TAOS_SKIP_ERROR(taosGetlocalhostname(localHostName, 512));
   TdCmdPtr pCmd = taosOpenCmd("scutil --get LocalHostName");
   tstrncpy(info.nodename, localHostName, sizeof(info.nodename));
 
   return info;
 #else
   SysNameInfo info = {0};
-
   struct utsname uts;
   if (!uname(&uts)) {
     tstrncpy(info.sysname, uts.sysname, sizeof(info.sysname));
@@ -1269,7 +1287,7 @@ bool taosCheckCurrentInDll() {
 }
 
 #ifdef _TD_DARWIN_64
-int taosGetMaclocalhostnameByCommand(char *hostname, size_t maxLen) {
+int32_t taosGetMaclocalhostnameByCommand(char *hostname, size_t maxLen) {
   TdCmdPtr pCmd = taosOpenCmd("scutil --get LocalHostName");
   if (pCmd != NULL) {
     if (taosGetsCmd(pCmd, maxLen - 1, hostname) > 0) {
@@ -1281,10 +1299,10 @@ int taosGetMaclocalhostnameByCommand(char *hostname, size_t maxLen) {
     }
     taosCloseCmd(&pCmd);
   }
-  return -1;
+  return TAOS_SYSTEM_ERROR(errno);
 }
 
-int getMacLocalHostNameBySCD(char *hostname, size_t maxLen) {
+int32_t getMacLocalHostNameBySCD(char *hostname, size_t maxLen) {
   SCDynamicStoreRef store = SCDynamicStoreCreate(NULL, CFSTR(""), NULL, NULL);
   CFStringRef       hostname_cfstr = SCDynamicStoreCopyLocalHostName(store);
   if (hostname_cfstr != NULL) {
@@ -1298,7 +1316,7 @@ int getMacLocalHostNameBySCD(char *hostname, size_t maxLen) {
 }
 #endif
 
-int taosGetlocalhostname(char *hostname, size_t maxLen) {
+int32_t taosGetlocalhostname(char *hostname, size_t maxLen) {
 #ifdef _TD_DARWIN_64
   int res = getMacLocalHostNameBySCD(hostname, maxLen);
   if (res != 0) {
