@@ -397,7 +397,7 @@ int32_t addIntoNodeUpdateList(SStreamTask* pTask, int32_t nodeId) {
     void* p = taosArrayPush(pTask->outputInfo.pNodeEpsetUpdateList, &t);
     if (p == NULL) {
       code = terrno;
-      stError("s-task:%s vgId:%d failed to update epset, code:%s", pTask->id.idStr, tstrerror(code));
+      stError("s-task:%s vgId:%d failed to update epset, code:%s", pTask->id.idStr, vgId, tstrerror(code));
     } else {
       stInfo("s-task:%s vgId:%d downstream nodeId:%d needs to be updated, total needs updated:%d", pTask->id.idStr,
              vgId, t.nodeId, (num + 1));
