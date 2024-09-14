@@ -25,7 +25,7 @@ use std::{
 use taos::*;
 use taos_query::Manager;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tracing::{error, info};
+use tracing::{error, info, instrument, Instrument};
 use tracing_actix_web::TracingLogger;
 
 use actix_embed::Embed;
@@ -47,7 +47,7 @@ use serde::{Deserialize, Serialize};
 use taoslog::{
     layer::TaosLayer,
     middleware::TaosRootSpanBuilder,
-    utils::{QidMetadataGetter, QidMetadataSetter, Span},
+    utils::{QidMetadataGetter, Span},
     writer::RollingFileAppender,
     QidManager,
 };
@@ -219,6 +219,7 @@ async fn main() -> anyhow::Result<()> {
         layers.push(
             TaosLayer::<Qid, _, _>::new(std::io::stdout)
                 .with_ansi()
+                .with_location()
                 .with_filter(log_level)
                 .boxed(),
         );
@@ -538,6 +539,7 @@ where
 /**
  * 检查当前 TDengine 是否已经绑定了手机号或邮箱。
  */
+#[instrument(skip_all)]
 async fn check_binding(args: web::Data<Args>) -> impl Responder {
     let binding_record_file =
         PathBuf::from(args.cfg_path.as_ref().unwrap()).join("explorer-register.cfg");
@@ -555,6 +557,7 @@ async fn check_binding(args: web::Data<Args>) -> impl Responder {
     }
 }
 
+#[instrument(skip_all)]
 async fn profile(args: web::Data<Args>, client: web::Data<reqwest::Client>) -> impl Responder {
     if args.profile.x_api.is_none() {
         return HttpResponse::Ok().json(&args.profile);
@@ -563,11 +566,11 @@ async fn profile(args: web::Data<Args>, client: web::Data<reqwest::Client>) -> i
     let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
     qid.set_taosx();
     qid.add_sequence_id();
-    Span.set_qid(&qid);
 
     let mut profile = args.profile.clone();
     let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/profile");
+    tracing::debug!(url, "send request to taosx");
     let client = client.get(url).headers(headers_with_qid(&qid));
     let client = client.timeout(Duration::from_secs(10));
 
@@ -601,6 +604,7 @@ struct TaosdInfoBody {
     cluster_id: Option<String>,
 }
 
+#[instrument(skip_all)]
 async fn generate_captcha_image(params: web::Query<VerificationReqBody>) -> impl Responder {
     let captcha_key = format!("captcha-{}", params.phone_email.as_ref().unwrap());
     let img = verification::generate_captcha(captcha_key);
@@ -611,6 +615,7 @@ async fn generate_captcha_image(params: web::Query<VerificationReqBody>) -> impl
 }
 
 // phone_email=18600000000&captcha=1234
+#[instrument(skip_all)]
 async fn send_verification_code(
     args: web::Data<Args>,
     params: web::Query<VerificationReqBody>,
@@ -658,6 +663,7 @@ async fn send_verification_code(
     }
 }
 
+#[instrument(skip_all)]
 async fn check_verification_code(
     args: web::Data<Args>,
     body: web::Json<VerificationReqBody>,
@@ -755,6 +761,7 @@ async fn query_taosd_info_guess(args: &web::Data<Args>) -> Option<(String, Strin
 }
 
 // restapi: 上报 taosd 信息
+#[instrument(skip_all)]
 async fn report_taosd_info(
     args: web::Data<Args>,
     body: web::Json<TaosdInfoBody>,
@@ -823,6 +830,7 @@ impl PartialEq for RenewLicense {
     }
 }
 
+#[instrument(skip_all)]
 async fn renew_license(
     args: web::Data<Args>,
     req: HttpRequest,
@@ -864,7 +872,6 @@ async fn proxy(
     let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
     qid.set_taosx();
     qid.add_sequence_id();
-    Span.set_qid(&qid);
     if req.headers().contains_key("upgrade") {
         // Websocket proxy.
 
@@ -937,9 +944,11 @@ async fn proxy(
             .await
             .map_err(error::ErrorInternalServerError)
             .map(reqwest_into_http_response)
+            .inspect(|_| debug!("Got taosx proxy result"))
     }
 }
 
+#[instrument(skip_all)]
 async fn modify_password(
     args: web::Data<Args>,
     _client: web::Data<reqwest::Client>,
@@ -973,6 +982,7 @@ async fn modify_password(
     response
 }
 
+#[instrument(skip_all)]
 async fn rest_proxy(
     args: web::Data<Args>,
     _client: web::Data<reqwest::Client>,
@@ -1038,6 +1048,7 @@ struct ImportRequest {
     whitelist: bool,
 }
 
+#[instrument(skip_all)]
 async fn import(
     args: web::Data<Args>,
     client: web::Data<reqwest::Client>,
@@ -1084,7 +1095,6 @@ async fn import(
     let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
     qid.set_taosx();
     qid.add_sequence_id();
-    Span.set_qid(&qid);
     debug!(url, "proxy to taosx");
     client
         .post(url)
@@ -1094,6 +1104,7 @@ async fn import(
         .await
         .map_err(RestErrResponse::new)
         .map(reqwest_into_http_response)
+        .inspect(|_| debug!("Got proxy result"))
 }
 
 fn reqwest_into_http_response(res: reqwest::Response) -> HttpResponse {
@@ -1104,6 +1115,7 @@ fn reqwest_into_http_response(res: reqwest::Response) -> HttpResponse {
     client_resp.streaming(res.bytes_stream())
 }
 
+#[instrument(skip_all)]
 async fn x_api(
     args: web::Data<Args>,
     client: web::Data<reqwest::Client>,
@@ -1122,6 +1134,7 @@ async fn x_api(
         .map_err(RestErrResponse::new)
 }
 
+#[instrument(skip_all)]
 async fn x_api_doc(
     req: HttpRequest,
     client: web::Data<reqwest::Client>,
@@ -1133,23 +1146,24 @@ async fn x_api_doc(
     }
     let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
     qid.set_taosx();
-    Span.set_qid(&qid);
 
     let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/api-doc/openapi.json");
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
-    tokio::task::spawn_local(async move {
-        let mut payload = payload;
-        while let Some(chunk) = payload.next().await {
-            if let Err(err) = tx.send(chunk) {
-                tracing::warn!("Error sending payload chunk: {err}");
+    tokio::task::spawn_local(
+        async move {
+            let mut payload = payload;
+            while let Some(chunk) = payload.next().await {
+                if let Err(err) = tx.send(chunk) {
+                    tracing::warn!("Error sending payload chunk: {err}");
+                }
             }
         }
-    });
+        .in_current_span(),
+    );
 
     qid.add_sequence_id();
-    Span.set_qid(&qid);
     debug!(url, "proxy to taosx");
     let builder = client
         .request(req.method().clone(), url)
@@ -1161,6 +1175,7 @@ async fn x_api_doc(
         .send()
         .await
         .map_err(error::ErrorInternalServerError)?;
+    debug!("Got proxy result");
     let mut client_resp = HttpResponse::build(res.status());
     for (header_name, header_value) in res.headers().iter().filter(|(h, _)| *h != "connection") {
         client_resp.insert_header((header_name.clone(), header_value.clone()));
@@ -1458,7 +1473,6 @@ impl Args {
         let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
         qid.set_taos();
         qid.add_sequence_id();
-        Span.set_qid(&qid);
 
         // taos connection pool
         let conn = get_connection(&dsn)
@@ -1471,8 +1485,9 @@ impl Args {
             chrono_tz::Tz::UTC
         };
 
-        debug!("Got connection, querying");
+        debug!("Got connection, querying sql");
         let mut set = conn.query_with_req_id(sql, qid.get()).await?;
+        debug!("Got sql result set");
         // dml and cud return empty set
         if set.fields().is_empty() {
             let affect_rows = set.affected_rows();
@@ -1596,24 +1611,26 @@ impl Args {
                 if !active_code.is_empty() {
                     let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
                     qid.add_sequence_id();
-                    Span.set_qid(&qid);
+                    debug!("exec sql");
                     conn.exec_with_req_id(&sql, qid.get())
                         .await
                         .map_err(|err| {
                             RestErrResponse::new(format!("Invalid cluster active code: {err:#}"))
-                        })?;
+                        })
+                        .inspect(|_| debug!("Got sql result"))?;
                 }
             }
             if let Some(c_active_code) = license.c_active_code.as_ref() {
                 if !c_active_code.is_empty() {
                     let sql = format!("alter all dnodes 'cActiveCode' '{c_active_code}'");
                     qid.add_sequence_id();
-                    Span.set_qid(&qid);
+                    debug!("Exec sql");
                     conn.exec_with_req_id(&sql, qid.get())
                         .await
                         .map_err(|err| {
                             RestErrResponse::new(format!("Invalid connector active code: {err:#}"))
                         })?;
+                    debug!("Got sql result");
                 }
             }
         }

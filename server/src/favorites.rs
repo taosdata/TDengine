@@ -12,6 +12,7 @@ use sqlx::{
     ConnectOptions, QueryBuilder, SqlitePool,
 };
 use taos::tokio;
+use tracing::instrument;
 
 use crate::R;
 
@@ -92,6 +93,7 @@ fn err_page_num_is_zero() -> R<()> {
 }
 
 /// add new favorites sql
+#[instrument(skip_all)]
 pub async fn add_favorites_sql(
     favorites: web::Data<FavoritesSql>,
     req: HttpRequest,
@@ -174,6 +176,7 @@ pub struct FavoritesSqlPageData {
 }
 
 /// get favorites sql by page
+#[instrument(skip_all)]
 pub async fn get_favorites_sql_page(
     req: HttpRequest,
     favorites: web::Data<FavoritesSql>,
@@ -253,6 +256,7 @@ fn build_page_query<'a, 'b>(
 }
 
 /// delete favorites sql by id
+#[instrument(skip_all)]
 pub async fn delete_favorites_sql(
     favorites: web::Data<FavoritesSql>,
     req: HttpRequest,
@@ -277,6 +281,7 @@ pub struct UpdateParam {
 }
 
 /// set favorites sql to public/private
+#[instrument(skip_all)]
 pub async fn update_favorites_sql(
     favorites: web::Data<FavoritesSql>,
     req: HttpRequest,
