@@ -864,7 +864,6 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(pCfg, "numOfRpcThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    // tsNumOfRpcThreads = numOfCores / 2;
     tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
     pItem->i32 = tsNumOfRpcThreads;
     pItem->stype = stype;

@@ -62,6 +62,9 @@ typedef struct SSvrConn {
 
   // state req dict
   SHashObj* pQTable;
+  uv_buf_t* buf;
+  int32_t   bufSize;
+  queue     wq;  // uv_write_t queue
 } SSvrConn;
 
 typedef struct SSvrRespMsg {
@@ -645,9 +648,13 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
 void uvOnSendCb(uv_write_t* req, int status) {
   STUB_RAND_NETWORK_ERR(status);
 
-  SWriteReq* userReq = req->data;
+  SWReqsWrapper* wrapper = req->data;
+
+  SWriteReq* userReq = wrapper->arg;
   SSvrConn*  conn = userReq->conn;
   queue*     src = &userReq->node;
+
+  freeWReqToWQ(&conn->wq, wrapper);
 
   tDebug("%s conn %p send data out ", transLabel(conn->pInst), conn);
   if (status == 0) {
@@ -752,12 +759,14 @@ static int32_t uvBuildToSendData(SSvrConn* pConn, uv_buf_t** ppBuf, int32_t* buf
   if (size == 0) {
     return 0;
   }
-  int32_t count = 0;
 
-  uv_buf_t* pWb = taosMemoryCalloc(size, sizeof(uv_buf_t));
-  if (pWb == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  if (pConn->bufSize < size) {
+    pConn->buf = taosMemoryRealloc(pConn->buf, size * sizeof(uv_buf_t));
+    pConn->bufSize = size;
   }
+  uv_buf_t* pWb = pConn->buf;
+
+  int32_t count = 0;
 
   while (transQueueSize(&pConn->resps) > 0) {
     queue*       el = transQueuePop(&pConn->resps);
@@ -787,11 +796,17 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrRespMsg* smsg) {
   if (pConn->broken) {
     return;
   }
+  int32_t size = transQueueSize(&pConn->resps);
+  if (size == 0) {
+    tDebug("%s conn %p has %d msg to send", transLabel(pConn->pInst), pConn, size);
+    return;
+  }
 
   SWriteReq* pWreq = taosMemoryCalloc(1, sizeof(SWriteReq));
   pWreq->conn = pConn;
   QUEUE_INIT(&pWreq->node);
-  pWreq->req.data = pWreq;
+
+  uv_write_t* req = allocWReqFromWQ(&pConn->wq, pWreq);
 
   uv_buf_t* pBuf = NULL;
   int32_t   bufNum = 0;
@@ -807,17 +822,17 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrRespMsg* smsg) {
 
   transRefSrvHandle(pConn);
 
-  uv_write_t* req = &pWreq->req;
   if (req == NULL) {
     if (!uv_is_closing((uv_handle_t*)(pConn->pTcp))) {
       tError("conn %p failed to write data, reason:%s", pConn, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
       pConn->broken = true;
+      freeWReqToWQ(&pConn->wq, req->data);
+      taosMemoryFree(pWreq);
       transUnrefSrvHandle(pConn);
       return;
     }
   }
   (void)uv_write(req, (uv_stream_t*)pConn->pTcp, pBuf, bufNum, uvOnSendCb);
-  taosMemoryFree(pBuf);
 }
 int32_t uvMayHandleReleaseResp(SSvrRespMsg* pMsg) {
   SSvrConn* pConn = pMsg->pConn;
@@ -1258,11 +1273,17 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
   }
 
+  code = initWQ(&pConn->wq);
+  TAOS_CHECK_GOTO(code, &lino, _end);
+
   // init client handle
   pConn->pTcp = (uv_tcp_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
   if (pConn->pTcp == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
   }
+
+  pConn->bufSize = BUFFER_LIMIT;
+  pConn->buf = taosMemoryCalloc(1, sizeof(uv_buf_t));
 
   code = uv_tcp_init(pThrd->loop, pConn->pTcp);
   if (code != 0) {
@@ -1282,6 +1303,8 @@ _end:
     (void)transDestroyBuffer(&pConn->readBuf);
     taosHashCleanup(pConn->pQTable);
     taosMemoryFree(pConn->pTcp);
+    destroyWQ(&pConn->wq);
+    taosMemoryFree(pConn->buf);
     taosMemoryFree(pConn);
     pConn = NULL;
   }
@@ -1345,6 +1368,9 @@ static void uvDestroyConn(uv_handle_t* handle) {
   uvConnDestroyAllState(conn);
 
   (void)transDestroyBuffer(&conn->readBuf);
+
+  destroyWQ(&conn->wq);
+  taosMemoryFree(conn->buf);
   taosMemoryFree(conn);
 
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {

@@ -100,6 +100,13 @@ typedef struct SCliConn {
   SHashObj* pQTable;
   int8_t    userInited;
   void*     pInitUserReq;
+
+  void* heap;  // point to req conn heap
+
+  uv_buf_t* buf;
+  int32_t   bufSize;
+
+  queue wq;  // uv_write_t queue
 } SCliConn;
 
 // #define TRANS_CONN_REF_INC(tconn) ((tconn) ? (tconn)->ref++ : 0)
@@ -744,7 +751,6 @@ static void addConnToPool(void* pool, SCliConn* conn) {
     return;
   }
   uv_read_stop(conn->stream);
-  conn->seq = 0;
 
   SCliThrd* thrd = conn->hostThrd;
   cliResetConnTimer(conn);
@@ -756,6 +762,9 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   QUEUE_PUSH(&conn->list->conns, &conn->q);
   conn->list->size += 1;
   tDebug("conn %p added to pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
+
+  conn->heap = NULL;
+  conn->seq = 0;
 
   if (conn->list->size >= 10) {
     STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
@@ -931,10 +940,16 @@ static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int
     code = TSDB_CODE_THIRDPARTY_ERROR;
     TAOS_CHECK_GOTO(code, NULL, _failed);
   }
+
+  conn->bufSize = BUFFER_LIMIT;
+  conn->buf = (uv_buf_t*)taosMemoryCalloc(1, BUFFER_LIMIT * sizeof(uv_buf_t));
+
+  initWQ(&conn->wq);
   conn->stream->data = conn;
   conn->connReq.data = conn;
 
   *pCliConn = conn;
+
   return code;
 _failed:
   if (conn) {
@@ -986,6 +1001,11 @@ static void cliDestroy(uv_handle_t* handle) {
     taosMemoryFree(conn->pInitUserReq);
     conn->pInitUserReq = NULL;
   }
+
+  taosMemoryFree(conn->buf);
+
+  destroyWQ(&conn->wq);
+
   tTrace("%s conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
   transReqQueueClear(&conn->wreqQueue);
   (void)transDestroyBuffer(&conn->readBuf);
@@ -1068,12 +1088,15 @@ static void cliConnRmReqs(SCliConn* conn) {
 }
 
 static void cliBatchSendCb(uv_write_t* req, int status) {
-  SCliConn* conn = req->data;
+  SWReqsWrapper* wrapper = (SWReqsWrapper*)req->data;
+  SCliConn*      conn = wrapper->arg;
+
   SCliThrd* pThrd = conn->hostThrd;
+
+  freeWReqToWQ(&conn->wq, wrapper);
 
   int32_t ref = transUnrefCliHandle(conn);
   if (ref <= 0) {
-    taosMemoryFree(req);
     return;
   }
 
@@ -1085,7 +1108,6 @@ static void cliBatchSendCb(uv_write_t* req, int status) {
   }
 
   (void)uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
-  taosMemoryFree(req);
 
   if (!cliMayRecycleConn(conn)) {
     cliBatchSend(conn);
@@ -1123,7 +1145,15 @@ int32_t cliBatchSend(SCliConn* pConn) {
     tDebug("%s conn %p not msg to send", pInst->label, pConn);
     return 0;
   }
-  uv_buf_t* wb = taosMemoryCalloc(size, sizeof(uv_buf_t));
+  uv_buf_t* wb = NULL;
+  if (pConn->bufSize < size) {
+    pConn->buf = taosMemoryRealloc(pConn->buf, size * sizeof(uv_buf_t));
+    pConn->bufSize = size;
+    taosMemoryFree(wb);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  wb = pConn->buf;
 
   int j = 0;
   while (!transQueueEmpty(&pConn->reqsToSend)) {
@@ -1182,11 +1212,9 @@ int32_t cliBatchSend(SCliConn* pConn) {
   }
 
   transRefCliHandle(pConn);
-  uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
-  req->data = pConn;
+  uv_write_t* req = allocWReqFromWQ(&pConn->wq, pConn);
   tDebug("%s conn %p start to send msg, batch size:%d, len:%d", CONN_GET_INST_LABEL(pConn), pConn, size, totalLen);
   uv_write(req, (uv_stream_t*)pConn->stream, wb, j, cliBatchSendCb);
-  taosMemoryFree(wb);
   return 0;
 }
 
@@ -1526,10 +1554,10 @@ int32_t cliHandleState_mayUpdateStateCtx(SCliConn* pConn, SCliReq* pReq) {
   STransCtx* pUserCtx = taosHashGet(pConn->pQTable, &qid, sizeof(qid));
   if (pUserCtx == NULL) {
     code = taosHashPut(pConn->pQTable, &qid, sizeof(qid), &pCtx->userCtx, sizeof(pCtx->userCtx));
-    tDebug("%s conn %p add statue ctx, qid:%ld", transLabel(pThrd->pInst), pConn, qid);
+    tDebug("%s conn %p succ to add statue ctx, qid:%ld", transLabel(pThrd->pInst), pConn, qid);
   } else {
     transCtxMerge(pUserCtx, &pCtx->userCtx);
-    tDebug("%s conn %s update statue ctx, qid:%ld", transLabel(pThrd->pInst), pConn, qid);
+    tDebug("%s conn %s succ to update statue ctx, qid:%ld", transLabel(pThrd->pInst), pConn, qid);
   }
   return 0;
 }
@@ -2561,7 +2589,7 @@ static FORCE_INLINE SCliThrd* transGetWorkThrdFromHandle(STrans* trans, int64_t 
   if (exh == NULL) {
     return NULL;
   } else {
-    tDebug("conn %p got", exh->handle);
+    tDebug("%s conn %p got", trans->label, exh->handle);
   }
   taosWLockLatch(&exh->latch);
   if (exh->pThrd == NULL && trans != NULL) {
@@ -3118,7 +3146,6 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
     return NULL;
   }
   code = transHeapGet(pHeap, &pConn);
-
   if (code != 0) {
     tDebug("failed to get conn from heap cache for key:%s", key);
     return NULL;
@@ -3137,12 +3164,18 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
   return pConn;
 }
 static int32_t addConnToHeapCache(SHashObj* pConnHeapCacahe, SCliConn* pConn) {
-  SHeap* p = NULL;
+  SHeap*  p = NULL;
+  int32_t code = 0;
 
-  int32_t code = getOrCreateHeap(pConnHeapCacahe, pConn->dstAddr, &p);
-  if (code != 0) {
-    return code;
+  if (pConn->heap != NULL) {
+    p = pConn->heap;
+  } else {
+    code = getOrCreateHeap(pConnHeapCacahe, pConn->dstAddr, &p);
+    if (code != 0) {
+      return code;
+    }
   }
+
   code = transHeapInsert(p, pConn);
   tDebug("add conn %p to heap cache for key:%s,status:%d, refCnt:%d", pConn, pConn->dstAddr, pConn->inHeap,
          pConn->reqRefCnt);
@@ -3150,6 +3183,10 @@ static int32_t addConnToHeapCache(SHashObj* pConnHeapCacahe, SCliConn* pConn) {
 }
 
 static int32_t delConnFromHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
+  if (pConn->heap != NULL) {
+    return transHeapDelete(pConn->heap, pConn);
+  }
+
   SHeap* p = taosHashGet(pConnHeapCache, pConn->dstAddr, strlen(pConn->dstAddr));
   if (p == NULL) {
     tDebug("failed to get heap cache for key:%s, no need to del", pConn->dstAddr);
@@ -3207,6 +3244,7 @@ int32_t transHeapInsert(SHeap* heap, SCliConn* p) {
 
   heapInsert(heap->heap, &p->node);
   p->inHeap = 1;
+  p->heap = heap;
   return 0;
 }
 int32_t transHeapDelete(SHeap* heap, SCliConn* p) {
@@ -3219,6 +3257,7 @@ int32_t transHeapDelete(SHeap* heap, SCliConn* p) {
   p->reqRefCnt--;
   if (p->reqRefCnt == 0) {
     heapRemove(heap->heap, &p->node);
+    p->heap = NULL;
     tDebug("delete conn %p delete from heap", p);
   } else if (p->reqRefCnt < 0) {
     tDebug("conn %p has %d reqs, not delete from heap,assert", p, p->reqRefCnt);

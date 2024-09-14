@@ -496,6 +496,19 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf);
 
 enum { REQ_STATUS_INIT = 0, REQ_STATUS_PROCESSING };
 
+#define BUFFER_LIMIT 8
+
+typedef struct {
+  queue      q;
+  uv_write_t wreq;
+  void*      arg;
+} SWReqsWrapper;
+
+int32_t     initWQ(queue* wq);
+void        destroyWQ(queue* wq);
+uv_write_t* allocWReqFromWQ(queue* wq, void* arg);
+
+void freeWReqToWQ(queue* wq, SWReqsWrapper* w);
 #ifdef __cplusplus
 }
 #endif
