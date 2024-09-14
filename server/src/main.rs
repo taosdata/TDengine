@@ -164,6 +164,7 @@ async fn main() -> anyhow::Result<()> {
         level,
         compress,
         rotation_count,
+        keep_days,
         rotation_size,
         reserved_disk_size,
     }) = args.log.clone()
@@ -193,7 +194,8 @@ async fn main() -> anyhow::Result<()> {
     )
     .compress(compress.unwrap())
     .reserved_disk_size(&reserved_disk_size.unwrap())
-    .rotation_count(rotation_count.unwrap() as u16)
+    .rotation_count(rotation_count.unwrap())
+    .keep_days(keep_days.unwrap())
     .rotation_size(&rotation_size.unwrap())
     .build()
     .unwrap();
@@ -1281,7 +1283,13 @@ struct LogOpts {
         long = "log.rotationCount",
         env = "EXPLORER_LOG_ROTATION_COUNT"
     )]
-    rotation_count: Option<usize>,
+    rotation_count: Option<u16>,
+    #[clap(
+        id = "log.keepDays",
+        long = "log.keepDays",
+        env = "EXPLORER_LOG_KEEP_DAYS"
+    )]
+    keep_days: Option<u16>,
     #[clap(
         id = "log.rotationSize",
         long = "log.rotationSize",
@@ -1339,6 +1347,7 @@ impl LogOpts {
         update_if_none!(path);
         update_if_none!(compress);
         update_if_none!(rotation_count);
+        update_if_none!(keep_days);
         update_if_none!(rotation_size);
         update_if_none!(reserved_disk_size);
     }
@@ -1351,6 +1360,7 @@ impl Default for LogOpts {
             level: None,
             compress: Some(false),
             rotation_count: Some(30),
+            keep_days: Some(30),
             rotation_size: Some("1GB".to_string()),
             reserved_disk_size: Some("1GB".to_string()),
         }

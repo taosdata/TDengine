@@ -102,3 +102,7 @@ cors = true
 # Log downgrade when the remaining disk space reaches this size, only logging `ERROR` level logs
 # 
 # reservedDiskSize = "1GB"
+
+# The number of days log files are retained
+#
+# keepDays = 30
