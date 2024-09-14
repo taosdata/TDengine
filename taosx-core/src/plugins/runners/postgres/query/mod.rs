@@ -95,6 +95,17 @@ impl PostgresQuery {
         // TODO timezone
     }
 
+    pub async fn select_distinct_values(&mut self, sql: &str) -> anyhow::Result<Vec<PgRow>> {
+        let result = self.pool.fetch_all(sql).await;
+        match result {
+            Ok(rows) => Ok(rows),
+            Err(err) => anyhow::bail!(
+                "failed to select distinct values, cause: {}",
+                err.to_string()
+            ),
+        }
+    }
+
     pub async fn select_one_for_schema(&mut self, sql: &str) -> anyhow::Result<Option<PgRow>> {
         let result = self.pool.fetch_optional(sql).await;
         Ok(match result {
