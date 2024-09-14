@@ -216,14 +216,14 @@ int32_t taosConvInit(void) {
 
   for (int32_t i = 0; i < gConvMaxNum[M2C]; ++i) {
     gConv[M2C][i].conv = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
-    if ((iconv_t)-1 == gConv[M2C][i].conv || (iconv_t)0 == gConv[M2C][i].conv) {
+    if ((iconv_t)-1 == gConv[M2C][i].conv) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       return terrno;
     }
   }
   for (int32_t i = 0; i < gConvMaxNum[1 - M2C]; ++i) {
     gConv[1 - M2C][i].conv = iconv_open(tsCharset, DEFAULT_UNICODE_ENCODEC);
-    if ((iconv_t)-1 == gConv[1 - M2C][i].conv || (iconv_t)0 == gConv[1 - M2C][i].conv) {
+    if ((iconv_t)-1 == gConv[1 - M2C][i].conv) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       return terrno;
     }
@@ -251,13 +251,13 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type) {
     *idx = -1;
     if (type == M2C) {
       iconv_t c = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
-      if ((iconv_t)-1 == c || (iconv_t)0 == c) {
+      if ((iconv_t)-1 == c) {
         terrno = TAOS_SYSTEM_ERROR(errno);
       }
       return c;
     } else {
       iconv_t c = iconv_open(tsCharset, DEFAULT_UNICODE_ENCODEC);
-      if ((iconv_t)-1 == c || (iconv_t)0 == c) {
+      if ((iconv_t)-1 == c) {
         terrno = TAOS_SYSTEM_ERROR(errno);
       }
       return c;
@@ -312,7 +312,7 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
 
   int32_t idx = -1;
   iconv_t conv = taosAcquireConv(&idx, M2C);
-  if ((iconv_t)-1 == conv || (iconv_t)0 == conv) {
+  if ((iconv_t)-1 == conv) {
     return false;
   }
   
@@ -350,7 +350,7 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
   int32_t idx = -1;
   int32_t code = 0;
   iconv_t conv = taosAcquireConv(&idx, C2M);
-  if ((iconv_t)-1 == conv || (iconv_t)0 == conv) {
+  if ((iconv_t)-1 == conv) {
     return TSDB_CODE_APP_ERROR;
   }
   
