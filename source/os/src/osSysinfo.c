@@ -191,10 +191,11 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
          &cpuInfo->si, &cpuInfo->st, &cpuInfo->guest, &cpuInfo->guest_nice);
   if (EOF == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
     return terrno;
   }
   
-  (void)taosCloseFile(&pFile);
+  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
 #endif
 
   return 0;
@@ -263,9 +264,9 @@ bool taosCheckSystemIsLittleEnd() {
 
 void taosGetSystemInfo() {
 #ifdef WINDOWS
-  taosGetCpuCores(&tsNumOfCores, false);
-  taosGetTotalMemory(&tsTotalMemoryKB);
-  taosGetCpuUsage(NULL, NULL);
+  TAOS_SKIP_ERROR(taosGetCpuCores(&tsNumOfCores, false));
+  TAOS_SKIP_ERROR(taosGetTotalMemory(&tsTotalMemoryKB));
+  TAOS_SKIP_ERROR(taosGetCpuUsage(NULL, NULL));
 #elif defined(_TD_DARWIN_64)
   long physical_pages = sysconf(_SC_PHYS_PAGES);
   long page_size = sysconf(_SC_PAGESIZE);
@@ -274,10 +275,10 @@ void taosGetSystemInfo() {
   tsNumOfCores = sysconf(_SC_NPROCESSORS_ONLN);
 #else
   taosGetProcIOnfos();
-  (void)taosGetCpuCores(&tsNumOfCores, false);
-  (void)taosGetTotalMemory(&tsTotalMemoryKB);
-  (void)taosGetCpuUsage(NULL, NULL);
-  (void)taosGetCpuInstructions(&tsSSE42Supported, &tsAVXSupported, &tsAVX2Supported, &tsFMASupported, &tsAVX512Supported);
+  TAOS_SKIP_ERROR(taosGetCpuCores(&tsNumOfCores, false));
+  TAOS_SKIP_ERROR(taosGetTotalMemory(&tsTotalMemoryKB));
+  TAOS_SKIP_ERROR(taosGetCpuUsage(NULL, NULL));
+  TAOS_SKIP_ERROR(taosGetCpuInstructions(&tsSSE42Supported, &tsAVXSupported, &tsAVX2Supported, &tsFMASupported, &tsAVX512Supported));
 #endif
 }
 
@@ -313,11 +314,11 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
 
   if (taosReadFile(pFile, (void *)email, maxLen) < 0) {
     int32_t code = terrno;
-    (void)taosCloseFile(&pFile);
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
     return code;
   }
 
-  (void)taosCloseFile(&pFile);
+  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
   
   return 0;
 #endif
@@ -748,7 +749,7 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
   char tmp[10];
   (void)sscanf(line, "%s %" PRId64, tmp, usedKB);
 
-  (void)taosCloseFile(&pFile);
+  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
   
   return 0;
 #endif
@@ -1045,7 +1046,7 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
     return terrno;
   } else {
     len = taosReadFile(pFile, uid, uidlen);
-    (void)taosCloseFile(&pFile);
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
     if (len < 0) {
       return len;
     }
@@ -1087,7 +1088,7 @@ char *taosGetCmdlineByPID(int pid) {
 
     cmdline[n] = 0;
 
-    (void)taosCloseFile(&pFile);
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
   } else {
     cmdline[0] = 0;
   }
