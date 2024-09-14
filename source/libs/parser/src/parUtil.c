@@ -804,6 +804,9 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   if (TSDB_CODE_SUCCESS == code) {
     code = buildTableReqFromDb(pMetaCache->pTSMAs, &pCatalogReq->pTSMAs);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildTableReqFromDb(pMetaCache->pTableUid, &pCatalogReq->pTableUid);
+  }
 #ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code) {
     code = buildTableReqFromDb(pMetaCache->pTableMeta, &pCatalogReq->pView);
@@ -847,6 +850,7 @@ static int32_t putMetaDataToHash(const char* pKey, int32_t len, const SArray* pD
 int32_t getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHash, void** pOutput) {
   SMetaRes** pRes = taosHashGet(pHash, pKey, len);
   if (NULL == pRes || NULL == *pRes) {
+    assert(0);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   if (TSDB_CODE_SUCCESS == (*pRes)->code) {
@@ -1017,6 +1021,10 @@ int32_t reserveTableMetaInCache(int32_t acctId, const char* pDb, const char* pTa
 
 int32_t reserveTableMetaInCacheExt(const SName* pName, SParseMetaCache* pMetaCache) {
   return reserveTableReqInDbCache(pName->acctId, pName->dbname, pName->tname, &pMetaCache->pTableMeta);
+}
+
+int32_t reserveTableUidInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
+  return reserveTableReqInDbCache(acctId, pDb, pTable, &pMetaCache->pTableUid);
 }
 
 int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta) {
@@ -1283,6 +1291,7 @@ int32_t getTsmaFromCache(SParseMetaCache* pMetaCache, const SName* pTsmaName, ST
   code = getMetaDataFromHash(tsmaFName, strlen(tsmaFName), pMetaCache->pTSMAs, (void**)&pTsmaRsp);
   if (TSDB_CODE_SUCCESS == code) {
     if (!pTsmaRsp || pTsmaRsp->pTsmas->size != 1) {
+      assert(0);
       return TSDB_CODE_PAR_INTERNAL_ERROR;
     }
     *pTsma = taosArrayGetP(pTsmaRsp->pTsmas, 0);
@@ -1375,11 +1384,13 @@ void destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
     destoryParseTablesMetaReqHash(pMetaCache->pTableVgroup);
     destoryParseTablesMetaReqHash(pMetaCache->pViews);
     destoryParseTablesMetaReqHash(pMetaCache->pTSMAs);
+    destoryParseTablesMetaReqHash(pMetaCache->pTableUid);
   } else {
     taosHashCleanup(pMetaCache->pTableMeta);
     taosHashCleanup(pMetaCache->pTableVgroup);
     taosHashCleanup(pMetaCache->pViews);
     taosHashCleanup(pMetaCache->pTSMAs);
+    taosHashCleanup(pMetaCache->pTableUid);
   }
   taosHashCleanup(pMetaCache->pDbVgroup);
   taosHashCleanup(pMetaCache->pDbCfg);

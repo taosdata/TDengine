@@ -2771,6 +2771,7 @@ static int32_t rewriteSystemInfoFunc(STranslateContext* pCxt, SNode** pNode) {
     default:
       break;
   }
+  assert(0);
   return TSDB_CODE_PAR_INTERNAL_ERROR;
 }
 
@@ -2977,6 +2978,7 @@ static int32_t rewriteClientPseudoColumnFunc(STranslateContext* pCxt, SNode** pN
     default:
       break;
   }
+  assert(0);
   return TSDB_CODE_PAR_INTERNAL_ERROR;
 }
 

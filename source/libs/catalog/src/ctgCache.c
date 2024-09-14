@@ -3691,6 +3691,39 @@ _return:
   CTG_RET(code);
 }
 
+int32_t ctgGetTbUidsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbUidsCtx *ctx, int32_t dbIdx,
+                              int32_t *fetchIdx, int32_t baseResIdx, SArray *pList) {
+  int32_t     tbNum = taosArrayGetSize(pList);
+  char        dbFName[TSDB_DB_FNAME_LEN] = {0};
+  int32_t     flag = CTG_FLAG_UNKNOWN_STB;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  uint64_t    lastSuid = 0;
+  STableMeta *lastTableMeta = NULL;
+  SName      *pName = taosArrayGet(pList, 0);
+  if (NULL == pName) {
+    ctgError("fail to get the 0th SName from tableList, tableNum:%d", (int32_t)taosArrayGetSize(pList));
+    CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  if (IS_SYS_DBNAME(pName->dbname)) {
+    CTG_FLAG_SET_SYS_DB(flag);
+    TAOS_STRCPY(dbFName, pName->dbname);
+  } else {
+    (void)tNameGetFullDbName(pName, dbFName);
+  }
+
+  ctgDebug("db %s not in cache", dbFName);
+  for (int32_t i = 0; i < tbNum; ++i) {
+    CTG_ERR_JRET(ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag));
+    if (NULL == taosArrayPush(ctx->pResList, &(SMetaData){0})) {
+      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+  }
+
+_return:
+  return code;
+}
+
 int32_t ctgGetTbHashVgroupFromCache(SCatalog *pCtg, const SName *pTableName, SVgroupInfo **pVgroup) {
   if (IS_SYS_DBNAME(pTableName->dbname)) {
     ctgError("no valid vgInfo for db, dbname:%s", pTableName->dbname);

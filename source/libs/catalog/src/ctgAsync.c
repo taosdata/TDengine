@@ -588,6 +588,34 @@ int32_t ctgInitGetTSMATask(SCtgJob* pJob, int32_t taskId, void* param) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t ctgInitGetTbUidTask(SCtgJob* pJob, int32_t taskId, void* param) {
+  SCtgTask task = {0};
+  task.type = CTG_TASK_GET_TB_UID;
+  task.taskId = taskId;
+  task.pJob = pJob;
+
+  SCtgTbUidsCtx* pTaskCtx = taosMemoryCalloc(1, sizeof(SCtgTbTSMACtx));
+  if (NULL == pTaskCtx) {
+    CTG_ERR_RET(terrno);
+  }
+  task.taskCtx = pTaskCtx;
+  pTaskCtx->pNames = param;
+  pTaskCtx->pResList = taosArrayInit(pJob->tsmaNum, sizeof(SMetaRes));
+  if (NULL == pTaskCtx->pResList) {
+    qError("qid:0x%" PRIx64 " taosArrayInit %d SMetaRes %d failed", pJob->queryId, pJob->tbUidNum,
+           (int32_t)sizeof(SMetaRes));
+    ctgFreeTask(&task, true);
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  if (NULL == taosArrayPush(pJob->pTasks, &task)) {
+    ctgFreeTask(&task, true);
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t ctgHandleForceUpdateView(SCatalog* pCtg, const SCatalogReq* pReq) {
   int32_t viewNum = taosArrayGetSize(pReq->pView);
   for (int32_t i = 0; i < viewNum; ++i) {
@@ -822,9 +850,10 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   int32_t viewNum = (int32_t)ctgGetTablesReqNum(pReq->pView);
   int32_t tbTsmaNum = (int32_t)taosArrayGetSize(pReq->pTableTSMAs);
   int32_t tsmaNum = (int32_t)taosArrayGetSize(pReq->pTSMAs);
+  int32_t tbUidNum = (int32_t)taosArrayGetSize(pReq->pTableUid);
 
   int32_t taskNum = tbMetaNum + dbVgNum + udfNum + tbHashNum + qnodeNum + dnodeNum + svrVerNum + dbCfgNum + indexNum +
-                    userNum + dbInfoNum + tbIndexNum + tbCfgNum + tbTagNum + viewNum + tbTsmaNum;
+                    userNum + dbInfoNum + tbIndexNum + tbCfgNum + tbTagNum + viewNum + tbTsmaNum + tbUidNum;
 
   *job = taosMemoryCalloc(1, sizeof(SCtgJob));
   if (NULL == *job) {
@@ -859,6 +888,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   pJob->viewNum = viewNum;
   pJob->tbTsmaNum = tbTsmaNum;
   pJob->tsmaNum = tsmaNum;
+  pJob->tbUidNum = tbUidNum;
 
 #if CTG_BATCH_FETCH
   pJob->pBatchs =
@@ -991,6 +1021,9 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   if (tsmaNum > 0) {
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_TSMA, pReq->pTSMAs, NULL));
   }
+  if(tbUidNum > 0) {
+    CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_TB_UID, pReq->pTableUid, NULL));
+  }
   if (qnodeNum) {
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_QNODE, NULL, NULL));
   }
@@ -1048,6 +1081,18 @@ int32_t ctgDumpTbMetaRes(SCtgTask* pTask) {
 }
 
 int32_t ctgDumpTbMetasRes(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SCtgJob* pJob = pTask->pJob;
+
+  pJob->jobRes.pTableMeta = pTask->res;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgDumpTbUidsRes(SCtgTask* pTask) {
   if (pTask->subTask) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1642,6 +1687,223 @@ _return:
 }
 
 int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* pMsg, int32_t rspCode) {
+  int32_t           code = 0;
+  SCtgDBCache*      dbCache = NULL;
+  SCtgTask*         pTask = tReq->pTask;
+  SCatalog*         pCtg = pTask->pJob->pCtg;
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
+  SCtgMsgCtx*       pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx);
+  SCtgTbMetasCtx*   ctx = (SCtgTbMetasCtx*)pTask->taskCtx;
+  bool              taskDone = false;
+
+  if (NULL == pMsgCtx) {
+    ctgError("fail to get task msgCtx, taskType:%d", pTask->type);
+    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  SCtgFetch* pFetch = taosArrayGet(ctx->pFetchs, tReq->msgIdx);
+  if (NULL == pFetch) {
+    ctgError("fail to get the %dth fetch, fetchNum:%d", tReq->msgIdx, (int32_t)taosArrayGetSize(ctx->pFetchs));
+    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  int32_t  flag = pFetch->flag;
+  int32_t* vgId = &pFetch->vgId;
+  SName*   pName = NULL;
+  CTG_ERR_JRET(ctgGetFetchName(ctx->pNames, pFetch, &pName));
+
+  CTG_ERR_JRET(ctgProcessRspMsg(pMsgCtx->out, reqType, pMsg->pData, pMsg->len, rspCode, pMsgCtx->target));
+
+  switch (reqType) {
+    case TDMT_MND_USE_DB: {
+      SUseDbOutput* pOut = (SUseDbOutput*)pMsgCtx->out;
+
+      SVgroupInfo vgInfo = {0};
+      CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, &pConn->mgmtEps, pOut->dbVgroup, pName, &vgInfo));
+
+      ctgTaskDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(pName), flag);
+
+      *vgId = vgInfo.vgId;
+      CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, pName, &vgInfo, NULL, tReq));
+
+      return TSDB_CODE_SUCCESS;
+    }
+    case TDMT_MND_TABLE_META: {
+      STableMetaOutput* pOut = (STableMetaOutput*)pMsgCtx->out;
+
+      if (CTG_IS_META_NULL(pOut->metaType)) {
+        if (CTG_FLAG_IS_STB(flag)) {
+          char dbFName[TSDB_DB_FNAME_LEN] = {0};
+          (void)tNameGetFullDbName(pName, dbFName);
+
+          CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, dbFName, &dbCache));
+          if (NULL != dbCache) {
+            SVgroupInfo vgInfo = {0};
+            CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, &pConn->mgmtEps, dbCache->vgCache.vgInfo, pName, &vgInfo));
+
+            ctgTaskDebug("will refresh tbmeta, supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(pName), flag);
+
+            *vgId = vgInfo.vgId;
+            CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, pName, &vgInfo, NULL, tReq));
+
+            ctgReleaseVgInfoToCache(pCtg, dbCache);
+            dbCache = NULL;
+          } else {
+            SBuildUseDBInput input = {0};
+
+            tstrncpy(input.db, dbFName, tListLen(input.db));
+            input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
+
+            CTG_ERR_JRET(ctgGetDBVgInfoFromMnode(pCtg, pConn, &input, NULL, tReq));
+          }
+
+          return TSDB_CODE_SUCCESS;
+        }
+
+        ctgTaskError("no tbmeta got, tbName:%s", tNameGetTableName(pName));
+        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false);  // cache update not fatal error
+
+        CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
+      }
+
+      if (pMsgCtx->lastOut) {
+        TSWAP(pMsgCtx->out, pMsgCtx->lastOut);
+        STableMetaOutput* pLastOut = (STableMetaOutput*)pMsgCtx->out;
+        TSWAP(pLastOut->tbMeta, pOut->tbMeta);
+      }
+
+      break;
+    }
+    case TDMT_VND_TABLE_META: {
+      STableMetaOutput* pOut = (STableMetaOutput*)pMsgCtx->out;
+
+      if (CTG_IS_META_NULL(pOut->metaType)) {
+        ctgTaskError("no tbmeta got, tbName:%s", tNameGetTableName(pName));
+        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false);  // cache update not fatal error
+        CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
+      }
+
+      if (CTG_FLAG_IS_STB(flag)) {
+        break;
+      }
+
+      if (CTG_IS_META_TABLE(pOut->metaType) && TSDB_SUPER_TABLE == pOut->tbMeta->tableType) {
+        ctgTaskDebug("will continue to refresh tbmeta since got stb, tbName:%s", tNameGetTableName(pName));
+
+        taosMemoryFreeClear(pOut->tbMeta);
+
+        CTG_RET(ctgGetTbMetaFromMnode(pCtg, pConn, pName, NULL, tReq));
+      } else if (CTG_IS_META_BOTH(pOut->metaType)) {
+        int32_t exist = 0;
+        if (!CTG_FLAG_IS_FORCE_UPDATE(flag)) {
+          SName stbName = *pName;
+          TAOS_STRCPY(stbName.tname, pOut->tbName);
+          SCtgTbMetaCtx stbCtx = {0};
+          stbCtx.flag = flag;
+          stbCtx.pName = &stbName;
+
+          STableMeta* stbMeta = NULL;
+          CTG_ERR_JRET(ctgReadTbMetaFromCache(pCtg, &stbCtx, &stbMeta));
+          if (stbMeta && stbMeta->sversion >= pOut->tbMeta->sversion) {
+            ctgTaskDebug("use cached stb meta, tbName:%s", tNameGetTableName(pName));
+            exist = 1;
+            taosMemoryFreeClear(stbMeta);
+          } else {
+            ctgTaskDebug("need to get/update stb meta, tbName:%s", tNameGetTableName(pName));
+            taosMemoryFreeClear(pOut->tbMeta);
+            taosMemoryFreeClear(stbMeta);
+          }
+        }
+
+        if (0 == exist) {
+          TSWAP(pMsgCtx->lastOut, pMsgCtx->out);
+          CTG_RET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, pOut->dbFName, pOut->tbName, NULL, tReq));
+        }
+      }
+      break;
+    }
+    default:
+      ctgTaskError("invalid reqType %d", reqType);
+      CTG_ERR_JRET(TSDB_CODE_INVALID_MSG);
+  }
+
+  STableMetaOutput* pOut = (STableMetaOutput*)pMsgCtx->out;
+
+  (void)ctgUpdateTbMetaToCache(pCtg, pOut, false);  // cache update not fatal error
+
+  if (CTG_IS_META_BOTH(pOut->metaType)) {
+    TAOS_MEMCPY(pOut->tbMeta, &pOut->ctbMeta, sizeof(pOut->ctbMeta));
+  }
+
+  /*
+    else if (CTG_IS_META_CTABLE(pOut->metaType)) {
+      SName stbName = *pName;
+      TAOS_STRCPY(stbName.tname, pOut->tbName);
+      SCtgTbMetaCtx stbCtx = {0};
+      stbCtx.flag = flag;
+      stbCtx.pName = &stbName;
+
+      CTG_ERR_JRET(ctgReadTbMetaFromCache(pCtg, &stbCtx, &pOut->tbMeta));
+      if (NULL == pOut->tbMeta) {
+        ctgDebug("stb no longer exist, stbName:%s", stbName.tname);
+        CTG_ERR_JRET(ctgRelaunchGetTbMetaTask(pTask));
+
+        return TSDB_CODE_SUCCESS;
+      }
+
+      TAOS_MEMCPY(pOut->tbMeta, &pOut->ctbMeta, sizeof(pOut->ctbMeta));
+    }
+  */
+
+  SMetaRes* pRes = taosArrayGet(ctx->pResList, pFetch->resIdx);
+  if (NULL == pRes) {
+    ctgTaskError("fail to get the %dth res in pResList, resNum:%d", pFetch->resIdx,
+                 (int32_t)taosArrayGetSize(ctx->pResList));
+    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  pRes->code = 0;
+  pRes->pRes = pOut->tbMeta;
+  pOut->tbMeta = NULL;
+  if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
+    TSWAP(pTask->res, ctx->pResList);
+    taskDone = true;
+  }
+
+_return:
+
+  if (dbCache) {
+    ctgReleaseVgInfoToCache(pCtg, dbCache);
+  }
+
+  if (code) {
+    SMetaRes* pRes = taosArrayGet(ctx->pResList, pFetch->resIdx);
+    if (NULL == pRes) {
+      ctgTaskError("fail to get the %dth res in pResList, resNum:%d", pFetch->resIdx,
+                   (int32_t)taosArrayGetSize(ctx->pResList));
+    } else {
+      pRes->code = code;
+      pRes->pRes = NULL;
+      ctgTaskError("Get table %d.%s.%s meta failed with error %s", pName->acctId, pName->dbname, pName->tname,
+                   tstrerror(code));
+      if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
+        TSWAP(pTask->res, ctx->pResList);
+        taskDone = true;
+      }
+    }
+  }
+
+  if (pTask->res && taskDone) {
+    int32_t newCode = ctgHandleTaskEnd(pTask, code);
+    if (newCode && TSDB_CODE_SUCCESS == code) {
+      code = newCode;
+    }
+  }
+
+  CTG_RET(code);
+}
+
+static int32_t ctgHandleGetTbUidsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* pMsg, int32_t rspCode) {
   int32_t           code = 0;
   SCtgDBCache*      dbCache = NULL;
   SCtgTask*         pTask = tReq->pTask;
@@ -3726,6 +3988,70 @@ int32_t ctgLaunchGetTSMATask(SCtgTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgLaunchGetTbUidTask(SCtgTask* pTask) {
+  SCatalog*         pCtg = pTask->pJob->pCtg;
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
+  SCtgTbUidsCtx*   pCtx = (SCtgTbUidsCtx*)pTask->taskCtx;
+  SCtgJob*          pJob = pTask->pJob;
+  SName*            pName = NULL;
+
+  int32_t dbNum = taosArrayGetSize(pCtx->pNames);
+  int32_t fetchIdx = 0;
+  int32_t baseResIdx = 0;
+  for (int32_t i = 0; i < dbNum; ++i) {
+    STablesReq* pReq = TARRAY_GET_ELEM(pCtx->pNames, i);
+    if (NULL == pReq) {
+      ctgError("fail to get the %dth STablesReq, num:%d", i, dbNum);
+      CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+    }
+
+    ctgDebug("start to check tbuid metas in db %s, tbNum %ld", pReq->dbFName, taosArrayGetSize(pReq->pTables));
+    CTG_ERR_RET(ctgGetTbUidsFromCache(pCtg, pConn, pCtx, i, &fetchIdx, baseResIdx, pReq->pTables));
+    baseResIdx += taosArrayGetSize(pReq->pTables);
+  }
+
+  pCtx->fetchNum = taosArrayGetSize(pCtx->pFetchs);
+  if (pCtx->fetchNum <= 0) {
+    TSWAP(pTask->res, pCtx->pResList);
+
+    CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pTask->msgCtxs = taosArrayInit_s(sizeof(SCtgMsgCtx), pCtx->fetchNum);
+  if (NULL == pTask->msgCtxs) {
+    ctgError("taosArrayInit_s %d SCtgMsgCtx %d failed", pCtx->fetchNum, (int32_t)sizeof(SCtgMsgCtx));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  for (int32_t i = 0; i < pCtx->fetchNum; ++i) {
+    SCtgFetch* pFetch = taosArrayGet(pCtx->pFetchs, i);
+    if (NULL == pFetch) {
+      ctgError("fail to get the %dth fetch in pCtx->pFetchs, fetchNum:%d", i, pCtx->fetchNum);
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
+
+    CTG_ERR_RET(ctgGetFetchName(pCtx->pNames, pFetch, &pName));
+
+    SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, i);
+    if (NULL == pMsgCtx) {
+      ctgError("fail to get the %dth pMsgCtx", i);
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
+
+    if (NULL == pMsgCtx->pBatchs) {
+      pMsgCtx->pBatchs = pJob->pBatchs;
+    }
+
+    SCtgTaskReq tReq;
+    tReq.pTask = pTask;
+    tReq.msgIdx = pFetch->fetchIdx;
+    CTG_ERR_RET(ctgAsyncRefreshTbMeta(&tReq, pFetch->flag, pName, &pFetch->vgId));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t ctgDumpTbTSMARes(SCtgTask* pTask) {
   if (pTask->subTask) {
     return TSDB_CODE_SUCCESS;
@@ -3872,6 +4198,7 @@ SCtgAsyncFps gCtgAsyncFps[] = {
     {ctgInitGetViewsTask, ctgLaunchGetViewsTask, ctgHandleGetViewsRsp, ctgDumpViewsRes, NULL, NULL},
     {ctgInitGetTbTSMATask, ctgLaunchGetTbTSMATask, ctgHandleGetTbTSMARsp, ctgDumpTbTSMARes, NULL, NULL},
     {ctgInitGetTSMATask, ctgLaunchGetTSMATask, ctgHandleGetTSMARsp, ctgDumpTSMARes, NULL, NULL},
+    {ctgInitGetTbUidTask, ctgLaunchGetTbUidTask, ctgHandleGetTbMetasRsp, ctgDumpTbUidsRes, NULL, NULL},
 };
 
 int32_t ctgMakeAsyncRes(SCtgJob* pJob) {

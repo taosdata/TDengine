@@ -112,8 +112,10 @@ typedef struct SParseMetaCache {
   SHashObj* pViews;        // key is viewFName, element is SViewMeta*
   SHashObj* pTableTSMAs;   // key is tbFName, elements are SArray<STableTSMAInfo*>
   SHashObj* pTSMAs;        // key is tsmaFName, elemetns are STableTSMAInfo*
+  SHashObj* pTableUid;     // key is tbUid, elemetn is STableMeta*
   SArray*   pDnodes;       // element is SEpSet
   bool      dnodeRequired;
+  bool      qnodeRequired;
 } SParseMetaCache;
 
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);
@@ -141,6 +143,7 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
 int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache);
 int32_t reserveTableMetaInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveTableMetaInCacheExt(const SName* pName, SParseMetaCache* pMetaCache);
+int32_t reserveTableUidInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveViewMetaInCache(int32_t acctId, const char* pDb, const char* pView, SParseMetaCache* pMetaCache);
 int32_t reserveViewMetaInCacheExt(const SName* pName, SParseMetaCache* pMetaCache);
 int32_t reserveDbVgInfoInCache(int32_t acctId, const char* pDb, SParseMetaCache* pMetaCache);
