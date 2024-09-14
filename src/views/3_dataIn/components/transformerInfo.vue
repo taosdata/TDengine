@@ -834,7 +834,7 @@ export default {
         } else if (this.$store.state.app.currentDBType == "mongodb") {
           hiddenCols = this.mongodbDefaultCols;
         }
-        debugger
+
         let tbdata = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields
@@ -1962,15 +1962,15 @@ export default {
         this.statisticCol();
       },
     },
-    "$i18n.locale": {
-      deep: true,
-      handler(val) {
-        this.$nextTick(() => {
-          this.$refs.sruleForm.clearValidate();
-          if (this.$refs.subtb) this.$refs.subtb[0]?.clearValidate();
-        });
-      },
-    },
+    // "$i18n.locale": {
+    //   deep: true,
+    //   handler(val) {
+    //     this.$nextTick(() => {
+    //       this.$refs.sruleForm.clearValidate();
+    //       if (this.$refs.subtb) this.$refs.subtb[0]?.clearValidate();
+    //     });
+    //   },
+    // },
     //csv需要单独处理
     "$store.state.app.csvTransformerParser": {
       deep: true,

@@ -1803,6 +1803,7 @@ export default {
 
       // 至少必须配置一个tag和一个column 
       if (tags.length == 0 || commonColumns.length == 0) {
+        Message.closeAll();
         Message.warning(this.$t("datasource.transformer.mappingvaildColtip"));
         this.isbreak = true;
         return;
