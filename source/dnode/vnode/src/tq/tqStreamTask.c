@@ -330,7 +330,7 @@ int32_t doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfIt
         }
       } else {
         if (code == TSDB_CODE_OUT_OF_MEMORY) {
-          tqError("s-task:%s failed to put data into inputQ, since out of memory");
+          tqError("s-task:%s failed to put data into inputQ, since out of memory", id);
         } else {
           tqTrace("s-task:%s append input queue failed, code:inputQ is full, ver:%" PRId64, id,
                   pTask->chkInfo.nextProcessVer);
