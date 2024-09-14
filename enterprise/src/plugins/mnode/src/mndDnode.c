@@ -100,9 +100,22 @@ int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t
 
         SDnodeObj *pAnotherDnode = NULL;
         if (pVgroup->replica == 2) {
+          mInfo("trans:%d, restoring for vgroup:%d, this dnode:%d_%s", pTrans->id, pVgroup->vgId, pDnode->id,
+                pDnode->ep);
           for (int i = 0; i < pVgroup->replica; i++) {
+            mInfo("trans:%d, #%d:dnode:%d, syncState:%s", pTrans->id, i, pVgroup->vnodeGid[i].dnodeId,
+                  syncStr(pVgroup->vnodeGid[i].syncState));
             if (pVgroup->vnodeGid[i].dnodeId != pDnode->id) {
               pAnotherDnode = mndAcquireDnode(pMnode, pVgroup->vnodeGid[i].dnodeId);
+              mInfo("trans:%d, found another dnode:%d_%s", pTrans->id, pAnotherDnode->id, pAnotherDnode->ep);
+            } else {
+              if (pVgroup->vnodeGid[i].syncState != TAOS_SYNC_STATE_OFFLINE) {
+                code = TSDB_CODE_MND_VNODE_NOT_OFFLINE;
+                sdbCancelFetch(pSdb, pIter);
+                mndReleaseDb(pMnode, db);
+                sdbRelease(pSdb, pVgroup);
+                goto _OVER;
+              }
             }
           }
         }
