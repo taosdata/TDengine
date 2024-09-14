@@ -561,22 +561,32 @@ class TDTestCase(TBase):
         tdSql.query("select max(null) from ts_4893.meters;")
         tdSql.checkRows(1)
         tdSql.checkCols(1)
-        tdSql.checkData(0, 0, 'None')
+        tdSql.checkData(0, 0, "None")
 
         tdSql.query("select max(id) from ts_4893.meters;")
         tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, 9999)
 
         tdSql.query("select max(name) from ts_4893.meters;")
         tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, "x")
 
         tdSql.query("select max(current) from ts_4893.meters;")
         tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, 11.9989996)
 
         tdSql.query("select max(nch1) from ts_4893.meters;")
         tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, "一二三四五六七八九十")
 
         tdSql.query("select max(var1) from ts_4893.meters;")
         tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, "一二三四五六七八九十")
 
     def test_min(self):
         self.test_normal_query("min")
@@ -584,22 +594,32 @@ class TDTestCase(TBase):
         tdSql.query("select min(null) from ts_4893.meters;")
         tdSql.checkRows(1)
         tdSql.checkCols(1)
-        tdSql.checkData(0, 0, 'None')
+        tdSql.checkData(0, 0, "None")
 
         tdSql.query("select min(id) from ts_4893.meters;")
         tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, 0)
 
         tdSql.query("select min(name) from ts_4893.meters;")
         tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, "haha")
 
         tdSql.query("select min(current) from ts_4893.meters;")
         tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, 8.0000000)
 
         tdSql.query("select min(nch1) from ts_4893.meters;")
         tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, "abc一二三abc一二三abc")
 
         tdSql.query("select min(var1) from ts_4893.meters;")
         tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, "abc一二三abc一二三abc")
 
     # run
     def run(self):
