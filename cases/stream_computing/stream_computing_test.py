@@ -197,6 +197,8 @@ class StreamComputingTest(TDCase):
         self.stream_thread_list = [0.5, 1, 2, 4]
         self.stream_thread = random.choice(self.stream_thread_list)
         self._remote._logger.info(f"update ratioOfVnodeStreamThreads to {self.stream_thread}")
+        self.checkpointInterval = int(self.taosd_setting["spec"]["dnodes"][0]["config"]["checkpointInterval"])
+        self.tmp_checkpointInterval = int(self.taosd_setting["spec"]["dnodes"][0]["config"]["checkpointInterval"])*3
 
     def update_delete_history_data(self):
         self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.record_history_ts, pk_dict=self.pk_dict)
@@ -771,7 +773,7 @@ class StreamComputingTest(TDCase):
         for i in range(self.range_count):
             if checkpoint_check:
                 if i == int(self.range_count/2):
-                    time.sleep(int(self.taosd_setting["spec"]["dnodes"][0]["config"]["checkpointInterval"]) + 1)
+                    time.sleep(self.checkpointInterval + 1)
                     self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1]}, self.endpoint, True)
             ts_value = str(self.date_time+self.dataDict["interval"])+f'+{i*10}s'
             if i == 0:
@@ -982,10 +984,10 @@ class StreamComputingTest(TDCase):
 
         if inc_cpt:
             self.tdSql.execute(f'flush database {self.dbname}')
-            time.sleep(int(self.taosd_setting["spec"]["dnodes"][0]["config"]["checkpointInterval"]) + 1)
+            time.sleep(self.checkpointInterval + 1)
             sst_files_list1, max_id1 = self.find_files_with_sst(self.vnode_dir)
             self._remote._logger.info(f'sst_files_list1 --- {sst_files_list1}')
-            time.sleep(int(self.taosd_setting["spec"]["dnodes"][0]["config"]["checkpointInterval"]) + 1)
+            time.sleep(self.checkpointInterval + 1)
             sst_files_list2, max_id2 = self.find_files_with_sst(self.vnode_dir)
             self._remote._logger.info(f'sst_files_list2 --- {sst_files_list2}')
             self.tdSql.checkEqual(len(sst_files_list1)<=len(sst_files_list2), True)
@@ -997,6 +999,8 @@ class StreamComputingTest(TDCase):
         self.range_count = 100
         self.delete = delete
         self.case_name = sys._getframe().f_code.co_name
+        if pause:
+            self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1], "checkpointInterval": self.tmp_checkpointInterval}, self.endpoint, True)
         # if interval_value is None:
         #     interval_value = f'{self.dataDict["interval"]}s'
         self.prepare_data(fill_history_value=fill_history_value, ignore_expired=ignore_expired, watermark=watermark)
@@ -1064,7 +1068,7 @@ class StreamComputingTest(TDCase):
         for i in range(self.range_count):
             if checkpoint_check and self.replica != 3:
                 if i == int(self.range_count/2):
-                    time.sleep(int(self.taosd_setting["spec"]["dnodes"][0]["config"]["checkpointInterval"]) + 1)
+                    time.sleep(self.checkpointInterval + 1)
                     self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1]}, self.endpoint, True)
             ts_value = str(self.date_time)+f'+{i}s'
             if i == 0:
@@ -1222,6 +1226,8 @@ class StreamComputingTest(TDCase):
             time.sleep(self.stage_report_time)
             self.tdCom.check_stream_tasks(restart=restart)
         self.range_count = self.record_range_count
+        if pause:
+            self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1], "checkpointInterval": self.checkpointInterval}, self.endpoint, True)
 
     def at_once_count_window_i(self, partition="tbname", delete=False, fill_value=None, fill_history_value=None, count_window_value=None, watermark=None, case_when=None, ignore_expired=None, check_stream_task=None, checkpoint_check=False):
         self.range_count = 100
@@ -1284,7 +1290,7 @@ class StreamComputingTest(TDCase):
         for i in range(self.range_count):
             if checkpoint_check:
                 if i == int(self.range_count/2):
-                    time.sleep(int(self.taosd_setting["spec"]["dnodes"][0]["config"]["checkpointInterval"]) + 1)
+                    time.sleep(self.checkpointInterval + 1)
                     self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1]}, self.endpoint, True)
             ts_value = str(self.date_time)+f'+{i}s'
             if i == 0:
@@ -3091,7 +3097,7 @@ class StreamComputingTest(TDCase):
         for i in range(self.range_count):
             if checkpoint_check and self.replica != 3:
                 if i == int(self.range_count/2):
-                    time.sleep(int(self.taosd_setting["spec"]["dnodes"][0]["config"]["checkpointInterval"]) + 1)
+                    time.sleep(self.checkpointInterval + 1)
                     self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1]}, self.endpoint, True)
             ts_value = str(self.date_time)+f'+{i}s'
             # new_ts_bigint = self.date_time + i
@@ -3942,7 +3948,7 @@ class StreamComputingTest(TDCase):
         for i in range(self.range_count):
             if checkpoint_check:
                 if i == int(self.range_count/2):
-                    time.sleep(int(self.taosd_setting["spec"]["dnodes"][0]["config"]["checkpointInterval"]) + 1)
+                    time.sleep(self.checkpointInterval + 1)
                     self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1]}, self.endpoint, True)
             if i == 0:
                 window_close_ts = self.cal_count_window_endts(self.date_time, watermark)
@@ -5030,7 +5036,7 @@ class StreamComputingTest(TDCase):
             # restart dnode and wait for checkpoint
             if checkpoint_check:
                 if i == int(self.range_count/2):
-                    time.sleep(int(self.taosd_setting["spec"]["dnodes"][0]["config"]["checkpointInterval"]) + 1)
+                    time.sleep(self.checkpointInterval + 1)
                     self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1]}, self.endpoint, True)
             ts_value = str(self.date_time+self.dataDict["interval"])+f'+{i*10}s'
             ts_cast_delete_value = self.tdCom.time_cast(ts_value)
