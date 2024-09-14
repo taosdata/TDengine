@@ -606,7 +606,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
         if (true == pBuf->invalid || false == uvHandleReq(conn)) {
           tError("%s conn %p read invalid packet, received from %s, local info:%s", transLabel(pInst), conn, conn->dst,
                  conn->src);
-          transUnrefCliHandle(conn);
+          transUnrefSrvHandle(conn);
           return;
         }
       }
@@ -614,7 +614,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     } else {
       tError("%s conn %p read invalid packet, exceed limit, received from %s, local info:%s", transLabel(pInst), conn,
              conn->dst, conn->src);
-      transUnrefCliHandle(conn);
+      transUnrefSrvHandle(conn);
       return;
     }
   }
@@ -625,7 +625,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   tDebug("%s conn %p read error:%s", transLabel(pInst), conn, uv_err_name(nread));
   if (nread < 0) {
     conn->broken = true;
-    transUnrefCliHandle(conn);
+    transUnrefSrvHandle(conn);
   }
 }
 void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
@@ -674,7 +674,7 @@ void uvOnSendCb(uv_write_t* req, int status) {
     }
 
     conn->broken = true;
-    transUnrefCliHandle(conn);
+    transUnrefSrvHandle(conn);
   }
   taosMemoryFree(userReq);
   transUnrefSrvHandle(conn);
