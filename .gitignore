@@ -120,6 +120,7 @@ TAGS
 
 contrib/*
 !contrib/CMakeLists.txt
+!contrib/azure-cmake
 !contrib/test
 sql
 debug*/
