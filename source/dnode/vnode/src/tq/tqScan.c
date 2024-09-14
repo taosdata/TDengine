@@ -92,6 +92,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
   }
 
   qStreamSetSourceExcluded(task, pRequest->sourceExcluded);
+  uint64_t st = taosGetTimestampMs();
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     code = getDataBlock(task, pHandle, vgId, &pDataBlock);
@@ -151,7 +152,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
 
       pRsp->common.blockNum++;
       totalRows += pDataBlock->info.rows;
-      if (totalRows >= tmqRowSize) {
+      if (totalRows >= tmqRowSize || (taosGetTimestampMs() - st > 1000)) {
         break;
       }
     }

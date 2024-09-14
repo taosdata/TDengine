@@ -17,11 +17,11 @@
 #include "command.h"
 #include "query.h"
 #include "schInt.h"
+#include "tglobal.h"
+#include "tmisce.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
-#include "tglobal.h"
-#include "tmisce.h"
 
 // clang-format off
 int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
@@ -948,6 +948,7 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
 
   if (isHb && persistHandle && trans->pHandle == 0) {
     trans->pHandle = rpcAllocHandle();
+    pMsgSendInfo->msgInfo.handle = trans->pHandle; 
   } 
 
   if (pJob && pTask) {

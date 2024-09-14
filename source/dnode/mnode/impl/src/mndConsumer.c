@@ -588,6 +588,10 @@ static int32_t getTopicAddDelete(SMqConsumerObj *pExistedConsumer, SMqConsumerOb
       }
     }
   }
+  // no topics need to be rebalanced
+  if (taosArrayGetSize(pConsumerNew->rebNewTopics) == 0 && taosArrayGetSize(pConsumerNew->rebRemovedTopics) == 0) {
+    return TSDB_CODE_TMQ_NO_NEED_REBALANCE;
+  }
   return 0;
 }
 
@@ -693,9 +697,10 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
   pConsumerNew = buildSubConsumer(pMnode, &subscribe);
   if(pConsumerNew == NULL){
-    code = -1;
+    code = terrno;
     goto _over;
   }
+
   code = mndSetConsumerCommitLogs(pTrans, pConsumerNew);
   if (code != 0) goto _over;
 
@@ -707,7 +712,7 @@ _over:
   mndTransDrop(pTrans);
   tDeleteSMqConsumerObj(pConsumerNew);
   taosArrayDestroyP(subscribe.topicNames, (FDelete)taosMemoryFree);
-  return code;
+  return code == TSDB_CODE_TMQ_NO_NEED_REBALANCE ? 0 : code;
 }
 
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {

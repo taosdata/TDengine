@@ -664,7 +664,11 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   ASSERT((pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH ||
           pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH));
 
-  const char* id = pTask->id.idStr;
+  const char*            id = pTask->id.idStr;
+  int32_t                code = 0;
+  SStreamDataBlock*      pBlock = NULL;
+  SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
+
   int32_t     numOfElems = streamQueueGetNumOfItems(pTask->outputq.queue);
   if (numOfElems > 0) {
     double  size = SIZE_IN_MiB(taosQueueMemorySize(pTask->outputq.queue->pQueue));
@@ -681,40 +685,61 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
     return 0;
   }
 
-  if (pTask->chkInfo.pActiveInfo->dispatchTrigger) {
-    stDebug("s-task:%s already send checkpoint-trigger, no longer dispatch any other data", id);
-    atomic_store_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL);
-    return 0;
+  if (pInfo->dispatchTrigger) {
+    if ((pInfo->activeId != 0) && (pInfo->failedId < pInfo->activeId)) {
+      stDebug("s-task:%s already send checkpoint-trigger, no longer dispatch any other data", id);
+      atomic_store_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL);
+      return 0;
+    } else {
+      stDebug("s-task:%s dispatch trigger set, and ignore since current active checkpointId:%" PRId64 " failed", id,
+              pInfo->activeId);
+    }
   }
 
   ASSERT(pTask->msgInfo.pData == NULL);
   stDebug("s-task:%s start to dispatch msg, set output status:%d", id, pTask->outputq.status);
 
-  SStreamDataBlock* pBlock = streamQueueNextItem(pTask->outputq.queue);
-  if (pBlock == NULL) {
-    atomic_store_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL);
-    stDebug("s-task:%s not dispatch since no elems in outputQ, output status:%d", id, pTask->outputq.status);
-    return 0;
-  }
+  while (1) {
+    pBlock = streamQueueNextItem(pTask->outputq.queue);
 
-  int32_t type = pBlock->type;
-  ASSERT(type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
-         type == STREAM_INPUT__TRANS_STATE);
+    if (pBlock == NULL) {
+      atomic_store_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL);
+      stDebug("s-task:%s not dispatch since no elems in outputQ, output status:%d", id, pTask->outputq.status);
+      return 0;
+    }
 
-  pTask->execInfo.dispatch += 1;
+    int32_t type = pBlock->type;
+    ASSERT(type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
+           type == STREAM_INPUT__TRANS_STATE);
 
-  taosThreadMutexLock(&pTask->msgInfo.lock);
-  initDispatchInfo(&pTask->msgInfo, pTask->execInfo.dispatch);
-  taosThreadMutexUnlock(&pTask->msgInfo.lock);
+    pTask->execInfo.dispatch += 1;
 
-  int32_t code = doBuildDispatchMsg(pTask, pBlock);
-  if (code == 0) {
-    destroyStreamDataBlock(pBlock);
-  } else {  // todo handle build dispatch msg failed
-  }
+    taosThreadMutexLock(&pTask->msgInfo.lock);
+    initDispatchInfo(&pTask->msgInfo, pTask->execInfo.dispatch);
+    taosThreadMutexUnlock(&pTask->msgInfo.lock);
 
-  if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
-    streamTaskInitTriggerDispatchInfo(pTask);
+    code = doBuildDispatchMsg(pTask, pBlock);
+    if (code == 0) {
+      destroyStreamDataBlock(pBlock);
+    } else {  // todo handle build dispatch msg failed
+    }
+
+    if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+      // outputQ should be empty here, otherwise, set the checkpoint failed due to the retrieve req happens
+      if (streamQueueGetNumOfUnAccessedItems(pTask->outputq.queue) > 0) {
+        stError(
+            "s-task:%s items are still in outputQ due to downstream retrieve, failed to init and discard "
+            "checkpoint-trigger dispatch",
+            pTask->id.idStr);
+        streamTaskSetCheckpointFailed(pTask);
+        clearBufferedDispatchMsg(pTask);
+        continue;
+      }
+
+      streamTaskInitTriggerDispatchInfo(pTask);
+    }
+
+    break;
   }
 
   code = sendDispatchMsg(pTask, pTask->msgInfo.pData);

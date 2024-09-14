@@ -776,6 +776,7 @@ int32_t streamTaskBuildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRp
 int32_t streamSendChkptReportMsg(SStreamTask* pTask, SCheckpointInfo* pCheckpointInfo, int8_t dropRelHTask);
 int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SVUpdateCheckpointInfoReq* pReq);
 SActiveCheckpointInfo* streamTaskCreateActiveChkptInfo();
+void    streamTaskSetCheckpointFailed(SStreamTask* pTask);
 
 // stream task state machine, and event handling
 SStreamTaskSM* streamCreateStateMachine(SStreamTask* pTask);

@@ -258,6 +258,7 @@ bool fmIsSkipScanCheckFunc(int32_t funcId);
 bool fmIsPrimaryKeyFunc(int32_t funcId);
 
 bool fmisSelectGroupConstValueFunc(int32_t funcId);
+bool fmIsElapsedFunc(int32_t funcId);
 
 void getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList);

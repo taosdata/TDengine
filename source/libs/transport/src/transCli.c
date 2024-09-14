@@ -2634,6 +2634,7 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
         QUEUE_PUSH(&exh->q, &pCliMsg->seqq);
         taosWUnLockLatch(&exh->latch);
         tDebug("msg refId: %" PRId64 "", handle);
+        transReleaseExHandle(transGetRefMgt(), handle);
         transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
         return 0;
       }
