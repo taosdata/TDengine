@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use taosx_core::utils::files::decompress_and_write_file;
 use tonic::transport::Channel;
 use tonic::transport::Endpoint;
-use tracing::info;
+use tracing::{info, instrument};
 
 use taosx_core::{
     get_data_dir, list_datasets_from, plugins, validate_dsn, Activity, CheckResponse, DataSetsReq,
@@ -435,6 +435,26 @@ impl Client {
                     ]);
                     item
                 }
+                RespAction::TaskMetrics(metrics) => {
+                    let val = Arc::new(TimestampMillisecondArray::from_iter_values([
+                        Utc::now().timestamp_millis()
+                    ])) as ArrayRef;
+                    let action: ArrayRef =
+                        Arc::new(StringArray::from_iter_values(["task-metrics".to_string()]));
+                    let context: ArrayRef =
+                        Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                            &metrics,
+                        )
+                        .unwrap()]));
+                    let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+                    let item = RecordBatch::try_from_iter(vec![
+                        ("ts", val),
+                        ("action", action),
+                        ("context", context),
+                        ("req_id", req_id),
+                    ]);
+                    item
+                }
                 RespAction::Metrics(metrics_event) => {
                     let val = Arc::new(TimestampMillisecondArray::from_iter_values([
                         Utc::now().timestamp_millis()
@@ -659,6 +679,28 @@ impl Client {
         }
 
         Ok(())
+    }
+}
+
+#[instrument(skip_all)]
+pub async fn listen_task_metrics(resp_tx: Sender<RespAction>) -> Result<()> {
+    use crate::agent::plugins::sink::ipc_metric::AGENT_METRICS_SENDER;
+
+    let (tx, rx) = flume::unbounded();
+
+    let _ = AGENT_METRICS_SENDER.set(tx);
+
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
+    loop {
+        interval.tick().await;
+        let mut vec = Vec::new();
+        while let Ok(v) = rx.try_recv() {
+            vec.push(v);
+        }
+        if !vec.is_empty() {
+            let resp = RespAction::TaskMetrics(vec);
+            resp_tx.send_async(resp).await?;
+        }
     }
 }
 

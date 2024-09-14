@@ -2,7 +2,13 @@ use crate::core_metrics::{CommonMetrics, CoreMetrics, TaskMetrics};
 use faststr::FastStr;
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::Ordering::SeqCst;
+use std::sync::{atomic::Ordering::SeqCst, OnceLock};
+use taosx_ipc::types::{TaskMetricItem, TaskMetricsVariant};
+
+/// Metrics sender for agent.
+///
+/// Items: (task_id, key, value)
+pub static AGENT_METRICS_SENDER: OnceLock<flume::Sender<TaskMetricItem>> = OnceLock::new();
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(default)]
@@ -48,11 +54,18 @@ impl IpcMetrics {
         }
     }
 
+    fn task_id(&self) -> i64 {
+        self.com.task_id
+    }
+
     pub fn set_extra_metric(&self, key: &FastStr, value: u64) {
         if let Some(entry) = self.extras.get(key) {
             entry.update(value);
         } else {
             self.extras.entry(key.clone()).or_insert_with(|| value);
+        }
+        if let Some(sender) = AGENT_METRICS_SENDER.get() {
+            let _ = sender.try_send((self.task_id(), key.clone(), TaskMetricsVariant::Set, value));
         }
     }
 
@@ -62,6 +75,10 @@ impl IpcMetrics {
             entry.update(new);
         } else {
             self.extras.entry(key.clone()).or_insert_with(|| value);
+        }
+
+        if let Some(sender) = AGENT_METRICS_SENDER.get() {
+            let _ = sender.try_send((self.task_id(), key.clone(), TaskMetricsVariant::Inc, value));
         }
     }
     pub fn sub_extra_metric(&self, key: &FastStr, value: u64) {
@@ -74,6 +91,9 @@ impl IpcMetrics {
             entry.update(new);
         } else {
             self.extras.entry(key.clone()).or_insert_with(|| 0);
+        }
+        if let Some(sender) = AGENT_METRICS_SENDER.get() {
+            let _ = sender.try_send((self.task_id(), key.clone(), TaskMetricsVariant::Dec, value));
         }
     }
 

@@ -1,3 +1,4 @@
+use agent::listen_task_metrics;
 use chrono::{Local, Utc};
 use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
@@ -366,6 +367,8 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
         export_metrics(metrics_rx.clone(), resp_tx.clone(), monitor_interval);
     }
 
+    let task_metrics_listener = tokio::spawn(listen_task_metrics(resp_tx.clone()));
+
     tokio::select! {
         _ = ctrl_c => {
             tracing::info!("SIGINT triggered");
@@ -385,10 +388,12 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
                     tracing::error!("Send interrupt action to runner error: {err}");
                 }
             }
+            task_metrics_listener.abort();
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
         _ = runner => {
             tracing::info!("Runner stopped");
+            task_metrics_listener.abort();
         }
         err = async {
             let ret: anyhow::Result<()>;
@@ -470,6 +475,7 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
             tracing::info!("")
         }
     }
+    task_metrics_listener.abort();
     Ok(())
 }
 

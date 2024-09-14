@@ -24,6 +24,7 @@ use arrow_flight::{
 use async_backtrace::framed;
 use base64::{engine::general_purpose, Engine};
 use chrono::Utc;
+use faststr::FastStr;
 use futures::{Stream, TryStreamExt};
 use linked_hash_map::LinkedHashMap;
 use metrics::{atomics::AtomicU64, counter, gauge, histogram, IntoLabels};
@@ -40,7 +41,9 @@ use tonic::{transport::Server, Request, Response, Status, Streaming};
 use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
-use taosx_core::utils::get_string_content_from_param_value;
+use taosx_core::{
+    core_metrics::get_metrics, utils::get_string_content_from_param_value, TaskMetricItem,
+};
 use taosx_core::{
     get_data_dir, utils::trace::TraceStreamId, CheckResponse, HeartbeatResponse, ListResponse,
     PutFileResp, QueryDataSourceResp,
@@ -458,6 +461,25 @@ impl FlightServiceImpl {
                 }
                 taosx_metrics::MetricOperation::RecordHistogram(value) => {
                     histogram!(event.key, labels).record(value);
+                }
+            }
+        }
+    }
+
+    pub async fn replay_task_metrics_from_agent(events: Vec<TaskMetricItem>) {
+        for (task_id, key, ty, value) in events {
+            if let Some(metrics) = get_metrics(task_id).await {
+                use taosx_ipc::types::TaskMetricsVariant;
+                match ty {
+                    TaskMetricsVariant::Set => {
+                        metrics.ipc().set_extra_metric(&key, value);
+                    }
+                    TaskMetricsVariant::Inc => {
+                        metrics.ipc().add_extra_metric(&key, value);
+                    }
+                    TaskMetricsVariant::Dec => {
+                        metrics.ipc().sub_extra_metric(&key, value);
+                    }
                 }
             }
         }
@@ -938,6 +960,19 @@ impl FlightService for FlightServiceImpl {
                                         // tracing::info!("Send heartbeat response");
                                         let _ = tx.send_async(item).await;
                                         // return std::task::Poll::Ready(Some(item));
+                                    }
+                                    "task-metrics" => {
+                                        match serde_json::from_str::<Vec<TaskMetricItem>>(context) {
+                                            Ok(events) => {
+                                                tokio::spawn(async move {
+                                                    tracing::trace!("Received source metrics events, total: {}", events.len());
+                                                    Self::replay_task_metrics_from_agent(events).await;
+                                                });
+                                            }
+                                            Err(err) => {
+                                                tracing::warn!(?err, "Invalid metrics events");
+                                            }
+                                        }
                                     }
                                     "metrics-events" => {
                                         match serde_json::from_str::<MetricsEvents>(context) {
