@@ -1535,8 +1535,9 @@ int taosSeekCFile(FILE *file, int64_t offset, int whence) {
   int     code = fseeko(file, offset, whence);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
   }
-  return terrno;
+  return code;
 #endif
 }
 

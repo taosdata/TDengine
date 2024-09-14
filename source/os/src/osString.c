@@ -351,7 +351,7 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
   int32_t code = 0;
   iconv_t conv = taosAcquireConv(&idx, C2M);
   if ((iconv_t)-1 == conv) {
-    return TSDB_CODE_APP_ERROR;
+    return terrno;
   }
   
   size_t  ucs4_input_len = ucs4_max_len;

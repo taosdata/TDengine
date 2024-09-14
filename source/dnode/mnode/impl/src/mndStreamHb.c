@@ -194,10 +194,13 @@ int32_t mndSendDropOrphanTasksMsg(SMnode *pMnode, SArray *pList) {
     return terrno;
   }
 
-  (void)tSerializeDropOrphanTaskMsg(pReq, contLen, &msg);
+  int32_t code = tSerializeDropOrphanTaskMsg(pReq, contLen, &msg);
+  if (code <= 0) {
+    mError("failed to serialize the drop orphan task msg, code:%s", tstrerror(code));
+  }
 
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_DROP_ORPHANTASKS, .pCont = pReq, .contLen = contLen};
-  int32_t code = tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  code = tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   if (code) {
     mError("failed to put drop-orphan task msg into write queue, code:%s", tstrerror(code));
   } else {
@@ -216,7 +219,7 @@ int32_t mndProcessResetStatusReq(SRpcMsg *pReq) {
   mndKillTransImpl(pMnode, pMsg->transId, "");
 
   streamMutexLock(&execInfo.lock);
-  (void) mndResetChkptReportInfo(execInfo.pChkptStreams, pMsg->streamId);
+  code = mndResetChkptReportInfo(execInfo.pChkptStreams, pMsg->streamId);   // do thing if failed
   streamMutexUnlock(&execInfo.lock);
 
   code = mndGetStreamObj(pMnode, pMsg->streamId, &pStream);
@@ -393,7 +396,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   int32_t numOfUpdated = taosArrayGetSize(req.pUpdateNodes);
   if (numOfUpdated > 0) {
     mDebug("%d stream node(s) need updated from hbMsg(vgId:%d)", numOfUpdated, req.vgId);
-    (void) setNodeEpsetExpiredFlag(req.pUpdateNodes);
+    int32_t unused = setNodeEpsetExpiredFlag(req.pUpdateNodes);
   }
 
   bool snodeChanged = false;
