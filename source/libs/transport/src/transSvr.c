@@ -779,7 +779,6 @@ static int32_t uvBuildToSendData(SSvrConn* pConn, uv_buf_t** ppBuf, int32_t* buf
   }
 
   if (count == 0) {
-    taosMemoryFree(pWb);
     return 0;
   }
 

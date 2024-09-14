@@ -494,7 +494,7 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf);
 
 enum { REQ_STATUS_INIT = 0, REQ_STATUS_PROCESSING };
 
-#define BUFFER_LIMIT 8
+#define BUFFER_LIMIT 4
 
 typedef struct {
   queue      q;

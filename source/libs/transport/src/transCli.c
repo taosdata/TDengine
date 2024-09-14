@@ -493,9 +493,10 @@ int32_t cliHandleState_mayCreateAhandle(SCliConn* conn, STransMsgHead* pHead, ST
   if (pCtx == 0) {
     return TSDB_CODE_RPC_NO_STATE;
   }
+  STraceId* trace = &pHead->traceId;
   pResp->info.ahandle = transCtxDumpVal(pCtx, pHead->msgType);
-  tDebug("%s conn %p construct ahandle %p by %s", CONN_GET_INST_LABEL(conn), conn, pResp->info.ahandle,
-         TMSG_INFO(pHead->msgType));
+  tGDebug("%s conn %p %s received from %s, local info:%s, qid:%ld, create ahandle %p by %s", CONN_GET_INST_LABEL(conn),
+          conn, TMSG_INFO(pHead->msgType), conn->dst, conn->src, qId, pResp->info.ahandle, TMSG_INFO(pHead->msgType));
   return 0;
 }
 
@@ -762,7 +763,6 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   conn->list->size += 1;
   tDebug("conn %p added to pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
 
-  conn->heap = NULL;
   conn->seq = 0;
 
   if (conn->list->size >= 10) {
@@ -3125,7 +3125,7 @@ static int32_t getOrCreateHeap(SHashObj* pConnHeapCache, char* key, SHeap** pHea
 
 static FORCE_INLINE int8_t shouldSWitchToOtherConn(int32_t reqNum, int32_t sentNum, int32_t stateNum) {
   int32_t total = reqNum + sentNum + stateNum;
-  if (total >= 4) {
+  if (total >= BUFFER_LIMIT) {
     return 1;
   }
 
@@ -3165,6 +3165,8 @@ static int32_t addConnToHeapCache(SHashObj* pConnHeapCacahe, SCliConn* pConn) {
 
   if (pConn->heap != NULL) {
     p = pConn->heap;
+    tDebug("conn %p add to heap cache for key:%s,status:%d, refCnt:%d, add direct", pConn, pConn->dstAddr,
+           pConn->inHeap, pConn->reqRefCnt);
   } else {
     code = getOrCreateHeap(pConnHeapCacahe, pConn->dstAddr, &p);
     if (code != 0) {
@@ -3173,13 +3175,14 @@ static int32_t addConnToHeapCache(SHashObj* pConnHeapCacahe, SCliConn* pConn) {
   }
 
   code = transHeapInsert(p, pConn);
-  tDebug("add conn %p to heap cache for key:%s,status:%d, refCnt:%d", pConn, pConn->dstAddr, pConn->inHeap,
+  tDebug("conn %p add to heap cache for key:%s,status:%d, refCnt:%d", pConn, pConn->dstAddr, pConn->inHeap,
          pConn->reqRefCnt);
   return code;
 }
 
 static int32_t delConnFromHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
   if (pConn->heap != NULL) {
+    tDebug("conn %p delete from heap cache direct", pConn);
     return transHeapDelete(pConn->heap, pConn);
   }
 
@@ -3190,7 +3193,7 @@ static int32_t delConnFromHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
   }
   int32_t code = transHeapDelete(p, pConn);
   if (code != 0) {
-    tDebug("failed to delete conn %p from heap cache since %s", pConn, tstrerror(code));
+    tDebug("%s conn failed to delete conn %p from heap cache since %s", pConn, tstrerror(code));
   }
   return code;
 }
@@ -3253,8 +3256,7 @@ int32_t transHeapDelete(SHeap* heap, SCliConn* p) {
   p->reqRefCnt--;
   if (p->reqRefCnt == 0) {
     heapRemove(heap->heap, &p->node);
-    p->heap = NULL;
-    tDebug("delete conn %p delete from heap", p);
+    tDebug("conn %p delete from heap", p);
   } else if (p->reqRefCnt < 0) {
     tDebug("conn %p has %d reqs, not delete from heap,assert", p, p->reqRefCnt);
   } else {
