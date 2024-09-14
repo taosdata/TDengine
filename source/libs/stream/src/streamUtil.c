@@ -80,7 +80,7 @@ void streamSetFatalError(SStreamMeta* pMeta, int32_t code, const char* funcName,
     stInfo("vgId:%d set fatal error, code:%s %s line:%d", pMeta->vgId, tstrerror(code), funcName, lino);
   } else {
     stFatal("vgId:%d existed fatal error:%s, ts:%" PRId64 " failed to set new fatal error code:%s", pMeta->vgId,
-            pMeta->fatalInfo.ts, tstrerror(code));
+            tstrerror(pMeta->fatalInfo.code), pMeta->fatalInfo.ts, tstrerror(code));
   }
 }
 
