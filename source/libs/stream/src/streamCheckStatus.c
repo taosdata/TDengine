@@ -258,6 +258,11 @@ int32_t streamTaskSendCheckRsp(const SStreamMeta* pMeta, int32_t vgId, SStreamTa
   }
 
   void* buf = rpcMallocCont(sizeof(SMsgHead) + len);
+  if (buf == NULL) {
+    stError("s-task:0x%x vgId:%d failed prepare msg, %s at line:%d code:%s", taskId, pMeta->vgId, __func__, __LINE__, tstrerror(code));
+    return terrno;
+  }
+
   ((SMsgHead*)buf)->vgId = htonl(vgId);
 
   void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
@@ -268,7 +273,7 @@ int32_t streamTaskSendCheckRsp(const SStreamMeta* pMeta, int32_t vgId, SStreamTa
   SRpcMsg rspMsg = {.code = 0, .pCont = buf, .contLen = sizeof(SMsgHead) + len, .info = *pRpcInfo};
   tmsgSendRsp(&rspMsg);
 
-  code = (code >= 0)? 0:code;
+  code = TMIN(code, 0);
   return code;
 }
 

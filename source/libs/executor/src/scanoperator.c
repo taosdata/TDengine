@@ -3894,8 +3894,8 @@ static void destroyStreamScanOperatorInfo(void* param) {
   if (param == NULL) {
     return;
   }
-  SStreamScanInfo* pStreamScan = (SStreamScanInfo*)param;
 
+  SStreamScanInfo* pStreamScan = (SStreamScanInfo*)param;
   if (pStreamScan->pTableScanOp && pStreamScan->pTableScanOp->info) {
     destroyOperator(pStreamScan->pTableScanOp);
   }
@@ -3914,7 +3914,10 @@ static void destroyStreamScanOperatorInfo(void* param) {
   cleanupExprSupp(&pStreamScan->tbnameCalSup);
   cleanupExprSupp(&pStreamScan->tagCalSup);
 
-  pStreamScan->stateStore.updateInfoDestroy(pStreamScan->pUpdateInfo);
+  if (pStreamScan->stateStore.updateInfoDestroy) {
+    pStreamScan->stateStore.updateInfoDestroy(pStreamScan->pUpdateInfo);
+  }
+
   blockDataDestroy(pStreamScan->pRes);
   blockDataDestroy(pStreamScan->pUpdateRes);
   blockDataDestroy(pStreamScan->pDeleteDataRes);
@@ -4127,16 +4130,13 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   }
 
   pInfo->pBlockLists = taosArrayInit(4, sizeof(SPackedData));
-  if (pInfo->pBlockLists == NULL) {
-    code = terrno;
-    goto _error;
-  }
+  TSDB_CHECK_NULL(pInfo->pBlockLists, code, lino, _error, terrno);
 
   if (pHandle->vnode) {
     SOperatorInfo* pTableScanOp = NULL;
     code = createTableScanOperatorInfo(pTableScanNode, pHandle, pTableListInfo, pTaskInfo, &pTableScanOp);
     if (pTableScanOp == NULL || code != 0) {
-      qError("createTableScanOperatorInfo error, errorcode: %d", pTaskInfo->code);
+      qError("createTableScanOperatorInfo error, code:%d", pTaskInfo->code);
       goto _error;
     }
 
@@ -4180,6 +4180,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
 
     // set the extract column id to streamHandle
     pAPI->tqReaderFn.tqReaderSetColIdList(pInfo->tqReader, pColIds);
+
     SArray* tableIdList = NULL;
     code = extractTableIdList(((STableScanInfo*)(pInfo->pTableScanOp->info))->base.pTableListInfo, &tableIdList);
     QUERY_CHECK_CODE(code, lino, _error);
@@ -4189,8 +4190,10 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   } else {
     taosArrayDestroy(pColIds);
     tableListDestroy(pTableListInfo);
-    pColIds = NULL;
   }
+
+  // clear the local variable to avoid repeatly free
+  pColIds = NULL;
 
   // create the pseduo columns info
   if (pTableScanNode->scan.pScanPseudoCols != NULL) {
@@ -4268,6 +4271,10 @@ _error:
   }
 
   if (pInfo != NULL) {
+    STableScanInfo* p = (STableScanInfo*) pInfo->pTableScanOp->info;
+    if (p != NULL) {
+      p->base.pTableListInfo = NULL;
+    }
     destroyStreamScanOperatorInfo(pInfo);
   }
 

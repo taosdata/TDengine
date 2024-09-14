@@ -362,7 +362,7 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
     return code;
   }
 
-  code = qStreamInfoResetTimewindowFilter(pTaskInfo);
+  code = qStreamInfoResetTimewindowFilter(*pTaskInfo);
   if (code != TSDB_CODE_SUCCESS) {
     qDestroyTask(*pTaskInfo);
   }
@@ -631,9 +631,13 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
 
     // pSinkParam has been freed during create sinker.
     code = dsCreateDataSinker(pSinkManager, pSubplan->pDataSink, handle, pSinkParam, (*pTask)->id.str);
+    if (code) {
+      qError("s-task:%s failed to create data sinker, code:%s", (*pTask)->id.str, tstrerror(code));
+    }
   }
 
-  qDebug("subplan task create completed, TID:0x%" PRIx64 "QID:0x%" PRIx64, taskId, pSubplan->id.queryId);
+  qDebug("subplan task create completed, TID:0x%" PRIx64 " QID:0x%" PRIx64 " code:%s", taskId, pSubplan->id.queryId,
+         tstrerror(code));
 
 _error:
   // if failed to add ref for all tables in this query, abort current query

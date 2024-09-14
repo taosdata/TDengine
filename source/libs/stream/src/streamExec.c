@@ -676,7 +676,7 @@ static int32_t doStreamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pBlock
   return code;
 }
 
-void flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock) {
+int32_t flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock) {
   const char* id = pTask->id.idStr;
 
   // 1. transfer the ownership of executor state
@@ -717,7 +717,12 @@ void flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointB
   }
 
   // 2. flush data in executor to K/V store, which should be completed before do checkpoint in the K/V.
-  doStreamTaskExecImpl(pTask, pCheckpointBlock, 1);
+  int32_t code = doStreamTaskExecImpl(pTask, pCheckpointBlock, 1);
+  if(code) {
+    stError("s-task:%s failed to exec stream task before checkpoint, code:%s", id, tstrerror(code));
+  }
+
+  return code;
 }
 
 /**
