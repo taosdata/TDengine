@@ -2221,7 +2221,11 @@ static int32_t refreshNodeListFromExistedStreams(SMnode *pMnode, SArray *pNodeLi
     }
 
     char buf[256] = {0};
-    (void) epsetToStr(&pEntry->epset, buf, tListLen(buf));  // ignore this error since it is only for log file
+    int32_t ret = epsetToStr(&pEntry->epset, buf, tListLen(buf));  // ignore this error since it is only for log file
+    if (ret != 0) {  // print error and continue
+      mError("failed to convert epset to str, code:%s", tstrerror(ret));
+    }
+
     mDebug("extract nodeInfo from stream obj, nodeId:%d, %s", pEntry->nodeId, buf);
   }
 
@@ -2231,7 +2235,7 @@ static int32_t refreshNodeListFromExistedStreams(SMnode *pMnode, SArray *pNodeLi
   return code;
 }
 
-static int32_t addAllDbsIntoHashmap(SHashObj *pDBMap, SSdb *pSdb) {
+static void addAllDbsIntoHashmap(SHashObj *pDBMap, SSdb *pSdb) {
   void   *pIter = NULL;
   int32_t code = 0;
   while (1) {
@@ -2249,8 +2253,6 @@ static int32_t addAllDbsIntoHashmap(SHashObj *pDBMap, SSdb *pSdb) {
       mDebug("add Db:%s into Dbs list (total:%d) for kill checkpoint trans", pVgroup->dbName, size);
     }
   }
-
-  return code;
 }
 
 // this function runs by only one thread, so it is not multi-thread safe
@@ -2311,7 +2313,7 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
       mInfo("rollback all stream due to mnode leader/follower switch by using nodeUpdate trans");
       updateAllVgroups = true;
       execInfo.switchFromFollower = false;  // reset the flag
-      (void) addAllDbsIntoHashmap(changeInfo.pDBMap, pMnode->pSdb);
+      addAllDbsIntoHashmap(changeInfo.pDBMap, pMnode->pSdb);
     }
   }
 
