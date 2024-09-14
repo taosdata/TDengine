@@ -385,7 +385,6 @@ static void uvPerfLog_receive(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* 
   static int64_t EXCEPTION_LIMIT_US = 100 * 1000;
 
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
-    // transRefSrvHandle(pConn);
     if (cost >= EXCEPTION_LIMIT_US) {
       tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, recv exception, seqNum:%d, qid:%ld",
               transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
@@ -607,7 +606,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
         if (true == pBuf->invalid || false == uvHandleReq(conn)) {
           tError("%s conn %p read invalid packet, received from %s, local info:%s", transLabel(pInst), conn, conn->dst,
                  conn->src);
-          destroyConn(conn, true);
+          transUnrefCliHandle(conn);
           return;
         }
       }
@@ -615,7 +614,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     } else {
       tError("%s conn %p read invalid packet, exceed limit, received from %s, local info:%s", transLabel(pInst), conn,
              conn->dst, conn->src);
-      destroyConn(conn, true);
+      transUnrefCliHandle(conn);
       return;
     }
   }
@@ -626,15 +625,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   tDebug("%s conn %p read error:%s", transLabel(pInst), conn, uv_err_name(nread));
   if (nread < 0) {
     conn->broken = true;
-    // if (conn->status == ConnAcquire) {
-    //   if (conn->regArg.init) {
-    //     tTrace("%s conn %p broken, notify server app", transLabel(pInst), conn);
-    //     STrans* pInst = conn->pInst;
-    //     (*pInst->cfp)(pInst->parent, &(conn->regArg.msg), NULL);
-    //     memset(&conn->regArg, 0, sizeof(conn->regArg));
-    //   }
-    // }
-    destroyConn(conn, true);
+    transUnrefCliHandle(conn);
   }
 }
 void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
@@ -682,10 +673,8 @@ void uvOnSendCb(uv_write_t* req, int status) {
       destroySmsg(smsg);
     }
 
-    if (!uv_is_closing((uv_handle_t*)(conn->pTcp))) {
-      tError("conn %p failed to write data, %s", conn, uv_err_name(status));
-      conn->broken = true;
-    }
+    conn->broken = true;
+    transUnrefCliHandle(conn);
   }
   taosMemoryFree(userReq);
   transUnrefSrvHandle(conn);
