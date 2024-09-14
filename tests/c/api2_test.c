@@ -23,7 +23,7 @@
 #include <string.h>
 
 #define LOGE(fmt, ...) fprintf(stderr, "" fmt "\n", ##__VA_ARGS__)
-#define DBGE(fmt, ...) fprintf(stderr, "api2_test.c[%d]:%s():" fmt "\n", __LINE__, __FILE__, ##__VA_ARGS__)
+#define DBGE(fmt, ...) if (0) fprintf(stderr, "api2_test.c[%d]:%s():" fmt "\n", __LINE__, __FILE__, ##__VA_ARGS__)
 
 #define CHK_TAOS(taos, fmt, ...) do {                                  \
   if (taos) break;                                                     \
@@ -1066,7 +1066,22 @@ static int run_exec_by_case(TAOS_STMT *stmt, const exec_case_t *_case, TAOS_MULT
     return -1;
   }
 
-  if (res) {
+  if (res && !is_insert) {
+    TAOS_ROW     row;
+    int          rows       = 0;
+    int          num_fields = taos_field_count(res);
+    TAOS_FIELD *fields      = taos_fetch_fields(res);
+
+    LOGE("@[%d]: %s", line, sql);
+    LOGE("num_fields = %d", num_fields);
+    LOGE("results:");
+    // fetch the records row by row
+    while ((row = taos_fetch_row(res))) {
+      char temp[4096] = {0};
+      rows++;
+      taos_print_row(temp, row, fields, num_fields);
+      LOGE("%s", temp);
+    }
   }
 
   return 0;
@@ -1120,6 +1135,16 @@ static int run_exec(TAOS *conn)
       },
     },{
       .line      = __LINE__,
+      .sql       = "select * from tall1",
+      .is_insert = 0,
+      .params    = {
+        {__LINE__, {EXEC_COL_END}},
+      },
+      .cells     = {
+        {__LINE__, {EXEC_COL_END}},
+      },
+    },{
+      .line      = __LINE__,
       .sql       = "insert into tall (ts, b, i8, u8, i16, u16, i32, u32, i64, u64, flt, dbl, nm) "
                    "          values (?,  ?, ?,  ?,  ?,   ?,   ?,   ?,   ?,   ?,   ?,   ?,   ?)",
       .is_insert = 1,
@@ -1127,6 +1152,16 @@ static int run_exec(TAOS *conn)
         {__LINE__, {"1726146779000", "1", "-128", "255", "-32768", "65535", "-2147483647", "4294967295",
                     "-9223372036854775808", "18446744073709551615", "1.23", "4.56", "hello",
                     EXEC_COL_END}},
+        {__LINE__, {EXEC_COL_END}},
+      },
+      .cells     = {
+        {__LINE__, {EXEC_COL_END}},
+      },
+    },{
+      .line      = __LINE__,
+      .sql       = "select * from tall",
+      .is_insert = 0,
+      .params    = {
         {__LINE__, {EXEC_COL_END}},
       },
       .cells     = {
@@ -1148,6 +1183,16 @@ static int run_exec(TAOS *conn)
       },
     },{
       .line      = __LINE__,
+      .sql       = "select * from t",
+      .is_insert = 0,
+      .params    = {
+        {__LINE__, {EXEC_COL_END}},
+      },
+      .cells     = {
+        {__LINE__, {EXEC_COL_END}},
+      },
+    },{
+      .line      = __LINE__,
       .sql       = "insert into t (ts, nm) values(now()+1s, 'world')",
       .is_insert = 1,
       .params    = {
@@ -1162,7 +1207,7 @@ static int run_exec(TAOS *conn)
       .sql       = "select nm from t where nm = ?",
       .is_insert = 0,
       .params    = {
-        {__LINE__, {"hello", EXEC_COL_END}},
+        {__LINE__, {"yes", EXEC_COL_END}},
         {__LINE__, {EXEC_COL_END}},
       },
       .cells     = {

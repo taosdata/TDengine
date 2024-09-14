@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-#define DBGE(fmt, ...) fprintf(stderr, "%s[%d]:%s():" fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define DBGE(fmt, ...) if (0) fprintf(stderr, "%s[%d]:%s():" fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 
 void stmtExec2ClearRes(STscStmt *pStmt);
 int stmtKeepMbs(STscStmt *pStmt, int nr);
