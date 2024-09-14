@@ -163,36 +163,49 @@ async fn main() -> anyhow::Result<()> {
     args.instance_id =
         Some(*INSTANCE_ID.get_or_init(|| args.instance_id.unwrap_or(DEFAULT_INSTANCE_ID)));
 
+    let log_level = args
+        .log
+        .as_ref()
+        .and_then(|opts| opts.level)
+        .or(args.log_level)
+        .or(args.verbose.as_ref().map(|v| v.log_level_filter()))
+        .unwrap_or(log::LevelFilter::Info);
+
     match args.log.as_mut() {
-        Some(opts) => opts.merge_from(LogOpts::default()),
-        None => args.log = Some(LogOpts::default()),
+        Some(opts) => {
+            opts.level = Some(log_level);
+            opts.merge_from(LogOpts::default());
+        }
+        None => {
+            let opts = LogOpts {
+                level: Some(log_level),
+                ..Default::default()
+            };
+            args.log = Some(opts);
+        }
     }
 
     let Some(LogOpts {
         path,
-        level,
         compress,
         rotation_count,
         keep_days,
         rotation_size,
         reserved_disk_size,
+        ..
     }) = args.log.clone()
     else {
         bail!("Log opts not found")
     };
 
-    let log_level = level
-        .or(args.log_level)
-        .or(args.verbose.as_ref().map(|v| v.log_level_filter()))
-        .map(|level_filter| match level_filter {
-            log::LevelFilter::Off => filter::LevelFilter::OFF,
-            log::LevelFilter::Error => filter::LevelFilter::ERROR,
-            log::LevelFilter::Warn => filter::LevelFilter::WARN,
-            log::LevelFilter::Info => filter::LevelFilter::INFO,
-            log::LevelFilter::Debug => filter::LevelFilter::DEBUG,
-            log::LevelFilter::Trace => filter::LevelFilter::TRACE,
-        })
-        .unwrap_or(filter::LevelFilter::INFO);
+    let log_level: filter::LevelFilter = match log_level {
+        log::LevelFilter::Off => filter::LevelFilter::OFF,
+        log::LevelFilter::Error => filter::LevelFilter::ERROR,
+        log::LevelFilter::Warn => filter::LevelFilter::WARN,
+        log::LevelFilter::Info => filter::LevelFilter::INFO,
+        log::LevelFilter::Debug => filter::LevelFilter::DEBUG,
+        log::LevelFilter::Trace => filter::LevelFilter::TRACE,
+    };
 
     // init logger
     let mut layers = Vec::with_capacity(2);
