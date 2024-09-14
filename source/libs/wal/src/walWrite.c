@@ -508,7 +508,7 @@ int32_t walEndSnapshot(SWal *pWal) {
   taosArrayClear(pWal->toDeleteFiles);
 
 _exit:
-  walThreadRwlockWrlock(&pWal->mutex);
+  walThreadRwlockUnlock(&pWal->mutex);
 
   if (code) {
     wError("vgId:%d, %s failed at line %d since %s", pWal->cfg.vgId, __func__, lino, tstrerror(code));

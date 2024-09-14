@@ -1049,21 +1049,3 @@ int32_t walRemoveMeta(SWal* pWal) {
   (void)walBuildMetaName(pWal, metaVer, fnameStr);
   return taosRemoveFile(fnameStr);
 }
-
-void printStackTrace() {
-    void *buffer[100];
-    int nptrs = backtrace(buffer, 100);
-    char **symbols = backtrace_symbols(buffer, nptrs);
-
-    if (symbols == NULL) {
-        perror("backtrace_symbols");
-        exit(EXIT_FAILURE);
-    }
-
-    printf("Stack trace:\n");
-    for (int i = 0; i < nptrs; i++) {
-        sprintf("%s\n", symbols[i]);
-    }
-
-    taosMemoryFree(symbols);
-}

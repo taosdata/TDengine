@@ -138,3 +138,5 @@ tags
 *CMakeCache*
 *CMakeFiles*
 .history/
+tests/pytest/util/log.py
+.gitignore
