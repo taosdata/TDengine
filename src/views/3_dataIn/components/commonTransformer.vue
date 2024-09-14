@@ -407,7 +407,7 @@
               </el-button>
             </el-tooltip>
           </div>
-          <div class="table-detail" v-if="tableData.length > 0">
+          <div class="table-detail" v-if="tableData.length > 0" :key="refreshKey">
             <el-table :data="pageTableData" border style="width: 100%">
               <el-table-column
                 prop="Name"
@@ -835,7 +835,8 @@ export default {
       allProperties: [],
       dialogVisible: false,
       checkedProperties: [],
-      requesting: false
+      requesting: false,
+      refreshKey: 0
     };
   },
   computed: {
@@ -2466,6 +2467,7 @@ export default {
     "$i18n.locale": {
       deep: true,
       handler(val) {
+        this.refreshKey += 1;
         this.$nextTick(() => {
           this.$refs.sruleForm.clearValidate();
           if (this.$refs.subtb) this.$refs.subtb[0]?.clearValidate();
