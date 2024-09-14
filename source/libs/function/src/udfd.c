@@ -92,6 +92,9 @@ int32_t udfdCPluginUdfInitLoadAggFuncs(SUdfCPluginCtx *udfCtx, const char *udfNa
 int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
   int32_t         err = 0;
   SUdfCPluginCtx *udfCtx = taosMemoryCalloc(1, sizeof(SUdfCPluginCtx));
+  if (NULL == udfCtx) {
+    return terrno;
+  }
   err = uv_dlopen(udf->path, &udfCtx->lib);
   if (err != 0) {
     fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
@@ -606,6 +609,9 @@ int32_t udfdInitUdf(char *udfName, SUdf *udf) {
 
 int32_t udfdNewUdf(SUdf **pUdf, const char *udfName) {
   SUdf *udfNew = taosMemoryCalloc(1, sizeof(SUdf));
+  if (NULL == udfNew) {
+    return terrno;
+  }
   udfNew->refCount = 1;
   udfNew->lastFetchTime = taosGetTimestampMs();
   strncpy(udfNew->name, udfName, TSDB_FUNC_NAME_LEN);
@@ -1105,6 +1111,9 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
   taosArrayDestroy(retrieveReq.pFuncNames);
 
   SUdfdRpcSendRecvInfo *msgInfo = taosMemoryCalloc(1, sizeof(SUdfdRpcSendRecvInfo));
+  if(NULL == msgInfo) {
+    return terrno;
+  }
   msgInfo->rpcType = UDFD_RPC_RETRIVE_FUNC;
   msgInfo->param = udf;
   if(uv_sem_init(&msgInfo->resultSem, 0)  != 0) {
