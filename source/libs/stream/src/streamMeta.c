@@ -923,32 +923,38 @@ int32_t streamMetaBegin(SStreamMeta* pMeta) {
   streamMetaWLock(pMeta);
   int32_t code = tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
                           TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  if (code) {
+    streamSetFatalError(pMeta, code, __func__, __LINE__);
+  }
   streamMetaWUnLock(pMeta);
   return code;
 }
 
 int32_t streamMetaCommit(SStreamMeta* pMeta) {
-  int32_t code = 0;
-  code = tdbCommit(pMeta->db, pMeta->txn);
+  int32_t code = tdbCommit(pMeta->db, pMeta->txn);
   if (code != 0) {
-    stError("vgId:%d failed to commit stream meta", pMeta->vgId);
-    return code;
+    streamSetFatalError(pMeta, code, __func__, __LINE__);
+    stFatal("vgId:%d failed to commit stream meta, code:%s, line:%d", pMeta->vgId, tstrerror(code),
+            pMeta->fatalInfo.line);
   }
 
   code = tdbPostCommit(pMeta->db, pMeta->txn);
   if (code != 0) {
-    stError("vgId:%d failed to do post-commit stream meta", pMeta->vgId);
+    streamSetFatalError(pMeta, code, __func__, __LINE__);
+    stFatal("vgId:%d failed to do post-commit stream meta, code:%s, line:%d", pMeta->vgId, tstrerror(code),
+            pMeta->fatalInfo.line);
     return code;
   }
 
   code = tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
                   TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
   if (code != 0) {
-    stError("vgId:%d failed to begin trans", pMeta->vgId);
-    return code;
+    streamSetFatalError(pMeta, code, __func__, __LINE__);
+    stFatal("vgId:%d failed to begin trans, code:%s, line:%d", pMeta->vgId, tstrerror(code), pMeta->fatalInfo.line);
+  } else {
+    stDebug("vgId:%d stream meta file commit completed", pMeta->vgId);
   }
 
-  stDebug("vgId:%d stream meta file commit completed", pMeta->vgId);
   return code;
 }
 

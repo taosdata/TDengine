@@ -77,9 +77,10 @@ void streamSetFatalError(SStreamMeta* pMeta, int32_t code, const char* funcName,
     pMeta->fatalInfo.threadId = taosGetSelfPthreadId();
     tstrncpy(pMeta->fatalInfo.func, funcName, tListLen(pMeta->fatalInfo.func));
     pMeta->fatalInfo.line = lino;
-    stInfo("vgId:%d set global fatal error, code:%s %s line:%d", pMeta->vgId, tstrerror(code), funcName, lino);
+    stInfo("vgId:%d set fatal error, code:%s %s line:%d", pMeta->vgId, tstrerror(code), funcName, lino);
   } else {
-    stFatal("vgId:%d existed global fatal eror:%s, failed to set new fatal error code:%s", pMeta->vgId, code);
+    stFatal("vgId:%d existed fatal error:%s, ts:%" PRId64 " failed to set new fatal error code:%s", pMeta->vgId,
+            pMeta->fatalInfo.ts, tstrerror(code));
   }
 }
 
