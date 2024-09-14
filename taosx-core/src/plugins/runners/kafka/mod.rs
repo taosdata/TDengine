@@ -296,7 +296,7 @@ pub async fn kafka_to_taos(
 
     reset_metrics!();
     let aborted_cloned = cancel.clone();
-    let mut join_set = execute(
+    let mut join_set = match execute(
         from,
         ipc_port.get(),
         aborted_cloned,
@@ -304,7 +304,17 @@ pub async fn kafka_to_taos(
         metrics_arc.clone(),
     )
     .in_current_span()
-    .await?;
+    .await
+    {
+        Ok(set) => set,
+        Err(err) => {
+            cancel.cancel();
+            reset_metrics!();
+            let _ = ipc.send(());
+            let _ = ipc.close().await;
+            anyhow::bail!("Kafka subscribe error: {:#}", err);
+        }
+    };
     tokio::spawn(async move {
         tokio::select! {
             // application exit with error code
