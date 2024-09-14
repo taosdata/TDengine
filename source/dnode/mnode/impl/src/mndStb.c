@@ -2964,7 +2964,7 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
 
   void *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -3015,7 +3015,7 @@ static int32_t mndProcessTableCfgReq(SRpcMsg *pReq) {
 
   void *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -3041,14 +3041,14 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
   SSTbHbRsp hbRsp = {0};
   hbRsp.pMetaRsp = taosArrayInit(numOfStbs, sizeof(STableMetaRsp));
   if (hbRsp.pMetaRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 
   hbRsp.pIndexRsp = taosArrayInit(numOfStbs, sizeof(STableIndexRsp));
   if (NULL == hbRsp.pIndexRsp) {
     taosArrayDestroy(hbRsp.pMetaRsp);
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 
@@ -3104,7 +3104,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
       STableIndexRsp indexRsp = {0};
       indexRsp.pIndex = taosArrayInit(10, sizeof(STableIndexInfo));
       if (NULL == indexRsp.pIndex) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         TAOS_RETURN(code);
       }
 
@@ -3136,7 +3136,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
   void *pRsp = taosMemoryMalloc(rspLen);
   if (pRsp == NULL) {
     tFreeSSTbHbRsp(&hbRsp);
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 
@@ -4066,20 +4066,20 @@ static int32_t mndInitDropTbsWithTsmaCtx(SMndDropTbsWithTsmaCtx **ppCtx) {
   if (!pCtx) return terrno;
   pCtx->pTsmaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (!pCtx->pTsmaMap) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _end;
   }
 
   pCtx->pDbMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (!pCtx->pDbMap) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _end;
   }
   pCtx->pResTbNames = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
 
   pCtx->pVgMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   if (!pCtx->pVgMap) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _end;
   }
   *ppCtx = pCtx;
@@ -4203,17 +4203,17 @@ static int32_t mndDropTbAdd(SMnode *pMnode, SHashObj *pVgHashMap, const SVgroupI
     reqs.info = *pVgInfo;
     reqs.req.pArray = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SVDropTbReq));
     if (reqs.req.pArray == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if (taosArrayPush(reqs.req.pArray, &req) == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if (taosHashPut(pVgHashMap, &pVgInfo->vgId, sizeof(pVgInfo->vgId), &reqs, sizeof(reqs)) != 0) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   } else {
     if (taosArrayPush(pReqs->req.pArray, &req) == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   return 0;
@@ -4229,7 +4229,7 @@ static int32_t mndGetDbVgInfoForTsma(SMnode *pMnode, const char *dbname, SMDropT
 
   pInfo->dbInfo.dbVgInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
   if (!pInfo->dbInfo.dbVgInfos) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _end;
   }
   mndBuildDBVgroupInfo(pDb, pMnode, pInfo->dbInfo.dbVgInfos);
@@ -4284,11 +4284,11 @@ static int32_t mndDropTbAddTsmaResTbsForSingleVg(SMnode *pMnode, SMndDropTbsWith
       SMDropTbTsmaInfos infos = {0};
       infos.pTsmaInfos = taosArrayInit(2, sizeof(SMDropTbTsmaInfo));
       if (!infos.pTsmaInfos) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _end;
       }
       if (taosHashPut(pCtx->pTsmaMap, &pTb->suid, sizeof(pTb->suid), &infos, sizeof(infos)) != 0) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _end;
       }
     }

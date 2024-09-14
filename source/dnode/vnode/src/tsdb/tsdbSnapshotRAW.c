@@ -18,7 +18,7 @@
 #include "tsdbFS2.h"
 #include "tsdbFSetRAW.h"
 
-static int32_t tsdbSnapRAWReadFileSetCloseReader(STsdbSnapRAWReader* reader);
+static void tsdbSnapRAWReadFileSetCloseReader(STsdbSnapRAWReader* reader);
 
 // reader
 typedef struct SDataFileRAWReaderIter {
@@ -65,7 +65,7 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s, sver:0, ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode), __func__,
               lino, tstrerror(code), ever, type);
-    (void)tsdbFSDestroyRefSnapshot(&reader[0]->fsetArr);
+    tsdbFSDestroyRefSnapshot(&reader[0]->fsetArr);
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
   } else {
@@ -84,7 +84,7 @@ int32_t tsdbSnapRAWReaderClose(STsdbSnapRAWReader** reader) {
   STsdb* tsdb = reader[0]->tsdb;
 
   TARRAY2_DESTROY(reader[0]->dataReaderArr, tsdbDataFileRAWReaderClose);
-  (void)tsdbFSDestroyRefSnapshot(&reader[0]->fsetArr);
+  tsdbFSDestroyRefSnapshot(&reader[0]->fsetArr);
   taosMemoryFree(reader[0]);
   reader[0] = NULL;
 
@@ -141,15 +141,14 @@ static int32_t tsdbSnapRAWReadFileSetOpenReader(STsdbSnapRAWReader* reader) {
 
 _exit:
   if (code) {
-    (void)tsdbSnapRAWReadFileSetCloseReader(reader);
+    tsdbSnapRAWReadFileSetCloseReader(reader);
     TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
   }
   return code;
 }
 
-static int32_t tsdbSnapRAWReadFileSetCloseReader(STsdbSnapRAWReader* reader) {
+static void tsdbSnapRAWReadFileSetCloseReader(STsdbSnapRAWReader* reader) {
   TARRAY2_CLEAR(reader->dataReaderArr, tsdbDataFileRAWReaderClose);
-  return 0;
 }
 
 static int32_t tsdbSnapRAWReadFileSetOpenIter(STsdbSnapRAWReader* reader) {
@@ -158,10 +157,9 @@ static int32_t tsdbSnapRAWReadFileSetOpenIter(STsdbSnapRAWReader* reader) {
   return 0;
 }
 
-static int32_t tsdbSnapRAWReadFileSetCloseIter(STsdbSnapRAWReader* reader) {
+static void tsdbSnapRAWReadFileSetCloseIter(STsdbSnapRAWReader* reader) {
   reader->dataIter->count = 0;
   reader->dataIter->idx = 0;
-  return 0;
 }
 
 static int64_t tsdbSnapRAWReadPeek(SDataFileRAWReader* reader) {
@@ -261,8 +259,8 @@ _exit:
 }
 
 static int32_t tsdbSnapRAWReadEnd(STsdbSnapRAWReader* reader) {
-  (void)tsdbSnapRAWReadFileSetCloseIter(reader);
-  (void)tsdbSnapRAWReadFileSetCloseReader(reader);
+  tsdbSnapRAWReadFileSetCloseIter(reader);
+  tsdbSnapRAWReadFileSetCloseReader(reader);
   reader->ctx->fset = NULL;
   return 0;
 }
@@ -411,7 +409,9 @@ static int32_t tsdbSnapRAWWriteFileSetBegin(STsdbSnapRAWWriter* writer, int32_t 
   int32_t level = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
   code = tfsAllocDisk(writer->tsdb->pVnode->pTfs, level, &writer->ctx->did);
   TSDB_CHECK_CODE(code, lino, _exit);
-  (void)tfsMkdirRecurAt(writer->tsdb->pVnode->pTfs, writer->tsdb->path, writer->ctx->did);
+
+  code = tfsMkdirRecurAt(writer->tsdb->pVnode->pTfs, writer->tsdb->path, writer->ctx->did);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tsdbSnapRAWWriteFileSetOpenWriter(writer);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -490,7 +490,7 @@ int32_t tsdbSnapRAWWriterClose(STsdbSnapRAWWriter** writer, int8_t rollback) {
   }
 
   TARRAY2_DESTROY(writer[0]->fopArr, NULL);
-  (void)tsdbFSDestroyCopySnapshot(&writer[0]->fsetArr);
+  tsdbFSDestroyCopySnapshot(&writer[0]->fsetArr);
 
   taosMemoryFree(writer[0]);
   writer[0] = NULL;

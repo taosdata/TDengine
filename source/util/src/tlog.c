@@ -207,7 +207,7 @@ int32_t taosInitSlowLog() {
   tsLogObj.slowHandle->pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (tsLogObj.slowHandle->pFile == NULL) {
     (void)printf("\nfailed to open slow log file:%s, reason:%s\n", name, strerror(errno));
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   return 0;
@@ -539,15 +539,15 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
   tsLogObj.logHandle->pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE);
   if (tsLogObj.logHandle->pFile == NULL) {
     (void)printf("\nfailed to open log file:%s, reason:%s\n", name, strerror(errno));
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
   (void)taosLockLogFile(tsLogObj.logHandle->pFile);
 
   // only an estimate for number of lines
   int64_t filesize = 0;
-  if (taosFStatFile(tsLogObj.logHandle->pFile, &filesize, NULL) < 0) {
+  if (taosFStatFile(tsLogObj.logHandle->pFile, &filesize, NULL) != 0) {
     (void)printf("\nfailed to fstat log file:%s, reason:%s\n", name, strerror(errno));
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
   tsLogObj.lines = (int32_t)(filesize / 60);
 
@@ -973,7 +973,6 @@ void taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, vo
 
     pFile = taosOpenFile(filepath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
     if (pFile == NULL) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
       taosPrintLog(flags, level, dflag, "failed to open file:%s since %s", filepath, terrstr());
       goto _return;
     }
@@ -1003,7 +1002,6 @@ _return:
 
   if (pFile) (void)taosCloseFile(&pFile);
 
-  terrno = TAOS_SYSTEM_ERROR(errno);
   taosPrintLog(flags, level, dflag, "crash signal is %d", signum);
 
 #ifdef _TD_DARWIN_64
@@ -1030,11 +1028,10 @@ void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr 
   if (NULL == *pFd) {
     int64_t filesize = 0;
     if (taosStatFile(filepath, &filesize, NULL, NULL) < 0) {
-      if (ENOENT == errno) {
+      if (TAOS_SYSTEM_ERROR(ENOENT) == terrno) {
         return;
       }
 
-      terrno = TAOS_SYSTEM_ERROR(errno);
       taosPrintLog(flags, level, dflag, "failed to stat file:%s since %s", filepath, terrstr());
       return;
     }
@@ -1049,7 +1046,6 @@ void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr 
         return;
       }
 
-      terrno = TAOS_SYSTEM_ERROR(errno);
       taosPrintLog(flags, level, dflag, "failed to open file:%s since %s", filepath, terrstr());
       return;
     }

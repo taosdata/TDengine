@@ -45,7 +45,7 @@ print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
 if $data22 != 2 then
   return -1
 endi
-if $data27 != 86400m,86400m,86400m then
+if $data27 != 60d,60d,60d then
   return -1
 endi
 
@@ -86,7 +86,7 @@ sql select * from information_schema.ins_databases
 if $data22 != 2 then
   return -1
 endi
-if $data27 != 43200m,43200m,43200m then
+if $data27 != 30d,30d,30d then
   return -1
 endi
 

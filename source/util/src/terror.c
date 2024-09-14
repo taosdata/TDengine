@@ -850,6 +850,7 @@ static void tsSortError(void) {
   taosSort(errors, sizeof(errors) / sizeof(errors[0]), sizeof(errors[0]), taosCompareTaosError);
 }
 
+static char WinAPIErrDesc[256] = {0};
 const char* tstrerror(int32_t err) {
   (void)taosThreadOnce(&tsErrorInit, tsSortError);
 
@@ -860,6 +861,15 @@ const char* tstrerror(int32_t err) {
     // invalid code return Unknown error
     return strerror(code);
   }
+  #ifdef WINDOWS
+  if ((err & 0x01ff0000) == 0x01ff0000) {
+    snprintf(WinAPIErrDesc, 256, "windows api error, code: 0x%08x", err & 0x0000ffff);
+    return WinAPIErrDesc;
+  }  else if ((err & 0x02ff0000) == 0x02ff0000) {
+    snprintf(WinAPIErrDesc, 256, "windows socket error, code: 0x%08x", err & 0x0000ffff);
+    return WinAPIErrDesc;
+  }
+  #endif
   int32_t s = 0;
   int32_t e = sizeof(errors) / sizeof(errors[0]);
 

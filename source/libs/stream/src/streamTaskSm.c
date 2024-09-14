@@ -217,10 +217,9 @@ static int32_t doHandleWaitingEvent(SStreamTaskSM* pSM, const char* pEventName, 
 
 static int32_t removeEventInWaitingList(SStreamTask* pTask, EStreamTaskEvent event) {
   SStreamTaskSM* pSM = pTask->status.pSM;
+  bool           removed = false;
+  int32_t        num = taosArrayGetSize(pSM->pWaitingEventList);
 
-  bool removed = false;
-
-  int32_t num = taosArrayGetSize(pSM->pWaitingEventList);
   for (int32_t i = 0; i < num; ++i) {
     SFutureHandleEventInfo* pInfo = taosArrayGet(pSM->pWaitingEventList, i);
     if (pInfo == NULL) {
@@ -266,7 +265,11 @@ int32_t streamTaskRestoreStatus(SStreamTask* pTask) {
       stDebug("s-task:%s restore status, %s -> %s", pTask->id.idStr, pSM->prev.state.name, pSM->current.name);
     }
   } else {
-    (void)removeEventInWaitingList(pTask, TASK_EVENT_PAUSE);  // ignore the return value,
+    code = removeEventInWaitingList(pTask, TASK_EVENT_PAUSE);  // ignore the return value,
+    if (code) {
+      stError("s-task:%s failed to remove event in waiting list, code:%s", pTask->id.idStr, tstrerror(code));
+    }
+
     code = TSDB_CODE_FAILED;  // failed to restore the status, since it is not in pause status
   }
 
@@ -286,7 +289,7 @@ int32_t streamCreateStateMachine(SStreamTask* pTask) {
   if (pSM == NULL) {
     stError("s-task:%s failed to create task stateMachine, size:%d, code:%s", id, (int32_t)sizeof(SStreamTaskSM),
             tstrerror(terrno));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pSM->pTask = pTask;

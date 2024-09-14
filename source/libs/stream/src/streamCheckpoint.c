@@ -49,7 +49,7 @@ int32_t createChkptTriggerBlock(SStreamTask* pTask, int32_t checkpointType, int6
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (pBlock == NULL) {
     taosFreeQitem(pChkpoint);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pBlock->info.type = STREAM_CHECKPOINT;
@@ -229,6 +229,16 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     stError("s-task:%s vgId:%d current checkpointId:%" PRId64
             " recv expired checkpoint-trigger block, checkpointId:%" PRId64 " transId:%d, discard",
             id, vgId, pTask->chkInfo.checkpointId, checkpointId, transId);
+    streamMutexUnlock(&pTask->lock);
+
+    streamFreeQitem((SStreamQueueItem*)pBlock);
+    return code;
+  }
+
+  if (pActiveInfo->failedId >= checkpointId) {
+    stError("s-task:%s vgId:%d checkpointId:%" PRId64 " transId:%d, has been marked failed, failedId:%" PRId64
+            " discard the checkpoint-trigger block",
+            id, vgId, checkpointId, transId, pActiveInfo->failedId);
     streamMutexUnlock(&pTask->lock);
 
     streamFreeQitem((SStreamQueueItem*)pBlock);
@@ -531,15 +541,20 @@ int32_t streamTaskProcessCheckpointReadyRsp(SStreamTask* pTask, int32_t upstream
 }
 
 void streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg) {
+  SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
+
   pTask->chkInfo.startTs = 0;             // clear the recorded start time
   streamTaskOpenAllUpstreamInput(pTask);  // open inputQ for all upstream tasks
 
-  streamMutexLock(&pTask->chkInfo.pActiveInfo->lock);
-  streamTaskClearActiveInfo(pTask->chkInfo.pActiveInfo);
+  streamMutexLock(&pInfo->lock);
+  streamTaskClearActiveInfo(pInfo);
   if (clearChkpReadyMsg) {
-    streamClearChkptReadyMsg(pTask->chkInfo.pActiveInfo);
+    streamClearChkptReadyMsg(pInfo);
   }
-  streamMutexUnlock(&pTask->chkInfo.pActiveInfo->lock);
+  streamMutexUnlock(&pInfo->lock);
+
+  stDebug("s-task:%s clear active checkpointInfo, failed checkpointId:%"PRId64", current checkpointId:%"PRId64,
+      pTask->id.idStr, pInfo->failedId, pTask->chkInfo.checkpointId);
 }
 
 int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SVUpdateCheckpointInfoReq* pReq) {
@@ -669,7 +684,7 @@ void streamTaskSetFailedCheckpointId(SStreamTask* pTask) {
     stWarn("s-task:%s checkpoint-info is cleared now, not set the failed checkpoint info", pTask->id.idStr);
   } else {
     pInfo->failedId = pInfo->activeId;
-    stDebug("s-task:%s mark the checkpointId:%" PRId64 " (transId:%d) failed", pTask->id.idStr, pInfo->activeId,
+    stDebug("s-task:%s mark and set the failed checkpointId:%" PRId64 " (transId:%d)", pTask->id.idStr, pInfo->activeId,
             pInfo->transId);
   }
 }
@@ -689,7 +704,7 @@ static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* l
 
   char* filePath = taosMemoryCalloc(1, cap);
   if (filePath == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t nBytes = snprintf(filePath, cap, "%s%s%s", path, TD_DIRSEP, "META_TMP");
@@ -1229,7 +1244,7 @@ static int32_t uploadCheckpointToS3(const char* id, const char* path) {
 
   TdDirPtr pDir = taosOpenDir(path);
   if (pDir == NULL) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   TdDirEntryPtr de = NULL;
@@ -1281,7 +1296,7 @@ int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char
 
   char* buf = taosMemoryCalloc(1, cap);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   nBytes = snprintf(buf, cap, "%s/%s", id, fname);

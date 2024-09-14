@@ -103,7 +103,7 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
 
   batchRsp.pRsps = taosArrayInit(msgNum, sizeof(SBatchRspMsg));
   if (NULL == batchRsp.pRsps) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -147,7 +147,7 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
   }
   pRsp = rpcMallocCont(rspSize);
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
   if (tSerializeSBatchRsp(pRsp, rspSize, &batchRsp) < 0) {

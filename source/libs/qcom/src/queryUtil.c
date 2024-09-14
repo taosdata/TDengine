@@ -623,7 +623,7 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
 
   *pDst = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
   if (NULL == *pDst) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pDst)->flags = pSrc->flags;
