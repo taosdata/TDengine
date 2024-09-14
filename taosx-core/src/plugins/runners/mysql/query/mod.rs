@@ -332,7 +332,7 @@ mod tests {
             .unwrap();
 
         let rows = query
-            .select_all("select distinct name,value from t_metric")
+            .select_distinct_values("select distinct name,value from t_metric")
             .await
             .unwrap();
         dbg!(&rows);

@@ -71,12 +71,26 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 /// }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create oracle query
-    let config = OracleConfig::from_dsn(dsn)?;
+    let mut config = OracleConfig::from_dsn(dsn)?;
     let mut query = OracleQuery::try_new(config.connect, config.task.time_zone.clone())?;
 
     // results
     let mut input_sample: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
     let mut parse_sample: LinkedHashMap<String, serde_json::Value> = LinkedHashMap::new();
+
+    // replace subtable fields
+    let distinct_sql = config.task.generate_distinct_sql()?;
+    let values = if !distinct_sql.is_empty() {
+        query.select_for_schema(&distinct_sql)?
+    } else {
+        LinkedHashMap::new()
+    };
+    values.iter().for_each(|(key, _)| {
+        config.task.sql = config
+            .task
+            .sql
+            .replace(&format!("${{{}}}", key), &format!("{} is not null", key));
+    });
 
     // generate sql
     let sql = config.task.generate_sql()?;
