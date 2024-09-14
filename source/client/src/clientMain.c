@@ -32,6 +32,157 @@
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
 
+#define CHK_API_IMUTABLY(stmt, v) do {              \
+  STscStmt* pStmt = (STscStmt*)stmt;                \
+  if (pStmt->api_type == v) break;                  \
+  tscError("api route does not match");             \
+  terrno = TSDB_CODE_TSC_STMT_API_ERROR;            \
+  return TSDB_CODE_TSC_STMT_API_ERROR;              \
+} while (0)
+
+int stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length, STMT_API_TYPE api_type) {
+  if (stmt == NULL || sql == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtPrepare(stmt, sql, length, api_type);
+}
+
+int stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_MULTI_BIND *tags) {
+  if (stmt == NULL || name == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  int32_t code = stmtSetTbName(stmt, name);
+  if (code) {
+    return code;
+  }
+
+  if (tags) {
+    return stmtSetTbTags(stmt, tags);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
+  if (stmt == NULL || name == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtSetTbName(stmt, name);
+}
+
+int stmt_set_tags(TAOS_STMT *stmt, TAOS_MULTI_BIND *tags) {
+  if (stmt == NULL || tags == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtSetTbTags(stmt, tags);
+}
+
+int stmt_get_tag_fields(TAOS_STMT *stmt, int *fieldNum, TAOS_FIELD_E **fields) {
+  if (stmt == NULL || NULL == fieldNum) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtGetTagFields(stmt, fieldNum, fields);
+}
+
+int stmt_get_col_fields(TAOS_STMT *stmt, int *fieldNum, TAOS_FIELD_E **fields) {
+  if (stmt == NULL || NULL == fieldNum) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtGetColFields(stmt, fieldNum, fields);
+}
+
+int stmt_bind_param(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
+  if (stmt == NULL || bind == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  if (bind->num > 1) {
+    tscError("invalid bind number %d for %s", bind->num, __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtBindBatch(stmt, bind, -1);
+}
+
+int stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
+  if (stmt == NULL || bind == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  if (bind->num <= 0 || bind->num > INT16_MAX) {
+    tscError("invalid bind num %d", bind->num);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  int32_t insert = 0;
+  stmtIsInsert(stmt, &insert);
+  if (0 == insert && bind->num > 1) {
+    tscError("only one row data allowed for query");
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtBindBatch(stmt, bind, -1);
+}
+
+int stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, int colIdx) {
+  if (stmt == NULL || bind == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  if (colIdx < 0) {
+    tscError("invalid bind column idx %d", colIdx);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  int32_t insert = 0;
+  stmtIsInsert(stmt, &insert);
+  if (0 == insert && bind->num > 1) {
+    tscError("only one row data allowed for query");
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtBindBatch(stmt, bind, colIdx);
+}
+
+int stmt_add_batch(TAOS_STMT *stmt) {
+  if (stmt == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtAddBatch(stmt);
+}
+
 static int32_t sentinel = TSC_VAR_NOT_RELEASE;
 static int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SSqlCallbackWrapper *pWrapper);
 
@@ -923,7 +1074,7 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
     memcpy(&pRequest->parseMeta, pResultMeta, sizeof(*pResultMeta));
     memset(pResultMeta, 0, sizeof(*pResultMeta));
   }
-  
+
   handleQueryAnslyseRes(pWrapper, pResultMeta, code);
 }
 
@@ -1594,76 +1745,42 @@ TAOS_STMT *taos_stmt_init_with_options(TAOS *taos, TAOS_STMT_OPTIONS *options) {
   return pStmt;
 }
 
-
 int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
-  if (stmt == NULL || sql == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
+  STscStmt* pStmt = (STscStmt*)stmt;
 
-  return stmtPrepare(stmt, sql, length);
+  return stmt_prepare(stmt, sql, length, STMT_API_PREPARE);
 }
 
 int taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_MULTI_BIND *tags) {
-  if (stmt == NULL || name == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
+  CHK_API_IMUTABLY(stmt, STMT_API_PREPARE);
 
-  int32_t code = stmtSetTbName(stmt, name);
-  if (code) {
-    return code;
-  }
-
-  if (tags) {
-    return stmtSetTbTags(stmt, tags);
-  }
-
-  return TSDB_CODE_SUCCESS;
+  return stmt_set_tbname_tags(stmt, name, tags);
 }
 
 int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
-  if (stmt == NULL || name == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
+  CHK_API_IMUTABLY(stmt, STMT_API_PREPARE);
 
-  return stmtSetTbName(stmt, name);
+  return stmt_set_tbname(stmt, name);
 }
 
 int taos_stmt_set_tags(TAOS_STMT *stmt, TAOS_MULTI_BIND *tags) {
-  if (stmt == NULL || tags == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
+  CHK_API_IMUTABLY(stmt, STMT_API_PREPARE);
 
-  return stmtSetTbTags(stmt, tags);
+  return stmt_set_tags(stmt, tags);
 }
 
 int taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name) { return taos_stmt_set_tbname(stmt, name); }
 
 int taos_stmt_get_tag_fields(TAOS_STMT *stmt, int *fieldNum, TAOS_FIELD_E **fields) {
-  if (stmt == NULL || NULL == fieldNum) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
+  CHK_API_IMUTABLY(stmt, STMT_API_PREPARE);
 
-  return stmtGetTagFields(stmt, fieldNum, fields);
+  return stmt_get_tag_fields(stmt, fieldNum, fields);
 }
 
 int taos_stmt_get_col_fields(TAOS_STMT *stmt, int *fieldNum, TAOS_FIELD_E **fields) {
-  if (stmt == NULL || NULL == fieldNum) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
+  CHK_API_IMUTABLY(stmt, STMT_API_PREPARE);
 
-  return stmtGetColFields(stmt, fieldNum, fields);
+  return stmt_get_col_fields(stmt, fieldNum, fields);
 }
 
 // let stmt to reclaim TAOS_FIELD_E that was allocated by `taos_stmt_get_tag_fields`/`taos_stmt_get_col_fields`
@@ -1674,77 +1791,27 @@ void taos_stmt_reclaim_fields(TAOS_STMT *stmt, TAOS_FIELD_E *fields) {
 }
 
 int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
-  if (stmt == NULL || bind == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
+  CHK_API_IMUTABLY(stmt, STMT_API_PREPARE);
 
-  if (bind->num > 1) {
-    tscError("invalid bind number %d for %s", bind->num, __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-
-  return stmtBindBatch(stmt, bind, -1);
+  return stmt_bind_param(stmt, bind);
 }
 
 int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
-  if (stmt == NULL || bind == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
+  CHK_API_IMUTABLY(stmt, STMT_API_PREPARE);
 
-  if (bind->num <= 0 || bind->num > INT16_MAX) {
-    tscError("invalid bind num %d", bind->num);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-
-  int32_t insert = 0;
-  stmtIsInsert(stmt, &insert);
-  if (0 == insert && bind->num > 1) {
-    tscError("only one row data allowed for query");
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-
-  return stmtBindBatch(stmt, bind, -1);
+  return stmt_bind_param_batch(stmt, bind);
 }
 
 int taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, int colIdx) {
-  if (stmt == NULL || bind == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
+  CHK_API_IMUTABLY(stmt, STMT_API_PREPARE);
 
-  if (colIdx < 0) {
-    tscError("invalid bind column idx %d", colIdx);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-
-  int32_t insert = 0;
-  stmtIsInsert(stmt, &insert);
-  if (0 == insert && bind->num > 1) {
-    tscError("only one row data allowed for query");
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-
-  return stmtBindBatch(stmt, bind, colIdx);
+  return stmt_bind_single_param_batch(stmt, bind, colIdx);
 }
 
 int taos_stmt_add_batch(TAOS_STMT *stmt) {
-  if (stmt == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
+  CHK_API_IMUTABLY(stmt, STMT_API_PREPARE);
 
-  return stmtAddBatch(stmt);
+  return stmt_add_batch(stmt);
 }
 
 int taos_stmt_execute(TAOS_STMT *stmt) {
@@ -1851,6 +1918,37 @@ int taos_set_conn_mode(TAOS* taos, int mode, int value) {
   }
   return 0;
 }
+
+int taos_stmt_prepare2(TAOS_STMT *stmt, const char *sql, unsigned long length) {
+  STscStmt* pStmt = (STscStmt*)stmt;
+
+  return stmt_prepare(stmt, sql, length, STMT_API_PREPARE2);
+}
+
+int taos_stmt_get_params2(TAOS_STMT *stmt, TAOS_FIELD_E *params, int nr_params, int *nr_real) {
+  CHK_API_IMUTABLY(stmt, STMT_API_PREPARE2);
+
+  if (stmt == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtGetParams2(stmt, params, nr_params, nr_real);
+}
+
+int taos_stmt_bind_params2(TAOS_STMT *stmt, TAOS_MULTI_BIND *mbs, int nr_mbs) {
+  CHK_API_IMUTABLY(stmt, STMT_API_PREPARE2);
+
+  if (stmt == NULL || mbs == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtBindParams2(stmt, mbs, nr_mbs);
+}
+
 
 char* getBuildInfo(){
     return buildinfo;

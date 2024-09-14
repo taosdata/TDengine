@@ -193,6 +193,27 @@ DLL_EXPORT char     *taos_stmt_errstr(TAOS_STMT *stmt);
 DLL_EXPORT int       taos_stmt_affected_rows(TAOS_STMT *stmt);
 DLL_EXPORT int       taos_stmt_affected_rows_once(TAOS_STMT *stmt);
 
+//////// experimental //////////////////////////////////////////////////////////////////////////////////////////////////////
+// NOTE: 1. you can choose to either start/switch by taos_stmt_prepare2 or by taos_stmt_prepare as usual                  //
+// NOTE: 2. these 2-tailed functions and functions as below are not interchangeable:                                      //
+//       taos_stmt_prepare                                                                                                //
+//       taos_stmt_set_tbname_tags/taos_stmt_set_tbname/taos_stmt_set_tags/taos_stmt_set_tbname/taos_stmt_set_sub_tbname  //
+//       taos_stmt_get_tag_fields/taos_stmt_get_col_fields                                                                //
+//       taos_stmt_bind_param/taos_stmt_bind_param_batch/taos_stmt_bind_single_param_batch/taos_stmt_add_batch            //
+// NOTE: 3. it means, once you start by taos_stmt_prepare2, you shall stick to 2-tailed functions                         //
+//          until you reach taos_stmt_execute and vice versa, otherwise, function-call will fail                          //
+// NOTE: 4. you can switch to use taos_stmt_prepare2 and taos_stmt_prepare during the lifetime of the `stmt`              //
+DLL_EXPORT int       taos_stmt_prepare2(TAOS_STMT *stmt, const char *sql, unsigned long length);                          //
+//                                                                                                                        //
+// NOTE: if TAOS_FIELD_E::type == TSDB_DATA_TYPE_NULL, it means the param's type is not determined yet.                   //
+//       basically, it happens when sql prepared is a select-statement,                                                   //
+//       or insert-statement with parameterized tbname while without `using` clause in it.                                //
+DLL_EXPORT int       taos_stmt_get_params2(TAOS_STMT *stmt, TAOS_FIELD_E *params, int nr_params, int *nr_real);           //
+//                                                                                                                        //
+// NOTE: rows of params from TAOS_MULTI_BIND::num                                                                         //
+DLL_EXPORT int       taos_stmt_bind_params2(TAOS_STMT *stmt, TAOS_MULTI_BIND *mbs, int nr_mbs);                           //
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 DLL_EXPORT TAOS_RES *taos_query(TAOS *taos, const char *sql);
 DLL_EXPORT TAOS_RES *taos_query_with_reqid(TAOS *taos, const char *sql, int64_t reqId);
 

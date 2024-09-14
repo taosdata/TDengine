@@ -3,7 +3,7 @@
 #include "clientLog.h"
 #include "tdef.h"
 
-#include "clientStmt.h"
+#include "clientStmtAPI2.h"
 
 char* gStmtStatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                           "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
@@ -877,12 +877,14 @@ TAOS_STMT* stmtInit(STscObj* taos, int64_t reqid, TAOS_STMT_OPTIONS* pOptions) {
   return pStmt;
 }
 
-int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
+int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length, STMT_API_TYPE api_type) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
   STMT_DLOG_E("start to prepare");
 
   if (pStmt->sql.status >= STMT_PREPARE) {
+    STMT_ERR_RET(stmtResetStmt(pStmt));
+  } else if (pStmt->api_type == STMT_API_PREPARE2) {
     STMT_ERR_RET(stmtResetStmt(pStmt));
   }
 
@@ -896,8 +898,15 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pStmt->sql.sqlLen = length;
   pStmt->sql.stbInterlaceMode = pStmt->stbInterlaceMode;
 
+  pStmt->api_type = api_type;
+
+  if (pStmt->api_type == STMT_API_PREPARE2) {
+    return stmtPostPrepare2(stmt);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
+
 
 int32_t stmtInitStbInterlaceTableInfo(STscStmt* pStmt) {
   STableDataCxt** pSrc = taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
@@ -1440,14 +1449,12 @@ _return:
 }
 */
 
-int stmtExec(TAOS_STMT* stmt) {
+int stmtDoExec1(TAOS_STMT* stmt, int64_t *affectedRows) {
   STscStmt*   pStmt = (STscStmt*)stmt;
   int32_t     code = 0;
   SSubmitRsp* pRsp = NULL;
 
-  int64_t startUs = taosGetTimestampUs();
-
-  STMT_DLOG_E("start to exec");
+  *affectedRows = 0;
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_EXECUTE));
 
@@ -1490,8 +1497,7 @@ int stmtExec(TAOS_STMT* stmt) {
 
   STMT_ERR_JRET(pStmt->exec.pRequest->code);
 
-  pStmt->exec.affectedRows = taos_affected_rows(pStmt->exec.pRequest);
-  pStmt->affectedRows += pStmt->exec.affectedRows;
+  *affectedRows = taos_affected_rows(pStmt->exec.pRequest);
 
 _return:
 
@@ -1505,10 +1511,41 @@ _return:
 
   ++pStmt->sql.runTimes;
 
+  STMT_RET(code);
+}
+
+int stmtExec1(TAOS_STMT* stmt) {
+  STscStmt*   pStmt = (STscStmt*)stmt;
+
+  int64_t affectedRows = 0;
+  STMT_ERR_RET(stmtDoExec1(stmt, &affectedRows));
+
+  pStmt->exec.affectedRows  = affectedRows;
+  pStmt->affectedRows      += pStmt->exec.affectedRows;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int stmtExec(TAOS_STMT* stmt) {
+  STscStmt*   pStmt = (STscStmt*)stmt;
+  int32_t     code = 0;
+  SSubmitRsp* pRsp = NULL;
+
+  int64_t startUs = taosGetTimestampUs();
+
+  STMT_DLOG_E("start to exec");
+
+  if (pStmt->api_type == STMT_API_PREPARE2) {
+    code = stmtExec2(stmt);
+  } else {
+    code = stmtExec1(stmt);
+  }
+
   int64_t startUs2 = taosGetTimestampUs();
   pStmt->stat.execUseUs += startUs2 - startUs;
 
-  STMT_RET(code);
+  return code;
 }
 
 int stmtClose(TAOS_STMT* stmt) {
@@ -1535,6 +1572,10 @@ int stmtClose(TAOS_STMT* stmt) {
             pStmt->stat.addBatchUs, pStmt->stat.execWaitUs, pStmt->stat.execUseUs);
 
   stmtCleanSQLInfo(pStmt);
+
+  // FIXME: what if STMT_API_PREPARE?
+  stmtReleasePrepareInfo2(pStmt);
+
   taosMemoryFree(stmt);
 
   return TSDB_CODE_SUCCESS;
@@ -1560,6 +1601,15 @@ int stmtIsInsert(TAOS_STMT* stmt, int* insert) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
   STMT_DLOG_E("start is insert");
+
+  if (pStmt->api_type == STMT_API_PREPARE2) {
+    // NOTE: no necessary to check
+    // if (!pStmt->api2.prepared) {
+    //   STMT_ERR_RET_IMUTABLY(TSDB_CODE_TSC_STMT_API_ERROR);
+    // }
+    *insert = !!pStmt->api2.is_insert;
+    return TSDB_CODE_SUCCESS;
+  }
 
   if (pStmt->sql.type) {
     *insert = (STMT_TYPE_INSERT == pStmt->sql.type || STMT_TYPE_MULTI_INSERT == pStmt->sql.type);
@@ -1647,10 +1697,8 @@ _return:
   return code;
 }
 
-int stmtGetParamNum(TAOS_STMT* stmt, int* nums) {
+int stmtGetParamNumInternal(TAOS_STMT* stmt, int* nums) {
   STscStmt* pStmt = (STscStmt*)stmt;
-
-  STMT_DLOG_E("start to get param num");
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_FETCH_FIELDS));
 
@@ -1679,10 +1727,35 @@ int stmtGetParamNum(TAOS_STMT* stmt, int* nums) {
   return TSDB_CODE_SUCCESS;
 }
 
+int stmtGetParamNum(TAOS_STMT* stmt, int* nums) {
+  STscStmt* pStmt = (STscStmt*)stmt;
+
+  STMT_DLOG_E("start to get param num");
+
+  if (pStmt->api_type == STMT_API_PREPARE2) {
+    if (!pStmt->api2.prepared) {
+      STMT_ERR_RET_IMUTABLY(TSDB_CODE_TSC_STMT_API_ERROR);
+    }
+    *nums = pStmt->api2.questions;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return stmtGetParamNumInternal(stmt, nums);
+}
+
 int stmtGetParam(TAOS_STMT* stmt, int idx, int* type, int* bytes) {
+  int code = TSDB_CODE_SUCCESS;
   STscStmt* pStmt = (STscStmt*)stmt;
 
   STMT_DLOG_E("start to get param");
+
+  if (pStmt->api_type == STMT_API_PREPARE2) {
+    if (!pStmt->api2.prepared) {
+      STMT_ERR_RET_IMUTABLY(TSDB_CODE_TSC_STMT_API_ERROR);
+    }
+    return stmtGetParam2(stmt, idx, type, bytes);
+  }
+
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
     STMT_RET(TSDB_CODE_TSC_STMT_API_ERROR);
@@ -1727,6 +1800,20 @@ TAOS_RES* stmtUseResult(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
   STMT_DLOG_E("start to use result");
+
+  if (pStmt->api_type == STMT_API_PREPARE2) {
+    // NOTE: no necessary to check
+    // if (!pStmt->api2.prepared) {
+    //   STMT_ERR_RET_IMUTABLY(TSDB_CODE_TSC_STMT_API_ERROR);
+    // }
+    if (pStmt->api2.is_insert) {
+      tscError("useResult only for query statement");
+      return NULL;
+    }
+    if (pStmt->api2.use_res_from_taos_query) {
+      return pStmt->api2.res_from_taos_query;
+    }
+  }
 
   if (STMT_TYPE_QUERY != pStmt->sql.type) {
     tscError("useResult only for query statement");
