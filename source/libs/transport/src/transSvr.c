@@ -648,16 +648,17 @@ void uvOnSendCb(uv_write_t* req, int status) {
   STUB_RAND_NETWORK_ERR(status);
 
   SWReqsWrapper* wrapper = req->data;
+  SSvrConn*      conn = wrapper->arg;
 
-  SWriteReq* userReq = wrapper->arg;
-  SSvrConn*  conn = userReq->conn;
-  queue*     src = &userReq->node;
+  queue src;
+  QUEUE_INIT(&src);
+  QUEUE_MOVE(&wrapper->node, &src);
 
   freeWReqToWQ(&conn->wq, wrapper);
 
   tDebug("%s conn %p send data out ", transLabel(conn->pInst), conn);
   if (status == 0) {
-    while (!QUEUE_IS_EMPTY(src)) {
+    while (!QUEUE_IS_EMPTY(&src)) {
       queue* head = QUEUE_HEAD(&src);
       QUEUE_REMOVE(head);
 
@@ -668,7 +669,7 @@ void uvOnSendCb(uv_write_t* req, int status) {
       destroySmsg(smsg);
     }
   } else {
-    while (!QUEUE_IS_EMPTY(src)) {
+    while (!QUEUE_IS_EMPTY(&src)) {
       queue* head = QUEUE_HEAD(&src);
       QUEUE_REMOVE(head);
 
@@ -682,7 +683,6 @@ void uvOnSendCb(uv_write_t* req, int status) {
     conn->broken = true;
     transUnrefSrvHandle(conn);
   }
-  taosMemoryFree(userReq);
   transUnrefSrvHandle(conn);
 }
 static void uvOnPipeWriteCb(uv_write_t* req, int status) {
@@ -800,11 +800,8 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrRespMsg* smsg) {
     return;
   }
 
-  SWriteReq* pWreq = taosMemoryCalloc(1, sizeof(SWriteReq));
-  pWreq->conn = pConn;
-  QUEUE_INIT(&pWreq->node);
-
-  uv_write_t* req = allocWReqFromWQ(&pConn->wq, pWreq);
+  uv_write_t*    req = allocWReqFromWQ(&pConn->wq, pConn);
+  SWReqsWrapper* pWreq = req->data;
 
   uv_buf_t* pBuf = NULL;
   int32_t   bufNum = 0;

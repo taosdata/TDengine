@@ -497,7 +497,8 @@ enum { REQ_STATUS_INIT = 0, REQ_STATUS_PROCESSING };
 #define BUFFER_LIMIT 4
 
 typedef struct {
-  queue      q;
+  queue      node;  // queue for write
+  queue      q;     // queue for reqs
   uv_write_t wreq;
   void*      arg;
 } SWReqsWrapper;

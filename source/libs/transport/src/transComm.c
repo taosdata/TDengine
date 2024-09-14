@@ -15,7 +15,7 @@
 
 #include "transComm.h"
 
-#define BUFFER_CAP 16 * 4096
+#define BUFFER_CAP 8 * 1024
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
@@ -893,6 +893,7 @@ int32_t initWQ(queue* wq) {
     SWReqsWrapper* w = taosMemoryCalloc(1, sizeof(SWReqsWrapper));
     w->wreq.data = w;
     w->arg = NULL;
+    QUEUE_INIT(&w->node);
     QUEUE_PUSH(wq, &w->q);
   }
   return 0;
@@ -912,13 +913,19 @@ uv_write_t* allocWReqFromWQ(queue* wq, void* arg) {
     QUEUE_REMOVE(node);
     SWReqsWrapper* w = QUEUE_DATA(node, SWReqsWrapper, q);
     w->arg = arg;
+    QUEUE_INIT(&w->node);
+
     return &w->wreq;
   } else {
     SWReqsWrapper* w = taosMemoryCalloc(1, sizeof(SWReqsWrapper));
     w->wreq.data = w;
     w->arg = arg;
+    QUEUE_INIT(&w->node);
     return &w->wreq;
   }
 }
 
-void freeWReqToWQ(queue* wq, SWReqsWrapper* w) { QUEUE_PUSH(wq, &w->q); }
+void freeWReqToWQ(queue* wq, SWReqsWrapper* w) {
+  QUEUE_INIT(&w->node);
+  QUEUE_PUSH(wq, &w->q);
+}
