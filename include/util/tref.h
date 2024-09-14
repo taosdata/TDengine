@@ -46,6 +46,7 @@ void *taosAcquireRef(int32_t rsetId, int64_t rid);
 // release ref, rid is the reference ID returned by taosAddRef
 // return 0 if success. On error, -1 is returned, and terrno is set appropriately
 int32_t taosReleaseRef(int32_t rsetId, int64_t rid);
+int32_t taosReleaseRefEx(int32_t rsetId, int64_t rid, int32_t* isReleased);
 
 // return the first reference if rid is 0, otherwise return the next after current reference.
 // if return value is NULL, it means list is over(if terrno is set, it means error happens)

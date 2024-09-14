@@ -80,7 +80,7 @@ void taos_block_sigalrm(void) {
 
 static void taosDeleteTimer(void *tharg) {
   timer_t *pTimer = tharg;
-  (void)timer_delete(*pTimer);
+  TAOS_SKIP_ERROR(timer_delete(*pTimer));
 }
 
 static TdThread      timerThread;

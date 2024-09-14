@@ -50,7 +50,10 @@ int32_t osDefaultInit() {
 
   taosSeedRand(taosSafeRand());
   taosGetSystemLocale(tsLocale, tsCharset);
-  taosGetSystemTimezone(tsTimezoneStr, &tsTimezone);
+  code = taosGetSystemTimezone(tsTimezoneStr, &tsTimezone);
+  if(code != 0) {
+    return code;
+  }
   if (strlen(tsTimezoneStr) > 0) { // ignore empty timezone
     if ((code = taosSetSystemTimezone(tsTimezoneStr, tsTimezoneStr, &tsDaylight, &tsTimezone)) != TSDB_CODE_SUCCESS)
       return code;

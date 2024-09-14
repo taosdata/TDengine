@@ -1712,7 +1712,10 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
                            SArray *pArgs) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  if (tsCfg == NULL) osDefaultInit();
+  if (tsCfg == NULL) code = osDefaultInit();
+  if (code != 0) {
+    (void)printf("failed to init os since %s\n", tstrerror(code));
+  }
 
   SConfig *pCfg = NULL;
   TAOS_CHECK_RETURN(cfgInit(&pCfg));
