@@ -551,13 +551,13 @@ static bool uvHandleReq(SSvrConn* pConn) {
   }
 
   if (pHead->seqNum == 0) {
-    ASSERT(0);
+    // ASSERT(0);
   }
 
   transMsg.info.handle = (void*)transAcquireExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
   transMsg.info.refIdMgt = pThrd->connRefMgt;
 
-  ASSERTS(transMsg.info.handle != NULL, "trans-svr failed to alloc handle to msg");
+  // ASSERTS(transMsg.info.handle != NULL, "trans-svr failed to alloc handle to msg");
 
   // pHead->noResp = 1,
   // 1. server application should not send resp on handle
@@ -601,9 +601,8 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   }
   STrans* pInst = conn->pInst;
   int32_t fd = 0;
-  uv_fileno((uv_handle_t*)cli, &fd);
-  taosSetSockOpt2(fd);
-  setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (int[]){1}, sizeof(int));
+  (void)uv_fileno((uv_handle_t*)cli, &fd);
+  (void)taosSetSockOpt2(fd);
 
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {
@@ -727,10 +726,11 @@ static int uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
 
   // handle invalid drop_task resp, TD-20098
   if (pConn->inType == TDMT_SCH_DROP_TASK && pMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
-    ASSERT(0);
-    // (void)transQueuePop(&pConn->resps);
-    // destroySmsg(smsg);
-    // return TSDB_CODE_INVALID_MSG;
+    // ASSERT(0);
+    //  (void)transQueuePop(&pConn->resps);
+    //  destroySmsg(smsg);
+    //  return TSDB_CODE_INVALID_MSG;
+    return 0;
   }
 
   pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
@@ -1626,7 +1626,7 @@ void uvHandleQuit(SSvrRespMsg* msg, SWorkThrd* thrd) {
   taosMemoryFree(msg);
 }
 void uvHandleRelease(SSvrRespMsg* msg, SWorkThrd* thrd) {
-  ASSERT(0);
+  return;
   // int32_t   code = 0;
   // SSvrConn* conn = msg->pConn;
   // if (conn->status == ConnAcquire) {

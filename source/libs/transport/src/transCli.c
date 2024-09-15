@@ -361,7 +361,7 @@ void cliResetConnTimer(SCliConn* conn) {
   }
 }
 
-void cliHandleBatchResp(SCliConn* conn) { ASSERT(0); }
+void cliHandleBatchResp(SCliConn* conn) { return; }
 
 void destroyCliConnQTable(SCliConn* conn) {
   void* pIter = taosHashIterate(conn->pQTable, NULL);
@@ -523,7 +523,7 @@ void cliHandleResp(SCliConn* conn) {
     taosMemoryFree(pHead);
     tDebug("%s conn %p recv invalid packet ", CONN_GET_INST_LABEL(conn), conn);
     // TODO: notify cb
-    ASSERT(0);
+    // ASSERT(0);
     pThrd->notifyExceptCb(pThrd, NULL, NULL);
     return;
   }
@@ -831,8 +831,8 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
   int32_t fd;
-  uv_fileno((uv_handle_t*)handle, &fd);
-  taosSetSockOpt2(fd);
+  (void)uv_fileno((uv_handle_t*)handle, &fd);
+  (void)taosSetSockOpt2(fd);
 
   SCliConn* conn = handle->data;
 
@@ -1635,8 +1635,8 @@ void cliHandleBatchReq(SCliThrd* pThrd, SCliReq* pReq) {
         // do nothing, notiy
         return;
       } else {
-        ASSERT(code == 0);
-        addConnToHeapCache(pThrd->connHeapCache, pConn);
+        /// ASSERT(code == 0);
+        (void)addConnToHeapCache(pThrd->connHeapCache, pConn);
       }
     }
     code = cliHandleState_mayUpdateState(pThrd, pReq, pConn);
