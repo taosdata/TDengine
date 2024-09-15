@@ -779,9 +779,7 @@ void transDestroyExHandle(void* handle) {
     return;
   }
   SExHandle* eh = handle;
-  if (!QUEUE_IS_EMPTY(&eh->q)) {
-    tDebug("handle %p mem leak", handle);
-  }
+  tDebug("trans destroy qid:%" PRId64 ", memory %p", eh->refId, handle);
   taosMemoryFree(handle);
 }
 

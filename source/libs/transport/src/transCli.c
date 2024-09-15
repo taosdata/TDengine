@@ -445,8 +445,9 @@ int32_t cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead
     int64_t   qId = taosHton64(pHead->qid);
     STraceId* trace = &pHead->traceId;
     int32_t   seqNum = htonl(pHead->seqNum);
-    tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, seqNum:%d, qid:%ld", CONN_GET_INST_LABEL(conn),
-            conn, TMSG_INFO(pHead->msgType), conn->dst, conn->src, pHead->msgLen, seqNum, qId);
+    tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, seqNum:%d, qid:%" PRId64 "",
+            CONN_GET_INST_LABEL(conn), conn, TMSG_INFO(pHead->msgType), conn->dst, conn->src, pHead->msgLen, seqNum,
+            qId);
 
     STransCtx* p = taosHashGet(conn->pQTable, &qId, sizeof(qId));
     transCtxCleanup(p);
@@ -468,6 +469,9 @@ int32_t cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead
     QUEUE_INIT(&set);
     transQueueRemoveByFilter(&conn->reqsSentOut, filterByQid, &qId, &set, -1);
     transQueueRemoveByFilter(&conn->reqsToSend, filterByQid, &qId, &set, -1);
+
+    transReleaseExHandle(transGetRefMgt(), qId);
+    transRemoveExHandle(transGetRefMgt(), qId);
 
     while (!QUEUE_IS_EMPTY(&set)) {
       queue* el = QUEUE_HEAD(&set);
@@ -496,8 +500,9 @@ int32_t cliHandleState_mayCreateAhandle(SCliConn* conn, STransMsgHead* pHead, ST
   }
   STraceId* trace = &pHead->traceId;
   pResp->info.ahandle = transCtxDumpVal(pCtx, pHead->msgType);
-  tGDebug("%s conn %p %s received from %s, local info:%s, qid:%ld, create ahandle %p by %s", CONN_GET_INST_LABEL(conn),
-          conn, TMSG_INFO(pHead->msgType), conn->dst, conn->src, qId, pResp->info.ahandle, TMSG_INFO(pHead->msgType));
+  tGDebug("%s conn %p %s received from %s, local info:%s, qid:%" PRId64 ", create ahandle %p by %s",
+          CONN_GET_INST_LABEL(conn), conn, TMSG_INFO(pHead->msgType), conn->dst, conn->src, qId, pResp->info.ahandle,
+          TMSG_INFO(pHead->msgType));
   return 0;
 }
 
@@ -553,8 +558,8 @@ void cliHandleResp(SCliConn* conn) {
       code = cliNotifyCb(conn, NULL, &resp);
       return;
     } else {
-      tDebug("%s conn %p recv unexpected packet, seqNum:%d,qId:%ld reason:%s", CONN_GET_INST_LABEL(conn), conn, seq,
-             qId, tstrerror(code));
+      tDebug("%s conn %p recv unexpected packet, seqNum:%d,qid:%" PRId64 " reason:%s", CONN_GET_INST_LABEL(conn), conn,
+             seq, qId, tstrerror(code));
     }
     if (code != 0) {
       tDebug("%s conn %p recv unexpected packet, seqNum:%d, qId:%d, reason:%s", CONN_GET_INST_LABEL(conn), conn, seq,
@@ -572,8 +577,8 @@ void cliHandleResp(SCliConn* conn) {
   if (code != 0) {
     tGDebug("%s conn %p recv invalid packet, seq %d not found", CONN_GET_INST_LABEL(conn), conn, seq);
   } else {
-    tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, seq:%d, qid:%ld", CONN_GET_INST_LABEL(conn), conn,
-            TMSG_INFO(resp.msgType), conn->dst, conn->src, pHead->msgLen, seq, qId);
+    tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, seq:%d, qid:%" PRId64 "", CONN_GET_INST_LABEL(conn),
+            conn, TMSG_INFO(resp.msgType), conn->dst, conn->src, pHead->msgLen, seq, qId);
   }
 
   code = cliNotifyCb(conn, pReq, &resp);
@@ -1207,7 +1212,7 @@ int32_t cliBatchSend(SCliConn* pConn) {
     pCliMsg->seq = pConn->seq;
 
     STraceId* trace = &pCliMsg->msg.info.traceId;
-    tGDebug("%s conn %p %s is sent to %s, local info:%s, seq:%d, qid:%ld", CONN_GET_INST_LABEL(pConn), pConn,
+    tGDebug("%s conn %p %s is sent to %s, local info:%s, seq:%d, qid:%" PRId64 "", CONN_GET_INST_LABEL(pConn), pConn,
             TMSG_INFO(pReq->msgType), pConn->dst, pConn->src, pConn->seq, pReq->info.qId);
     transQueuePush(&pConn->reqsSentOut, &pCliMsg->q);
   }
@@ -1548,17 +1553,17 @@ int32_t cliHandleState_mayUpdateStateCtx(SCliConn* pConn, SCliReq* pReq) {
   SReqCtx*  pCtx = pReq->ctx;
   SCliThrd* pThrd = pConn->hostThrd;
   if (pCtx == NULL) {
-    tDebug("%s conn %p not need to update statue ctx, qid:%ld", transLabel(pThrd->pInst), pConn, qid);
+    tDebug("%s conn %p not need to update statue ctx, qid:%" PRId64 "", transLabel(pThrd->pInst), pConn, qid);
     return 0;
   }
 
   STransCtx* pUserCtx = taosHashGet(pConn->pQTable, &qid, sizeof(qid));
   if (pUserCtx == NULL) {
     code = taosHashPut(pConn->pQTable, &qid, sizeof(qid), &pCtx->userCtx, sizeof(pCtx->userCtx));
-    tDebug("%s conn %p succ to add statue ctx, qid:%ld", transLabel(pThrd->pInst), pConn, qid);
+    tDebug("%s conn %p succ to add statue ctx, qid:%" PRId64 "", transLabel(pThrd->pInst), pConn, qid);
   } else {
     transCtxMerge(pUserCtx, &pCtx->userCtx);
-    tDebug("%s conn %s succ to update statue ctx, qid:%ld", transLabel(pThrd->pInst), pConn, qid);
+    tDebug("%s conn %p succ to update statue ctx, qid:%" PRId64 "", transLabel(pThrd->pInst), pConn, qid);
   }
   return 0;
 }
@@ -1575,11 +1580,11 @@ int32_t cliMayGetStateByQid(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn) {
     if (pReq->ctx == NULL) {
       return TSDB_CODE_RPC_STATE_DROPED;
     }
-    tDebug("%s conn %p failed to get statue, qid:%ld", transLabel(pThrd->pInst), pConn, qid);
+    tDebug("%s conn %p failed to get statue, qid:%" PRId64 "", transLabel(pThrd->pInst), pConn, qid);
     return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
   } else {
     *pConn = pState->conn;
-    tDebug("%s conn %p succ to get conn of statue, qid:%ld", transLabel(pThrd->pInst), pConn, qid);
+    tDebug("%s conn %p succ to get conn of statue, qid:%" PRId64 "", transLabel(pThrd->pInst), pConn, qid);
   }
   return 0;
 }
@@ -1594,9 +1599,9 @@ int32_t cliHandleState_mayUpdateState(SCliThrd* pThrd, SCliReq* pReq, SCliConn* 
   SReqState state = {.conn = pConn, .arg = NULL};
   code = taosHashPut(pThrd->pIdConnTable, &qid, sizeof(qid), &state, sizeof(state));
   if (code != 0) {
-    tDebug("%s conn %p failed to statue, qid:%ld", transLabel(pThrd->pInst), pConn, qid);
+    tDebug("%s conn %p failed to statue, qid:%" PRId64 "", transLabel(pThrd->pInst), pConn, qid);
   } else {
-    tDebug("%s conn %p succ to add statue, qid:%ld (1)", transLabel(pThrd->pInst), pConn, qid);
+    tDebug("%s conn %p succ to add statue, qid:%" PRId64 " (1)", transLabel(pThrd->pInst), pConn, qid);
   }
 
   (void)cliHandleState_mayUpdateStateCtx(pConn, pReq);
@@ -1615,7 +1620,7 @@ void cliHandleBatchReq(SCliThrd* pThrd, SCliReq* pReq) {
     (void)cliHandleState_mayUpdateStateCtx(pConn, pReq);
   } else if (code == TSDB_CODE_RPC_STATE_DROPED) {
     STraceId* trace = &pReq->msg.info.traceId;
-    tWarn("%s failed to get statue, qid:%ld", pInst->label, pReq->msg.info.qId);
+    tWarn("%s failed to get statue, qid:%" PRId64 "", pInst->label, pReq->msg.info.qId);
     destroyReq(pReq);
     return;
   }
@@ -2603,7 +2608,7 @@ static FORCE_INLINE SCliThrd* transGetWorkThrdFromHandle(STrans* trans, int64_t 
   if (exh == NULL) {
     return NULL;
   } else {
-    tDebug("%s conn %p got", trans->label, exh->handle);
+    tDebug("onn %p got", exh->handle);
   }
   taosWLockLatch(&exh->latch);
   if (exh->pThrd == NULL && trans != NULL) {
@@ -3066,7 +3071,7 @@ int32_t transAllocHandle(int64_t* refId) {
 
   QUEUE_INIT(&exh->q);
   taosInitRWLatch(&exh->latch);
-  tDebug("trans alloc qid:%ld", exh->refId);
+  tDebug("trans alloc qid:%" PRId64 ", malloc:%p", exh->refId, exh);
   *refId = exh->refId;
   return 0;
 }
@@ -3098,7 +3103,7 @@ int32_t transFreeConnById(void* pInstRef, int64_t transpointId) {
   pCli->msg = msg;
 
   STraceId* trace = &pCli->msg.info.traceId;
-  tGDebug("%s start to free conn qid:%ld", pInst->label, transpointId);
+  tGDebug("%s start to free conn qid:%" PRId64 "", pInst->label, transpointId);
 
   code = transAsyncSend(pThrd->asyncPool, &pCli->q);
   if (code != 0) {
