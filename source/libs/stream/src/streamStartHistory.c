@@ -80,6 +80,7 @@ int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated) {
 }
 
 void streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) {
+  int32_t vgId = pTask->pMeta->vgId;
   int32_t numOfTicks = idleDuration / SCANHISTORY_IDLE_TIME_SLICE;
   if (numOfTicks <= 0) {
     numOfTicks = 1;
@@ -100,14 +101,8 @@ void streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) {
 
   int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
   stDebug("s-task:%s scan-history resumed in %.2fs, ref:%d", pTask->id.idStr, numOfTicks * 0.1, ref);
-
-  if (pTask->schedHistoryInfo.pTimer == NULL) {
-    pTask->schedHistoryInfo.pTimer =
-        taosTmrStart(doExecScanhistoryInFuture, SCANHISTORY_IDLE_TIME_SLICE, pTask, streamTimer);
-  } else {
-    streamTmrReset(doExecScanhistoryInFuture, SCANHISTORY_IDLE_TIME_SLICE, pTask, streamTimer,
-                 &pTask->schedHistoryInfo.pTimer, pTask->pMeta->vgId, " start-history-task-tmr");
-  }
+  streamTmrStart(doExecScanhistoryInFuture, SCANHISTORY_IDLE_TIME_SLICE, pTask, streamTimer,
+                 &pTask->schedHistoryInfo.pTimer, vgId, "history-task");
 }
 
 int32_t streamTaskStartScanHistory(SStreamTask* pTask) {
@@ -337,7 +332,7 @@ void doRetryLaunchFillHistoryTask(SStreamTask* pTask, SLaunchHTaskInfo* pInfo, i
     stDebug("s-task:%s status:%s failed to launch fill-history task:0x%x, retry launch:%dms, retryCount:%d",
             pTask->id.idStr, p, hTaskId, pHTaskInfo->waitInterval, pHTaskInfo->retryTimes);
 
-    streamTmrReset(tryLaunchHistoryTask, LAUNCH_HTASK_INTERVAL, pInfo, streamTimer, &pHTaskInfo->pTimer,
+    streamTmrStart(tryLaunchHistoryTask, LAUNCH_HTASK_INTERVAL, pInfo, streamTimer, &pHTaskInfo->pTimer,
                    pTask->pMeta->vgId, " start-history-task-tmr");
   }
 }
@@ -391,7 +386,7 @@ void tryLaunchHistoryTask(void* param, void* tmrId) {
 
     pHTaskInfo->tickCount -= 1;
     if (pHTaskInfo->tickCount > 0) {
-      streamTmrReset(tryLaunchHistoryTask, LAUNCH_HTASK_INTERVAL, pInfo, streamTimer, &pHTaskInfo->pTimer,
+      streamTmrStart(tryLaunchHistoryTask, LAUNCH_HTASK_INTERVAL, pInfo, streamTimer, &pHTaskInfo->pTimer,
                      pTask->pMeta->vgId, " start-history-task-tmr");
       streamMetaReleaseTask(pMeta, pTask);
       return;
@@ -519,7 +514,7 @@ int32_t launchNotBuiltFillHistoryTask(SStreamTask* pTask) {
     }
 
     stDebug("s-task:%s set timer active flag, task timer not null", idStr);
-    streamTmrReset(tryLaunchHistoryTask, WAIT_FOR_MINIMAL_INTERVAL, pInfo, streamTimer, &pTask->hTaskInfo.pTimer,
+    streamTmrStart(tryLaunchHistoryTask, WAIT_FOR_MINIMAL_INTERVAL, pInfo, streamTimer, &pTask->hTaskInfo.pTimer,
                    pTask->pMeta->vgId, " start-history-task-tmr");
   }
 
@@ -621,8 +616,8 @@ void doExecScanhistoryInFuture(void* param, void* tmrId) {
     // release the task.
     streamMetaReleaseTask(pTask->pMeta, pTask);
   } else {
-    streamTmrReset(doExecScanhistoryInFuture, SCANHISTORY_IDLE_TIME_SLICE, pTask, streamTimer,
-                 &pTask->schedHistoryInfo.pTimer, pTask->pMeta->vgId, " start-history-task-tmr");
+    streamTmrStart(doExecScanhistoryInFuture, SCANHISTORY_IDLE_TIME_SLICE, pTask, streamTimer,
+                   &pTask->schedHistoryInfo.pTimer, pTask->pMeta->vgId, " start-history-task-tmr");
   }
 }
 

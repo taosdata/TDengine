@@ -801,7 +801,7 @@ void    streamTaskSetReqConsenChkptId(SStreamTask* pTask, int64_t ts);
 
 // timer
 int32_t streamTimerGetInstance(tmr_h* pTmr);
-void    streamTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId, int32_t vgId,
+void    streamTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* pParam, void* pHandle, tmr_h* pTmrId, int32_t vgId,
                        const char* pMsg);
 void    streamTmrStop(tmr_h tmrId);
 
