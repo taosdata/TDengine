@@ -4884,8 +4884,6 @@ class StreamComputingTest(TDCase):
 
     def pause_resume_test(self, interval, partition="tbname", delete=False, fill_history_value=None, pause=True, resume=True, ignore_untreated=False):
         self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1], "checkpointInterval": self.tmp_checkpointInterval*3}, self.endpoint, True)
-        self.tdCom.check_transactions(self._remote)
-        self.wait_checkpoint_ready(stream_name)
         if_exist_value_list = [None, True]
         if_exist = random.choice(if_exist_value_list)
         reverse_check = True if ignore_untreated else False
