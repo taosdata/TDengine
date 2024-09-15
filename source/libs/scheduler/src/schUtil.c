@@ -41,6 +41,15 @@ FORCE_INLINE int32_t schReleaseJob(int64_t refId) {
   return taosReleaseRef(schMgmt.jobRef, refId);
 }
 
+FORCE_INLINE int32_t schReleaseJobEx(int64_t refId, int32_t* released) {
+  if (0 == refId) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  qDebug("sch release ex jobId:0x%" PRIx64, refId);
+  return taosReleaseRefEx(schMgmt.jobRef, refId, released);
+}
+
 int32_t schDumpEpSet(SEpSet *pEpSet, char** ppRes) {
   *ppRes = NULL;
   if (NULL == pEpSet) {
@@ -86,6 +95,7 @@ void schFreeHbTrans(SSchHbTrans *pTrans) {
 }
 
 void schCleanClusterHb(void *pTrans) {
+  int32_t code = 0;
   SCH_LOCK(SCH_WRITE, &schMgmt.hbLock);
 
   SSchHbTrans *hb = taosHashIterate(schMgmt.hbConnections, NULL);
@@ -93,7 +103,10 @@ void schCleanClusterHb(void *pTrans) {
     if (hb->trans.pTrans == pTrans) {
       SQueryNodeEpId *pEpId = taosHashGetKey(hb, NULL);
       schFreeHbTrans(hb);
-      (void)taosHashRemove(schMgmt.hbConnections, pEpId, sizeof(SQueryNodeEpId));
+      code = taosHashRemove(schMgmt.hbConnections, pEpId, sizeof(SQueryNodeEpId));
+      if (code) {
+        qError("taosHashRemove hb connection failed, error:%s", tstrerror(code));
+      }
     }
 
     hb = taosHashIterate(schMgmt.hbConnections, hb);
@@ -116,7 +129,10 @@ int32_t schRemoveHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *ep
   int64_t taskNum = atomic_load_64(&hb->taskNum);
   if (taskNum <= 0) {
     schFreeHbTrans(hb);
-    (void)taosHashRemove(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId));
+    code = taosHashRemove(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId));
+    if (code) {
+      SCH_TASK_WLOG("taosHashRemove hb connection failed, error:%s", tstrerror(code));
+    }
   }
   SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
 
@@ -189,7 +205,7 @@ void schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask) {
     SCH_TASK_ELOG("fail to get the %dth condidateAddr in task, totalNum:%d", pTask->candidateIdx, (int32_t)taosArrayGetSize(pTask->candidateAddrs));
     return;
   }
-  
+
   SQueryNodeEpId  epId = {0};
 
   epId.nodeId = addr->nodeId;
@@ -251,9 +267,8 @@ int32_t schUpdateHbConnection(SQueryNodeEpId *epId, SSchTrans *trans) {
   hb = taosHashGet(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId));
   if (NULL == hb) {
     SCH_UNLOCK(SCH_READ, &schMgmt.hbLock);
-    qDebug("taosHashGet hb connection not exists, nodeId:%d, fqdn:%s, port:%d", epId->nodeId, epId->ep.fqdn,
-          epId->ep.port);
-    SCH_ERR_RET(TSDB_CODE_APP_ERROR);
+    (void)atomic_add_fetch_64(&schMgmt.stat.runtime.hbConnNotFound, 1);
+    return TSDB_CODE_SUCCESS;
   }
 
   SCH_LOCK(SCH_WRITE, &hb->lock);
@@ -335,7 +350,7 @@ void schFreeRpcCtx(SRpcCtx *pCtx) {
 
 void schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask) {
   *pTask = NULL;
-  
+
   int32_t s = taosHashGetSize(pTaskList);
   if (s <= 0) {
     return;

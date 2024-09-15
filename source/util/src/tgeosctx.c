@@ -14,39 +14,102 @@
  */
 
 #include "tgeosctx.h"
-#include "tdef.h"
+#include "tlog.h"
+#include "tutil.h"
 
-static threadlocal SGeosContext tlGeosCtx = {0};
+static TdThreadKey tlGeosCtxKey = 0;
+static int8_t      tlGeosCtxKeyInited = 0;
 
-SGeosContext* getThreadLocalGeosCtx() { return &tlGeosCtx; }
+static threadlocal SGeosContext *tlGeosCtx = NULL;
 
-void destroyThreadLocalGeosCtx() {
-  if (tlGeosCtx.WKTReader) {
-    GEOSWKTReader_destroy_r(tlGeosCtx.handle, tlGeosCtx.WKTReader);
-    tlGeosCtx.WKTReader = NULL;
+static void destroyThreadLocalGeosCtx(void *param) {
+#ifdef WINDOWS
+  if (taosThreadIsMain()) return;
+#endif
+
+  SGeosContext *pGeosCtx = (SGeosContext *)param;
+  if (!pGeosCtx) {
+    return;
+  }
+  if (pGeosCtx->WKTReader) {
+    GEOSWKTReader_destroy_r(pGeosCtx->handle, pGeosCtx->WKTReader);
+    pGeosCtx->WKTReader = NULL;
   }
 
-  if (tlGeosCtx.WKTWriter) {
-    GEOSWKTWriter_destroy_r(tlGeosCtx.handle, tlGeosCtx.WKTWriter);
-    tlGeosCtx.WKTWriter = NULL;
+  if (pGeosCtx->WKTWriter) {
+    GEOSWKTWriter_destroy_r(pGeosCtx->handle, pGeosCtx->WKTWriter);
+    pGeosCtx->WKTWriter = NULL;
   }
 
-  if (tlGeosCtx.WKBReader) {
-    GEOSWKBReader_destroy_r(tlGeosCtx.handle, tlGeosCtx.WKBReader);
-    tlGeosCtx.WKBReader = NULL;
+  if (pGeosCtx->WKBReader) {
+    GEOSWKBReader_destroy_r(pGeosCtx->handle, pGeosCtx->WKBReader);
+    pGeosCtx->WKBReader = NULL;
   }
 
-  if (tlGeosCtx.WKBWriter) {
-    GEOSWKBWriter_destroy_r(tlGeosCtx.handle, tlGeosCtx.WKBWriter);
-    tlGeosCtx.WKBWriter = NULL;
+  if (pGeosCtx->WKBWriter) {
+    GEOSWKBWriter_destroy_r(pGeosCtx->handle, pGeosCtx->WKBWriter);
+    pGeosCtx->WKBWriter = NULL;
   }
 
-  if (tlGeosCtx.WKTRegex) {
-    destroyRegexes(tlGeosCtx.WKTRegex, tlGeosCtx.WKTMatchData);
+  if (pGeosCtx->WKTRegex) {
+    destroyRegexes(pGeosCtx->WKTRegex, pGeosCtx->WKTMatchData);
+    pGeosCtx->WKTRegex = NULL;
+    pGeosCtx->WKTMatchData = NULL;
   }
 
-  if (tlGeosCtx.handle) {
-    GEOS_finish_r(tlGeosCtx.handle);
-    tlGeosCtx.handle = NULL;
+  if (pGeosCtx->handle) {
+    GEOS_finish_r(pGeosCtx->handle);
+    pGeosCtx->handle = NULL;
   }
+  taosMemoryFree(pGeosCtx);
+}
+
+SGeosContext *acquireThreadLocalGeosCtx() { return tlGeosCtx; }
+
+int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
+  if ((*ppCtx = tlGeosCtx)) {
+    return 0;
+  }
+
+  int32_t code = 0, lino = 0;
+
+  int8_t  old;
+  int32_t nLoops = 0;
+  while (1) {
+    old = atomic_val_compare_exchange_8(&tlGeosCtxKeyInited, 0, 2);
+    if (old != 2) break;
+    if (++nLoops > 1000) {
+      (void)sched_yield();
+      nLoops = 0;
+    }
+  }
+  if (old == 0) {
+    if ((taosThreadKeyCreate(&tlGeosCtxKey, destroyThreadLocalGeosCtx)) != 0) {
+      atomic_store_8(&tlGeosCtxKeyInited, 0);
+      TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
+    }
+    atomic_store_8(&tlGeosCtxKeyInited, 1);
+  }
+
+  SGeosContext *tlGeosCtxObj = (SGeosContext *)taosMemoryCalloc(1, sizeof(SGeosContext));
+  if (!tlGeosCtxObj) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  if ((taosThreadSetSpecific(tlGeosCtxKey, (const void *)tlGeosCtxObj)) != 0) {
+    taosMemoryFreeClear(tlGeosCtxObj);
+    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
+  }
+
+  *ppCtx = tlGeosCtx = tlGeosCtxObj;
+
+_exit:
+  if (code != 0) {
+    *ppCtx = NULL;
+    uError("failed to get geos context at line:%d since %s", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
+
+const char *getGeosErrMsg(int32_t code) {
+  return (tlGeosCtx && tlGeosCtx->errMsg[0] != 0) ? tlGeosCtx->errMsg : (code ? tstrerror(code) : "");
 }

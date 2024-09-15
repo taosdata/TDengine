@@ -126,14 +126,20 @@ _end:
 }
 void rpcClose(void* arg) {
   tInfo("start to close rpc");
+  if (arg == NULL) {
+    return;
+  }
   (void)transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
   (void)transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
   tInfo("end to close rpc");
   return;
 }
 void rpcCloseImpl(void* arg) {
+  if (arg == NULL) return;
   SRpcInfo* pRpc = (SRpcInfo*)arg;
-  (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
+  if (pRpc->tcphandle != NULL) {
+    (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
+  }
   taosMemoryFree(pRpc);
 }
 
@@ -158,10 +164,13 @@ void* rpcReallocCont(void* ptr, int64_t contLen) {
 
   char*   st = (char*)ptr - TRANS_MSG_OVERHEAD;
   int64_t sz = contLen + TRANS_MSG_OVERHEAD;
-  st = taosMemoryRealloc(st, sz);
-  if (st == NULL) {
+  char*   nst = taosMemoryRealloc(st, sz);
+  if (nst == NULL) {
+    taosMemoryFree(st);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
+  } else {
+    st = nst;
   }
 
   return st + TRANS_MSG_OVERHEAD;

@@ -18,7 +18,7 @@
 #include "indexFst.h"
 #include "indexFstFile.h"
 #include "indexInt.h"
-#include "indexTfile.h"
+//#include "indexTfile.h"
 #include "indexUtil.h"
 #include "tlockfree.h"
 
@@ -115,7 +115,7 @@ int32_t tfileWriterOpen(char* path, uint64_t suid, int64_t version, const char* 
 void    tfileWriterClose(TFileWriter* tw);
 int32_t tfileWriterCreate(IFileCtx* ctx, TFileHeader* header, TFileWriter** pWriter);
 void    tfileWriterDestroy(TFileWriter* tw);
-int     tfileWriterPut(TFileWriter* tw, void* data, bool order);
+int32_t tfileWriterPut(TFileWriter* tw, void* data, bool order);
 int     tfileWriterFinish(TFileWriter* tw);
 
 //
@@ -129,8 +129,8 @@ void     tfileIteratorDestroy(Iterate* iterator);
 
 TFileValue* tfileValueCreate(char* val);
 
-int  tfileValuePush(TFileValue* tf, uint64_t val);
-void tfileValueDestroy(TFileValue* tf);
+int32_t tfileValuePush(TFileValue* tf, uint64_t val);
+void    tfileValueDestroy(TFileValue* tf);
 
 #ifdef __cplusplus
 }

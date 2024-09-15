@@ -38,6 +38,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t vgId = pMeta->vgId;
   int64_t now = taosGetTimestampMs();
+  SArray* pTaskList = NULL;
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
   stInfo("vgId:%d start to consensus checkpointId for all %d task(s), start ts:%" PRId64, vgId, numOfTasks, now);
@@ -47,11 +48,9 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SArray* pTaskList = NULL;
   code = prepareBeforeStartTasks(pMeta, &pTaskList, now);
   if (code != TSDB_CODE_SUCCESS) {
-    ASSERT(pTaskList == NULL);
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_SUCCESS;  // ignore the error and return directly
   }
 
   // broadcast the check downstream tasks msg only for tasks with related fill-history tasks.
@@ -63,9 +62,12 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
     SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
     SStreamTask*   pTask = NULL;
     code = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId, &pTask);
-    if (pTask == NULL) {
-      stError("vgId:%d failed to acquire task:0x%x during start tasks", pMeta->vgId, pTaskId->taskId);
-      (void)streamMetaAddFailedTask(pMeta, pTaskId->streamId, pTaskId->taskId);
+    if ((pTask == NULL) || (code != 0)) {
+      stError("vgId:%d failed to acquire task:0x%x during start task, it may be dropped", pMeta->vgId, pTaskId->taskId);
+      int32_t ret = streamMetaAddFailedTask(pMeta, pTaskId->streamId, pTaskId->taskId);
+      if (ret) {
+        stError("s-task:0x%x add check downstream failed, core:%s", pTaskId->taskId, tstrerror(ret));
+      }
       continue;
     }
 
@@ -86,9 +88,13 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
 
     SStreamTask* pTask = NULL;
     code = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId, &pTask);
-    if (pTask == NULL) {
+    if ((pTask == NULL )|| (code != 0)) {
       stError("vgId:%d failed to acquire task:0x%x during start tasks", pMeta->vgId, pTaskId->taskId);
-      (void)streamMetaAddFailedTask(pMeta, pTaskId->streamId, pTaskId->taskId);
+      int32_t ret = streamMetaAddFailedTask(pMeta, pTaskId->streamId, pTaskId->taskId);
+      if (ret) {
+        stError("s-task:0x%x failed add check downstream failed, core:%s", pTaskId->taskId, tstrerror(ret));
+      }
+
       continue;
     }
 
@@ -106,11 +112,14 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
       if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
         stDebug("s-task:%s downstream ready, no need to check downstream, check only related fill-history task",
                 pTask->id.idStr);
-        (void)streamLaunchFillHistoryTask(pTask);  // todo: how about retry launch fill-history task?
+        code = streamLaunchFillHistoryTask(pTask);  // todo: how about retry launch fill-history task?
+        if (code) {
+          stError("s-task:%s failed to launch history task, code:%s", pTask->id.idStr, tstrerror(code));
+        }
       }
 
-      (void)streamMetaAddTaskLaunchResult(pMeta, pTaskId->streamId, pTaskId->taskId, pInfo->checkTs, pInfo->readyTs,
-                                          true);
+      code = streamMetaAddTaskLaunchResult(pMeta, pTaskId->streamId, pTaskId->taskId, pInfo->checkTs, pInfo->readyTs,
+                                           true);
       streamMetaReleaseTask(pMeta, pTask);
       continue;
     }
@@ -121,7 +130,8 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
         stError("vgId:%d failed to handle event:%d", pMeta->vgId, TASK_EVENT_INIT);
         code = ret;
 
-        if (code != TSDB_CODE_STREAM_INVALID_STATETRANS) {
+        // do no added into result hashmap if it is failed due to concurrently starting of this stream task.
+        if (code != TSDB_CODE_STREAM_CONFLICT_EVENT) {
           streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
         }
       }
@@ -196,9 +206,9 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
   }
 
   // clear the send consensus-checkpointId flag
-  streamMutexLock(&(*p)->lock);
-  (*p)->status.sendConsensusChkptId = false;
-  streamMutexUnlock(&(*p)->lock);
+//  streamMutexLock(&(*p)->lock);
+//  (*p)->status.sendConsensusChkptId = false;
+//  streamMutexUnlock(&(*p)->lock);
 
   if (pStartInfo->startAllTasks != 1) {
     int64_t el = endTs - startTs;
@@ -216,7 +226,7 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
   if (code) {
     if (code == TSDB_CODE_DUP_KEY) {
       stError("vgId:%d record start task result failed, s-task:0x%" PRIx64
-                  " already exist start results in meta start task result hashmap",
+              " already exist start results in meta start task result hashmap",
               vgId, id.taskId);
     } else {
       stError("vgId:%d failed to record start task:0x%" PRIx64 " results, start all tasks failed", vgId, id.taskId);
@@ -333,9 +343,13 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
   stInfo("vgId:%d start task:0x%x by checking it's downstream status", vgId, taskId);
 
   code = streamMetaAcquireTask(pMeta, streamId, taskId, &pTask);
-  if (pTask == NULL) {
+  if ((pTask == NULL) || (code != 0)) {
     stError("vgId:%d failed to acquire task:0x%x when starting task", vgId, taskId);
-    (void)streamMetaAddFailedTask(pMeta, streamId, taskId);
+    int32_t ret = streamMetaAddFailedTask(pMeta, streamId, taskId);
+    if (ret) {
+      stError("s-task:0x%x add check downstream failed, core:%s", taskId, tstrerror(ret));
+    }
+
     return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
   }
 
@@ -364,7 +378,10 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
     return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
   }
 
-  ASSERT(pTask->status.downstreamReady == 0);
+  if(pTask->status.downstreamReady != 0) {
+    stFatal("s-task:0x%x downstream should be not ready, but it ready here, internal error happens", taskId);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
 
   // avoid initialization and destroy running concurrently.
   streamMutexLock(&pTask->lock);
@@ -383,11 +400,11 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
   if (code == TSDB_CODE_SUCCESS) {
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
     if (code != TSDB_CODE_SUCCESS) {
-      stError("s-task:%s vgId:%d failed to handle event:%d, code:%s", pTask->id.idStr, pMeta->vgId, TASK_EVENT_INIT,
+      stError("s-task:%s vgId:%d failed to handle event:init-task, code:%s", pTask->id.idStr, pMeta->vgId,
               tstrerror(code));
 
       // do no added into result hashmap if it is failed due to concurrently starting of this stream task.
-      if (code != TSDB_CODE_STREAM_INVALID_STATETRANS) {
+      if (code != TSDB_CODE_STREAM_CONFLICT_EVENT) {
         streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
       }
     }
@@ -428,7 +445,10 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
-    (void)streamTaskStop(pTask);
+    int32_t ret = streamTaskStop(pTask);
+    if (ret) {
+      stError("s-task:0x%x failed to stop task, code:%s", pTaskId->taskId, tstrerror(ret));
+    }
     streamMetaReleaseTask(pMeta, pTask);
   }
 
@@ -438,7 +458,50 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
   stDebug("vgId:%d stop all %d task(s) completed, elapsed time:%.2f Sec.", pMeta->vgId, num, el);
 
   streamMetaRUnLock(pMeta);
+  return code;
+}
+
+int32_t streamTaskCheckIfReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
+  SConsenChkptInfo* pConChkptInfo = &pTask->status.consenChkptInfo;
+
+  int32_t vgId = pTask->pMeta->vgId;
+  if (pConChkptInfo->status == TASK_CONSEN_CHKPT_REQ) {
+    pConChkptInfo->status = TASK_CONSEN_CHKPT_SEND;
+    pConChkptInfo->statusTs = ts;
+    stDebug("s-task:%s vgId:%d set requiring consensus-chkptId in hbMsg, ts:%" PRId64, pTask->id.idStr,
+            vgId, pConChkptInfo->statusTs);
+    return 1;
+  } else {
+    int32_t el = (ts - pConChkptInfo->statusTs) / 1000;
+    if ((pConChkptInfo->status == TASK_CONSEN_CHKPT_SEND) && el > 60) {
+      pConChkptInfo->statusTs = ts;
+
+      stWarn(
+          "s-task:%s vgId:%d not recv consensus-chkptId for %ds(more than 60s), set requiring in Hb again, ts:%" PRId64,
+          pTask->id.idStr, vgId, el, pConChkptInfo->statusTs);
+      return 1;
+    }
+  }
+
   return 0;
 }
 
+void streamTaskSetConsenChkptIdRecv(SStreamTask* pTask, int32_t transId, int64_t ts) {
+  SConsenChkptInfo* pInfo = &pTask->status.consenChkptInfo;
+  pInfo->consenChkptTransId = transId;
+  pInfo->status = TASK_CONSEN_CHKPT_RECV;
+  pInfo->statusTs = ts;
 
+  stDebug("s-task:%s set recv consen-checkpointId, transId:%d", pTask->id.idStr, transId);
+}
+
+void streamTaskSetReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
+  SConsenChkptInfo* pInfo = &pTask->status.consenChkptInfo;
+  int32_t           prevTrans = pInfo->consenChkptTransId;
+
+  pInfo->status = TASK_CONSEN_CHKPT_REQ;
+  pInfo->statusTs = ts;
+  pInfo->consenChkptTransId = 0;
+
+  stDebug("s-task:%s set req consen-checkpointId flag, prev transId:%d, ts:%" PRId64, pTask->id.idStr, prevTrans, ts);
+}

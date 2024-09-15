@@ -240,6 +240,7 @@ typedef struct {
   void*         pThrd;
   queue         qmsg;
   TdThreadMutex mtx;  // protect qmsg;
+  int64_t       num;
 } SAsyncItem;
 
 typedef struct {
@@ -471,6 +472,7 @@ int32_t transReleaseExHandle(int32_t refMgt, int64_t refId);
 void    transDestroyExHandle(void* handle);
 
 int32_t transGetRefMgt();
+int32_t transGetSvrRefMgt();
 int32_t transGetInstMgt();
 int32_t transGetSyncMsgMgt();
 

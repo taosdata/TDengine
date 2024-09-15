@@ -165,7 +165,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
   pReq = taosMemoryCalloc(1, sizeof(SSubmitReq2));
 
   if (!tagArray || !pReq) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
 
   pReq->aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData));
@@ -343,15 +343,11 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     pTsmaStat->pTSma = pTSma;
-    pTsmaStat->pTSchema = metaGetTbTSchema(SMA_META(pSma), pTSma->dstTbUid, -1, 1);
-    if (!pTsmaStat->pTSchema) {
-      code = TSDB_CODE_TSMA_INVALID_PTR;
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+    code = metaGetTbTSchemaNotNull(SMA_META(pSma), pTSma->dstTbUid, -1, 1, &pTsmaStat->pTSchema);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  if (ASSERTS(pTsmaStat->pTSma->indexUid == indexUid, "indexUid:%" PRIi64 " != %" PRIi64, pTsmaStat->pTSma->indexUid,
-              indexUid)) {
+  if (pTsmaStat->pTSma->indexUid != indexUid) {
     code = TSDB_CODE_APP_ERROR;
     TSDB_CHECK_CODE(code, lino, _exit);
   }

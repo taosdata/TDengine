@@ -102,8 +102,10 @@ void mndReleaseArbGroup(SMnode *pMnode, SArbGroup *pGroup) {
   sdbRelease(pSdb, pGroup);
 }
 
-void mndArbGroupInitFromVgObj(SVgObj *pVgObj, SArbGroup *outGroup) {
-  ASSERT(pVgObj->replica == 2);
+int32_t mndArbGroupInitFromVgObj(SVgObj *pVgObj, SArbGroup *outGroup) {
+  if (pVgObj->replica != 2) {
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
   (void)memset(outGroup, 0, sizeof(SArbGroup));
   outGroup->dbUid = pVgObj->dbUid;
   outGroup->vgId = pVgObj->vgId;
@@ -111,6 +113,8 @@ void mndArbGroupInitFromVgObj(SVgObj *pVgObj, SArbGroup *outGroup) {
     SArbGroupMember *pMember = &outGroup->members[i];
     pMember->info.dnodeId = pVgObj->vnodeGid[i].dnodeId;
   }
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 SSdbRaw *mndArbGroupActionEncode(SArbGroup *pGroup) {
@@ -400,10 +404,14 @@ static int32_t mndProcessArbHbTimer(SRpcMsg *pReq) {
         hbMembers = *(SArray **)pObj;
       } else {
         hbMembers = taosArrayInit(16, sizeof(SVArbHbReqMember));
-        (void)taosHashPut(pDnodeHash, &dnodeId, sizeof(int32_t), &hbMembers, POINTER_BYTES);
+        if (taosHashPut(pDnodeHash, &dnodeId, sizeof(int32_t), &hbMembers, POINTER_BYTES) != 0) {
+          mError("dnodeId:%d, failed to push hb member inty]o hash, but conitnue next at this timer round", dnodeId);
+        }
       }
       SVArbHbReqMember reqMember = {.vgId = pArbGroup->vgId, .hbSeq = pMember->state.nextHbSeq++};
-      (void)taosArrayPush(hbMembers, &reqMember);
+      if (taosArrayPush(hbMembers, &reqMember) == NULL) {
+        mError("dnodeId:%d, failed to push hb member, but conitnue next at this timer round", dnodeId);
+      }
     }
 
     (void)taosThreadMutexUnlock(&pArbGroup->mutex);
@@ -670,7 +678,7 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
     mndArbGroupSetAssignedLeader(&newGroup, candidateIndex);
     if (taosArrayPush(pUpdateArray, &newGroup) == NULL) {
       taosArrayDestroy(pUpdateArray);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     sdbRelease(pSdb, pArbGroup);
@@ -994,7 +1002,9 @@ static int32_t mndUpdateArbHeartBeat(SMnode *pMnode, int32_t dnodeId, SArray *me
 
     bool updateToken = mndUpdateArbGroupByHeartBeat(pGroup, pRspMember, nowMs, dnodeId, &newGroup);
     if (updateToken) {
-      (void)taosArrayPush(pUpdateArray, &newGroup);
+      if (taosArrayPush(pUpdateArray, &newGroup) == NULL) {
+        mError("failed to push newGroup to updateArray, but continue at this hearbear");
+      }
     }
 
     sdbRelease(pMnode->pSdb, pGroup);
@@ -1306,7 +1316,7 @@ static int32_t mndRetrieveArbGroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 
 static void mndCancelGetNextArbGroup(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_ARBGROUP);
 }
 
 int32_t mndGetArbGroupSize(SMnode *pMnode) {

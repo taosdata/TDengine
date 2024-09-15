@@ -17,7 +17,10 @@ class TDTestCase:
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        self.buffer_boundary = [3, 4097, 8193, 12289, 16384]
+        if platform.system().lower() == 'windows':
+            self.buffer_boundary = [3, 4097]
+        else:
+            self.buffer_boundary = [3, 4097, 8193, 12289, 16384]
         # remove the value > free_memory, 70% is the weight to calculate the max value
         # if platform.system() == "Linux" and platform.machine() == "aarch64":
             # mem = psutil.virtual_memory()

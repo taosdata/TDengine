@@ -167,7 +167,6 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   SVnodeObj *pOld = NULL;
   (void)taosHashGetDup(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), (void *)&pOld);
   if (pOld) {
-    ASSERT(pOld->failed);
     vmFreeVnodeObj(&pOld);
   }
   int32_t code = taosHashPut(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), &pVnode, sizeof(SVnodeObj *));
@@ -190,7 +189,6 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
   vmReleaseVnode(pMgmt, pVnode);
 
   if (pVnode->failed) {
-    ASSERT(pVnode->pImpl == NULL);
     goto _closed;
   }
   dInfo("vgId:%d, pre close", pVnode->vgId);
@@ -594,7 +592,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 
   SVnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SVnodeMgmt));
   if (pMgmt == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -692,8 +690,6 @@ static void *vmRestoreVnodeInThread(void *param) {
       continue;
     }
 
-    ASSERT(pVnode->pImpl);
-
     char stepDesc[TSDB_STEP_DESC_LEN] = {0};
     snprintf(stepDesc, TSDB_STEP_DESC_LEN, "vgId:%d, start to restore, %d of %d have been restored", pVnode->vgId,
              pMgmt->state.openVnodes, pMgmt->state.totalVnodes);
@@ -731,7 +727,7 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
 
   SVnodeThread *threads = taosMemoryCalloc(threadNum, sizeof(SVnodeThread));
   if (threads == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int32_t t = 0; t < threadNum; ++t) {
@@ -739,7 +735,7 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
     threads[t].pMgmt = pMgmt;
     threads[t].ppVnodes = taosMemoryCalloc(vnodesPerThread, sizeof(SVnode *));
     if (threads[t].ppVnodes == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       break;
     }
   }
@@ -764,7 +760,6 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
     (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
     if (taosThreadCreate(&pThread->thread, &thAttr, vmRestoreVnodeInThread, pThread) != 0) {
       dError("thread:%d, failed to create thread to restore vnode since %s", pThread->threadIndex, strerror(errno));
-      ASSERT(errno == 0);
     }
 
     (void)taosThreadAttrDestroy(&thAttr);

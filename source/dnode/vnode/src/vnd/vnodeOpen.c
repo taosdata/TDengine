@@ -18,7 +18,7 @@
 #include "tsdb.h"
 #include "vnd.h"
 
-int32_t vnodeGetPrimaryDir(const char *relPath, int32_t diskPrimary, STfs *pTfs, char *buf, size_t bufLen) {
+void vnodeGetPrimaryDir(const char *relPath, int32_t diskPrimary, STfs *pTfs, char *buf, size_t bufLen) {
   if (pTfs) {
     SDiskID diskId = {0};
     diskId.id = diskPrimary;
@@ -27,7 +27,6 @@ int32_t vnodeGetPrimaryDir(const char *relPath, int32_t diskPrimary, STfs *pTfs,
     snprintf(buf, bufLen - 1, "%s", relPath);
   }
   buf[bufLen - 1] = '\0';
-  return 0;
 }
 
 static int32_t vnodeMkDir(STfs *pTfs, const char *path) {
@@ -54,7 +53,7 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs
     vError("vgId:%d, failed to prepare vnode dir since %s, path: %s", pCfg->vgId, strerror(errno), path);
     return TAOS_SYSTEM_ERROR(errno);
   }
-  (void)vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
 
   if (pCfg) {
     info.config = *pCfg;
@@ -89,7 +88,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t
   char       dir[TSDB_FILENAME_LEN] = {0};
   int32_t    ret = 0;
 
-  (void)vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
 
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
@@ -222,7 +221,7 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
   char       dir[TSDB_FILENAME_LEN] = {0};
   int32_t    ret = 0;
 
-  (void)vnodeGetPrimaryDir(srcPath, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(srcPath, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
 
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
@@ -284,7 +283,7 @@ int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t s
   char       dir[TSDB_FILENAME_LEN] = {0};
   int32_t    code = 0;
 
-  (void)vnodeGetPrimaryDir(dstPath, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(dstPath, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
   if (vnodeLoadInfo(dir, &info) == 0) {
     if (info.config.vgId != dstVgId) {
       vError("vgId:%d, unexpected vnode config.vgId:%d", dstVgId, info.config.vgId);
@@ -293,7 +292,7 @@ int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t s
     return dstVgId;
   }
 
-  (void)vnodeGetPrimaryDir(srcPath, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(srcPath, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
   if ((code = vnodeLoadInfo(dir, &info)) < 0) {
     vError("vgId:%d, failed to read vnode config from %s since %s", srcVgId, srcPath, tstrerror(terrno));
     return code;
@@ -352,7 +351,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
     vError("failed to open vnode from %s since %s. diskPrimary:%d", path, terrstr(), diskPrimary);
     return NULL;
   }
-  (void)vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
 
   info.config = vnodeCfgDefault;
 
@@ -494,24 +493,6 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   snprintf(pVnode->monitor.strDnodeId, TSDB_NODE_ID_LEN, "%" PRId32, pVnode->config.syncCfg.nodeInfo[0].nodeId);
   snprintf(pVnode->monitor.strVgId, TSDB_VGROUP_ID_LEN, "%" PRId32, pVnode->config.vgId);
 
-  if (tsEnableMonitor && pVnode->monitor.insertCounter == NULL) {
-    taos_counter_t *counter = NULL;
-    int32_t         label_count = 7;
-    const char     *sample_labels[] = {VNODE_METRIC_TAG_NAME_SQL_TYPE,  VNODE_METRIC_TAG_NAME_CLUSTER_ID,
-                                       VNODE_METRIC_TAG_NAME_DNODE_ID,  VNODE_METRIC_TAG_NAME_DNODE_EP,
-                                       VNODE_METRIC_TAG_NAME_VGROUP_ID, VNODE_METRIC_TAG_NAME_USERNAME,
-                                       VNODE_METRIC_TAG_NAME_RESULT};
-    counter = taos_counter_new(VNODE_METRIC_SQL_COUNT, "counter for insert sql", label_count, sample_labels);
-    vInfo("vgId:%d, new metric:%p", TD_VID(pVnode), counter);
-    if (taos_collector_registry_register_metric(counter) == 1) {
-      (void)taos_counter_destroy(counter);
-      counter = taos_collector_registry_get_metric(VNODE_METRIC_SQL_COUNT);
-      vInfo("vgId:%d, get metric from registry:%p", TD_VID(pVnode), counter);
-    }
-    pVnode->monitor.insertCounter = counter;
-    vInfo("vgId:%d, succeed to set metric:%p", TD_VID(pVnode), counter);
-  }
-
   return pVnode;
 
 _err:
@@ -521,7 +502,7 @@ _err:
   if (pVnode->pTsdb) (void)tsdbClose(&pVnode->pTsdb);
   if (pVnode->pSma) (void)smaClose(pVnode->pSma);
   if (pVnode->pMeta) (void)metaClose(&pVnode->pMeta);
-  if (pVnode->freeList) (void)vnodeCloseBufPool(pVnode);
+  if (pVnode->freeList) vnodeCloseBufPool(pVnode);
 
   taosMemoryFree(pVnode);
   return NULL;
@@ -536,7 +517,7 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
-    (void)vnodeAWait(&pVnode->commitTask);
+    vnodeAWait(&pVnode->commitTask);
     (void)vnodeAChannelDestroy(&pVnode->commitChannel, true);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
@@ -545,7 +526,7 @@ void vnodeClose(SVnode *pVnode) {
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
     (void)smaClose(pVnode->pSma);
     if (pVnode->pMeta) metaClose(&pVnode->pMeta);
-    (void)vnodeCloseBufPool(pVnode);
+    vnodeCloseBufPool(pVnode);
 
     // destroy handle
     (void)tsem_destroy(&pVnode->syncSem);

@@ -32,6 +32,19 @@ extern "C" {
     }                                                                          \
   } while (0)
 
+#define RETRIEVE_CHECK_GOTO(CMD, pObj, LINO, LABEL) \
+  do {                                              \
+    code = (CMD);                                   \
+    if (code != TSDB_CODE_SUCCESS) {                \
+      if (LINO) {                                   \
+        *((int32_t *)(LINO)) = __LINE__;            \
+      }                                             \
+      if (pObj) sdbRelease(pSdb, (pObj));           \
+      if (pObj) sdbCancelFetch(pSdb, (pObj));       \
+      goto LABEL;                                   \
+    }                                               \
+  } while (0)
+
 int32_t mndInitShow(SMnode *pMnode);
 void    mndCleanupShow(SMnode *pMnode);
 void    mndAddShowRetrieveHandle(SMnode *pMnode, EShowType showType, ShowRetrieveFp fp);

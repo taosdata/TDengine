@@ -586,7 +586,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
   }
   memcpy(*pDst, pSrc, sizeof(*pSrc));
   (*pDst)->vgArray = NULL;
-  
+
   if (pSrc->vgHash) {
     (*pDst)->vgHash = taosHashInit(taosHashGetSize(pSrc->vgHash), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true,
                                    HASH_ENTRY_LOCK);
@@ -623,7 +623,7 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
 
   *pDst = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
   if (NULL == *pDst) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pDst)->flags = pSrc->flags;
@@ -670,4 +670,8 @@ void freeDbCfgInfo(SDbCfgInfo* pInfo) {
     taosArrayDestroy(pInfo->pRetensions);
   }
   taosMemoryFree(pInfo);
+}
+
+void* getTaskPoolWorkerCb() {
+  return taskQueue.wrokrerPool.pCb;
 }

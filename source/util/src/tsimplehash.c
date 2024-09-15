@@ -261,8 +261,7 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, cons
 static FORCE_INLINE SHNode *doSearchInEntryList(SSHashObj *pHashObj, const void *key, size_t keyLen, int32_t index) {
   SHNode *pNode = pHashObj->hashList[index];
   while (pNode) {
-    const char* p = GET_SHASH_NODE_KEY(pNode, pNode->dataLen);
-    ASSERT(keyLen > 0);
+    const char *p = GET_SHASH_NODE_KEY(pNode, pNode->dataLen);
 
     if (pNode->keyLen == keyLen && ((*(pHashObj->equalFp))(p, key, keyLen) == 0)) {
       break;
@@ -298,7 +297,7 @@ void *tSimpleHashGet(SSHashObj *pHashObj, const void *key, size_t keyLen) {
 }
 
 int32_t tSimpleHashRemove(SSHashObj *pHashObj, const void *key, size_t keyLen) {
-  int32_t code = TSDB_CODE_FAILED;
+  int32_t code = TSDB_CODE_INVALID_PARA;
   if (!pHashObj || !key) {
     return code;
   }

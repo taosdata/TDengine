@@ -55,7 +55,6 @@ typedef struct SFillOperatorInfo {
   SExprSupp         noFillExprSupp;
 } SFillOperatorInfo;
 
-static void revisedFillStartKey(SFillOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t order);
 static void destroyFillOperatorInfo(void* param);
 static void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_t order, int32_t scanFlag);
 static int32_t fillResetPrevForNewGroup(SFillInfo* pFillInfo);
@@ -166,56 +165,6 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
-}
-
-// todo refactor: decide the start key according to the query time range.
-static void revisedFillStartKey(SFillOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t order) {
-  if (order == TSDB_ORDER_ASC) {
-    int64_t skey = pBlock->info.window.skey;
-    if (skey < pInfo->pFillInfo->start) {  // the start key may be smaller than the
-      ASSERT(taosFillNotStarted(pInfo->pFillInfo));
-      taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, skey);
-    } else if (pInfo->pFillInfo->start < skey) {
-      int64_t    t = skey;
-      SInterval* pInterval = &pInfo->pFillInfo->interval;
-
-      while (1) {
-        int64_t prev = taosTimeAdd(t, -pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
-        if (prev <= pInfo->pFillInfo->start) {
-          t = prev;
-          break;
-        }
-        t = prev;
-      }
-
-      // todo time window chosen problem: t or prev value?
-      taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, t);
-    }
-  } else {
-    int64_t ekey = pBlock->info.window.ekey;
-    if (ekey > pInfo->pFillInfo->start) {
-      ASSERT(taosFillNotStarted(pInfo->pFillInfo));
-      taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, ekey);
-    } else if (ekey < pInfo->pFillInfo->start) {
-      int64_t    t = ekey;
-      SInterval* pInterval = &pInfo->pFillInfo->interval;
-      int64_t    prev = t;
-      while (1) {
-        int64_t next = taosTimeAdd(t, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
-        if (next >= pInfo->pFillInfo->start) {
-          prev = t;
-          t = next;
-          break;
-        }
-        prev = t;
-        t = next;
-      }
-
-      // todo time window chosen problem: t or next value?
-      if (t > pInfo->pFillInfo->start) t = prev;
-      taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, t);
-    }
-  }
 }
 
 static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
@@ -369,12 +318,6 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   return code;
 }
 
-static SSDataBlock* doFill(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = doFillNext(pOperator, &pRes);
-  return pRes;
-}
-
 void destroyFillOperatorInfo(void* param) {
   SFillOperatorInfo* pInfo = (SFillOperatorInfo*)param;
   pInfo->pFillInfo = taosDestroyFillInfo(pInfo->pFillInfo);
@@ -466,7 +409,8 @@ static int32_t createPrimaryTsExprIfNeeded(SFillOperatorInfo* pInfo, SFillPhysiN
     int32_t code = createExprFromTargetNode(&pExpr[pExprSupp->numOfExprs], (STargetNode*)pPhyFillNode->pWStartTs);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      taosMemoryFreeClear(pExpr);
+      pExprSupp->numOfExprs += 1;
+      pExprSupp->pExprInfo = pExpr;
       return code;
     }
 
@@ -479,14 +423,14 @@ static int32_t createPrimaryTsExprIfNeeded(SFillOperatorInfo* pInfo, SFillPhysiN
 
 int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode,
                                       SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
   int32_t code = 0;
   int32_t lino = 0;
 
   SFillOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SFillOperatorInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _error;
   }
 
@@ -498,6 +442,7 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
   QUERY_CHECK_CODE(code, lino, _error);
 
   pOperator->exprSupp.pExprInfo = pExprInfo;
+  pOperator->exprSupp.numOfExprs = pInfo->numOfExpr;
 
   SExprSupp* pNoFillSupp = &pInfo->noFillExprSupp;
   code = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &pNoFillSupp->pExprInfo, &pNoFillSupp->numOfExprs);
@@ -562,28 +507,25 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
   }
 
   setOperatorInfo(pOperator, "FillOperator", QUERY_NODE_PHYSICAL_PLAN_FILL, false, OP_NOT_OPENED, pInfo, pTaskInfo);
-  pOperator->exprSupp.numOfExprs = pInfo->numOfExpr;
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doFill, NULL, destroyFillOperatorInfo, optrDefaultBufFn, NULL,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doFillNext, NULL, destroyFillOperatorInfo, optrDefaultBufFn, NULL,
                                          optrDefaultGetNextExtFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+
   if (pInfo != NULL) {
     destroyFillOperatorInfo(pInfo);
   }
-
+  destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
-  if (pOperator != NULL) {
-    pOperator->info = NULL;
-    if (pOperator->pDownstream == NULL && downstream != NULL) {
-      destroyOperator(downstream);
-    }
-    destroyOperator(pOperator);
-  }
   return code;
 }
 
@@ -602,7 +544,6 @@ static void reviseFillStartAndEndKey(SFillOperatorInfo* pInfo, int32_t order) {
     }
     pInfo->win.ekey = ekey;
   } else {
-    assert(order == TSDB_ORDER_DESC);
     skey = taosTimeTruncate(pInfo->win.skey, &pInfo->pFillInfo->interval);
     next = skey;
     while (next < pInfo->win.skey) {

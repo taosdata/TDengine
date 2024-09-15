@@ -106,6 +106,10 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
       }
 
       int32_t dataLen = blockEncode(pInput->pData, pHandle->pCompressBuf, numOfCols);
+      if(dataLen < 0) {
+        qError("failed to encode data block, code: %d", dataLen);
+        return terrno;
+      }
       int32_t len =
           tsCompressString(pHandle->pCompressBuf, dataLen, 1, pEntry->data, pBuf->allocSize, ONE_STAGE_COMP, NULL, 0);
       if (len < dataLen) {
@@ -120,6 +124,10 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
       }
     } else {
       pEntry->dataLen = blockEncode(pInput->pData, pEntry->data, numOfCols);
+      if(pEntry->dataLen < 0) {
+        qError("failed to encode data block, code: %d", pEntry->dataLen);
+        return terrno;
+      }
       pEntry->rawLen = pEntry->dataLen;
     }
   }
@@ -196,6 +204,7 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
 
 _return:
 
+  taosMemoryFreeClear(pBuf->pData);
   taosFreeQitem(pBuf);
   return code;
 }
@@ -224,7 +233,7 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, int64_t* pRow
   }
 
   SDataDispatchBuf* pBuf = NULL;
-  (void)taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
+  taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
   if (pBuf != NULL) {
     TAOS_MEMCPY(&pDispatcher->nextOutput, pBuf, sizeof(SDataDispatchBuf));
     taosFreeQitem(pBuf);
@@ -242,7 +251,11 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, int64_t* pRow
 static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   if (NULL == pDispatcher->nextOutput.pData) {
-    ASSERT(pDispatcher->queryEnd);
+    if (!pDispatcher->queryEnd) {
+      qError("empty res while query not end in data dispatcher");
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+
     pOutput->useconds = pDispatcher->useconds;
     pOutput->precision = pDispatcher->pSchema->precision;
     pOutput->bufStatus = DS_BUF_EMPTY;
@@ -278,7 +291,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
 
   while (!taosQueueEmpty(pDispatcher->pDataBlocks)) {
     SDataDispatchBuf* pBuf = NULL;
-    (void)taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
+    taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
     if (pBuf != NULL) {
       taosMemoryFreeClear(pBuf->pData);
       taosFreeQitem(pBuf);

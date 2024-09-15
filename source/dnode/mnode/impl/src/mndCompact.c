@@ -55,36 +55,44 @@ void tFreeCompactObj(SCompactObj *pCompact) {}
 
 int32_t tSerializeSCompactObj(void *buf, int32_t bufLen, const SCompactObj *pObj) {
   SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
   tEncoderInit(&encoder, buf, bufLen);
 
-  if (tStartEncode(&encoder) < 0) return -1;
-
-  if (tEncodeI32(&encoder, pObj->compactId) < 0) return -1;
-  if (tEncodeCStr(&encoder, pObj->dbname) < 0) return -1;
-  if (tEncodeI64(&encoder, pObj->startTime) < 0) return -1;
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->compactId));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->dbname));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->startTime));
 
   tEndEncode(&encoder);
 
-  int32_t tlen = encoder.pos;
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
   tEncoderClear(&encoder);
   return tlen;
 }
 
 int32_t tDeserializeSCompactObj(void *buf, int32_t bufLen, SCompactObj *pObj) {
-  int8_t   ex = 0;
+  int32_t  code = 0;
+  int32_t  lino;
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
-  TAOS_CHECK_RETURN(tStartDecode(&decoder));
-
-  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->compactId));
-  TAOS_CHECK_RETURN(tDecodeCStrTo(&decoder, pObj->dbname));
-  TAOS_CHECK_RETURN(tDecodeI64(&decoder, &pObj->startTime));
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->compactId));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->dbname));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->startTime));
 
   tEndDecode(&decoder);
 
+_exit:
   tDecoderClear(&decoder);
-  return 0;
+  return code;
 }
 
 SSdbRaw *mndCompactActionEncode(SCompactObj *pCompact) {
@@ -260,7 +268,11 @@ int32_t mndAddCompactToTran(SMnode *pMnode, STrans *pTrans, SCompactObj *pCompac
     sdbFreeRaw(pVgRaw);
     TAOS_RETURN(code);
   }
-  (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+
+  if ((code = sdbSetRawStatus(pVgRaw, SDB_STATUS_READY)) != 0) {
+    sdbFreeRaw(pVgRaw);
+    TAOS_RETURN(code);
+  }
 
   rsp->compactId = pCompact->compactId;
 
@@ -349,7 +361,10 @@ static void *mndBuildKillCompactReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *pC
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
 
-  (void)tSerializeSVKillCompactReq((char *)pReq + sizeof(SMsgHead), contLen, &req);
+  if ((contLen = tSerializeSVKillCompactReq((char *)pReq + sizeof(SMsgHead), contLen, &req)) < 0) {
+    terrno = contLen;
+    return NULL;
+  }
   *pContLen = contLen;
   return pReq;
 }
@@ -413,7 +428,10 @@ static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompa
     mndTransDrop(pTrans);
     TAOS_RETURN(code);
   }
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY)) != 0) {
+    mndTransDrop(pTrans);
+    TAOS_RETURN(code);
+  }
 
   void *pIter = NULL;
   while (1) {
@@ -606,7 +624,10 @@ void mndCompactSendProgressReq(SMnode *pMnode, SCompactObj *pCompact) {
       pHead->contLen = htonl(contLen);
       pHead->vgId = htonl(pDetail->vgId);
 
-      (void)tSerializeSQueryCompactProgressReq((char *)pHead + sizeof(SMsgHead), contLen - sizeof(SMsgHead), &req);
+      if (tSerializeSQueryCompactProgressReq((char *)pHead + sizeof(SMsgHead), contLen - sizeof(SMsgHead), &req) <= 0) {
+        sdbRelease(pMnode->pSdb, pDetail);
+        continue;
+      }
 
       SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_COMPACT_PROGRESS, .contLen = contLen};
 
@@ -633,8 +654,8 @@ void mndCompactSendProgressReq(SMnode *pMnode, SCompactObj *pCompact) {
 
 static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
   int32_t code = 0;
-  bool  needSave = false;
-  void *pIter = NULL;
+  bool    needSave = false;
+  void   *pIter = NULL;
   while (1) {
     SCompactDetailObj *pDetail = NULL;
     pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
@@ -711,7 +732,12 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
         mndTransDrop(pTrans);
         TAOS_RETURN(code);
       }
-      (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+      if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY)) != 0) {
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        sdbRelease(pMnode->pSdb, pDetail);
+        mndTransDrop(pTrans);
+        TAOS_RETURN(code);
+      }
     }
 
     sdbRelease(pMnode->pSdb, pDetail);
@@ -774,7 +800,12 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
           mndTransDrop(pTrans);
           TAOS_RETURN(code);
         }
-        (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+        if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED)) != 0) {
+          sdbCancelFetch(pMnode->pSdb, pIter);
+          sdbRelease(pMnode->pSdb, pDetail);
+          mndTransDrop(pTrans);
+          TAOS_RETURN(code);
+        }
         mInfo("compact:%d, add drop compactdetail action", pDetail->compactDetailId);
       }
 
@@ -801,7 +832,11 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
       mndTransDrop(pTrans);
       TAOS_RETURN(code);
     }
-    (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+    if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED)) != 0) {
+      mError("compact:%d, trans:%d, failed to append commit log since %s", compactId, pTrans->id, terrstr());
+      mndTransDrop(pTrans);
+      TAOS_RETURN(code);
+    }
     mInfo("compact:%d, add drop compact action", pCompact->compactId);
   }
 
@@ -826,7 +861,9 @@ void mndCompactPullup(SMnode *pMnode) {
     SCompactObj *pCompact = NULL;
     pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT, pIter, (void **)&pCompact);
     if (pIter == NULL) break;
-    (void)taosArrayPush(pArray, &pCompact->compactId);
+    if (taosArrayPush(pArray, &pCompact->compactId) == NULL) {
+      mError("failed to push compact id:%d into array, but continue pull up", pCompact->compactId);
+    }
     sdbRelease(pSdb, pCompact);
   }
 

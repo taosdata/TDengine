@@ -397,11 +397,6 @@ char getPrecisionUnit(int32_t precision) {
 }
 
 int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPrecision) {
-  ASSERT(fromPrecision == TSDB_TIME_PRECISION_MILLI || fromPrecision == TSDB_TIME_PRECISION_MICRO ||
-         fromPrecision == TSDB_TIME_PRECISION_NANO);
-  ASSERT(toPrecision == TSDB_TIME_PRECISION_MILLI || toPrecision == TSDB_TIME_PRECISION_MICRO ||
-         toPrecision == TSDB_TIME_PRECISION_NANO);
-
   switch (fromPrecision) {
     case TSDB_TIME_PRECISION_MILLI: {
       switch (toPrecision) {
@@ -418,7 +413,6 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
           }
           return utime * 1000000;
         default:
-          ASSERT(0);
           return utime;
       }
     }  // end from milli
@@ -434,7 +428,6 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
           }
           return utime * 1000;
         default:
-          ASSERT(0);
           return utime;
       }
     }  // end from micro
@@ -447,12 +440,10 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
         case TSDB_TIME_PRECISION_NANO:
           return utime;
         default:
-          ASSERT(0);
           return utime;
       }
     }  // end from nano
     default: {
-      ASSERT(0);
       return utime;  // only to pass windows compilation
     }
   }  // end switch fromPrecision
@@ -463,10 +454,6 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
 // !!!!notice:there are precision problems, double lose precison if time is too large, for example:
 // 1626006833631000000*1.0 = double = 1626006833631000064
 // int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrecision) {
-//  assert(fromPrecision == TSDB_TIME_PRECISION_MILLI || fromPrecision == TSDB_TIME_PRECISION_MICRO ||
-//         fromPrecision == TSDB_TIME_PRECISION_NANO);
-//  assert(toPrecision == TSDB_TIME_PRECISION_MILLI || toPrecision == TSDB_TIME_PRECISION_MICRO ||
-//         toPrecision == TSDB_TIME_PRECISION_NANO);
 //  static double factors[3][3] = {{1., 1000., 1000000.}, {1.0 / 1000, 1., 1000.}, {1.0 / 1000000, 1.0 / 1000, 1.}};
 //  ((double)time * factors[fromPrecision][toPrecision]);
 //}
@@ -552,7 +539,7 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY) {
     newColData = taosMemoryCalloc(1, charLen + 1);
     if (NULL == newColData) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
     (void)memcpy(newColData, varDataVal(inputData), charLen);
     int32_t ret = taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, tsDaylight);
@@ -564,7 +551,7 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
     newColData = taosMemoryCalloc(1, charLen + TSDB_NCHAR_SIZE);
     if (NULL == newColData) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
     int len = taosUcs4ToMbs((TdUcs4*)varDataVal(inputData), charLen, newColData);
     if (len < 0) {
@@ -783,7 +770,6 @@ int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interva
 
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
   if (pInterval->sliding == 0) {
-    ASSERT(pInterval->interval == 0);
     return ts;
   }
 
@@ -814,7 +800,6 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
   } else {
     if (IS_CALENDAR_TIME_DURATION(pInterval->intervalUnit)) {
       int64_t news = (ts / pInterval->sliding) * pInterval->sliding;
-      ASSERT(news <= ts);
       if (pInterval->slidingUnit == 'd' || pInterval->slidingUnit == 'w') {
 #if defined(WINDOWS) && _MSC_VER >= 1900
         int64_t timezone = _timezone;
@@ -886,8 +871,6 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
       }
     }
   }
-
-  ASSERT(pInterval->offset >= 0);
 
   if (pInterval->offset > 0) {
     // try to move current window to the left-hande-side, due to the offset effect.
@@ -1264,7 +1247,7 @@ static int32_t parseTsFormat(const char* formatStr, SArray* formats) {
     const TSFormatKeyWord* key = keywordSearch(formatStr);
     if (key) {
       TSFormatNode format = {.key = key, .type = TS_FORMAT_NODE_TYPE_KEYWORD};
-      if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(terrno);
       formatStr += key->len;
       lastOtherFormat = NULL;
     } else {
@@ -1284,7 +1267,6 @@ static int32_t parseTsFormat(const char* formatStr, SArray* formats) {
           }
           if (last) {
             // expand
-            assert(last->type == TS_FORMAT_NODE_TYPE_CHAR);
             last->len++;
             formatStr++;
           } else {
@@ -1292,7 +1274,7 @@ static int32_t parseTsFormat(const char* formatStr, SArray* formats) {
             TSFormatNode format = {.type = TS_FORMAT_NODE_TYPE_CHAR, .key = NULL};
             format.c = formatStr;
             format.len = 1;
-            if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+            if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(terrno);
             formatStr++;
             last = taosArrayGetLast(formats);
           }
@@ -1311,7 +1293,6 @@ static int32_t parseTsFormat(const char* formatStr, SArray* formats) {
           }
         }
         if (lastOtherFormat) {
-          assert(lastOtherFormat->type == TS_FORMAT_NODE_TYPE_CHAR);
           lastOtherFormat->len++;
           formatStr++;
         } else {
@@ -1320,7 +1301,7 @@ static int32_t parseTsFormat(const char* formatStr, SArray* formats) {
               .key = NULL};
           format.c = formatStr;
           format.len = 1;
-          if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+          if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(terrno);
           formatStr++;
           if (format.type == TS_FORMAT_NODE_TYPE_CHAR) lastOtherFormat = taosArrayGetLast(formats);
         }
@@ -1664,7 +1645,6 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
       }
       continue;
     }
-    assert(node->type == TS_FORMAT_NODE_TYPE_KEYWORD);
     switch (node->key->id) {
       case TSFKW_A_M:
       case TSFKW_P_M:
@@ -1929,8 +1909,8 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
 int32_t taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen) {
   if (!*formats) {
     *formats = taosArrayInit(8, sizeof(TSFormatNode));
-    if (!*formats){
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    if (!*formats) {
+      TAOS_RETURN(terrno);
     }
     TAOS_CHECK_RETURN(parseTsFormat(format, *formats));
   }
@@ -1946,7 +1926,7 @@ int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int
   if (!*formats) {
     *formats = taosArrayInit(4, sizeof(TSFormatNode));
     if (!*formats) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
     TAOS_CHECK_RETURN(parseTsFormat(format, *formats));
   }
@@ -1971,7 +1951,7 @@ int32_t TEST_ts2char(const char* format, int64_t ts, int32_t precision, char* ou
 
   SArray* formats = taosArrayInit(4, sizeof(TSFormatNode));
   if (!formats) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
   TAOS_CHECK_RETURN(parseTsFormat(format, formats));
   struct STm tm;
@@ -2002,7 +1982,7 @@ static int8_t UNIT_INDEX[26] = {/*a*/ 2,  0,  -1, 6,  -1, -1, -1,
                                 /*o*/ -1, -1, -1, -1, 3,  -1,
                                 /*u*/ 1,  -1, 7,  -1, 9,  -1};
 
-#define GET_UNIT_INDEX(idx) UNIT_INDEX[(idx) - 97]
+#define GET_UNIT_INDEX(idx) UNIT_INDEX[(idx)-97]
 
 // clang-format off
 static int64_t UNIT_MATRIX[10][11] = {     /*  ns,   us,   ms,    s,   min,   h,   d,   w, month, y*/

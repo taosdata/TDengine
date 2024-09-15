@@ -270,7 +270,9 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     }
     int16_t colId;
     SDB_GET_INT16(pRaw, dataPos, &colId, TOPIC_DECODE_OVER);
-    (void)taosArrayPush(pTopic->ntbColIds, &colId);
+    if (taosArrayPush(pTopic->ntbColIds, &colId) == NULL) {
+      goto TOPIC_DECODE_OVER;
+    }
   }
 
   SDB_GET_INT64(pRaw, dataPos, &pTopic->ctbStbUid, TOPIC_DECODE_OVER);
@@ -300,7 +302,7 @@ static int32_t mndTopicActionDelete(SSdb *pSdb, SMqTopicObj *pTopic) {
   taosMemoryFreeClear(pTopic->ast);
   taosMemoryFreeClear(pTopic->physicalPlan);
   if (pTopic->schema.nCols) taosMemoryFreeClear(pTopic->schema.pSchema);
-  (void)taosArrayDestroy(pTopic->ntbColIds);
+  taosArrayDestroy(pTopic->ntbColIds);
   return 0;
 }
 
@@ -465,7 +467,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     MND_TMQ_NULL_CHECK(topicObj.ntbColIds);
     MND_TMQ_RETURN_CHECK(extractTopicTbInfo(pAst, &topicObj));
     if (topicObj.ntbUid == 0) {
-      (void)taosArrayDestroy(topicObj.ntbColIds);
+      taosArrayDestroy(topicObj.ntbColIds);
       topicObj.ntbColIds = NULL;
     }
 
@@ -503,7 +505,7 @@ END:
   taosMemoryFreeClear(topicObj.physicalPlan);
   taosMemoryFreeClear(topicObj.sql);
   taosMemoryFreeClear(topicObj.ast);
-  (void)taosArrayDestroy(topicObj.ntbColIds);
+  taosArrayDestroy(topicObj.ntbColIds);
   if (topicObj.schema.nCols) {
     taosMemoryFreeClear(topicObj.schema.pSchema);
   }
@@ -565,9 +567,15 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
 
   {
     SName dbname = {0};
-    (void)tNameFromString(&dbname, createTopicReq.subDbName, T_NAME_ACCT | T_NAME_DB);              // ignore error
+    int32_t ret = tNameFromString(&dbname, createTopicReq.subDbName, T_NAME_ACCT | T_NAME_DB);
+    if (ret != 0){
+      mError("failed to parse db name:%s, ret:%d", createTopicReq.subDbName, ret);
+    }
     SName topicName = {0};
-    (void)tNameFromString(&topicName, createTopicReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE); // ignore error
+    ret = tNameFromString(&topicName, createTopicReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    if (ret != 0){
+      mError("failed to parse topic name:%s, ret:%d", createTopicReq.name, ret);
+    }
     auditRecord(pReq, pMnode->clusterId, "createTopic", dbname.dbname, topicName.dbname,
                 createTopicReq.sql, strlen(createTopicReq.sql));
   }
@@ -733,7 +741,10 @@ END:
   }
 
   SName name = {0};
-  (void)tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);   // ignore error
+  int32_t ret = tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  if (ret != 0) {
+    mError("topic:%s, failed to drop since %s", dropReq.name, tstrerror(ret));
+  }
   auditRecord(pReq, pMnode->clusterId, "dropTopic", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen);
 
   tFreeSMDropTopicReq(&dropReq);
@@ -932,7 +943,7 @@ END:
 
 static void mndCancelGetNextTopic(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_TOPIC);
 }
 
 bool mndTopicExistsForDb(SMnode *pMnode, SDbObj *pDb) {

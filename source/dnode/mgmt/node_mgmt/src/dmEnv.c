@@ -89,9 +89,13 @@ static bool dmDataSpaceAvailable() {
 }
 
 static int32_t dmCheckDiskSpace() {
-  osUpdate();
   // availability
   int32_t code = 0;
+  code =  osUpdate();
+  if(code != 0) {
+    code = 0; // ignore the error, just log it
+    dError("failed to update os info since %s", tstrerror(code));
+  }
   if (!dmDataSpaceAvailable()) {
     code = TSDB_CODE_NO_DISKSPACE;
     return code;
@@ -409,6 +413,7 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .processAlterNodeTypeFp = dmProcessAlterNodeTypeReq,
       .processDropNodeFp = dmProcessDropNodeReq,
       .sendMonitorReportFp = dmSendMonitorReport,
+      .monitorCleanExpiredSamplesFp = dmMonitorCleanExpiredSamples,
       .sendAuditRecordFp = auditSendRecordsInBatch,
       .getVnodeLoadsFp = dmGetVnodeLoads,
       .getVnodeLoadsLiteFp = dmGetVnodeLoadsLite,

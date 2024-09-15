@@ -20,13 +20,13 @@
 #include "taos_alloc.h"
 
 // Private
-#include "taos_assert.h"
 #include "taos_errors.h"
 #include "taos_log.h"
 #include "taos_map_i.h"
 #include "taos_metric_formatter_i.h"
 #include "taos_metric_i.h"
 #include "taos_metric_sample_i.h"
+#include "taos_test.h"
 
 char *taos_metric_type_map[4] = {"counter", "gauge", "histogram", "summary"};
 
@@ -89,7 +89,7 @@ taos_metric_t *taos_metric_new(taos_metric_type_t metric_type, const char *name,
 }
 
 int taos_metric_destroy(taos_metric_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 0;
 
   int r = 0;
@@ -144,7 +144,7 @@ void taos_metric_free_generic(void *item) {
 }
 
 taos_metric_sample_t *taos_metric_sample_from_labels(taos_metric_t *self, const char **label_values) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA_NULL(self != NULL);
   int r = 0;
   r = pthread_rwlock_wrlock(self->rwlock);
   if (r) {

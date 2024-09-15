@@ -46,25 +46,25 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
     syncLogRecvRequestVoteReply(ths, pMsg, "not in my config");
 
-    TAOS_RETURN(TSDB_CODE_FAILED);
+    TAOS_RETURN(TSDB_CODE_SYN_MISMATCHED_SIGNATURE);
   }
   SyncTerm currentTerm = raftStoreGetTerm(ths);
   // drop stale response
   if (pMsg->term < currentTerm) {
     syncLogRecvRequestVoteReply(ths, pMsg, "drop stale response");
 
-    TAOS_RETURN(TSDB_CODE_FAILED);
+    TAOS_RETURN(TSDB_CODE_SYN_WRONG_TERM);
   }
 
   if (pMsg->term > currentTerm) {
     syncLogRecvRequestVoteReply(ths, pMsg, "error term");
     syncNodeStepDown(ths, pMsg->term);
 
-    TAOS_RETURN(TSDB_CODE_FAILED);
+    TAOS_RETURN(TSDB_CODE_SYN_WRONG_TERM);
   }
 
   syncLogRecvRequestVoteReply(ths, pMsg, "");
-  ASSERT(pMsg->term == currentTerm);
+  if (pMsg->term != currentTerm) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   // This tallies votes even when the current state is not Candidate,
   // but they won't be looked at, so it doesn't matter.
@@ -73,7 +73,7 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       sNError(ths, "vote respond error vote-respond-mgr term:%" PRIu64 ", msg term:%" PRIu64 "",
               ths->pVotesRespond->term, pMsg->term);
 
-      TAOS_RETURN(TSDB_CODE_FAILED);
+      TAOS_RETURN(TSDB_CODE_SYN_WRONG_TERM);
     }
 
     votesRespondAdd(ths->pVotesRespond, pMsg);

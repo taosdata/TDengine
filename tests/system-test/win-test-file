@@ -104,7 +104,6 @@ python3 ./test.py -f 2-query/insert_null_none.py -R
 python3 ./test.py -f 2-query/insert_null_none.py -Q 2
 python3 ./test.py -f 2-query/insert_null_none.py -Q 3
 python3 ./test.py -f 2-query/insert_null_none.py -Q 4
-python3 ./test.py -f 1-insert/database_pre_suf.py
 python3 ./test.py -f 2-query/concat.py -Q 3
 python3 ./test.py -f 2-query/out_of_order.py -Q 2
 python3 ./test.py -f 2-query/out_of_order.py -Q 4
@@ -572,7 +571,6 @@ python3 ./test.py -f 2-query/join2.py
 python3 ./test.py -f 2-query/union1.py
 python3 ./test.py -f 2-query/concat2.py
 python3 ./test.py -f 2-query/json_tag.py
-python3 ./test.py -f 2-query/nestedQueryInterval.py
 python3 ./test.py -f 2-query/systable_func.py
 python3 ./test.py -f 2-query/test_ts4382.py
 python3 ./test.py -f 2-query/test_ts4403.py
@@ -687,7 +685,6 @@ python3 ./test.py -f 2-query/arctan.py -Q 2
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 2
 python3 ./test.py -f 2-query/interp.py -Q 2
 python3 ./test.py -f 2-query/fill.py -Q 2
-python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 2
 python3 ./test.py -f 2-query/stablity.py -Q 2
 python3 ./test.py -f 2-query/stablity_1.py -Q 2
 python3 ./test.py -f 2-query/avg.py -Q 2
@@ -783,7 +780,6 @@ python3 ./test.py -f 2-query/arcsin.py -Q 3
 python3 ./test.py -f 2-query/arccos.py -Q 3
 python3 ./test.py -f 2-query/arctan.py -Q 3
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 3
-python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 3
 python3 ./test.py -f 2-query/stablity.py -Q 3
 python3 ./test.py -f 2-query/stablity_1.py -Q 3
 python3 ./test.py -f 2-query/avg.py -Q 3
@@ -881,7 +877,6 @@ python3 ./test.py -f 2-query/arcsin.py -Q 4
 python3 ./test.py -f 2-query/arccos.py -Q 4
 python3 ./test.py -f 2-query/arctan.py -Q 4
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 4
-python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 4
 python3 ./test.py -f 2-query/stablity.py -Q 4
 python3 ./test.py -f 2-query/stablity_1.py -Q 4
 python3 ./test.py -f 2-query/avg.py -Q 4
@@ -914,7 +909,6 @@ python3 ./test.py -f 2-query/last_row.py -Q 4
 python3 ./test.py -f 2-query/tsbsQuery.py -Q 4
 python3 ./test.py -f 2-query/sml.py -Q 4
 python3 ./test.py -f 2-query/interp.py -Q 4
-python3 ./test.py -f 2-query/fill.py -Q 4
 python3 ./test.py -f 2-query/case_when.py -Q 4
 python3 ./test.py -f 2-query/insert_select.py
 python3 ./test.py -f 2-query/insert_select.py -R

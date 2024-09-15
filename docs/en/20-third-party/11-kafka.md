@@ -231,8 +231,9 @@ Input following content:
     "config":{
     "connector.class": "com.taosdata.kafka.connect.source.TDengineSourceConnector",
     "tasks.max": 1,
+    "subscription.group.id": "source-demo",
     "connection.url": "jdbc:TAOS://127.0.0.1:6030",
-    "connection.username": "root",
+    "connection.user": "root",
     "connection.password": "taosdata",
     "connection.database": "test",
     "connection.attempts": 3,

@@ -33,6 +33,7 @@ REST 连接支持所有能运行 Java 的平台。
 
 | taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |   TDengine 版本    |
 | :------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------: |
+|        3.3.2        | 1. 优化 Websocket 连接下的参数绑定性能；2. 优化了对 mybatis 的支持      |       -        |
 |        3.3.0        | 1. 优化 Websocket 连接下的数据传输性能；2. 支持跳过 SSL 验证，默认关闭      |        3.3.2.0 及更高版本         |
 |        3.2.11        | 解决了 Native 连接关闭结果集 bug      |        -         |
 |        3.2.10        | 1. REST/WebSocket 连接支持传输中的数据压缩；2. Websocket 自动重连机制，默认关闭；3. Connection 类提供无模式写入的方法；4. 优化了原生连接的数据拉取性能；5. 修复了一些已知问题；6.元数据获取函数可以返回支持的函数列表。      |        -         |
@@ -145,7 +146,7 @@ WKB规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/w
 
 ## 示例程序汇总
 
-示例程序源码位于 `TDengine/examples/JDBC` 下:
+示例程序源码位于 `TDengine/docs/examples/JDBC` 下:
 
 - JDBCDemo：JDBC 示例源程序。
 - connectionPools：HikariCP, Druid, dbcp, c3p0 等连接池中使用 taos-jdbcdriver。
@@ -154,7 +155,7 @@ WKB规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/w
 - springbootdemo: Springboot 中使用 taos-jdbcdriver。
 - consumer-demo：Consumer 消费 TDengine 数据示例，可通过参数控制消费速度。
 
-请参考：[JDBC example](https://github.com/taosdata/TDengine/tree/3.0/examples/JDBC)
+请参考：[JDBC example](https://github.com/taosdata/TDengine/tree/main/docs/examples/JDBC)
 
 ## 常见问题
 

@@ -33,7 +33,7 @@ TDengine 客户端驱动提供了应用编程所需要的全部 API，并且在�
 |logKeepDays | 日志文件的最长保存时间; 缺省值: 0，表示无限保存; 大于 0 时，日志文件会被重命名为 taosdlog.xxx，其中 xxx 为日志文件最后修改的时间戳|
 |smlChildTableName | schemaless 自定义的子表名的 key, 无缺省值 |
 |smlAutoChildTableNameDelimiter | schemaless tag之间的连接符，连起来作为子表名，无缺省值 |
-|smlTagName | schemaless tag 为空时默认的 tag 名字, 无缺省值 |
+|smlTagName | schemaless tag 为空时默认的 tag 名字, 缺省值 "_tag_null" |
 |smlTsDefaultName | schemaless自动建表的时间列名字通过该配置设置, 缺省值 "_ts" |
 |enableCoreFile | crash 时是否生成 core 文件，0: 不生成， 1： 生成；缺省值：1 |
 |enableScience | 是否开启科学计数法显示浮点数; 0: 不开始, 1: 开启；缺省值：1 |
@@ -41,4 +41,4 @@ TDengine 客户端驱动提供了应用编程所需要的全部 API，并且在�
 
 ## API
 
-请参考[连接器]
+请参考[连接器](../../connector)

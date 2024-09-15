@@ -181,7 +181,7 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
   // head
   pSet->pHeadF = (SHeadFile *)taosMemoryCalloc(1, sizeof(SHeadFile));
   if (pSet->pHeadF == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pSet->pHeadF->nRef = 1;
   n += tGetHeadFile(p + n, pSet->pHeadF);
@@ -189,7 +189,7 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
   // data
   pSet->pDataF = (SDataFile *)taosMemoryCalloc(1, sizeof(SDataFile));
   if (pSet->pDataF == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pSet->pDataF->nRef = 1;
   n += tGetDataFile(p + n, pSet->pDataF);
@@ -197,7 +197,7 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
   // sma
   pSet->pSmaF = (SSmaFile *)taosMemoryCalloc(1, sizeof(SSmaFile));
   if (pSet->pSmaF == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pSet->pSmaF->nRef = 1;
   n += tGetSmaFile(p + n, pSet->pSmaF);
@@ -207,7 +207,7 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
   for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) {
     pSet->aSttF[iStt] = (SSttFile *)taosMemoryCalloc(1, sizeof(SSttFile));
     if (pSet->aSttF[iStt] == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     pSet->aSttF[iStt]->nRef = 1;
     n += tGetSttFile(p + n, pSet->aSttF[iStt]);
@@ -221,7 +221,7 @@ void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]) {
   int32_t offset = 0;
   SVnode *pVnode = pTsdb->pVnode;
 
-  (void)vnodeGetPrimaryDir(pTsdb->path, pVnode->diskPrimary, pVnode->pTfs, fname, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pTsdb->path, pVnode->diskPrimary, pVnode->pTfs, fname, TSDB_FILENAME_LEN);
   offset = strlen(fname);
   snprintf((char *)fname + offset, TSDB_FILENAME_LEN - offset - 1, "%sv%dver%" PRId64 ".del", TD_DIRSEP,
            TD_VID(pTsdb->pVnode), pFile->commitID);

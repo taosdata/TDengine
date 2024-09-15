@@ -1,0 +1,5 @@
+select char_length();
+select char_length('tao's');
+select char_length(123.45);
+select char_length(123.45.67);
+select char_length('a', 'b');

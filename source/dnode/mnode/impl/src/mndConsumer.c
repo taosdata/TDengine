@@ -199,7 +199,7 @@ static void storeOffsetRows(SMnode *pMnode, SMqHbReq *req, SMqConsumerObj *pCons
     taosWLockLatch(&pSub->lock);
     SMqConsumerEp *pConsumerEp = taosHashGet(pSub->consumerHash, &pConsumer->consumerId, sizeof(int64_t));
     if (pConsumerEp) {
-      (void)taosArrayDestroy(pConsumerEp->offsetRows);
+      taosArrayDestroy(pConsumerEp->offsetRows);
       pConsumerEp->offsetRows = data->offsetRows;
       data->offsetRows = NULL;
     }
@@ -216,7 +216,7 @@ static int32_t buildMqHbRsp(SRpcMsg *pMsg, SMqHbRsp *rsp){
   }
   void   *buf = rpcMallocCont(tlen);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if(tSerializeSMqHbRsp(buf, tlen, rsp) <= 0){
@@ -261,7 +261,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
   rsp->topics = taosArrayInit(numOfTopics, sizeof(SMqSubTopicEp));
   if (rsp->topics == NULL) {
     taosRUnLockLatch(&pConsumer->lock);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   // handle all topics subscribed by this consumer
@@ -297,7 +297,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
         taosRUnLockLatch(&pSub->lock);
         mndReleaseSubscribe(pMnode, pSub);
         mndReleaseTopic(pMnode, pTopic);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       (void)memcpy(topicEp.schema.pSchema, pTopic->schema.pSchema, topicEp.schema.nCols * sizeof(SSchema));
     }
@@ -318,7 +318,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
       taosRUnLockLatch(&pConsumer->lock);
       taosRUnLockLatch(&pSub->lock);
       mndReleaseSubscribe(pMnode, pSub);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     for (int32_t j = 0; j < vgNum; j++) {
@@ -334,9 +334,21 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
         }
       }
       SMqSubVgEp vgEp = {.epSet = pVgEp->epSet, .vgId = pVgEp->vgId, .offset = -1};
-      (void)taosArrayPush(topicEp.vgs, &vgEp);
+      if (taosArrayPush(topicEp.vgs, &vgEp) == NULL) {
+        taosArrayDestroy(topicEp.vgs);
+        taosRUnLockLatch(&pConsumer->lock);
+        taosRUnLockLatch(&pSub->lock);
+        mndReleaseSubscribe(pMnode, pSub);
+        return terrno;
+      }
     }
-    (void)taosArrayPush(rsp->topics, &topicEp);
+    if (taosArrayPush(rsp->topics, &topicEp) == NULL) {
+      taosArrayDestroy(topicEp.vgs);
+      taosRUnLockLatch(&pConsumer->lock);
+      taosRUnLockLatch(&pSub->lock);
+      mndReleaseSubscribe(pMnode, pSub);
+      return terrno;
+    }
     taosRUnLockLatch(&pSub->lock);
     mndReleaseSubscribe(pMnode, pSub);
   }
@@ -350,7 +362,7 @@ static int32_t buildAskEpRsp(SRpcMsg *pMsg, SMqAskEpRsp *rsp, int32_t serverEpoc
   int32_t tlen = sizeof(SMqRspHead) + tEncodeSMqAskEpRsp(NULL, rsp);
   void   *buf = rpcMallocCont(tlen);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SMqRspHead *pHead = buf;
@@ -499,6 +511,11 @@ static int32_t getTopicAddDelete(SMqConsumerObj *pExistedConsumer, SMqConsumerOb
       }
     }
   }
+  // no topics need to be rebalanced
+  if (taosArrayGetSize(pConsumerNew->rebNewTopics) == 0 && taosArrayGetSize(pConsumerNew->rebRemovedTopics) == 0) {
+    code = TSDB_CODE_TMQ_NO_NEED_REBALANCE;
+  }
+
 END:
   return code;
 }
@@ -569,6 +586,10 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   if(ubSubscribe){
     SMqConsumerObj *pConsumerTmp = NULL;
     MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, subscribe.consumerId, &pConsumerTmp));
+    if (taosArrayGetSize(pConsumerTmp->assignedTopics) == 0){
+      mndReleaseConsumer(pMnode, pConsumerTmp);
+      goto END;
+    }
     mndReleaseConsumer(pMnode, pConsumerTmp);
   }
   MND_TMQ_RETURN_CHECK(checkAndSortTopic(pMnode, subscribe.topicNames));
@@ -587,7 +608,7 @@ END:
   mndTransDrop(pTrans);
   tDeleteSMqConsumerObj(pConsumerNew);
   taosArrayDestroyP(subscribe.topicNames, (FDelete)taosMemoryFree);
-  return code;
+  return (code == TSDB_CODE_TMQ_NO_NEED_REBALANCE || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) ? 0 : code;
 }
 
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
@@ -991,7 +1012,7 @@ END:
 
 static void mndCancelGetNextConsumer(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_CONSUMER);
 }
 
 const char *mndConsumerStatusName(int status) {

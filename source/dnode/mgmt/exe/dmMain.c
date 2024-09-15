@@ -59,6 +59,7 @@ static struct {
 #endif
   bool         dumpConfig;
   bool         dumpSdb;
+  bool         deleteTrans;
   bool         generateGrant;
   bool         memDbg;
   bool         checkS3;
@@ -146,12 +147,14 @@ static void dmSetSignalHandle() {
   (void)taosSetSignal(SIGQUIT, dmStopDnode);
 #endif
 
+#if 0
 #ifndef WINDOWS
   (void)taosSetSignal(SIGBUS, dmLogCrash);
 #endif
   (void)taosSetSignal(SIGABRT, dmLogCrash);
   (void)taosSetSignal(SIGFPE, dmLogCrash);
   (void)taosSetSignal(SIGSEGV, dmLogCrash);
+#endif
 }
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
@@ -187,6 +190,8 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-s") == 0) {
       global.dumpSdb = true;
+    } else if (strcmp(argv[i], "-dTxn") == 0) {
+      global.deleteTrans = true;
     } else if (strcmp(argv[i], "-E") == 0) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
@@ -429,6 +434,22 @@ int mainWindows(int argc, char **argv) {
 
   if (global.dumpSdb) {
     mndDumpSdb();
+    taosCleanupCfg();
+    taosCloseLog();
+    taosCleanupArgs();
+    taosConvDestroy();
+    return 0;
+  }
+
+  if (global.deleteTrans) {
+    TdFilePtr pFile;
+    if ((code = dmCheckRunning(tsDataDir, &pFile)) != 0) {
+      printf("failed to generate encrypt code since taosd is running, please stop it first, reason:%s",
+             tstrerror(code));
+      return code;
+    }
+
+    mndDeleteTrans();
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();

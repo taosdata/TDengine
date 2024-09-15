@@ -57,13 +57,11 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   if (ths->state == TAOS_SYNC_STATE_LEADER || ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
-    if (pMsg->term > raftStoreGetTerm(ths)) {
+    if (pMsg->term != raftStoreGetTerm(ths)) {
       syncLogRecvAppendEntriesReply(ths, pMsg, "error term");
       syncNodeStepDown(ths, pMsg->term);
       return TSDB_CODE_SYN_WRONG_TERM;
     }
-
-    ASSERT(pMsg->term == raftStoreGetTerm(ths));
 
     sTrace("vgId:%d, received append entries reply. srcId:0x%016" PRIx64 ",  term:%" PRId64 ", matchIndex:%" PRId64 "",
            pMsg->vgId, pMsg->srcId.addr, pMsg->term, pMsg->matchIndex);

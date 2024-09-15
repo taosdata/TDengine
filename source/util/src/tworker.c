@@ -31,7 +31,7 @@ int32_t tQWorkerInit(SQWorkerPool *pool) {
   pool->workers = taosMemoryCalloc(pool->max, sizeof(SQueueWorker));
   if (pool->workers == NULL) {
     taosCloseQset(pool->qset);
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (void)taosThreadMutexInit(&pool->mutex, NULL);
@@ -105,7 +105,6 @@ static void *tQWorkerThreadFp(SQueueWorker *worker) {
     taosUpdateItemSize(qinfo.queue, 1);
   }
 
-  destroyThreadLocalGeosCtx();
   DestoryThreadLocalRegComp();
 
   return NULL;
@@ -311,7 +310,7 @@ int32_t tWWorkerInit(SWWorkerPool *pool) {
   pool->nextId = 0;
   pool->workers = taosMemoryCalloc(pool->max, sizeof(SWWorker));
   if (pool->workers == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (void)taosThreadMutexInit(&pool->mutex, NULL);
@@ -460,7 +459,7 @@ int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) 
     case QWORKER_POOL: {
       SQWorkerPool *pPool = taosMemoryCalloc(1, sizeof(SQWorkerPool));
       if (!pPool) {
-        return terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       pPool->name = pCfg->name;
       pPool->min = pCfg->min;
@@ -478,7 +477,7 @@ int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) 
     case QUERY_AUTO_QWORKER_POOL: {
       SQueryAutoQWorkerPool *pPool = taosMemoryCalloc(1, sizeof(SQueryAutoQWorkerPool));
       if (!pPool) {
-        return (terrno = TSDB_CODE_OUT_OF_MEMORY);
+        return terrno;
       }
       pPool->name = pCfg->name;
       pPool->min = pCfg->min;
@@ -494,7 +493,7 @@ int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) 
       }
     } break;
     default:
-      assert(0);
+      return TSDB_CODE_INVALID_PARA;
   }
   return 0;
 }
@@ -517,7 +516,7 @@ void tSingleWorkerCleanup(SSingleWorker *pWorker) {
       taosMemoryFree(pWorker->pool);
       break;
     default:
-      assert(0);
+      break;
   }
 }
 
@@ -665,7 +664,6 @@ static void *tQueryAutoQWorkerThreadFp(SQueryAutoQWorker *worker) {
     }
   }
 
-  destroyThreadLocalGeosCtx();
   DestoryThreadLocalRegComp();
 
   return NULL;
@@ -812,10 +810,9 @@ int32_t tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pool) {
   if (!pool->exitedWorkers) return TSDB_CODE_OUT_OF_MEMORY;
   pool->maxInUse = pool->max * 2 + 2;
 
-
   if (!pool->pCb) {
     pool->pCb = taosMemoryCalloc(1, sizeof(SQueryAutoQWorkerPoolCB));
-    if (!pool->pCb) return TSDB_CODE_OUT_OF_MEMORY;
+    if (!pool->pCb) return terrno;
     pool->pCb->pPool = pool;
     pool->pCb->beforeBlocking = tQueryAutoQWorkerBeforeBlocking;
     pool->pCb->afterRecoverFromBlocking = tQueryAutoQWorkerRecoverFromBlocking;
@@ -890,9 +887,9 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
     taosMemoryFree(pNode);
   }
 
-  (void)tdListFree(pPool->workers);
-  (void)tdListFree(pPool->backupWorkers);
-  (void)tdListFree(pPool->exitedWorkers);
+  pPool->workers = tdListFree(pPool->workers);
+  pPool->backupWorkers = tdListFree(pPool->backupWorkers);
+  pPool->exitedWorkers = tdListFree(pPool->exitedWorkers);
   taosMemoryFree(pPool->pCb);
 
   (void)taosThreadMutexDestroy(&pPool->poolLock);

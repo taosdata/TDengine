@@ -272,24 +272,35 @@ typedef struct SCheckpointInfo {
   int64_t                processedVer;
   int64_t                nextProcessVer;  // current offset in WAL, not serialize it
   int64_t                msgVer;
-  int32_t                consensusTransId;  // consensus checkpoint id
   SActiveCheckpointInfo* pActiveInfo;
 } SCheckpointInfo;
 
+typedef enum {
+  TASK_CONSEN_CHKPT_REQ = 0x1,
+  TASK_CONSEN_CHKPT_SEND = 0x2,
+  TASK_CONSEN_CHKPT_RECV = 0x3,
+} EConsenChkptStatus;
+
+typedef struct SConsenChkptInfo {
+//  bool               alreadySendChkptId;
+  EConsenChkptStatus status;
+  int64_t            statusTs;
+  int32_t            consenChkptTransId;
+} SConsenChkptInfo;
+
 typedef struct SStreamStatus {
-  SStreamTaskSM* pSM;
-  int8_t         taskStatus;
-  int8_t         downstreamReady;  // downstream tasks are all ready now, if this flag is set
-  int8_t         schedStatus;
-  int8_t         statusBackup;
-  int32_t        schedIdleTime;  // idle time before invoke again
-  int32_t        timerActive;    // timer is active
-  int64_t        lastExecTs;     // last exec time stamp
-  int32_t        inScanHistorySentinel;
-  bool           appendTranstateBlock;  // has append the transfer state data block already
-  bool           removeBackendFiles;    // remove backend files on disk when free stream tasks
-  bool           sendConsensusChkptId;
-  bool           requireConsensusChkptId;
+  SStreamTaskSM*   pSM;
+  int8_t           taskStatus;
+  int8_t           downstreamReady;  // downstream tasks are all ready now, if this flag is set
+  int8_t           schedStatus;
+  int8_t           statusBackup;
+  int32_t          schedIdleTime;  // idle time before invoke again
+  int32_t          timerActive;    // timer is active
+  int64_t          lastExecTs;     // last exec time stamp
+  int32_t          inScanHistorySentinel;
+  bool             appendTranstateBlock;  // has append the transfer state data block already
+  bool             removeBackendFiles;    // remove backend files on disk when free stream tasks
+  SConsenChkptInfo consenChkptInfo;
 } SStreamStatus;
 
 typedef struct SDataRange {
@@ -625,7 +636,7 @@ typedef struct SCheckpointConsensusInfo {
   int64_t streamId;
 } SCheckpointConsensusInfo;
 
-int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
+void    streamSetupScheduleTrigger(SStreamTask* pTask);
 
 // dispatch related
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
@@ -662,7 +673,7 @@ int8_t  streamTaskSetSchedStatusInactive(SStreamTask* pTask);
 int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t clearRelHalt);
 
 int32_t streamExecTask(SStreamTask* pTask);
-void    streamResumeTask(SStreamTask* pTask);
+int32_t streamResumeTask(SStreamTask* pTask);
 int32_t streamTrySchedExec(SStreamTask* pTask);
 int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId, int32_t execType);
 void    streamTaskResumeInFuture(SStreamTask* pTask);
@@ -694,7 +705,7 @@ int32_t streamTaskSetActiveCheckpointInfo(SStreamTask* pTask, int64_t activeChec
 void    streamTaskSetFailedChkptInfo(SStreamTask* pTask, int32_t transId, int64_t checkpointId);
 bool    streamTaskAlreadySendTrigger(SStreamTask* pTask, int32_t downstreamNodeId);
 void    streamTaskGetTriggerRecvStatus(SStreamTask* pTask, int32_t* pRecved, int32_t* pTotal);
-void    streamTaskInitTriggerDispatchInfo(SStreamTask* pTask);
+int32_t streamTaskInitTriggerDispatchInfo(SStreamTask* pTask);
 void    streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId);
 int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId, int32_t downstreamNodeId,
                                            SRpcHandleInfo* pInfo, int32_t code);
@@ -774,11 +785,15 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 bool    streamMetaAllTasksReady(const SStreamMeta* pMeta);
 int32_t streamTaskSendNegotiateChkptIdMsg(SStreamTask* pTask);
+int32_t streamTaskCheckIfReqConsenChkptId(SStreamTask* pTask, int64_t ts);
+void    streamTaskSetConsenChkptIdRecv(SStreamTask* pTask, int32_t transId, int64_t ts);
+void    streamTaskSetReqConsenChkptId(SStreamTask* pTask, int64_t ts);
 
 // timer
 int32_t streamTimerGetInstance(tmr_h* pTmr);
 void    streamTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId, int32_t vgId,
                        const char* pMsg);
+void    streamTmrStop(tmr_h tmrId);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
@@ -796,6 +811,7 @@ int32_t streamTaskBuildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRp
 int32_t streamSendChkptReportMsg(SStreamTask* pTask, SCheckpointInfo* pCheckpointInfo, int8_t dropRelHTask);
 int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SVUpdateCheckpointInfoReq* pReq);
 int32_t streamTaskCreateActiveChkptInfo(SActiveCheckpointInfo** pRes);
+void    streamTaskSetCheckpointFailed(SStreamTask* pTask);
 
 // stream task state machine, and event handling
 int32_t streamCreateStateMachine(SStreamTask* pTask);

@@ -57,6 +57,7 @@ typedef struct SSubmitRspParam {
 int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SSubmitRspParam*     pParam = (SSubmitRspParam*)param;
   SDataInserterHandle* pInserter = pParam->pInserter;
+  int32_t code2 = 0;
 
   if (code) {
     pInserter->submitRes.code = code;
@@ -106,7 +107,14 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
 
 _return:
 
-  (void)tsem_post(&pInserter->ready);
+  code2 = tsem_post(&pInserter->ready);
+  if (code2 < 0) {
+    qError("tsem_post inserter ready failed, error:%s", tstrerror(code2));
+    if (TSDB_CODE_SUCCESS == code) {
+      pInserter->submitRes.code = code2;
+    }
+  }
+  
   taosMemoryFree(pMsg->pData);
 
   return TSDB_CODE_SUCCESS;
@@ -233,7 +241,12 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         case TSDB_DATA_TYPE_NCHAR:
         case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
-          ASSERT(pColInfoData->info.type == pCol->type);
+          if (pColInfoData->info.type != pCol->type) {
+            qError("column:%d type:%d in block dismatch with schema col:%d type:%d", colIdx, pColInfoData->info.type, k,
+                   pCol->type);
+            terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+            goto _end;
+          }
           if (colDataIsNull_s(pColInfoData, j)) {
             SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
             if (NULL == taosArrayPush(pVals, &cv)) {

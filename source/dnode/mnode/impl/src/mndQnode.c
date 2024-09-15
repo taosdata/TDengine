@@ -249,7 +249,7 @@ static int32_t mndSetCreateQnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &dropReq);
   void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
   (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
@@ -380,7 +380,7 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
   int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &dropReq);
   void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
   (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
@@ -483,7 +483,7 @@ int32_t mndCreateQnodeList(SMnode *pMnode, SArray **pList, int32_t limit) {
   SArray *qnodeList = taosArrayInit(5, sizeof(SQueryNodeLoad));
   if (NULL == qnodeList) {
     mError("failed to alloc epSet while process qnode list req");
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 
@@ -498,7 +498,12 @@ int32_t mndCreateQnodeList(SMnode *pMnode, SArray **pList, int32_t limit) {
     nodeLoad.addr.epSet.eps[0].port = pObj->pDnode->port;
     nodeLoad.load = QNODE_LOAD_VALUE(pObj);
 
-    (void)taosArrayPush(qnodeList, &nodeLoad);
+    if (taosArrayPush(qnodeList, &nodeLoad) == NULL) {
+      sdbRelease(pSdb, pObj);
+      sdbCancelFetch(pSdb, pIter);
+      if (terrno != 0) code = terrno;
+      return code;
+    }
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
@@ -527,7 +532,7 @@ static int32_t mndProcessQnodeListReq(SRpcMsg *pReq) {
   int32_t rspLen = tSerializeSQnodeListRsp(NULL, 0, &qlistRsp);
   void   *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -577,5 +582,5 @@ static int32_t mndRetrieveQnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
 static void mndCancelGetNextQnode(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_QNODE);
 }

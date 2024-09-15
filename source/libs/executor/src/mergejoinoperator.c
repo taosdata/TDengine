@@ -474,8 +474,11 @@ int32_t mJoinCopyMergeMidBlk(SMJoinMergeCtx* pCtx, SSDataBlock** ppMid, SSDataBl
     pCtx->midRemains = false;
   } else {
     int32_t copyRows = pMore->info.capacity - pMore->info.rows;
-    MJ_ERR_RET(blockDataMergeNRows(pMore, pLess, pLess->info.rows - copyRows, copyRows));
-    blockDataShrinkNRows(pLess, copyRows);
+    if (copyRows > 0) {
+      MJ_ERR_RET(blockDataMergeNRows(pMore, pLess, pLess->info.rows - copyRows, copyRows));
+      blockDataShrinkNRows(pLess, copyRows);
+    }
+    
     pCtx->midRemains = true;
   }
 
@@ -490,8 +493,6 @@ int32_t mJoinCopyMergeMidBlk(SMJoinMergeCtx* pCtx, SSDataBlock** ppMid, SSDataBl
 
 
 int32_t mJoinHandleMidRemains(SMJoinMergeCtx* pCtx) {
-  ASSERT(0 < pCtx->midBlk->info.rows);
-
   TSWAP(pCtx->midBlk, pCtx->finBlk);
 
   pCtx->midRemains = false;
@@ -567,7 +568,6 @@ int32_t mJoinMergeGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool app
   int32_t currRows = append ? pRes->info.rows : 0;
   int32_t firstRows = GRP_REMAIN_ROWS(pFirst);  
   int32_t secondRows = GRP_REMAIN_ROWS(pSecond);
-  ASSERT(secondRows > 0);
 
   for (int32_t c = 0; c < probe->finNum; ++c) {
     SMJoinColMap* pFirstCol = probe->finCols + c;
@@ -581,9 +581,15 @@ int32_t mJoinMergeGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool app
       if (colDataIsNull_s(pInCol, pFirst->readIdx + r)) {
         colDataSetNItemsNull(pOutCol, currRows + r * secondRows, secondRows);
       } else {
-        ASSERT(pRes->info.capacity >= (pRes->info.rows + firstRows * secondRows));
+        if (pRes->info.capacity < (pRes->info.rows + firstRows * secondRows)) {
+          qError("capacity:%d not enough, rows:%" PRId64 ", firstRows:%d, secondRows:%d", pRes->info.capacity, pRes->info.rows, firstRows, secondRows);
+          MJ_ERR_RET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+        }
         uint32_t startOffset = (IS_VAR_DATA_TYPE(pOutCol->info.type)) ? pOutCol->varmeta.length : ((currRows + r * secondRows) * pOutCol->info.bytes);
-        ASSERT((startOffset + 1 * pOutCol->info.bytes) <= pRes->info.capacity * pOutCol->info.bytes);
+        if ((startOffset + 1 * pOutCol->info.bytes) > pRes->info.capacity * pOutCol->info.bytes) {
+          qError("col buff not enough, startOffset:%d, bytes:%d, capacity:%d", startOffset, pOutCol->info.bytes, pRes->info.capacity);
+          MJ_ERR_RET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+        }
         MJ_ERR_RET(colDataSetNItems(pOutCol, currRows + r * secondRows, colDataGetData(pInCol, pFirst->readIdx + r), secondRows, true));
       }
     }
@@ -1097,7 +1103,6 @@ SSDataBlock* mJoinGrpRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTa
   }
 
   SMJoinTableCtx* pProbe = pJoin->probe;
-  ASSERT(pProbe->lastInGid);
 
   while (true) {
     if (pTable->remainInBlk) {
@@ -1373,7 +1378,9 @@ int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* whol
 _return:
 
   if (pTable->noKeepEqGrpRows || !keepGrp || (!pTable->multiEqGrpRows && !restart)) {
-    (void)taosArrayPop(pTable->eqGrps);
+    if (NULL == taosArrayPop(pTable->eqGrps)) {
+      code = terrno;
+    }
   } else {
     pTable->grpTotalRows += pGrp->endIdx - pGrp->beginIdx + 1;  
   }
@@ -1689,13 +1696,13 @@ void mJoinResetOperator(struct SOperatorInfo* pOperator) {
   pOperator->status = OP_OPENED;
 }
 
-SSDataBlock* mJoinMainProcess(struct SOperatorInfo* pOperator) {
+int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SMJoinOperatorInfo* pJoin = pOperator->info;
   int32_t code = TSDB_CODE_SUCCESS;
   if (pOperator->status == OP_EXEC_DONE) {
     if (NULL == pOperator->pDownstreamGetParams || NULL == pOperator->pDownstreamGetParams[0] || NULL == pOperator->pDownstreamGetParams[1]) {
       qDebug("%s merge join done", GET_TASKID(pOperator->pTaskInfo));
-      return NULL;
+      return code;
     } else {
       mJoinResetOperator(pOperator);
       qDebug("%s start new round merge join", GET_TASKID(pOperator->pTaskInfo));
@@ -1737,7 +1744,11 @@ SSDataBlock* mJoinMainProcess(struct SOperatorInfo* pOperator) {
   }
 
   pJoin->execInfo.resRows += pBlock ? pBlock->info.rows : 0;
-  return (pBlock && pBlock->info.rows > 0) ? pBlock : NULL;
+  if (pBlock && pBlock->info.rows > 0) {
+    *pResBlock = pBlock;
+  }
+
+  return code;
 }
 
 void destroyGrpArray(void* ppArray) {
@@ -1862,8 +1873,9 @@ int32_t mJoinSetImplFp(SMJoinOperatorInfo* pJoin) {
 
 int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                            SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
+  int32_t oldNum = numOfDownstream;
   bool newDownstreams = false;
   int32_t code = TSDB_CODE_SUCCESS;
   SOperatorInfo* pOperator = NULL;
@@ -1913,11 +1925,10 @@ _return:
   if (pInfo != NULL) {
     destroyMergeJoinOperator(pInfo);
   }
+  destroyOperatorAndDownstreams(pOperator, pDownstream, oldNum);
   if (newDownstreams) {
     taosMemoryFree(pDownstream);
   }
-
-  taosMemoryFree(pOperator);
   pTaskInfo->code = code;
   
   return code;

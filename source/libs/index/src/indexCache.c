@@ -75,6 +75,7 @@ static int32_t cacheSearchTerm(void* cache, SIndexTerm* term, SIdxTRslt* tr, STe
   if (cache == NULL) {
     return 0;
   }
+  int32_t     code = 0;
   MemTable*   mem = cache;
   IndexCache* pCache = mem->pCache;
 
@@ -98,6 +99,10 @@ static int32_t cacheSearchTerm(void* cache, SIndexTerm* term, SIdxTRslt* tr, STe
       } else if (c->operaType == DEL_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->add, tr->del, c->uid)
       }
+
+      if (code != 0) {
+        break;
+      }
     } else {
       break;
     }
@@ -105,7 +110,7 @@ static int32_t cacheSearchTerm(void* cache, SIndexTerm* term, SIdxTRslt* tr, STe
 
   taosMemoryFree(pCt);
   (void)tSkipListDestroyIter(iter);
-  return 0;
+  return code;
 }
 static int32_t cacheSearchPrefix(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
   // impl later
@@ -123,6 +128,8 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
   if (cache == NULL) {
     return 0;
   }
+
+  int32_t     code = TSDB_CODE_SUCCESS;
   MemTable*   mem = cache;
   IndexCache* pCache = mem->pCache;
 
@@ -130,7 +137,7 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
   if (pCt == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pCt->colVal = term->colVal;
@@ -146,14 +153,21 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
       break;
     }
     CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
-    TExeCond   cond = cmpFn(c->colVal, pCt->colVal, pCt->colType);
+    TExeCond cond = cmpFn(c->colVal, pCt->colVal, pCt->colType);
+    if (cond == FAILED) {
+      code = terrno;
+      goto _return;
+    }
     if (cond == MATCH) {
       if (c->operaType == ADD_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->del, tr->add, c->uid)
-        // taosArrayPush(result, &c->uid);
         *s = kTypeValue;
       } else if (c->operaType == DEL_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->add, tr->del, c->uid)
+      }
+
+      if (code != 0) {
+        break;
       }
     } else if (cond == CONTINUE) {
       continue;
@@ -161,9 +175,11 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
       break;
     }
   }
+
+_return:
   taosMemoryFree(pCt);
   (void)tSkipListDestroyIter(iter);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 static int32_t cacheSearchLessThan(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
   return cacheSearchCompareFunc(cache, term, tr, s, LT);
@@ -182,12 +198,14 @@ static int32_t cacheSearchTerm_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr
   if (cache == NULL) {
     return 0;
   }
+
+  int32_t     code = 0;
   MemTable*   mem = cache;
   IndexCache* pCache = mem->pCache;
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
   if (pCt == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pCt->colVal = term->colVal;
@@ -215,6 +233,10 @@ static int32_t cacheSearchTerm_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr
       } else if (c->operaType == DEL_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->add, tr->del, c->uid)
       }
+
+      if (code != 0) {
+        break;
+      }
     } else {
       break;
     }
@@ -223,9 +245,7 @@ static int32_t cacheSearchTerm_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr
   taosMemoryFree(pCt);
   taosMemoryFree(exBuf);
   (void)tSkipListDestroyIter(iter);
-  return 0;
-
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 static int32_t cacheSearchSuffix_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
   return TSDB_CODE_SUCCESS;
@@ -265,6 +285,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
   }
   _cache_range_compare cmpFn = idxGetCompare(type);
 
+  int32_t     code = TSDB_CODE_SUCCESS;
   MemTable*   mem = cache;
   IndexCache* pCache = mem->pCache;
 
@@ -308,9 +329,17 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
         continue;
       } else {
         char* p = taosMemoryCalloc(1, strlen(c->colVal) + 1);
+        if (NULL == p) {
+          code = terrno;
+          goto _return;
+        }
         memcpy(p, c->colVal, strlen(c->colVal));
         cond = cmpFn(p + skip, term->colVal, dType);
         taosMemoryFree(p);
+        if (cond == FAILED) {
+          code = terrno;
+          goto _return;
+        }
       }
     }
     if (cond == MATCH) {
@@ -320,6 +349,10 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
       } else if (c->operaType == DEL_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->add, tr->del, c->uid)
       }
+
+      if (code != 0) {
+        break;
+      }
     } else if (cond == CONTINUE) {
       continue;
     } else if (cond == BREAK) {
@@ -327,11 +360,12 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
     }
   }
 
+_return:
   taosMemoryFree(pCt);
   taosMemoryFree(exBuf);
   (void)tSkipListDestroyIter(iter);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 static int32_t cacheSearchRange(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
   // impl later
@@ -548,7 +582,7 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   // encode data
   CacheTerm* ct = taosMemoryCalloc(1, sizeof(CacheTerm));
   if (ct == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   // set up key
   ct->colType = term->colType;
@@ -558,7 +592,7 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
     ct->colVal = (char*)taosMemoryCalloc(1, sizeof(char) * (term->nColVal + 1));
     if (ct->colVal == NULL) {
       taosMemoryFree(ct);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     memcpy(ct->colVal, term->colVal, term->nColVal);
   }
@@ -781,7 +815,13 @@ static bool idxCacheIteratorNext(Iterate* itera) {
     iv->type = ct->operaType;
     iv->ver = ct->version;
     iv->colVal = taosStrdup(ct->colVal);
-    (void)taosArrayPush(iv->val, &ct->uid);
+    if (iv->colVal == NULL) {
+      return false;
+    }
+    if (taosArrayPush(iv->val, &ct->uid) == NULL) {
+      taosMemoryFree(iv->colVal);
+      return false;
+    }
   }
   return next;
 }

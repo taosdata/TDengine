@@ -342,7 +342,10 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
 
       // todo remove this
       void* pGpIdData = colDataGetData(pGpIdColInfo, rowId);
-      ASSERT(gid == *(int64_t*)pGpIdData);
+      if (gid != *(int64_t*)pGpIdData) {
+        tqError("s-task:%s vgId:%d invalid groupId:%" PRId64 " actual:%" PRId64 " in sink task", id, vgId, gid,
+                *(int64_t*)pGpIdData);
+      }
     }
 
     code = setCreateTableMsgTableName(pCreateTbReq, pDataBlock, stbFullName, gid,
@@ -549,7 +552,7 @@ int32_t buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t n
 
   SVCreateTbReq* pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
   if (pCreateTbReq == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   taosArrayClear(pTagArray);
@@ -747,7 +750,6 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
       return code;
     }
 
-    ASSERT(pRow);
     void* p = taosArrayPush(pTableData->aRowP, &pRow);
     if (p == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -779,8 +781,6 @@ int32_t doWaitForDstTableCreated(SVnode* pVnode, SStreamTask* pTask, STableSinkI
       bool isValid = isValidDstChildTable(&mr, vgId, dstTableName, suid);
       if (isValid) {  // not valid table, ignore it
         tqDebug("s-task:%s set uid:%" PRIu64 " for dstTable:%s from meta", id, mr.me.uid, pTableSinkInfo->name.data);
-        ASSERT(terrno == 0);
-
         // set the destination table uid
         (*uid) = mr.me.uid;
         pTableSinkInfo->uid = mr.me.uid;
@@ -802,7 +802,7 @@ int32_t doCreateSinkInfo(const char* pDstTableName, STableSinkInfo** pInfo) {
   int32_t nameLen = strlen(pDstTableName);
   (*pInfo) = taosMemoryCalloc(1, sizeof(STableSinkInfo) + nameLen + 1);
   if (*pInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pInfo)->name.len = nameLen;

@@ -656,6 +656,7 @@ use_current_timezone: {
   For example, if the time zone configured by the Client is UTC + 0800, TIMETRUNCATE ('2020-01-01 23:00:00', 1d, 0) returns the result of '2020-01-01 08:00:00'.
   When using TIMETRUNCATE ('2020-01-01 23:00:00', 1d, 1), the result is 2020-01-01 00:00:00 '.
   When use_current_timezone is not specified, use_current_timezone defaults to 1.
+- When truncating a time value to the week (1w), weeks are determined using the Unix epoch (1970-01-01T00:00:00Z UTC). The Unix epoch was on a Thursday, so all calculated weeks begin on Thursday.
 
 #### TIMEZONE
 
@@ -1383,7 +1384,7 @@ SELECT SERVER_VERSION();
 SELECT SERVER_STATUS();
 ```
 
-**Description**: The server status.
+**Description**: The server status. When checking the status of a cluster, the recommended way is to use `SHOW CLUSTER ALIVE;`. Unlike `SELECT SERVER_STATUS();`, it does not return an error when some nodes in the cluster are unavailable; instead, it returns different status codes. Plese check [SHOW CLUSTER ALIVE](https://docs.tdengine.com/reference/taos-sql/show/#show-cluster-alive) for details.
 
 ### CURRENT_USER
 

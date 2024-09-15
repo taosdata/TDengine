@@ -34,6 +34,7 @@
 #include "systable.h"
 #include "thttp.h"
 #include "tjson.h"
+#include "command.h"
 
 #define DB_VER_NUMBER   1
 #define DB_RESERVE_SIZE 27
@@ -629,7 +630,7 @@ static int32_t mndSetCreateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
     for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
       SVgObj   *pVgObj = pVgroups + v;
       SArbGroup arbGroup = {0};
-      mndArbGroupInitFromVgObj(pVgObj, &arbGroup);
+      TAOS_CHECK_RETURN(mndArbGroupInitFromVgObj(pVgObj, &arbGroup));
       TAOS_CHECK_RETURN(mndSetCreateArbGroupRedoLogs(pTrans, &arbGroup));
     }
   }
@@ -663,7 +664,7 @@ static int32_t mndSetCreateDbUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
     for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
       SVgObj   *pVgObj = pVgroups + v;
       SArbGroup arbGroup = {0};
-      mndArbGroupInitFromVgObj(pVgObj, &arbGroup);
+      TAOS_CHECK_RETURN(mndArbGroupInitFromVgObj(pVgObj, &arbGroup));
       TAOS_CHECK_RETURN(mndSetCreateArbGroupUndoLogs(pTrans, &arbGroup));
     }
   }
@@ -698,7 +699,7 @@ static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *
     for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
       SVgObj   *pVgObj = pVgroups + v;
       SArbGroup arbGroup = {0};
-      mndArbGroupInitFromVgObj(pVgObj, &arbGroup);
+      TAOS_CHECK_RETURN(mndArbGroupInitFromVgObj(pVgObj, &arbGroup));
       TAOS_CHECK_RETURN(mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup));
     }
   }
@@ -1156,44 +1157,30 @@ static int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
 }
 
 static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) {
-  int32_t code = 0;
+  int32_t code = 0, lino = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
+  SVgObj *pVgroup = NULL;
   SArray *pArray = mndBuildDnodesArray(pMnode, 0);
 
   while (1) {
-    SVgObj *pVgroup = NULL;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
     if (mndVgroupInDb(pVgroup, pNewDb->uid)) {
       SVgObj newVgroup = {0};
-      if ((code = mndBuildAlterVgroupAction(pMnode, pTrans, pOldDb, pNewDb, pVgroup, pArray, &newVgroup)) != 0) {
-        sdbCancelFetch(pSdb, pIter);
-        sdbRelease(pSdb, pVgroup);
-        taosArrayDestroy(pArray);
-        TAOS_RETURN(code);
-      }
+      TAOS_CHECK_GOTO(mndBuildAlterVgroupAction(pMnode, pTrans, pOldDb, pNewDb, pVgroup, pArray, &newVgroup), &lino,
+                      _err);
+
       if (pNewDb->cfg.withArbitrator != pOldDb->cfg.withArbitrator) {
         if (pNewDb->cfg.withArbitrator) {
           SArbGroup arbGroup = {0};
-          mndArbGroupInitFromVgObj(&newVgroup, &arbGroup);
-          if ((code = mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup)) != 0) {
-            sdbCancelFetch(pSdb, pIter);
-            sdbRelease(pSdb, pVgroup);
-            taosArrayDestroy(pArray);
-            TAOS_RETURN(code);
-          }
-
+          TAOS_CHECK_GOTO(mndArbGroupInitFromVgObj(&newVgroup, &arbGroup), &lino, _err);
+          TAOS_CHECK_GOTO(mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup), &lino, _err);
         } else {
           SArbGroup arbGroup = {0};
-          mndArbGroupInitFromVgObj(pVgroup, &arbGroup);
-          if ((code = mndSetDropArbGroupCommitLogs(pTrans, &arbGroup)) != 0) {
-            sdbCancelFetch(pSdb, pIter);
-            sdbRelease(pSdb, pVgroup);
-            taosArrayDestroy(pArray);
-            TAOS_RETURN(code);
-          }
+          TAOS_CHECK_GOTO(mndArbGroupInitFromVgObj(pVgroup, &arbGroup), &lino, _err);
+          TAOS_CHECK_GOTO(mndSetDropArbGroupCommitLogs(pTrans, &arbGroup), &lino, _err);
         }
       }
     }
@@ -1201,6 +1188,14 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     sdbRelease(pSdb, pVgroup);
   }
 
+  taosArrayDestroy(pArray);
+  TAOS_RETURN(code);
+
+_err:
+  mError("db:%s, %s failed at %d since %s", pNewDb->name, __func__, lino, tstrerror(code));
+
+  sdbCancelFetch(pSdb, pIter);
+  sdbRelease(pSdb, pVgroup);
   taosArrayDestroy(pArray);
   TAOS_RETURN(code);
 }
@@ -1563,7 +1558,7 @@ static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bo
   }
 
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 
@@ -1716,7 +1711,9 @@ void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
         }
       }
       vindex++;
-      (void)taosArrayPush(pVgList, &vgInfo);
+      if (taosArrayPush(pVgList, &vgInfo) == NULL) {
+        mError("db:%s, failed to push vgInfo to array, vgId:%d, but continue next", pDb->name, vgInfo.vgId);
+      }
     }
 
     sdbRelease(pSdb, pVgroup);
@@ -1732,7 +1729,7 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
   int32_t code = 0;
   pRsp->pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
   if (pRsp->pVgroupInfos == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 
@@ -1862,7 +1859,10 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
 
       rsp.useDbRsp->vgNum = taosArrayGetSize(rsp.useDbRsp->pVgroupInfos);
 
-      (void)taosArrayPush(batchRsp.pArray, &rsp);
+      if (taosArrayPush(batchRsp.pArray, &rsp) == NULL) {
+        if (terrno != 0) code = terrno;
+        return code;
+      }
 
       continue;
     }
@@ -1874,7 +1874,10 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       (void)memcpy(rsp.useDbRsp->db, pDbCacheInfo->dbFName, TSDB_DB_FNAME_LEN);
       rsp.useDbRsp->uid = pDbCacheInfo->dbId;
       rsp.useDbRsp->vgVersion = -1;
-      (void)taosArrayPush(batchRsp.pArray, &rsp);
+      if (taosArrayPush(batchRsp.pArray, &rsp) == NULL) {
+        if (terrno != 0) code = terrno;
+        return code;
+      }
       continue;
     }
 
@@ -1890,7 +1893,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       mndReleaseDb(pMnode, pDb);
       continue;
     } else {
-      mInfo("db:%s, valid dbinfo, vgVersion:%d cfgVersion:%d stateTs:%" PRId64
+      mTrace("db:%s, valid dbinfo, vgVersion:%d cfgVersion:%d stateTs:%" PRId64
             " numOfTables:%d, changed to vgVersion:%d cfgVersion:%d stateTs:%" PRId64 " numOfTables:%d",
             pDbCacheInfo->dbFName, pDbCacheInfo->vgVersion, pDbCacheInfo->cfgVersion, pDbCacheInfo->stateTs,
             pDbCacheInfo->numOfTable, pDb->vgVersion, pDb->cfgVersion, pDb->stateTs, numOfTable);
@@ -1946,7 +1949,11 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       rsp.useDbRsp->hashSuffix = pDb->cfg.hashSuffix;
     }
 
-    (void)taosArrayPush(batchRsp.pArray, &rsp);
+    if (taosArrayPush(batchRsp.pArray, &rsp) == NULL) {
+      mndReleaseDb(pMnode, pDb);
+      if (terrno != 0) code = terrno;
+      return code;
+    }
     mndReleaseDb(pMnode, pDb);
   }
 
@@ -2315,18 +2322,25 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     (void)colDataSetVal(pColInfo, rows, (const char *)strictVstr, false);
 
     char    durationVstr[128] = {0};
-    int32_t len = sprintf(&durationVstr[VARSTR_HEADER_SIZE], "%dm", pDb->cfg.daysPerFile);
+    int32_t len = formatDurationOrKeep(&durationVstr[VARSTR_HEADER_SIZE], pDb->cfg.daysPerFile);
+
     varDataSetLen(durationVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     (void)colDataSetVal(pColInfo, rows, (const char *)durationVstr, false);
 
-    char keepVstr[128] = {0};
+    char keepVstr[512] = {0};
+    char keep0Str[128] = {0};
+    char keep1Str[128] = {0};
+    char keep2Str[128] = {0};
+
+    int32_t lenKeep0 = formatDurationOrKeep(keep0Str, pDb->cfg.daysToKeep0);
+    int32_t lenKeep1 = formatDurationOrKeep(keep1Str, pDb->cfg.daysToKeep1);
+    int32_t lenKeep2 = formatDurationOrKeep(keep2Str, pDb->cfg.daysToKeep2);
+
     if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
-      len = sprintf(&keepVstr[VARSTR_HEADER_SIZE], "%dm,%dm,%dm", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2,
-                    pDb->cfg.daysToKeep0);
+        len = sprintf(&keepVstr[VARSTR_HEADER_SIZE], "%s,%s,%s", keep1Str, keep2Str, keep0Str);
     } else {
-      len = sprintf(&keepVstr[VARSTR_HEADER_SIZE], "%dm,%dm,%dm", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1,
-                    pDb->cfg.daysToKeep2);
+        len = sprintf(&keepVstr[VARSTR_HEADER_SIZE], "%s,%s,%s", keep0Str, keep1Str, keep2Str);
     }
     varDataSetLen(keepVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -2516,5 +2530,5 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
 static void mndCancelGetNextDb(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_DB);
 }

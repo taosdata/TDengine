@@ -62,7 +62,9 @@ void fstUnFinishedNodesPushEmpty(FstUnFinishedNodes* nodes, bool isFinal) {
   node->trans = taosArrayInit(16, sizeof(FstTransition));
 
   FstBuilderNodeUnfinished un = {.node = node, .last = NULL};
-  (void)taosArrayPush(nodes->stack, &un);
+  if (taosArrayPush(nodes->stack, &un) == NULL) {
+    fstBuilderNodeDestroy(node);
+  }
 }
 FstBuilderNode* fstUnFinishedNodesPopRoot(FstUnFinishedNodes* nodes) {
   FstBuilderNodeUnfinished* un = taosArrayPop(nodes->stack);
@@ -98,7 +100,7 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes* nodes, FstSlice bs, Output 
   }
   int32_t                   sz = taosArrayGetSize(nodes->stack) - 1;
   FstBuilderNodeUnfinished* un = taosArrayGet(nodes->stack, sz);
-  ASSERTS(un->last == NULL, "index-fst meet unexpected node");
+
   if (un->last != NULL) return;
 
   // FstLastTransition *trn = taosMemoryMalloc(sizeof(FstLastTransition));
@@ -120,7 +122,10 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes* nodes, FstSlice bs, Output 
     FstLastTransition* trn = fstLastTransitionCreate(data[i], 0);
 
     FstBuilderNodeUnfinished un = {.node = n, .last = trn};
-    (void)taosArrayPush(nodes->stack, &un);
+    if (taosArrayPush(nodes->stack, &un) == NULL) {
+      fstBuilderNodeDestroy(n);
+      taosMemoryFree(trn);
+    }
   }
   fstUnFinishedNodesPushEmpty(nodes, true);
 }
@@ -318,8 +323,6 @@ void fstStateCompileForAnyTrans(IdxFstFile* w, CompiledAddr addr, FstBuilderNode
 
 // set_comm_input
 void fstStateSetCommInput(FstState* s, uint8_t inp) {
-  ASSERT(s->state == OneTransNext || s->state == OneTrans);
-
   uint8_t val;
   COMMON_INDEX(inp, 0b111111, val);
   s->val = (s->val & fstStateDict[s->state].val) | val;
@@ -327,7 +330,6 @@ void fstStateSetCommInput(FstState* s, uint8_t inp) {
 
 // comm_input
 uint8_t fstStateCommInput(FstState* s, bool* null) {
-  ASSERT(s->state == OneTransNext || s->state == OneTrans);
   uint8_t v = s->val & 0b00111111;
   if (v == 0) {
     *null = true;
@@ -340,7 +342,6 @@ uint8_t fstStateCommInput(FstState* s, bool* null) {
 // input_len
 
 uint64_t fstStateInputLen(FstState* s) {
-  ASSERT(s->state == OneTransNext || s->state == OneTrans);
   bool null = false;
   (void)fstStateCommInput(s, &null);
   return null ? 1 : 0;
@@ -348,11 +349,9 @@ uint64_t fstStateInputLen(FstState* s) {
 
 // end_addr
 uint64_t fstStateEndAddrForOneTransNext(FstState* s, FstSlice* data) {
-  ASSERT(s->state == OneTransNext);
   return FST_SLICE_LEN(data) - 1 - fstStateInputLen(s);
 }
 uint64_t fstStateEndAddrForOneTrans(FstState* s, FstSlice* data, PackSizes sizes) {
-  ASSERT(s->state == OneTrans);
   return FST_SLICE_LEN(data) - 1 - fstStateInputLen(s) - 1  // pack size
          - FST_GET_TRANSITION_PACK_SIZE(sizes) - FST_GET_OUTPUT_PACK_SIZE(sizes);
 }
@@ -366,7 +365,6 @@ uint64_t fstStateEndAddrForAnyTrans(FstState* state, uint64_t version, FstSlice*
 }
 // input
 uint8_t fstStateInput(FstState* s, FstNode* node) {
-  ASSERT(s->state == OneTransNext || s->state == OneTrans);
   FstSlice* slice = &node->data;
   bool      null = false;
   uint8_t   inp = fstStateCommInput(s, &null);
@@ -374,7 +372,6 @@ uint8_t fstStateInput(FstState* s, FstNode* node) {
   return null == false ? inp : data[node->start - 1];
 }
 uint8_t fstStateInputForAnyTrans(FstState* s, FstNode* node, uint64_t i) {
-  ASSERT(s->state == AnyTrans);
   FstSlice* slice = &node->data;
 
   uint64_t at = node->start - fstStateNtransLen(s) - 1                             // pack size
@@ -386,7 +383,6 @@ uint8_t fstStateInputForAnyTrans(FstState* s, FstNode* node, uint64_t i) {
 
 // trans_addr
 CompiledAddr fstStateTransAddr(FstState* s, FstNode* node) {
-  ASSERT(s->state == OneTransNext || s->state == OneTrans);
   FstSlice* slice = &node->data;
   if (s->state == OneTransNext) {
     return (CompiledAddr)(node->end) - 1;
@@ -402,8 +398,6 @@ CompiledAddr fstStateTransAddr(FstState* s, FstNode* node) {
   }
 }
 CompiledAddr fstStateTransAddrForAnyTrans(FstState* s, FstNode* node, uint64_t i) {
-  ASSERT(s->state == AnyTrans);
-
   FstSlice* slice = &node->data;
   uint8_t   tSizes = FST_GET_TRANSITION_PACK_SIZE(node->sizes);
   uint64_t  at = node->start - fstStateNtransLen(s) - 1 - fstStateTransIndexSize(s, node->version, node->nTrans) -
@@ -414,7 +408,6 @@ CompiledAddr fstStateTransAddrForAnyTrans(FstState* s, FstNode* node, uint64_t i
 
 // sizes
 PackSizes fstStateSizes(FstState* s, FstSlice* slice) {
-  ASSERT(s->state == OneTrans || s->state == AnyTrans);
   uint64_t i;
   if (s->state == OneTrans) {
     i = FST_SLICE_LEN(slice) - 1 - fstStateInputLen(s) - 1;
@@ -427,8 +420,6 @@ PackSizes fstStateSizes(FstState* s, FstSlice* slice) {
 }
 // Output
 Output fstStateOutput(FstState* s, FstNode* node) {
-  ASSERT(s->state == OneTrans);
-
   uint8_t oSizes = FST_GET_OUTPUT_PACK_SIZE(node->sizes);
   if (oSizes == 0) {
     return 0;
@@ -441,8 +432,6 @@ Output fstStateOutput(FstState* s, FstNode* node) {
   return unpackUint64(data + i, oSizes);
 }
 Output fstStateOutputForAnyTrans(FstState* s, FstNode* node, uint64_t i) {
-  ASSERT(s->state == AnyTrans);
-
   uint8_t oSizes = FST_GET_OUTPUT_PACK_SIZE(node->sizes);
   if (oSizes == 0) {
     return 0;
@@ -458,19 +447,14 @@ Output fstStateOutputForAnyTrans(FstState* s, FstNode* node, uint64_t i) {
 // anyTrans specify function
 
 void fstStateSetFinalState(FstState* s, bool yes) {
-  ASSERT(s->state == AnyTrans);
   if (yes) {
     s->val |= 0b01000000;
   }
   return;
 }
-bool fstStateIsFinalState(FstState* s) {
-  ASSERT(s->state == AnyTrans);
-  return (s->val & 0b01000000) == 0b01000000;
-}
+bool fstStateIsFinalState(FstState* s) { return (s->val & 0b01000000) == 0b01000000; }
 
 void fstStateSetStateNtrans(FstState* s, uint8_t n) {
-  ASSERT(s->state == AnyTrans);
   if (n <= 0b00111111) {
     s->val = (s->val & 0b11000000) | n;
   }
@@ -478,7 +462,6 @@ void fstStateSetStateNtrans(FstState* s, uint8_t n) {
 }
 // state_ntrans
 uint8_t fstStateStateNtrans(FstState* s, bool* null) {
-  ASSERT(s->state == AnyTrans);
   *null = false;
   uint8_t n = s->val & 0b00111111;
 
@@ -488,16 +471,13 @@ uint8_t fstStateStateNtrans(FstState* s, bool* null) {
   return n;
 }
 uint64_t fstStateTotalTransSize(FstState* s, uint64_t version, PackSizes sizes, uint64_t nTrans) {
-  ASSERT(s->state == AnyTrans);
   uint64_t idxSize = fstStateTransIndexSize(s, version, nTrans);
   return nTrans + (nTrans * FST_GET_TRANSITION_PACK_SIZE(sizes)) + idxSize;
 }
 uint64_t fstStateTransIndexSize(FstState* s, uint64_t version, uint64_t nTrans) {
-  ASSERT(s->state == AnyTrans);
   return (version >= 2 && nTrans > TRANS_INDEX_THRESHOLD) ? 256 : 0;
 }
 uint64_t fstStateNtransLen(FstState* s) {
-  ASSERT(s->state == AnyTrans);
   bool null = false;
   (void)fstStateStateNtrans(s, &null);
   return null == true ? 1 : 0;
@@ -526,7 +506,6 @@ Output fstStateFinalOutput(FstState* s, uint64_t version, FstSlice* slice, PackS
   return unpackUint64(data + at, (uint8_t)oSizes);
 }
 uint64_t fstStateFindInput(FstState* s, FstNode* node, uint8_t b, bool* null) {
-  ASSERT(s->state == AnyTrans);
   FstSlice* slice = &node->data;
   if (node->version >= 2 && node->nTrans > TRANS_INDEX_THRESHOLD) {
     uint64_t at = node->start - fstStateNtransLen(s) - 1  // pack size
@@ -672,17 +651,14 @@ bool fstNodeGetTransitionAddrAt(FstNode* node, uint64_t i, CompiledAddr* res) {
   bool      s = true;
   FstState* st = &node->state;
   if (st->state == OneTransNext) {
-    ASSERT(i == 0);
     (void)fstStateTransAddr(st, node);
   } else if (st->state == OneTrans) {
-    ASSERT(i == 0);
     (void)fstStateTransAddr(st, node);
   } else if (st->state == AnyTrans) {
     (void)fstStateTransAddrForAnyTrans(st, node, i);
   } else if (FST_STATE_EMPTY_FINAL(node)) {
     s = false;
   } else {
-    ASSERT(0);
   }
   return s;
 }
@@ -718,7 +694,6 @@ bool fstNodeFindInput(FstNode* node, uint8_t b, uint64_t* res) {
 
 bool fstNodeCompile(FstNode* node, void* w, CompiledAddr lastAddr, CompiledAddr addr, FstBuilderNode* builderNode) {
   int32_t sz = taosArrayGetSize(builderNode->trans);
-  ASSERT(sz < 256);
   if (sz == 0 && builderNode->isFinal && builderNode->finalOutput == 0) {
     return true;
   } else if (sz != 1 || builderNode->isFinal) {
@@ -800,7 +775,6 @@ void fstBuilderInsertOutput(FstBuilder* b, FstSlice bs, Output in) {
   uint64_t prefixLen = fstUnFinishedNodesFindCommPrefixAndSetOutput(b->unfinished, bs, in, &out);
 
   if (prefixLen == FST_SLICE_LEN(s)) {
-    ASSERT(out == 0);
     return;
   }
 
@@ -844,7 +818,6 @@ void fstBuilderCompileFrom(FstBuilder* b, uint64_t istate) {
     addr = fstBuilderCompile(b, bn);
 
     fstBuilderNodeDestroy(bn);
-    ASSERT(addr != NONE_ADDRESS);
   }
   fstUnFinishedNodesTopLastFreeze(b->unfinished, addr);
   return;
@@ -924,7 +897,9 @@ void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished* unNode, Comp
     return;
   }
   FstTransition t = {.inp = trn->inp, .out = trn->out, .addr = addr};
-  (void)taosArrayPush(unNode->node->trans, &t);
+  if (taosArrayPush(unNode->node->trans, &t) == NULL) {
+    return;
+  }
   fstLastTransitionDestroy(trn);
   unNode->last = NULL;
   return;
@@ -1029,7 +1004,12 @@ bool fstGet(Fst* fst, FstSlice* b, Output* out) {
   uint8_t* data = fstSliceData(b, &len);
 
   SArray* nodes = (SArray*)taosArrayInit(len, sizeof(FstNode*));
-  (void)taosArrayPush(nodes, &root);
+  if (nodes == NULL) {
+    return false;
+  }
+  if (taosArrayPush(nodes, &root) == NULL) {
+    goto _return;
+  }
   for (uint32_t i = 0; i < len; i++) {
     uint8_t inp = data[i];
     Output  res = 0;
@@ -1041,7 +1021,9 @@ bool fstGet(Fst* fst, FstSlice* b, Output* out) {
     (void)fstNodeGetTransitionAt(root, res, &trn);
     tOut += trn.out;
     root = fstGetNode(fst, trn.addr);
-    (void)taosArrayPush(nodes, &root);
+    if (taosArrayPush(nodes, &root) == NULL) {
+      goto _return;
+    }
   }
   if (!FST_NODE_IS_FINAL(root)) {
     goto _return;
@@ -1188,7 +1170,9 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
                         .trans = 0,
                         .out = {.null = false, .out = 0},
                         .autState = automFuncs[aut->type].start(aut)};  // auto.start callback
-    (void)taosArrayPush(sws->stack, &s);
+    if (taosArrayPush(sws->stack, &s) == NULL) {
+      return false;
+    }
     return true;
   }
   FstSlice* key = NULL;
@@ -1217,12 +1201,16 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
       (void)fstNodeGetTransitionAt(node, res, &trn);
       void* preState = autState;
       autState = automFuncs[aut->type].accept(aut, preState, b);
-      (void)taosArrayPush(sws->inp, &b);
+      if (taosArrayPush(sws->inp, &b) == NULL) {
+        return false;
+      }
 
       FstStreamState s = {.node = node, .trans = res + 1, .out = {.null = false, .out = out}, .autState = preState};
       node = NULL;
 
-      (void)taosArrayPush(sws->stack, &s);
+      if (taosArrayPush(sws->stack, &s) == NULL) {
+        return false;
+      }
       out += trn.out;
       node = fstGetNode(sws->fst, trn.addr);
     } else {
@@ -1241,7 +1229,9 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
       }
 
       FstStreamState s = {.node = node, .trans = i, .out = {.null = false, .out = out}, .autState = autState};
-      (void)taosArrayPush(sws->stack, &s);
+      if (taosArrayPush(sws->stack, &s) == NULL) {
+        return false;
+      }
       taosMemoryFree(trans);
       return true;
     }
@@ -1262,7 +1252,9 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
       (void)fstNodeGetTransitionAt(n, trans - 1, &trn);
       FstStreamState s = {
           .node = fstGetNode(sws->fst, trn.addr), .trans = 0, .out = {.null = false, .out = out}, .autState = autState};
-      (void)taosArrayPush(sws->stack, &s);
+      if (taosArrayPush(sws->stack, &s) == NULL) {
+        return false;
+      }
       return true;
     }
     return false;
@@ -1305,8 +1297,14 @@ FStmStRslt* stmStNextWith(FStmSt* sws, streamCallback__fn callback) {
     bool   isMatch = automFuncs[aut->type].isMatch(aut, nextState);
 
     FstNode* nextNode = fstGetNode(sws->fst, trn.addr);
-    (void)taosArrayPush(nodes, &nextNode);
-    (void)taosArrayPush(sws->inp, &(trn.inp));
+    if (taosArrayPush(nodes, &nextNode) == NULL) {
+      taosArrayDestroy(nodes);
+      return NULL;
+    }
+    if (taosArrayPush(sws->inp, &(trn.inp)) == NULL) {
+      taosArrayDestroy(nodes);
+      return NULL;
+    }
 
     if (FST_NODE_IS_FINAL(nextNode)) {
       void* eofState = automFuncs[aut->type].acceptEof(aut, nextState);
@@ -1315,10 +1313,16 @@ FStmStRslt* stmStNextWith(FStmSt* sws, streamCallback__fn callback) {
       }
     }
     FstStreamState s1 = {.node = p->node, .trans = p->trans + 1, .out = p->out, .autState = p->autState};
-    (void)taosArrayPush(sws->stack, &s1);
+    if (taosArrayPush(sws->stack, &s1) == NULL) {
+      taosArrayDestroy(nodes);
+      return NULL;
+    }
 
     FstStreamState s2 = {.node = nextNode, .trans = 0, .out = {.null = false, .out = out}, .autState = nextState};
-    (void)taosArrayPush(sws->stack, &s2);
+    if (taosArrayPush(sws->stack, &s2) == NULL) {
+      taosArrayDestroy(nodes);
+      return NULL;
+    }
 
     int32_t  isz = taosArrayGetSize(sws->inp);
     uint8_t* buf = (uint8_t*)taosMemoryMalloc(isz * sizeof(uint8_t));
@@ -1389,11 +1393,18 @@ FStmBuilder* stmBuilderCreate(Fst* fst, FAutoCtx* aut) {
   b->aut = aut;
   b->min = fstBoundStateCreate(Unbounded, NULL);
   b->max = fstBoundStateCreate(Unbounded, NULL);
+
+  if (b->min == NULL || b->max == NULL) {
+    stmBuilderDestroy(b);
+    return NULL;
+  }
+
   return b;
 }
 void stmBuilderDestroy(FStmBuilder* b) {
-  fstSliceDestroy(&b->min->data);
-  fstSliceDestroy(&b->max->data);
+  if (b->min) fstSliceDestroy(&b->min->data);
+  if (b->max) fstSliceDestroy(&b->max->data);
+
   taosMemoryFreeClear(b->min);
   taosMemoryFreeClear(b->max);
   taosMemoryFree(b);

@@ -94,6 +94,7 @@ extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
 extern int32_t tsHeartbeatTimeout;
 extern int32_t tsSnapReplMaxWaitN;
+extern int64_t tsLogBufferMemoryAllowed;  // maximum allowed log buffer size in bytes for each dnode
 
 // arbitrator
 extern int32_t tsArbHeartBeatIntervalSec;
@@ -158,6 +159,7 @@ extern int32_t tsCacheLazyLoadThreshold;  // cost threshold for last/last_row lo
 
 // query client
 extern int32_t tsQueryPolicy;
+extern bool    tsQueryTbNotExistAsEmpty;
 extern int32_t tsQueryRspPolicy;
 extern int64_t tsQueryMaxConcurrentTables;
 extern int32_t tsQuerySmaOptimize;

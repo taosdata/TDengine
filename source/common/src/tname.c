@@ -87,12 +87,14 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 
 #endif
 
-SName* toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName) {
+void toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName) {
+  if (pName == NULL){
+    return;
+  }
   pName->type = TSDB_TABLE_NAME_T;
   pName->acctId = acctId;
   snprintf(pName->dbname, sizeof(pName->dbname), "%s", pDbName);
   snprintf(pName->tname, sizeof(pName->tname), "%s", pTableName);
-  return pName;
 }
 
 int32_t tNameExtractFullName(const SName* name, char* dst) {
@@ -105,7 +107,6 @@ int32_t tNameExtractFullName(const SName* name, char* dst) {
 
   size_t tnameLen = strlen(name->tname);
   if (tnameLen > 0) {
-    /*ASSERT(name->type == TSDB_TABLE_NAME_T);*/
     dst[len] = TS_PATH_DELIMITER[0];
 
     memcpy(dst + len + 1, name->tname, tnameLen);
@@ -154,13 +155,20 @@ int32_t tNameGetDbName(const SName* name, char* dst) {
 const char* tNameGetDbNameP(const SName* name) { return &name->dbname[0]; }
 
 int32_t tNameGetFullDbName(const SName* name, char* dst) {
-  return snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
+  if (name == NULL || dst == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  (void)snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
+  return 0;
 }
 
 bool tNameIsEmpty(const SName* name) { return name->type == 0 || name->acctId == 0; }
 
 const char* tNameGetTableName(const SName* name) {
-  ASSERT(name != NULL && name->type == TSDB_TABLE_NAME_T);
+  if (!(name != NULL && name->type == TSDB_TABLE_NAME_T)) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
   return &name->tname[0];
 }
 

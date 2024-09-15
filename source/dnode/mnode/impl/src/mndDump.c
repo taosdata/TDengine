@@ -616,7 +616,7 @@ void mndDumpSdb() {
   char      file[] = "sdb.json";
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = terrno;
     mError("failed to write %s since %s", file, terrstr());
     return;
   }
@@ -626,6 +626,32 @@ void mndDumpSdb() {
   (void)taosCloseFile(&pFile);
   tjsonDelete(json);
   taosMemoryFree(pCont);
+
+  mInfo("dump sdb info success");
+}
+
+void mndDeleteTrans() {
+  mInfo("start to dump sdb info to sdb.json");
+
+  char path[PATH_MAX * 2] = {0};
+  (void)snprintf(path, sizeof(path), "%s%smnode", tsDataDir, TD_DIRSEP);
+
+  SMsgCb msgCb = {0};
+  msgCb.reportStartupFp = reportStartup;
+  msgCb.sendReqFp = sendReq;
+  msgCb.sendSyncReqFp = sendSyncReq;
+  msgCb.sendRspFp = sendRsp;
+  msgCb.mgmt = (SMgmtWrapper *)(&msgCb);  // hack
+  tmsgSetDefault(&msgCb);
+
+  (void)walInit(NULL);
+  (void)syncInit();
+
+  SMnodeOpt opt = {.msgCb = msgCb};
+  SMnode   *pMnode = mndOpen(path, &opt);
+  if (pMnode == NULL) return;
+
+  (void)sdbWriteFileForDump(pMnode->pSdb);
 
   mInfo("dump sdb info success");
 }

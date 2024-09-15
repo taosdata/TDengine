@@ -38,7 +38,7 @@ int32_t tScalableBfInit(uint64_t expectedEntries, double errorRate, SScalableBf*
   }
   SScalableBf* pSBf = taosMemoryCalloc(1, sizeof(SScalableBf));
   if (pSBf == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _error);
   }
   pSBf->maxBloomFilters = DEFAULT_MAX_BLOOMFILTERS;
@@ -71,8 +71,7 @@ int32_t tScalableBfPutNoCheck(SScalableBf* pSBf, const void* keyBuf, uint32_t le
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pSBf->status == SBF_INVALID) {
-    code = TSDB_CODE_OUT_OF_BUFFER;
-    QUERY_CHECK_CODE(code, lino, _error);
+    return code;
   }
   int32_t       size = taosArrayGetSize(pSBf->bfArray);
   SBloomFilter* pNormalBf = taosArrayGetP(pSBf->bfArray, size - 1);
@@ -105,8 +104,8 @@ int32_t tScalableBfPut(SScalableBf* pSBf, const void* keyBuf, uint32_t len, int3
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pSBf->status == SBF_INVALID) {
-    code = TSDB_CODE_OUT_OF_BUFFER;
-    QUERY_CHECK_CODE(code, lino, _end);
+    (*winRes) = TSDB_CODE_FAILED;
+    return code;
   }
   uint64_t h1 = (uint64_t)pSBf->hashFn1(keyBuf, len);
   uint64_t h2 = (uint64_t)pSBf->hashFn2(keyBuf, len);
@@ -119,7 +118,8 @@ int32_t tScalableBfPut(SScalableBf* pSBf, const void* keyBuf, uint32_t len, int3
   }
 
   SBloomFilter* pNormalBf = taosArrayGetP(pSBf->bfArray, size - 1);
-  ASSERT(pNormalBf);
+  QUERY_CHECK_NULL(pNormalBf, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+
   if (tBloomFilterIsFull(pNormalBf)) {
     code = tScalableBfAddFilter(pSBf, pNormalBf->expectedEntries * pSBf->growth,
                                 pNormalBf->errorRate * DEFAULT_TIGHTENING_RATIO, &pNormalBf);
@@ -218,7 +218,7 @@ int32_t tScalableBfDecode(SDecoder* pDecoder, SScalableBf** ppSBf) {
   int32_t      lino = 0;
   SScalableBf* pSBf = taosMemoryCalloc(1, sizeof(SScalableBf));
   if (!pSBf) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _error);
   }
   pSBf->hashFn1 = HASH_FUNCTION_1;

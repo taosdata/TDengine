@@ -43,9 +43,13 @@ static const struct {
     [TSDB_FTYPE_STT] = {"stt", stt_to_json, stt_from_json},
 };
 
-void remove_file(const char *fname) {
-  (void)taosRemoveFile(fname);
-  tsdbInfo("file:%s is removed", fname);
+void tsdbRemoveFile(const char *fname) {
+  int32_t code = taosRemoveFile(fname);
+  if (code) {
+    tsdbError("failed to remove file:%s, code:%d, error:%s", fname, code, tstrerror(code));
+  } else {
+    tsdbInfo("file:%s is removed", fname);
+  }
 }
 
 static int32_t tfile_to_json(const STFile *file, cJSON *json) {
@@ -234,7 +238,7 @@ int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
   fobj[0]->f[0] = f[0];
   fobj[0]->state = TSDB_FSTATE_LIVE;
   fobj[0]->ref = 1;
-  (void)tsdbTFileName(pTsdb, f, fobj[0]->fname);
+  tsdbTFileName(pTsdb, f, fobj[0]->fname);
   // fobj[0]->nlevel = tfsGetLevel(pTsdb->pVnode->pTfs);
   fobj[0]->nlevel = vnodeNodeId(pTsdb->pVnode);
   return 0;
@@ -242,23 +246,34 @@ int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
 
 int32_t tsdbTFileObjRef(STFileObj *fobj) {
   int32_t nRef;
-  (void)(void)taosThreadMutexLock(&fobj->mutex);
-  ASSERT(fobj->ref > 0 && fobj->state == TSDB_FSTATE_LIVE);
+  (void)taosThreadMutexLock(&fobj->mutex);
+
+  if (fobj->ref <= 0 || fobj->state != TSDB_FSTATE_LIVE) {
+    tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, fobj->ref);
+    (void)taosThreadMutexUnlock(&fobj->mutex);
+    return TSDB_CODE_FAILED;
+  }
+
   nRef = ++fobj->ref;
-  (void)(void)taosThreadMutexUnlock(&fobj->mutex);
+  (void)taosThreadMutexUnlock(&fobj->mutex);
   tsdbTrace("ref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   return 0;
 }
 
 int32_t tsdbTFileObjUnref(STFileObj *fobj) {
-  (void)(void)taosThreadMutexLock(&fobj->mutex);
+  (void)taosThreadMutexLock(&fobj->mutex);
   int32_t nRef = --fobj->ref;
-  (void)(void)taosThreadMutexUnlock(&fobj->mutex);
-  ASSERT(nRef >= 0);
+  (void)taosThreadMutexUnlock(&fobj->mutex);
+
+  if (nRef < 0) {
+    tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
+    return TSDB_CODE_FAILED;
+  }
+
   tsdbTrace("unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     if (fobj->state == TSDB_FSTATE_DEAD) {
-      remove_file(fobj->fname);
+      tsdbRemoveFile(fobj->fname);
     }
     taosMemoryFree(fobj);
   }
@@ -268,7 +283,7 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
 
 static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
   if (fobj->f->type != TSDB_FTYPE_DATA || fobj->f->lcn < 1) {
-    remove_file(fobj->fname);
+    tsdbRemoveFile(fobj->fname);
     return;
   }
 
@@ -284,7 +299,7 @@ static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
     }
     snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", fobj->f->lcn);
 
-    remove_file(lc_path);
+    tsdbRemoveFile(lc_path);
 
   } else {
     // delete by data file prefix
@@ -313,13 +328,17 @@ static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
     }
     snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", fobj->f->lcn);
 
-    remove_file(lc_path);
+    tsdbRemoveFile(lc_path);
   }
 }
 
 int32_t tsdbTFileObjRemove(STFileObj *fobj) {
   (void)taosThreadMutexLock(&fobj->mutex);
-  ASSERT(fobj->state == TSDB_FSTATE_LIVE && fobj->ref > 0);
+  if (fobj->state != TSDB_FSTATE_LIVE || fobj->ref <= 0) {
+    tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, fobj->ref);
+    (void)taosThreadMutexUnlock(&fobj->mutex);
+    return TSDB_CODE_FAILED;
+  }
   fobj->state = TSDB_FSTATE_DEAD;
   int32_t nRef = --fobj->ref;
   (void)taosThreadMutexUnlock(&fobj->mutex);
@@ -333,7 +352,13 @@ int32_t tsdbTFileObjRemove(STFileObj *fobj) {
 
 int32_t tsdbTFileObjRemoveUpdateLC(STFileObj *fobj) {
   (void)taosThreadMutexLock(&fobj->mutex);
-  ASSERT(fobj->state == TSDB_FSTATE_LIVE && fobj->ref > 0);
+
+  if (fobj->state != TSDB_FSTATE_LIVE || fobj->ref <= 0) {
+    (void)taosThreadMutexUnlock(&fobj->mutex);
+    tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, fobj->ref);
+    return TSDB_CODE_FAILED;
+  }
+
   fobj->state = TSDB_FSTATE_DEAD;
   int32_t nRef = --fobj->ref;
   (void)taosThreadMutexUnlock(&fobj->mutex);
@@ -345,7 +370,7 @@ int32_t tsdbTFileObjRemoveUpdateLC(STFileObj *fobj) {
   return 0;
 }
 
-int32_t tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
+void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
   SVnode *pVnode = pTsdb->pVnode;
   STfs   *pTfs = pVnode->pTfs;
 
@@ -372,10 +397,9 @@ int32_t tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
              f->cid,                         //
              g_tfile_info[f->type].suffix);
   }
-  return 0;
 }
 
-int32_t tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
+void tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
   SVnode *pVnode = pTsdb->pVnode;
   STfs   *pTfs = pVnode->pTfs;
 
@@ -404,7 +428,6 @@ int32_t tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
              f->lcn,                            //
              g_tfile_info[f->type].suffix);
   }
-  return 0;
 }
 
 bool tsdbIsSameTFile(const STFile *f1, const STFile *f2) {

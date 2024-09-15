@@ -169,8 +169,7 @@ static int32_t hbGenerateVgInfoFromRsp(SDBVgInfo **pInfo, SUseDbRsp *rsp) {
   int32_t    code = 0;
   SDBVgInfo *vgInfo = taosMemoryCalloc(1, sizeof(SDBVgInfo));
   if (NULL == vgInfo) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    return code;
+    return terrno;
   }
 
   vgInfo->vgVersion = rsp->vgVersion;
@@ -181,7 +180,7 @@ static int32_t hbGenerateVgInfoFromRsp(SDBVgInfo **pInfo, SUseDbRsp *rsp) {
   vgInfo->vgHash = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (NULL == vgInfo->vgHash) {
     tscError("hash init[%d] failed", rsp->vgNum);
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _return;
   }
 
@@ -189,7 +188,7 @@ static int32_t hbGenerateVgInfoFromRsp(SDBVgInfo **pInfo, SUseDbRsp *rsp) {
     SVgroupInfo *pInfo = taosArrayGet(rsp->pVgroupInfos, j);
     if (taosHashPut(vgInfo->vgHash, &pInfo->vgId, sizeof(int32_t), pInfo, sizeof(SVgroupInfo)) != 0) {
       tscError("hash push failed, errno:%d", errno);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _return;
     }
   }
@@ -690,7 +689,7 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
     (void)releaseRequest(*rid);
     if (NULL == taosArrayPush(hbBasic->queryDesc, &desc)) {
       taosArrayDestroy(desc.subDesc);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     pIter = taosHashIterate(pObj->pRequests, pIter);
@@ -710,7 +709,7 @@ int32_t hbGetQueryBasicInfo(SClientHbKey *connKey, SClientHbReq *req) {
   if (NULL == hbBasic) {
     tscError("calloc %d failed", (int32_t)sizeof(SQueryHbReqBasic));
     releaseTscObj(connKey->tscRid);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   hbBasic->connId = pTscObj->connId;
@@ -778,7 +777,7 @@ static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClient
       pKv->value = qUserAuth;
       pKv->valueLen += sizeof(SUserAuthVersion);
     } else {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     }
     goto _return;
   }
@@ -786,7 +785,7 @@ static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClient
   // key/user not exist, add user
   SUserAuthVersion *user = taosMemoryMalloc(sizeof(SUserAuthVersion));
   if (!user) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _return;
   }
   tstrncpy(user->user, pTscObj->user, TSDB_USER_LEN);
@@ -1172,7 +1171,7 @@ static FORCE_INLINE void hbMgrInitHandle() {
 int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
   *pBatchReq = taosMemoryCalloc(1, sizeof(SClientHbBatchReq));
   if (pBatchReq == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   int32_t connKeyCnt = atomic_load_32(&pAppHbMgr->connKeyCnt);
   (*pBatchReq)->reqs = taosArrayInit(connKeyCnt, sizeof(SClientHbReq));
@@ -1437,7 +1436,7 @@ int32_t appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key, SAppHbMgr **pAppHbMg
   TSC_ERR_RET(hbMgrInit());
   *pAppHbMgr = taosMemoryMalloc(sizeof(SAppHbMgr));
   if (*pAppHbMgr == NULL) {
-    TSC_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    TSC_ERR_JRET(terrno);
   }
   // init stat
   (*pAppHbMgr)->startTime = taosGetTimestampMs();
@@ -1457,14 +1456,14 @@ int32_t appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key, SAppHbMgr **pAppHbMg
   (*pAppHbMgr)->activeInfo = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
 
   if ((*pAppHbMgr)->activeInfo == NULL) {
-    TSC_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    TSC_ERR_JRET(terrno);
   }
 
   // taosHashSetFreeFp(pAppHbMgr->activeInfo, tFreeClientHbReq);
 
   TSC_ERR_JRET(taosThreadMutexLock(&clientHbMgr.lock));
   if (taosArrayPush(clientHbMgr.appHbMgrs, &(*pAppHbMgr)) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     (void)taosThreadMutexUnlock(&clientHbMgr.lock);
     goto _return;
   }
@@ -1637,7 +1636,10 @@ void hbDeregisterConn(STscObj *pTscObj, SClientHbKey connKey) {
     SClientHbReq *pReq = taosHashAcquire(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
     if (pReq) {
       tFreeClientHbReq(pReq);
-      (void)taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
+      code = taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
+      if (TSDB_CODE_SUCCESS != code) {
+        tscError("hbDeregisterConn taosHashRemove error, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
+      }
       taosHashRelease(pAppHbMgr->activeInfo, pReq);
       (void)atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);
     }

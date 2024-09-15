@@ -84,12 +84,12 @@ int32_t tStatisBlockInit(STbStatisBlock *statisBlock) {
 
 _exit:
   if (code) {
-    TAOS_UNUSED(tStatisBlockDestroy(statisBlock));
+    tStatisBlockDestroy(statisBlock);
   }
   return code;
 }
 
-int32_t tStatisBlockDestroy(STbStatisBlock *statisBlock) {
+void tStatisBlockDestroy(STbStatisBlock *statisBlock) {
   statisBlock->numOfPKs = 0;
   statisBlock->numOfRecords = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->buffers); ++i) {
@@ -99,7 +99,6 @@ int32_t tStatisBlockDestroy(STbStatisBlock *statisBlock) {
     TAOS_UNUSED(tValueColumnDestroy(&statisBlock->firstKeyPKs[i]));
     TAOS_UNUSED(tValueColumnDestroy(&statisBlock->lastKeyPKs[i]));
   }
-  return 0;
 }
 
 int32_t tStatisBlockClear(STbStatisBlock *statisBlock) {
@@ -244,12 +243,12 @@ int32_t tBrinBlockInit(SBrinBlock *brinBlock) {
 
 _exit:
   if (code) {
-    (void)tBrinBlockDestroy(brinBlock);
+    tBrinBlockDestroy(brinBlock);
   }
   return code;
 }
 
-int32_t tBrinBlockDestroy(SBrinBlock *brinBlock) {
+void tBrinBlockDestroy(SBrinBlock *brinBlock) {
   brinBlock->numOfPKs = 0;
   brinBlock->numOfRecords = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->buffers); ++i) {
@@ -259,10 +258,9 @@ int32_t tBrinBlockDestroy(SBrinBlock *brinBlock) {
     TAOS_UNUSED(tValueColumnDestroy(&brinBlock->firstKeyPKs[i]));
     TAOS_UNUSED(tValueColumnDestroy(&brinBlock->lastKeyPKs[i]));
   }
-  return 0;
 }
 
-int32_t tBrinBlockClear(SBrinBlock *brinBlock) {
+void tBrinBlockClear(SBrinBlock *brinBlock) {
   brinBlock->numOfPKs = 0;
   brinBlock->numOfRecords = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->buffers); ++i) {
@@ -272,11 +270,12 @@ int32_t tBrinBlockClear(SBrinBlock *brinBlock) {
     TAOS_UNUSED(tValueColumnClear(&brinBlock->firstKeyPKs[i]));
     TAOS_UNUSED(tValueColumnClear(&brinBlock->lastKeyPKs[i]));
   }
-  return 0;
 }
 
 int32_t tBrinBlockPut(SBrinBlock *brinBlock, const SBrinRecord *record) {
-  ASSERT(record->firstKey.key.numOfPKs == record->lastKey.key.numOfPKs);
+  if (record->firstKey.key.numOfPKs != record->lastKey.key.numOfPKs) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   if (brinBlock->numOfRecords == 0) {  // the first row
     brinBlock->numOfPKs = record->firstKey.key.numOfPKs;

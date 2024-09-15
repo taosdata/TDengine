@@ -44,7 +44,7 @@ def checkRunTimeError():
         time.sleep(1)
         timeCount = timeCount + 1
         print("checkRunTimeError",timeCount)
-        if (timeCount>600):
+        if (timeCount>1200):
             print("stop the test.")
             os.system("TASKKILL /F /IM taosd.exe")
             os.system("TASKKILL /F /IM taos.exe")

@@ -558,7 +558,7 @@ static int32_t mndAllocStep(SMnode *pMnode, char *name, MndInitFp initFp, MndCle
   step.initFp = initFp;
   step.cleanupFp = cleanupFp;
   if (taosArrayPush(pMnode->pSteps, &step) == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   TAOS_RETURN(0);
@@ -784,7 +784,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
 
   int32_t code = syncProcessMsg(pMgmt->sync, pMsg);
   if (code != 0) {
-    mGError("vgId:1, failed to process sync msg:%p type:%s, errno: %s, code:0x%x", pMsg, TMSG_INFO(pMsg->msgType),
+    mGError("vgId:1, failed to process sync msg:%p type:%s, reason: %s, code:0x%x", pMsg, TMSG_INFO(pMsg->msgType),
             tstrerror(code), code);
   }
 
@@ -990,7 +990,9 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     } else {
       tstrncpy(desc.status, "offline", sizeof(desc.status));
     }
-    (void)taosArrayPush(pClusterInfo->dnodes, &desc);
+    if (taosArrayPush(pClusterInfo->dnodes, &desc) == NULL) {
+      mError("failed put dnode into array, but continue at this monitor report")
+    }
     sdbRelease(pSdb, pObj);
   }
 
@@ -1016,7 +1018,9 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
       tstrncpy(desc.role, syncStr(pObj->syncState), sizeof(desc.role));
       desc.syncState = pObj->syncState;
     }
-    (void)taosArrayPush(pClusterInfo->mnodes, &desc);
+    if (taosArrayPush(pClusterInfo->mnodes, &desc) == NULL) {
+      mError("failed to put mnode into array, but continue at this monitor report");
+    }
     sdbRelease(pSdb, pObj);
   }
 
@@ -1056,7 +1060,9 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
       pClusterInfo->vnodes_total++;
     }
 
-    (void)taosArrayPush(pVgroupInfo->vgroups, &desc);
+    if (taosArrayPush(pVgroupInfo->vgroups, &desc) == NULL) {
+      mError("failed to put vgroup into array, but continue at this monitor report")
+    }
     sdbRelease(pSdb, pVgroup);
   }
 
@@ -1077,7 +1083,9 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     (void)tNameFromString(&name2, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
     tstrncpy(desc.stb_name, tNameGetTableName(&name2), TSDB_TABLE_NAME_LEN);
 
-    (void)taosArrayPush(pStbInfo->stbs, &desc);
+    if (taosArrayPush(pStbInfo->stbs, &desc) == NULL) {
+      mError("failed to put stb into array, but continue at this monitor report");
+    }
     sdbRelease(pSdb, pStb);
   }
 

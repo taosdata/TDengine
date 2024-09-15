@@ -67,7 +67,8 @@ typedef struct STableCountScanOperatorInfo {
   SArray* stbUidList;  // when group by db_name and/or stable_name
 } STableCountScanOperatorInfo;
 
-static bool processBlockWithProbability(const SSampleExecInfo* pInfo);
+static bool    processBlockWithProbability(const SSampleExecInfo* pInfo);
+static int32_t doTableCountScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 
 bool processBlockWithProbability(const SSampleExecInfo* pInfo) {
 #if 0
@@ -89,7 +90,7 @@ static void switchCtxOrder(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
 }
 
 static int32_t overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockInfo, int32_t order, bool* overlap) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t     code = TSDB_CODE_SUCCESS;
   STimeWindow w = {0};
 
   // 0 by default, which means it is not a interval operator of the upstream operator.
@@ -100,7 +101,7 @@ static int32_t overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBloc
 
   if (order == TSDB_ORDER_ASC) {
     w = getAlignQueryTimeWindow(pInterval, pBlockInfo->window.skey);
-    if(w.ekey < pBlockInfo->window.skey) {
+    if (w.ekey < pBlockInfo->window.skey) {
       qError("w.ekey:%" PRId64 " < pBlockInfo->window.skey:%" PRId64, w.ekey, pBlockInfo->window.skey);
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
@@ -116,7 +117,7 @@ static int32_t overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBloc
         break;
       }
 
-      if(w.ekey <= pBlockInfo->window.ekey)  {
+      if (w.ekey <= pBlockInfo->window.ekey) {
         qError("w.ekey:%" PRId64 " <= pBlockInfo->window.ekey:%" PRId64, w.ekey, pBlockInfo->window.ekey);
         return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       }
@@ -127,7 +128,7 @@ static int32_t overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBloc
     }
   } else {
     w = getAlignQueryTimeWindow(pInterval, pBlockInfo->window.ekey);
-    if(w.skey > pBlockInfo->window.ekey) {
+    if (w.skey > pBlockInfo->window.ekey) {
       qError("w.skey:%" PRId64 " > pBlockInfo->window.skey:%" PRId64, w.skey, pBlockInfo->window.ekey);
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
@@ -143,7 +144,7 @@ static int32_t overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBloc
         break;
       }
 
-      if(w.skey >= pBlockInfo->window.skey){
+      if (w.skey >= pBlockInfo->window.skey) {
         qError("w.skey:%" PRId64 " >= pBlockInfo->window.skey:%" PRId64, w.skey, pBlockInfo->window.skey);
         return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       }
@@ -226,9 +227,8 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SDataBlockInfo*
 
     SResultRowEntryInfo* pEntry = getResultEntryInfo(pRow, i, pTableScanInfo->base.pdInfo.pExprSup->rowEntryInfoOffset);
 
-    int32_t reqStatus;
-    code = fmFuncDynDataRequired(functionId, pEntry, pBlockInfo, &reqStatus);
-    if (code != TSDB_CODE_SUCCESS || reqStatus != FUNC_DATA_REQUIRED_NOT_LOAD) {
+    EFuncDataRequired reqStatus = fmFuncDynDataRequired(functionId, pEntry, pBlockInfo);
+    if (reqStatus != FUNC_DATA_REQUIRED_NOT_LOAD) {
       notLoadBlock = false;
       break;
     }
@@ -399,7 +399,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     }
   }
 
-  if(*status != FUNC_DATA_REQUIRED_DATA_LOAD) {
+  if (*status != FUNC_DATA_REQUIRED_DATA_LOAD) {
     pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
     qError("%s loadDataBlock invalid status:%d", GET_TASKID(pTaskInfo), *status);
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -419,7 +419,11 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
       size_t size = taosArrayGetSize(pBlock->pDataBlock);
       bool   keep = false;
       code = doFilterByBlockSMA(pOperator->exprSupp.pFilterInfo, pBlock->pBlockAgg, size, pBlockInfo->rows, &keep);
-      QUERY_CHECK_CODE(code, lino, _end);
+      if (code) {
+        pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
+        qError("%s failed to do filter by block sma, code:%s", GET_TASKID(pTaskInfo), tstrerror(code));
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
 
       if (!keep) {
         qDebug("%s data block filter out by block SMA, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64,
@@ -584,14 +588,15 @@ static void freeTableCachedValObj(STableCachedVal* pVal) {
 
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
                                int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache) {
-  int32_t         code = TSDB_CODE_SUCCESS;
-  int32_t         lino = 0;
-  bool            freeReader = false;
-  LRUHandle*      h = NULL;
-  STableCachedVal val = {0};
-  SMetaReader     mr = {0};
-  const char*     idStr = pTask->id.str;
-  int32_t         insertRet = TAOS_LRU_STATUS_OK;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  bool             freeReader = false;
+  LRUHandle*       h = NULL;
+  STableCachedVal  val = {0};
+  SMetaReader      mr = {0};
+  const char*      idStr = pTask->id.str;
+  int32_t          insertRet = TAOS_LRU_STATUS_OK;
+  STableCachedVal* pVal = NULL;
 
   // currently only the tbname pseudo column
   if (numOfExpr <= 0) {
@@ -620,8 +625,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
         // append null value before return to caller, since the caller will ignore this error code and proceed
         doSetNullValue(pBlock, pExpr, numOfExpr);
       } else {
-        qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.id.uid, tstrerror(code),
-               idStr);
+        qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.id.uid, tstrerror(code), idStr);
       }
       pHandle->api.metaReaderFn.clearReader(&mr);
       return code;
@@ -639,6 +643,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
     h = taosLRUCacheLookup(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(pBlock->info.id.uid));
     if (h == NULL) {
       pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
+      freeReader = true;
       code = pHandle->api.metaReaderFn.getEntryGetUidCache(&mr, pBlock->info.id.uid);
       if (code != TSDB_CODE_SUCCESS) {
         if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
@@ -656,25 +661,17 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
       pHandle->api.metaReaderFn.readerReleaseLock(&mr);
 
-      STableCachedVal* pVal = NULL;
       code = createTableCacheVal(&mr, &pVal);
       QUERY_CHECK_CODE(code, lino, _end);
 
       val = *pVal;
-      freeReader = true;
-
-      insertRet = taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(uint64_t), pVal,
-                                       sizeof(STableCachedVal), freeCachedMetaItem, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
-      if (insertRet != TAOS_LRU_STATUS_OK) {
-        qError("failed to put meta into lru cache, code:%d, %s", insertRet, idStr);
-        taosMemoryFreeClear(pVal);
-      }
     } else {
       pCache->cacheHit += 1;
-      STableCachedVal* pVal = taosLRUCacheValue(pCache->pTableMetaEntryCache, h);
-      val = *pVal;
+      STableCachedVal* pValTmp = taosLRUCacheValue(pCache->pTableMetaEntryCache, h);
+      val = *pValTmp;
 
-      (void)taosLRUCacheRelease(pCache->pTableMetaEntryCache, h, false);
+      bool bRes = taosLRUCacheRelease(pCache->pTableMetaEntryCache, h, false);
+      qTrace("release LRU cache, res %d", bRes);
     }
 
     qDebug("retrieve table meta from cache:%" PRIu64 ", hit:%" PRIu64 " miss:%" PRIu64 ", %s", pCache->metaFetch,
@@ -723,12 +720,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
         if (IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {
           taosMemoryFree(data);
         }
-        if (code) {
-          if (freeReader) {
-            pHandle->api.metaReaderFn.clearReader(&mr);
-          }
-          return code;
-        }
+        QUERY_CHECK_CODE(code, lino, _end);
       } else {  // todo opt for json tag
         for (int32_t i = 0; i < pBlock->info.rows; ++i) {
           code = colDataSetVal(pColInfoData, i, data, false);
@@ -742,9 +734,15 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   pBlock->info.rows = backupRows;
 
 _end:
-  if (insertRet != TAOS_LRU_STATUS_OK) {
-    freeTableCachedValObj(&val);
+
+  if (NULL != pVal) {
+    insertRet = taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(uint64_t), pVal,
+                                   sizeof(STableCachedVal), freeCachedMetaItem, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
+    if (insertRet != TAOS_LRU_STATUS_OK) {
+      qWarn("failed to put meta into lru cache, code:%d, %s", insertRet, idStr);
+    }
   }
+
   if (freeReader) {
     pHandle->api.metaReaderFn.clearReader(&mr);
   }
@@ -890,7 +888,10 @@ void markGroupProcessed(STableScanInfo* pInfo, uint64_t groupId) {
   if (pInfo->base.pTableListInfo->groupOffset) {
     pInfo->countState = TABLE_COUNT_STATE_PROCESSED;
   } else {
-    (void)taosHashRemove(pInfo->base.pTableListInfo->remainGroups, &groupId, sizeof(groupId));
+    int32_t code = taosHashRemove(pInfo->base.pTableListInfo->remainGroups, &groupId, sizeof(groupId));
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    }
   }
 }
 
@@ -930,12 +931,12 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
   STableScanInfo* pTableScanInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
+  SSDataBlock*    pBlock = pTableScanInfo->pResBlock;
+  bool            hasNext = false;
+  int64_t         st = taosGetTimestampUs();
 
-  SSDataBlock* pBlock = pTableScanInfo->pResBlock;
-  bool         hasNext = false;
+  QRY_PARAM_CHECK(ppRes);
   pBlock->info.dataLoad = false;
-
-  int64_t st = taosGetTimestampUs();
 
   while (true) {
     code = pAPI->tsdReader.tsdNextDataBlock(pTableScanInfo->base.dataReader, &hasNext);
@@ -950,7 +951,7 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
 
     if (isTaskKilled(pTaskInfo)) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->base.dataReader);
-      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+      return pTaskInfo->code;
     }
 
     if (pOperator->status == OP_EXEC_DONE) {
@@ -986,6 +987,7 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
 
     pOperator->cost.totalCost = pTableScanInfo->base.readRecorder.elapsedTime;
     pBlock->info.scanFlag = pTableScanInfo->base.scanFlag;
+
     (*ppRes) = pBlock;
     return code;
   }
@@ -994,36 +996,34 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
   }
-  (*ppRes) = NULL;
   return code;
 }
 
-static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = doTableScanImplNext(pOperator, &pRes);
-  return pRes;
-}
-
-static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
+static int32_t doGroupedTableScan(SOperatorInfo* pOperator, SSDataBlock** pBlock) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   STableScanInfo* pTableScanInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
 
+  QRY_PARAM_CHECK(pBlock);
+
   // The read handle is not initialized yet, since no qualified tables exists
   if (pTableScanInfo->base.dataReader == NULL || pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    return code;
   }
 
   // do the ascending order traverse in the first place.
   while (pTableScanInfo->scanTimes < pTableScanInfo->scanInfo.numOfAsc) {
-    SSDataBlock* p = doTableScanImpl(pOperator);
+    SSDataBlock* p = NULL;
+    code = doTableScanImplNext(pOperator, &p);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     if (p != NULL) {
       markGroupProcessed(pTableScanInfo, p->info.id.groupId);
-      return p;
+      *pBlock = p;
+      return code;
     }
 
     pTableScanInfo->scanTimes += 1;
@@ -1051,10 +1051,14 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
     }
 
     while (pTableScanInfo->scanTimes < total) {
-      SSDataBlock* p = doTableScanImpl(pOperator);
+      SSDataBlock* p = NULL;
+      code = doTableScanImplNext(pOperator, &p);
+      QUERY_CHECK_CODE(code, lino, _end);
+
       if (p != NULL) {
         markGroupProcessed(pTableScanInfo, p->info.id.groupId);
-        return p;
+        *pBlock = p;
+        return code;
       }
 
       pTableScanInfo->scanTimes += 1;
@@ -1078,11 +1082,19 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
         pTableScanInfo->countState = TABLE_COUNT_STATE_PROCESSED;
         STableKeyInfo* pStart =
             (STableKeyInfo*)tableListGetInfo(pTableScanInfo->base.pTableListInfo, pTableScanInfo->tableStartIndex);
-        if (NULL == pStart) return NULL;
-        return getBlockForEmptyTable(pOperator, pStart);
+
+        if (NULL == pStart) {
+          return code;
+        }
+
+        *pBlock = getBlockForEmptyTable(pOperator, pStart);
+        return code;
       }
     } else {  // group by tag + no sort
-      int32_t numOfTables = tableListGetSize(pTableListInfo);
+      int32_t numOfTables = 0;
+      code = tableListGetSize(pTableListInfo, &numOfTables);
+      QUERY_CHECK_CODE(code, lino, _end);
+
       if (pTableScanInfo->tableEndIndex + 1 >= numOfTables) {
         // get empty group, mark processed & rm from hash
         void* pIte = taosHashIterate(pTableListInfo->remainGroups, NULL);
@@ -1092,7 +1104,9 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
           STableKeyInfo info = {.uid = *(uint64_t*)pIte, .groupId = *pGroupId};
           taosHashCancelIterate(pTableListInfo->remainGroups, pIte);
           markGroupProcessed(pTableScanInfo, *pGroupId);
-          return getBlockForEmptyTable(pOperator, &info);
+          *pBlock = getBlockForEmptyTable(pOperator, &info);
+
+          return code;
         }
       }
     }
@@ -1103,9 +1117,9 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
   }
-  return NULL;
+
+  return code;
 }
 
 static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
@@ -1165,20 +1179,26 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
   return code;
 }
 
-static SSDataBlock* startNextGroupScan(SOperatorInfo* pOperator) {
+static int32_t startNextGroupScan(SOperatorInfo* pOperator, SSDataBlock** pResult) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   STableScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
-  int32_t         numOfTables = tableListGetSize(pInfo->base.pTableListInfo);
+  int32_t         numOfTables = 0;
+
+  QRY_PARAM_CHECK(pResult);
+
+  code = tableListGetSize(pInfo->base.pTableListInfo, &numOfTables);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
     setOperatorCompleted(pOperator);
     if (pOperator->dynamicTask) {
       taosArrayClear(pInfo->base.pTableListInfo->pTableList);
       taosHashClear(pInfo->base.pTableListInfo->map);
     }
-    return NULL;
+    return code;
   }
 
   // reset value for the next group data output
@@ -1197,24 +1217,48 @@ static SSDataBlock* startNextGroupScan(SOperatorInfo* pOperator) {
   QUERY_CHECK_CODE(code, lino, _end);
   pInfo->scanTimes = 0;
 
-  SSDataBlock* result = doGroupedTableScan(pOperator);
-  if (result != NULL) {
+  code = doGroupedTableScan(pOperator, pResult);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  if (*pResult != NULL) {
     if (pOperator->dynamicTask) {
-      result->info.id.groupId = result->info.id.uid;
+      (*pResult)->info.id.groupId = (*pResult)->info.id.uid;
     }
-    return result;
+    return code;
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
   }
-  return NULL;
+  return code;
 }
 
-static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
+static int32_t doInitReader(STableScanInfo* pInfo, SExecTaskInfo* pTaskInfo, SStorageAPI* pAPI, int32_t* pNum,
+                            STableKeyInfo** pList) {
+  const char* idStr = GET_TASKID(pTaskInfo);
+  int32_t     code = initNextGroupScan(pInfo, pList, pNum);
+  if (code) {
+    qError("%s failed to init groupScan Info, code:%s at line:%d", idStr, tstrerror(code), __LINE__);
+    return code;
+  }
+
+  if (pInfo->base.dataReader != NULL) {
+    qError("%s tsdb reader should be null", idStr);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  code = pAPI->tsdReader.tsdReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, *pList, *pNum, pInfo->pResBlock,
+                                       (void**)&pInfo->base.dataReader, idStr, &pInfo->pIgnoreTables);
+  if (code) {
+    qError("%s failed to open tsdbReader, code:%s at line:%d", idStr, tstrerror(code), __LINE__);
+  }
+
+  return code;
+}
+
+static int32_t groupSeqTableScan(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   STableScanInfo* pInfo = pOperator->info;
@@ -1222,59 +1266,60 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
   int32_t         num = 0;
   STableKeyInfo*  pList = NULL;
-  SSDataBlock*    result = NULL;
+  SSDataBlock*    pResult = NULL;
+  const char*     idStr = GET_TASKID(pTaskInfo);
+
+  QRY_PARAM_CHECK(pResBlock);
 
   if (pInfo->currentGroupId == -1) {
     if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
       setOperatorCompleted(pOperator);
-      return NULL;
+      return code;
     }
 
     taosRLockLatch(&pTaskInfo->lock);
-    code = initNextGroupScan(pInfo, &pList, &num);
-
+    code = doInitReader(pInfo, pTaskInfo, pAPI, &num, &pList);
     taosRUnLockLatch(&pTaskInfo->lock);
     QUERY_CHECK_CODE(code, lino, _end);
-
-    ASSERT(pInfo->base.dataReader == NULL);
-
-    code = pAPI->tsdReader.tsdReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, pList, num, pInfo->pResBlock,
-                                         (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->pIgnoreTables);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
 
     if (pInfo->filesetDelimited) {
       pAPI->tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
     }
+
     if (pInfo->pResBlock->info.capacity > pOperator->resultInfo.capacity) {
       pOperator->resultInfo.capacity = pInfo->pResBlock->info.capacity;
     }
   }
 
-  result = doGroupedTableScan(pOperator);
-  if (result != NULL) {
+  code = doGroupedTableScan(pOperator, &pResult);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  if (pResult != NULL) {
     if (pOperator->dynamicTask) {
-      result->info.id.groupId = result->info.id.uid;
+      pResult->info.id.groupId = pResult->info.id.uid;
     }
-    return result;
+
+    *pResBlock = pResult;
+    return code;
   }
 
   while (true) {
-    result = startNextGroupScan(pOperator);
-    if (result || pOperator->status == OP_EXEC_DONE) {
-      return result;
+    code = startNextGroupScan(pOperator, &pResult);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    if (pResult || pOperator->status == OP_EXEC_DONE) {
+      *pResBlock = pResult;
+      return code;
     }
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s %s failed at line %d since %s", idStr, __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
   }
-  return result;
+
+  return code;
 }
 
 static int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
@@ -1283,6 +1328,7 @@ static int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   STableScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
+  QRY_PARAM_CHECK(ppRes);
 
   if (pOperator->pOperatorGetParam) {
     pOperator->dynamicTask = true;
@@ -1295,8 +1341,11 @@ static int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       pInfo->currentGroupId = -1;
       pOperator->status = OP_OPENED;
       SSDataBlock* result = NULL;
+
       while (true) {
-        result = startNextGroupScan(pOperator);
+        code = startNextGroupScan(pOperator, &result);
+        QUERY_CHECK_CODE(code, lino, _end);
+
         if (result || pOperator->status == OP_EXEC_DONE) {
           (*ppRes) = result;
           return code;
@@ -1307,12 +1356,15 @@ static int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
   // scan table one by one sequentially
   if (pInfo->scanMode == TABLE_SCAN__TABLE_ORDER) {
-    int32_t       numOfTables = 0;  // tableListGetSize(pTaskInfo->pTableListInfo);
+    int32_t       numOfTables = 0;
     STableKeyInfo tInfo = {0};
     pInfo->countState = TABLE_COUNT_STATE_END;
 
     while (1) {
-      SSDataBlock* result = doGroupedTableScan(pOperator);
+      SSDataBlock* result = NULL;
+      code = doGroupedTableScan(pOperator, &result);
+      QUERY_CHECK_CODE(code, lino, _end);
+
       if (result || (pOperator->status == OP_EXEC_DONE) || isTaskKilled(pTaskInfo)) {
         (*ppRes) = result;
         return code;
@@ -1322,7 +1374,13 @@ static int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       pInfo->currentTable++;
 
       taosRLockLatch(&pTaskInfo->lock);
-      numOfTables = tableListGetSize(pInfo->base.pTableListInfo);
+      numOfTables = 0;
+      code = tableListGetSize(pInfo->base.pTableListInfo, &numOfTables);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosRUnLockLatch(&pTaskInfo->lock);
+        lino = __LINE__;
+        goto _end;
+      }
 
       if (pInfo->currentTable >= numOfTables) {
         qDebug("all table checked in table list, total:%d, return NULL, %s", numOfTables, GET_TASKID(pTaskInfo));
@@ -1330,6 +1388,7 @@ static int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         (*ppRes) = NULL;
         return code;
       }
+
       STableKeyInfo* tmp = (STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->currentTable);
       if (!tmp) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
@@ -1350,24 +1409,16 @@ static int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       pInfo->scanTimes = 0;
     }
   } else {  // scan table group by group sequentially
-    (*ppRes) = groupSeqTableScan(pOperator);
-    return code;
+    code = groupSeqTableScan(pOperator, ppRes);
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
   }
-  (*ppRes) = NULL;
-  return code;
-}
 
-static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = doTableScanNext(pOperator, &pRes);
-  return pRes;
+  return code;
 }
 
 static int32_t getTableScannerExecInfo(struct SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
@@ -1375,7 +1426,7 @@ static int32_t getTableScannerExecInfo(struct SOperatorInfo* pOptr, void** pOptr
   if (!pRecorder) {
     return terrno;
   }
-  STableScanInfo*         pTableScanInfo = pOptr->info;
+  STableScanInfo* pTableScanInfo = pOptr->info;
   *pRecorder = pTableScanInfo->base.readRecorder;
   *pOptrExplain = pRecorder;
   *len = sizeof(SFileBlockLoadRecorder);
@@ -1410,14 +1461,14 @@ static void destroyTableScanOperatorInfo(void* param) {
 int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
                                     STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
                                     SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   STableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableScanInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _error;
   }
 
@@ -1458,7 +1509,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
   QUERY_CHECK_NULL(pInfo->pResBlock, code, lino, _error, terrno);
-  
+
   code = prepareDataBlockBuf(pInfo->pResBlock, &pInfo->base.matchInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -1487,17 +1538,17 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
 
   taosLRUCacheSetStrictCapacity(pInfo->base.metaCache.pTableMetaEntryCache, false);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableScan, NULL, destroyTableScanOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableScanNext, NULL, destroyTableScanOperatorInfo,
                                          optrDefaultBufFn, getTableScannerExecInfo, optrDefaultGetNextExtFn, NULL);
 
   // for non-blocking operator, the open cost is always 0
   pOperator->cost.openCost = 0;
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (pInfo != NULL) {
-    pInfo->base.pTableListInfo = NULL;   // this attribute will be destroy outside of this function
+    pInfo->base.pTableListInfo = NULL;  // this attribute will be destroy outside of this function
     destroyTableScanOperatorInfo(pInfo);
   }
 
@@ -1510,13 +1561,13 @@ _error:
 }
 
 int32_t createTableSeqScanOperatorInfo(void* pReadHandle, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t         code = 0;
   STableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableScanInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _end;
   }
 
@@ -1525,7 +1576,7 @@ int32_t createTableSeqScanOperatorInfo(void* pReadHandle, SExecTaskInfo* pTaskIn
 
   setOperatorInfo(pOperator, "TableSeqScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableScanImpl, NULL, NULL, optrDefaultBufFn, NULL,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableScanImplNext, NULL, NULL, optrDefaultBufFn, NULL,
                                          optrDefaultGetNextExtFn, NULL);
   *pOptrInfo = pOperator;
   return code;
@@ -1585,7 +1636,6 @@ static bool isCountWindow(SStreamScanInfo* pInfo) {
 static void setGroupId(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t groupColIndex, int32_t rowIndex) {
   SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, groupColIndex);
   uint64_t*        groupCol = (uint64_t*)pColInfo->pData;
-  ASSERT(rowIndex < pBlock->info.rows);
   pInfo->groupId = groupCol[rowIndex];
 }
 
@@ -1620,7 +1670,7 @@ static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbU
   SSDataBlock* pBlock = pTableScanInfo->pResBlock;
   STsdbReader* pReader = NULL;
   code = pAPI->tsdReader.tsdReaderOpen(pTableScanInfo->base.readHandle.vnode, &cond, &tblInfo, 1, pBlock,
-                                                    (void**)&pReader, GET_TASKID(pTaskInfo), NULL);
+                                       (void**)&pReader, GET_TASKID(pTaskInfo), NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
   bool hasNext = false;
@@ -1654,9 +1704,8 @@ _end:
 
 bool comparePrimaryKey(SColumnInfoData* pCol, int32_t rowId, void* pVal) {
   // coverity scan
-  ASSERTS(pVal != NULL, "pVal should not be NULL");
-  if (!pVal) {
-    qError("failed to compare primary key, since primary key is null");
+  if (!pVal || !pCol) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_INVALID_PARA));
     return false;
   }
   void* pData = colDataGetData(pCol, rowId);
@@ -1720,6 +1769,8 @@ static uint64_t getGroupIdByData(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts,
 }
 
 static void prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t* pRowIndex, bool* pRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (pBlock->info.rows == 0) {
     if (pRes) {
       (*pRes) = false;
@@ -1733,7 +1784,6 @@ static void prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
     goto _end;
   }
 
-  ASSERT(taosArrayGetSize(pBlock->pDataBlock) >= 3);
   SColumnInfoData* pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
   TSKEY*           startData = (TSKEY*)pStartTsCol->pData;
   SColumnInfoData* pEndTsCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
@@ -1765,27 +1815,25 @@ static void prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
       win.skey = TMIN(win.skey, startData[*pRowIndex]);
       continue;
     }
-
-    ASSERT(!(win.skey > startData[*pRowIndex] && win.ekey < endData[*pRowIndex]) ||
-           !(isInTimeWindow(&win, startData[*pRowIndex], 0) || isInTimeWindow(&win, endData[*pRowIndex], 0)));
     break;
   }
 
   STableScanInfo* pTScanInfo = pInfo->pTableScanOp->info;
   // coverity scan
-  ASSERTS(pInfo->pUpdateInfo != NULL, "Failed to set data version, since pInfo->pUpdateInfo is NULL");
-  if (pInfo->pUpdateInfo) {
-    qDebug("prepare range scan start:%" PRId64 ",end:%" PRId64 ",maxVer:%" PRIu64, win.skey, win.ekey,
-           pInfo->pUpdateInfo->maxDataVersion);
-    resetTableScanInfo(pInfo->pTableScanOp->info, &win, pInfo->pUpdateInfo->maxDataVersion);
-  }
+  QUERY_CHECK_NULL(pInfo->pUpdateInfo, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+
+  qDebug("prepare range scan start:%" PRId64 ",end:%" PRId64 ",maxVer:%" PRIu64, win.skey, win.ekey,
+         pInfo->pUpdateInfo->maxDataVersion);
+  resetTableScanInfo(pInfo->pTableScanOp->info, &win, pInfo->pUpdateInfo->maxDataVersion);
   pInfo->pTableScanOp->status = OP_OPENED;
   if (pRes) {
     (*pRes) = true;
   }
 
 _end:
-  qTrace("%s success", __func__);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
 }
 
 static STimeWindow getSlidingWindow(TSKEY* startTsCol, TSKEY* endTsCol, uint64_t* gpIdCol, SInterval* pInterval,
@@ -1825,18 +1873,23 @@ static STimeWindow getSlidingWindow(TSKEY* startTsCol, TSKEY* endTsCol, uint64_t
 static int32_t doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32_t tsColIndex, int32_t* pRowIndex,
                            SSDataBlock** ppRes) {
   qDebug("do stream range scan. windows index:%d", *pRowIndex);
+
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   bool    prepareRes = true;
 
   while (1) {
     SSDataBlock* pResult = NULL;
-    pResult = doTableScan(pInfo->pTableScanOp);
+    code = doTableScanNext(pInfo->pTableScanOp, &pResult);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     if (!pResult) {
       prepareRangeScan(pInfo, pSDB, pRowIndex, &prepareRes);
       // scan next window data
-      pResult = doTableScan(pInfo->pTableScanOp);
+      code = doTableScanNext(pInfo->pTableScanOp, &pResult);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
+
     if (!pResult) {
       if (prepareRes) {
         continue;
@@ -2193,10 +2246,9 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
   }
 
   uint64_t* srcUidData = (uint64_t*)pSrcUidCol->pData;
-  ASSERT(pSrcStartTsCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
-  TSKEY*  srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
-  TSKEY*  srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
-  int64_t ver = pSrcBlock->info.version - 1;
+  TSKEY*    srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
+  TSKEY*    srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
+  int64_t   ver = pSrcBlock->info.version - 1;
 
   if (pInfo->partitionSup.needCalc &&
       (srcStartTsCol[0] != srcEndTsCol[0] || (hasPrimaryKeyCol(pInfo) && mode == STREAM_DELETE_DATA))) {
@@ -2291,7 +2343,6 @@ static int32_t generatePartitionDelResBlock(SStreamScanInfo* pInfo, SSDataBlock*
   SColumnInfoData* pSrcGpCol = taosArrayGet(pSrcBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   uint64_t*        srcGp = (uint64_t*)pSrcGpCol->pData;
 
-  ASSERT(pSrcStartTsCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
   TSKEY*  srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
   TSKEY*  srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
   int64_t ver = pSrcBlock->info.version - 1;
@@ -2352,7 +2403,6 @@ static int32_t generateDeleteResultBlockImpl(SStreamScanInfo* pInfo, SSDataBlock
     pSrcPkCol = taosArrayGet(pSrcBlock->pDataBlock, PRIMARY_KEY_COLUMN_INDEX);
   }
 
-  ASSERT(pSrcStartTsCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
   TSKEY*  srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
   TSKEY*  srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
   int64_t ver = pSrcBlock->info.version - 1;
@@ -2472,7 +2522,6 @@ static int32_t checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBl
     QUERY_CHECK_CODE(code, lino, _end);
   }
   SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
-  ASSERT(pColDataInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP);
   TSKEY*           tsCol = (TSKEY*)pColDataInfo->pData;
   SColumnInfoData* pPkColDataInfo = NULL;
   if (hasPrimaryKeyCol(pInfo)) {
@@ -2549,7 +2598,7 @@ static int32_t doBlockDataWindowFilter(SSDataBlock* pBlock, int32_t tsIndex, STi
     if (pWindow->skey != INT64_MIN) {
       qDebug("%s filter for additional history window, skey:%" PRId64, id, pWindow->skey);
 
-      ASSERT(pCol->pData != NULL);
+      QUERY_CHECK_NULL(pCol->pData, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       for (int32_t i = 0; i < pBlock->info.rows; ++i) {
         int64_t* ts = (int64_t*)colDataGetData(pCol, i);
         p[i] = (*ts >= pWindow->skey);
@@ -2598,9 +2647,11 @@ static int32_t doBlockDataPrimaryKeyFilter(SSDataBlock* pBlock, STqOffsetVal* of
   SColumnInfoData* pColPk = taosArrayGet(pBlock->pDataBlock, 1);
 
   qDebug("doBlockDataWindowFilter primary key, ts:%" PRId64 " %" PRId64, offset->ts, offset->primaryKey.val);
-  ASSERT(pColPk->info.type == offset->primaryKey.type);
+  QUERY_CHECK_CONDITION((pColPk->info.type == offset->primaryKey.type), code, lino, _end,
+                        TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
   __compar_fn_t func = getComparFunc(pColPk->info.type, 0);
+  QUERY_CHECK_NULL(func, code, lino, _end, terrno);
   for (int32_t i = 0; i < pBlock->info.rows; ++i) {
     int64_t* ts = (int64_t*)colDataGetData(pColTs, i);
     void*    data = colDataGetData(pColPk, i);
@@ -2763,8 +2814,8 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
 
   // currently only the tbname pseudo column
   if (pInfo->numOfPseudoExpr > 0) {
-    code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr,
-                                             pInfo->pRes, pBlockInfo->rows, pTaskInfo, &pTableScanInfo->base.metaCache);
+    code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
+                                  pBlockInfo->rows, pTaskInfo, &pTableScanInfo->base.metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       code = 0;
@@ -2886,7 +2937,9 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     while (1) {
-      SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
+      SSDataBlock* pResult = NULL;
+      code = doTableScanNext(pInfo->pTableScanOp, &pResult);
+      QUERY_CHECK_CODE(code, lino, _end);
 
       if (pResult && pResult->info.rows > 0) {
         bool hasPrimaryKey = pAPI->tqReaderFn.tqGetTablePrimaryKey(pInfo->tqReader);
@@ -3085,7 +3138,7 @@ int32_t streamScanOperatorEncode(SStreamScanInfo* pInfo, void** pBuff, int32_t* 
   len += encodeSTimeWindowAggSupp(NULL, &pInfo->twAggSup);
   *pBuff = taosMemoryCalloc(1, len);
   if (!(*pBuff)) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
   void* buf = *pBuff;
@@ -3139,7 +3192,7 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
     return;
   }
 
-  void*   pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
+  void* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
   if (!pUpInfo) {
     return;
   }
@@ -3226,7 +3279,9 @@ static int32_t doStreamScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         break;
     }
 
-    pInfo->pRecoverRes = doTableScan(pInfo->pTableScanOp);
+    code = doTableScanNext(pInfo->pTableScanOp, &pInfo->pRecoverRes);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     if (pInfo->pRecoverRes != NULL) {
       code = calBlockTbName(pInfo, pInfo->pRecoverRes, 0);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -3426,7 +3481,8 @@ FETCH_NEXT_BLOCK:
           (*ppRes) = pInfo->pDeleteDataRes;
           return code;
         }
-        qError("%s===stream=== %s failed at line %d since pInfo->pUpdateRes is empty", GET_TASKID(pTaskInfo), __func__, lino);
+        qError("%s===stream=== %s failed at line %d since pInfo->pUpdateRes is empty", GET_TASKID(pTaskInfo), __func__,
+               lino);
         blockDataCleanup(pInfo->pUpdateDataRes);
         pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
       } break;
@@ -3439,7 +3495,8 @@ FETCH_NEXT_BLOCK:
           (*ppRes) = pInfo->pUpdateRes;
           return code;
         }
-        qError("%s===stream=== %s failed at line %d since pInfo->pUpdateRes is empty", GET_TASKID(pTaskInfo), __func__, lino);
+        qError("%s===stream=== %s failed at line %d since pInfo->pUpdateRes is empty", GET_TASKID(pTaskInfo), __func__,
+               lino);
         blockDataCleanup(pInfo->pUpdateDataRes);
         pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
       } break;
@@ -3620,11 +3677,13 @@ static int32_t extractTableIdList(const STableListInfo* pTableListInfo, SArray**
   QUERY_CHECK_NULL(tableIdList, code, lino, _end, terrno);
 
   // Transfer the Array of STableKeyInfo into uid list.
-  size_t size = tableListGetSize(pTableListInfo);
+  int32_t size = 0;
+  code = tableListGetSize(pTableListInfo, &size);
+  QUERY_CHECK_CODE(code, lino, _end);
   for (int32_t i = 0; i < size; ++i) {
     STableKeyInfo* pkeyInfo = tableListGetInfo(pTableListInfo, i);
     QUERY_CHECK_NULL(pkeyInfo, code, lino, _end, terrno);
-    void*          tmp = taosArrayPush(tableIdList, &pkeyInfo->uid);
+    void* tmp = taosArrayPush(tableIdList, &pkeyInfo->uid);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   }
 
@@ -3661,7 +3720,7 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (pInfo->dataReader && hasNext) {
       if (isTaskKilled(pTaskInfo)) {
         pAPI->tsdReader.tsdReaderReleaseDataBlock(pInfo->dataReader);
-        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+        return code;
       }
 
       SSDataBlock* pBlock = NULL;
@@ -3763,6 +3822,7 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
       }
     }
+
     (*ppRes) = NULL;
     return code;
   }
@@ -3771,16 +3831,10 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
   }
+
   (*ppRes) = NULL;
   return code;
-}
-
-static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = doRawScanNext(pOperator, &pRes);
-  return pRes;
 }
 
 static void destroyRawScanOperatorInfo(void* param) {
@@ -3800,14 +3854,14 @@ int32_t createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pTaskInfo
   // create meta reader
   // create tq reader
 
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
   SStreamRawScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamRawScanInfo));
   SOperatorInfo*      pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     lino = __LINE__;
     goto _end;
   }
@@ -3821,7 +3875,7 @@ int32_t createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pTaskInfo
   setOperatorInfo(pOperator, "RawScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
 
-  pOperator->fpSet = createOperatorFpSet(NULL, doRawScan, NULL, destroyRawScanOperatorInfo, optrDefaultBufFn, NULL,
+  pOperator->fpSet = createOperatorFpSet(NULL, doRawScanNext, NULL, destroyRawScanOperatorInfo, optrDefaultBufFn, NULL,
                                          optrDefaultGetNextExtFn, NULL);
   *pOptrInfo = pOperator;
   return code;
@@ -3840,8 +3894,8 @@ static void destroyStreamScanOperatorInfo(void* param) {
   if (param == NULL) {
     return;
   }
-  SStreamScanInfo* pStreamScan = (SStreamScanInfo*)param;
 
+  SStreamScanInfo* pStreamScan = (SStreamScanInfo*)param;
   if (pStreamScan->pTableScanOp && pStreamScan->pTableScanOp->info) {
     destroyOperator(pStreamScan->pTableScanOp);
   }
@@ -3860,7 +3914,10 @@ static void destroyStreamScanOperatorInfo(void* param) {
   cleanupExprSupp(&pStreamScan->tbnameCalSup);
   cleanupExprSupp(&pStreamScan->tagCalSup);
 
-  pStreamScan->stateStore.updateInfoDestroy(pStreamScan->pUpdateInfo);
+  if (pStreamScan->stateStore.updateInfoDestroy) {
+    pStreamScan->stateStore.updateInfoDestroy(pStreamScan->pUpdateInfo);
+  }
+
   blockDataDestroy(pStreamScan->pRes);
   blockDataDestroy(pStreamScan->pUpdateRes);
   blockDataDestroy(pStreamScan->pDeleteDataRes);
@@ -3890,7 +3947,7 @@ void streamScanReleaseState(SOperatorInfo* pOperator) {
 
   pBuff = taosMemoryCalloc(1, len);
   if (!pBuff) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -3926,7 +3983,7 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
 
   SUpdateInfo* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
   if (!pUpInfo) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -3940,7 +3997,9 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
       pInfo->stateStore.windowSBfDelete(pInfo->pUpdateInfo, 1);
       code = pInfo->stateStore.windowSBfAdd(pInfo->pUpdateInfo, 1);
       QUERY_CHECK_CODE(code, lino, _end);
-      ASSERT(pInfo->pUpdateInfo->minTS > pUpInfo->minTS);
+
+      QUERY_CHECK_CONDITION((pInfo->pUpdateInfo->minTS > pUpInfo->minTS), code, lino, _end,
+                            TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pUpInfo->maxDataVersion);
       SHashObj* curMap = pInfo->pUpdateInfo->pMap;
       void*     pIte = taosHashIterate(curMap, NULL);
@@ -3990,7 +4049,7 @@ _end:
 int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
                                      STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
                                      SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
@@ -4001,7 +4060,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   const char*      idstr = pTaskInfo->id.str;
 
   if (pInfo == NULL || pOperator == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _error;
   }
 
@@ -4022,7 +4081,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   int32_t numOfOutput = taosArrayGetSize(pInfo->matchInfo.pList);
   pColIds = taosArrayInit(numOfOutput, sizeof(int16_t));
   QUERY_CHECK_NULL(pColIds, code, lino, _error, terrno);
-  
+
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SColMatchItem* id = taosArrayGet(pInfo->matchInfo.pList, i);
     QUERY_CHECK_NULL(id, code, lino, _error, terrno);
@@ -4071,16 +4130,13 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   }
 
   pInfo->pBlockLists = taosArrayInit(4, sizeof(SPackedData));
-  if (pInfo->pBlockLists == NULL) {
-    code = terrno;
-    goto _error;
-  }
+  TSDB_CHECK_NULL(pInfo->pBlockLists, code, lino, _error, terrno);
 
   if (pHandle->vnode) {
     SOperatorInfo* pTableScanOp = NULL;
     code = createTableScanOperatorInfo(pTableScanNode, pHandle, pTableListInfo, pTaskInfo, &pTableScanOp);
     if (pTableScanOp == NULL || code != 0) {
-      qError("createTableScanOperatorInfo error, errorcode: %d", pTaskInfo->code);
+      qError("createTableScanOperatorInfo error, code:%d", pTaskInfo->code);
       goto _error;
     }
 
@@ -4100,12 +4156,11 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
     }
 
     if (pHandle->initTqReader) {
-      ASSERT(pHandle->tqReader == NULL);
       pInfo->tqReader = pAPI->tqReaderFn.tqReaderOpen(pHandle->vnode);
-      ASSERT(pInfo->tqReader);
+      QUERY_CHECK_NULL(pInfo->tqReader, code, lino, _error, terrno);
     } else {
-      ASSERT(pHandle->tqReader);
       pInfo->tqReader = pHandle->tqReader;
+      QUERY_CHECK_NULL(pInfo->tqReader, code, lino, _error, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     }
 
     pInfo->pUpdateInfo = NULL;
@@ -4125,6 +4180,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
 
     // set the extract column id to streamHandle
     pAPI->tqReaderFn.tqReaderSetColIdList(pInfo->tqReader, pColIds);
+
     SArray* tableIdList = NULL;
     code = extractTableIdList(((STableScanInfo*)(pInfo->pTableScanOp->info))->base.pTableListInfo, &tableIdList);
     QUERY_CHECK_CODE(code, lino, _error);
@@ -4134,8 +4190,10 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   } else {
     taosArrayDestroy(pColIds);
     tableListDestroy(pTableListInfo);
-    pColIds = NULL;
   }
+
+  // clear the local variable to avoid repeatly free
+  pColIds = NULL;
 
   // create the pseduo columns info
   if (pTableScanNode->scan.pScanPseudoCols != NULL) {
@@ -4199,7 +4257,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
                   pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
 
-  __optr_fn_t nextFn = (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) ? doStreamScan : doQueueScan;
+  __optr_fn_t nextFn = (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) ? doStreamScanNext : doQueueScanNext;
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, nextFn, NULL, destroyStreamScanOperatorInfo, optrDefaultBufFn,
                                          NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamScanReleaseState, streamScanReloadState);
@@ -4213,6 +4271,10 @@ _error:
   }
 
   if (pInfo != NULL) {
+    STableScanInfo* p = (STableScanInfo*) pInfo->pTableScanOp->info;
+    if (p != NULL) {
+      p->base.pTableListInfo = NULL;
+    }
     destroyStreamScanOperatorInfo(pInfo);
   }
 
@@ -4224,8 +4286,8 @@ _error:
   return code;
 }
 
-static void doTagScanOneTable(SOperatorInfo* pOperator, const SSDataBlock* pRes, int32_t count, SMetaReader* mr,
-                              SStorageAPI* pAPI) {
+static int32_t doTagScanOneTable(SOperatorInfo* pOperator, const SSDataBlock* pRes, int32_t count, SMetaReader* mr,
+                                 SStorageAPI* pAPI) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
@@ -4237,8 +4299,7 @@ static void doTagScanOneTable(SOperatorInfo* pOperator, const SSDataBlock* pRes,
     qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", item->uid, tstrerror(terrno),
            GET_TASKID(pTaskInfo));
     tDecoderClear(&(*mr).coder);
-    pAPI->metaReaderFn.clearReader(mr);
-    T_LONG_JMP(pTaskInfo->env, terrno);
+    goto _end;
   }
 
   code = pAPI->metaReaderFn.getTableEntryByUid(mr, item->uid);
@@ -4246,8 +4307,7 @@ static void doTagScanOneTable(SOperatorInfo* pOperator, const SSDataBlock* pRes,
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", item->uid, tstrerror(terrno),
            GET_TASKID(pTaskInfo));
-    pAPI->metaReaderFn.clearReader(mr);
-    T_LONG_JMP(pTaskInfo->env, terrno);
+    goto _end;
   }
 
   char str[512];
@@ -4276,12 +4336,13 @@ static void doTagScanOneTable(SOperatorInfo* pOperator, const SSDataBlock* pRes,
       } else {
         data = (char*)p;
       }
+
       code = colDataSetVal(pDst, (count), data,
                            (data == NULL) || (pDst->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data)));
       QUERY_CHECK_CODE(code, lino, _end);
 
-      if (pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL && IS_VAR_DATA_TYPE(((const STagVal*)p)->type) &&
-          data != NULL) {
+      if ((pDst->info.type != TSDB_DATA_TYPE_JSON) && (p != NULL) && IS_VAR_DATA_TYPE(((const STagVal*)p)->type) &&
+          (data != NULL)) {
         taosMemoryFree(data);
       }
     }
@@ -4291,8 +4352,9 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
   }
+
+  return code;
 }
 
 static void tagScanFreeUidTag(void* p) {
@@ -4305,7 +4367,6 @@ static void tagScanFreeUidTag(void* p) {
 static int32_t tagScanCreateResultData(SDataType* pType, int32_t numOfRows, SScalarParam* pParam) {
   SColumnInfoData* pColumnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
   if (pColumnData == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -4496,6 +4557,7 @@ static int32_t tagScanFillResultBlock(SOperatorInfo* pOperator, SSDataBlock* pRe
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pExprInfo[j].base.resSchema.slotId);
         QUERY_CHECK_NULL(pDst, code, lino, _end, terrno);
         code = tagScanFillOneCellWithTag(pOperator, pUidTagInfo, &pExprInfo[j], pDst, i, pAPI, pInfo->readHandle.vnode);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
     }
   } else {
@@ -4507,6 +4569,7 @@ static int32_t tagScanFillResultBlock(SOperatorInfo* pOperator, SSDataBlock* pRe
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pExprInfo[j].base.resSchema.slotId);
         QUERY_CHECK_NULL(pDst, code, lino, _end, terrno);
         code = tagScanFillOneCellWithTag(pOperator, pUidTagInfo, &pExprInfo[j], pDst, i, pAPI, pInfo->readHandle.vnode);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
     }
   }
@@ -4519,10 +4582,6 @@ _end:
 }
 
 static int32_t doTagScanFromCtbIdxNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  if (pOperator->status == OP_EXEC_DONE) {
-    (*ppRes) = NULL;
-    return TSDB_CODE_SUCCESS;
-  }
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
@@ -4530,6 +4589,12 @@ static int32_t doTagScanFromCtbIdxNext(SOperatorInfo* pOperator, SSDataBlock** p
 
   STagScanInfo* pInfo = pOperator->info;
   SSDataBlock*  pRes = pInfo->pRes;
+
+  QRY_PARAM_CHECK(ppRes);
+
+  if (pOperator->status == OP_EXEC_DONE) {
+    return TSDB_CODE_SUCCESS;
+  }
   blockDataCleanup(pRes);
 
   if (pInfo->pCtbCursor == NULL) {
@@ -4596,28 +4661,23 @@ static int32_t doTagScanFromCtbIdxNext(SOperatorInfo* pOperator, SSDataBlock** p
     pInfo->pCtbCursor = NULL;
     setOperatorCompleted(pOperator);
   }
-  pRes->info.rows = count;
 
+  pRes->info.rows = count;
   bool bLimitReached = applyLimitOffset(&pInfo->limitInfo, pRes, pTaskInfo);
   if (bLimitReached) {
     setOperatorCompleted(pOperator);
   }
 
+  pOperator->resultInfo.totalRows += pRes->info.rows;
+  (*ppRes) = (pRes->info.rows == 0) ? NULL : pInfo->pRes;
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
   }
-  pOperator->resultInfo.totalRows += pRes->info.rows;
-  (*ppRes) = (pRes->info.rows == 0) ? NULL : pInfo->pRes;
-  return code;
-}
 
-static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = doTagScanFromCtbIdxNext(pOperator, &pRes);
-  return pRes;
+  return code;
 }
 
 static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
@@ -4635,25 +4695,37 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
   SSDataBlock*  pRes = pInfo->pRes;
   blockDataCleanup(pRes);
 
-  int32_t size = tableListGetSize(pInfo->pTableListInfo);
+  int32_t size = 0;
+  code = tableListGetSize(pInfo->pTableListInfo, &size);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    return code;
+  }
+
   if (size == 0) {
     setTaskStatus(pTaskInfo, TASK_COMPLETED);
     (*ppRes) = NULL;
     return code;
   }
 
-  char        str[512] = {0};
   int32_t     count = 0;
   SMetaReader mr = {0};
   pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
 
   while (pInfo->curPos < size && count < pOperator->resultInfo.capacity) {
-    doTagScanOneTable(pOperator, pRes, count, &mr, &pTaskInfo->storageAPI);
+    code = doTagScanOneTable(pOperator, pRes, count, &mr, &pTaskInfo->storageAPI);
+    if (code == TSDB_CODE_OUT_OF_MEMORY) {
+      break;
+    } else {
+      // ignore other error
+    }
+
     ++count;
     if (++pInfo->curPos >= size) {
       setOperatorCompleted(pOperator);
     }
   }
+
   pRes->info.rows = count;
 
   pAPI->metaReaderFn.clearReader(&mr);
@@ -4661,6 +4733,7 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
   if (bLimitReached) {
     setOperatorCompleted(pOperator);
   }
+
   // qDebug("QInfo:0x%"PRIx64" create tag values results completed, rows:%d", GET_TASKID(pRuntimeEnv), count);
   if (pOperator->status == OP_EXEC_DONE) {
     setTaskStatus(pTaskInfo, TASK_COMPLETED);
@@ -4700,7 +4773,7 @@ static void destroyTagScanOperatorInfo(void* param) {
 int32_t createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* pTagScanNode,
                                   STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
                                   SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
@@ -4708,7 +4781,7 @@ int32_t createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* p
   STagScanInfo*   pInfo = taosMemoryCalloc(1, sizeof(STagScanInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _error;
   }
 
@@ -4758,14 +4831,14 @@ int32_t createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* p
     QUERY_CHECK_NULL(pInfo->filterCtx.colHash, code, lino, _error, terrno);
 
     pInfo->filterCtx.cInfoList = taosArrayInit(4, sizeof(SColumnInfo));
-    QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
+    QUERY_CHECK_NULL(pInfo->filterCtx.cInfoList, code, lino, _error, terrno);
 
     if (pInfo->pTagCond != NULL) {
       nodesRewriteExprPostOrder(&pTagCond, tagScanRewriteTagColumn, (void*)&pInfo->filterCtx);
     }
   }
-  //TODO wjm check pInfo->filterCtx.code
-  __optr_fn_t tagScanNextFn = (pTagScanNode->onlyMetaCtbIdx) ? doTagScanFromCtbIdx : doTagScanFromMetaEntry;
+  // TODO wjm check pInfo->filterCtx.code
+  __optr_fn_t tagScanNextFn = (pTagScanNode->onlyMetaCtbIdx) ? doTagScanFromCtbIdxNext : doTagScanFromMetaEntryNext;
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, tagScanNextFn, NULL, destroyTagScanOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   *pOptrInfo = pOperator;
@@ -4868,26 +4941,28 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
     code = pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInput->tblCond, pInput->pKeyInfo, 1, pInput->pReaderBlock,
                                          (void**)&pInput->pReader, GET_TASKID(pTaskInfo), NULL);
     if (code != 0) {
-      T_LONG_JMP(pTaskInfo->env, code);
+      return code;
     }
   }
 
   pInfo->base.dataReader = pInput->pReader;
 
   while (true) {
-    bool    hasNext = false;
-    int32_t code = pAPI->tsdReader.tsdNextDataBlock(pInfo->base.dataReader, &hasNext);
+    bool hasNext = false;
+    code = pAPI->tsdReader.tsdNextDataBlock(pInfo->base.dataReader, &hasNext);
     if (code != 0) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pInfo->base.dataReader);
       pInfo->base.dataReader = NULL;
-      T_LONG_JMP(pTaskInfo->env, code);
+      return code;
     }
+
     if (!hasNext || isTaskKilled(pTaskInfo)) {
       if (isTaskKilled(pTaskInfo)) {
         pAPI->tsdReader.tsdReaderReleaseDataBlock(pInfo->base.dataReader);
         pInfo->base.dataReader = NULL;
-        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+        return code;
       }
+
       *pSubTableHasBlock = false;
       break;
     }
@@ -4902,8 +4977,9 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
     code = loadDataBlock(pOperator, &pInfo->base, pInput->pReaderBlock, &status);
     if (code != 0) {
       pInfo->base.dataReader = NULL;
-      T_LONG_JMP(pTaskInfo->env, code);
+      return code;
     }
+
     if (status == FUNC_DATA_REQUIRED_ALL_FILTEROUT) {
       *pSubTableHasBlock = false;
       break;
@@ -4933,7 +5009,13 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
 static int32_t setGroupStartEndIndex(STableMergeScanInfo* pInfo) {
   pInfo->bGroupProcessed = false;
 
-  size_t  numOfTables = tableListGetSize(pInfo->base.pTableListInfo);
+  int32_t numOfTables = 0;
+  int32_t code = tableListGetSize(pInfo->base.pTableListInfo, &numOfTables);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    return code;
+  }
+
   int32_t i = pInfo->tableStartIndex + 1;
   for (; i < numOfTables; ++i) {
     STableKeyInfo* tableKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, i);
@@ -4977,12 +5059,12 @@ static int32_t openSubTablesMergeSort(STmsSubTablesMergeInfo* pSubTblsInfo) {
 static int32_t initSubTablesMergeInfo(STableMergeScanInfo* pInfo) {
   int32_t code = setGroupStartEndIndex(pInfo);
   if (code != TSDB_CODE_SUCCESS) {
-     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     return code;
   }
   STmsSubTablesMergeInfo* pSubTblsInfo = taosMemoryCalloc(1, sizeof(STmsSubTablesMergeInfo));
   if (pSubTblsInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pSubTblsInfo->pTsOrderInfo = taosArrayGet(pInfo->pSortInfo, 0);
   if (!pSubTblsInfo->pTsOrderInfo) {
@@ -5002,12 +5084,11 @@ static int32_t initSubTablesMergeInfo(STableMergeScanInfo* pInfo) {
   pSubTblsInfo->aInputs = taosMemoryCalloc(pSubTblsInfo->numSubTables, sizeof(STmsSubTableInput));
   if (pSubTblsInfo->aInputs == NULL) {
     taosMemoryFree(pSubTblsInfo);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   int32_t bufPageSize = pInfo->bufPageSize;
   int32_t inMemSize = (pSubTblsInfo->numSubTables - pSubTblsInfo->numTableBlocksInMem) * bufPageSize;
-  code =
-      createDiskbasedBuf(&pSubTblsInfo->pBlocksBuf, pInfo->bufPageSize, inMemSize, "blocksExternalBuf", tsTempDir);
+  code = createDiskbasedBuf(&pSubTblsInfo->pBlocksBuf, pInfo->bufPageSize, inMemSize, "blocksExternalBuf", tsTempDir);
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pSubTblsInfo->aInputs);
     taosMemoryFree(pSubTblsInfo);
@@ -5125,9 +5206,7 @@ static int32_t adjustSubTableForNextRow(SOperatorInfo* pOperatorInfo, STmsSubTab
     }
   }
 
-  tMergeTreeAdjust(pSubTblsInfo->pTree, tMergeTreeGetAdjustIndex(pSubTblsInfo->pTree));
-
-  return TSDB_CODE_SUCCESS;
+  return tMergeTreeAdjust(pSubTblsInfo->pTree, tMergeTreeGetAdjustIndex(pSubTblsInfo->pTree));
 }
 
 static int32_t appendChosenRowToDataBlock(STmsSubTablesMergeInfo* pSubTblsInfo, SSDataBlock* pBlock) {
@@ -5142,7 +5221,7 @@ static int32_t appendChosenRowToDataBlock(STmsSubTablesMergeInfo* pSubTblsInfo, 
 
     SColumnInfoData* pSrcColInfo = taosArrayGet(pInputBlock->pDataBlock, i);
     QUERY_CHECK_NULL(pSrcColInfo, code, lino, _end, terrno);
-    bool             isNull = colDataIsNull(pSrcColInfo, pInputBlock->info.rows, pInput->rowIdx, NULL);
+    bool isNull = colDataIsNull(pSrcColInfo, pInputBlock->info.rows, pInput->rowIdx, NULL);
 
     if (isNull) {
       code = colDataSetVal(pColInfo, pBlock->info.rows, NULL, true);
@@ -5166,49 +5245,57 @@ _end:
   return code;
 }
 
-static SSDataBlock* getSubTablesSortedBlock(SOperatorInfo* pOperator, SSDataBlock* pResBlock, int32_t capacity) {
+static int32_t getSubTablesSortedBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_t capacity,
+                                       SSDataBlock** pResBlock) {
   int32_t                 code = TSDB_CODE_SUCCESS;
   int32_t                 lino = 0;
   STableMergeScanInfo*    pInfo = pOperator->info;
   SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
   STmsSubTablesMergeInfo* pSubTblsInfo = pInfo->pSubTablesMergeInfo;
+  bool                    finished = false;
 
-  blockDataCleanup(pResBlock);
-  bool finished = false;
+  QRY_PARAM_CHECK(pResBlock);
+
+  blockDataCleanup(pBlock);
+
   while (true) {
-    while (1) {
+    while (true) {
       if (pSubTblsInfo->numSubTablesCompleted >= pSubTblsInfo->numSubTables) {
         finished = true;
         break;
       }
 
-      code = appendChosenRowToDataBlock(pSubTblsInfo, pResBlock);
+      code = appendChosenRowToDataBlock(pSubTblsInfo, pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
+
       code = adjustSubTableForNextRow(pOperator, pSubTblsInfo);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      if (pResBlock->info.rows >= capacity) {
+      if (pBlock->info.rows >= capacity) {
         break;
       }
     }
 
     if (isTaskKilled(pTaskInfo)) {
-      T_LONG_JMP(pOperator->pTaskInfo->env, pTaskInfo->code);
+      return pTaskInfo->code;
     }
 
-    bool limitReached = applyLimitOffset(&pInfo->limitInfo, pResBlock, pTaskInfo);
-    if (finished || limitReached || pResBlock->info.rows > 0) {
+    bool limitReached = applyLimitOffset(&pInfo->limitInfo, pBlock, pTaskInfo);
+    if (finished || limitReached || pBlock->info.rows > 0) {
       break;
     }
+  }
+
+  if (pBlock->info.rows > 0) {
+    *pResBlock = pBlock;
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
   }
-  return (pResBlock->info.rows > 0) ? pResBlock : NULL;
+  return code;
 }
 
 static int32_t startSubTablesTableMergeScan(SOperatorInfo* pOperator) {
@@ -5258,23 +5345,25 @@ static void stopSubTablesTableMergeScan(STableMergeScanInfo* pInfo) {
 }
 
 int32_t doTableMergeScanParaSubTablesNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  if (pOperator->status == OP_EXEC_DONE) {
-    (*ppRes) = NULL;
-    return TSDB_CODE_SUCCESS;
-  }
+  QRY_PARAM_CHECK(ppRes);
+
+  int32_t lino = 0;
+  int32_t tableListSize = 0;
+  int64_t st = taosGetTimestampUs();
 
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
   STableMergeScanInfo* pInfo = pOperator->info;
 
-  int32_t lino = 0;
-  int32_t code = pOperator->fpSet._openFn(pOperator);
-  if (code != TSDB_CODE_SUCCESS) {
-    T_LONG_JMP(pTaskInfo->env, code);
+  if (pOperator->status == OP_EXEC_DONE) {
+    return TSDB_CODE_SUCCESS;
   }
 
-  int64_t st = taosGetTimestampUs();
+  int32_t code = pOperator->fpSet._openFn(pOperator);
+  QUERY_CHECK_CODE(code, lino, _end);
 
-  size_t tableListSize = tableListGetSize(pInfo->base.pTableListInfo);
+  code = tableListGetSize(pInfo->base.pTableListInfo, &tableListSize);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   if (!pInfo->hasGroupId) {
     pInfo->hasGroupId = true;
 
@@ -5283,6 +5372,7 @@ int32_t doTableMergeScanParaSubTablesNext(SOperatorInfo* pOperator, SSDataBlock*
       (*ppRes) = NULL;
       return code;
     }
+
     pInfo->tableStartIndex = 0;
     STableKeyInfo* pTmpGpId = (STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->tableStartIndex);
     QUERY_CHECK_NULL(pTmpGpId, code, lino, _end, terrno);
@@ -5294,15 +5384,19 @@ int32_t doTableMergeScanParaSubTablesNext(SOperatorInfo* pOperator, SSDataBlock*
   SSDataBlock* pBlock = NULL;
   while (pInfo->tableStartIndex < tableListSize) {
     if (isTaskKilled(pTaskInfo)) {
-      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+      break;
     }
 
-    pBlock = getSubTablesSortedBlock(pOperator, pInfo->pResBlock, pOperator->resultInfo.capacity);
+    code = getSubTablesSortedBlock(pOperator, pInfo->pResBlock, pOperator->resultInfo.capacity, &pBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     if (pBlock == NULL && !pInfo->bGroupProcessed && pInfo->needCountEmptyTable) {
       STableKeyInfo* tbInfo = tableListGetInfo(pInfo->base.pTableListInfo, pInfo->tableStartIndex);
       QUERY_CHECK_NULL(tbInfo, code, lino, _end, terrno);
+
       pBlock = getOneRowResultBlock(pTaskInfo, &pInfo->base, pInfo->pResBlock, tbInfo);
     }
+
     if (pBlock != NULL) {
       pBlock->info.id.groupId = pInfo->groupId;
       pOperator->resultInfo.totalRows += pBlock->info.rows;
@@ -5333,16 +5427,11 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
+  } else {
+    (*ppRes) = pBlock;
   }
-  (*ppRes) = pBlock;
-  return code;
-}
 
-static SSDataBlock* doTableMergeScanParaSubTables(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = doTableMergeScanParaSubTablesNext(pOperator, &pRes);
-  return pRes;
+  return code;
 }
 
 static void tableMergeScanDoSkipTable(uint64_t uid, void* pTableMergeOpInfo) {
@@ -5374,7 +5463,7 @@ _end:
   }
 }
 
-static void doGetBlockForTableMergeScan(SOperatorInfo* pOperator, bool* pFinished, bool* pSkipped) {
+static int32_t doGetBlockForTableMergeScan(SOperatorInfo* pOperator, bool* pFinished, bool* pSkipped) {
   STableMergeScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*         pAPI = &pTaskInfo->storageAPI;
@@ -5387,7 +5476,8 @@ static void doGetBlockForTableMergeScan(SOperatorInfo* pOperator, bool* pFinishe
   if (code != 0) {
     pAPI->tsdReader.tsdReaderReleaseDataBlock(reader);
     qError("table merge scan fetch next data block error code: %d, %s", code, GET_TASKID(pTaskInfo));
-    T_LONG_JMP(pTaskInfo->env, code);
+    pTaskInfo->code = code;
+    return code;
   }
 
   if (!hasNext || isTaskKilled(pTaskInfo)) {
@@ -5396,7 +5486,7 @@ static void doGetBlockForTableMergeScan(SOperatorInfo* pOperator, bool* pFinishe
       pAPI->tsdReader.tsdReaderReleaseDataBlock(reader);
     }
     *pFinished = true;
-    return;
+    return code;
   }
 
   uint32_t status = 0;
@@ -5404,24 +5494,25 @@ static void doGetBlockForTableMergeScan(SOperatorInfo* pOperator, bool* pFinishe
 
   if (code != TSDB_CODE_SUCCESS) {
     qInfo("table merge scan load datablock code %d, %s", code, GET_TASKID(pTaskInfo));
-    T_LONG_JMP(pTaskInfo->env, code);
+    pTaskInfo->code = code;
+    return code;
   }
 
   if (status == FUNC_DATA_REQUIRED_ALL_FILTEROUT) {
     *pFinished = true;
-    return;
+    return code;
   }
 
   // current block is filter out according to filter condition, continue load the next block
   if (status == FUNC_DATA_REQUIRED_FILTEROUT || pBlock->info.rows == 0) {
     *pSkipped = true;
-    return;
+    return code;
   }
 
-  return;
+  return code;
 }
 
-static SSDataBlock* getBlockForTableMergeScan(void* param) {
+static int32_t getBlockForTableMergeScan(void* param, SSDataBlock** ppBlock) {
   STableMergeScanSortSourceParam* source = param;
 
   SOperatorInfo*       pOperator = source->pOperator;
@@ -5429,6 +5520,7 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
   SSDataBlock*         pBlock = NULL;
   int64_t              st = taosGetTimestampUs();
+  int32_t              code = TSDB_CODE_SUCCESS;
 
   while (true) {
     if (pInfo->rtnNextDurationBlocks) {
@@ -5452,7 +5544,12 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
     } else {
       bool bFinished = false;
       bool bSkipped = false;
-      doGetBlockForTableMergeScan(pOperator, &bFinished, &bSkipped);
+
+      code = doGetBlockForTableMergeScan(pOperator, &bFinished, &bSkipped);
+      if (code != 0) {
+        return code;
+      }
+
       pBlock = pInfo->pReaderBlock;
       qDebug("%s table merge scan fetch block. finished %d skipped %d next-duration-block %d new-fileset %d",
              GET_TASKID(pTaskInfo), bFinished, bSkipped, pInfo->bNextDurationBlockEvent, pInfo->bNewFilesetEvent);
@@ -5463,10 +5560,10 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
 
       if (pInfo->bNextDurationBlockEvent || pInfo->bNewFilesetEvent) {
         if (!bSkipped) {
-          int32_t code = createOneDataBlock(pBlock, true, &pInfo->nextDurationBlocks[pInfo->numNextDurationBlocks]);
+          code = createOneDataBlock(pBlock, true, &pInfo->nextDurationBlocks[pInfo->numNextDurationBlocks]);
           if (code) {
-            terrno = code;
-            return NULL;
+            *ppBlock = NULL;
+            return code;
           }
 
           ++pInfo->numNextDurationBlocks;
@@ -5480,7 +5577,8 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
 
         if (pInfo->bNewFilesetEvent) {
           pInfo->rtnNextDurationBlocks = true;
-          return NULL;
+          *ppBlock = NULL;
+          return code;
         }
 
         if (pInfo->bNextDurationBlockEvent) {
@@ -5495,17 +5593,19 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
 
     pOperator->resultInfo.totalRows += pBlock->info.rows;
     pInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
+    *ppBlock = pBlock;
 
-    return pBlock;
+    return code;
   }
 
-  return NULL;
+  *ppBlock = NULL;
+  return code;
 }
 
 int32_t generateSortByTsPkInfo(SArray* colMatchInfo, int32_t order, SArray** ppSortArray) {
-  int32_t         code = TSDB_CODE_SUCCESS;
-  int32_t         lino = 0;
-  SArray*         pSortInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SArray* pSortInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
   QUERY_CHECK_NULL(pSortInfo, code, lino, _end, terrno);
   SBlockOrderInfo biTs = {0};
   SBlockOrderInfo biPk = {0};
@@ -5600,7 +5700,11 @@ int32_t startDurationForGroupTableMergeScan(SOperatorInfo* pOperator) {
   param->pOperator = pOperator;
 
   SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
-  QUERY_CHECK_NULL(ps, code, lino, _end, terrno);
+  if (ps == NULL) {
+    taosMemoryFree(param);
+    QUERY_CHECK_NULL(ps, code, lino, _end, terrno);
+  }
+
   ps->param = param;
   ps->onlyRef = false;
   code = tsortAddSource(pInfo->pSortHandle, ps);
@@ -5646,7 +5750,10 @@ void startGroupTableMergeScan(SOperatorInfo* pOperator) {
   qDebug("%s table merge scan start group %" PRIu64, GET_TASKID(pTaskInfo), pInfo->groupId);
 
   {
-    size_t  numOfTables = tableListGetSize(pInfo->base.pTableListInfo);
+    int32_t numOfTables = 0;
+    code = tableListGetSize(pInfo->base.pTableListInfo, &numOfTables);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     int32_t i = pInfo->tableStartIndex + 1;
     for (; i < numOfTables; ++i) {
       STableKeyInfo* tableKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, i);
@@ -5720,7 +5827,11 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
     while (1) {
       pTupleHandle = NULL;
       int32_t code = tsortNextTuple(pHandle, &pTupleHandle);
-      if (pTupleHandle == NULL || code != 0) {
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        T_LONG_JMP(pOperator->pTaskInfo->env, code);
+      }
+      if (pTupleHandle == NULL) {
         break;
       }
 
@@ -5766,7 +5877,10 @@ int32_t doTableMergeScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
   int64_t st = taosGetTimestampUs();
 
-  size_t tableListSize = tableListGetSize(pInfo->base.pTableListInfo);
+  int32_t tableListSize = 0;
+  code = tableListGetSize(pInfo->base.pTableListInfo, &tableListSize);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   if (!pInfo->hasGroupId) {
     pInfo->hasGroupId = true;
 
@@ -5785,7 +5899,7 @@ int32_t doTableMergeScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SSDataBlock* pBlock = NULL;
   while (pInfo->tableStartIndex < tableListSize) {
     if (isTaskKilled(pTaskInfo)) {
-      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+      goto _end;
     }
 
     pBlock = getSortedTableMergeScanBlockData(pInfo->pSortHandle, pInfo->pResBlock, pOperator->resultInfo.capacity,
@@ -5829,9 +5943,10 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
+  } else {
+    (*ppRes) = pBlock;
   }
-  (*ppRes) = pBlock;
+
   return code;
 }
 
@@ -5882,13 +5997,16 @@ void destroyTableMergeScanOperatorInfo(void* param) {
 }
 
 int32_t getTableMergeScanExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
-  ASSERT(pOptr != NULL);
+  if (pOptr == NULL) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_INVALID_PARA));
+    return TSDB_CODE_INVALID_PARA;
+  }
   // TODO: merge these two info into one struct
   STableMergeScanExecInfo* execInfo = taosMemoryCalloc(1, sizeof(STableMergeScanExecInfo));
   if (!execInfo) {
     return terrno;
   }
-  STableMergeScanInfo*     pInfo = pOptr->info;
+  STableMergeScanInfo* pInfo = pOptr->info;
   execInfo->blockRecorder = pInfo->base.readRecorder;
   execInfo->sortExecInfo = pInfo->sortExecInfo;
 
@@ -5901,14 +6019,14 @@ int32_t getTableMergeScanExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExpla
 int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
                                          STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
                                          SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t              code = TSDB_CODE_SUCCESS;
   int32_t              lino = 0;
   STableMergeScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableMergeScanInfo));
   SOperatorInfo*       pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _error;
   }
 
@@ -6005,7 +6123,7 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
   pOperator->exprSupp.numOfExprs = numOfCols;
 
   pOperator->fpSet = createOperatorFpSet(
-      optrDummyOpenFn, pTableScanNode->paraTablesSort ? doTableMergeScanParaSubTables : doTableMergeScan, NULL,
+      optrDummyOpenFn, pTableScanNode->paraTablesSort ? doTableMergeScanParaSubTablesNext : doTableMergeScanNext, NULL,
       destroyTableMergeScanOperatorInfo, optrDefaultBufFn, getTableMergeScanExplainExecInfo, optrDefaultGetNextExtFn,
       NULL);
   pOperator->cost.openCost = 0;
@@ -6031,25 +6149,24 @@ _error:
 
 // ====================================================================================================================
 // TableCountScanOperator
-static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator);
-static void         destoryTableCountScanOperator(void* param);
-static int32_t      buildVnodeGroupedStbTableCount(STableCountScanOperatorInfo* pInfo, STableCountScanSupp* pSupp,
-                                                   SSDataBlock* pRes, char* dbName, tb_uid_t stbUid, SStorageAPI* pAPI);
-static int32_t      buildVnodeGroupedNtbTableCount(STableCountScanOperatorInfo* pInfo, STableCountScanSupp* pSupp,
-                                                   SSDataBlock* pRes, char* dbName, SStorageAPI* pAPI);
-static void         buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountScanOperatorInfo* pInfo,
-                                              STableCountScanSupp* pSupp, SSDataBlock* pRes, char* dbName);
-static void         buildVnodeGroupedTableCount(SOperatorInfo* pOperator, STableCountScanOperatorInfo* pInfo,
-                                                STableCountScanSupp* pSupp, SSDataBlock* pRes, int32_t vgId, char* dbName);
-static SSDataBlock* buildVnodeDbTableCount(SOperatorInfo* pOperator, STableCountScanOperatorInfo* pInfo,
-                                           STableCountScanSupp* pSupp, SSDataBlock* pRes);
-static void         buildSysDbGroupedTableCount(SOperatorInfo* pOperator, STableCountScanOperatorInfo* pInfo,
-                                                STableCountScanSupp* pSupp, SSDataBlock* pRes, size_t infodbTableNum,
-                                                size_t perfdbTableNum);
-static void         buildSysDbFilterTableCount(SOperatorInfo* pOperator, STableCountScanSupp* pSupp, SSDataBlock* pRes,
-                                               size_t infodbTableNum, size_t perfdbTableNum);
-static const char*  GROUP_TAG_DB_NAME = "db_name";
-static const char*  GROUP_TAG_STABLE_NAME = "stable_name";
+static void        destoryTableCountScanOperator(void* param);
+static int32_t     buildVnodeGroupedStbTableCount(STableCountScanOperatorInfo* pInfo, STableCountScanSupp* pSupp,
+                                                  SSDataBlock* pRes, char* dbName, tb_uid_t stbUid, SStorageAPI* pAPI);
+static int32_t     buildVnodeGroupedNtbTableCount(STableCountScanOperatorInfo* pInfo, STableCountScanSupp* pSupp,
+                                                  SSDataBlock* pRes, char* dbName, SStorageAPI* pAPI);
+static int32_t     buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountScanOperatorInfo* pInfo,
+                                             STableCountScanSupp* pSupp, SSDataBlock* pRes, char* dbName);
+static int32_t     buildVnodeGroupedTableCount(SOperatorInfo* pOperator, STableCountScanOperatorInfo* pInfo,
+                                               STableCountScanSupp* pSupp, SSDataBlock* pRes, int32_t vgId, char* dbName);
+static int32_t     buildVnodeDbTableCount(SOperatorInfo* pOperator, STableCountScanOperatorInfo* pInfo,
+                                          STableCountScanSupp* pSupp, SSDataBlock* pRes);
+static void        buildSysDbGroupedTableCount(SOperatorInfo* pOperator, STableCountScanOperatorInfo* pInfo,
+                                               STableCountScanSupp* pSupp, SSDataBlock* pRes, size_t infodbTableNum,
+                                               size_t perfdbTableNum);
+static void        buildSysDbFilterTableCount(SOperatorInfo* pOperator, STableCountScanSupp* pSupp, SSDataBlock* pRes,
+                                              size_t infodbTableNum, size_t perfdbTableNum);
+static const char* GROUP_TAG_DB_NAME = "db_name";
+static const char* GROUP_TAG_STABLE_NAME = "stable_name";
 
 int32_t tblCountScanGetGroupTagsSlotId(const SNodeList* scanCols, STableCountScanSupp* supp) {
   if (scanCols != NULL) {
@@ -6144,7 +6261,7 @@ int32_t getTableCountScanSupp(SNodeList* groupTags, SName* tableName, SNodeList*
 
 int32_t createTableCountScanOperatorInfo(SReadHandle* readHandle, STableCountScanPhysiNode* pTblCountScanNode,
                                          SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
@@ -6152,7 +6269,7 @@ int32_t createTableCountScanOperatorInfo(SReadHandle* readHandle, STableCountSca
   STableCountScanOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(STableCountScanOperatorInfo));
   SOperatorInfo*               pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (!pInfo || !pOperator) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _error;
   }
 
@@ -6173,7 +6290,7 @@ int32_t createTableCountScanOperatorInfo(SReadHandle* readHandle, STableCountSca
 
   setOperatorInfo(pOperator, "TableCountScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableCountScan, NULL, destoryTableCountScanOperator,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableCountScanNext, NULL, destoryTableCountScanOperator,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   *pOptrInfo = pOperator;
   return code;
@@ -6195,7 +6312,7 @@ int32_t fillTableCountScanDataBlock(STableCountScanSupp* pSupp, char* dbName, ch
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pSupp->dbNameSlotId != -1) {
-    ASSERT(strlen(dbName));
+    QUERY_CHECK_CONDITION((strlen(dbName) > 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     SColumnInfoData* colInfoData = taosArrayGet(pRes->pDataBlock, pSupp->dbNameSlotId);
     QUERY_CHECK_NULL(colInfoData, code, lino, _end, terrno);
 
@@ -6327,29 +6444,29 @@ static int32_t doTableCountScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   STableCountScanOperatorInfo* pInfo = pOperator->info;
   STableCountScanSupp*         pSupp = &pInfo->supp;
   SSDataBlock*                 pRes = pInfo->pRes;
+
   blockDataCleanup(pRes);
+  QRY_PARAM_CHECK(ppRes);
 
   if (pOperator->status == OP_EXEC_DONE) {
-    (*ppRes) = NULL;
     return code;
   }
+
   if (pInfo->readHandle.mnd != NULL) {
     (*ppRes) = buildSysDbTableCount(pOperator, pInfo);
     return code;
   }
 
-  (*ppRes) = buildVnodeDbTableCount(pOperator, pInfo, pSupp, pRes);
+  code = buildVnodeDbTableCount(pOperator, pInfo, pSupp, pRes);
+  if ((pRes->info.rows > 0) && (code == 0)) {
+    *ppRes = pRes;
+  }
+
   return code;
 }
 
-static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = doTableCountScanNext(pOperator, &pRes);
-  return pRes;
-}
-
-static SSDataBlock* buildVnodeDbTableCount(SOperatorInfo* pOperator, STableCountScanOperatorInfo* pInfo,
-                                           STableCountScanSupp* pSupp, SSDataBlock* pRes) {
+static int32_t buildVnodeDbTableCount(SOperatorInfo* pOperator, STableCountScanOperatorInfo* pInfo,
+                                      STableCountScanSupp* pSupp, SSDataBlock* pRes) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   const char*    db = NULL;
@@ -6361,28 +6478,30 @@ static SSDataBlock* buildVnodeDbTableCount(SOperatorInfo* pOperator, STableCount
   // get dbname
   pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
   SName sn = {0};
+
   code = tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
   QUERY_CHECK_CODE(code, lino, _end);
+
   code = tNameGetDbName(&sn, dbName);
   QUERY_CHECK_CODE(code, lino, _end);
 
   if (pSupp->groupByDbName || pSupp->groupByStbName) {
-    buildVnodeGroupedTableCount(pOperator, pInfo, pSupp, pRes, vgId, dbName);
+    code = buildVnodeGroupedTableCount(pOperator, pInfo, pSupp, pRes, vgId, dbName);
   } else {
-    buildVnodeFilteredTbCount(pOperator, pInfo, pSupp, pRes, dbName);
+    code = buildVnodeFilteredTbCount(pOperator, pInfo, pSupp, pRes, dbName);
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
   }
-  return pRes->info.rows > 0 ? pRes : NULL;
+
+  return code;
 }
 
-static void buildVnodeGroupedTableCount(SOperatorInfo* pOperator, STableCountScanOperatorInfo* pInfo,
-                                        STableCountScanSupp* pSupp, SSDataBlock* pRes, int32_t vgId, char* dbName) {
+static int32_t buildVnodeGroupedTableCount(SOperatorInfo* pOperator, STableCountScanOperatorInfo* pInfo,
+                                           STableCountScanSupp* pSupp, SSDataBlock* pRes, int32_t vgId, char* dbName) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
@@ -6395,6 +6514,7 @@ static void buildVnodeGroupedTableCount(SOperatorInfo* pOperator, STableCountSca
       code = pAPI->metaFn.storeGetTableList(pInfo->readHandle.vnode, TSDB_SUPER_TABLE, pInfo->stbUidList);
       QUERY_CHECK_CODE(code, lino, _end);
     }
+
     if (pInfo->currGrpIdx < taosArrayGetSize(pInfo->stbUidList)) {
       tb_uid_t stbUid = *(tb_uid_t*)taosArrayGet(pInfo->stbUidList, pInfo->currGrpIdx);
       code = buildVnodeGroupedStbTableCount(pInfo, pSupp, pRes, dbName, stbUid, pAPI);
@@ -6424,12 +6544,12 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
   }
+  return code;
 }
 
-static void buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountScanOperatorInfo* pInfo,
-                                      STableCountScanSupp* pSupp, SSDataBlock* pRes, char* dbName) {
+static int32_t buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountScanOperatorInfo* pInfo,
+                                         STableCountScanSupp* pSupp, SSDataBlock* pRes, char* dbName) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
@@ -6463,10 +6583,11 @@ static void buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountScanO
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
+
   setOperatorCompleted(pOperator);
+  return code;
 }
 
 static int32_t buildVnodeGroupedNtbTableCount(STableCountScanOperatorInfo* pInfo, STableCountScanSupp* pSupp,

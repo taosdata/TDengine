@@ -117,10 +117,10 @@ static int32_t tdNewSmaEnv(SSma *pSma, int8_t smaType, SSmaEnv **ppEnv) {
   SSmaEnv *pEnv = NULL;
 
   pEnv = (SSmaEnv *)taosMemoryCalloc(1, sizeof(SSmaEnv));
-  *ppEnv = pEnv;
   if (!pEnv) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    return terrno;
   }
+  *ppEnv = pEnv;
 
   SMA_ENV_TYPE(pEnv) = smaType;
 
@@ -174,10 +174,14 @@ static void tRSmaInfoHashFreeNode(void *data) {
 
   if ((pRSmaInfo = *(SRSmaInfo **)data)) {
     if ((pItem = RSMA_INFO_ITEM((SRSmaInfo *)pRSmaInfo, 0)) && pItem->level) {
-      (void)taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES);
+      if (TSDB_CODE_SUCCESS != taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES)) {
+        smaError("failed to hash remove %s:%d", __FUNCTION__, __LINE__);
+      }
     }
     if ((pItem = RSMA_INFO_ITEM((SRSmaInfo *)pRSmaInfo, 1)) && pItem->level) {
-      (void)taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES);
+      if (TSDB_CODE_SUCCESS != taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES)) {
+        smaError("failed to hash remove %s:%d", __FUNCTION__, __LINE__);
+      }
     }
     (void)tdFreeRSmaInfo(pRSmaInfo->pSma, pRSmaInfo);
   }
@@ -199,7 +203,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
   if (!(*pSmaStat)) {
     *pSmaStat = (SSmaStat *)taosMemoryCalloc(1, sizeof(SSmaStat) + sizeof(TdThread) * tsNumOfVnodeRsmaThreads);
     if (!(*pSmaStat)) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TAOS_CHECK_GOTO(code, &lino, _exit);
     }
 
@@ -213,7 +217,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
         TAOS_CHECK_GOTO(code, &lino, _exit);
       }
       SSDataBlock datablock = {.info.type = STREAM_CHECKPOINT};
-      (void)taosArrayPush(pRSmaStat->blocks, &datablock);
+      TSDB_CHECK_NULL(taosArrayPush(pRSmaStat->blocks, &datablock), code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
 
       // init smaMgmt
       TAOS_CHECK_GOTO(smaInit(), &lino, _exit);

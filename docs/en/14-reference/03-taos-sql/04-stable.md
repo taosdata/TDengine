@@ -20,8 +20,7 @@ table_options:
 
 table_option: {
     COMMENT 'string_value'
-  | SMA(col_name [, col_name] ...)
-  | TTL value
+  | SMA(col_name [, col_name] ...)  
 }
 
 ```

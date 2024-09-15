@@ -36,7 +36,7 @@ int32_t tfsOpen(SDiskCfg *pCfg, int32_t ndisk, STfs **ppTfs) {
 
   pTfs = taosMemoryCalloc(1, sizeof(STfs));
   if (pTfs == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   if (taosThreadSpinInit(&pTfs->lock, 0) != 0) {
@@ -429,7 +429,7 @@ int32_t tfsOpendir(STfs *pTfs, const char *rname, STfsDir **ppDir) {
   int32_t  code = 0;
   STfsDir *pDir = taosMemoryCalloc(1, sizeof(STfsDir));
   if (pDir == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exit);
+    TAOS_CHECK_GOTO(terrno, NULL, _exit);
   }
 
   SDiskID diskId = {.id = 0, .level = 0};
@@ -554,7 +554,7 @@ static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
   }
 
   STfsDisk *pDisk = NULL;
-  if ((code = tfsGetDiskByName(pTfs, dirName, NULL)) != 0) {
+  if ((code = tfsGetDiskByName(pTfs, dirName, &pDisk)) != 0) {
     fError("failed to mount %s to FS since %s", pCfg->dir, tstrerror(code));
     TAOS_RETURN(code);
   }

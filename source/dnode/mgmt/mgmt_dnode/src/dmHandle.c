@@ -345,7 +345,7 @@ int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   void *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
     // rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
     // return rspMsg.code;
   }
@@ -365,7 +365,7 @@ int32_t dmBuildVariablesBlock(SSDataBlock **ppBlock) {
 
   SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (pBlock == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   size_t size = 0;
@@ -383,7 +383,7 @@ int32_t dmBuildVariablesBlock(SSDataBlock **ppBlock) {
 
   pBlock->pDataBlock = taosArrayInit(pMeta[index].colNum, sizeof(SColumnInfoData));
   if (pBlock->pDataBlock == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -393,7 +393,7 @@ int32_t dmBuildVariablesBlock(SSDataBlock **ppBlock) {
     colInfoData.info.type = pMeta[index].schema[i].type;
     colInfoData.info.bytes = pMeta[index].schema[i].bytes;
     if (taosArrayPush(pBlock->pDataBlock, &colInfoData) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
   }
@@ -457,7 +457,7 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     dError("failed to retrieve data since %s", tstrerror(code));
     blockDataDestroy(pBlock);
     return code;
@@ -479,6 +479,12 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   int32_t len = blockEncode(pBlock, pStart, numOfCols);
+  if(len < 0) {
+    dError("failed to retrieve data since %s", tstrerror(code));
+    blockDataDestroy(pBlock);
+    rpcFreeCont(pRsp);
+    return terrno;
+  }
 
   pRsp->numOfRows = htonl(pBlock->info.rows);
   pRsp->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond time precision
