@@ -966,58 +966,39 @@ static int stmtExec2NormalInsert(TAOS_STMT *stmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int stmtExec2ParamInsert(TAOS_STMT *stmt, const char *tbname, const int row, const int nr_rows) {
+static int stmtRefetch(TAOS_STMT *stmt, TAOS_FIELD_E **tags, int *nr_tags, TAOS_FIELD_E **cols, int *nr_cols) {
+  int r = 0;
   int code = TSDB_CODE_SUCCESS;
 
   STscStmt*   pStmt = (STscStmt*)stmt;
-  SStmtAPI2  *api2  = &pStmt->api2;
 
-  int              nr_tags       = api2->nr_tags;
-  int              nr_cols       = api2->nr_cols;
-
-  pStmt->errCode = 0; // NOTE: clear previous errcode to let stmt_set_tbname continue
-  STMT_ERR_RET(stmt_set_tbname(stmt, tbname));
-
-  TAOS_FIELD_E    *tags    = NULL;
-  TAOS_FIELD_E    *cols    = NULL;
+  SStmtAPI2 *api2 = &pStmt->api2;
 
   switch (code) {
     case TSDB_CODE_SUCCESS:
       if (!api2->without_using_clause) {
-        code = stmt_get_tag_fields(stmt, &nr_tags, &tags);
-        if (code) goto end;
+        STMT_ERR_RET(stmt_get_tag_fields(stmt, nr_tags, tags));
       }
-      code = stmt_get_col_fields(stmt, &nr_cols, &cols);
-      if (code) goto end;
+      STMT_ERR_RET(stmt_get_col_fields(stmt, nr_cols, cols));
       break;
     default:
-      goto end;
+      STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
+      break;
   }
 
   if (!api2->without_using_clause) {
     // NOTE: one last time check
-    if (nr_tags != api2->nr_tags || nr_cols != api2->nr_cols) {
-      code = TSDB_CODE_INVALID_PARA;
-      goto end;
+    if (*nr_tags != api2->nr_tags || *nr_cols != api2->nr_cols) {
+      STMT_ERR_RET(TSDB_CODE_INVALID_PARA);
     }
   } else {
     // NOTE: one last time check
-    if (nr_tags || nr_cols + 1 != api2->questions) {
-      code = TSDB_CODE_INVALID_PARA;
-      goto end;
+    if (*nr_tags || *nr_cols + 1 != api2->questions) {
+      STMT_ERR_RET(TSDB_CODE_INVALID_PARA);
     }
   }
 
-  code = stmtExec2ParamsBind(stmt, 1, tags, nr_tags, cols, nr_cols, row, nr_rows);
-  if (code) goto end;
-
-end:
-
-  taosMemoryFreeClear(tags);
-  taosMemoryFreeClear(cols);
-
-  STMT_ERR_RET(code);
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 int stmtExec2(TAOS_STMT *stmt) {
@@ -1083,20 +1064,23 @@ int stmtExec2(TAOS_STMT *stmt) {
 
   int i   = 0;
 
+  TAOS_FIELD_E    *tags    = NULL;
+  TAOS_FIELD_E    *cols    = NULL;
+
 again:
 
   if (row >= nr_total_rows) {
     code = stmtDoExec1(stmt, &affectedRows);
     pStmt->exec.affectedRows  = affectedRows;
     pStmt->affectedRows      += pStmt->exec.affectedRows;
-    return TSDB_CODE_SUCCESS;
+    goto end;
   }
   mbs = api2->mbs_from_app;
 
   tbname = (const char*)data_from_TAOS_MULTI_BIND_from_app(mbs, row, &tbname_len);
   if (!tbname || tbname_len == 0) {
-    STMT_ERR_RET(TSDB_CODE_INVALID_PARA);
-    return TSDB_CODE_INVALID_PARA;
+    code = TSDB_CODE_INVALID_PARA;
+    goto end;
   }
   snprintf(buf, sizeof(buf), "%.*s", tbname_len, tbname);
 
@@ -1108,15 +1092,28 @@ again:
     if (strncmp(s, tbname, n)) break;
   }
 
-  STMT_ERR_RET(stmtExec2ParamInsert(stmt, tbname, row, i-row));
+  pStmt->errCode = 0; // NOTE: clear previous errcode to let stmt_set_tbname continue
+  code = stmt_set_tbname(stmt, tbname);
+  if (code) goto end;
+
+  if (row == 0 || api2->without_using_clause) {
+    taosMemoryFreeClear(tags);
+    taosMemoryFreeClear(cols);
+    code = stmtRefetch(stmt, &tags, &nr_tags, &cols, &nr_cols);
+    if (code) goto end;
+  }
+  code = stmtExec2ParamsBind(stmt, 1, tags, nr_tags, cols, nr_cols, row, i-row);
+  if (code) goto end;
+
   row = i;
 
-  if (0 && row < nr_total_rows) {
-    // TODO: not implemented yet
-    STMT_ERR_RET(TSDB_CODE_PAR_NOT_SUPPORT);
-    return TSDB_CODE_PAR_NOT_SUPPORT;
-  }
-
   goto again;
+
+end:
+  taosMemoryFreeClear(tags);
+  taosMemoryFreeClear(cols);
+
+  STMT_ERR_RET(code);
+  return TSDB_CODE_SUCCESS;
 }
 
