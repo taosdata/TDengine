@@ -72,7 +72,6 @@ typedef struct SParseContext {
   int64_t          requestRid;
   int32_t          acctId;
   const char*      db;
-  bool             topicQuery;
   void*            pTransporter;
   SEpSet           mgmtEpSet;
   const char*      pSql;    // sql string
@@ -83,6 +82,7 @@ typedef struct SParseContext {
   SStmtCallback*   pStmtCb;
   const char*      pUser;
   const char*      pEffectiveUser;
+  bool             topicQuery;
   bool             parseOnly;
   bool             isSuperUser;
   bool             enableSysInfo;
@@ -92,13 +92,14 @@ typedef struct SParseContext {
   bool             isAudit;
   bool             nodeOffline;
   bool             isStmtBind;
+  bool             withOpt;
+  int8_t           biMode;
   const char*      svrVer;
   SArray*          pTableMetaPos;    // sql table pos => catalog data pos
   SArray*          pTableVgroupPos;  // sql table pos => catalog data pos
   int64_t          allocatorId;
   parseSqlFn       parseSqlFp;
   void*            parseSqlParam;
-  int8_t           biMode;
   SArray*          pSubMetaList;
   setQueryFn       setQueryFp;
 } SParseContext;

@@ -84,19 +84,18 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   // query meta
   metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK);
-
   if (reqFromUid) {
     uint64_t tbUid = taosStr2UInt64(infoReq.tbName, NULL, 10);
     if (errno == ERANGE || tbUid == 0) {
       code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
       goto _exit3;
     }
-    char tbName[TSDB_TABLE_NAME_LEN] = {0};
+    char tbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     if (metaGetTableNameByUid(pVnode, tbUid, tbName) < 0) {
       code = terrno;
       goto _exit3;
     }
-    if (metaGetTableEntryByName(&mer1, tbName) < 0) {
+    if (metaGetTableEntryByName(&mer1, tbName + VARSTR_HEADER_SIZE) < 0) {
       code = terrno;
       goto _exit3;
     }

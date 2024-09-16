@@ -1910,7 +1910,7 @@ static int32_t ctgHandleGetTbUidsRsp(SCtgTaskReq* tReq, int32_t reqType, const S
   SCatalog*         pCtg = pTask->pJob->pCtg;
   SRequestConnInfo* pConn = &pTask->pJob->conn;
   SCtgMsgCtx*       pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx);
-  SCtgTbMetasCtx*   ctx = (SCtgTbMetasCtx*)pTask->taskCtx;
+  SCtgTbUidsCtx*    ctx = (SCtgTbUidsCtx*)pTask->taskCtx;
   bool              taskDone = false;
 
   if (NULL == pMsgCtx) {

@@ -964,6 +964,9 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMet
   if (TSDB_CODE_SUCCESS == code) {
     code = putDbTableDataToCache(pCatalogReq->pTSMAs, pMetaData->pTsmas, &pMetaCache->pTSMAs);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = putDbTableDataToCache(pCatalogReq->pTableUid, pMetaData->pTableMeta, &pMetaCache->pTableUid);
+  }
 #ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code) {
     code = putDbTableDataToCache(pCatalogReq->pView, pMetaData->pView, &pMetaCache->pViews);
@@ -1028,13 +1031,15 @@ int32_t reserveTableUidInCache(int32_t acctId, const char* pDb, const char* pTab
 }
 
 int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta) {
-  char fullName[TSDB_TABLE_FNAME_LEN];
+  char    fullName[TSDB_TABLE_FNAME_LEN];
   int32_t code = tNameExtractFullName(pName, fullName);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
   STableMeta* pTableMeta = NULL;
-  code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableMeta, (void**)&pTableMeta);
+  code = getMetaDataFromHash(fullName, strlen(fullName),
+                             pMetaCache->fromTableUid ? pMetaCache->pTableUid : pMetaCache->pTableMeta,
+                             (void**)&pTableMeta);
   if (TSDB_CODE_SUCCESS == code) {
     *pMeta = tableMetaDup(pTableMeta);
     if (NULL == *pMeta) {
