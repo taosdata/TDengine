@@ -1507,8 +1507,7 @@ FORCE_INLINE int32_t cliBuildExceptResp(SCliThrd* pThrd, SCliReq* pReq, STransMs
 
   // handle noresp and inter manage msg
   if (pCtx == NULL || REQUEST_NO_RESP(&pReq->msg)) {
-    destroyReq(pReq);
-    return 0;
+    return TSDB_CODE_RPC_NO_STATE;
   }
   if (pResp->code == 0) {
     pResp->code = TSDB_CODE_RPC_BROKEN_LINK;
@@ -1613,21 +1612,29 @@ int32_t cliMayGetStateByQid(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn) {
   int64_t qid = pReq->msg.info.qId;
   if (qid == 0) {
     return TSDB_CODE_RPC_NO_STATE;
-  }
-
-  SReqState* pState = taosHashGet(pThrd->pIdConnTable, &qid, sizeof(qid));
-
-  if (pState == NULL) {
-    if (pReq->ctx == NULL) {
-      return TSDB_CODE_RPC_STATE_DROPED;
-    }
-    tDebug("%s conn %p failed to get statue, qid:%" PRId64 "", transLabel(pThrd->pInst), pConn, qid);
-    return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
   } else {
-    *pConn = pState->conn;
-    tDebug("%s conn %p succ to get conn of statue, qid:%" PRId64 "", transLabel(pThrd->pInst), pConn, qid);
+    SExHandle* exh = transAcquireExHandle(transGetRefMgt(), qid);
+    if (exh == NULL) {
+      return TSDB_CODE_RPC_NO_STATE;
+    }
+
+    SReqState* pState = taosHashGet(pThrd->pIdConnTable, &qid, sizeof(qid));
+
+    if (pState == NULL) {
+      if (pReq->ctx == NULL) {
+        transReleaseExHandle(transGetRefMgt(), qid);
+        return TSDB_CODE_RPC_STATE_DROPED;
+      }
+      tDebug("%s conn %p failed to get statue, qid:%" PRId64 "", transLabel(pThrd->pInst), pConn, qid);
+      transReleaseExHandle(transGetRefMgt(), qid);
+      return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
+    } else {
+      *pConn = pState->conn;
+      tDebug("%s conn %p succ to get conn of statue, qid:%" PRId64 "", transLabel(pThrd->pInst), pConn, qid);
+    }
+    transReleaseExHandle(transGetRefMgt(), qid);
+    return 0;
   }
-  return 0;
 }
 
 int32_t cliHandleState_mayUpdateState(SCliThrd* pThrd, SCliReq* pReq, SCliConn* pConn) {
@@ -1990,6 +1997,7 @@ int32_t notifyExceptCb(void* thrd, SCliReq* pReq, STransMsg* pResp) {
   STrans*   pInst = pThrd->pInst;
   int32_t   code = cliBuildExceptResp(pThrd, pReq, pResp);
   if (code != 0) {
+    destroyReq(pReq);
     return code;
   }
   pInst->cfp(pInst->parent, pResp, NULL);
