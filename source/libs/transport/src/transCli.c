@@ -3211,15 +3211,15 @@ static FORCE_INLINE bool filterToDebug(void* e, void* arg) {
   return false;
 }
 static FORCE_INLINE int32_t logConnMissHit(SCliConn* pConn) {
-  queue set;
-  QUEUE_INIT(&set);
+  // queue set;
+  // QUEUE_INIT(&set);
   pConn->heapMissHit++;
   tDebug("conn %p has %d reqs, %d sentout and %d status in process, total limit:%d, switch to other conn", pConn,
          transQueueSize(&pConn->reqsToSend), transQueueSize(&pConn->reqsSentOut), taosHashGetSize(pConn->pQTable),
          BUFFER_LIMIT);
-  if (transQueueSize(&pConn->reqsSentOut) >= BUFFER_LIMIT) {
-    transQueueRemoveByFilter(&pConn->reqsSentOut, filterToDebug, NULL, &set, 1);
-  }
+  // if (transQueueSize(&pConn->reqsSentOut) >= BUFFER_LIMIT) {
+  //   transQueueRemoveByFilter(&pConn->reqsSentOut, filterToDebug, NULL, &set, 1);
+  // }
   return 0;
 }
 static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
