@@ -23,7 +23,7 @@ int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
   SRpcMsg msg = {.msgType = TDMT_VND_TMQ_CONSUME_PUSH};
   msg.pCont = rpcMallocCont(sizeof(SMsgHead));
   if (msg.pCont == NULL) {
-    return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    return TAOS_GET_TERRNO(terrno);
   }
   msg.contLen = sizeof(SMsgHead);
   SMsgHead *pHead = msg.pCont;
@@ -70,14 +70,14 @@ int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
   if (pHandle->msg == NULL) {
     pHandle->msg = taosMemoryCalloc(1, sizeof(SRpcMsg));
     if (pHandle->msg == NULL) {
-      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+      return TAOS_GET_TERRNO(terrno);
     }
     (void)memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
     pHandle->msg->pCont = rpcMallocCont(pMsg->contLen);
     if (pHandle->msg->pCont == NULL) {
       taosMemoryFree(pHandle->msg);
       pHandle->msg = NULL;
-      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+      return TAOS_GET_TERRNO(terrno);
     }
   } else {
     tqPushEmptyDataRsp(pHandle, vgId);

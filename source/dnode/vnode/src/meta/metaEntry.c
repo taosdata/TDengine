@@ -39,7 +39,7 @@ int meteDecodeColCmprEntry(SDecoder *pDecoder, SMetaEntry *pME) {
   uDebug("dencode cols:%d", pWrapper->nCols);
   pWrapper->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, pWrapper->nCols * sizeof(SColCmpr));
   if (pWrapper->pColCmpr == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int i = 0; i < pWrapper->nCols; i++) {
@@ -53,7 +53,7 @@ static FORCE_INLINE int32_t metatInitDefaultSColCmprWrapper(SDecoder *pDecoder, 
                                                             SSchemaWrapper *pSchema) {
   pCmpr->nCols = pSchema->nCols;
   if ((pCmpr->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, pCmpr->nCols * sizeof(SColCmpr))) == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int32_t i = 0; i < pCmpr->nCols; i++) {
@@ -149,7 +149,7 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
   } else if (pME->type == TSDB_TSMA_TABLE) {
     pME->smaEntry.tsma = tDecoderMalloc(pCoder, sizeof(STSma));
     if (!pME->smaEntry.tsma) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     TAOS_CHECK_RETURN(tDecodeTSma(pCoder, pME->smaEntry.tsma, true));
   } else {

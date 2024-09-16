@@ -691,7 +691,7 @@ int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx) {
     n += tGetBlockIdx(pReader->aBuf[0] + n, &blockIdx);
 
     if (taosArrayPush(aBlockIdx, &blockIdx) == NULL) {
-      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
   }
   if (n != size) {
@@ -734,7 +734,7 @@ int32_t tsdbReadSttBlk(SDataFReader *pReader, int32_t iStt, SArray *aSttBlk) {
     n += tGetSttBlk(pReader->aBuf[0] + n, &sttBlk);
 
     if (taosArrayPush(aSttBlk, &sttBlk) == NULL) {
-      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
   }
   if (n != size) {
@@ -866,7 +866,7 @@ int32_t tsdbReadDelDatav1(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelDa
       continue;
     }
     if (taosArrayPush(aDelData, &delData) == NULL) {
-      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
   }
 
@@ -908,7 +908,7 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx) {
     n += tGetDelIdx(pReader->aBuf[0] + n, &delIdx);
 
     if (taosArrayPush(aDelIdx, &delIdx) == NULL) {
-      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
   }
 

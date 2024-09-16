@@ -74,7 +74,7 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
 
   pTq->pHandle = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
   if (pTq->pHandle == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   taosHashSetFreeFp(pTq->pHandle, tqDestroyTqHandle);
 
@@ -82,18 +82,18 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
 
   pTq->pPushMgr = taosHashInit(64, MurmurHash3_32, false, HASH_NO_LOCK);
   if (pTq->pPushMgr == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pTq->pCheckInfo = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pTq->pCheckInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   taosHashSetFreeFp(pTq->pCheckInfo, (FDelete)tDeleteSTqCheckInfo);
 
   pTq->pOffset = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
   if (pTq->pOffset == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   taosHashSetFreeFp(pTq->pOffset, (FDelete)tDeleteSTqOffset);
 
@@ -235,7 +235,7 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
 
   // save the new offset value
   if (taosHashPut(pTq->pOffset, pOffset->subKey, strlen(pOffset->subKey), pOffset, sizeof(STqOffset))) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    terrno = terrno;
     return -1;
   }
 
@@ -464,7 +464,6 @@ int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
 
   void* buf = rpcMallocCont(len);
   if (buf == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
   SEncoder encoder = {0};

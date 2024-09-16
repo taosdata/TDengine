@@ -244,7 +244,7 @@ static int32_t tsdbSnapCmprData(STsdbSnapReader* reader, uint8_t** data) {
   }
   *data = taosMemoryMalloc(sizeof(SSnapDataHdr) + size);
   if (*data == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -347,7 +347,7 @@ static int32_t tsdbSnapCmprTombData(STsdbSnapReader* reader, uint8_t** data) {
 
   data[0] = taosMemoryMalloc(size + sizeof(SSnapDataHdr));
   if (data[0] == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

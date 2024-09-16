@@ -33,7 +33,7 @@ int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, int8_t type, STqS
   // alloc
   pReader = (STqSnapReader*)taosMemoryCalloc(1, sizeof(STqSnapReader));
   if (pReader == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
   pReader->pTq = pTq;
@@ -98,7 +98,7 @@ int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
 
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + vLen);
   if (*ppData == NULL) {
-    code = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    code = TAOS_GET_TERRNO(terrno);
     goto _err;
   }
 
@@ -135,7 +135,7 @@ int32_t tqSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapWriter** p
   // alloc
   pWriter = (STqSnapWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
   if (pWriter == NULL) {
-    code = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);;
+    code = TAOS_GET_TERRNO(terrno);
     goto _err;
   }
   pWriter->pTq = pTq;

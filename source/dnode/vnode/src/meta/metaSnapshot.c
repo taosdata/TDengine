@@ -98,7 +98,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
 
     *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + nData);
     if (*ppData == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
 
@@ -315,12 +315,12 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
   ctx->withMeta = withMeta;
   ctx->idVersion = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (ctx->idVersion == NULL) {
-    return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    return TAOS_GET_TERRNO(terrno);
   }
 
   ctx->suidInfo = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (ctx->suidInfo == NULL) {
-    return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    return TAOS_GET_TERRNO(terrno);
     ;
   }
   taosHashSetFreeFp(ctx->suidInfo, destroySTableInfoForChildTable);
@@ -328,8 +328,7 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
   ctx->index = 0;
   ctx->idList = taosArrayInit(100, sizeof(int64_t));
   if (ctx->idList == NULL) {
-    return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
-    ;
+    return TAOS_GET_TERRNO(terrno);
   }
   void* pKey = NULL;
   void* pVal = NULL;
@@ -374,14 +373,14 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
 
     if (taosArrayPush(ctx->idList, &tmp->uid) == NULL) {
       tDecoderClear(&dc);
-      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+      return TAOS_GET_TERRNO(terrno);
     }
     metaDebug("tmqsnap init idlist name:%s, uid:%" PRIi64, me.name, tmp->uid);
     tDecoderClear(&dc);
 
     SIdInfo info = {0};
     if (taosHashPut(ctx->idVersion, &tmp->uid, sizeof(tb_uid_t), &info, sizeof(SIdInfo)) != 0) {
-      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+      return TAOS_GET_TERRNO(terrno);
     }
   }
   taosHashClear(ctx->idVersion);
@@ -436,7 +435,7 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
   for (int i = 0; i < taosArrayGetSize(ctx->idList); i++) {
     int64_t* uid = taosArrayGet(ctx->idList, i);
     if (uid == NULL) {
-      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+      return TAOS_GET_TERRNO(terrno);
     }
     SIdInfo* idData = (SIdInfo*)taosHashGet(ctx->idVersion, uid, sizeof(int64_t));
     if (!idData) {
@@ -468,11 +467,11 @@ static int32_t buildNormalChildTableInfo(SVCreateTbReq* req, void** pBuf, int32_
 
   reqs.pArray = taosArrayInit(1, sizeof(struct SVCreateTbReq));
   if (NULL == reqs.pArray) {
-    ret = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    ret = TAOS_GET_TERRNO(terrno);
     goto end;
   }
   if (taosArrayPush(reqs.pArray, req) == NULL) {
-    ret = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    ret = TAOS_GET_TERRNO(terrno);
     goto end;
   }
   reqs.nReqs = 1;
@@ -485,7 +484,7 @@ static int32_t buildNormalChildTableInfo(SVCreateTbReq* req, void** pBuf, int32_
   *contLen += sizeof(SMsgHead);
   *pBuf = taosMemoryMalloc(*contLen);
   if (NULL == *pBuf) {
-    ret = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    ret = TAOS_GET_TERRNO(terrno);
     goto end;
   }
   SEncoder coder = {0};
@@ -514,7 +513,7 @@ static int32_t buildSuperTableInfo(SVCreateStbReq* req, void** pBuf, int32_t* co
   *contLen += sizeof(SMsgHead);
   *pBuf = taosMemoryMalloc(*contLen);
   if (NULL == *pBuf) {
-    return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    return TAOS_GET_TERRNO(terrno);
   }
 
   SEncoder encoder = {0};
@@ -573,7 +572,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     int64_t* uidTmp = taosArrayGet(ctx->idList, ctx->index);
     if (uidTmp == NULL) {
       metaError("tmqsnap get meta null uid");
-      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+      return TAOS_GET_TERRNO(terrno);
     }
     ctx->index++;
     SIdInfo* idInfo = (SIdInfo*)taosHashGet(ctx->idVersion, uidTmp, sizeof(tb_uid_t));
@@ -640,7 +639,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     SArray* tagName = taosArrayInit(req.ctb.tagNum, TSDB_COL_NAME_LEN);
     if (tagName == NULL) {
       metaError("meta/snap: init tag name failed.");
-      ret = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+      ret = TAOS_GET_TERRNO(terrno);
       goto END;
     }
     STag* p = (STag*)me.ctbEntry.pTags;
@@ -648,7 +647,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
       if (p->nTag != 0) {
         SSchema* schema = &data->tagRow->pSchema[0];
         if (taosArrayPush(tagName, schema->name) == NULL) {
-          ret = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+          ret = TAOS_GET_TERRNO(terrno);
           taosArrayDestroy(tagName);
           goto END;
         }
@@ -669,7 +668,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
           SSchema* schema = &data->tagRow->pSchema[i];
           if (schema->colId == pTagVal->cid) {
             if (taosArrayPush(tagName, schema->name) == NULL) {
-              ret = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+              ret = TAOS_GET_TERRNO(terrno);
               taosArrayDestroy(pTagVals);
               taosArrayDestroy(tagName);
               goto END;
@@ -716,7 +715,7 @@ int32_t getMetaTableInfoFromSnapshot(SSnapContext* ctx, SMetaTableInfo* result) 
     }
     int64_t* uidTmp = taosArrayGet(ctx->idList, ctx->index);
     if (uidTmp == NULL) {
-      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+      return TAOS_GET_TERRNO(terrno);
     }
     ctx->index++;
     SIdInfo* idInfo = (SIdInfo*)taosHashGet(ctx->idVersion, uidTmp, sizeof(tb_uid_t));
