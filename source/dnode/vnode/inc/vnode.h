@@ -125,7 +125,7 @@ int32_t     metaGetTableTags(void *pVnode, uint64_t suid, SArray *uidList);
 int32_t     metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList);
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(const void *tag, int16_t type, STagVal *tagVal);
-int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
+int32_t     metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName);
 
 int      metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName);
 int      metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid);
