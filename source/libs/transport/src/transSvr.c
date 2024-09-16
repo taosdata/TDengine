@@ -71,7 +71,7 @@ typedef struct SSvrRespMsg {
   STransMsg     msg;
   queue         q;
   STransMsgType type;
-  int32_t       seqNum;
+  int64_t       seqNum;
   void*         arg;
   FilteFunc     func;
   int8_t        sent;
@@ -393,13 +393,12 @@ static void uvPerfLog_receive(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* 
 
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
     if (cost >= EXCEPTION_LIMIT_US) {
-      tGDebug(
-          "%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, recv exception, seqNum:%d, qid:%" PRId64
-          "",
-          transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-          (int)cost, pTransMsg->info.seqNum, pTransMsg->info.qId);
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, recv exception, seqNum:%" PRId64
+              ", qid:%" PRId64 "",
+              transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
+              (int)cost, pTransMsg->info.seqNum, pTransMsg->info.qId);
     } else {
-      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, seqNum:%d, qid:%" PRId64 "",
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, seqNum:%" PRId64 ", qid:%" PRId64 "",
               transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
               (int)cost, pTransMsg->info.seqNum, pTransMsg->info.qId);
     }
@@ -407,15 +406,15 @@ static void uvPerfLog_receive(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* 
     if (cost >= EXCEPTION_LIMIT_US) {
       tGDebug(
           "%s conn %p %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, recv exception, "
-          "seqNum:%d, qid:%" PRId64 "",
+          "seqNum:%" PRId64 ", qid:%" PRId64 "",
           transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
           pHead->noResp, pTransMsg->code, (int)(cost), pTransMsg->info.seqNum, pTransMsg->info.qId);
     } else {
-      tGDebug(
-          "%s conn %p %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, seqNum:%d, "
-          "qid:%" PRId64 "",
-          transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-          pHead->noResp, pTransMsg->code, (int)(cost), pTransMsg->info.seqNum, pTransMsg->info.qId);
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, seqNum:%" PRId64
+              ", "
+              "qid:%" PRId64 "",
+              transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
+              pHead->noResp, pTransMsg->code, (int)(cost), pTransMsg->info.seqNum, pTransMsg->info.qId);
     }
   }
   tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pInst), pTransMsg->info.handle, pConn,
@@ -457,7 +456,7 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
                       .msgType = pHead->msgType + 1,
                       .info.qId = qId,
                       .info.traceId = pHead->traceId,
-                      .info.seqNum = htonl(pHead->seqNum)};
+                      .info.seqNum = taosHton64(pHead->seqNum)};
 
     SSvrRespMsg* srvMsg = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
     srvMsg->msg = tmsg;
@@ -573,7 +572,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   transMsg.info.cliVer = htonl(pHead->compatibilityVer);
   transMsg.info.forbiddenIp = forbiddenIp;
   transMsg.info.noResp = pHead->noResp == 1 ? 1 : 0;
-  transMsg.info.seqNum = htonl(pHead->seqNum);
+  transMsg.info.seqNum = taosHton64(pHead->seqNum);
   transMsg.info.qId = taosHton64(pHead->qid);
   transMsg.info.msgType = pHead->msgType;
 
@@ -671,7 +670,7 @@ void uvOnSendCb(uv_write_t* req, int status) {
 
       SSvrRespMsg* smsg = QUEUE_DATA(head, SSvrRespMsg, q);
       STraceId*    trace = &smsg->msg.info.traceId;
-      tGDebug("%s conn %p msg already send out, seqNum:%d, qid:%" PRId64 "", transLabel(conn->pInst), conn,
+      tGDebug("%s conn %p msg already send out, seqNum:%" PRId64 ", qid:%" PRId64 "", transLabel(conn->pInst), conn,
               smsg->msg.info.seqNum, smsg->msg.info.qId);
       destroySmsg(smsg);
     }
@@ -723,7 +722,7 @@ static int uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
   pHead->magicNum = htonl(TRANS_MAGIC_NUM);
   pHead->compatibilityVer = htonl(((STrans*)pConn->pInst)->compatibilityVer);
   pHead->version = TRANS_VER;
-  pHead->seqNum = htonl(pMsg->info.seqNum);
+  pHead->seqNum = taosHton64(pMsg->info.seqNum);
   pHead->qid = taosHton64(pMsg->info.qId);
   pHead->withUserInfo = pConn->userInited == 0 ? 1 : 0;
 

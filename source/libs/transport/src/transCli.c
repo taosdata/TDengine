@@ -92,7 +92,7 @@ typedef struct SCliConn {
   int32_t port;
 
   int64_t refId;
-  int32_t seq;
+  int64_t seq;
 
   int8_t    registered;
   int8_t    connnected;
@@ -127,7 +127,7 @@ typedef struct SCliReq {
   uint64_t st;
   int      sent;  //(0: no send, 1: alread sent)
   queue    seqq;
-  int32_t  seq;
+  int64_t  seq;
 
   queue qlist;
 } SCliReq;
@@ -375,7 +375,7 @@ void destroyCliConnQTable(SCliConn* conn) {
   conn->pQTable = NULL;
 }
 bool filteBySeq(void* key, void* arg) {
-  int32_t* seq = arg;
+  int64_t* seq = arg;
   SCliReq* pReq = QUEUE_DATA(key, SCliReq, q);
   if (pReq->seq == *seq) {
     return true;
@@ -383,7 +383,7 @@ bool filteBySeq(void* key, void* arg) {
     return false;
   }
 }
-int32_t cliGetReqBySeq(SCliConn* conn, int32_t seq, SCliReq** pReq) {
+int32_t cliGetReqBySeq(SCliConn* conn, int64_t seq, SCliReq** pReq) {
   int32_t code = 0;
   queue   set;
   QUEUE_INIT(&set)
@@ -432,7 +432,7 @@ int32_t cliBuildRespFromCont(SCliReq* pReq, STransMsg* pResp, STransMsgHead* pHe
   pResp->info.traceId = pHead->traceId;
   pResp->info.hasEpSet = pHead->hasEpSet;
   pResp->info.cliVer = htonl(pHead->compatibilityVer);
-  pResp->info.seqNum = htonl(pHead->seqNum);
+  pResp->info.seqNum = taosHton64(pHead->seqNum);
 
   int64_t qid = taosHton64(pHead->qid);
   pResp->info.handle = (void*)qid;
@@ -444,8 +444,8 @@ int32_t cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead
   if (pHead->msgType == TDMT_SCH_TASK_RELEASE || pHead->msgType == TDMT_SCH_TASK_RELEASE + 1) {
     int64_t   qId = taosHton64(pHead->qid);
     STraceId* trace = &pHead->traceId;
-    int32_t   seqNum = htonl(pHead->seqNum);
-    tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, seqNum:%d, qid:%" PRId64 "",
+    int64_t   seqNum = taosHton64(pHead->seqNum);
+    tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, seqNum:%" PRId64 ", qid:%" PRId64 "",
             CONN_GET_INST_LABEL(conn), conn, TMSG_INFO(pHead->msgType), conn->dst, conn->src, pHead->msgLen, seqNum,
             qId);
 
@@ -541,7 +541,7 @@ void cliHandleResp(SCliConn* conn) {
   int64_t qId = taosHton64(pHead->qid);
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
-  int32_t   seq = htonl(pHead->seqNum);
+  int64_t   seq = taosHton64(pHead->seqNum);
   STransMsg resp = {0};
 
   if (cliHandleState_mayHandleReleaseResp(conn, pHead)) {
@@ -558,12 +558,13 @@ void cliHandleResp(SCliConn* conn) {
       code = cliNotifyCb(conn, NULL, &resp);
       return;
     } else {
-      tDebug("%s conn %p recv unexpected packet, seqNum:%d,qid:%" PRId64 " reason:%s", CONN_GET_INST_LABEL(conn), conn,
-             seq, qId, tstrerror(code));
+      tDebug("%s conn %p recv unexpected packet, seqNum:%" PRId64 ",qid:%" PRId64 " reason:%s",
+             CONN_GET_INST_LABEL(conn), conn, seq, qId, tstrerror(code));
     }
     if (code != 0) {
-      tDebug("%s conn %p recv unexpected packet, seqNum:%d, qId:%d, reason:%s", CONN_GET_INST_LABEL(conn), conn, seq,
-             qId, tstrerror(code));
+      tDebug("%s conn %p recv unexpected packet, msgType:%s, seqNum:%" PRId64 ", qId:%" PRId64
+             ", the sever sends repeated response,reason:%s",
+             CONN_GET_INST_LABEL(conn), conn, TMSG_INFO(pHead->msgType), seq, qId, tstrerror(code));
       // TODO: notify cb
       if (cliMayRecycleConn(conn)) {
         return;
@@ -603,7 +604,7 @@ void cliConnTimeout(uv_timer_t* handle) {
     return;
   }
 
-  tTrace("%s conn %p conn timeout", CONN_GET_INST_LABEL(conn));
+  tTrace("%s conn %p conn timeout", CONN_GET_INST_LABEL(conn), conn);
 }
 
 void* createConnPool(int size) {
@@ -630,50 +631,6 @@ void* destroyConnPool(SCliThrd* pThrd) {
   pThrd->pool = NULL;
   return NULL;
 }
-
-// static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
-//   void*      pool = pThrd->pool;
-//   STrans*    pTranInst = pThrd->pInst;
-//   size_t     klen = strlen(key);
-//   SConnList* plist = taosHashGet((SHashObj*)pool, key, klen);
-//   if (plist == NULL) {
-//     SConnList list = {0};
-//     (void)taosHashPut((SHashObj*)pool, key, klen, (void*)&list, sizeof(list));
-//     plist = taosHashGet(pool, key, klen);
-
-//     // SMsgList* nList = taosMemoryCalloc(1, sizeof(SMsgList));
-//     // QUEUE_INIT(&nList->msgQ);
-//     // nList->numOfConn++;
-
-//     QUEUE_INIT(&plist->conns);
-//     //plist->list = nList;
-//   }
-
-//   if (QUEUE_IS_EMPTY(&plist->conns)) {
-//     if (plist->list->numOfConn >= pTranInst->connLimitNum) {
-//       *exceed = true;
-//       return NULL;
-//     }
-//     plist->list->numOfConn++;
-//     return NULL;
-//   }
-
-//   queue* h = QUEUE_TAIL(&plist->conns);
-//   QUEUE_REMOVE(h);
-//   plist->size -= 1;
-
-//   SCliConn* conn = QUEUE_DATA(h, SCliConn, q);
-//   conn->status = ConnNormal;
-//   QUEUE_INIT(&conn->q);
-//   tDebug("conn %p get from pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
-
-//   if (conn->task != NULL) {
-//     transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
-//     conn->task = NULL;
-//   }
-//   conn->seq++;
-//   return conn;
-// }
 
 static int32_t getOrCreateConnList(SCliThrd* pThrd, const char* key, SConnList** ppList) {
   int32_t    code = 0;
@@ -724,7 +681,6 @@ static int32_t cliGetConnFromPool(SCliThrd* pThrd, const char* key, SCliConn** p
   SCliConn* conn = QUEUE_DATA(h, SCliConn, q);
   conn->status = ConnNormal;
   QUEUE_INIT(&conn->q);
-  conn->seq = 0;
   conn->list = plist;
 
   if (conn->task != NULL) {
@@ -772,8 +728,6 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   QUEUE_PUSH(&conn->list->conns, &conn->q);
   conn->list->size += 1;
   tDebug("conn %p added to pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
-
-  conn->seq = 0;
 
   if (conn->list->size >= 10) {
     STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
@@ -1197,7 +1151,7 @@ int32_t cliBatchSend(SCliConn* pConn) {
       pHead->compatibilityVer = htonl(pInst->compatibilityVer);
     }
     pHead->timestamp = taosHton64(taosGetTimestampUs());
-    pHead->seqNum = htonl(pConn->seq);
+    pHead->seqNum = taosHton64(pConn->seq);
     pHead->qid = taosHton64(pReq->info.qId);
 
     if (pHead->comp == 0) {
@@ -3210,7 +3164,7 @@ static int32_t delConnFromHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
   }
   int32_t code = transHeapDelete(p, pConn);
   if (code != 0) {
-    tDebug("%s conn failed to delete conn %p from heap cache since %s", pConn, tstrerror(code));
+    tDebug("conn %p failed delete from heap cache since %s", pConn, tstrerror(code));
   }
   return code;
 }

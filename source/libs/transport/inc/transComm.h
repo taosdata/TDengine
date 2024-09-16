@@ -185,7 +185,7 @@ typedef struct {
   uint32_t code;  // del later
   uint32_t msgType;
   int32_t  msgLen;
-  int32_t  seqNum;
+  int64_t  seqNum;
   uint8_t  content[0];  // message body starts from here
 } STransMsgHead;
 
