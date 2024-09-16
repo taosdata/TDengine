@@ -371,18 +371,20 @@ void cliConnMayUpdateTimer(SCliConn* conn, int timeout) {
   if (pInst->startReadTimer == 0) {
     return;
   }
+  // reset previous timer
   if (conn->timer != NULL) {
     // reset previous timer
     cliResetConnTimer(conn);
   }
   int32_t reqsSentNum = transQueueSize(&conn->reqsSentOut);
   if (reqsSentNum == 0) {
+    // no need to set timer
     return;
   }
-  if (conn->timer == NULL) {
-    if (cliGetConnTimer(conn->hostThrd, conn) != 0) {
-      return;
-    }
+
+  // start a new timer
+  if (cliGetConnTimer(conn->hostThrd, conn) != 0) {
+    return;
   }
   uv_timer_start(conn->timer, cliConnTimeout__checkReq, timeout, 0);
 }
