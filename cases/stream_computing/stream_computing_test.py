@@ -4948,7 +4948,7 @@ class StreamComputingTest(TDCase):
                         self.tdCom.check_transactions(self._remote)
                         self.wait_checkpoint_ready(stream_name)
                     if if_exist is not None:
-                        self.tdSql.execute(f'pause stream if exists {stream_name}_no_exist')
+                        self.tdSql.execute(f'pause stream if exists {stream_name}_no_exist', queryTimes=3600)
                     self.tdSql.error(f'pause stream if not exists {stream_name}')
                     self.tdSql.error(f'pause stream {stream_name}_no_exist')
                     self.tdCom.pause_stream(stream_name, if_exist)
