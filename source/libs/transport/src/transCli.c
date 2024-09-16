@@ -398,6 +398,9 @@ void destroyCliConnQTable(SCliConn* conn) {
     STransCtx* ctx = pIter;
     transCtxCleanup(ctx);
     pIter = taosHashIterate(conn->pQTable, pIter);
+
+    transReleaseExHandle(transGetRefMgt(), *qid);
+    transRemoveExHandle(transGetRefMgt(), *qid);
   }
   taosHashCleanup(conn->pQTable);
   conn->pQTable = NULL;
@@ -1037,7 +1040,7 @@ static void cliDestroy(uv_handle_t* handle) {
     int64_t* qid = taosHashGetKey(pIter, NULL);
     (void)taosHashRemove(pThrd->pIdConnTable, qid, sizeof(*qid));
     pIter = taosHashIterate(conn->pQTable, pIter);
-    tDebug("%s conn %p destroy state %ld", CONN_GET_INST_LABEL(conn), conn, *qid);
+    tDebug("%s conn %p destroy state %" PRId64 "", CONN_GET_INST_LABEL(conn), conn, *qid);
   }
 
   destroyCliConnQTable(conn);
