@@ -377,11 +377,6 @@ void cliConnMaySetReadTimeout(SCliConn* conn, int timeout) {
 
   cliConnCheckTimoutMsg(conn);
 
-  if (conn->timer != NULL) {
-    // reset previous timer
-    cliResetConnTimer(conn);
-  }
-
   if (conn->timer == NULL) {
     if (cliGetConnTimer(conn->hostThrd, conn) != 0) {
       return;
@@ -634,7 +629,7 @@ void cliConnTimeout(uv_timer_t* handle) {
 
 bool filterToRmTimoutReq(void* key, void* arg) {
   SCliReq* pReq = QUEUE_DATA(key, SCliReq, q);
-  if (pReq->msg.info.qId == 0 && REQUEST_NO_RESP(&pReq->msg)) {
+  if (pReq->msg.info.qId == 0 && !REQUEST_NO_RESP(&pReq->msg) && pReq->ctx) {
     int64_t elapse = ((taosGetTimestampUs() - pReq->st) / 1000);
     if (elapse > READ_TIMEOUT) {
       return true;
