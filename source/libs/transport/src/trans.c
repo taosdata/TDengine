@@ -42,6 +42,8 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pRpc == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
   }
+
+  pRpc->startReadTimer = pInit->startReadTimer;
   if (pInit->label) {
     int len = strlen(pInit->label) > sizeof(pRpc->label) ? sizeof(pRpc->label) : strlen(pInit->label);
     memcpy(pRpc->label, pInit->label, len);

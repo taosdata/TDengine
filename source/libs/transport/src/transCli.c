@@ -365,7 +365,12 @@ void cliResetConnTimer(SCliConn* conn) {
   }
 }
 
-void cliConnMaySetReadTimeout(SCliConn* conn, int timeout) {
+void cliConnMayUpdateTimer(SCliConn* conn, int timeout) {
+  SCliThrd* pThrd = conn->hostThrd;
+  STrans*   pInst = pThrd->pInst;
+  if (pInst->startReadTimer == 0) {
+    return;
+  }
   if (conn->timer != NULL) {
     // reset previous timer
     cliResetConnTimer(conn);
@@ -374,9 +379,6 @@ void cliConnMaySetReadTimeout(SCliConn* conn, int timeout) {
   if (reqsSentNum == 0) {
     return;
   }
-
-  cliConnCheckTimoutMsg(conn);
-
   if (conn->timer == NULL) {
     if (cliGetConnTimer(conn->hostThrd, conn) != 0) {
       return;
@@ -610,7 +612,7 @@ void cliHandleResp(SCliConn* conn) {
     return;
   }
 
-  cliConnMaySetReadTimeout(conn, READ_TIMEOUT);
+  cliConnMayUpdateTimer(conn, READ_TIMEOUT);
 
   (void)uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
 }
@@ -656,7 +658,7 @@ void cliConnCheckTimoutMsg(SCliConn* conn) {
     QUEUE_REMOVE(el);
     SCliReq*  pReq = QUEUE_DATA(el, SCliReq, q);
     STraceId* trace = &pReq->msg.info.traceId;
-    tDebug("%s conn %p req %s timeout, start to free", CONN_GET_INST_LABEL(conn), conn, pReq->msg.msgType);
+    tDebug("%s conn %p req %s timeout, start to free", CONN_GET_INST_LABEL(conn), conn, TMSG_INFO(pReq->msg.msgType));
 
     SReqCtx*  pCtx = pReq ? pReq->ctx : NULL;
     STransMsg resp = {0};
@@ -1151,7 +1153,7 @@ static void cliBatchSendCb(uv_write_t* req, int status) {
     return;
   }
 
-  cliConnMaySetReadTimeout(conn, READ_TIMEOUT);
+  cliConnMayUpdateTimer(conn, READ_TIMEOUT);
 
   (void)uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
 
