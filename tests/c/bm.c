@@ -17,6 +17,7 @@
 #include "taos.h"   // NOTE: this is intentional, "taos.h" rather than <taos.h>
 
 #include <inttypes.h>
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -85,7 +86,7 @@ static const char* tsdb_data_type_name(int type)
 static int run_sql(TAOS *conn, const char *sql)
 {
   TAOS_RES *res = taos_query(conn, sql);
-  int e = taos_errno(res);                                            \
+  int e = taos_errno(res);
   CHK_RES(res, e, "taos_query(%s) failed", sql);
   if (!res) return -1;
   taos_free_result(res);
@@ -214,12 +215,122 @@ static int gen_tbname_tags(TAOS_MULTI_BIND *bind, int i_tb, int i_row, int tb_ro
   return 0;
 }
 
-static TAOS_MULTI_BIND* create_binds(param_meta_t *meta, size_t nr_meta, int tbname, int nr_tags, int nr_tbls, int nr_records)
+typedef struct binds_s        binds_t;
+struct binds_s {
+  TAOS_MULTI_BIND      *binds;
+  int                   nr_binds;
+  int                   cap_binds;
+  int                  *cap_buffer;
+  int                  *cap_length;
+  int                  *cap_is_null;
+};
+
+static void binds_release(binds_t *binds)
+{
+  if (!binds) return;
+  for (int i=0; i<binds->cap_binds; ++i) {
+    TAOS_MULTI_BIND *bind = binds->binds + i;
+    SAFE_FREE(bind->buffer);
+    SAFE_FREE(bind->length);
+    SAFE_FREE(bind->is_null);
+  }
+  SAFE_FREE(binds->cap_buffer);
+  SAFE_FREE(binds->cap_length);
+  SAFE_FREE(binds->cap_is_null);
+  SAFE_FREE(binds->binds);
+}
+
+static int binds_realloc(binds_t *binds, int nr_binds)
+{
+  if (nr_binds > binds->cap_binds) {
+    int cap_binds        = (nr_binds + 15) / 16 * 16;
+
+    TAOS_MULTI_BIND *buffer       = (TAOS_MULTI_BIND*)realloc(binds->binds, cap_binds * sizeof(*buffer));
+    if (!buffer) {
+      LOGE("out of memory");
+      return -1;
+    }
+    memset(buffer + binds->cap_binds, 0, (cap_binds - binds->cap_binds) * sizeof(*buffer));
+    binds->binds = buffer;
+
+    int *cap_buffer = (int*)realloc(binds->cap_buffer, cap_binds * sizeof(*cap_buffer));
+    if (!cap_buffer) {
+      LOGE("out of memory");
+      return -1;
+    }
+    memset(cap_buffer + binds->cap_binds, 0, (cap_binds - binds->cap_binds) * sizeof(*cap_buffer));
+    binds->cap_buffer = cap_buffer;
+
+    int *cap_length = (int*)realloc(binds->cap_length, cap_binds * sizeof(*cap_length));
+    if (!cap_length) {
+      LOGE("out of memory");
+      return -1;
+    }
+    memset(cap_length + binds->cap_binds, 0, (cap_binds - binds->cap_binds) * sizeof(*cap_length));
+    binds->cap_length = cap_length;
+
+    int *cap_is_null = (int*)realloc(binds->cap_is_null, cap_binds * sizeof(*cap_is_null));
+    if (!cap_is_null) {
+      LOGE("out of memory");
+      return -1;
+    }
+    memset(cap_is_null + binds->cap_binds, 0, (cap_binds - binds->cap_binds) * sizeof(*cap_is_null));
+    binds->cap_is_null = cap_is_null;
+
+    binds->nr_binds  = nr_binds;
+    binds->cap_binds = cap_binds;
+  }
+
+  return 0;
+}
+
+static int binds_realloc_by_rows(binds_t *binds, int col)
 {
   int r = 0;
 
-  TAOS_MULTI_BIND *binds = NULL;
-  int             *rows  = NULL;
+  TAOS_MULTI_BIND *p      = binds->binds + col;
+
+  int bytes = 0;
+
+  bytes = p->num * p->buffer_length;
+  if (bytes > binds->cap_buffer[col]) {
+    char *buffer = (char*)realloc(p->buffer, bytes);
+    if (!buffer) {
+      LOGE("out of memory");
+      return -1;
+    }
+    p->buffer = buffer;
+    binds->cap_buffer[col] = bytes;
+  }
+
+  bytes = p->num * sizeof(*p->length);
+  if (bytes > binds->cap_length[col]) {
+    char *length = (char*)realloc(p->length, bytes);
+    if (!length) {
+      LOGE("out of memory");
+      return -1;
+    }
+    p->length = (int32_t*)length;
+    binds->cap_length[col] = bytes;
+  }
+
+  bytes = p->num * sizeof(*p->is_null);
+  if (bytes > binds->cap_is_null[col]) {
+    char *is_null = (char*)realloc(p->is_null, bytes);
+    if (!is_null) {
+      LOGE("out of memory");
+      return -1;
+    }
+    p->is_null = is_null;
+    binds->cap_is_null[col] = bytes;
+  }
+
+  return 0;
+}
+
+static int gen_binds(binds_t *binds, int *rows, size_t *total_rows, param_meta_t *meta, size_t nr_meta, int tbname, int nr_tags, int nr_tbls, int nr_records)
+{
+  int r = 0;
 
   TAOS_MULTI_BIND *tags  = NULL;
   TAOS_MULTI_BIND *cols  = NULL;
@@ -227,24 +338,17 @@ static TAOS_MULTI_BIND* create_binds(param_meta_t *meta, size_t nr_meta, int tbn
   int nr_cols = nr_meta - !!tbname - nr_tags;
   if (nr_cols <= 0) {
     LOGE("invalid arg:nr_meta[%zd]-tbname[%d]-nr_tags[%d] == nr_cols[%d]", nr_meta, !!tbname, nr_tags, nr_cols);
-    goto failure;
+    return -1;
   }
 
   if ((!!tbname) ^ (!!nr_tags)) {
     LOGE("not implemented yet");
-    goto failure;
+    return -1;
   }
 
   if (tbname && meta->type != TSDB_DATA_TYPE_VARCHAR) {
     LOGE("not implemented yet");
-    goto failure;
-  }
-
-  binds = (TAOS_MULTI_BIND*)malloc(nr_meta * sizeof(*binds));
-  rows  = (int*)malloc(nr_tbls * sizeof(*rows));
-  if (!binds || !rows) {
-    LOGE("out of memory");
-    goto failure;
+    return -1;
   }
 
   size_t nr_rows = 0;
@@ -258,7 +362,7 @@ static TAOS_MULTI_BIND* create_binds(param_meta_t *meta, size_t nr_meta, int tbn
   }
 
   for (int i=0; i<nr_meta; ++i) {
-    TAOS_MULTI_BIND *bind = binds + i;
+    TAOS_MULTI_BIND *bind = binds->binds + i;
     param_meta_t    *pm   = meta + i;
     bind->buffer_type = pm->type;
     bind->num         = nr_rows;
@@ -269,7 +373,7 @@ static TAOS_MULTI_BIND* create_binds(param_meta_t *meta, size_t nr_meta, int tbn
       case TSDB_DATA_TYPE_VARCHAR:
         if (pm->len < 1) {
           LOGE("param[#%d] buffer_length missing or less than 1", i+1);
-          goto failure;
+          return -1;
         }
         bind->buffer_length = pm->len + 1;
         break;
@@ -278,48 +382,265 @@ static TAOS_MULTI_BIND* create_binds(param_meta_t *meta, size_t nr_meta, int tbn
         break;
       default:
         LOGE("[%d]%s:not implemented yet", pm->type, taos_data_type(pm->type));
-        goto failure;
+        return -1;
     }
-    bind->buffer  = (void*)malloc(bind->buffer_length * bind->num);
-    bind->length  = (int32_t*)malloc(sizeof(*bind->length) * bind->num);
-    bind->is_null = (char*)malloc(sizeof(*bind->is_null) * bind->num);
-    if (!bind->buffer || !bind->length || !bind->is_null) {
+    r = binds_realloc_by_rows(binds, i);
+    if (r) {
       LOGE("out of memory");
-      goto failure;
+      return -1;
     }
   }
 
   for (size_t i=0; i<nr_meta; ++i) {
-    TAOS_MULTI_BIND *bind = binds + i;
+    TAOS_MULTI_BIND *bind = binds->binds + i;
     if (i<!!tbname + nr_tags) {
       int i_row = 0;
       for (int j=0; j<nr_tbls; ++j) {
         int tb_rows = rows[j];
         r = gen_tbname_tags(bind, j, i_row, tb_rows);
-        if (r) goto failure;
+        if (r) return -1;
         i_row += tb_rows;
       }
       continue;
     }
     for (int j=0; j<nr_rows; ++j) {
       r = gen_col(bind, j);
-      if (r) goto failure;
+      if (r) return -1;
     }
   }
 
-  goto end;
-
-failure:
-  release_binds(binds, nr_meta);
-  SAFE_FREE(binds);
-
-end:
-  SAFE_FREE(rows);
-
-  return binds;
+  if (r == 0) *total_rows = nr_rows;
+  return r;
 }
 
-static int run_origin(TAOS_STMT *stmt, const char *sql, TAOS_MULTI_BIND *binds, size_t nr_binds, int tbname, int nr_tags)
+typedef struct buf_s              buf_t;
+struct buf_s {
+  char              *buf;
+  size_t             nr;
+  size_t             cap;
+};
+
+static void buf_reset(buf_t *buf)
+{
+  if (!buf) return;
+  buf->nr = 0;
+}
+
+static void buf_release(buf_t *buf)
+{
+  if (!buf) return;
+  buf_reset(buf);
+  SAFE_FREE(buf->buf);
+  buf->cap = 0;
+}
+
+static int buf_vprintf(buf_t *buf, const char *fmt, va_list ap)
+{
+  int n = 0;
+
+  size_t  nr = 0;
+  va_list aq;
+
+again:
+
+  nr = buf->cap - buf->nr;
+  va_copy(aq, ap);
+  n = vsnprintf(buf->buf + buf->nr, nr, fmt, aq);
+  va_end(aq);
+  if (n == -1) return -1;
+  if (n >= nr) {
+    size_t align = 1024 * 16;
+    size_t cap = (buf->cap + n + align - 1) / align * align;
+    char *p = (char*)realloc(buf->buf, cap * sizeof(*p));
+    if (!p) return -1;
+    buf->buf       = p;
+    buf->cap       = cap;
+    goto again;
+  }
+
+  buf->nr += n;
+
+  return 0;
+}
+
+__attribute__((format(printf, 2, 3)))
+static int buf_printf(buf_t *buf, const char *fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  int r = buf_vprintf(buf, fmt, ap);
+  va_end(ap);
+
+  return r;
+}
+
+static int buf_append_bind(buf_t *buf, TAOS_MULTI_BIND *bind, int row)
+{
+  int r = 0;
+
+  char    *data    = ((char*)bind->buffer) + bind->buffer_length * row;
+  int32_t *length  = bind->length + row;
+  char    *is_null = bind->is_null + row;
+  if (is_null && *is_null) {
+    r = buf_printf(buf, "null");
+    if (r) goto end;
+  }
+
+  int32_t i = 0;
+
+  switch (bind->buffer_type) {
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      r = buf_printf(buf, "%" PRId64 "", *(int64_t*)data);
+      break;
+    case TSDB_DATA_TYPE_VARCHAR:
+      r = buf_printf(buf, "'");
+      if (r) goto end;
+
+      while (i < *length) {
+        char *p = strchr(data + i, '\'');
+        if (!p) {
+          r = buf_printf(buf, "%.*s", (*length - i), data + i);
+          i = *length;
+        } else {
+          r = buf_printf(buf, "%.*s''", (int)(p - data - i), data + i);
+          i = p - data;
+        }
+        if (r) goto end;
+      }
+      r = buf_printf(buf, "'");
+      break;
+    case TSDB_DATA_TYPE_INT:
+      r = buf_printf(buf, "%d", *(int32_t*)data);
+      break;
+    default:
+      LOGE("[%d]%s:not implemented yet", bind->buffer_type, taos_data_type(bind->buffer_type));
+      return -1;
+  }
+
+end:
+  return r;
+}
+
+static int run_literal(TAOS *conn, int *rows_inserted, buf_t *buf, const char *st, binds_t *binds, size_t nr_binds, int tbname, int nr_tags)
+{
+  int r = 0;
+
+  const size_t nr_max = 1024 * 1024;
+
+  int row = 0;
+  TAOS_MULTI_BIND *tbl   = !!tbname ? binds->binds : NULL;
+  TAOS_MULTI_BIND *tags  = binds->binds + !!tbname;
+  TAOS_MULTI_BIND *cols  = tags + nr_tags;
+  int nr_cols = nr_binds - !!tbname - nr_tags;
+  int rows_in_tbl = 0;
+
+  int row0 = 0;
+
+  *rows_inserted = 0;
+
+  if (nr_cols < 0) {
+    LOGE("internal logic error");
+    return -1;
+  }
+
+  r = buf_printf(buf, "insert into");
+  if (r) goto end;
+
+  while (row < binds->binds->num) {
+    size_t nr       = buf->nr;
+
+    if (tbname) {
+      const char *s      = ((const char*)tbl->buffer) + row * tbl->buffer_length;
+      size_t      n      = strlen(s);
+      int i = row + 1;
+      for (; i<binds->binds->num; ++i) {
+        const char *s1      = ((const char*)tbl->buffer) + i * tbl->buffer_length;
+        size_t      n1      = strlen(s);
+        if (n != n1 || strcasecmp(s, s1)) break;
+      }
+
+      rows_in_tbl = i - row;
+      r = buf_printf(buf, " %s using %s", s, st);
+      if (r) goto end;
+
+      if (nr_tags) {
+        r = buf_printf(buf, " tags (");
+        if (r) goto end;
+        for (int j=0; j<nr_tags; ++j) {
+          if (j) {
+            r = buf_printf(buf, ",");
+            if (r) goto end;
+          }
+          TAOS_MULTI_BIND *tag = tags + j;
+          r = buf_append_bind(buf, tag, row);
+          if (r) goto end;
+        }
+        r = buf_printf(buf, ")");
+        if (r) goto end;
+      }
+    }
+
+    int i = 0;
+    if (nr_cols) {
+      r = buf_printf(buf, " values");
+      if (r) goto end;
+      for (i=0; i<rows_in_tbl; ++i) {
+        r = buf_printf(buf, " (");
+        if (r) goto end;
+        for (int j=0; j<nr_cols; ++j) {
+          if (j) {
+            r = buf_printf(buf, ",");
+            if (r) goto end;
+          }
+          TAOS_MULTI_BIND *col = cols + j;
+          r = buf_append_bind(buf, col, row + i);
+          if (r) goto end;
+        }
+        r = buf_printf(buf, ")");
+        if (r) goto end;
+
+        if (buf->nr >= nr_max) break;
+        nr = buf->nr;
+      }
+    }
+
+    if (i < rows_in_tbl) {
+      buf->nr = nr;
+      buf->buf[nr] = '\0';
+      // LOGE("%s", buf->buf);
+      r = run_sql(conn, buf->buf);
+      buf_reset(buf);
+      if (r) return -1;
+
+      row0 = row + i;
+      *rows_inserted = row0;
+
+      r = buf_printf(buf, "insert into");
+      if (r) return -1;
+    }
+
+    row += i;
+  }
+
+  if (row > row0) {
+    // LOGE("%s", buf->buf);
+    r = run_sql(conn, buf->buf);
+    buf_reset(buf);
+    if (r) return -1;
+
+    row0 = row;
+    *rows_inserted = row0;
+
+    r = buf_printf(buf, "insert into");
+    if (r) return -1;
+  }
+
+end:
+
+  return r;
+}
+
+static int run_origin(TAOS_STMT *stmt, binds_t *binds, size_t nr_binds, int tbname, int nr_tags)
 {
   int r = 0;
 
@@ -327,8 +648,8 @@ static int run_origin(TAOS_STMT *stmt, const char *sql, TAOS_MULTI_BIND *binds, 
   size_t           cap   = 0;
 
   int row = 0;
-  TAOS_MULTI_BIND *tbl   = !!tbname ? binds : NULL;
-  TAOS_MULTI_BIND *tags  = binds + !!tbname;
+  TAOS_MULTI_BIND *tbl   = !!tbname ? binds->binds : NULL;
+  TAOS_MULTI_BIND *tags  = binds->binds + !!tbname;
   TAOS_MULTI_BIND *cols  = tags + nr_tags;
   int nr_cols = nr_binds - !!tbname - nr_tags;
 
@@ -347,25 +668,21 @@ static int run_origin(TAOS_STMT *stmt, const char *sql, TAOS_MULTI_BIND *binds, 
     return -1;
   }
 
-  r = taos_stmt_prepare(stmt, sql, strlen(sql));
-  CHK_STMT(stmt, r, "taos_stmt_prepare2(%s) failed", sql);
-  if (r) goto end;
-
   int rows = 0;
 
-  while (row < binds->num) {
-    rows = binds->num - row;
+  while (row < binds->binds->num) {
+    rows = binds->binds->num - row;
 
     if (tbname) {
       const char *s      = ((const char*)tbl->buffer) + row * tbl->buffer_length;
       size_t      n      = strlen(s);
       int i = row + 1;
-      for (; i<binds->num; ++i) {
+      for (; i<binds->binds->num; ++i) {
         const char *s1      = ((const char*)tbl->buffer) + i * tbl->buffer_length;
         size_t      n1      = strlen(s);
         if (n != n1 || strcasecmp(s, s1)) break;
       }
-      
+
       rows = i - row;
       r = taos_stmt_set_tbname(stmt, s);
       CHK_STMT(stmt, r, "taos_stmt_set_tbname(%s) failed", s);
@@ -405,12 +722,11 @@ static int run_origin(TAOS_STMT *stmt, const char *sql, TAOS_MULTI_BIND *binds, 
       if (r) break;
     }
 
-    r = taos_stmt_execute(stmt);
-    CHK_STMT(stmt, r, "taos_stmt_execute() failed");
-    if (r) break;
-
     row += rows;
   }
+
+  r = taos_stmt_execute(stmt);
+  CHK_STMT(stmt, r, "taos_stmt_execute() failed");
 
 end:
 
@@ -419,15 +735,11 @@ end:
   return r;
 }
 
-static int run_api2(TAOS_STMT *stmt, const char *sql, TAOS_MULTI_BIND *binds, size_t nr_binds, int tbname, int nr_tags)
+static int run_api2(TAOS_STMT *stmt, binds_t *binds, size_t nr_binds, int tbname, int nr_tags)
 {
   int r = 0;
 
-  r = taos_stmt_prepare2(stmt, sql, strlen(sql));
-  CHK_STMT(stmt, r, "taos_stmt_prepare2(%s) failed", sql);
-  if (r) return -1;
-
-  r = taos_stmt_bind_params2(stmt, binds, nr_binds);
+  r = taos_stmt_bind_params2(stmt, binds->binds, nr_binds);
   CHK_STMT(stmt, r, "taos_stmt_bind_params2() failed");
   if (r) return -1;
 
@@ -438,7 +750,7 @@ static int run_api2(TAOS_STMT *stmt, const char *sql, TAOS_MULTI_BIND *binds, si
   return 0;
 }
 
-static int run_with_stmt(TAOS *conn, TAOS_STMT *stmt, int mode, int tables, int records)
+static int run_with_stmt(TAOS *conn, TAOS_STMT *stmt, int mode, int loops, int tables, int records)
 {
   int r = 0;
 
@@ -459,34 +771,75 @@ static int run_with_stmt(TAOS *conn, TAOS_STMT *stmt, int mode, int tables, int 
     {TSDB_DATA_TYPE_INT},
   };
 
-  size_t nr_params = sizeof(ar_params) / sizeof(*ar_params);
-  int    tbname    = 1;
-  int    nr_tags   = 1;
+  const size_t nr_params = sizeof(ar_params) / sizeof(*ar_params);
+  const int    tbname    = 1;
+  const int    nr_tags   = 1;
 
-  TAOS_MULTI_BIND *binds = create_binds(ar_params, nr_params, !!tbname, nr_tags, tables, records);
-  if (!binds) return -1;
+  binds_t          binds = {0};
+  int             *rows  = NULL;
 
-  struct timespec t0 = {0};
-  clock_gettime(CLOCK_MONOTONIC, &t0);
+  r = binds_realloc(&binds, nr_params);
+  if (r) return -1;
 
-  if (mode == 1) {
-    r = run_origin(stmt, sql, binds, nr_params, !!tbname, nr_tags);
-  } else {
-    r = run_api2(stmt, sql, binds, nr_params, !!tbname, nr_tags);
+  rows  = (int*)calloc(tables, sizeof(*rows));
+  if (!rows) {
+    LOGE("out of memory");
+    binds_release(&binds);
+    return -1;
   }
 
+  struct timespec t0 = {0};
   struct timespec t1 = {0};
+  buf_t buf = {0};
+
+  size_t    total_records = 0;
+
+  if (mode == 0) {
+  } else if (mode == 1) {
+    r = taos_stmt_prepare(stmt, sql, strlen(sql));
+    CHK_STMT(stmt, r, "taos_stmt_prepare2(%s) failed", sql);
+  } else {
+    r = taos_stmt_prepare2(stmt, sql, strlen(sql));
+    CHK_STMT(stmt, r, "taos_stmt_prepare2(%s) failed", sql);
+  }
+
+  clock_gettime(CLOCK_MONOTONIC, &t0);
+
+  for (int i=0; i<loops; ++i) {
+    if (r) break;
+    size_t total_rows = 0;
+    r = gen_binds(&binds, rows, &total_rows, ar_params, nr_params, !!tbname, nr_tags, tables, records);
+    if (r) break;
+
+    if (mode == 0) {
+      buf_reset(&buf);
+      int rows_inserted = 0;
+      r = run_literal(conn, &rows_inserted, &buf, "st", &binds, nr_params, !!tbname, nr_tags);
+      total_rows = rows_inserted;
+    } else if (mode == 1) {
+      r = run_origin(stmt, &binds, nr_params, !!tbname, nr_tags);
+    } else {
+      r = run_api2(stmt, &binds, nr_params, !!tbname, nr_tags);
+    }
+
+    total_records += total_rows;
+  }
+
   clock_gettime(CLOCK_MONOTONIC, &t1);
 
-  int64_t delta = t1.tv_sec - t0.tv_sec;
-  delta *= 1000000000;
-  delta += t1.tv_nsec - t0.tv_nsec;
+  if (r == 0) {
+    int64_t delta = t1.tv_sec - t0.tv_sec;
+    delta *= 1000000000;
+    delta += t1.tv_nsec - t0.tv_nsec;
 
-  LOGE("delta: %" PRId64 ".%" PRId64 "s", delta/1000000000, delta % 1000000000);
-  LOGE("throughput: %lf/s", ((double)binds->num) / delta * 1000000000);
+    LOGE("total-records: %" PRId64 "", total_records);
+    LOGE("        delta: %" PRId64 "ns; %lfs", delta, delta/(double)1000000000);
+    LOGE("   throughput: %lf/s", total_records / (double)delta * 1000000000);
+  }
 
-  release_binds(binds, nr_params);
-  SAFE_FREE(binds);
+  buf_release(&buf);
+  binds_release(&binds);
+  SAFE_FREE(rows);
 
   return !!r;
 }
@@ -496,7 +849,8 @@ static int run(TAOS *conn, int argc, char *argv[])
   int r = 0;
   int e = 0;
 
-  int mode    = 1;
+  int mode    = 0;
+  int loops   = 1;
   int tables  = 2;
   int records = 1;
 
@@ -510,6 +864,15 @@ static int run(TAOS *conn, int argc, char *argv[])
     if (strcmp(arg, "-2") == 0) {
       // stmtAPI2 mode
       mode = 2;
+      continue;
+    }
+    if (strcmp(arg, "-l") == 0) {
+      // how many loops to go
+      if (++i >= argc) {
+        fprintf(stderr, "-l <loops>; missing <loops>\n");
+        return -1;
+      }
+      loops = atoi(argv[i]);
       continue;
     }
     if (strcmp(arg, "-t") == 0) {
@@ -539,7 +902,7 @@ static int run(TAOS *conn, int argc, char *argv[])
   CHK_STMT(stmt, e, "taos_stmt_init failed");
   if (!stmt) return -1;
 
-  r = run_with_stmt(conn, stmt, mode, tables, records);
+  r = run_with_stmt(conn, stmt, mode, loops, tables, records);
   taos_stmt_close(stmt);
 
   return r;
@@ -562,6 +925,8 @@ int main(int argc, char *argv[])
   if (!conn) r = -1;
   if (r == 0) r = run(conn, argc, argv);
   if (conn) taos_close(conn);
+
+  LOGE("%s", r ? "failure" : "success");
 
   return !!r;
 }

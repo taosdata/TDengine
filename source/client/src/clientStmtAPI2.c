@@ -966,7 +966,7 @@ static int stmtExec2NormalInsert(TAOS_STMT *stmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int stmtExec2ParamInsert(TAOS_STMT *stmt, const char *tbname, const int row, const int nr_rows, int64_t *affectedRows) {
+static int stmtExec2ParamInsert(TAOS_STMT *stmt, const char *tbname, const int row, const int nr_rows) {
   int code = TSDB_CODE_SUCCESS;
 
   STscStmt*   pStmt = (STscStmt*)stmt;
@@ -1010,7 +1010,6 @@ static int stmtExec2ParamInsert(TAOS_STMT *stmt, const char *tbname, const int r
 
   code = stmtExec2ParamsBind(stmt, 1, tags, nr_tags, cols, nr_cols, row, nr_rows);
   if (code) goto end;
-  code = stmtDoExec1(stmt, affectedRows);
 
 end:
 
@@ -1080,16 +1079,15 @@ int stmtExec2(TAOS_STMT *stmt) {
   int        row           = 0;
   const int  nr_total_rows = api2->mbs_from_app->num;
   int        nr_rows       = 0;
-
-  int64_t    accumulatedAffectedRows = 0;
-  int64_t    affectedRows            = 0;
+  int64_t    affectedRows  = 0;
 
   int i   = 0;
 
 again:
 
   if (row >= nr_total_rows) {
-    pStmt->exec.affectedRows  = accumulatedAffectedRows;
+    code = stmtDoExec1(stmt, &affectedRows);
+    pStmt->exec.affectedRows  = affectedRows;
     pStmt->affectedRows      += pStmt->exec.affectedRows;
     return TSDB_CODE_SUCCESS;
   }
@@ -1110,9 +1108,7 @@ again:
     if (strncmp(s, tbname, n)) break;
   }
 
-  affectedRows = 0;
-  STMT_ERR_RET(stmtExec2ParamInsert(stmt, tbname, row, i-row, &affectedRows));
-  accumulatedAffectedRows += affectedRows;
+  STMT_ERR_RET(stmtExec2ParamInsert(stmt, tbname, row, i-row));
   row = i;
 
   if (0 && row < nr_total_rows) {
