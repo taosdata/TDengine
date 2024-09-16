@@ -215,7 +215,10 @@ int32_t taosInitSlowLog() {
 
 int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc) {
   if (atomic_val_compare_exchange_8(&tsLogInited, 0, 1) != 0) return 0;
-  TAOS_CHECK_RETURN(osUpdate());
+  int32_t code = osUpdate();
+  if (code != 0) {
+    uError("failed to update os info, reason:%s", tstrerror(code));
+  }
 
   TAOS_CHECK_RETURN(taosInitNormalLog(logName, maxFiles));
   if (tsc){

@@ -128,7 +128,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
 
   pData = taosMemoryMalloc(size + 1);
   if (pData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -169,7 +169,7 @@ static int32_t vmEncodeVnodeList(SJson *pJson, SVnodeObj **ppVnodes, int32_t num
   int32_t code = 0;
   SJson  *vnodes = tjsonCreateArray();
   if (vnodes == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if ((code = tjsonAddItemToObject(pJson, "vnodes", vnodes)) < 0) {
     tjsonDelete(vnodes);
@@ -181,7 +181,7 @@ static int32_t vmEncodeVnodeList(SJson *pJson, SVnodeObj **ppVnodes, int32_t num
     if (pVnode == NULL) continue;
 
     SJson *vnode = tjsonCreateObject();
-    if (vnode == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+    if (vnode == NULL) return terrno;
     if ((code = tjsonAddDoubleToObject(vnode, "vgId", pVnode->vgId)) < 0) return code;
     if ((code = tjsonAddDoubleToObject(vnode, "dropped", pVnode->dropped)) < 0) return code;
     if ((code = tjsonAddDoubleToObject(vnode, "vgVersion", pVnode->vgVersion)) < 0) return code;
@@ -221,7 +221,7 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   // terrno = TSDB_CODE_OUT_OF_MEMORY;
   pJson = tjsonCreateObject();
   if (pJson == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
   if ((code = vmEncodeVnodeList(pJson, ppVnodes, numOfVnodes)) != 0) goto _OVER;

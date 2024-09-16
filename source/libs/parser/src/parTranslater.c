@@ -5996,7 +5996,7 @@ static int32_t isOperatorEqTbnameCond(STranslateContext* pCxt, SOperatorNode* pO
     *pRet = false;
     return TSDB_CODE_SUCCESS;
   }
-  
+
   SFunctionNode* pTbnameFunc = NULL;
   SValueNode*    pValueNode = NULL;
   if (nodeType(pOperator->pLeft) == QUERY_NODE_FUNCTION &&
@@ -6278,7 +6278,7 @@ static int32_t replaceToChildTableQuery(STranslateContext* pCxt, SEqCondTbNameTa
   if (NULL == pMeta || TSDB_CHILD_TABLE != pMeta->tableType || pMeta->suid != pRealTable->pMeta->suid) {
     goto _return;
   }
-  
+
   pRealTable->pMeta->uid = pMeta->uid;
   pRealTable->pMeta->vgId = pMeta->vgId;
   pRealTable->pMeta->tableType = pMeta->tableType;
@@ -6389,11 +6389,11 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
   }
 
   qDebug("before ctbname optimize, code:%d, aTableNum:%d, nTbls:%d, stableQuery:%d", code, aTableNum, nTbls, stableQuery);
-  
+
   if (TSDB_CODE_SUCCESS == code && 1 == aTableNum && 1 == nTbls && stableQuery && NULL == pInfo->pRealTable->pTsmas) {
     code = replaceToChildTableQuery(pCxt, pInfo);
   }
-  
+
   return code;
 }
 
@@ -6800,7 +6800,7 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (pCxt->pParseCxt && pCxt->pParseCxt->setQueryFp) {
     (*pCxt->pParseCxt->setQueryFp)(pCxt->pParseCxt->requestRid);
   }
-  
+
   if (NULL == pSelect->pFromTable) {
     return translateSelectWithoutFrom(pCxt, pSelect);
   } else {
@@ -13813,7 +13813,6 @@ _OUT:
 }
 
 typedef struct SParseFileContext {
-  SHashObj*   pTbNameHash;
   SArray*     aTagNames;
   bool        tagNameFilled;
   STableMeta* pStbMeta;
@@ -13949,18 +13948,6 @@ static int32_t parseCsvFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt, SParseFi
     code = parseOneStbRow(pMsgBuf, pParFileCxt);
 
     if (TSDB_CODE_SUCCESS == code) {
-      if (taosHashGet(pParFileCxt->pTbNameHash, pParFileCxt->ctbName.tname, strlen(pParFileCxt->ctbName.tname) + 1) !=
-          NULL) {
-        taosMemoryFreeClear(pParFileCxt->pTag);
-        code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_TBNAME_DUPLICATED, pParFileCxt->ctbName.tname);
-        break;
-      }
-
-      code = taosHashPut(pParFileCxt->pTbNameHash, pParFileCxt->ctbName.tname, strlen(pParFileCxt->ctbName.tname) + 1,
-                         NULL, 0);
-    }
-
-    if (TSDB_CODE_SUCCESS == code) {
       code = fillVgroupInfo(pParseCxt, &pParFileCxt->ctbName, &pParFileCxt->vg);
     }
 
@@ -13999,7 +13986,6 @@ static void destructParseFileContext(SParseFileContext** ppParFileCxt) {
 
   SParseFileContext* pParFileCxt = *ppParFileCxt;
 
-  taosHashCleanup(pParFileCxt->pTbNameHash);
   taosArrayDestroy(pParFileCxt->aTagNames);
   taosMemoryFreeClear(pParFileCxt->pStbMeta);
   taosArrayDestroy(pParFileCxt->aTagIndexs);
@@ -14023,15 +14009,6 @@ static int32_t constructParseFileContext(SCreateSubTableFromFileClause* pStmt, S
   pParFileCxt->ctbName.type = TSDB_TABLE_NAME_T;
   pParFileCxt->ctbName.acctId = acctId;
   strcpy(pParFileCxt->ctbName.dbname, pStmt->useDbName);
-
-  if (NULL == pParFileCxt->pTbNameHash) {
-    pParFileCxt->pTbNameHash =
-        taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
-    if (!pParFileCxt->pTbNameHash) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _ERR;
-    }
-  }
 
   if (NULL == pParFileCxt->aTagNames) {
     pParFileCxt->aTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);

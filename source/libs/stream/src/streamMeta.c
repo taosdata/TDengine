@@ -368,8 +368,9 @@ void streamMetaRemoveDB(void* arg, char* key) {
 
 int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, FTaskExpand expandTaskFn, int32_t vgId,
                        int64_t stage, startComplete_fn_t fn, SStreamMeta** p) {
-  int32_t code = 0;
   QRY_PARAM_CHECK(p);
+  int32_t code = 0;
+  int32_t lino = 0;
 
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
   if (pMeta == NULL) {
@@ -379,23 +380,18 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
 
   int32_t len = strlen(path) + 64;
   char*   tpath = taosMemoryCalloc(1, len);
-  if (tpath == NULL) {
-    code = terrno;
-    goto _err;
-  }
+  TSDB_CHECK_NULL(tpath, code, lino, _err, terrno);
 
   sprintf(tpath, "%s%s%s", path, TD_DIRSEP, "stream");
   pMeta->path = tpath;
 
   code = streamMetaOpenTdb(pMeta);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _err;
-  }
+  TSDB_CHECK_CODE(code, lino, _err);
 
   if ((code = streamMetaMayCvtDbFormat(pMeta)) < 0) {
     stError("vgId:%d convert sub info format failed, open stream meta failed, reason: %s", pMeta->vgId,
             tstrerror(terrno));
-    goto _err;
+    TSDB_CHECK_CODE(code, lino, _err);
   }
 
   if ((code = streamMetaBegin(pMeta) < 0)) {
@@ -405,28 +401,17 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
 
   _hash_fn_t fp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR);
   pMeta->pTasksMap = taosHashInit(64, fp, true, HASH_NO_LOCK);
-  if (pMeta->pTasksMap == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
+  TSDB_CHECK_NULL(pMeta->pTasksMap, code, lino, _err, terrno);
 
   pMeta->updateInfo.pTasks = taosHashInit(64, fp, false, HASH_NO_LOCK);
-  if (pMeta->updateInfo.pTasks == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
+  TSDB_CHECK_NULL(pMeta->updateInfo.pTasks, code, lino, _err, terrno);
 
   code = streamMetaInitStartInfo(&pMeta->startInfo);
-  if (code) {
-    goto _err;
-  }
+  TSDB_CHECK_CODE(code, lino, _err);
 
   // task list
   pMeta->pTaskList = taosArrayInit(4, sizeof(SStreamTaskId));
-  if (pMeta->pTaskList == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
+  TSDB_CHECK_NULL(pMeta->pTaskList, code, lino, _err, terrno);
 
   pMeta->scanInfo.scanCounter = 0;
   pMeta->vgId = vgId;
@@ -440,59 +425,47 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
 
   pMeta->startInfo.completeFn = fn;
   pMeta->pTaskDbUnique = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  TSDB_CHECK_NULL(pMeta->pTaskDbUnique, code, lino, _err, terrno);
 
   pMeta->numOfPausedTasks = 0;
   pMeta->numOfStreamTasks = 0;
   pMeta->closeFlag = false;
 
   stInfo("vgId:%d open stream meta succ, latest checkpoint:%" PRId64 ", stage:%" PRId64, vgId, pMeta->chkpId, stage);
-
   pMeta->rid = taosAddRef(streamMetaId, pMeta);
 
   // set the attribute when running on Linux OS
   TdThreadRwlockAttr attr;
   code = taosThreadRwlockAttrInit(&attr);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _err;
-  }
+  TSDB_CHECK_CODE(code, lino, _err);
 
 #ifdef LINUX
   code = pthread_rwlockattr_setkind_np(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _err;
-  }
+  TSDB_CHECK_CODE(code, lino, _err);
 #endif
 
   code = taosThreadRwlockInit(&pMeta->lock, &attr);
-  if (code) {
-    goto _err;
-  }
+  TSDB_CHECK_CODE(code, lino, _err);
 
   code = taosThreadRwlockAttrDestroy(&attr);
-  if (code) {
-    goto _err;
-  }
+  TSDB_CHECK_CODE(code, lino, _err);
 
   int64_t* pRid = taosMemoryMalloc(sizeof(int64_t));
   memcpy(pRid, &pMeta->rid, sizeof(pMeta->rid));
   code = metaRefMgtAdd(pMeta->vgId, pRid);
-  if (code) {
-    goto _err;
-  }
+  TSDB_CHECK_CODE(code, lino, _err);
 
   code = createMetaHbInfo(pRid, &pMeta->pHbInfo);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _err;
-  }
+  TSDB_CHECK_CODE(code, lino, _err);
 
   pMeta->qHandle = taosInitScheduler(32, 1, "stream-chkp", NULL);
+  TSDB_CHECK_NULL(pMeta->qHandle, code, lino, _err, terrno);
 
   code = bkdMgtCreate(tpath, (SBkdMgt**)&pMeta->bkdChkptMgt);
-  if (code != 0) {
-    goto _err;
-  }
+  TSDB_CHECK_CODE(code, lino, _err);
 
   code = taosThreadMutexInit(&pMeta->backendMutex, NULL);
+  TSDB_CHECK_CODE(code, lino, _err);
 
   *p = pMeta;
   return code;
@@ -526,9 +499,10 @@ _err:
   if (pMeta->startInfo.pReadyTaskSet) taosHashCleanup(pMeta->startInfo.pReadyTaskSet);
   if (pMeta->startInfo.pFailedTaskSet) taosHashCleanup(pMeta->startInfo.pFailedTaskSet);
   if (pMeta->bkdChkptMgt) bkdMgtDestroy(pMeta->bkdChkptMgt);
+
   taosMemoryFree(pMeta);
 
-  stError("failed to open stream meta, reason:%s", tstrerror(terrno));
+  stError("vgId:%d failed to open stream meta, at line:%d reason:%s", vgId, lino, tstrerror(code));
   return code;
 }
 
@@ -1274,7 +1248,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
 void streamMetaStartHb(SStreamMeta* pMeta) {
   int64_t* pRid = taosMemoryMalloc(sizeof(int64_t));
   if (pRid == NULL) {
-    stError("vgId:%d failed to prepare the metaHb to mnode, hbMsg will not started, code: out of memory", pMeta->vgId);
+    stFatal("vgId:%d failed to prepare the metaHb to mnode, hbMsg will not started, code: out of memory", pMeta->vgId);
     return;
   }
 

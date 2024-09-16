@@ -54,7 +54,7 @@ enum TdTimezone {
   TdEastZone12
 };
 
-void taosGetSystemTimezone(char *outTimezone, enum TdTimezone *tsTimezone);
+int32_t taosGetSystemTimezone(char *outTimezone, enum TdTimezone *tsTimezone);
 int32_t taosSetSystemTimezone(const char *inTimezone, char *outTimezone, int8_t *outDaylight, enum TdTimezone *tsTimezone);
 
 #ifdef __cplusplus

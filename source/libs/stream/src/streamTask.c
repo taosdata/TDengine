@@ -487,8 +487,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   STaskOutputInfo* pOutputInfo = &pTask->outputInfo;
   pOutputInfo->pTokenBucket = taosMemoryCalloc(1, sizeof(STokenBucket));
   if (pOutputInfo->pTokenBucket == NULL) {
-    stError("s-task:%s failed to prepare the tokenBucket, code:%s", pTask->id.idStr,
-            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    stError("s-task:%s failed to prepare the tokenBucket, code:%s", pTask->id.idStr, tstrerror(terrno));
     return terrno;
   }
 

@@ -365,7 +365,10 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     // The transfer of state may generate new data that need to dispatch to downstream tasks,
     // Otherwise, those new generated data by executors that is kept in outputQ, may be lost if this program crashed
     // before the next checkpoint.
-    flushStateDataInExecutor(pTask, (SStreamQueueItem*)pBlock);
+    code = flushStateDataInExecutor(pTask, (SStreamQueueItem*)pBlock);
+    if (code) {
+      return code;
+    }
 
     if (type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
       stDebug("s-task:%s set childIdx:%d, and add checkpoint-trigger block into outputQ", id, pTask->info.selfChildId);
@@ -398,7 +401,10 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
       code = streamTaskBuildCheckpoint(pTask);   // todo: not handle error yet
     } else {  // source & agg tasks need to forward the checkpoint msg downwards
       stDebug("s-task:%s process checkpoint-trigger block, all %d upstreams sent, forwards to downstream", id, num);
-      flushStateDataInExecutor(pTask, (SStreamQueueItem*)pBlock);
+      code = flushStateDataInExecutor(pTask, (SStreamQueueItem*)pBlock);
+      if (code) {
+        return code;
+      }
 
       // Put the checkpoint-trigger block into outputQ, to make sure all blocks with less version have been handled by
       // this task already. And then, dispatch check point msg to all downstream tasks

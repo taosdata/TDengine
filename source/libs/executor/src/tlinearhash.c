@@ -150,10 +150,11 @@ static void doRemoveFromBucket(SFilePage* pPage, SLHashNode* pNode, SLHashBucket
   pBucket->size -= 1;
 }
 
-static void doTrimBucketPages(SLHashObj* pHashObj, SLHashBucket* pBucket) {
+static int32_t doTrimBucketPages(SLHashObj* pHashObj, SLHashBucket* pBucket) {
+  int32_t code = 0;
   size_t numOfPages = taosArrayGetSize(pBucket->pPageIdList);
   if (numOfPages <= 1) {
-    return;
+    return code;
   }
 
   int32_t*   firstPage = taosArrayGet(pBucket->pPageIdList, 0);
@@ -164,11 +165,14 @@ static void doTrimBucketPages(SLHashObj* pHashObj, SLHashBucket* pBucket) {
 
   if (pLast->num <= sizeof(SFilePage)) {
     // this is empty
-    // TODO check ret
-    (void)dBufSetBufPageRecycled(pHashObj->pBuf, pLast);
+    code = dBufSetBufPageRecycled(pHashObj->pBuf, pLast);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed to recycle buf page since %s", __func__, tstrerror(code));
+      return code;
+    }
     releaseBufPage(pHashObj->pBuf, pFirst);
     taosArrayRemove(pBucket->pPageIdList, numOfPages - 1);
-    return;
+    return code;
   }
 
   char*   pStart = pLast->data;
@@ -191,8 +195,11 @@ static void doTrimBucketPages(SLHashObj* pHashObj, SLHashBucket* pBucket) {
       pStart += nodeSize;
       if (pLast->num <= sizeof(SFilePage)) {
         // this is empty
-        // TODO check ret
-        (void)dBufSetBufPageRecycled(pHashObj->pBuf, pLast);
+        code = dBufSetBufPageRecycled(pHashObj->pBuf, pLast);
+        if (code != TSDB_CODE_SUCCESS) {
+          qError("%s failed to recycle buf page since %s", __func__, tstrerror(code));
+          return code;
+        }
         releaseBufPage(pHashObj->pBuf, pFirst);
         taosArrayRemove(pBucket->pPageIdList, numOfPages - 1);
         break;
@@ -210,6 +217,7 @@ static void doTrimBucketPages(SLHashObj* pHashObj, SLHashBucket* pBucket) {
       break;
     }
   }
+  return code;
 }
 
 static int32_t doAddNewBucket(SLHashObj* pHashObj) {
@@ -403,7 +411,10 @@ int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data
       releaseBufPage(pHashObj->pBuf, p);
     }
 
-    doTrimBucketPages(pHashObj, pBucket);
+    code = doTrimBucketPages(pHashObj, pBucket);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
 
   return code;
