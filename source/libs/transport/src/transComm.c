@@ -482,7 +482,7 @@ void transQueueRemoveByFilter(STransQueue* q, bool (*filter)(void* e, void* arg)
   queue* node = QUEUE_NEXT(&q->node);
   while (node != &q->node) {
     queue* next = QUEUE_NEXT(node);
-    if (filter(node, arg)) {
+    if (filter && filter(node, arg)) {
       QUEUE_REMOVE(node);
       q->size--;
       QUEUE_PUSH(d, node);
