@@ -118,7 +118,8 @@ curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timez
 
 ### HTTP 响应码
 
-从 `TDengine 3.0.3.0` 开始 `taosAdapter` 提供配置参数 `httpCodeServerError` 用来设置当 C 接口返回错误时是否返回非 200 的http状态码
+从 `TDengine 3.0.3.0` 开始 `taosAdapter` 提供配置参数 `httpCodeServerError` 用来设置当 C 接口返回错误时是否返回非 200 的http状态码。
+无论是否设置此参数，响应 body 里都有详细的错误码和错误信息，具体请参考 [错误](../rest-api/#错误) 。
 
 | **说明**             | **httpCodeServerError false** | **httpCodeServerError true**          |
 |--------------------|-------------------------------|---------------------------------------|
