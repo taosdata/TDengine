@@ -3207,7 +3207,7 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(int32_t reqNum, int32_t sentN
 static FORCE_INLINE bool filterToDebug(void* e, void* arg) {
   SCliReq*  pReq = QUEUE_DATA(e, SCliReq, q);
   STraceId* trace = &pReq->msg.info.traceId;
-  tGWarn("%s is sent to, and no resp from server", pReq->msg.msgType);
+  tGWarn("%s is sent to, and no resp from server", TMSG_INFO(pReq->msg.msgType));
   return false;
 }
 static FORCE_INLINE int32_t logConnMissHit(SCliConn* pConn) {
