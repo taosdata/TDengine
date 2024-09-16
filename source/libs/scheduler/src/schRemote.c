@@ -501,6 +501,10 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
          code);
   // called if drop task rsp received code
   (void)rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT); // ignore error
+
+  if (pMsg->handle == NULL) {
+    ASSERT(0);
+  }
   if (pMsg) {
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
