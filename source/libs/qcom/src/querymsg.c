@@ -76,7 +76,7 @@ int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int3
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
-  STableInfoReq infoReq = {0};
+  STableInfoReq infoReq = {.option = pInput->option};
   infoReq.header.vgId = pInput->vgId;
   if (pInput->dbFName) {
     tstrncpy(infoReq.dbFName, pInput->dbFName, TSDB_DB_FNAME_LEN);
@@ -85,8 +85,7 @@ int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int3
 
   int32_t bufLen = tSerializeSTableInfoReq(NULL, 0, &infoReq);
   void   *pBuf = (*mallcFp)(bufLen);
-  if(tSerializeSTableInfoReq(pBuf, bufLen, &infoReq) < 0)
-  {
+  if (tSerializeSTableInfoReq(pBuf, bufLen, &infoReq) < 0) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 

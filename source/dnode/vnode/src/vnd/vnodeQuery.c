@@ -55,6 +55,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   SMetaReader    mer1 = {0};
   SMetaReader    mer2 = {0};
   char           tableFName[TSDB_TABLE_FNAME_LEN];
+  bool           tbUidReq = false;
   SRpcMsg        rpcMsg = {0};
   int32_t        code = 0;
   int32_t        rspLen = 0;
@@ -68,20 +69,38 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     goto _exit4;
   }
 
+  if (infoReq.option == 0x01) tbUidReq = true;
   metaRsp.dbId = pVnode->config.dbId;
   (void)strcpy(metaRsp.tbName, infoReq.tbName);
   (void)memcpy(metaRsp.dbFName, infoReq.dbFName, sizeof(metaRsp.dbFName));
 
-  (void)sprintf(tableFName, "%s.%s", infoReq.dbFName, infoReq.tbName);
-  code = vnodeValidateTableHash(pVnode, tableFName);
-  if (code) {
-    goto _exit4;
+  if (!tbUidReq) {
+    (void)sprintf(tableFName, "%s.%s", infoReq.dbFName, infoReq.tbName);
+    code = vnodeValidateTableHash(pVnode, tableFName);
+    if (code) {
+      goto _exit4;
+    }
   }
 
   // query meta
   metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK);
 
-  if (metaGetTableEntryByName(&mer1, infoReq.tbName) < 0) {
+  if (tbUidReq) {
+    uint64_t tbUid = taosStr2UInt64(infoReq.tbName, NULL, 10);
+    if (errno == ERANGE || tbUid == 0) {
+      code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      goto _exit3;
+    }
+    char tbName[TSDB_TABLE_NAME_LEN] = {0};
+    if (metaGetTableNameByUid(&mer1, tbUid, tbName) < 0) {
+      code = terrno;
+      goto _exit3;
+    }
+    if (metaGetTableEntryByName(&mer1, tbName) < 0) {
+      code = terrno;
+      goto _exit3;
+    }
+  } else if (metaGetTableEntryByName(&mer1, infoReq.tbName) < 0) {
     code = terrno;
     goto _exit3;
   }
@@ -107,7 +126,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     schema = mer1.me.ntbEntry.schemaRow;
   } else {
     vError("vnodeGetTableMeta get invalid table type:%d", mer1.me.type);
-    return TSDB_CODE_APP_ERROR;
+    goto _exit3;
   }
 
   metaRsp.numOfTags = schemaTag.nCols;
@@ -175,7 +194,7 @@ _exit4:
   rpcMsg.msgType = pMsg->msgType;
 
   if (code) {
-    qError("get table %s meta failed cause of %s", infoReq.tbName, tstrerror(code));
+    qError("get table %s meta with %" PRIu8 " failed cause of %s", infoReq.tbName, infoReq.option, tstrerror(code));
   }
 
   if (direct) {

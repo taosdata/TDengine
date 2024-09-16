@@ -111,6 +111,8 @@ char* ctgTaskTypeStr(CTG_TASK_TYPE type) {
       return "[get table TSMA]";
     case CTG_TASK_GET_TSMA:
       return "[get TSMA]";
+    case CTG_TASK_GET_TB_UID:
+      return "[bget table uid]";
     default:
       return "unknown";
   }
@@ -844,6 +846,15 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       *pRes = NULL;
       break;
     }
+    case CTG_TASK_GET_TB_UID: {
+      SArray* pArray = (SArray*)*pRes;
+      int32_t num = taosArrayGetSize(pArray);
+      for (int32_t i = 0; i < num; ++i) {
+        ctgFreeBatchMeta(taosArrayGet(pArray, i));
+      }
+      *pRes = NULL;  // no need to free it
+      break;
+    }
     default:
       qError("invalid task type %d", type);
       break;
@@ -903,6 +914,11 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
     }
     case CTG_TASK_GET_TB_HASH_BATCH: {
       taosArrayDestroyEx(*pRes, ctgFreeBatchHash);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_TB_UID: {
+      taosArrayDestroyEx(*pRes, ctgFreeBatchMeta);
       *pRes = NULL;
       break;
     }
@@ -1013,6 +1029,21 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       taosArrayDestroyEx(pTsmaCtx->pResList, ctgFreeTbTSMARes);
       taosArrayDestroy(pTsmaCtx->pFetches);
       taosArrayDestroyEx(pTask->msgCtxs, (FDelete)ctgFreeMsgCtx);
+      taosMemoryFreeClear(pTask->taskCtx);
+      break;
+    }
+    case CTG_TASK_GET_TB_UID: {
+      SCtgTbUidsCtx* taskCtx = (SCtgTbUidsCtx*)pTask->taskCtx;
+      taosArrayDestroyEx(taskCtx->pResList, ctgFreeBatchMeta);
+      taosArrayDestroy(taskCtx->pFetchs);
+      // NO NEED TO FREE pNames
+
+      taosArrayDestroyEx(pTask->msgCtxs, (FDelete)ctgFreeTbMetasMsgCtx);
+
+      if (pTask->msgCtx.lastOut) {
+        ctgFreeSTableMetaOutput((STableMetaOutput*)pTask->msgCtx.lastOut);
+        pTask->msgCtx.lastOut = NULL;
+      }
       taosMemoryFreeClear(pTask->taskCtx);
       break;
     }

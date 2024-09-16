@@ -600,7 +600,7 @@ static int32_t ctgInitGetTbUidTask(SCtgJob* pJob, int32_t taskId, void* param) {
   }
   task.taskCtx = pTaskCtx;
   pTaskCtx->pNames = param;
-  pTaskCtx->pResList = taosArrayInit(pJob->tsmaNum, sizeof(SMetaRes));
+  pTaskCtx->pResList = taosArrayInit(pJob->tbUidNum, sizeof(SMetaRes));
   if (NULL == pTaskCtx->pResList) {
     qError("qid:0x%" PRIx64 " taosArrayInit %d SMetaRes %d failed", pJob->queryId, pJob->tbUidNum,
            (int32_t)sizeof(SMetaRes));
@@ -4198,7 +4198,7 @@ SCtgAsyncFps gCtgAsyncFps[] = {
     {ctgInitGetViewsTask, ctgLaunchGetViewsTask, ctgHandleGetViewsRsp, ctgDumpViewsRes, NULL, NULL},
     {ctgInitGetTbTSMATask, ctgLaunchGetTbTSMATask, ctgHandleGetTbTSMARsp, ctgDumpTbTSMARes, NULL, NULL},
     {ctgInitGetTSMATask, ctgLaunchGetTSMATask, ctgHandleGetTSMARsp, ctgDumpTSMARes, NULL, NULL},
-    {ctgInitGetTbUidTask, ctgLaunchGetTbUidTask, ctgHandleGetTbMetasRsp, ctgDumpTbUidsRes, NULL, NULL},
+    {ctgInitGetTbUidTask, ctgLaunchGetTbUidTask, ctgHandleGetTbUidsRsp, ctgDumpTbUidsRes, NULL, NULL},
 };
 
 int32_t ctgMakeAsyncRes(SCtgJob* pJob) {
