@@ -1615,7 +1615,7 @@ int32_t cliMayGetStateByQid(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn) {
   } else {
     SExHandle* exh = transAcquireExHandle(transGetRefMgt(), qid);
     if (exh == NULL) {
-      return TSDB_CODE_RPC_NO_STATE;
+      return TSDB_CODE_RPC_STATE_DROPED;
     }
 
     SReqState* pState = taosHashGet(pThrd->pIdConnTable, &qid, sizeof(qid));
@@ -1667,9 +1667,7 @@ void cliHandleBatchReq(SCliThrd* pThrd, SCliReq* pReq) {
   if (code == 0) {
     (void)cliHandleState_mayUpdateStateCtx(pConn, pReq);
   } else if (code == TSDB_CODE_RPC_STATE_DROPED) {
-    STraceId* trace = &pReq->msg.info.traceId;
-    tWarn("%s failed to get statue, qid:%" PRId64 "", pInst->label, pReq->msg.info.qId);
-    destroyReq(pReq);
+    TAOS_CHECK_GOTO(code, &lino, _exception);
     return;
   }
 
