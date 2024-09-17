@@ -889,6 +889,7 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
     while (transReadComplete(pBuf)) {
       tTrace("%s conn %p read complete", CONN_GET_INST_LABEL(conn), conn);
       if (pBuf->invalid) {
+        conn->broken = true;
         transUnrefCliHandle(conn);
         return;
         break;
@@ -1191,7 +1192,11 @@ bool cliConnMayAddUserInfo(SCliConn* pConn, STransMsgHead** ppHead, int32_t* msg
 int32_t cliBatchSend(SCliConn* pConn) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pInst = pThrd->pInst;
-  int32_t   size = transQueueSize(&pConn->reqsToSend);
+
+  if (pConn->broken) {
+    return 0;
+  }
+  int32_t size = transQueueSize(&pConn->reqsToSend);
 
   int32_t totalLen = 0;
   if (size == 0) {
@@ -1263,7 +1268,6 @@ int32_t cliBatchSend(SCliConn* pConn) {
             TMSG_INFO(pReq->msgType), pConn->dst, pConn->src, pConn->seq, pReq->info.qId);
     transQueuePush(&pConn->reqsSentOut, &pCliMsg->q);
   }
-
   transRefCliHandle(pConn);
   uv_write_t* req = allocWReqFromWQ(&pConn->wq, pConn);
   tDebug("%s conn %p start to send msg, batch size:%d, len:%d", CONN_GET_INST_LABEL(pConn), pConn, size, totalLen);
