@@ -132,7 +132,7 @@ typedef enum {
   CTG_TASK_GET_VIEW,
   CTG_TASK_GET_TB_TSMA,
   CTG_TASK_GET_TSMA,
-  CTG_TASK_GET_TB_UID,
+  CTG_TASK_GET_TB_NAME,
 } CTG_TASK_TYPE;
 
 typedef enum {
@@ -206,12 +206,12 @@ typedef struct SCtgTbMetasCtx {
   SArray* pFetchs;
 } SCtgTbMetasCtx;
 
-typedef struct SCtgTbUidsCtx {
+typedef struct SCtgTbNamesCtx {
   int32_t fetchNum;
   SArray* pNames;
   SArray* pResList;
   SArray* pFetchs;
-} SCtgTbUidsCtx;
+} SCtgTbNamesCtx;
 
 typedef struct SCtgTbIndexCtx {
   SName* pName;
@@ -429,7 +429,7 @@ typedef struct SCtgJob {
   int32_t          viewNum;
   int32_t          tbTsmaNum;
   int32_t          tsmaNum;  // currently, only 1 is possible
-  int32_t          tbUidNum;
+  int32_t          tbNameNum;
 } SCtgJob;
 
 typedef struct SCtgMsgCtx {
@@ -807,7 +807,7 @@ typedef struct SCtgCacheItemInfo {
 #define CTG_IS_BATCH_TASK(_taskType)                                                             \
   ((CTG_TASK_GET_TB_META_BATCH == (_taskType)) || (CTG_TASK_GET_TB_HASH_BATCH == (_taskType)) || \
    (CTG_TASK_GET_VIEW == (_taskType)) || (CTG_TASK_GET_TB_TSMA == (_taskType)) ||                \
-   (CTG_TASK_GET_TB_UID == (_taskType)))
+   (CTG_TASK_GET_TB_NAME == (_taskType)))
 
 #define CTG_GET_TASK_MSGCTX(_task, _id) \
   (CTG_IS_BATCH_TASK((_task)->type) ? taosArrayGet((_task)->msgCtxs, (_id)) : &(_task)->msgCtx)
@@ -1006,7 +1006,7 @@ int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq
 int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgGetTbMetasFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetasCtx* ctx, int32_t dbIdx,
                                int32_t* fetchIdx, int32_t baseResIdx, SArray* pList);
-int32_t ctgGetTbUidsFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbUidsCtx* ctx, int32_t dbIdx,
+int32_t ctgGetTbUidsFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbNamesCtx* ctx, int32_t dbIdx,
                               int32_t* fetchIdx, int32_t baseResIdx, SArray* pList);
 int32_t ctgCloneDbCfgInfo(void* pSrc, SDbCfgInfo** ppDst);
 

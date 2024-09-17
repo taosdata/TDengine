@@ -588,21 +588,21 @@ int32_t ctgInitGetTSMATask(SCtgJob* pJob, int32_t taskId, void* param) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t ctgInitGetTbUidTask(SCtgJob* pJob, int32_t taskId, void* param) {
+static int32_t ctgInitGetTbNamesTask(SCtgJob* pJob, int32_t taskId, void* param) {
   SCtgTask task = {0};
-  task.type = CTG_TASK_GET_TB_UID;
+  task.type = CTG_TASK_GET_TB_NAME;
   task.taskId = taskId;
   task.pJob = pJob;
 
-  SCtgTbUidsCtx* pTaskCtx = taosMemoryCalloc(1, sizeof(SCtgTbTSMACtx));
+  SCtgTbNamesCtx* pTaskCtx = taosMemoryCalloc(1, sizeof(SCtgTbNamesCtx));
   if (NULL == pTaskCtx) {
     CTG_ERR_RET(terrno);
   }
   task.taskCtx = pTaskCtx;
   pTaskCtx->pNames = param;
-  pTaskCtx->pResList = taosArrayInit(pJob->tbUidNum, sizeof(SMetaRes));
+  pTaskCtx->pResList = taosArrayInit(pJob->tbNameNum, sizeof(SMetaRes));
   if (NULL == pTaskCtx->pResList) {
-    qError("qid:0x%" PRIx64 " taosArrayInit %d SMetaRes %d failed", pJob->queryId, pJob->tbUidNum,
+    qError("qid:0x%" PRIx64 " taosArrayInit %d SMetaRes %d failed", pJob->queryId, pJob->tbNameNum,
            (int32_t)sizeof(SMetaRes));
     ctgFreeTask(&task, true);
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
@@ -850,10 +850,10 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   int32_t viewNum = (int32_t)ctgGetTablesReqNum(pReq->pView);
   int32_t tbTsmaNum = (int32_t)taosArrayGetSize(pReq->pTableTSMAs);
   int32_t tsmaNum = (int32_t)taosArrayGetSize(pReq->pTSMAs);
-  int32_t tbUidNum = (int32_t)taosArrayGetSize(pReq->pTableUid);
+  int32_t tbNameNum = (int32_t)taosArrayGetSize(pReq->pTableName);
 
   int32_t taskNum = tbMetaNum + dbVgNum + udfNum + tbHashNum + qnodeNum + dnodeNum + svrVerNum + dbCfgNum + indexNum +
-                    userNum + dbInfoNum + tbIndexNum + tbCfgNum + tbTagNum + viewNum + tbTsmaNum + tbUidNum;
+                    userNum + dbInfoNum + tbIndexNum + tbCfgNum + tbTagNum + viewNum + tbTsmaNum + tbNameNum;
 
   *job = taosMemoryCalloc(1, sizeof(SCtgJob));
   if (NULL == *job) {
@@ -888,7 +888,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   pJob->viewNum = viewNum;
   pJob->tbTsmaNum = tbTsmaNum;
   pJob->tsmaNum = tsmaNum;
-  pJob->tbUidNum = tbUidNum;
+  pJob->tbNameNum = tbNameNum;
 
 #if CTG_BATCH_FETCH
   pJob->pBatchs =
@@ -1021,8 +1021,8 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   if (tsmaNum > 0) {
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_TSMA, pReq->pTSMAs, NULL));
   }
-  if(tbUidNum > 0) {
-    CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_TB_UID, pReq->pTableUid, NULL));
+  if (tbNameNum > 0) {
+    CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_TB_NAME, pReq->pTableName, NULL));
   }
   if (qnodeNum) {
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_QNODE, NULL, NULL));
@@ -1092,7 +1092,7 @@ int32_t ctgDumpTbMetasRes(SCtgTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgDumpTbUidsRes(SCtgTask* pTask) {
+static int32_t ctgDumpTbNamesRes(SCtgTask* pTask) {
   if (pTask->subTask) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1903,14 +1903,14 @@ _return:
   CTG_RET(code);
 }
 
-static int32_t ctgHandleGetTbUidsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* pMsg, int32_t rspCode) {
+static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* pMsg, int32_t rspCode) {
   int32_t           code = 0;
   SCtgDBCache*      dbCache = NULL;
   SCtgTask*         pTask = tReq->pTask;
   SCatalog*         pCtg = pTask->pJob->pCtg;
   SRequestConnInfo* pConn = &pTask->pJob->conn;
   SCtgMsgCtx*       pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx);
-  SCtgTbUidsCtx*    ctx = (SCtgTbUidsCtx*)pTask->taskCtx;
+  SCtgTbNamesCtx*   ctx = (SCtgTbNamesCtx*)pTask->taskCtx;
   bool              taskDone = false;
 
   if (NULL == pMsgCtx) {
@@ -3988,10 +3988,10 @@ int32_t ctgLaunchGetTSMATask(SCtgTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgLaunchGetTbUidTask(SCtgTask* pTask) {
+static int32_t ctgLaunchGetTbNamesTask(SCtgTask* pTask) {
   SCatalog*         pCtg = pTask->pJob->pCtg;
   SRequestConnInfo* pConn = &pTask->pJob->conn;
-  SCtgTbUidsCtx*   pCtx = (SCtgTbUidsCtx*)pTask->taskCtx;
+  SCtgTbNamesCtx*   pCtx = (SCtgTbNamesCtx*)pTask->taskCtx;
   SCtgJob*          pJob = pTask->pJob;
   SName*            pName = NULL;
 
@@ -4198,7 +4198,7 @@ SCtgAsyncFps gCtgAsyncFps[] = {
     {ctgInitGetViewsTask, ctgLaunchGetViewsTask, ctgHandleGetViewsRsp, ctgDumpViewsRes, NULL, NULL},
     {ctgInitGetTbTSMATask, ctgLaunchGetTbTSMATask, ctgHandleGetTbTSMARsp, ctgDumpTbTSMARes, NULL, NULL},
     {ctgInitGetTSMATask, ctgLaunchGetTSMATask, ctgHandleGetTSMARsp, ctgDumpTSMARes, NULL, NULL},
-    {ctgInitGetTbUidTask, ctgLaunchGetTbUidTask, ctgHandleGetTbUidsRsp, ctgDumpTbUidsRes, NULL, NULL},
+    {ctgInitGetTbNamesTask, ctgLaunchGetTbNamesTask, ctgHandleGetTbNamesRsp, ctgDumpTbNamesRes, NULL, NULL},
 };
 
 int32_t ctgMakeAsyncRes(SCtgJob* pJob) {

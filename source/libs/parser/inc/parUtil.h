@@ -111,12 +111,11 @@ typedef struct SParseMetaCache {
   SHashObj* pTableCfg;     // key is tbFName, element is STableCfg*
   SHashObj* pViews;        // key is viewFName, element is SViewMeta*
   SHashObj* pTableTSMAs;   // key is tbFName, elements are SArray<STableTSMAInfo*>
-  SHashObj* pTSMAs;        // key is tsmaFName, elemetns are STableTSMAInfo*
-  SHashObj* pTableUid;     // key is tbUid, elemetn is STableMeta*
+  SHashObj* pTSMAs;        // key is tsmaFName, elements are STableTSMAInfo*
+  SHashObj* pTableName;    // key is tbFUid, elements is tbName
   SArray*   pDnodes;       // element is SEpSet
   bool      dnodeRequired;
   bool      qnodeRequired;
-  bool      fromTableUid;
 } SParseMetaCache;
 
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);
@@ -163,6 +162,7 @@ int32_t reserveDnodeRequiredInCache(SParseMetaCache* pMetaCache);
 int32_t reserveTableTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTsmaName, SParseMetaCache* pMetaCache);
 int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta);
+int32_t getTableNameFromCache(SParseMetaCache* pMetaCache, const SName* pName, char* pTbName);
 int32_t getViewMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta);
 int32_t buildTableMetaFromViewMeta(STableMeta** pMeta, SViewMeta* pViewMeta);
 int32_t getDbVgInfoFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SArray** pVgInfo);

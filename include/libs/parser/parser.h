@@ -92,7 +92,7 @@ typedef struct SParseContext {
   bool             isAudit;
   bool             nodeOffline;
   bool             isStmtBind;
-  bool             withOpt;
+  // bool             withOpt;
   int8_t           biMode;
   const char*      svrVer;
   SArray*          pTableMetaPos;    // sql table pos => catalog data pos

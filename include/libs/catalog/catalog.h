@@ -96,7 +96,7 @@ typedef struct SCatalogReq {
   SArray* pView;          // element is STablesReq
   SArray* pTableTSMAs;    // element is STablesReq
   SArray* pTSMAs;         // element is STablesReq
-  SArray* pTableUid;      // element is STablesReq
+  SArray* pTableName;     // element is STablesReq
   bool    qNodeRequired;  // valid qnode
   bool    dNodeRequired;  // valid dnode
   bool    svrVerRequired;

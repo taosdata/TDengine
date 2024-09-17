@@ -614,8 +614,8 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
             ctgError("fail to get %d SName, totalTables:%d", pFetch->tbIdx, (int32_t)taosArrayGetSize(pTbReq->pTables));
             CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
           }
-        } else if (CTG_TASK_GET_TB_UID == pTask->type) {
-          SCtgTbUidsCtx* ctx = (SCtgTbUidsCtx*)pTask->taskCtx;
+        } else if (CTG_TASK_GET_TB_NAME == pTask->type) {
+          SCtgTbNamesCtx* ctx = (SCtgTbNamesCtx*)pTask->taskCtx;
           SCtgFetch*      fetch = taosArrayGet(ctx->pFetchs, tReq->msgIdx);
           CTG_ERR_JRET(ctgGetFetchName(ctx->pNames, fetch, &pName));
         } else {
@@ -1351,7 +1351,7 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
            vgroupInfo->epSet.numOfEps, pEp->fqdn, pEp->port, tbFName);
 
   SBuildTableInput bInput = {.vgId = vgroupInfo->vgId,
-                             .option = pTask && pTask->type == CTG_TASK_GET_TB_UID ? 0x01 : 0x00,
+                             .option = pTask && pTask->type == CTG_TASK_GET_TB_NAME ? 0x01 : 0x00,
                              .dbFName = dbFName,
                              .tbName = (char*)tNameGetTableName(pTableName)};
   char*            msg = NULL;
