@@ -586,7 +586,8 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       break;
     }
     case TDMT_VND_TABLE_META:
-    case TDMT_MND_TABLE_META: {
+    case TDMT_MND_TABLE_META:
+    case TDMT_VND_TABLE_NAME: {
       STableMetaOutput* pOut = (STableMetaOutput*)pCtx->out;
       taosMemoryFree(pOut->tbMeta);
       taosMemoryFreeClear(pCtx->out);
@@ -1701,7 +1702,7 @@ int32_t ctgCloneTableIndex(SArray* pIndex, SArray** pRes) {
 }
 
 int32_t ctgUpdateSendTargetInfo(SMsgSendInfo* pMsgSendInfo, int32_t msgType, char* dbFName, int32_t vgId) {
-  if (msgType == TDMT_VND_TABLE_META || msgType == TDMT_VND_TABLE_CFG || msgType == TDMT_VND_BATCH_META) {
+  if (msgType == TDMT_VND_TABLE_META || msgType == TDMT_VND_TABLE_CFG || msgType == TDMT_VND_BATCH_META || msgType == TDMT_VND_TABLE_NAME) {
     pMsgSendInfo->target.type = TARGET_TYPE_VNODE;
     pMsgSendInfo->target.vgId = vgId;
     pMsgSendInfo->target.dbFName = taosStrdup(dbFName);

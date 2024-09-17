@@ -610,6 +610,62 @@ PROCESS_META_OVER:
   return code;
 }
 
+static int32_t queryProcessTableNameRsp(void *output, char *msg, int32_t msgSize) {
+  int32_t       code = 0;
+  STableMetaRsp metaRsp = {0};
+
+  if (NULL == output || NULL == msg || msgSize <= 0) {
+    code = TSDB_CODE_TSC_INVALID_INPUT;
+    goto PROCESS_NAME_OVER;
+  }
+
+  if (tDeserializeSTableMetaRsp(msg, msgSize, &metaRsp) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto PROCESS_NAME_OVER;
+  }
+
+  code = queryConvertTableMetaMsg(&metaRsp);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto PROCESS_NAME_OVER;
+  }
+
+  if (!IS_SYS_DBNAME(metaRsp.dbFName) &&
+      !tIsValidSchema(metaRsp.pSchemas, metaRsp.numOfColumns, metaRsp.numOfTags)) {
+    code = TSDB_CODE_TSC_INVALID_VALUE;
+    goto PROCESS_NAME_OVER;
+  }
+
+  STableMetaOutput *pOut = output;
+  strcpy(pOut->dbFName, metaRsp.dbFName);
+  pOut->dbId = metaRsp.dbId;
+
+  if (metaRsp.tableType == TSDB_CHILD_TABLE) {
+    SET_META_TYPE_BOTH_TABLE(pOut->metaType);
+
+    strcpy(pOut->ctbName, metaRsp.tbName);
+    strcpy(pOut->tbName, metaRsp.stbName);
+
+    pOut->ctbMeta.vgId = metaRsp.vgId;
+    pOut->ctbMeta.tableType = metaRsp.tableType;
+    pOut->ctbMeta.uid = metaRsp.tuid;
+    pOut->ctbMeta.suid = metaRsp.suid;
+
+    code = queryCreateTableMetaFromMsg(&metaRsp, true, &pOut->tbMeta);
+  } else {
+    SET_META_TYPE_TABLE(pOut->metaType);
+    strcpy(pOut->tbName, metaRsp.tbName);
+    code = queryCreateTableMetaFromMsg(&metaRsp, (metaRsp.tableType == TSDB_SUPER_TABLE), &pOut->tbMeta);
+  }
+
+PROCESS_NAME_OVER:
+  if (code != 0) {
+    qError("failed to process table name rsp since %s", tstrerror(code));
+  }
+
+  tFreeSTableMetaRsp(&metaRsp);
+  return code;
+}
+
 int32_t queryProcessQnodeListRsp(void *output, char *msg, int32_t msgSize) {
   SQnodeListRsp out = {0};
   int32_t       code = 0;
@@ -828,6 +884,7 @@ int32_t queryProcessStreamProgressRsp(void* output, char* msg, int32_t msgSize) 
 
 void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryBuildTableMetaReqMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_NAME)] = queryBuildTableMetaReqMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryBuildTableMetaReqMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_USE_DB)] = queryBuildUseDbMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_QNODE_LIST)] = queryBuildQnodeListMsg;
@@ -846,6 +903,7 @@ void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_VND_GET_STREAM_PROGRESS)] = queryBuildGetStreamProgressMsg;
 
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryProcessTableMetaRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_NAME)] = queryProcessTableNameRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_USE_DB)] = queryProcessUseDBRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_QNODE_LIST)] = queryProcessQnodeListRsp;

@@ -418,6 +418,12 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
           qWarn("vnodeGetBatchMeta failed, msgType:%d", req->msgType);
         }
         break;
+      case TDMT_VND_TABLE_NAME:
+        // error code has been set into reqMsg, no need to handle it here.
+        if (TSDB_CODE_SUCCESS != vnodeGetTableMeta(pVnode, &reqMsg, false)) {
+          qWarn("vnodeGetBatchName failed, msgType:%d", req->msgType);
+        }
+        break;
       case TDMT_VND_TABLE_CFG:
         // error code has been set into reqMsg, no need to handle it here.
         if (TSDB_CODE_SUCCESS != vnodeGetTableCfg(pVnode, &reqMsg, false)) {

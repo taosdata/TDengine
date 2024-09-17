@@ -1929,6 +1929,7 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
   SName*   pName = NULL;
   CTG_ERR_JRET(ctgGetFetchName(ctx->pNames, pFetch, &pName));
 
+
   CTG_ERR_JRET(ctgProcessRspMsg(pMsgCtx->out, reqType, pMsg->pData, pMsg->len, rspCode, pMsgCtx->target));
 
   switch (reqType) {
@@ -1991,7 +1992,7 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
 
       break;
     }
-    case TDMT_VND_TABLE_META: {
+    case TDMT_VND_TABLE_NAME: {
       STableMetaOutput* pOut = (STableMetaOutput*)pMsgCtx->out;
 
       if (CTG_IS_META_NULL(pOut->metaType)) {
@@ -4005,8 +4006,8 @@ static int32_t ctgLaunchGetTbNamesTask(SCtgTask* pTask) {
       CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
     }
 
-    ctgDebug("start to check tbuid metas in db %s, tbNum %ld", pReq->dbFName, taosArrayGetSize(pReq->pTables));
-    CTG_ERR_RET(ctgGetTbUidsFromCache(pCtg, pConn, pCtx, i, &fetchIdx, baseResIdx, pReq->pTables));
+    ctgDebug("start to check tbname metas in db %s, tbNum %ld", pReq->dbFName, taosArrayGetSize(pReq->pTables));
+    CTG_ERR_RET(ctgGetTbNamesFromCache(pCtg, pConn, pCtx, i, &fetchIdx, baseResIdx, pReq->pTables));
     baseResIdx += taosArrayGetSize(pReq->pTables);
   }
 

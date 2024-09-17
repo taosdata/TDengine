@@ -3691,8 +3691,8 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgGetTbUidsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbNamesCtx *ctx, int32_t dbIdx,
-                              int32_t *fetchIdx, int32_t baseResIdx, SArray *pList) {
+int32_t ctgGetTbNamesFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbNamesCtx *ctx, int32_t dbIdx,
+                               int32_t *fetchIdx, int32_t baseResIdx, SArray *pList) {
   int32_t     tbNum = taosArrayGetSize(pList);
   char        dbFName[TSDB_DB_FNAME_LEN] = {0};
   int32_t     flag = CTG_FLAG_UNKNOWN_STB;

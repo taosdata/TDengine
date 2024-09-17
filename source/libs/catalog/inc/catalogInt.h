@@ -1006,8 +1006,8 @@ int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq
 int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgGetTbMetasFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetasCtx* ctx, int32_t dbIdx,
                                int32_t* fetchIdx, int32_t baseResIdx, SArray* pList);
-int32_t ctgGetTbUidsFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbNamesCtx* ctx, int32_t dbIdx,
-                              int32_t* fetchIdx, int32_t baseResIdx, SArray* pList);
+int32_t ctgGetTbNamesFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbNamesCtx* ctx, int32_t dbIdx,
+                               int32_t* fetchIdx, int32_t baseResIdx, SArray* pList);
 int32_t ctgCloneDbCfgInfo(void* pSrc, SDbCfgInfo** ppDst);
 
 int32_t ctgOpUpdateVgroup(SCtgCacheOperation* action);

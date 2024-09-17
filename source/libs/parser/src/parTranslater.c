@@ -14462,20 +14462,18 @@ int32_t serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap, SArray** pOut) 
 static int32_t rewriteDropTablewithOpt(STranslateContext* pCxt, SDropTableStmt* pStmt) {
   if (!pStmt->withOpt) return TSDB_CODE_SUCCESS;
 
-  SNode*      pNode = NULL;
+  SNode* pNode = NULL;
+  char   pTableName[TSDB_TABLE_NAME_LEN] = {0};
   FOREACH(pNode, pStmt->pTables) {
     SDropTableClause* pClause = (SDropTableClause*)pNode;
 
-    STableMeta* pTableMeta = NULL;
-    SName       name = {0};
+    SName name = {0};
     toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &name);
-    int32_t code = getTargetMeta(pCxt, &name, &pTableMeta, false);
+    int32_t code = getTargetName(pCxt, &name, pTableName);
     if (TSDB_CODE_SUCCESS != code) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Table uid does not exist: '%s'",
-                                     pClause->tableName);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Table uid does not exist: '%s'", pClause->tableName);
     }
     // tstrncpy(pClause->tableName, pTableMeta->, TSDB_TABLE_NAME_LEN); // rewrite table uid to table name
-    taosMemoryFree(pTableMeta);
   }
   return TSDB_CODE_SUCCESS;
 }

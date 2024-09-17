@@ -297,6 +297,27 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       qDebug("Got table meta from vnode, tbFName:%s", target);
       break;
     }
+    case TDMT_VND_TABLE_NAME: {
+      if (TSDB_CODE_SUCCESS != rspCode) {
+        if (CTG_TABLE_NOT_EXIST(rspCode)) {
+          SET_META_TYPE_NULL(((STableMetaOutput*)out)->metaType);
+          qDebug("tablemeta not exist in vnode, tbFName:%s", target);
+          return TSDB_CODE_SUCCESS;
+        }
+
+        qError("error rsp for table meta from vnode, code:%s, tbFName:%s", tstrerror(rspCode), target);
+        CTG_ERR_RET(rspCode);
+      }
+
+      code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
+      if (code) {
+        qError("Process vnode tablemeta rsp failed, code:%s, tbFName:%s", tstrerror(code), target);
+        CTG_ERR_RET(code);
+      }
+
+      qDebug("Got table meta from vnode, tbFName:%s", target);
+      break;
+    }
     case TDMT_VND_TABLE_CFG: {
       if (TSDB_CODE_SUCCESS != rspCode) {
         qError("error rsp for table cfg from vnode, code:%s, tbFName:%s", tstrerror(rspCode), target);
@@ -600,7 +621,7 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
       if (TDMT_VND_TABLE_CFG == msgType) {
         SCtgTbCfgCtx* ctx = (SCtgTbCfgCtx*)pTask->taskCtx;
         pName = ctx->pName;
-      } else if (TDMT_VND_TABLE_META == msgType) {
+      } else if (TDMT_VND_TABLE_META == msgType || TDMT_VND_TABLE_NAME == msgType) {
         if (CTG_TASK_GET_TB_META_BATCH == pTask->type) {
           SCtgTbMetasCtx* ctx = (SCtgTbMetasCtx*)pTask->taskCtx;
           SCtgFetch*      fetch = taosArrayGet(ctx->pFetchs, tReq->msgIdx);
@@ -648,7 +669,7 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
       (void)tNameGetFullDbName(pName, newBatch.dbFName);
     }
 
-    newBatch.msgType = (vgId > 0) ? TDMT_VND_BATCH_META : TDMT_MND_BATCH_META;
+    newBatch.msgType = (vgId > 1) ? TDMT_VND_BATCH_META : TDMT_MND_BATCH_META;
     newBatch.batchId = atomic_add_fetch_32(&pJob->batchId, 1);
 
     if (0 != taosHashPut(pBatchs, &vgId, sizeof(vgId), &newBatch, sizeof(newBatch))) {
@@ -1341,7 +1362,7 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
   SCtgTask* pTask = tReq ? tReq->pTask : NULL;
   char      dbFName[TSDB_DB_FNAME_LEN];
   (void)tNameGetFullDbName(pTableName, dbFName);
-  int32_t reqType = TDMT_VND_TABLE_META;
+  int32_t reqType = (pTask && pTask->type == CTG_TASK_GET_TB_NAME ? TDMT_VND_TABLE_NAME : TDMT_VND_TABLE_META);
   char    tbFName[TSDB_TABLE_FNAME_LEN];
   (void)sprintf(tbFName, "%s.%s", dbFName, pTableName->tname);
   void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
@@ -1351,7 +1372,7 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
            vgroupInfo->epSet.numOfEps, pEp->fqdn, pEp->port, tbFName);
 
   SBuildTableInput bInput = {.vgId = vgroupInfo->vgId,
-                             .option = pTask && pTask->type == CTG_TASK_GET_TB_NAME ? 0x01 : 0x00,
+                             .option = reqType == TDMT_VND_TABLE_NAME ? 0x01 : 0x00,
                              .dbFName = dbFName,
                              .tbName = (char*)tNameGetTableName(pTableName)};
   char*            msg = NULL;
