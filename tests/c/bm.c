@@ -25,13 +25,13 @@
 #include <time.h>
 
 #define LOGE(fmt, ...) fprintf(stderr, "" fmt "\n", ##__VA_ARGS__)
-#define DBGE(fmt, ...) if (0) fprintf(stderr, "api2_test.c[%d]:%s():" fmt "\n", __LINE__, __FILE__, ##__VA_ARGS__)
+#define DBGE(fmt, ...) if (0) fprintf(stderr, "bm.c[%d]:%s():" fmt "\n", __LINE__, __FILE__, ##__VA_ARGS__)
 
 #define CHK_TAOS(taos, fmt, ...) do {                                  \
   if (taos) break;                                                     \
   int _e = taos_errno(NULL);                                           \
   if (!_e) break;                                                      \
-  fprintf(stderr, "api2_test.c[%d]:%s():[0x%08x]%s:" fmt "\n",         \
+  fprintf(stderr, "bm.c[%d]:%s():[0x%08x]%s:" fmt "\n",                \
       __LINE__, __func__,                                              \
       _e, taos_errstr(NULL),                                           \
       ##__VA_ARGS__);                                                  \
@@ -39,7 +39,7 @@
 
 #define CHK_RES(res, e, fmt, ...) do {                                 \
   if (!e) break;                                                       \
-  fprintf(stderr, "api2_test.c[%d]:%s():[0x%08x]%s:" fmt "\n",         \
+  fprintf(stderr, "bm.c[%d]:%s():[0x%08x]%s:" fmt "\n",                \
       __LINE__, __func__,                                              \
       e, taos_errstr(res),                                             \
       ##__VA_ARGS__);                                                  \
@@ -47,41 +47,11 @@
 
 #define CHK_STMT(stmt, e, fmt, ...) do {                               \
   if (!e) break;                                                       \
-  fprintf(stderr, "api2_test.c[%d]:%s():[0x%08x]%s:" fmt "\n",         \
+  fprintf(stderr, "bm.c[%d]:%s():[0x%08x]%s:" fmt "\n",                \
       __LINE__, __func__,                                              \
       e, stmt ? taos_stmt_errstr(stmt) : taos_errstr(NULL),            \
       ##__VA_ARGS__);                                                  \
 } while (0)
-
-static const char* tsdb_data_type_name(int type)
-{
-  switch (type) {
-    case TSDB_DATA_TYPE_NULL:        return "TSDB_DATA_TYPE_NULL";
-    case TSDB_DATA_TYPE_BOOL:        return "TSDB_DATA_TYPE_BOOL";
-    case TSDB_DATA_TYPE_TINYINT:     return "TSDB_DATA_TYPE_TINYINT";
-    case TSDB_DATA_TYPE_SMALLINT:    return "TSDB_DATA_TYPE_SMALLINT";
-    case TSDB_DATA_TYPE_INT:         return "TSDB_DATA_TYPE_INT";
-    case TSDB_DATA_TYPE_BIGINT:      return "TSDB_DATA_TYPE_BIGINT";
-    case TSDB_DATA_TYPE_FLOAT:       return "TSDB_DATA_TYPE_FLOAT";
-    case TSDB_DATA_TYPE_DOUBLE:      return "TSDB_DATA_TYPE_DOUBLE";
-    case TSDB_DATA_TYPE_VARCHAR:     return "TSDB_DATA_TYPE_VARCHAR";
-    case TSDB_DATA_TYPE_TIMESTAMP:   return "TSDB_DATA_TYPE_TIMESTAMP";
-    case TSDB_DATA_TYPE_NCHAR:       return "TSDB_DATA_TYPE_NCHAR";
-    case TSDB_DATA_TYPE_UTINYINT:    return "TSDB_DATA_TYPE_UTINYINT";
-    case TSDB_DATA_TYPE_USMALLINT:   return "TSDB_DATA_TYPE_USMALLINT";
-    case TSDB_DATA_TYPE_UINT:        return "TSDB_DATA_TYPE_UINT";
-    case TSDB_DATA_TYPE_UBIGINT:     return "TSDB_DATA_TYPE_UBIGINT";
-    case TSDB_DATA_TYPE_JSON:        return "TSDB_DATA_TYPE_JSON";
-    case TSDB_DATA_TYPE_VARBINARY:   return "TSDB_DATA_TYPE_VARBINARY";
-    case TSDB_DATA_TYPE_DECIMAL:     return "TSDB_DATA_TYPE_DECIMAL";
-    case TSDB_DATA_TYPE_BLOB:        return "TSDB_DATA_TYPE_BLOB";
-    case TSDB_DATA_TYPE_MEDIUMBLOB:  return "TSDB_DATA_TYPE_MEDIUMBLOB";
-    // case TSDB_DATA_TYPE_BINARY:      return "TSDB_DATA_TYPE_BINARY";
-    case TSDB_DATA_TYPE_GEOMETRY:    return "TSDB_DATA_TYPE_GEOMETRY";
-    case TSDB_DATA_TYPE_MAX:         return "TSDB_DATA_TYPE_MAX";
-    default:                         return "TSDB_DATA_TYPE_UNKNOWN";
-  }
-}
 
 static int run_sql(TAOS *conn, const char *sql)
 {
