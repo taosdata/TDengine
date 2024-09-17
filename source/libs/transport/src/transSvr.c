@@ -682,8 +682,8 @@ void uvOnSendCb(uv_write_t* req, int status) {
 
       SSvrRespMsg* smsg = QUEUE_DATA(head, SSvrRespMsg, q);
       STraceId*    trace = &smsg->msg.info.traceId;
-      tGDebug("%s conn %p failed to send, seqNum:%d, qid:%" PRId64 ", reason:%s", transLabel(conn->pInst), conn,
-              smsg->msg.info.seqNum, smsg->msg.info.qId, uv_err_name(status));
+      tGDebug("%s conn %p failed to send, seqNum:%" PRId64 ", qid:%" PRId64 ", reason:%s", transLabel(conn->pInst),
+              conn, smsg->msg.info.seqNum, smsg->msg.info.qId, uv_err_name(status));
       destroySmsg(smsg);
     }
 
@@ -753,8 +753,8 @@ static int uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
   }
 
   STraceId* trace = &pMsg->info.traceId;
-  tGDebug("%s conn %p %s is sent to %s, local info:%s, len:%d, seqNum:%d, qid:%" PRId64 "", transLabel(pInst), pConn,
-          TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, len, pMsg->info.seqNum, pMsg->info.qId);
+  tGDebug("%s conn %p %s is sent to %s, local info:%s, len:%d, seqNum:%" PRId64 ", qid:%" PRId64 "", transLabel(pInst),
+          pConn, TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, len, pMsg->info.seqNum, pMsg->info.qId);
 
   wb->base = (char*)pHead;
   wb->len = len;
