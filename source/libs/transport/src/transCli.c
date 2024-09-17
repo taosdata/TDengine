@@ -1264,8 +1264,8 @@ int32_t cliBatchSend(SCliConn* pConn) {
     pCliMsg->seq = pConn->seq;
 
     STraceId* trace = &pCliMsg->msg.info.traceId;
-    tGDebug("%s conn %p %s is sent to %s, local info:%s, seq:%d, qid:%" PRId64 "", CONN_GET_INST_LABEL(pConn), pConn,
-            TMSG_INFO(pReq->msgType), pConn->dst, pConn->src, pConn->seq, pReq->info.qId);
+    tGDebug("%s conn %p %s is sent to %s, local info:%s, seq:%" PRId64 ", qid:%" PRId64 "", CONN_GET_INST_LABEL(pConn),
+            pConn, TMSG_INFO(pReq->msgType), pConn->dst, pConn->src, pConn->seq, pReq->info.qId);
     transQueuePush(&pConn->reqsSentOut, &pCliMsg->q);
   }
   transRefCliHandle(pConn);
