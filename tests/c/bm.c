@@ -814,10 +814,28 @@ static int run_with_stmt(TAOS *conn, TAOS_STMT *stmt, int mode, int loops, int t
   return !!r;
 }
 
-static int run(TAOS *conn, int argc, char *argv[])
+static void usage(FILE *f, const char *app)
+{
+  fprintf(f, "insert benchmark for taos\n");
+  fprintf(f, "%s [options]...\n", app);
+  fprintf(f, "  -t <tables>:             # of tables to generate, default 2 tables\n");
+  fprintf(f, "  -r <max-rows-per-table>  # of rows at the most to insert per table, default 1 row\n");
+  fprintf(f, "  -l <loops>               # of loops to run, default 1 loop\n");
+  fprintf(f, "  -1                       use taos_stmt_prepare\n");
+  fprintf(f, "  -2                       use taos_stmt_prepare2\n");
+  fprintf(f, "  note: if neither -1 nor -2 is specified, use taos_query instead\n");
+}
+
+static int run(int argc, char *argv[])
 {
   int r = 0;
   int e = 0;
+
+  const char *ip           = NULL;
+  const char *user         = NULL;
+  const char *pass         = NULL;
+  const char *db           = NULL;
+  uint16_t    port         = 0;
 
   int mode    = 0;
   int loops   = 1;
@@ -826,6 +844,10 @@ static int run(TAOS *conn, int argc, char *argv[])
 
   for (int i=1; i<argc; ++i) {
     const char *arg = argv[i];
+    if (strcmp(arg, "-h") == 0) {
+      usage(stdout, argv[0]);
+      return 0;
+    }
     if (strcmp(arg, "-1") == 0) {
       // origin mode
       mode = 1;
@@ -867,10 +889,17 @@ static int run(TAOS *conn, int argc, char *argv[])
     return -1;
   }
 
+  TAOS *conn = taos_connect(ip, user, pass, db, port);
+  CHK_TAOS(conn, "taos_connect failed");
+  if (!conn) return -1;
+
   TAOS_STMT *stmt = taos_stmt_init(conn);
   e = taos_errno(NULL);
   CHK_STMT(stmt, e, "taos_stmt_init failed");
-  if (!stmt) return -1;
+  if (!stmt) {
+    taos_close(conn);
+    return -1;
+  }
 
   r = run_with_stmt(conn, stmt, mode, loops, tables, records);
   taos_stmt_close(stmt);
@@ -884,19 +913,9 @@ int main(int argc, char *argv[])
 
   srand(time(0));
 
-  const char *ip           = NULL;
-  const char *user         = NULL;
-  const char *pass         = NULL;
-  const char *db           = NULL;
-  uint16_t    port         = 0;
+  r = run(argc, argv);
 
-  TAOS *conn = taos_connect(ip, user, pass, db, port);
-  CHK_TAOS(conn, "taos_connect failed");
-  if (!conn) r = -1;
-  if (r == 0) r = run(conn, argc, argv);
-  if (conn) taos_close(conn);
-
-  LOGE("%s", r ? "failure" : "success");
+  // LOGE("%s", r ? "failure" : "success");
 
   return !!r;
 }
