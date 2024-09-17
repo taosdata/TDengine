@@ -1870,6 +1870,39 @@ class TaskCreateStream(StateTransitionTask):
     def canBeginFrom(cls, state: AnyState):
         return state.canCreateStreams()
 
+    def getFillHistoryValue(self, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        fillHistoryVal = f'FILL_HISTORY 1' if useTag else random.choice(["FILL_HISTORY 0", ""])
+        return fillHistoryVal
+
+    def getExpiredValue(self, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        expiredVal = f'IGNORE EXPIRED 0' if useTag else random.choice(["IGNORE EXPIRED 1", ""])
+        return expiredVal
+
+    def getUpdateValue(self, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        updateVal = f'IGNORE UPDATE 0' if useTag else random.choice(["IGNORE UPDATE 1", ""])
+        return updateVal
+
+    def getTriggerValue(self):
+        maxDelayTime = random.choice(DataBoundary.MAX_DELAY_UNIT.value)
+        return random.choice(["TRIGGER AT_ONCE", "TRIGGER WINDOW_CLOSE", f"TRIGGER MAX_DELAY {maxDelayTime}"], "")
+
+    def getDeleteMarkValue(self):
+        deleteMarkTime = random.choice(DataBoundary.DELETE_MARK_UNIT.value)
+        return random.choice([f"DELETE_MARK {deleteMarkTime}"], "")
+
+    def getWatermarkValue(self):
+        watermarkTime = random.choice(DataBoundary.WATERMARK_UNIT.value)
+        return random.choice([f"WATERMARK {watermarkTime}"], "")
+
+    def getSubtableValue(self, partitionList):
+        subTablePre = "pre"
+        for colname in partitionList:
+            subtable = f'CONCAT({subTablePre}, {colname})'
+        return random.choice([subtable, ""])
+
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         dbname = self._db.getName()
 
