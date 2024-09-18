@@ -485,12 +485,12 @@ int32_t cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead
 
     code = taosHashRemove(conn->pQTable, &qId, sizeof(qId));
     if (code != 0) {
-      tDebug("%s conn %p failed to release req %ld from conn", CONN_GET_INST_LABEL(conn), conn, qId);
+      tDebug("%s conn %p failed to release req:%" PRId64 " from conn", CONN_GET_INST_LABEL(conn), conn, qId);
     }
 
     code = taosHashRemove(pThrd->pIdConnTable, &qId, sizeof(qId));
     if (code != 0) {
-      tDebug("%s conn %p failed to release req %ld from thrd ", CONN_GET_INST_LABEL(conn), conn, qId);
+      tDebug("%s conn %p failed to release req:%" PRId64 " from thrd ", CONN_GET_INST_LABEL(conn), conn, qId);
     }
 
     tDebug("%s %p reqToSend:%d, sentOut:%d", CONN_GET_INST_LABEL(conn), conn, transQueueSize(&conn->reqsToSend),
