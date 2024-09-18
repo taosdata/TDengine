@@ -112,6 +112,9 @@ void destroyStreamFillLinearInfo(SStreamFillLinearInfo* pFillLinear) {
 }
 
 void destroyStreamFillInfo(SStreamFillInfo* pFillInfo) {
+  if (pFillInfo == NULL) {
+    return;
+  } 
   if (pFillInfo->type == TSDB_FILL_SET_VALUE || pFillInfo->type == TSDB_FILL_SET_VALUE_F ||
       pFillInfo->type == TSDB_FILL_NULL || pFillInfo->type == TSDB_FILL_NULL_F) {
     taosMemoryFreeClear(pFillInfo->pResRow->pRowVal);
