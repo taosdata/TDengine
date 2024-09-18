@@ -11108,7 +11108,7 @@ static int32_t checkAndAdjStreamDestTableSchema(STranslateContext* pCxt, SCreate
                                  .bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
   }
   int32_t code = checkTableSchemaImpl(pCxt, pStmt->pTags, pStmt->pCols, NULL);
-  if (TSDB_CODE_SUCCESS == code && NULL == pSelect->pWindow &&
+  if (TSDB_CODE_SUCCESS == code && NULL == pSelect->pWindow && !pSelect->hasInterpFunc &&
       ((SRealTableNode*)pSelect->pFromTable && hasPkInTable(((SRealTableNode*)pSelect->pFromTable)->pMeta))) {
     if (1 >= LIST_LENGTH(pStmt->pCols) || 1 >= LIST_LENGTH(pSelect->pProjectionList)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY);

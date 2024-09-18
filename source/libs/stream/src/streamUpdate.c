@@ -214,7 +214,6 @@ int32_t updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, b
   if (pkLen != 0) {
     pInfo->comparePkRowFn = compareKeyTsAndPk;
     pInfo->comparePkCol = getKeyComparFunc(pkType, TSDB_ORDER_ASC);
-    ;
   } else {
     pInfo->comparePkRowFn = compareKeyTs;
     pInfo->comparePkCol = NULL;

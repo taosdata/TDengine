@@ -473,6 +473,8 @@ typedef struct SStreamFillSupporter {
   bool           hasDelete;
   SStorageAPI*   pAPI;
   STimeWindow    winRange;
+  int32_t        pkColBytes;
+  __compar_fn_t  comparePkColFn;
 } SStreamFillSupporter;
 
 typedef struct SStreamScanInfo {
