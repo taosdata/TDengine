@@ -2003,10 +2003,12 @@ int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiN
   pInfo->pUpdatedMap = NULL;
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   int32_t funResSize = getMaxFunResSize(&pOperator->exprSupp, numOfCols);
-  pInfo->pState->pFileState = pAPI->stateStore.streamFileStateInit(
-      tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, funResSize, compareTs, pInfo->pState,
-      pInfo->twAggSup.deleteMark, GET_TASKID(pTaskInfo), pHandle->checkpointId, STREAM_STATE_BUFF_HASH);
-  QUERY_CHECK_NULL(pInfo->pState->pFileState, code, lino, _error, terrno);
+  pInfo->pState->pFileState = NULL;
+  code =
+      pAPI->stateStore.streamFileStateInit(tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, funResSize,
+                                           compareTs, pInfo->pState, pInfo->twAggSup.deleteMark, GET_TASKID(pTaskInfo),
+                                           pHandle->checkpointId, STREAM_STATE_BUFF_HASH, &pInfo->pState->pFileState);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->dataVersion = 0;
   pInfo->recvGetAll = false;
@@ -2188,45 +2190,40 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
   pSup->resultRowSize = (keySize + getResultRowSize(pExpSup->pCtx, numOfOutput)) * ratio;
   int32_t lino = 0;
   int32_t code = createSpecialDataBlock(STREAM_CLEAR, &pSup->pScanBlock);
-  if (code) {
-    return code;
-  }
+  QUERY_CHECK_CODE(code, lino, _end);
 
   pSup->gap = gap;
   pSup->stateKeySize = keySize;
   pSup->stateKeyType = keyType;
   pSup->pDummyCtx = (SqlFunctionCtx*)taosMemoryCalloc(numOfOutput, sizeof(SqlFunctionCtx));
-  if (pSup->pDummyCtx == NULL) {
-    return terrno;
-  }
+  QUERY_CHECK_NULL(pSup->pDummyCtx, code, lino, _end, terrno);
 
   pSup->stateStore = *pStore;
   pSup->pSessionAPI = pApi;
 
   initDummyFunction(pSup->pDummyCtx, pExpSup->pCtx, numOfOutput);
   pSup->pState = taosMemoryCalloc(1, sizeof(SStreamState));
-  if (!pSup->pState) {
-    return terrno;
-  }
+  QUERY_CHECK_NULL(pSup->pState, code, lino, _end, terrno);
+
   *(pSup->pState) = *pState;
   pSup->stateStore.streamStateSetNumber(pSup->pState, -1, tsIndex);
   int32_t funResSize = getMaxFunResSize(pExpSup, numOfOutput);
   if (stateType == STREAM_STATE_BUFF_SORT) {
-    pSup->pState->pFileState = pSup->stateStore.streamFileStateInit(
-        tsStreamBufferSize, sizeof(SSessionKey), pSup->resultRowSize, funResSize, sesionTs, pSup->pState,
-        pTwAggSup->deleteMark, taskIdStr, pHandle->checkpointId, stateType);
+    pSup->pState->pFileState = NULL;
+    code = pSup->stateStore.streamFileStateInit(tsStreamBufferSize, sizeof(SSessionKey), pSup->resultRowSize,
+                                                funResSize, sesionTs, pSup->pState, pTwAggSup->deleteMark, taskIdStr,
+                                                pHandle->checkpointId, stateType, &pSup->pState->pFileState);
   } else if (stateType == STREAM_STATE_BUFF_HASH_SORT) {
-    pSup->pState->pFileState = pSup->stateStore.streamFileStateInit(
-        tsStreamBufferSize, sizeof(SWinKey), pSup->resultRowSize, funResSize, compareTs, pSup->pState,
-        pTwAggSup->deleteMark, taskIdStr, pHandle->checkpointId, stateType);
+    pSup->pState->pFileState = NULL;
+    code = pSup->stateStore.streamFileStateInit(tsStreamBufferSize, sizeof(SWinKey), pSup->resultRowSize, funResSize,
+                                                compareTs, pSup->pState, pTwAggSup->deleteMark, taskIdStr,
+                                                pHandle->checkpointId, stateType, &pSup->pState->pFileState);
   }
-  QUERY_CHECK_NULL(pSup->pState->pFileState, code, lino, _end, terrno);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pSup->pResultRows = tSimpleHashInit(32, hashFn);
-  if (!pSup->pResultRows) {
-    return terrno;
-  }
+  QUERY_CHECK_NULL(pSup->pResultRows, code, lino, _end, terrno);
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
     pExpSup->pCtx[i].saveHandle.pState = pSup->pState;
@@ -5368,10 +5365,11 @@ int32_t createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   int32_t funResSize = getMaxFunResSize(pSup, numOfCols);
 
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
-  pInfo->pState->pFileState = pTaskInfo->storageAPI.stateStore.streamFileStateInit(
+  pInfo->pState->pFileState = NULL;
+  code = pTaskInfo->storageAPI.stateStore.streamFileStateInit(
       tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, funResSize, compareTs, pInfo->pState,
-      pInfo->twAggSup.deleteMark, GET_TASKID(pTaskInfo), pHandle->checkpointId, STREAM_STATE_BUFF_HASH);
-  QUERY_CHECK_NULL(pInfo->pState->pFileState, code, lino, _error, terrno);
+      pInfo->twAggSup.deleteMark, GET_TASKID(pTaskInfo), pHandle->checkpointId, STREAM_STATE_BUFF_HASH, &pInfo->pState->pFileState);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   setOperatorInfo(pOperator, "StreamIntervalOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);

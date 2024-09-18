@@ -267,6 +267,9 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SD
       if (pMsg->pData) {
         SDecoder    coder = {0};
         SSubmitRsp2 *rsp = taosMemoryMalloc(sizeof(*rsp));
+        if (NULL == rsp) {
+          SCH_ERR_JRET(terrno);
+        }
         tDecoderInit(&coder, pMsg->pData, msgSize);
         code = tDecodeSSubmitRsp2(&coder, rsp);
         tDecoderClear(&coder);
@@ -957,6 +960,9 @@ int32_t schUpdateSendTargetInfo(SMsgSendInfo *pMsgSendInfo, SQueryNodeAddr *addr
     pMsgSendInfo->target.type = TARGET_TYPE_VNODE;
     pMsgSendInfo->target.vgId = addr->nodeId;
     pMsgSendInfo->target.dbFName = taosStrdup(pTask->plan->dbFName);
+    if (NULL == pMsgSendInfo->target.dbFName) {
+      return terrno;
+    }
   }
 
   return TSDB_CODE_SUCCESS;

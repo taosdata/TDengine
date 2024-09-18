@@ -1247,7 +1247,7 @@ static int32_t parseTsFormat(const char* formatStr, SArray* formats) {
     const TSFormatKeyWord* key = keywordSearch(formatStr);
     if (key) {
       TSFormatNode format = {.key = key, .type = TS_FORMAT_NODE_TYPE_KEYWORD};
-      if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(terrno);
       formatStr += key->len;
       lastOtherFormat = NULL;
     } else {
@@ -1274,7 +1274,7 @@ static int32_t parseTsFormat(const char* formatStr, SArray* formats) {
             TSFormatNode format = {.type = TS_FORMAT_NODE_TYPE_CHAR, .key = NULL};
             format.c = formatStr;
             format.len = 1;
-            if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+            if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(terrno);
             formatStr++;
             last = taosArrayGetLast(formats);
           }
@@ -1301,7 +1301,7 @@ static int32_t parseTsFormat(const char* formatStr, SArray* formats) {
               .key = NULL};
           format.c = formatStr;
           format.len = 1;
-          if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+          if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(terrno);
           formatStr++;
           if (format.type == TS_FORMAT_NODE_TYPE_CHAR) lastOtherFormat = taosArrayGetLast(formats);
         }
@@ -1910,7 +1910,7 @@ int32_t taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t pr
   if (!*formats) {
     *formats = taosArrayInit(8, sizeof(TSFormatNode));
     if (!*formats) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
     TAOS_CHECK_RETURN(parseTsFormat(format, *formats));
   }
@@ -1926,7 +1926,7 @@ int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int
   if (!*formats) {
     *formats = taosArrayInit(4, sizeof(TSFormatNode));
     if (!*formats) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
     TAOS_CHECK_RETURN(parseTsFormat(format, *formats));
   }
@@ -1951,7 +1951,7 @@ int32_t TEST_ts2char(const char* format, int64_t ts, int32_t precision, char* ou
 
   SArray* formats = taosArrayInit(4, sizeof(TSFormatNode));
   if (!formats) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
   TAOS_CHECK_RETURN(parseTsFormat(format, formats));
   struct STm tm;

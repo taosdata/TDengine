@@ -2573,11 +2573,15 @@ void taskDbUpdateChkpId(void* pTaskDb, int64_t chkpId) {
 }
 
 STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath) {
-  char*  err = NULL;
-  char** cfNames = NULL;
-  size_t nCf = 0;
+  char*   err = NULL;
+  char**  cfNames = NULL;
+  size_t  nCf = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
 
   STaskDbWrapper* pTaskDb = taosMemoryCalloc(1, sizeof(STaskDbWrapper));
+  TSDB_CHECK_NULL(pTaskDb, code, lino, _EXIT, terrno);
+
   pTaskDb->idstr = key ? taosStrdup(key) : NULL;
   pTaskDb->path = statePath ? taosStrdup(statePath) : NULL;
 
@@ -2592,6 +2596,7 @@ STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath) {
     pTaskDb->db = rocksdb_open(pTaskDb->pCfOpts[0], dbPath, &err);
     if (pTaskDb->db == NULL) {
       stError("%s open state-backend failed, reason:%s", key, err);
+      code = TSDB_CODE_STREAM_INTERNAL_ERROR;
       goto _EXIT;
     }
 
@@ -2608,11 +2613,12 @@ STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath) {
     cfNames = rocksdb_list_column_families(pTaskDb->dbOpt, dbPath, &nCf, &err);
     if (err != NULL) {
       stError("%s failed to create column-family, %s, %" PRIzu ", reason:%s", key, dbPath, nCf, err);
+      code = TSDB_CODE_STREAM_INTERNAL_ERROR;
       goto _EXIT;
     }
   }
 
-  if (taskDbOpenCfs(pTaskDb, dbPath, cfNames, nCf) != 0) {
+  if ((code = taskDbOpenCfs(pTaskDb, dbPath, cfNames, nCf)) != 0) {
     goto _EXIT;
   }
 
@@ -2625,6 +2631,8 @@ STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath) {
   return pTaskDb;
 
 _EXIT:
+  stError("%s taskDb open failed, %s at line:%d code:%s", key, __func__, lino, tstrerror(code));
+
   taskDbDestroy(pTaskDb, false);
   if (err) taosMemoryFree(err);
   if (cfNames) rocksdb_list_column_families_destroy(cfNames, nCf);

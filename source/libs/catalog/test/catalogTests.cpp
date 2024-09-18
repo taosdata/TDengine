@@ -2889,7 +2889,7 @@ TEST(apiTest, catalogChkAuth_test) {
   SUserAuthInfo authInfo = {0};
   SUserAuthRes  authRes = {0};
   TAOS_STRCPY(authInfo.user, ctgTestUsername);
-  (void)toName(1, ctgTestDbname, ctgTestSTablename, &authInfo.tbName);
+  toName(1, ctgTestDbname, ctgTestSTablename, &authInfo.tbName);
   authInfo.type = AUTH_TYPE_READ;
   bool exists = false;
   code = catalogChkAuthFromCache(pCtg, &authInfo, &authRes, &exists);

@@ -32,7 +32,11 @@ TDengine 可以高效地从 Kafka 读取数据并将其写入 TDengine，以实�
 
 ### 3. 配置连接信息
 
-在 **连接配置** 区域填写 **bootstrap-servers**，例如：`192.168.1.92:9092`。
+**bootstrap-server**，例如：`192.168.1.92`。
+
+**服务端口**，例如：`9092`。
+
+多个 broker 地址时，在连接配置右下增加 **新增 Broker** 按钮，成对增加 bootstrap-server 和服务端口。
 
 ![kafka-03.png](./kafka-03.png)
 

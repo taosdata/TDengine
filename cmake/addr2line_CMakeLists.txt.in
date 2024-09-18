@@ -5,8 +5,9 @@ ExternalProject_Add(addr2line
         GIT_TAG master
         SOURCE_DIR "${TD_CONTRIB_DIR}/addr2line"
         BINARY_DIR "${TD_CONTRIB_DIR}/addr2line"
-        CONFIGURE_COMMAND "" 
-        BUILD_COMMAND ""  
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
         INSTALL_COMMAND ""
         TEST_COMMAND ""
+        GIT_SHALLOW true
         )

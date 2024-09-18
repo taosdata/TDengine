@@ -1143,18 +1143,16 @@ int32_t extractStreamNodeList(SMnode *pMnode) {
   return taosArrayGetSize(execInfo.pNodeList);
 }
 
-static bool taskNodeIsUpdated(SMnode *pMnode) {
-  bool    allReady = true;
-  SArray *pNodeSnapshot = NULL;
-
-  // check if the node update happens or not
-  streamMutexLock(&execInfo.lock);
+static int32_t doCheckForUpdated(SMnode *pMnode, SArray **ppNodeSnapshot) {
+  bool              allReady = false;
+  bool              nodeUpdated = false;
+  SVgroupChangeInfo changeInfo = {0};
 
   int32_t numOfNodes = extractStreamNodeList(pMnode);
+
   if (numOfNodes == 0) {
     mDebug("stream task node change checking done, no vgroups exist, do nothing");
     execInfo.ts = taosGetTimestampSec();
-    streamMutexUnlock(&execInfo.lock);
     return false;
   }
 
@@ -1166,41 +1164,44 @@ static bool taskNodeIsUpdated(SMnode *pMnode) {
 
     if (pNodeEntry->stageUpdated) {
       mDebug("stream task not ready due to node update detected, checkpoint not issued");
-      streamMutexUnlock(&execInfo.lock);
       return true;
     }
   }
 
-  int32_t code = mndTakeVgroupSnapshot(pMnode, &allReady, &pNodeSnapshot);
+  int32_t code = mndTakeVgroupSnapshot(pMnode, &allReady, ppNodeSnapshot);
   if (code) {
     mError("failed to get the vgroup snapshot, ignore it and continue");
   }
 
   if (!allReady) {
     mWarn("not all vnodes ready, quit from vnodes status check");
-    taosArrayDestroy(pNodeSnapshot);
-    streamMutexUnlock(&execInfo.lock);
     return true;
   }
 
-  SVgroupChangeInfo changeInfo = {0};
-  code = mndFindChangedNodeInfo(pMnode, execInfo.pNodeList, pNodeSnapshot, &changeInfo);
+  code = mndFindChangedNodeInfo(pMnode, execInfo.pNodeList, *ppNodeSnapshot, &changeInfo);
   if (code) {
-    streamMutexUnlock(&execInfo.lock);
-    return false;
+    nodeUpdated = false;
+  } else {
+    nodeUpdated = (taosArrayGetSize(changeInfo.pUpdateNodeList) > 0);
+    if (nodeUpdated) {
+      mDebug("stream tasks not ready due to node update");
+    }
   }
-
-  bool nodeUpdated = (taosArrayGetSize(changeInfo.pUpdateNodeList) > 0);
 
   mndDestroyVgroupChangeInfo(&changeInfo);
-  taosArrayDestroy(pNodeSnapshot);
-
-  if (nodeUpdated) {
-    mDebug("stream tasks not ready due to node update");
-  }
-
-  streamMutexUnlock(&execInfo.lock);
   return nodeUpdated;
+}
+
+// check if the node update happens or not
+static bool taskNodeIsUpdated(SMnode *pMnode) {
+  SArray *pNodeSnapshot = NULL;
+
+  streamMutexLock(&execInfo.lock);
+  bool updated = doCheckForUpdated(pMnode, &pNodeSnapshot);
+  streamMutexUnlock(&execInfo.lock);
+
+  taosArrayDestroy(pNodeSnapshot);
+  return updated;
 }
 
 static int32_t mndCheckTaskAndNodeStatus(SMnode *pMnode) {
@@ -1993,7 +1994,7 @@ static int32_t mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pPrevNodeLis
 
   if (pInfo->pUpdateNodeList == NULL || pInfo->pDBMap == NULL) {
     mndDestroyVgroupChangeInfo(pInfo);
-    return terrno;
+    TSDB_CHECK_NULL(NULL, code, lino, _err, terrno);
   }
 
   int32_t numOfNodes = taosArrayGetSize(pPrevNodeList);
@@ -2048,6 +2049,7 @@ static int32_t mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pPrevNodeLis
   return code;
 
   _err:
+  mError("failed to find node change info, code:%s at %s line:%d", tstrerror(code), __func__, lino);
   mndDestroyVgroupChangeInfo(pInfo);
   return code;
 }
@@ -2221,7 +2223,11 @@ static int32_t refreshNodeListFromExistedStreams(SMnode *pMnode, SArray *pNodeLi
     }
 
     char buf[256] = {0};
-    (void) epsetToStr(&pEntry->epset, buf, tListLen(buf));  // ignore this error since it is only for log file
+    int32_t ret = epsetToStr(&pEntry->epset, buf, tListLen(buf));  // ignore this error since it is only for log file
+    if (ret != 0) {  // print error and continue
+      mError("failed to convert epset to str, code:%s", tstrerror(ret));
+    }
+
     mDebug("extract nodeInfo from stream obj, nodeId:%d, %s", pEntry->nodeId, buf);
   }
 
@@ -2231,7 +2237,7 @@ static int32_t refreshNodeListFromExistedStreams(SMnode *pMnode, SArray *pNodeLi
   return code;
 }
 
-static int32_t addAllDbsIntoHashmap(SHashObj *pDBMap, SSdb *pSdb) {
+static void addAllDbsIntoHashmap(SHashObj *pDBMap, SSdb *pSdb) {
   void   *pIter = NULL;
   int32_t code = 0;
   while (1) {
@@ -2249,8 +2255,6 @@ static int32_t addAllDbsIntoHashmap(SHashObj *pDBMap, SSdb *pSdb) {
       mDebug("add Db:%s into Dbs list (total:%d) for kill checkpoint trans", pVgroup->dbName, size);
     }
   }
-
-  return code;
 }
 
 // this function runs by only one thread, so it is not multi-thread safe
@@ -2311,7 +2315,7 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
       mInfo("rollback all stream due to mnode leader/follower switch by using nodeUpdate trans");
       updateAllVgroups = true;
       execInfo.switchFromFollower = false;  // reset the flag
-      (void) addAllDbsIntoHashmap(changeInfo.pDBMap, pMnode->pSdb);
+      addAllDbsIntoHashmap(changeInfo.pDBMap, pMnode->pSdb);
     }
   }
 

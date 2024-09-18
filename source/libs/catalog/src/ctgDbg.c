@@ -291,6 +291,10 @@ int32_t ctgdHandleDbgCommand(char *command) {
   }
 
   char *dup = taosStrdup(command);
+  if (NULL == dup) {
+    CTG_RET(terrno);
+  }
+  
   char *option = NULL;
   char *param = NULL;
   

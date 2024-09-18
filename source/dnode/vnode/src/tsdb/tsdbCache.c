@@ -2939,17 +2939,19 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
     TSDBROW *max[4] = {0};
     int      iMax[4] = {-1, -1, -1, -1};
     int      nMax = 0;
-    TSKEY    maxKey = TSKEY_MIN;
+    SRowKey  maxKey = {.ts = TSKEY_MIN};
 
     for (int i = 0; i < 3; ++i) {
       if (!pIter->input[i].stop && pIter->input[i].pRow != NULL) {
-        TSDBKEY key = TSDBROW_KEY(pIter->input[i].pRow);
+        STsdbRowKey tsdbRowKey = {0};
+        tsdbRowGetKey(pIter->input[i].pRow, &tsdbRowKey);
 
         // merging & deduplicating on client side
-        if (maxKey <= key.ts) {
-          if (maxKey < key.ts) {
+        int c = tRowKeyCompare(&maxKey, &tsdbRowKey.key);
+        if (c <= 0) {
+          if (c < 0) {
             nMax = 0;
-            maxKey = key.ts;
+            maxKey = tsdbRowKey.key;
           }
 
           iMax[nMax] = i;

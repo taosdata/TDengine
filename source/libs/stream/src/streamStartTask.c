@@ -30,8 +30,8 @@ typedef struct STaskInitTs {
 } STaskInitTs;
 
 static int32_t prepareBeforeStartTasks(SStreamMeta* pMeta, SArray** pList, int64_t now);
-static bool allCheckDownstreamRsp(SStreamMeta* pMeta, STaskStartInfo* pStartInfo, int32_t numOfTotal);
-static void displayStatusInfo(SStreamMeta* pMeta, SHashObj* pTaskSet, bool succ);
+static bool    allCheckDownstreamRsp(SStreamMeta* pMeta, STaskStartInfo* pStartInfo, int32_t numOfTotal);
+static void    displayStatusInfo(SStreamMeta* pMeta, SHashObj* pTaskSet, bool succ);
 
 // restore the checkpoint id by negotiating the latest consensus checkpoint id
 int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
@@ -504,4 +504,58 @@ void streamTaskSetReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
   pInfo->consenChkptTransId = 0;
 
   stDebug("s-task:%s set req consen-checkpointId flag, prev transId:%d, ts:%" PRId64, pTask->id.idStr, prevTrans, ts);
+}
+
+int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t now = taosGetTimestampMs();
+  int64_t startTs = 0;
+  bool    hasFillhistoryTask = false;
+  STaskId hId = {0};
+
+  stDebug("vgId:%d add start failed task:0x%x", pMeta->vgId, taskId);
+
+  streamMetaRLock(pMeta);
+
+  STaskId       id = {.streamId = streamId, .taskId = taskId};
+  SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
+
+  if (ppTask != NULL) {
+    startTs = (*ppTask)->taskCheckInfo.startTs;
+    hasFillhistoryTask = HAS_RELATED_FILLHISTORY_TASK(*ppTask);
+    hId = (*ppTask)->hTaskInfo.id;
+
+    streamMetaRUnLock(pMeta);
+
+    // add the failed task info, along with the related fill-history task info into tasks list.
+    code = streamMetaAddTaskLaunchResult(pMeta, streamId, taskId, startTs, now, false);
+    if (hasFillhistoryTask) {
+      code = streamMetaAddTaskLaunchResult(pMeta, hId.streamId, hId.taskId, startTs, now, false);
+    }
+  } else {
+    streamMetaRUnLock(pMeta);
+
+    stError("failed to locate the stream task:0x%" PRIx64 "-0x%x (vgId:%d), it may have been destroyed or stopped",
+            streamId, taskId, pMeta->vgId);
+    code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
+  }
+
+  return code;
+}
+
+void streamMetaAddFailedTaskSelf(SStreamTask* pTask, int64_t failedTs) {
+  int32_t startTs = pTask->execInfo.checkTs;
+  int32_t code = streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, startTs, failedTs, false);
+  if (code) {
+    stError("s-task:%s failed to add self task failed to start, code:%s", pTask->id.idStr, tstrerror(code));
+  }
+
+  // automatically set the related fill-history task to be failed.
+  if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
+    STaskId* pId = &pTask->hTaskInfo.id;
+    code = streamMetaAddTaskLaunchResult(pTask->pMeta, pId->streamId, pId->taskId, startTs, failedTs, false);
+    if (code) {
+      stError("s-task:0x%" PRIx64 " failed to add self task failed to start, code:%s", pId->taskId, tstrerror(code));
+    }
+  }
 }

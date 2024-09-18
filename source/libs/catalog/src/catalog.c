@@ -448,6 +448,10 @@ int32_t ctgGetTbTag(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, 
 
     char* pJson = NULL;
     parseTagDatatoJson(pTag, &pJson);
+    if(NULL == pJson) {
+      taosArrayDestroy(pTagVals);
+      CTG_ERR_JRET(terrno);
+    }
     STagVal tagVal;
     tagVal.cid = 0;
     tagVal.type = TSDB_DATA_TYPE_JSON;
