@@ -173,6 +173,10 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
 
       isJson = true;
       char* tmp = taosMemoryCalloc(1, colLen + 1);
+      if (!tmp) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto end;
+      }
       memcpy(tmp, bind[c].buffer, colLen);
       code = parseJsontoTagData(tmp, pTagArray, &pTag, &pBuf);
       taosMemoryFree(tmp);
@@ -513,6 +517,10 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
 
       isJson = true;
       char* tmp = taosMemoryCalloc(1, colLen + 1);
+      if (!tmp) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto end;
+      }
       memcpy(tmp, bind[c].buffer, colLen);
       code = parseJsontoTagData(tmp, pTagArray, &pTag, &pBuf);
       taosMemoryFree(tmp);
