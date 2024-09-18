@@ -101,7 +101,7 @@
       </li>
       <li>
         <span class="odbc-span"
-          >{{ $t('docs.tools.powerbi.step4desc5') }}<a :href="`/${$t('urlPart')}/taos-sql/distinguished/`">{{ $t('docs.tools.powerbi.step4desc6') }}</a
+          >{{ $t('docs.tools.powerbi.step4desc5') }}<a :href="`${$t('urlPart')}/reference/taos-sql/distinguished/`">{{ $t('docs.tools.powerbi.step4desc6') }}</a
           >{{ $t('docs.tools.powerbi.step4desc7') }}</span
         >
       </li>

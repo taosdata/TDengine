@@ -161,7 +161,7 @@
     },
     computed: {
       learnMoreTip() {
-        return this.$t("stream.learnMoreTip").replace(/docsUrl/, `${this.$t('urlPart')}/develop/stream/`);
+        return this.$t("stream.learnMoreTip").replace(/docsUrl/, `${this.$t('urlPart')}/advanced/stream/`);
       },
     },
     async created() {

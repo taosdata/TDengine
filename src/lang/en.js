@@ -1694,6 +1694,7 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
       bottomand: " and ",
       bottom3:
         "For more details about how to write or query data via REST API, please check ",
+      bottom3_1: "/reference/connector/rest-api/",
       bottom3end: ".",
       java: {
         step1: "Add Dependency",

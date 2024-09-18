@@ -78,7 +78,7 @@ select * from test.demo where ts &gt;= &#39;2022-05-10 18:24:15&#39; and ts&lt;=
     <p>{{ $t("docs.virtual.gds.step3desc") }}</p>
     <p v-if="!isOEM">
       {{ $t("docs.virtual.gds.step3desc1")
-      }}&nbsp;<a :href="`${$t('urlPart')}/third-party/google-data-studio/`">{{
+      }}&nbsp;<a :href="`${$t('urlPart')}/third-party/bi/looker/`">{{
         $t("docs.virtual.gds.step3desc2")
       }}</a>
       {{ $t("docs.virtual.gds.step3desc3") }}

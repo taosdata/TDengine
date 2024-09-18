@@ -37,14 +37,14 @@ url &lt;- Sys.getenv("TDENGINE_JDBC_URL")
 </code></pre>
     <p>
       {{ $t('docs.connector.bottom2') }}
-      <a :href="`${$t('urlPart')}/develop/insert-data/`">{{ $t('docs.connector.r.insertdata') }}</a>
+      <a :href="`${$t('urlPart')}/reference/taos-sql/insert/`">{{ $t('docs.connector.r.insertdata') }}</a>
       {{ $t('docs.connector.bottomand') }}
-      <a :href="`${$t('urlPart')}/develop/query-data/`">{{ $t('docs.connector.r.querydata') }}</a
+      <a :href="`${$t('urlPart')}/reference/taos-sql/select/`">{{ $t('docs.connector.r.querydata') }}</a
       >{{ $t('docs.connector.bottom3end') }}
     </p>
     <p>
       {{ $t('docs.connector.bottom3') }}
-      <a :href="`${$t('urlPart')}/${restapi}/rest-api/`">REST API</a>{{ $t('docs.connector.bottom3end') }}
+      <a :href="`${$t('urlPart')}${$t('docs.connector.bottom3_1')}`">REST API</a>{{ $t('docs.connector.bottom3end') }}
     </p>
   </div>
 </template>

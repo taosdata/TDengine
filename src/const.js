@@ -372,11 +372,11 @@ export const TokenKey = "TDengine-Token";
 export const BusinessEmail = "business@tdengine.com";
 
 
-export const StreamDocsUrl = i18n.locale?.includes('en') ? "https://docs.tdengine.com/develop/stream/" : 'https://docs.taosdata.com/develop/stream/';
+export const StreamDocsUrl = i18n.locale?.includes('en') ? "https://docs.tdengine.com/advanced/stream/" : 'https://docs.taosdata.com/advanced/stream/';
 export const DocsUrl = "https://docs.tdengine.com"
 
 export const TdengineVersion = "3.2.0.0";
-export const SubscriptionDocsUrl = i18n.locale?.includes('en') ? "https://docs.tdengine.com/taos-sql/tmq/#create-a-topic" : 'https://docs.taosdata.com/taos-sql/tmq/#create-a-topic';
+export const SubscriptionDocsUrl = i18n.locale?.includes('en') ? "https://docs.tdengine.com/advanced/subscription/" : 'https://docs.taosdata.com/advanced/subscription/';
 export const TDengineTimeUnit = [
   {
     label: "nanosecond",

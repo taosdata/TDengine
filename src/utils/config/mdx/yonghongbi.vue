@@ -61,7 +61,7 @@
       </li>
     </ol>
     <p>
-      {{ $t('docs.tools.yonghongbi.step44desc') }}<a :href="`/${$t('urlPart')}/taos-sql/distinguished/`">{{ $t('docs.tools.yonghongbi.step44desc1') }}</a>
+      {{ $t('docs.tools.yonghongbi.step44desc') }}<a :href="`${$t('urlPart')}/reference/taos-sql/distinguished/`">{{ $t('docs.tools.yonghongbi.step44desc1') }}</a>
       {{ $t('docs.tools.yonghongbi.step44desc2') }}</p
     >
     <p> {{ $t('docs.tools.yonghongbi.step45desc') }} </p>

@@ -152,7 +152,7 @@
     },
     computed: {
       learnMoreTip() {
-        return this.$t("topic.learnMoreTip").replace(/docsUrl/, `${this.$t('urlPart')}/taos-sql/tmq/#create-a-topic`);
+        return this.$t("topic.learnMoreTip").replace(/docsUrl/, `${this.$t('urlPart')}/advanced/subscription/`);
       },
       dialogComp() {
         return {

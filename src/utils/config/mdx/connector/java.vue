@@ -208,11 +208,11 @@ Meter lastRow(@Param("tableName")String tableName);`
     </el-tabs>
     <p>
       {{ $t("docs.connector.bottom1") }} {{ $t("docs.connector.bottom2") }}
-      <a :href="`${$t('urlPart')}/develop/insert-data/`">{{
+      <a :href="`${$t('urlPart')}/reference/taos-sql/insert/`">{{
         `${$t('docs.connector.bottom2_1')}`
       }}</a>
       {{ $t("docs.connector.bottomand") }}
-      <a :href="`${$t('urlPart')}/develop/query-data/`">{{
+      <a :href="`${$t('urlPart')}/reference/taos-sql/select/`">{{
         `${$t('docs.connector.bottom2_2')}`
       }}</a
       >{{ $t("docs.connector.bottom3end") }}
@@ -220,7 +220,7 @@ Meter lastRow(@Param("tableName")String tableName);`
     <p>
       {{ $t("docs.connector.bottom3") }}
       <a
-        :href="`${$t('urlPart')}/${restapi}/rest-api/`"
+        :href="`${$t('urlPart')}${$t('docs.connector.bottom3_1')}`"
         >REST API</a
       >{{ $t("docs.connector.bottom3end") }}
     </p>

@@ -85,12 +85,13 @@ export TDENGINE_TOKEN=&quot;${token}&quot;
     <ul>
       <li>
         {{ $t("docs.party.telegraf.step5desc2") }}
-        <a href="https://docs.influxdata.com/telegraf/v1.22/plugins/">
+        <a href="https://docs.influxdata.com/telegraf/v1.22/plugins/" target="_blank">
           {{ $t("docs.party.telegraf.step5desc2input") }}</a
         >
         {{ $t("docs.party.telegraf.step5desc2insert") }}
         <a
           href="https://docs.influxdata.com/telegraf/v1.24/data_formats/input/"
+          target="_blank"
         >
           {{ $t("docs.party.telegraf.step5desc2format") }}</a
         >
@@ -128,7 +129,7 @@ export default {
   computed: {
     schemelessUrl(){
       return (
-        (this.$t('urlPart'))+'/reference/schemaless/#Schemaless-Line-Protocol'
+        (this.$t('urlPart'))+'/develop/schemaless'
       )
     },
     jdbcURL() {
