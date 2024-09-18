@@ -1284,6 +1284,7 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
 
   if (TSDB_CODE_SUCCESS == code) {
     code = handleQueryExecRsp(pRequest);
+  }
 
   if (TSDB_CODE_SUCCESS != code) {
     pRequest->code = code;
