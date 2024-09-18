@@ -463,7 +463,7 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
     srvMsg->type = Normal;
     srvMsg->pConn = pConn;
 
-    transQueuePush(&pConn->resps, &srvMsg->q);
+    (void)transQueuePush(&pConn->resps, &srvMsg->q);
 
     uvStartSendRespImpl(srvMsg);
     taosMemoryFree(pHead);
@@ -846,7 +846,7 @@ int32_t uvMayHandleReleaseResp(SSvrRespMsg* pMsg) {
       return TSDB_CODE_RPC_NO_STATE;
     } else {
       transFreeMsg(p->msg.pCont);
-      taosHashRemove(pConn->pQTable, &qid, sizeof(qid));
+      (void)taosHashRemove(pConn->pQTable, &qid, sizeof(qid));
     }
   }
   return 0;
@@ -859,7 +859,7 @@ static void uvStartSendResp(SSvrRespMsg* smsg) {
     return;
   }
 
-  transQueuePush(&pConn->resps, &smsg->q);
+  (void)transQueuePush(&pConn->resps, &smsg->q);
   uvStartSendRespImpl(smsg);
   return;
 }
@@ -1087,7 +1087,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     pConn->serverIp = saddr.sin_addr.s_addr;
     pConn->port = ntohs(addr.sin_port);
 
-    transSetConnOption((uv_tcp_t*)pConn->pTcp, 20);
+    (void)transSetConnOption((uv_tcp_t*)pConn->pTcp, 20);
     (void)uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocRecvBufferCb, uvOnRecvCb);
 
   } else {
