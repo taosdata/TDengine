@@ -175,7 +175,6 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
   } else {
     pSchema = pTableMeta->schema;
     if (pBoundInfo->numOfCols != getTbnameSchemaIndex(pTableMeta) + 1) {
-      assert(0);
       return TSDB_CODE_PAR_INTERNAL_ERROR;
     }
   }

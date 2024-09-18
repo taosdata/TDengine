@@ -200,7 +200,6 @@ static int32_t findAndReplaceNode(SCalcConstContext* pCxt, SNode** pRoot, SNode*
   nodesRewriteExprPostOrder(pRoot, doFindAndReplaceNode, pCxt);
   if (TSDB_CODE_SUCCESS == pCxt->code && strict && !pCxt->replaceCxt.replaced) {
     parserError("target replace node not found, %p", pTarget);
-    assert(0);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   return pCxt->code;

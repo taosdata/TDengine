@@ -184,7 +184,6 @@ int32_t extractOperatorInTree(SOperatorInfo* pOperator, int32_t type, const char
 
   if (pOperator == NULL) {
     qError("invalid operator, failed to find tableScanOperator %s", id);
-    assert(0);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
 

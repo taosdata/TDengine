@@ -3708,7 +3708,6 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
 
   int32_t msgSize = tSerializeSMqSeekReq(NULL, 0, &req);
   if (msgSize < 0) {
-    assert(0);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
 
@@ -3719,7 +3718,6 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
 
   if (tSerializeSMqSeekReq(msg, msgSize, &req) < 0) {
     taosMemoryFree(msg);
-    assert(0);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
 
