@@ -399,6 +399,9 @@ export default {
     },
     lang() {
      return localStorage.getItem('local_language');
+    },
+    agentId() {
+      return this.sourceParent.sourceForm.agent
     }
   },
   watch: {
@@ -531,6 +534,9 @@ export default {
         const params = {
           point: this.opcPointForm.opcCsvHeaders,
           task_id: this.taskId
+        }
+        if (this.agentId) {
+          params.via = this.agentId
         }
         const result = await addOpcPoint(params)
         if (result && Object.hasOwnProperty.call(result,'code')) {
