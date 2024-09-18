@@ -426,8 +426,8 @@ mod tests {
     #[tokio::test]
     async fn test_select_distinct_values() {
         // prepare data
-        let _ = test_create_table();
-        let _ = test_insert_data(7);
+        let _ = test_create_table().await;
+        let _ = test_insert_data(7).await;
 
         let dsn = Dsn::from_str(
             "mssql://test:123456@192.168.1.66:1433/test_taosx?encryption=On&trust_cert=true",
@@ -442,9 +442,10 @@ mod tests {
                     .select_distinct_values("select distinct name,value from t_metric")
                     .await;
                 match query_result {
-                    Ok(col_map) => {
-                        dbg!(&col_map);
-                        assert_eq!(col_map.len(), 4);
+                    Ok((col_map, rows)) => {
+                        dbg!(col_map);
+                        dbg!(&rows);
+                        assert_eq!(rows.len(), 7);
                     }
                     Err(e) => {
                         println!("error: {:?}", e);
@@ -456,7 +457,7 @@ mod tests {
             }
         }
         // clear data
-        let _ = test_clear_data();
+        let _ = test_clear_data().await;
     }
 
     #[tokio::test]
