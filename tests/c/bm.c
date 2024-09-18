@@ -821,9 +821,10 @@ static void usage(FILE *f, const char *app)
   fprintf(f, "  -t <tables>:             # of tables to generate, default 2 tables\n");
   fprintf(f, "  -r <max-rows-per-table>  # of rows at the most to insert per table, default 1 row\n");
   fprintf(f, "  -l <loops>               # of loops to run, default 1 loop\n");
+  fprintf(f, "  --options <options>      # singleStbInsert | singleTableBindOnce\n");
   fprintf(f, "  -1                       use taos_stmt_prepare\n");
   fprintf(f, "  -2                       use taos_stmt_prepare2\n");
-  fprintf(f, "  note: if neither -1 nor -2 is specified, use taos_query instead\n");
+  fprintf(f, "  note: if -1/-2 is not specified, use taos_query instead\n");
 }
 
 static int run(int argc, char *argv[])
@@ -841,6 +842,8 @@ static int run(int argc, char *argv[])
   int loops   = 1;
   int tables  = 2;
   int records = 1;
+  TAOS_STMT_OPTIONS opt = {0};
+
 
   for (int i=1; i<argc; ++i) {
     const char *arg = argv[i];
@@ -885,6 +888,21 @@ static int run(int argc, char *argv[])
       records = atoi(argv[i]);
       continue;
     }
+    if (strcmp(arg, "--options") == 0) {
+      if (++i >= argc) {
+        fprintf(stderr, "--options <options>; missing <options>\n");
+        return -1;
+      }
+      if (strstr(argv[i], "singleStbInsert")) {
+        return -1;
+        opt.singleStbInsert  = true;
+      }
+      if (strstr(argv[i], "singleTableBindOnce")) {
+        return -1;
+        opt.singleTableBindOnce  = true;
+      }
+      continue;
+    }
     fprintf(stderr, "unknow argument:%s\n", arg);
     return -1;
   }
@@ -893,7 +911,7 @@ static int run(int argc, char *argv[])
   CHK_TAOS(conn, "taos_connect failed");
   if (!conn) return -1;
 
-  TAOS_STMT *stmt = taos_stmt_init(conn);
+  TAOS_STMT *stmt = taos_stmt_init_with_options(conn, &opt);
   e = taos_errno(NULL);
   CHK_STMT(stmt, e, "taos_stmt_init failed");
   if (!stmt) {
