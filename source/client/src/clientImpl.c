@@ -2240,6 +2240,10 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
         } else if (tTagIsJson(data)) {
           char* jsonString = NULL;
           parseTagDatatoJson(data, &jsonString);
+          if(jsonString == NULL) {
+            tscError("doConvertJson error: parseTagDatatoJson failed");
+            return terrno;
+          }
           STR_TO_VARSTR(dst, jsonString);
           taosMemoryFree(jsonString);
         } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
