@@ -1321,6 +1321,7 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
   cfgRsp->walFsyncPeriod = pDb->cfg.walFsyncPeriod;
   cfgRsp->hashPrefix = pDb->cfg.hashPrefix;
   cfgRsp->hashSuffix = pDb->cfg.hashSuffix;
+  cfgRsp->hashMethod = pDb->cfg.hashMethod;
   cfgRsp->walLevel = pDb->cfg.walLevel;
   cfgRsp->precision = pDb->cfg.precision;
   cfgRsp->compression = pDb->cfg.compression;

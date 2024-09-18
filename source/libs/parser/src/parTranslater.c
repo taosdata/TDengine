@@ -509,7 +509,7 @@ static int32_t getTargetName(STranslateContext* pCxt, const SName* pName, char* 
   return code;
 }
 
-static int32_t rewriteDropMetaCache(STranslateContext* pCxt) {
+static int32_t rewriteDropTableWithMetaCache(STranslateContext* pCxt) {
   int32_t          code = TSDB_CODE_SUCCESS;
   SParseContext*   pParCxt = pCxt->pParseCxt;
   SParseMetaCache* pMetaCache = pCxt->pMetaCache;
@@ -567,16 +567,6 @@ static int32_t rewriteDropMetaCache(STranslateContext* pCxt) {
       taosHashCancelIterate(pMetaCache->pTableName, ppMetaRes);
       return code;
     }
-
-    SMetaRes** qqMetaRes = taosHashGet(pMetaCache->pTableMeta, fullName, strlen(fullName));
-    if (!qqMetaRes) {
-      taosHashCancelIterate(pMetaCache->pTableName, ppMetaRes);
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-  }
-  taosHashCleanup(pMetaCache->pTableName);
-  if (code) {
-    assert(0);
   }
   return code;
 }
@@ -720,7 +710,11 @@ static int32_t getTableHashVgroupImpl(STranslateContext* pCxt, const SName* pNam
   }
   if (TSDB_CODE_SUCCESS == code) {
     if (pParCxt->async) {
-      code = getTableVgroupFromCache(pCxt->pMetaCache, pName, pInfo);
+      if(pCxt->withOpt) {
+        code = getDbTableVgroupFromCache(pCxt->pMetaCache, pName, pInfo);
+      } else {
+        code = getTableVgroupFromCache(pCxt->pMetaCache, pName, pInfo);
+      }
     } else {
       SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
                                .requestId = pParCxt->requestId,
@@ -14535,6 +14529,7 @@ static int32_t rewriteDropTablewithOpt(STranslateContext* pCxt, SQuery* pQuery) 
   int32_t code = TSDB_CODE_SUCCESS;
   SDropTableStmt* pStmt = (SDropTableStmt*)pQuery->pRoot;
   if (!pStmt->withOpt) return code;
+  pCxt->withOpt = true;
 
   SNode* pNode = NULL;
   char   pTableName[TSDB_TABLE_NAME_LEN] = {0};
@@ -14550,7 +14545,7 @@ static int32_t rewriteDropTablewithOpt(STranslateContext* pCxt, SQuery* pQuery) 
     tstrncpy(pClause->tableName, pTableName, TSDB_TABLE_NAME_LEN);  // rewrite table uid to table name
   }
 
-  code = rewriteDropMetaCache(pCxt);
+  code = rewriteDropTableWithMetaCache(pCxt);
 
   TAOS_RETURN(code);
 }
@@ -14581,6 +14576,7 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
     if (tableType == TSDB_SUPER_TABLE && LIST_LENGTH(pStmt->pTables) > 1) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DROP_STABLE);
     }
+    if (pCxt->withOpt) continue;
     if (pCxt->pMetaCache) code = getTableTsmasFromCache(pCxt->pMetaCache, &name, &pTsmas);
     if (TSDB_CODE_SUCCESS != code) {
       taosHashCleanup(pVgroupHashmap);

@@ -418,6 +418,8 @@ int32_t catalogGetTsma(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTs
 
 int32_t catalogAsyncUpdateDbTsmaVersion(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId);
 
+int32_t ctgHashValueComp(void const* lp, void const* rp);
+
 /**
  * Destroy catalog and relase all resources
  */

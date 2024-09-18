@@ -1152,6 +1152,42 @@ int32_t getTableVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pName,
   return code;
 }
 
+int32_t getDbTableVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pName, SVgroupInfo* pVgroup) {
+  char    fullName[TSDB_TABLE_FNAME_LEN];
+  int32_t code = tNameExtractFullName(pName, fullName);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  const char* pDb = strstr(fullName, ".");
+  if (pDb == NULL) return TSDB_CODE_PAR_INTERNAL_ERROR;
+  pDb = strstr(pDb + 1, ".");
+  if (pDb == NULL) return TSDB_CODE_PAR_INTERNAL_ERROR;
+  int32_t fullDbLen = pDb - fullName;
+  int32_t fullTbLen = strlen(fullName);
+
+  SArray*     pVgArray = NULL;
+  SDbCfgInfo* pDbCfg = NULL;
+  code = getMetaDataFromHash(fullName, fullDbLen, pMetaCache->pDbVgroup, (void**)&pVgArray);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getMetaDataFromHash(fullName, fullDbLen, pMetaCache->pDbCfg, (void**)&pDbCfg);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = TSDB_CODE_PAR_INTERNAL_ERROR;
+    int32_t vgSize = taosArrayGetSize(pVgArray);
+    for (int32_t i = 0; i < vgSize; ++i) {
+      uint32_t hashValue =
+          taosGetTbHashVal(fullName, fullTbLen, pDbCfg->hashMethod, pDbCfg->hashPrefix, pDbCfg->hashSuffix);
+      void* pVg = taosArraySearch(pVgArray, &hashValue, ctgHashValueComp, TD_EQ);
+      if (pVg) {
+        memcpy(pVgroup, pVg, sizeof(SVgroupInfo));
+        code = TSDB_CODE_SUCCESS;
+        break;
+      }
+    }
+  }
+  return code;
+}
+
 int32_t reserveDbVgVersionInCache(int32_t acctId, const char* pDb, SParseMetaCache* pMetaCache) {
   return reserveDbReqInCache(acctId, pDb, &pMetaCache->pDbInfo);
 }

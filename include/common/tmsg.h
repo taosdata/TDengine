@@ -1460,6 +1460,7 @@ typedef struct {
   int32_t walFsyncPeriod;
   int16_t hashPrefix;
   int16_t hashSuffix;
+  int8_t  hashMethod;
   int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
