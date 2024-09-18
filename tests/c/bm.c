@@ -894,11 +894,9 @@ static int run(int argc, char *argv[])
         return -1;
       }
       if (strstr(argv[i], "singleStbInsert")) {
-        return -1;
         opt.singleStbInsert  = true;
       }
       if (strstr(argv[i], "singleTableBindOnce")) {
-        return -1;
         opt.singleTableBindOnce  = true;
       }
       continue;
