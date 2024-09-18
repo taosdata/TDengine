@@ -1,3 +1,4 @@
+use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::time::Duration;
@@ -14,7 +15,7 @@ use crate::runners::opc::{opc_datasets_by_command, OpcType};
 
 pub struct PointsUpdater {
     opc_config: OPCConfig,
-    opc_config_file: String,
+    opc_toml_path: String,
     mode: UpdateMode,
     interval: tokio::time::Interval,
     cancel_token: CancellationToken,
@@ -40,7 +41,7 @@ impl PointsUpdater {
 
         Self {
             opc_config: config,
-            opc_config_file: config_file,
+            opc_toml_path: config_file,
             mode,
             interval: tokio::time::interval(Duration::from_secs(interval as u64)),
             cancel_token: token,
@@ -60,6 +61,9 @@ impl PointsUpdater {
                 break;
             }
             self.interval.tick().await;
+            if self.cancel_token.is_cancelled() {
+                break;
+            }
 
             //  1. 查询所有符合过滤条件的点位，形成点位列表：to_list；
             let to_list = opc_datasets_by_command(&self.opc_config).await;
@@ -178,14 +182,33 @@ impl PointsUpdater {
                 e.to_string()
             )
         })?;
-        let mut opc_config_file = File::create(&self.opc_config_file).map_err(|e| {
+
+        let temp_path = format!("{}.temp", &self.opc_toml_path);
+        let mut opc_config_file = File::create(&temp_path).map_err(|e| {
             anyhow::anyhow!(
-                "failed to create opc config file during points updating, cause: {}",
+                "failed to create temporary opc config file during points updating, cause: {}",
                 e.to_string()
             )
         })?;
         write!(opc_config_file, "{}", toml)?;
         tracing::debug!("update points, write opc config file\n{toml}");
+        opc_config_file.sync_all().map_err(|e| {
+            anyhow::anyhow!(
+                "failed to sync temporary opc config file during points updating, cause: {}",
+                e.to_string()
+            )
+        })?;
+        tracing::debug!(
+            "rename temp: {} to the opc config file: {}",
+            &temp_path,
+            &self.opc_toml_path
+        );
+        fs::rename(&temp_path, &self.opc_toml_path).map_err(|e| {
+            anyhow::anyhow!(
+                "failed to rename temporary opc config file during points updating, cause: {}",
+                e.to_string()
+            )
+        })?;
 
         Ok(())
     }
