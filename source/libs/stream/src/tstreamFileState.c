@@ -137,7 +137,7 @@ static int32_t streamFileStateEncode(TSKEY* pKey, void** pVal, int32_t* pLen) {
   }
   void*   buff = *pVal;
   int32_t tmp = taosEncodeFixedI64(&buff, *pKey);
-  return tmp;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize, GetTsFun fp,
