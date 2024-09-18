@@ -207,10 +207,11 @@ typedef struct SCtgTbMetasCtx {
 } SCtgTbMetasCtx;
 
 typedef struct SCtgTbNamesCtx {
-  int32_t fetchNum;
-  SArray* pNames;
-  SArray* pResList;
-  SArray* pFetchs;
+  int32_t  fetchNum;
+  SRWLatch lock;
+  SArray*  pNames;
+  SArray*  pResList;
+  SArray*  pFetchs;
 } SCtgTbNamesCtx;
 
 typedef struct SCtgTbIndexCtx {

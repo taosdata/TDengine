@@ -601,6 +601,7 @@ static int32_t ctgInitGetTbNamesTask(SCtgJob* pJob, int32_t taskId, void* param)
   task.taskCtx = pTaskCtx;
   pTaskCtx->pNames = param;
   pTaskCtx->pResList = taosArrayInit(pJob->tbNameNum, sizeof(SMetaRes));
+  taosInitRWLatch(&pTaskCtx->lock);
   if (NULL == pTaskCtx->pResList) {
     qError("qid:0x%" PRIx64 " taosArrayInit %d SMetaRes %d failed", pJob->queryId, pJob->tbNameNum,
            (int32_t)sizeof(SMetaRes));
@@ -1929,20 +1930,40 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
   SName*   pName = NULL;
   CTG_ERR_JRET(ctgGetFetchName(ctx->pNames, pFetch, &pName));
 
-
   CTG_ERR_JRET(ctgProcessRspMsg(pMsgCtx->out, reqType, pMsg->pData, pMsg->len, rspCode, pMsgCtx->target));
 
   switch (reqType) {
     case TDMT_MND_USE_DB: {
       SUseDbOutput* pOut = (SUseDbOutput*)pMsgCtx->out;
-
-      SVgroupInfo vgInfo = {0};
-      CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, &pConn->mgmtEps, pOut->dbVgroup, pName, &vgInfo));
-
-      ctgTaskDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(pName), flag);
-
-      *vgId = vgInfo.vgId;
-      CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, pName, &vgInfo, NULL, tReq));
+      CTG_ERR_JRET(ctgMakeVgArray(pOut->dbVgroup));
+      int32_t vgSize = taosArrayGetSize(pOut->dbVgroup->vgArray);
+      if (0 == vgSize) {
+        ctgTaskError("no vgroup got, dbName:%s", pName->dbname);
+        CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+      }
+      SArray* pVgArray = taosArrayDup(pOut->dbVgroup->vgArray, NULL);
+      if (NULL == pVgArray) {
+        ctgTaskError("fail to dup vgArray:%s", pName->dbname);
+        CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+      for (int32_t i = 0; i < vgSize; ++i) {
+        SVgroupInfo* vgInfo = TARRAY_GET_ELEM(pVgArray, i);
+        if (NULL == vgInfo) {
+          taosArrayDestroy(pVgArray);
+          ctgTaskError("fail to get the %dth vgInfo, vgSize:%d", i, vgSize);
+          CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+        }
+        ctgTaskDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d, vgId:%d",
+                     tNameGetTableName(pName), flag, vgInfo->vgId);
+        *vgId = vgInfo->vgId;
+        if (i > 0) atomic_add_fetch_32(&ctx->fetchNum, 1);
+        code = ctgGetTbMetaFromVnode(pCtg, pConn, pName, vgInfo, NULL, tReq);
+        if (code) {
+          taosArrayDestroy(pVgArray);
+          CTG_ERR_JRET(code);
+        }
+      }
+      taosArrayDestroy(pVgArray);
 
       return TSDB_CODE_SUCCESS;
     }
@@ -2025,7 +2046,7 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
                  (int32_t)taosArrayGetSize(ctx->pResList));
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
-
+  // taosWLockLatch(ctx->lock);
   pRes->code = 0;
   pRes->pRes = pOut->tbMeta;
   pOut->tbMeta = NULL;
