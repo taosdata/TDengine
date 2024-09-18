@@ -146,19 +146,24 @@ int16_t insFindCol(SToken* pColname, int16_t start, int16_t end, SSchema* pSchem
   return -1;
 }
 
-void insBuildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTag, int64_t suid, const char* sname,
+int32_t insBuildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTag, int64_t suid, const char* sname,
                          SArray* tagName, uint8_t tagNum, int32_t ttl) {
   pTbReq->type = TD_CHILD_TABLE;
+  pTbReq->ctb.pTag = (uint8_t*)pTag;
   pTbReq->name = taosStrdup(tname);
+  if (!pTbReq->name) return terrno;
   pTbReq->ctb.suid = suid;
   pTbReq->ctb.tagNum = tagNum;
-  if (sname) pTbReq->ctb.stbName = taosStrdup(sname);
-  pTbReq->ctb.pTag = (uint8_t*)pTag;
+  if (sname) {
+    pTbReq->ctb.stbName = taosStrdup(sname);
+    if (!pTbReq->ctb.stbName) return terrno;
+  }
   pTbReq->ctb.tagName = taosArrayDup(tagName, NULL);
+  if (!pTbReq->ctb.tagName) return terrno;
   pTbReq->ttl = ttl;
   pTbReq->commentLen = -1;
 
-  return;
+  return TSDB_CODE_SUCCESS;
 }
 
 static void initBoundCols(int32_t ncols, int16_t* pBoundCols) {

@@ -1294,35 +1294,56 @@ int32_t getTsmaFromCache(SParseMetaCache* pMetaCache, const SName* pTsmaName, ST
 
 STableCfg* tableCfgDup(STableCfg* pCfg) {
   STableCfg* pNew = taosMemoryMalloc(sizeof(*pNew));
-
+  if (!pNew) {
+    return NULL;
+  }
   memcpy(pNew, pCfg, sizeof(*pNew));
-  if (NULL != pNew->pComment) {
+  pNew->pComment = NULL;
+  pNew->pFuncs = NULL;
+  pNew->pTags = NULL;
+  pNew->pSchemas = NULL;
+  pNew->pSchemaExt = NULL;
+  if (NULL != pCfg->pComment) {
     pNew->pComment = taosMemoryCalloc(pNew->commentLen + 1, 1);
+    if (!pNew->pComment) goto err;
     memcpy(pNew->pComment, pCfg->pComment, pNew->commentLen);
   }
-  if (NULL != pNew->pFuncs) {
-    pNew->pFuncs = taosArrayDup(pNew->pFuncs, NULL);
+  if (NULL != pCfg->pFuncs) {
+    pNew->pFuncs = taosArrayDup(pCfg->pFuncs, NULL);
+    if (!pNew->pFuncs) goto err;
   }
-  if (NULL != pNew->pTags) {
-    pNew->pTags = taosMemoryCalloc(pNew->tagsLen + 1, 1);
+  if (NULL != pCfg->pTags) {
+    pNew->pTags = taosMemoryCalloc(pCfg->tagsLen + 1, 1);
+    if (!pNew->pTags) goto err;
     memcpy(pNew->pTags, pCfg->pTags, pNew->tagsLen);
   }
 
   int32_t schemaSize = (pCfg->numOfColumns + pCfg->numOfTags) * sizeof(SSchema);
 
   SSchema* pSchema = taosMemoryMalloc(schemaSize);
+  if (!pSchema) goto err;
   memcpy(pSchema, pCfg->pSchemas, schemaSize);
+  pNew->pSchemas = pSchema;
+
   SSchemaExt* pSchemaExt = NULL;
   if (useCompress(pCfg->tableType) && pCfg->pSchemaExt) {
     int32_t schemaExtSize = pCfg->numOfColumns * sizeof(SSchemaExt);
     pSchemaExt = taosMemoryMalloc(schemaExtSize);
+    if (!pSchemaExt) goto err;
     memcpy(pSchemaExt, pCfg->pSchemaExt, schemaExtSize);
   }
 
-  pNew->pSchemas = pSchema;
   pNew->pSchemaExt = pSchemaExt;
 
   return pNew;
+err:
+  if (pNew->pComment) taosMemoryFreeClear(pNew->pComment);
+  if (pNew->pFuncs) taosArrayDestroy(pNew->pFuncs);
+  if (pNew->pTags) taosMemoryFreeClear(pNew->pTags);
+  if (pNew->pSchemas) taosMemoryFreeClear(pNew->pSchemas);
+  if (pNew->pSchemaExt) taosMemoryFreeClear(pNew->pSchemaExt);
+  taosMemoryFreeClear(pNew);
+  return NULL;
 }
 
 int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableCfg** pOutput) {
