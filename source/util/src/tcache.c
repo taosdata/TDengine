@@ -366,7 +366,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInMs, bool extendLi
 
   SCacheObj *pCacheObj = (SCacheObj *)taosMemoryCalloc(1, sizeof(SCacheObj));
   if (pCacheObj == NULL) {
-    uError("failed to allocate memory, reason:%s", terrstr());
+    uError("failed to allocate memory, reason:%s", strerror(errno));
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -404,7 +404,6 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInMs, bool extendLi
     return NULL;
   }
 
-  
   (void)doRegisterCacheObj(pCacheObj);
   return pCacheObj;
 }
