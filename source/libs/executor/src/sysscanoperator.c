@@ -1196,7 +1196,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
       int64_t suid = mr.me.ctbEntry.suid;
       int32_t code = pAPI->metaReaderFn.getTableEntryByUid(&mr1, suid);
       if (code != TSDB_CODE_SUCCESS) {
-        qError("failed to get super table meta, cname:%s, suid:0x%" PRIx64 ", code:%s, %s", pInfo->pCur->mr.me.name,
+        qError("failed to get super table meta, cname:%s, suid:0x%" PRIx64 ", code:%s, %s", mr.me.name,
                suid, tstrerror(terrno), GET_TASKID(pTaskInfo));
         pAPI->metaReaderFn.clearReader(&mr1);
         pAPI->metaReaderFn.clearReader(&mr);
@@ -1238,11 +1238,11 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
     } else if (tableType == TSDB_NORMAL_TABLE) {
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
-      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.btime, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&mr.me.ntbEntry.btime, false);
 
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
-      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.schemaRow.nCols, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&mr.me.ntbEntry.schemaRow.nCols, false);
 
       // super table name
       pColInfoData = taosArrayGet(p->pDataBlock, 4);
