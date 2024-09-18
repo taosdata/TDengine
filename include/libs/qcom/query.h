@@ -123,6 +123,11 @@ typedef struct STableMeta {
                             // the schema content.
   SSchema schema[];
 } STableMeta;
+typedef struct STableMetaEx {
+  STableMeta* pMeta;
+  // END: KEEP THIS PART SAME WITH STableMeta
+  char tbName[TSDB_TABLE_NAME_LEN];
+} STableMetaEx;
 #pragma pack(pop)
 
 typedef struct SViewMeta {

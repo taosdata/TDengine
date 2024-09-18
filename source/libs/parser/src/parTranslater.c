@@ -509,6 +509,71 @@ static int32_t getTargetName(STranslateContext* pCxt, const SName* pName, char* 
   return code;
 }
 
+static int32_t rewriteDropMetaCache(STranslateContext* pCxt) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  SParseContext*   pParCxt = pCxt->pParseCxt;
+  SParseMetaCache* pMetaCache = pCxt->pMetaCache;
+  int32_t          tbMetaSize = taosHashGetSize(pMetaCache->pTableMeta);
+  int32_t          tbMetaExSize = taosHashGetSize(pMetaCache->pTableName);
+
+  if (tbMetaSize > 0 || tbMetaExSize <= 0) {
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  if (!pMetaCache->pTableMeta &&
+      !(pMetaCache->pTableMeta =
+            taosHashInit(tbMetaExSize, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK))) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SMetaRes** ppMetaRes = NULL;
+  char       dbName[TSDB_DB_NAME_LEN] = {0};
+  while ((ppMetaRes = taosHashIterate(pMetaCache->pTableName, ppMetaRes))) {
+    if (!(*ppMetaRes)) {
+      taosHashCancelIterate(pMetaCache->pTableName, ppMetaRes);
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+    }
+
+    char*         pKey = taosHashGetKey(ppMetaRes, NULL);
+    STableMetaEx* pMetaEx = (STableMetaEx*)(*ppMetaRes)->pRes;
+    if (!pMetaEx || !pMetaEx->pMeta) {
+      taosHashCancelIterate(pMetaCache->pTableName, ppMetaRes);
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+    }
+    char* pDbStart = strstr(pKey, ".");
+    char* pDbEnd = pDbStart ? strstr(pDbStart + 1, ".") : NULL;
+    if (!pDbEnd) {
+      taosHashCancelIterate(pMetaCache->pTableName, ppMetaRes);
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+    }
+    tstrncpy(dbName, pDbStart + 1, pDbEnd - pDbStart);
+    SName name = {0};
+    toName(pParCxt->acctId, dbName, pMetaEx->tbName, &name);
+
+    char fullName[TSDB_TABLE_FNAME_LEN];
+    code = tNameExtractFullName(&name, fullName);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosHashCancelIterate(pMetaCache->pTableName, ppMetaRes);
+      return code;
+    }
+
+    if ((code = taosHashPut(pMetaCache->pTableMeta, fullName, strlen(fullName), ppMetaRes, POINTER_BYTES))) {
+      taosHashCancelIterate(pMetaCache->pTableName, ppMetaRes);
+      return code;
+    }
+
+    SMetaRes **qqMetaRes = taosHashGet(pMetaCache->pTableMeta, fullName, strlen(fullName));
+    if (!qqMetaRes) {
+      taosHashCancelIterate(pMetaCache->pTableName, ppMetaRes);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  taosHashCleanup(pMetaCache->pTableName);
+  if (code) {
+    assert(0);
+  }
+  return code;
+}
+
 int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta,
                           bool couldBeView) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -14459,8 +14524,10 @@ int32_t serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap, SArray** pOut) 
   return code;
 }
 
-static int32_t rewriteDropTablewithOpt(STranslateContext* pCxt, SDropTableStmt* pStmt) {
-  if (!pStmt->withOpt) return TSDB_CODE_SUCCESS;
+static int32_t rewriteDropTablewithOpt(STranslateContext* pCxt, SQuery* pQuery) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SDropTableStmt* pStmt = (SDropTableStmt*)pQuery->pRoot;
+  if (!pStmt->withOpt) return code;
 
   SNode* pNode = NULL;
   char   pTableName[TSDB_TABLE_NAME_LEN] = {0};
@@ -14473,9 +14540,12 @@ static int32_t rewriteDropTablewithOpt(STranslateContext* pCxt, SDropTableStmt* 
     if (TSDB_CODE_SUCCESS != code) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Table uid does not exist: '%s'", pClause->tableName);
     }
-    // tstrncpy(pClause->tableName, pTableMeta->, TSDB_TABLE_NAME_LEN); // rewrite table uid to table name
+    tstrncpy(pClause->tableName, pTableName, TSDB_TABLE_NAME_LEN);  // rewrite table uid to table name
   }
-  return TSDB_CODE_SUCCESS;
+
+  code = rewriteDropMetaCache(pCxt);
+
+  TAOS_RETURN(code);
 }
 
 static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
@@ -14484,7 +14554,7 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
   SNode*          pNode;
   SArray*         pTsmas = NULL;
 
-  TAOS_CHECK_RETURN(rewriteDropTablewithOpt(pCxt, pStmt));
+  TAOS_CHECK_RETURN(rewriteDropTablewithOpt(pCxt, pQuery));
 
   SHashObj* pVgroupHashmap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   if (NULL == pVgroupHashmap) {

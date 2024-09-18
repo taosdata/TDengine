@@ -2080,9 +2080,17 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
-  pRes->code = 0;
-  pRes->pRes = pOut->tbMeta;
+  STableMetaEx* pMetaEx = taosMemoryMalloc(sizeof(STableMetaEx));
+  if (NULL == pMetaEx) {
+    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  pMetaEx->pMeta = pOut->tbMeta;
   pOut->tbMeta = NULL;
+  tstrncpy(pMetaEx->tbName, pOut->tbName, TSDB_TABLE_NAME_LEN);
+
+  pRes->code = 0;
+  pRes->pRes = pMetaEx;
   if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
     TSWAP(pTask->res, ctx->pResList);
     taskDone = true;

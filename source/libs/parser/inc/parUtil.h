@@ -112,7 +112,7 @@ typedef struct SParseMetaCache {
   SHashObj* pViews;        // key is viewFName, element is SViewMeta*
   SHashObj* pTableTSMAs;   // key is tbFName, elements are SArray<STableTSMAInfo*>
   SHashObj* pTSMAs;        // key is tsmaFName, elements are STableTSMAInfo*
-  SHashObj* pTableName;    // key is tbFUid, elements is tbName
+  SHashObj* pTableName;    // key is tbFUid, elements is STableMetaEx*
   SArray*   pDnodes;       // element is SEpSet
   bool      dnodeRequired;
   bool      qnodeRequired;

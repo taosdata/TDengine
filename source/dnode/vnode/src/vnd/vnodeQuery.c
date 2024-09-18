@@ -75,7 +75,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   (void)memcpy(metaRsp.dbFName, infoReq.dbFName, sizeof(metaRsp.dbFName));
 
   if (!reqFromUid) {
-    (void)sprintf(tableFName, "%s.%s", infoReq.dbFName, infoReq.tbName);
+    TAOS_UNUSED(sprintf(tableFName, "%s.%s", infoReq.dbFName, infoReq.tbName));
     code = vnodeValidateTableHash(pVnode, tableFName);
     if (code) {
       goto _exit4;
@@ -95,6 +95,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       code = terrno;
       goto _exit3;
     }
+    tstrncpy(metaRsp.tbName, tbName + VARSTR_HEADER_SIZE, TSDB_TABLE_NAME_LEN);
     if (metaGetTableEntryByName(&mer1, tbName + VARSTR_HEADER_SIZE) < 0) {
       code = terrno;
       goto _exit3;
