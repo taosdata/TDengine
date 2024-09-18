@@ -14,7 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "audit.h"
 #include "dmInt.h"
+#include "monitor.h"
 #include "systable.h"
 #include "tchecksum.h"
 
@@ -27,6 +29,8 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
     (void)taosThreadRwlockWrlock(&pMgmt->pData->lock);
     pMgmt->pData->dnodeId = pCfg->dnodeId;
     pMgmt->pData->clusterId = pCfg->clusterId;
+    monSetDnodeId(pCfg->dnodeId);
+    auditSetDnodeId(pCfg->dnodeId);
     code = dmWriteEps(pMgmt->pData);
     if (code != 0) {
       dInfo("failed to set local info, dnodeId:%d clusterId:%" PRId64 " reason:%s", pCfg->dnodeId, pCfg->clusterId,

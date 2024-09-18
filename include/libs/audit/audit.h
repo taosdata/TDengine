@@ -49,7 +49,7 @@ typedef struct {
 } SAuditRecord;
 
 int32_t auditInit(const SAuditCfg *pCfg);
-void    auditOpen(int32_t dnodeId);
+void    auditSetDnodeId(int32_t dnodeId);
 void    auditCleanup();
 int32_t auditSend(SJson *pJson);
 void    auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 

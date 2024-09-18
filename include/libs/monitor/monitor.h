@@ -218,7 +218,7 @@ typedef struct {
 } SDmNotifyHandle;
 
 int32_t monInit(const SMonCfg *pCfg);
-void    monOpen(int32_t dnodeId);
+void    monSetDnodeId(int32_t dnodeId);
 void    monInitVnode();
 void    monCleanup();
 void    monRecordLog(int64_t ts, ELogLevel level, const char *content);

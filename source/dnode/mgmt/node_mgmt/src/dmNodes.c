@@ -101,8 +101,8 @@ static int32_t dmOpenNodes(SDnode *pDnode) {
     }
   }
 
-  auditOpen(dmGetDnodeId(&pDnode->data));
-  monOpen(dmGetDnodeId(&pDnode->data));
+  auditSetDnodeId(dmGetDnodeId(&pDnode->data));
+  monSetDnodeId(dmGetDnodeId(&pDnode->data));
 
   dmSetStatus(pDnode, DND_STAT_RUNNING);
   return 0;
