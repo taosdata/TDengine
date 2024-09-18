@@ -116,7 +116,7 @@ int32_t auditSend(SJson *pJson) {
   }
 
   char tmp[100] = {0};
-  (void)sprintf(tmp, "%" PRId64, tGenQid64(tsAudit.dnodeId));
+  (void)sprintf(tmp, "0x%" PRIxLEAST64, tGenQid64(tsAudit.dnodeId));
   uDebug("audit record with QID:%s cont:%s\n", tmp, pCont);
   EHttpCompFlag flag = tsAudit.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
   if (taosSendHttpReportWithQID(tsAudit.cfg.server, tsAuditUri, tsAudit.cfg.port, pCont, strlen(pCont), flag, tmp) !=
@@ -260,7 +260,7 @@ void auditSendRecordsInBatchImp(){
   char *pCont = tjsonToString(pJson);
   if (pCont != NULL) {
     char tmp[100] = {0};
-    (void)sprintf(tmp, "%" PRId64, tGenQid64(tsAudit.dnodeId));
+    (void)sprintf(tmp, "0x%" PRIxLEAST64, tGenQid64(tsAudit.dnodeId));
     uDebug("audit batch record with QID:%s cont: %d\n", tmp, setSize);
     EHttpCompFlag flag = tsAudit.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
     if (taosSendHttpReportWithQID(tsAudit.cfg.server, tsAuditBatchUri, tsAudit.cfg.port, pCont, strlen(pCont), flag,
