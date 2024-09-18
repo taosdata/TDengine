@@ -190,6 +190,7 @@ int32_t streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize,
     pFileState->stateFunctionGetFn = getSessionRowBuff;
   }
   QUERY_CHECK_NULL(pFileState->rowStateBuff, code, lino, _error, terrno);
+  QUERY_CHECK_NULL(pFileState->cfName, code, lino, _error, terrno);
 
   pFileState->keyLen = keySize;
   pFileState->rowSize = rowSize;
