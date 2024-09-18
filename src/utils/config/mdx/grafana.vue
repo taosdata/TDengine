@@ -121,7 +121,7 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
       {{ $t("docs.virtual.grafana.step4desc1")
       }}
       <a
-        :href="`${$t('urlPart')}/third-party/grafana#create-dashboard`"
+        :href="`${$t('urlPart')}/third-party/visual/grafana/#创建-dashboard`"
         >{{ $t("docs.virtual.grafana.step4desc2") }}</a
       >   {{ $t("docs.virtual.grafana.step4desc3") }}</span>
     </p>

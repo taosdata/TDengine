@@ -71,19 +71,19 @@ conn = taosrest.connect(url=url, token=token)
 </code></pre>
     <p>
       {{ $t("docs.connector.bottom1") }} {{ $t("docs.connector.bottom2") }}
-      <a :href="`https://docs.${urlPart}.com/develop/insert-data/`">{{
-        `https://docs.${urlPart}.com/develop/insert-data/`
+      <a :href="`https://docs.${urlPart}.com/reference/taos-sql/insert/`">{{
+        `https://docs.${urlPart}.com/reference/taos-sql/insert/`
       }}</a>
       {{ $t("docs.connector.bottomand") }}
-      <a :href="`https://docs.${urlPart}.com/develop/query-data/`">{{
-        `https://docs.${urlPart}.com/develop/query-data/`
+      <a :href="`https://docs.${urlPart}.com/reference/taos-sql/select/`">{{
+        `https://docs.${urlPart}.com/reference/taos-sql/select/`
       }}</a
       >{{ $t("docs.connector.bottom3end") }}
     </p>
     <p>
       {{ $t("docs.connector.bottom3") }}
       <a
-        :href="`https://docs.${urlPart}.com/reference/rest-api/`"
+        :href="`${$t('urlPart')}${$t('docs.connector.bottom3_1')}`"
         >REST API</a
       >{{ $t("docs.connector.bottom3end") }}
     </p>
