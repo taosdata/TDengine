@@ -25,7 +25,7 @@
 #include "ttime.h"
 
 typedef struct {
-  SArray*     blocks;   // SSDataBlock
+  SArray*     blocks;   // SSDataBlock*
   SArray*     windows;  // STimeWindow
   uint64_t    groupId;
   int64_t     numOfRows;
@@ -111,7 +111,7 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
 
   int32_t itemSize = sizeof(int32_t) + pInfo->aggSup.resultRowSize + pInfo->anomalyKey.bytes;
   pInfo->anomalySup.pResultRow = taosMemoryCalloc(1, itemSize);
-  pInfo->anomalySup.blocks = taosArrayInit(16, sizeof(SSDataBlock));
+  pInfo->anomalySup.blocks = taosArrayInit(16, sizeof(SSDataBlock*));
   pInfo->anomalySup.windows = taosArrayInit(16, sizeof(STimeWindow));
 
   if (pInfo->anomalySup.windows == NULL || pInfo->anomalySup.blocks == NULL || pInfo->anomalySup.pResultRow == NULL) {
@@ -155,7 +155,7 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   SAnomalyWindowSupp*         pSupp = &pInfo->anomalySup;
   SSDataBlock*                pRes = pInfo->binfo.pRes;
   int64_t                     st = taosGetTimestampUs();
-  int32_t                     blocks = taosArrayGetSize(pSupp->blocks);
+  int32_t                     numOfBlocks = taosArrayGetSize(pSupp->blocks);
 
   blockDataCleanup(pRes);
 
@@ -167,15 +167,15 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
 
     if (pSupp->groupId == 0 || pSupp->groupId == pBlock->info.id.groupId) {
       pSupp->groupId = pBlock->info.id.groupId;
-      blocks++;
-      uInfo("group:%" PRId64 ", blocks:%d, cache block rows:%" PRId64, pSupp->groupId, blocks, pBlock->info.rows);
+      numOfBlocks++;
+      uInfo("group:%" PRId64 ", blocks:%d, cache block rows:%" PRId64, pSupp->groupId, numOfBlocks, pBlock->info.rows);
       code = anomalyCacheBlock(pInfo, pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
-      uInfo("group:%" PRId64 ", read finish for new group coming, blocks:%d", pSupp->groupId, blocks);
+      uInfo("group:%" PRId64 ", read finish for new group coming, blocks:%d", pSupp->groupId, numOfBlocks);
       anomalyAggregateBlocks(pOperator);
       pSupp->groupId = pBlock->info.id.groupId;
-      blocks = 1;
+      numOfBlocks = 1;
       uInfo("group:%" PRId64 ", new group, cache block rows:%" PRId64, pSupp->groupId, pBlock->info.rows);
       code = anomalyCacheBlock(pInfo, pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -183,13 +183,13 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
 
     if (pRes->info.rows > 0) {
       (*ppRes) = pRes;
-      uInfo("group:%" PRId64 ", return to upstream, blocks:%d", pRes->info.id.groupId, blocks);
+      uInfo("group:%" PRId64 ", return to upstream, blocks:%d", pRes->info.id.groupId, numOfBlocks);
       return code;
     }
   }
 
-  if (blocks > 0) {
-    uInfo("group:%" PRId64 ", read finish, blocks:%d", pInfo->anomalySup.groupId, blocks);
+  if (numOfBlocks > 0) {
+    uInfo("group:%" PRId64 ", read finish, blocks:%d", pInfo->anomalySup.groupId, numOfBlocks);
     anomalyAggregateBlocks(pOperator);
   }
 
@@ -216,8 +216,8 @@ static void anomalyDestroyOperatorInfo(void* param) {
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
 
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->anomalySup.blocks); ++i) {
-    SSDataBlock* pBlock = taosArrayGet(pInfo->anomalySup.blocks, i);
-    blockDataFreeRes(pBlock);
+    SSDataBlock* pBlock = taosArrayGetP(pInfo->anomalySup.blocks, i);
+    blockDataDestroy(pBlock);
   }
   taosArrayDestroy(pInfo->anomalySup.blocks);
   taosArrayDestroy(pInfo->anomalySup.windows);
@@ -233,7 +233,7 @@ static int32_t anomalyCacheBlock(SAnomalyWindowOperatorInfo* pInfo, SSDataBlock*
 
   if (code != 0) return code;
   if (pDst == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-  if (taosArrayPush(pInfo->anomalySup.blocks, pDst) == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (taosArrayPush(pInfo->anomalySup.blocks, &pDst) == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   return 0;
 }
@@ -304,7 +304,7 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
 
   int32_t numOfBlocks = (int32_t)taosArrayGetSize(pSupp->blocks);
   for (int32_t i = 0; i < numOfBlocks; ++i) {
-    SSDataBlock* pBlock = taosArrayGet(pSupp->blocks, i);
+    SSDataBlock* pBlock = taosArrayGetP(pSupp->blocks, i);
     if (pBlock == NULL) break;
     SColumnInfoData* pValCol = taosArrayGet(pBlock->pDataBlock, pInfo->anomalyCol.slotId);
     if (pValCol == NULL) break;
@@ -414,7 +414,7 @@ static void anomalyAggregateBlocks(SOperatorInfo* pOperator) {
   }
 
   for (int32_t b = 0; b < numOfBlocks; ++b) {
-    SSDataBlock* pBlock = taosArrayGet(pSupp->blocks, b);
+    SSDataBlock* pBlock = taosArrayGetP(pSupp->blocks, b);
     if (pBlock == NULL) break;
 
     pRes->info.scanFlag = pBlock->info.scanFlag;
@@ -506,9 +506,9 @@ static void anomalyAggregateBlocks(SOperatorInfo* pOperator) {
 
 _OVER:
   for (int32_t i = 0; i < numOfBlocks; ++i) {
-    SSDataBlock* pBlock = taosArrayGet(pSupp->blocks, i);
+    SSDataBlock* pBlock = taosArrayGetP(pSupp->blocks, i);
     uInfo("%s, clear block, pBlock:%p pBlock->pDataBlock:%p", __func__, pBlock, pBlock->pDataBlock);
-    blockDataFreeRes(pBlock);
+    blockDataDestroy(pBlock);
   }
 
   taosArrayClear(pSupp->blocks);
