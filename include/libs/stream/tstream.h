@@ -494,6 +494,14 @@ typedef struct SScanWalInfo {
   tmr_h   scanTimer;
 } SScanWalInfo;
 
+typedef struct SFatalErrInfo {
+  int32_t code;
+  int64_t ts;
+  int32_t threadId;
+  int32_t line;
+  char    func[128];
+} SFatalErrInfo;
+
 // meta
 typedef struct SStreamMeta {
   char*           path;
@@ -523,14 +531,13 @@ typedef struct SStreamMeta {
   int32_t         numOfStreamTasks;  // this value should be increased when a new task is added into the meta
   int32_t         numOfPausedTasks;
   int64_t         rid;
-
-  int64_t  chkpId;
-  int32_t  chkpCap;
-  SArray*  chkpSaved;
-  SArray*  chkpInUse;
-  SRWLatch chkpDirLock;
-  void*    qHandle;  // todo remove it
-  void*    bkdChkptMgt;
+  SFatalErrInfo   fatalInfo;  // fatal error occurs, stream stop to execute
+  int64_t         chkpId;
+  int32_t         chkpCap;
+  SArray*         chkpSaved;
+  SArray*         chkpInUse;
+  SRWLatch        chkpDirLock;
+  void*           bkdChkptMgt;
 } SStreamMeta;
 
 typedef struct STaskUpdateEntry {
@@ -776,6 +783,9 @@ void    streamMetaRLock(SStreamMeta* pMeta);
 void    streamMetaRUnLock(SStreamMeta* pMeta);
 void    streamMetaWLock(SStreamMeta* pMeta);
 void    streamMetaWUnLock(SStreamMeta* pMeta);
+void    streamSetFatalError(SStreamMeta* pMeta, int32_t code, const char* funcName, int32_t lino);
+int32_t streamGetFatalError(const SStreamMeta* pMeta);
+
 void    streamMetaResetStartInfo(STaskStartInfo* pMeta, int32_t vgId);
 int32_t streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta, SArray** pTaskList);
 void    streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader);
@@ -791,7 +801,7 @@ void    streamTaskSetReqConsenChkptId(SStreamTask* pTask, int64_t ts);
 
 // timer
 int32_t streamTimerGetInstance(tmr_h* pTmr);
-void    streamTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId, int32_t vgId,
+void    streamTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* pParam, void* pHandle, tmr_h* pTmrId, int32_t vgId,
                        const char* pMsg);
 void    streamTmrStop(tmr_h tmrId);
 

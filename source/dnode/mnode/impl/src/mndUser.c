@@ -342,7 +342,8 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
   SIpV4Range range = {.ip = 0, .mask = 32};
   int32_t    code = taosGetIpv4FromFqdn(fqdn, &range.ip);
   if (code) {
-    //TODO
+    mError("failed to get ip from fqdn: %s at line %d since %s", fqdn, lino, tstrerror(code));
+    TAOS_RETURN(TSDB_CODE_TSC_INVALID_FQDN);
   }
   mDebug("ip-white-list may update for user: %s, fqdn: %s", user, fqdn);
   SIpWhiteList **ppList = taosHashGet(pIpWhiteTab, user, strlen(user));

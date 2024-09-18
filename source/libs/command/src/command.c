@@ -565,6 +565,10 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
   if (tTagIsJson(pTag)) {
     char* pJson = NULL;
     parseTagDatatoJson(pTag, &pJson);
+    if(NULL == pJson) {
+      qError("failed to parse tag to json, pJson is NULL");
+      return terrno;
+    }
     *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s", pJson);
     taosMemoryFree(pJson);
 

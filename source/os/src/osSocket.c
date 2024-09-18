@@ -300,14 +300,18 @@ int32_t taosSetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
   }
 #endif
 
-  return setsockopt(pSocket->fd, level, optname, optval, optlen);
+int ret = setsockopt(pSocket->fd, level, optname, optval, optlen);
+if (ret == SOCKET_ERROR) {
+  int errorCode = WSAGetLastError();
+  return terrno = TAOS_SYSTEM_WINSOCKET_ERROR(errorCode);
+}
 #else
   int32_t code = setsockopt(pSocket->fd, level, optname, optval, (int)optlen);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
-  return code;
+  return 0;
 #endif
 }
 
@@ -325,19 +329,6 @@ int32_t taosGetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
 
 #endif
 
-uint32_t taosInetAddr(const char *ipAddr) {
-#ifdef WINDOWS
-  uint32_t value;
-  int32_t  ret = inet_pton(AF_INET, ipAddr, &value);
-  if (ret <= 0) {
-    return INADDR_NONE;
-  } else {
-    return value;
-  }
-#else
-  return inet_addr(ipAddr);
-#endif
-}
 const char *taosInetNtoa(struct in_addr ipInt, char *dstStr, int32_t len) {
   const char* r = inet_ntop(AF_INET, &ipInt, dstStr, len);
   if (NULL == r) {
@@ -943,8 +934,7 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
   int     iResult;
   iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
   if (iResult != 0) {
-    // printf("WSAStartup failed: %d\n", iResult);
-    return 0xFFFFFFFF;
+    return TAOS_SYSTEM_WINSOCKET_ERROR(WSAGetLastError());
   }
 #endif
 
@@ -1008,7 +998,7 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
 #endif
 
     *ip = 0xFFFFFFFF;
-    return 0xFFFFFFFF;
+    return TSDB_CODE_RPC_FQDN_ERROR;
   }
 #endif
 }
@@ -1021,7 +1011,7 @@ int32_t taosGetFqdn(char *fqdn) {
   iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
   if (iResult != 0) {
     // printf("WSAStartup failed: %d\n", iResult);
-    return 1;
+    return TAOS_SYSTEM_WINSOCKET_ERROR(WSAGetLastError());
   }
 #endif
   char hostname[1024];
@@ -1077,8 +1067,8 @@ int32_t taosGetFqdn(char *fqdn) {
 
   int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (!result) {
-    fprintf(stderr, "failed to get fqdn, code:%d, hostname:%s, reason:%s\n", ret, hostname, gai_strerror(ret));
-    return -1;
+    //fprintf(stderr, "failed to get fqdn, code:%d, hostname:%s, reason:%s\n", ret, hostname, gai_strerror(ret));
+    return TAOS_SYSTEM_WINSOCKET_ERROR(WSAGetLastError());
   }
   strcpy(fqdn, result->ai_canonname);
   freeaddrinfo(result);
@@ -1140,13 +1130,13 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
 
   if ((fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    return terrno;
   }
   
 #if defined(WINDOWS)
   if (0 != setsockopt(fd, IPPROTO_TCP, TCP_MAXRT, (char *)&timeout, sizeof(timeout))) {
     taosCloseSocketNoCheck1(fd);
-    return -1;
+    return TAOS_SYSTEM_WINSOCKET_ERROR(WSAGetLastError());
   }
 #elif defined(_TD_DARWIN_64)
   // invalid config
@@ -1160,7 +1150,7 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
   if (-1 == setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     TAOS_SKIP_ERROR(taosCloseSocketNoCheck1(fd));
-    return -1;
+    return terrno;
   }
 #endif
 

@@ -173,6 +173,10 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
 
       isJson = true;
       char* tmp = taosMemoryCalloc(1, colLen + 1);
+      if (!tmp) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto end;
+      }
       memcpy(tmp, bind[c].buffer, colLen);
       code = parseJsontoTagData(tmp, pTagArray, &pTag, &pBuf);
       taosMemoryFree(tmp);
@@ -513,6 +517,10 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
 
       isJson = true;
       char* tmp = taosMemoryCalloc(1, colLen + 1);
+      if (!tmp) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto end;
+      }
       memcpy(tmp, bind[c].buffer, colLen);
       code = parseJsontoTagData(tmp, pTagArray, &pTag, &pBuf);
       taosMemoryFree(tmp);
@@ -892,11 +900,11 @@ int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TA
   if (NULL == tags) {
     return TSDB_CODE_APP_ERROR;
   }
-
+  /*
   if (pDataBlock->pMeta->tableType != TSDB_SUPER_TABLE && pDataBlock->pMeta->tableType != TSDB_CHILD_TABLE) {
     return TSDB_CODE_TSC_STMT_API_ERROR;
   }
-
+  */
   SSchema* pSchema = getTableTagSchema(pDataBlock->pMeta);
   if (tags->numOfBound <= 0) {
     *fieldNum = 0;

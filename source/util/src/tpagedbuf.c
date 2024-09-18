@@ -547,6 +547,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
     int32_t code = lruListPushFront(pBuf->lruList, *pi);
     if (TSDB_CODE_SUCCESS != code) {
       taosMemoryFree((*pi)->pData);
+      (*pi)->pData = NULL;
       terrno = code;
       return NULL;
     }
@@ -557,7 +558,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
       int32_t code = loadPageFromDisk(pBuf, *pi);
       if (code != 0) {
         taosMemoryFree((*pi)->pData);
-
+        (*pi)->pData = NULL;
         terrno = code;
         return NULL;
       }
