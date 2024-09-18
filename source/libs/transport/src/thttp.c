@@ -616,7 +616,7 @@ static void httpHandleReq(SHttpMsg* msg) {
   int32_t fd = taosCreateSocketWithTimeout(5000);
   if (fd < 0) {
     tError("http-report failed to open socket, dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64 ", reason:%s", cli->addr,
-           cli->port, chanId, cli->seq, tstrerror(TAOS_SYSTEM_ERROR(errno)));
+           cli->port, chanId, cli->seq, tstrerror(terrno));
     destroyHttpClient(cli);
     (void)taosReleaseRef(httpRefMgt, chanId);
     return;

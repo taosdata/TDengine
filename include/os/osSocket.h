@@ -166,7 +166,6 @@ int32_t     taosGetFqdn(char *);
 void        tinet_ntoa(char *ipstr, uint32_t ip);
 uint32_t    ip2uint(const char *const ip_addr);
 int32_t     taosIgnSIGPIPE();
-uint32_t    taosInetAddr(const char *ipAddr);
 const char *taosInetNtoa(struct in_addr ipInt, char *dstStr, int32_t len);
 
 uint64_t taosHton64(uint64_t val);
