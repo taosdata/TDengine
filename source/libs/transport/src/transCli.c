@@ -682,7 +682,8 @@ void cliConnCheckTimoutMsg(SCliConn* conn) {
       continue;
     } else {
       // already notify user
-      destroyReqWrapper(pReq, pThrd);
+      destroyReq(pReq);
+      // destroyReqWrapper(pReq, pThrd);
     }
   }
 
