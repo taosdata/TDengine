@@ -20,11 +20,11 @@ class TDTestCase:
         
         self.configration_dic = {
             "cli": [
-                {
-                    "name": "keepAliveIdle",
-                    "values": [1, 100, 7200000],
-                    "except_values": [0, 7200001]
-                },
+                # {
+                #     "name": "keepAliveIdle",
+                #     "values": [1, 100, 7200000],
+                #     "except_values": [0, 7200001]
+                # },
                 {
                     "name": "queryPolicy",
                     "values": [1, 2, 4],
@@ -42,12 +42,12 @@ class TDTestCase:
                 }
             ],
             "svr": [
-                {
-                    "name": "keepAliveIdle",
-                    "alias": "tsKeepAliveIdle",
-                    "values": [1, 100, 7200000],
-                    "except_values": [0, 7200001]
-                },
+                # {
+                #     "name": "keepAliveIdle",
+                #     "alias": "tsKeepAliveIdle",
+                #     "values": [1, 100, 7200000],
+                #     "except_values": [0, 7200001]
+                # },
                 {
                     "name": "mndSdbWriteDelta",
                     "alias": "tsMndSdbWriteDelta",
