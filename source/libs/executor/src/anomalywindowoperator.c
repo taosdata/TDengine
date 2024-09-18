@@ -155,7 +155,7 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   SAnomalyWindowSupp*         pSupp = &pInfo->anomalySup;
   SSDataBlock*                pRes = pInfo->binfo.pRes;
   int64_t                     st = taosGetTimestampUs();
-  int32_t                     numOfBlocks = 0;
+  int32_t                     blocks = taosArrayGetSize(pSupp->blocks);
 
   blockDataCleanup(pRes);
 
@@ -167,34 +167,34 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
 
     if (pSupp->groupId == 0 || pSupp->groupId == pBlock->info.id.groupId) {
       pSupp->groupId = pBlock->info.id.groupId;
-      numOfBlocks++;
-      uInfo("group:%" PRId64 ", cache block, numOfBlocks:%d", pSupp->groupId, numOfBlocks);
+      blocks++;
+      uInfo("group:%" PRId64 ", blocks:%d, cache block rows:%" PRId64, pSupp->groupId, blocks, pBlock->info.rows);
       code = anomalyCacheBlock(pInfo, pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
-      uInfo("group:%" PRId64 ", read finish for new group coming, numOfBlocks:%d", pSupp->groupId, numOfBlocks);
+      uInfo("group:%" PRId64 ", read finish for new group coming, blocks:%d", pSupp->groupId, blocks);
       anomalyAggregateBlocks(pOperator);
       pSupp->groupId = pBlock->info.id.groupId;
-      numOfBlocks = 1;
-      uInfo("group:%" PRId64 ", new group", pSupp->groupId);
+      blocks = 1;
+      uInfo("group:%" PRId64 ", new group, cache block rows:%" PRId64, pSupp->groupId, pBlock->info.rows);
       code = anomalyCacheBlock(pInfo, pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
     if (pRes->info.rows > 0) {
       (*ppRes) = pRes;
-      uInfo("group:%" PRId64 ", return to upstream, numOfBlocks:%d", pRes->info.id.groupId, numOfBlocks);
+      uInfo("group:%" PRId64 ", return to upstream, blocks:%d", pRes->info.id.groupId, blocks);
       return code;
     }
   }
 
-  if (numOfBlocks > 0) {
-    uInfo("group:%" PRId64 ", read finish, numOfBlocks:%d", pInfo->anomalySup.groupId, numOfBlocks);
+  if (blocks > 0) {
+    uInfo("group:%" PRId64 ", read finish, blocks:%d", pInfo->anomalySup.groupId, blocks);
     anomalyAggregateBlocks(pOperator);
   }
 
   int64_t cost = taosGetTimestampUs() - st;
-  uInfo("all groups finished, numOfBlocks:%d cost:%" PRId64 "us", numOfBlocks, cost);
+  uInfo("all groups finished, cost:%" PRId64 "us", cost);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -326,10 +326,16 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   taosArrayPush(pSupp->windows, &win2);
   taosArrayPush(pSupp->windows, &win3);
 #else
-  STimeWindow win1 = {.skey = 1577808000000, .ekey = 1577808400000};
-  STimeWindow win2 = {.skey = 1577808400000, .ekey = 1577808600000};
+  STimeWindow win1 = {.skey = 1577808000000, .ekey = 1578153600000};
+  STimeWindow win2 = {.skey = 1578153600000, .ekey = 1578240000000};
+  STimeWindow win3 = {.skey = 1578240000000, .ekey = 1578499200000};
+  STimeWindow win4 = {.skey = 1578499200000, .ekey = 1578672000000};
+  STimeWindow win5 = {.skey = 1578672000000, .ekey = INT64_MAX};
   taosArrayPush(pSupp->windows, &win1);
   taosArrayPush(pSupp->windows, &win2);
+  taosArrayPush(pSupp->windows, &win3);
+  taosArrayPush(pSupp->windows, &win4);
+  taosArrayPush(pSupp->windows, &win5);
 #endif
 
   return 0;
@@ -384,14 +390,14 @@ static void anomalyAggregateBlocks(SOperatorInfo* pOperator) {
   int32_t numOfBlocks = (int32_t)taosArrayGetSize(pSupp->blocks);
   if (numOfBlocks == 0) goto _OVER;
 
-  uInfo("group:%" PRId64 ", aggregate blocks, numOfBlocks:%d", pSupp->groupId, numOfBlocks);
+  uInfo("group:%" PRId64 ", aggregate blocks, blocks:%d", pSupp->groupId, numOfBlocks);
   pRes->info.id.groupId = pSupp->groupId;
 
   code = anomalyAnalysisWindow(pOperator);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
   int32_t numOfWins = taosArrayGetSize(pSupp->windows);
-  uInfo("group:%" PRId64 ", numOfWins:%d, numOfRows:%" PRId64, pSupp->groupId, numOfWins, pSupp->numOfRows);
+  uInfo("group:%" PRId64 ", wins:%d, rows:%" PRId64, pSupp->groupId, numOfWins, pSupp->numOfRows);
   for (int32_t w = 0; w < numOfWins; ++w) {
     STimeWindow* pWindow = taosArrayGet(pSupp->windows, w);
     if (w == 0) {
