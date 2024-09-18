@@ -1359,6 +1359,14 @@ static void *hbThreadFunc(void *param) {
       pInfo->msgInfo.len = tlen;
       pInfo->msgType = TDMT_MND_HEARTBEAT;
       pInfo->param = taosMemoryMalloc(sizeof(int32_t));
+      if (pInfo->param  == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        tFreeClientHbBatchReq(pReq);
+        // hbClearReqInfo(pAppHbMgr);
+        taosMemoryFree(buf);
+        taosMemoryFree(pInfo);
+        break;
+      }
       *(int32_t *)pInfo->param = i;
       pInfo->paramFreeFp = taosMemoryFree;
       pInfo->requestId = generateRequestId();
