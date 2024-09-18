@@ -1282,13 +1282,11 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
     }
   }
 
-  int ret = handleQueryExecRsp(pRequest);
-  if (TSDB_CODE_SUCCESS != ret) {
-    tscError("0x%" PRIx64 " handleQueryExecRsp,code:%d,QID:0x%" PRIx64, pRequest->self, ret, pRequest->requestId);
-  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = handleQueryExecRsp(pRequest);
 
   if (TSDB_CODE_SUCCESS != code) {
-    pRequest->code = terrno;
+    pRequest->code = code;
   }
 
   if (res) {
