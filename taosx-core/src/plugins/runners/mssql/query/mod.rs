@@ -92,6 +92,57 @@ impl MssqlQuery {
         Ok(client)
     }
 
+    pub async fn select_distinct_values(
+        &mut self,
+        sql: &str,
+    ) -> anyhow::Result<(LinkedHashMap<String, ColumnType>, Vec<Row>)> {
+        // select data
+        let result = self.client.query(sql, &[]).await;
+        match result {
+            Ok(mut stream) => {
+                let mut col_map = LinkedHashMap::new();
+                let mut rows = Vec::new();
+                let columns = stream.columns().await;
+                match columns {
+                    Ok(Some(columns)) => {
+                        for column in columns {
+                            col_map.insert(column.name().to_string(), column.column_type().clone());
+                        }
+                    }
+                    Ok(None) => {
+                        anyhow::bail!("no columns");
+                    }
+                    Err(e) => {
+                        anyhow::bail!("failed to get columns, cause: {}", e.to_string());
+                    }
+                }
+                loop {
+                    let item = stream.try_next().await;
+                    match item {
+                        Ok(Some(item)) => match item {
+                            QueryItem::Row(row) => {
+                                rows.push(row);
+                            }
+                            QueryItem::Metadata(_) => {}
+                        },
+                        Ok(None) => {
+                            break;
+                        }
+                        Err(e) => anyhow::bail!(
+                            "failed to select distinct values, cause: {}",
+                            e.to_string()
+                        ),
+                    }
+                }
+                Ok((col_map, rows))
+            }
+            Err(err) => anyhow::bail!(
+                "failed to select distinct values, cause: {}",
+                err.to_string()
+            ),
+        }
+    }
+
     pub async fn select_for_schema(
         &mut self,
         sql: &str,
@@ -370,6 +421,42 @@ mod tests {
             .await
             .unwrap();
         dbg!(query.client);
+    }
+
+    #[tokio::test]
+    async fn test_select_distinct_values() {
+        // prepare data
+        let _ = test_create_table();
+        let _ = test_insert_data(7);
+
+        let dsn = Dsn::from_str(
+            "mssql://test:123456@192.168.1.66:1433/test_taosx?encryption=On&trust_cert=true",
+        )
+        .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MssqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let query_result = query
+                    .select_distinct_values("select distinct name,value from t_metric")
+                    .await;
+                match query_result {
+                    Ok(col_map) => {
+                        dbg!(&col_map);
+                        assert_eq!(col_map.len(), 4);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data();
     }
 
     #[tokio::test]

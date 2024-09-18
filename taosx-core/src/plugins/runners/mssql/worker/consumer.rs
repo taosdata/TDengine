@@ -85,7 +85,6 @@ impl Consumer {
         // query database and send to writer
         let mut batch_count: u64 = 0;
         while let Ok(mut config) = receiver.recv_async().await {
-            tracing::debug!("consume task, config: {:?}", &config);
             let end = config.task.end.unwrap_or_else(Utc::now);
             let sql = config.task.generate_sql()?;
             let batch_size = config.advanced.batch_size.unwrap_or(10000);
