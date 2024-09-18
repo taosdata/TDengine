@@ -360,6 +360,12 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
   int32_t vnodesPerThread = numOfVnodes / threadNum + 1;
 
   SVnodeThread *threads = taosMemoryCalloc(threadNum, sizeof(SVnodeThread));
+  if (threads == NULL) {
+    dError("failed to allocate memory for threads since %s", terrstr());
+    taosMemoryFree(pCfgs);
+    return terrno;
+  }
+
   for (int32_t t = 0; t < threadNum; ++t) {
     threads[t].threadIndex = t;
     threads[t].pMgmt = pMgmt;
