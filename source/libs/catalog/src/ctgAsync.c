@@ -1997,7 +1997,6 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
 
       if (CTG_IS_META_NULL(pOut->metaType)) {
         ctgTaskError("no tbmeta got, tbName:%s", tNameGetTableName(pName));
-        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false);  // cache update not fatal error
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
 
@@ -2005,39 +2004,9 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
         break;
       }
 
-      if (CTG_IS_META_TABLE(pOut->metaType) && TSDB_SUPER_TABLE == pOut->tbMeta->tableType) {
-        ctgTaskDebug("will continue to refresh tbmeta since got stb, tbName:%s", tNameGetTableName(pName));
-
-        taosMemoryFreeClear(pOut->tbMeta);
-
-        CTG_RET(ctgGetTbMetaFromMnode(pCtg, pConn, pName, NULL, tReq));
-      } else if (CTG_IS_META_BOTH(pOut->metaType)) {
-        int32_t exist = 0;
-        if (!CTG_FLAG_IS_FORCE_UPDATE(flag)) {
-          SName stbName = *pName;
-          TAOS_STRCPY(stbName.tname, pOut->tbName);
-          SCtgTbMetaCtx stbCtx = {0};
-          stbCtx.flag = flag;
-          stbCtx.pName = &stbName;
-
-          STableMeta* stbMeta = NULL;
-          CTG_ERR_JRET(ctgReadTbMetaFromCache(pCtg, &stbCtx, &stbMeta));
-          if (stbMeta && stbMeta->sversion >= pOut->tbMeta->sversion) {
-            ctgTaskDebug("use cached stb meta, tbName:%s", tNameGetTableName(pName));
-            exist = 1;
-            taosMemoryFreeClear(stbMeta);
-          } else {
-            ctgTaskDebug("need to get/update stb meta, tbName:%s", tNameGetTableName(pName));
-            taosMemoryFreeClear(pOut->tbMeta);
-            taosMemoryFreeClear(stbMeta);
-          }
-        }
-
-        if (0 == exist) {
-          TSWAP(pMsgCtx->lastOut, pMsgCtx->out);
-          CTG_RET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, pOut->dbFName, pOut->tbName, NULL, tReq));
-        }
-      }
+      // if (CTG_IS_META_BOTH(pOut->metaType)) {
+      //   TSWAP(pMsgCtx->lastOut, pMsgCtx->out);
+      // }
       break;
     }
     default:
@@ -2046,32 +2015,9 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
   }
 
   STableMetaOutput* pOut = (STableMetaOutput*)pMsgCtx->out;
-
-  (void)ctgUpdateTbMetaToCache(pCtg, pOut, false);  // cache update not fatal error
-
   if (CTG_IS_META_BOTH(pOut->metaType)) {
     TAOS_MEMCPY(pOut->tbMeta, &pOut->ctbMeta, sizeof(pOut->ctbMeta));
   }
-
-  /*
-    else if (CTG_IS_META_CTABLE(pOut->metaType)) {
-      SName stbName = *pName;
-      TAOS_STRCPY(stbName.tname, pOut->tbName);
-      SCtgTbMetaCtx stbCtx = {0};
-      stbCtx.flag = flag;
-      stbCtx.pName = &stbName;
-
-      CTG_ERR_JRET(ctgReadTbMetaFromCache(pCtg, &stbCtx, &pOut->tbMeta));
-      if (NULL == pOut->tbMeta) {
-        ctgDebug("stb no longer exist, stbName:%s", stbName.tname);
-        CTG_ERR_JRET(ctgRelaunchGetTbMetaTask(pTask));
-
-        return TSDB_CODE_SUCCESS;
-      }
-
-      TAOS_MEMCPY(pOut->tbMeta, &pOut->ctbMeta, sizeof(pOut->ctbMeta));
-    }
-  */
 
   SMetaRes* pRes = taosArrayGet(ctx->pResList, pFetch->resIdx);
   if (NULL == pRes) {
@@ -2080,17 +2026,9 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
-  STableMetaEx* pMetaEx = taosMemoryMalloc(sizeof(STableMetaEx));
-  if (NULL == pMetaEx) {
-    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
-  }
-
-  pMetaEx->pMeta = pOut->tbMeta;
-  pOut->tbMeta = NULL;
-  tstrncpy(pMetaEx->tbName, pOut->tbName, TSDB_TABLE_NAME_LEN);
-
   pRes->code = 0;
-  pRes->pRes = pMetaEx;
+  pRes->pRes = pOut->tbMeta;
+  pOut->tbMeta = NULL;
   if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
     TSWAP(pTask->res, ctx->pResList);
     taskDone = true;

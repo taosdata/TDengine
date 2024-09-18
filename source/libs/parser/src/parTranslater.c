@@ -533,9 +533,9 @@ static int32_t rewriteDropMetaCache(STranslateContext* pCxt) {
       return TSDB_CODE_PAR_INTERNAL_ERROR;
     }
 
-    char*         pKey = taosHashGetKey(ppMetaRes, NULL);
-    STableMetaEx* pMetaEx = (STableMetaEx*)(*ppMetaRes)->pRes;
-    if (!pMetaEx || !pMetaEx->pMeta) {
+    char*       pKey = taosHashGetKey(ppMetaRes, NULL);
+    STableMeta* pMeta = (STableMeta*)(*ppMetaRes)->pRes;
+    if (!pMeta) {
       taosHashCancelIterate(pMetaCache->pTableName, ppMetaRes);
       return TSDB_CODE_PAR_INTERNAL_ERROR;
     }
@@ -546,8 +546,15 @@ static int32_t rewriteDropMetaCache(STranslateContext* pCxt) {
       return TSDB_CODE_PAR_INTERNAL_ERROR;
     }
     tstrncpy(dbName, pDbStart + 1, pDbEnd - pDbStart);
+
+    int32_t metaSize =
+        sizeof(STableMeta) + sizeof(SSchema) * (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags);
+    int32_t schemaExtSize =
+        (useCompress(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
+    const char* pTbName = (const char*)pMeta + metaSize + schemaExtSize;
+
     SName name = {0};
-    toName(pParCxt->acctId, dbName, pMetaEx->tbName, &name);
+    toName(pParCxt->acctId, dbName, pTbName, &name);
 
     char fullName[TSDB_TABLE_FNAME_LEN];
     code = tNameExtractFullName(&name, fullName);
@@ -561,7 +568,7 @@ static int32_t rewriteDropMetaCache(STranslateContext* pCxt) {
       return code;
     }
 
-    SMetaRes **qqMetaRes = taosHashGet(pMetaCache->pTableMeta, fullName, strlen(fullName));
+    SMetaRes** qqMetaRes = taosHashGet(pMetaCache->pTableMeta, fullName, strlen(fullName));
     if (!qqMetaRes) {
       taosHashCancelIterate(pMetaCache->pTableName, ppMetaRes);
       return TSDB_CODE_OUT_OF_MEMORY;

@@ -123,11 +123,7 @@ typedef struct STableMeta {
                             // the schema content.
   SSchema schema[];
 } STableMeta;
-typedef struct STableMetaEx {
-  STableMeta* pMeta;
-  // END: KEEP THIS PART SAME WITH STableMeta
-  char tbName[TSDB_TABLE_NAME_LEN];
-} STableMetaEx;
+
 #pragma pack(pop)
 
 typedef struct SViewMeta {
@@ -335,6 +331,7 @@ int32_t        getAsofJoinReverseOp(EOperatorType op);
 
 int32_t queryCreateCTableMetaFromMsg(STableMetaRsp* msg, SCTableMeta* pMeta);
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
+int32_t queryCreateTableMetaExFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 char*   jobTaskStatusStr(int32_t status);
 
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);

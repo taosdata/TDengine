@@ -1053,12 +1053,17 @@ int32_t getTableNameFromCache(SParseMetaCache* pMetaCache, const SName* pName, c
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  const char* pTableName = NULL;
-  code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableName,
-                             (void**)&pTableName);
+  const STableMeta* pMeta = NULL;
+  code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableName, (void**)&pMeta);
   if (TSDB_CODE_SUCCESS == code) {
+    int32_t metaSize =
+        sizeof(STableMeta) + sizeof(SSchema) * (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags);
+    int32_t schemaExtSize =
+        (useCompress(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
+    const char* pTableName = (const char*)pMeta + metaSize + schemaExtSize;
     tstrncpy(pTbName, pTableName, TSDB_TABLE_NAME_LEN);
   }
+
   return code;
 }
 
