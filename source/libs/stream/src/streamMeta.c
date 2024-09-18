@@ -269,7 +269,7 @@ _EXIT:
       taosRemoveDir(state);
       taosMemoryFree(state);
     } else {
-      stError("vgId:%s, failed to remove file dir:%s, since:%s", pMeta->vgId, pMeta->path, tstrerror(code));
+      stError("vgId:%d, failed to remove file dir:%s, since:%s", pMeta->vgId, pMeta->path, tstrerror(code));
     }
   }
 
