@@ -85,7 +85,10 @@ int32_t udfdCPluginUdfInitLoadAggFuncs(SUdfCPluginCtx *udfCtx, const char *udfNa
   char  mergeFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
   char *mergeSuffix = "_merge";
   snprintf(mergeFuncName, sizeof(mergeFuncName), "%s%s", processFuncName, mergeSuffix);
-  (void)(uv_dlsym(&udfCtx->lib, mergeFuncName, (void **)(&udfCtx->aggMergeFunc)));
+  int ret = uv_dlsym(&udfCtx->lib, mergeFuncName, (void **)(&udfCtx->aggMergeFunc));
+  if (ret != 0) {
+    fnInfo("uv_dlsym function %s. error: %s", mergeFuncName, uv_strerror(ret));
+  }
   return 0;
 }
 
