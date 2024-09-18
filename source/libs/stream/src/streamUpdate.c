@@ -345,7 +345,7 @@ bool updateInfoIsUpdated(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts, void* p
   void**   pMapMaxTs = taosHashGet(pInfo->pMap, &tableId, sizeof(uint64_t));
   uint64_t index = ((uint64_t)tableId) % pInfo->numBuckets;
   TSKEY    maxTs = *(TSKEY*)taosArrayGet(pInfo->pTsBuckets, index);
-  if (ts < maxTs - pInfo->watermark && maxTs != INT64_MIN) {
+  if (maxTs != INT64_MIN && ts < maxTs - pInfo->watermark) {
     // this window has been closed.
     if (pInfo->pCloseWinSBF) {
       code = tScalableBfPut(pInfo->pCloseWinSBF, pInfo->pKeyBuff, buffLen, &res);
@@ -585,6 +585,8 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
   int32_t sBfSize = 0;
   if (tDecodeI32(&decoder, &sBfSize) < 0) return -1;
   pInfo->pTsSBFs = taosArrayInit(sBfSize, sizeof(void*));
+  QUERY_CHECK_NULL(pInfo->pTsSBFs, code, lino, _error, terrno);
+
   for (int32_t i = 0; i < sBfSize; i++) {
     SScalableBf* pSBf = NULL;
     code = tScalableBfDecode(&decoder, &pSBf);

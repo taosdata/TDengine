@@ -243,7 +243,7 @@ static int32_t setTableSchema(SCacheRowsReader* p, uint64_t suid, const char* id
     code = metaGetTbTSchemaNotNull(p->pVnode->pMeta, suid, -1, 1, &p->pSchema);
     if (TSDB_CODE_SUCCESS != code) {
       tsdbWarn("stable:%" PRIu64 " has been dropped, failed to retrieve cached rows, %s", suid, idstr);
-      if(code != TSDB_CODE_OUT_OF_MEMORY) {
+      if(code == TSDB_CODE_NOT_FOUND) {
         return TSDB_CODE_PAR_TABLE_NOT_EXIST;
       }  else {
         return code;

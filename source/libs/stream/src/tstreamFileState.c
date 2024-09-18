@@ -127,9 +127,9 @@ static void streamFileStateEncode(TSKEY* pKey, void** pVal, int32_t* pLen) {
   int32_t tmp = taosEncodeFixedI64(&buff, *pKey);
 }
 
-SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
-                                      GetTsFun fp, void* pFile, TSKEY delMark, const char* taskId, int64_t checkpointId,
-                                      int8_t type) {
+int32_t streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize, GetTsFun fp,
+                            void* pFile, TSKEY delMark, const char* taskId, int64_t checkpointId, int8_t type,
+                            SStreamFileState** ppFileState) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (memSize <= 0) {
@@ -194,10 +194,11 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
 
   // todo(liuyao) optimize
   if (type == STREAM_STATE_BUFF_HASH) {
-    recoverSnapshot(pFileState, checkpointId);
+    code = recoverSnapshot(pFileState, checkpointId);
   } else {
-    recoverSesssion(pFileState, checkpointId);
+    code = recoverSesssion(pFileState, checkpointId);
   }
+  QUERY_CHECK_CODE(code, lino, _error);
 
   void*   valBuf = NULL;
   int32_t len = 0;
@@ -208,14 +209,14 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
     qDebug("===stream===flushMark  read:%" PRId64, pFileState->flushMark);
   }
   taosMemoryFreeClear(valBuf);
-  return pFileState;
+  (*ppFileState) = pFileState;
 
 _error:
   if (code != TSDB_CODE_SUCCESS) {
+    streamFileStateDestroy(pFileState);
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  streamFileStateDestroy(pFileState);
-  return NULL;
+  return code;
 }
 
 void destroyRowBuffPos(SRowBuffPos* pPos) {
@@ -806,8 +807,10 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
   return code;
 }
 
-void recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
+int32_t recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t winRes = TSDB_CODE_SUCCESS;
   if (pFileState->maxTs != INT64_MIN) {
     int64_t mark = (INT64_MIN + pFileState->deleteMark >= pFileState->maxTs)
                        ? INT64_MIN
@@ -818,7 +821,7 @@ void recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
 
   SStreamStateCur* pCur = streamStateSessionSeekToLast_rocksdb(pFileState->pFileStore, INT64_MAX);
   int32_t          recoverNum = TMIN(MIN_NUM_OF_RECOVER_ROW_BUFF, pFileState->maxRowCount);
-  while (code == TSDB_CODE_SUCCESS) {
+  while (winRes == TSDB_CODE_SUCCESS) {
     if (pFileState->curRowCount >= recoverNum) {
       break;
     }
@@ -826,22 +829,34 @@ void recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
     void*       pVal = NULL;
     int32_t     vlen = 0;
     SSessionKey key = {0};
-    code = streamStateSessionGetKVByCur_rocksdb(pCur, &key, &pVal, &vlen);
-    if (code != TSDB_CODE_SUCCESS) {
+    winRes = streamStateSessionGetKVByCur_rocksdb(pCur, &key, &pVal, &vlen);
+    if (winRes != TSDB_CODE_SUCCESS) {
       break;
     }
+    
+    if (vlen != pFileState->rowSize) {
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
     SRowBuffPos* pPos = createSessionWinBuff(pFileState, &key, pVal, &vlen);
-    code = putSessionWinResultBuff(pFileState, pPos);
-    if (code != TSDB_CODE_SUCCESS) {
+    winRes = putSessionWinResultBuff(pFileState, pPos);
+    if (winRes != TSDB_CODE_SUCCESS) {
       break;
     }
 
-    code = streamStateSessionCurPrev_rocksdb(pCur);
+    winRes = streamStateSessionCurPrev_rocksdb(pCur);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   streamStateFreeCur(pCur);
+  return code;
 }
 
-void recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
+int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t winCode = TSDB_CODE_SUCCESS;
@@ -896,6 +911,7 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   streamStateFreeCur(pCur);
+  return code;
 }
 
 int32_t streamFileStateGetSelectRowSize(SStreamFileState* pFileState) { return pFileState->selectivityRowSize; }
