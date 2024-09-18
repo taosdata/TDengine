@@ -11,6 +11,7 @@ import (
 	"collector/watcher"
 	"context"
 	"crypto/md5"
+	"io/ioutil"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -39,12 +40,19 @@ func collect() {
 		return
 	}
 	// create opc client
-	conf, err := config.ParseConfig(configPath)
+	bs, err := ioutil.ReadFile(configPath)
+	if err != nil {
+		logger.Panicf("read config file error. file:%s, err: %v", configPath, err)
+		return
+	}
+	logger.Infof("config file content: %s", bs)
+	conf, err := config.ParseConfigBs(bs)
 	if err != nil {
 		logger.Panic("parse config file error.", "error", err)
 		return
 	}
 	lastMD5 := getMD5(configPath)
+	logger.Infof("config: %+v\n", conf)
 	err = conf.ValidateCollect()
 	if err != nil {
 		logger.WithError(err).Panic("validate config file error.")

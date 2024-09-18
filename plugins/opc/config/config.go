@@ -1,8 +1,10 @@
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"strings"
 
@@ -108,11 +110,20 @@ type ReportConfig struct {
 	BatchTimeout int64  `json:"batch_timeout,omitempty" yaml:"batch_timeout" toml:"batch_timeout"`
 }
 
-func ParseConfig(path string) (config Config, err error) {
-	if _, err = toml.DecodeFile(path, &config); err != nil {
-		err = fmt.Errorf("parse config error %v", err)
+func ParseConfig(file string) (Config, error) {
+	bs, err := ioutil.ReadFile(file)
+	if err != nil {
+		return Config{}, fmt.Errorf("read config error, file:%s, err: %v", file, err)
 	}
-	return
+	return ParseConfigBs(bs)
+}
+func ParseConfigBs(bs []byte) (Config, error) {
+	var config Config
+	_, err := toml.NewDecoder(bytes.NewBuffer(bs)).Decode(&config)
+	if err != nil {
+		return config, fmt.Errorf("parse config error %v", err)
+	}
+	return config, nil
 }
 
 func (c *UaConnectConfig) Validate() (err error) {
