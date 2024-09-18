@@ -69,7 +69,7 @@ dataDir /mnt/data6 2 0
 在配置文件 /etc/taos/taos.cfg 中，添加用于 S3 访问的参数：
 
 |参数名称        |   参数含义                                      |
-|:-------------:|:-----------------------------------------------:|
+|:-------------|:-----------------------------------------------|
 |s3EndPoint | 用户所在地域的 COS 服务域名，支持 http 和 https，bucket 的区域需要与 endpoint 的保持一致，否则无法访问。例如：http://cos.ap-beijing.myqcloud.com |
 |s3AccessKey |冒号分隔的用户 SecretId:SecretKey。例如：AKIDsQmwsfKxTo2A6nGVXZN0UlofKn6JRRSJ:lIdoy99ygEacU7iHfogaN2Xq0yumSm1E |
 |s3BucketName | 存储桶名称，减号后面是用户注册 COS 服务的 AppId。其中 AppId 是 COS 特有，AWS 和阿里云都没有，配置时需要作为 bucket name 的一部分，使用减号分隔。参数值均为字符串类型，但不需要引号。例如：test0711-1309024725 |
@@ -111,3 +111,27 @@ s3migrate database <db_name>;
 | 1    | s3_keeplocal | 3650   | 1      | 365000  | 数据在本地保留的天数，即 data 文件在本地磁盘保留多长时间后可以上传到 S3。默认单位：天，支持 m（分钟）、h（小时）和 d（天）三个单位 |
 | 2    | s3_chunksize | 262144 | 131072 | 1048576 | 上传对象的大小阈值，与 TSDB_PAGESIZE 参数一样，不可修改，单位为 TSDB 页 |
 | 3    | s3_compact   | 0      | 0      | 1       | TSDB 文件组首次上传 S3 时，是否自动进行 compact 操作。       |
+
+## Azure Blob 存储
+本节介绍在 TDengine Enterprise 如何使用微软 Azure Blob 对象存储。本功能是上一小节‘对象存储’功能的扩展，需额外依赖 Flexify 服务提供的 S3 网关。通过适当的参数配置，可以把大部分较冷的时序数据存储到 Azure Blob 服务中。
+
+### Flexify 服务
+Flexify 是 Azure Marketplace 中的一款应用程序，允许兼容 S3 的应用程序通过标准 S3 API 在 Azure Blob Storage 中存储数据。可使用多个 Flexify 服务对同一个 Blob 存储建立多个 S3 网关。
+
+部署方式请参考 [Flexify](https://azuremarketplace.microsoft.com/en-us/marketplace/apps/flexify.azure-s3-api?tab=Overview)  应用页面说明。
+
+### 配置方式
+
+在配置文件 /etc/taos/taos.cfg 中，添加用于 S3 访问的参数：
+
+```
+s3EndPoint   http //20.191.157.23,http://20.191.157.24,http://20.191.157.25
+s3AccessKey  FLIOMMNL0:uhRNdeZMLD4wo,ABCIOMMN:uhRNdeZMD4wog,DEFOMMNL049ba:uhRNdeZMLD4wogXd
+s3BucketName td-test
+```
+
+- 允许对 s3EndPoint、s3AccessKey 配置多项，但要求二者项数一致。多个配置项间使用 ',' 分隔。s3BucketName 仅允许配置一项
+- 认为每一组 {s3EndPoint、s3AccessKey} 配置对应一个 S3 服务，每次发起 S3 请求时将随机选择一个服务
+- 认为全部 S3 服务均指向同一数据源，对各个 S3 服务操作完全等价
+- 在某一 S3 服务上操作失败后会切换至其他服务，全部服务都失败后将返回最后产生的错误码
+- 最大支持的 S3 服务配置数为 10
