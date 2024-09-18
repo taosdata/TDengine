@@ -59,7 +59,7 @@ int32_t transCompressMsg(char* msg, int32_t len) {
   taosMemoryFree(buf);
   return ret;
 }
-int32_t transDecompressMsg(char** msg, int32_t len) {
+int32_t transDecompressMsg(char** msg, int32_t* len) {
   STransMsgHead* pHead = (STransMsgHead*)(*msg);
   if (pHead->comp == 0) return 0;
 
@@ -68,16 +68,18 @@ int32_t transDecompressMsg(char** msg, int32_t len) {
   STransCompMsg* pComp = (STransCompMsg*)pCont;
   int32_t        oriLen = htonl(pComp->contLen);
 
-  char* buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
+  int32_t tlen = *len;
+  char*   buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
   if (buf == NULL) {
     return terrno;
   }
 
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
   int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), (char*)pNewHead->content,
-                                                 len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
+                                                 tlen - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
   memcpy((char*)pNewHead, (char*)pHead, sizeof(STransMsgHead));
 
+  *len = oriLen + sizeof(STransMsgHead);
   pNewHead->msgLen = htonl(oriLen + sizeof(STransMsgHead));
 
   taosMemoryFree(pHead);

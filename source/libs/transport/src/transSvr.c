@@ -510,6 +510,12 @@ static bool uvHandleReq(SSvrConn* pConn) {
     tError("%s conn %p read invalid packet", transLabel(pInst), pConn);
     return false;
   }
+  if (transDecompressMsg((char**)&pHead, &msgLen) < 0) {
+    tError("%s conn %p recv invalid packet, failed to decompress", transLabel(pInst), pConn);
+    taosMemoryFree(pHead);
+    return false;
+  }
+
   if (uvConnMayGetUserInfo(pConn, &pHead, &msgLen) == true) {
     tDebug("%s conn %p get user info", transLabel(pInst), pConn);
   }
@@ -518,11 +524,6 @@ static bool uvHandleReq(SSvrConn* pConn) {
     tTrace("%s conn %p not reset read buf", transLabel(pInst), pConn);
   }
 
-  if (transDecompressMsg((char**)&pHead, msgLen) < 0) {
-    tError("%s conn %p recv invalid packet, failed to decompress", transLabel(pInst), pConn);
-    taosMemoryFree(pHead);
-    return false;
-  }
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
 

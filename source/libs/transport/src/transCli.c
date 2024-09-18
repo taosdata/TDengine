@@ -561,7 +561,7 @@ void cliHandleResp(SCliConn* conn) {
     return;
   }
 
-  if ((code = transDecompressMsg((char**)&pHead, msgLen)) < 0) {
+  if ((code = transDecompressMsg((char**)&pHead, &msgLen)) < 0) {
     tDebug("%s conn %p recv invalid packet, failed to decompress", CONN_GET_INST_LABEL(conn), conn);
     // TODO: notify cb
     return;

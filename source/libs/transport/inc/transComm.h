@@ -461,7 +461,7 @@ void    transPrintEpSet(SEpSet* pEpSet);
 
 void    transFreeMsg(void* msg);
 int32_t transCompressMsg(char* msg, int32_t len);
-int32_t transDecompressMsg(char** msg, int32_t len);
+int32_t transDecompressMsg(char** msg, int32_t* len);
 
 int32_t transOpenRefMgt(int size, void (*func)(void*));
 void    transCloseRefMgt(int32_t refMgt);
