@@ -341,7 +341,11 @@ int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle) {
   handle->execHandle.subType = req->subType;
   handle->fetchMeta = req->withMeta;
   if (req->subType == TOPIC_SUB_TYPE__COLUMN) {
-    handle->execHandle.execCol.qmsg = taosStrdup(req->qmsg);
+    void *tmp = taosStrdup(req->qmsg);
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    handle->execHandle.execCol.qmsg = tmp;
   } else if (req->subType == TOPIC_SUB_TYPE__DB) {
     handle->execHandle.execDb.pFilterOutTbUid =
         taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
@@ -350,7 +354,11 @@ int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle) {
     }
   }else if(req->subType == TOPIC_SUB_TYPE__TABLE){
     handle->execHandle.execTb.suid = req->suid;
-    handle->execHandle.execTb.qmsg = taosStrdup(req->qmsg);
+    void *tmp = taosStrdup(req->qmsg);
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    handle->execHandle.execTb.qmsg = tmp;
   }
 
   handle->snapshotVer = walGetCommittedVer(pTq->pVnode->pWal);

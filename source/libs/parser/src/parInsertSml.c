@@ -273,7 +273,12 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
     pVal->value.pData = (uint8_t*)kv->value;
   } else if (kv->type == TSDB_DATA_TYPE_GEOMETRY || kv->type == TSDB_DATA_TYPE_VARBINARY) {
     pVal->value.nData = kv->length;
-    pVal->value.pData = taosMemoryMalloc(kv->length);
+    void* tmp = taosMemoryMalloc(kv->length);
+    if (NULL == tmp) {
+      ret = terrno;
+      goto end;
+    }
+    pVal->value.pData = tmp;
     (void)memcpy(pVal->value.pData, (uint8_t*)kv->value, kv->length);
   } else {
     (void)memcpy(&pVal->value.val, &(kv->value), kv->length);

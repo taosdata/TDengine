@@ -404,17 +404,29 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "td.connect.ip") == 0) {
-    conf->ip = taosStrdup(value);
+    void *tmp = taosStrdup(value);
+    if (tmp == NULL) {
+      return TMQ_CONF_INVALID;
+    }
+    conf->ip = tmp;
     return TMQ_CONF_OK;
   }
 
   if (strcasecmp(key, "td.connect.user") == 0) {
-    conf->user = taosStrdup(value);
+    void *tmp = taosStrdup(value);
+    if (tmp == NULL) {
+      return TMQ_CONF_INVALID;
+    }
+    conf->user = tmp;
     return TMQ_CONF_OK;
   }
 
   if (strcasecmp(key, "td.connect.pass") == 0) {
-    conf->pass = taosStrdup(value);
+    void *tmp = taosStrdup(value);
+    if (tmp == NULL) {
+      return TMQ_CONF_INVALID;
+    }
+    conf->pass = tmp;
     return TMQ_CONF_OK;
   }
 
@@ -468,7 +480,11 @@ int32_t tmq_list_append(tmq_list_t* list, const char* src) {
   SArray* container = &list->container;
   if (src == NULL || src[0] == 0) return TSDB_CODE_INVALID_PARA;
   char* topic = taosStrdup(src);
-  if (taosArrayPush(container, &topic) == NULL) return TSDB_CODE_INVALID_PARA;
+  if (topic == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (taosArrayPush(container, &topic) == NULL) {
+    taosMemoryFree(topic);
+    return TSDB_CODE_INVALID_PARA;
+  }
   return 0;
 }
 
@@ -947,13 +963,13 @@ void tmqSendHbReq(void* param, void* tmrId) {
 
   int32_t tlen = tSerializeSMqHbReq(NULL, 0, &req);
   if (tlen < 0) {
-    tscError("tSerializeSMqHbReq failed");
+    tscError("tSerializeSMqHbReq failed, size:%d", tlen);
     goto OVER;
   }
 
   void* pReq = taosMemoryCalloc(1, tlen);
-  if (tlen < 0) {
-    tscError("failed to malloc MqHbReq msg, size:%d", tlen);
+  if (pReq == NULL) {
+    tscError("failed to malloc MqHbReq msg, code:%d", terrno);
     goto OVER;
   }
 
@@ -3514,6 +3530,10 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
     }
     (void)taosThreadMutexInit(&pCommon->mutex, 0);
     pCommon->pTopicName = taosStrdup(pTopic->topicName);
+    if (pCommon->pTopicName == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto end;
+    }
     pCommon->consumerId = tmq->consumerId;
 
     for (int32_t i = 0; i < (*numOfAssignment); ++i) {
