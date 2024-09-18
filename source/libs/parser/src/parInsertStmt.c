@@ -155,6 +155,10 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
     SSchema* pTagSchema = &pSchema[tags->pColIndex[c]];
     int32_t  colLen = pTagSchema->bytes;
     if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
+      if (!bind[c].length) {
+        code = buildInvalidOperationMsg(&pBuf, "var tag length is null");
+        goto end;
+      }
       colLen = bind[c].length[0];
       if ((colLen + VARSTR_HEADER_SIZE) > pTagSchema->bytes) {
         code = buildInvalidOperationMsg(&pBuf, "tag length is too big");
@@ -499,6 +503,10 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
     SSchema* pTagSchema = &pSchema[tags->pColIndex[c]];
     int32_t  colLen = pTagSchema->bytes;
     if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
+      if (!bind[c].length) {
+        code = buildInvalidOperationMsg(&pBuf, "var tag length is null");
+        goto end;
+      }
       colLen = bind[c].length[0];
       if ((colLen + VARSTR_HEADER_SIZE) > pTagSchema->bytes) {
         code = buildInvalidOperationMsg(&pBuf, "tag length is too big");
