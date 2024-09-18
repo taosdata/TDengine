@@ -900,6 +900,9 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
       udfCol->colData.fixLenCol.dataLen = colDataGetLength(col, udfBlock->numOfRows);
       int32_t dataLen = udfCol->colData.fixLenCol.dataLen;
       udfCol->colData.fixLenCol.data = taosMemoryMalloc(udfCol->colData.fixLenCol.dataLen);
+      if (NULL == udfCol->colData.fixLenCol.data) {
+        return terrno;
+      }
       char *data = udfCol->colData.fixLenCol.data;
       memcpy(data, col->pData, dataLen);
     }

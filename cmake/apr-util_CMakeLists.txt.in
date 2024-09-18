@@ -11,9 +11,10 @@ ExternalProject_Add(aprutil-1
         BUILD_IN_SOURCE TRUE
         BUILD_ALWAYS 1
         #UPDATE_COMMAND ""
-        CONFIGURE_COMMAND ./configure --prefix=$ENV{HOME}/.cos-local.1/ --with-apr=$ENV{HOME}/.cos-local.1 
+        CONFIGURE_COMMAND ./configure --prefix=$ENV{HOME}/.cos-local.1/ --with-apr=$ENV{HOME}/.cos-local.1
         #CONFIGURE_COMMAND ./configure --with-apr=/usr/local/apr
         BUILD_COMMAND make
         INSTALL_COMMAND make install
         TEST_COMMAND ""
+        GIT_SHALLOW true
 )

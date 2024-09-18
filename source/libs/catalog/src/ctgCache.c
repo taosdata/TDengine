@@ -3743,6 +3743,9 @@ int32_t ctgGetTbHashVgroupFromCache(SCatalog *pCtg, const SName *pTableName, SVg
   }
 
   *pVgroup = taosMemoryCalloc(1, sizeof(SVgroupInfo));
+  if (NULL == *pVgroup) {
+    CTG_ERR_JRET(terrno);
+  }
   CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, NULL, dbCache->vgCache.vgInfo, pTableName, *pVgroup));
 
 _return:

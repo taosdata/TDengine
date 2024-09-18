@@ -2866,32 +2866,35 @@ _return:
 }
 
 int32_t filterConvertGroupFromArray(SFilterInfo *info, SArray *group) {
-  size_t groupSize = taosArrayGetSize(group);
+  size_t  groupSize = taosArrayGetSize(group);
+  int32_t code = TSDB_CODE_SUCCESS;
 
   info->groupNum = (uint32_t)groupSize;
 
   if (info->groupNum > 0) {
     info->groups = taosMemoryCalloc(info->groupNum, sizeof(*info->groups));
     if (info->groups == NULL) {
-      info->groupNum = 0;
-      FLT_ERR_RET(terrno);
+      FLT_ERR_JRET(terrno);
     }
   }
 
   for (size_t i = 0; i < groupSize; ++i) {
     SFilterGroup *pg = taosArrayGet(group, i);
     if (NULL == pg) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+      FLT_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
     }
     pg->unitFlags = taosMemoryCalloc(pg->unitNum, sizeof(*pg->unitFlags));
     if (pg->unitFlags == NULL) {
       pg->unitNum = 0;
-      FLT_ERR_RET(terrno);
+      FLT_ERR_JRET(terrno);
     }
     info->groups[i] = *pg;
   }
-
   return TSDB_CODE_SUCCESS;
+
+_return:
+  info->groupNum = 0;
+  return code;
 }
 
 int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum) {

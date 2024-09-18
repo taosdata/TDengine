@@ -661,7 +661,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
 
   // prepare
   if (pWriter->pTsdbSnapWriter) {
-    (void)tsdbSnapWriterPrepareClose(pWriter->pTsdbSnapWriter);
+    (void)tsdbSnapWriterPrepareClose(pWriter->pTsdbSnapWriter, rollback);
   }
 
   if (pWriter->pTsdbSnapRAWWriter) {
@@ -669,7 +669,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
   }
 
   if (pWriter->pRsmaSnapWriter) {
-    (void)rsmaSnapWriterPrepareClose(pWriter->pRsmaSnapWriter);
+    (void)rsmaSnapWriterPrepareClose(pWriter->pRsmaSnapWriter, rollback);
   }
 
   // commit json

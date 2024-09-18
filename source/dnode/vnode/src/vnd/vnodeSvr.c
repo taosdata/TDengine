@@ -1413,6 +1413,10 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
     if (tsEnableAuditCreateTable) {
       char *str = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
+      if (str == NULL) {
+        pRsp->code = terrno;
+        goto _exit;
+      }
       strcpy(str, pDropTbReq->name);
       if (taosArrayPush(tbNames, &str) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
