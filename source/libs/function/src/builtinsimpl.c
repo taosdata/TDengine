@@ -3902,8 +3902,7 @@ int32_t doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSD
   int32_t     code = TSDB_CODE_SUCCESS;
 
   SVariant val = {0};
-  // TODO(smj) : this func need err code
-  taosVariantCreateFromBinary(&val, pData, tDataTypes[type].bytes, type);
+  TAOS_CHECK_RETURN(taosVariantCreateFromBinary(&val, pData, tDataTypes[type].bytes, type));
 
   STopBotResItem* pItems = pRes->pItems;
 
