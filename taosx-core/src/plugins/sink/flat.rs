@@ -645,7 +645,7 @@ pub async fn flat_write_with_raw_block(
                                         tracing::debug!("error encountered, ignore(table already exists): {err:#}",);
                                     }
                                     _ => {
-                                        tracing::error!(sql, "create stable error: {err:#}");
+                                        error!(sql, "create stable error: {err:#}");
                                         Err(err).context("create stable error")?;
                                     }
                                 }
@@ -1068,7 +1068,7 @@ impl FlatSink {
         let mut set = self.set.unwrap();
         while let Some(res) = set.join_next().await {
             if let Err(err) = res.unwrap() {
-                tracing::error!("Flat sink worker error: {err:#}");
+                error!("Flat sink worker error: {err:#}");
             }
         }
     }
@@ -1504,13 +1504,18 @@ pub async fn ipc_flat_stream_worker_concurrent(
     let (cancel, upstream) = (cancel.child_token(), cancel);
     let mut writer_set = tokio::task::JoinSet::new();
 
-    writer_set.spawn(async move {
-        tokio::pin!(sink);
-        while let Ok(ack) = ack_rx.recv_async().await {
-            sink.send(ack).await?;
+    writer_set.spawn(
+        async move {
+            tokio::pin!(sink);
+            while let Ok(ack) = ack_rx.recv_async().await {
+                sink.send(ack).await.inspect_err(|err| {
+                    error!("ACK writer error: {err:#}");
+                })?;
+            }
+            anyhow::Ok(())
         }
-        anyhow::Ok(())
-    });
+        .instrument(tracing::info_span!("ack_writer")),
+    );
 
     for i in 0..workers {
         let count = count.clone();
@@ -1572,13 +1577,21 @@ pub async fn ipc_flat_stream_worker_concurrent(
                                     .to_string(),
                                 ),
                             };
-                            ack_tx.send_async(ack).await.context("ACK writer error")?;
-                            if let Err(_) =
+                            ack_tx
+                                .send_async(ack)
+                                .await
+                                .inspect_err(|error| {
+                                    error!(%error, "ACK send error");
+                                })
+                                .context("ACK writer error")?;
+                            if let Err(error) =
                                 notifier.send(crate::TaskNotify::Error(format!("{:#}", err)))
                             {
+                                tracing::warn!(%error, "Send error notify failed");
                                 cancel.cancel();
                                 Err(err).context("write batch error")?;
                             } else if ipc_error_strategy.will_stop() {
+                                tracing::warn!("Stop writing based on error strategy");
                                 cancel.cancel();
                                 Err(err).context("write batch error")?;
                             } else {
@@ -1599,7 +1612,13 @@ pub async fn ipc_flat_stream_worker_concurrent(
                                     .to_string(),
                                 ),
                             };
-                            ack_tx.send_async(ack).await.context("ACK writer error")?;
+                            ack_tx
+                                .send_async(ack)
+                                .await
+                                .inspect_err(|error| {
+                                    error!(%error, "ACK send error");
+                                })
+                                .context("ACK writer error")?;
                         }
                     }
                 }
@@ -1629,6 +1648,14 @@ pub async fn ipc_flat_stream_worker_concurrent(
             // Writer is failed
             tracing::warn!("Writer may be failed, try join all workers");
             break;
+        }
+        if let Some(Err(err)) = writer_set
+            .try_join_next()
+            .transpose()
+            .context("IPC writer error")?
+        {
+            error!(error = "Writer error: {err:#}");
+            Err(err).context("IPC writer fail with error")?;
         }
         if let Some(record) = stream.next().await {
             batches += 1;
