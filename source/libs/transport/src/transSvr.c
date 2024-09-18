@@ -555,13 +555,13 @@ static bool uvHandleReq(SSvrConn* pConn) {
   }
 
   if (pHead->seqNum == 0) {
-    // ASSERT(0);
+    STraceId* trace = &pHead->traceId;
+    tGError("%s conn %p received invalid seqNum, msgType:%s", transLabel(pInst), pConn, TMSG_INFO(pHead->msgType));
+    return false;
   }
 
   transMsg.info.handle = (void*)transAcquireExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
   transMsg.info.refIdMgt = pThrd->connRefMgt;
-
-  // ASSERTS(transMsg.info.handle != NULL, "trans-svr failed to alloc handle to msg");
 
   // pHead->noResp = 1,
   // 1. server application should not send resp on handle
@@ -729,7 +729,6 @@ static int uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
 
   // handle invalid drop_task resp, TD-20098
   if (pConn->inType == TDMT_SCH_DROP_TASK && pMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
-    // ASSERT(0);
     //  (void)transQueuePop(&pConn->resps);
     //  destroySmsg(smsg);
     //  return TSDB_CODE_INVALID_MSG;

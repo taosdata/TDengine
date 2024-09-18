@@ -557,7 +557,6 @@ void cliHandleResp(SCliConn* conn) {
     taosMemoryFree(pHead);
     tDebug("%s conn %p recv invalid packet ", CONN_GET_INST_LABEL(conn), conn);
     // TODO: notify cb
-    // ASSERT(0);
     pThrd->notifyExceptCb(pThrd, NULL, NULL);
     return;
   }
@@ -616,6 +615,7 @@ void cliHandleResp(SCliConn* conn) {
   if (cliMayRecycleConn(conn)) {
     return;
   }
+  cliConnCheckTimoutMsg(conn);
 
   cliConnMayUpdateTimer(conn, READ_TIMEOUT);
 
