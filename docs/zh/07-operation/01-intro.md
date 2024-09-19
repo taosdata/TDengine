@@ -86,32 +86,3 @@ TDengine 支持与众多可视化及 BI 工具无缝对接，如 Grafana、Power
 3. 数据源
 
 TDengine 具备强大的数据接入能力，可以对接各种数据源，如 MQTT、OPC-UA/DA、Kafka、AVEVA PI System、AVEVA Historian 等。这使得 TDengine 能够轻松整合来自不同数据源的数据，为用户提供全面、统一的数据视图。
-
-## 日志相关
-
-TDengine 通过日志文件记录系统运行状态，帮助用户监控系统运行情况，排查问题，这里主要介绍 taosc 和 taosd 两个系统日志的相关说明。
-
-TDengine 的日志文件主要包括普通日志和慢日志两种类型。
-
-1. 普通日志行为说明
-   1. 同一台机器上可以起多个客户端进程，所以客户端日志命名方式为 taoslogX.Y，其中 X 为序号，为空或者 0 到 9，Y 为后缀 0 或者 1。
-   2. 同一台机器上只能有一个服务端进程。所以服务端日志命名方式为 taosdlog.Y，其中 Y 为后缀， 0 或者 1。
-      
-      序号和后缀确定规则如下（假设日志路径为 /var/log/taos/）：
-      1. 确定序号：使用 10 个序号作为日志命名方式，/var/log/taos/taoslog0.Y  -  /var/log/taos/taoslog9.Y，依次检测每个序号是否使用，找到第一个没使用的序号作为该进程的日志文件使用的序号。 如果 10 个序号都被进程使用，不使用序号，即 /var/log/taos/taoslog.Y，进程都往相同的文件里写（序号为空）。
-      2. 确定后缀：0 或者 1。比如确定序号为 3，备选的日志文件名就为 /var/log/taos/taoslog3.0 /var/log/taos/taoslog3.1。如果两个文件都不存在用后缀 0，一个存在一个不存在，用存在的后缀。两个都存在，用修改时间最近的那个后缀。
-   3. 如果日志文件超过配置的条数 numOfLogLines，会切换后缀名，继续写日志，比如/var/log/taos/taoslog3.0 写够了，切换到 /var/log/taos/taoslog3.1 继续写日志。/var/log/taos/taoslog3.0  会添加时间戳后缀重命名并压缩存储（异步线程操作）。
-   4. 通过配置 logKeepDays 控制日志文件保存几天，几天之外的日志会被删除。比如配置为 1，则一天之前的日志会在新日志压缩存储时检测删除。不是自然天。
-
-系统除了记录普通日志以外，对于执行时间超过配置时间的 SQL 语句，会被记录到慢日志中。慢日志文件主要用于分析系统性能，排查性能问题。
-
-2. 慢日志行为说明
-   1. 慢日志一方面会记录到本地慢日志文件中，另一方面会通过 taosAdapter 发送到 taosKeeper 进行结构化存储（需打开 monitorr 开关）。
-   2. 慢日志文件存储规则为：
-      1. 慢日志文件一天一个，如果当天没有慢日志，没有当天的文件。
-      2. 文件名为 taosSlowLog.yyyy-mm-dd（taosSlowLog.2024-08-02），日志存储路径通过 logDir 配置。
-      3. 多个客户端的日志存储在相应日志路径下的同一个 taosSlowLog.yyyy.mm.dd 文件里。
-      4. 慢日志文件不自动删除，不压缩。
-      5. 使用和普通日志文件相同的三个参数 logDir,  minimalLogDirGB,  asyncLog。另外两个参数 numOfLogLines，logKeepDays 不适用于慢日志。
-
-
