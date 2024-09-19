@@ -2027,10 +2027,6 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
 
-      if (CTG_FLAG_IS_STB(flag)) {
-        break;
-      }
-
       break;
     }
     default:
@@ -2050,9 +2046,14 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
-  pRes->code = 0;
-  pRes->pRes = pOut->tbMeta;
-  pOut->tbMeta = NULL;
+  if (!pRes->pRes) {
+    pRes->code = 0;
+    pRes->pRes = pOut->tbMeta;
+    pOut->tbMeta = NULL;
+  } else {
+    taosMemoryFreeClear(pOut->tbMeta);
+  }
+
   if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
     TSWAP(pTask->res, ctx->pResList);
     taskDone = true;

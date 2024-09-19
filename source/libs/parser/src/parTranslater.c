@@ -14572,6 +14572,7 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
       return code;
     }
     if (tableType == TSDB_SUPER_TABLE && LIST_LENGTH(pStmt->pTables) > 1) {
+      taosHashCleanup(pVgroupHashmap);
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DROP_STABLE);
     }
     if (pCxt->withOpt) continue;
