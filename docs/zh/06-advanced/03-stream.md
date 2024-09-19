@@ -72,7 +72,7 @@ SELECT _wstart, count(*), avg(voltage) FROM power.meters PARTITION BY tbname INT
 - stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，则会自动创建；如果已存在，则检查列的 schema 信息。详见 6.3.8 节。
 - tags 子句定义了流计算中创建标签的规则。通过 tags 字段可以为每个分区对应的子表生成自定义的标签值。
 
-## 流试计算的规则和策略
+## 流式计算的规则和策略
 
 ### 流计算的分区
 

@@ -697,7 +697,7 @@ static void freeStbJoinTableList(SStbJoinTableList* pList) {
 
 static int32_t appendStbJoinTableList(SStbJoinPrevJoinCtx* pCtx, int64_t rows, int32_t* pLeftVg, int64_t* pLeftUid, int32_t* pRightVg, int64_t* pRightUid) {
   int32_t code = TSDB_CODE_SUCCESS;
-  SStbJoinTableList* pNew = taosMemoryMalloc(sizeof(SStbJoinTableList));
+  SStbJoinTableList* pNew = taosMemoryCalloc(1, sizeof(SStbJoinTableList));
   if (NULL == pNew) {
     return terrno;
   }

@@ -260,7 +260,7 @@ void metaCloseTbCursor(SMTbCursor *pTbCur) {
     if (!pTbCur->paused) {
       metaReaderClear(&pTbCur->mr);
       if (pTbCur->pDbc) {
-        (void)tdbTbcClose((TBC *)pTbCur->pDbc);
+        tdbTbcClose((TBC *)pTbCur->pDbc);
       }
     }
     taosMemoryFree(pTbCur);
@@ -270,7 +270,7 @@ void metaCloseTbCursor(SMTbCursor *pTbCur) {
 void metaPauseTbCursor(SMTbCursor *pTbCur) {
   if (!pTbCur->paused) {
     metaReaderClear(&pTbCur->mr);
-    (void)tdbTbcClose((TBC *)pTbCur->pDbc);
+    tdbTbcClose((TBC *)pTbCur->pDbc);
     pTbCur->paused = 1;
   }
 }
@@ -463,7 +463,7 @@ void metaCloseCtbCursor(SMCtbCursor *pCtbCur) {
     if (!pCtbCur->paused) {
       if (pCtbCur->pMeta && pCtbCur->lock) metaULock(pCtbCur->pMeta);
       if (pCtbCur->pCur) {
-        (void)tdbTbcClose(pCtbCur->pCur);
+        tdbTbcClose(pCtbCur->pCur);
       }
     }
     tdbFree(pCtbCur->pKey);
@@ -474,7 +474,7 @@ void metaCloseCtbCursor(SMCtbCursor *pCtbCur) {
 
 void metaPauseCtbCursor(SMCtbCursor *pCtbCur) {
   if (!pCtbCur->paused) {
-    (void)tdbTbcClose((TBC *)pCtbCur->pCur);
+    tdbTbcClose((TBC *)pCtbCur->pCur);
     if (pCtbCur->lock) {
       metaULock(pCtbCur->pMeta);
     }
@@ -582,7 +582,7 @@ void metaCloseStbCursor(SMStbCursor *pStbCur) {
   if (pStbCur) {
     if (pStbCur->pMeta) metaULock(pStbCur->pMeta);
     if (pStbCur->pCur) {
-      (void)tdbTbcClose(pStbCur->pCur);
+      tdbTbcClose(pStbCur->pCur);
 
       tdbFree(pStbCur->pKey);
       tdbFree(pStbCur->pVal);
@@ -656,14 +656,14 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
 
       if (tdbTbcMoveTo(pSkmDbC, &skmDbKey, sizeof(skmDbKey), &c) < 0) {
         metaULock(pMeta);
-        (void)tdbTbcClose(pSkmDbC);
+        tdbTbcClose(pSkmDbC);
         code = TSDB_CODE_NOT_FOUND;
         goto _exit;
       }
 
       if (c == 0) {
         metaULock(pMeta);
-        (void)tdbTbcClose(pSkmDbC);
+        tdbTbcClose(pSkmDbC);
         code = TSDB_CODE_FAILED;
         metaError("meta/query: incorrect c: %" PRId32 ".", c);
         goto _exit;
@@ -679,7 +679,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
 
       if (((SSkmDbKey *)pKey)->uid != skmDbKey.uid) {
         metaULock(pMeta);
-        (void)tdbTbcClose(pSkmDbC);
+        tdbTbcClose(pSkmDbC);
         code = TSDB_CODE_NOT_FOUND;
         goto _exit;
       }
@@ -687,7 +687,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
       sver = ((SSkmDbKey *)pKey)->sver;
 
       metaULock(pMeta);
-      (void)tdbTbcClose(pSkmDbC);
+      tdbTbcClose(pSkmDbC);
     }
   }
 
@@ -817,7 +817,7 @@ void metaCloseSmaCursor(SMSmaCursor *pSmaCur) {
   if (pSmaCur) {
     if (pSmaCur->pMeta) metaULock(pSmaCur->pMeta);
     if (pSmaCur->pCur) {
-      (void)tdbTbcClose(pSmaCur->pCur);
+      tdbTbcClose(pSmaCur->pCur);
       pSmaCur->pCur = NULL;
 
       tdbFree(pSmaCur->pKey);
@@ -1117,7 +1117,7 @@ int32_t metaFilterCreateTime(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
 
 END:
   if (pCursor->pMeta) metaULock(pCursor->pMeta);
-  if (pCursor->pCur) (void)tdbTbcClose(pCursor->pCur);
+  if (pCursor->pCur) tdbTbcClose(pCursor->pCur);
   taosMemoryFree(pCursor);
   return ret;
 }
@@ -1192,7 +1192,7 @@ int32_t metaFilterTableName(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
 
 END:
   if (pCursor->pMeta) metaULock(pCursor->pMeta);
-  if (pCursor->pCur) (void)tdbTbcClose(pCursor->pCur);
+  if (pCursor->pCur) tdbTbcClose(pCursor->pCur);
   taosMemoryFree(buf);
   taosMemoryFree(pKey);
 
@@ -1224,7 +1224,7 @@ int32_t metaFilterTtl(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
 
 END:
   if (pCursor->pMeta) metaULock(pCursor->pMeta);
-  if (pCursor->pCur) (void)tdbTbcClose(pCursor->pCur);
+  if (pCursor->pCur) tdbTbcClose(pCursor->pCur);
   taosMemoryFree(buf);
   taosMemoryFree(pKey);
 
@@ -1401,7 +1401,7 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
 
 END:
   if (pCursor->pMeta) metaULock(pCursor->pMeta);
-  if (pCursor->pCur) (void)tdbTbcClose(pCursor->pCur);
+  if (pCursor->pCur) tdbTbcClose(pCursor->pCur);
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
   tDecoderClear(&dc);
   tdbFree(pData);
