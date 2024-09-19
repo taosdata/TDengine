@@ -1935,23 +1935,23 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
   switch (reqType) {
     case TDMT_MND_USE_DB: {
       SUseDbOutput* pOut = (SUseDbOutput*)pMsgCtx->out;
-      CTG_ERR_JRET(ctgMakeVgArray(pOut->dbVgroup));
+      CTG_ERR_RET(ctgMakeVgArray(pOut->dbVgroup));
       int32_t vgSize = taosArrayGetSize(pOut->dbVgroup->vgArray);
       if (0 == vgSize) {
         ctgTaskError("no vgroup got, dbName:%s", pName->dbname);
-        CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+        CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
       }
       SArray* pVgArray = taosArrayDup(pOut->dbVgroup->vgArray, NULL);
       if (NULL == pVgArray) {
         ctgTaskError("fail to dup vgArray:%s", pName->dbname);
-        CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+        CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
       for (int32_t i = 0; i < vgSize; ++i) {
         SVgroupInfo* vgInfo = TARRAY_GET_ELEM(pVgArray, i);
         if (NULL == vgInfo) {
           taosArrayDestroy(pVgArray);
           ctgTaskError("fail to get the %dth vgInfo, vgSize:%d", i, vgSize);
-          CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+          CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
         }
         ctgTaskDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d, vgId:%d",
                      tNameGetTableName(pName), flag, vgInfo->vgId);
@@ -1960,7 +1960,7 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
         code = ctgGetTbMetaFromVnode(pCtg, pConn, pName, vgInfo, NULL, tReq);
         if (code) {
           taosArrayDestroy(pVgArray);
-          CTG_ERR_JRET(code);
+          CTG_ERR_RET(code);
         }
       }
       taosArrayDestroy(pVgArray);
