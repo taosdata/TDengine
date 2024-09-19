@@ -306,6 +306,7 @@ typedef struct SSchJob {
   char                *sql;
   SQueryProfileSummary summary;
   int8_t               source;
+  void                *pWorkerCb;
 } SSchJob;
 
 typedef struct SSchTaskCtx {
@@ -413,7 +414,9 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_LOG_TASK_START_TS(_task)                     \
   do {                                                   \
     int64_t us = taosGetTimestampUs();                   \
-    (void)taosArrayPush((_task)->profile.execTime, &us); \
+    if (NULL == taosArrayPush((_task)->profile.execTime, &us)) { \
+      qError("taosArrayPush task execTime failed, error:%s", tstrerror(terrno));  \
+    }                                                                             \
     if (0 == (_task)->execId) {                          \
       (_task)->profile.startTs = us;                     \
     }                                                    \
@@ -569,6 +572,7 @@ int32_t  schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask);
 int32_t  schBuildAndSendMsg(SSchJob *job, SSchTask *task, SQueryNodeAddr *addr, int32_t msgType, void *param);
 int32_t  schAcquireJob(int64_t refId, SSchJob **ppJob);
 int32_t  schReleaseJob(int64_t refId);
+int32_t  schReleaseJobEx(int64_t refId, int32_t* released);
 void     schFreeFlowCtrl(SSchJob *pJob);
 int32_t  schChkJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel);
 int32_t  schDecTaskFlowQuota(SSchJob *pJob, SSchTask *pTask);

@@ -198,7 +198,7 @@ int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset** pOffset){
     if (taosHashPut(pTq->pOffset, subkey, strlen(subkey), &offset, sizeof(STqOffset)) != 0) {
       tDeleteSTqOffset(&offset);
       tdbFree(data);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     tdbFree(data);
 
@@ -346,7 +346,7 @@ int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle) {
     handle->execHandle.execDb.pFilterOutTbUid =
         taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
     if(handle->execHandle.execDb.pFilterOutTbUid == NULL){
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }else if(req->subType == TOPIC_SUB_TYPE__TABLE){
     handle->execHandle.execTb.suid = req->suid;
@@ -389,7 +389,7 @@ static int32_t tqMetaTransformInfo(TDB* pMetaDB, TTB* pOld, TTB* pNew) {
 END:
   tdbFree(pKey);
   tdbFree(pVal);
-  (void)tdbTbcClose(pCur);
+  tdbTbcClose(pCur);
   return code;
 }
 
@@ -461,7 +461,7 @@ static int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
 END:
   tdbFree(pKey);
   tdbFree(pVal);
-  (void)tdbTbcClose(pCur);
+  tdbTbcClose(pCur);
   tDeleteSTqCheckInfo(&info);
   return code;
 }
@@ -476,13 +476,13 @@ int32_t tqMetaOpen(STQ* pTq) {
     TQ_ERR_GO_TO_END(tqMetaOpenTdb(pTq));
   } else {
     TQ_ERR_GO_TO_END(tqMetaTransform(pTq));
-    (void)taosRemoveFile(maindb);
+    TQ_ERR_GO_TO_END(taosRemoveFile(maindb));
   }
 
   TQ_ERR_GO_TO_END(tqBuildFName(&offsetNew, pTq->path, TQ_OFFSET_NAME));
   if(taosCheckExistFile(offsetNew)){
     TQ_ERR_GO_TO_END(tqOffsetRestoreFromFile(pTq, offsetNew));
-    (void)taosRemoveFile(offsetNew);
+    TQ_ERR_GO_TO_END(taosRemoveFile(offsetNew));
   }
 
   TQ_ERR_GO_TO_END(tqMetaRestoreCheckInfo(pTq));
@@ -518,7 +518,7 @@ int32_t tqMetaTransform(STQ* pTq) {
     if (taosCopyFile(offset, offsetNew) < 0) {
       tqError("copy offset file error");
     } else {
-      (void)taosRemoveFile(offset);
+      TQ_ERR_GO_TO_END(taosRemoveFile(offset));
     }
   }
 
@@ -526,23 +526,44 @@ END:
   taosMemoryFree(offset);
   taosMemoryFree(offsetNew);
 
-  // return 0 always, so ignore
-  (void)tdbTbClose(pExecStore);
-  (void)tdbTbClose(pCheckStore);
-  (void)tdbClose(pMetaDB);
+  int32_t ret = tdbTbClose(pExecStore);
+  if (ret != 0) {
+    tqError("failed to close tb, ret:%d", ret);
+  }
+  ret = tdbTbClose(pCheckStore);
+  if (ret != 0) {
+    tqError("failed to close tb, ret:%d", ret);
+  }
+  ret = tdbClose(pMetaDB);
+  if (ret != 0) {
+    tqError("failed to close tdb, ret:%d", ret);
+  }
 
   return code;
 }
 
 void tqMetaClose(STQ* pTq) {
+  int32_t ret = 0;
   if (pTq->pExecStore) {
-    (void)tdbTbClose(pTq->pExecStore);
+    ret = tdbTbClose(pTq->pExecStore);
+    if (ret != 0) {
+      tqError("failed to close tb, ret:%d", ret);
+    }
   }
   if (pTq->pCheckStore) {
-    (void)tdbTbClose(pTq->pCheckStore);
+    ret = tdbTbClose(pTq->pCheckStore);
+    if (ret != 0) {
+      tqError("failed to close tb, ret:%d", ret);
+    }
   }
   if (pTq->pOffsetStore) {
-    (void)tdbTbClose(pTq->pOffsetStore);
+    ret = tdbTbClose(pTq->pOffsetStore);
+    if (ret != 0) {
+      tqError("failed to close tb, ret:%d", ret);
+    }
   }
-  (void)tdbClose(pTq->pMetaDB);
+  ret = tdbClose(pTq->pMetaDB);
+  if (ret != 0) {
+    tqError("failed to close tdb, ret:%d", ret);
+  }
 }

@@ -19,8 +19,8 @@
 #include "systable.h"
 #include "mndUser.h"
 
-#define SHOW_STEP_SIZE 100
-#define SHOW_COLS_STEP_SIZE 4096
+#define SHOW_STEP_SIZE            100
+#define SHOW_COLS_STEP_SIZE       4096
 #define SHOW_PRIVILEGES_STEP_SIZE 2048
 
 static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq);
@@ -247,7 +247,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
     pShow = mndCreateShowObj(pMnode, &retrieveReq);
     if (pShow == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       mError("failed to process show-meta req since %s", tstrerror(code));
       TAOS_RETURN(code);
     }

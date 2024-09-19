@@ -14,7 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "audit.h"
 #include "dmInt.h"
+#include "monitor.h"
 #include "systable.h"
 #include "tchecksum.h"
 #include "tfunc.h"
@@ -28,6 +30,8 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
     (void)taosThreadRwlockWrlock(&pMgmt->pData->lock);
     pMgmt->pData->dnodeId = pCfg->dnodeId;
     pMgmt->pData->clusterId = pCfg->clusterId;
+    monSetDnodeId(pCfg->dnodeId);
+    auditSetDnodeId(pCfg->dnodeId);
     code = dmWriteEps(pMgmt->pData);
     if (code != 0) {
       dInfo("failed to set local info, dnodeId:%d clusterId:%" PRId64 " reason:%s", pCfg->dnodeId, pCfg->clusterId,
@@ -388,7 +392,7 @@ int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   void *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
     // rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
     // return rspMsg.code;
   }
@@ -426,7 +430,7 @@ int32_t dmBuildVariablesBlock(SSDataBlock **ppBlock) {
 
   pBlock->pDataBlock = taosArrayInit(pMeta[index].colNum, sizeof(SColumnInfoData));
   if (pBlock->pDataBlock == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -436,7 +440,7 @@ int32_t dmBuildVariablesBlock(SSDataBlock **ppBlock) {
     colInfoData.info.type = pMeta[index].schema[i].type;
     colInfoData.info.bytes = pMeta[index].schema[i].bytes;
     if (taosArrayPush(pBlock->pDataBlock, &colInfoData) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
   }
@@ -500,7 +504,7 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     dError("failed to retrieve data since %s", tstrerror(code));
     blockDataDestroy(pBlock);
     return code;

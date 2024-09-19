@@ -161,8 +161,7 @@ int32_t dmInitVars(SDnode *pDnode) {
   pData->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   if (pData->dnodeHash == NULL) {
     dError("failed to init dnode hash");
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    return terrno = code;
+    return terrno;
   }
 
   if ((code = dmReadEps(pData)) != 0) {

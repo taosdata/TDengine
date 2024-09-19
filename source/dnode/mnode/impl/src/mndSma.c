@@ -368,7 +368,11 @@ static void *mndBuildVDropSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSma,
   SEncoder encoder = {0};
   int32_t  contLen;
   SName    name = {0};
-  (void)tNameFromString(&name, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  int32_t code = tNameFromString(&name, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  if (TSDB_CODE_SUCCESS != code) {
+    terrno = code;
+    return NULL;
+  }
 
   SVDropTSmaReq req = {0};
   req.indexUid = pSma->uid;
@@ -1279,7 +1283,7 @@ int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool 
 
     info.expr = taosMemoryMalloc(pSma->exprLen + 1);
     if (info.expr == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       sdbRelease(pSdb, pSma);
       sdbCancelFetch(pSdb, pIter);
       return code;
@@ -1289,7 +1293,7 @@ int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool 
     info.expr[pSma->exprLen] = 0;
 
     if (NULL == taosArrayPush(rsp->pIndex, &info)) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       taosMemoryFree(info.expr);
       sdbRelease(pSdb, pSma);
       sdbCancelFetch(pSdb, pIter);
@@ -1326,7 +1330,7 @@ static int32_t mndProcessGetSmaReq(SRpcMsg *pReq) {
     int32_t contLen = tSerializeSUserIndexRsp(NULL, 0, &rsp);
     void   *pRsp = rpcMallocCont(contLen);
     if (pRsp == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _OVER;
     }
 
@@ -1361,7 +1365,7 @@ static int32_t mndProcessGetTbSmaReq(SRpcMsg *pReq) {
 
   rsp.pIndex = taosArrayInit(10, sizeof(STableIndexInfo));
   if (NULL == rsp.pIndex) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1376,7 +1380,7 @@ static int32_t mndProcessGetTbSmaReq(SRpcMsg *pReq) {
     int32_t contLen = tSerializeSTableIndexRsp(NULL, 0, &rsp);
     void   *pRsp = rpcMallocCont(contLen);
     if (pRsp == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _OVER;
     }
 
@@ -1669,8 +1673,7 @@ static int32_t mndSetUpdateDbTsmaVersionPrepareLogs(SMnode *pMnode, STrans *pTra
     TAOS_RETURN(code);
   }
 
-  (void)sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
-  TAOS_RETURN(code);
+  TAOS_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY));
 }
 
 static int32_t mndSetUpdateDbTsmaVersionCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
@@ -1686,8 +1689,7 @@ static int32_t mndSetUpdateDbTsmaVersionCommitLogs(SMnode *pMnode, STrans *pTran
     TAOS_RETURN(code);
   }
 
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-  TAOS_RETURN(code);
+  TAOS_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
 }
 
 static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
@@ -1699,7 +1701,7 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
   STrans      *pTrans =
       mndTransCreate(pCxt->pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pCxt->pRpcReq, "create-tsma");
   if (!pTrans) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
   mndTransSetDbName(pTrans, pCxt->pDb->name, NULL);
@@ -1797,14 +1799,14 @@ static int32_t mndCreateTSMA(SCreateTSMACxt *pCxt) {
   if (pCxt->pCreateSmaReq->pVgroupVerList) {
     pCxt->pCreateStreamReq->pVgroupVerList = taosArrayDup(pCxt->pCreateSmaReq->pVgroupVerList, NULL);
     if (!pCxt->pCreateStreamReq->pVgroupVerList) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _OVER;
     }
   }
   if (LIST_LENGTH(pProjects) > 0) {
     createStreamReq.pCols = taosArrayInit(LIST_LENGTH(pProjects), sizeof(SField));
     if (!createStreamReq.pCols) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _OVER;
     }
   }
@@ -1978,7 +1980,7 @@ static int32_t mndDropTSMA(SCreateTSMACxt* pCxt) {
   STransAction dropStreamRedoAction = {0};
   STrans *pTrans = mndTransCreate(pCxt->pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pCxt->pRpcReq, "drop-tsma");
   if (!pTrans) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
   SMDropStreamReq dropStreamReq = {0};
@@ -2337,7 +2339,7 @@ int32_t dumpTSMAInfoFromSmaObj(const SSmaObj* pSma, const SStbObj* pDestStb, STa
       funcInfo.funcId = pFuncNode->funcId;
       funcInfo.colId = ((SColumnNode *)pFuncNode->pParameterList->pHead->pNode)->colId;
       if (!taosArrayPush(pInfo->pFuncs, &funcInfo)) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         taosArrayDestroy(pInfo->pFuncs);
         nodesDestroyNode(pNode);
         return code;
@@ -2351,7 +2353,7 @@ int32_t dumpTSMAInfoFromSmaObj(const SSmaObj* pSma, const SStbObj* pDestStb, STa
   if (code == TSDB_CODE_SUCCESS && pDestStb->numOfTags > 0) {
     pInfo->pTags = taosArrayInit(pDestStb->numOfTags, sizeof(SSchema));
     if (!pInfo->pTags) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     } else {
       for (int32_t i = 0; i < pDestStb->numOfTags; ++i) {
         if (NULL == taosArrayPush(pInfo->pTags, &pDestStb->pTags[i])) {
@@ -2364,7 +2366,7 @@ int32_t dumpTSMAInfoFromSmaObj(const SSmaObj* pSma, const SStbObj* pDestStb, STa
   if (code == TSDB_CODE_SUCCESS) {
     pInfo->pUsedCols = taosArrayInit(pDestStb->numOfColumns - 3, sizeof(SSchema));
     if (!pInfo->pUsedCols)
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     else {
       // skip _wstart, _wend, _duration
       for (int32_t i = 1; i < pDestStb->numOfColumns - 2; ++i) {
@@ -2438,7 +2440,7 @@ static int32_t mndGetTSMA(SMnode *pMnode, char *tsmaFName, STableTSMAInfoRsp *rs
       TAOS_RETURN(code);
     }
     if (NULL == taosArrayPush(rsp->pTsmas, &pTsma)) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       tFreeAndClearTableTSMAInfo(pTsma);
     }
     *exist = true;
@@ -2524,7 +2526,7 @@ static int32_t mndGetSomeTsmas(SMnode* pMnode, STableTSMAInfoRsp* pRsp, tsmaFilt
       TAOS_RETURN(code);
     }
     if (NULL == taosArrayPush(pRsp->pTsmas, &pTsma)) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       tFreeAndClearTableTSMAInfo(pTsma);
       sdbCancelFetch(pSdb, pIter);
       TAOS_RETURN(code);
@@ -2566,7 +2568,7 @@ static int32_t mndProcessGetTbTSMAReq(SRpcMsg *pReq) {
 
   rsp.pTsmas = taosArrayInit(4, POINTER_BYTES);
   if (NULL == rsp.pTsmas) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -2588,7 +2590,7 @@ static int32_t mndProcessGetTbTSMAReq(SRpcMsg *pReq) {
     int32_t contLen = tSerializeTableTSMAInfoRsp(NULL, 0, &rsp);
     void   *pRsp = rpcMallocCont(contLen);
     if (pRsp == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _OVER;
     }
 

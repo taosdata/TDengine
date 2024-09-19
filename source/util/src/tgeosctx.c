@@ -93,7 +93,7 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
 
   SGeosContext *tlGeosCtxObj = (SGeosContext *)taosMemoryCalloc(1, sizeof(SGeosContext));
   if (!tlGeosCtxObj) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
   if ((taosThreadSetSpecific(tlGeosCtxKey, (const void *)tlGeosCtxObj)) != 0) {
     taosMemoryFreeClear(tlGeosCtxObj);

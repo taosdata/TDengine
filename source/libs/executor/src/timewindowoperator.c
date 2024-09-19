@@ -293,7 +293,9 @@ void doTimeWindowInterpolation(SArray* pPrevValues, SArray* pDataBlock, TSKEY pr
     SPoint point2 = (SPoint){.key = curTs, .val = &v2};
     SPoint point = (SPoint){.key = windowKey, .val = &v};
 
-    taosGetLinearInterpolationVal(&point, TSDB_DATA_TYPE_DOUBLE, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
+    if (!fmIsElapsedFunc(pCtx[k].functionId)) {
+      taosGetLinearInterpolationVal(&point, TSDB_DATA_TYPE_DOUBLE, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
+    }
 
     if (type == RESULT_ROW_START_INTERP) {
       pCtx[k].start.key = point.key;
@@ -639,7 +641,11 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
 
     int64_t     prevTs = *(int64_t*)pTsKey->pData;
     if (groupId == pBlock->info.id.groupId) {
-      doTimeWindowInterpolation(pInfo->pPrevValues, pBlock->pDataBlock, prevTs, -1, tsCols[startPos], startPos, w.ekey,
+      TSKEY curTs = pBlock->info.window.skey;
+      if (tsCols != NULL) {
+        curTs = tsCols[startPos];
+      }
+      doTimeWindowInterpolation(pInfo->pPrevValues, pBlock->pDataBlock, prevTs, -1, curTs, startPos, w.ekey,
                                 RESULT_ROW_END_INTERP, pSup);
     }
 
@@ -894,13 +900,7 @@ int64_t* extractTsCol(SSDataBlock* pBlock, const SIntervalAggOperatorInfo* pInfo
 
     tsCols = (int64_t*)pColDataInfo->pData;
     if(tsCols[0] == 0) {
-      pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-      T_LONG_JMP(pTaskInfo->env, terrno);
-    }
-
-    // no data in primary ts
-    if (tsCols[0] == 0 && tsCols[pBlock->info.rows - 1] == 0) {
-      return NULL;
+      qWarn("%s at line %d.block start ts:%" PRId64 ",end ts:%" PRId64, __func__, __LINE__, tsCols[0], tsCols[pBlock->info.rows - 1]);
     }
 
     if (tsCols[0] != 0 && (pBlock->info.window.skey == 0 && pBlock->info.window.ekey == 0)) {
@@ -1082,7 +1082,7 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
     }
 
     pInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
-    code = setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
+    code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
 
     code = blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
@@ -1567,7 +1567,7 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
       QUERY_CHECK_CODE(code, lino, _end);
     }
     // the pDataBlock are always the same one, no need to call this again
-    code = setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
+    code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
 
     code = blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);

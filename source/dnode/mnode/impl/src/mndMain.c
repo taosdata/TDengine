@@ -560,7 +560,7 @@ static int32_t mndAllocStep(SMnode *pMnode, char *name, MndInitFp initFp, MndCle
   step.initFp = initFp;
   step.cleanupFp = cleanupFp;
   if (taosArrayPush(pMnode->pSteps, &step) == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   TAOS_RETURN(0);

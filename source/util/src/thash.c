@@ -488,10 +488,10 @@ int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
   if (pe->num == 0) {
     taosHashEntryWUnlock(pHashObj, pe);
     taosHashRUnlock(pHashObj);
-    return -1;
+    return TSDB_CODE_NOT_FOUND;
   }
 
-  int        code = -1;
+  int        code = TSDB_CODE_NOT_FOUND;
   SHashNode *pNode = pe->next;
   SHashNode *prevNode = NULL;
 

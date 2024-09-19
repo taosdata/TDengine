@@ -132,7 +132,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
         pip3 install taospy[ws]
         ```                     
 
-  - **安装验证**
+- **安装验证**
     <Tabs defaultValue="rest">
     <TabItem value="native" label="原生连接">
     对于原生连接，需要验证客户端驱动和 Python 连接器本身是否都正确安装。如果能成功导入 `taos` 模块，则说明已经正确安装了客户端驱动和 Python 连接器。可在 Python 交互式 Shell 中输入：
@@ -198,18 +198,18 @@ taos = { version = "*", default-features = false, features = ["ws"] }
 
 - **安装**
     - 使用 npm 安装 Node.js 连接器
-    ```
-    npm install @tdengine/websocket
-    ```
+        ```
+        npm install @tdengine/websocket
+        ```
     :::note Node.js 目前只支持 Websocket 连接
 - **安装验证**
     - 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [nodejsChecker.js 源代码](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/nodejsChecker.js)到本地。
     - 在命令行中执行以下命令。
-    ```bash
-    npm init -y
-    npm install @tdengine/websocket
-    node nodejsChecker.js
-    ```
+        ```bash
+        npm init -y
+        npm install @tdengine/websocket
+        node nodejsChecker.js
+        ```
     - 执行以上步骤后，在命令行会输出 nodeChecker.js 连接 TDengine 实例，并执行简单插入和查询的结果。
 
 

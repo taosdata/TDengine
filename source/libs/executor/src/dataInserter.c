@@ -57,6 +57,7 @@ typedef struct SSubmitRspParam {
 int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SSubmitRspParam*     pParam = (SSubmitRspParam*)param;
   SDataInserterHandle* pInserter = pParam->pInserter;
+  int32_t code2 = 0;
 
   if (code) {
     pInserter->submitRes.code = code;
@@ -106,7 +107,14 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
 
 _return:
 
-  (void)tsem_post(&pInserter->ready);
+  code2 = tsem_post(&pInserter->ready);
+  if (code2 < 0) {
+    qError("tsem_post inserter ready failed, error:%s", tstrerror(code2));
+    if (TSDB_CODE_SUCCESS == code) {
+      pInserter->submitRes.code = code2;
+    }
+  }
+  
   taosMemoryFree(pMsg->pData);
 
   return TSDB_CODE_SUCCESS;

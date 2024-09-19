@@ -314,6 +314,8 @@ static int32_t doCreateConstantValColumnInfo(SInputColumnInfoData* pInput, SFunc
     }
   } else if (type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
     char* tmp = taosMemoryMalloc(pFuncParam->param.nLen + VARSTR_HEADER_SIZE);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+
     STR_WITH_SIZE_TO_VARSTR(tmp, pFuncParam->param.pz, pFuncParam->param.nLen);
     for (int32_t i = 0; i < numOfRows; ++i) {
       code = colDataSetVal(pColInfo, i, tmp, false);
@@ -617,6 +619,8 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
   code = TSDB_CODE_SUCCESS;
 
 _err:
+  blockDataCheck(pBlock, true);
+
   colDataDestroy(p);
   taosMemoryFree(p);
   return code;
@@ -1010,6 +1014,10 @@ static void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_
   }
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
+    if (pCtx[i].fpSet.cleanup != NULL) {
+      pCtx[i].fpSet.cleanup(&pCtx[i]);
+    }
+
     if (pExpr != NULL) {
       SExprInfo* pExprInfo = &pExpr[i];
       for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {

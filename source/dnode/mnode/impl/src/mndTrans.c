@@ -64,6 +64,8 @@ static int32_t mndProcessKillTransReq(SRpcMsg *pReq);
 static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextTrans(SMnode *pMnode, void *pIter);
 
+static int32_t tsMaxTransId = 0;
+
 int32_t mndInitTrans(SMnode *pMnode) {
   SSdbTable table = {
       .sdbType = SDB_TRANS,
@@ -602,7 +604,10 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
     tstrncpy(pTrans->opername, opername, TSDB_TRANS_OPER_LEN);
   }
 
-  pTrans->id = sdbGetMaxId(pMnode->pSdb, SDB_TRANS);
+  int32_t sdbMaxId = sdbGetMaxId(pMnode->pSdb, SDB_TRANS);
+  sdbReadLock(pMnode->pSdb, SDB_TRANS);
+  pTrans->id = TMAX(sdbMaxId, tsMaxTransId + 1);
+  sdbUnLock(pMnode->pSdb, SDB_TRANS);
   pTrans->stage = TRN_STAGE_PREPARE;
   pTrans->policy = policy;
   pTrans->conflict = conflict;
@@ -669,7 +674,7 @@ static int32_t mndTransAppendAction(SArray *pArray, STransAction *pAction) {
 
   void *ptr = taosArrayPush(pArray, pAction);
   if (ptr == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   return 0;
@@ -1027,6 +1032,9 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   mInfo("trans:%d, prepare transaction", pTrans->id);
   if ((code = mndTransSync(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
+    sdbWriteLock(pMnode->pSdb, SDB_TRANS);
+    tsMaxTransId = TMAX(pTrans->id, tsMaxTransId);
+    sdbUnLock(pMnode->pSdb, SDB_TRANS);
     TAOS_RETURN(code);
   }
   mInfo("trans:%d, prepare finished", pTrans->id);

@@ -124,7 +124,7 @@ int32_t convertBinaryToDouble(const void *inData, void *outData) {
   char *tmp = taosMemoryCalloc(1, varDataTLen(inData));
   if (tmp == NULL) {
     *((double *)outData) = 0.;
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   (void)memcpy(tmp, varDataVal(inData), varDataLen(inData));
   double ret = taosStr2Double(tmp, NULL);
@@ -370,7 +370,7 @@ static FORCE_INLINE int32_t varToVarbinary(char *buf, SScalarParam *pOut, int32_
     if (t == NULL) {
       sclError("Out of memory");
       taosMemoryFree(data);
-      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCL_ERR_RET(terrno);
     }
     varDataSetLen(t, size);
     (void)memcpy(varDataVal(t), data, size);
@@ -383,7 +383,7 @@ static FORCE_INLINE int32_t varToVarbinary(char *buf, SScalarParam *pOut, int32_
     char   *t = taosMemoryCalloc(1, inputLen);
     if (t == NULL) {
       sclError("Out of memory");
-      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCL_ERR_RET(terrno);
     }
     (void)memcpy(t, buf, inputLen);
     int32_t code = colDataSetVal(pOut->columnData, rowIndex, t, false);
@@ -401,7 +401,7 @@ static FORCE_INLINE int32_t varToNchar(char *buf, SScalarParam *pOut, int32_t ro
 
   char   *t = taosMemoryCalloc(1, outputMaxLen);
   if (NULL == t) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   int32_t ret =
       taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4 *)varDataVal(t), outputMaxLen - VARSTR_HEADER_SIZE, &len);
@@ -424,7 +424,7 @@ static FORCE_INLINE int32_t ncharToVar(char *buf, SScalarParam *pOut, int32_t ro
 
   char   *t = taosMemoryCalloc(1, inputLen + VARSTR_HEADER_SIZE);
   if (NULL == t) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t));
   if (len < 0) {
@@ -457,7 +457,7 @@ static FORCE_INLINE int32_t varToGeometry(char *buf, SScalarParam *pOut, int32_t
 
   output = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
   if (NULL == output) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
   (void)memcpy(output + VARSTR_HEADER_SIZE, t, len);
   varDataSetLen(output, len);
@@ -596,6 +596,11 @@ int32_t ncharTobinary(void *buf, void **out) {  // todo need to remove , if tobi
   int32_t inputLen = varDataTLen(buf);
 
   *out = taosMemoryCalloc(1, inputLen);
+  if (NULL == *out) {
+    sclError("charset:%s to %s. val:%s convert ncharTobinary failed, since memory alloc failed.",
+             DEFAULT_UNICODE_ENCODEC, tsCharset, (char *)varDataVal(buf));
+    SCL_ERR_RET(terrno);
+  }
   int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(*out));
   if (len < 0) {
     sclError("charset:%s to %s. val:%s convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
@@ -2155,7 +2160,7 @@ int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
   char *pRightData = colDataGetVarData(pRight->columnData, 0);
   char *jsonKey = taosMemoryCalloc(1, varDataLen(pRightData) + 1);
   if (NULL == jsonKey) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   (void)memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
   for (; i >= 0 && i < pLeft->numOfRows; i += step) {
@@ -2189,7 +2194,7 @@ int32_t vectorJsonArrow(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam 
   char *pRightData = colDataGetVarData(pRight->columnData, 0);
   char *jsonKey = taosMemoryCalloc(1, varDataLen(pRightData) + 1);
   if (NULL == jsonKey) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   (void)memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
   for (; i >= 0 && i < pLeft->numOfRows; i += step) {

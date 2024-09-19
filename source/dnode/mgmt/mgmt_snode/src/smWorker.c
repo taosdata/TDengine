@@ -71,14 +71,14 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
   int32_t code = 0;
   pMgmt->writeWroker = taosArrayInit(0, sizeof(SMultiWorker *));
   if (pMgmt->writeWroker == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     return code;
   }
 
   for (int32_t i = 0; i < tsNumOfSnodeWriteThreads; i++) {
     SMultiWorker *pWriteWorker = taosMemoryMalloc(sizeof(SMultiWorker));
     if (pWriteWorker == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       return code;
     }
 
@@ -93,7 +93,7 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
       return code;
     }
     if (taosArrayPush(pMgmt->writeWroker, &pWriteWorker) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       return code;
     }
   }

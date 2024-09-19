@@ -2915,21 +2915,27 @@ void ctgClearMetaCache(SCtgCacheOperation *operation) {
   
   if (CTG_CACHE_LOW(remainSize, cacheMaxSize)) {
     qDebug("catalog finish meta clear, remainSize:%" PRId64 ", cacheMaxSize:%dMB", remainSize, cacheMaxSize);
-    (void)taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer);
+    if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
+      qError("reset catalog cache monitor timer error, timer stoppped");
+    }
     return;
   }
 
   if (!roundDone) {
     qDebug("catalog all meta cleared, remainSize:%" PRId64 ", cacheMaxSize:%dMB, to clear handle", remainSize, cacheMaxSize);
     ctgClearFreeCache(operation);
-    (void)taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer);
+    if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
+      qError("reset catalog cache monitor timer error, timer stoppped");
+    }
     return;
   }
   
   int32_t code = ctgClearCacheEnqueue(NULL, true, false, false, false);
   if (code) {
     qError("clear cache enqueue failed, error:%s", tstrerror(code));
-    (void)taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer);
+    if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
+      qError("reset catalog cache monitor timer error, timer stoppped");
+    }
   }
 }
 
@@ -2993,7 +2999,10 @@ int32_t ctgOpDropTbTSMA(SCtgCacheOperation *operation) {
     pCtgCache->pTsmas = NULL;
     
     ctgDebug("all tsmas for table dropped: %s.%s", msg->dbFName, msg->tbName);
-    (void)taosHashRemove(dbCache->tsmaCache, msg->tbName, TSDB_TABLE_NAME_LEN);
+    code = taosHashRemove(dbCache->tsmaCache, msg->tbName, TSDB_TABLE_NAME_LEN);
+    if (TSDB_CODE_SUCCESS != code) {
+      ctgError("remove table %s.%s from tsmaCache failed, error:%s", msg->dbFName, msg->tbName, tstrerror(code));
+    }
     
     CTG_UNLOCK(CTG_WRITE, &pCtgCache->tsmaLock);
   } else {
@@ -3191,6 +3200,7 @@ void ctgCleanupCacheQueue(void) {
   SCtgQNode          *nodeNext = NULL;
   SCtgCacheOperation *op = NULL;
   bool                stopQueue = false;
+  int32_t             code = 0;
 
   while (true) {
     node = gCtgMgmt.queue.head->next;
@@ -3209,7 +3219,10 @@ void ctgCleanupCacheQueue(void) {
         }
 
         if (op->syncOp) {
-          (void)tsem_post(&op->rspSem);
+          code = tsem_post(&op->rspSem);
+          if (code) {
+            qError("tsem_post failed when cleanup cache queue, error:%s", tstrerror(code));
+          }
         } else {
           taosMemoryFree(op);
         }
@@ -3234,12 +3247,13 @@ void ctgCleanupCacheQueue(void) {
 
 void *ctgUpdateThreadFunc(void *param) {
   setThreadName("catalog");
+  int32_t code = 0;
 
   qInfo("catalog update thread started");
 
   while (true) {
     if (tsem_wait(&gCtgMgmt.queue.reqSem)) {
-      qError("ctg tsem_wait failed, error:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+      qError("ctg tsem_wait failed, error:%s", tstrerror(terrno));
     }
 
     if (atomic_load_8((int8_t *)&gCtgMgmt.queue.stopQueue)) {
@@ -3256,7 +3270,10 @@ void *ctgUpdateThreadFunc(void *param) {
     (void)(*gCtgCacheOperation[operation->opId].func)(operation); // ignore any error
 
     if (operation->syncOp) {
-      (void)tsem_post(&operation->rspSem);
+      code = tsem_post(&operation->rspSem);
+      if (code) {
+        ctgError("tsem_post failed for syncOp update, error:%s", tstrerror(code));
+      }
     } else {
       taosMemoryFreeClear(operation);
     }
@@ -3693,6 +3710,9 @@ int32_t ctgGetTbHashVgroupFromCache(SCatalog *pCtg, const SName *pTableName, SVg
   }
 
   *pVgroup = taosMemoryCalloc(1, sizeof(SVgroupInfo));
+  if (NULL == *pVgroup) {
+    CTG_ERR_JRET(terrno);
+  }
   CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, NULL, dbCache->vgCache.vgInfo, pTableName, *pVgroup));
 
 _return:
