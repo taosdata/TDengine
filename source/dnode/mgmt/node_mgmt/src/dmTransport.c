@@ -392,7 +392,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.notWaitAvaliableConn = 0;
 
   (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
-  rpcInit.startReadTimer = 1;
+  rpcInit.startReadTimer = 0;
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {
     dError("failed to init dnode rpc client since:%s", tstrerror(terrno));
@@ -435,7 +435,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.supportBatch = 1;
   rpcInit.batchSize = 8 * 1024;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-  rpcInit.startReadTimer = 1;
+  rpcInit.startReadTimer = 0;
   (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
 
   pTrans->statusRpc = rpcOpen(&rpcInit);
@@ -482,7 +482,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.batchSize = 8 * 1024;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
-  rpcInit.startReadTimer = 1;
+  rpcInit.startReadTimer = 0;
   pTrans->syncRpc = rpcOpen(&rpcInit);
   if (pTrans->syncRpc == NULL) {
     dError("failed to init dnode rpc sync client since %s", tstrerror(terrno));

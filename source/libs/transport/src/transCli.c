@@ -657,6 +657,11 @@ void cliConnCheckTimoutMsg(SCliConn* conn) {
   QUEUE_INIT(&set);
   SCliThrd* pThrd = conn->hostThrd;
   STrans*   pInst = pThrd->pInst;
+
+  if (pInst->startReadTimer == 0) {
+    return;
+  }
+
   if (transQueueSize(&conn->reqsSentOut) == 0) {
     return;
   }
