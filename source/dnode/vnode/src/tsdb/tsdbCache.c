@@ -758,8 +758,7 @@ static int32_t tsdbCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, 
       LRUHandle *h = taosLRUCacheLookup(pTsdb->lruCache, keys_list[i], klen);
       if (h) {
         if (taosLRUCacheRelease(pTsdb->lruCache, h, true)) {
-          tsdbError("vgId:%d, %s release lru cache failed at line %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__);
-          goto _exit;
+          tsdbInfo("vgId:%d, %s release lru cache failed at line %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__);
         }
         taosLRUCacheErase(pTsdb->lruCache, keys_list[i], klen);
       }
@@ -1229,7 +1228,9 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
         }
       }
 
-      code = taosLRUCacheRelease(pCache, h, false);
+      if (!taosLRUCacheRelease(pCache, h, false)) {
+        tsdbInfo("vgId:%d, %s release lru cache failed at line %d", TD_VID(pTsdb->pVnode), __func__, __LINE__);
+      }
       TAOS_CHECK_EXIT(code);
     } else {
       if (!remainCols) {
@@ -1365,7 +1366,8 @@ _exit:
   taosArrayDestroy(remainCols);
 
   if (code) {
-    tsdbError("tsdb/cache: vgId:%d, update failed at line %d since %s.", TD_VID(pTsdb->pVnode), lino, tstrerror(code));
+    tsdbError("tsdb/cache: vgId:%d, update failed at line %d since %s.", TD_VID(pTsdb->pVnode), __LINE__,
+              tstrerror(code));
   }
 
   TAOS_RETURN(code);
@@ -1457,7 +1459,7 @@ int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int6
 
   // 3. do update
   code = tsdbCacheUpdate(pTsdb, suid, uid, ctxArray);
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code < TSDB_CODE_SUCCESS) {
     tsdbError("vgId:%d, %s tsdbCacheUpdate failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
               tstrerror(code));
     TAOS_CHECK_GOTO(code, &lino, _exit);

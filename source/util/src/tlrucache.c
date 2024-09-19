@@ -541,7 +541,6 @@ static void taosLRUCacheShardEraseUnrefEntries(SLRUCacheShard *shard) {
     if (e != NULL) {
       TAOS_LRU_ENTRY_SET_IN_CACHE(e, false);
       if (!TAOS_LRU_ENTRY_HAS_REFS(e)) {
-        taosLRUCacheShardLRURemove(shard, e);
         shard->usage -= e->totalCharge;
       }
     }
