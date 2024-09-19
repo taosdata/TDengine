@@ -559,7 +559,7 @@ static int32_t fileDataBlockOrderCompar(const void* pLeft, const void* pRight, v
   return pLeftBlock->offset > pRightBlock->offset ? 1 : -1;
 }
 
-void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
+int32_t recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
   pBlockInfo->uid = record->uid;
   pBlockInfo->firstKey = record->firstKey.key.ts;
   pBlockInfo->lastKey = record->lastKey.key.ts;
@@ -580,17 +580,24 @@ void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
       pBlockInfo->lastPk.val = record->lastKey.key.pks[0].val;
     } else {
       char* p = taosMemoryCalloc(1, pFirstKey->pks[0].nData + VARSTR_HEADER_SIZE);
+      if (p == NULL) {
+        return terrno;
+      }
       memcpy(varDataVal(p), pFirstKey->pks[0].pData, pFirstKey->pks[0].nData);
       varDataSetLen(p, pFirstKey->pks[0].nData);
       pBlockInfo->firstPk.pData = (uint8_t*)p;
 
       int32_t keyLen = record->lastKey.key.pks[0].nData;
       p = taosMemoryCalloc(1, keyLen + VARSTR_HEADER_SIZE);
+      if (p == NULL) {
+        return terrno;
+      }
       memcpy(varDataVal(p), record->lastKey.key.pks[0].pData, keyLen);
       varDataSetLen(p, keyLen);
       pBlockInfo->lastPk.pData = (uint8_t*)p;
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static void freePkItem(void* pItem) {

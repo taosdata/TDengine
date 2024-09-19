@@ -88,3 +88,5 @@ void dmGetMonitorSystemInfo(SMonSysInfo *pInfo) {
   }
   return;
 }
+
+int32_t dmGetDnodeId(SDnodeData *pData) { return pData->dnodeId; }

@@ -98,7 +98,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
 
     *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + nData);
     if (*ppData == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
 
@@ -275,7 +275,7 @@ static int32_t saveSuperTableInfoForChildTable(SMetaEntry* me, SHashObj* suidInf
   STableInfoForChildTable dataTmp = {0};
   dataTmp.tableName = taosStrdup(me->name);
   if (dataTmp.tableName == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto END;
   }
   dataTmp.schemaRow = tCloneSSchemaWrapper(&me->stbEntry.schemaRow);

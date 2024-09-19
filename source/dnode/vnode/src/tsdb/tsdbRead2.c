@@ -828,7 +828,11 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
     }
 
     SFileDataBlockInfo blockInfo = {.tbBlockIdx = TARRAY_SIZE(pScanInfo->pBlockList)};
-    recordToBlockInfo(&blockInfo, pRecord);
+    code = recordToBlockInfo(&blockInfo, pRecord);
+    if (code != TSDB_CODE_SUCCESS) {
+      clearBrinBlockIter(&iter);
+      return code;
+    }
     void* p1 = taosArrayPush(pScanInfo->pBlockList, &blockInfo);
     if (p1 == NULL) {
       clearBrinBlockIter(&iter);

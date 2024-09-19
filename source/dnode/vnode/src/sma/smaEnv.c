@@ -213,11 +213,11 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_INIT);
       (void)tsem_init(&pRSmaStat->notEmpty, 0, 0);
       if (!(pRSmaStat->blocks = taosArrayInit(1, sizeof(SSDataBlock)))) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         TAOS_CHECK_GOTO(code, &lino, _exit);
       }
       SSDataBlock datablock = {.info.type = STREAM_CHECKPOINT};
-      TSDB_CHECK_NULL(taosArrayPush(pRSmaStat->blocks, &datablock), code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
+      TSDB_CHECK_NULL(taosArrayPush(pRSmaStat->blocks, &datablock), code, lino, _exit, terrno);
 
       // init smaMgmt
       TAOS_CHECK_GOTO(smaInit(), &lino, _exit);
