@@ -287,7 +287,7 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
           "s-task:%s inputQ is full, capacity(size:%d num:%dMiB), current(blocks:%d, size:%.2fMiB) stop to push data",
           pTask->id.idStr, STREAM_TASK_QUEUE_CAPACITY, STREAM_TASK_QUEUE_CAPACITY_IN_SIZE, total, size);
       streamDataSubmitDestroy(px);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_STREAM_INPUTQ_FULL;
     }
 
     int32_t msgLen = px->submit.msgLen;
@@ -312,7 +312,7 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
       stTrace("s-task:%s input queue is full, capacity:%d size:%d MiB, current(blocks:%d, size:%.2fMiB) abort",
               pTask->id.idStr, STREAM_TASK_QUEUE_CAPACITY, STREAM_TASK_QUEUE_CAPACITY_IN_SIZE, total, size);
       streamFreeQitem(pItem);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_STREAM_INPUTQ_FULL;
     }
 
     int32_t code = taosWriteQitem(pQueue, pItem);

@@ -79,7 +79,7 @@ void    taosSetQueueFp(STaosQueue *queue, FItem itemFp, FItems itemsFp);
 int32_t taosAllocateQitem(int32_t size, EQItype itype, int64_t dataSize, void **item);
 void    taosFreeQitem(void *pItem);
 int32_t taosWriteQitem(STaosQueue *queue, void *pItem);
-int32_t taosReadQitem(STaosQueue *queue, void **ppItem);
+void    taosReadQitem(STaosQueue *queue, void **ppItem);
 bool    taosQueueEmpty(STaosQueue *queue);
 void    taosUpdateItemSize(STaosQueue *queue, int32_t items);
 int32_t taosQueueItemSize(STaosQueue *queue);

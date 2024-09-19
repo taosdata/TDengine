@@ -4357,10 +4357,16 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   int32_t        totalCount = 0;
 
   char *binTypeStr = strndup(varDataVal(pInput[1].columnData->pData), varDataLen(pInput[1].columnData->pData));
+  if (NULL == binTypeStr) {
+    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
   int8_t binType = getHistogramBinType(binTypeStr);
   taosMemoryFree(binTypeStr);
 
   char   *binDesc = strndup(varDataVal(pInput[2].columnData->pData), varDataLen(pInput[2].columnData->pData));
+  if (NULL == binDesc) {
+    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
   int64_t normalized = *(int64_t *)(pInput[3].columnData->pData);
 
   int32_t type = GET_PARAM_TYPE(pInput);

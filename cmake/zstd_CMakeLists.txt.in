@@ -1,15 +1,16 @@
 
-# zstb 
+# zstb
 
 #ExternalProject_Add(zstd
-        #GIT_REPOSITORY https://github.com/facebook/zstd.git 
+        #GIT_REPOSITORY https://github.com/facebook/zstd.git
         #GIT_TAG v1.5.5
         #SOURCE_DIR "${TD_CONTRIB_DIR}/zstd"
         #DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
         #BINARY_DIR ""
-        #CMAKE_COMMAND 
+        #CMAKE_COMMAND
         #CMAKE_ARGS ${TD_CONTRIB_DIR}/zstd/build/cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=${CMAKE_BINARY_DIR}/build/lib
-        #BUILD_COMMAND make -j4 
+        #BUILD_COMMAND make -j4
         #INSTALL_COMMAND ""
         #TEST_COMMAND ""
+        #GIT_SHALLOW true
         #)

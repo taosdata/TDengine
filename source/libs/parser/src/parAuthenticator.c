@@ -169,7 +169,8 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
     SNode*      pTagCond = NULL;
     STableNode* pTable = (STableNode*)pNode;
 #ifdef TD_ENTERPRISE
-    SName name;
+    SName name = {0};
+    toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
     STableMeta* pTableMeta = NULL;
     toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
     int32_t code = getTargetMetaImpl(

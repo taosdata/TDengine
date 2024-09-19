@@ -5133,6 +5133,9 @@ int32_t histogramFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResul
   pInfo->normalized = 0;
 
   char*  binTypeStr = strndup(varDataVal(pCtx->param[1].param.pz), varDataLen(pCtx->param[1].param.pz));
+  if (binTypeStr == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   int8_t binType = getHistogramBinType(binTypeStr);
   taosMemoryFree(binTypeStr);
 
@@ -5140,6 +5143,9 @@ int32_t histogramFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResul
     return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
   }
   char*   binDesc = strndup(varDataVal(pCtx->param[2].param.pz), varDataLen(pCtx->param[2].param.pz));
+  if (binDesc == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   int64_t normalized = pCtx->param[3].param.i;
   if (normalized != 0 && normalized != 1) {
     taosMemoryFree(binDesc);

@@ -1412,7 +1412,7 @@ static int32_t s3GetObjectToFileByEp(const char *object_name, const char *fileNa
 
   TdFilePtr pFile = taosOpenFile(fileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    uError("[s3] open file error, errno:%d, fileName:%s", terrno, fileName);
+    uError("[s3] open file error, terrno:%d, fileName:%s", terrno, fileName);
     TAOS_RETURN(terrno);
   }
 
@@ -1871,7 +1871,6 @@ void s3EvictCache(const char *path, long object_size) {
   taosDirName(dir_name);
 
   if (taosGetDiskSize((char *)dir_name, &disk_size) < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
     vError("failed to get disk:%s size since %s", path, terrstr());
     return;
   }

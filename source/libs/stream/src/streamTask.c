@@ -133,6 +133,11 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
   sprintf(buf, "0x%" PRIx64 "-0x%x", pTask->id.streamId, pTask->id.taskId);
 
   pTask->id.idStr = taosStrdup(buf);
+  if (pTask->id.idStr == NULL) {
+    stError("s-task:0x%x failed to build task id, code: out of memory", pTask->id.taskId);
+    return terrno;
+  }
+
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
   pTask->status.taskStatus = fillHistory ? TASK_STATUS__SCAN_HISTORY : TASK_STATUS__READY;
   pTask->inputq.status = TASK_INPUT_STATUS__NORMAL;
@@ -487,8 +492,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   STaskOutputInfo* pOutputInfo = &pTask->outputInfo;
   pOutputInfo->pTokenBucket = taosMemoryCalloc(1, sizeof(STokenBucket));
   if (pOutputInfo->pTokenBucket == NULL) {
-    stError("s-task:%s failed to prepare the tokenBucket, code:%s", pTask->id.idStr,
-            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    stError("s-task:%s failed to prepare the tokenBucket, code:%s", pTask->id.idStr, tstrerror(terrno));
     return terrno;
   }
 
@@ -687,13 +691,14 @@ int32_t streamTaskStop(SStreamTask* pTask) {
 
   int32_t code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_STOP);
   if (code) {
-    stError("failed to handle STOP event, s-task:%s", id);
+    stError("failed to handle STOP event, s-task:%s, code:%s", id, tstrerror(code));
+    return code;
   }
 
   if (pTask->info.taskLevel != TASK_LEVEL__SINK && pTask->exec.pExecutor != NULL) {
     code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
     if (code != TSDB_CODE_SUCCESS) {
-      stError("s-task:%s failed to kill task related query handle", id);
+      stError("s-task:%s failed to kill task related query handle, code:%s", id, tstrerror(code));
     }
   }
 
@@ -801,8 +806,8 @@ bool streamTaskSetSchedStatusWait(SStreamTask* pTask) {
     pTask->status.schedStatus = TASK_SCHED_STATUS__WAITING;
     ret = true;
   }
-  streamMutexUnlock(&pTask->lock);
 
+  streamMutexUnlock(&pTask->lock);
   return ret;
 }
 
@@ -865,7 +870,7 @@ int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskI
   pReq->head.vgId = vgId;
   pReq->taskId = pTaskId->taskId;
   pReq->streamId = pTaskId->streamId;
-  pReq->resetRelHalt = resetRelHalt;  // todo: remove this attribute
+  pReq->resetRelHalt = resetRelHalt;
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_DROP, .pCont = pReq, .contLen = sizeof(SVDropStreamTaskReq)};
   int32_t code = tmsgPutToQueue(pMsgCb, WRITE_QUEUE, &msg);
@@ -1052,14 +1057,13 @@ int32_t streamTaskSendCheckpointReq(SStreamTask* pTask) {
   tEncodeSize(tEncodeStreamTaskCheckpointReq, &req, tlen, code);
   if (code < 0) {
     stError("s-task:%s vgId:%d encode stream task req checkpoint failed, code:%s", id, vgId, tstrerror(code));
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
 
   void* buf = rpcMallocCont(tlen);
   if (buf == NULL) {
-    stError("s-task:%s vgId:%d encode stream task req checkpoint msg failed, code:%s", id, vgId,
-            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    return -1;
+    stError("s-task:%s vgId:%d encode stream task req checkpoint msg failed, code:Out of memory", id, vgId);
+    return terrno;
   }
 
   SEncoder encoder;
@@ -1068,8 +1072,9 @@ int32_t streamTaskSendCheckpointReq(SStreamTask* pTask) {
     rpcFreeCont(buf);
     tEncoderClear(&encoder);
     stError("s-task:%s vgId:%d encode stream task req checkpoint msg failed, code:%s", id, vgId, tstrerror(code));
-    return -1;
+    return code;
   }
+
   tEncoderClear(&encoder);
 
   SRpcMsg msg = {0};

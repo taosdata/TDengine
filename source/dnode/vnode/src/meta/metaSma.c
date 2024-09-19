@@ -106,7 +106,7 @@ static int metaSaveSmaToDB(SMeta *pMeta, const SMetaEntry *pME) {
 
   pVal = taosMemoryMalloc(vLen);
   if (pVal == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    terrno = terrno;
     goto _err;
   }
 

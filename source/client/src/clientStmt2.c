@@ -194,6 +194,12 @@ static int32_t stmtUpdateBindInfo(TAOS_STMT2* stmt, STableMeta* pTableMeta, void
   pStmt->bInfo.tbSuid = pTableMeta->suid;
   pStmt->bInfo.tbVgId = pTableMeta->vgId;
   pStmt->bInfo.tbType = pTableMeta->tableType;
+
+  if (!pStmt->bInfo.tagsCached) {
+    qDestroyBoundColInfo(pStmt->bInfo.boundTags);
+    taosMemoryFreeClear(pStmt->bInfo.boundTags);
+  }
+
   pStmt->bInfo.boundTags = tags;
   pStmt->bInfo.tagsCached = false;
   tstrncpy(pStmt->bInfo.stbFName, sTableName, sizeof(pStmt->bInfo.stbFName));
@@ -818,6 +824,7 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
   if (pStmt->options.asyncExecFn) {
     (void)tsem_init(&pStmt->asyncQuerySem, 0, 1);
   }
+  pStmt->semWaited = false;
 
   STMT_LOG_SEQ(STMT_INIT);
 
@@ -862,6 +869,9 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
   }
 
   pStmt->sql.sqlStr = strndup(sql, length);
+  if (!pStmt->sql.sqlStr) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   pStmt->sql.sqlLen = length;
   pStmt->sql.stbInterlaceMode = pStmt->stbInterlaceMode;
 
@@ -984,15 +994,15 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (pStmt->bInfo.inExecCache) {
-    return TSDB_CODE_SUCCESS;
-  }
-
   STableDataCxt** pDataBlock =
       (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
   if (NULL == pDataBlock) {
     tscError("table %s not found in exec blockHash", pStmt->bInfo.tbFName);
     STMT_ERR_RET(TSDB_CODE_APP_ERROR);
+  }
+
+  if (pStmt->bInfo.inExecCache && !pStmt->sql.autoCreateTbl) {
+    return TSDB_CODE_SUCCESS;
   }
 
   tscDebug("start to bind stmt tag values");
@@ -1261,10 +1271,6 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
   }
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_BIND));
-
-  if (pStmt->options.asyncExecFn) {
-    (void)tsem_wait(&pStmt->asyncQuerySem);
-  }
 
   if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
       STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
@@ -1666,7 +1672,6 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     STMT_ERR_RET(stmtCleanExecInfo(pStmt, (code ? false : true), false));
 
     ++pStmt->sql.runTimes;
-
   } else {
     SSqlCallbackWrapper* pWrapper = taosMemoryCalloc(1, sizeof(SSqlCallbackWrapper));
     if (pWrapper == NULL) {
@@ -1682,6 +1687,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     pRequest->body.queryFp = asyncQueryCb;
     ((SSyncQueryParam*)(pRequest)->body.interParam)->userParam = pStmt;
 
+    pStmt->semWaited = false;
     launchAsyncQuery(pRequest, pStmt->sql.pQuery, NULL, pWrapper);
   }
 
@@ -1701,6 +1707,10 @@ int stmtClose2(TAOS_STMT2* stmt) {
   if (pStmt->bindThreadInUse) {
     (void)taosThreadJoin(pStmt->bindThread, NULL);
     pStmt->bindThreadInUse = false;
+  }
+
+  if (pStmt->options.asyncExecFn && !pStmt->semWaited) {
+    (void)tsem_wait(&pStmt->asyncQuerySem);
   }
 
   STMT_DLOG("stmt %p closed, stbInterlaceMode: %d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
@@ -1888,7 +1898,12 @@ int stmtGetParamTbName(TAOS_STMT2* stmt, int* nums) {
     STMT_ERR_RET(stmtParseSql(pStmt));
   }
 
-  *nums = STMT_TYPE_MULTI_INSERT == pStmt->sql.type ? 1 : 0;
+  if (TSDB_CODE_TSC_STMT_TBNAME_ERROR == pStmt->errCode) {
+    *nums = 1;
+    pStmt->errCode = TSDB_CODE_SUCCESS;
+  } else {
+    *nums = STMT_TYPE_MULTI_INSERT == pStmt->sql.type ? 1 : 0;
+  }
 
   return TSDB_CODE_SUCCESS;
 }

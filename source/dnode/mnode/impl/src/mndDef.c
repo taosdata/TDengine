@@ -137,7 +137,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   if (sz != 0) {
     pObj->tasks = taosArrayInit(sz, sizeof(void *));
     if (pObj->tasks == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TAOS_RETURN(code);
     }
 
@@ -161,14 +161,14 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
           if (taosArrayPush(pArray, &pTask) == NULL) {
             taosMemoryFree(pTask);
             taosArrayDestroy(pArray);
-            code = TSDB_CODE_OUT_OF_MEMORY;
+            code = terrno;
             TAOS_RETURN(code);
           }
         }
       }
       if (taosArrayPush(pObj->tasks, &pArray) == NULL) {
         taosArrayDestroy(pArray);
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         TAOS_RETURN(code);
       }
     }
@@ -297,24 +297,24 @@ int32_t tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType,
   if (updateType == CONSUMER_ADD_REB){
     pConsumer->rebNewTopics = taosArrayInit(0, sizeof(void *));
     if(pConsumer->rebNewTopics == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto END;
     }
 
     char* topicTmp = taosStrdup(topic);
     if (taosArrayPush(pConsumer->rebNewTopics, &topicTmp) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto END;
     }
   }else if (updateType == CONSUMER_REMOVE_REB) {
     pConsumer->rebRemovedTopics = taosArrayInit(0, sizeof(void *));
     if(pConsumer->rebRemovedTopics == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto END;
     }
     char* topicTmp = taosStrdup(topic);
     if (taosArrayPush(pConsumer->rebRemovedTopics, &topicTmp) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto END;
     }
   }else if (updateType == CONSUMER_INSERT_SUB){
@@ -330,7 +330,7 @@ int32_t tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType,
 
     pConsumer->rebNewTopics = taosArrayDup(subscribe->topicNames, topicNameDup);
     if (pConsumer->rebNewTopics == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto END;
     }
     pConsumer->assignedTopics = subscribe->topicNames;
@@ -612,7 +612,7 @@ int32_t tCloneSubscribeObj(const SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub)
   int32_t code = 0;
   SMqSubscribeObj *pSubNew = taosMemoryMalloc(sizeof(SMqSubscribeObj));
   if (pSubNew == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto END;
   }
   (void)memcpy(pSubNew->key, pSub->key, TSDB_SUBSCRIBE_KEY_LEN);
