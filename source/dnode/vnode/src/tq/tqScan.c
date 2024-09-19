@@ -71,7 +71,7 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, void* pRsp, int32_t
     char* tbName = taosStrdup(mr.me.name);
     if (tbName == NULL) {
       metaReaderClear(&mr);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if(taosArrayPush(((SMqDataRspCommon*)pRsp)->blockTbName, &tbName) == NULL){
       continue;
@@ -219,7 +219,7 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqBatc
           char* tbName = taosStrdup(qExtractTbnameFromTask(task));
           if (tbName == NULL) {
             tqError("vgId:%d, failed to add tbname to rsp msg, null", pTq->pVnode->config.vgId);
-            return TSDB_CODE_OUT_OF_MEMORY;
+            return terrno;
           }
           if (taosArrayPush(pRsp->common.blockTbName, &tbName) == NULL){
             tqError("vgId:%d, failed to add tbname to rsp msg", pTq->pVnode->config.vgId);

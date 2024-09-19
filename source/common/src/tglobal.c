@@ -1093,7 +1093,7 @@ int32_t taosSetSlowLogScope(char *pScopeStr, int32_t *pScope) {
     taosMemoryFreeClear(tmp);
     tmp = taosStrdup(scope);
     if (tmp == NULL) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
     (void)strtrim(tmp);
     if (0 == strcasecmp(tmp, "all")) {

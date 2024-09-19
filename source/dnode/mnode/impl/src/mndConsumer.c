@@ -795,7 +795,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     }
     char *pNewTopic = taosStrdup(tmp);
     if (pNewTopic == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     removeFromTopicList(pOldConsumer->rebNewTopics, pNewTopic, pOldConsumer->consumerId, "new");
     bool existing = existInCurrentTopicList(pOldConsumer, pNewTopic);

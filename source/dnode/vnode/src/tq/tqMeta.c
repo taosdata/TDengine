@@ -343,7 +343,7 @@ int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle) {
   if (req->subType == TOPIC_SUB_TYPE__COLUMN) {
     void *tmp = taosStrdup(req->qmsg);
     if (tmp == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     handle->execHandle.execCol.qmsg = tmp;
   } else if (req->subType == TOPIC_SUB_TYPE__DB) {
@@ -356,7 +356,7 @@ int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle) {
     handle->execHandle.execTb.suid = req->suid;
     void *tmp = taosStrdup(req->qmsg);
     if (tmp == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     handle->execHandle.execTb.qmsg = tmp;
   }

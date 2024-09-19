@@ -71,7 +71,7 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
   pVnode->pTq = pTq;
   pTq->path = taosStrdup(path);
   if (pTq->path == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pTq->pVnode = pVnode;
 
