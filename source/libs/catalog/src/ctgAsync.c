@@ -851,7 +851,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   int32_t viewNum = (int32_t)ctgGetTablesReqNum(pReq->pView);
   int32_t tbTsmaNum = (int32_t)taosArrayGetSize(pReq->pTableTSMAs);
   int32_t tsmaNum = (int32_t)taosArrayGetSize(pReq->pTSMAs);
-  int32_t tbNameNum = (int32_t)taosArrayGetSize(pReq->pTableName);
+  int32_t tbNameNum = (int32_t)ctgGetTablesReqNum(pReq->pTableName);
 
   int32_t taskNum = tbMetaNum + dbVgNum + udfNum + tbHashNum + qnodeNum + dnodeNum + svrVerNum + dbCfgNum + indexNum +
                     userNum + dbInfoNum + tbIndexNum + tbCfgNum + tbTagNum + viewNum + tbTsmaNum + tbNameNum;
@@ -2075,13 +2075,7 @@ _return:
         taskDone = true;
       }
       if (TDMT_VND_TABLE_NAME == reqType) {
-        if (taskDone == true) {
-          if (pRes->pRes) {
-            code = 0;  // already get tbMeta from one request, reset code to 0
-          } else {
-            pRes->code = code;
-          }
-        }
+        if (!pRes->pRes && (0 == pRes->code)) pRes->code = code;
       } else {
         pRes->pRes = NULL;
         pRes->code = code;

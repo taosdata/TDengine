@@ -1172,6 +1172,8 @@ int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList) {
     pIter = taosHashIterate(vgHash, pIter);
   }
 
+  taosArraySort(vgList, ctgVgInfoComp);
+
   *pList = vgList;
 
   ctgDebug("Got vgList from cache, vgNum:%d", vgNum);

@@ -1054,8 +1054,8 @@ int32_t getTableNameFromCache(SParseMetaCache* pMetaCache, const SName* pName, c
   }
   const STableMeta* pMeta = NULL;
   code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableName, (void**)&pMeta);
-  if (!pMeta) code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
   if (TSDB_CODE_SUCCESS == code) {
+    if (!pMeta) code = TSDB_CODE_PAR_INTERNAL_ERROR;
     int32_t metaSize =
         sizeof(STableMeta) + sizeof(SSchema) * (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags);
     int32_t schemaExtSize =
@@ -1177,14 +1177,11 @@ int32_t getDbTableVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pNam
     for (int32_t i = 0; i < vgSize; ++i) {
       uint32_t hashValue =
           taosGetTbHashVal(fullName, fullTbLen, pDbCfg->hashMethod, pDbCfg->hashPrefix, pDbCfg->hashSuffix);
-      // void* pVg = taosArraySearch(pVgArray, &hashValue, ctgHashValueComp, TD_EQ);
-      SVgroupInfo* pVg = taosArrayGet(pVgArray, i);
+      SVgroupInfo* pVg = taosArraySearch(pVgArray, &hashValue, ctgHashValueComp, TD_EQ);
       if (pVg) {
-        if (hashValue >= pVg->hashBegin && hashValue <= pVg->hashEnd) {
-          memcpy(pVgroup, pVg, sizeof(SVgroupInfo));
-          code = TSDB_CODE_SUCCESS;
-          break;
-        }
+        memcpy(pVgroup, pVg, sizeof(SVgroupInfo));
+        code = TSDB_CODE_SUCCESS;
+        break;
       }
     }
   }
