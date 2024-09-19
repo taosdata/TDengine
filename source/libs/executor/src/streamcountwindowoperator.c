@@ -818,7 +818,7 @@ int32_t createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
                                                 SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
-  SCountWinodwPhysiNode*       pCountNode = (SCountWinodwPhysiNode*)pPhyNode;
+  SCountWindowPhysiNode*       pCountNode = (SCountWindowPhysiNode*)pPhyNode;
   int32_t                      numOfCols = 0;
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;

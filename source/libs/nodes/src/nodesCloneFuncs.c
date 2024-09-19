@@ -787,7 +787,7 @@ static int32_t physiIntervalCopy(const SIntervalPhysiNode* pSrc, SIntervalPhysiN
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t physiSessionCopy(const SSessionWinodwPhysiNode* pSrc, SSessionWinodwPhysiNode* pDst) {
+static int32_t physiSessionCopy(const SSessionWindowPhysiNode* pSrc, SSessionWindowPhysiNode* pDst) {
   COPY_BASE_OBJECT_FIELD(window, physiWindowCopy);
   COPY_SCALAR_FIELD(gap);
   return TSDB_CODE_SUCCESS;
@@ -1051,7 +1051,7 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
-      code = physiSessionCopy((const SSessionWinodwPhysiNode*)pNode, (SSessionWinodwPhysiNode*)pDst);
+      code = physiSessionCopy((const SSessionWindowPhysiNode*)pNode, (SSessionWindowPhysiNode*)pDst);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:

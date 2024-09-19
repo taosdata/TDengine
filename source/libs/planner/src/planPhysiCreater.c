@@ -2214,7 +2214,7 @@ static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
 
 static int32_t createSessionWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                             SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
-  SSessionWinodwPhysiNode* pSession = (SSessionWinodwPhysiNode*)makePhysiNode(
+  SSessionWindowPhysiNode* pSession = (SSessionWindowPhysiNode*)makePhysiNode(
       pCxt, (SLogicNode*)pWindowLogicNode, getIntervalOperatorType(pWindowLogicNode->windowAlgo));
   if (NULL == pSession) {
     return terrno;
@@ -2234,7 +2234,7 @@ static int32_t createSessionWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
 
 static int32_t createStateWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                           SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
-  SStateWinodwPhysiNode* pState = (SStateWinodwPhysiNode*)makePhysiNode(
+  SStateWindowPhysiNode* pState = (SStateWindowPhysiNode*)makePhysiNode(
       pCxt, (SLogicNode*)pWindowLogicNode,
       (pCxt->pPlanCxt->streamQuery ? QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE : QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE));
   if (NULL == pState) {
@@ -2279,7 +2279,7 @@ static int32_t createStateWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
 
 static int32_t createEventWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                           SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
-  SEventWinodwPhysiNode* pEvent = (SEventWinodwPhysiNode*)makePhysiNode(
+  SEventWindowPhysiNode* pEvent = (SEventWindowPhysiNode*)makePhysiNode(
       pCxt, (SLogicNode*)pWindowLogicNode,
       (pCxt->pPlanCxt->streamQuery ? QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT : QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT));
   if (NULL == pEvent) {
@@ -2306,7 +2306,7 @@ static int32_t createEventWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
 
 static int32_t createCountWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                           SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
-  SCountWinodwPhysiNode* pCount = (SCountWinodwPhysiNode*)makePhysiNode(
+  SCountWindowPhysiNode* pCount = (SCountWindowPhysiNode*)makePhysiNode(
       pCxt, (SLogicNode*)pWindowLogicNode,
       (pCxt->pPlanCxt->streamQuery ? QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT : QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT));
   if (NULL == pCount) {

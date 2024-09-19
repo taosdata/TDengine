@@ -586,7 +586,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     SMergePhysiNode* pMergePhyNode = (SMergePhysiNode*)pPhyNode;
     code = createMultiwayMergeOperatorInfo(ops, size, pMergePhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION == type) {
-    SSessionWinodwPhysiNode* pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
+    SSessionWindowPhysiNode* pSessionNode = (SSessionWindowPhysiNode*)pPhyNode;
     code = createSessionAggOperatorInfo(ops[0], pSessionNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION == type) {
     code = createStreamSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
@@ -601,7 +601,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION == type) {
     code = createStreamPartitionOperatorInfo(ops[0], (SStreamPartitionPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE == type) {
-    SStateWinodwPhysiNode* pStateNode = (SStateWinodwPhysiNode*)pPhyNode;
+    SStateWindowPhysiNode* pStateNode = (SStateWindowPhysiNode*)pPhyNode;
     code = createStatewindowOperatorInfo(ops[0], pStateNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE == type) {
     code = createStreamStateAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);

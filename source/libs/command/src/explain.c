@@ -1142,7 +1142,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION: {
-      SSessionWinodwPhysiNode *pSessNode = (SSessionWinodwPhysiNode *)pNode;
+      SSessionWindowPhysiNode *pSessNode = (SSessionWindowPhysiNode *)pNode;
       EXPLAIN_ROW_NEW(level, EXPLAIN_SESSION_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
@@ -1182,7 +1182,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE: {
-      SStateWinodwPhysiNode *pStateNode = (SStateWinodwPhysiNode *)pNode;
+      SStateWindowPhysiNode *pStateNode = (SStateWindowPhysiNode *)pNode;
 
       EXPLAIN_ROW_NEW(level, EXPLAIN_STATE_WINDOW_FORMAT,
                       nodesGetNameFromColumnNode(pStateNode->pStateKey));
@@ -1670,7 +1670,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT: {
-      SEventWinodwPhysiNode *pEventNode = (SEventWinodwPhysiNode *)pNode;
+      SEventWindowPhysiNode *pEventNode = (SEventWindowPhysiNode *)pNode;
       EXPLAIN_ROW_NEW(level, EXPLAIN_EVENT_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
@@ -1868,7 +1868,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT: {
-      SCountWinodwPhysiNode *pCountNode = (SCountWinodwPhysiNode *)pNode;
+      SCountWindowPhysiNode *pCountNode = (SCountWindowPhysiNode *)pNode;
       EXPLAIN_ROW_NEW(level, EXPLAIN_COUNT_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {

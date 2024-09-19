@@ -75,7 +75,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
 
   pOperator->exprSupp.hasWindowOrGroup = true;
 
-  SEventWinodwPhysiNode* pEventWindowNode = (SEventWinodwPhysiNode*)physiNode;
+  SEventWindowPhysiNode* pEventWindowNode = (SEventWindowPhysiNode*)physiNode;
 
   int32_t tsSlotId = ((SColumnNode*)pEventWindowNode->window.pTspk)->slotId;
   code = filterInitFromNode((SNode*)pEventWindowNode->pStartCond, &pInfo->pStartCondInfo, 0);

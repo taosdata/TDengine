@@ -675,34 +675,34 @@ typedef struct SMultiTableIntervalPhysiNode {
 typedef struct SSessionWinodwPhysiNode {
   SWindowPhysiNode window;
   int64_t          gap;
-} SSessionWinodwPhysiNode;
+} SSessionWindowPhysiNode;
 
-typedef SSessionWinodwPhysiNode SStreamSessionWinodwPhysiNode;
-typedef SSessionWinodwPhysiNode SStreamSemiSessionWinodwPhysiNode;
-typedef SSessionWinodwPhysiNode SStreamFinalSessionWinodwPhysiNode;
+typedef SSessionWindowPhysiNode SStreamSessionWindowPhysiNode;
+typedef SSessionWindowPhysiNode SStreamSemiSessionWindowPhysiNode;
+typedef SSessionWindowPhysiNode SStreamFinalSessionWindowPhysiNode;
 
 typedef struct SStateWinodwPhysiNode {
   SWindowPhysiNode window;
   SNode*           pStateKey;
-} SStateWinodwPhysiNode;
+} SStateWindowPhysiNode;
 
-typedef SStateWinodwPhysiNode SStreamStateWinodwPhysiNode;
+typedef SStateWindowPhysiNode SStreamStateWinodwPhysiNode;
 
 typedef struct SEventWinodwPhysiNode {
   SWindowPhysiNode window;
   SNode*           pStartCond;
   SNode*           pEndCond;
-} SEventWinodwPhysiNode;
+} SEventWindowPhysiNode;
 
-typedef SEventWinodwPhysiNode SStreamEventWinodwPhysiNode;
+typedef SEventWindowPhysiNode SStreamEventWinodwPhysiNode;
 
 typedef struct SCountWinodwPhysiNode {
   SWindowPhysiNode window;
   int64_t          windowCount;
   int64_t          windowSliding;
-} SCountWinodwPhysiNode;
+} SCountWindowPhysiNode;
 
-typedef SCountWinodwPhysiNode SStreamCountWinodwPhysiNode;
+typedef SCountWindowPhysiNode SStreamCountWinodwPhysiNode;
 
 typedef struct SSortPhysiNode {
   SPhysiNode node;

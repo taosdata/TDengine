@@ -2905,7 +2905,7 @@ static int32_t jsonToPhysiFillNode(const SJson* pJson, void* pObj) {
 static const char* jkSessionWindowPhysiPlanGap = "Gap";
 
 static int32_t physiSessionWindowNodeToJson(const void* pObj, SJson* pJson) {
-  const SSessionWinodwPhysiNode* pNode = (const SSessionWinodwPhysiNode*)pObj;
+  const SSessionWindowPhysiNode* pNode = (const SSessionWindowPhysiNode*)pObj;
 
   int32_t code = physiWindowNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2916,7 +2916,7 @@ static int32_t physiSessionWindowNodeToJson(const void* pObj, SJson* pJson) {
 }
 
 static int32_t jsonToPhysiSessionWindowNode(const SJson* pJson, void* pObj) {
-  SSessionWinodwPhysiNode* pNode = (SSessionWinodwPhysiNode*)pObj;
+  SSessionWindowPhysiNode* pNode = (SSessionWindowPhysiNode*)pObj;
 
   int32_t code = jsonToPhysiWindowNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2929,7 +2929,7 @@ static int32_t jsonToPhysiSessionWindowNode(const SJson* pJson, void* pObj) {
 static const char* jkStateWindowPhysiPlanStateKey = "StateKey";
 
 static int32_t physiStateWindowNodeToJson(const void* pObj, SJson* pJson) {
-  const SStateWinodwPhysiNode* pNode = (const SStateWinodwPhysiNode*)pObj;
+  const SStateWindowPhysiNode* pNode = (const SStateWindowPhysiNode*)pObj;
 
   int32_t code = physiWindowNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2940,7 +2940,7 @@ static int32_t physiStateWindowNodeToJson(const void* pObj, SJson* pJson) {
 }
 
 static int32_t jsonToPhysiStateWindowNode(const SJson* pJson, void* pObj) {
-  SStateWinodwPhysiNode* pNode = (SStateWinodwPhysiNode*)pObj;
+  SStateWindowPhysiNode* pNode = (SStateWindowPhysiNode*)pObj;
 
   int32_t code = jsonToPhysiWindowNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2954,7 +2954,7 @@ static const char* jkEventWindowPhysiPlanStartCond = "StartCond";
 static const char* jkEventWindowPhysiPlanEndCond = "EndCond";
 
 static int32_t physiEventWindowNodeToJson(const void* pObj, SJson* pJson) {
-  const SEventWinodwPhysiNode* pNode = (const SEventWinodwPhysiNode*)pObj;
+  const SEventWindowPhysiNode* pNode = (const SEventWindowPhysiNode*)pObj;
 
   int32_t code = physiWindowNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2968,7 +2968,7 @@ static int32_t physiEventWindowNodeToJson(const void* pObj, SJson* pJson) {
 }
 
 static int32_t jsonToPhysiEventWindowNode(const SJson* pJson, void* pObj) {
-  SEventWinodwPhysiNode* pNode = (SEventWinodwPhysiNode*)pObj;
+  SEventWindowPhysiNode* pNode = (SEventWindowPhysiNode*)pObj;
 
   int32_t code = jsonToPhysiWindowNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2985,7 +2985,7 @@ static const char* jkCountWindowPhysiPlanWindowCount = "WindowCount";
 static const char* jkCountWindowPhysiPlanWindowSliding = "WindowSliding";
 
 static int32_t physiCountWindowNodeToJson(const void* pObj, SJson* pJson) {
-  const SCountWinodwPhysiNode* pNode = (const SCountWinodwPhysiNode*)pObj;
+  const SCountWindowPhysiNode* pNode = (const SCountWindowPhysiNode*)pObj;
 
   int32_t code = physiWindowNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2998,7 +2998,7 @@ static int32_t physiCountWindowNodeToJson(const void* pObj, SJson* pJson) {
 }
 
 static int32_t jsonToPhysiCountWindowNode(const SJson* pJson, void* pObj) {
-  SCountWinodwPhysiNode* pNode = (SCountWinodwPhysiNode*)pObj;
+  SCountWindowPhysiNode* pNode = (SCountWindowPhysiNode*)pObj;
 
   int32_t code = jsonToPhysiWindowNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {

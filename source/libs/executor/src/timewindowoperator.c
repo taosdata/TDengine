@@ -1651,7 +1651,7 @@ _end:
 }
 
 // todo make this as an non-blocking operator
-int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWinodwPhysiNode* pStateNode,
+int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhysiNode* pStateNode,
                                       SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
@@ -1766,7 +1766,7 @@ void destroySWindowOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPhysiNode* pSessionNode,
+int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWindowPhysiNode* pSessionNode,
                                      SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 

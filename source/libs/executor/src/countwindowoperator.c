@@ -311,7 +311,7 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
 
   pOperator->exprSupp.hasWindowOrGroup = true;
 
-  SCountWinodwPhysiNode* pCountWindowNode = (SCountWinodwPhysiNode*)physiNode;
+  SCountWindowPhysiNode* pCountWindowNode = (SCountWindowPhysiNode*)physiNode;
 
   pInfo->tsSlotId = ((SColumnNode*)pCountWindowNode->window.pTspk)->slotId;
 
