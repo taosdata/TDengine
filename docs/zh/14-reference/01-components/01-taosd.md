@@ -459,3 +459,4 @@ TDengine 的日志文件主要包括普通日志和慢日志两种类型。
         3. 多个客户端的日志存储在相应日志路径下的同一个 taosSlowLog.yyyy.mm.dd 文件里。
         4. 慢日志文件不自动删除，不压缩。
         5. 使用和普通日志文件相同的三个参数 logDir,  minimalLogDirGB,  asyncLog。另外两个参数 numOfLogLines，logKeepDays 不适用于慢日志。
+ 
