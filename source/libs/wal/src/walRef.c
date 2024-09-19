@@ -52,8 +52,11 @@ void walCloseRef(SWal *pWal, int64_t refId) {
     } else {
       wDebug("vgId:%d, wal close ref null, refId %" PRId64, pWal->cfg.vgId, refId);
     }
-
-    (void)taosHashRemove(pWal->pRefHash, &refId, sizeof(int64_t));
+    int32_t code = 0;
+    code = taosHashRemove(pWal->pRefHash, &refId, sizeof(int64_t));
+    if (code) {
+      wError("vgId:%d, wal remove ref failed, refId %" PRId64 ", error:%s", pWal->cfg.vgId, refId, tstrerror(code));
+    }
   }
 }
 

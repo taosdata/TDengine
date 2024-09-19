@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tlrucache.h"
 #include "os.h"
 #include "taoserror.h"
 #include "tarray.h"
 #include "tdef.h"
 #include "tlog.h"
+#include "tlrucache.h"
 #include "tutil.h"
 
 typedef struct SLRUEntry      SLRUEntry;
@@ -305,7 +305,15 @@ static void taosLRUCacheShardEvictLRU(SLRUCacheShard *shard, size_t charge, SArr
     SLRUEntry *old = shard->lru.next;
 
     taosLRUCacheShardLRURemove(shard, old);
-    (void)taosLRUEntryTableRemove(&shard->table, old->keyData, old->keyLength, old->hash);
+    SLRUEntry *e = taosLRUEntryTableRemove(&shard->table, old->keyData, old->keyLength, old->hash);
+    if (e != NULL) {
+      TAOS_LRU_ENTRY_SET_IN_CACHE(e, false);
+      if (!TAOS_LRU_ENTRY_HAS_REFS(e)) {
+        taosLRUCacheShardLRURemove(shard, e);
+
+        shard->usage -= e->totalCharge;
+      }
+    }
 
     TAOS_LRU_ENTRY_SET_IN_CACHE(old, false);
     shard->usage -= old->totalCharge;
@@ -529,7 +537,14 @@ static void taosLRUCacheShardEraseUnrefEntries(SLRUCacheShard *shard) {
   while (shard->lru.next != &shard->lru) {
     SLRUEntry *old = shard->lru.next;
     taosLRUCacheShardLRURemove(shard, old);
-    (void)taosLRUEntryTableRemove(&shard->table, old->keyData, old->keyLength, old->hash);
+    SLRUEntry *e = taosLRUEntryTableRemove(&shard->table, old->keyData, old->keyLength, old->hash);
+    if (e != NULL) {
+      TAOS_LRU_ENTRY_SET_IN_CACHE(e, false);
+      if (!TAOS_LRU_ENTRY_HAS_REFS(e)) {
+        taosLRUCacheShardLRURemove(shard, e);
+        shard->usage -= e->totalCharge;
+      }
+    }
     TAOS_LRU_ENTRY_SET_IN_CACHE(old, false);
     shard->usage -= old->totalCharge;
 
@@ -574,7 +589,14 @@ static bool taosLRUCacheShardRelease(SLRUCacheShard *shard, LRUHandle *handle, b
   lastReference = taosLRUEntryUnref(e);
   if (lastReference && TAOS_LRU_ENTRY_IN_CACHE(e)) {
     if (shard->usage > shard->capacity || eraseIfLastRef) {
-      (void)taosLRUEntryTableRemove(&shard->table, e->keyData, e->keyLength, e->hash);
+      SLRUEntry *e = taosLRUEntryTableRemove(&shard->table, e->keyData, e->keyLength, e->hash);
+      if (e != NULL) {
+        TAOS_LRU_ENTRY_SET_IN_CACHE(e, false);
+        if (!TAOS_LRU_ENTRY_HAS_REFS(e)) {
+          taosLRUCacheShardLRURemove(shard, e);
+          shard->usage -= e->totalCharge;
+        }
+      }
       TAOS_LRU_ENTRY_SET_IN_CACHE(e, false);
     } else {
       taosLRUCacheShardLRUInsert(shard, e);
