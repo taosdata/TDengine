@@ -11,6 +11,7 @@ if (${BUILD_CONTRIB})
             BUILD_COMMAND ""
             INSTALL_COMMAND ""
             TEST_COMMAND ""
+            GIT_SHALLOW true
         )
 else()
     if (NOT ${TD_LINUX})
@@ -24,6 +25,7 @@ else()
             BUILD_COMMAND ""
             INSTALL_COMMAND ""
             TEST_COMMAND ""
+            GIT_SHALLOW true
         )
     endif()
 endif()

@@ -229,4 +229,12 @@ toc_max_heading_level: 4
   - 权限
   - 白名单
 
-![management-01-importInfo.jpeg](./pic/management-01-importInfo.jpeg)。
+![management-01-importInfo.jpeg](./pic/management-01-importInfo.jpeg)
+
+### 慢 SQL
+点击“系统管理”后，点击“慢 SQL”标签页，可以查看慢 SQL 执行语句日志统计与明细。
+
+- 慢 SQL 明细：默认展示的是开始执行时间是一天内和执行耗时大于等于10秒的数据
+![management-01-slowsql.jpeg](./pic/management-01-slowsql.jpeg)
+- 慢 SQL 统计：默认展示所有的数据，可根据开始执行时间进行过滤
+![management-02-slowsql.jpeg](./pic/management-02-slowsql.jpeg)

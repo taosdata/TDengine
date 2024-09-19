@@ -1291,7 +1291,7 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
   }
 
   if (TSDB_CODE_SUCCESS != code) {
-    pRequest->code = terrno;
+    pRequest->code = code;
   }
 
   if (res) {
@@ -1586,6 +1586,8 @@ int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __ta
   pRequest->sqlstr = taosStrdup("taos_connect");
   if (pRequest->sqlstr) {
     pRequest->sqlLen = strlen(pRequest->sqlstr);
+  } else {
+    return terrno;
   }
 
   SMsgSendInfo* body = NULL;
@@ -1649,6 +1651,9 @@ static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInf
   char* db = getDbOfConnection(pObj);
   if (db != NULL) {
     tstrncpy(connectReq.db, db, sizeof(connectReq.db));
+  } else if (terrno) {
+    taosMemoryFree(*pMsgSendInfo);
+    return terrno;
   }
   taosMemoryFreeClear(db);
 
@@ -2043,7 +2048,7 @@ static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
 static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int32_t numOfCols, int32_t* colLength) {
   int32_t idx = -1;
   iconv_t conv = taosAcquireConv(&idx, C2M);
-  if (!conv) return TSDB_CODE_TSC_INTERNAL_ERROR;
+  if (conv == (iconv_t)-1) return TSDB_CODE_TSC_INTERNAL_ERROR;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     int32_t type = pResultInfo->fields[i].type;
@@ -2240,6 +2245,10 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
         } else if (tTagIsJson(data)) {
           char* jsonString = NULL;
           parseTagDatatoJson(data, &jsonString);
+          if(jsonString == NULL) {
+            tscError("doConvertJson error: parseTagDatatoJson failed");
+            return terrno;
+          }
           STR_TO_VARSTR(dst, jsonString);
           taosMemoryFree(jsonString);
         } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
@@ -2392,11 +2401,16 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
 }
 
 char* getDbOfConnection(STscObj* pObj) {
+  terrno = TSDB_CODE_SUCCESS;
   char* p = NULL;
   (void)taosThreadMutexLock(&pObj->mutex);
   size_t len = strlen(pObj->db);
   if (len > 0) {
     p = strndup(pObj->db, tListLen(pObj->db));
+    if (p == NULL) {
+      tscError("failed to strndup db name");
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
   (void)taosThreadMutexUnlock(&pObj->mutex);

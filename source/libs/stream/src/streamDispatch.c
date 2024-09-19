@@ -634,12 +634,8 @@ static void doMonitorDispatchData(void* param, void* tmrId) {
 
 void streamStartMonitorDispatchData(SStreamTask* pTask, int64_t waitDuration) {
   int32_t vgId = pTask->pMeta->vgId;
-  if (pTask->msgInfo.pRetryTmr != NULL) {
-    streamTmrReset(doMonitorDispatchData, waitDuration, pTask, streamTimer, &pTask->msgInfo.pRetryTmr, vgId,
-                   "dispatch-monitor-tmr");
-  } else {
-    pTask->msgInfo.pRetryTmr = taosTmrStart(doMonitorDispatchData, waitDuration, pTask, streamTimer);
-  }
+  streamTmrStart(doMonitorDispatchData, waitDuration, pTask, streamTimer, &pTask->msgInfo.pRetryTmr, vgId,
+                 "dispatch-monitor");
 }
 
 int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, SSDataBlock* pDataBlock, int64_t groupId,
@@ -888,77 +884,42 @@ int32_t initCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamNodeId, int32
   return TSDB_CODE_SUCCESS;
 }
 
-static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
-  SStreamTask*           pTask = param;
-  int32_t                vgId = pTask->pMeta->vgId;
-  const char*            id = pTask->id.idStr;
+static int32_t doTaskChkptStatusCheck(SStreamTask* pTask, int32_t num) {
   SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
   SStreamTmrInfo*        pTmrInfo = &pActiveInfo->chkptReadyMsgTmr;
+  const char*            id = pTask->id.idStr;
+  int32_t                vgId = pTask->pMeta->vgId;
 
-  // check the status every 100ms
-  if (streamTaskShouldStop(pTask)) {
-    int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
-    stDebug("s-task:%s vgId:%d status:stop, quit from monitor checkpoint-trigger, ref:%d", id, vgId, ref);
-    streamMetaReleaseTask(pTask->pMeta, pTask);
-    return;
-  }
-
-  if (++pTmrInfo->activeCounter < 50) {
-    streamTmrReset(checkpointReadyMsgSendMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle, vgId,
-                   "chkpt-ready-monitor");
-    return;
-  }
-
-  pTmrInfo->activeCounter = 0;
-  stDebug("s-task:%s in sending checkpoint-ready msg monitor tmr", id);
-
-  streamMutexLock(&pTask->lock);
-  SStreamTaskState pState = streamTaskGetStatus(pTask);
-  if (pState.state != TASK_STATUS__CK) {
-    int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
-    stDebug("s-task:%s vgId:%d status:%s not in checkpoint, quit from monitor checkpoint-ready send, ref:%d", id, vgId,
-            pState.name, ref);
-    streamMutexUnlock(&pTask->lock);
-    streamMetaReleaseTask(pTask->pMeta, pTask);
-    return;
-  }
-  streamMutexUnlock(&pTask->lock);
-
-  streamMutexLock(&pActiveInfo->lock);
-
-  SArray* pList = pActiveInfo->pReadyMsgList;
-  int32_t num = taosArrayGetSize(pList);
   if (pTmrInfo->launchChkptId != pActiveInfo->activeId) {
-    streamMutexUnlock(&pActiveInfo->lock);
     int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
     stWarn("s-task:%s vgId:%d ready-msg send tmr launched by previous checkpoint procedure, checkpointId:%" PRId64
            ", quit, ref:%d",
            id, vgId, pTmrInfo->launchChkptId, ref);
-
-    streamMetaReleaseTask(pTask->pMeta, pTask);
-    return;
+    return -1;
   }
 
   // active checkpoint info is cleared for now
   if ((pActiveInfo->activeId == 0) || (pActiveInfo->transId == 0) || (num == 0) || (pTask->chkInfo.startTs == 0)) {
-    streamMutexUnlock(&pActiveInfo->lock);
     int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
     stWarn("s-task:%s vgId:%d active checkpoint may be cleared, quit from readyMsg send tmr, ref:%d", id, vgId, ref);
-
-    streamMetaReleaseTask(pTask->pMeta, pTask);
-    return;
+    return -1;
   }
 
-  SArray* pNotRspList = taosArrayInit(4, sizeof(int32_t));
-
   if (taosArrayGetSize(pTask->upstreamInfo.pList) != num) {
-    streamMutexUnlock(&pActiveInfo->lock);
     int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
     stWarn("s-task:%s vgId:%d upstream number:%d not equals sent readyMsg:%d, quit from readyMsg send tmr, ref:%d", id,
            vgId, (int32_t)taosArrayGetSize(pTask->upstreamInfo.pList), num, ref);
+    return -1;
+  }
 
-    streamMetaReleaseTask(pTask->pMeta, pTask);
-    return;
+  return 0;
+}
+
+static int32_t doFindNotConfirmUpstream(SArray** ppNotRspList, SArray* pList, int32_t num, int32_t vgId, int32_t level,
+                                      const char* id) {
+  SArray* pTmp = taosArrayInit(4, sizeof(int32_t));
+  if (pTmp == NULL) {
+    return terrno;
   }
 
   for (int32_t i = 0; i < num; ++i) {
@@ -971,63 +932,138 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
       continue;
     }
 
-    void* p = taosArrayPush(pNotRspList, &pInfo->upstreamTaskId);
+    void* p = taosArrayPush(pTmp, &pInfo->upstreamTaskId);
     if (p == NULL) {
       stError("s-task:%s vgId:%d failed to record not rsp task, code: out of memory", id, vgId);
+      return terrno;
     } else {
       stDebug("s-task:%s vgId:%d level:%d checkpoint-ready rsp from upstream:0x%x not confirmed yet", id, vgId,
-              pTask->info.taskLevel, pInfo->upstreamTaskId);
+              level, pInfo->upstreamTaskId);
     }
   }
 
-  int32_t checkpointId = pActiveInfo->activeId;
+  *ppNotRspList = pTmp;
+  return 0;
+}
 
-  int32_t notRsp = taosArrayGetSize(pNotRspList);
-  if (notRsp > 0) {  // send checkpoint-ready msg again
-    for (int32_t i = 0; i < taosArrayGetSize(pNotRspList); ++i) {
-      int32_t* pTaskId = taosArrayGet(pNotRspList, i);
-      if (pTaskId == NULL) {
+static void doSendChkptReadyMsg(SStreamTask* pTask, SArray* pNotRspList, int64_t checkpointId, SArray* pReadyList) {
+  int32_t     code = 0;
+  int32_t     num = taosArrayGetSize(pReadyList);
+  const char* id = pTask->id.idStr;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pNotRspList); ++i) {
+    int32_t* pTaskId = taosArrayGet(pNotRspList, i);
+    if (pTaskId == NULL) {
+      continue;
+    }
+
+    for (int32_t j = 0; j < num; ++j) {
+      STaskCheckpointReadyInfo* pReadyInfo = taosArrayGet(pReadyList, j);
+      if (pReadyInfo == NULL) {
         continue;
       }
 
-      for (int32_t j = 0; j < num; ++j) {
-        STaskCheckpointReadyInfo* pReadyInfo = taosArrayGet(pList, j);
-        if (pReadyInfo == NULL) {
-          continue;
-        }
+      if (*pTaskId == pReadyInfo->upstreamTaskId) {  // send msg again
 
-        if (*pTaskId == pReadyInfo->upstreamTaskId) {  // send msg again
-
-          SRpcMsg msg = {0};
-          int32_t code = initCheckpointReadyMsg(pTask, pReadyInfo->upstreamNodeId, pReadyInfo->upstreamTaskId,
-                                                pReadyInfo->childId, checkpointId, &msg);
+        SRpcMsg msg = {0};
+        code = initCheckpointReadyMsg(pTask, pReadyInfo->upstreamNodeId, pReadyInfo->upstreamTaskId,
+                                      pReadyInfo->childId, checkpointId, &msg);
+        if (code == TSDB_CODE_SUCCESS) {
+          code = tmsgSendReq(&pReadyInfo->upstreamNodeEpset, &msg);
           if (code == TSDB_CODE_SUCCESS) {
-            code = tmsgSendReq(&pReadyInfo->upstreamNodeEpset, &msg);
-            if (code == TSDB_CODE_SUCCESS) {
-              stDebug("s-task:%s level:%d checkpoint-ready msg sent to upstream:0x%x again", id, pTask->info.taskLevel,
-                      pReadyInfo->upstreamTaskId);
-            } else {
-              stError("s-task:%s failed to send checkpoint-ready msg, try nex time in 10s", id);
-            }
+            stDebug("s-task:%s level:%d checkpoint-ready msg sent to upstream:0x%x again", id, pTask->info.taskLevel,
+                    pReadyInfo->upstreamTaskId);
           } else {
-            stError("s-task:%s failed to prepare the checkpoint-ready msg, try nex time in 10s", id);
+            stError("s-task:%s failed to send checkpoint-ready msg, try nex time in 10s", id);
           }
+        } else {
+          stError("s-task:%s failed to prepare the checkpoint-ready msg, try nex time in 10s", id);
         }
       }
     }
+  }
+}
 
-    streamTmrReset(checkpointReadyMsgSendMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle, vgId,
+static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
+  SStreamTask*           pTask = param;
+  int32_t                vgId = pTask->pMeta->vgId;
+  const char*            id = pTask->id.idStr;
+  SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
+  SStreamTmrInfo*        pTmrInfo = &pActiveInfo->chkptReadyMsgTmr;
+  SArray*                pNotRspList = NULL;
+
+  // check the status every 100ms
+  if (streamTaskShouldStop(pTask)) {
+    int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
+    stDebug("s-task:%s vgId:%d status:stop, quit from monitor checkpoint-trigger, ref:%d", id, vgId, ref);
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
+  if (++pTmrInfo->activeCounter < 50) {
+    streamTmrStart(checkpointReadyMsgSendMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle, vgId,
+                   "chkpt-ready-monitor");
+    return;
+  }
+
+  // reset tmr
+  pTmrInfo->activeCounter = 0;
+  stDebug("s-task:%s in sending checkpoint-ready msg monitor tmr", id);
+
+  streamMutexLock(&pTask->lock);
+  SStreamTaskState state = streamTaskGetStatus(pTask);
+  streamMutexUnlock(&pTask->lock);
+
+  // 1. check status in the first place
+  if (state.state != TASK_STATUS__CK) {
+    int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
+    stDebug("s-task:%s vgId:%d status:%s not in checkpoint, quit from monitor checkpoint-ready, ref:%d", id, vgId,
+            state.name, ref);
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
+  streamMutexLock(&pActiveInfo->lock);
+
+  SArray* pList = pActiveInfo->pReadyMsgList;
+  int32_t num = taosArrayGetSize(pList);
+  int32_t code = doTaskChkptStatusCheck(pTask, num);
+  if (code) {
+    streamMutexUnlock(&pActiveInfo->lock);
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
+  code = doFindNotConfirmUpstream(&pNotRspList, pList, num, vgId, pTask->info.taskLevel, id);
+  if (code) {
+    int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
+    stError("s-task:%s failed to find not rsp checkpoint-ready downstream, code:%s, out of tmr, ref:%d", id,
+            tstrerror(code), ref);
+    streamMutexUnlock(&pActiveInfo->lock);
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+
+    taosArrayDestroy(pNotRspList);
+    return;
+  }
+
+  int32_t checkpointId = pActiveInfo->activeId;
+  int32_t notRsp = taosArrayGetSize(pNotRspList);
+  doSendChkptReadyMsg(pTask, pNotRspList, checkpointId, pList);
+
+  if (notRsp > 0) {  // send checkpoint-ready msg again
+    streamTmrStart(checkpointReadyMsgSendMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle, vgId,
                    "chkpt-ready-monitor");
     streamMutexUnlock(&pActiveInfo->lock);
   } else {
     int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
     stDebug(
-        "s-task:%s vgId:%d recv of checkpoint-ready msg confirmed by all upstream task(s), clear checkpoint-ready msg "
-        "and quit from timer, ref:%d",
+        "s-task:%s vgId:%d checkpoint-ready msg confirmed by all upstream task(s), clear checkpoint-ready msg and quit "
+        "from timer, ref:%d",
         id, vgId, ref);
 
     streamClearChkptReadyMsg(pActiveInfo);
     streamMutexUnlock(&pActiveInfo->lock);
+    // release should be the last execution, since pTask may be destroy after it immidiately.
     streamMetaReleaseTask(pTask->pMeta, pTask);
   }
 
@@ -1085,12 +1121,8 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask) {
       stDebug("s-task:%s start checkpoint-ready monitor in 10s, ref:%d ", pTask->id.idStr, ref);
       streamMetaAcquireOneTask(pTask);
 
-      if (pTmrInfo->tmrHandle == NULL) {
-        pTmrInfo->tmrHandle = taosTmrStart(checkpointReadyMsgSendMonitorFn, 200, pTask, streamTimer);
-      } else {
-        streamTmrReset(checkpointReadyMsgSendMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle, vgId,
-                       "chkpt-ready-monitor");
-      }
+      streamTmrStart(checkpointReadyMsgSendMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle, vgId,
+                     "chkpt-ready-monitor");
 
       // mark the timer monitor checkpointId
       pTmrInfo->launchChkptId = pActiveInfo->activeId;

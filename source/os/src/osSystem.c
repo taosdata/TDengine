@@ -31,7 +31,7 @@ void WINAPI           windowsServiceCtrlHandle(DWORD request) {
       ServiceStatus.dwCurrentState = SERVICE_STOP_PENDING;
       if (!SetServiceStatus(hServiceStatusHandle, &ServiceStatus)) {
                   DWORD nError = GetLastError();
-                  printf("failed to send stopped status to windows service: %d", nError);
+                  fprintf(stderr, "failed to send stopped status to windows service: %d", nError);
       }
       break;
               default:
@@ -50,19 +50,19 @@ void WINAPI mainWindowsService(int argc, char** argv) {
   hServiceStatusHandle = RegisterServiceCtrlHandler("taosd", &windowsServiceCtrlHandle);
   if (hServiceStatusHandle == 0) {
     DWORD nError = GetLastError();
-    printf("failed to register windows service ctrl handler: %d", nError);
+    fprintf(stderr, "failed to register windows service ctrl handler: %d", nError);
   }
 
   ServiceStatus.dwCurrentState = SERVICE_RUNNING;
   if (SetServiceStatus(hServiceStatusHandle, &ServiceStatus)) {
     DWORD nError = GetLastError();
-    printf("failed to send running status to windows service: %d", nError);
+    fprintf(stderr, "failed to send running status to windows service: %d", nError);
   }
   if (mainWindowsFunc != NULL) mainWindowsFunc(argc, argv);
   ServiceStatus.dwCurrentState = SERVICE_STOPPED;
   if (!SetServiceStatus(hServiceStatusHandle, &ServiceStatus)) {
     DWORD nError = GetLastError();
-    printf("failed to send stopped status to windows service: %d", nError);
+    fprintf(stderr, "failed to send stopped status to windows service: %d", nError);
   }
 }
 void stratWindowsService(MainWindows mainWindows) {
@@ -140,17 +140,27 @@ void taosCloseDll(void* handle) {
 }
 #endif
 
-int taosSetConsoleEcho(bool on) {
+int32_t taosSetConsoleEcho(bool on) {
 #if defined(WINDOWS)
   HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+  if (hStdin == INVALID_HANDLE_VALUE) {
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    return terrno;
+  }
   DWORD  mode = 0;
-  GetConsoleMode(hStdin, &mode);
+  if(!GetConsoleMode(hStdin, &mode)){
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    return terrno;
+  }
   if (on) {
     mode |= ENABLE_ECHO_INPUT;
   } else {
     mode &= ~ENABLE_ECHO_INPUT;
   }
-  SetConsoleMode(hStdin, mode);
+  if(!SetConsoleMode(hStdin, mode)) {
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    return terrno;
+  }
 
   return 0;
 #else

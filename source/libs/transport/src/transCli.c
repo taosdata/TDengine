@@ -1403,7 +1403,7 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
     int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 10);
     if (fd == -1) {
       tError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn,
-             tstrerror(TAOS_SYSTEM_ERROR(errno)));
+             tstrerror(terrno));
       cliHandleFastFail(conn, -1);
       return;
     }
@@ -1883,9 +1883,9 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 10);
     if (fd == -1) {
       tGError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn,
-              tstrerror(TAOS_SYSTEM_ERROR(errno)));
+              tstrerror(terrno));
       cliHandleExcept(conn, -1);
-      errno = 0;
+      terrno = 0;
       return;
     }
 

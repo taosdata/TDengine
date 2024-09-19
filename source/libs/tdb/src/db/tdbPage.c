@@ -79,19 +79,19 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   return 0;
 }
 
-int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg) {
+void tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg) {
   u8 *ptr;
 
   tdbTrace("tdb/page-destroy: %p/%d %p", pPage, pPage->id, xFree);
 
   if (pPage->isDirty) {
     tdbError("tdb/page-destroy: dirty page: %" PRIu8 ".", pPage->isDirty);
-    return TSDB_CODE_INVALID_PARA;
+    return;
   }
 
   if (!xFree) {
     tdbError("tdb/page-destroy: null xFree.");
-    return TSDB_CODE_INVALID_PARA;
+    return;
   }
 
   for (int iOvfl = 0; iOvfl < pPage->nOverflow; iOvfl++) {
@@ -102,7 +102,7 @@ int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg)
   ptr = pPage->pData;
   xFree(arg, ptr);
 
-  return 0;
+  return;
 }
 
 void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt)) {
@@ -156,6 +156,7 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
   int    iOvfl;
   int    lidx;  // local idx
   SCell *pNewCell;
+  int    ret;
 
   if (szCell > TDB_PAGE_MAX_FREE_BLOCK(pPage, pPage->pPageHdr - pPage->pData)) {
     tdbError("tdb/page-insert-cell: invalid page, szCell: %d, max free: %lu", szCell,
@@ -184,6 +185,10 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
 
     // TODO: here has memory leak
     pNewCell = (SCell *)tdbOsMalloc(szCell);
+    if (pNewCell == NULL) {
+      tdbError("tdb/page-insert-cell: malloc failed.");
+      return terrno;
+    }
     memcpy(pNewCell, pCell, szCell);
 
     tdbTrace("tdbPage/insert/new ovfl cell: %p/%p", pNewCell, pPage);
@@ -194,7 +199,11 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
     iOvfl++;
   } else {
     // page must has enough space to hold the cell locally
-    (void)tdbPageAllocate(pPage, szCell, &pNewCell);
+    ret = tdbPageAllocate(pPage, szCell, &pNewCell);
+    if (ret) {
+      tdbError("tdb/page-insert-cell: allocate cell failed, idx: %d, szCell: %d", idx, szCell);
+      return ret;
+    }
 
     memcpy(pNewCell, pCell, szCell);
 
@@ -220,7 +229,9 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
 }
 
 int tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell, TXN *pTxn, SBTree *pBt) {
-  (void)tdbPageDropCell(pPage, idx, pTxn, pBt);
+  int ret = tdbPageDropCell(pPage, idx, pTxn, pBt);
+  if (ret) return ret;
+
   return tdbPageInsertCell(pPage, idx, pCell, szCell, 0);
 }
 
@@ -230,6 +241,7 @@ int tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt) {
   int    szCell;
   int    nCells;
   int    iOvfl;
+  int    ret;
 
   nCells = TDB_PAGE_NCELLS(pPage);
 
@@ -259,9 +271,12 @@ int tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt) {
   lidx = idx - iOvfl;
   pCell = TDB_PAGE_CELL_AT(pPage, lidx);
   szCell = (*pPage->xCellSize)(pPage, pCell, 1, pTxn, pBt);
-  (void)tdbPageFree(pPage, lidx, pCell, szCell);
+  ret = tdbPageFree(pPage, lidx, pCell, szCell);
+  if (ret) {
+    tdbError("tdb/page-drop-cell: free cell failed, idx: %d, lidx: %d, szCell: %d", idx, lidx, szCell);
+    return ret;
+  }
   TDB_PAGE_NCELLS_SET(pPage, nCells - 1);
-
   for (; iOvfl < pPage->nOverflow; iOvfl++) {
     pPage->aiOvfl[iOvfl]--;
     if (pPage->aiOvfl[iOvfl] <= 0) {

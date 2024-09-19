@@ -552,6 +552,9 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   (*pRequest)->allocatorRefId = -1;
 
   (*pRequest)->pDb = getDbOfConnection(pTscObj);
+  if (NULL == (*pRequest)->pDb) {
+    TSC_ERR_JRET(terrno);
+  }
   (*pRequest)->pTscObj = pTscObj;
   (*pRequest)->inCallback = false;
   (*pRequest)->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
