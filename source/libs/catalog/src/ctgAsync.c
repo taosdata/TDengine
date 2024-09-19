@@ -1913,6 +1913,7 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
   SCtgMsgCtx*       pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx);
   SCtgTbNamesCtx*   ctx = (SCtgTbNamesCtx*)pTask->taskCtx;
   bool              taskDone = false;
+  bool              lock = false;
 
   if (NULL == pMsgCtx) {
     ctgError("fail to get task msgCtx, taskType:%d", pTask->type);
@@ -1929,6 +1930,11 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
   int32_t* vgId = &pFetch->vgId;
   SName*   pName = NULL;
   CTG_ERR_JRET(ctgGetFetchName(ctx->pNames, pFetch, &pName));
+
+  if (reqType == TDMT_VND_TABLE_NAME) {
+    taosWLockLatch(&ctx->lock);
+    lock = true;
+  }
 
   CTG_ERR_JRET(ctgProcessRspMsg(pMsgCtx->out, reqType, pMsg->pData, pMsg->len, rspCode, pMsgCtx->target));
 
@@ -1955,7 +1961,7 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
         }
         ctgTaskDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d, vgId:%d",
                      tNameGetTableName(pName), flag, vgInfo->vgId);
-        *vgId = vgInfo->vgId;
+        // *vgId = 100; //vgInfo->vgId;
         if (i > 0) atomic_add_fetch_32(&ctx->fetchNum, 1);
         code = ctgGetTbMetaFromVnode(pCtg, pConn, pName, vgInfo, NULL, tReq);
         if (code) {
@@ -2046,7 +2052,7 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
                  (int32_t)taosArrayGetSize(ctx->pResList));
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
-  // taosWLockLatch(ctx->lock);
+
   pRes->code = 0;
   pRes->pRes = pOut->tbMeta;
   pOut->tbMeta = NULL;
@@ -2067,13 +2073,25 @@ _return:
       ctgTaskError("fail to get the %dth res in pResList, resNum:%d", pFetch->resIdx,
                    (int32_t)taosArrayGetSize(ctx->pResList));
     } else {
-      pRes->code = code;
-      pRes->pRes = NULL;
-      ctgTaskError("Get table %d.%s.%s meta failed with error %s", pName->acctId, pName->dbname, pName->tname,
-                   tstrerror(code));
       if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
         TSWAP(pTask->res, ctx->pResList);
         taskDone = true;
+      }
+      if (TDMT_VND_TABLE_NAME == reqType) {
+        if (taskDone == true) {
+          if (pRes->pRes) {
+            code = 0;  // already get tbMeta from one request, reset code to 0
+          } else {
+            pRes->code = code;
+          }
+        }
+      } else {
+        pRes->pRes == NULL;
+        pRes->code = code;
+      }
+      if (taskDone == true) {
+        ctgTaskError("Get table %d.%s.%s meta failed with error %s", pName->acctId, pName->dbname, pName->tname,
+                     tstrerror(code));
       }
     }
   }
@@ -2083,6 +2101,10 @@ _return:
     if (newCode && TSDB_CODE_SUCCESS == code) {
       code = newCode;
     }
+  }
+
+  if (lock) {
+    taosWUnLockLatch(&ctx->lock);
   }
 
   CTG_RET(code);
