@@ -1,12 +1,3 @@
-use std::{
-    collections::HashMap,
-    net::SocketAddr,
-    path::PathBuf,
-    pin::Pin,
-    sync::{atomic::Ordering, Arc},
-    time::Duration,
-};
-
 use anyhow::Context;
 use arrow::{
     array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array},
@@ -24,13 +15,20 @@ use arrow_flight::{
 use async_backtrace::framed;
 use base64::{engine::general_purpose, Engine};
 use chrono::Utc;
-use faststr::FastStr;
 use futures::{Stream, TryStreamExt};
 use linked_hash_map::LinkedHashMap;
 use metrics::{atomics::AtomicU64, counter, gauge, histogram, IntoLabels};
 use semver::VersionReq;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    path::PathBuf,
+    pin::Pin,
+    sync::{atomic::Ordering, Arc},
+    time::Duration,
+};
 use taos::{Dsn, IntoDsn};
 #[cfg(unix)]
 use tokio::net::UnixListener;
@@ -747,7 +745,7 @@ impl FlightService for FlightServiceImpl {
                                         0,
                                         ts.timezone().unwrap_or("UTC").parse().unwrap(),
                                     )
-                                    .unwrap(),
+                                        .unwrap(),
                                     action.value(0),
                                     req_id.value(0),
                                     res
@@ -853,7 +851,6 @@ impl FlightService for FlightServiceImpl {
                                                     "PutFileResp has no receiver"
                                                 );
                                             }
-
                                         });
                                     }
                                     "query-data-source" => {
@@ -956,7 +953,7 @@ impl FlightService for FlightServiceImpl {
                                             ("context", context),
                                             ("req_id", req_id),
                                         ])
-                                        .map_err(FlightError::Arrow);
+                                            .map_err(FlightError::Arrow);
                                         // tracing::info!("Send heartbeat response");
                                         let _ = tx.send_async(item).await;
                                         // return std::task::Poll::Ready(Some(item));
@@ -986,7 +983,6 @@ impl FlightService for FlightServiceImpl {
                                                 tracing::warn!(?err, "Invalid metrics events");
                                             }
                                         }
-
                                     }
                                     action => {
                                         warn!("Unknown action: {action}");
@@ -1140,7 +1136,14 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
 #[instrument(skip(dsn))]
 async fn modify_dsn_params(dsn: impl IntoDsn) -> anyhow::Result<Dsn> {
     let mut dsn = dsn.into_dsn()?.clone();
-    tracing::debug!("dsn before modify: {:?}", &dsn);
+    tracing::debug!("dsn before modify: {}", &dsn);
+
+    if let Some(v) = dsn.params.get("csv_config_file") {
+        let csv_path = &v[1..];
+        dsn.params
+            .insert("csv_config_file_origin".to_string(), csv_path.to_string());
+    }
+
     // let mut map = BTreeMap::new();
     // for (k, v) in dsn.params {
     //     let new_value = if k == "csv_config_file" {
@@ -1156,18 +1159,14 @@ async fn modify_dsn_params(dsn: impl IntoDsn) -> anyhow::Result<Dsn> {
     //     map.insert(k, new_value);
     // }
     // dsn.params = map;
-
-    if let Some(v) = dsn.params.get("csv_config_file") {
-        let csv_path = &v[1..];
-        dsn.params
-            .insert("csv_config_file_origin".to_string(), csv_path.to_string());
-    }
     for (k, v) in dsn.params.iter_mut() {
         if k == "csv_config_file" {
             *v = encode_csv_config_file(v.clone())?;
             continue;
         }
-
+        if k == "transform_config_file" {
+            continue;
+        }
         if v.contains("@") {
             if let Some(new_value) = get_string_content_from_param_value(&v, false, false)? {
                 *v = new_value;
@@ -1175,7 +1174,7 @@ async fn modify_dsn_params(dsn: impl IntoDsn) -> anyhow::Result<Dsn> {
         }
     }
 
-    tracing::debug!("dsn after modify: {:?}", &dsn);
+    tracing::debug!("dsn after modify: {}", &dsn);
     Ok(dsn)
 }
 
@@ -1298,6 +1297,8 @@ mod tests {
     use std::task::Poll;
     use std::time::{Duration, Instant};
 
+    use crate::serve::rpc::modify_dsn_params;
+    use crate::serve::tests::tracing_subscriber_init;
     use arrow::array::{ArrayRef, TimestampMillisecondArray};
     use arrow::record_batch::RecordBatch;
     use arrow::{
@@ -1319,7 +1320,20 @@ mod tests {
         IntoStreamingRequest,
     };
 
-    use crate::serve::tests::tracing_subscriber_init;
+    #[tokio::test]
+    async fn test_modify_dsn_params() {
+        // modify the csv_config_file
+        let dsn = "opcda://192.168.2.16/Matrikon.OPC.Simulation.1?csv_config_file=%40.%2Ftests%2Fopc%2F2.16OPCDA.csv".to_string();
+        let new_dsn = modify_dsn_params(dsn).await.unwrap();
+        let csv_config = new_dsn.params.get("csv_config_file").unwrap();
+        assert_eq!("Tm8uLHRhZ19uYW1lLGVuYWJsZWQsc3RhYmxlLHRibmFtZSx2YWx1ZV9jb2wsdmFsdWVfdHJhbnNmb3JtLHR5cGUscXVhbGl0eV9jb2wsdHNfY29sLHJlY2VpdmVkX3RzX2NvbCx0c190cmFuc2Zvcm0scmVjZWl2ZWRfdHNfdHJhbnNmb3JtLHRhZzo6VkFSQ0hBUigyMDApOjpuYW1lCjEsZGV2aWNlMC50YWdkMF8wLDEsc3RiMSxzdGIxX3RiMSx2YWwsLCxxdWFsaXR5LHRzLHJ0cywsLHRhZ2QwXzAKMixkZXZpY2UwLnRhZ2QwXzEsMSxzdGIyLHN0YjJfdGIyLHZhbCwsLHF1YWxpdHksdHMscnRzLCwsdGFnZDBfMQozLGRldmljZTAudGFnZDBfMiwxLHN0YjMsc3RiM190YjMsdmFsLCwscXVhbGl0eSx0cyxydHMsLCx0YWdkMF8yCjQsZGV2aWNlMC50YWdkMF80LDEsc3RiNCxzdGI0X3RiNCx2YWwsLCxxdWFsaXR5LHRzLHJ0cywsLHRhZ2QwXzQ=", csv_config);
+
+        // do not modify the transform_config_file
+        let  dsn = "pi://192.168.0.34/ci_test?transform_config_file=%40.%2Ftests%2Fpi%2Fpi_singlecol_point.csv".to_string();
+        let new_dsn = modify_dsn_params(dsn).await.unwrap();
+        let config_file = new_dsn.params.get("transform_config_file").unwrap();
+        assert_eq!("@./tests/pi/pi_singlecol_point.csv", config_file);
+    }
 
     // use super::FlightServiceImpl;
     // async fn client_with_uds(path: String) -> FlightServiceClient<Channel> {
@@ -1343,6 +1357,7 @@ mod tests {
         // .unwrap();
         FlightServiceClient::new(channel)
     }
+
     #[tokio::test(flavor = "multi_thread")]
     #[ignore]
     async fn server_client() -> anyhow::Result<()> {
