@@ -479,12 +479,12 @@ TEST_F(BackendEnv, oldBackendInit) {
 
   {
     SBackendWrapper *p = NULL;
-    int32_t code = (SBackendWrapper *)streamBackendInit(path, 10, 10, &p);
+    int32_t code = streamBackendInit(path, 10, 10, &p);
     streamBackendCleanup((void *)p);
   }
   {
     SBackendWrapper *p = NULL;
-    int32_t code = (SBackendWrapper *)streamBackendInit(path, 10, 10, &p);
+    int32_t code = streamBackendInit(path, 10, 10, &p);
     streamBackendCleanup((void *)p);
   }
 
