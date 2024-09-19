@@ -618,7 +618,11 @@ static int32_t addNewEntry(SHashObj* pTableEntry, const void* pKey, int32_t keyL
   p->hitTimes = 0;
   tdListInit(&p->list, keyLen);
   TAOS_CHECK_RETURN(taosHashPut(pTableEntry, &suid, sizeof(uint64_t), &p, POINTER_BYTES));
-  (void)tdListAppend(&p->list, pKey);
+  int32_t code = tdListAppend(&p->list, pKey);
+  if (code) {
+    taosMemoryFree(p);
+    return code;
+  }
   return 0;
 }
 

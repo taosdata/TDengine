@@ -2723,7 +2723,11 @@ static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME) {
   }
 
   tEncoderInit(&coder, pVal, vLen);
-  (void)tEncodeSSchemaWrapper(&coder, pSW);
+  rcode = tEncodeSSchemaWrapper(&coder, pSW);
+  if (rcode) {
+    rcode = -1;
+    goto _exit;
+  }
 
   if (tdbTbInsert(pMeta->pSkmDb, &skmDbKey, sizeof(skmDbKey), pVal, vLen, pMeta->txn) < 0) {
     rcode = -1;
@@ -2803,7 +2807,7 @@ _err:
   return TSDB_CODE_FAILED;
 }
 
-int32_t colCompressDebug(SHashObj *pColCmprObj) {
+static void colCompressDebug(SHashObj *pColCmprObj) {
   void *p = taosHashIterate(pColCmprObj, NULL);
   while (p) {
     uint32_t cmprAlg = *(uint32_t *)p;
@@ -2811,14 +2815,14 @@ int32_t colCompressDebug(SHashObj *pColCmprObj) {
     p = taosHashIterate(pColCmprObj, p);
 
     uint8_t l1, l2, lvl;
-    (void)tcompressDebug(cmprAlg, &l1, &l2, &lvl);
+    tcompressDebug(cmprAlg, &l1, &l2, &lvl);
 
     const char *l1str = columnEncodeStr(l1);
     const char *l2str = columnCompressStr(l2);
     const char *lvlstr = columnLevelStr(lvl);
     metaDebug("colId: %d, encode:%s, compress:%s,level:%s", colId, l1str, l2str, lvlstr);
   }
-  return 0;
+  return;
 }
 int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
   int rc = 0;
@@ -2881,7 +2885,7 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
   metaULock(pMeta);
 
   *ppColCmprObj = pColCmprObj;
-  (void)colCompressDebug(pColCmprObj);
+  colCompressDebug(pColCmprObj);
 
   return 0;
 }

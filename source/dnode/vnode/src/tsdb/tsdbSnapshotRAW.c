@@ -75,8 +75,8 @@ _exit:
   return code;
 }
 
-int32_t tsdbSnapRAWReaderClose(STsdbSnapRAWReader** reader) {
-  if (reader[0] == NULL) return 0;
+void tsdbSnapRAWReaderClose(STsdbSnapRAWReader** reader) {
+  if (reader[0] == NULL) return;
 
   int32_t code = 0;
   int32_t lino = 0;
@@ -88,13 +88,7 @@ int32_t tsdbSnapRAWReaderClose(STsdbSnapRAWReader** reader) {
   taosMemoryFree(reader[0]);
   reader[0] = NULL;
 
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);
-  } else {
-    tsdbDebug("vgId:%d %s done", TD_VID(tsdb->pVnode), __func__);
-  }
-  return code;
+  return;
 }
 
 static int32_t tsdbSnapRAWReadFileSetOpenReader(STsdbSnapRAWReader* reader) {
