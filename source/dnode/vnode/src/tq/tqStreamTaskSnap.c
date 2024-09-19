@@ -137,7 +137,7 @@ NextTbl:
       memcpy(pVal, tVal, tLen);
       vLen = tLen;
     }
-    (void)tdbTbcMoveToNext(pReader->pCur);
+    TAOS_UNUSED(tdbTbcMoveToNext(pReader->pCur));
     break;
   }
   if (except == 1) {
@@ -147,7 +147,7 @@ NextTbl:
       pReader->pos += 1;
       pPair = taosArrayGet(pReader->tdbTbList, pReader->pos);
       code = tdbTbcOpen(pPair->tbl, &pReader->pCur, NULL);
-      (void)tdbTbcMoveToFirst(pReader->pCur);
+      TAOS_UNUSED(tdbTbcMoveToFirst(pReader->pCur));
 
       goto NextTbl;
     }
@@ -210,7 +210,7 @@ int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback, i
   streamMetaWLock(pTq->pStreamMeta);
   tqDebug("vgId:%d, vnode stream-task snapshot writer closed", TD_VID(pTq->pVnode));
   if (rollback) {
-    (void)tdbAbort(pTq->pStreamMeta->db, pTq->pStreamMeta->txn);
+    TAOS_UNUSED(tdbAbort(pTq->pStreamMeta->db, pTq->pStreamMeta->txn));
   } else {
     code = tdbCommit(pTq->pStreamMeta->db, pTq->pStreamMeta->txn);
     if (code) goto _err;
