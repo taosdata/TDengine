@@ -286,7 +286,7 @@ int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo) {
 
     SMetaCacheEntry* pEntryNew = (SMetaCacheEntry*)taosMemoryMalloc(sizeof(*pEntryNew));
     if (pEntryNew == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
 
@@ -411,7 +411,7 @@ int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo) {
 
     SMetaStbStatsEntry* pEntryNew = (SMetaStbStatsEntry*)taosMemoryMalloc(sizeof(*pEntryNew));
     if (pEntryNew == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
 
@@ -492,7 +492,7 @@ static int checkAllEntriesInCache(const STagFilterResEntry* pEntry, SArray* pInv
     LRUHandle* pRes = taosLRUCacheLookup(pCache, buf, len);
     if (pRes == NULL) {  // remove the item in the linked list
       if (taosArrayPush(pInvalidRes, &pNode) == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     } else {
       (void)taosLRUCacheRelease(pCache, pRes, false);
@@ -612,7 +612,7 @@ static void freeUidCachePayload(const void* key, size_t keyLen, void* value, voi
 static int32_t addNewEntry(SHashObj* pTableEntry, const void* pKey, int32_t keyLen, uint64_t suid) {
   STagFilterResEntry* p = taosMemoryMalloc(sizeof(STagFilterResEntry));
   if (p == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   p->hitTimes = 0;
