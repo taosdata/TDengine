@@ -24,24 +24,33 @@ script = """
 echo $VER_NUMBER
 """
 
-[tasks.cargo-update]
-command = "cargo"
-args = ["update"]
+#[tasks.cargo-update]
+#command = "cargo"
+#args = ["update"]
 
 [tasks.taosx]
 command = "cargo"
 args = ["build", "-p", "taosx", "--profile", "${BUILD_PROFILE}"]
-dependencies = ["cargo-update"]
+#dependencies = ["cargo-update"]
 
 [tasks.taosx.windows]
 command = "cargo"
-args = ["build", "-p", "taosx", "--profile", "${BUILD_PROFILE}", "--no-default-features", "--features", "optin,native-tls"]
-dependencies = ["cargo-update"]
+args = [
+  "build",
+  "-p",
+  "taosx",
+  "--profile",
+  "${BUILD_PROFILE}",
+  "--no-default-features",
+  "--features",
+  "optin,native-tls",
+]
+#dependencies = ["cargo-update"]
 
 [tasks.taosx-agent]
 command = "cargo"
 args = ["build", "--release", "-p", "taosx-agent"]
-dependencies = ["cargo-update"]
+#dependencies = ["cargo-update"]
 
 [tasks.plugins]
 dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-mqtt", "taosx-opc"]
