@@ -80,6 +80,10 @@ static int32_t cacheSearchTerm(void* cache, SIndexTerm* term, SIdxTRslt* tr, STe
   IndexCache* pCache = mem->pCache;
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
+  if (pCt == NULL) {
+    return terrno;
+  }
+
   pCt->colVal = term->colVal;
   pCt->version = atomic_load_64(&pCache->version);
 
@@ -153,7 +157,7 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
       break;
     }
     CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
-    TExeCond cond = cmpFn(c->colVal, pCt->colVal, pCt->colType);
+    TExeCond   cond = cmpFn(c->colVal, pCt->colVal, pCt->colType);
     if (cond == FAILED) {
       code = terrno;
       goto _return;
@@ -290,6 +294,10 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
   IndexCache* pCache = mem->pCache;
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
+  if (pCt == NULL) {
+    return terrno;
+  }
+
   pCt->colVal = term->colVal;
   pCt->version = atomic_load_64(&pCache->version);
 
@@ -539,6 +547,10 @@ int idxCacheSchedToMerge(IndexCache* pCache, bool notify) {
   schedMsg.ahandle = pCache;
   if (notify) {
     schedMsg.thandle = taosMemoryMalloc(1);
+    if (schedMsg.thandle == NULL) {
+      indexError("fail to schedule merge task");
+      return terrno;
+    }
   }
   schedMsg.msg = NULL;
   idxAcquireRef(pCache->index->refId);

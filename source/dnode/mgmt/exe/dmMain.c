@@ -164,6 +164,9 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   if (argc < 2) return 0;
 
   global.envCmd = taosMemoryMalloc((argc - 1) * sizeof(char *));
+  if (global.envCmd == NULL) {
+    return terrno;
+  }
   memset(global.envCmd, 0, (argc - 1) * sizeof(char *));
   for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
@@ -177,7 +180,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
         printf("'-c' requires a parameter, default is %s\n", configDir);
         return TSDB_CODE_INVALID_CFG;
       }
-    } else if (strcmp(argv[i], "-a") == 0) {
+
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
           printf("apollo url overflow");

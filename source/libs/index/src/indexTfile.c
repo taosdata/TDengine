@@ -799,6 +799,10 @@ static bool tfileIteratorNext(Iterate* iiter) {
   int32_t sz = 0;
   char*   ch = (char*)fstSliceData(&rt->data, &sz);
   colVal = taosMemoryCalloc(1, sz + 1);
+  if (colVal == NULL) {
+    return false;
+  }
+
   memcpy(colVal, ch, sz);
 
   offset = (uint64_t)(rt->out.out);
@@ -835,6 +839,10 @@ Iterate* tfileIteratorCreate(TFileReader* reader) {
   }
 
   Iterate* iter = taosMemoryCalloc(1, sizeof(Iterate));
+  if (iter == NULL) {
+    return NULL;
+  }
+
   iter->iter = tfileFstIteratorCreate(reader);
   if (iter->iter == NULL) {
     taosMemoryFree(iter);
@@ -843,6 +851,11 @@ Iterate* tfileIteratorCreate(TFileReader* reader) {
   iter->next = tfileIteratorNext;
   iter->getValue = tifileIterateGetValue;
   iter->val.val = taosArrayInit(1, sizeof(uint64_t));
+  if (iter->val.val == NULL) {
+    tfileIteratorDestroy(iter);
+    return NULL;
+  }
+
   iter->val.colVal = NULL;
   return iter;
 }

@@ -260,7 +260,10 @@ char* idxPackJsonData(SIndexTerm* itm) {
 
   int32_t sz = itm->nColName + itm->nColVal + sizeof(uint8_t) + sizeof(JSON_VALUE_DELIM) * 2 + 1;
   char*   buf = (char*)taosMemoryCalloc(1, sz);
-  char*   p = buf;
+  if (buf == NULL) {
+    return NULL;
+  }
+  char* p = buf;
 
   memcpy(p, itm->colName, itm->nColName);
   p += itm->nColName;
@@ -288,7 +291,10 @@ char* idxPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip) {
 
   int32_t sz = itm->nColName + itm->nColVal + sizeof(uint8_t) + sizeof(JSON_VALUE_DELIM) * 2 + 1;
   char*   buf = (char*)taosMemoryCalloc(1, sz);
-  char*   p = buf;
+  if (buf == NULL) {
+    return NULL;
+  }
+  char* p = buf;
 
   memcpy(p, itm->colName, itm->nColName);
   p += itm->nColName;
@@ -315,7 +321,11 @@ char* idxPackJsonDataPrefixNoType(SIndexTerm* itm, int32_t* skip) {
 
   int32_t sz = itm->nColName + itm->nColVal + sizeof(uint8_t) + sizeof(JSON_VALUE_DELIM) * 2 + 1;
   char*   buf = (char*)taosMemoryCalloc(1, sz);
-  char*   p = buf;
+  if (buf == NULL) {
+    return NULL;
+  }
+
+  char* p = buf;
 
   memcpy(p, itm->colName, itm->nColName);
   p += itm->nColName;
