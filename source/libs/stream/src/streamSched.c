@@ -20,15 +20,40 @@ static void streamTaskResumeHelper(void* param, void* tmrId);
 static void streamTaskSchedHelper(void* param, void* tmrId);
 
 void streamSetupScheduleTrigger(SStreamTask* pTask) {
-  if (pTask->info.delaySchedParam != 0 && pTask->info.fillHistory == 0) {
-    int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
-    stDebug("s-task:%s setup scheduler trigger, ref:%d delay:%" PRId64 " ms", pTask->id.idStr, ref,
-            pTask->info.delaySchedParam);
-
-    pTask->schedInfo.pDelayTimer =
-        taosTmrStart(streamTaskSchedHelper, (int32_t)pTask->info.delaySchedParam, pTask, streamTimer);
-    pTask->schedInfo.status = TASK_TRIGGER_STATUS__INACTIVE;
+  int64_t delay = 0;
+  int32_t code = 0;
+  const char* id = pTask->id.idStr;
+  if (pTask->info.fillHistory == 1) {
+    return;
   }
+
+  // dynamic set the trigger & triggerParam for STREAM_TRIGGER_FORCE_WINDOW_CLOSE
+  if ((pTask->info.trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) && (pTask->info.taskLevel == TASK_LEVEL__SOURCE)) {
+    int64_t   waterMark = 0;
+    SInterval interval = {0};
+    code = qGetStreamIntervalExecInfo(pTask->exec.pExecutor, &waterMark, &interval);
+    if (code == 0) {
+      pTask->info.delaySchedParam = interval.sliding;
+      pTask->info.watermark = waterMark;
+      pTask->info.interval = interval;
+    }
+
+    // todo: calculate the correct start delay time for force_window_close
+    delay = pTask->info.delaySchedParam;
+    stInfo("s-task:%s extract interval info from executor, wm:%" PRId64 " interval:%" PRId64 " unit:%c sliding:%" PRId64
+           " unit:%c ",
+           id, waterMark, interval.interval, interval.intervalUnit, interval.sliding, interval.slidingUnit);
+  }
+
+  if (delay == 0) {
+    return;
+  }
+
+  int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
+  stDebug("s-task:%s setup scheduler trigger, ref:%d delay:%" PRId64 " ms", id, ref, pTask->info.delaySchedParam);
+
+  pTask->schedInfo.pDelayTimer = taosTmrStart(streamTaskSchedHelper, (int32_t)delay, pTask, streamTimer);
+  pTask->schedInfo.status = TASK_TRIGGER_STATUS__INACTIVE;
 }
 
 int32_t streamTrySchedExec(SStreamTask* pTask) {
@@ -135,32 +160,22 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
     if (status == TASK_TRIGGER_STATUS__ACTIVE) {
       SStreamTrigger* pTrigger;
 
-      int32_t code = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0, (void**)&pTrigger);
+      int32_t code = streamCreateSinkResTrigger(&pTrigger, pTask->info.trigger, pTask->info.delaySchedParam);
       if (code) {
-        stError("s-task:%s failed to prepare retrieve data trigger, code:%s, try again in %dms", id, "out of memory",
+        stError("s-task:%s failed to prepare retrieve data trigger, code:%s, try again in %dms", id, tstrerror(code),
                 nextTrigger);
-        streamTmrReset(streamTaskSchedHelper, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pDelayTimer, vgId, "sched-run-tmr");
+        streamTmrReset(streamTaskSchedHelper, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pDelayTimer, vgId,
+                       "sched-run-tmr");
         terrno = code;
         return;
       }
 
-      pTrigger->type = STREAM_INPUT__GET_RES;
-      pTrigger->pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-      if (pTrigger->pBlock == NULL) {
-        taosFreeQitem(pTrigger);
-
-        stError("s-task:%s failed to prepare retrieve data trigger, code:%s, try again in %dms", id, "out of memory",
-                nextTrigger);
-        streamTmrReset(streamTaskSchedHelper, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pDelayTimer, vgId, "sched-run-tmr");
-        return;
-      }
-
       atomic_store_8(&pTask->schedInfo.status, TASK_TRIGGER_STATUS__INACTIVE);
-      pTrigger->pBlock->info.type = STREAM_GET_ALL;
 
       code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTrigger);
       if (code != TSDB_CODE_SUCCESS) {
-        streamTmrReset(streamTaskSchedHelper, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pDelayTimer, vgId, "sched-run-tmr");
+        streamTmrReset(streamTaskSchedHelper, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pDelayTimer, vgId,
+                       "sched-run-tmr");
         return;
       }
 

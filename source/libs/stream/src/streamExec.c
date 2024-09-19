@@ -119,7 +119,7 @@ void streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* to
     uint64_t     ts = 0;
     if ((code = qExecTask(pExecutor, &output, &ts)) < 0) {
       if (code == TSDB_CODE_QRY_IN_EXEC) {
-        resetTaskInfo(pExecutor);
+        qResetTaskInfoCode(pExecutor);
       }
 
       stError("unexpected stream execution, s-task:%s since %s", pTask->id.idStr, tstrerror(code));

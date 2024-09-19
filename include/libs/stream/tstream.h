@@ -309,14 +309,16 @@ typedef struct SDataRange {
 } SDataRange;
 
 typedef struct SSTaskBasicInfo {
-  int32_t nodeId;  // vgroup id or snode id
-  SEpSet  epSet;
-  SEpSet  mnodeEpset;  // mnode epset for send heartbeat
-  int32_t selfChildId;
-  int32_t totalLevel;
-  int8_t  taskLevel;
-  int8_t  fillHistory;      // is fill history task or not
-  int64_t delaySchedParam;  // in msec
+  int32_t   nodeId;  // vgroup id or snode id
+  SEpSet    epSet;
+  SEpSet    mnodeEpset;  // mnode epset for send heartbeat
+  int32_t   selfChildId;
+  int32_t   trigger;
+  int8_t    taskLevel;
+  int8_t    fillHistory;      // is fill history task or not
+  int64_t   delaySchedParam;  // in msec
+  int64_t   watermark;        // extracted from operators
+  SInterval interval;
 } SSTaskBasicInfo;
 
 typedef struct SStreamRetrieveReq SStreamRetrieveReq;
@@ -541,8 +543,9 @@ typedef struct STaskUpdateEntry {
 
 typedef int32_t (*__state_trans_user_fn)(SStreamTask*, void* param);
 
-int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int64_t triggerParam,
-                       SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5, SStreamTask** pTask);
+int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int32_t trigger,
+                       int64_t triggerParam, SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5,
+                       SStreamTask** pTask);
 void    tFreeStreamTask(SStreamTask* pTask);
 int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask);

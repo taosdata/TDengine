@@ -131,7 +131,7 @@ static void clearStreamBlock(SOperatorInfo* pOperator) {
   }
 }
 
-void resetTaskInfo(qTaskInfo_t tinfo) {
+void qResetTaskInfoCode(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   pTaskInfo->code = 0;
   clearStreamBlock(pTaskInfo->pRoot);
@@ -1083,6 +1083,10 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval) {
+  return 0;
 }
 
 int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo) {

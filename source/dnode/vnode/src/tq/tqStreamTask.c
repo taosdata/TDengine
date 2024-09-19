@@ -259,7 +259,12 @@ bool handleFillhistoryScanComplete(SStreamTask* pTask, int64_t ver) {
 
 bool taskReadyForDataFromWal(SStreamTask* pTask) {
   // non-source or fill-history tasks don't need to response the WAL scan action.
-  if ((pTask->info.taskLevel != TASK_LEVEL__SOURCE) || (pTask->status.downstreamReady == 0)) {
+  SSTaskBasicInfo* pInfo = &pTask->info;
+  if ((pInfo->taskLevel != TASK_LEVEL__SOURCE) || (pTask->status.downstreamReady == 0)) {
+    return false;
+  }
+
+  if (pInfo->taskLevel == TASK_LEVEL__SOURCE && pInfo->trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
     return false;
   }
 
@@ -271,7 +276,7 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
   }
 
   // fill-history task has entered into the last phase, no need to anything
-  if ((pTask->info.fillHistory == 1) && pTask->status.appendTranstateBlock) {
+  if ((pInfo->fillHistory == 1) && pTask->status.appendTranstateBlock) {
     // the maximum version of data in the WAL has reached already, the step2 is done
     tqDebug("s-task:%s fill-history reach the maximum ver:%" PRId64 ", not scan wal anymore", pTask->id.idStr,
             pTask->dataRange.range.maxVer);
@@ -367,7 +372,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
   numOfTasks = taosArrayGetSize(pTaskList);
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
-    STaskId*     pTaskId = taosArrayGet(pTaskList, i);
+    STaskId* pTaskId = taosArrayGet(pTaskList, i);
     if (pTaskId == NULL) {
       continue;
     }
@@ -397,9 +402,9 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
 
     streamMutexLock(&pTask->lock);
 
-    SStreamTaskState pState = streamTaskGetStatus(pTask);
-    if (pState.state != TASK_STATUS__READY) {
-      tqDebug("s-task:%s not ready for submit block from wal, status:%s", pTask->id.idStr, pState.name);
+    SStreamTaskState state = streamTaskGetStatus(pTask);
+    if (state.state != TASK_STATUS__READY) {
+      tqDebug("s-task:%s not ready for submit block from wal, status:%s", pTask->id.idStr, state.name);
       streamMutexUnlock(&pTask->lock);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
