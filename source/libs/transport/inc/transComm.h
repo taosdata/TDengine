@@ -139,30 +139,26 @@ typedef struct SCvtAddr {
 typedef struct {
   SEpSet epSet;  // ip list provided by app
   SEpSet origEpSet;
-  void*  ahandle;   // handle provided by app
-  tmsg_t msgType;   // message type
-  int8_t connType;  // connection type cli/srv
+  void*  ahandle;  // handle provided by app
+  tmsg_t msgType;  // message type
 
   STransCtx      userCtx;   //
   STransMsg*     pRsp;      // for synchronous API
   tsem_t*        pSem;      // for synchronous API
   STransSyncMsg* pSyncMsg;  // for syncchronous with timeout API
   int64_t        syncMsgRef;
-  SCvtAddr       cvtAddr;
+  SCvtAddr*      pCvtAddr;
 
+  int64_t retryInitTimestamp;
+  int64_t retryNextInterval;
+  int64_t retryMaxTimeout;
   int32_t retryMinInterval;
   int32_t retryMaxInterval;
   int32_t retryStepFactor;
-  int64_t retryMaxTimeout;
-  int64_t retryInitTimestamp;
-  int64_t retryNextInterval;
-  bool    retryInit;
   int32_t retryStep;
-  int8_t  epsetRetryCnt;
   int32_t retryCode;
-
-  void* task;
-  int   hThrdIdx;
+  int8_t  retryInit;
+  int8_t  epsetRetryCnt;
 } SReqCtx;
 
 #pragma pack(push, 1)
