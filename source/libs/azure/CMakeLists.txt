@@ -1,4 +1,6 @@
 aux_source_directory(src AZ_SRC)
+message("xxx ${AZ_SRC}")
+
 add_library(az STATIC ${AZ_SRC})
 target_include_directories(
     az
