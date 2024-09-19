@@ -115,7 +115,6 @@ typedef struct SParseMetaCache {
   SHashObj* pTableName;    // key is tbFUid, elements is STableMeta*(append with tbName)
   SArray*   pDnodes;       // element is SEpSet
   bool      dnodeRequired;
-  bool      qnodeRequired;
 } SParseMetaCache;
 
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);

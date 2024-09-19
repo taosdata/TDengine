@@ -389,12 +389,10 @@ static int32_t collectMetaKeyFromDropTable(SCollectMetaKeyCxt* pCxt, SDropTableS
       }
     } else {
       code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
-
       if (TSDB_CODE_SUCCESS == code) {
         code =
             reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
       }
-
       if (TSDB_CODE_SUCCESS == code) {
         code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName,
                                       pClause->tableName, AUTH_TYPE_WRITE, pCxt->pMetaCache);

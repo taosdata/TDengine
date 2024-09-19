@@ -956,8 +956,6 @@ void* varObtainThread(void* param) {
 // return true is need update value by async
 bool updateTireValue(int type, bool autoFill) {
   // TYPE CONTEXT GET FROM DB
-  return true;
-#if 0
   taosThreadMutexLock(&tiresMutex);
 
   // check need obtain from server
@@ -984,7 +982,6 @@ bool updateTireValue(int type, bool autoFill) {
   }
   taosThreadMutexUnlock(&tiresMutex);
   return false;
-#endif
 }
 
 // only match next one word from all match words, return valuue must free by caller

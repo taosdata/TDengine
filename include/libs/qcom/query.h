@@ -123,7 +123,6 @@ typedef struct STableMeta {
                             // the schema content.
   SSchema schema[];
 } STableMeta;
-
 #pragma pack(pop)
 
 typedef struct SViewMeta {

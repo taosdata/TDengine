@@ -76,7 +76,8 @@ int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int3
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
-  STableInfoReq infoReq = {.option = pInput->option};
+  STableInfoReq infoReq = {0};
+  infoReq.option = pInput->option;
   infoReq.header.vgId = pInput->vgId;
   if (pInput->dbFName) {
     tstrncpy(infoReq.dbFName, pInput->dbFName, TSDB_DB_FNAME_LEN);
@@ -627,10 +628,10 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   pTableMeta->tableInfo.precision = msg->precision;
   pTableMeta->tableInfo.numOfColumns = msg->numOfColumns;
 
-  memcpy(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
+  TAOS_MEMCPY(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
   if (useCompress(msg->tableType) && msg->pSchemaExt) {
     pTableMeta->schemaExt = pSchemaExt;
-    memcpy(pSchemaExt, msg->pSchemaExt, schemaExtSize);
+    TAOS_MEMCPY(pSchemaExt, msg->pSchemaExt, schemaExtSize);
   } else {
     pTableMeta->schemaExt = NULL;
   }

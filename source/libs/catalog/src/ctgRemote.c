@@ -669,7 +669,7 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
       (void)tNameGetFullDbName(pName, newBatch.dbFName);
     }
 
-    newBatch.msgType = (vgId > 1) ? TDMT_VND_BATCH_META : TDMT_MND_BATCH_META;
+    newBatch.msgType = (vgId > 0) ? TDMT_VND_BATCH_META : TDMT_MND_BATCH_META;
     newBatch.batchId = atomic_add_fetch_32(&pJob->batchId, 1);
 
     if (0 != taosHashPut(pBatchs, &vgId, sizeof(vgId), &newBatch, sizeof(newBatch))) {
@@ -1376,7 +1376,7 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
            vgroupInfo->epSet.numOfEps, pEp->fqdn, pEp->port, tbFName);
 
   SBuildTableInput bInput = {.vgId = vgroupInfo->vgId,
-                             .option = reqType == TDMT_VND_TABLE_NAME ? 0x01 : 0x00,
+                             .option = reqType == TDMT_VND_TABLE_NAME ? REQ_OPT_TBNAME : REQ_OPT_TBUID,
                              .dbFName = dbFName,
                              .tbName = (char*)tNameGetTableName(pTableName)};
   char*            msg = NULL;

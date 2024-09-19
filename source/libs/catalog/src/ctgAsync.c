@@ -599,9 +599,9 @@ static int32_t ctgInitGetTbNamesTask(SCtgJob* pJob, int32_t taskId, void* param)
     CTG_ERR_RET(terrno);
   }
   task.taskCtx = pTaskCtx;
+  taosInitRWLatch(&pTaskCtx->lock);
   pTaskCtx->pNames = param;
   pTaskCtx->pResList = taosArrayInit(pJob->tbNameNum, sizeof(SMetaRes));
-  taosInitRWLatch(&pTaskCtx->lock);
   if (NULL == pTaskCtx->pResList) {
     qError("qid:0x%" PRIx64 " taosArrayInit %d SMetaRes %d failed", pJob->queryId, pJob->tbNameNum,
            (int32_t)sizeof(SMetaRes));
@@ -2083,7 +2083,7 @@ _return:
           }
         }
       } else {
-        pRes->pRes == NULL;
+        pRes->pRes = NULL;
         pRes->code = code;
       }
       if (taskDone == true) {

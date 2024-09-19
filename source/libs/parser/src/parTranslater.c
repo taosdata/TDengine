@@ -14523,8 +14523,8 @@ int32_t serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap, SArray** pOut) 
   return code;
 }
 
-static int32_t rewriteDropTablewithOpt(STranslateContext* pCxt, SQuery* pQuery) {
-  int32_t code = TSDB_CODE_SUCCESS;
+static int32_t rewriteDropTableWithOpt(STranslateContext* pCxt, SQuery* pQuery) {
+  int32_t         code = TSDB_CODE_SUCCESS;
   SDropTableStmt* pStmt = (SDropTableStmt*)pQuery->pRoot;
   if (!pStmt->withOpt) return code;
   pCxt->withOpt = true;
@@ -14533,7 +14533,6 @@ static int32_t rewriteDropTablewithOpt(STranslateContext* pCxt, SQuery* pQuery) 
   char   pTableName[TSDB_TABLE_NAME_LEN] = {0};
   FOREACH(pNode, pStmt->pTables) {
     SDropTableClause* pClause = (SDropTableClause*)pNode;
-
     SName name = {0};
     toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &name);
     int32_t code = getTargetName(pCxt, &name, pTableName);
@@ -14554,7 +14553,7 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
   SNode*          pNode;
   SArray*         pTsmas = NULL;
 
-  TAOS_CHECK_RETURN(rewriteDropTablewithOpt(pCxt, pQuery));
+  TAOS_CHECK_RETURN(rewriteDropTableWithOpt(pCxt, pQuery));
 
   SHashObj* pVgroupHashmap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   if (NULL == pVgroupHashmap) {
@@ -14575,7 +14574,7 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
       taosHashCleanup(pVgroupHashmap);
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DROP_STABLE);
     }
-    if (pCxt->withOpt) continue;
+    if (pCxt->withOpt) continue;  // TODO
     if (pCxt->pMetaCache) code = getTableTsmasFromCache(pCxt->pMetaCache, &name, &pTsmas);
     if (TSDB_CODE_SUCCESS != code) {
       taosHashCleanup(pVgroupHashmap);
