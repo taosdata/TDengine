@@ -1057,11 +1057,10 @@ static void cliDestroy(uv_handle_t* handle) {
   }
 
   taosMemoryFree(conn->buf);
-
   destroyWQ(&conn->wq);
+  (void)transDestroyBuffer(&conn->readBuf);
 
   tTrace("%s conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
-  (void)transDestroyBuffer(&conn->readBuf);
 
   taosMemoryFree(conn);
 }
@@ -1114,6 +1113,8 @@ static void cliHandleException(SCliConn* conn) {
       destroyReq(pReq);
     }
   }
+
+  QUEUE_REMOVE(&conn->q);
   if (conn->registered) {
     int8_t ref = transGetRefCount(conn);
     if (ref == 0 && !uv_is_closing((uv_handle_t*)conn->stream)) {
