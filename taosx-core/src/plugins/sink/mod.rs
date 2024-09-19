@@ -3166,7 +3166,11 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
 ) -> anyhow::Result<()> {
     let stream = ipc_reader.into_stream();
     let sink = futures_util::sink::unfold(ipc_ack_writer, |mut ack_writer, ack| async move {
-        ack_writer.ack(ack)?;
+        ack_writer.ack(ack).map_err(|err| {
+            error!("Write ack error: {err:#}");
+            err
+        })?;
+        info!("Ack done");
         Ok(ack_writer)
     });
 
