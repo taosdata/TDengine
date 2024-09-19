@@ -181,9 +181,8 @@ typedef struct {
 
 // conn pool
 // add expire timeout and capacity limit
-static void* createConnPool(int size);
-static void* destroyConnPool(SCliThrd* thread);
-// static SCliConn* getConnFromPool(SCliThrd* thread, char* key, bool* exceed);
+static void*   createConnPool(int size);
+static void*   destroyConnPool(SCliThrd* thread);
 static void    addConnToPool(void* pool, SCliConn* conn);
 static void    doCloseIdleConn(void* param);
 static int32_t cliCreateConn2(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn);
@@ -816,6 +815,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   }
 
   conn->status = ConnInPool;
+  QUEUE_INIT(&conn->q);
   QUEUE_PUSH(&conn->list->conns, &conn->q);
   conn->list->size += 1;
   tDebug("conn %p added to pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
