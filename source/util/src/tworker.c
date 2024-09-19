@@ -59,7 +59,7 @@ void tQWorkerCleanup(SQWorkerPool *pool) {
     if (taosCheckPthreadValid(worker->thread)) {
       uInfo("worker:%s:%d is stopping", pool->name, worker->id);
       (void)taosThreadJoin(worker->thread, NULL);
-      (void)taosThreadClear(&worker->thread);
+      taosThreadClear(&worker->thread);
       uInfo("worker:%s:%d is stopped", pool->name, worker->id);
     }
   }
@@ -77,7 +77,10 @@ static void *tQWorkerThreadFp(SQueueWorker *worker) {
   void         *msg = NULL;
   int32_t       code = 0;
 
-  (void)taosBlockSIGPIPE();
+  if (taosBlockSIGPIPE() != 0) {
+    uError("failed to block SIGPIPE");
+  }
+
   setThreadName(pool->name);
   worker->pid = taosGetSelfPthreadId();
   uInfo("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, worker->pid);
@@ -122,7 +125,13 @@ STaosQueue *tQWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp) {
 
   (void)taosThreadMutexLock(&pool->mutex);
   taosSetQueueFp(queue, fp, NULL);
-  (void)taosAddIntoQset(pool->qset, queue, ahandle);
+  code = taosAddIntoQset(pool->qset, queue, ahandle);
+  if (code) {
+    taosCloseQueue(queue);
+    terrno = code;
+    queue = NULL;
+    return NULL;
+  }
 
   // spawn a thread to process queue
   if (pool->num < pool->max) {
@@ -191,7 +200,7 @@ void tAutoQWorkerCleanup(SAutoQWorkerPool *pool) {
     if (taosCheckPthreadValid(worker->thread)) {
       uInfo("worker:%s:%d is stopping", pool->name, worker->id);
       (void)taosThreadJoin(worker->thread, NULL);
-      (void)taosThreadClear(&worker->thread);
+      taosThreadClear(&worker->thread);
       uInfo("worker:%s:%d is stopped", pool->name, worker->id);
     }
     taosMemoryFree(worker);
@@ -210,7 +219,9 @@ static void *tAutoQWorkerThreadFp(SQueueWorker *worker) {
   void             *msg = NULL;
   int32_t           code = 0;
 
-  (void)taosBlockSIGPIPE();
+  if (taosBlockSIGPIPE() != 0) {
+    uError("failed to block SIGPIPE");
+  }
   setThreadName(pool->name);
   worker->pid = taosGetSelfPthreadId();
   uInfo("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, worker->pid);
@@ -254,7 +265,14 @@ STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem 
 
   (void)taosThreadMutexLock(&pool->mutex);
   taosSetQueueFp(queue, fp, NULL);
-  (void)taosAddIntoQset(pool->qset, queue, ahandle);
+  code = taosAddIntoQset(pool->qset, queue, ahandle);
+  if (code) {
+    taosCloseQueue(queue);
+    terrno = code;
+    queue = NULL;
+    (void)taosThreadMutexUnlock(&pool->mutex);
+    return NULL;
+  }
 
   int32_t queueNum = taosGetQueueNumber(pool->qset);
   int32_t curWorkerNum = taosArrayGetSize(pool->workers);
@@ -342,7 +360,7 @@ void tWWorkerCleanup(SWWorkerPool *pool) {
     if (taosCheckPthreadValid(worker->thread)) {
       uInfo("worker:%s:%d is stopping", pool->name, worker->id);
       (void)taosThreadJoin(worker->thread, NULL);
-      (void)taosThreadClear(&worker->thread);
+      taosThreadClear(&worker->thread);
       taosFreeQall(worker->qall);
       taosCloseQset(worker->qset);
       uInfo("worker:%s:%d is stopped", pool->name, worker->id);
@@ -362,7 +380,9 @@ static void *tWWorkerThreadFp(SWWorker *worker) {
   int32_t       code = 0;
   int32_t       numOfMsgs = 0;
 
-  (void)taosBlockSIGPIPE();
+  if (taosBlockSIGPIPE() != 0) {
+    uError("failed to block SIGPIPE");
+  }
   setThreadName(pool->name);
   worker->pid = taosGetSelfPthreadId();
   uInfo("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, worker->pid);
@@ -407,7 +427,8 @@ STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp) {
     code = taosOpenQset(&worker->qset);
     if (code) goto _OVER;
 
-    (void)taosAddIntoQset(worker->qset, queue, ahandle);
+    code = taosAddIntoQset(worker->qset, queue, ahandle);
+    if (code) goto _OVER;
     code = taosAllocateQall(&worker->qall);
     if (code) goto _OVER;
 
@@ -423,7 +444,8 @@ STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp) {
     pool->num++;
     if (pool->num > pool->max) pool->num = pool->max;
   } else {
-    (void)taosAddIntoQset(worker->qset, queue, ahandle);
+    code = taosAddIntoQset(worker->qset, queue, ahandle);
+    if (code) goto _OVER;
     pool->nextId = (pool->nextId + 1) % pool->max;
   }
 
@@ -629,7 +651,9 @@ static void *tQueryAutoQWorkerThreadFp(SQueryAutoQWorker *worker) {
   void                  *msg = NULL;
   int32_t                code = 0;
 
-  (void)taosBlockSIGPIPE();
+  if (taosBlockSIGPIPE() != 0) {
+    uError("failed to block SIGPIPE");
+  }
   setThreadName(pool->name);
   worker->pid = taosGetSelfPthreadId();
   uDebug("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, worker->pid);
@@ -733,7 +757,7 @@ static int32_t tQueryAutoQWorkerWaitingCheck(SQueryAutoQWorkerPool *pPool) {
   }
   // to wait for process
   (void)taosThreadMutexLock(&pPool->waitingBeforeProcessMsgLock);
-  (void)atomic_fetch_add_32(&pPool->waitingBeforeProcessMsgN, 1);
+  int32_t waitingBeforeProcessMsgN = atomic_fetch_add_32(&pPool->waitingBeforeProcessMsgN, 1);
   if (!pPool->exit) (void)taosThreadCondWait(&pPool->waitingBeforeProcessMsgCond, &pPool->waitingBeforeProcessMsgLock);
   // recovered from waiting
   (void)taosThreadMutexUnlock(&pPool->waitingBeforeProcessMsgLock);
@@ -745,7 +769,7 @@ bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool *pPool, SQueryAutoQ
       tQueryAutoQWorkerTryDecActive(pPool, pPool->num)) {
     (void)taosThreadMutexLock(&pPool->poolLock);
     SListNode *pNode = listNode(pWorker);
-    (void)tdListPopNode(pPool->workers, pNode);
+    SListNode *tmp = tdListPopNode(pPool->workers, pNode);
     // reclaim some workers
     if (pWorker->id >= pPool->maxInUse) {
       while (listNEles(pPool->exitedWorkers) > pPool->maxInUse - pPool->num) {
@@ -753,7 +777,7 @@ bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool *pPool, SQueryAutoQ
         SQueryAutoQWorker *pWorker = (SQueryAutoQWorker *)head->data;
         if (pWorker && taosCheckPthreadValid(pWorker->thread)) {
           (void)taosThreadJoin(pWorker->thread, NULL);
-          (void)taosThreadClear(&pWorker->thread);
+          taosThreadClear(&pWorker->thread);
         }
         taosMemoryFree(head);
       }
@@ -768,7 +792,7 @@ bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool *pPool, SQueryAutoQ
 
     // start to wait at backup cond
     (void)taosThreadMutexLock(&pPool->backupLock);
-    (void)atomic_fetch_add_32(&pPool->backupNum, 1);
+    int32_t backupNum = atomic_fetch_sub_32(&pPool->backupNum, 1);
     if (!pPool->exit) (void)taosThreadCondWait(&pPool->backupCond, &pPool->backupLock);
     (void)taosThreadMutexUnlock(&pPool->backupLock);
 
@@ -778,7 +802,7 @@ bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool *pPool, SQueryAutoQ
       (void)taosThreadMutexUnlock(&pPool->poolLock);
       return false;
     }
-    (void)tdListPopNode(pPool->backupWorkers, pNode);
+    SListNode *tmpNode = tdListPopNode(pPool->backupWorkers, pNode);
     tdListAppendNode(pPool->workers, pNode);
     (void)taosThreadMutexUnlock(&pPool->poolLock);
 
@@ -862,7 +886,7 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
     (void)taosThreadMutexUnlock(&pPool->poolLock);
     if (worker && taosCheckPthreadValid(worker->thread)) {
       (void)taosThreadJoin(worker->thread, NULL);
-      (void)taosThreadClear(&worker->thread);
+      taosThreadClear(&worker->thread);
     }
     taosMemoryFree(pNode);
   }
@@ -872,7 +896,7 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
     worker = (SQueryAutoQWorker *)pNode->data;
     if (worker && taosCheckPthreadValid(worker->thread)) {
       (void)taosThreadJoin(worker->thread, NULL);
-      (void)taosThreadClear(&worker->thread);
+      taosThreadClear(&worker->thread);
     }
     taosMemoryFree(pNode);
   }
@@ -882,7 +906,7 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
     worker = (SQueryAutoQWorker *)pNode->data;
     if (worker && taosCheckPthreadValid(worker->thread)) {
       (void)taosThreadJoin(worker->thread, NULL);
-      (void)taosThreadClear(&worker->thread);
+      taosThreadClear(&worker->thread);
     }
     taosMemoryFree(pNode);
   }
@@ -913,7 +937,12 @@ STaosQueue *tQueryAutoQWorkerAllocQueue(SQueryAutoQWorkerPool *pool, void *ahand
 
   (void)taosThreadMutexLock(&pool->poolLock);
   taosSetQueueFp(queue, fp, NULL);
-  (void)taosAddIntoQset(pool->qset, queue, ahandle);
+  code = taosAddIntoQset(pool->qset, queue, ahandle);
+  if (code) {
+    taosCloseQueue(queue);
+    queue = NULL;
+    terrno = code;
+  }
   SQueryAutoQWorker  worker = {0};
   SQueryAutoQWorker *pWorker = NULL;
 
@@ -1021,7 +1050,7 @@ static int32_t tQueryAutoQWorkerRecoverFromBlocking(void *p) {
     }
   }
   (void)taosThreadMutexLock(&pPool->waitingAfterBlockLock);
-  (void)atomic_fetch_add_32(&pPool->waitingAfterBlockN, 1);
+  int32_t waiting = atomic_fetch_add_32(&pPool->waitingAfterBlockN, 1);
   if (!pPool->exit) (void)taosThreadCondWait(&pPool->waitingAfterBlockCond, &pPool->waitingAfterBlockLock);
   (void)taosThreadMutexUnlock(&pPool->waitingAfterBlockLock);
   if (pPool->exit) return TSDB_CODE_QRY_QWORKER_QUIT;

@@ -112,7 +112,7 @@ void tEndEncode(SEncoder* pCoder) {
     pCoder->size = pNode->size;
     pCoder->pos = pNode->pos;
 
-    (void)tEncodeI32(pCoder, len);
+    TAOS_UNUSED(tEncodeI32(pCoder, len));
 
     pCoder->pos += len;
   }

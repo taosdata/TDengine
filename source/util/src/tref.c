@@ -478,15 +478,12 @@ static void taosLockList(int64_t *lockedBy) {
 
 static void taosUnlockList(int64_t *lockedBy) {
   int64_t tid = taosGetSelfPthreadId();
-  (void)atomic_val_compare_exchange_64(lockedBy, tid, 0);
+  int64_t val = atomic_val_compare_exchange_64(lockedBy, tid, 0);
 }
 
 static void taosInitRefModule(void) { (void)taosThreadMutexInit(&tsRefMutex, NULL); }
 
-static void taosIncRsetCount(SRefSet *pSet) {
-  (void)atomic_add_fetch_32(&pSet->count, 1);
-  // uTrace("rsetId:%d inc count:%d", pSet->rsetId, count);
-}
+static void taosIncRsetCount(SRefSet *pSet) { int32_t count = atomic_add_fetch_32(&pSet->count, 1); }
 
 static void taosDecRsetCount(SRefSet *pSet) {
   int32_t count = atomic_sub_fetch_32(&pSet->count, 1);
