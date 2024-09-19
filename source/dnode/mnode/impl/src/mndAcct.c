@@ -81,7 +81,7 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
     code = terrno;
     TAOS_RETURN(code);
   }
-  TAOS_RETURN(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
 
   mInfo("acct:%s, will be created when deploying, raw:%p", acctObj.acct, pRaw);
 
