@@ -280,6 +280,8 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
 
 static void cliWalkCb(uv_handle_t* handle, void* arg);
 
+static FORCE_INLINE int32_t destroyAllReqs(SCliConn* SCliConn);
+static FORCE_INLINE bool    filterAllReq(void* e, void* arg);
 typedef struct {
   void*    p;
   HeapNode node;
@@ -1032,6 +1034,8 @@ static void cliDestroy(uv_handle_t* handle) {
   SCliThrd* pThrd = conn->hostThrd;
   cliResetConnTimer(conn);
 
+  destroyAllReqs(conn);
+
   if (conn->refId > 0) {
     (void)transReleaseExHandle(transGetRefMgt(), conn->refId);
     (void)transRemoveExHandle(transGetRefMgt(), conn->refId);
@@ -1065,15 +1069,13 @@ static void cliDestroy(uv_handle_t* handle) {
   taosMemoryFree(conn);
 }
 
-bool filterAllReq(void* e, void* arg) { return 1; }
+static FORCE_INLINE bool filterAllReq(void* e, void* arg) { return 1; }
 
-static void cliHandleException(SCliConn* conn) {
+static FORCE_INLINE int32_t destroyAllReqs(SCliConn* conn) {
   int32_t   code = 0;
   SCliThrd* pThrd = conn->hostThrd;
   STrans*   pInst = pThrd->pInst;
-
-  cliResetConnTimer(conn);
-  queue set;
+  queue     set;
   QUEUE_INIT(&set);
   // TODO
   // 1. from qId from thread table
@@ -1113,6 +1115,15 @@ static void cliHandleException(SCliConn* conn) {
       destroyReq(pReq);
     }
   }
+  return 0;
+}
+static void cliHandleException(SCliConn* conn) {
+  int32_t   code = 0;
+  SCliThrd* pThrd = conn->hostThrd;
+  STrans*   pInst = pThrd->pInst;
+
+  cliResetConnTimer(conn);
+  destroyAllReqs(conn);
 
   QUEUE_REMOVE(&conn->q);
   if (conn->registered) {
