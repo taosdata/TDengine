@@ -492,7 +492,7 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf);
 
 enum { REQ_STATUS_INIT = 0, REQ_STATUS_PROCESSING };
 
-#define BUFFER_LIMIT        4
+#define BUFFER_LIMIT        1
 #define HEAP_MISS_HIT_LIMIT 100000
 #define READ_TIMEOUT        100000
 
