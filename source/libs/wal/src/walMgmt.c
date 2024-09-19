@@ -162,7 +162,6 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   // load meta
   if (walLoadMeta(pWal) < 0) {
     wError("vgId:%d, failed to load meta since %s", pWal->cfg.vgId, tstrerror(terrno));
-    goto _err;
   }
 
   if (walCheckAndRepairMeta(pWal) < 0) {
