@@ -1887,21 +1887,23 @@ class TaskCreateStream(StateTransitionTask):
 
     def getTriggerValue(self):
         maxDelayTime = random.choice(DataBoundary.MAX_DELAY_UNIT.value)
-        return random.choice(["TRIGGER AT_ONCE", "TRIGGER WINDOW_CLOSE", f"TRIGGER MAX_DELAY {maxDelayTime}"], "")
+        return random.choice(["TRIGGER AT_ONCE", "TRIGGER WINDOW_CLOSE", f"TRIGGER MAX_DELAY {maxDelayTime}", ""])
 
     def getDeleteMarkValue(self):
         deleteMarkTime = random.choice(DataBoundary.DELETE_MARK_UNIT.value)
-        return random.choice([f"DELETE_MARK {deleteMarkTime}"], "")
+        return random.choice([f"DELETE_MARK {deleteMarkTime}", ""])
 
     def getWatermarkValue(self):
         watermarkTime = random.choice(DataBoundary.WATERMARK_UNIT.value)
-        return random.choice([f"WATERMARK {watermarkTime}"], "")
+        return random.choice([f"WATERMARK {watermarkTime}", ""])
 
     def getSubtableValue(self, partitionList):
         subTablePre = "pre"
         for colname in partitionList:
             subtable = f'CONCAT({subTablePre}, {colname})'
         return random.choice([subtable, ""])
+
+
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         dbname = self._db.getName()
@@ -3257,6 +3259,32 @@ class TdSuperTable:
         randomSelectPart = f'`{random.choice(selectPartList)}`' if len(selectPartList) > 0 else groupKeyStr
         return f"SELECT {', '.join(selectPartList)} FROM {self._dbName}.{tbname} {self.getTimeRangeFilter(tbname, tsCol)} {self.getPartitionValue(groupKeyStr)} {self.getWindowStr(self.getRandomWindow(), colDict)} {self.getSlidingValue()} {self.getOrderByValue(randomSelectPart)} {self.getSlimitValue()};"
 
+    def generateRandomSubQuery(self, colDict, tbname):
+        selectPartList = []
+        groupKeyList = []
+        colTypes = [member.name for member in FunctionMap]
+        doAggr = random.choice([0, 1, 2, 3])
+        tsCol = "ts"
+        for column_name, column_type in colDict.items():
+            if column_type == "TIMESTAMP":
+                tsCol = column_name
+            for fm in FunctionMap:
+                if column_type in fm.value['types']:
+                    selectStrs, groupKey = self.selectFuncsFromType(fm.value, column_name, column_type, doAggr)
+                    if len(selectStrs) > 0:
+                        selectPartList.append(selectStrs)
+                    if len(groupKey) > 0:
+                        groupKeyList.append(groupKey)
+
+        if doAggr == 2:
+            selectPartList = [random.choice(selectPartList)]
+        if len(groupKeyList) > 0:
+            groupKeyStr = ",".join(groupKeyList)
+            return f"SELECT {', '.join(selectPartList)} FROM {self._dbName}.{tbname} GROUP BY {groupKeyStr} {self.getOrderByValue(groupKeyStr)} {self.getSlimitValue()};"
+        else:
+            groupKeyStr = "tbname"
+        randomSelectPart = f'`{random.choice(selectPartList)}`' if len(selectPartList) > 0 else groupKeyStr
+        return f"SELECT {', '.join(selectPartList)} FROM {self._dbName}.{tbname} {self.getTimeRangeFilter(tbname, tsCol)} {self.getPartitionValue(groupKeyStr)} {self.getWindowStr(self.getRandomWindow(), colDict)} {self.getSlidingValue()} {self.getOrderByValue(randomSelectPart)} {self.getSlimitValue()};"
 
 
     def generateQueries_n(self, dbc: DbConn, selectItems) -> List[SqlQuery]:

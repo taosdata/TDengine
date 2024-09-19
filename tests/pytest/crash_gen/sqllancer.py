@@ -73,6 +73,9 @@ class DataBoundary(Enum):
     SHOW_UNIT = ['SHOW CLUSTER', 'SHOW CLUSTER ALIVE', 'SHOW CLUSTER VARIABLES', 'SHOW LOCAL VARIABLES', 'SHOW CLUSTER MACHINES', 'SHOW CONNECTIONS', 'SHOW MNODES', 'SHOW DNODES', 'SHOW QNODES', 'SHOW VNODES', 'SHOW SNODES',
                 'SHOW VGROUPS', 'SHOW STREAMS', 'SHOW VIEWS', 'SHOW APPS', 'SHOW DNODE ID 1 VARIABLES', 'SHOW CREATE', 'SHOW GRANTS', 'SHOW GRANTS LOGS', 'SHOW GRANTS FULL', 'SHOW DATABASES', 'SHOW STABLES', 'SHOW TABLES',
                 'SHOW USERS', 'SHOW LICENCES', 'SHOW TRANSACTIONS', 'SHOW TABLE DISTRIBUTED', 'SHOW TABLE LIKE "%a%"', 'SHOW TAGS FROM', 'SHOW TOPICS', 'SHOW SUBCRIPTIONS', 'SHOW CONSUMERS', 'SHOW FUNCTIONS', 'SHOW SCORES', 'SHOW INDEXES']
+    MAX_DELAY_UNIT = ["5s", "1m", "1h", "1d", "1w", "1M", "1y"]
+    DELETE_MARK_UNIT = ["5s", "1m", "1h", "1d", "1w", "1M", "1y"]
+    WATERMARK_UNIT = ["5s", "1m", "1h", "1d", "1w", "1M", "1y"]
 class FunctionMap(Enum):
     # TODO TO_JSON
     NUMERIC = {
@@ -545,6 +548,81 @@ class SQLLancer:
         else:
             return ""
 
+
+    def getFillHistoryValue(self, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        fillHistoryVal = f'FILL_HISTORY 1' if useTag else random.choice(["FILL_HISTORY 0", ""])
+        return fillHistoryVal
+
+    def getExpiredValue(self, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        expiredVal = f'IGNORE EXPIRED 0' if useTag else random.choice(["IGNORE EXPIRED 1", ""])
+        return expiredVal
+
+    def getUpdateValue(self, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        updateVal = f'IGNORE UPDATE 0' if useTag else random.choice(["IGNORE UPDATE 1", ""])
+        return updateVal
+
+    def getTriggerValue(self):
+        maxDelayTime = random.choice(DataBoundary.MAX_DELAY_UNIT.value)
+        return random.choice(["TRIGGER AT_ONCE", "TRIGGER WINDOW_CLOSE", f"TRIGGER MAX_DELAY {maxDelayTime}", ""])
+
+    def getDeleteMarkValue(self):
+        deleteMarkTime = random.choice(DataBoundary.DELETE_MARK_UNIT.value)
+        return random.choice([f"DELETE_MARK {deleteMarkTime}", ""])
+
+    def getWatermarkValue(self):
+        watermarkTime = random.choice(DataBoundary.WATERMARK_UNIT.value)
+        return random.choice([f"WATERMARK {watermarkTime}", ""])
+
+    def getSubtableValue(self, partitionList):
+        subTablePre = "pre"
+        partitionList = ['tbname']
+        for colname in partitionList:
+            subtable = f'CONCAT("{subTablePre}", {colname})'
+        return random.choice([f'SUBTABLE({subtable})', ""])
+
+    def generateRandomSubQuery(self, colDict, tbname):
+        self._dbName = "test"
+        selectPartList = []
+        groupKeyList = []
+        colTypes = [member.name for member in FunctionMap]
+        doAggr = random.choice([0, 1, 2, 3])
+        tsCol = "ts"
+        for column_name, column_type in colDict.items():
+            if column_type == "TIMESTAMP":
+                tsCol = column_name
+            for fm in FunctionMap:
+                if column_type in fm.value['types']:
+                    selectStrs, groupKey = self.selectFuncsFromType(fm.value, column_name, column_type, doAggr)
+                    if len(selectStrs) > 0:
+                        selectPartList.append(selectStrs)
+                    if len(groupKey) > 0:
+                        groupKeyList.append(groupKey)
+
+        if doAggr == 2:
+            selectPartList = [random.choice(selectPartList)]
+        if len(groupKeyList) > 0:
+            groupKeyStr = ",".join(groupKeyList)
+            return f"SELECT {', '.join(selectPartList)} FROM {self._dbName}.{tbname} GROUP BY {groupKeyStr} {self.getOrderByValue(groupKeyStr)} {self.getSlimitValue()};"
+        else:
+            groupKeyStr = "tbname"
+        randomSelectPart = f'`{random.choice(selectPartList)}`' if len(selectPartList) > 0 else groupKeyStr
+        return f"SELECT {', '.join(selectPartList)} FROM {self._dbName}.{tbname} {self.getTimeRangeFilter(tbname, tsCol)} {self.getPartitionValue(groupKeyStr)} {self.getWindowStr(self.getRandomWindow(), colDict)} {self.getSlidingValue()} {self.getOrderByValue(randomSelectPart)} {self.getSlimitValue()};"
+
+
+    def genCreateStreamSql(self, colDict, tbname):
+        streamOps = f'{self.getTriggerValue()} {self.getWatermarkValue()} {self.getFillHistoryValue()} {self.getExpiredValue()} {self.getUpdateValue()}'
+        streamName = f'stm_{tbname}'
+        target = f'stm_{tbname}_target'
+        # TODO
+        existStbFields = ""
+        customTags = ""
+        subtable = self.getSubtableValue(colDict.keys())
+        subQuery = self.generateRandomSubQuery(colDict, tbname)
+        return f"CREATE STREAM IF NOT EXISTS {streamName} {streamOps} into {target} {existStbFields} {customTags} {subtable} AS {subQuery};"
+
     def generateRandomSql(self, colDict, tbname):
         selectPartList = []
         groupKeyList = []
@@ -554,7 +632,7 @@ class SQLLancer:
         print("-----colTypes", colTypes)
         doAggr = random.choice([0, 1, 2, 3, 4, 5])
         if doAggr == 4:
-            return self.getShowSql("test", "stb", "ctb1")
+            return self.getShowSql("test", "stb", "ctb")
         if doAggr == 5:
             return self.getSystableSql()
         tsCol = "ts"
@@ -608,10 +686,12 @@ class SQLLancer:
 
 sqllancer = SQLLancer()
 colDict = {"ts": "TIMESTAMP", "c1": "INT", "c2": "NCHAR", "c3": "BOOL"}
-tbname = "tb"
+tbname = "stb"
 # print(sqllancer.formatConcat("c1", "c2", "c3"))
 randomSql = sqllancer.generateRandomSql(colDict, tbname)
+randomStream = sqllancer.genCreateStreamSql(colDict, tbname)
 print(randomSql)
+print(randomStream)
 
 
     # def generateQueries_n(self, dbc: DbConn, selectItems) -> List[SqlQuery]:
