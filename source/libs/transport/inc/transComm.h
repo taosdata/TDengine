@@ -148,7 +148,6 @@ typedef struct {
   STransSyncMsg* pSyncMsg;  // for syncchronous with timeout API
   int64_t        syncMsgRef;
   SCvtAddr       cvtAddr;
-  bool           setMaxRetry;
 
   int32_t retryMinInterval;
   int32_t retryMaxInterval;
@@ -207,7 +206,7 @@ typedef struct {
 
 #pragma pack(pop)
 
-typedef enum { Normal, Quit, Release, Register, Update } STransMsgType;
+typedef enum { Normal, Quit, Release, Register, Update, FreeById } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
@@ -241,6 +240,7 @@ typedef struct {
   void*         pThrd;
   queue         qmsg;
   TdThreadMutex mtx;  // protect qmsg;
+  int64_t       num;
 } SAsyncItem;
 
 typedef struct {
@@ -272,31 +272,19 @@ bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
     }                                                                \
   } while (0)
 
-#define ASYNC_CHECK_HANDLE(exh1, id)                                                                         \
-  do {                                                                                                       \
-    if (id > 0) {                                                                                            \
-      SExHandle* exh2 = transAcquireExHandle(transGetRefMgt(), id);                                          \
-      if (exh2 == NULL || id != exh2->refId) {                                                               \
-        tTrace("handle %p except, may already freed, ignore msg, ref1:%" PRIu64 ", ref2:%" PRIu64, exh1,     \
-               exh2 ? exh2->refId : 0, id);                                                                  \
-        code = terrno;                                                                                       \
-        goto _return1;                                                                                       \
-      }                                                                                                      \
-    } else if (id == 0) {                                                                                    \
-      tTrace("handle step2");                                                                                \
-      SExHandle* exh2 = transAcquireExHandle(transGetRefMgt(), id);                                          \
-      if (exh2 == NULL || id == exh2->refId) {                                                               \
-        tTrace("handle %p except, may already freed, ignore msg, ref1:%" PRIu64 ", ref2:%" PRIu64, exh1, id, \
-               exh2 ? exh2->refId : 0);                                                                      \
-        code = terrno;                                                                                       \
-        goto _return1;                                                                                       \
-      } else {                                                                                               \
-        id = exh1->refId;                                                                                    \
-      }                                                                                                      \
-    } else if (id < 0) {                                                                                     \
-      tTrace("handle step3");                                                                                \
-      goto _return2;                                                                                         \
-    }                                                                                                        \
+#define ASYNC_CHECK_HANDLE(exh1, id)                                   \
+  do {                                                                 \
+    if (id > 0) {                                                      \
+      SExHandle* exh2 = transAcquireExHandle(transGetSvrRefMgt(), id); \
+      if (exh2 == NULL || id != exh2->refId) {                         \
+        tDebug("ref:%" PRId64 " already released", id);                \
+        code = terrno;                                                 \
+        goto _return1;                                                 \
+      }                                                                \
+    } else {                                                           \
+      tDebug("invalid handle to release");                             \
+      goto _return2;                                                   \
+    }                                                                  \
   } while (0)
 
 int32_t transInitBuffer(SConnBuffer* buf);
@@ -304,10 +292,10 @@ int32_t transClearBuffer(SConnBuffer* buf);
 int32_t transDestroyBuffer(SConnBuffer* buf);
 int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 bool    transReadComplete(SConnBuffer* connBuf);
-int     transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
-int     transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
+int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
+int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
 
-int transSetConnOption(uv_tcp_t* stream, int keepalive);
+int32_t transSetConnOption(uv_tcp_t* stream, int keepalive);
 
 void transRefSrvHandle(void* handle);
 void transUnrefSrvHandle(void* handle);
@@ -315,21 +303,24 @@ void transUnrefSrvHandle(void* handle);
 void transRefCliHandle(void* handle);
 void transUnrefCliHandle(void* handle);
 
-int transReleaseCliHandle(void* handle);
-int transReleaseSrvHandle(void* handle);
+int32_t transReleaseCliHandle(void* handle);
+int32_t transReleaseSrvHandle(void* handle);
 
-int     transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
-int     transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
-int     transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp, int8_t* epUpdated,
+int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
+int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
+int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp, int8_t* epUpdated,
                                  int32_t timeoutMs);
-int     transSendResponse(const STransMsg* msg);
-int     transRegisterMsg(const STransMsg* msg);
-int     transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
+int32_t transSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId);
+int32_t transFreeConnById(void* shandle, int64_t transpointId);
+
+int32_t transSendResponse(const STransMsg* msg);
+int32_t transRegisterMsg(const STransMsg* msg);
+int32_t transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
 int32_t transSetIpWhiteList(void* shandle, void* arg, FilteFunc* func);
 
-int transSockInfo2Str(struct sockaddr* sockname, char* dst);
+int32_t transSockInfo2Str(struct sockaddr* sockname, char* dst);
 
-int64_t transAllocHandle();
+int32_t transAllocHandle(int64_t* refId);
 
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
 void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
@@ -452,6 +443,7 @@ int32_t transReleaseExHandle(int32_t refMgt, int64_t refId);
 void    transDestroyExHandle(void* handle);
 
 int32_t transGetRefMgt();
+int32_t transGetSvrRefMgt();
 int32_t transGetInstMgt();
 int32_t transGetSyncMsgMgt();
 

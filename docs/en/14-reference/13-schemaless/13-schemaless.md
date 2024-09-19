@@ -1,5 +1,6 @@
 ---
 title: Schemaless Writing
+sidebar_label: Schemaless
 description: This document describes how to use the schemaless write component of TDengine.
 ---
 
@@ -121,7 +122,7 @@ Schemaless writes process row data according to the following principles.
 10. Taos.cfg adds the configuration of smlTsDefaultName (with a string value), which only works on the client side. After configuration, the time column name of the schemaless automatic table creation can be set through this configuration. If not configured, defaults to _ts.
 11. Super table name or child table name are case sensitive.
 :::tip
-All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed 48 KB(64 KB since version 3.0.5.0) and the total length of a tag value cannot exceed 16 KB. See [TDengine SQL Boundary Limits](../../taos-sql/limit) for specific constraints in this area.
+All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed 48 KB(64 KB since version 3.0.5.0) and the total length of a tag value cannot exceed 16 KB. See [TDengine SQL Boundary Limits](../taos-sql/limit) for specific constraints in this area.
 :::
 
 ## Time resolution recognition

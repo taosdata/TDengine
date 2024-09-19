@@ -18,18 +18,22 @@
 #include "qworker.h"
 #include "tversion.h"
 
-static inline void dmSendRsp(SRpcMsg *pMsg) { rpcSendResponse(pMsg); }
+static inline void dmSendRsp(SRpcMsg *pMsg) { (void)rpcSendResponse(pMsg); }
 
 static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
   SEpSet epSet = {0};
   dmGetMnodeEpSetForRedirect(&pDnode->data, pMsg, &epSet);
 
-  const int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
+  int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
   pMsg->pCont = rpcMallocCont(contLen);
   if (pMsg->pCont == NULL) {
     pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
   } else {
-    tSerializeSEpSet(pMsg->pCont, contLen, &epSet);
+    contLen = tSerializeSEpSet(pMsg->pCont, contLen, &epSet);
+    if (contLen < 0) {
+      pMsg->code = contLen;
+      return;
+    }
     pMsg->contLen = contLen;
   }
 }
@@ -65,14 +69,17 @@ static int32_t dmConvertErrCode(tmsg_t msgType, int32_t code) {
   return code;
 }
 static void dmUpdateRpcIpWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
-  int32_t code = 0;
+  int32_t        code = 0;
   SUpdateIpWhite ipWhite = {0};  // aosMemoryCalloc(1, sizeof(SUpdateIpWhite));
-  tDeserializeSUpdateIpWhite(pRpc->pCont, pRpc->contLen, &ipWhite);
-
+  code = tDeserializeSUpdateIpWhite(pRpc->pCont, pRpc->contLen, &ipWhite);
+  if (code < 0) {
+    dError("failed to update rpc ip-white since: %s", tstrerror(code));
+    return;
+  }
   code = rpcSetIpWhite(pTrans, &ipWhite);
   pData->ipWhiteVer = ipWhite.ver;
 
-  tFreeSUpdateIpWhiteReq(&ipWhite);
+  (void)tFreeSUpdateIpWhiteReq(&ipWhite);
 
   rpcFreeCont(pRpc->pCont);
 }
@@ -81,7 +88,7 @@ static bool dmIsForbiddenIp(int8_t forbidden, char *user, uint32_t clientIp) {
     SIpV4Range range = {.ip = clientIp, .mask = 32};
     char       buf[36] = {0};
 
-    rpcUtilSIpRangeToStr(&range, buf);
+    (void)rpcUtilSIpRangeToStr(&range, buf);
     dError("User:%s host:%s not in ip white list", user, buf);
     return true;
   } else {
@@ -100,9 +107,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
           pRpc->info.handle, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId);
 
   int32_t svrVer = 0;
-  taosVersionStrToInt(version, &svrVer);
+  (void)taosVersionStrToInt(version, &svrVer);
   if ((code = taosCheckVersionCompatible(pRpc->info.cliVer, svrVer, 3)) != 0) {
-    dError("Version not compatible, cli ver: %d, svr ver: %d", pRpc->info.cliVer, svrVer);
+    dError("Version not compatible, cli ver: %d, svr ver: %d, ip:0x%x", pRpc->info.cliVer, svrVer, pRpc->info.conn.clientIp);
     goto _OVER;
   }
 
@@ -211,7 +218,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
   pRpc->info.wrapper = pWrapper;
 
-  EQItype itype = IsReq(pRpc) ? RPC_QITEM : DEF_QITEM;  // rsp msg is not restricted by tsRpcQueueMemoryUsed
+  EQItype itype = IsReq(pRpc) ? RPC_QITEM : DEF_QITEM;  // rsp msg is not restricted by tsQueueMemoryUsed
   code = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg);
   if (code) goto _OVER;
 
@@ -239,7 +246,7 @@ _OVER:
       if (pWrapper != NULL) {
         dmSendRsp(&rsp);
       } else {
-        rpcSendResponse(&rsp);
+        (void)rpcSendResponse(&rsp);
       }
     }
 
@@ -296,7 +303,7 @@ static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
     return code;
   } else {
     pMsg->info.handle = 0;
-    rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL);
+    (void)rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL);
     return 0;
   }
 }
@@ -315,14 +322,13 @@ static inline int32_t dmSendSyncReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
            pMsg->info.handle);
     return code;
   } else {
-    rpcSendRequest(pDnode->trans.syncRpc, pEpSet, pMsg, NULL);
-    return 0;
+    return rpcSendRequest(pDnode->trans.syncRpc, pEpSet, pMsg, NULL);
   }
 }
 
-static inline void dmRegisterBrokenLinkArg(SRpcMsg *pMsg) { rpcRegisterBrokenLinkArg(pMsg); }
+static inline void dmRegisterBrokenLinkArg(SRpcMsg *pMsg) { (void)rpcRegisterBrokenLinkArg(pMsg); }
 
-static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) { rpcReleaseHandle(pHandle, type); }
+static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) { (void)rpcReleaseHandle(pHandle, type); }
 
 static bool rpcRfp(int32_t code, tmsg_t msgType) {
   if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_MNODE_NOT_FOUND ||
@@ -381,13 +387,14 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.supportBatch = 1;
   rpcInit.batchSize = 8 * 1024;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  rpcInit.notWaitAvaliableConn = 0;
 
-  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {
-    dError("failed to init dnode rpc client");
-    return -1;
+    dError("failed to init dnode rpc client since:%s", tstrerror(terrno));
+    return terrno;
   }
 
   dDebug("dnode rpc client is initialized");
@@ -426,12 +433,12 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.supportBatch = 1;
   rpcInit.batchSize = 8 * 1024;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
 
   pTrans->statusRpc = rpcOpen(&rpcInit);
   if (pTrans->statusRpc == NULL) {
-    dError("failed to init dnode rpc status client");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    dError("failed to init dnode rpc status client since %s", tstrerror(terrno)); 
+    return terrno;
   }
 
   dDebug("dnode rpc status client is initialized");
@@ -471,12 +478,12 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.supportBatch = 1;
   rpcInit.batchSize = 8 * 1024;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
 
   pTrans->syncRpc = rpcOpen(&rpcInit);
   if (pTrans->syncRpc == NULL) {
-    dError("failed to init dnode rpc sync client");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    dError("failed to init dnode rpc sync client since %s", tstrerror(terrno));
+    return terrno;
   }
 
   dDebug("dnode rpc sync client is initialized");
@@ -522,10 +529,10 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.parent = pDnode;
   rpcInit.compressSize = tsCompressMsgSize;
-  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
   pTrans->serverRpc = rpcOpen(&rpcInit);
   if (pTrans->serverRpc == NULL) {
-    dError("failed to init dnode rpc server");
+    dError("failed to init dnode rpc server since:%s", tstrerror(terrno));
     return terrno;
   }
 

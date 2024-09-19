@@ -19,7 +19,6 @@
 #define VNODE_GET_LOAD_RESET_VALS(pVar, oVal, vType, tags)                                                    \
   do {                                                                                                        \
     int##vType##_t newVal = atomic_sub_fetch_##vType(&(pVar), (oVal));                                        \
-    ASSERT(newVal >= 0);                                                                                      \
     if (newVal < 0) {                                                                                         \
       vWarn("vgId:%d, %s, abnormal val:%" PRIi64 ", old val:%" PRIi64, TD_VID(pVnode), tags, newVal, (oVal)); \
     }                                                                                                         \
@@ -37,7 +36,10 @@ int32_t fillTableColCmpr(SMetaReader *reader, SSchemaExt *pExt, int32_t numOfCol
   int8_t tblType = reader->me.type;
   if (useCompress(tblType)) {
     SColCmprWrapper *p = &(reader->me.colCmpr);
-    ASSERT(numOfCol == p->nCols);
+    if (numOfCol != p->nCols) {
+      vError("fillTableColCmpr table type:%d, col num:%d, col cmpr num:%d mismatch", tblType, numOfCol, p->nCols);
+      return TSDB_CODE_APP_ERROR;
+    }
     for (int i = 0; i < p->nCols; i++) {
       SColCmpr *pCmpr = &p->pColCmpr[i];
       pExt[i].colId = pCmpr->id;
@@ -104,7 +106,8 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   } else if (mer1.me.type == TSDB_NORMAL_TABLE) {
     schema = mer1.me.ntbEntry.schemaRow;
   } else {
-    ASSERT(0);
+    vError("vnodeGetTableMeta get invalid table type:%d", mer1.me.type);
+    return TSDB_CODE_APP_ERROR;
   }
 
   metaRsp.numOfTags = schemaTag.nCols;
@@ -115,7 +118,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   metaRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (metaRsp.numOfColumns + metaRsp.numOfTags));
   metaRsp.pSchemaExt = (SSchemaExt *)taosMemoryCalloc(metaRsp.numOfColumns, sizeof(SSchemaExt));
   if (NULL == metaRsp.pSchemas || NULL == metaRsp.pSchemaExt) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
   (void)memcpy(metaRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
@@ -126,7 +129,6 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     SMetaReader *pReader = mer1.me.type == TSDB_CHILD_TABLE ? &mer2 : &mer1;
     code = fillTableColCmpr(pReader, metaRsp.pSchemaExt, metaRsp.numOfColumns);
     if (code < 0) {
-      code = TSDB_CODE_INVALID_MSG;
       goto _exit;
     }
   } else {
@@ -148,7 +150,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -262,7 +264,8 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       }
     }
   } else {
-    ASSERT(0);
+    vError("vnodeGetTableCfg get invalid table type:%d", mer1.me.type);
+    return TSDB_CODE_APP_ERROR;
   }
 
   cfgRsp.numOfTags = schemaTag.nCols;
@@ -306,7 +309,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -393,15 +396,21 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     switch (req->msgType) {
       case TDMT_VND_TABLE_META:
         // error code has been set into reqMsg, no need to handle it here.
-        (void)vnodeGetTableMeta(pVnode, &reqMsg, false);
+        if (TSDB_CODE_SUCCESS != vnodeGetTableMeta(pVnode, &reqMsg, false)) {
+          qWarn("vnodeGetBatchMeta failed, msgType:%d", req->msgType);
+        }
         break;
       case TDMT_VND_TABLE_CFG:
         // error code has been set into reqMsg, no need to handle it here.
-        (void)vnodeGetTableCfg(pVnode, &reqMsg, false);
+        if (TSDB_CODE_SUCCESS != vnodeGetTableCfg(pVnode, &reqMsg, false)) {
+          qWarn("vnodeGetBatchMeta failed, msgType:%d", req->msgType);
+        }
         break;
       case TDMT_VND_GET_STREAM_PROGRESS:
         // error code has been set into reqMsg, no need to handle it here.
-        (void)vnodeGetStreamProgress(pVnode, &reqMsg, false);
+        if (TSDB_CODE_SUCCESS != vnodeGetStreamProgress(pVnode, &reqMsg, false)) {
+          qWarn("vnodeGetBatchMeta failed, msgType:%d", req->msgType);
+        }
         break;
       default:
         qError("invalid req msgType %d", req->msgType);
@@ -541,11 +550,11 @@ int32_t vnodeGetTableList(void *pVnode, int8_t type, SArray *pList) {
 }
 
 int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t      code = TSDB_CODE_SUCCESS;
   SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, uid, 1);
   if (NULL == pCur) {
     qError("vnode get all table list failed");
-    return TSDB_CODE_FAILED;
+    return terrno;
   }
 
   while (1) {
@@ -571,12 +580,12 @@ int32_t vnodeGetCtbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bo
 }
 
 int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t      code = TSDB_CODE_SUCCESS;
   SVnode      *pVnodeObj = pVnode;
   SMCtbCursor *pCur = metaOpenCtbCursor(pVnodeObj, suid, 1);
   if (NULL == pCur) {
     qError("vnode get all table list failed");
-    return TSDB_CODE_FAILED;
+    return terrno;
   }
 
   while (1) {
@@ -585,7 +594,7 @@ int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list) {
       break;
     }
 
-    if (NULL == taosArrayPush(list, &id))  {
+    if (NULL == taosArrayPush(list, &id)) {
       qError("taosArrayPush failed");
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
@@ -598,7 +607,7 @@ _exit:
 }
 
 int32_t vnodeGetStbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t      code = TSDB_CODE_SUCCESS;
   SMStbCursor *pCur = metaOpenStbCursor(pVnode->pMeta, suid);
   if (!pCur) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -610,7 +619,7 @@ int32_t vnodeGetStbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
       break;
     }
 
-    if (NULL == taosArrayPush(list, &id))  {
+    if (NULL == taosArrayPush(list, &id)) {
       qError("taosArrayPush failed");
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
@@ -624,10 +633,10 @@ _exit:
 
 int32_t vnodeGetStbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bool (*filter)(void *arg, void *arg1),
                                   void *arg) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t      code = TSDB_CODE_SUCCESS;
   SMStbCursor *pCur = metaOpenStbCursor(pVnode->pMeta, suid);
   if (!pCur) {
-    return TSDB_CODE_FAILED;
+    return terrno;
   }
 
   while (1) {
@@ -640,7 +649,7 @@ int32_t vnodeGetStbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bo
       continue;
     }
 
-    if (NULL == taosArrayPush(list, &id))  {
+    if (NULL == taosArrayPush(list, &id)) {
       qError("taosArrayPush failed");
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
@@ -655,7 +664,7 @@ _exit:
 int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
   SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, suid, 0);
   if (!pCur) {
-    return TSDB_CODE_FAILED;
+    return terrno;
   }
 
   *num = 0;
@@ -757,8 +766,7 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
   SArray *suidList = NULL;
 
   if (!(suidList = taosArrayInit(1, sizeof(tb_uid_t)))) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_FAILED;
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
 
   int32_t tbFilterSize = 0;
@@ -774,7 +782,7 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
       (tbFilterSize && vnodeGetStbIdListByFilter(pVnode, 0, suidList, vnodeTimeSeriesFilter, pVnode) < 0)) {
     qError("vgId:%d, failed to get stb id list error: %s", TD_VID(pVnode), terrstr());
     taosArrayDestroy(suidList);
-    return TSDB_CODE_FAILED;
+    return terrno;
   }
 
   *num = 0;
@@ -799,7 +807,7 @@ _exit:
 int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num) {
   SMStbCursor *pCur = metaOpenStbCursor(pVnode->pMeta, 0);
   if (!pCur) {
-    return TSDB_CODE_FAILED;
+    return terrno;
   }
 
   *num = 0;
@@ -867,7 +875,7 @@ int32_t vnodeGetStreamProgress(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       buf = taosMemoryCalloc(1, rspLen);
     }
     if (!buf) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _OVER;
     }
   }

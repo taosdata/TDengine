@@ -95,6 +95,7 @@ typedef struct {
 } SWalCkHead;
 #pragma pack(pop)
 
+typedef void (*stopDnodeFn)();
 typedef struct SWal {
   // cfg
   SWalCfg cfg;
@@ -111,12 +112,15 @@ typedef struct SWal {
   int64_t totSize;
   int64_t lastRollSeq;
   // ctl
-  int64_t       refId;
-  TdThreadMutex mutex;
+  int64_t        refId;
+  TdThreadRwlock mutex;
   // ref
   SHashObj *pRefHash;  // refId -> SWalRef
   // path
   char path[WAL_PATH_LEN];
+
+  stopDnodeFn stopDnode;
+
   // reusable write head
   SWalCkHead writeHead;
 } SWal;
@@ -152,7 +156,7 @@ typedef struct SWalReader {
 } SWalReader;
 
 // module initialization
-int32_t walInit();
+int32_t walInit(stopDnodeFn stopDnode);
 void    walCleanUp();
 
 // handle open and ctl

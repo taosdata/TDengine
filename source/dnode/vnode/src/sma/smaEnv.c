@@ -69,7 +69,7 @@ int32_t smaInit() {
 
     if (!smaMgmt.refHash || !smaMgmt.tmrHandle) {
       code = terrno;
-      (void)taosCloseRef(smaMgmt.rsetId);
+      taosCloseRef(smaMgmt.rsetId);
       if (smaMgmt.refHash) {
         taosHashCleanup(smaMgmt.refHash);
         smaMgmt.refHash = NULL;
@@ -103,7 +103,7 @@ void smaCleanUp() {
   }
 
   if (old == 1) {
-    (void)taosCloseRef(smaMgmt.rsetId);
+    taosCloseRef(smaMgmt.rsetId);
     taosHashCleanup(smaMgmt.refHash);
     smaMgmt.refHash = NULL;
     taosTmrCleanUp(smaMgmt.tmrHandle);
@@ -117,10 +117,10 @@ static int32_t tdNewSmaEnv(SSma *pSma, int8_t smaType, SSmaEnv **ppEnv) {
   SSmaEnv *pEnv = NULL;
 
   pEnv = (SSmaEnv *)taosMemoryCalloc(1, sizeof(SSmaEnv));
-  *ppEnv = pEnv;
   if (!pEnv) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    return terrno;
   }
+  *ppEnv = pEnv;
 
   SMA_ENV_TYPE(pEnv) = smaType;
 
@@ -174,10 +174,14 @@ static void tRSmaInfoHashFreeNode(void *data) {
 
   if ((pRSmaInfo = *(SRSmaInfo **)data)) {
     if ((pItem = RSMA_INFO_ITEM((SRSmaInfo *)pRSmaInfo, 0)) && pItem->level) {
-      (void)taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES);
+      if (TSDB_CODE_SUCCESS != taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES)) {
+        smaError("failed to hash remove %s:%d", __FUNCTION__, __LINE__);
+      }
     }
     if ((pItem = RSMA_INFO_ITEM((SRSmaInfo *)pRSmaInfo, 1)) && pItem->level) {
-      (void)taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES);
+      if (TSDB_CODE_SUCCESS != taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES)) {
+        smaError("failed to hash remove %s:%d", __FUNCTION__, __LINE__);
+      }
     }
     (void)tdFreeRSmaInfo(pRSmaInfo->pSma, pRSmaInfo);
   }
@@ -199,7 +203,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
   if (!(*pSmaStat)) {
     *pSmaStat = (SSmaStat *)taosMemoryCalloc(1, sizeof(SSmaStat) + sizeof(TdThread) * tsNumOfVnodeRsmaThreads);
     if (!(*pSmaStat)) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TAOS_CHECK_GOTO(code, &lino, _exit);
     }
 
@@ -209,11 +213,11 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_INIT);
       (void)tsem_init(&pRSmaStat->notEmpty, 0, 0);
       if (!(pRSmaStat->blocks = taosArrayInit(1, sizeof(SSDataBlock)))) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         TAOS_CHECK_GOTO(code, &lino, _exit);
       }
       SSDataBlock datablock = {.info.type = STREAM_CHECKPOINT};
-      (void)taosArrayPush(pRSmaStat->blocks, &datablock);
+      TSDB_CHECK_NULL(taosArrayPush(pRSmaStat->blocks, &datablock), code, lino, _exit, terrno);
 
       // init smaMgmt
       TAOS_CHECK_GOTO(smaInit(), &lino, _exit);

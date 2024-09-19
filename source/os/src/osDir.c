@@ -104,13 +104,13 @@ void taosRemoveDir(const char *dirname) {
     if (taosDirEntryIsDir(de)) {
       taosRemoveDir(filename);
     } else {
-      (void)taosRemoveFile(filename);
+      TAOS_UNUSED(taosRemoveFile(filename));
       // printf("file:%s is removed\n", filename);
     }
   }
 
-  (void)taosCloseDir(&pDir);
-  (void)rmdir(dirname);
+  TAOS_UNUSED(taosCloseDir(&pDir));
+  TAOS_UNUSED(rmdir(dirname));
 
   // printf("dir:%s is removed\n", dirname);
   return;
@@ -145,7 +145,10 @@ int32_t taosMulMkDir(const char *dirname) {
   char   *pos = temp;
   int32_t code = 0;
 #ifdef WINDOWS
-  taosRealPath(dirname, temp, sizeof(temp));
+  code = taosRealPath(dirname, temp, sizeof(temp));
+  if(code != 0) {
+    return code;
+  }
   if (temp[1] == ':') pos += 3;
 #else
   (void)strcpy(temp, dirname);
@@ -207,7 +210,10 @@ int32_t taosMulModeMkDir(const char *dirname, int mode, bool checkAccess) {
   char   *pos = temp;
   int32_t code = 0;
 #ifdef WINDOWS
-  taosRealPath(dirname, temp, sizeof(temp));
+  code = taosRealPath(dirname, temp, sizeof(temp));
+  if(code != 0) {
+    return code;
+  }
   if (temp[1] == ':') pos += 3;
 #else
   (void)strcpy(temp, dirname);
@@ -294,6 +300,8 @@ void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
       int32_t len = (int32_t)strlen(filename);
       if (len > 3 && strcmp(filename + len - 3, ".gz") == 0) {
         len -= 3;
+      }else{
+        continue;
       }
 
       int64_t fileSec = 0;
@@ -307,16 +315,16 @@ void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
       if (fileSec <= 100) continue;
       int32_t days = (int32_t)(TABS(sec - fileSec) / 86400 + 1);
       if (days > keepDays) {
-        (void)taosRemoveFile(filename);
-        // printf("file:%s is removed, days:%d keepDays:%d", filename, days, keepDays);
+        TAOS_UNUSED(taosRemoveFile(filename));
+         uInfo("file:%s is removed, days:%d keepDays:%d, sed:%"PRId64, filename, days, keepDays, fileSec);
       } else {
         // printf("file:%s won't be removed, days:%d keepDays:%d", filename, days, keepDays);
       }
     }
   }
 
-  (void)taosCloseDir(&pDir);
-  (void)rmdir(dirname);
+  TAOS_UNUSED(taosCloseDir(&pDir));
+  TAOS_UNUSED(rmdir(dirname));
 }
 
 int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
@@ -366,7 +374,7 @@ int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
 bool taosIsDir(const char *dirname) {
   TdDirPtr pDir = taosOpenDir(dirname);
   if (pDir != NULL) {
-    (void)taosCloseDir(&pDir);
+    TAOS_SKIP_ERROR(taosCloseDir(&pDir));
     return true;
   }
   return false;
@@ -428,6 +436,9 @@ TdDirPtr taosOpenDir(const char *dirname) {
   HANDLE hFind;
 
   TdDirPtr pDir = taosMemoryMalloc(sizeof(TdDir));
+  if(pDir == NULL) {
+    return NULL;
+  }
 
   strcpy(szFind, dirname);
   strcat(szFind, "\\*.*");  //利用通配符找这个目录下的所以文件，包括目录
@@ -435,6 +446,8 @@ TdDirPtr taosOpenDir(const char *dirname) {
   pDir->hFind = FindFirstFile(szFind, &(pDir->dirEntry.findFileData));
   if (INVALID_HANDLE_VALUE == pDir->hFind) {
     taosMemoryFree(pDir);
+    DWORD errorCode = GetLastError();
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(errorCode);
     return NULL;
   }
   return pDir;
@@ -442,6 +455,11 @@ TdDirPtr taosOpenDir(const char *dirname) {
   DIR *pDir = opendir(dirname);
   if (pDir == NULL) return NULL;
   TdDirPtr dirPtr = (TdDirPtr)taosMemoryMalloc(sizeof(TdDir));
+  if (dirPtr == NULL) {
+    (void)closedir(pDir);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return NULL;
+  }
   dirPtr->dirEntryPtr = (TdDirEntryPtr) & (dirPtr->dirEntry1);
   dirPtr->pDir = pDir;
   return dirPtr;
@@ -504,22 +522,30 @@ char *taosGetDirEntryName(TdDirEntryPtr pDirEntry) {
 }
 
 int32_t taosCloseDir(TdDirPtr *ppDir) {
+  int32_t code =  0;
   if (ppDir == NULL || *ppDir == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
 #ifdef WINDOWS
-  FindClose((*ppDir)->hFind);
+  if(!FindClose((*ppDir)->hFind)) {
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    return terrno;
+  }
   taosMemoryFree(*ppDir);
   *ppDir = NULL;
   return 0;
 #elif defined(DARWIN)
-  closedir((*ppDir)->pDir);
+  code = closedir((*ppDir)->pDir);
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
   taosMemoryFree(*ppDir);
   *ppDir = NULL;
   return 0;
 #else
-  int32_t code = closedir((DIR *)*ppDir);
+  code = closedir((DIR *)*ppDir);
   *ppDir = NULL;
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);

@@ -24,13 +24,13 @@
 #include "tgrant.h"
 
 #define COL_DATA_SET_VAL_AND_CHECK(pCol, rows, buf, isNull) \
-    do {                                                    \
-        int  _code = colDataSetVal(pCol, rows, buf, isNull);\
-        if (TSDB_CODE_SUCCESS != _code) {                   \
-            terrno = _code;                                 \
-            return _code;                                   \
-        }                                                   \
-    } while(0)
+  do {                                                      \
+    int _code = colDataSetVal(pCol, rows, buf, isNull);     \
+    if (TSDB_CODE_SUCCESS != _code) {                       \
+      terrno = _code;                                       \
+      return _code;                                         \
+    }                                                       \
+  } while (0)
 
 extern SConfig* tsCfg;
 
@@ -38,7 +38,7 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
   *pRsp = taosMemoryCalloc(1, rspSize);
   if (NULL == *pRsp) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pRsp)->useconds = 0;
@@ -50,6 +50,10 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   (*pRsp)->numOfCols = htonl(numOfCols);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, numOfCols);
+  if(len < 0) {
+    taosMemoryFree(*pRsp);
+    return terrno;
+  }
   SET_PAYLOAD_LEN((*pRsp)->data, len, len);
 
   int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
@@ -74,10 +78,10 @@ static int32_t getSchemaBytes(const SSchema* pSchema) {
 }
 
 static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
-  QRY_OPTR_CHECK(pOutput);
+  QRY_PARAM_CHECK(pOutput);
 
   SSDataBlock* pBlock = NULL;
-  int32_t code = createDataBlock(&pBlock);
+  int32_t      code = createDataBlock(&pBlock);
   if (code) {
     return code;
   }
@@ -232,10 +236,10 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
 static int32_t execResetQueryCache() { return catalogClearCache(); }
 
 static int32_t buildCreateDBResultDataBlock(SSDataBlock** pOutput) {
-  QRY_OPTR_CHECK(pOutput);
+  QRY_PARAM_CHECK(pOutput);
 
   SSDataBlock* pBlock = NULL;
-  int32_t code = createDataBlock(&pBlock);
+  int32_t      code = createDataBlock(&pBlock);
   if (code) {
     return code;
   }
@@ -280,16 +284,16 @@ int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
   return v;
 }
 
-static int32_t buildRetension(SArray* pRetension, char **ppRetentions ) {
+static int32_t buildRetension(SArray* pRetension, char** ppRetentions) {
   size_t size = taosArrayGetSize(pRetension);
   if (size == 0) {
     *ppRetentions = NULL;
     return TSDB_CODE_SUCCESS;
   }
 
-  char*   p1 = taosMemoryCalloc(1, 100);
-  if(NULL == p1) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  char* p1 = taosMemoryCalloc(1, 100);
+  if (NULL == p1) {
+    return terrno;
   }
   int32_t len = 0;
 
@@ -340,6 +344,20 @@ static const char* encryptAlgorithmStr(int8_t encryptAlgorithm) {
   return TSDB_CACHE_MODEL_NONE_STR;
 }
 
+int32_t formatDurationOrKeep(char* buffer, int32_t timeInMinutes) {
+    int32_t len = 0;
+    if (timeInMinutes % 1440 == 0) {
+        int32_t days = timeInMinutes / 1440;
+        len = sprintf(buffer, "%dd", days);
+    } else if (timeInMinutes % 60 == 0) {
+        int32_t hours = timeInMinutes / 60;
+        len = sprintf(buffer, "%dh", hours);
+    } else {
+        len = sprintf(buffer, "%dm", timeInMinutes);
+    }
+    return len;
+}
+
 static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName, char* dbFName, SDbCfgInfo* pCfg) {
   QRY_ERR_RET(blockDataEnsureCapacity(pBlock, 1));
   pBlock->info.rows = 1;
@@ -368,7 +386,7 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
       break;
   }
 
-  char*   pRetentions = NULL;
+  char* pRetentions = NULL;
   QRY_ERR_RET(buildRetension(pCfg->pRetensions, &pRetentions));
   int32_t dbFNameLen = strlen(dbFName);
   int32_t hashPrefix = 0;
@@ -377,20 +395,31 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
   } else if (pCfg->hashPrefix < 0) {
     hashPrefix = pCfg->hashPrefix + dbFNameLen + 1;
   }
+  char durationStr[128] = {0};
+  char keep0Str[128] = {0};
+  char keep1Str[128] = {0};
+  char keep2Str[128] = {0};
+
+  int32_t lenDuration = formatDurationOrKeep(durationStr, pCfg->daysPerFile);
+  int32_t lenKeep0 = formatDurationOrKeep(keep0Str, pCfg->daysToKeep0);
+  int32_t lenKeep1 = formatDurationOrKeep(keep1Str, pCfg->daysToKeep1);
+  int32_t lenKeep2 = formatDurationOrKeep(keep2Str, pCfg->daysToKeep2);
 
   if (IS_SYS_DBNAME(dbName)) {
     len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE DATABASE `%s`", dbName);
   } else {
     len += sprintf(buf2 + VARSTR_HEADER_SIZE,
-                   "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %dm "
-                   "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d "
+                   "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %s "
+                   "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %s,%s,%s PAGES %d PAGESIZE %d "
                    "PRECISION '%s' REPLICA %d "
                    "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
                    "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64
                    " KEEP_TIME_OFFSET %d ENCRYPT_ALGORITHM '%s' S3_CHUNKSIZE %d S3_KEEPLOCAL %dm S3_COMPACT %d",
                    dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression,
-                   pCfg->daysPerFile, pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->sstTrigger,
-                   pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2, pCfg->pages, pCfg->pageSize, prec,
+                   durationStr,
+                   pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->sstTrigger,
+                   keep0Str, keep1Str, keep2Str,
+                   pCfg->pages, pCfg->pageSize, prec,
                    pCfg->replications, pCfg->walLevel, pCfg->numOfVgroups, 1 == pCfg->numOfStables, hashPrefix,
                    pCfg->hashSuffix, pCfg->tsdbPageSize, pCfg->walRetentionPeriod, pCfg->walRetentionSize,
                    pCfg->keepTimeOffset, encryptAlgorithmStr(pCfg->encryptAlgorithm), pCfg->s3ChunkSize,
@@ -424,10 +453,10 @@ static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveT
 }
 
 static int32_t buildCreateTbResultDataBlock(SSDataBlock** pOutput) {
-  QRY_OPTR_CHECK(pOutput);
+  QRY_PARAM_CHECK(pOutput);
 
   SSDataBlock* pBlock = NULL;
-  int32_t code = createDataBlock(&pBlock);
+  int32_t      code = createDataBlock(&pBlock);
   if (code) {
     return code;
   }
@@ -448,10 +477,10 @@ static int32_t buildCreateTbResultDataBlock(SSDataBlock** pOutput) {
 }
 
 static int32_t buildCreateViewResultDataBlock(SSDataBlock** pOutput) {
-  QRY_OPTR_CHECK(pOutput);
+  QRY_PARAM_CHECK(pOutput);
 
   SSDataBlock* pBlock = NULL;
-  int32_t code = createDataBlock(&pBlock);
+  int32_t      code = createDataBlock(&pBlock);
   if (code) {
     return code;
   }
@@ -536,6 +565,10 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
   if (tTagIsJson(pTag)) {
     char* pJson = NULL;
     parseTagDatatoJson(pTag, &pJson);
+    if(NULL == pJson) {
+      qError("failed to parse tag to json, pJson is NULL");
+      return terrno;
+    }
     *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s", pJson);
     taosMemoryFree(pJson);
 
@@ -578,36 +611,7 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
     } else {
       *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "NULL");
     }
-
-    /*
-    if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
-      if (pTagVal->nData > 0) {
-        if (num) {
-          *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", ");
-        }
-
-        memcpy(buf + VARSTR_HEADER_SIZE + *len, pTagVal->pData, pTagVal->nData);
-        *len += pTagVal->nData;
-      }
-    } else if (type == TSDB_DATA_TYPE_NCHAR) {
-      if (pTagVal->nData > 0) {
-        if (num) {
-          *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", ");
-        }
-        int32_t tlen = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, buf + VARSTR_HEADER_SIZE + *len);
-      }
-    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
-      double val = *(double *)(&pTagVal->i64);
-      int    len = 0;
-      term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, (const char *)&val, len);
-    } else if (type == TSDB_DATA_TYPE_BOOL) {
-      int val = *(int *)(&pTagVal->i64);
-      int len = 0;
-      term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_INT, key, nKey, (const char *)&val, len);
-    }
-    */
   }
-
 _exit:
   taosArrayDestroy(pTagVals);
 
@@ -740,11 +744,14 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
   SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
   char*            buf2 = taosMemoryMalloc(SHOW_CREATE_VIEW_RESULT_FIELD2_LEN);
   if (NULL == buf2) {
-    QRY_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    return terrno;
   }
 
   SViewMeta* pMeta = pStmt->pViewMeta;
-  ASSERT(pMeta);
+  if(NULL == pMeta) {
+    qError("exception: view meta is null");
+    return TSDB_CODE_APP_ERROR;
+  }
   snprintf(varDataVal(buf2), SHOW_CREATE_VIEW_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE, "CREATE VIEW `%s`.`%s` AS %s",
            pStmt->dbName, pStmt->viewName, pMeta->querySql);
   int32_t len = strlen(varDataVal(buf2));
@@ -849,7 +856,7 @@ _return:
 static int32_t buildLocalVariablesResultDataBlock(SSDataBlock** pOutput) {
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (NULL == pBlock) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pBlock->info.hasVarCol = true;
@@ -864,26 +871,26 @@ static int32_t buildLocalVariablesResultDataBlock(SSDataBlock** pOutput) {
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN;
-  if(taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
+  if (taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
     goto _exit;
   }
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN;
-  if(taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
+  if (taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
     goto _exit;
   }
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD3_LEN;
-  if(taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
+  if (taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
     goto _exit;
   }
 
   *pOutput = pBlock;
 
 _exit:
-  if(terrno != TSDB_CODE_SUCCESS) {
+  if (terrno != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pBlock);
     taosArrayDestroy(pBlock->pDataBlock);
   }
@@ -904,10 +911,10 @@ static int32_t execShowLocalVariables(SRetrieveTableRsp** pRsp) {
 }
 
 static int32_t createSelectResultDataBlock(SNodeList* pProjects, SSDataBlock** pOutput) {
-  QRY_OPTR_CHECK(pOutput);
+  QRY_PARAM_CHECK(pOutput);
 
   SSDataBlock* pBlock = NULL;
-  int32_t code = createDataBlock(&pBlock);
+  int32_t      code = createDataBlock(&pBlock);
   if (code) {
     return code;
   }
@@ -942,7 +949,8 @@ int32_t buildSelectResultDataBlock(SNodeList* pProjects, SSDataBlock* pBlock) {
       if (((SValueNode*)pProj)->isNull) {
         QRY_ERR_RET(colDataSetVal(taosArrayGet(pBlock->pDataBlock, index++), 0, NULL, true));
       } else {
-        QRY_ERR_RET(colDataSetVal(taosArrayGet(pBlock->pDataBlock, index++), 0, nodesGetValueFromNode((SValueNode*)pProj), false));
+        QRY_ERR_RET(colDataSetVal(taosArrayGet(pBlock->pDataBlock, index++), 0,
+                                  nodesGetValueFromNode((SValueNode*)pProj), false));
       }
     }
   }

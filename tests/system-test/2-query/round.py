@@ -53,7 +53,7 @@ class TDTestCase:
             ( '2020-10-21 01:01:01.000', 1, 11111, 111, 11, 1.11, 11.11, 1, "binary1", "nchar1", now()+1a )
             ( '2020-12-31 01:01:01.000', 2, 22222, 222, 22, 2.22, 22.22, 0, "binary2", "nchar2", now()+2a )
             ( '2021-01-01 01:01:06.000', 3, 33333, 333, 33, 3.33, 33.33, 0, "binary3", "nchar3", now()+3a )
-            ( '2021-05-07 01:01:10.000', 4, 44444, 444, 44, 4.44, 44.44, 1, "binary4", "nchar4", now()+4a )
+            ( '2021-05-07 01:01:10.000', 4, 44444, 444, 44, -0.444, 44.44, 1, "binary4", "nchar4", now()+4a )
             ( '2021-07-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( '2021-09-30 01:01:16.000', 5, 55555, 555, 55, 5.55, 55.55, 0, "binary5", "nchar5", now()+5a )
             ( '2022-02-01 01:01:20.000', 6, 66666, 666, 66, 6.66, 66.66, 1, "binary6", "nchar6", now()+6a )
@@ -99,8 +99,8 @@ class TDTestCase:
             # f"select round(tbname+1) from {dbname}.t1 ",
             f"select round(123--123)==1 from {dbname}.t1",
             f"select round(c1) as 'd1' from {dbname}.t1",
-            f"select round(c1 ,c2 ) from {dbname}.t1",
-            f"select round(c1 ,NULL) from {dbname}.t1",
+            # f"select round(c1 ,c2 ) from {dbname}.t1",
+            # f"select round(c1 ,NULL) from {dbname}.t1",
             f"select round(,) from {dbname}.t1;",
             f"select round(round(c1) ab from {dbname}.t1)",
             f"select round(c1) as int from {dbname}.t1",
@@ -113,8 +113,8 @@ class TDTestCase:
             # f"select round(tbname+1) from {dbname}.stb1 ",
             f"select round(123--123)==1 from {dbname}.stb1",
             f"select round(c1) as 'd1' from {dbname}.stb1",
-            f"select round(c1 ,c2 ) from {dbname}.stb1",
-            f"select round(c1 ,NULL) from {dbname}.stb1",
+            # f"select round(c1 ,c2 ) from {dbname}.stb1",
+            # f"select round(c1 ,NULL) from {dbname}.stb1",
             f"select round(,) from {dbname}.stb1;",
             f"select round(round(c1) ab from {dbname}.stb1)",
             f"select round(c1) as int from {dbname}.stb1"
@@ -231,6 +231,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 1.11000)
         tdSql.checkData(3, 4, 33)
         tdSql.checkData(5, 5, None)
+
+        tdSql.query(f"select round(c5) from {dbname}.t1")
+        tdSql.checkData(4 , 0, 0)
 
         self.check_result_auto( f"select c1, c2, c3 , c4, c5 from {dbname}.t1", f"select (c1), round(c2) ,round(c3), round(c4), round(c5) from {dbname}.t1")
 

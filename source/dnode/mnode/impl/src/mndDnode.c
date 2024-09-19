@@ -86,6 +86,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq);
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq);
 static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessStatisReq(SRpcMsg *pReq);
+static int32_t mndProcessUpdateDnodeInfoReq(SRpcMsg *pReq);
 static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pRsp);
 static int32_t mndProcessCreateEncryptKeyRsp(SRpcMsg *pRsp);
 
@@ -126,6 +127,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_STATIS, mndProcessStatisReq);
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ENCRYPT_KEY, mndProcessCreateEncryptKeyReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_ENCRYPT_KEY_RSP, mndProcessCreateEncryptKeyRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_UPDATE_DNODE_INFO, mndProcessUpdateDnodeInfoReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndRetrieveConfigs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
@@ -180,13 +182,13 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
     goto _OVER;
   }
   TAOS_CHECK_GOTO(mndTransAppendCommitlog(pTrans, pRaw), NULL, _OVER);
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pRaw, SDB_STATUS_READY), NULL, _OVER);
   pRaw = NULL;
 
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
-  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD,
-                             1);  // TODO: check the return value
+  (void)mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD,
+                                   1);  // TODO: check the return value
 
 _OVER:
   mndTransDrop(pTrans);
@@ -428,7 +430,9 @@ static void mndGetDnodeEps(SMnode *pMnode, SArray *pDnodeEps) {
     if (mndIsMnode(pMnode, pDnode->id)) {
       dnodeEp.isMnode = 1;
     }
-    (void)taosArrayPush(pDnodeEps, &dnodeEp);
+    if (taosArrayPush(pDnodeEps, &dnodeEp) == NULL) {
+      mError("failed to put ep into array, but continue at this call");
+    }
   }
 }
 
@@ -457,7 +461,7 @@ int32_t mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
     }
 
     if(taosArrayPush(pDnodeInfo, &dInfo) == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       sdbCancelFetch(pSdb, pIter);
       break;
     }
@@ -601,37 +605,81 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
 }
 
 static int32_t mndUpdateDnodeObj(SMnode *pMnode, SDnodeObj *pDnode) {
-  int32_t code = 0;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, NULL, "update-dnode-obj");
-  if (pTrans == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
+  int32_t       code = 0, lino = 0;
+  SDnodeInfoReq infoReq = {0};
+  int32_t       contLen = 0;
+  void         *pReq = NULL;
+
+  infoReq.dnodeId = pDnode->id;
+  tstrncpy(infoReq.machineId, pDnode->machineId, TSDB_MACHINE_ID_LEN + 1);
+
+  if ((contLen = tSerializeSDnodeInfoReq(NULL, 0, &infoReq)) <= 0) {
+    TAOS_RETURN(contLen ? contLen : TSDB_CODE_OUT_OF_MEMORY);
+  }
+  pReq = rpcMallocCont(contLen);
+  if (pReq == NULL) {
+    TAOS_RETURN(terrno);
+  }
+
+  if ((contLen = tSerializeSDnodeInfoReq(pReq, contLen, &infoReq)) <= 0) {
+    code = contLen;
     goto _exit;
+  }
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPDATE_DNODE_INFO, .pCont = pReq, .contLen = contLen};
+  TAOS_CHECK_EXIT(tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg));
+_exit:
+  if (code < 0) {
+    mError("dnode:%d, failed to update dnode info since %s", pDnode->id, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessUpdateDnodeInfoReq(SRpcMsg *pReq) {
+  int32_t       code = 0, lino = 0;
+  SMnode       *pMnode = pReq->info.node;
+  SDnodeInfoReq infoReq = {0};
+  SDnodeObj    *pDnode = NULL;
+  STrans       *pTrans = NULL;
+  SSdbRaw      *pCommitRaw = NULL;
+
+  TAOS_CHECK_EXIT(tDeserializeSDnodeInfoReq(pReq->pCont, pReq->contLen, &infoReq));
+
+  pDnode = mndAcquireDnode(pMnode, infoReq.dnodeId);
+  if (pDnode == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, NULL, "update-dnode-obj");
+  if (pTrans == NULL) {
+    TAOS_CHECK_EXIT(terrno);
   }
 
   pDnode->updateTime = taosGetTimestampMs();
 
-  SSdbRaw *pCommitRaw = mndDnodeActionEncode(pDnode);
-  if (pCommitRaw == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    goto _exit;
+  if ((pCommitRaw = mndDnodeActionEncode(pDnode)) == NULL) {
+    TAOS_CHECK_EXIT(terrno);
   }
   if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, tstrerror(code));
-    code = terrno;
-    goto _exit;
+    TAOS_CHECK_EXIT(code);
   }
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
+  pCommitRaw = NULL;
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
-    goto _exit;
+    TAOS_CHECK_EXIT(code);
   }
 
 _exit:
+  mndReleaseDnode(pMnode, pDnode);
+  if (code != 0) {
+    mError("dnode:%d, failed to update dnode info at line %d since %s", infoReq.dnodeId, lino, tstrerror(code));
+  }
   mndTransDrop(pTrans);
-  return code;
+  sdbFreeRaw(pCommitRaw);
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
@@ -829,8 +877,12 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
-    (void)tSerializeSStatusRsp(pHead, contLen, &statusRsp);
+    contLen = tSerializeSStatusRsp(pHead, contLen, &statusRsp);
     taosArrayDestroy(statusRsp.pDnodeEps);
+    if (contLen < 0) {
+      code = contLen;
+      goto _OVER;
+    }
 
     pReq->info.rspLen = contLen;
     pReq->info.rsp = pHead;
@@ -843,8 +895,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 _OVER:
   mndReleaseDnode(pMnode, pDnode);
   taosArrayDestroy(statusReq.pVloads);
-  (void)mndUpdClusterInfo(pReq);
-  return code;
+  return mndUpdClusterInfo(pReq);
 }
 
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq) {
@@ -910,13 +961,14 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
     goto _OVER;
   }
   TAOS_CHECK_GOTO(mndTransAppendCommitlog(pTrans, pRaw), NULL, _OVER);
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pRaw, SDB_STATUS_READY), NULL, _OVER);
   pRaw = NULL;
 
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
 
-  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1); // TODO: check the return value
+  (void)mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD,
+                                   1);  // TODO: check the return value
 _OVER:
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
@@ -934,7 +986,7 @@ static int32_t mndProcessDnodeListReq(SRpcMsg *pReq) {
   rsp.dnodeList = taosArrayInit(5, sizeof(SEpSet));
   if (NULL == rsp.dnodeList) {
     mError("failed to alloc epSet while process dnode list req");
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -947,7 +999,12 @@ static int32_t mndProcessDnodeListReq(SRpcMsg *pReq) {
     tstrncpy(epSet.eps[0].fqdn, pObj->fqdn, TSDB_FQDN_LEN);
     epSet.eps[0].port = pObj->port;
 
-    (void)taosArrayPush(rsp.dnodeList, &epSet);
+    if (taosArrayPush(rsp.dnodeList, &epSet) == NULL) {
+      if (terrno != 0) code = terrno;
+      sdbRelease(pSdb, pObj);
+      sdbCancelFetch(pSdb, pIter);
+      goto _OVER;
+    }
 
     sdbRelease(pSdb, pObj);
   }
@@ -955,11 +1012,14 @@ static int32_t mndProcessDnodeListReq(SRpcMsg *pReq) {
   int32_t rspLen = tSerializeSDnodeListRsp(NULL, 0, &rsp);
   void   *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
-  (void)tSerializeSDnodeListRsp(pRsp, rspLen, &rsp);
+  if ((rspLen = tSerializeSDnodeListRsp(pRsp, rspLen, &rsp)) <= 0) {
+    code = rspLen;
+    goto _OVER;
+  }
 
   pReq->info.rspLen = rspLen;
   pReq->info.rsp = pRsp;
@@ -1013,7 +1073,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   rsp.variables = taosArrayInit(16, sizeof(SVariablesInfo));
   if (NULL == rsp.variables) {
     mError("failed to alloc SVariablesInfo array while process show variables req");
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1023,7 +1083,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
   (void)strcpy(info.scope, "server");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1031,7 +1091,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsTimezoneStr);
   (void)strcpy(info.scope, "both");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1039,7 +1099,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsLocale);
   (void)strcpy(info.scope, "both");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1047,7 +1107,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
   (void)strcpy(info.scope, "both");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1055,7 +1115,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsEnableMonitor);
   (void)strcpy(info.scope, "server");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1063,7 +1123,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsMonitorInterval);
   (void)strcpy(info.scope, "server");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1071,7 +1131,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogThreshold);
   (void)strcpy(info.scope, "server");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1079,7 +1139,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogMaxLen);
   (void)strcpy(info.scope, "server");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -1089,18 +1149,21 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", scopeStr);
   (void)strcpy(info.scope, "server");
   if (taosArrayPush(rsp.variables, &info) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
   int32_t rspLen = tSerializeSShowVariablesRsp(NULL, 0, &rsp);
   void   *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
-  (void)tSerializeSShowVariablesRsp(pRsp, rspLen, &rsp);
+  if ((rspLen = tSerializeSShowVariablesRsp(pRsp, rspLen, &rsp)) <= 0) {
+    code = rspLen;
+    goto _OVER;
+  }
 
   pReq->info.rspLen = rspLen;
   pReq->info.rsp = pRsp;
@@ -1196,7 +1259,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
     goto _OVER;
   }
   TAOS_CHECK_GOTO(mndTransAppendRedolog(pTrans, pRaw), NULL, _OVER);
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_DROPPING);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pRaw, SDB_STATUS_DROPPING), NULL, _OVER);
   pRaw = NULL;
 
   pRaw = mndDnodeActionEncode(pDnode);
@@ -1206,7 +1269,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
     goto _OVER;
   }
   TAOS_CHECK_GOTO(mndTransAppendCommitlog(pTrans, pRaw), NULL, _OVER);
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED), NULL, _OVER);
   pRaw = NULL;
 
   if (pMObj != NULL) {
@@ -1231,7 +1294,8 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
 
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
-  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, pDnode->fqdn, IP_WHITE_DROP, 1); // TODO: check the return value
+  (void)mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, pDnode->fqdn, IP_WHITE_DROP,
+                                   1);  // TODO: check the return value
   code = 0;
 
 _OVER:
@@ -1398,7 +1462,10 @@ static int32_t mndSendCfgDnodeReq(SMnode *pMnode, int32_t dnodeId, SDCfgDnodeReq
       void   *pBuf = rpcMallocCont(bufLen);
 
       if (pBuf != NULL) {
-        (void)tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq);
+        if ((bufLen = tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq)) <= 0) {
+          code = bufLen;
+          return code;
+        }
         mInfo("dnode:%d, send config req to dnode, config:%s value:%s", dnodeId, pDcfgReq->config, pDcfgReq->value);
         SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
         code = tmsgSendReq(&epSet, &rpcMsg);
@@ -1538,7 +1605,11 @@ static int32_t mndProcessCreateEncryptKeyReqImpl(SRpcMsg *pReq, int32_t dnodeId,
       void   *pBuf = rpcMallocCont(bufLen);
 
       if (pBuf != NULL) {
-        (void)tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq);
+        if ((bufLen = tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq)) <= 0) {
+          code = bufLen;
+          sdbRelease(pSdb, pDnode);
+          goto _exit;
+        }
         SRpcMsg rpcMsg = {.msgType = TDMT_DND_CREATE_ENCRYPT_KEY, .pCont = pBuf, .contLen = bufLen};
         if (0 == tmsgSendReq(&epSet, &rpcMsg)) {
           (void)atomic_add_fetch_16(&pMnode->encryptMgmt.nEncrypt, 1);
@@ -1623,6 +1694,8 @@ static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   char    cfgVals[TSDB_CONFIG_NUMBER][TSDB_CONFIG_VALUE_LEN + 1] = {0};
   char   *pWrite = NULL;
   int32_t cols = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
 
   cfgOpts[totalRows] = "statusInterval";
   (void)snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
@@ -1670,15 +1743,17 @@ static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
     STR_WITH_MAXSIZE_TO_VARSTR(buf, cfgOpts[i], TSDB_CONFIG_OPTION_LEN);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)buf, false), &lino, _OVER);
 
     STR_WITH_MAXSIZE_TO_VARSTR(bufVal, cfgVals[i], TSDB_CONFIG_VALUE_LEN);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)bufVal, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)bufVal, false), &lino, _OVER);
 
     numOfRows++;
   }
 
+_OVER:
+  if (code != 0) mError("failed to retrieve configs at line:%d since %s", lino, tstrerror(code));
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }
@@ -1694,6 +1769,8 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   SDnodeObj *pDnode = NULL;
   int64_t    curMs = taosGetTimestampMs();
   char       buf[TSDB_EP_LEN + VARSTR_HEADER_SIZE];
+  int32_t    code = 0;
+  int32_t    lino = 0;
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetchAll(pSdb, SDB_DNODE, pShow->pIter, (void **)&pDnode, &objStatus, true);
@@ -1703,19 +1780,20 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     cols = 0;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->id, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->id, false), pDnode, &lino, _OVER);
 
     STR_WITH_MAXSIZE_TO_VARSTR(buf, pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, buf, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, buf, false), pDnode, &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int16_t id = mndGetVnodesNum(pMnode, pDnode->id);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&id, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&id, false), pDnode, &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->numOfSupportVnodes, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->numOfSupportVnodes, false), pDnode,
+                        &lino, _OVER);
 
     const char *status = "ready";
     if (objStatus == SDB_STATUS_CREATING) status = "creating";
@@ -1731,30 +1809,35 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     STR_TO_VARSTR(buf, status);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, buf, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, buf, false), pDnode, &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->createdTime, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->createdTime, false), pDnode, &lino,
+                        _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->rebootTime, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->rebootTime, false), pDnode, &lino,
+                        _OVER);
 
     char *b = taosMemoryCalloc(VARSTR_HEADER_SIZE + strlen(offlineReason[pDnode->offlineReason]) + 1, 1);
     STR_TO_VARSTR(b, online ? "" : offlineReason[pDnode->offlineReason]);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, b, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, b, false), pDnode, &lino, _OVER);
     taosMemoryFreeClear(b);
 
 #ifdef TD_ENTERPRISE
     STR_TO_VARSTR(buf, pDnode->machineId);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, buf, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, buf, false), pDnode, &lino, _OVER);
 #endif
 
     numOfRows++;
     sdbRelease(pSdb, pDnode);
   }
+
+_OVER:
+  if (code != 0) mError("failed to retrieve dnodes at line:%d since %s", lino, tstrerror(code));
 
   pShow->numOfRows += numOfRows;
   return numOfRows;
@@ -1762,7 +1845,7 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
 static void mndCancelGetNextDnode(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_DNODE);
 }
 
 // get int32_t value from 'SMCfgDnodeReq'
@@ -1800,7 +1883,9 @@ SArray *mndGetAllDnodeFqdns(SMnode *pMnode) {
     if (pIter == NULL) break;
 
     char *fqdn = taosStrdup(pObj->fqdn);
-    (void)taosArrayPush(fqdns, &fqdn);
+    if (taosArrayPush(fqdns, &fqdn) == NULL) {
+      mError("failed to fqdn into array, but continue at this time");
+    }
     sdbRelease(pSdb, pObj);
   }
   return fqdns;

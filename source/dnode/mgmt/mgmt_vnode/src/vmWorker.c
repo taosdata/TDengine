@@ -126,7 +126,7 @@ static void vmProcessStreamQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   dGTrace("vgId:%d, msg:%p get from vnode-stream queue", pVnode->vgId, pMsg);
   int32_t code = vnodeProcessStreamMsg(pVnode->pImpl, pMsg, pInfo);
   if (code != 0) {
-    if (terrno != 0) code = terrno;
+    terrno = code;
     dGError("vgId:%d, msg:%p failed to process stream msg %s since %s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType),
             tstrerror(code));
     vmSendRsp(pMsg, code);
@@ -187,7 +187,7 @@ static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOf
 static void vmSendResponse(SRpcMsg *pMsg) {
   if (pMsg->info.handle) {
     SRpcMsg rsp = {.info = pMsg->info, .code = terrno};
-    rpcSendResponse(&rsp);
+    (void)rpcSendResponse(&rsp);
   }
 }
 
@@ -236,7 +236,7 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
         dError("vgId:%d, msg:%p preprocess query msg failed since %s", pVnode->vgId, pMsg, tstrerror(code));
       } else {
         dGTrace("vgId:%d, msg:%p put into vnode-query queue", pVnode->vgId, pMsg);
-        taosWriteQitem(pVnode->pQueryQ, pMsg);
+        code = taosWriteQitem(pVnode->pQueryQ, pMsg);
       }
       break;
     case STREAM_QUEUE:

@@ -99,5 +99,5 @@ int32_t mndRetrieveView(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int
 
 void mndCancelGetNextView(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_VIEW);
 }

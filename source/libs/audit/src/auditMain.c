@@ -36,6 +36,8 @@ int32_t auditInit(const SAuditCfg *pCfg) {
   return taosThreadMutexInit(&tsAudit.lock, NULL);
 }
 
+void auditSetDnodeId(int32_t dnodeId) { tsAudit.dnodeId = dnodeId; }
+
 static FORCE_INLINE void auditDeleteRecord(SAuditRecord * record) {
   if (record) {
     taosMemoryFree(record->detail);
@@ -45,11 +47,11 @@ static FORCE_INLINE void auditDeleteRecord(SAuditRecord * record) {
 
 void auditCleanup() {
   tsLogFp = NULL;
-  taosThreadMutexLock(&tsAudit.lock);
+  (void)taosThreadMutexLock(&tsAudit.lock);
   taosArrayDestroyP(tsAudit.records, (FDelete)auditDeleteRecord);
-  taosThreadMutexUnlock(&tsAudit.lock);
+  (void)taosThreadMutexUnlock(&tsAudit.lock);
   tsAudit.records = NULL;
-  taosThreadMutexDestroy(&tsAudit.lock);
+  (void)taosThreadMutexDestroy(&tsAudit.lock);
 }
 
 extern void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 

@@ -27,11 +27,11 @@ extern "C" {
 // typedef struct tsem_s *tsem_t;
 typedef dispatch_semaphore_t tsem_t;
 
-int tsem_init(tsem_t *sem, int pshared, unsigned int value);
-int tsem_wait(tsem_t *sem);
-int tsem_timewait(tsem_t *sim, int64_t milis);
-int tsem_post(tsem_t *sem);
-int tsem_destroy(tsem_t *sem);
+int32_t tsem_init(tsem_t *sem, int pshared, unsigned int value);
+int32_t tsem_wait(tsem_t *sem);
+int32_t tsem_timewait(tsem_t *sim, int64_t milis);
+int32_t tsem_post(tsem_t *sem);
+int32_t tsem_destroy(tsem_t *sem);
 
 #define tsem2_t        tsem_t
 #define tsem2_init     tsem_init
@@ -45,11 +45,11 @@ int tsem_destroy(tsem_t *sem);
 
 #define tsem_t HANDLE
 
-int tsem_init(tsem_t *sem, int pshared, unsigned int value);
-int tsem_wait(tsem_t *sem);
-int tsem_timewait(tsem_t *sim, int64_t milis);
-int tsem_post(tsem_t *sem);
-int tsem_destroy(tsem_t *sem);
+int32_t tsem_init(tsem_t *sem, int pshared, unsigned int value);
+int32_t tsem_wait(tsem_t *sem);
+int32_t tsem_timewait(tsem_t *sim, int64_t milis);
+int32_t tsem_post(tsem_t *sem);
+int32_t tsem_destroy(tsem_t *sem);
 
 #define tsem2_t        tsem_t
 #define tsem2_init     tsem_init
@@ -61,11 +61,11 @@ int tsem_destroy(tsem_t *sem);
 #else
 
 #define tsem_t       sem_t
-#define tsem_init    sem_init
-int tsem_wait(tsem_t *sem);
-int tsem_timewait(tsem_t *sim, int64_t milis);
-#define tsem_post    sem_post
-#define tsem_destroy sem_destroy
+int32_t tsem_init(tsem_t *sem, int pshared, unsigned int value);
+int32_t tsem_wait(tsem_t *sem);
+int32_t tsem_timewait(tsem_t *sim, int64_t milis);
+int32_t tsem_post(tsem_t *sem);
+int32_t tsem_destroy(tsem_t *sem);
 
 typedef struct tsem2_t {
   TdThreadMutex    mutex;

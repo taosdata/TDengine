@@ -15,6 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
+#include "dmUtil.h"
+#include "monitor.h"
+#include "audit.h"
 
 int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
   int32_t code = 0;
@@ -77,12 +80,12 @@ void dmCloseNode(SMgmtWrapper *pWrapper) {
     taosMsleep(10);
   }
 
-  taosThreadRwlockWrlock(&pWrapper->lock);
+  (void)taosThreadRwlockWrlock(&pWrapper->lock);
   if (pWrapper->pMgmt != NULL) {
     (*pWrapper->func.closeFp)(pWrapper->pMgmt);
     pWrapper->pMgmt = NULL;
   }
-  taosThreadRwlockUnlock(&pWrapper->lock);
+  (void)taosThreadRwlockUnlock(&pWrapper->lock);
 
   dInfo("node:%s, has been closed", pWrapper->name);
 }
@@ -97,6 +100,9 @@ static int32_t dmOpenNodes(SDnode *pDnode) {
       return code;
     }
   }
+
+  auditSetDnodeId(dmGetDnodeId(&pDnode->data));
+  monSetDnodeId(dmGetDnodeId(&pDnode->data));
 
   dmSetStatus(pDnode, DND_STAT_RUNNING);
   return 0;
@@ -159,7 +165,9 @@ int32_t dmRunDnode(SDnode *pDnode) {
     }
 
     if (count == 10) {
-      osUpdate();
+      if(osUpdate() != 0) {
+        dError("failed to update os info");
+      }
       count = 0;
     } else {
       count++;

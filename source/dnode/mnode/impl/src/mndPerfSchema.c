@@ -22,7 +22,7 @@ int32_t mndInitPerfsTableSchema(const SSysDbTableSchema *pSrc, int32_t colNum, S
   int32_t  code = 0;
   SSchema *schema = taosMemoryCalloc(colNum, sizeof(SSchema));
   if (NULL == schema) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 
@@ -42,7 +42,7 @@ int32_t mndPerfsInitMeta(SHashObj *hash) {
   int32_t       code = 0;
   STableMetaRsp meta = {0};
 
-  tstrncpy(meta.dbFName, TSDB_INFORMATION_SCHEMA_DB, sizeof(meta.dbFName));
+  tstrncpy(meta.dbFName, TSDB_PERFORMANCE_SCHEMA_DB, sizeof(meta.dbFName));
   meta.tableType = TSDB_SYSTEM_TABLE;
   meta.sversion = 1;
   meta.tversion = 1;
@@ -58,7 +58,7 @@ int32_t mndPerfsInitMeta(SHashObj *hash) {
     TAOS_CHECK_RETURN(mndInitPerfsTableSchema(pSysDbTableMeta[i].schema, pSysDbTableMeta[i].colNum, &meta.pSchemas));
 
     if (taosHashPut(hash, meta.tbName, strlen(meta.tbName), &meta, sizeof(meta))) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TAOS_RETURN(code);
     }
   }
@@ -84,7 +84,7 @@ int32_t mndBuildPerfsTableSchema(SMnode *pMnode, const char *dbFName, const char
 
   pRsp->pSchemas = taosMemoryCalloc(meta->numOfColumns, sizeof(SSchema));
   if (pRsp->pSchemas == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     pRsp->pSchemas = NULL;
     TAOS_RETURN(code);
   }
@@ -116,7 +116,7 @@ int32_t mndBuildPerfsTableCfg(SMnode *pMnode, const char *dbFName, const char *t
 
   pRsp->pSchemas = taosMemoryCalloc(pMeta->numOfColumns, sizeof(SSchema));
   if (pRsp->pSchemas == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     pRsp->pSchemas = NULL;
     TAOS_RETURN(code);
   }
@@ -129,7 +129,7 @@ int32_t mndInitPerfs(SMnode *pMnode) {
   int32_t code = 0;
   pMnode->perfsMeta = taosHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (pMnode->perfsMeta == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 

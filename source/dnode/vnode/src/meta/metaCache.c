@@ -122,7 +122,7 @@ int32_t metaCacheOpen(SMeta* pMeta) {
 
   pMeta->pCache = (SMetaCache*)taosMemoryCalloc(1, sizeof(SMetaCache));
   if (pMeta->pCache == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   // open entry cache
@@ -131,7 +131,7 @@ int32_t metaCacheOpen(SMeta* pMeta) {
   pMeta->pCache->sEntryCache.aBucket =
       (SMetaCacheEntry**)taosMemoryCalloc(pMeta->pCache->sEntryCache.nBucket, sizeof(SMetaCacheEntry*));
   if (pMeta->pCache->sEntryCache.aBucket == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   // open stats cache
@@ -140,7 +140,7 @@ int32_t metaCacheOpen(SMeta* pMeta) {
   pMeta->pCache->sStbStatsCache.aBucket =
       (SMetaStbStatsEntry**)taosMemoryCalloc(pMeta->pCache->sStbStatsCache.nBucket, sizeof(SMetaStbStatsEntry*));
   if (pMeta->pCache->sStbStatsCache.aBucket == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   pMeta->pCache->sTagFilterResCache.pUidResCache = taosLRUCacheInit(5 * 1024 * 1024, -1, 0.5);
@@ -228,7 +228,7 @@ static int32_t metaRehashCache(SMetaCache* pCache, int8_t expand) {
 
   SMetaCacheEntry** aBucket = (SMetaCacheEntry**)taosMemoryCalloc(nBucket, sizeof(SMetaCacheEntry*));
   if (aBucket == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -271,7 +271,7 @@ int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo) {
   if (*ppEntry) {  // update
     if (pInfo->suid != (*ppEntry)->info.suid) {
       metaError("meta/cache: suid should be same as the one in cache.");
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_INVALID_PARA;
     }
     if (pInfo->version > (*ppEntry)->info.version) {
       (*ppEntry)->info.version = pInfo->version;
@@ -286,7 +286,7 @@ int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo) {
 
     SMetaCacheEntry* pEntryNew = (SMetaCacheEntry*)taosMemoryMalloc(sizeof(*pEntryNew));
     if (pEntryNew == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
 
@@ -361,7 +361,7 @@ static int32_t metaRehashStatsCache(SMetaCache* pCache, int8_t expand) {
 
   SMetaStbStatsEntry** aBucket = (SMetaStbStatsEntry**)taosMemoryCalloc(nBucket, sizeof(SMetaStbStatsEntry*));
   if (aBucket == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -411,7 +411,7 @@ int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo) {
 
     SMetaStbStatsEntry* pEntryNew = (SMetaStbStatsEntry*)taosMemoryMalloc(sizeof(*pEntryNew));
     if (pEntryNew == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
 
@@ -492,7 +492,7 @@ static int checkAllEntriesInCache(const STagFilterResEntry* pEntry, SArray* pInv
     LRUHandle* pRes = taosLRUCacheLookup(pCache, buf, len);
     if (pRes == NULL) {  // remove the item in the linked list
       if (taosArrayPush(pInvalidRes, &pNode) == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     } else {
       (void)taosLRUCacheRelease(pCache, pRes, false);
@@ -503,7 +503,6 @@ static int checkAllEntriesInCache(const STagFilterResEntry* pEntry, SArray* pInv
 }
 
 static FORCE_INLINE void setMD5DigestInKey(uint64_t* pBuf, const char* key, int32_t keyLen) {
-  //  ASSERT(keyLen == sizeof(int64_t) * 2);
   memcpy(&pBuf[2], key, keyLen);
 }
 
@@ -513,7 +512,6 @@ static void initCacheKey(uint64_t* buf, const SHashObj* pHashMap, uint64_t suid,
   buf[0] = (uint64_t)pHashMap;
   buf[1] = suid;
   setMD5DigestInKey(buf, key, keyLen);
-  ASSERT(keyLen == sizeof(uint64_t) * 2);
 }
 
 int32_t metaGetCachedTableUidList(void* pVnode, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray* pList1,
@@ -543,7 +541,7 @@ int32_t metaGetCachedTableUidList(void* pVnode, tb_uid_t suid, const uint8_t* pK
   STagFilterResEntry** pEntry = taosHashGet(pTableMap, &suid, sizeof(uint64_t));
   if (NULL == pEntry) {
     metaError("meta/cache: pEntry should not be NULL.");
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_NOT_FOUND;
   }
 
   *acquireRes = 1;
@@ -614,7 +612,7 @@ static void freeUidCachePayload(const void* key, size_t keyLen, void* value, voi
 static int32_t addNewEntry(SHashObj* pTableEntry, const void* pKey, int32_t keyLen, uint64_t suid) {
   STagFilterResEntry* p = taosMemoryMalloc(sizeof(STagFilterResEntry));
   if (p == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   p->hitTimes = 0;
@@ -750,7 +748,7 @@ int32_t metaGetCachedTbGroup(void* pVnode, tb_uid_t suid, const uint8_t* pKey, i
   STagFilterResEntry** pEntry = taosHashGet(pTableMap, &suid, sizeof(uint64_t));
   if (NULL == pEntry) {
     metaDebug("suid %" PRIu64 " not in tb group cache", suid);
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_NOT_FOUND;
   }
 
   *pList = taosArrayDup(taosLRUCacheValue(pCache, pHandle), NULL);

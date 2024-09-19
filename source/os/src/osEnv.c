@@ -29,7 +29,7 @@ enum TdTimezone tsTimezone = TdZeroZone;
 char            tsLocale[TD_LOCALE_LEN] = {0};
 char            tsCharset[TD_CHARSET_LEN] = {0};
 int8_t          tsDaylight = 0;
-bool            tsEnableCoreFile = 0;
+bool            tsEnableCoreFile = 1;
 int64_t         tsPageSizeKB = 0;
 int64_t         tsOpenMax = 0;
 int64_t         tsStreamMax = 0;
@@ -47,14 +47,18 @@ char tsAVX512Supported = 0;
 
 int32_t osDefaultInit() {
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
   taosSeedRand(taosSafeRand());
   taosGetSystemLocale(tsLocale, tsCharset);
-  taosGetSystemTimezone(tsTimezoneStr, &tsTimezone);
-  code = taosSetSystemTimezone(tsTimezoneStr, tsTimezoneStr, &tsDaylight, &tsTimezone);
-  if (code) {
+  code = taosGetSystemTimezone(tsTimezoneStr, &tsTimezone);
+  if(code != 0) {
     return code;
   }
+  if (strlen(tsTimezoneStr) > 0) { // ignore empty timezone
+    if ((code = taosSetSystemTimezone(tsTimezoneStr, tsTimezoneStr, &tsDaylight, &tsTimezone)) != TSDB_CODE_SUCCESS)
+      return code;
+  }
+
   taosGetSystemInfo();
 
   // deadlock in query
@@ -63,7 +67,10 @@ int32_t osDefaultInit() {
   }
 
 #ifdef WINDOWS
-  taosWinSocketInit();
+  code = taosWinSocketInit();
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   const char *tmpDir = getenv("tmp");
   if (tmpDir == NULL) {
@@ -90,16 +97,18 @@ int32_t osDefaultInit() {
   return code;
 }
 
-void osUpdate() {
+int32_t osUpdate() {
+  int code = 0;
   if (tsLogDir[0] != 0) {
-    (void)taosGetDiskSize(tsLogDir, &tsLogSpace.size);
+    code = taosGetDiskSize(tsLogDir, &tsLogSpace.size);
   }
   if (tsDataDir[0] != 0) {
-    (void)taosGetDiskSize(tsDataDir, &tsDataSpace.size);
+    code = taosGetDiskSize(tsDataDir, &tsDataSpace.size);
   }
   if (tsTempDir[0] != 0) {
-    (void)taosGetDiskSize(tsTempDir, &tsTempSpace.size);
+    code = taosGetDiskSize(tsTempDir, &tsTempSpace.size);
   }
+  return code;
 }
 
 void osCleanup() {}

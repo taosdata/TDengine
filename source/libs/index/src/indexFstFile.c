@@ -38,7 +38,7 @@ static FORCE_INLINE void idxGenLRUKey(char* buf, const char* path, int32_t block
   char* p = buf;
   SERIALIZE_STR_VAR_TO_BUF(p, path, strlen(path));
   SERIALIZE_VAR_TO_BUF(p, '_', char);
-  idxInt2str(blockId, p, 0);
+  (void)idxInt2str(blockId, p, 0);
   return;
 }
 static FORCE_INLINE int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) {
@@ -48,7 +48,7 @@ static FORCE_INLINE int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) 
     if (len + ctx->file.wBufOffset >= cap) {
       int32_t nw = cap - ctx->file.wBufOffset;
       memcpy(ctx->file.wBuf + ctx->file.wBufOffset, buf, nw);
-      taosWriteFile(ctx->file.pFile, ctx->file.wBuf, cap);
+      (void)taosWriteFile(ctx->file.pFile, ctx->file.wBuf, cap);
 
       memset(ctx->file.wBuf, 0, cap);
       ctx->file.wBufOffset = 0;
@@ -58,7 +58,7 @@ static FORCE_INLINE int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) 
 
       nw = (len / cap) * cap;
       if (nw != 0) {
-        taosWriteFile(ctx->file.pFile, buf, nw);
+        (void)taosWriteFile(ctx->file.pFile, buf, nw);
       }
 
       len -= nw;
@@ -104,7 +104,10 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
 
   do {
     char key[1024] = {0};
-    ASSERT(strlen(ctx->file.buf) + 1 + 64 < sizeof(key));
+    if (strlen(ctx->file.buf) + 1 + 64 >= sizeof(key)) {
+      return TSDB_CODE_INDEX_INVALID_FILE;
+    }
+
     idxGenLRUKey(key, ctx->file.buf, blkId);
     LRUHandle* h = taosLRUCacheLookup(ctx->lru, key, strlen(key));
 
@@ -112,14 +115,16 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
       SDataBlock* blk = taosLRUCacheValue(ctx->lru, h);
       nread = TMIN(blkLeft, len);
       memcpy(buf + total, blk->buf + blkOffset, nread);
-      taosLRUCacheRelease(ctx->lru, h, false);
+      (void)taosLRUCacheRelease(ctx->lru, h, false);
     } else {
       int32_t left = ctx->file.size - offset;
       if (left < kBlockSize) {
         nread = TMIN(left, len);
         int32_t bytes = taosPReadFile(ctx->file.pFile, buf + total, nread, offset);
-        ASSERTS(bytes == nread, "index read incomplete data");
-        if (bytes != nread) break;
+        if (bytes != nread) {
+          total = TSDB_CODE_INDEX_INVALID_FILE;
+          break;
+        }
 
         total += bytes;
         return total;
@@ -129,7 +134,6 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
         SDataBlock* blk = taosMemoryCalloc(1, cacheMemSize);
         blk->blockId = blkId;
         blk->nread = taosPReadFile(ctx->file.pFile, blk->buf, kBlockSize, blkId * kBlockSize);
-        ASSERTS(blk->nread <= kBlockSize, "index read incomplete data");
         if (blk->nread < kBlockSize && blk->nread < len) {
           taosMemoryFree(blk);
           break;
@@ -162,7 +166,7 @@ static FORCE_INLINE int idxFileCtxGetSize(IFileCtx* ctx) {
       return ctx->offset;
     } else {
       int64_t file_size = 0;
-      taosStatFile(ctx->file.buf, &file_size, NULL, NULL);
+      (void)taosStatFile(ctx->file.buf, &file_size, NULL, NULL);
       return (int)file_size;
     }
   }
@@ -250,16 +254,16 @@ void idxFileCtxDestroy(IFileCtx* ctx, bool remove) {
       int32_t nw = taosWriteFile(ctx->file.pFile, ctx->file.wBuf, ctx->file.wBufOffset);
       ctx->file.wBufOffset = 0;
     }
-    ctx->flush(ctx);
+    (void)(ctx->flush(ctx));
     taosMemoryFreeClear(ctx->file.wBuf);
-    taosCloseFile(&ctx->file.pFile);
+    (void)taosCloseFile(&ctx->file.pFile);
     if (ctx->file.readOnly) {
 #ifdef USE_MMAP
       munmap(ctx->file.ptr, ctx->file.size);
 #endif
     }
     if (remove) {
-      unlink(ctx->file.buf);
+      (void)unlink(ctx->file.buf);
     }
   }
   taosMemoryFree(ctx);
@@ -275,7 +279,7 @@ IdxFstFile* idxFileCreate(void* wrt) {
   return cw;
 }
 void idxFileDestroy(IdxFstFile* cw) {
-  idxFileFlush(cw);
+  (void)idxFileFlush(cw);
   taosMemoryFree(cw);
 }
 
@@ -288,7 +292,6 @@ int32_t idxFileWrite(IdxFstFile* write, uint8_t* buf, uint32_t len) {
   // update checksum
   IFileCtx* ctx = write->wrt;
   int       nWrite = ctx->write(ctx, buf, len);
-  ASSERTS(nWrite == len, "index write incomplete data");
   if (nWrite != len) {
     code = TAOS_SYSTEM_ERROR(errno);
     return code;
@@ -314,7 +317,7 @@ uint32_t idxFileMaskedCheckSum(IdxFstFile* write) {
 
 int idxFileFlush(IdxFstFile* write) {
   IFileCtx* ctx = write->wrt;
-  ctx->flush(ctx);
+  (void)(ctx->flush(ctx));
   return 1;
 }
 
@@ -324,7 +327,7 @@ void idxFilePackUintIn(IdxFstFile* writer, uint64_t n, uint8_t nBytes) {
     buf[i] = (uint8_t)n;
     n = n >> 8;
   }
-  idxFileWrite(writer, buf, nBytes);
+  (void)idxFileWrite(writer, buf, nBytes);
   taosMemoryFree(buf);
   return;
 }

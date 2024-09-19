@@ -750,7 +750,7 @@ column_stream_def_list(A) ::= column_stream_def_list(B)
 
 column_stream_def(A) ::= column_name(B) stream_col_options(C).                    { A = createColumnDefNode(pCxt, &B, createDataType(TSDB_DATA_TYPE_NULL), C); }
 stream_col_options(A) ::= .                                                       { A = createDefaultColumnOptions(pCxt); }
-stream_col_options(A) ::= stream_col_options(B) PRIMARY KEY.                      { A = setColumnOptions(pCxt, B, COLUMN_OPTION_PRIMARYKEY, NULL); }
+stream_col_options(A) ::= stream_col_options(B) PRIMARY KEY.                      { A = setColumnOptionsPK(pCxt, B); }
 //column_stream_def(A) ::= column_def(B).                                         { A = B; }
 
 %type tag_def_or_ref_opt                                                          { SNodeList* }
@@ -1183,18 +1183,49 @@ pseudo_column(A) ::= IROWTS(B).                                                 
 pseudo_column(A) ::= ISFILLED(B).                                                 { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= QTAGS(B).                                                    { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 
-function_expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).    { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
-function_expression(A) ::= star_func(B) NK_LP star_func_para_list(C) NK_RP(D).    { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
+function_expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
+function_expression(A) ::= star_func(B) NK_LP star_func_para_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::=
-  CAST(B) NK_LP expr_or_subquery(C) AS type_name(D) NK_RP(E).                     { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
+  CAST(B) NK_LP expr_or_subquery(C) AS type_name(D) NK_RP(E).                                         { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
 function_expression(A) ::=
-  CAST(B) NK_LP expr_or_subquery(C) AS type_name_default_len(D) NK_RP(E).         { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
-
-function_expression(A) ::= literal_func(B).                                       { A = B; }
+  CAST(B) NK_LP expr_or_subquery(C) AS type_name_default_len(D) NK_RP(E).                             { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
+function_expression(A) ::=
+  POSITION(B) NK_LP expr_or_subquery(C) IN expr_or_subquery(D) NK_RP(E).                              { A = createRawExprNodeExt(pCxt, &B, &E, createPositionFunctionNode(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D))); }
+function_expression(A) ::=
+  TRIM(B) NK_LP expr_or_subquery(C) NK_RP(D).                                                         { A = createRawExprNodeExt(pCxt, &B, &D, createTrimFunctionNode(pCxt, releaseRawExprNode(pCxt, C), TRIM_TYPE_BOTH)); }
+function_expression(A) ::=
+  TRIM(B) NK_LP trim_specification_type(C) FROM expr_or_subquery(D) NK_RP(E).                         { A = createRawExprNodeExt(pCxt, &B, &E, createTrimFunctionNode(pCxt, releaseRawExprNode(pCxt, D), C)); }
+function_expression(A) ::=
+  TRIM(B) NK_LP expr_or_subquery(C) FROM expr_or_subquery(D) NK_RP(E).                                { A = createRawExprNodeExt(pCxt, &B, &E, createTrimFunctionNodeExt(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D), TRIM_TYPE_BOTH)); }
+function_expression(A) ::=
+  TRIM(B) NK_LP trim_specification_type(C) expr_or_subquery(D) FROM expr_or_subquery(E) NK_RP(F).     { A = createRawExprNodeExt(pCxt, &B, &F, createTrimFunctionNodeExt(pCxt, releaseRawExprNode(pCxt, D), releaseRawExprNode(pCxt, E), C)); }
+function_expression(A) ::=
+  substr_func(B) NK_LP expression_list(C) NK_RP(D).                                                   { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
+function_expression(A) ::=
+  substr_func(B) NK_LP expr_or_subquery(C) FROM expr_or_subquery(D) NK_RP(E).                         { A = createRawExprNodeExt(pCxt, &B, &E, createSubstrFunctionNode(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D))); }
+function_expression(A) ::=
+  substr_func(B) NK_LP expr_or_subquery(C) FROM expr_or_subquery(D) FOR expr_or_subquery(E) NK_RP(F). { A = createRawExprNodeExt(pCxt, &B, &F, createSubstrFunctionNodeExt(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D), releaseRawExprNode(pCxt, E))); }
+function_expression(A) ::= REPLACE(B) NK_LP expression_list(C) NK_RP(D).                              { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
+function_expression(A) ::= literal_func(B).                                                           { A = B; }
+function_expression(A) ::= rand_func(B).                                                              { A = B; }
 
 literal_func(A) ::= noarg_func(B) NK_LP NK_RP(C).                                 { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
 literal_func(A) ::= NOW(B).                                                       { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 literal_func(A) ::= TODAY(B).                                                     { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+
+rand_func(A) ::= RAND(B) NK_LP NK_RP(C).                                          { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
+rand_func(A) ::= RAND(B) NK_LP expression_list(C) NK_RP(D).                       { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
+
+%type substr_func                                                                   { SToken }
+%destructor substr_func                                                             { }
+substr_func(A) ::= SUBSTR(B).                                                       { A = B; }
+substr_func(A) ::= SUBSTRING(B).                                                    { A = B; }
+
+%type trim_specification_type ETrimType
+%destructor trim_specification_type                                                { }
+trim_specification_type(A) ::= BOTH.                                               { A = TRIM_TYPE_BOTH; }
+trim_specification_type(A) ::= TRAILING.                                           { A = TRIM_TYPE_TRAILING; }
+trim_specification_type(A) ::= LEADING.                                            { A = TRIM_TYPE_LEADING; }
 
 %type noarg_func                                                                  { SToken }
 %destructor noarg_func                                                            { }
@@ -1207,6 +1238,7 @@ noarg_func(A) ::= SERVER_VERSION(B).                                            
 noarg_func(A) ::= SERVER_STATUS(B).                                               { A = B; }
 noarg_func(A) ::= CURRENT_USER(B).                                                { A = B; }
 noarg_func(A) ::= USER(B).                                                        { A = B; }
+noarg_func(A) ::= PI(B).                                                          { A = B; }
 
 %type star_func                                                                   { SToken }
 %destructor star_func                                                             { }
@@ -1583,7 +1615,5 @@ null_ordering_opt(A) ::= NULLS LAST.                                            
   STRICT STRING TIMES VALUES VARIABLE VIEW WAL.
 
 column_options(A) ::= .                                                           { A = createDefaultColumnOptions(pCxt); }
-column_options(A) ::= column_options(B) PRIMARY KEY.                              { A = setColumnOptions(pCxt, B, COLUMN_OPTION_PRIMARYKEY, NULL); }
-column_options(A) ::= column_options(B) ENCODE NK_STRING(C).                      { A = setColumnOptions(pCxt, B, COLUMN_OPTION_ENCODE, &C); }
-column_options(A) ::= column_options(B) COMPRESS NK_STRING(C).                    { A = setColumnOptions(pCxt, B, COLUMN_OPTION_COMPRESS, &C); }
-column_options(A) ::= column_options(B) LEVEL NK_STRING(C).                       { A = setColumnOptions(pCxt, B, COLUMN_OPTION_LEVEL, &C); }
+column_options(A) ::= column_options(B) PRIMARY KEY.                              { A = setColumnOptionsPK(pCxt, B); }
+column_options(A) ::= column_options(B) NK_ID(C) NK_STRING(D).                    { A = setColumnOptions(pCxt, B, &C, &D); }

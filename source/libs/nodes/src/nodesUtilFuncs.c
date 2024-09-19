@@ -120,7 +120,7 @@ static int32_t callocNodeChunk(SNodeAllocator* pAllocator, SNodeMemChunk** pOutC
   SNodeMemChunk* pNewChunk = taosMemoryCalloc(1, sizeof(SNodeMemChunk) + pAllocator->chunkSize);
   if (NULL == pNewChunk) {
     if (pOutChunk) *pOutChunk = NULL;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pNewChunk->pBuf = (char*)(pNewChunk + 1);
   pNewChunk->availableSize = pAllocator->chunkSize;
@@ -141,7 +141,7 @@ static int32_t callocNodeChunk(SNodeAllocator* pAllocator, SNodeMemChunk** pOutC
 static int32_t nodesCallocImpl(int32_t size, void** pOut) {
   if (NULL == g_pNodeAllocator) {
     *pOut = taosMemoryCalloc(1, size);
-    if (!pOut) return TSDB_CODE_OUT_OF_MEMORY;
+    if (!*pOut) return terrno;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -180,7 +180,7 @@ void nodesFree(void* p) {
 static int32_t createNodeAllocator(int32_t chunkSize, SNodeAllocator** pAllocator) {
   *pAllocator = taosMemoryCalloc(1, sizeof(SNodeAllocator));
   if (NULL == *pAllocator) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (*pAllocator)->chunkSize = chunkSize;
   int32_t code = callocNodeChunk(*pAllocator, NULL);
@@ -235,10 +235,13 @@ void nodesDestroyAllocatorSet() {
     int64_t         refId = 0;
     while (NULL != pAllocator) {
       refId = pAllocator->self;
-      (void)taosRemoveRef(g_allocatorReqRefPool, refId);
+      int32_t code = taosRemoveRef(g_allocatorReqRefPool, refId);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesError("failed to remove ref at: %s:%d, rsetId:%d, refId:%"PRId64, __func__, __LINE__, g_allocatorReqRefPool, refId);
+      }
       pAllocator = taosIterateRef(g_allocatorReqRefPool, refId);
     }
-    (void)taosCloseRef(g_allocatorReqRefPool);
+    taosCloseRef(g_allocatorReqRefPool);
   }
 }
 
@@ -328,7 +331,10 @@ void nodesDestroyAllocator(int64_t allocatorId) {
     return;
   }
 
-  (void)taosRemoveRef(g_allocatorReqRefPool, allocatorId);
+  int32_t code = taosRemoveRef(g_allocatorReqRefPool, allocatorId);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesError("failed to remove ref at: %s:%d, rsetId:%d, refId:%"PRId64, __func__, __LINE__, g_allocatorReqRefPool, allocatorId);
+  }
 }
 
 static int32_t makeNode(ENodeType type, int32_t size, SNode** ppNode) {
@@ -1090,7 +1096,10 @@ void nodesDestroyNode(SNode* pNode) {
         pStmt->destroyParseFileCxt(&pStmt->pParFileCxt);
       }
 
-      assert(TSDB_CODE_SUCCESS == taosCloseFile(&pStmt->fp));
+      int32_t code = taosCloseFile(&pStmt->fp);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesError("failed to close file: %s:%d", __func__, __LINE__);
+      }
       break;
     }
     case QUERY_NODE_CREATE_DATABASE_STMT:
@@ -2260,8 +2269,13 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
   } else {
     len = snprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
   }
-  if (NULL == taosHashGet(pCxt->pColHash, name, len)) {
-    pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, NULL, 0);
+  if (pCol->projRefIdx > 0) {
+    len = taosHashBinary(name, strlen(name));
+    len += sprintf(name + len, "_%d", pCol->projRefIdx);
+  }
+  SNode** pNodeFound = taosHashGet(pCxt->pColHash, name, len);
+  if (pNodeFound == NULL) {
+    pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, &pNode, POINTER_BYTES);
     if (TSDB_CODE_SUCCESS == pCxt->errCode) {
       SNode* pNew = NULL;
       pCxt->errCode = nodesCloneNode(pNode, &pNew);
@@ -2303,7 +2317,6 @@ static EDealRes collectColumnsExt(SNode* pNode, void* pContext) {
   }
   return DEAL_RES_CONTINUE;
 }
-
 
 int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
                             SNodeList** pCols) {
@@ -2638,11 +2651,12 @@ int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots) {
   return num;
 }
 
-void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
+int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
+  int32_t code = 0;
   if (pNode->isNull) {
     pVal->nType = TSDB_DATA_TYPE_NULL;
     pVal->nLen = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
-    return;
+    return code;
   }
   pVal->nType = pNode->node.resType.type;
   pVal->nLen = pNode->node.resType.bytes;
@@ -2676,13 +2690,21 @@ void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY:
       pVal->pz = taosMemoryMalloc(pVal->nLen + 1);
-      memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
-      pVal->pz[pVal->nLen] = 0;
+      if (pVal->pz) {
+        memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
+        pVal->pz[pVal->nLen] = 0;
+      } else {
+        code = terrno;
+      }
       break;
     case TSDB_DATA_TYPE_JSON:
       pVal->nLen = getJsonValueLen(pNode->datum.p);
       pVal->pz = taosMemoryMalloc(pVal->nLen);
-      memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
+      if (pVal->pz) {
+        memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
+      } else {
+        code = terrno;
+      }
       break;
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_BLOB:
@@ -2690,6 +2712,7 @@ void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     default:
       break;
   }
+  return code;
 }
 
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc) {

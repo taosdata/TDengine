@@ -128,7 +128,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
 
 int tdbTbClose(TTB *pTb) {
   if (pTb) {
-    (void)tdbBtreeClose(pTb->pBt);
+    tdbBtreeClose(pTb->pBt);
     tdbOsFree(pTb);
   }
   return 0;
@@ -221,10 +221,13 @@ int tdbTbcOpen(TTB *pTb, TBC **ppTbc, TXN *pTxn) {
   *ppTbc = NULL;
   pTbc = (TBC *)tdbOsMalloc(sizeof(*pTbc));
   if (pTbc == NULL) {
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  (void)tdbBtcOpen(&pTbc->btc, pTb->pBt, pTxn);
+  if ((ret = tdbBtcOpen(&pTbc->btc, pTb->pBt, pTxn)) != 0) {
+    taosMemoryFree(pTbc);
+    return ret;
+  }
 
   *ppTbc = pTbc;
   return 0;
@@ -257,7 +260,7 @@ int32_t tdbTbTraversal(TTB *pTb, void *data,
   }
   tdbFree(pKey);
   tdbFree(pValue);
-  (void)tdbTbcClose(pCur);
+  tdbTbcClose(pCur);
 
   return 0;
 }
@@ -290,13 +293,11 @@ int tdbTbcUpsert(TBC *pTbc, const void *pKey, int nKey, const void *pData, int n
   return tdbBtcUpsert(&pTbc->btc, pKey, nKey, pData, nData, insert);
 }
 
-int tdbTbcClose(TBC *pTbc) {
+void tdbTbcClose(TBC *pTbc) {
   if (pTbc) {
-    (void)tdbBtcClose(&pTbc->btc);
+    tdbBtcClose(&pTbc->btc);
     tdbOsFree(pTbc);
   }
-
-  return 0;
 }
 
 int tdbTbcIsValid(TBC *pTbc) { return tdbBtcIsValid(&pTbc->btc); }

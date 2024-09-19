@@ -34,7 +34,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
 
   pOut->dbVgroup = taosMemoryCalloc(1, sizeof(SDBVgInfo));
   if (NULL == pOut->dbVgroup) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pOut->dbVgroup->vgVersion = usedbRsp->vgVersion;
@@ -85,6 +85,9 @@ int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int3
 
   int32_t bufLen = tSerializeSTableInfoReq(NULL, 0, &infoReq);
   void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
   if(tSerializeSTableInfoReq(pBuf, bufLen, &infoReq) < 0)
   {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -112,6 +115,9 @@ int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *ms
 
   int32_t bufLen = tSerializeSUseDbReq(NULL, 0, &usedbReq);
   void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
   if(tSerializeSUseDbReq(pBuf, bufLen, &usedbReq) < 0)
   {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -133,6 +139,9 @@ int32_t queryBuildQnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t
 
   int32_t bufLen = tSerializeSQnodeListReq(NULL, 0, &qnodeListReq);
   void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
   if(tSerializeSQnodeListReq(pBuf, bufLen, &qnodeListReq) < 0)
   {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -154,6 +163,9 @@ int32_t queryBuildDnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t
 
   int32_t bufLen = tSerializeSDnodeListReq(NULL, 0, &dnodeListReq);
   void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
   if(tSerializeSDnodeListReq(pBuf, bufLen, &dnodeListReq) < 0)
   {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -174,6 +186,9 @@ int32_t queryBuildGetSerVerMsg(void *input, char **msg, int32_t msgSize, int32_t
 
   int32_t bufLen = tSerializeSServerVerReq(NULL, 0, &req);
   void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
   if(tSerializeSServerVerReq(pBuf, bufLen, &req) < 0)
   {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -195,6 +210,9 @@ int32_t queryBuildGetDBCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
 
   int32_t bufLen = tSerializeSDbCfgReq(NULL, 0, &dbCfgReq);
   void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
   if(tSerializeSDbCfgReq(pBuf, bufLen, &dbCfgReq) < 0)
   {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -216,6 +234,9 @@ int32_t queryBuildGetIndexMsg(void *input, char **msg, int32_t msgSize, int32_t 
 
   int32_t bufLen = tSerializeSUserIndexReq(NULL, 0, &indexReq);
   void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
   if(tSerializeSUserIndexReq(pBuf, bufLen, &indexReq) < 0)
   {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -247,8 +268,13 @@ int32_t queryBuildRetrieveFuncMsg(void *input, char **msg, int32_t msgSize, int3
 
   int32_t bufLen = tSerializeSRetrieveFuncReq(NULL, 0, &funcReq);
   void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    taosArrayDestroy(funcReq.pFuncNames);
+    return terrno;
+  }
   if(tSerializeSRetrieveFuncReq(pBuf, bufLen, &funcReq) < 0)
   {
+    taosArrayDestroy(funcReq.pFuncNames);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
@@ -270,6 +296,9 @@ int32_t queryBuildGetUserAuthMsg(void *input, char **msg, int32_t msgSize, int32
 
   int32_t bufLen = tSerializeSGetUserAuthReq(NULL, 0, &req);
   void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
   if (tSerializeSGetUserAuthReq(pBuf, bufLen, &req) < 0) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
@@ -290,6 +319,9 @@ int32_t queryBuildGetTbIndexMsg(void *input, char **msg, int32_t msgSize, int32_
 
   int32_t bufLen = tSerializeSTableIndexReq(NULL, 0, &indexReq);
   void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
   if(tSerializeSTableIndexReq(pBuf, bufLen, &indexReq) < 0)
   {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -314,6 +346,9 @@ int32_t queryBuildGetTbCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
 
   int32_t bufLen = tSerializeSTableCfgReq(NULL, 0, &cfgReq);
   void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
   if(tSerializeSTableCfgReq(pBuf, bufLen, &cfgReq) < 0)
   {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -335,6 +370,9 @@ int32_t queryBuildGetViewMetaMsg(void *input, char **msg, int32_t msgSize, int32
 
   int32_t bufLen = tSerializeSViewMetaReq(NULL, 0, &req);
   void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
   if(tSerializeSViewMetaReq(pBuf, bufLen, &req) < 0)
   {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -357,6 +395,9 @@ int32_t queryBuildGetTableTSMAMsg(void *input, char **msg, int32_t msgSize, int3
 
   int32_t bufLen = tSerializeTableTSMAInfoReq(NULL, 0, &req);
   void *  pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
   if(tSerializeTableTSMAInfoReq(pBuf, bufLen, &req) < 0)
   {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -379,6 +420,10 @@ int32_t queryBuildGetTSMAMsg(void *input, char **msg, int32_t msgSize, int32_t *
 
   int32_t bufLen = tSerializeTableTSMAInfoReq(NULL, 0, &req);
   void *  pBuf = (*mallcFp)(bufLen);
+  if(pBuf == NULL)
+  {
+    return terrno;
+  }
   if(tSerializeTableTSMAInfoReq(pBuf, bufLen, &req) < 0)
   {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -396,6 +441,9 @@ int32_t queryBuildGetStreamProgressMsg(void* input, char** msg, int32_t msgSize,
 
   int32_t len = tSerializeStreamProgressReq(NULL, 0, input);
   void* pBuf = (*mallcFp)(len);
+  if (NULL == pBuf) {
+    return terrno;
+  }
 
   if(tSerializeStreamProgressReq(pBuf, len, input) < 0)
   {
@@ -509,7 +557,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize);
   if (NULL == pTableMeta) {
     qError("calloc size[%d] failed", metaSize);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   SSchemaExt *pSchemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
 
@@ -574,7 +622,7 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
     goto PROCESS_META_OVER;
   }
 
-  if (0 != strcmp(metaRsp.dbFName, TSDB_INFORMATION_SCHEMA_DB) &&
+  if (!IS_SYS_DBNAME(metaRsp.dbFName) &&
       !tIsValidSchema(metaRsp.pSchemas, metaRsp.numOfColumns, metaRsp.numOfTags)) {
     code = TSDB_CODE_TSC_INVALID_VALUE;
     goto PROCESS_META_OVER;
@@ -666,6 +714,9 @@ int32_t queryProcessGetSerVerRsp(void *output, char *msg, int32_t msgSize) {
   }
 
   *(char **)output = taosStrdup(out.ver);
+  if (NULL == *(char **)output) {
+    return terrno;
+  }
 
   return code;
 }
@@ -764,7 +815,7 @@ int32_t queryProcessGetTbCfgRsp(void *output, char *msg, int32_t msgSize) {
 
   STableCfgRsp *out = taosMemoryCalloc(1, sizeof(STableCfgRsp));
   if(out == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if (tDeserializeSTableCfgRsp(msg, msgSize, out) != 0) {
     qError("tDeserializeSTableCfgRsp failed, msgSize:%d", msgSize);
@@ -785,7 +836,7 @@ int32_t queryProcessGetViewMetaRsp(void *output, char *msg, int32_t msgSize) {
 
   SViewMetaRsp *out = taosMemoryCalloc(1, sizeof(SViewMetaRsp));
   if (out == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if (tDeserializeSViewMetaRsp(msg, msgSize, out) != 0) {
     qError("tDeserializeSViewMetaRsp failed, msgSize:%d", msgSize);

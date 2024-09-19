@@ -73,6 +73,8 @@ int metaPrepareAsyncCommit(SMeta *pMeta) {
   TSDB_CHECK_CODE(code, lino, _exit);
   pMeta->changed = false;
 
+  pMeta->txn = NULL;
+
 _exit:
   if (code) {
     metaError("vgId:%d %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,

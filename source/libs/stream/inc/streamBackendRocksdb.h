@@ -81,6 +81,7 @@ typedef struct {
   int64_t        dataWritten;
 
   void* pMeta;
+  int8_t removeAllFiles;
 
 } STaskDbWrapper;
 
@@ -134,7 +135,7 @@ typedef struct {
 #define META_ON_S3_FORMATE "%s_%" PRId64 "\n%s_%" PRId64 "\n%s_%" PRId64 ""
 
 bool       streamBackendDataIsExist(const char* path, int64_t chkpId);
-void*      streamBackendInit(const char* path, int64_t chkpId, int32_t vgId);
+int32_t    streamBackendInit(const char* path, int64_t chkpId, int32_t vgId, SBackendWrapper** pBackend);
 void       streamBackendCleanup(void* arg);
 void       streamBackendHandleCleanup(void* arg);
 int32_t    streamBackendLoadCheckpointInfo(void* pMeta);
@@ -151,6 +152,8 @@ void taskDbUpdateChkpId(void* pTaskDb, int64_t chkpId);
 
 void* taskDbAddRef(void* pTaskDb);
 void  taskDbRemoveRef(void* pTaskDb);
+
+void taskDbSetClearFileFlag(void* pTaskDb); 
 
 int  streamStateOpenBackend(void* backend, SStreamState* pState);
 void streamStateCloseBackend(SStreamState* pState, bool remove);

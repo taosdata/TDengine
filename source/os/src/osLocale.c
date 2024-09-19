@@ -75,7 +75,7 @@ char *taosCharsetReplace(char *charsetstr) {
  *
  * In case that the setLocale failed to be executed, the right charset needs to be set.
  */
-int32_t taosSetSystemLocale(const char *inLocale, const char *inCharSet) {\
+int32_t taosSetSystemLocale(const char *inLocale, const char *inCharSet) {
   if (!taosValidateEncodec(inCharSet)) {
     return terrno;
   }
@@ -135,9 +135,14 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
     str++;
 
     char *revisedCharset = taosCharsetReplace(str);
-    tstrncpy(outCharset, revisedCharset, TD_CHARSET_LEN);
 
-    taosMemoryFree(revisedCharset);
+    if (NULL == revisedCharset) {
+      (void)strcpy(outCharset, "UTF-8");
+    } else {
+      tstrncpy(outCharset, revisedCharset, TD_CHARSET_LEN);
+
+      taosMemoryFree(revisedCharset);
+    }
     // printf("charset not configured, set to system default:%s", outCharset);
   } else {
     strcpy(outCharset, "UTF-8");

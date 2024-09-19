@@ -243,6 +243,8 @@ python3 ./test.py -f 2-query/max.py -P
 python3 ./test.py -f 2-query/max.py -P -R
 python3 ./test.py -f 2-query/min.py -P
 python3 ./test.py -f 2-query/min.py -P -R
+python3 ./test.py -f 2-query/normal.py -P
+python3 ./test.py -f 2-query/normal.py -P -R
 python3 ./test.py -f 2-query/mode.py -P
 python3 ./test.py -f 2-query/mode.py -P -R
 python3 ./test.py -f 2-query/Now.py -P
@@ -424,6 +426,7 @@ python3 ./test.py -f 2-query/Now.py -P -Q 2
 python3 ./test.py -f 2-query/Today.py -P -Q 2
 python3 ./test.py -f 2-query/max.py -P -Q 2
 python3 ./test.py -f 2-query/min.py -P -Q 2
+python3 ./test.py -f 2-query/normal.py -P -Q 2
 python3 ./test.py -f 2-query/mode.py -P -Q 2
 python3 ./test.py -f 2-query/count.py -P -Q 2
 python3 ./test.py -f 2-query/countAlwaysReturnValue.py -P -Q 2
@@ -522,6 +525,7 @@ python3 ./test.py -f 2-query/Now.py -P -Q 3
 python3 ./test.py -f 2-query/Today.py -P -Q 3
 python3 ./test.py -f 2-query/max.py -P -Q 3
 python3 ./test.py -f 2-query/min.py -P -Q 3
+python3 ./test.py -f 2-query/normal.py -P -Q 3
 python3 ./test.py -f 2-query/mode.py -P -Q 3
 python3 ./test.py -f 2-query/count.py -P -Q 3
 python3 ./test.py -f 2-query/countAlwaysReturnValue.py -P -Q 3
@@ -619,6 +623,7 @@ python3 ./test.py -f 2-query/Now.py -P -Q 4
 python3 ./test.py -f 2-query/Today.py -P -Q 4
 python3 ./test.py -f 2-query/max.py -P -Q 4
 python3 ./test.py -f 2-query/min.py -P -Q 4
+python3 ./test.py -f 2-query/normal.py -P -Q 4
 python3 ./test.py -f 2-query/mode.py -P -Q 4
 python3 ./test.py -f 2-query/count.py -P -Q 4
 python3 ./test.py -f 2-query/countAlwaysReturnValue.py -P -Q 4

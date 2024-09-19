@@ -117,7 +117,9 @@ static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak
   int32_t code = syncPropose(pVnode->sync, pMsg, isWeak, &seq);
   bool    wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));
   if (wait) {
-    ASSERT(!pVnode->blocked);
+    if (pVnode->blocked) {
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
     pVnode->blocked = true;
     pVnode->blockSec = taosGetTimestampSec();
     pVnode->blockSeq = seq;
@@ -175,7 +177,6 @@ static void inline vnodeProposeBatchMsg(SVnode *pVnode, SRpcMsg **pMsgArr, bool 
   int32_t code = syncProposeBatch(pVnode->sync, pMsgArr, pIsWeakArr, *arrSize);
   bool    wait = (code == 0 && vnodeIsBlockMsg(pLastMsg->msgType));
   if (wait) {
-    ASSERT(!pVnode->blocked);
     pVnode->blocked = true;
   }
   (void)taosThreadMutexUnlock(&pVnode->lock);
@@ -372,8 +373,8 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
   int32_t code = syncProcessMsg(pVnode->sync, pMsg);
   if (code != 0) {
-    vGError("vgId:%d, failed to process sync msg:%p type:%s, errno: %s, code:0x%x", pVnode->config.vgId, pMsg,
-            TMSG_INFO(pMsg->msgType), terrstr(), code);
+    vGError("vgId:%d, failed to process sync msg:%p type:%s, reason: %s", pVnode->config.vgId, pMsg,
+            TMSG_INFO(pMsg->msgType), tstrerror(code));
   }
 
   return code;
@@ -381,7 +382,7 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
 static int32_t vnodeSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   if (pMsg == NULL || pMsg->pCont == NULL) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   if (msgcb == NULL || msgcb->putToQueueFp == NULL) {
@@ -543,7 +544,11 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
 
   do {
     appliedIdx = vnodeSyncAppliedIndex(pFsm);
-    ASSERT(appliedIdx <= commitIdx);
+    if (appliedIdx > commitIdx) {
+      vError("vgId:%d, restore failed since applied-index:%" PRId64 " is larger than commit-index:%" PRId64, vgId,
+             appliedIdx, commitIdx);
+      break;
+    }
     if (appliedIdx == commitIdx) {
       vInfo("vgId:%d, no items to be applied, restore finish", pVnode->config.vgId);
       break;
@@ -555,7 +560,6 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
     }
   } while (true);
 
-  ASSERT(commitIdx == vnodeSyncAppliedIndex(pFsm));
   (void)walApplyVer(pVnode->pWal, commitIdx);
   pVnode->restored = true;
 
@@ -583,7 +587,10 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
         streamMetaWUnLock(pMeta);
 
         tqInfo("vgId:%d stream task already loaded, start them", vgId);
-        (void)streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
+        int32_t code = streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
+        if (code != 0) {
+          tqError("vgId:%d failed to sched stream task, code:%s", vgId, tstrerror(code));
+        }
         return;
       }
     }

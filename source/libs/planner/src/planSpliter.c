@@ -432,7 +432,7 @@ static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex, uint8_t pr
   int64_t pointer = (int64_t)pWStart;
   char name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
   int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWStart->functionName, pointer);
-  (void)taosCreateMD5Hash(name, len);
+  (void)taosHashBinary(name, len);
   strncpy(pWStart->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
   pWStart->node.resType.precision = precision;
 
@@ -464,7 +464,7 @@ static int32_t stbSplAppendWEnd(SWindowLogicNode* pWin, int32_t* pIndex) {
   int64_t pointer = (int64_t)pWEnd;
   char name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
   int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWEnd->functionName, pointer);
-  (void)taosCreateMD5Hash(name, len);
+  (void)taosHashBinary(name, len);
   strncpy(pWEnd->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
 
   code = fmGetFuncInfo(pWEnd, NULL, 0);

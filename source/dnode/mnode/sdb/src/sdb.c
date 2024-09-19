@@ -68,7 +68,11 @@ SSdb *sdbInit(SSdbOpt *pOption) {
 void sdbCleanup(SSdb *pSdb) {
   mInfo("start to cleanup sdb");
 
-  (void)sdbWriteFile(pSdb, 0);
+  int32_t code = 0;
+
+  if ((code = sdbWriteFile(pSdb, 0)) != 0) {
+    mError("failed to write sdb file since %s", tstrerror(code));
+  }
 
   if (pSdb->currDir != NULL) {
     taosMemoryFreeClear(pSdb->currDir);
@@ -136,7 +140,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
 
   SHashObj *hash = taosHashInit(64, taosGetDefaultHashFunction(hashType), true, HASH_ENTRY_LOCK);
   if (hash == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pSdb->maxId[sdbType] = 0;

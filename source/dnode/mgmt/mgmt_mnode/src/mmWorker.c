@@ -20,20 +20,20 @@
 
 static inline int32_t mmAcquire(SMnodeMgmt *pMgmt) {
   int32_t code = 0;
-  taosThreadRwlockRdlock(&pMgmt->lock);
+  (void)taosThreadRwlockRdlock(&pMgmt->lock);
   if (pMgmt->stopped) {
-    code = -1;
+    code = TSDB_CODE_MNODE_STOPPED;
   } else {
-    atomic_add_fetch_32(&pMgmt->refCount, 1);
+    (void)atomic_add_fetch_32(&pMgmt->refCount, 1);
   }
-  taosThreadRwlockUnlock(&pMgmt->lock);
+  (void)taosThreadRwlockUnlock(&pMgmt->lock);
   return code;
 }
 
 static inline void mmRelease(SMnodeMgmt *pMgmt) {
-  taosThreadRwlockRdlock(&pMgmt->lock);
-  atomic_sub_fetch_32(&pMgmt->refCount, 1);
-  taosThreadRwlockUnlock(&pMgmt->lock);
+  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+  (void)atomic_sub_fetch_32(&pMgmt->refCount, 1);
+  (void)taosThreadRwlockUnlock(&pMgmt->lock);
 }
 
 static inline void mmSendRsp(SRpcMsg *pMsg, int32_t code) {
@@ -100,16 +100,16 @@ static void mmProcessSyncMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 
 static inline int32_t mmPutMsgToWorker(SMnodeMgmt *pMgmt, SSingleWorker *pWorker, SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
-
-  if (mmAcquire(pMgmt) == 0) {
+  int32_t         code = 0;
+  if ((code = mmAcquire(pMgmt)) == 0) {
     dGTrace("msg:%p, put into %s queue, type:%s", pMsg, pWorker->name, TMSG_INFO(pMsg->msgType));
-    taosWriteQitem(pWorker->queue, pMsg);
+    code = taosWriteQitem(pWorker->queue, pMsg);
     mmRelease(pMgmt);
-    return 0;
+    return code;
   } else {
-    dGTrace("msg:%p, failed to put into %s queue since %s, type:%s", pMsg, pWorker->name, terrstr(),
+    dGTrace("msg:%p, failed to put into %s queue since %s, type:%s", pMsg, pWorker->name, tstrerror(code),
             TMSG_INFO(pMsg->msgType));
-    return -1;
+    return code;
   }
 }
 
@@ -134,16 +134,19 @@ int32_t mmPutMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t code = 0;
   if (NULL == pMgmt->pMnode) {
     const STraceId *trace = &pMsg->info.traceId;
-    dGError("msg:%p, stop to pre-process in mnode since mnode is NULL, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
-    return -1;
+    code = TSDB_CODE_MNODE_NOT_FOUND;
+    dGError("msg:%p, stop to pre-process in mnode since %s, type:%s", pMsg, tstrerror(code), TMSG_INFO(pMsg->msgType));
+    return code;
   }
   pMsg->info.node = pMgmt->pMnode;
-  if (mndPreProcessQueryMsg(pMsg) != 0) {
+  if ((code = mndPreProcessQueryMsg(pMsg)) != 0) {
     const STraceId *trace = &pMsg->info.traceId;
-    dGError("msg:%p, failed to pre-process in mnode since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pMsg->msgType));
-    return -1;
+    dGError("msg:%p, failed to pre-process in mnode since %s, type:%s", pMsg, tstrerror(code),
+            TMSG_INFO(pMsg->msgType));
+    return code;
   }
   return mmPutMsgToWorker(pMgmt, &pMgmt->queryWorker, pMsg);
 }

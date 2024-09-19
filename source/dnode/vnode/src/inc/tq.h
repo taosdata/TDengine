@@ -132,6 +132,7 @@ int32_t tqMetaDeleteInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen);
 int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle);
 int32_t tqMetaDecodeCheckInfo(STqCheckInfo *info, void *pVal, int32_t vLen);
 int32_t tqMetaDecodeOffsetInfo(STqOffset *info, void *pVal, int32_t vLen);
+int32_t tqMetaSaveOffset(STQ* pTq, STqOffset* pOffset);
 int32_t tqMetaGetHandle(STQ* pTq, const char* key, STqHandle** pHandle);
 int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset** pOffset);
 int32_t tqMetaTransform(STQ* pTq);

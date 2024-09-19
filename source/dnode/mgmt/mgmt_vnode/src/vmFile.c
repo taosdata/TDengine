@@ -20,14 +20,14 @@
 #define MAX_CONTENT_LEN 2 * 1024 * 1024
 
 int32_t vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes) {
-  taosThreadRwlockRdlock(&pMgmt->lock);
+  (void)taosThreadRwlockRdlock(&pMgmt->lock);
 
   int32_t     num = 0;
   int32_t     size = taosHashGetSize(pMgmt->hash);
   SVnodeObj **pVnodes = taosMemoryCalloc(size, sizeof(SVnodeObj *));
   if (pVnodes == NULL) {
-    taosThreadRwlockUnlock(&pMgmt->lock);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    (void)taosThreadRwlockUnlock(&pMgmt->lock);
+    return terrno;
   }
 
   void *pIter = taosHashIterate(pMgmt->hash, NULL);
@@ -44,7 +44,7 @@ int32_t vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeOb
     }
   }
 
-  taosThreadRwlockUnlock(&pMgmt->lock);
+  (void)taosThreadRwlockUnlock(&pMgmt->lock);
   *numOfVnodes = num;
   *ppVnodes = pVnodes;
 
@@ -62,7 +62,7 @@ static int32_t vmDecodeVnodeList(SJson *pJson, SVnodeMgmt *pMgmt, SWrapperCfg **
   int32_t vnodesNum = cJSON_GetArraySize(vnodes);
   if (vnodesNum > 0) {
     pCfgs = taosMemoryCalloc(vnodesNum, sizeof(SWrapperCfg));
-    if (pCfgs == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+    if (pCfgs == NULL) return terrno;
   }
 
   for (int32_t i = 0; i < vnodesNum; ++i) {
@@ -106,7 +106,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
   snprintf(file, sizeof(file), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dInfo("vnode file:%s not exist, reason:%s", file, tstrerror(code));
     code = 0;
     return code;
@@ -114,26 +114,26 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
 
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to open vnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
 
   int64_t size = 0;
-  if (taosFStatFile(pFile, &size, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
     dError("failed to fstat mnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
 
   pData = taosMemoryMalloc(size + 1);
   if (pData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
   if (taosReadFile(pFile, pData, size) != size) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to read vnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
@@ -169,7 +169,7 @@ static int32_t vmEncodeVnodeList(SJson *pJson, SVnodeObj **ppVnodes, int32_t num
   int32_t code = 0;
   SJson  *vnodes = tjsonCreateArray();
   if (vnodes == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if ((code = tjsonAddItemToObject(pJson, "vnodes", vnodes)) < 0) {
     tjsonDelete(vnodes);
@@ -181,7 +181,7 @@ static int32_t vmEncodeVnodeList(SJson *pJson, SVnodeObj **ppVnodes, int32_t num
     if (pVnode == NULL) continue;
 
     SJson *vnode = tjsonCreateObject();
-    if (vnode == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+    if (vnode == NULL) return terrno;
     if ((code = tjsonAddDoubleToObject(vnode, "vgId", pVnode->vgId)) < 0) return code;
     if ((code = tjsonAddDoubleToObject(vnode, "dropped", pVnode->dropped)) < 0) return code;
     if ((code = tjsonAddDoubleToObject(vnode, "vgVersion", pVnode->vgVersion)) < 0) return code;
@@ -221,7 +221,7 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   // terrno = TSDB_CODE_OUT_OF_MEMORY;
   pJson = tjsonCreateObject();
   if (pJson == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
   if ((code = vmEncodeVnodeList(pJson, ppVnodes, numOfVnodes)) != 0) goto _OVER;
@@ -234,13 +234,13 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
 
   int32_t len = strlen(buffer);
   if (taosWriteFile(pFile, buffer, len) <= 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
   if (taosFsyncFile(pFile) < 0) {
@@ -253,12 +253,8 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _OVER;
   }
-  if (taosRenameFile(file, realfile) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
 
-  code = 0;
   dInfo("succeed to write vnodes file:%s, vnodes:%d", realfile, numOfVnodes);
 
 _OVER:

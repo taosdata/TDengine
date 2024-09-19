@@ -39,7 +39,7 @@ int32_t streamTaskSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTa
   // alloc
   pReader = (SStreamTaskReader*)taosMemoryCalloc(1, sizeof(SStreamTaskReader));
   if (pReader == NULL) {
-    TAOS_CHECK_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_RETURN(terrno);
   }
   pReader->pTq = pTq;
   pReader->sver = sver;
@@ -50,10 +50,14 @@ int32_t streamTaskSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTa
   }
 
   STablePair pair1 = {.tbl = pTq->pStreamMeta->pTaskDb, .type = SNAP_DATA_STREAM_TASK};
-  taosArrayPush(pReader->tdbTbList, &pair1);
+  if (NULL == taosArrayPush(pReader->tdbTbList, &pair1)) {
+    TAOS_CHECK_GOTO(terrno, NULL, _err);
+  }
 
   STablePair pair2 = {.tbl = pTq->pStreamMeta->pCheckpointDb, .type = SNAP_DATA_STREAM_TASK_CHECKPOINT};
-  taosArrayPush(pReader->tdbTbList, &pair2);
+  if (NULL == taosArrayPush(pReader->tdbTbList, &pair2)) {
+    TAOS_CHECK_GOTO(terrno, NULL, _err);
+  }
 
   pReader->pos = 0;
 
@@ -79,18 +83,23 @@ int32_t streamTaskSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTa
 
 _err:
   tqError("vgId:%d, vnode stream-task snapshot reader open failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
-  streamTaskSnapReaderClose(pReader);
+  int32_t ret = streamTaskSnapReaderClose(pReader);
   *ppReader = NULL;
   return code;
 }
 
 int32_t streamTaskSnapReaderClose(SStreamTaskReader* pReader) {
-  if (pReader == NULL) return 0;
+  if (pReader == NULL) {
+    return 0;
+  }
 
   int32_t code = 0;
-  tqInfo("vgId:%d, vnode stream-task snapshot reader closed", TD_VID(pReader->pTq->pVnode));
+  int32_t vgId = TD_VID(pReader->pTq->pVnode);
+
   taosArrayDestroy(pReader->tdbTbList);
   tdbTbcClose(pReader->pCur);
+  tqInfo("vgId:%d, vnode stream-task snapshot reader closed", vgId);
+
   taosMemoryFree(pReader);
   return code;
 }
@@ -109,6 +118,7 @@ int32_t streamTaskSnapRead(SStreamTaskReader* pReader, uint8_t** ppData) {
   tqDebug("vgId:%d, vnode stream-task snapshot start read data", TD_VID(pReader->pTq->pVnode));
 
   STablePair* pPair = taosArrayGet(pReader->tdbTbList, pReader->pos);
+
 NextTbl:
   except = 0;
   for (;;) {
@@ -120,13 +130,14 @@ NextTbl:
     } else {
       pVal = taosMemoryCalloc(1, tLen);
       if (pVal == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _err;
       }
+
       memcpy(pVal, tVal, tLen);
       vLen = tLen;
     }
-    tdbTbcMoveToNext(pReader->pCur);
+    (void)tdbTbcMoveToNext(pReader->pCur);
     break;
   }
   if (except == 1) {
@@ -136,7 +147,7 @@ NextTbl:
       pReader->pos += 1;
       pPair = taosArrayGet(pReader->tdbTbList, pReader->pos);
       code = tdbTbcOpen(pPair->tbl, &pReader->pCur, NULL);
-      tdbTbcMoveToFirst(pReader->pCur);
+      (void)tdbTbcMoveToFirst(pReader->pCur);
 
       goto NextTbl;
     }
@@ -159,8 +170,8 @@ NextTbl:
   taosMemoryFree(pVal);
 
   tqDebug("vgId:%d, vnode stream-task snapshot read data vLen:%d", TD_VID(pReader->pTq->pVnode), vLen);
-
   return code;
+
 _err:
   tqError("vgId:%d, vnode stream-task snapshot read data failed since %s", TD_VID(pReader->pTq->pVnode),
           tstrerror(code));
@@ -181,7 +192,7 @@ int32_t streamTaskSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTa
   // alloc
   pWriter = (SStreamTaskWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
   if (pWriter == NULL) {
-    TAOS_CHECK_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_RETURN(terrno);
   }
   pWriter->pTq = pTq;
   pWriter->sver = sver;
@@ -192,14 +203,14 @@ int32_t streamTaskSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTa
   return code;
 }
 
-int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback) {
+int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback, int8_t loadTask) {
   int32_t code = 0;
   STQ*    pTq = pWriter->pTq;
 
   streamMetaWLock(pTq->pStreamMeta);
   tqDebug("vgId:%d, vnode stream-task snapshot writer closed", TD_VID(pTq->pVnode));
   if (rollback) {
-    tdbAbort(pTq->pStreamMeta->db, pTq->pStreamMeta->txn);
+    (void)tdbAbort(pTq->pStreamMeta->db, pTq->pStreamMeta->txn);
   } else {
     code = tdbCommit(pTq->pStreamMeta->db, pTq->pStreamMeta->txn);
     if (code) goto _err;
@@ -213,6 +224,10 @@ int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback) {
   }
   streamMetaWUnLock(pTq->pStreamMeta);
   taosMemoryFree(pWriter);
+
+  if (loadTask == 1) {
+    streamMetaLoadAllTasks(pTq->pStreamMeta);
+  }
   return code;
 
 _err:

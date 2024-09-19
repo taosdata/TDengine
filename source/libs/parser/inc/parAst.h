@@ -136,6 +136,11 @@ SNode*     createBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft,
 SNode*     createNotBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight);
 SNode*     createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList);
 SNode*     createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType dt);
+SNode*     createPositionFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExpr2);
+SNode*     createTrimFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, ETrimType type);
+SNode*     createTrimFunctionNodeExt(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExpr2, ETrimType type);
+SNode*     createSubstrFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExpr2);
+SNode*     createSubstrFunctionNodeExt(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExpr2, SNode* pExpr3);
 SNode*     createNodeListNode(SAstCreateContext* pCxt, SNodeList* pList);
 SNode*     createNodeListNodeEx(SAstCreateContext* pCxt, SNode* p1, SNode* p2);
 SNode*     createRealTableNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTableName, SToken* pTableAlias);
@@ -195,7 +200,8 @@ SNode* createDefaultTableOptions(SAstCreateContext* pCxt);
 SNode* createAlterTableOptions(SAstCreateContext* pCxt);
 SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, void* pVal);
 SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pOptions);
-SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, EColumnOptionType type, void* pVal);
+SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal1, void* pVal2);
+SNode* setColumnOptionsPK(SAstCreateContext* pCxt, SNode* pOptions);
 SNode* createDefaultColumnOptions(SAstCreateContext* pCxt);
 SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols,
                              SNodeList* pTags, SNode* pOptions);

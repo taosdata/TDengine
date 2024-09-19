@@ -161,7 +161,9 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
     if (taskHandle) {
       qwDbgSimulateSleep();
 
+      tsEnableRandErr = true;
       code = qExecTaskOpt(taskHandle, pResList, &useconds, &hasMore, &localFetch);
+      tsEnableRandErr = false;
       if (code) {
         if (code != TSDB_CODE_OPS_NOT_SUPPORT) {
           QW_TASK_ELOG("qExecTask failed, code:%x - %s", code, tstrerror(code));
@@ -434,7 +436,7 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
 
   output.pData = taosMemoryCalloc(1, len);
   if (NULL == output.pData) {
-    QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_RET(terrno);
   }
 
   code = dsGetDataBlock(ctx->sinkHandle, &output);
@@ -768,16 +770,21 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
     QW_ERR_JRET(code);
   }
 
+  tsEnableRandErr = true;
   code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, qwMsg->msgInfo.compressMsg, sql,
                          OPTR_EXEC_MODEL_BATCH);
+  tsEnableRandErr = false;
+  
   sql = NULL;
   if (code) {
     QW_TASK_ELOG("qCreateExecTask failed, code:%x - %s", code, tstrerror(code));
+    qDestroyTask(pTaskInfo);
     QW_ERR_JRET(code);
   }
 
   if (NULL == sinkHandle || NULL == pTaskInfo) {
     QW_TASK_ELOG("create task result error, taskHandle:%p, sinkHandle:%p", pTaskInfo, sinkHandle);
+    qDestroyTask(pTaskInfo);
     QW_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
@@ -1180,7 +1187,9 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   int32_t schNum = taosHashGetSize(mgmt->schHash);
   if (schNum <= 0) {
     QW_UNLOCK(QW_READ, &mgmt->schLock);
-    (void)taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer); // ignore error
+    if (taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer)) {
+      qError("reset qworker hb timer error, timer stoppped");
+    }
     (void)qwRelease(refId); // ignore error
     return;
   }
@@ -1192,7 +1201,9 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
     taosMemoryFree(rspList);
     taosArrayDestroy(pExpiredSch);
     QW_ELOG("calloc %d SQWHbInfo failed, code:%x", schNum, terrno);
-    (void)taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer); // ignore error
+    if (taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer)) {
+      qError("reset qworker hb timer error, timer stoppped");
+    }
     (void)qwRelease(refId); // ignore error
     return;
   }
@@ -1248,7 +1259,10 @@ _return:
   taosMemoryFreeClear(rspList);
   taosArrayDestroy(pExpiredSch);
 
-  (void)taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer); // ignore error
+  if (taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer)) {
+    qError("reset qworker hb timer error, timer stoppped");
+  }
+
   (void)qwRelease(refId); // ignore error
 }
 
@@ -1266,14 +1280,19 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
     QW_ERR_JRET(code);
   }
 
+  tsEnableRandErr = true;
   code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, 0, NULL, OPTR_EXEC_MODEL_BATCH);
+  tsEnableRandErr = false;
+  
   if (code) {
     QW_TASK_ELOG("qCreateExecTask failed, code:%x - %s", code, tstrerror(code));
+    qDestroyTask(pTaskInfo);
     QW_ERR_JRET(code);
   }
 
   if (NULL == sinkHandle || NULL == pTaskInfo) {
     QW_TASK_ELOG("create task result error, taskHandle:%p, sinkHandle:%p", pTaskInfo, sinkHandle);
+    qDestroyTask(pTaskInfo);
     QW_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
@@ -1312,7 +1331,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
   if (NULL == mgmt) {
     qError("calloc %d failed", (int32_t)sizeof(SQWorker));
     (void)atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
-    QW_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_RET(terrno);
   }
 
   mgmt->cfg.maxSchedulerNum = QW_DEFAULT_SCHEDULER_NUMBER;
@@ -1466,6 +1485,7 @@ int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64
   ctx->explainRes = explainRes;
 
   rHandle.pMsgCb = taosMemoryCalloc(1, sizeof(SMsgCb));
+  rHandle.pWorkerCb = qwMsg->pWorkerCb;
   if (NULL == rHandle.pMsgCb) {
     QW_ERR_JRET(terrno);
   }

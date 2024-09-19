@@ -2884,7 +2884,7 @@ void jtInitLogFile() {
   qDebugFlag = 159;
   TAOS_STRCPY(tsLogDir, TD_LOG_DIR_PATH);
 
-  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, false) < 0) {
     JT_PRINTF("failed to open log file in directory:%s\n", tsLogDir);
   }
 }
@@ -2967,7 +2967,8 @@ void runSingleTest(char* caseName, SJoinTestParam* param) {
 
     jtCtx.startTsUs = taosGetTimestampUs();
     while (true) {
-      SSDataBlock* pBlock = jtCtx.pJoinOp->fpSet.getNextFn(jtCtx.pJoinOp);
+      SSDataBlock* pBlock = NULL;
+      int32_t code = jtCtx.pJoinOp->fpSet.getNextFn(jtCtx.pJoinOp, &pBlock);
       if (NULL == pBlock) {
         checkJoinDone(caseName);
         break;

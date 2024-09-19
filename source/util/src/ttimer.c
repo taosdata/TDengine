@@ -159,7 +159,7 @@ static void lockTimerList(timer_list_t* list) {
 static void unlockTimerList(timer_list_t* list) {
   int64_t tid = taosGetSelfPthreadId();
   if (atomic_val_compare_exchange_64(&(list->lockedBy), tid, 0) != tid) {
-    ASSERTS(false, "%" PRId64 " trying to unlock a timer list not locked by current thread.", tid);
+    uError("%" PRId64 " trying to unlock a timer list not locked by current thread.", tid);
   }
 }
 
@@ -492,6 +492,9 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* han
 
   if (timer == NULL) {
     *pTmrId = taosTmrStart(fp, mseconds, param, handle);
+    if (NULL == *pTmrId) {
+      stopped = true;
+    }
     return stopped;
   }
 
@@ -505,7 +508,9 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* han
     }
   }
 
-  ASSERTS(timer->refCount == 1, "timer refCount=%d not expected 1", timer->refCount);
+  if (timer->refCount == 1) {
+    uError("timer refCount=%d not expected 1", timer->refCount);
+  }
   memset(timer, 0, sizeof(*timer));
   *pTmrId = (tmr_h)doStartTimer(timer, fp, mseconds, param, ctrl);
 

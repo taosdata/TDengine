@@ -50,7 +50,9 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
   if (pRequest->body.queryFp != NULL) {
     doRequestCallback(pRequest, code);
   } else {
-    (void)tsem_post(&pRequest->body.rspSem);
+    if (tsem_post(&pRequest->body.rspSem) != 0){
+      tscError("failed to post semaphore");
+    }
   }
   return code;
 }
@@ -58,12 +60,10 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
 int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = acquireRequest(*(int64_t*)param);
   if (NULL == pRequest) {
-    goto End;
+    goto EXIT;
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    setErrno(pRequest, code);
-    (void)tsem_post(&pRequest->body.rspSem);
     goto End;
   }
 
@@ -71,23 +71,17 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   if (NULL == pTscObj->pAppInfo) {
     code = TSDB_CODE_TSC_DISCONNECTED;
-    setErrno(pRequest, code);
-    (void)tsem_post(&pRequest->body.rspSem);
     goto End;
   }
 
   SConnectRsp connectRsp = {0};
   if (tDeserializeSConnectRsp(pMsg->pData, pMsg->len, &connectRsp) != 0) {
     code = TSDB_CODE_TSC_INVALID_VERSION;
-    setErrno(pRequest, code);
-    (void)tsem_post(&pRequest->body.rspSem);
     goto End;
   }
 
   if ((code = taosCheckVersionCompatibleFromStr(version, connectRsp.sVer, 3)) != 0) {
     tscError("version not compatible. client version: %s, server version: %s", version, connectRsp.sVer);
-    setErrno(pRequest, code);
-    (void)tsem_post(&pRequest->body.rspSem);
     goto End;
   }
 
@@ -96,15 +90,11 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (delta > timestampDeltaLimit) {
     code = TSDB_CODE_TIME_UNSYNCED;
     tscError("time diff:%ds is too big", delta);
-    setErrno(pRequest, code);
-    (void)tsem_post(&pRequest->body.rspSem);
     goto End;
   }
 
   if (connectRsp.epSet.numOfEps == 0) {
     code = TSDB_CODE_APP_ERROR;
-    setErrno(pRequest, code);
-    (void)tsem_post(&pRequest->body.rspSem);
     goto End;
   }
 
@@ -177,8 +167,6 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   } else {
     (void)taosThreadMutexUnlock(&clientHbMgr.lock);
     code = TSDB_CODE_TSC_DISCONNECTED;
-    setErrno(pRequest, code);
-    (void)tsem_post(&pRequest->body.rspSem);
     goto End;
   }
   (void)taosThreadMutexUnlock(&clientHbMgr.lock);
@@ -186,13 +174,19 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, connectRsp.clusterId,
            pTscObj->pAppInfo->numOfConns);
 
-  (void)tsem_post(&pRequest->body.rspSem);
 End:
+  if (code != 0){
+    setErrno(pRequest, code);
+  }
+  if (tsem_post(&pRequest->body.rspSem) != 0){
+    tscError("failed to post semaphore");
+  }
 
   if (pRequest) {
     (void)releaseRequest(pRequest->self);
   }
 
+EXIT:
   taosMemoryFree(param);
   taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pMsg->pData);
@@ -201,7 +195,7 @@ End:
 
 SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pRequest) {
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
-
+  if(pMsgSendInfo == NULL) return pMsgSendInfo;
   pMsgSendInfo->requestObjRefId = pRequest->self;
   pMsgSendInfo->requestId = pRequest->requestId;
   pMsgSendInfo->param = pRequest;
@@ -245,7 +239,9 @@ int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (pRequest->body.queryFp) {
     doRequestCallback(pRequest, code);
   } else {
-    (void)tsem_post(&pRequest->body.rspSem);
+    if (tsem_post(&pRequest->body.rspSem) != 0){
+      tscError("failed to post semaphore");
+    }
   }
   return code;
 }
@@ -285,7 +281,9 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       doRequestCallback(pRequest, pRequest->code);
 
     } else {
-      (void)tsem_post(&pRequest->body.rspSem);
+      if (tsem_post(&pRequest->body.rspSem) != 0){
+        tscError("failed to post semaphore");
+      }
     }
 
     return code;
@@ -297,6 +295,9 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (strlen(usedbRsp.db) == 0) {
+    taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
+
     if (usedbRsp.errCode != 0) {
       return usedbRsp.errCode;
     } else {
@@ -360,15 +361,23 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (pRequest->body.queryFp != NULL) {
     doRequestCallback(pRequest, pRequest->code);
   } else {
-    (void)tsem_post(&pRequest->body.rspSem);
+    if (tsem_post(&pRequest->body.rspSem) != 0){
+      tscError("failed to post semaphore");
+    }
   }
   return 0;
 }
 
 int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
-  if (pMsg == NULL || param == NULL) {
+  if (pMsg == NULL) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
+  if (param == NULL) {
+    taosMemoryFree(pMsg->pEpSet);
+    taosMemoryFree(pMsg->pData);
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
   SRequestObj* pRequest = param;
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -377,7 +386,12 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
     SMCreateStbRsp createRsp = {0};
     SDecoder       coder = {0};
     tDecoderInit(&coder, pMsg->pData, pMsg->len);
-    (void)tDecodeSMCreateStbRsp(&coder, &createRsp);  // pMsg->len == 0
+    if (pMsg->len > 0){
+      code = tDecodeSMCreateStbRsp(&coder, &createRsp);  // pMsg->len == 0
+      if (code != TSDB_CODE_SUCCESS) {
+        setErrno(pRequest, code);
+      }
+    }
     tDecoderClear(&coder);
 
     pRequest->body.resInfo.execRes.msgType = TDMT_MND_CREATE_STB;
@@ -404,7 +418,9 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
     doRequestCallback(pRequest, code);
   } else {
-    (void)tsem_post(&pRequest->body.rspSem);
+    if (tsem_post(&pRequest->body.rspSem) != 0){
+      tscError("failed to post semaphore");
+    }
   }
   return code;
 }
@@ -442,14 +458,15 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
-END:
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
     doRequestCallback(pRequest, code);
   } else {
-    (void)tsem_post(&pRequest->body.rspSem);
+    if (tsem_post(&pRequest->body.rspSem) != 0){
+      tscError("failed to post semaphore");
+    }
   }
   return code;
 }
@@ -462,7 +479,12 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     SMAlterStbRsp alterRsp = {0};
     SDecoder      coder = {0};
     tDecoderInit(&coder, pMsg->pData, pMsg->len);
-    (void)tDecodeSMAlterStbRsp(&coder, &alterRsp);  // pMsg->len = 0
+    if (pMsg->len > 0){
+      code = tDecodeSMAlterStbRsp(&coder, &alterRsp);  // pMsg->len == 0
+      if (code != TSDB_CODE_SUCCESS) {
+        setErrno(pRequest, code);
+      }
+    }
     tDecoderClear(&coder);
 
     pRequest->body.resInfo.execRes.msgType = TDMT_MND_ALTER_STB;
@@ -489,7 +511,9 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
     doRequestCallback(pRequest, code);
   } else {
-    (void)tsem_post(&pRequest->body.rspSem);
+    if (tsem_post(&pRequest->body.rspSem) != 0){
+      tscError("failed to post semaphore");
+    }
   }
   return code;
 }
@@ -498,23 +522,23 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
   int32_t code = 0;
   int32_t line = 0;
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  TSDB_CHECK_NULL(pBlock, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(pBlock, code, line, END, terrno);
   pBlock->info.hasVarCol = true;
 
   pBlock->pDataBlock = taosArrayInit(SHOW_VARIABLES_RESULT_COLS, sizeof(SColumnInfoData));
-  TSDB_CHECK_NULL(pBlock->pDataBlock, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(pBlock->pDataBlock, code, line, END, terrno);
   SColumnInfoData infoData = {0};
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD1_LEN;
-  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD2_LEN;
-  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD3_LEN;
-  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
   int32_t numOfCfg = taosArrayGetSize(pVars);
   code = blockDataEnsureCapacity(pBlock, numOfCfg);
@@ -522,26 +546,26 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
 
   for (int32_t i = 0, c = 0; i < numOfCfg; ++i, c = 0) {
     SVariablesInfo* pInfo = taosArrayGet(pVars, i);
-    TSDB_CHECK_NULL(pInfo, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+    TSDB_CHECK_NULL(pInfo, code, line, END, terrno);
 
     char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pInfo->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    TSDB_CHECK_NULL(pColInfo, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+    TSDB_CHECK_NULL(pColInfo, code, line, END, terrno);
     code = colDataSetVal(pColInfo, i, name, false);
     TSDB_CHECK_CODE(code, line, END);
 
     char value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(value, pInfo->value, TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    TSDB_CHECK_NULL(pColInfo, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+    TSDB_CHECK_NULL(pColInfo, code, line, END, terrno);
     code = colDataSetVal(pColInfo, i, value, false);
     TSDB_CHECK_CODE(code, line, END);
 
     char scope[TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(scope, pInfo->scope, TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    TSDB_CHECK_NULL(pColInfo, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+    TSDB_CHECK_NULL(pColInfo, code, line, END, terrno);
     code = colDataSetVal(pColInfo, i, scope, false);
     TSDB_CHECK_CODE(code, line, END);
   }
@@ -567,8 +591,8 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
   *pRsp = taosMemoryCalloc(1, rspSize);
   if (NULL == *pRsp) {
-    blockDataDestroy(pBlock);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
+    goto  _exit;
   }
 
   (*pRsp)->useconds = 0;
@@ -580,6 +604,11 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   (*pRsp)->numOfCols = htonl(SHOW_VARIABLES_RESULT_COLS);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, SHOW_VARIABLES_RESULT_COLS);
+  if(len < 0) {
+    uError("buildShowVariablesRsp error, len:%d", len);
+    code = terrno;
+    goto _exit;
+  }
   blockDataDestroy(pBlock);
 
   SET_PAYLOAD_LEN((*pRsp)->data, len, len);
@@ -591,10 +620,21 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
     uError("buildShowVariablesRsp error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
            (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
-    return TSDB_CODE_TSC_INVALID_INPUT;
+    code = TSDB_CODE_TSC_INVALID_INPUT;
+    goto _exit;
   }
 
   return TSDB_CODE_SUCCESS;
+_exit:
+  if(*pRsp)  {
+    taosMemoryFree(*pRsp);
+    *pRsp = NULL;
+  }
+  if(pBlock) {
+    blockDataDestroy(pBlock);
+    pBlock = NULL;
+  }
+  return code;
 }
 
 int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
@@ -624,7 +664,9 @@ int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (pRequest->body.queryFp != NULL) {
     doRequestCallback(pRequest, code);
   } else {
-    (void)tsem_post(&pRequest->body.rspSem);
+    if (tsem_post(&pRequest->body.rspSem) != 0){
+      tscError("failed to post semaphore");
+    }
   }
   return code;
 }
@@ -633,33 +675,33 @@ static int32_t buildCompactDbBlock(SCompactDbRsp* pRsp, SSDataBlock** block) {
   int32_t code = 0;
   int32_t line = 0;
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  TSDB_CHECK_NULL(pBlock, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(pBlock, code, line, END, terrno);
   pBlock->info.hasVarCol = true;
 
   pBlock->pDataBlock = taosArrayInit(COMPACT_DB_RESULT_COLS, sizeof(SColumnInfoData));
-  TSDB_CHECK_NULL(pBlock->pDataBlock, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(pBlock->pDataBlock, code, line, END, terrno);
   SColumnInfoData infoData = {0};
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = COMPACT_DB_RESULT_FIELD1_LEN;
-  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
   infoData.info.type = TSDB_DATA_TYPE_INT;
   infoData.info.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
-  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = COMPACT_DB_RESULT_FIELD3_LEN;
-  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
   code = blockDataEnsureCapacity(pBlock, 1);
   TSDB_CHECK_CODE(code, line, END);
 
   SColumnInfoData* pResultCol = taosArrayGet(pBlock->pDataBlock, 0);
-  TSDB_CHECK_NULL(pResultCol, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(pResultCol, code, line, END, terrno);
   SColumnInfoData* pIdCol = taosArrayGet(pBlock->pDataBlock, 1);
-  TSDB_CHECK_NULL(pIdCol, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(pIdCol, code, line, END, terrno);
   SColumnInfoData* pReasonCol = taosArrayGet(pBlock->pDataBlock, 2);
-  TSDB_CHECK_NULL(pReasonCol, code, line, END, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(pReasonCol, code, line, END, terrno);
 
   char result[COMPACT_DB_RESULT_FIELD1_LEN] = {0};
   char reason[COMPACT_DB_RESULT_FIELD3_LEN] = {0};
@@ -702,8 +744,8 @@ static int32_t buildRetriveTableRspForCompactDb(SCompactDbRsp* pCompactDb, SRetr
   size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
   *pRsp = taosMemoryCalloc(1, rspSize);
   if (NULL == *pRsp) {
-    blockDataDestroy(pBlock);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
+    goto _exit;
   }
 
   (*pRsp)->useconds = 0;
@@ -716,6 +758,11 @@ static int32_t buildRetriveTableRspForCompactDb(SCompactDbRsp* pCompactDb, SRetr
   (*pRsp)->numOfCols = htonl(COMPACT_DB_RESULT_COLS);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, COMPACT_DB_RESULT_COLS);
+  if(len < 0) {
+    uError("buildRetriveTableRspForCompactDb error, len:%d", len);
+    code = terrno;
+    goto _exit;
+  }
   blockDataDestroy(pBlock);
 
   SET_PAYLOAD_LEN((*pRsp)->data, len, len);
@@ -727,10 +774,21 @@ static int32_t buildRetriveTableRspForCompactDb(SCompactDbRsp* pCompactDb, SRetr
   if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
     uError("buildRetriveTableRspForCompactDb error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
            (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
-    return TSDB_CODE_TSC_INVALID_INPUT;
+    code = TSDB_CODE_TSC_INVALID_INPUT;
+    goto _exit;
   }
 
   return TSDB_CODE_SUCCESS;
+_exit:
+  if(*pRsp)  {
+    taosMemoryFree(*pRsp);
+    *pRsp = NULL;
+  }
+  if(pBlock) {
+    blockDataDestroy(pBlock);
+    pBlock = NULL;
+  }
+  return code;
 }
 
 
@@ -760,7 +818,9 @@ int32_t processCompactDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(((SSyncQueryParam *)pRequest->body.interParam)->userParam, pRequest, code);
   } else {
-    (void)tsem_post(&pRequest->body.rspSem);
+    if (tsem_post(&pRequest->body.rspSem) != 0){
+      tscError("failed to post semaphore");
+    }
   }
   return code;  
 }

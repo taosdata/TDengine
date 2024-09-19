@@ -15,7 +15,7 @@ from frame import *
 from frame.autogen import *
 # from frame.server.dnodes import *
 # from frame.server.cluster import *
-
+from frame.clusterCommonCheck import *
 
 class TDTestCase(TBase):
     updatecfgDict = {
@@ -39,29 +39,12 @@ class TDTestCase(TBase):
         autoGen.insert_data(1000)
         tdSql.execute(f"flush database {self.db}")
         sc.dnodeStop(3)
-        # clusterDnodes.stoptaosd(1)
-        # clusterDnodes.starttaosd(3)
-        # time.sleep(5)
-        # clusterDnodes.stoptaosd(2)
-        # clusterDnodes.starttaosd(1)
-        # time.sleep(5)
         autoGen.insert_data(5000, True)
         self.flushDb(True)
         # wait flush operation over
         time.sleep(5)
 
-        # sql = 'show vnodes;'
-        # while True:
-        #     bFinish = True
-        #     param_list = tdSql.query(sql, row_tag=True)
-        #     for param in param_list:
-        #         if param[3] == 'leading' or param[3] == 'following':
-        #             bFinish = False
-        #             break
-        #     if bFinish:
-        #         break
-        self.snapshotAgg()
-        time.sleep(10)
+        self.snapshotAgg()       
         sc.dnodeStopAll()
         for i in range(1, 4):
             path = clusterDnodes.getDnodeDir(i)
@@ -75,19 +58,7 @@ class TDTestCase(TBase):
         sc.dnodeStart(2)
         sc.dnodeStart(3)
         sql = "show vnodes;"
-        time.sleep(10)
-        while True:
-            bFinish = True
-            param_list = tdSql.query(sql, row_tag=True)
-            for param in param_list:
-                if param[3] == 'offline':
-                    tdLog.exit(
-                        "dnode synchronous fail dnode id: %d, vgroup id:%d status offline" % (param[0], param[1]))
-                if param[3] == 'leading' or param[3] == 'following':
-                    bFinish = False
-                    break
-            if bFinish:
-                break
+        clusterComCheck.check_vgroups_status(vgroup_numbers=2,db_replica=3,db_name=f"{self.db}",count_number=60)
 
         self.timestamp_step = 1000
         self.insert_rows = 6000

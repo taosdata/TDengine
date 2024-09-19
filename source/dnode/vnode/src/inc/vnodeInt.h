@@ -101,20 +101,6 @@ typedef struct SQueryNode         SQueryNode;
 #define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
-#define VNODE_METRIC_SQL_COUNT "taosd_sql_req:count"
-
-#define VNODE_METRIC_TAG_NAME_SQL_TYPE   "sql_type"
-#define VNODE_METRIC_TAG_NAME_CLUSTER_ID "cluster_id"
-#define VNODE_METRIC_TAG_NAME_DNODE_ID   "dnode_id"
-#define VNODE_METRIC_TAG_NAME_DNODE_EP   "dnode_ep"
-#define VNODE_METRIC_TAG_NAME_VGROUP_ID  "vgroup_id"
-#define VNODE_METRIC_TAG_NAME_USERNAME   "username"
-#define VNODE_METRIC_TAG_NAME_RESULT     "result"
-
-#define VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS "inserted_rows"
-// #define VNODE_METRIC_TAG_VALUE_INSERT "insert"
-// #define VNODE_METRIC_TAG_VALUE_DELETE "delete"
-
 // vnd.h
 typedef int32_t (*_query_reseek_func_t)(void* pQHandle);
 struct SQueryNode {
@@ -131,7 +117,7 @@ typedef SVCreateTSmaReq SSmaCfg;
 SMTbCursor* metaOpenTbCursor(void* pVnode);
 void        metaCloseTbCursor(SMTbCursor* pTbCur);
 void        metaPauseTbCursor(SMTbCursor* pTbCur);
-void        metaResumeTbCursor(SMTbCursor* pTbCur, int8_t first, int8_t move);
+int32_t     metaResumeTbCursor(SMTbCursor* pTbCur, int8_t first, int8_t move);
 int32_t     metaTbCursorNext(SMTbCursor* pTbCur, ETableType jumpTableType);
 int32_t     metaTbCursorPrev(SMTbCursor* pTbCur, ETableType jumpTableType);
 
@@ -144,8 +130,8 @@ void  vnodeBufPoolRef(SVBufPool* pPool);
 void  vnodeBufPoolUnRef(SVBufPool* pPool, bool proactive);
 int   vnodeDecodeInfo(uint8_t* pData, SVnodeInfo* pInfo);
 
-int32_t vnodeBufPoolRegisterQuery(SVBufPool* pPool, SQueryNode* pQNode);
-void    vnodeBufPoolDeregisterQuery(SVBufPool* pPool, SQueryNode* pQNode, bool proactive);
+void vnodeBufPoolRegisterQuery(SVBufPool* pPool, SQueryNode* pQNode);
+void vnodeBufPoolDeregisterQuery(SVBufPool* pPool, SQueryNode* pQNode, bool proactive);
 
 // meta
 typedef struct SMStbCursor SMStbCursor;
@@ -170,11 +156,13 @@ int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq
 int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq, STableMetaRsp** pMetaRsp);
 int             metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq, SArray* tbUids, int64_t* tbUid);
 int32_t         metaTrimTables(SMeta* pMeta);
-void            metaDropTables(SMeta* pMeta, SArray* tbUids);
+int32_t         metaDropTables(SMeta* pMeta, SArray* tbUids);
 int             metaTtlFindExpired(SMeta* pMeta, int64_t timePointMs, SArray* tbUids, int32_t ttlDropMaxCount);
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 int             metaUpdateChangeTimeWithLock(SMeta* pMeta, tb_uid_t uid, int64_t changeTimeMs);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
+int32_t         metaGetTbTSchemaNotNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
+int32_t         metaGetTbTSchemaMaybeNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
 int32_t         metaGetTbTSchemaEx(SMeta* pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema** ppTSchema);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
@@ -235,7 +223,7 @@ int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
 int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
-int32_t tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
+void    tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
 int64_t tsdbGetEarliestTs(STsdb* pTsdb);
 
 // tq
@@ -256,7 +244,6 @@ int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessStreamHbRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessStreamReqCheckpointRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskChkptReportRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskConsensusChkptRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
 
 int32_t tqBuildStreamTask(void* pTq, SStreamTask* pTask, int64_t ver);
@@ -332,7 +319,7 @@ int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData);
 // STsdbSnapWriter ========================================
 int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, void* pRanges, STsdbSnapWriter** ppWriter);
 int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, SSnapDataHdr* pHdr);
-int32_t tsdbSnapWriterPrepareClose(STsdbSnapWriter* pWriter);
+int32_t tsdbSnapWriterPrepareClose(STsdbSnapWriter* pWriter, bool rollback);
 int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback);
 // STsdbSnapRAWReader ========================================
 int32_t tsdbSnapRAWReaderOpen(STsdb* pTsdb, int64_t ever, int8_t type, STsdbSnapRAWReader** ppReader);
@@ -362,7 +349,7 @@ int32_t streamTaskSnapReaderClose(SStreamTaskReader* pReader);
 int32_t streamTaskSnapRead(SStreamTaskReader* pReader, uint8_t** ppData);
 
 int32_t streamTaskSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTaskWriter** ppWriter);
-int32_t streamTaskSnapWriterClose(SStreamTaskWriter* ppWriter, int8_t rollback);
+int32_t streamTaskSnapWriterClose(SStreamTaskWriter* ppWriter, int8_t rollback, int8_t loadTask);
 int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t nData);
 
 int32_t streamStateSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamStateReader** ppReader);
@@ -386,7 +373,7 @@ int32_t rsmaSnapRead(SRSmaSnapReader* pReader, uint8_t** ppData);
 // SRSmaSnapWriter ========================================
 int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, void** ppRanges, SRSmaSnapWriter** ppWriter);
 int32_t rsmaSnapWrite(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
-int32_t rsmaSnapWriterPrepareClose(SRSmaSnapWriter* pWriter);
+int32_t rsmaSnapWriterPrepareClose(SRSmaSnapWriter* pWriter, bool rollback);
 int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback);
 
 typedef struct {
@@ -449,10 +436,9 @@ typedef struct SVCommitSched {
 } SVCommitSched;
 
 typedef struct SVMonitorObj {
-  char            strClusterId[TSDB_CLUSTER_ID_LEN];
-  char            strDnodeId[TSDB_NODE_ID_LEN];
-  char            strVgId[TSDB_VGROUP_ID_LEN];
-  taos_counter_t* insertCounter;
+  char strClusterId[TSDB_CLUSTER_ID_LEN];
+  char strDnodeId[TSDB_NODE_ID_LEN];
+  char strVgId[TSDB_VGROUP_ID_LEN];
 } SVMonitorObj;
 
 typedef struct {
@@ -473,6 +459,7 @@ struct SVnode {
   STfs*     pTfs;
   int32_t   diskPrimary;
   SMsgCb    msgCb;
+  bool      disableWrite;
 
   // Buffer Pool
   TdThreadMutex mutex;
@@ -606,7 +593,7 @@ struct SVHashTable {
 
 #define vHashNumEntries(ht) ((ht)->numEntries)
 int32_t vHashInit(SVHashTable** ht, uint32_t (*hash)(const void*), int32_t (*compare)(const void*, const void*));
-int32_t vHashDestroy(SVHashTable** ht);
+void    vHashDestroy(SVHashTable** ht);
 int32_t vHashPut(SVHashTable* ht, void* obj);
 int32_t vHashGet(SVHashTable* ht, const void* obj, void** retObj);
 int32_t vHashDrop(SVHashTable* ht, const void* obj);

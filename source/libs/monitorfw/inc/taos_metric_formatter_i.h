@@ -16,6 +16,7 @@
 
 #ifndef TAOS_METRIC_FORMATTER_I_H
 #define TAOS_METRIC_FORMATTER_I_H
+#include <stdint.h>
 
 // Private
 #include "taos_metric_formatter_t.h"
@@ -57,8 +58,8 @@ int taos_metric_formatter_load_l_value(taos_metric_formatter_t *metric_formatter
 /**
  * @brief API PRIVATE Loads the formatter with a metric sample
  */
-int taos_metric_formatter_load_sample(taos_metric_formatter_t *metric_formatter, taos_metric_sample_t *sample, 
-                                        char *ts, char *format);
+int taos_metric_formatter_load_sample(taos_metric_formatter_t *metric_formatter, taos_metric_sample_t *sample, char *ts,
+                                      char *format);
 
 /**
  * @brief API PRIVATE Loads a metric in the string exposition format
@@ -80,4 +81,5 @@ int taos_metric_formatter_clear(taos_metric_formatter_t *self);
  */
 char *taos_metric_formatter_dump(taos_metric_formatter_t *metric_formatter);
 
+int32_t taos_metric_formatter_get_vgroup_id(char *key);
 #endif  // TAOS_METRIC_FORMATTER_I_H

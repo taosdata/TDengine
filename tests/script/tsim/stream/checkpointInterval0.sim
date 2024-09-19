@@ -76,6 +76,8 @@ system sh/stop_dnodes.sh
 
 system sh/exec.sh -n dnode1 -s start
 
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1 values(1648791213002,3,2,3,1.1);
 
 $loop_count = 0

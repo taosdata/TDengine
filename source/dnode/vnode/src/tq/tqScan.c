@@ -19,7 +19,7 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, void* pRsp, int32_t numOf
   int32_t dataStrLen = sizeof(SRetrieveTableRspForTmq) + blockGetEncodeSize(pBlock);
   void*   buf = taosMemoryCalloc(1, dataStrLen);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SRetrieveTableRspForTmq* pRetrieve = (SRetrieveTableRspForTmq*)buf;
@@ -29,6 +29,10 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, void* pRsp, int32_t numOf
   pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
 
   int32_t actualLen = blockEncode(pBlock, pRetrieve->data, numOfCols);
+  if(actualLen < 0){
+    taosMemoryFree(buf);
+    return terrno;
+  }
   actualLen += sizeof(SRetrieveTableRspForTmq);
   if (taosArrayPush(((SMqDataRspCommon*)pRsp)->blockDataLen, &actualLen) == NULL){
     taosMemoryFree(buf);
@@ -101,6 +105,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
   TSDB_CHECK_CODE(code, line, END);
 
   qStreamSetSourceExcluded(task, pRequest->sourceExcluded);
+  uint64_t st = taosGetTimestampMs();
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     code = getDataBlock(task, pHandle, vgId, &pDataBlock);
@@ -160,7 +165,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
 
       pRsp->common.blockNum++;
       totalRows += pDataBlock->info.rows;
-      if (totalRows >= tmqRowSize) {
+      if (totalRows >= tmqRowSize || (taosGetTimestampMs() - st > 1000)) {
         break;
       }
     }
@@ -339,7 +344,7 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, STaosxRsp* pRsp, int3
     }
     void*    createReq = taosMemoryCalloc(1, len);
     if (createReq == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto END;
     }
     SEncoder encoder = {0};

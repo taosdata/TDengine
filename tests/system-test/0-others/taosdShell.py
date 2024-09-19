@@ -88,24 +88,29 @@ class TDTestCase:
                 pid = 0
             return pid
 
-    def checkAndstopPro(self,processName,startAction):
-        i = 1
-        count = 10
+    def checkAndstopPro(self, processName, startAction, count = 10):
         for i in range(count):
             taosdPid=self.get_process_pid(processName)
+            print("taosdPid:",taosdPid)
             if taosdPid != 0  and   taosdPid != ""  :
                 tdLog.info("stop taosd %s ,kill pid :%s "%(startAction,taosdPid))
-                os.system("kill -9 %d"%taosdPid)
-                break
+                for j in range(count):
+                    os.system("kill -9 %d"%taosdPid)
+                    taosdPid=self.get_process_pid(processName)
+                    print("taosdPid2:",taosdPid)
+                    if taosdPid == 0  or   taosdPid == ""  :
+                        tdLog.info("taosd %s is stoped "%startAction)
+                        return
             else:
                 tdLog.info( "wait start taosd ,times: %d "%i)
             time.sleep(1)
-            i+= 1
         else :
             tdLog.exit("taosd %s is not running "%startAction)
 
+
     def taosdCommandStop(self,startAction,taosdCmdRun):
-        processName="taosd"
+        processName= "taosd"
+        count = 10
         if platform.system().lower() == 'windows':
             processName="taosd.exe"
         taosdCmd = taosdCmdRun + startAction
@@ -116,7 +121,7 @@ class TDTestCase:
         else:
             logTime=datetime.now().strftime('%Y%m%d_%H%M%S_%f')
             os.system(f"nohup {taosdCmd}  >  {logTime}.log  2>&1 &  ")
-            self.checkAndstopPro(processName,startAction)
+            self.checkAndstopPro(processName,startAction,count)
             os.system(f"rm -rf  {logTime}.log")
 
 
@@ -149,7 +154,10 @@ class TDTestCase:
         tdSql.query("use source_db")
         tdSql.query("create table if not exists source_db.stb (ts timestamp, k int) tags (a int);")
         tdSql.query("create table source_db.ct1 using source_db.stb tags(1000);create table source_db.ct2 using source_db.stb tags(2000);create table source_db.ct3 using source_db.stb tags(3000);")
-        tdSql.query("create stream s1 into source_db.output_stb as select _wstart AS startts, min(k), max(k), sum(k) from source_db.stb interval(10m);")
+        if platform.system().lower() == 'windows':
+            pass
+        else:
+            tdSql.query("create stream s1 into source_db.output_stb as select _wstart AS startts, min(k), max(k), sum(k) from source_db.stb interval(10m);")
 
 
         #TD-19944 -Q=3

@@ -243,7 +243,7 @@ int32_t  tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
 void     tsdbMemTableDestroy(SMemTable *pMemTable, bool proactive);
 STbData *tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid);
 int32_t  tsdbRefMemTable(SMemTable *pMemTable, SQueryNode *pQNode);
-int32_t  tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode, bool proactive);
+void     tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode, bool proactive);
 // STbDataIter
 int32_t tsdbTbDataIterCreate(STbData *pTbData, STsdbRowKey *pFrom, int8_t backward, STbDataIter **ppIter);
 void   *tsdbTbDataIterDestroy(STbDataIter *pIter);
@@ -280,19 +280,19 @@ void    tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t);
 // tsdbReaderWriter.c ==============================================================================================
 // SDataFReader
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet);
-int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
+void    tsdbDataFReaderClose(SDataFReader **ppReader);
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx);
 int32_t tsdbReadDataBlk(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *mDataBlk);
 int32_t tsdbReadSttBlk(SDataFReader *pReader, int32_t iStt, SArray *aSttBlk);
 // SDelFReader
 int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb);
-int32_t tsdbDelFReaderClose(SDelFReader **ppReader);
+void    tsdbDelFReaderClose(SDelFReader **ppReader);
 int32_t tsdbReadDelDatav1(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData, int64_t maxVer);
 int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData);
 int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx);
 
 // tsdbRead.c ==============================================================================================
-int32_t tsdbTakeReadSnap2(STsdbReader *pReader, _query_reseek_func_t reseek, STsdbReadSnap **ppSnap);
+int32_t tsdbTakeReadSnap2(STsdbReader *pReader, _query_reseek_func_t reseek, STsdbReadSnap **ppSnap, const char* id);
 void    tsdbUntakeReadSnap2(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proactive);
 int32_t tsdbGetTableSchema(SMeta *pMeta, int64_t uid, STSchema **pSchema, int64_t *suid);
 
@@ -342,8 +342,6 @@ typedef struct {
   rocksdb_writeoptions_t              *writeoptions;
   rocksdb_readoptions_t               *readoptions;
   rocksdb_writebatch_t                *writebatch;
-  rocksdb_writebatch_t                *rwritebatch;
-  TdThreadMutex                        rMutex;
   STSchema                            *pTSchema;
 } SRocksCache;
 
@@ -364,7 +362,6 @@ struct STsdb {
   SMemTable           *imem;
   STsdbFS              fs;  // old
   SLRUCache           *lruCache;
-  SCacheFlushState     flushState;
   TdThreadMutex        lruMutex;
   SLRUCache           *biCache;
   TdThreadMutex        biMutex;
@@ -378,7 +375,7 @@ struct STsdb {
   struct {
     SVHashTable *ht;
     SArray      *arr;
-  } * commitInfo;
+  } *commitInfo;
 };
 
 struct TSDBKEY {
@@ -679,8 +676,8 @@ typedef TARRAY2(STFileSet *) TFileSetArray;
 typedef struct STFileSetRange STFileSetRange;
 typedef TARRAY2(STFileSetRange *) TFileSetRangeArray;  // disjoint ranges
 
-int32_t tsdbTFileSetRangeClear(STFileSetRange **fsr);
-int32_t tsdbTFileSetRangeArrayDestroy(TFileSetRangeArray **ppArr);
+void tsdbTFileSetRangeClear(STFileSetRange **fsr);
+void tsdbTFileSetRangeArrayDestroy(TFileSetRangeArray **ppArr);
 
 // fset partition
 enum {
@@ -899,7 +896,7 @@ typedef struct SSttDataInfoForTable {
 
 int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoForTable *pTableInfo);
 void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
-bool    tMergeTreeNext(SMergeTree *pMTree);
+int32_t tMergeTreeNext(SMergeTree *pMTree, bool *pHasNext);
 void    tMergeTreePinSttBlock(SMergeTree *pMTree);
 void    tMergeTreeUnpinSttBlock(SMergeTree *pMTree);
 bool    tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
@@ -915,12 +912,20 @@ typedef enum {
   READER_EXEC_ROWS = 0x2,
 } EExecMode;
 
-#define LAST_COL_VERSION (0x1)
+#define LAST_COL_VERSION_1 (0x1)  // add primary key, version
+#define LAST_COL_VERSION_2 (0x2)  // add cache status
+#define LAST_COL_VERSION   LAST_COL_VERSION_2
+
+typedef enum {
+  TSDB_LAST_CACHE_VALID = 0,  // last_cache has valid data
+  TSDB_LAST_CACHE_NO_CACHE,   // last_cache has no data, but tsdb may have data
+} ELastCacheStatus;
 
 typedef struct {
-  SRowKey rowKey;
-  int8_t  dirty;
-  SColVal colVal;
+  SRowKey          rowKey;
+  int8_t           dirty;
+  SColVal          colVal;
+  ELastCacheStatus cacheStatus;
 } SLastCol;
 
 typedef struct {
@@ -1061,6 +1066,8 @@ typedef enum {
 // utils
 ETsdbFsState tsdbSnapGetFsState(SVnode *pVnode);
 int32_t      tsdbSnapPrepDescription(SVnode *pVnode, SSnapshot *pSnap);
+
+void tsdbRemoveFile(const char *path);
 
 #ifdef __cplusplus
 }

@@ -3,6 +3,7 @@
 connect/bin
 influxdbLine/bin
 optsJSON/bin
+nativesml/bin
 optsTelnet/bin
 query/bin
 sqlInsert/bin
@@ -11,9 +12,12 @@ subscribe/bin
 wsConnect/bin
 wsInsert/bin
 wsQuery/bin
+wssml/bin
 wsStmt/bin
+wssubscribe/bin
 connect/obj
 influxdbLine/obj
+nativesml/obj
 optsJSON/obj
 optsTelnet/obj
 query/obj
@@ -23,4 +27,6 @@ subscribe/obj
 wsConnect/obj
 wsInsert/obj
 wsQuery/obj
+wssml/obj
 wsStmt/obj
+wssubscribe/obj

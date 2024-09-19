@@ -23,7 +23,7 @@ static int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle);
 static int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId);
 static bool    handleFillhistoryScanComplete(SStreamTask* pTask, int64_t ver);
 static bool    taskReadyForDataFromWal(SStreamTask* pTask);
-static bool    doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems);
+static int32_t doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems, bool* pSucc);
 static int32_t tqScanWalInFuture(STQ* pTq, int32_t numOfTasks, int32_t idleDuration);
 
 // extract data blocks(submit/delete) from WAL, and add them into the input queue for all the sources tasks.
@@ -40,13 +40,16 @@ int32_t tqScanWal(STQ* pTq) {
 
   int32_t code = doScanWalForAllTasks(pMeta, &shouldIdle);
   if (code) {
-    tqError("vgId:%d failed to start all tasks, try next time", vgId);
+    tqError("vgId:%d failed to start all tasks, try next time, code:%s", vgId, tstrerror(code));
     return code;
   }
 
   streamMetaWLock(pMeta);
   int32_t times = (--pMeta->scanInfo.scanCounter);
-  ASSERT(pMeta->scanInfo.scanCounter >= 0);
+  if (times < 0) {
+    tqError("vgId:%d invalid scan counter:%d, reset to 0", vgId, times);
+    times = 0;
+  }
 
   numOfTasks = taosArrayGetSize(pMeta->pTaskList);
   streamMetaWUnLock(pMeta);
@@ -82,7 +85,7 @@ static void doStartScanWal(void* param, void* tmrId) {
   taosMemoryFree(pParam);
 
   if (code) {
-    tqError("vgId:%d failed sched task to scan wal", vgId);
+    tqError("vgId:%d failed sched task to scan wal, code:%s", vgId, tstrerror(code));
   }
 }
 
@@ -109,8 +112,8 @@ int32_t tqScanWalInFuture(STQ* pTq, int32_t numOfTasks, int32_t idleDuration) {
   if (pMeta->scanInfo.scanTimer == NULL) {
     pMeta->scanInfo.scanTimer = taosTmrStart(doStartScanWal, idleDuration, pParam, pTimer);
   } else {
-    code = taosTmrReset(doStartScanWal, idleDuration, pParam, pTimer, &pMeta->scanInfo.scanTimer);
-    if (code) {
+    bool ret = taosTmrReset(doStartScanWal, idleDuration, pParam, pTimer, &pMeta->scanInfo.scanTimer);
+    if (!ret) {
       tqError("vgId:%d failed to start scan wal in:%dms", vgId, idleDuration);
     }
   }
@@ -134,6 +137,12 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
   if (numOfTasks == 0) {
     tqDebug("vgId:%d no stream tasks existed to run", vgId);
+    streamMetaWUnLock(pMeta);
+    return 0;
+  }
+
+  if (pMeta->startInfo.startAllTasks) {
+    tqTrace("vgId:%d in restart procedure, not scan wal", vgId);
     streamMetaWUnLock(pMeta);
     return 0;
   }
@@ -263,7 +272,6 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
 
   // fill-history task has entered into the last phase, no need to anything
   if ((pTask->info.fillHistory == 1) && pTask->status.appendTranstateBlock) {
-    ASSERT(pState.state == TASK_STATUS__READY);
     // the maximum version of data in the WAL has reached already, the step2 is done
     tqDebug("s-task:%s fill-history reach the maximum ver:%" PRId64 ", not scan wal anymore", pTask->id.idStr,
             pTask->dataRange.range.maxVer);
@@ -285,9 +293,11 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
   return true;
 }
 
-bool doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems) {
+int32_t doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems, bool* pSucc) {
   const char* id = pTask->id.idStr;
   int32_t     numOfNewItems = 0;
+  int32_t     code = 0;
+  *pSucc = false;
 
   while (1) {
     if ((pTask->info.fillHistory == 1) && pTask->status.appendTranstateBlock) {
@@ -296,7 +306,7 @@ bool doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems
     }
 
     SStreamQueueItem* pItem = NULL;
-    int32_t           code = extractMsgFromWal(pTask->exec.pWalReader, (void**)&pItem, maxVer, id);
+    code = extractMsgFromWal(pTask->exec.pWalReader, (void**)&pItem, maxVer, id);
     if (code != TSDB_CODE_SUCCESS || pItem == NULL) {  // failed, continue
       int64_t currentVer = walReaderGetCurrentVer(pTask->exec.pWalReader);
       bool    itemInFillhistory = handleFillhistoryScanComplete(pTask, currentVer);
@@ -319,10 +329,17 @@ bool doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems
           break;
         }
       } else {
-        tqTrace("s-task:%s append input queue failed, code:too many items, ver:%" PRId64, id, pTask->chkInfo.nextProcessVer);
-        code = walReaderSeekVer(pTask->exec.pWalReader, pTask->chkInfo.nextProcessVer);
-        if (code) {
-          tqError("s-task:%s failed to seek ver to:%"PRId64 " in wal", id, pTask->chkInfo.nextProcessVer);
+        if (code == TSDB_CODE_OUT_OF_MEMORY) {
+          tqError("s-task:%s failed to put data into inputQ, since out of memory", id);
+        } else {
+          tqTrace("s-task:%s append input queue failed, code:inputQ is full, ver:%" PRId64, id,
+                  pTask->chkInfo.nextProcessVer);
+          code = walReaderSeekVer(pTask->exec.pWalReader, pTask->chkInfo.nextProcessVer);
+          if (code) {
+            tqError("s-task:%s failed to seek ver to:%" PRId64 " in wal", id, pTask->chkInfo.nextProcessVer);
+          }
+
+          code = 0;  // reset the error code
         }
 
         break;
@@ -331,7 +348,8 @@ bool doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems
   }
 
   *numOfItems += numOfNewItems;
-  return numOfNewItems > 0;
+  *pSucc = (numOfNewItems > 0);
+  return code;
 }
 
 int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
@@ -349,6 +367,10 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
   streamMetaWLock(pStreamMeta);
   pTaskList = taosArrayDup(pStreamMeta->pTaskList, NULL);
   streamMetaWUnLock(pStreamMeta);
+  if (pTaskList == NULL) {
+    tqError("vgId:%d failed to create task list dup, code:%s", vgId, tstrerror(terrno));
+    return terrno;
+  }
 
   tqDebug("vgId:%d start to check wal to extract new submit block for %d tasks", vgId, numOfTasks);
 
@@ -357,9 +379,13 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
     STaskId*     pTaskId = taosArrayGet(pTaskList, i);
+    if (pTaskId == NULL) {
+      continue;
+    }
+
     SStreamTask* pTask = NULL;
     int32_t code = streamMetaAcquireTask(pStreamMeta, pTaskId->streamId, pTaskId->taskId, &pTask);
-    if (pTask == NULL) {
+    if (pTask == NULL || code != 0) {
       continue;
     }
 
@@ -390,7 +416,8 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    bool hasNewData = doPutDataIntoInputQ(pTask, maxVer, &numOfItems);
+    bool hasNewData = false;
+    code = doPutDataIntoInputQ(pTask, maxVer, &numOfItems, &hasNewData);
     streamMutexUnlock(&pTask->lock);
 
     if ((numOfItems > 0) || hasNewData) {

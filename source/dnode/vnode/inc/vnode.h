@@ -49,7 +49,9 @@ typedef struct SVSnapWriter SVSnapWriter;
 
 extern const SVnodeCfg vnodeCfgDefault;
 
-int32_t vnodeInit(int32_t nthreads);
+typedef void (*StopDnodeFp)();
+
+int32_t vnodeInit(int32_t nthreads, StopDnodeFp stopDnodeFp);
 void    vnodeCleanup();
 int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs *pTfs);
 bool    vnodeShouldRemoveWal(SVnode *pVnode);
@@ -162,7 +164,7 @@ typedef struct STsdbReader STsdbReader;
 int32_t      tsdbReaderOpen2(void *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
                              SSDataBlock *pResBlock, void **ppReader, const char *idstr, SHashObj **pIgnoreTables);
 int32_t      tsdbSetTableList2(STsdbReader *pReader, const void *pTableList, int32_t num);
-void         tsdbReaderSetId2(STsdbReader *pReader, const char *idstr);
+int32_t      tsdbReaderSetId(void *pReader, const char *idstr);
 void         tsdbReaderClose2(STsdbReader *pReader);
 int32_t      tsdbNextDataBlock2(STsdbReader *pReader, bool *hasNext);
 int32_t      tsdbRetrieveDatablockSMA2(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave, bool *hasNullSMA);
@@ -184,7 +186,7 @@ int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, 
                                 SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr,
                                 SArray *pFuncTypeList, SColumnInfo *pkCol, int32_t numOfPks);
 int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
-                              SArray *pTableUids);
+                              SArray *pTableUids, bool *pGotAllRows);
 void    tsdbCacherowsReaderClose(void *pReader);
 
 void    tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);

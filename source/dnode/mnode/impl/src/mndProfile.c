@@ -65,6 +65,8 @@ typedef struct {
   int64_t ipWhiteListVer;
 } SConnPreparedObj;
 
+#define CACHE_OBJ_KEEP_TIME 3 // s
+
 static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, uint32_t ip, uint16_t port,
                                int32_t pid, const char *app, int64_t startTime);
 static void      mndFreeConn(SConnObj *pConn);
@@ -89,7 +91,7 @@ int32_t mndInitProfile(SMnode *pMnode) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   // in ms
-  int32_t checkTime = tsShellActivityTimer * 2 * 1000;
+  int32_t checkTime = CACHE_OBJ_KEEP_TIME * 1000;
   pMgmt->connCache = taosCacheInit(TSDB_DATA_TYPE_UINT, checkTime, false, (__cache_free_fn_t)mndFreeConn, "conn");
   if (pMgmt->connCache == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -161,9 +163,8 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
   tstrncpy(connObj.user, user, TSDB_USER_LEN);
   tstrncpy(connObj.app, app, TSDB_APP_NAME_LEN);
 
-  int32_t   keepTime = tsShellActivityTimer * 3;
   SConnObj *pConn =
-      taosCachePut(pMgmt->connCache, &connId, sizeof(uint32_t), &connObj, sizeof(connObj), keepTime * 1000);
+      taosCachePut(pMgmt->connCache, &connId, sizeof(uint32_t), &connObj, sizeof(connObj), CACHE_OBJ_KEEP_TIME * 1000);
   if (pConn == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("conn:%d, failed to put into cache since %s, user:%s", connId, user, terrstr());
@@ -263,7 +264,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
 
   if (connReq.db[0]) {
     char db[TSDB_DB_FNAME_LEN] = {0};
-    snprintf(db, TSDB_DB_FNAME_LEN, "%d%s%s", pUser->acctId, TS_PATH_DELIMITER, connReq.db);
+    (void)snprintf(db, TSDB_DB_FNAME_LEN, "%d%s%s", pUser->acctId, TS_PATH_DELIMITER, connReq.db);
     pDb = mndAcquireDb(pMnode, db);
     if (pDb == NULL) {
       if (0 != strcmp(connReq.db, TSDB_INFORMATION_SCHEMA_DB) &&
@@ -307,9 +308,9 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   tstrncpy(connectRsp.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   connectRsp.whiteListVer = pUser->ipWhiteListVer;
 
-  strcpy(connectRsp.sVer, version);
-  snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
-           gitinfo);
+  (void)strcpy(connectRsp.sVer, version);
+  (void)snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version,
+                 buildinfo, gitinfo);
   mndGetMnodeEpSet(pMnode, &connectRsp.epSet);
 
   int32_t contLen = tSerializeSConnectRsp(NULL, 0, &connectRsp);
@@ -318,7 +319,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   }
   void *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _OVER);
+    TAOS_CHECK_GOTO(terrno, NULL, _OVER);
   }
 
   contLen = tSerializeSConnectRsp(pRsp, contLen, &connectRsp);
@@ -335,7 +336,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   code = 0;
 
   char detail[1000] = {0};
-  sprintf(detail, "app:%s", connReq.app);
+  (void)sprintf(detail, "app:%s", connReq.app);
 
   auditRecord(pReq, pMnode->clusterId, "login", "", "", detail, strlen(detail));
 
@@ -371,13 +372,12 @@ static SAppObj *mndCreateApp(SMnode *pMnode, uint32_t clientIp, SAppHbReq *pReq)
   app.appId = pReq->appId;
   app.ip = clientIp;
   app.pid = pReq->pid;
-  strcpy(app.name, pReq->name);
+  (void)strcpy(app.name, pReq->name);
   app.startTime = pReq->startTime;
-  memcpy(&app.summary, &pReq->summary, sizeof(pReq->summary));
+  (void)memcpy(&app.summary, &pReq->summary, sizeof(pReq->summary));
   app.lastAccessTimeMs = taosGetTimestampMs();
 
-  const int32_t keepTime = tsShellActivityTimer * 3;
-  SAppObj *pApp = taosCachePut(pMgmt->appCache, &pReq->appId, sizeof(pReq->appId), &app, sizeof(app), keepTime * 1000);
+  SAppObj *pApp = taosCachePut(pMgmt->appCache, &pReq->appId, sizeof(pReq->appId), &app, sizeof(app), CACHE_OBJ_KEEP_TIME * 1000);
   if (pApp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to app %" PRIx64 " into cache since %s", pReq->appId, terrstr());
@@ -456,7 +456,7 @@ static int32_t mndUpdateAppInfo(SMnode *pMnode, SClientHbReq *pHbReq, SRpcConnIn
     }
   }
 
-  memcpy(&pApp->summary, &pReq->summary, sizeof(pReq->summary));
+  (void)memcpy(&pApp->summary, &pReq->summary, sizeof(pReq->summary));
 
   mndReleaseApp(pMnode, pApp);
 
@@ -492,7 +492,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
   SRpcConnInfo  connInfo = pMsg->info.conn;
 
   if (0 != pHbReq->app.appId) {
-    mndUpdateAppInfo(pMnode, pHbReq, &connInfo);
+    TAOS_CHECK_RETURN(mndUpdateAppInfo(pMnode, pHbReq, &connInfo));
   }
 
   if (pHbReq->query) {
@@ -515,12 +515,12 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     SQueryHbRspBasic *rspBasic = taosMemoryCalloc(1, sizeof(SQueryHbRspBasic));
     if (rspBasic == NULL) {
       mndReleaseConn(pMnode, pConn, true);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       mError("user:%s, conn:%u failed to process hb while since %s", pConn->user, pBasic->connId, terrstr());
       TAOS_RETURN(code);
     }
 
-    mndSaveQueryList(pConn, pBasic);
+    TAOS_CHECK_RETURN(mndSaveQueryList(pConn, pBasic));
     if (pConn->killed != 0) {
       rspBasic->killConnection = 1;
     }
@@ -546,14 +546,16 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 
   int32_t kvNum = taosHashGetSize(pHbReq->info);
   if (NULL == pHbReq->info || kvNum <= 0) {
-    taosArrayPush(pBatchRsp->rsps, &hbRsp);
+    if (taosArrayPush(pBatchRsp->rsps, &hbRsp) == NULL) {
+      mError("failed to put rsp into array, but continue at this heartbeat");
+    }
     return TSDB_CODE_SUCCESS;
   }
 
   hbRsp.info = taosArrayInit(kvNum, sizeof(SKv));
   if (NULL == hbRsp.info) {
     mError("taosArrayInit %d rsp kv failed", kvNum);
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     tFreeClientHbRsp(&hbRsp);
     TAOS_RETURN(code);
   }
@@ -574,7 +576,10 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 
     if (needCheck) {
       SKv kv1 = {.key = HEARTBEAT_KEY_DYN_VIEW, .valueLen = sizeof(*pDynViewVer), .value = pRspVer};
-      taosArrayPush(hbRsp.info, &kv1);
+      if (taosArrayPush(hbRsp.info, &kv1) == NULL) {
+        if (terrno != 0) code = terrno;
+        TAOS_RETURN(code);
+      };
       mTrace("need to check view ver, lastest bootTs:%" PRId64 ", ver:%" PRIu64, pRspVer->svrBootTs,
              pRspVer->dynViewVer);
     }
@@ -589,31 +594,37 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
       case HEARTBEAT_KEY_USER_AUTHINFO: {
         void   *rspMsg = NULL;
         int32_t rspLen = 0;
-        mndValidateUserAuthInfo(pMnode, kv->value, kv->valueLen / sizeof(SUserAuthVersion), &rspMsg, &rspLen,
-                                pObj->ipWhiteListVer);
+        (void)mndValidateUserAuthInfo(pMnode, kv->value, kv->valueLen / sizeof(SUserAuthVersion), &rspMsg, &rspLen,
+                                      pObj->ipWhiteListVer);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_USER_AUTHINFO, .valueLen = rspLen, .value = rspMsg};
-          taosArrayPush(hbRsp.info, &kv1);
+          if (taosArrayPush(hbRsp.info, &kv1) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
         }
         break;
       }
       case HEARTBEAT_KEY_DBINFO: {
         void   *rspMsg = NULL;
         int32_t rspLen = 0;
-        mndValidateDbInfo(pMnode, kv->value, kv->valueLen / sizeof(SDbCacheInfo), &rspMsg, &rspLen);
+        (void)mndValidateDbInfo(pMnode, kv->value, kv->valueLen / sizeof(SDbCacheInfo), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_DBINFO, .valueLen = rspLen, .value = rspMsg};
-          taosArrayPush(hbRsp.info, &kv1);
+          if (taosArrayPush(hbRsp.info, &kv1) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
         }
         break;
       }
       case HEARTBEAT_KEY_STBINFO: {
         void   *rspMsg = NULL;
         int32_t rspLen = 0;
-        mndValidateStbInfo(pMnode, kv->value, kv->valueLen / sizeof(SSTableVersion), &rspMsg, &rspLen);
+        (void)mndValidateStbInfo(pMnode, kv->value, kv->valueLen / sizeof(SSTableVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_STBINFO, .valueLen = rspLen, .value = rspMsg};
-          taosArrayPush(hbRsp.info, &kv1);
+          if (taosArrayPush(hbRsp.info, &kv1) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
         }
         break;
       }
@@ -628,10 +639,12 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 
         void   *rspMsg = NULL;
         int32_t rspLen = 0;
-        mndValidateViewInfo(pMnode, kv->value, kv->valueLen / sizeof(SViewVersion), &rspMsg, &rspLen);
+        (void)mndValidateViewInfo(pMnode, kv->value, kv->valueLen / sizeof(SViewVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_VIEWINFO, .valueLen = rspLen, .value = rspMsg};
-          taosArrayPush(hbRsp.info, &kv1);
+          if (taosArrayPush(hbRsp.info, &kv1) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
         }
         break;
       }
@@ -639,10 +652,12 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
       case HEARTBEAT_KEY_TSMA: {
         void   *rspMsg = NULL;
         int32_t rspLen = 0;
-        mndValidateTSMAInfo(pMnode, kv->value, kv->valueLen / sizeof(STSMAVersion), &rspMsg, &rspLen);
+        (void)mndValidateTSMAInfo(pMnode, kv->value, kv->valueLen / sizeof(STSMAVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv = {.key = HEARTBEAT_KEY_TSMA, .valueLen = rspLen, .value = rspMsg};
-          taosArrayPush(hbRsp.info, &kv);
+          if (taosArrayPush(hbRsp.info, &kv) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
         }
         break;
       }
@@ -655,9 +670,10 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     pIter = taosHashIterate(pHbReq->info, pIter);
   }
 
-  taosArrayPush(pBatchRsp->rsps, &hbRsp);
-
-  return TSDB_CODE_SUCCESS;
+  if (taosArrayPush(pBatchRsp->rsps, &hbRsp) == NULL) {
+    if (terrno != 0) code = terrno;
+  }
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
@@ -675,15 +691,15 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   SConnPreparedObj obj = {0};
   obj.totalDnodes = mndGetDnodeSize(pMnode);
   obj.ipWhiteListVer = batchReq.ipWhiteList;
-  mndGetOnlineDnodeNum(pMnode, &obj.onlineDnodes);
+  TAOS_CHECK_RETURN(mndGetOnlineDnodeNum(pMnode, &obj.onlineDnodes));
   mndGetMnodeEpSet(pMnode, &obj.epSet);
-  mndCreateQnodeList(pMnode, &obj.pQnodeList, -1);
+  TAOS_CHECK_RETURN(mndCreateQnodeList(pMnode, &obj.pQnodeList, -1));
 
   SClientHbBatchRsp batchRsp = {0};
   batchRsp.svrTimestamp = taosGetTimestampSec();
   batchRsp.rsps = taosArrayInit(0, sizeof(SClientHbRsp));
   if (batchRsp.rsps == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
   batchRsp.monitorParas.tsEnableMonitor = tsEnableMonitor;
   batchRsp.monitorParas.tsMonitorInterval = tsMonitorInterval;
@@ -701,7 +717,9 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
     } else if (pHbReq->connKey.connType == CONN_TYPE__TMQ) {
       SClientHbRsp *pRsp = mndMqHbBuildRsp(pMnode, pHbReq);
       if (pRsp != NULL) {
-        taosArrayPush(batchRsp.rsps, pRsp);
+        if (taosArrayPush(batchRsp.rsps, pRsp) == NULL) {
+          mError("failed to put kv into array, but continue at this heartbeat");
+        }
         taosMemoryFree(pRsp);
       }
     }
@@ -714,7 +732,7 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   }
   void *buf = rpcMallocCont(tlen);
   if (!buf) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
   tlen = tSerializeSClientHbBatchRsp(buf, tlen, &batchRsp);
   if (tlen < 0) {
@@ -802,7 +820,7 @@ static int32_t mndProcessSvrVerReq(SRpcMsg *pReq) {
   }
   void *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
   contLen = tSerializeSServerVerRsp(pRsp, contLen, &rsp);
   if (contLen < 0) {
@@ -824,7 +842,6 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   int32_t   numOfRows = 0;
   int32_t   cols = 0;
   SConnObj *pConn = NULL;
-  int32_t   keepTime = tsShellActivityTimer * 3;
 
   if (pShow->pIter == NULL) {
     SProfileMgmt *pMgmt = &pMnode->profileMgmt;
@@ -838,39 +855,39 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       break;
     }
 
-    if ((taosGetTimestampMs() - pConn->lastAccessTimeMs) > ((int64_t)keepTime * 1000)) {
+    if ((taosGetTimestampMs() - pConn->lastAccessTimeMs) > ((int64_t)CACHE_OBJ_KEEP_TIME * 1000)) {
       continue;
     }
 
     cols = 0;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->id, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->id, false);
 
     char user[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(user, pConn->user);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)user, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)user, false);
 
     char app[TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE];
     STR_TO_VARSTR(app, pConn->app);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)app, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)app, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->pid, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->pid, false);
 
     char endpoint[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
+    (void)sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
     varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)endpoint, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)endpoint, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->loginTimeMs, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->loginTimeMs, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->lastAccessTimeMs, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->lastAccessTimeMs, false);
 
     numOfRows++;
   }
@@ -903,50 +920,50 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     cols = 0;
 
     char queryId[26 + VARSTR_HEADER_SIZE] = {0};
-    sprintf(&queryId[VARSTR_HEADER_SIZE], "%x:%" PRIx64, pConn->id, pQuery->reqRid);
+    (void)sprintf(&queryId[VARSTR_HEADER_SIZE], "%x:%" PRIx64, pConn->id, pQuery->reqRid);
     varDataLen(queryId) = strlen(&queryId[VARSTR_HEADER_SIZE]);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)queryId, false);
+    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)queryId, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->queryId, false);
+    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->queryId, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)&pConn->id, false);
+    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)&pConn->id, false);
 
     char app[TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE];
     STR_TO_VARSTR(app, pConn->app);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)app, false);
+    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)app, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)&pConn->pid, false);
+    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)&pConn->pid, false);
 
     char user[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(user, pConn->user);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)user, false);
+    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)user, false);
 
     char endpoint[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
+    (void)sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
     varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)endpoint, false);
+    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)endpoint, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->stime, false);
+    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->stime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->useconds, false);
+    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->useconds, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->stableQuery, false);
+    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->stableQuery, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->isSubQuery, false);
+    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->isSubQuery, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->subPlanNum, false);
+    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->subPlanNum, false);
 
     char    subStatus[TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE] = {0};
     int64_t reserve = 64;
@@ -965,12 +982,12 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     }
     varDataLen(subStatus) = strlen(&subStatus[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, subStatus, (varDataLen(subStatus) == 0) ? true : false);
+    (void)colDataSetVal(pColInfo, curRowIndex, subStatus, (varDataLen(subStatus) == 0) ? true : false);
 
     char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(sql, pQuery->sql);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)sql, false);
+    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)sql, false);
 
     pBlock->info.rows++;
   }
@@ -1037,55 +1054,55 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     cols = 0;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->appId, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->appId, false);
 
     char ip[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    sprintf(&ip[VARSTR_HEADER_SIZE], "%s", taosIpStr(pApp->ip));
+    (void)sprintf(&ip[VARSTR_HEADER_SIZE], "%s", taosIpStr(pApp->ip));
     varDataLen(ip) = strlen(&ip[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)ip, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)ip, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->pid, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->pid, false);
 
     char name[TSDB_APP_NAME_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    sprintf(&name[VARSTR_HEADER_SIZE], "%s", pApp->name);
+    (void)sprintf(&name[VARSTR_HEADER_SIZE], "%s", pApp->name);
     varDataLen(name) = strlen(&name[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)name, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)name, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->startTime, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->startTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertsReq, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertsReq, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertRows, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertRows, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.insertElapsedTime, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.insertElapsedTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.insertBytes, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.insertBytes, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.fetchBytes, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.fetchBytes, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.queryElapsedTime, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.queryElapsedTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfSlowQueries, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfSlowQueries, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.totalRequests, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.totalRequests, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.currentRequests, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.currentRequests, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->lastAccessTimeMs, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->lastAccessTimeMs, false);
 
     numOfRows++;
   }

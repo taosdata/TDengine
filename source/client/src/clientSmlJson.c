@@ -526,7 +526,7 @@ static int32_t smlProcessTagJson(SSmlHandle *info, cJSON *tags){
       return ret;
     }
     if (taosArrayPush(preLineKV, &kv) == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     if (info->dataFormat && !isSmlTagAligned(info, cnt, &kv)) {
@@ -746,7 +746,13 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
   int64_t ts = smlParseTSFromJSON(info, tsJson);
   if (unlikely(ts < 0)) {
     char* tmp = cJSON_PrintUnformatted(tsJson);
-    uError("OTD:0x%" PRIx64 " Unable to parse timestamp from JSON payload %s %s %" PRId64, info->id, info->msgBuf.buf,tmp, ts);
+    if (tmp == NULL) {
+      uError("cJSON_PrintUnformatted failed since %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      uError("OTD:0x%" PRIx64 " Unable to parse timestamp from JSON payload %s %" PRId64, info->id, info->msgBuf.buf, ts);
+    } else {
+      uError("OTD:0x%" PRIx64 " Unable to parse timestamp from JSON payload %s %s %" PRId64, info->id, info->msgBuf.buf,tmp, ts);
+      taosMemoryFree(tmp);
+    }
     return TSDB_CODE_INVALID_TIMESTAMP;
   }
   SSmlKv kvTs = {0};
@@ -867,7 +873,7 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
     if (taosArrayPush(info->tagJsonArray, &valueJson) == NULL){
       cJSON_Delete(valueJson);
       elements->cols[elements->colsLen] = tmp;
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     ret = smlParseValueFromJSONObj(valueJson, &kv);
     if (ret != TSDB_CODE_SUCCESS) {
@@ -895,7 +901,7 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
     if (taosArrayPush(info->tagJsonArray, &tagsJson) == NULL){
       cJSON_Delete(tagsJson);
       uError("SML:0x%" PRIx64 " taosArrayPush failed", info->id);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     ret = smlParseTagsFromJSON(info, tagsJson, elements);
     if (unlikely(ret)) {
@@ -959,7 +965,7 @@ int32_t smlParseJSON(SSmlHandle *info, char *payload) {
         payloadNum = payloadNum << 1;
         void *tmp = taosMemoryRealloc(info->lines, payloadNum * sizeof(SSmlLineInfo));
         if (tmp == NULL) {
-          ret = TSDB_CODE_OUT_OF_MEMORY;
+          ret = terrno;
           return ret;
         }
         info->lines = (SSmlLineInfo *)tmp;

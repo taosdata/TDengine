@@ -157,41 +157,35 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
   int64_t   numRecord = 0;
   SMetaInfo info;
 
-  if (committer->tsdb->imem->nDel == 0) {
-    goto _exit;
-  }
+  // if no history data and no new timestamp data, skip tomb data
+  if (committer->ctx->info->fset || committer->ctx->hasTSData) {
+    committer->ctx->tbid->suid = 0;
+    committer->ctx->tbid->uid = 0;
+    for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(committer->tombIterMerger));) {
+      if (record->uid != committer->ctx->tbid->uid) {
+        committer->ctx->tbid->suid = record->suid;
+        committer->ctx->tbid->uid = record->uid;
 
-  // do not need to write tomb data if there is no ts data
-  bool skip = (committer->ctx->info->fset == NULL && !committer->ctx->hasTSData);
-
-  committer->ctx->tbid->suid = 0;
-  committer->ctx->tbid->uid = 0;
-  for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(committer->tombIterMerger));) {
-    if (record->uid != committer->ctx->tbid->uid) {
-      committer->ctx->tbid->suid = record->suid;
-      committer->ctx->tbid->uid = record->uid;
-
-      if (metaGetInfo(committer->tsdb->pVnode->pMeta, record->uid, &info, NULL) != 0) {
-        TAOS_CHECK_GOTO(tsdbIterMergerSkipTableData(committer->tombIterMerger, committer->ctx->tbid), &lino, _exit);
-        continue;
+        if (metaGetInfo(committer->tsdb->pVnode->pMeta, record->uid, &info, NULL) != 0) {
+          TAOS_CHECK_GOTO(tsdbIterMergerSkipTableData(committer->tombIterMerger, committer->ctx->tbid), &lino, _exit);
+          continue;
+        }
       }
-    }
 
-    if (record->ekey < committer->ctx->minKey) {
-      // do nothing
-    } else if (record->skey > committer->ctx->maxKey) {
-      // committer->ctx->nextKey = TMIN(record->skey, committer->ctx->nextKey);
-    } else {
-      record->skey = TMAX(record->skey, committer->ctx->minKey);
-      record->ekey = TMIN(record->ekey, committer->ctx->maxKey);
+      if (record->ekey < committer->ctx->minKey) {
+        // do nothing
+      } else if (record->skey > committer->ctx->maxKey) {
+        // committer->ctx->nextKey = TMIN(record->skey, committer->ctx->nextKey);
+      } else {
+        record->skey = TMAX(record->skey, committer->ctx->minKey);
+        record->ekey = TMIN(record->ekey, committer->ctx->maxKey);
 
-      if (!skip) {
         numRecord++;
         TAOS_CHECK_GOTO(tsdbFSetWriteTombRecord(committer->writer, record), &lino, _exit);
       }
-    }
 
-    TAOS_CHECK_GOTO(tsdbIterMergerNext(committer->tombIterMerger), &lino, _exit);
+      TAOS_CHECK_GOTO(tsdbIterMergerNext(committer->tombIterMerger), &lino, _exit);
+    }
   }
 
 _exit:
@@ -213,8 +207,6 @@ static int32_t tsdbCommitCloseReader(SCommitter2 *committer) {
 static int32_t tsdbCommitOpenReader(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  ASSERT(TARRAY2_SIZE(committer->sttReaderArray) == 0);
 
   if (committer->ctx->info->fset == NULL                        //
       || committer->sttTrigger > 1                              //
@@ -259,8 +251,8 @@ _exit:
 }
 
 static int32_t tsdbCommitCloseIter(SCommitter2 *committer) {
-  TAOS_UNUSED(tsdbIterMergerClose(&committer->tombIterMerger));
-  TAOS_UNUSED(tsdbIterMergerClose(&committer->dataIterMerger));
+  tsdbIterMergerClose(&committer->tombIterMerger);
+  tsdbIterMergerClose(&committer->dataIterMerger);
   TARRAY2_CLEAR(committer->tombIterArray, tsdbIterClose);
   TARRAY2_CLEAR(committer->dataIterArray, tsdbIterClose);
   return 0;
@@ -269,11 +261,6 @@ static int32_t tsdbCommitCloseIter(SCommitter2 *committer) {
 static int32_t tsdbCommitOpenIter(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  ASSERT(TARRAY2_SIZE(committer->dataIterArray) == 0);
-  ASSERT(committer->dataIterMerger == NULL);
-  ASSERT(TARRAY2_SIZE(committer->tombIterArray) == 0);
-  ASSERT(committer->tombIterMerger == NULL);
 
   STsdbIter      *iter;
   STsdbIterConfig config = {0};
@@ -347,10 +334,6 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
   TAOS_UNUSED(tfsMkdirRecurAt(committer->tsdb->pVnode->pTfs, committer->tsdb->path, committer->ctx->did));
   committer->ctx->tbid->suid = 0;
   committer->ctx->tbid->uid = 0;
-
-  ASSERT(TARRAY2_SIZE(committer->dataIterArray) == 0);
-  ASSERT(committer->dataIterMerger == NULL);
-  ASSERT(committer->writer == NULL);
 
   TAOS_CHECK_GOTO(tsdbCommitOpenReader(committer), &lino, _exit);
   TAOS_CHECK_GOTO(tsdbCommitOpenIter(committer), &lino, _exit);
@@ -435,7 +418,7 @@ static int32_t tsdbCommitInfoDestroy(STsdb *pTsdb) {
       taosMemoryFree(info);
     }
 
-    TAOS_UNUSED(vHashDestroy(&pTsdb->commitInfo->ht));
+    vHashDestroy(&pTsdb->commitInfo->ht);
     taosArrayDestroy(pTsdb->commitInfo->arr);
     pTsdb->commitInfo->arr = NULL;
     taosMemoryFreeClear(pTsdb->commitInfo);
@@ -449,7 +432,7 @@ static int32_t tsdbCommitInfoInit(STsdb *pTsdb) {
 
   pTsdb->commitInfo = taosMemoryCalloc(1, sizeof(*pTsdb->commitInfo));
   if (pTsdb->commitInfo == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   TAOS_CHECK_GOTO(vHashInit(&pTsdb->commitInfo->ht, tFileSetCommitInfoHash, tFileSetCommitInfoCompare), &lino, _exit);
@@ -589,7 +572,7 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
   // begin tasks on file set
   for (int i = 0; i < taosArrayGetSize(tsdb->commitInfo->arr); i++) {
     SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
-    TAOS_UNUSED(tsdbBeginTaskOnFileSet(tsdb, info->fid, &fset));
+    tsdbBeginTaskOnFileSet(tsdb, info->fid, &fset);
     if (fset) {
       code = tsdbTFileSetInitCopy(tsdb, fset, &info->fset);
       if (code) {
@@ -643,13 +626,10 @@ static int32_t tsdbCloseCommitter(SCommitter2 *committer, int32_t eno) {
   if (eno == 0) {
     TAOS_CHECK_GOTO(tsdbFSEditBegin(committer->tsdb->pFS, committer->fopArray, TSDB_FEDIT_COMMIT), &lino, _exit);
   } else {
-    // TODO
-    ASSERT(0);
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(committer->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(eno));
   }
 
-  ASSERT(committer->writer == NULL);
-  ASSERT(committer->dataIterMerger == NULL);
-  ASSERT(committer->tombIterMerger == NULL);
   TARRAY2_DESTROY(committer->dataIterArray, NULL);
   TARRAY2_DESTROY(committer->tombIterArray, NULL);
   TARRAY2_DESTROY(committer->sttReaderArray, NULL);
@@ -689,7 +669,7 @@ int32_t tsdbCommitBegin(STsdb *tsdb, SCommitInfo *info) {
     (void)taosThreadMutexLock(&tsdb->mutex);
     tsdb->imem = NULL;
     (void)taosThreadMutexUnlock(&tsdb->mutex);
-    TAOS_UNUSED(tsdbUnrefMemTable(imem, NULL, true));
+    tsdbUnrefMemTable(imem, NULL, true);
   } else {
     SCommitter2 committer = {0};
 
@@ -730,14 +710,14 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
     for (int32_t i = 0; i < taosArrayGetSize(tsdb->commitInfo->arr); i++) {
       SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
       if (info->fset) {
-        TAOS_UNUSED(tsdbFinishTaskOnFileSet(tsdb, info->fid));
+        tsdbFinishTaskOnFileSet(tsdb, info->fid);
       }
     }
 
     (void)taosThreadMutexUnlock(&tsdb->mutex);
 
     TAOS_UNUSED(tsdbCommitInfoDestroy(tsdb));
-    TAOS_UNUSED(tsdbUnrefMemTable(pMemTable, NULL, true));
+    tsdbUnrefMemTable(pMemTable, NULL, true);
   }
 
 _exit:
@@ -761,7 +741,7 @@ int32_t tsdbCommitAbort(STsdb *pTsdb) {
   for (int32_t i = 0; i < taosArrayGetSize(pTsdb->commitInfo->arr); i++) {
     SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(pTsdb->commitInfo->arr, i);
     if (info->fset) {
-      TAOS_UNUSED(tsdbFinishTaskOnFileSet(pTsdb, info->fid));
+      tsdbFinishTaskOnFileSet(pTsdb, info->fid);
     }
   }
   (void)taosThreadMutexUnlock(&pTsdb->mutex);

@@ -181,15 +181,15 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // save info to a vnode_tmp.json
   pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   if (taosWriteFile(pFile, data, strlen(data)) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   if (taosFsyncFile(pFile) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
 _exit:
@@ -211,8 +211,9 @@ int vnodeCommitInfo(const char *dir) {
   snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME);
   snprintf(tfname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME_TMP);
 
-  if (taosRenameFile(tfname, fname) < 0) {
-    return terrno = TAOS_SYSTEM_ERROR(errno);
+  int32_t code = taosRenameFile(tfname, fname);
+  if (code < 0) {
+    return code;
   }
 
   vInfo("vnode info is committed, dir:%s", dir);
@@ -232,12 +233,11 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
   // read info
   pFile = taosOpenFile(fname, TD_FILE_READ);
   if (pFile == NULL) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
-  if (taosFStatFile(pFile, &size, NULL) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
-  }
+  code = taosFStatFile(pFile, &size, NULL);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   pData = taosMemoryMalloc(size + 1);
   if (pData == NULL) {
@@ -245,7 +245,7 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
   }
 
   if (taosReadFile(pFile, pData, size) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   pData[size] = '\0';
@@ -256,7 +256,9 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
 
 _exit:
   if (code) {
-    vError("vgId:%d %s failed at %s:%d since %s", pInfo->config.vgId, __func__, __FILE__, lino, tstrerror(code));
+    if (pFile) {
+      vError("vgId:%d %s failed at %s:%d since %s", pInfo->config.vgId, __func__, __FILE__, lino, tstrerror(code));
+    }
   }
   taosMemoryFree(pData);
   (void)taosCloseFile(&pFile);
@@ -270,7 +272,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   int64_t lastCommitted = pInfo->info.state.committed;
 
   // wait last commit task
-  (void)vnodeAWait(&pVnode->commitTask);
+  vnodeAWait(&pVnode->commitTask);
 
   code = syncNodeGetConfig(pVnode->sync, &pVnode->config.syncCfg);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -285,13 +287,14 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   pInfo->txn = metaGetTxn(pVnode->pMeta);
 
   // save info
-  (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
   vDebug("vgId:%d, save config while prepare commit", TD_VID(pVnode));
   code = vnodeSaveInfo(dir, &pInfo->info);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  (void)tsdbPreCommit(pVnode->pTsdb);
+  code = tsdbPreCommit(pVnode->pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   code = metaPrepareAsyncCommit(pVnode->pMeta);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -300,7 +303,6 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   (void)taosThreadMutexLock(&pVnode->mutex);
-  ASSERT(pVnode->onCommit == NULL);
   pVnode->onCommit = pVnode->inUse;
   pVnode->inUse = NULL;
   (void)taosThreadMutexUnlock(&pVnode->mutex);
@@ -337,7 +339,7 @@ static void vnodeReturnBufPool(SVnode *pVnode) {
       pVnode->recycleTail = pPool;
     }
   } else {
-    ASSERT(0);
+    vError("vgId:%d, buffer pool %p of id %d nRef:%d", TD_VID(pVnode), pPool, pPool->id, nRef);
   }
 
   (void)taosThreadMutexUnlock(&pVnode->mutex);
@@ -371,7 +373,7 @@ int vnodeAsyncCommit(SVnode *pVnode) {
 
   SCommitInfo *pInfo = (SCommitInfo *)taosMemoryCalloc(1, sizeof(*pInfo));
   if (NULL == pInfo) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   // prepare to commit
@@ -394,10 +396,15 @@ _exit:
   return code;
 }
 
-int vnodeSyncCommit(SVnode *pVnode) {
-  (void)vnodeAsyncCommit(pVnode);
-  (void)vnodeAWait(&pVnode->commitTask);
-  return 0;
+int32_t vnodeSyncCommit(SVnode *pVnode) {
+  int32_t lino;
+  int32_t code = vnodeAsyncCommit(pVnode);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  vnodeAWait(&pVnode->commitTask);
+
+_exit:
+  vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  return code;
 }
 
 static int vnodeCommitImpl(SCommitInfo *pInfo) {
@@ -411,14 +418,15 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
         pInfo->info.state.commitID, pInfo->info.state.committed, pInfo->info.state.commitTerm);
 
   // persist wal before starting
-  if (walPersist(pVnode->pWal) < 0) {
-    vError("vgId:%d, failed to persist wal since %s", TD_VID(pVnode), terrstr());
-    return -1;
+  if ((code = walPersist(pVnode->pWal)) < 0) {
+    vError("vgId:%d, failed to persist wal since %s", TD_VID(pVnode), tstrerror(code));
+    return code;
   }
 
-  (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
-  (void)syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
+  code = syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tsdbCommitBegin(pVnode->pTsdb, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -455,7 +463,8 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     return -1;
   }
 
-  (void)syncEndSnapshot(pVnode->sync);
+  code = syncEndSnapshot(pVnode->sync);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -470,7 +479,7 @@ bool vnodeShouldRollback(SVnode *pVnode) {
   char    tFName[TSDB_FILENAME_LEN] = {0};
   int32_t offset = 0;
 
-  (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
   offset = strlen(tFName);
   snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 
@@ -481,7 +490,7 @@ void vnodeRollback(SVnode *pVnode) {
   char    tFName[TSDB_FILENAME_LEN] = {0};
   int32_t offset = 0;
 
-  (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
   offset = strlen(tFName);
   snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 
@@ -554,7 +563,6 @@ int vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo) {
   pJson = tjsonParse(pData);
   if (pJson == NULL) {
     TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_DATA_FMT, lino, _exit);
-    return -1;
   }
 
   code = tjsonToObject(pJson, "config", vnodeDecodeConfig, (void *)&pInfo->config);

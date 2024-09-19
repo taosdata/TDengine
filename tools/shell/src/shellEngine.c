@@ -48,15 +48,15 @@ static char   *shellFormatTimestamp(char *buf, int64_t val, int32_t precision);
 static int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres);
 static void    shellPrintNChar(const char *str, int32_t length, int32_t width);
 static void    shellPrintGeometry(const unsigned char *str, int32_t length, int32_t width);
-static void    shellVerticalPrintResult(TAOS_RES *tres, tsDumpInfo* dump_info);
-static void    shellHorizontalPrintResult(TAOS_RES *tres, tsDumpInfo* dump_info);
+static void    shellVerticalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info);
+static void    shellHorizontalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info);
 static int64_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical, const char *sql);
 static void    shellReadHistory();
 static void    shellWriteHistory();
 static void    shellPrintError(TAOS_RES *tres, int64_t st);
 static bool    shellIsCommentLine(char *line);
 static void    shellSourceFile(const char *file);
-static bool    shellGetGrantInfo(char* buf);
+static bool    shellGetGrantInfo(char *buf);
 
 static void  shellCleanup(void *arg);
 static void *shellCancelHandler(void *arg);
@@ -164,9 +164,11 @@ int32_t shellRunCommand(char *command, bool recordHistory) {
   }
 
   // add help or help;
-  if (strncasecmp(command, "help;", 5) == 0) {
-    showHelp();
-    return 0;
+  if (strncasecmp(command, "help", 4) == 0) {
+    if (command[4] == ';' || command[4] == ' ' || command[4] == 0) {
+      showHelp();
+      return 0;
+    }
   }
 
   if (recordHistory) shellRecordCommandToHistory(command);
@@ -195,19 +197,18 @@ int32_t shellRunCommand(char *command, bool recordHistory) {
   return shellRunSingleCommand(cmd);
 }
 
-
-char * strendG(const char* pstr) {
-  if(pstr == NULL) {
+char *strendG(const char *pstr) {
+  if (pstr == NULL) {
     return NULL;
   }
 
   size_t len = strlen(pstr);
-  if(len < 4) {
+  if (len < 4) {
     return NULL;
   }
 
-  char * p = (char *)pstr + len - 2;
-  if (strcmp(p, "\\G") == 0 ){
+  char *p = (char *)pstr + len - 2;
+  if (strcmp(p, "\\G") == 0) {
     return p;
   }
 
@@ -283,10 +284,11 @@ void shellRunSingleCommandImp(char *command) {
 
     et = taosGetTimestampUs();
     if (error_no == 0) {
-      printf("Query OK, %"PRId64 " row(s) in set (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
+      printf("Query OK, %" PRId64 " row(s) in set (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
     } else {
       terrno = error_no;
-      printf("Query interrupted (%s), %"PRId64 " row(s) in set (%.6fs)\r\n", taos_errstr(NULL), numOfRows, (et - st) / 1E6);
+      printf("Query interrupted (%s), %" PRId64 " row(s) in set (%.6fs)\r\n", taos_errstr(NULL), numOfRows,
+             (et - st) / 1E6);
     }
     taos_free_result(pSql);
   } else {
@@ -364,10 +366,10 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
     return;
   }
 
-  char quotationStr[2] ={'"', 0};
+  char    quotationStr[2] = {'"', 0};
   int32_t width;
 
-  int  n = 0;
+  int n = 0;
 #define LENGTH 64
   char buf[LENGTH] = {0};
   switch (field->type) {
@@ -429,8 +431,8 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON: {
       int32_t bufIndex = 0;
-      char* tmp = (char*)taosMemoryCalloc(length * 2 + 1, 1);
-      if(tmp == NULL) break;
+      char   *tmp = (char *)taosMemoryCalloc(length * 2 + 1, 1);
+      if (tmp == NULL) break;
       for (int32_t i = 0; i < length; i++) {
         tmp[bufIndex] = val[i];
         bufIndex++;
@@ -444,19 +446,19 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       taosFprintfFile(pFile, "%s%s%s", quotationStr, tmp, quotationStr);
       taosMemoryFree(tmp);
     } break;
-    case TSDB_DATA_TYPE_VARBINARY:{
-      void* tmp = NULL;
+    case TSDB_DATA_TYPE_VARBINARY: {
+      void    *tmp = NULL;
       uint32_t size = 0;
-      if(taosAscii2Hex(val, length, &tmp, &size) < 0){
+      if (taosAscii2Hex(val, length, &tmp, &size) < 0) {
         break;
       }
       taosFprintfFile(pFile, "%s%s%s", quotationStr, tmp, quotationStr);
       taosMemoryFree(tmp);
       break;
     }
-    case TSDB_DATA_TYPE_GEOMETRY:{
-      char* tmp = (char*)taosMemoryCalloc(length * 2 + 1, 1);
-      if(tmp == NULL) break;
+    case TSDB_DATA_TYPE_GEOMETRY: {
+      char *tmp = (char *)taosMemoryCalloc(length * 2 + 1, 1);
+      if (tmp == NULL) break;
       shellDumpHexValue(tmp, val, length);
       taosFprintfFile(pFile, "%s", buf);
       taosMemoryFree(tmp);
@@ -611,14 +613,14 @@ void shellPrintGeometry(const unsigned char *val, int32_t length, int32_t width)
 
   code = initCtxAsText();
   if (code != TSDB_CODE_SUCCESS) {
-    shellPrintString(getThreadLocalGeosCtx()->errMsg, width);
+    shellPrintString(getGeosErrMsg(code), width);
     return;
   }
 
   char *outputWKT = NULL;
   code = doAsText(val, length, &outputWKT);
   if (code != TSDB_CODE_SUCCESS) {
-    shellPrintString(getThreadLocalGeosCtx()->errMsg, width);  // should NOT happen
+    shellPrintString(getGeosErrMsg(code), width);  // should NOT happen
     return;
   }
 
@@ -633,12 +635,12 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
     return;
   }
 
-  int  n = 0;
-#define LENGTH  64
+  int n = 0;
+#define LENGTH 64
   char buf[LENGTH] = {0};
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
-      shellPrintString(((((int32_t)(*((char *)val))) == 1) ? "true" : "false"), width);
+      shellPrintString(((((int32_t)(*((char *)val))) == TSDB_FALSE) ? "false" : "true"), width);
       break;
     case TSDB_DATA_TYPE_TINYINT:
       printf("%*d", width, *((int8_t *)val));
@@ -678,7 +680,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       if (tsEnableScience) {
-        snprintf(buf, LENGTH, "%*.15e", width,GET_DOUBLE_VAL(val));
+        snprintf(buf, LENGTH, "%*.15e", width, GET_DOUBLE_VAL(val));
         printf("%s", buf);
       } else {
         n = snprintf(buf, LENGTH, "%*.15f", width, GET_DOUBLE_VAL(val));
@@ -689,10 +691,10 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
         }
       }
       break;
-    case TSDB_DATA_TYPE_VARBINARY:{
-      void* data = NULL;
+    case TSDB_DATA_TYPE_VARBINARY: {
+      void    *data = NULL;
       uint32_t size = 0;
-      if(taosAscii2Hex(val, length, &data, &size) < 0){
+      if (taosAscii2Hex(val, length, &data, &size) < 0) {
         break;
       }
       shellPrintNChar(data, size, width);
@@ -865,7 +867,7 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
       } else {
         return TMAX(field->bytes + 2, width);
       }
-    case TSDB_DATA_TYPE_VARBINARY:{
+    case TSDB_DATA_TYPE_VARBINARY: {
       int32_t bytes = field->bytes * 2 + 2;
       if (bytes > shell.args.displayWidth) {
         return TMAX(shell.args.displayWidth, width);
@@ -1119,8 +1121,9 @@ void shellSourceFile(const char *file) {
 
   char *line = taosMemoryMalloc(TSDB_MAX_ALLOWED_SQL_LEN + 1);
   while ((read_len = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) > 0) {
-    if ( cmd_len + read_len >= TSDB_MAX_ALLOWED_SQL_LEN) {
-      printf("read command line too long over 1M, ignore this line. cmd_len = %d read_len=%d \n", (int32_t)cmd_len, read_len);
+    if (cmd_len + read_len >= TSDB_MAX_ALLOWED_SQL_LEN) {
+      printf("read command line too long over 1M, ignore this line. cmd_len = %d read_len=%d \n", (int32_t)cmd_len,
+             read_len);
       cmd_len = 0;
       memset(line, 0, TSDB_MAX_ALLOWED_SQL_LEN + 1);
       continue;
@@ -1154,7 +1157,7 @@ void shellSourceFile(const char *file) {
   taosCloseFile(&pFile);
 }
 
-bool shellGetGrantInfo(char* buf) {
+bool shellGetGrantInfo(char *buf) {
   bool community = true;
   char sinfo[256] = {0};
   tstrncpy(sinfo, taos_get_server_info(shell.conn), sizeof(sinfo));
@@ -1170,6 +1173,7 @@ bool shellGetGrantInfo(char* buf) {
         code != TSDB_CODE_PAR_PERMISSION_DENIED) {
       fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\r\n\r\n", code, taos_errstr(tres));
     }
+    taos_free_result(tres);
     return community;
   }
 
@@ -1204,8 +1208,7 @@ bool shellGetGrantInfo(char* buf) {
       sprintf(buf, "Server is %s, %s and will never expire.\r\n", serverVersion, sinfo);
     } else {
       community = false;
-      sprintf(buf, "Server is %s, %s and will expire at %s.\r\n", serverVersion, sinfo,
-              expiretime);
+      sprintf(buf, "Server is %s, %s and will expire at %s.\r\n", serverVersion, sinfo, expiretime);
     }
 
     taos_free_result(tres);
@@ -1281,7 +1284,6 @@ void *shellThreadLoop(void *arg) {
       taosResetTerminalMode();
     } while (shellRunCommand(command, true) == 0);
 
-    destroyThreadLocalGeosCtx();
     taosMemoryFreeClear(command);
     shellWriteHistory();
     shellExit();
@@ -1322,13 +1324,13 @@ int32_t shellExecute() {
   shellSetConn(shell.conn, runOnce);
   shellReadHistory();
 
- if(shell.args.is_bi_mode) {
-  // need set bi mode
-  printf("Set BI mode is true.\n");
+  if (shell.args.is_bi_mode) {
+    // need set bi mode
+    printf("Set BI mode is true.\n");
 #ifndef WEBSOCKET
     taos_set_conn_mode(shell.conn, TAOS_CONN_MODE_BI, 1);
 #endif
- }
+  }
 
   if (runOnce) {
     if (pArgs->commands != NULL) {
@@ -1371,22 +1373,22 @@ int32_t shellExecute() {
 #ifdef WEBSOCKET
   if (!shell.args.restful && !shell.args.cloud) {
 #endif
-char* buf = taosMemoryMalloc(512);
-bool community = shellGetGrantInfo(buf);
+    char *buf = taosMemoryMalloc(512);
+    bool  community = shellGetGrantInfo(buf);
 #ifndef WINDOWS
     printfIntroduction(community);
 #else
 #ifndef WEBSOCKET
-  if(community) {
+  if (community) {
     showAD(false);
   }
-#endif  
 #endif
-// printf version
-if(!community) {
-  printf("%s\n", buf);
-}
-taosMemoryFree(buf);
+#endif
+    // printf version
+    if (!community) {
+      printf("%s\n", buf);
+    }
+    taosMemoryFree(buf);
 
 #ifdef WEBSOCKET
   }
@@ -1405,7 +1407,7 @@ taosMemoryFree(buf);
   if (community) {
     showAD(true);
   }
-#endif  
+#endif
 
   taosThreadJoin(spid, NULL);
 

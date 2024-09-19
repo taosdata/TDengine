@@ -45,9 +45,9 @@ int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo **pTree, uint32_t numOfEntries, 
 
 void tMergeTreeDestroy(SMultiwayMergeTreeInfo **pTree);
 
-void tMergeTreeAdjust(SMultiwayMergeTreeInfo *pTree, int32_t idx);
+int32_t tMergeTreeAdjust(SMultiwayMergeTreeInfo *pTree, int32_t idx);
 
-void tMergeTreeRebuild(SMultiwayMergeTreeInfo *pTree);
+int32_t tMergeTreeRebuild(SMultiwayMergeTreeInfo *pTree);
 
 void tMergeTreePrint(const SMultiwayMergeTreeInfo *pTree);
 

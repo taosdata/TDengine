@@ -46,7 +46,7 @@ const char *mndConsumerStatusName(int status);
 #define MND_TMQ_NULL_CHECK(c)                \
   do {                                   \
     if (c == NULL) {                     \
-      code = TSDB_CODE_OUT_OF_MEMORY;     \
+      code = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);     \
       goto END;                          \
     }                                    \
   } while (0)

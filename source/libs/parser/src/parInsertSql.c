@@ -182,7 +182,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
 
   bool* pUseCols = taosMemoryCalloc(pBoundInfo->numOfCols, sizeof(bool));
   if (NULL == pUseCols) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pBoundInfo->numOfBound = 0;
@@ -655,7 +655,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
 
       code = parseGeometry(pToken, &output, &size);
       if (code != TSDB_CODE_SUCCESS) {
-        code = buildSyntaxErrMsg(pMsgBuf, getThreadLocalGeosCtx()->errMsg, pToken->z);
+        code = buildSyntaxErrMsg(pMsgBuf, getGeosErrMsg(code), pToken->z);
       } else if (size + VARSTR_HEADER_SIZE > pSchema->bytes) {
         // Too long values will raise the invalid sql error message
         code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
@@ -682,12 +682,12 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
         return TSDB_CODE_OUT_OF_MEMORY;
       }
       if (!taosMbsToUcs4(pToken->z, pToken->n, (TdUcs4*)(p), realLen, &output)) {
-        if (errno == E2BIG) {
+        if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
           taosMemoryFree(p);
           return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
         }
         char buf[512] = {0};
-        snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(errno));
+        snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(terrno));
         taosMemoryFree(p);
         return buildSyntaxErrMsg(pMsgBuf, buf, pToken->z);
       }
@@ -768,7 +768,7 @@ static int32_t buildCreateTbReq(SVnodeModifyOpStmt* pStmt, STag* pTag, SArray* p
   }
   pStmt->pCreateTblReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
   if (NULL == pStmt->pCreateTblReq) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   insBuildCreateTbReq(pStmt->pCreateTblReq, pStmt->targetTableName.tname, pTag, pStmt->pTableMeta->suid,
                       pStmt->usingTableName.tname, pTagName, pStmt->pTableMeta->tableInfo.numOfTags,
@@ -850,7 +850,7 @@ static int32_t rewriteTagCondColumnImpl(STagVal* pVal, SNode** pNode) {
     case TSDB_DATA_TYPE_NCHAR:
       pValue->datum.p = taosMemoryCalloc(1, pVal->nData + VARSTR_HEADER_SIZE);
       if (NULL == pValue->datum.p) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       varDataSetLen(pValue->datum.p, pVal->nData);
       memcpy(varDataVal(pValue->datum.p), pVal->pData, pVal->nData);
@@ -1616,11 +1616,11 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       }
       if (!taosMbsToUcs4(pToken->z, pToken->n, (TdUcs4*)pUcs4, realLen, &len)) {
         taosMemoryFree(pUcs4);
-        if (errno == E2BIG) {
+        if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
           return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
         }
         char buf[512] = {0};
-        snprintf(buf, tListLen(buf), "%s", strerror(errno));
+        snprintf(buf, tListLen(buf), "%s", strerror(terrno));
         return buildSyntaxErrMsg(&pCxt->msg, buf, pToken->z);
       }
       pVal->value.pData = pUcs4;
@@ -1646,7 +1646,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
 
       code = parseGeometry(pToken, &output, &size);
       if (code != TSDB_CODE_SUCCESS) {
-        code = buildSyntaxErrMsg(&pCxt->msg, getThreadLocalGeosCtx()->errMsg, pToken->z);
+        code = buildSyntaxErrMsg(&pCxt->msg, getGeosErrMsg(code), pToken->z);
       }
       // Too long values will raise the invalid sql error message
       else if (size + VARSTR_HEADER_SIZE > pSchema->bytes) {
@@ -1916,7 +1916,7 @@ static int32_t processCtbAutoCreationAndCtbMeta(SInsertParseContext* pCxt, SVnod
 
   pStbRowsCxt->pCreateCtbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
   if (pStbRowsCxt->pCreateCtbReq == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
   }
   if (code == TSDB_CODE_SUCCESS) {
     insBuildCreateTbReq(pStbRowsCxt->pCreateCtbReq, pStbRowsCxt->ctbName.tname, pStbRowsCxt->pTag,
@@ -2238,6 +2238,8 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
     if (pStmt->insertType != TSDB_QUERY_TYPE_FILE_INSERT) {
       return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is exclusive", NULL);
     }
+  } else {
+    return buildInvalidOperationMsg(&pCxt->msg, tstrerror(code));
   }
 
   // just record pTableCxt whose data come from file
@@ -2252,15 +2254,21 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
 
 static int32_t parseDataFromFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SToken* pFilePath,
                                  SRowsDataContext rowsDataCxt) {
-  char filePathStr[TSDB_FILENAME_LEN] = {0};
+  char filePathStr[PATH_MAX + 16] = {0};
   if (TK_NK_STRING == pFilePath->type) {
     (void)trimString(pFilePath->z, pFilePath->n, filePathStr, sizeof(filePathStr));
+    if (strlen(filePathStr) >= PATH_MAX) {
+      return buildSyntaxErrMsg(&pCxt->msg, "file path is too long, max length is 4096", pFilePath->z);
+    }
   } else {
+    if (pFilePath->n >= PATH_MAX) {
+      return buildSyntaxErrMsg(&pCxt->msg, "file path is too long, max length is 4096", pFilePath->z);
+    }
     strncpy(filePathStr, pFilePath->z, pFilePath->n);
   }
   pStmt->fp = taosOpenFile(filePathStr, TD_FILE_READ | TD_FILE_STREAM);
   if (NULL == pStmt->fp) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   return parseDataFromFileImpl(pCxt, pStmt, rowsDataCxt);
@@ -2317,7 +2325,7 @@ static void destroyStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
 static int32_t constructStbRowsDataContext(SVnodeModifyOpStmt* pStmt, SStbRowsDataContext** ppStbRowsCxt) {
   SStbRowsDataContext* pStbRowsCxt = taosMemoryCalloc(1, sizeof(SStbRowsDataContext));
   if (!pStbRowsCxt) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   tNameAssign(&pStbRowsCxt->stbName, &pStmt->targetTableName);
   int32_t code = collectUseTable(&pStbRowsCxt->stbName, pStmt->pTableNameHashObj);

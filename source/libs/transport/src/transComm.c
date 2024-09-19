@@ -20,6 +20,7 @@
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
 static int32_t refMgt;
+static int32_t svrRefMgt;
 static int32_t instMgt;
 static int32_t transSyncMsgMgt;
 
@@ -32,7 +33,7 @@ int32_t transCompressMsg(char* msg, int32_t len) {
 
   char* buf = taosMemoryMalloc(len + compHdr + 8);  // 8 extra bytes
   if (buf == NULL) {
-    tError("failed to allocate memory for rpc msg compression, contLen:%d", len);
+    tWarn("failed to allocate memory for rpc msg compression, contLen:%d", len);
     ret = len;
     return ret;
   }
@@ -69,7 +70,7 @@ int32_t transDecompressMsg(char** msg, int32_t len) {
 
   char* buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
@@ -105,7 +106,7 @@ int transSockInfo2Str(struct sockaddr* sockname, char* dst) {
 int32_t transInitBuffer(SConnBuffer* buf) {
   buf->buf = taosMemoryCalloc(1, BUFFER_CAP);
   if (buf->buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   buf->cap = BUFFER_CAP;
@@ -148,7 +149,7 @@ int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf) {
   if (total >= HEADSIZE && !p->invalid) {
     *buf = taosMemoryCalloc(1, total);
     if (*buf == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     memcpy(*buf, p->buf, total);
     if ((code = transResetBuffer(connBuf, resetBuf)) < 0) {
@@ -183,7 +184,7 @@ int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf) {
       }
     }
   } else {
-    ASSERTS(0, "invalid read from sock buf");
+    tError("failed to reset buffer, total:%d, len:%d, reason:%s", p->total, p->len, tstrerror(TSDB_CODE_INVALID_MSG));
     return TSDB_CODE_INVALID_MSG;
   }
   return 0;
@@ -206,6 +207,8 @@ int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
       p->cap = p->left + p->len;
       p->buf = taosMemoryRealloc(p->buf, p->cap);
       if (p->buf == NULL) {
+        uvBuf->base = NULL;
+        uvBuf->len = 0;
         return TSDB_CODE_OUT_OF_MEMORY;
       }
       uvBuf->base = p->buf + p->len;
@@ -234,10 +237,10 @@ bool transReadComplete(SConnBuffer* connBuf) {
   return (p->left == 0 || p->invalid) ? true : false;
 }
 
-int transSetConnOption(uv_tcp_t* stream, int keepalive) {
+int32_t transSetConnOption(uv_tcp_t* stream, int keepalive) {
 #if defined(WINDOWS) || defined(DARWIN)
 #else
-  uv_tcp_keepalive(stream, 1, keepalive);
+  return uv_tcp_keepalive(stream, 1, keepalive);
 #endif
   return uv_tcp_nodelay(stream, 1);
   // int ret = uv_tcp_keepalive(stream, 5, 60);
@@ -246,7 +249,7 @@ int transSetConnOption(uv_tcp_t* stream, int keepalive) {
 int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAsyncPool** pPool) {
   SAsyncPool* pool = taosMemoryCalloc(1, sizeof(SAsyncPool));
   if (pool == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
     // return NULL;
   }
   int32_t code = 0;
@@ -255,7 +258,7 @@ int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAs
   pool->asyncs = taosMemoryCalloc(1, sizeof(uv_async_t) * pool->nAsync);
   if (pool->asyncs == NULL) {
     taosMemoryFree(pool);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int i = 0, err = 0;
@@ -264,12 +267,12 @@ int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAs
 
     SAsyncItem* item = taosMemoryCalloc(1, sizeof(SAsyncItem));
     if (item == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       break;
     }
     item->pThrd = arg;
     QUEUE_INIT(&item->qmsg);
-    taosThreadMutexInit(&item->mtx, NULL);
+    (void)taosThreadMutexInit(&item->mtx, NULL);
 
     async->data = item;
     err = uv_async_init(loop, async, cb);
@@ -298,7 +301,7 @@ void transAsyncPoolDestroy(SAsyncPool* pool) {
     SAsyncItem* item = async->data;
     if (item == NULL) continue;
 
-    taosThreadMutexDestroy(&item->mtx);
+    (void)taosThreadMutexDestroy(&item->mtx);
     taosMemoryFree(item);
   }
   taosMemoryFree(pool->asyncs);
@@ -325,9 +328,9 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   uv_async_t* async = &(pool->asyncs[idx]);
   SAsyncItem* item = async->data;
 
-  taosThreadMutexLock(&item->mtx);
+  (void)taosThreadMutexLock(&item->mtx);
   QUEUE_PUSH(&item->qmsg, q);
-  taosThreadMutexUnlock(&item->mtx);
+  (void)taosThreadMutexUnlock(&item->mtx);
   int ret = uv_async_send(async);
   if (ret != 0) {
     tError("failed to send async,reason:%s", uv_err_name(ret));
@@ -373,11 +376,10 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
     STransCtxVal* sVal = (STransCtxVal*)iter;
     key = taosHashGetKey(sVal, &klen);
 
-    // STransCtxVal* dVal = taosHashGet(dst->args, key, klen);
-    // if (dVal) {
-    //   dst->freeFunc(dVal->val);
-    // }
-    taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
+    int32_t code = taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
+    if (code != 0) {
+      tError("failed to put val to hash, reason:%s", tstrerror(code));
+    }
     iter = taosHashIterate(src->args, iter);
   }
   taosHashCleanup(src->args);
@@ -391,7 +393,7 @@ void* transCtxDumpVal(STransCtx* ctx, int32_t key) {
     return NULL;
   }
   void* ret = NULL;
-  (*cVal->clone)(cVal->val, &ret);
+  (void)(*cVal->clone)(cVal->val, &ret);
   return ret;
 }
 void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
@@ -399,7 +401,7 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
   if (ctx->brokenVal.clone == NULL) {
     return ret;
   }
-  (*ctx->brokenVal.clone)(ctx->brokenVal.val, &ret);
+  (void)(*ctx->brokenVal.clone)(ctx->brokenVal.val, &ret);
 
   *msgType = ctx->brokenVal.msgType;
 
@@ -440,18 +442,20 @@ void transReqQueueClear(queue* q) {
 
 int32_t transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg)) {
   queue->q = taosArrayInit(2, sizeof(void*));
-  queue->freeFunc = (void (*)(const void*))freeFunc;
-
   if (queue->q == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  queue->freeFunc = (void (*)(const void*))freeFunc;
+
   return 0;
 }
 bool transQueuePush(STransQueue* queue, void* arg) {
   if (queue->q == NULL) {
     return true;
   }
-  taosArrayPush(queue->q, &arg);
+  if (taosArrayPush(queue->q, &arg) == NULL) {
+    return false;
+  }
   if (taosArrayGetSize(queue->q) > 1) {
     return false;
   }
@@ -545,7 +549,7 @@ static void transDQTimeout(uv_timer_t* timer) {
     }
   } while (1);
   if (timeout != 0) {
-    uv_timer_start(queue->timer, transDQTimeout, timeout, 0);
+    (void)uv_timer_start(queue->timer, transDQTimeout, timeout, 0);
   }
 }
 int32_t transDQCreate(uv_loop_t* loop, SDelayQueue** queue) {
@@ -556,7 +560,7 @@ int32_t transDQCreate(uv_loop_t* loop, SDelayQueue** queue) {
 
   timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
   if (timer == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   heap = heapCreate(timeCompare);
@@ -610,7 +614,7 @@ void transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg)) {
   taosMemoryFree(queue);
 }
 void transDQCancel(SDelayQueue* queue, SDelayTask* task) {
-  uv_timer_stop(queue->timer);
+  (void)uv_timer_stop(queue->timer);
 
   if (heapSize(queue->heap) <= 0) {
     taosMemoryFree(task->arg);
@@ -630,7 +634,7 @@ void transDQCancel(SDelayQueue* queue, SDelayTask* task) {
     SDelayTask* task = container_of(minNode, SDelayTask, node);
     uint64_t    timeout = now > task->execTime ? now - task->execTime : 0;
 
-    uv_timer_start(queue->timer, transDQTimeout, timeout, 0);
+    (void)uv_timer_start(queue->timer, transDQTimeout, timeout, 0);
   }
 }
 
@@ -655,7 +659,7 @@ SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg,
 
   tTrace("timer %p put task into delay queue, timeoutMs:%" PRIu64, queue->timer, timeoutMs);
   heapInsert(queue->heap, &task->node);
-  uv_timer_start(queue->timer, transDQTimeout, timeoutMs, 0);
+  (void)uv_timer_start(queue->timer, transDQTimeout, timeoutMs, 0);
   return task;
 }
 
@@ -701,12 +705,14 @@ bool transEpSetIsEqual2(SEpSet* a, SEpSet* b) {
 
 static void transInitEnv() {
   refMgt = transOpenRefMgt(50000, transDestroyExHandle);
+  svrRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
   instMgt = taosOpenRef(50, rpcCloseImpl);
   transSyncMsgMgt = taosOpenRef(50, transDestroySyncMsg);
-  uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1");
+  (void)uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1");
 }
 static void transDestroyEnv() {
   transCloseRefMgt(refMgt);
+  transCloseRefMgt(svrRefMgt);
   transCloseRefMgt(instMgt);
   transCloseRefMgt(transSyncMsgMgt);
 }
@@ -721,6 +727,7 @@ int32_t transInit() {
 }
 
 int32_t transGetRefMgt() { return refMgt; }
+int32_t transGetSvrRefMgt() { return svrRefMgt; }
 int32_t transGetInstMgt() { return instMgt; }
 int32_t transGetSyncMsgMgt() { return transSyncMsgMgt; }
 
@@ -745,8 +752,7 @@ int32_t transRemoveExHandle(int32_t refMgt, int64_t refId) {
   return taosRemoveRef(refMgt, refId);
 }
 
-void* transAcquireExHandle(int32_t refMgt, int64_t refId) {
-  // acquire extern handle
+void* transAcquireExHandle(int32_t refMgt, int64_t refId) {  // acquire extern handle
   return (void*)taosAcquireRef(refMgt, refId);
 }
 
@@ -769,7 +775,7 @@ void transDestroySyncMsg(void* msg) {
   if (msg == NULL) return;
 
   STransSyncMsg* pSyncMsg = msg;
-  tsem2_destroy(pSyncMsg->pSem);
+  (void)tsem2_destroy(pSyncMsg->pSem);
   taosMemoryFree(pSyncMsg->pSem);
   transFreeMsg(pSyncMsg->pRsp->pCont);
   taosMemoryFree(pSyncMsg->pRsp);
@@ -846,7 +852,7 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
   int32_t len = 0;
   char*   pBuf = taosMemoryCalloc(1, pList->num * 36);
   if (pBuf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int i = 0; i < pList->num; i++) {
@@ -868,3 +874,8 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
   *ppBuf = pBuf;
   return len;
 }
+
+// int32_t transGenRandomError(int32_t status) {
+//   STUB_RAND_NETWORK_ERR(status)
+//   return status;
+// }

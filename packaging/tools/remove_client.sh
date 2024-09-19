@@ -31,6 +31,8 @@ bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
 lib64_link_dir="/usr/lib64"
 inc_link_dir="/usr/include"
+log_dir="/var/log/${clientName2}"
+cfg_dir="/etc/${clientName2}"
 
 csudo=""
 if command -v sudo > /dev/null; then
@@ -92,6 +94,24 @@ function clean_log() {
     ${csudo}rm -rf ${log_link_dir}    || :
 }
 
+function clean_config_and_log_dir() {
+    # Remove link
+    echo "Do you want to remove all the log and configuration files? [y/n]"
+    read answer
+    if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
+        confirmMsg="I confirm that I would like to delete all log and configuration files"
+        echo "Please enter '${confirmMsg}' to continue"
+        read answer
+        if [ X"$answer" == X"${confirmMsg}" ]; then
+            # Remove dir
+            rm -rf ${cfg_dir} || :
+            rm -rf ${log_dir} || :
+        else
+            echo "answer doesn't match, skip this step"
+        fi
+    fi
+}
+
 # Stop client.
 kill_client
 # Remove binary file and links
@@ -104,6 +124,8 @@ clean_lib
 clean_log
 # Remove link configuration file
 clean_config
+# Remove dir
+clean_config_and_log_dir
 
 ${csudo}rm -rf ${install_main_dir}
 

@@ -265,7 +265,7 @@ static int32_t mndCreateFunc(SMnode *pMnode, SRpcMsg *pReq, SCreateFuncReq *pCre
   func.codeSize = pCreate->codeLen;
   func.pCode = taosMemoryMalloc(func.codeSize);
   if (func.pCode == NULL || func.pCode == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -375,7 +375,7 @@ static int32_t mndDropFunc(SMnode *pMnode, SRpcMsg *pReq, SFuncObj *pFunc) {
     goto _OVER;
   }
   TAOS_CHECK_GOTO(mndTransAppendRedolog(pTrans, pRedoRaw), NULL, _OVER);
-  (void)sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING), NULL, _OVER);
 
   SSdbRaw *pUndoRaw = mndFuncActionEncode(pFunc);
   if (pUndoRaw == NULL) {
@@ -384,7 +384,7 @@ static int32_t mndDropFunc(SMnode *pMnode, SRpcMsg *pReq, SFuncObj *pFunc) {
     goto _OVER;
   }
   TAOS_CHECK_GOTO(mndTransAppendUndolog(pTrans, pUndoRaw), NULL, _OVER);
-  (void)sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY), NULL, _OVER);
 
   SSdbRaw *pCommitRaw = mndFuncActionEncode(pFunc);
   if (pCommitRaw == NULL) {
@@ -393,7 +393,7 @@ static int32_t mndDropFunc(SMnode *pMnode, SRpcMsg *pReq, SFuncObj *pFunc) {
     goto _OVER;
   }
   TAOS_CHECK_GOTO(mndTransAppendCommitlog(pTrans, pCommitRaw), NULL, _OVER);
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED), NULL, _OVER);
 
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
@@ -528,13 +528,13 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
   retrieveRsp.numOfFuncs = retrieveReq.numOfFuncs;
   retrieveRsp.pFuncInfos = taosArrayInit(retrieveReq.numOfFuncs, sizeof(SFuncInfo));
   if (retrieveRsp.pFuncInfos == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto RETRIEVE_FUNC_OVER;
   }
 
   retrieveRsp.pFuncExtraInfos = taosArrayInit(retrieveReq.numOfFuncs, sizeof(SFuncExtraInfo));
   if (retrieveRsp.pFuncExtraInfos == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto RETRIEVE_FUNC_OVER;
   }
 
@@ -563,28 +563,28 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
       funcInfo.codeSize = pFunc->codeSize;
       funcInfo.pCode = taosMemoryCalloc(1, funcInfo.codeSize);
       if (funcInfo.pCode == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        terrno = terrno;
         goto RETRIEVE_FUNC_OVER;
       }
       (void)memcpy(funcInfo.pCode, pFunc->pCode, pFunc->codeSize);
       if (funcInfo.commentSize > 0) {
         funcInfo.pComment = taosMemoryCalloc(1, funcInfo.commentSize);
         if (funcInfo.pComment == NULL) {
-          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          terrno = terrno;
           goto RETRIEVE_FUNC_OVER;
         }
         (void)memcpy(funcInfo.pComment, pFunc->pComment, pFunc->commentSize);
       }
     }
     if (taosArrayPush(retrieveRsp.pFuncInfos, &funcInfo) == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      terrno = terrno;
       goto RETRIEVE_FUNC_OVER;
     }
     SFuncExtraInfo extraInfo = {0};
     extraInfo.funcVersion = pFunc->funcVersion;
     extraInfo.funcCreatedTime = pFunc->createdTime;
     if (taosArrayPush(retrieveRsp.pFuncExtraInfos, &extraInfo) == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      terrno = terrno;
       goto RETRIEVE_FUNC_OVER;
     }
 
@@ -594,11 +594,14 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
   int32_t contLen = tSerializeSRetrieveFuncRsp(NULL, 0, &retrieveRsp);
   void   *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto RETRIEVE_FUNC_OVER;
   }
 
-  tSerializeSRetrieveFuncRsp(pRsp, contLen, &retrieveRsp);
+  if ((contLen = tSerializeSRetrieveFuncRsp(pRsp, contLen, &retrieveRsp)) <= 0) {
+    code = contLen;
+    goto RETRIEVE_FUNC_OVER;
+  }
 
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = contLen;
@@ -719,5 +722,5 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
 static void mndCancelGetNextFunc(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_FUNC);
 }

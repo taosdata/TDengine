@@ -14,8 +14,7 @@ namespace Examples
             {
                 try
                 {
-                    client.Exec("use power");
-                    string query = "SELECT * FROM meters";
+                    string query = "SELECT * FROM power.meters";
                     using (var rows = client.Query(query))
                     {
                         while (rows.Read())

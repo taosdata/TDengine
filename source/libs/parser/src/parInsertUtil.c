@@ -188,7 +188,7 @@ int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo* pInfo) {
   pInfo->hasBoundCols = false;
   pInfo->pColIndex = taosMemoryCalloc(numOfBound, sizeof(int16_t));
   if (NULL == pInfo->pColIndex) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   for (int32_t i = 0; i < numOfBound; ++i) {
     pInfo->pColIndex[i] = i;
@@ -230,7 +230,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
   STableDataCxt* pTableCxt = taosMemoryCalloc(1, sizeof(STableDataCxt));
   if (NULL == pTableCxt) {
     *pOutput = NULL;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -264,7 +264,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
   if (TSDB_CODE_SUCCESS == code) {
     pTableCxt->pData = taosMemoryCalloc(1, sizeof(SSubmitTbData));
     if (NULL == pTableCxt->pData) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     } else {
       pTableCxt->pData->flags = (pCreateTbReq != NULL && NULL != *pCreateTbReq) ? SUBMIT_REQ_AUTO_CREATE_TABLE : 0;
       pTableCxt->pData->flags |= colMode ? SUBMIT_REQ_COLUMN_DATA_FORMAT : 0;
@@ -300,7 +300,7 @@ static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
   int32_t        code = TSDB_CODE_SUCCESS;
   SSubmitTbData* pTmp = taosMemoryCalloc(1, sizeof(SSubmitTbData));
   if (NULL == pTmp) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
   } else {
     pTmp->flags = pSrc->flags;
     pTmp->suid = pSrc->suid;
@@ -477,12 +477,12 @@ static int32_t createVgroupDataCxt(STableDataCxt* pTableCxt, SHashObj* pVgroupHa
                                    SVgroupDataCxt** pOutput) {
   SVgroupDataCxt* pVgCxt = taosMemoryCalloc(1, sizeof(SVgroupDataCxt));
   if (NULL == pVgCxt) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pVgCxt->pData = taosMemoryCalloc(1, sizeof(SSubmitReq2));
   if (NULL == pVgCxt->pData) {
     insDestroyVgroupDataCxt(pVgCxt);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pVgCxt->vgId = pTableCxt->pMeta->vgId;
@@ -745,7 +745,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
 
       taosArraySort(pTableCxt->pData->aCol, insColDataComp);
 
-      tColDataSortMerge(pTableCxt->pData->aCol);
+      code = tColDataSortMerge(&pTableCxt->pData->aCol);
     } else {
       // skip the table has no data to insert
       // eg: import a csv without valid data
@@ -840,7 +840,7 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
     }
     SVgDataBlocks* dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
     if (NULL == dst) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     }
     if (TSDB_CODE_SUCCESS == code) {
       dst->numOfTables = taosArrayGetSize(src->pData->aSubmitTbData);
@@ -883,6 +883,10 @@ static bool findFileds(SSchema* pSchema, TAOS_FIELD* fields, int numFields) {
 
 int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq** pCreateTb, TAOS_FIELD* tFields,
                      int numFields, bool needChangeLength, char* errstr, int32_t errstrLen) {
+  if(data == NULL) {
+    uError("rawBlockBindData, data is NULL");
+    return TSDB_CODE_APP_ERROR;
+  }
   void* tmp =
       taosHashGet(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid, sizeof(pTableMeta->uid));
   STableDataCxt* pTableCxt = NULL;

@@ -123,13 +123,13 @@ int32_t qExplainInitCtx(SExplainCtx **pCtx, SHashObj *groupHash, bool verbose, d
   SExplainCtx *ctx = taosMemoryCalloc(1, sizeof(SExplainCtx));
   if (NULL == ctx) {
     qError("calloc SExplainCtx failed");
-    QRY_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    QRY_ERR_JRET(terrno);
   }
 
   SArray *rows = taosArrayInit(10, sizeof(SQueryExplainRowInfo));
   if (NULL == rows) {
     qError("taosArrayInit SQueryExplainRowInfo failed");
-    QRY_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    QRY_ERR_JRET(terrno);
   }
 
   char *tbuf = taosMemoryMalloc(TSDB_EXPLAIN_RESULT_ROW_SIZE);
@@ -227,7 +227,7 @@ int32_t qExplainGenerateResNode(SPhysiNode *pNode, SExplainGroup *group, SExplai
   SExplainResNode *resNode = taosMemoryCalloc(1, sizeof(SExplainResNode));
   if (NULL == resNode) {
     qError("calloc SPhysiNodeExplainRes failed");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t code = 0;
@@ -1978,6 +1978,10 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   rsp->numOfRows = htobe64((int64_t)rowNum);
 
   int32_t len = blockEncode(pBlock, rsp->data + PAYLOAD_PREFIX_LEN, taosArrayGetSize(pBlock->pDataBlock));
+  if(len < 0) {
+    qError("qExplainGetRspFromCtx: blockEncode failed");
+    QRY_ERR_JRET(terrno);
+  }
 
   rsp->compLen = htonl(len);
   rsp->payloadLen = htonl(len);

@@ -115,24 +115,20 @@ EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWin
   return funcMgtBuiltins[pFunc->funcId].dataRequiredFunc(pFunc, pTimeWindow);
 }
 
-int32_t fmFuncDynDataRequired(int32_t funcId, void* pRes, SDataBlockInfo* pBlockInfo, int32_t *reqStatus) {
+EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, SDataBlockInfo* pBlockInfo) {
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
-    *reqStatus = -1;
-    return TSDB_CODE_FAILED;
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
 
   const char* name = funcMgtBuiltins[funcId].name;
   if ((strcmp(name, "_group_key") == 0) || (strcmp(name, "_select_value") == 0)) {
-    *reqStatus = FUNC_DATA_REQUIRED_NOT_LOAD;
-    return TSDB_CODE_SUCCESS;;
+    return FUNC_DATA_REQUIRED_NOT_LOAD;;
   }
 
   if (funcMgtBuiltins[funcId].dynDataRequiredFunc == NULL) {
-    *reqStatus = FUNC_DATA_REQUIRED_DATA_LOAD;
-    return TSDB_CODE_SUCCESS;
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
   } else {
-    *reqStatus = funcMgtBuiltins[funcId].dynDataRequiredFunc(pRes, pBlockInfo);
-    return TSDB_CODE_SUCCESS;
+    return funcMgtBuiltins[funcId].dynDataRequiredFunc(pRes, pBlockInfo);
   }
 }
 
@@ -146,6 +142,7 @@ int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
   pFpSet->finalize = funcMgtBuiltins[funcId].finalizeFunc;
   pFpSet->combine = funcMgtBuiltins[funcId].combineFunc;
   pFpSet->processFuncByRow = funcMgtBuiltins[funcId].processFuncByRow;
+  pFpSet->cleanup = funcMgtBuiltins[funcId].cleanupFunc;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -277,6 +274,13 @@ bool fmisSelectGroupConstValueFunc(int32_t funcId) {
     return false;
   }
   return FUNCTION_TYPE_GROUP_CONST_VALUE == funcMgtBuiltins[funcId].type;
+}
+
+bool fmIsElapsedFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_ELAPSED == funcMgtBuiltins[funcId].type;
 }
 
 bool fmIsBlockDistFunc(int32_t funcId) {
@@ -434,7 +438,9 @@ static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNod
   (*pPartialFunc)->originalFuncId = pSrcFunc->hasOriginalFunc ? pSrcFunc->originalFuncId : pSrcFunc->funcId;
   char name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
   int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", (*pPartialFunc)->functionName, pSrcFunc);
-  (void)taosCreateMD5Hash(name, len);
+  if (taosHashBinary(name, len) < 0) {
+    return TSDB_CODE_FAILED;
+  }
   (void)strncpy((*pPartialFunc)->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
   (*pPartialFunc)->hasPk = pSrcFunc->hasPk;
   (*pPartialFunc)->pkBytes = pSrcFunc->pkBytes;
