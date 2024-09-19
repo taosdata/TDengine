@@ -1357,7 +1357,7 @@ static void destroyStreamPartitionOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-void initParDownStream(SOperatorInfo* downstream, SPartitionBySupporter* pParSup, SExprSupp* pExpr, SExprSupp* pTbnameExpr) {
+void initParDownStream(SOperatorInfo* downstream, SPartitionBySupporter* pParSup, SExprSupp* pExpr, SExprSupp* pTbnameExpr, SExprSupp* pResExprSupp, int32_t* pPkColIndex) {
   SStorageAPI* pAPI = &downstream->pTaskInfo->storageAPI;
 
   if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
@@ -1368,6 +1368,11 @@ void initParDownStream(SOperatorInfo* downstream, SPartitionBySupporter* pParSup
   pScanInfo->partitionSup = *pParSup;
   pScanInfo->pPartScalarSup = pExpr;
   pScanInfo->pPartTbnameSup = pTbnameExpr;
+  for (int32_t j = 0; j < pResExprSupp->numOfExprs; j++) {
+    if (pScanInfo->primaryKeyIndex == pResExprSupp->pExprInfo[j].base.pParam[0].pCol->slotId) {
+      *pPkColIndex = j;
+    }
+  }
   if (!pScanInfo->pUpdateInfo) {
     pScanInfo->pUpdateInfo = pAPI->stateStore.updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, 0, pScanInfo->igCheckUpdate, pScanInfo->pkColType, pScanInfo->pkColLen);
   }
@@ -1511,7 +1516,8 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
                                          destroyStreamPartitionOperatorInfo, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamOpReleaseState, streamOpReloadState);
 
-  initParDownStream(downstream, &pInfo->partitionSup, &pInfo->scalarSup, &pInfo->tbnameCalSup);
+  pInfo->basic.primaryPkIndex = -1;
+  initParDownStream(downstream, &pInfo->partitionSup, &pInfo->scalarSup, &pInfo->tbnameCalSup, &pOperator->exprSupp, &pInfo->basic.primaryPkIndex);
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 

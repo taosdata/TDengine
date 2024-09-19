@@ -482,11 +482,18 @@ void reloadFromDownStream(SOperatorInfo* downstream, SStreamIntervalOperatorInfo
   pInfo->pUpdateInfo = pScanInfo->pUpdateInfo;
 }
 
-void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SStreamIntervalOperatorInfo* pInfo) {
+bool hasSrcPrimaryKeyCol(SSteamOpBasicInfo* pInfo) { return pInfo->primaryPkIndex != -1; }
+
+void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SStreamIntervalOperatorInfo* pInfo, struct SSteamOpBasicInfo* pBasic) {
   SStateStore* pAPI = &downstream->pTaskInfo->storageAPI.stateStore;
 
+  if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION) {
+    SStreamPartitionOperatorInfo* pScanInfo = downstream->info;
+    pBasic->primaryPkIndex = pScanInfo->basic.primaryPkIndex;
+  }
+
   if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    initIntervalDownStream(downstream->pDownstream[0], type, pInfo);
+    initIntervalDownStream(downstream->pDownstream[0], type, pInfo, pBasic);
     return;
   }
 
@@ -502,7 +509,9 @@ void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SStreamInt
   pScanInfo->twAggSup = pInfo->twAggSup;
   pScanInfo->pState = pInfo->pState;
   pInfo->pUpdateInfo = pScanInfo->pUpdateInfo;
-  pInfo->basic.primaryPkIndex = pScanInfo->primaryKeyIndex;
+  if (!hasSrcPrimaryKeyCol(pBasic)) {
+    pBasic->primaryPkIndex = pScanInfo->basic.primaryPkIndex;
+  }
 }
 
 void compactFunctions(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int32_t numOfOutput,
@@ -833,10 +842,6 @@ static int32_t getNextQualifiedFinalWindow(SInterval* pInterval, STimeWindow* pN
     *pNext = getFinalTimeWindow(primaryKeys[startPos], pInterval);
   }
   return startPos;
-}
-
-bool hasSrcPrimaryKeyCol(SSteamOpBasicInfo* pInfo) {
-  return pInfo->primaryPkIndex != -1;
 }
 
 static void doStreamIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBlock, uint64_t groupId,
@@ -1663,7 +1668,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   setOperatorStreamStateFn(pOperator, streamIntervalReleaseState, streamIntervalReloadState);
   if (pPhyNode->type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL ||
       pPhyNode->type == QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL) {
-    initIntervalDownStream(downstream, pPhyNode->type, pInfo);
+    initIntervalDownStream(downstream, pPhyNode->type, pInfo, &pInfo->basic);
   }
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1760,6 +1765,7 @@ void initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uin
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION) {
     SStreamPartitionOperatorInfo* pScanInfo = downstream->info;
     pScanInfo->tsColIndex = tsColIndex;
+    pBasic->primaryPkIndex = pScanInfo->basic.primaryPkIndex;
   }
 
   if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
@@ -1775,7 +1781,9 @@ void initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uin
   }
   pScanInfo->twAggSup = *pTwSup;
   pAggSup->pUpdateInfo = pScanInfo->pUpdateInfo;
-  pBasic->primaryPkIndex = pScanInfo->primaryKeyIndex;
+  if (!hasSrcPrimaryKeyCol(pBasic)) {
+    pBasic->primaryPkIndex = pScanInfo->basic.primaryPkIndex;
+  }
 }
 
 static TSKEY sesionTs(void* pKey) {
@@ -2624,7 +2632,7 @@ int32_t doStreamSessionEncodeOpState(void** buf, int32_t len, SOperatorInfo* pOp
   size_t  keyLen = 0;
   int32_t iter = 0;
   while ((pIte = tSimpleHashIterate(pInfo->streamAggSup.pResultRows, pIte, &iter)) != NULL) {
-    void* key = taosHashGetKey(pIte, &keyLen);
+    void* key = tSimpleHashGetKey(pIte, &keyLen);
     tlen += encodeSSessionKey(buf, key);
     tlen += encodeSResultWindowInfo(buf, pIte, pInfo->streamAggSup.resultRowSize);
   }
@@ -4296,7 +4304,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
     taosMemoryFree(buff);
   }
 
-  initIntervalDownStream(downstream, pPhyNode->type, pInfo);
+  initIntervalDownStream(downstream, pPhyNode->type, pInfo, &pInfo->basic);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
