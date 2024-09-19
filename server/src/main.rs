@@ -1158,7 +1158,6 @@ async fn x_api_doc(
         return Ok(HttpResponse::NotFound().finish());
     }
     let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
-    qid.set_taosx();
 
     let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/api-doc/openapi.json");
@@ -1485,12 +1484,9 @@ impl Args {
     ) -> Result<RestOkResponse, RestErrResponse> {
         let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
         qid.set_taos();
-        qid.add_sequence_id();
 
         // taos connection pool
-        let conn = get_connection(&dsn)
-            .await
-            .map_err(|err| RestErrResponse::new(err))?;
+        let conn = get_connection(&dsn).await.map_err(RestErrResponse::new)?;
 
         let tz = if let Some(tz) = tz {
             chrono_tz::Tz::from_str(tz).unwrap_or(chrono_tz::Tz::UTC)
@@ -1498,6 +1494,7 @@ impl Args {
             chrono_tz::Tz::UTC
         };
 
+        qid.add_sequence_id();
         debug!("Got connection, querying sql");
         let mut set = conn.query_with_req_id(sql, qid.get()).await?;
         debug!("Got sql result set");

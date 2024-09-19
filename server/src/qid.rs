@@ -28,17 +28,14 @@ bitfield! {
 impl Qid {
     pub(crate) fn set_taosx(&mut self) {
         self.set_downstream_id(1);
-        Span.set_qid(self);
     }
 
     pub(crate) fn set_taos(&mut self) {
         self.set_downstream_id(2);
-        Span.set_qid(self);
     }
 
     pub(crate) fn set_cloud(&mut self) {
         self.set_downstream_id(3);
-        Span.set_qid(self);
     }
 
     pub(crate) fn add_sequence_id(&mut self) {
@@ -60,13 +57,34 @@ impl QidManager for Qid {
         this
     }
 
-    fn init_on_request(_request: &actix_web::dev::ServiceRequest) -> Self {
+    fn init_on_request(request: &actix_web::dev::ServiceRequest) -> Self {
         let mut qid = Self::init();
 
         let session_id = SESSION_ID
             .get_or_init(|| AtomicU32::new(0))
             .fetch_add(1, atomic::Ordering::Relaxed);
         qid.set_session_id(session_id);
+
+        let path = request.path();
+        if path.starts_with("/rest/")
+            || path.starts_with("/api/-/password/")
+            || path == "/api/-/license"
+        {
+            qid.set_taos();
+            return qid;
+        }
+        if path.starts_with("/api/x/")
+            || path == "/api/-/import"
+            || path == "/api/-/profile"
+            || path == "/api-doc/openapi.json"
+        {
+            qid.set_taosx();
+            return qid;
+        }
+
+        if path == "/api/-/taosd-info" || path == "/api/-/verification-code" {
+            qid.set_cloud();
+        }
 
         qid
     }

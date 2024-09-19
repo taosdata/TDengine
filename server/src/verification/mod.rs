@@ -1,6 +1,5 @@
 use captcha::filters::{Dots, Noise, Wave};
 use captcha::{Captcha, Geometry};
-use http::HeaderMap;
 use lazy_static::lazy_static;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
@@ -11,10 +10,10 @@ use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
-use taoslog::utils::{QidMetadataGetter, QidMetadataSetter, Span};
+use taoslog::utils::{QidMetadataGetter, Span};
 use taoslog::QidManager;
 
-use crate::qid::Qid;
+use crate::qid::{headers_with_qid, Qid};
 
 pub fn sign_string(input: &str) -> String {
     let mut hasher = Sha1::new();
@@ -180,11 +179,9 @@ async fn request_cloud(
         .timeout(Duration::from_secs(60))
         .build()?;
 
-    let mut headers = HeaderMap::new();
-    headers.set_qid(&qid);
     let response = http_client
         .request(method, &url)
-        .headers(headers)
+        .headers(headers_with_qid(&qid))
         .header(
             reqwest::header::CONTENT_TYPE,
             reqwest::header::HeaderValue::from_static("application/json"),
