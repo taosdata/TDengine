@@ -77,10 +77,7 @@ _err:
 }
 
 void tqSnapReaderClose(STqSnapReader** ppReader) {
-  int32_t ret = tdbTbcClose((*ppReader)->pCur);
-  if (ret != 0){
-    tqError("vgId:%d, vnode snapshot tq reader close failed since %s", TD_VID((*ppReader)->pTq->pVnode), tstrerror(ret));
-  }
+  tdbTbcClose((*ppReader)->pCur);
   taosMemoryFree(*ppReader);
   *ppReader = NULL;
 }

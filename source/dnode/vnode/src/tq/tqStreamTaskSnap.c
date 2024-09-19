@@ -97,12 +97,8 @@ int32_t streamTaskSnapReaderClose(SStreamTaskReader* pReader) {
   int32_t vgId = TD_VID(pReader->pTq->pVnode);
 
   taosArrayDestroy(pReader->tdbTbList);
-  code = tdbTbcClose(pReader->pCur);
-  if (code) {
-    tqError("vgId:%d failed to close stream meta reader, code:%s", vgId, tstrerror(code));
-  } else {
-    tqInfo("vgId:%d, vnode stream-task snapshot reader closed", vgId);
-  }
+  tdbTbcClose(pReader->pCur);
+  tqInfo("vgId:%d, vnode stream-task snapshot reader closed", vgId);
 
   taosMemoryFree(pReader);
   return code;
@@ -146,7 +142,7 @@ NextTbl:
   }
   if (except == 1) {
     if (pReader->pos + 1 < taosArrayGetSize(pReader->tdbTbList)) {
-      (void)tdbTbcClose(pReader->pCur);
+      tdbTbcClose(pReader->pCur);
 
       pReader->pos += 1;
       pPair = taosArrayGet(pReader->tdbTbList, pReader->pos);
