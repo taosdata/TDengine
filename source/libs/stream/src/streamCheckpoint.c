@@ -49,7 +49,7 @@ int32_t createChkptTriggerBlock(SStreamTask* pTask, int32_t checkpointType, int6
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (pBlock == NULL) {
     taosFreeQitem(pChkpoint);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pBlock->info.type = STREAM_CHECKPOINT;
@@ -153,9 +153,9 @@ int32_t streamTaskProcessCheckpointTriggerRsp(SStreamTask* pTask, SCheckpointTri
   streamMutexUnlock(&pInfo->lock);
 
   // NOTE: here we do not do the duplicated checkpoint-trigger msg check, since it will be done by following functions.
-  (void)appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT_TRIGGER, pRsp->checkpointId, pRsp->transId,
-                                   pRsp->upstreamTaskId);
-  return TSDB_CODE_SUCCESS;
+  int32_t code = appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT_TRIGGER, pRsp->checkpointId, pRsp->transId,
+                                            pRsp->upstreamTaskId);
+  return code;
 }
 
 int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId, int32_t downstreamNodeId,
@@ -192,6 +192,7 @@ int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId
 int32_t continueDispatchCheckpointTriggerBlock(SStreamDataBlock* pBlock, SStreamTask* pTask) {
   pBlock->srcTaskId = pTask->id.taskId;
   pBlock->srcVgId = pTask->pMeta->vgId;
+
   if (pTask->chkInfo.pActiveInfo->dispatchTrigger == true) {
     stError("s-task:%s already dispatch checkpoint-trigger, not dispatch again", pTask->id.idStr);
     return 0;
@@ -208,57 +209,52 @@ int32_t continueDispatchCheckpointTriggerBlock(SStreamDataBlock* pBlock, SStream
   return code;
 }
 
-int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) {
-  SSDataBlock* pDataBlock = taosArrayGet(pBlock->blocks, 0);
-  if (pDataBlock == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  int64_t      checkpointId = pDataBlock->info.version;
-  int32_t      transId = pDataBlock->info.window.skey;
-  const char*  id = pTask->id.idStr;
-  int32_t      code = TSDB_CODE_SUCCESS;
-  int32_t      vgId = pTask->pMeta->vgId;
-  int32_t      taskLevel = pTask->info.taskLevel;
+static int32_t doCheckBeforeHandleChkptTrigger(SStreamTask* pTask, int64_t checkpointId, SStreamDataBlock* pBlock,
+                                               int32_t transId) {
+  int32_t     code = 0;
+  int32_t     vgId = pTask->pMeta->vgId;
+  int32_t     taskLevel = pTask->info.taskLevel;
+  const char* id = pTask->id.idStr;
 
   SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
-
-  streamMutexLock(&pTask->lock);
   if (pTask->chkInfo.checkpointId > checkpointId) {
     stError("s-task:%s vgId:%d current checkpointId:%" PRId64
             " recv expired checkpoint-trigger block, checkpointId:%" PRId64 " transId:%d, discard",
             id, vgId, pTask->chkInfo.checkpointId, checkpointId, transId);
-    streamMutexUnlock(&pTask->lock);
+    return code;
+  }
 
-    streamFreeQitem((SStreamQueueItem*)pBlock);
+  if (pActiveInfo->failedId >= checkpointId) {
+    stError("s-task:%s vgId:%d checkpointId:%" PRId64 " transId:%d, has been marked failed, failedId:%" PRId64
+            " discard the checkpoint-trigger block",
+            id, vgId, checkpointId, transId, pActiveInfo->failedId);
     return code;
   }
 
   if (pTask->chkInfo.checkpointId == checkpointId) {
     {  // send checkpoint-ready msg to upstream
-      SRpcMsg msg = {0};
+      SRpcMsg                msg = {0};
       SStreamUpstreamEpInfo* pInfo = NULL;
       streamTaskGetUpstreamTaskEpInfo(pTask, pBlock->srcTaskId, &pInfo);
       if (pInfo == NULL) {
-        streamMutexUnlock(&pTask->lock);
         return TSDB_CODE_STREAM_TASK_NOT_EXIST;
       }
 
       code = initCheckpointReadyMsg(pTask, pInfo->nodeId, pBlock->srcTaskId, pInfo->childId, checkpointId, &msg);
       if (code == TSDB_CODE_SUCCESS) {
-        (void)tmsgSendReq(&pInfo->epSet, &msg);
+        code = tmsgSendReq(&pInfo->epSet, &msg);
+        if (code) {
+          stError("s-task:%s vgId:%d failed send chkpt-ready msg to upstream, code:%s", id, vgId, tstrerror(code));
+        }
       }
     }
 
     stWarn(
-        "s-task:%s vgId:%d recv already finished checkpoint msg, send checkpoint-ready to upstream:0x%x to resume the "
-        "interrupted checkpoint",
+        "s-task:%s vgId:%d recv already finished checkpoint-trigger, send checkpoint-ready to upstream:0x%x to resume "
+        "the interrupted checkpoint",
         id, vgId, pBlock->srcTaskId);
 
     streamTaskOpenUpstreamInput(pTask, pBlock->srcTaskId);
-    streamMutexUnlock(&pTask->lock);
-
-    streamFreeQitem((SStreamQueueItem*)pBlock);
     return code;
   }
 
@@ -267,9 +263,6 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
       stError("s-task:%s vgId:%d active checkpointId:%" PRId64 ", recv invalid checkpoint-trigger checkpointId:%" PRId64
               " discard",
               id, vgId, pActiveInfo->activeId, checkpointId);
-      streamMutexUnlock(&pTask->lock);
-
-      streamFreeQitem((SStreamQueueItem*)pBlock);
       return code;
     } else {  // checkpointId == pActiveInfo->activeId
       if (pActiveInfo->allUpstreamTriggerRecv == 1) {
@@ -277,8 +270,6 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
             "s-task:%s vgId:%d all upstream checkpoint-trigger recv, discard this checkpoint-trigger, "
             "checkpointId:%" PRId64 " transId:%d",
             id, vgId, checkpointId, transId);
-        streamMutexUnlock(&pTask->lock);
-        streamFreeQitem((SStreamQueueItem*)pBlock);
         return code;
       }
 
@@ -287,7 +278,6 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
         for (int32_t i = 0; i < taosArrayGetSize(pActiveInfo->pReadyMsgList); ++i) {
           STaskCheckpointReadyInfo* p = taosArrayGet(pActiveInfo->pReadyMsgList, i);
           if (p == NULL) {
-            streamMutexUnlock(&pTask->lock);
             return TSDB_CODE_INVALID_PARA;
           }
 
@@ -295,9 +285,6 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
             stWarn("s-task:%s repeatly recv checkpoint-source msg from task:0x%x vgId:%d, checkpointId:%" PRId64
                    ", prev recvTs:%" PRId64 " discard",
                    pTask->id.idStr, p->upstreamTaskId, p->upstreamNodeId, p->checkpointId, p->recvTs);
-
-            streamMutexUnlock(&pTask->lock);
-            streamFreeQitem((SStreamQueueItem*)pBlock);
             return code;
           }
         }
@@ -305,7 +292,33 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     }
   }
 
+  return 0;
+}
+
+int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) {
+  int64_t                checkpointId = 0;
+  int32_t                transId = 0;
+  const char*            id = pTask->id.idStr;
+  int32_t                code = TSDB_CODE_SUCCESS;
+  int32_t                vgId = pTask->pMeta->vgId;
+  int32_t                taskLevel = pTask->info.taskLevel;
+  SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
+
+  SSDataBlock* pDataBlock = taosArrayGet(pBlock->blocks, 0);
+  if (pDataBlock == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  checkpointId = pDataBlock->info.version;
+  transId = pDataBlock->info.window.skey;
+
+  streamMutexLock(&pTask->lock);
+  code = doCheckBeforeHandleChkptTrigger(pTask, checkpointId, pBlock, transId);
   streamMutexUnlock(&pTask->lock);
+  if (code) {
+    streamFreeQitem((SStreamQueueItem*)pBlock);
+    return code;
+  }
 
   stDebug("s-task:%s vgId:%d start to handle the checkpoint-trigger block, checkpointId:%" PRId64 " ver:%" PRId64
           ", transId:%d current active checkpointId:%" PRId64,
@@ -334,12 +347,8 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
       int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
       stDebug("s-task:%s start checkpoint-trigger monitor in 10s, ref:%d ", pTask->id.idStr, ref);
       streamMetaAcquireOneTask(pTask);
-
-      if (pTmrInfo->tmrHandle == NULL) {
-        pTmrInfo->tmrHandle = taosTmrStart(checkpointTriggerMonitorFn, 200, pTask, streamTimer);
-      } else {
-        streamTmrReset(checkpointTriggerMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle, vgId, "trigger-recv-monitor");
-      }
+      streamTmrStart(checkpointTriggerMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle, vgId,
+                     "trigger-recv-monitor");
       pTmrInfo->launchChkptId = pActiveInfo->activeId;
     } else { // already launched, do nothing
       stError("s-task:%s previous checkpoint-trigger monitor tmr is set, not start new one", pTask->id.idStr);
@@ -354,13 +363,17 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     // The transfer of state may generate new data that need to dispatch to downstream tasks,
     // Otherwise, those new generated data by executors that is kept in outputQ, may be lost if this program crashed
     // before the next checkpoint.
-    flushStateDataInExecutor(pTask, (SStreamQueueItem*)pBlock);
+    code = flushStateDataInExecutor(pTask, (SStreamQueueItem*)pBlock);
+    if (code) {
+      streamFreeQitem((SStreamQueueItem*)pBlock);
+      return code;
+    }
 
     if (type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
       stDebug("s-task:%s set childIdx:%d, and add checkpoint-trigger block into outputQ", id, pTask->info.selfChildId);
-      (void)continueDispatchCheckpointTriggerBlock(pBlock, pTask);   // todo handle this failure
+      code = continueDispatchCheckpointTriggerBlock(pBlock, pTask);   // todo handle this failure
     } else {  // only one task exists, no need to dispatch downstream info
-      (void)appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT, pActiveInfo->activeId, pActiveInfo->transId,
+      code = appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT, pActiveInfo->activeId, pActiveInfo->transId,
                                        -1);
       streamFreeQitem((SStreamQueueItem*)pBlock);
     }
@@ -372,7 +385,7 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
 
     // todo: handle this
     // update the child Id for downstream tasks
-    (void) streamAddCheckpointReadyMsg(pTask, pBlock->srcTaskId, pTask->info.selfChildId, checkpointId);
+    code = streamAddCheckpointReadyMsg(pTask, pBlock->srcTaskId, pTask->info.selfChildId, checkpointId);
 
     // there are still some upstream tasks not send checkpoint request, do nothing and wait for then
     if (pActiveInfo->allUpstreamTriggerRecv != 1) {
@@ -384,10 +397,13 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     if (taskLevel == TASK_LEVEL__SINK) {
       stDebug("s-task:%s process checkpoint-trigger block, all %d upstreams sent, send ready msg to upstream", id, num);
       streamFreeQitem((SStreamQueueItem*)pBlock);
-      (void)streamTaskBuildCheckpoint(pTask);   // todo: not handle error yet
+      code = streamTaskBuildCheckpoint(pTask);   // todo: not handle error yet
     } else {  // source & agg tasks need to forward the checkpoint msg downwards
       stDebug("s-task:%s process checkpoint-trigger block, all %d upstreams sent, forwards to downstream", id, num);
-      flushStateDataInExecutor(pTask, (SStreamQueueItem*)pBlock);
+      code = flushStateDataInExecutor(pTask, (SStreamQueueItem*)pBlock);
+      if (code) {
+        return code;
+      }
 
       // Put the checkpoint-trigger block into outputQ, to make sure all blocks with less version have been handled by
       // this task already. And then, dispatch check point msg to all downstream tasks
@@ -480,7 +496,7 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask, int64_t checkpointId
   } else {
     if ((notReady == 0) && (code == 0) && (!alreadyHandled)) {
       stDebug("s-task:%s all downstream tasks have completed build checkpoint, do checkpoint for current task", id);
-      (void)appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT, checkpointId, transId, -1);
+      code = appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT, checkpointId, transId, -1);
     }
   }
 
@@ -530,15 +546,20 @@ int32_t streamTaskProcessCheckpointReadyRsp(SStreamTask* pTask, int32_t upstream
 }
 
 void streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg) {
+  SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
+
   pTask->chkInfo.startTs = 0;             // clear the recorded start time
   streamTaskOpenAllUpstreamInput(pTask);  // open inputQ for all upstream tasks
 
-  streamMutexLock(&pTask->chkInfo.pActiveInfo->lock);
-  streamTaskClearActiveInfo(pTask->chkInfo.pActiveInfo);
+  streamMutexLock(&pInfo->lock);
+  streamTaskClearActiveInfo(pInfo);
   if (clearChkpReadyMsg) {
-    streamClearChkptReadyMsg(pTask->chkInfo.pActiveInfo);
+    streamClearChkptReadyMsg(pInfo);
   }
-  streamMutexUnlock(&pTask->chkInfo.pActiveInfo->lock);
+  streamMutexUnlock(&pInfo->lock);
+
+  stDebug("s-task:%s clear active checkpointInfo, failed checkpointId:%"PRId64", current checkpointId:%"PRId64,
+      pTask->id.idStr, pInfo->failedId, pTask->chkInfo.checkpointId);
 }
 
 int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SVUpdateCheckpointInfoReq* pReq) {
@@ -562,7 +583,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
       // drop task should not in the meta-lock, and drop the related fill-history task now
       streamMetaWUnLock(pMeta);
       if (pReq->dropRelHTask) {
-        (void) streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
+        code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
         int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
         stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped in update checkpointInfo, remain tasks:%d",
                 id, vgId, pReq->taskId, numOfTasks);
@@ -639,24 +660,21 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
   if (code != TSDB_CODE_SUCCESS) {
     stError("s-task:%s vgId:%d failed to save task info after do checkpoint, checkpointId:%" PRId64 ", since %s", id,
             vgId, pReq->checkpointId, terrstr());
-    return code;
+    return TSDB_CODE_SUCCESS;
   }
 
   streamMetaWUnLock(pMeta);
 
   // drop task should not in the meta-lock, and drop the related fill-history task now
   if (pReq->dropRelHTask) {
-    (void) streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
+    code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
     int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
     stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped, remain tasks:%d", id, vgId,
             (int32_t)pReq->hTaskId, numOfTasks);
   }
 
   streamMetaWLock(pMeta);
-
-  if (streamMetaCommit(pMeta) < 0) {
-    // persist to disk
-  }
+  code = streamMetaCommit(pMeta);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -668,7 +686,7 @@ void streamTaskSetFailedCheckpointId(SStreamTask* pTask) {
     stWarn("s-task:%s checkpoint-info is cleared now, not set the failed checkpoint info", pTask->id.idStr);
   } else {
     pInfo->failedId = pInfo->activeId;
-    stDebug("s-task:%s mark the checkpointId:%" PRId64 " (transId:%d) failed", pTask->id.idStr, pInfo->activeId,
+    stDebug("s-task:%s mark and set the failed checkpointId:%" PRId64 " (transId:%d)", pTask->id.idStr, pInfo->activeId,
             pInfo->transId);
   }
 }
@@ -688,7 +706,7 @@ static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* l
 
   char* filePath = taosMemoryCalloc(1, cap);
   if (filePath == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t nBytes = snprintf(filePath, cap, "%s%s%s", path, TD_DIRSEP, "META_TMP");
@@ -871,48 +889,11 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   return code;
 }
 
-void checkpointTriggerMonitorFn(void* param, void* tmrId) {
-  SStreamTask* pTask = param;
-  int32_t      vgId = pTask->pMeta->vgId;
-  int64_t      now = taosGetTimestampMs();
-  const char*  id = pTask->id.idStr;
-
+static int32_t doChkptStatusCheck(SStreamTask* pTask) {
+  const char*            id = pTask->id.idStr;
+  int32_t                vgId = pTask->pMeta->vgId;
   SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
-  SStreamTmrInfo* pTmrInfo = &pActiveInfo->chkptTriggerMsgTmr;
-
-  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
-    stError("s-task:%s source task should not start the checkpoint-trigger monitor fn, ref:%d quit", id, ref);
-    streamMetaReleaseTask(pTask->pMeta, pTask);
-    return;
-  }
-
-  // check the status every 100ms
-  if (streamTaskShouldStop(pTask)) {
-    int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
-    stDebug("s-task:%s vgId:%d quit from monitor checkpoint-trigger, ref:%d", id, vgId, ref);
-    streamMetaReleaseTask(pTask->pMeta, pTask);
-    return;
-  }
-
-  if (++pTmrInfo->activeCounter < 50) {
-    streamTmrReset(checkpointTriggerMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle, vgId, "trigger-recv-monitor");
-    return;
-  }
-
-  pTmrInfo->activeCounter = 0;
-  stDebug("s-task:%s vgId:%d checkpoint-trigger monitor in tmr, ts:%" PRId64, id, vgId, now);
-
-  streamMutexLock(&pTask->lock);
-  SStreamTaskState pState = streamTaskGetStatus(pTask);
-  if (pState.state != TASK_STATUS__CK) {
-    int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
-    stDebug("s-task:%s vgId:%d not in checkpoint status, quit from monitor checkpoint-trigger, ref:%d", id, vgId, ref);
-
-    streamMutexUnlock(&pTask->lock);
-    streamMetaReleaseTask(pTask->pMeta, pTask);
-    return;
-  }
+  SStreamTmrInfo*        pTmrInfo = &pActiveInfo->chkptTriggerMsgTmr;
 
   // checkpoint-trigger recv flag is set, quit
   if (pActiveInfo->allUpstreamTriggerRecv) {
@@ -920,48 +901,44 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
     stDebug("s-task:%s vgId:%d all checkpoint-trigger recv, quit from monitor checkpoint-trigger, ref:%d", id, vgId,
             ref);
 
-    streamMutexUnlock(&pTask->lock);
-    streamMetaReleaseTask(pTask->pMeta, pTask);
-    return;
-  }
-
-  streamMutexUnlock(&pTask->lock);
-
-  streamMutexLock(&pActiveInfo->lock);
-
-  // send msg to retrieve checkpoint trigger msg
-  SArray* pList = pTask->upstreamInfo.pList;
-  SArray* pNotSendList = taosArrayInit(4, sizeof(SStreamUpstreamEpInfo));
-  if (pNotSendList == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    stDebug("s-task:%s start to triggerMonitor, reason:%s", id, tstrerror(terrno));
-    streamMutexUnlock(&pActiveInfo->lock);
-
-    stDebug("s-task:%s start to monitor checkpoint-trigger in 10s", id);
-    streamTmrReset(checkpointTriggerMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle, vgId, "trigger-recv-monitor");
-    return;
+//    streamMutexUnlock(&pTask->lock);
+//    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return -1;
   }
 
   if ((pTmrInfo->launchChkptId != pActiveInfo->activeId) || (pActiveInfo->activeId == 0)) {
-    streamMutexUnlock(&pActiveInfo->lock);
     int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
     stWarn("s-task:%s vgId:%d checkpoint-trigger retrieve by previous checkpoint procedure, checkpointId:%" PRId64
                ", quit, ref:%d",
            id, vgId, pTmrInfo->launchChkptId, ref);
 
-    streamMetaReleaseTask(pTask->pMeta, pTask);
-    return;
+//    streamMutexUnlock(&pActiveInfo->lock);
+//    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return -1;
   }
 
   // active checkpoint info is cleared for now
   if ((pActiveInfo->activeId == 0) || (pActiveInfo->transId == 0) || (pTask->chkInfo.startTs == 0)) {
-    streamMutexUnlock(&pActiveInfo->lock);
     int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
     stWarn("s-task:%s vgId:%d active checkpoint may be cleared, quit from retrieve checkpoint-trigger send tmr, ref:%d",
            id, vgId, ref);
 
-    streamMetaReleaseTask(pTask->pMeta, pTask);
-    return;
+//    streamMutexUnlock(&pActiveInfo->lock);
+//    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return -1;
+  }
+
+  return 0;
+}
+
+static int32_t doFindNotSendUpstream(SStreamTask* pTask, SArray* pList, SArray** ppNotSendList) {
+  const char*            id = pTask->id.idStr;
+  SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
+
+  SArray* pNotSendList = taosArrayInit(4, sizeof(SStreamUpstreamEpInfo));
+  if (pNotSendList == NULL) {
+    stDebug("s-task:%s start to triggerMonitor, reason:%s", id, tstrerror(terrno));
+    return terrno;
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
@@ -985,19 +962,97 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
       void* px = taosArrayPush(pNotSendList, pInfo);
       if (px == NULL) {
         stError("s-task:%s failed to record not send info, code: out of memory", id);
+        taosArrayDestroy(pNotSendList);
+        return terrno;
       }
     }
   }
 
+  *ppNotSendList = pNotSendList;
+  return 0;
+}
+
+void checkpointTriggerMonitorFn(void* param, void* tmrId) {
+  SStreamTask* pTask = param;
+  int32_t      vgId = pTask->pMeta->vgId;
+  int64_t      now = taosGetTimestampMs();
+  const char*  id = pTask->id.idStr;
+
+  SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
+  SStreamTmrInfo* pTmrInfo = &pActiveInfo->chkptTriggerMsgTmr;
+
+  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+    int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
+    stError("s-task:%s source task should not start the checkpoint-trigger monitor fn, ref:%d quit", id, ref);
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
+  // check the status every 100ms
+  if (streamTaskShouldStop(pTask)) {
+    int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
+    stDebug("s-task:%s vgId:%d quit from monitor checkpoint-trigger, ref:%d", id, vgId, ref);
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
+  if (++pTmrInfo->activeCounter < 50) {
+    streamTmrStart(checkpointTriggerMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle, vgId, "trigger-recv-monitor");
+    return;
+  }
+
+  pTmrInfo->activeCounter = 0;
+  stDebug("s-task:%s vgId:%d checkpoint-trigger monitor in tmr, ts:%" PRId64, id, vgId, now);
+
+  streamMutexLock(&pTask->lock);
+  SStreamTaskState state = streamTaskGetStatus(pTask);
+  streamMutexUnlock(&pTask->lock);
+
+  if (state.state != TASK_STATUS__CK) {
+    int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
+    stDebug("s-task:%s vgId:%d status:%s not in checkpoint status, quit from monitor checkpoint-trigger, ref:%d", id,
+            vgId, state.name, ref);
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
+  streamMutexLock(&pActiveInfo->lock);
+
+  int32_t code = doChkptStatusCheck(pTask);
+  if (code) {
+    streamMutexUnlock(&pTask->lock);
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
+  // send msg to retrieve checkpoint trigger msg
+  SArray* pList = pTask->upstreamInfo.pList;
+  SArray* pNotSendList = NULL;
+
+  code = doFindNotSendUpstream(pTask, pList, &pNotSendList);
+  if (code) {
+    int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
+    stDebug("s-task:%s failed to find not send upstream, code:%s, out of tmr, ref:%d", id, tstrerror(code), ref);
+    streamMutexUnlock(&pActiveInfo->lock);
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+
+    taosArrayDestroy(pNotSendList);
+    return;
+  }
+
   // do send retrieve checkpoint trigger msg to upstream
   int32_t size = taosArrayGetSize(pNotSendList);
-  (void)doSendRetrieveTriggerMsg(pTask, pNotSendList);
+  code = doSendRetrieveTriggerMsg(pTask, pNotSendList);
+  if (code) {
+    stError("s-task:%s vgId:%d failed to retrieve trigger msg, code:%s", pTask->id.idStr, vgId, tstrerror(code));
+  }
+
   streamMutexUnlock(&pActiveInfo->lock);
 
   // check every 100ms
   if (size > 0) {
     stDebug("s-task:%s start to monitor checkpoint-trigger in 10s", id);
-    streamTmrReset(checkpointTriggerMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle, vgId, "trigger-recv-monitor");
+    streamTmrStart(checkpointTriggerMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle, vgId, "trigger-recv-monitor");
   } else {
     int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
     stDebug("s-task:%s all checkpoint-trigger recved, quit from monitor checkpoint-trigger tmr, ref:%d", id, ref);
@@ -1224,7 +1279,7 @@ static int32_t uploadCheckpointToS3(const char* id, const char* path) {
 
   TdDirPtr pDir = taosOpenDir(path);
   if (pDir == NULL) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   TdDirEntryPtr de = NULL;
@@ -1262,7 +1317,11 @@ static int32_t uploadCheckpointToS3(const char* id, const char* path) {
     }
   }
 
-  (void) taosCloseDir(&pDir);
+  int32_t ret = taosCloseDir(&pDir);
+  if (code == 0 && ret != 0) {
+    code = ret;
+  }
+
   return code;
 }
 
@@ -1272,7 +1331,7 @@ int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char
 
   char* buf = taosMemoryCalloc(1, cap);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   nBytes = snprintf(buf, cap, "%s/%s", id, fname);

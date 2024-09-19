@@ -403,7 +403,11 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   pMemTable->aBucket[idx] = pTbData;
   pMemTable->nTbData++;
 
-  (void)tRBTreePut(pMemTable->tbDataTree, pTbData->rbtn);
+  if (tRBTreePut(pMemTable->tbDataTree, pTbData->rbtn) == NULL) {
+    taosWUnLockLatch(&pMemTable->latch);
+    code = TSDB_CODE_INTERNAL_ERROR;
+    goto _exit;
+  }
 
   taosWUnLockLatch(&pMemTable->latch);
 
@@ -731,15 +735,13 @@ int32_t tsdbRefMemTable(SMemTable *pMemTable, SQueryNode *pQNode) {
     tsdbError("vgId:%d, memtable ref count is invalid, ref:%d", TD_VID(pMemTable->pTsdb->pVnode), nRef);
   }
 
-  (void)vnodeBufPoolRegisterQuery(pMemTable->pPool, pQNode);
+  vnodeBufPoolRegisterQuery(pMemTable->pPool, pQNode);
 
 _exit:
   return code;
 }
 
-int32_t tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode, bool proactive) {
-  int32_t code = 0;
-
+void tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode, bool proactive) {
   if (pNode) {
     vnodeBufPoolDeregisterQuery(pMemTable->pPool, pNode, proactive);
   }
@@ -747,8 +749,6 @@ int32_t tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode, bool proactiv
   if (atomic_sub_fetch_32(&pMemTable->nRef, 1) == 0) {
     tsdbMemTableDestroy(pMemTable, proactive);
   }
-
-  return code;
 }
 
 static FORCE_INLINE int32_t tbDataPCmprFn(const void *p1, const void *p2) {

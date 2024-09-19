@@ -165,7 +165,9 @@ int32_t dmRunDnode(SDnode *pDnode) {
     }
 
     if (count == 10) {
-      osUpdate();
+      if(osUpdate() != 0) {
+        dError("failed to update os info");
+      }
       count = 0;
     } else {
       count++;

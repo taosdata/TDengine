@@ -54,8 +54,8 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   STbDbKey tbDbKey = {.version = version, .uid = uid};
 
   // query table.db
-  if (tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pReader->pBuf, &pReader->szBuf) < 0) {
-    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  if ((code = tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pReader->pBuf, &pReader->szBuf)) < 0) {
+    return terrno = (TSDB_CODE_NOT_FOUND == code ? TSDB_CODE_PAR_TABLE_NOT_EXIST : code);
   }
 
   // decode the entry
@@ -98,8 +98,9 @@ int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
   SMeta *pMeta = pReader->pMeta;
 
   SMetaInfo info;
-  if (metaGetInfo(pMeta, uid, &info, pReader) == TSDB_CODE_NOT_FOUND) {
-    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  int32_t   code = metaGetInfo(pMeta, uid, &info, pReader);
+  if (TSDB_CODE_SUCCESS != code) {
+    return terrno = (TSDB_CODE_NOT_FOUND == code ? TSDB_CODE_PAR_TABLE_NOT_EXIST : code);
   }
 
   return metaGetTableEntryByVersion(pReader, info.version, uid);
@@ -615,17 +616,17 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
   return pTSchema;
 }
 
-int32_t metaGetTbTSchemaNotNull(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema) {
+int32_t metaGetTbTSchemaNotNull(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema **ppTSchema) {
   *ppTSchema = metaGetTbTSchema(pMeta, uid, sver, lock);
-  if(*ppTSchema == NULL) {
+  if (*ppTSchema == NULL) {
     return terrno;
   }
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t metaGetTbTSchemaMaybeNull(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema) {
+int32_t metaGetTbTSchemaMaybeNull(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema **ppTSchema) {
   *ppTSchema = metaGetTbTSchema(pMeta, uid, sver, lock);
-  if(*ppTSchema == NULL && terrno == TSDB_CODE_OUT_OF_MEMORY) {
+  if (*ppTSchema == NULL && terrno == TSDB_CODE_OUT_OF_MEMORY) {
     return terrno;
   }
   return TSDB_CODE_SUCCESS;
@@ -1035,36 +1036,6 @@ const void *metaGetTableTagVal(const void *pTag, int16_t type, STagVal *val) {
     return NULL;
   }
 
-#ifdef TAG_FILTER_DEBUG
-  if (IS_VAR_DATA_TYPE(val->type)) {
-    char *buf = taosMemoryCalloc(val->nData + 1, 1);
-    memcpy(buf, val->pData, val->nData);
-    metaDebug("metaTag table val varchar index:%d cid:%d type:%d value:%s", 1, val->cid, val->type, buf);
-    taosMemoryFree(buf);
-  } else {
-    double dval = 0;
-    GET_TYPED_DATA(dval, double, val->type, &val->i64);
-    metaDebug("metaTag table val number index:%d cid:%d type:%d value:%f", 1, val->cid, val->type, dval);
-  }
-
-  SArray *pTagVals = NULL;
-  tTagToValArray((STag *)pTag, &pTagVals);
-  for (int i = 0; i < taosArrayGetSize(pTagVals); i++) {
-    STagVal *pTagVal = (STagVal *)taosArrayGet(pTagVals, i);
-
-    if (IS_VAR_DATA_TYPE(pTagVal->type)) {
-      char *buf = taosMemoryCalloc(pTagVal->nData + 1, 1);
-      memcpy(buf, pTagVal->pData, pTagVal->nData);
-      metaDebug("metaTag table varchar index:%d cid:%d type:%d value:%s", i, pTagVal->cid, pTagVal->type, buf);
-      taosMemoryFree(buf);
-    } else {
-      double dval = 0;
-      GET_TYPED_DATA(dval, double, pTagVal->type, &pTagVal->i64);
-      metaDebug("metaTag table number index:%d cid:%d type:%d value:%f", i, pTagVal->cid, pTagVal->type, dval);
-    }
-  }
-#endif
-
   return val;
 }
 
@@ -1087,6 +1058,9 @@ int32_t metaFilterCreateTime(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
 
   SIdxCursor *pCursor = NULL;
   pCursor = (SIdxCursor *)taosMemoryCalloc(1, sizeof(SIdxCursor));
+  if (pCursor == NULL) {
+    return terrno;
+  }
   pCursor->pMeta = pMeta;
   pCursor->suid = param->suid;
   pCursor->cid = param->cid;
@@ -1159,6 +1133,9 @@ int32_t metaFilterTableName(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
 
   SIdxCursor *pCursor = NULL;
   pCursor = (SIdxCursor *)taosMemoryCalloc(1, sizeof(SIdxCursor));
+  if (pCursor == NULL) {
+    return terrno;
+  }
   pCursor->pMeta = pMeta;
   pCursor->suid = param->suid;
   pCursor->cid = param->cid;
@@ -1234,6 +1211,9 @@ int32_t metaFilterTtl(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
 
   SIdxCursor *pCursor = NULL;
   pCursor = (SIdxCursor *)taosMemoryCalloc(1, sizeof(SIdxCursor));
+  if (pCursor == NULL) {
+    return terrno;
+  }
   pCursor->pMeta = pMeta;
   pCursor->suid = param->suid;
   pCursor->cid = param->cid;
@@ -1584,10 +1564,9 @@ int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo, SMetaReader *pR
   }
 
   // search TDB
-  if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData) < 0) {
+  if ((code = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData)) < 0) {
     // not found
     if (!lock) metaULock(pMeta);
-    code = TSDB_CODE_NOT_FOUND;
     goto _exit;
   }
 

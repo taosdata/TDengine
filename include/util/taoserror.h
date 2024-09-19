@@ -35,6 +35,8 @@ extern STaosError errors[];
 #define TAOS_DEF_ERROR_CODE(mod, code) ((int32_t)((0x80000000 | ((mod)<<16) | (code))))
 
 #define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))
+#define TAOS_SYSTEM_WINAPI_ERROR(code)      (0x81ff0000 | (code))
+#define TAOS_SYSTEM_WINSOCKET_ERROR(code)   (0x82ff0000 | (code))
 #define TAOS_SUCCEEDED(err)                 ((err) >= 0)
 #define TAOS_FAILED(err)                    ((err) < 0)
 
@@ -153,6 +155,9 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_MSG_PREPROCESSED              TAOS_DEF_ERROR_CODE(0, 0x0136) // internal
 #define TSDB_CODE_OUT_OF_BUFFER                 TAOS_DEF_ERROR_CODE(0, 0x0137)
 #define TSDB_CODE_INTERNAL_ERROR                TAOS_DEF_ERROR_CODE(0, 0x0138)
+#define TSDB_CODE_SOCKET_ERROR                  TAOS_DEF_ERROR_CODE(0, 0x0139)
+#define TSDB_CODE_UNSUPPORT_OS                  TAOS_DEF_ERROR_CODE(0, 0x013A)
+#define TSDB_CODE_TIME_ERROR                    TAOS_DEF_ERROR_CODE(0, 0x013B)
 
 //client
 #define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)
@@ -362,6 +367,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_MND_ARBGROUP_ALREADY_EXIST    TAOS_DEF_ERROR_CODE(0, 0x03AA)
 #define TSDB_CODE_MND_ARBGROUP_NOT_EXIST        TAOS_DEF_ERROR_CODE(0, 0x03AB)
 #define TSDB_CODE_MND_ARB_TOKEN_MISMATCH        TAOS_DEF_ERROR_CODE(0, 0x03AC)
+#define TSDB_CODE_MND_VNODE_NOT_OFFLINE         TAOS_DEF_ERROR_CODE(0, 0x03AD)
 
 // mnode-dnode-part2
 #define TSDB_CODE_MND_TOO_MANY_DNODES           TAOS_DEF_ERROR_CODE(0, 0x03B0)
@@ -962,6 +968,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_TMQ_REPLAY_NEED_ONE_VGROUP     TAOS_DEF_ERROR_CODE(0, 0x4013)
 #define TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT         TAOS_DEF_ERROR_CODE(0, 0x4014)
 #define TSDB_CODE_TMQ_NO_TABLE_QUALIFIED         TAOS_DEF_ERROR_CODE(0, 0x4015)
+#define TSDB_CODE_TMQ_NO_NEED_REBALANCE          TAOS_DEF_ERROR_CODE(0, 0x4016)
 
 // stream
 #define TSDB_CODE_STREAM_TASK_NOT_EXIST          TAOS_DEF_ERROR_CODE(0, 0x4100)
@@ -971,6 +978,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_STREAM_NOT_LEADER              TAOS_DEF_ERROR_CODE(0, 0x4105)
 #define TSDB_CODE_STREAM_CONFLICT_EVENT          TAOS_DEF_ERROR_CODE(0, 0x4106)
 #define TSDB_CODE_STREAM_INTERNAL_ERROR          TAOS_DEF_ERROR_CODE(0, 0x4107)
+#define TSDB_CODE_STREAM_INPUTQ_FULL             TAOS_DEF_ERROR_CODE(0, 0x4108)
 
 // TDLite
 #define TSDB_CODE_TDLITE_IVLD_OPEN_FLAGS         TAOS_DEF_ERROR_CODE(0, 0x5100)

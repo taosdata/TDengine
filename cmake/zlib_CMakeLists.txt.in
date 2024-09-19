@@ -12,4 +12,5 @@ ExternalProject_Add(zlib
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
         TEST_COMMAND ""
+        GIT_SHALLOW true
 )

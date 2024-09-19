@@ -128,15 +128,15 @@ int32_t s3CheckCfg() {
     if (!fp) {
       (void)fprintf(stderr, "failed to open test file: %s.\n", path);
       // uError("ERROR: %s Failed to open %s", __func__, path);
-      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _next);
+      TAOS_CHECK_GOTO(terrno, &lino, _next);
     }
     if (taosWriteFile(fp, testdata, strlen(testdata)) < 0) {
       (void)fprintf(stderr, "failed to write test file: %s.\n", path);
-      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _next);
+      TAOS_CHECK_GOTO(terrno, &lino, _next);
     }
     if (taosFsyncFile(fp) < 0) {
       (void)fprintf(stderr, "failed to fsync test file: %s.\n", path);
-      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _next);
+      TAOS_CHECK_GOTO(terrno, &lino, _next);
     }
     (void)taosCloseFile(&fp);
 
@@ -872,7 +872,7 @@ upload:
 
     if (i > 0 && cp.parts[i - 1].completed) {
       if (taosLSeekFile(data->infileFD, cp.parts[i].offset, SEEK_SET) < 0) {
-        TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
+        TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
     }
 
@@ -988,12 +988,12 @@ int32_t s3PutObjectFromFile2ByEp(const char *file, const char *object_name, int8
 
   if (taosStatFile(file, (int64_t *)&contentLength, &lmtime, NULL) < 0) {
     uError("ERROR: %s Failed to stat file %s: ", __func__, file);
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
 
   if (!(data.infileFD = taosOpenFile(file, TD_FILE_READ))) {
     uError("ERROR: %s Failed to open file %s: ", __func__, file);
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
 
   data.totalContentLength = data.totalOriginalContentLength = data.contentLength = data.originalContentLength =
@@ -1065,18 +1065,18 @@ static int32_t s3PutObjectFromFileOffsetByEp(const char *file, const char *objec
 
   if (taosStatFile(file, (int64_t *)&contentLength, &lmtime, NULL) < 0) {
     uError("ERROR: %s Failed to stat file %s: ", __func__, file);
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
 
   contentLength = size;
 
   if (!(data.infileFD = taosOpenFile(file, TD_FILE_READ))) {
     uError("ERROR: %s Failed to open file %s: ", __func__, file);
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
   if (taosLSeekFile(data.infileFD, offset, SEEK_SET) < 0) {
     (void)taosCloseFile(&data.infileFD);
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(terrno);
   }
 
   data.totalContentLength = data.totalOriginalContentLength = data.contentLength = data.originalContentLength =
@@ -1412,8 +1412,8 @@ static int32_t s3GetObjectToFileByEp(const char *object_name, const char *fileNa
 
   TdFilePtr pFile = taosOpenFile(fileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    uError("[s3] open file error, errno:%d, fileName:%s", TAOS_SYSTEM_ERROR(errno), fileName);
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    uError("[s3] open file error, terrno:%d, fileName:%s", terrno, fileName);
+    TAOS_RETURN(terrno);
   }
 
   TS3GetData cbd = {0};
@@ -1871,7 +1871,6 @@ void s3EvictCache(const char *path, long object_size) {
   taosDirName(dir_name);
 
   if (taosGetDiskSize((char *)dir_name, &disk_size) < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
     vError("failed to get disk:%s size since %s", path, terrstr());
     return;
   }
@@ -1881,7 +1880,6 @@ void s3EvictCache(const char *path, long object_size) {
     // 1, list data files' atime under dir(path)
     tdbDirPtr pDir = taosOpenDir(dir_name);
     if (pDir == NULL) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
       vError("failed to open %s since %s", dir_name, terrstr());
     }
     SArray        *evict_files = taosArrayInit(16, sizeof(SEvictFile));

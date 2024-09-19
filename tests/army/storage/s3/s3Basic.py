@@ -129,7 +129,7 @@ class TDTestCase(TBase):
                 time.sleep(2)
                 sc.dnodeStart(1)
             loop += 1
-            # miggrate
+            # migrate
             self.migrateDbS3()
                 
         # check can pass

@@ -112,7 +112,7 @@ int32_t indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   int     code = TSDB_CODE_SUCCESS;
   SIndex* idx = taosMemoryCalloc(1, sizeof(SIndex));
   if (idx == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, END);
+    TAOS_CHECK_GOTO(terrno, NULL, END);
   }
 
   idx->lru = taosLRUCacheInit(opts->cacheSize, -1, .5);

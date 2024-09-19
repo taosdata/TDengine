@@ -2413,7 +2413,10 @@ int32_t mAsofForwardChkFillGrpCache(SMJoinWindowCtx* pCtx) {
         pGrp->readIdx = 0;
         //pGrp->endIdx = pGrp->blk->info.rows - 1;
       } else {
-        (void)taosArrayPop(pCache->grps);
+        if (NULL == taosArrayPop(pCache->grps)) {
+          MJ_ERR_RET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+        }
+        
         pGrp = taosArrayGet(pCache->grps, 0);
         if (NULL == pGrp) {
           MJ_ERR_RET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);

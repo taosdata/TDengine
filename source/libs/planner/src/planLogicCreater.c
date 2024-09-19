@@ -202,7 +202,7 @@ static int32_t rewriteExprsForSelect(SNodeList* pExprs, SSelectStmt* pSelect, ES
   if (NULL != pRewriteExprs) {
     cxt.pOutputs = taosMemoryCalloc(LIST_LENGTH(pExprs), sizeof(bool));
     if (NULL == cxt.pOutputs) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   nodesRewriteSelectStmt(pSelect, clause, doRewriteExpr, &cxt);
@@ -1310,6 +1310,10 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   if (TSDB_CODE_SUCCESS == code && 0 == LIST_LENGTH(pFill->node.pTargets)) {
     code = createColumnByRewriteExpr(pFill->pWStartTs, &pFill->node.pTargets);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pHaving) {
+    code = nodesCloneNode(pSelect->pHaving, &pFill->node.pConditions);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

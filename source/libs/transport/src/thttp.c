@@ -474,7 +474,7 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
 int32_t httpSendQuit(SHttpModule* http, int64_t chanId) {
   SHttpMsg* msg = taosMemoryCalloc(1, sizeof(SHttpMsg));
   if (msg == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   msg->seq = atomic_fetch_add_64(&httpSeqNum, 1);
   msg->quit = 1;
@@ -645,7 +645,7 @@ static void httpHandleReq(SHttpMsg* msg) {
   int32_t fd = taosCreateSocketWithTimeout(5000);
   if (fd < 0) {
     tError("http-report failed to open socket, dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64 ", reason:%s", cli->addr,
-           cli->port, chanId, cli->seq, tstrerror(TAOS_SYSTEM_ERROR(errno)));
+           cli->port, chanId, cli->seq, tstrerror(terrno));
     destroyHttpClient(cli);
     (void)taosReleaseRef(httpRefMgt, chanId);
     return;
@@ -778,7 +778,7 @@ int64_t transInitHttpChanImpl() {
   int32_t      code = 0;
   SHttpModule* http = taosMemoryCalloc(1, sizeof(SHttpModule));
   if (http == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _ERROR;
   }
 

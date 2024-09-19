@@ -433,6 +433,7 @@ void ctgFreeHandle(SCatalog* pCtg) {
 
 void ctgClearHandleMeta(SCatalog* pCtg, int64_t* pClearedSize, int64_t* pCleardNum, bool* roundDone) {
   int64_t cacheSize = 0;
+  int32_t code = 0;
   void*   pIter = taosHashIterate(pCtg->dbCache, NULL);
   while (pIter) {
     SCtgDBCache* dbCache = pIter;
@@ -447,7 +448,10 @@ void ctgClearHandleMeta(SCatalog* pCtg, int64_t* pClearedSize, int64_t* pCleardN
         continue;
       }
 
-      (void)taosHashRemove(dbCache->tbCache, key, len);
+      code = taosHashRemove(dbCache->tbCache, key, len);
+      if (code) {
+        qError("taosHashRemove table cache failed, key:%s, len:%d, error:%s", (char*)key, (int32_t)len, tstrerror(code));
+      }
 
       cacheSize =
           len + sizeof(SCtgTbCache) + ctgGetTbMetaCacheSize(pCache->pMeta) + ctgGetTbIndexCacheSize(pCache->pIndex);
@@ -1201,8 +1205,12 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* d
 
   SVgroupInfo* vgInfo = NULL;
   char         tbFullName[TSDB_TABLE_FNAME_LEN];
-  (void)tNameExtractFullName(pTableName, tbFullName);
-
+  code = tNameExtractFullName(pTableName, tbFullName);
+  if (code) {
+    ctgError("tNameExtractFullName failed, error:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), pTableName->type, pTableName->dbname, pTableName->tname);
+    CTG_ERR_RET(code);
+  }
+  
   uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod,
                                         dbInfo->hashPrefix, dbInfo->hashSuffix);
 
@@ -1965,7 +1973,12 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
 
   char tbFName[TSDB_TABLE_FNAME_LEN];
   char dbFName[TSDB_DB_FNAME_LEN];
-  (void)tNameExtractFullName(&req->pRawReq->tbName, tbFName);
+  code = tNameExtractFullName(&req->pRawReq->tbName, tbFName);
+  if (code) {
+    ctgError("tNameExtractFullName failed, error:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), req->pRawReq->tbName.type, req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
+    CTG_ERR_RET(code);
+  }
+
   (void)tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
 
   while (true) {
@@ -2151,7 +2164,11 @@ int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res)
   if (IS_SYS_DBNAME(req->pRawReq->tbName.dbname)) {
     (void)snprintf(viewFName, sizeof(viewFName), "%s.%s", req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
   } else {
-    (void)tNameExtractFullName(&req->pRawReq->tbName, viewFName);
+    code = tNameExtractFullName(&req->pRawReq->tbName, viewFName);
+    if (code) {
+      ctgError("tNameExtractFullName failed, error:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), req->pRawReq->tbName.type, req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
+      CTG_ERR_RET(code);
+    }
   }
   int32_t len = strlen(viewFName) + 1;
 

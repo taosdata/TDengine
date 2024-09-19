@@ -10346,7 +10346,11 @@ int32_t tDecodeSMCreateStbRsp(SDecoder *pDecoder, SMCreateStbRsp *pRsp) {
   }
   tEndDecode(pDecoder);
 
+  return code;
+
 _exit:
+  tFreeSTableMetaRsp(pRsp->pMeta);
+  taosMemoryFreeClear(pRsp->pMeta);
   return code;
 }
 
@@ -12026,19 +12030,19 @@ int32_t tCloneTbTSMAInfo(STableTSMAInfo *pInfo, STableTSMAInfo **pRes) {
   *pRet = *pInfo;
   if (pInfo->pFuncs) {
     pRet->pFuncs = taosArrayDup(pInfo->pFuncs, NULL);
-    if (!pRet->pFuncs) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (!pRet->pFuncs) code = terrno;
   }
   if (pInfo->pTags && code == TSDB_CODE_SUCCESS) {
     pRet->pTags = taosArrayDup(pInfo->pTags, NULL);
-    if (!pRet->pTags) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (!pRet->pTags) code = terrno;
   }
   if (pInfo->pUsedCols && code == TSDB_CODE_SUCCESS) {
     pRet->pUsedCols = taosArrayDup(pInfo->pUsedCols, NULL);
-    if (!pRet->pUsedCols) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (!pRet->pUsedCols) code = terrno;
   }
   if (pInfo->ast && code == TSDB_CODE_SUCCESS) {
     pRet->ast = taosStrdup(pInfo->ast);
-    if (!pRet->ast) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (!pRet->ast) code = terrno;
   }
   if (code) {
     tFreeAndClearTableTSMAInfo(pRet);

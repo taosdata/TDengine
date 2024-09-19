@@ -89,12 +89,15 @@ static void metaGetEntryInfo(const SMetaEntry *pEntry, SMetaInfo *pInfo) {
 
 static int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp) {
   pMetaRsp->pSchemas = taosMemoryMalloc(pSchema->nCols * sizeof(SSchema));
-
   if (NULL == pMetaRsp->pSchemas) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pMetaRsp->pSchemaExt = taosMemoryMalloc(pSchema->nCols * sizeof(SSchemaExt));
+  if (pMetaRsp->pSchemaExt == NULL) {
+    taosMemoryFree(pMetaRsp->pSchemas);
+    return terrno;
+  }
 
   tstrncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);
   pMetaRsp->numOfColumns = pSchema->nCols;
@@ -232,7 +235,7 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
         }
         int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE);
         if (len < 0) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+          TAOS_CHECK_GOTO(len, NULL, _exception);
         }
         memcpy(val, (uint16_t *)&len, VARSTR_HEADER_SIZE);
         type = TSDB_DATA_TYPE_VARCHAR;
@@ -1558,7 +1561,11 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
   // get table entry
   SDecoder dc = {0};
-  entry.pBuf = taosMemoryMalloc(nData);
+  if ((entry.pBuf = taosMemoryMalloc(nData)) == NULL) {
+    (void)tdbTbcClose(pUidIdxc);
+    (void)tdbTbcClose(pTbDbc);
+    return terrno;
+  }
   memcpy(entry.pBuf, pData, nData);
   tDecoderInit(&dc, entry.pBuf, nData);
   ret = metaDecodeEntry(&dc, &entry);
@@ -1625,6 +1632,9 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
       pSchema->version++;
       pSchema->nCols++;
       pNewSchema = taosMemoryMalloc(sizeof(SSchema) * pSchema->nCols);
+      if (pNewSchema == NULL) {
+        goto _err;
+      }
       memcpy(pNewSchema, pSchema->pSchema, sizeof(SSchema) * (pSchema->nCols - 1));
       pSchema->pSchema = pNewSchema;
       pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].bytes = pAlterTbReq->bytes;
@@ -1832,7 +1842,11 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
 
   (void)tdbTbcGet(pTbDbc, NULL, NULL, &pData, &nData);
 
-  ctbEntry.pBuf = taosMemoryMalloc(nData);
+  if ((ctbEntry.pBuf = taosMemoryMalloc(nData)) == NULL) {
+    (void)tdbTbcClose(pUidIdxc);
+    (void)tdbTbcClose(pTbDbc);
+    return terrno;
+  }
   memcpy(ctbEntry.pBuf, pData, nData);
   tDecoderInit(&dc1, ctbEntry.pBuf, nData);
   (void)metaDecodeEntry(&dc1, &ctbEntry);
@@ -2019,7 +2033,11 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
 
   // get table entry
   SDecoder dc = {0};
-  entry.pBuf = taosMemoryMalloc(nData);
+  if ((entry.pBuf = taosMemoryMalloc(nData)) == NULL) {
+    (void)tdbTbcClose(pUidIdxc);
+    (void)tdbTbcClose(pTbDbc);
+    return terrno;
+  }
   memcpy(entry.pBuf, pData, nData);
   tDecoderInit(&dc, entry.pBuf, nData);
   ret = metaDecodeEntry(&dc, &entry);

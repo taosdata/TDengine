@@ -55,16 +55,38 @@ void *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, void *nodeMsgFp, bool need
 }
 
 void dmGetMonitorSystemInfo(SMonSysInfo *pInfo) {
-  taosGetCpuUsage(&pInfo->cpu_system, &pInfo->cpu_engine);
-  taosGetCpuCores(&pInfo->cpu_cores, false);
-  (void)taosGetProcMemory(&pInfo->mem_engine);
-  (void)taosGetSysMemory(&pInfo->mem_system);
+  int32_t code = 0;
+  code = taosGetCpuUsage(&pInfo->cpu_system, &pInfo->cpu_engine);
+  if (code != 0) {
+    dError("failed to get cpu usage since %s", tstrerror(code));
+  }
+  code = taosGetCpuCores(&pInfo->cpu_cores, false);
+  if (code != 0) {
+    dError("failed to get cpu cores since %s", tstrerror(code));
+  }
+  code = taosGetProcMemory(&pInfo->mem_engine);
+  if (code != 0) {
+    dError("failed to get proc memory since %s", tstrerror(code));
+  }
+  code = taosGetSysMemory(&pInfo->mem_system);
+  if (code != 0) {
+    dError("failed to get sys memory since %s", tstrerror(code));
+  }
   pInfo->mem_total = tsTotalMemoryKB;
   pInfo->disk_engine = 0;
   pInfo->disk_used = tsDataSpace.size.used;
   pInfo->disk_total = tsDataSpace.size.total;
-  taosGetCardInfoDelta(&pInfo->net_in, &pInfo->net_out);
-  taosGetProcIODelta(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
+  code = taosGetCardInfoDelta(&pInfo->net_in, &pInfo->net_out);
+  if (code != 0) {
+    dError("failed to get card info since %s", tstrerror(code));
+    taosSetDefaultCardInfoDelta(&pInfo->net_in, &pInfo->net_out);
+  }
+  code = taosGetProcIODelta(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
+  if (code != 0) {
+    dError("failed to get proc io delta since %s", tstrerror(code));
+    taosSetDefaultProcIODelta(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
+  }
+  return;
 }
 
 int32_t dmGetDnodeId(SDnodeData *pData) { return pData->dnodeId; }

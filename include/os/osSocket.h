@@ -143,7 +143,7 @@ int32_t taosWriteMsg(TdSocketPtr pSocket, void *ptr, int32_t nbytes);
 int32_t taosReadMsg(TdSocketPtr pSocket, void *ptr, int32_t nbytes);
 int32_t taosNonblockwrite(TdSocketPtr pSocket, char *ptr, int32_t nbytes);
 int64_t taosCopyFds(TdSocketPtr pSrcSocket, TdSocketPtr pDestSocket, int64_t len);
-void    taosWinSocketInit();
+int32_t taosWinSocketInit();
 
 /*
  * set timeout(ms)
@@ -165,7 +165,6 @@ int32_t     taosGetFqdn(char *);
 void        tinet_ntoa(char *ipstr, uint32_t ip);
 uint32_t    ip2uint(const char *const ip_addr);
 int32_t     taosIgnSIGPIPE();
-uint32_t    taosInetAddr(const char *ipAddr);
 const char *taosInetNtoa(struct in_addr ipInt, char *dstStr, int32_t len);
 
 uint64_t taosHton64(uint64_t val);

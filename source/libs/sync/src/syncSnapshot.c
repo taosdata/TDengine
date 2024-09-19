@@ -54,7 +54,7 @@ static int32_t syncSnapBufferCreate(SSyncSnapBuffer **ppBuf) {
   SSyncSnapBuffer *pBuf = taosMemoryCalloc(1, sizeof(SSyncSnapBuffer));
   if (pBuf == NULL) {
     *ppBuf = NULL;
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
   pBuf->size = sizeof(pBuf->entries) / sizeof(void *);
   if (pBuf->size != TSDB_SYNC_SNAP_BUFFER_SIZE) return TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -74,7 +74,7 @@ int32_t snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex, SSyncSn
 
   SSyncSnapshotSender *pSender = taosMemoryCalloc(1, sizeof(SSyncSnapshotSender));
   if (pSender == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pSender->start = false;
@@ -285,7 +285,7 @@ static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
     if (pSender->seq > SYNC_SNAPSHOT_SEQ_BEGIN) {
       pBlk = taosMemoryCalloc(1, sizeof(SyncSnapBlock));
       if (pBlk == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _OUT;
       }
 
@@ -422,7 +422,7 @@ int32_t snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId, SSyncSnapsh
 
   SSyncSnapshotReceiver *pReceiver = taosMemoryCalloc(1, sizeof(SSyncSnapshotReceiver));
   if (pReceiver == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pReceiver->start = false;
@@ -697,7 +697,7 @@ static int32_t syncSnapReceiverExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshot
   // copy snap info from leader
   void *data = taosMemoryCalloc(1, pMsg->dataLen);
   if (data == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
   pInfo->data = data;
   data = NULL;

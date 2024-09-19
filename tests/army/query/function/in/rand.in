@@ -1,0 +1,3 @@
+select RAND(1245);
+select RAND(id) from ts_4893.d0 limit 10;
+select RAND(id) from ts_4893.d0 order by id desc limit 10;

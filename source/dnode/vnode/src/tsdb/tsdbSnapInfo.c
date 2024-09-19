@@ -102,7 +102,11 @@ static int32_t tsdbTFileSetToFSetPartition(STFileSet* fset, STsdbFSetPartition**
     }
     count++;
     SVersionRange vr = {.minVer = f->minVer, .maxVer = f->maxVer};
-    (void)TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
+    code = TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
+    if (code) {
+      tsdbFSetPartitionClear(&p);
+      return code;
+    }
   }
 
   typ = TSDB_FSET_RANGE_TYP_STT;
@@ -120,12 +124,20 @@ static int32_t tsdbTFileSetToFSetPartition(STFileSet* fset, STsdbFSetPartition**
       }
       count++;
       SVersionRange vr = {.minVer = f->minVer, .maxVer = f->maxVer};
-      (void)TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
+      code = TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
+      if (code) {
+        tsdbFSetPartitionClear(&p);
+        return code;
+      }
     }
   }
   if (corrupt && count == 0) {
     SVersionRange vr = {.minVer = VERSION_MIN, .maxVer = fset->maxVerValid};
-    (void)TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
+    code = TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
+    if (code) {
+      tsdbFSetPartitionClear(&p);
+      return code;
+    }
   }
   ppSP[0] = p;
   return 0;
@@ -182,7 +194,11 @@ int32_t tsdbFSetPartListToRangeDiff(STsdbFSetPartList* pList, TFileSetRangeArray
     r->sver = maxVerValid + 1;
     r->ever = VERSION_MAX;
     tsdbDebug("range diff fid:%" PRId64 ", sver:%" PRId64 ", ever:%" PRId64, part->fid, r->sver, r->ever);
-    (void)TARRAY2_SORT_INSERT(pDiff, r, tsdbTFileSetRangeCmprFn);
+    code = TARRAY2_SORT_INSERT(pDiff, r, tsdbTFileSetRangeCmprFn);
+    if (code) {
+      taosMemoryFree(r);
+      goto _err;
+    }
   }
   ppRanges[0] = pDiff;
 
@@ -191,7 +207,7 @@ int32_t tsdbFSetPartListToRangeDiff(STsdbFSetPartList* pList, TFileSetRangeArray
 
 _err:
   if (pDiff) {
-    (void)tsdbTFileSetRangeArrayDestroy(&pDiff);
+    tsdbTFileSetRangeArrayDestroy(&pDiff);
   }
   return code;
 }
@@ -355,7 +371,11 @@ static STsdbFSetPartList* tsdbSnapGetFSetPartList(STFileSystem* fs) {
       terrno = code;
       break;
     }
-    (void)TARRAY2_SORT_INSERT(pList, pItem, tsdbFSetPartCmprFn);
+    code = TARRAY2_SORT_INSERT(pList, pItem, tsdbFSetPartCmprFn);
+    if (code) {
+      terrno = code;
+      break;
+    }
   }
   (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
 

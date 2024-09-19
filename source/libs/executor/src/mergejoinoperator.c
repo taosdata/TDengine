@@ -149,6 +149,9 @@ int32_t mJoinTrimKeepOneRow(SSDataBlock* pBlock, int32_t totalRows, const bool* 
             len = varDataTLen(p1);
           }
           char* p2 = taosMemoryMalloc(len);
+          if (NULL == p2) {
+            MJ_ERR_RET(terrno);
+          }
           TAOS_MEMCPY(p2, p1, len);
           code = colDataSetVal(pDst, numOfRows, p2, false);
           if (code) {
@@ -474,8 +477,11 @@ int32_t mJoinCopyMergeMidBlk(SMJoinMergeCtx* pCtx, SSDataBlock** ppMid, SSDataBl
     pCtx->midRemains = false;
   } else {
     int32_t copyRows = pMore->info.capacity - pMore->info.rows;
-    MJ_ERR_RET(blockDataMergeNRows(pMore, pLess, pLess->info.rows - copyRows, copyRows));
-    blockDataShrinkNRows(pLess, copyRows);
+    if (copyRows > 0) {
+      MJ_ERR_RET(blockDataMergeNRows(pMore, pLess, pLess->info.rows - copyRows, copyRows));
+      blockDataShrinkNRows(pLess, copyRows);
+    }
+    
     pCtx->midRemains = true;
   }
 
@@ -1375,7 +1381,9 @@ int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* whol
 _return:
 
   if (pTable->noKeepEqGrpRows || !keepGrp || (!pTable->multiEqGrpRows && !restart)) {
-    (void)taosArrayPop(pTable->eqGrps);
+    if (NULL == taosArrayPop(pTable->eqGrps)) {
+      code = terrno;
+    }
   } else {
     pTable->grpTotalRows += pGrp->endIdx - pGrp->beginIdx + 1;  
   }
@@ -1742,6 +1750,7 @@ int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBloc
   if (pBlock && pBlock->info.rows > 0) {
     *pResBlock = pBlock;
   }
+
   return code;
 }
 
