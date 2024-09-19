@@ -151,7 +151,7 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
       if (pTagVal->nData > 0) {
         char *val = taosMemoryCalloc(1, pTagVal->nData + VARSTR_HEADER_SIZE);
         if (val == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+          TAOS_CHECK_GOTO(terrno, NULL, _exception);
         }
         int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE);
         if (len < 0) {
@@ -217,7 +217,7 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
 
   SIndexMultiTerm *terms = indexMultiTermCreate();
   if (terms == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int16_t nCols = taosArrayGetSize(pTagVals);
@@ -235,7 +235,7 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
       if (pTagVal->nData > 0) {
         char *val = taosMemoryCalloc(1, pTagVal->nData + VARSTR_HEADER_SIZE);
         if (val == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+          TAOS_CHECK_GOTO(terrno, NULL, _exception);
         }
         int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE);
         if (len < 0) {
@@ -2760,7 +2760,7 @@ int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_
 
   *ppTagIdxKey = (STagIdxKey *)taosMemoryMalloc(*nTagIdxKey);
   if (*ppTagIdxKey == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*ppTagIdxKey)->suid = suid;
