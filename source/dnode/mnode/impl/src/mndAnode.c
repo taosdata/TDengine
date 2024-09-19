@@ -750,7 +750,7 @@ static int32_t mndGetAnodeFuncList(const char *url, SAnodeObj *pObj) {
   if (pJson == NULL) return terrno;
 
   int32_t code = mndDecodeFuncList(pJson, pObj);
-  if (pJson != NULL) cJSON_Delete(pJson);
+  if (pJson != NULL) tjsonDelete(pJson);
   TAOS_RETURN(code);
 }
 
@@ -781,7 +781,7 @@ static int32_t mndGetAnodeStatus(SAnodeObj *pObj, char *status) {
   }
 
 _OVER:
-  if (pJson != NULL) cJSON_Delete(pJson);
+  if (pJson != NULL) tjsonDelete(pJson);
   TAOS_RETURN(code);
 }
 

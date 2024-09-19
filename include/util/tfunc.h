@@ -19,6 +19,7 @@
 #include "os.h"
 #include "tdef.h"
 #include "thash.h"
+#include "tjson.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,10 +40,15 @@ typedef struct {
   char      *url;
 } SAFuncUrl;
 
+typedef struct {
+  TdFilePtr filePtr;
+  char      fileName[PATH_MAX];
+} SAFuncJson;
+
 int32_t taosFuncInit();
 void    taosFuncCleanup();
 int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp);
-int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp);
+SJson  *taosFuncGetJson(const char *url, bool isGet, const char *file);
 
 void    taosFuncUpdate();
 int32_t taosFuncGetUrl(const char *funcName, EAFuncType type, char *url, int32_t urlLen);
@@ -54,6 +60,13 @@ void    taosFuncFreeHash(SHashObj *pHash);
 
 const char *taosFuncStr(EAFuncType type);
 EAFuncType  taosFuncInt(const char *name);
+
+int32_t taosFuncOpenJson(SAFuncJson *pFile);
+int32_t taosFuncWritePara(SAFuncJson *pFile, const char *paras, const char *fmt, const char *prec);
+int32_t taosFuncWriteMeta(SAFuncJson *pFile, int32_t c1, int32_t c2);
+int32_t taosFuncWriteData(SAFuncJson *pFile, const char *data, bool isLast);
+int32_t taosFuncWriteRows(SAFuncJson *pFile, int32_t numOfRows);
+void    taosFuncCloseJson(SAFuncJson *pFile);
 
 #ifdef __cplusplus
 }

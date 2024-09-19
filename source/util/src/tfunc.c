@@ -16,9 +16,12 @@
 #define _DEFAULT_SOURCE
 #include "tfunc.h"
 #include <curl/curl.h>
+#include "tmsg.h"
+#include "ttypes.h"
+#include "tutil.h"
 
-#define TSDB_AFUNC_FUNC_PREFIX  "func="
-#define TSDB_AFUNC_SPLIT        ","
+#define TSDB_AFUNC_FUNC_PREFIX "func="
+#define TSDB_AFUNC_SPLIT       ","
 
 typedef struct {
   int64_t       ver;
@@ -27,6 +30,7 @@ typedef struct {
 } SAFuncMgmt;
 
 static SAFuncMgmt tsFuncs = {0};
+static int32_t    taosCurlTestStr(const char *url, SCurlResp *pRsp);
 
 const char *taosFuncStr(EAFuncType type) {
   switch (type) {
@@ -203,9 +207,104 @@ _OVER:
 #endif
 }
 
-int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp) {
+static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen) {
+#if 0
+  return taosCurlTestStr(url, pRsp);
+#else
+  struct curl_slist *headers = NULL;
+  CURL              *curl = NULL;
+  CURLcode           code = 0;
+
+  curl = curl_easy_init();
+  if (curl == NULL) {
+    uError("failed to create curl handle");
+    return -1;
+  }
+
+  headers = curl_slist_append(headers, "Content-Type:application/json;charset=UTF-8");
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+  curl_easy_setopt(curl, CURLOPT_URL, url);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp);
+  curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 60000);
+  curl_easy_setopt(curl, CURLOPT_POST, 1);
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, bufLen);
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, buf);
+
   // curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "name=daniel&project=curl");
-  return 0;
+
+  code = curl_easy_perform(curl);
+  if (code != CURLE_OK) {
+    uError("failed to perform curl action, code:%d", code);
+  }
+
+_OVER:
+  if (curl != NULL) {
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+  }
+  return code;
+#endif
+}
+
+SJson *taosFuncGetJson(const char *url, bool isGet, const char *file) {
+  int32_t   code = -1;
+  char     *content = NULL;
+  int64_t   contentLen;
+  SJson    *pJson = NULL;
+  SCurlResp curlRsp = {0};
+  TdFilePtr pFile = NULL;
+
+  if (isGet) {
+    if (taosCurlGetRequest(url, &curlRsp) != 0) {
+      code = TSDB_CODE_MND_ANODE_URL_CANT_ACCESS;
+      goto _OVER;
+    }
+  } else {
+    pFile = taosOpenFile(file, TD_FILE_READ);
+    if (pFile == NULL) {
+      code = terrno;
+      goto _OVER;
+    }
+
+    code = taosFStatFile(pFile, &contentLen, NULL);
+    if (code != 0) goto _OVER;
+
+    content = taosMemoryMalloc(contentLen + 1);
+    if (content == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _OVER;
+    }
+
+    if (taosReadFile(pFile, content, contentLen) != contentLen) {
+      code = terrno;
+      goto _OVER;
+    }
+
+    content[contentLen] = '\0';
+
+    if (taosCurlPostRequest(url, &curlRsp, content, contentLen) != 0) {
+      code = TSDB_CODE_MND_ANODE_URL_CANT_ACCESS;
+      goto _OVER;
+    }
+  }
+
+  if (curlRsp.data == NULL || curlRsp.dataLen == 0) {
+    code = TSDB_CODE_MND_ANODE_RSP_IS_NULL;
+    goto _OVER;
+  }
+
+  pJson = tjsonParse(curlRsp.data);
+  if (pJson == NULL) {
+    code = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
+
+_OVER:
+  if (curlRsp.data != NULL) taosMemoryFreeClear(curlRsp.data);
+  if (content != NULL) taosMemoryFree(content);
+  if (pFile != NULL) taosCloseFile(&pFile);
+  return pJson;
 }
 
 static int32_t taosCurlTestStr(const char *url, SCurlResp *pRsp) {
@@ -230,15 +329,115 @@ static int32_t taosCurlTestStr(const char *url, SCurlResp *pRsp) {
       "  \"status\": \"ready\""
       "}";
 
+  const char *anomalyWindowStr =
+      "{\n"
+      "    \"rows\": 3,\n"
+      "    \"data\": [\n"
+      "        [1577808000000, 1578153600000],\n"
+      "        [1578153600000, 1578240000000],\n"
+      "        [1578240000000, 1578499200000]\n"
+      "    ]\n"
+      "}";
+
   if (strstr(url, "list") != NULL) {
     pRsp->dataLen = strlen(listStr);
     pRsp->data = taosMemoryCalloc(1, pRsp->dataLen + 1);
     strcpy(pRsp->data, listStr);
-  } else {
+  } else if (strstr(url, "status") != NULL) {
     pRsp->dataLen = strlen(statusStr);
     pRsp->data = taosMemoryCalloc(1, pRsp->dataLen + 1);
     strcpy(pRsp->data, statusStr);
+  } else if (strstr(url, "anomaly_window") != NULL) {
+    pRsp->dataLen = strlen(anomalyWindowStr);
+    pRsp->data = taosMemoryCalloc(1, pRsp->dataLen + 1);
+    strcpy(pRsp->data, anomalyWindowStr);
+  } else {
   }
 
   return 0;
+}
+
+int32_t taosFuncOpenJson(SAFuncJson *pFile) {
+  int32_t code = 0;
+  pFile->filePtr =
+      taosOpenFile(pFile->fileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  if (pFile->filePtr == NULL) TAOS_CHECK_GOTO(terrno, NULL, _OVER);
+
+_OVER:
+  return code;
+}
+
+int32_t taosFuncWritePara(SAFuncJson *pFile, const char *paras, const char *fmt, const char *prec) {
+  const char *js =
+      "{\n"
+      "\"input\": {\n"
+      "  \"parameters\": \"%s\",\n"
+      "    \"timestamp\": {\n"
+      "    \"format\": \"%s\",\n"
+      "    \"precision\": \"%s\"\n"
+      "  },\n"
+      "  \"type\": \"forecast\",\n"
+      "  \"weather\": {},\n"
+      "  \"holiday\": {},\n"
+      "  \"season\": {}\n"
+      "},\n"
+      "\"output\": {\n"
+      "  \"columns\": [\"start\", \"end\"]\n"
+      "},\n";
+  char    buf[256] = {0};
+  int32_t bufLen = snprintf(buf, sizeof(buf), js, paras, fmt, prec);
+
+  if (taosWriteFile(pFile->filePtr, buf, bufLen) <= 0) {
+    return terrno;
+  }
+  return 0;
+}
+
+int32_t taosFuncWriteMeta(SAFuncJson *pFile, int32_t c1, int32_t c2) {
+  const char *js =
+      "\"column_meta\": [\n"
+      "  [\"ts\", \"%s\", %d],\n"
+      "  [\"val\", \"%s\", %d]\n"
+      "],\n"
+      "\"data\": [\n";
+  char    buf[256] = {0};
+  int32_t bufLen = snprintf(buf, sizeof(buf), js, tDataTypes[c1].name, tDataTypes[c1].bytes, tDataTypes[c2].name,
+                            tDataTypes[c2].bytes);
+
+  if (taosWriteFile(pFile->filePtr, buf, bufLen) <= 0) {
+    return terrno;
+  }
+  return 0;
+}
+
+int32_t taosFuncWriteData(SAFuncJson *pFile, const char *data, bool isLast) {
+  const char *js = "[%s]%s\n";
+  char        buf[86] = {0};
+  int32_t     bufLen = snprintf(buf, sizeof(buf), js, data, isLast ? "" : ",");
+
+  if (taosWriteFile(pFile->filePtr, buf, bufLen) <= 0) {
+    return terrno;
+  }
+  return 0;
+}
+
+int32_t taosFuncWriteRows(SAFuncJson *pFile, int32_t numOfRows) {
+  const char *js =
+      "],\n"
+      "\"rows\": %d\n"
+      "}";
+  char    buf[256] = {0};
+  int32_t bufLen = snprintf(buf, sizeof(buf), js, numOfRows);
+
+  if (taosWriteFile(pFile->filePtr, buf, bufLen) <= 0) {
+    return terrno;
+  }
+  if (taosFsyncFile(pFile->filePtr) < 0) {
+    return terrno;
+  }
+  return 0;
+}
+
+void taosFuncCloseJson(SAFuncJson *pFile) {
+  (void)taosCloseFile(&pFile->filePtr);
 }

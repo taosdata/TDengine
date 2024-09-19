@@ -22,6 +22,8 @@
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
+#include "tfunc.h"
+#include "tjson.h"
 #include "ttime.h"
 
 typedef struct {
@@ -40,6 +42,9 @@ typedef struct {
   SExprSupp          scalarSup;
   int32_t            tsSlotId;
   STimeWindowAggSupp twAggSup;
+  char               funcName[TSDB_FUNC_NAME_LEN];
+  char               funcUrl[TSDB_FUNC_URL_LEN];
+  char               anomalyOpt[TSDB_FUNC_OPTION_LEN];
   SAnomalyWindowSupp anomalySup;
   SWindowRowsSup     anomalyWinRowSup;
   SColumn            anomalyCol;
@@ -66,8 +71,20 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
     goto _error;
   }
 
+  if (!taosFuncGetParaStr(pAnomalyNode->anomalyOpt, "func=", pInfo->funcName, sizeof(pInfo->funcName))) {
+    uError("failed to get anomaly_window funcName from %s", pAnomalyNode->anomalyOpt);
+    code = TSDB_CODE_MND_AFUNC_NOT_FOUND;
+    goto _error;
+  }
+  if (taosFuncGetUrl(pInfo->funcName, AFUNC_TYPE_FORECAST, pInfo->funcUrl, sizeof(pInfo->funcUrl)) != 0) {
+    uError("failed to get anomaly_window funcUrl from %s", pInfo->funcName);
+    code = TSDB_CODE_MND_AFUNC_NOT_LOAD;
+    goto _error;
+  }
+
   pOperator->exprSupp.hasWindowOrGroup = true;
   pInfo->tsSlotId = ((SColumnNode*)pAnomalyNode->window.pTspk)->slotId;
+  strncpy(pInfo->anomalyOpt, pAnomalyNode->anomalyOpt, sizeof(pInfo->anomalyOpt));
 
   if (pAnomalyNode->window.pExprs != NULL) {
     int32_t    numOfScalarExpr = 0;
@@ -238,43 +255,41 @@ static int32_t anomalyCacheBlock(SAnomalyWindowOperatorInfo* pInfo, SSDataBlock*
   return 0;
 }
 
-static void anomalyCacheRow(SAnomalyWindowSupp* pSupp, int64_t ts, char* val, int8_t valType) {
-  char    buf[32];
-  int32_t bufLen = 0;
-
+static void anomalyPrintRow(SAnomalyWindowSupp* pSupp, int64_t ts, char* val, int8_t valType, char* buf,
+                            int32_t bufLen) {
   switch (valType) {
     case TSDB_DATA_TYPE_BOOL:
-      bufLen = snprintf(buf, sizeof(buf), "%" PRId64 ",%d", ts, (*((int8_t*)val) == 1) ? 1 : 0);
+      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%d", ts, (*((int8_t*)val) == 1) ? 1 : 0);
       break;
     case TSDB_DATA_TYPE_TINYINT:
-      bufLen = snprintf(buf, sizeof(buf), "%" PRId64 ",%d", ts, *(int8_t*)val);
+      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%d", ts, *(int8_t*)val);
       break;
     case TSDB_DATA_TYPE_UTINYINT:
-      bufLen = snprintf(buf, sizeof(buf), "%" PRId64 ",%u", ts, *(uint8_t*)val);
+      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%u", ts, *(uint8_t*)val);
       break;
     case TSDB_DATA_TYPE_SMALLINT:
-      bufLen = snprintf(buf, sizeof(buf), "%" PRId64 ",%d", ts, *(int16_t*)val);
+      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%d", ts, *(int16_t*)val);
       break;
     case TSDB_DATA_TYPE_USMALLINT:
-      bufLen = snprintf(buf, sizeof(buf), "%" PRId64 ",%u", ts, *(uint16_t*)val);
+      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%u", ts, *(uint16_t*)val);
       break;
     case TSDB_DATA_TYPE_INT:
-      bufLen = snprintf(buf, sizeof(buf), "%" PRId64 ",%d", ts, *(int32_t*)val);
+      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%d", ts, *(int32_t*)val);
       break;
     case TSDB_DATA_TYPE_UINT:
-      bufLen = snprintf(buf, sizeof(buf), "%" PRId64 ",%u", ts, *(uint32_t*)val);
+      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%u", ts, *(uint32_t*)val);
       break;
     case TSDB_DATA_TYPE_BIGINT:
-      bufLen = snprintf(buf, sizeof(buf), "%" PRId64 ",%" PRId64, ts, *(int64_t*)val);
+      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%" PRId64, ts, *(int64_t*)val);
       break;
     case TSDB_DATA_TYPE_UBIGINT:
-      bufLen = snprintf(buf, sizeof(buf), "%" PRId64 ",%" PRIu64, ts, *(uint64_t*)val);
+      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%" PRIu64, ts, *(uint64_t*)val);
       break;
     case TSDB_DATA_TYPE_FLOAT:
-      bufLen = snprintf(buf, sizeof(buf), "%" PRId64 ",%f", ts, GET_FLOAT_VAL(val));
+      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%f", ts, GET_FLOAT_VAL(val));
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      bufLen = snprintf(buf, sizeof(buf), "%" PRId64 ",%f", ts, GET_DOUBLE_VAL(val));
+      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%f", ts, GET_DOUBLE_VAL(val));
       break;
     default:
       buf[0] = '\0';
@@ -298,9 +313,64 @@ static int32_t anomalyFindWindow(SAnomalyWindowSupp* pSupp, TSKEY key) {
   return -1;
 }
 
+static int32_t anomalyParseJson(SJson* pJson, SArray* pWindows) {
+  int32_t     code = 0;
+  int32_t     rows = 0;
+  STimeWindow win = {0};
+
+  taosArrayClear(pWindows);
+
+  tjsonGetInt32ValueFromDouble(pJson, "rows", rows, code);
+  if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
+  if (rows <= 0) return 0;
+
+  SJson* data = tjsonGetObjectItem(pJson, "data");
+  if (data == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
+
+  int32_t datasize = tjsonGetArraySize(data);
+  if (datasize != rows) return TSDB_CODE_INVALID_JSON_FORMAT;
+
+  for (int32_t i = 0; i < rows; ++i) {
+    SJson* row = tjsonGetArrayItem(data, i);
+    if (row == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
+
+    int32_t colsize = tjsonGetArraySize(row);
+    if (colsize != 2) return TSDB_CODE_INVALID_JSON_FORMAT;
+
+    SJson* start = tjsonGetArrayItem(row, 0);
+    SJson* end = tjsonGetArrayItem(row, 1);
+    if (start == NULL || end == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
+
+    tjsonGetObjectValueBigInt(start, &win.skey);
+    tjsonGetObjectValueBigInt(end, &win.ekey);
+
+    if (taosArrayPush(pWindows, &win) == NULL) return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  return 0;
+}
+
 static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   SAnomalyWindowOperatorInfo* pInfo = pOperator->info;
   SAnomalyWindowSupp*         pSupp = &pInfo->anomalySup;
+  SJson*                      pJson = NULL;
+  SAFuncJson                  file = {0};
+  char                        buf[64] = {0};
+  int32_t                     code = 0;
+  int32_t                     numOfRows = 0;
+
+  snprintf(file.fileName, sizeof(file.fileName), "/tmp/td_g%" PRId64, pSupp->groupId);  // use rand?
+  code = taosFuncOpenJson(&file);
+  if (code != 0) goto _OVER;
+
+  const char* prec = TSDB_TIME_PRECISION_MILLI_STR;
+  if (pInfo->anomalyCol.precision == TSDB_TIME_PRECISION_MICRO) prec = TSDB_TIME_PRECISION_MICRO_STR;
+  if (pInfo->anomalyCol.precision == TSDB_TIME_PRECISION_NANO) prec = TSDB_TIME_PRECISION_NANO_STR;
+  code = taosFuncWritePara(&file, pInfo->anomalyOpt, "number", prec);
+  if (code != 0) goto _OVER;
+
+  code = taosFuncWriteMeta(&file, TSDB_DATA_TYPE_TIMESTAMP, pInfo->anomalyCol.type);
+  if (code != 0) goto _OVER;
 
   int32_t numOfBlocks = (int32_t)taosArrayGetSize(pSupp->blocks);
   for (int32_t i = 0; i < numOfBlocks; ++i) {
@@ -312,33 +382,34 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
     if (pTsCol == NULL) break;
 
     for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-      SColumnDataAgg* pAgg = (pBlock->pBlockAgg != NULL) ? &pBlock->pBlockAgg[pInfo->anomalyCol.slotId] : NULL;
-      if (colDataIsNull(pValCol, pBlock->info.rows, j, pAgg)) continue;
-      anomalyCacheRow(pSupp, ((TSKEY*)pTsCol->pData)[j], colDataGetData(pValCol, j), pValCol->info.type);
+      anomalyPrintRow(pSupp, ((TSKEY*)pTsCol->pData)[j], colDataGetData(pValCol, j), pValCol->info.type, buf,
+                      sizeof(buf));
+      bool isLast = ((i == numOfBlocks - 1) && (j == pBlock->info.rows - 1));
+      code = taosFuncWriteData(&file, buf, isLast);
+      if (code != 0) goto _OVER;
+      numOfRows++;
     }
   }
 
-#if 0
-  STimeWindow win1 = {.skey = 1726056351057, .ekey = 1726056354116};
-  STimeWindow win2 = {.skey = 1726056354116, .ekey = 1726126062004};
-  STimeWindow win3 = {.skey = 1726126062004, .ekey = INT64_MAX};
-  taosArrayPush(pSupp->windows, &win1);
-  taosArrayPush(pSupp->windows, &win2);
-  taosArrayPush(pSupp->windows, &win3);
-#else
-  STimeWindow win1 = {.skey = 1577808000000, .ekey = 1578153600000};
-  STimeWindow win2 = {.skey = 1578153600000, .ekey = 1578240000000};
-  STimeWindow win3 = {.skey = 1578240000000, .ekey = 1578499200000};
-  STimeWindow win4 = {.skey = 1578499200000, .ekey = 1578672000000};
-  STimeWindow win5 = {.skey = 1578672000000, .ekey = INT64_MAX};
-  taosArrayPush(pSupp->windows, &win1);
-  taosArrayPush(pSupp->windows, &win2);
-  taosArrayPush(pSupp->windows, &win3);
-  taosArrayPush(pSupp->windows, &win4);
-  taosArrayPush(pSupp->windows, &win5);
-#endif
+  code = taosFuncWriteRows(&file, numOfRows);
+  if (code != 0) goto _OVER;
 
-  return 0;
+  taosFuncCloseJson(&file);
+
+  pJson = taosFuncGetJson(pInfo->funcUrl, false, file.fileName);
+  if (pJson == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  code = anomalyParseJson(pJson, pSupp->windows);
+  if (code != 0) goto _OVER;
+
+_OVER:
+  taosFuncCloseJson(&file);
+  taosRemoveFile(file.fileName);
+  if (pJson != NULL) tjsonDelete(pJson);
+  return code;
 }
 
 static void anomalyAggregateRows(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
