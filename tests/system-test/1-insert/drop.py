@@ -116,6 +116,12 @@ class TDTestCase:
                 tdSql.query(f'select * from {stbname} where {k} = {self.ts}')
                 tdSql.checkRows(self.tbnum) 
         tdSql.execute(f'drop database {self.dbname}')
+    def drop_table_with_check(self):
+        stb_names = [ f'stb0', f'aa\u00bf\u200bstb0']
+        ctb_names = [ f'ctb0', f'aa\u00bf\u200bctb0']
+        ntb_names = [ f'ntb0', f'aa\u00bf\u200bntb0']
+        tdSql.execute(f'create database {self.dbname} replica {self.replicaVar} wal_retention_period 3600')
+        tdSql.execute(f'drop database {self.dbname}') 
     def drop_topic_check(self):
         tdSql.execute(f'create database {self.dbname} replica {self.replicaVar} wal_retention_period 3600')
         tdSql.execute(f'use {self.dbname}')
@@ -161,6 +167,7 @@ class TDTestCase:
     def run(self):
         self.drop_ntb_check()
         self.drop_stb_ctb_check()
+        self.drop_table_with_check()
         self.drop_topic_check()
         if platform.system().lower() == 'windows':        
             self.drop_stream_check()
