@@ -177,7 +177,7 @@ int32_t tBloomFilterDecode(SDecoder* pDecoder, SBloomFilter** ppBF) {
     QUERY_CHECK_CODE(code, lino, _error);
   }
   pBF->buffer = taosMemoryCalloc(pBF->numUnits, sizeof(uint64_t));
-  QUERY_CHECK_NULL(pBF->buffer, code, lino, _error, errno);
+  QUERY_CHECK_NULL(pBF->buffer, code, lino, _error, terrno);
 
   for (int32_t i = 0; i < pBF->numUnits; i++) {
     uint64_t* pUnits = (uint64_t*)pBF->buffer;
