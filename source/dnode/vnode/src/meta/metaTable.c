@@ -369,7 +369,7 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq, SArray *tb
 
   rc = tdbTbcMoveTo(pCtbIdxc, &(SCtbIdxKey){.suid = pReq->suid, .uid = INT64_MIN}, sizeof(SCtbIdxKey), &c);
   if (rc < 0) {
-    (void)tdbTbcClose(pCtbIdxc);
+    tdbTbcClose(pCtbIdxc);
     metaWLock(pMeta);
     goto _drop_super_table;
   }
@@ -386,12 +386,12 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq, SArray *tb
 
     if (taosArrayPush(tbUidList, &(((SCtbIdxKey *)pKey)->uid)) == NULL) {
       tdbFree(pKey);
-      (void)tdbTbcClose(pCtbIdxc);
+      tdbTbcClose(pCtbIdxc);
       return terrno;
     }
   }
 
-  (void)tdbTbcClose(pCtbIdxc);
+  tdbTbcClose(pCtbIdxc);
 
   (void)tsdbCacheDropSubTables(pMeta->pVnode->pTsdb, tbUidList, pReq->suid);
 
@@ -437,7 +437,7 @@ static int32_t metaGetSubtables(SMeta *pMeta, int64_t suid, SArray *uids) {
   TAOS_CHECK_RETURN(tdbTbcOpen(pMeta->pCtbIdx, &pCtbIdxc, NULL));
   int rc = tdbTbcMoveTo(pCtbIdxc, &(SCtbIdxKey){.suid = suid, .uid = INT64_MIN}, sizeof(SCtbIdxKey), &c);
   if (rc < 0) {
-    (void)tdbTbcClose(pCtbIdxc);
+    tdbTbcClose(pCtbIdxc);
     metaWLock(pMeta);
     return 0;
   }
@@ -454,14 +454,14 @@ static int32_t metaGetSubtables(SMeta *pMeta, int64_t suid, SArray *uids) {
 
     if (taosArrayPush(uids, &(((SCtbIdxKey *)pKey)->uid)) == NULL) {
       tdbFree(pKey);
-      (void)tdbTbcClose(pCtbIdxc);
+      tdbTbcClose(pCtbIdxc);
       return terrno;
     }
   }
 
   tdbFree(pKey);
 
-  (void)tdbTbcClose(pCtbIdxc);
+  tdbTbcClose(pCtbIdxc);
   return 0;
 }
 
@@ -480,14 +480,14 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   TAOS_CHECK_RETURN(tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, NULL));
   ret = tdbTbcMoveTo(pUidIdxc, &pReq->suid, sizeof(tb_uid_t), &c);
   if (ret < 0 || c) {
-    (void)tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pUidIdxc);
 
     return terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
   }
 
   ret = tdbTbcGet(pUidIdxc, NULL, NULL, &pData, &nData);
   if (ret < 0) {
-    (void)tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pUidIdxc);
 
     return terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
   }
@@ -497,8 +497,8 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   TAOS_CHECK_RETURN(tdbTbcOpen(pMeta->pTbDb, &pTbDbc, NULL));
   ret = tdbTbcMoveTo(pTbDbc, &((STbDbKey){.uid = pReq->suid, .version = oversion}), sizeof(STbDbKey), &c);
   if (!(ret == 0 && c == 0)) {
-    (void)tdbTbcClose(pUidIdxc);
-    (void)tdbTbcClose(pTbDbc);
+    tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pTbDbc);
 
     metaError("meta/table: invalide ret: %" PRId32 " or c: %" PRId32 "alter stb failed.", ret, c);
     return terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
@@ -506,15 +506,15 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
 
   ret = tdbTbcGet(pTbDbc, NULL, NULL, &pData, &nData);
   if (ret < 0) {
-    (void)tdbTbcClose(pUidIdxc);
-    (void)tdbTbcClose(pTbDbc);
+    tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pTbDbc);
 
     return terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
   }
 
   if ((oStbEntry.pBuf = taosMemoryMalloc(nData)) == NULL) {
-    (void)tdbTbcClose(pTbDbc);
-    (void)tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pTbDbc);
+    tdbTbcClose(pUidIdxc);
     return terrno;
   }
   memcpy(oStbEntry.pBuf, pData, nData);
@@ -541,8 +541,8 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     if (uids == NULL) {
       if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
       tDecoderClear(&dc);
-      (void)tdbTbcClose(pTbDbc);
-      (void)tdbTbcClose(pUidIdxc);
+      tdbTbcClose(pTbDbc);
+      tdbTbcClose(pUidIdxc);
       return terrno;
     }
     if (deltaCol == 1) {
@@ -603,8 +603,8 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
 _exit:
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
   tDecoderClear(&dc);
-  (void)tdbTbcClose(pTbDbc);
-  (void)tdbTbcClose(pUidIdxc);
+  tdbTbcClose(pTbDbc);
+  tdbTbcClose(pUidIdxc);
   return 0;
 }
 int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
@@ -695,7 +695,7 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
 
   code = tdbTbcMoveTo(pCtbIdxc, &(SCtbIdxKey){.suid = suid, .uid = INT64_MIN}, sizeof(SCtbIdxKey), &c);
   if (code < 0) {
-    (void)tdbTbcClose(pCtbIdxc);
+    tdbTbcClose(pCtbIdxc);
     goto _err;
   }
   for (;;) {
@@ -705,7 +705,7 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     if (code < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
-      (void)tdbTbcClose(pCtbIdxc);
+      tdbTbcClose(pCtbIdxc);
       pCtbIdxc = NULL;
       break;
     }
@@ -740,7 +740,7 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     tdbFree(pVal);
     if (code < 0) {
       metaDestroyTagIdxKey(pTagIdxKey);
-      (void)tdbTbcClose(pCtbIdxc);
+      tdbTbcClose(pCtbIdxc);
       goto _err;
     }
 
@@ -771,7 +771,7 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   tDecoderClear(&dc);
   tdbFree(pData);
 
-  (void)tdbTbcClose(pCtbIdxc);
+  tdbTbcClose(pCtbIdxc);
   return TSDB_CODE_SUCCESS;
 _err:
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
@@ -844,7 +844,7 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
 
   code = tdbTbcMoveTo(pCtbIdxc, &(SCtbIdxKey){.suid = suid, .uid = INT64_MIN}, sizeof(SCtbIdxKey), &c);
   if (code < 0) {
-    (void)tdbTbcClose(pCtbIdxc);
+    tdbTbcClose(pCtbIdxc);
     goto _err;
   }
   for (;;) {
@@ -855,7 +855,7 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
     if (code < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
-      (void)tdbTbcClose(pCtbIdxc);
+      tdbTbcClose(pCtbIdxc);
       pCtbIdxc = NULL;
       break;
     }
@@ -891,7 +891,7 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
     tdbFree(pVal);
     if (code < 0) {
       metaDestroyTagIdxKey(pTagIdxKey);
-      (void)tdbTbcClose(pCtbIdxc);
+      tdbTbcClose(pCtbIdxc);
       goto _err;
     }
 
@@ -919,7 +919,7 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
     tDeleteSColCmprWrapper(cmpr);
     code = TSDB_CODE_OUT_OF_MEMORY;
 
-    (void)tdbTbcClose(pCtbIdxc);
+    tdbTbcClose(pCtbIdxc);
     goto _err;
   }
 
@@ -945,7 +945,7 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
   tDecoderClear(&dc);
   tdbFree(pData);
 
-  (void)tdbTbcClose(pCtbIdxc);
+  tdbTbcClose(pCtbIdxc);
   return TSDB_CODE_SUCCESS;
 _err:
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
@@ -1217,7 +1217,7 @@ static int32_t metaFilterTableByHash(SMeta *pMeta, SArray *uidList) {
 
   code = tdbTbcMoveToFirst(pCur);
   if (code) {
-    (void)tdbTbcClose(pCur);
+    tdbTbcClose(pCur);
     return code;
   }
 
@@ -1251,7 +1251,7 @@ static int32_t metaFilterTableByHash(SMeta *pMeta, SArray *uidList) {
   }
   tdbFree(pData);
   tdbFree(pKey);
-  (void)tdbTbcClose(pCur);
+  tdbTbcClose(pCur);
 
   return 0;
 }
@@ -1537,7 +1537,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   TAOS_CHECK_RETURN(tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, NULL));
   (void)tdbTbcMoveTo(pUidIdxc, &uid, sizeof(uid), &c);
   if (c != 0) {
-    (void)tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pUidIdxc);
     metaError("meta/table: invalide c: %" PRId32 " alt tb column failed.", c);
     return TSDB_CODE_FAILED;
   }
@@ -1551,8 +1551,8 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   TAOS_CHECK_RETURN(tdbTbcOpen(pMeta->pTbDb, &pTbDbc, NULL));
   (void)tdbTbcMoveTo(pTbDbc, &((STbDbKey){.uid = uid, .version = oversion}), sizeof(STbDbKey), &c);
   if (c != 0) {
-    (void)tdbTbcClose(pUidIdxc);
-    (void)tdbTbcClose(pTbDbc);
+    tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pTbDbc);
     metaError("meta/table: invalide c: %" PRId32 " alt tb column failed.", c);
     return TSDB_CODE_FAILED;
   }
@@ -1570,8 +1570,8 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   tDecoderInit(&dc, entry.pBuf, nData);
   ret = metaDecodeEntry(&dc, &entry);
   if (ret != 0) {
-    (void)tdbTbcClose(pUidIdxc);
-    (void)tdbTbcClose(pTbDbc);
+    tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pTbDbc);
     tDecoderClear(&dc);
     metaError("meta/table: invalide ret: %" PRId32 " alt tb column failed.", ret);
     return ret;
@@ -1770,16 +1770,16 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   if (pNewSchema) taosMemoryFree(pNewSchema);
   if (freeColCmpr) taosMemoryFree(entry.colCmpr.pColCmpr);
 
-  (void)tdbTbcClose(pTbDbc);
-  (void)tdbTbcClose(pUidIdxc);
+  tdbTbcClose(pTbDbc);
+  tdbTbcClose(pUidIdxc);
   tDecoderClear(&dc);
 
   return 0;
 
 _err:
   if (entry.pBuf) taosMemoryFree(entry.pBuf);
-  (void)tdbTbcClose(pTbDbc);
-  (void)tdbTbcClose(pUidIdxc);
+  tdbTbcClose(pTbDbc);
+  tdbTbcClose(pUidIdxc);
   tDecoderClear(&dc);
 
   return terrno != 0 ? terrno : TSDB_CODE_FAILED;
@@ -1817,7 +1817,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   TAOS_CHECK_RETURN(tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, NULL));
   (void)tdbTbcMoveTo(pUidIdxc, &uid, sizeof(uid), &c);
   if (c != 0) {
-    (void)tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pUidIdxc);
     metaError("meta/table: invalide c: %" PRId32 " update tb tag val failed.", c);
     return terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
   }
@@ -1834,8 +1834,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   TAOS_CHECK_RETURN(tdbTbcOpen(pMeta->pTbDb, &pTbDbc, NULL));
   (void)tdbTbcMoveTo(pTbDbc, &((STbDbKey){.uid = uid, .version = oversion}), sizeof(STbDbKey), &c);
   if (c != 0) {
-    (void)tdbTbcClose(pUidIdxc);
-    (void)tdbTbcClose(pTbDbc);
+    tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pTbDbc);
     metaError("meta/table: invalide c: %" PRId32 " update tb tag val failed.", c);
     return terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
   }
@@ -1968,8 +1968,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   taosMemoryFree((void *)ctbEntry.ctbEntry.pTags);
   if (ctbEntry.pBuf) taosMemoryFree(ctbEntry.pBuf);
   if (stbEntry.pBuf) tdbFree(stbEntry.pBuf);
-  (void)tdbTbcClose(pTbDbc);
-  (void)tdbTbcClose(pUidIdxc);
+  tdbTbcClose(pTbDbc);
+  tdbTbcClose(pUidIdxc);
   return 0;
 
 _err:
@@ -1977,8 +1977,8 @@ _err:
   tDecoderClear(&dc2);
   if (ctbEntry.pBuf) taosMemoryFree(ctbEntry.pBuf);
   if (stbEntry.pBuf) tdbFree(stbEntry.pBuf);
-  (void)tdbTbcClose(pTbDbc);
-  (void)tdbTbcClose(pUidIdxc);
+  tdbTbcClose(pTbDbc);
+  tdbTbcClose(pUidIdxc);
   return -1;
 }
 
@@ -2009,7 +2009,7 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
   TAOS_CHECK_RETURN(tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, NULL));
   (void)tdbTbcMoveTo(pUidIdxc, &uid, sizeof(uid), &c);
   if (c != 0) {
-    (void)tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pUidIdxc);
     metaError("meta/table: invalide c: %" PRId32 " update tb options failed.", c);
     return TSDB_CODE_FAILED;
   }
@@ -2023,8 +2023,8 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
   TAOS_CHECK_RETURN(tdbTbcOpen(pMeta->pTbDb, &pTbDbc, NULL));
   (void)tdbTbcMoveTo(pTbDbc, &((STbDbKey){.uid = uid, .version = oversion}), sizeof(STbDbKey), &c);
   if (c != 0) {
-    (void)tdbTbcClose(pUidIdxc);
-    (void)tdbTbcClose(pTbDbc);
+    tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pTbDbc);
     metaError("meta/table: invalide c: %" PRId32 " update tb options failed.", c);
     return TSDB_CODE_FAILED;
   }
@@ -2043,8 +2043,8 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
   ret = metaDecodeEntry(&dc, &entry);
   if (ret != 0) {
     tDecoderClear(&dc);
-    (void)tdbTbcClose(pUidIdxc);
-    (void)tdbTbcClose(pTbDbc);
+    tdbTbcClose(pUidIdxc);
+    tdbTbcClose(pTbDbc);
     metaError("meta/table: invalide ret: %" PRId32 " alt tb options failed.", ret);
     return TSDB_CODE_FAILED;
   }
@@ -2081,8 +2081,8 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
 
   metaULock(pMeta);
 
-  (void)tdbTbcClose(pTbDbc);
-  (void)tdbTbcClose(pUidIdxc);
+  tdbTbcClose(pTbDbc);
+  tdbTbcClose(pUidIdxc);
   tDecoderClear(&dc);
   if (entry.pBuf) taosMemoryFree(entry.pBuf);
   return 0;
@@ -2162,7 +2162,7 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
   TAOS_CHECK_RETURN(tdbTbcOpen(pMeta->pCtbIdx, &pCtbIdxc, NULL));
   int rc = tdbTbcMoveTo(pCtbIdxc, &(SCtbIdxKey){.suid = suid, .uid = INT64_MIN}, sizeof(SCtbIdxKey), &c);
   if (rc < 0) {
-    (void)tdbTbcClose(pCtbIdxc);
+    tdbTbcClose(pCtbIdxc);
     goto _err;
   }
   for (;;) {
@@ -2199,14 +2199,14 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
       tdbFree(pKey);
       tdbFree(pVal);
       metaDestroyTagIdxKey(pTagIdxKey);
-      (void)tdbTbcClose(pCtbIdxc);
+      tdbTbcClose(pCtbIdxc);
       goto _err;
     }
     (void)tdbTbUpsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, pMeta->txn);
     metaDestroyTagIdxKey(pTagIdxKey);
     pTagIdxKey = NULL;
   }
-  (void)tdbTbcClose(pCtbIdxc);
+  tdbTbcClose(pCtbIdxc);
   return 0;
 
 _err:
@@ -2320,7 +2320,7 @@ static int metaDropTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterT
       goto _err;
     }
   }
-  (void)tdbTbcClose(pTagIdxc);
+  tdbTbcClose(pTagIdxc);
 
   metaWLock(pMeta);
   for (int i = 0; i < taosArrayGetSize(tagIdxList); i++) {
