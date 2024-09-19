@@ -1376,7 +1376,7 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
            vgroupInfo->epSet.numOfEps, pEp->fqdn, pEp->port, tbFName);
 
   SBuildTableInput bInput = {.vgId = vgroupInfo->vgId,
-                             .option = reqType == TDMT_VND_TABLE_NAME ? REQ_OPT_TBNAME : REQ_OPT_TBUID,
+                             .option = reqType == TDMT_VND_TABLE_NAME ? REQ_OPT_TBUID : REQ_OPT_TBNAME,
                              .dbFName = dbFName,
                              .tbName = (char*)tNameGetTableName(pTableName)};
   char*            msg = NULL;

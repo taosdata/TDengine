@@ -462,7 +462,7 @@ typedef enum ENodeType {
 
 typedef struct {
   int32_t     vgId;
-  uint8_t     option;  // 0x01 tableUid
+  uint8_t     option;  // 0x0 REQ_OPT_TBNAME, 0x01 REQ_OPT_TBUID
   const char* dbFName;
   const char* tbName;
 } SBuildTableInput;

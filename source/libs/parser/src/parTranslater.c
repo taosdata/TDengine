@@ -14647,7 +14647,7 @@ static int32_t rewriteDropSuperTablewithOpt(STranslateContext* pCxt, SQuery* pQu
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
   code = getTargetName(pCxt, &name, pTableName);
   if (TSDB_CODE_SUCCESS != code) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Super table uid does not exist: '%s'", pStmt->tableName);
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Table uid does not exist: '%s'", pStmt->tableName);
   }
   tstrncpy(pStmt->tableName, pTableName, TSDB_TABLE_NAME_LEN);  // rewrite table uid to table name
 
