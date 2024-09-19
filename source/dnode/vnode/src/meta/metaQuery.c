@@ -353,7 +353,11 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
 
     tDecoderClear(&pTbCur->mr.coder);
 
-    (void)metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey);
+    ret = metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey);
+    if (ret < 0) {
+      return ret;
+    }
+
     if (pTbCur->mr.me.type == jumpTableType) {
       continue;
     }
@@ -387,7 +391,10 @@ _query:
 
   SMetaEntry me = {0};
   tDecoderInit(&dc, pData, nData);
-  (void)metaDecodeEntry(&dc, &me);
+  int32_t code = metaDecodeEntry(&dc, &me);
+  if (code) {
+    goto _err;
+  }
   if (me.type == TSDB_SUPER_TABLE) {
     if (sver == -1 || sver == me.stbEntry.schemaRow.version) {
       pSchema = tCloneSSchemaWrapper(&me.stbEntry.schemaRow);
@@ -502,17 +509,17 @@ int32_t metaResumeCtbCursor(SMCtbCursor *pCtbCur, int8_t first) {
       ctbIdxKey.suid = pCtbCur->suid;
       ctbIdxKey.uid = INT64_MIN;
       int c = 0;
-      (void)tdbTbcMoveTo(pCtbCur->pCur, &ctbIdxKey, sizeof(ctbIdxKey), &c);
+      ret = tdbTbcMoveTo(pCtbCur->pCur, &ctbIdxKey, sizeof(ctbIdxKey), &c);
       if (c > 0) {
-        (void)tdbTbcMoveToNext(pCtbCur->pCur);
+        ret = tdbTbcMoveToNext(pCtbCur->pCur);
       }
     } else {
       int c = 0;
       ret = tdbTbcMoveTo(pCtbCur->pCur, pCtbCur->pKey, pCtbCur->kLen, &c);
       if (c < 0) {
-        (void)tdbTbcMoveToPrev(pCtbCur->pCur);
+        ret = tdbTbcMoveToPrev(pCtbCur->pCur);
       } else {
-        (void)tdbTbcMoveToNext(pCtbCur->pCur);
+        ret = tdbTbcMoveToNext(pCtbCur->pCur);
       }
     }
   }
@@ -570,9 +577,9 @@ SMStbCursor *metaOpenStbCursor(SMeta *pMeta, tb_uid_t suid) {
   }
 
   // move to the suid
-  (void)tdbTbcMoveTo(pStbCur->pCur, &suid, sizeof(suid), &c);
+  ret = tdbTbcMoveTo(pStbCur->pCur, &suid, sizeof(suid), &c);
   if (c > 0) {
-    (void)tdbTbcMoveToNext(pStbCur->pCur);
+    ret = tdbTbcMoveToNext(pStbCur->pCur);
   }
 
   return pStbCur;
@@ -670,12 +677,12 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
       }
 
       if (c < 0) {
-        (void)tdbTbcMoveToPrev(pSkmDbC);
+        int32_t ret = tdbTbcMoveToPrev(pSkmDbC);
       }
 
       const void *pKey = NULL;
       int32_t     nKey = 0;
-      (void)tdbTbcGet(pSkmDbC, &pKey, &nKey, NULL, NULL);
+      int32_t     ret = tdbTbcGet(pSkmDbC, &pKey, &nKey, NULL, NULL);
 
       if (((SSkmDbKey *)pKey)->uid != skmDbKey.uid) {
         metaULock(pMeta);
@@ -805,9 +812,9 @@ SMSmaCursor *metaOpenSmaCursor(SMeta *pMeta, tb_uid_t uid) {
   // move to the suid
   smaIdxKey.uid = uid;
   smaIdxKey.smaUid = INT64_MIN;
-  (void)tdbTbcMoveTo(pSmaCur->pCur, &smaIdxKey, sizeof(smaIdxKey), &c);
+  ret = tdbTbcMoveTo(pSmaCur->pCur, &smaIdxKey, sizeof(smaIdxKey), &c);
   if (c > 0) {
-    (void)tdbTbcMoveToNext(pSmaCur->pCur);
+    ret = tdbTbcMoveToNext(pSmaCur->pCur);
   }
 
   return pSmaCur;
@@ -916,7 +923,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
 _err:
   metaReaderClear(&mr);
   taosArrayDestroy(pSmaIds);
-  (void)tFreeTSmaWrapper(pSW, deepCopy);
+  pSW = tFreeTSmaWrapper(pSW, deepCopy);
   return NULL;
 }
 
@@ -1583,7 +1590,10 @@ int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo, SMetaReader *pR
   }
   // upsert the cache
   metaWLock(pMeta);
-  (void)metaCacheUpsert(pMeta, pInfo);
+  int32_t ret = metaCacheUpsert(pMeta, pInfo);
+  if (ret != 0) {
+    metaError("vgId:%d, failed to upsert cache, uid:%" PRId64, TD_VID(pMeta->pVnode), uid);
+  }
   metaULock(pMeta);
 
   if (lock) {
@@ -1633,7 +1643,12 @@ int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t
 
   // upsert the cache
   metaWLock(pVnodeObj->pMeta);
-  (void)metaStatsCacheUpsert(pVnodeObj->pMeta, &state);
+
+  int32_t ret = metaStatsCacheUpsert(pVnodeObj->pMeta, &state);
+  if (ret) {
+    metaError("failed to upsert stats, uid:%" PRId64 ", ctbNum:%" PRId64 ", colNum:%d", uid, ctbNum, colNum);
+  }
+
   metaULock(pVnodeObj->pMeta);
 
 _exit:
@@ -1646,6 +1661,10 @@ void metaUpdateStbStats(SMeta *pMeta, int64_t uid, int64_t deltaCtb, int32_t del
   if (metaStatsCacheGet(pMeta, uid, &stats) == TSDB_CODE_SUCCESS) {
     stats.ctbNum += deltaCtb;
     stats.colNum += deltaCol;
-    (void)metaStatsCacheUpsert(pMeta, &stats);
+    int32_t code = metaStatsCacheUpsert(pMeta, &stats);
+    if (code) {
+      metaError("vgId:%d, failed to update stats, uid:%" PRId64 ", ctbNum:%" PRId64 ", colNum:%d",
+                TD_VID(pMeta->pVnode), uid, deltaCtb, deltaCol);
+    }
   }
 }
