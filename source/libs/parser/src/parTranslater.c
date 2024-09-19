@@ -14636,6 +14636,31 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
   return rewriteToVnodeModifyOpStmt(pQuery, pBufArray);
 }
 
+static int32_t rewriteDropSuperTablewithOpt(STranslateContext* pCxt, SQuery* pQuery) {
+  int32_t              code = TSDB_CODE_SUCCESS;
+  SDropSuperTableStmt* pStmt = (SDropSuperTableStmt*)pQuery->pRoot;
+  if (!pStmt->withOpt) return code;
+  pCxt->withOpt = true;
+
+  char  pTableName[TSDB_TABLE_NAME_LEN] = {0};
+  SName name = {0};
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
+  code = getTargetName(pCxt, &name, pTableName);
+  if (TSDB_CODE_SUCCESS != code) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Super table uid does not exist: '%s'", pStmt->tableName);
+  }
+  tstrncpy(pStmt->tableName, pTableName, TSDB_TABLE_NAME_LEN);  // rewrite table uid to table name
+
+  code = rewriteDropTableWithMetaCache(pCxt);
+
+  TAOS_RETURN(code);
+}
+
+static int32_t rewriteDropSuperTable(STranslateContext* pCxt, SQuery* pQuery) {
+  TAOS_CHECK_RETURN(rewriteDropSuperTablewithOpt(pCxt, pQuery));
+  TAOS_RETURN(0);
+}
+
 static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                     SVAlterTbReq* pReq) {
   SName   tbName = {0};
@@ -15706,6 +15731,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_DROP_TABLE_STMT:
       code = rewriteDropTable(pCxt, pQuery);
+      break;
+    case QUERY_NODE_DROP_SUPER_TABLE_STMT:
+      code = rewriteDropSuperTable(pCxt, pQuery);
       break;
     case QUERY_NODE_ALTER_TABLE_STMT:
       code = rewriteAlterTable(pCxt, pQuery);

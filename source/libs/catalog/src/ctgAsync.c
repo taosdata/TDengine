@@ -2031,9 +2031,6 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
         break;
       }
 
-      // if (CTG_IS_META_BOTH(pOut->metaType)) {
-      //   TSWAP(pMsgCtx->lastOut, pMsgCtx->out);
-      // }
       break;
     }
     default:
@@ -2062,7 +2059,6 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
   }
 
 _return:
-
   if (dbCache) {
     ctgReleaseVgInfoToCache(pCtg, dbCache);
   }
