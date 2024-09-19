@@ -49,6 +49,11 @@ class TDTestCase:
             'col12': 'binary(20)',
             'col13': 'nchar(20)'
         }
+        self.db_names = [ f'dbtest_0', f'dbtest_1']
+        self.stb_names = [ f'`aa\u00bf\u200bstb0`']
+        self.ctb_names = [ f'ctb0', 'ctb1', f'`aa\u00bf\u200bctb0`', f'`aa\u00bf\u200bctb1`']
+        self.ntb_names = [ f'ntb0', f'`aa\u00bf\u200bntb0`', f'ntb1', f'`aa\u00bf\u200bntb1`']
+        self.vgroups_opt = f'vgroups 4'
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
         for i in range(row_num):
@@ -116,12 +121,80 @@ class TDTestCase:
                 tdSql.query(f'select * from {stbname} where {k} = {self.ts}')
                 tdSql.checkRows(self.tbnum) 
         tdSql.execute(f'drop database {self.dbname}')
+    def drop_table_check_init(self):
+        for db_name in self.db_names:
+            tdSql.execute(f'create database if not exists {db_name} {self.vgroups_opt}')
+            tdSql.execute(f'use {db_name}')
+            for stb_name in self.stb_names:
+                tdSql.execute(f'create table {stb_name} (ts timestamp,c0 int) tags(t0 int)')
+                for ctb_name in self.ctb_names:
+                    tdSql.execute(f'create table {ctb_name} using {stb_name} tags(0)')
+                    tdSql.execute(f'insert into {ctb_name} values (now,1)')
+            for ntb_name in self.ntb_names:
+                tdSql.execute(f'create table {ntb_name} (ts timestamp,c0 int)')
+                tdSql.execute(f'insert into {ntb_name} values (now,1)')
+    def drop_table_check_end(self):
+        for db_name in self.db_names:
+            tdSql.execute(f'drop database {db_name}')
+    def drop_stable_with_check(self):
+        self.drop_table_check_init()
+        tdSql.query(f'select * from information_schema.ins_stables where db_name like "dbtest_%"')
+        result = tdSql.queryResult
+        print(result)
+        tdSql.checkEqual(len(result),2)
+        i = 0
+        for stb_result in result:
+            if i == 0:
+                dropTable = f'drop table with `{stb_result[1]}`.`{stb_result[10]}`,'
+                dropStable = f'drop stable with `{stb_result[1]}`.`{stb_result[10]}`,'
+            else:
+                dropTable += f'`{stb_result[1]}`.`{stb_result[10]}`,'
+                dropStable += f'`{stb_result[1]}`.`{stb_result[10]}`,'
+                tdLog.info(dropTable[:-1])
+                tdLog.info(dropStable[:-1])
+                tdSql.error(dropTable[:-1])
+                tdSql.error(dropStable[:-1])
+            i += 1
+        i = 0
+        for stb_result in result:
+            if i == 0:
+                tdSql.execute(f'drop table with `{stb_result[1]}`.`{stb_result[10]}`')
+            else:
+                tdSql.execute(f'drop stable with `{stb_result[1]}`.`{stb_result[10]}`')
+            i += 1
+        for i in range(30):
+            tdSql.query(f'select * from information_schema.ins_stables where db_name like "dbtest_%"')
+            if(len(tdSql.queryResult) == 0):
+                break
+            tdLog.info(f'ins_stables not empty, sleep 1s')
+            time.sleep(1)
+        tdSql.query(f'select * from information_schema.ins_stables where db_name like "dbtest_%"')
+        tdSql.checkRows(0)
+        tdSql.query(f'select * from information_schema.ins_tables where db_name like "dbtest_%"')
+        tdSql.checkRows(8)
+        self.drop_table_check_end()
     def drop_table_with_check(self):
-        stb_names = [ f'stb0', f'aa\u00bf\u200bstb0']
-        ctb_names = [ f'ctb0', f'aa\u00bf\u200bctb0']
-        ntb_names = [ f'ntb0', f'aa\u00bf\u200bntb0']
-        tdSql.execute(f'create database {self.dbname} replica {self.replicaVar} wal_retention_period 3600')
-        tdSql.execute(f'drop database {self.dbname}') 
+        self.drop_table_check_init()
+        tdSql.query(f'select * from information_schema.ins_tables where db_name like "dbtest_%"')
+        result = tdSql.queryResult
+        print(result)
+        tdSql.checkEqual(len(result),16)
+        dropTable = f'drop table with '
+        for tb_result in result:
+            dropTable += f'`{tb_result[1]}`.`{tb_result[5]}`,'
+        tdLog.info(dropTable[:-1])
+        tdSql.execute(dropTable[:-1])
+        for i in range(30):
+            tdSql.query(f'select * from information_schema.ins_tables where db_name like "dbtest_%"')
+            if(len(tdSql.queryResult) == 0):
+                break
+            tdLog.info(f'ins_tables not empty, sleep 1s')
+            time.sleep(1)
+        tdSql.query(f'select * from information_schema.ins_tables where db_name like "dbtest_%"')
+        tdSql.checkRows(0)
+        tdSql.query(f'select * from information_schema.ins_stables where db_name like "dbtest_%"')
+        tdSql.checkRows(2)
+        self.drop_table_check_end()
     def drop_topic_check(self):
         tdSql.execute(f'create database {self.dbname} replica {self.replicaVar} wal_retention_period 3600')
         tdSql.execute(f'use {self.dbname}')
@@ -167,6 +240,7 @@ class TDTestCase:
     def run(self):
         self.drop_ntb_check()
         self.drop_stb_ctb_check()
+        self.drop_stable_with_check()
         self.drop_table_with_check()
         self.drop_topic_check()
         if platform.system().lower() == 'windows':        
