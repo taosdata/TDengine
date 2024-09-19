@@ -38,6 +38,7 @@ TDengine 客户端驱动提供了应用编程所需要的全部 API，并且在�
 |enableCoreFile | crash 时是否生成 core 文件，0: 不生成， 1： 生成；缺省值：1 |
 |enableScience | 是否开启科学计数法显示浮点数; 0: 不开始, 1: 开启；缺省值：1 |
 |compressMsgSize | 是否对 RPC 消息进行压缩; -1: 所有消息都不压缩; 0: 所有消息都压缩; N (N>0): 只有大于 N 个字节的消息才压缩; 缺省值 -1|
+|queryTableNotExistAsEmpty | 查询表不存在时是否返回空结果集; false: 返回错误; true: 返回空结果集; 缺省值 false|
 
 ## API
 

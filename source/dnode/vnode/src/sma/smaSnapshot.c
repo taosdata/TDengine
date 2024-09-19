@@ -163,11 +163,11 @@ _exit:
   TAOS_RETURN(code);
 }
 
-int32_t rsmaSnapWriterPrepareClose(SRSmaSnapWriter* pWriter) {
+int32_t rsmaSnapWriterPrepareClose(SRSmaSnapWriter* pWriter, bool rollback) {
   int32_t code = 0;
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pWriter->pDataWriter[i]) {
-      code = tsdbSnapWriterPrepareClose(pWriter->pDataWriter[i]);
+      code = tsdbSnapWriterPrepareClose(pWriter->pDataWriter[i], rollback);
       if (code) {
         smaError("vgId:%d, failed to prepare close tsdbSnapWriter since %s. i: %d", SMA_VID(pWriter->pSma),
                  tstrerror(code), i);

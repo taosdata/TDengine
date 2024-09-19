@@ -596,7 +596,9 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
         if (sIdx + i < TDB_PAGE_TOTAL_CELLS(pParent)) {
           pCell = tdbPageGetCell(pParent, sIdx + i);
           szDivCell[i] = tdbBtreeCellSize(pParent, pCell, 0, NULL, NULL);
-          pDivCell[i] = tdbOsMalloc(szDivCell[i]);
+          if ((pDivCell[i] = tdbOsMalloc(szDivCell[i])) == NULL) {
+            return terrno;
+          }
           memcpy(pDivCell[i], pCell, szDivCell[i]);
         }
 
@@ -855,8 +857,11 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
 
               // TODO: pCell here may be inserted as an overflow cell, handle it
               SCell *pNewCell = tdbOsMalloc(cd.kLen + 9);
-              int    szNewCell;
-              SPgno  pgno;
+              if (pNewCell == NULL) {
+                return terrno;
+              }
+              int   szNewCell;
+              SPgno pgno;
               pgno = TDB_PAGE_PGNO(pNews[iNew]);
               (void)tdbBtreeEncodeCell(pParent, cd.pKey, cd.kLen, (void *)&pgno, sizeof(SPgno), pNewCell, &szNewCell,
                                        pTxn, pBt);
@@ -2273,7 +2278,10 @@ int tdbBtcDelete(SBTC *pBtc) {
           }
 
           // update the cell with new key
-          pCell = tdbOsMalloc(nKey + 9);
+          if ((pCell = tdbOsMalloc(nKey + 9)) == NULL) {
+            tdbError("tdb/btc-delete: malloc failed.");
+            return terrno;
+          }
           (void)tdbBtreeEncodeCell(pPage, pKey, nKey, &pgno, sizeof(pgno), pCell, &szCell, pBtc->pTxn, pBtc->pBt);
 
           ret = tdbPageUpdateCell(pPage, idx, pCell, szCell, pBtc->pTxn, pBtc->pBt);

@@ -185,6 +185,10 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
 
     // TODO: here has memory leak
     pNewCell = (SCell *)tdbOsMalloc(szCell);
+    if (pNewCell == NULL) {
+      tdbError("tdb/page-insert-cell: malloc failed.");
+      return terrno;
+    }
     memcpy(pNewCell, pCell, szCell);
 
     tdbTrace("tdbPage/insert/new ovfl cell: %p/%p", pNewCell, pPage);
