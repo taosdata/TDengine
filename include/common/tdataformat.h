@@ -193,7 +193,7 @@ int32_t tColDataDecompress(void *input, SColDataCompressInfo *info, SColData *co
 
 // for stmt bind
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen);
-void    tColDataSortMerge(SArray *colDataArr);
+int32_t tColDataSortMerge(SArray **arr);
 
 // for raw block
 int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
