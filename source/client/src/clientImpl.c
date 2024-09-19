@@ -1291,7 +1291,7 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
   }
 
   if (TSDB_CODE_SUCCESS != code) {
-    pRequest->code = terrno;
+    pRequest->code = code;
   }
 
   if (res) {
