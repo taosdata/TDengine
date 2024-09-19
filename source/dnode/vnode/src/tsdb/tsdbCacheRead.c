@@ -309,6 +309,10 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
     p->rowKey.pks[0].type = pPkCol->type;
     if (IS_VAR_DATA_TYPE(pPkCol->type)) {
       p->rowKey.pks[0].pData = taosMemoryCalloc(1, pPkCol->bytes);
+      if (p->rowKey.pks[0].pData == NULL) {
+        taosMemoryFree(p);
+        return terrno;
+      }
     }
 
     p->pkColumn = *pPkCol;
@@ -345,6 +349,10 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
   }
 
   p->idstr = taosStrdup(idstr);
+  if (idstr != NULL && p->idstr == NULL) {
+    tsdbCacherowsReaderClose(p);
+    return terrno;
+  }
   code = taosThreadMutexInit(&p->readerMutex, NULL);
   if (code) {
     tsdbCacherowsReaderClose(p);
