@@ -26,40 +26,23 @@
 extern "C" {
 #endif
 
-#define WAL_PROTO_VER     0
-#define WAL_NOSUFFIX_LEN  20
-#define WAL_SUFFIX_AT     (WAL_NOSUFFIX_LEN + 1)
-#define WAL_LOG_SUFFIX    "log"
-#define WAL_INDEX_SUFFIX  "idx"
-#define WAL_REFRESH_MS    1000
-#define WAL_PATH_LEN      (TSDB_FILENAME_LEN + 12)
-#define WAL_FILE_LEN      (WAL_PATH_LEN + 32)
-#define WAL_MAGIC         0xFAFBFCFDF4F3F2F1ULL
-#define WAL_SCAN_BUF_SIZE (1024 * 1024 * 3)
+int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int64_t offset, int64_t size);
+/*
+#define WAL_PROTO_VER    0
+#define WAL_NOSUFFIX_LEN 20
 
 typedef enum {
-  TAOS_WAL_SKIP = 0,
-  TAOS_WAL_WRITE = 1,
-  TAOS_WAL_FSYNC = 2,
+TAOS_WAL_SKIP = 0,
+TAOS_WAL_WRITE = 1,
+TAOS_WAL_FSYNC = 2,
 } EWalType;
 
 typedef struct {
-  int32_t  vgId;
-  int32_t  fsyncPeriod;      // millisecond
-  int32_t  retentionPeriod;  // secs
-  int32_t  rollPeriod;       // secs
-  int64_t  retentionSize;
-  int64_t  segSize;
-  EWalType level;  // wal level
-  int32_t  encryptAlgorithm;
-  char     encryptKey[ENCRYPT_KEY_LEN + 1];
-  int8_t   clearFiles;
+int32_t  vgId;
+EWalType level;  // wal level
+int8_t   clearFiles;
 } SWalCfg;
-
-int64_t walGetVerRetention(SWal *pWal, int64_t bytes);
-int64_t walGetCommittedVer(SWal *);
-int64_t walGetAppliedVer(SWal *);
-
+*/
 #ifdef __cplusplus
 }
 #endif

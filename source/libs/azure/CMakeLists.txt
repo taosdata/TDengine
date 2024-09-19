@@ -1,13 +1,14 @@
-aux_source_directory(src WAL_SRC)
-add_library(wal STATIC ${WAL_SRC})
+aux_source_directory(src AZ_SRC)
+add_library(az STATIC ${AZ_SRC})
 target_include_directories(
-    wal
-    PUBLIC "${TD_SOURCE_DIR}/include/libs/wal"
+    az
+    PUBLIC "${TD_SOURCE_DIR}/include/libs/azure"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
 target_link_libraries(
-    wal
+    az
+    PUBLIC _azure_sdk
     PUBLIC cjson
     PUBLIC os
     PUBLIC util
