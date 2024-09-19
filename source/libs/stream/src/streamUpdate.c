@@ -631,10 +631,10 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
   if (tDecodeI8(&decoder, &pInfo->pkColType) < 0) return -1;
 
   pInfo->pKeyBuff = taosMemoryCalloc(1, sizeof(TSKEY) + sizeof(int64_t) + pInfo->pkColLen);
-  QUERY_CHECK_NULL(pInfo->pKeyBuff, code, lino, _error, errno);
+  QUERY_CHECK_NULL(pInfo->pKeyBuff, code, lino, _error, terrno);
 
   pInfo->pValueBuff = taosMemoryCalloc(1, sizeof(TSKEY) + pInfo->pkColLen);
-  QUERY_CHECK_NULL(pInfo->pValueBuff, code, lino, _error, errno);
+  QUERY_CHECK_NULL(pInfo->pValueBuff, code, lino, _error, terrno);
 
   if (pInfo->pkColLen != 0) {
     pInfo->comparePkRowFn = compareKeyTsAndPk;

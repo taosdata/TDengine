@@ -494,7 +494,7 @@ SRowBuffPos* getNewRowPos(SStreamFileState* pFileState) {
 
   if (pFileState->curRowCount < pFileState->maxRowCount) {
     pBuff = taosMemoryCalloc(1, pFileState->rowSize);
-    QUERY_CHECK_NULL(pBuff, code, lino, _error, errno);
+    QUERY_CHECK_NULL(pBuff, code, lino, _error, terrno);
     pPos->pRowBuff = pBuff;
     pFileState->curRowCount++;
     goto _end;
@@ -725,7 +725,7 @@ void flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, boo
     }
 
     void* pSKey = pFileState->stateBuffCreateStateKeyFn(pPos, ((SStreamState*)pFileState->pFileStore)->number);
-    QUERY_CHECK_NULL(pSKey, code, lino, _end, errno);
+    QUERY_CHECK_NULL(pSKey, code, lino, _end, terrno);
 
     code = streamStatePutBatchOptimize(pFileState->pFileStore, idx, batch, pSKey, pPos->pRowBuff, pFileState->rowSize,
                                        0, buf);
