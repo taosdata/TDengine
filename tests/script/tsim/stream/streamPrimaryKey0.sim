@@ -252,6 +252,8 @@ sql create table t1 using st tags("aa", 1, 2);
 sql create stream streams3_1 trigger at_once ignore expired 0 ignore update 0  into streamt3_1 as select _wstart, a, max(b), count(*), ta from st partition by ta, a interval(10s);
 sql create stream streams3_2 trigger at_once ignore expired 0 ignore update 0  into streamt3_2 as select _wstart, a, max(b), count(*), ta from st partition by ta, a session(ts, 10s);
 
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1 values(1648791210001,1,2,3,4.1);
 sql insert into t1 values(1648791210002,2,2,3,1.1);
 sql insert into t1 values(1648791220000,3,2,3,2.1);
@@ -280,7 +282,7 @@ if $loop_count == 20 then
   return -1
 endi
 
-if $rows != 2 then
+if $rows != 4 then
   print =====rows=$rows
   goto loop7
 endi
@@ -306,7 +308,7 @@ if $loop_count == 20 then
   return -1
 endi
 
-if $rows != 2 then
+if $rows != 4 then
   print =====rows=$rows
   goto loop8
 endi
