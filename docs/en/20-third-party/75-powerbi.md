@@ -16,7 +16,7 @@ description: Use PowerBI and TDengine to analyze time series data
 
 ### Install ODBC connector
 1. Only support Windows operation system. And you need to install [VC Runtime Library](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170) first. If already installed, please ignore this step.
-2. Install [TDengine Windows client installation package](https://docs.taosdata.com/get-started/package/).
+2. Install [TDengine Windows client installation package](../04-get-started/03-package.md).
 
 ### Configure ODBC DataSource
 1. Click the "Start" Menu, and Search for "ODBC", and choose "ODBC Data Source (64-bit)" (Note: Don't choose 32-bit).
@@ -59,7 +59,7 @@ To better use Power BI to analyze the data stored in TDengine, you need to under
 4. Correlation: Indicates how to correlate data. Dimentions and Metrics can be correlated by tbname, dates and metrics can be correlated by date. All these can cooperate to form visual reports.
 
 ### Example - Meters
-TDengine has its own specific data model, which uses supertable as template and creates a specific table for each device. Each table can have maximum 4,096 data columns and 128 tags. In [the example of meters](https://docs.taosdata.com/concept/) , assume each meter generates one record per second, then there will be 86,400 records each day and 31,536,000 records every year, then only 1,000 meters will occupy 500GB disk space. So, the common usage of Power BI should be mapping tags to dimension columns, mapping the aggregation of data columns to metric columns, to provide indicators for decision makers.
+TDengine has its own specific data model, which uses supertable as template and creates a specific table for each device. Each table can have maximum 4,096 data columns and 128 tags. In [the example of meters](../02-concept.md) , assume each meter generates one record per second, then there will be 86,400 records each day and 31,536,000 records every year, then only 1,000 meters will occupy 500GB disk space. So, the common usage of Power BI should be mapping tags to dimension columns, mapping the aggregation of data columns to metric columns, to provide indicators for decision makers.
 1. Import Dimensions: Import the tags of tables in PowerBI, and name as "tags", the SQL is as the following:  
 `select distinct tbname, groupid, location from test.meters;`
 2. Import Metrics: In Power BI, import the average current, average voltage, average phase with 1 hour window, and name it as "data", the SQL is as the following:  
