@@ -88,7 +88,8 @@ class FunctionMap(Enum):
         'specialFuncs': ['IRATE', 'TWA'],
         'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TOP', 'TAIL', 'SAMPLE', 'DIFF', 'CSUM', 'MAVG', 'DERIVATIVE', 'STATECOUNT', 'STATEDURATION', 'HISTOGRAM'],
         'castFuncs': ['CAST', 'TO_ISO8601'],
-        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
+        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)'],
+        'unsupported': ['LEASTSQUARES', 'PERCENTILE', 'BOTTOM', 'TOP', 'INTERP', 'DERIVATIVE', 'IRATE', 'DIFF', 'STATECOUNT', 'STATEDURATION', 'CSUM', 'MAVG', 'SAMPLE', 'TAIL', 'UNIQUE', 'MODE', 'IRATE', 'TWA', 'HISTOGRAM']
     }
     TEXT = {
         'types': ['BINARY', 'VARCHAR', 'NCHAR'],
@@ -100,7 +101,8 @@ class FunctionMap(Enum):
         'specialFuncs': [],
         'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TAIL', 'SAMPLE'],
         'castFuncs': ['CAST', 'TO_UNIXTIMESTAMP'],
-        'castTypes': DataBoundary.ALL_TYPE_UNIT.value
+        'castTypes': DataBoundary.ALL_TYPE_UNIT.value,
+        'unsupported': ['BOTTOM', 'INTERP', 'SAMPLE', 'TAIL', 'UNIQUE', 'MODE']
     }
     BINARY = {
         'types': ['VARBINARY'],
@@ -112,7 +114,8 @@ class FunctionMap(Enum):
         'specialFuncs': [],
         'VariableFuncs': ['UNIQUE', 'TAIL', 'SAMPLE'],
         'castFuncs': [],
-        'castTypes': []
+        'castTypes': [],
+        'unsupported': ['SAMPLE', 'TAIL', 'UNIQUE', 'MODE']
     }
     BOOLEAN = {
         'types': ['BOOL'],
@@ -124,7 +127,8 @@ class FunctionMap(Enum):
         'specialFuncs': [],
         'VariableFuncs': ['UNIQUE', 'TAIL', 'SAMPLE'],
         'castFuncs': ['CAST'],
-        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
+        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)'],
+        'unsupported': ['TAIL', 'UNIQUE', 'MODE', 'SAMPLE']
     }
     TIMESTAMP = {
         'types': ['TIMESTAMP'],
@@ -136,8 +140,77 @@ class FunctionMap(Enum):
         'specialFuncs': [],
         'VariableFuncs': ['UNIQUE', 'SAMPLE'],
         'castFuncs': ['CAST', 'TO_ISO8601', 'TO_CHAR'],
-        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
+        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)'],
+        'unsupported': ['ELAPSED', 'UNIQUE', 'MODE', 'SAMPLE']
     }
+
+# class StreamFunctionMap(Enum):
+    # # TODO TO_JSON
+    # NUMERIC = {
+    #     'types': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE'],
+    #     'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
+    #     'strFuncs': [],
+    #     'timeFuncs': ['NOW', 'TIMEZONE', 'TODAY'],
+    #     'aggFuncs': ['APERCENTILE', 'AVG', 'COUNT', 'LEASTSQUARES', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG', 'PERCENTILE'],
+    #     'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MAX', 'MIN', 'MODE'],
+    #     'specialFuncs': ['IRATE', 'TWA'],
+    #     'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TOP', 'TAIL', 'SAMPLE', 'DIFF', 'CSUM', 'MAVG', 'DERIVATIVE', 'STATECOUNT', 'STATEDURATION', 'HISTOGRAM'],
+    #     'castFuncs': ['CAST', 'TO_ISO8601'],
+    #     'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)'],
+    #     'unsupported': ['LEASTSQUARES', 'PERCENTILE', 'BOTTOM', 'TOP', 'INTERP', 'DERIVATIVE', 'IRATE', 'DIFF', 'STATECOUNT', 'STATEDURATION', 'CSUM', 'MAVG', 'SAMPLE', 'TAIL', 'UNIQUE', 'MODE']
+    # }
+    # TEXT = {
+    #     'types': ['BINARY', 'VARCHAR', 'NCHAR'],
+    #     'mathFuncs': [],
+    #     'strFuncs': ['CHAR_LENGTH', 'CONCAT', 'CONCAT_WS', 'LENGTH', 'LOWER', 'LTRIM', 'RTRIM', 'SUBSTR', 'UPPER'],
+    #     'timeFuncs': ['NOW', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
+    #     'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
+    #     'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE'],
+    #     'specialFuncs': [],
+    #     'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TAIL', 'SAMPLE'],
+    #     'castFuncs': ['CAST', 'TO_UNIXTIMESTAMP'],
+    #     'castTypes': DataBoundary.ALL_TYPE_UNIT.value,
+    #     'unsupported': ['INTERP', 'SAMPLE', 'TAIL', 'UNIQUE', 'MODE']
+    # }
+    # BINARY = {
+    #     'types': ['VARBINARY'],
+    #     'mathFuncs': [],
+    #     'strFuncs': ['LENGTH'],
+    #     'timeFuncs': ['NOW', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
+    #     'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
+    #     'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE'],
+    #     'specialFuncs': [],
+    #     'VariableFuncs': ['UNIQUE', 'TAIL', 'SAMPLE'],
+    #     'castFuncs': [],
+    #     'castTypes': [],
+    #     'unsupported': ['SAMPLE', 'TAIL', 'UNIQUE', 'MODE']
+    # }
+    # BOOLEAN = {
+    #     'types': ['BOOL'],
+    #     'mathFuncs': [],
+    #     'strFuncs': [],
+    #     'timeFuncs': ['NOW'],
+    #     'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
+    #     'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE'],
+    #     'specialFuncs': [],
+    #     'VariableFuncs': ['UNIQUE', 'TAIL', 'SAMPLE'],
+    #     'castFuncs': ['CAST'],
+    #     'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)'],
+    #     'unsupported': ['TAIL', 'UNIQUE', 'MODE']
+    # }
+    # TIMESTAMP = {
+    #     'types': ['TIMESTAMP'],
+    #     'mathFuncs': [],
+    #     'strFuncs': [],
+    #     'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
+    #     'aggFuncs': ['ELAPSED', 'SPREAD'],
+    #     'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE'],
+    #     'specialFuncs': [],
+    #     'VariableFuncs': ['UNIQUE', 'SAMPLE'],
+    #     'castFuncs': ['CAST', 'TO_ISO8601', 'TO_CHAR'],
+    #     'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)'],
+    #     'unsupported': ['ELAPSED', 'UNIQUE', 'MODE']
+    # }
 
 
 class SQLLancer:
@@ -333,7 +406,7 @@ class SQLLancer:
         else:
             return False
 
-    def selectFuncsFromType(self, fm, colname, column_type, doAggr):
+    def selectFuncsFromType(self, fm, colname, column_type, doAggr, subquery=False):
         if doAggr == 0:
             categoryList = ['aggFuncs']
         elif doAggr == 1:
@@ -351,6 +424,8 @@ class SQLLancer:
         for category in categoryList:
             funcList += fm[category]
         print("----funcList", funcList)
+        if subquery:
+            funcList = [func for func in funcList if func not in fm['unsupported']]
         selectItems = random.sample(funcList, random.randint(1, len(funcList))) if len(funcList) > 0 else list()
         funcStrList = list()
         for func in selectItems:
@@ -367,7 +442,10 @@ class SQLLancer:
         else:
             groupKey = colname if self.setGroupTag(fm, funcList) else ""
         if doAggr == 2:
-            return ",".join([random.choice(funcStrList)]), groupKey
+            if len(funcStrList) > 0:
+                return ",".join([random.choice(funcStrList)]), groupKey
+            else:
+                return "", groupKey
         return ",".join(funcStrList), groupKey
 
 
@@ -413,14 +491,17 @@ class SQLLancer:
         else:
             return "spFuncs"
 
-    def getRandomTimeUnitStr(self):
+    def getRandomTimeUnitStr(self, stream=False):
         """
         Generates a random time unit string.
 
         Returns:
             str: A string representing a random time unit.
         """
-        return f'{random.randint(DataBoundary.SAMPLE_BOUNDARY.value[0], DataBoundary.SAMPLE_BOUNDARY.value[1])}{random.choice(DataBoundary.TIME_UNIT.value)}'
+        if stream:
+            return f'{random.randint(*DataBoundary.SAMPLE_BOUNDARY.value)}{random.choice(DataBoundary.TIME_UNIT.value[2:])}'
+        else:
+            return f'{random.randint(*DataBoundary.SAMPLE_BOUNDARY.value)}{random.choice(DataBoundary.TIME_UNIT.value)}'
 
     def getRandomWindow(self):
         """
@@ -534,11 +615,11 @@ class SQLLancer:
             conditionList.append(f'EVENT_WINDOW start with {startTriggerCondition} end with {endTriggerCondition}')
         return random.choice(conditionList)
 
-    def getWindowStr(self, window, colDict, tsCol="ts", stateUnit="1", countUnit="2"):
+    def getWindowStr(self, window, colDict, tsCol="ts", stateUnit="1", countUnit="2", stream=False):
         if window == "INTERVAL":
-            return f"{window}({self.getRandomTimeUnitStr()}{self.getOffsetValue()})"
+            return f"{window}({self.getRandomTimeUnitStr(stream=stream)}{self.getOffsetValue()})"
         elif window == "SESSION":
-            return f"{window}({tsCol}, {self.getRandomTimeUnitStr()})"
+            return f"{window}({tsCol}, {self.getRandomTimeUnitStr(stream=stream)})"
         elif window == "STATE_WINDOW":
             return f"{window}({stateUnit})"
         elif window == "COUNT_WINDOW":
@@ -564,7 +645,9 @@ class SQLLancer:
         updateVal = f'IGNORE UPDATE 0' if useTag else random.choice(["IGNORE UPDATE 1", ""])
         return updateVal
 
-    def getTriggerValue(self):
+    def getTriggerValue(self, force_trigger=None):
+        if force_trigger is not None:
+            return f"TRIGGER {force_trigger}"
         maxDelayTime = random.choice(DataBoundary.MAX_DELAY_UNIT.value)
         return random.choice(["TRIGGER AT_ONCE", "TRIGGER WINDOW_CLOSE", f"TRIGGER MAX_DELAY {maxDelayTime}", ""])
 
@@ -572,9 +655,11 @@ class SQLLancer:
         deleteMarkTime = random.choice(DataBoundary.DELETE_MARK_UNIT.value)
         return random.choice([f"DELETE_MARK {deleteMarkTime}", ""])
 
-    def getWatermarkValue(self):
-        watermarkTime = random.choice(DataBoundary.WATERMARK_UNIT.value)
-        return random.choice([f"WATERMARK {watermarkTime}", ""])
+    def getWatermarkValue(self, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        timeVal = random.choice(DataBoundary.WATERMARK_UNIT.value)
+        watermarkTime = f"WATERMARK {timeVal}" if useTag else random.choice([f"WATERMARK {timeVal}", ""])
+        return watermarkTime
 
     def getSubtableValue(self, partitionList):
         subTablePre = "pre"
@@ -583,33 +668,69 @@ class SQLLancer:
             subtable = f'CONCAT("{subTablePre}", {colname})'
         return random.choice([f'SUBTABLE({subtable})', ""])
 
-    def generateRandomSubQuery(self, colDict, tbname):
+    def remove_duplicates(self, selectPartStr):
+        parts = selectPartStr.split(',')
+        seen_now = seen_today = seen_timezone = False
+        result = []
+        for part in parts:
+            part_stripped = part.strip()
+            if part_stripped == "NOW()":
+                if not seen_now:
+                    seen_now = True
+                    result.append(part)
+            elif part_stripped == "TODAY()":
+                if not seen_today:
+                    seen_today = True
+                    result.append(part)
+            elif part_stripped == "TIMEZONE()":
+                if not seen_timezone:
+                    seen_timezone = True
+                    result.append(part)
+            else:
+                result.append(part)
+        return ', '.join(result)
+
+# CREATE STREAM IF NOT EXISTS stm_stb TRIGGER WINDOW_CLOSE WATERMARK 1y  IGNORE EXPIRED 1  into stm_stb_target   SUBTABLE(CONCAT("pre", tbname)) AS SELECT TO_CHAR(ts, "dy"),TIMETRUNCATE(ts, 1d, 1), POW(c1, 1),ROUND(c1),TODAY(),SIN(c1),ASIN(c1),TO_ISO8601(c1, "-08:00"),CEIL(c1),CAST(c1 AS BIGINT),MAX(c1),SQRT(c1),LOG(c1),MIN(c1),LAST_ROW(c1),TAN(c1),FIRST(c1),ABS(c1),FLOOR(c1),ACOS(c1),COS(c1),TIMEZONE(), CONCAT("pre_", cast(c2 as nchar(8))),CONCAT_WS(",", "pre_", cast(c2 as nchar(8))), LAST(c3),CAST(c3 AS SMALLINT),NOW(),FIRST(c3),LAST_ROW(c3) FROM test.stb partition BY ts,c1,c2,c3  ;;
+# CREATE STREAM IF NOT EXISTS stm_stb3 TRIGGER AT_ONCE WATERMARK 1y  IGNORE EXPIRED 1  into stm_stb_target3   SUBTABLE(CONCAT("pre", tbname)) AS SELECT ts, TO_CHAR(ts, "dy"),TIMETRUNCATE(ts, 1d, 1), POW(c1, 1),ROUND(c1),TODAY(),SIN(c1),ASIN(c1),TO_ISO8601(c1, "-08:00"),CEIL(c1),CAST(c1 AS BIGINT),MAX(c1),SQRT(c1),LOG(c1),MIN(c1),LAST_ROW(c1),TAN(c1),FIRST(c1),ABS(c1),FLOOR(c1),ACOS(c1),COS(c1),TIMEZONE(), CONCAT("pre_", cast(c2 as nchar(8))),CONCAT_WS(",", "pre_", cast(c2 as nchar(8))), LAST(c3),CAST(c3 AS SMALLINT),NOW(),FIRST(c3),LAST_ROW(c3) FROM test.stb partition by tbname group BY ts,c1,c2,c3 ;;
+# CREATE STREAM  stm_stb TRIGGER at_once into stm_stb_target AS SELECT ts,TO_CHAR(ts, "dy"),TIMETRUNCATE(ts, 1d, 1),SIN(c1) FROM test.stb partition by tbname;;
+    def generateRandomSubQuery(self, colDict, tbname, subtable=False):
         self._dbName = "test"
         selectPartList = []
         groupKeyList = []
         colTypes = [member.name for member in FunctionMap]
-        doAggr = random.choice([0, 1, 2, 3])
+        doAggr = random.choice([0, 1, 2])
         tsCol = "ts"
         for column_name, column_type in colDict.items():
             if column_type == "TIMESTAMP":
                 tsCol = column_name
             for fm in FunctionMap:
                 if column_type in fm.value['types']:
-                    selectStrs, groupKey = self.selectFuncsFromType(fm.value, column_name, column_type, doAggr)
+                    selectStrs, groupKey = self.selectFuncsFromType(fm.value, column_name, column_type, doAggr, True)
                     if len(selectStrs) > 0:
                         selectPartList.append(selectStrs)
                     if len(groupKey) > 0:
                         groupKeyList.append(groupKey)
 
         if doAggr == 2:
-            selectPartList = [random.choice(selectPartList)]
+            selectPartList = [random.choice(selectPartList)] if len(selectPartList) > 0 else ["count(*)"]
+        if doAggr == 1:
+            selectPartList = [tsCol] + selectPartList
+        selectPartStr = ', '.join(selectPartList)
+        selectPartStr = self.remove_duplicates(selectPartStr)
         if len(groupKeyList) > 0:
             groupKeyStr = ",".join(groupKeyList)
-            return f"SELECT {', '.join(selectPartList)} FROM {self._dbName}.{tbname} GROUP BY {groupKeyStr} {self.getOrderByValue(groupKeyStr)} {self.getSlimitValue()};"
+            partitionVal = self.getPartitionValue(groupKeyStr)
+            if subtable and len(partitionVal) > 0:
+                partitionVal = f'{partitionVal},tbname'
+            return f"SELECT {selectPartStr} FROM {self._dbName}.{tbname} {partitionVal} GROUP BY {groupKeyStr} {self.getOrderByValue(groupKeyStr)} {self.getSlimitValue()};"
         else:
             groupKeyStr = "tbname"
+            partitionVal = "partition by tbname" if subtable else ""
         randomSelectPart = f'`{random.choice(selectPartList)}`' if len(selectPartList) > 0 else groupKeyStr
-        return f"SELECT {', '.join(selectPartList)} FROM {self._dbName}.{tbname} {self.getTimeRangeFilter(tbname, tsCol)} {self.getPartitionValue(groupKeyStr)} {self.getWindowStr(self.getRandomWindow(), colDict)} {self.getSlidingValue()} {self.getOrderByValue(randomSelectPart)} {self.getSlimitValue()};"
+        windowStr = self.getWindowStr(self.getRandomWindow(), colDict, stream=True)
+        if ("COUNT_WINDOW" in windowStr or "STATE_WINDOW" in windowStr or "EVENT_WINDOW" in windowStr) and "partition" not in partitionVal:
+            windowStr = f"partition by tbname {windowStr}"
+        return f"SELECT {selectPartStr} FROM {self._dbName}.{tbname} {self.getTimeRangeFilter(tbname, tsCol)} {partitionVal} {windowStr};"
 
 
     def genCreateStreamSql(self, colDict, tbname):
@@ -620,7 +741,9 @@ class SQLLancer:
         existStbFields = ""
         customTags = ""
         subtable = self.getSubtableValue(colDict.keys())
-        subQuery = self.generateRandomSubQuery(colDict, tbname)
+        subQuery = self.generateRandomSubQuery(colDict, tbname, subtable)
+        if ("COUNT_WINDOW" in subQuery or "STATE_WINDOW" in subQuery) and "WATERMARK" not in streamOps:
+            streamOps = f'{self.getTriggerValue()} {self.getWatermarkValue(True)} {self.getFillHistoryValue()} {self.getExpiredValue()} {self.getUpdateValue()}'
         return f"CREATE STREAM IF NOT EXISTS {streamName} {streamOps} into {target} {existStbFields} {customTags} {subtable} AS {subQuery};"
 
     def generateRandomSql(self, colDict, tbname):
@@ -688,9 +811,9 @@ sqllancer = SQLLancer()
 colDict = {"ts": "TIMESTAMP", "c1": "INT", "c2": "NCHAR", "c3": "BOOL"}
 tbname = "stb"
 # print(sqllancer.formatConcat("c1", "c2", "c3"))
-randomSql = sqllancer.generateRandomSql(colDict, tbname)
+# randomSql = sqllancer.generateRandomSql(colDict, tbname)
+# print(randomSql)
 randomStream = sqllancer.genCreateStreamSql(colDict, tbname)
-print(randomSql)
 print(randomStream)
 
 
