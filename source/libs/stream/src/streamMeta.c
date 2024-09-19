@@ -224,8 +224,10 @@ int32_t streamMetaCheckBackendCompatible(SStreamMeta* pMeta) {
 }
 
 int32_t streamMetaCvtDbFormat(SStreamMeta* pMeta) {
-  int32_t code = 0;
-  int64_t chkpId = streamMetaGetLatestCheckpointId(pMeta);
+  int32_t          code = 0;
+  SBackendWrapper* pBackend = NULL;
+  int64_t          chkpId = streamMetaGetLatestCheckpointId(pMeta);
+
   terrno = 0;
   bool exist = streamBackendDataIsExist(pMeta->path, chkpId);
   if (exist == false) {
@@ -233,7 +235,10 @@ int32_t streamMetaCvtDbFormat(SStreamMeta* pMeta) {
     return code;
   }
 
-  SBackendWrapper* pBackend = streamBackendInit(pMeta->path, chkpId, pMeta->vgId);
+  code = streamBackendInit(pMeta->path, chkpId, pMeta->vgId, &pBackend);
+  if (code) {
+    return code;
+  }
 
   void* pIter = taosHashIterate(pBackend->cfInst, NULL);
   while (pIter) {
@@ -252,9 +257,13 @@ _EXIT:
 
   if (code == 0) {
     char* state = taosMemoryCalloc(1, strlen(pMeta->path) + 32);
-    sprintf(state, "%s%s%s", pMeta->path, TD_DIRSEP, "state");
-    taosRemoveDir(state);
-    taosMemoryFree(state);
+    if (state != NULL) {
+      sprintf(state, "%s%s%s", pMeta->path, TD_DIRSEP, "state");
+      taosRemoveDir(state);
+      taosMemoryFree(state);
+    } else {
+      stError("vgId:%d, failed to remove file dir:%s, since:%s", pMeta->vgId, pMeta->path, tstrerror(code));
+    }
   }
 
   return code;
@@ -444,6 +453,8 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
   TSDB_CHECK_CODE(code, lino, _err);
 
   int64_t* pRid = taosMemoryMalloc(sizeof(int64_t));
+  TSDB_CHECK_NULL(pRid, code, lino, _err, terrno);
+
   memcpy(pRid, &pMeta->rid, sizeof(pMeta->rid));
   code = metaRefMgtAdd(pMeta->vgId, pRid);
   TSDB_CHECK_CODE(code, lino, _err);
