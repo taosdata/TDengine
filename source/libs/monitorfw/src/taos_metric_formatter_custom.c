@@ -40,6 +40,7 @@ int taos_metric_formatter_load_sample_new(taos_metric_formatter_t *self, taos_me
   int32_t len = end -start;
 
   char* keyvalues = taosMemoryMalloc(len);
+  if (keyvalues == NULL) return 1;
   memset(keyvalues, 0, len);
   memcpy(keyvalues, start + 1, len - 1);
 

@@ -434,6 +434,9 @@ static int32_t mndApplyQueueItems(const SSyncFSM *pFsm) {
 
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
+  if (pFsm == NULL) {
+    return NULL;
+  }
   pFsm->data = pMnode;
   pFsm->FpCommitCb = mndSyncCommitMsg;
   pFsm->FpAppliedIndexCb = mndSyncAppliedIndex;

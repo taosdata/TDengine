@@ -341,6 +341,7 @@ static int32_t mndBuildCreateMnodeRedoAction(STrans *pTrans, SDCreateMnodeReq *p
   int32_t code = 0;
   int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, pCreateReq);
   void   *pReq = taosMemoryMalloc(contLen);
+  if (pReq == NULL) return terrno;
   (void)tSerializeSDCreateMnodeReq(pReq, contLen, pCreateReq);
 
   STransAction action = {
@@ -363,6 +364,7 @@ static int32_t mndBuildAlterMnodeTypeRedoAction(STrans *pTrans, SDAlterMnodeType
   int32_t code = 0;
   int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, pAlterMnodeTypeReq);
   void   *pReq = taosMemoryMalloc(contLen);
+  if (pReq == NULL) return terrno;
   (void)tSerializeSDCreateMnodeReq(pReq, contLen, pAlterMnodeTypeReq);
 
   STransAction action = {
@@ -385,6 +387,7 @@ static int32_t mndBuildAlterMnodeRedoAction(STrans *pTrans, SDCreateMnodeReq *pA
   int32_t code = 0;
   int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, pAlterReq);
   void   *pReq = taosMemoryMalloc(contLen);
+  if (pReq == NULL) return terrno;
   (void)tSerializeSDCreateMnodeReq(pReq, contLen, pAlterReq);
 
   STransAction action = {
@@ -407,6 +410,7 @@ static int32_t mndBuildDropMnodeRedoAction(STrans *pTrans, SDDropMnodeReq *pDrop
   int32_t code = 0;
   int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, pDropReq);
   void   *pReq = taosMemoryMalloc(contLen);
+  if (pReq == NULL) return terrno;
   (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, pDropReq);
 
   STransAction action = {

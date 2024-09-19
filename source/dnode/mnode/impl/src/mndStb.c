@@ -300,6 +300,9 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   }
 
   pStb->pCmpr = taosMemoryCalloc(pStb->numOfColumns, sizeof(SColCmpr));
+  if (pStb->pCmpr == NULL) {
+    goto _OVER;
+  }
   if (sver < STB_VER_NUMBER) {
     // compatible with old data, setup default compress value
     // impl later
@@ -454,6 +457,10 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   if (numOfColumns < pNew->numOfColumns) {
     taosMemoryFree(pOld->pCmpr);
     pOld->pCmpr = taosMemoryCalloc(pNew->numOfColumns, sizeof(SColCmpr));
+    if (pOld->pCmpr == NULL) {
+      taosWUnLockLatch(&pOld->lock);
+      return terrno;
+    }
     memcpy(pOld->pCmpr, pNew->pCmpr, pNew->numOfColumns * sizeof(SColCmpr));
   } else {
     memcpy(pOld->pCmpr, pNew->pCmpr, pNew->numOfColumns * sizeof(SColCmpr));
@@ -531,6 +538,9 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
   pCmpr->nCols = pStb->numOfColumns;
 
   req.colCmpr.pColCmpr = taosMemoryCalloc(pCmpr->nCols, sizeof(SColCmpr));
+  if (req.colCmpr.pColCmpr == NULL) {
+    goto _err;
+  }
   for (int32_t i = 0; i < pStb->numOfColumns; i++) {
     SColCmpr *p = &pCmpr->pColCmpr[i];
     p->alg = pStb->pCmpr[i].alg;
@@ -943,6 +953,10 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   }
   // set col compress
   pDst->pCmpr = taosMemoryCalloc(1, pDst->numOfColumns * sizeof(SCmprObj));
+  if (pDst->pCmpr == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
   for (int32_t i = 0; i < pDst->numOfColumns; i++) {
     SFieldWithOptions *pField = taosArrayGet(pCreate->pColumns, i);
     SSchema           *pSchema = &pDst->pColumns[i];
@@ -2192,6 +2206,11 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   pRsp->commentLen = pStb->commentLen;
   if (pStb->commentLen > 0) {
     pRsp->pComment = taosStrdup(pStb->comment);
+    if (pRsp->pComment == NULL) {
+      taosRUnLockLatch(&pStb->lock);
+      code = terrno;
+      TAOS_RETURN(code);
+    }
   }
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
@@ -2219,6 +2238,11 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   }
 
   pRsp->pSchemaExt = taosMemoryCalloc(pStb->numOfColumns, sizeof(SSchemaExt));
+  if (pRsp->pSchemaExt == NULL) {
+    taosRUnLockLatch(&pStb->lock);
+    code = terrno;
+    TAOS_RETURN(code);
+  }
   for (int32_t i = 0; i < pStb->numOfColumns; i++) {
     SColCmpr *pCmpr = &pStb->pCmpr[i];
 
@@ -2352,6 +2376,10 @@ static int32_t mndBuildSMAlterStbRsp(SDbObj *pDb, SStbObj *pObj, void **pCont, i
   }
 
   void *cont = taosMemoryMalloc(contLen);
+  if (cont == NULL) {
+    tFreeSMAlterStbRsp(&alterRsp);
+    return terrno;
+  }
   tEncoderInit(&ec, cont, contLen);
   code = tEncodeSMAlterStbRsp(&ec, &alterRsp);
   tEncoderClear(&ec);
@@ -2407,6 +2435,10 @@ int32_t mndBuildSMCreateStbRsp(SMnode *pMnode, char *dbFName, char *stbFName, vo
   }
 
   void *cont = taosMemoryMalloc(contLen);
+  if (cont == NULL) {
+    tFreeSMCreateStbRsp(&stbRsp);
+    return terrno;
+  }
   tEncoderInit(&ec, cont, contLen);
   TAOS_CHECK_GOTO(tEncodeSMCreateStbRsp(&ec, &stbRsp), NULL, _OVER);
   tEncoderClear(&ec);
@@ -4408,6 +4440,10 @@ static int32_t mndDropTbAddTsmaResTbsForSingleVg(SMnode *pMnode, SMndDropTbsWith
           taosGetTbHashVal(buf, len, pInfo->dbInfo.hashMethod, pInfo->dbInfo.hashPrefix, pInfo->dbInfo.hashSuffix);
       const SVgroupInfo *pVgInfo = taosArraySearch(pInfo->dbInfo.dbVgInfos, &hashVal, vgHashValCmp, TD_EQ);
       void              *p = taosStrdup(buf + strlen(pInfo->tsmaResTbDbFName) + TSDB_NAME_DELIMITER_LEN);
+      if (p == NULL) {
+        code = terrno;
+        goto _end;
+      }
       if (taosArrayPush(pCtx->pResTbNames, &p) == NULL) {
         code = terrno;
         goto _end;
