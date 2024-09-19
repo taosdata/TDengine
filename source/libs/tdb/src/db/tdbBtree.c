@@ -2479,7 +2479,10 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
       if (c > 0) {
         pBtc->idx += 1;
       }
-      (void)tdbBtcMoveDownward(pBtc);
+      if (tdbBtcMoveDownward(pBtc) < 0) {
+        tdbError("tdb/btc-move-to: btc move downward failed.");
+        return TSDB_CODE_FAILED;
+      }
     }
   }
 

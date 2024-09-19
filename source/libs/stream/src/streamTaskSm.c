@@ -491,8 +491,8 @@ static void keepPrevInfo(SStreamTaskSM* pSM) {
 
 int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent event, __state_trans_user_fn callbackFn, void* param) {
   SStreamTask* pTask = pSM->pTask;
-  const char* id = pTask->id.idStr;
-  int32_t code = 0;
+  const char*  id = pTask->id.idStr;
+  int32_t      code = 0;
 
   // do update the task status
   streamMutexLock(&pTask->lock);

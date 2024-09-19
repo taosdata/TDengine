@@ -59,7 +59,7 @@ void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdReaderGetNumOfInMemRows = tsdbGetNumOfRowsInMemTable2;  // todo this function should be moved away
 
   pReader->tsdSetQueryTableList = tsdbSetTableList2;
-  pReader->tsdSetReaderTaskId = (void (*)(void*, const char*))tsdbReaderSetId2;
+  pReader->tsdSetReaderTaskId = tsdbReaderSetId;
 
   pReader->tsdSetFilesetDelimited = (void (*)(void*))tsdbSetFilesetDelimited;
   pReader->tsdSetSetNotifyCb = (void (*)(void*, TsdReaderNotifyCbFn, void*))tsdbReaderSetNotifyCb;

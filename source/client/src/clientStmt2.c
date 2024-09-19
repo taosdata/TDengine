@@ -194,6 +194,12 @@ static int32_t stmtUpdateBindInfo(TAOS_STMT2* stmt, STableMeta* pTableMeta, void
   pStmt->bInfo.tbSuid = pTableMeta->suid;
   pStmt->bInfo.tbVgId = pTableMeta->vgId;
   pStmt->bInfo.tbType = pTableMeta->tableType;
+
+  if (!pStmt->bInfo.tagsCached) {
+    qDestroyBoundColInfo(pStmt->bInfo.boundTags);
+    taosMemoryFreeClear(pStmt->bInfo.boundTags);
+  }
+
   pStmt->bInfo.boundTags = tags;
   pStmt->bInfo.tagsCached = false;
   tstrncpy(pStmt->bInfo.stbFName, sTableName, sizeof(pStmt->bInfo.stbFName));
@@ -985,15 +991,15 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (pStmt->bInfo.inExecCache) {
-    return TSDB_CODE_SUCCESS;
-  }
-
   STableDataCxt** pDataBlock =
       (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
   if (NULL == pDataBlock) {
     tscError("table %s not found in exec blockHash", pStmt->bInfo.tbFName);
     STMT_ERR_RET(TSDB_CODE_APP_ERROR);
+  }
+
+  if (pStmt->bInfo.inExecCache && (!pStmt->sql.autoCreateTbl || (*pDataBlock)->pData->pCreateTbReq)) {
+    return TSDB_CODE_SUCCESS;
   }
 
   tscDebug("start to bind stmt tag values");
@@ -1889,7 +1895,12 @@ int stmtGetParamTbName(TAOS_STMT2* stmt, int* nums) {
     STMT_ERR_RET(stmtParseSql(pStmt));
   }
 
-  *nums = STMT_TYPE_MULTI_INSERT == pStmt->sql.type ? 1 : 0;
+  if (TSDB_CODE_TSC_STMT_TBNAME_ERROR == pStmt->errCode) {
+    *nums = 1;
+    pStmt->errCode = TSDB_CODE_SUCCESS;
+  } else {
+    *nums = STMT_TYPE_MULTI_INSERT == pStmt->sql.type ? 1 : 0;
+  }
 
   return TSDB_CODE_SUCCESS;
 }

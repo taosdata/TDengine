@@ -316,7 +316,7 @@ static char* evictBufPage(SDiskbasedBuf* pBuf) {
   }
 
   terrno = 0;
-  (void)tdListPopNode(pBuf->lruList, pn);
+  pn = tdListPopNode(pBuf->lruList, pn);
 
   SPageInfo* d = *(SPageInfo**)pn->data;
 
@@ -337,7 +337,7 @@ static int32_t lruListPushFront(SList* pList, SPageInfo* pi) {
 }
 
 static void lruListMoveToFront(SList* pList, SPageInfo* pi) {
-  (void)tdListPopNode(pList, pi->pn);
+  pi->pn = tdListPopNode(pList, pi->pn);
   tdListPrependNode(pList, pi->pn);
 }
 
@@ -474,8 +474,11 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
       pBuf->totalBufSize += pBuf->pageSize;
     } else {
       taosMemoryFree(availablePage);
-      (void)taosArrayPop(pBuf->pIdList);
-      (void)tSimpleHashRemove(pBuf->all, pageId, sizeof(int32_t));
+      SPageInfo **pLast = taosArrayPop(pBuf->pIdList);
+      int32_t ret = tSimpleHashRemove(pBuf->all, pageId, sizeof(int32_t));
+      if (ret != TSDB_CODE_SUCCESS) {
+        uError("%s failed to clear pageId %d from buf hash-set since %s", __func__, *pageId, tstrerror(ret));
+      }
       taosMemoryFree(pi);
       terrno = code;
       return NULL;
@@ -544,6 +547,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
     int32_t code = lruListPushFront(pBuf->lruList, *pi);
     if (TSDB_CODE_SUCCESS != code) {
       taosMemoryFree((*pi)->pData);
+      (*pi)->pData = NULL;
       terrno = code;
       return NULL;
     }
@@ -554,7 +558,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
       int32_t code = loadPageFromDisk(pBuf, *pi);
       if (code != 0) {
         taosMemoryFree((*pi)->pData);
-
+        (*pi)->pData = NULL;
         terrno = code;
         return NULL;
       }

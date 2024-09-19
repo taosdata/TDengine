@@ -182,7 +182,7 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
     goto _OVER;
   }
   TAOS_CHECK_GOTO(mndTransAppendCommitlog(pTrans, pRaw), NULL, _OVER);
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pRaw, SDB_STATUS_READY), NULL, _OVER);
   pRaw = NULL;
 
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
@@ -621,7 +621,10 @@ static int32_t mndUpdateDnodeObj(SMnode *pMnode, SDnodeObj *pDnode) {
     TAOS_RETURN(terrno);
   }
 
-  (void)tSerializeSDnodeInfoReq(pReq, contLen, &infoReq);
+  if ((contLen = tSerializeSDnodeInfoReq(pReq, contLen, &infoReq)) <= 0) {
+    code = contLen;
+    goto _exit;
+  }
 
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPDATE_DNODE_INFO, .pCont = pReq, .contLen = contLen};
   TAOS_CHECK_EXIT(tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg));
@@ -661,7 +664,7 @@ static int32_t mndProcessUpdateDnodeInfoReq(SRpcMsg *pReq) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, tstrerror(code));
     TAOS_CHECK_EXIT(code);
   }
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
   pCommitRaw = NULL;
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
@@ -874,8 +877,12 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
-    (void)tSerializeSStatusRsp(pHead, contLen, &statusRsp);
+    contLen = tSerializeSStatusRsp(pHead, contLen, &statusRsp);
     taosArrayDestroy(statusRsp.pDnodeEps);
+    if (contLen < 0) {
+      code = contLen;
+      goto _OVER;
+    }
 
     pReq->info.rspLen = contLen;
     pReq->info.rsp = pHead;
@@ -888,8 +895,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 _OVER:
   mndReleaseDnode(pMnode, pDnode);
   taosArrayDestroy(statusReq.pVloads);
-  (void)mndUpdClusterInfo(pReq);
-  return code;
+  return mndUpdClusterInfo(pReq);
 }
 
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq) {
@@ -955,7 +961,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
     goto _OVER;
   }
   TAOS_CHECK_GOTO(mndTransAppendCommitlog(pTrans, pRaw), NULL, _OVER);
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pRaw, SDB_STATUS_READY), NULL, _OVER);
   pRaw = NULL;
 
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
@@ -1010,7 +1016,10 @@ static int32_t mndProcessDnodeListReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  (void)tSerializeSDnodeListRsp(pRsp, rspLen, &rsp);
+  if ((rspLen = tSerializeSDnodeListRsp(pRsp, rspLen, &rsp)) <= 0) {
+    code = rspLen;
+    goto _OVER;
+  }
 
   pReq->info.rspLen = rspLen;
   pReq->info.rsp = pRsp;
@@ -1151,7 +1160,10 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  (void)tSerializeSShowVariablesRsp(pRsp, rspLen, &rsp);
+  if ((rspLen = tSerializeSShowVariablesRsp(pRsp, rspLen, &rsp)) <= 0) {
+    code = rspLen;
+    goto _OVER;
+  }
 
   pReq->info.rspLen = rspLen;
   pReq->info.rsp = pRsp;
@@ -1247,7 +1259,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
     goto _OVER;
   }
   TAOS_CHECK_GOTO(mndTransAppendRedolog(pTrans, pRaw), NULL, _OVER);
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_DROPPING);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pRaw, SDB_STATUS_DROPPING), NULL, _OVER);
   pRaw = NULL;
 
   pRaw = mndDnodeActionEncode(pDnode);
@@ -1257,7 +1269,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
     goto _OVER;
   }
   TAOS_CHECK_GOTO(mndTransAppendCommitlog(pTrans, pRaw), NULL, _OVER);
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED), NULL, _OVER);
   pRaw = NULL;
 
   if (pMObj != NULL) {
@@ -1450,7 +1462,10 @@ static int32_t mndSendCfgDnodeReq(SMnode *pMnode, int32_t dnodeId, SDCfgDnodeReq
       void   *pBuf = rpcMallocCont(bufLen);
 
       if (pBuf != NULL) {
-        (void)tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq);
+        if ((bufLen = tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq)) <= 0) {
+          code = bufLen;
+          return code;
+        }
         mInfo("dnode:%d, send config req to dnode, config:%s value:%s", dnodeId, pDcfgReq->config, pDcfgReq->value);
         SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
         code = tmsgSendReq(&epSet, &rpcMsg);
@@ -1590,7 +1605,11 @@ static int32_t mndProcessCreateEncryptKeyReqImpl(SRpcMsg *pReq, int32_t dnodeId,
       void   *pBuf = rpcMallocCont(bufLen);
 
       if (pBuf != NULL) {
-        (void)tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq);
+        if ((bufLen = tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq)) <= 0) {
+          code = bufLen;
+          sdbRelease(pSdb, pDnode);
+          goto _exit;
+        }
         SRpcMsg rpcMsg = {.msgType = TDMT_DND_CREATE_ENCRYPT_KEY, .pCont = pBuf, .contLen = bufLen};
         if (0 == tmsgSendReq(&epSet, &rpcMsg)) {
           (void)atomic_add_fetch_16(&pMnode->encryptMgmt.nEncrypt, 1);

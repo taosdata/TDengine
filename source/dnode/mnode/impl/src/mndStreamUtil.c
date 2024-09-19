@@ -165,7 +165,10 @@ int32_t mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray **pList) {
     }
 
     char buf[256] = {0};
-    (void)epsetToStr(&entry.epset, buf, tListLen(buf));
+    code = epsetToStr(&entry.epset, buf, tListLen(buf));
+    if (code != 0) {  // print error and continue
+      mError("failed to convert epset to str, code:%s", tstrerror(code));
+    }
 
     void *p = taosArrayPush(pVgroupList, &entry);
     if (p == NULL) {
@@ -198,7 +201,10 @@ int32_t mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray **pList) {
     }
 
     char buf[256] = {0};
-    (void)epsetToStr(&entry.epset, buf, tListLen(buf));
+    code = epsetToStr(&entry.epset, buf, tListLen(buf));
+    if (code != 0) {  // print error and continue
+      mError("failed to convert epset to str, code:%s", tstrerror(code));
+    }
 
     void *p = taosArrayPush(pVgroupList, &entry);
     if (p == NULL) {
@@ -424,9 +430,12 @@ static int32_t doSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTa
   }
 
   char buf[256] = {0};
-  (void) epsetToStr(&epset, buf, tListLen(buf));
-  mDebug("pause stream task in node:%d, epset:%s", pTask->info.nodeId, buf);
+  code = epsetToStr(&epset, buf, tListLen(buf));
+  if (code != 0) {  // print error and continue
+    mError("failed to convert epset to str, code:%s", tstrerror(code));
+  }
 
+  mDebug("pause stream task in node:%d, epset:%s", pTask->info.nodeId, buf);
   code = setTransAction(pTrans, pReq, sizeof(SVPauseStreamTaskReq), TDMT_STREAM_TASK_PAUSE, &epset, 0, TSDB_CODE_VND_INVALID_VGROUP_ID);
   if (code != 0) {
     taosMemoryFree(pReq);
@@ -639,8 +648,7 @@ static int32_t doBuildStreamTaskUpdateMsg(void **pBuf, int32_t *pLen, SVgroupCha
 static int32_t doSetUpdateTaskAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask, SVgroupChangeInfo *pInfo) {
   void   *pBuf = NULL;
   int32_t len = 0;
-  (void)streamTaskUpdateEpsetInfo(pTask, pInfo->pUpdateNodeList);
-
+  bool    unusedRet = streamTaskUpdateEpsetInfo(pTask, pInfo->pUpdateNodeList);
   int32_t code = doBuildStreamTaskUpdateMsg(&pBuf, &len, pInfo, pTask->info.nodeId, &pTask->id, pTrans->id);
   if (code) {
     return code;
@@ -914,8 +922,15 @@ void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
   }
 
   // 2. remove stream entry in consensus hash table and checkpoint-report hash table
-  (void) mndClearConsensusCheckpointId(execInfo.pStreamConsensus, pStream->uid);
-  (void) mndClearChkptReportInfo(execInfo.pChkptStreams, pStream->uid);
+  code = mndClearConsensusCheckpointId(execInfo.pStreamConsensus, pStream->uid);
+  if (code) {
+    mError("failed to clear consensus checkpointId, code:%s", tstrerror(code));
+  }
+
+  code = mndClearChkptReportInfo(execInfo.pChkptStreams, pStream->uid);
+  if (code) {
+    mError("failed to clear the checkpoint report info, code:%s", tstrerror(code));
+  }
 
   streamMutexUnlock(&pExecNode->lock);
   destroyStreamTaskIter(pIter);

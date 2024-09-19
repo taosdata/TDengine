@@ -390,8 +390,8 @@ END:
   tdbFree(pKey);
   tdbFree(pVal);
   int32_t ret = tdbTbcClose(pCur);
-  if (code == 0 && ret != 0) {
-    code = ret;
+  if (ret != 0) {
+    tqError("failed to close tbc, ret:%d", ret);
   }
   return code;
 }
@@ -464,12 +464,10 @@ static int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
 END:
   tdbFree(pKey);
   tdbFree(pVal);
-
   int32_t ret = tdbTbcClose(pCur);
-  if (code == 0) {
-    code = ret;
+  if (ret != 0) {
+    tqError("failed to close tbc, ret:%d", ret);
   }
-
   tDeleteSTqCheckInfo(&info);
   return code;
 }
@@ -534,48 +532,44 @@ END:
   taosMemoryFree(offset);
   taosMemoryFree(offsetNew);
 
-  // return 0 always, so ignore
   int32_t ret = tdbTbClose(pExecStore);
   if (ret != 0) {
-    tqError("vgId:%d failed to close stream exec store, code:%s", pTq->pStreamMeta->vgId, tstrerror(ret));
+    tqError("failed to close tb, ret:%d", ret);
   }
-
   ret = tdbTbClose(pCheckStore);
   if (ret != 0) {
-    tqError("vgId:%d failed to close stream check store, code:%s", pTq->pStreamMeta->vgId, tstrerror(ret));
+    tqError("failed to close tb, ret:%d", ret);
   }
-
   ret = tdbClose(pMetaDB);
   if (ret != 0) {
-    tqError("vgId:%d failed to close stream meta db store, code:%s", pTq->pStreamMeta->vgId, tstrerror(ret));
+    tqError("failed to close tdb, ret:%d", ret);
   }
 
   return code;
 }
 
 void tqMetaClose(STQ* pTq) {
-  int32_t code = 0;
+  int32_t ret = 0;
   if (pTq->pExecStore) {
-    code = tdbTbClose(pTq->pExecStore);
-    if (code) {
-      tqError("vgId:%d failed to close tq exec store, code:%s", pTq->pStreamMeta->vgId, tstrerror(code));
+    ret = tdbTbClose(pTq->pExecStore);
+    if (ret != 0) {
+      tqError("failed to close tb, ret:%d", ret);
     }
   }
   if (pTq->pCheckStore) {
-    code = tdbTbClose(pTq->pCheckStore);
-    if (code) {
-      tqError("vgId:%d failed to close tq check store, code:%s", pTq->pStreamMeta->vgId, tstrerror(code));
+    ret = tdbTbClose(pTq->pCheckStore);
+    if (ret != 0) {
+      tqError("failed to close tb, ret:%d", ret);
     }
   }
   if (pTq->pOffsetStore) {
-    code = tdbTbClose(pTq->pOffsetStore);
-    if (code) {
-      tqError("vgId:%d failed to close tq offset store, code:%s", pTq->pStreamMeta->vgId, tstrerror(code));
+    ret = tdbTbClose(pTq->pOffsetStore);
+    if (ret != 0) {
+      tqError("failed to close tb, ret:%d", ret);
     }
   }
-
-  code = tdbClose(pTq->pMetaDB);
-  if (code) {
-    tqError("vgId:%d failed to close tq meta db store, code:%s", pTq->pStreamMeta->vgId, tstrerror(code));
+  ret = tdbClose(pTq->pMetaDB);
+  if (ret != 0) {
+    tqError("failed to close tdb, ret:%d", ret);
   }
 }

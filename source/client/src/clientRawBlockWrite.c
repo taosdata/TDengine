@@ -417,6 +417,10 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
     }
     char* pJson = NULL;
     parseTagDatatoJson(pTag, &pJson);
+    if(pJson == NULL) {
+      uError("parseTagDatatoJson failed, pJson == NULL");
+      goto end;
+    }
     cJSON* tag = cJSON_CreateObject();
     RAW_NULL_CHECK(tag);
     STagVal* pTagVal = taosArrayGet(pTagVals, 0);
@@ -727,6 +731,10 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
             goto end;
           }
           parseTagDatatoJson(vAlterTbReq.pTagVal, &buf);
+          if(buf == NULL) {
+            uError("parseTagDatatoJson failed, buf == NULL");
+            goto end;
+          }
         } else {
           if (vAlterTbReq.tagType == TSDB_DATA_TYPE_VARBINARY) {
             buf = taosMemoryCalloc(vAlterTbReq.nTagVal * 2 + 2 + 3, 1);
@@ -960,6 +968,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
   RAW_NULL_CHECK(pCmdMsg.pMsg);
   if (tSerializeSMCreateStbReq(pCmdMsg.pMsg, pCmdMsg.msgLen, &pReq) <= 0) {
     code = TSDB_CODE_INVALID_PARA;
+    taosMemoryFree(pCmdMsg.pMsg);
     goto end;
   }
 
@@ -971,15 +980,15 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
 
   (void)launchQueryImpl(pRequest, &pQuery, true, NULL);  // ignore, because return value is pRequest
 
+  taosMemoryFree(pCmdMsg.pMsg);
+
   if (pRequest->code == TSDB_CODE_SUCCESS) {
     SCatalog* pCatalog = NULL;
-    // ignore the return value
-    (void)catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
-    (void)catalogRemoveTableMeta(pCatalog, &tableName);
+    RAW_RETURN_CHECK(catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog));
+    RAW_RETURN_CHECK(catalogRemoveTableMeta(pCatalog, &tableName));
   }
 
   code = pRequest->code;
-  taosMemoryFree(pCmdMsg.pMsg);
 
 end:
   uDebug(LOG_ID_TAG " create stable return, msg:%s", LOG_ID_VALUE, tstrerror(code));
@@ -1022,8 +1031,7 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
                            .requestObjRefId = pRequest->self,
                            .mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp)};
   SName            pName = {0};
-  toName(pRequest->pTscObj->acctId, pRequest->pDb, req.name,
-               &pName);  // ignore the return value, always return pName
+  toName(pRequest->pTscObj->acctId, pRequest->pDb, req.name, &pName);
   STableMeta* pTableMeta = NULL;
   code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
   if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
@@ -1064,6 +1072,7 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
   RAW_NULL_CHECK(pCmdMsg.pMsg);
   if (tSerializeSMDropStbReq(pCmdMsg.pMsg, pCmdMsg.msgLen, &pReq) <= 0) {
     code = TSDB_CODE_INVALID_PARA;
+    taosMemoryFree(pCmdMsg.pMsg);
     goto end;
   }
 
@@ -1074,15 +1083,14 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
   pQuery.stableQuery = true;
 
   (void)launchQueryImpl(pRequest, &pQuery, true, NULL);  // ignore, because return value is pRequest
-
+  taosMemoryFree(pCmdMsg.pMsg);
   if (pRequest->code == TSDB_CODE_SUCCESS) {
     // ignore the error code
-    (void)catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
-    (void)catalogRemoveTableMeta(pCatalog, &tableName);
+    RAW_RETURN_CHECK(catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog));
+    RAW_RETURN_CHECK(catalogRemoveTableMeta(pCatalog, &tableName));
   }
 
   code = pRequest->code;
-  taosMemoryFree(pCmdMsg.pMsg);
 
 end:
   uDebug(LOG_ID_TAG " drop stable return, msg:%s", LOG_ID_VALUE, tstrerror(code));
@@ -1230,7 +1238,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
 
   (void)launchQueryImpl(pRequest, pQuery, true, NULL);
   if (pRequest->code == TSDB_CODE_SUCCESS) {
-    (void)removeMeta(pTscObj, pRequest->tableList, false);
+    RAW_RETURN_CHECK(removeMeta(pTscObj, pRequest->tableList, false));
   }
 
   code = pRequest->code;
@@ -1359,7 +1367,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
 
   (void)launchQueryImpl(pRequest, pQuery, true, NULL);
   if (pRequest->code == TSDB_CODE_SUCCESS) {
-    (void)removeMeta(pTscObj, pRequest->tableList, false);
+    RAW_RETURN_CHECK(removeMeta(pTscObj, pRequest->tableList, false));
   }
   code = pRequest->code;
 

@@ -238,7 +238,7 @@ void    initCheckpointReadyInfo(STaskCheckpointReadyInfo* pReadyInfo, int32_t up
 int32_t initCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamNodeId, int32_t upstreamTaskId, int32_t childId,
                                int64_t checkpointId, SRpcMsg* pMsg);
 
-void    flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock);
+int32_t flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock);
 int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger, int32_t triggerType, int32_t trigger);
 
 #ifdef __cplusplus

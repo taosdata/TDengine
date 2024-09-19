@@ -1114,6 +1114,10 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
       if (tagType == TSDB_DATA_TYPE_JSON) {
         char* tagJson = NULL;
         parseTagDatatoJson(tagData, &tagJson);
+        if (tagJson == NULL) {
+          code = terrno;
+          goto _end;
+        }
         tagVarChar = taosMemoryMalloc(strlen(tagJson) + VARSTR_HEADER_SIZE);
         QUERY_CHECK_NULL(tagVarChar, code, lino, _end, terrno);
         memcpy(varDataVal(tagVarChar), tagJson, strlen(tagJson));

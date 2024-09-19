@@ -1636,8 +1636,9 @@ void hbDeregisterConn(STscObj *pTscObj, SClientHbKey connKey) {
     SClientHbReq *pReq = taosHashAcquire(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
     if (pReq) {
       tFreeClientHbReq(pReq);
-      if (TSDB_CODE_SUCCESS != taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey))) {
-        tscError("failed to remove connKey from activeInfo");
+      code = taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
+      if (TSDB_CODE_SUCCESS != code) {
+        tscError("hbDeregisterConn taosHashRemove error, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
       }
       taosHashRelease(pAppHbMgr->activeInfo, pReq);
       (void)atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);
