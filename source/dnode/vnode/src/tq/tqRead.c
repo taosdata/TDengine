@@ -577,7 +577,7 @@ static int32_t buildResSDataBlock(SSDataBlock* pBlock, SSchemaWrapper* pSchema, 
       int32_t code = blockDataAppendColInfo(pBlock, &colInfo);
       if (code != TSDB_CODE_SUCCESS) {
         blockDataFreeRes(pBlock);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
   } else {

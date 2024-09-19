@@ -149,7 +149,7 @@ void setBufPageDirty(void* pPage, bool dirty);
  * Set the compress/ no-compress flag for paged buffer, when flushing data in disk.
  * @param pBuf
  */
-void setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp);
+int32_t setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp);
 
 /**
  * Set the pageId page buffer is not need
