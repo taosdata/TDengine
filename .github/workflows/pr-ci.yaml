@@ -250,28 +250,27 @@ jobs:
 
           docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX/ && source ./setenv.sh && echo \"poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \" && poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity "
 
+  generate_report:
+    runs-on: [self-hosted, linux, x64, qa, test]
+    needs: [deploy_with_docker, run_test]
+    # if: ${{ needs.run_test.result == success() || needs.run_test.result == failure() }}
+    if: always()
+    steps:
+      - name: allure report
+        run: |
           # 报告生成
+          echo ${{ needs.run_test.result }}
           allure generate $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile -o $COVERAGE_BASE_DIR/$DIR_PATH/allure_report/ --clean
           echo "see report at $REPORT_BASE_URL/$DIR_PATH/allure_report/"
           pass_rate=$(cd /data/github/TestNG_taosX/ && /root/.local/bin/poetry run python3 testng_taosx/ci_calculate_pass_rate.py $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile)
           # 若通过率小于 100 则返回失败
           echo "Pass Rate: $pass_rate"
           awk "BEGIN {exit ($pass_rate < 100)}"
-
-  # generate_report:
-  #   runs-on: [self-hosted, linux, x64, qa, test]
-  #   needs: [deploy_with_docker, run_test]
-  #   if: ${{ needs.run_test.result == success() || needs.run_test.result == failure() }}
-  #   steps:
-  #     - name: allure report
-  #       run: |
-  #         allure generate $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile -o $COVERAGE_BASE_DIR/$DIR_PATH/allure_report/ --clean
-  #         echo "see report at $REPORT_BASE_URL/$DIR_PATH/allure_report/"
       
   clean_up:
     runs-on: [self-hosted, linux, x64, qa, test]
-    # needs: [deploy_with_docker, run_test, generate_report]
-    needs: [deploy_with_docker, run_test]
+    needs: [deploy_with_docker, run_test, generate_report]
+    # needs: [deploy_with_docker, run_test]
     if: success()
     steps:
       - name: Force stop taosx-agent & taosx
@@ -284,8 +283,8 @@ jobs:
 
   feishu_report:
     runs-on: [self-hosted, linux, x64, qa, test]
-    # needs: [build_rust, build_go, build_java, deploy_with_docker, run_test, generate_report, clean_up]
-    needs: [build_rust, build_go, build_java, deploy_with_docker, run_test, clean_up]
+    needs: [build_rust, build_go, build_java, deploy_with_docker, run_test, generate_report, clean_up]
+    # needs: [build_rust, build_go, build_java, deploy_with_docker, run_test, clean_up]
     if: failure()
     steps: 
       - name: Send Feishu Message
