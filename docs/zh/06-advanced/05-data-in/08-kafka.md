@@ -80,13 +80,29 @@ TDengine 可以高效地从 Kafka 读取数据并将其写入 TDengine，以实�
 在 **Payload 解析** 区域填写 Payload 解析相关的配置参数。
 
 #### 7.1 解析
+
 有三种获取示例数据的方法：
 
 点击 **从服务器检索** 按钮，从 Kafka 获取示例数据。
 
 点击 **文件上传** 按钮，上传 CSV 文件，获取示例数据。
 
-在 **消息体** 中填写 Kafka 消息体中的示例数据，例如：`{"id": 1, "message": "hello-word"}{"id": 2, "message": "hello-word"}`。之后会使用这条示例数据来配置提取和过滤条件。
+在 **消息体** 中填写 Kafka 消息体中的示例数据。
+
+json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解析一下数据：
+
+``` json
+{"id": 1, "message": "hello-word"}
+{"id": 2, "message": "hello-word"}
+```
+
+或者
+
+``` json
+[{"id": 1, "message": "hello-word"},{"id": 2, "message": "hello-word"}]
+```
+
+解析结果如下所示：
 
 ![kafka-07.png](./kafka-07.png)
 
