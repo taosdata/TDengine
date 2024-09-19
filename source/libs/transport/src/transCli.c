@@ -1034,7 +1034,7 @@ static void cliDestroy(uv_handle_t* handle) {
   SCliThrd* pThrd = conn->hostThrd;
   cliResetConnTimer(conn);
 
-  destroyAllReqs(conn);
+  (void)destroyAllReqs(conn);
 
   if (conn->refId > 0) {
     (void)transReleaseExHandle(transGetRefMgt(), conn->refId);
@@ -1123,7 +1123,7 @@ static void cliHandleException(SCliConn* conn) {
   STrans*   pInst = pThrd->pInst;
 
   cliResetConnTimer(conn);
-  destroyAllReqs(conn);
+  (void)destroyAllReqs(conn);
 
   QUEUE_REMOVE(&conn->q);
   if (conn->registered) {
