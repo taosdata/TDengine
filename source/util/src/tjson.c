@@ -320,7 +320,7 @@ int32_t tjsonMakeObject(const SJson* pJson, const char* pName, FToObject func, v
   }
   *pObj = taosMemoryCalloc(1, objSize);
   if (NULL == *pObj) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   return func(pJsonObj, *pObj);
 }

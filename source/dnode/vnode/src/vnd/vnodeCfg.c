@@ -351,7 +351,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     if (info == NULL) return -1;
     tjsonGetNumberValue(info, "nodePort", pNode->nodePort, code);
     if (code) return code;
-    (void)tjsonGetStringValue(info, "nodeFqdn", pNode->nodeFqdn);
+    code = tjsonGetStringValue(info, "nodeFqdn", pNode->nodeFqdn);
     tjsonGetNumberValue(info, "nodeId", pNode->nodeId, code);
     if (code) return code;
     tjsonGetNumberValue(info, "clusterId", pNode->clusterId, code);

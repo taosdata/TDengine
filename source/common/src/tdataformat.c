@@ -489,7 +489,7 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
         colVal = COL_VAL_VALUE(infos[iInfo].columnId, value);
       }
       if (taosArrayPush(colValArray, &colVal) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exit;
       }
     }
@@ -500,7 +500,7 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
     }
 
     if ((taosArrayPush(rowArray, &row)) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
   }
@@ -702,7 +702,7 @@ static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, 
 
     if (pColVal) {
       if (taosArrayPush(aColVal, pColVal) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exit;
       }
     }
@@ -1756,7 +1756,7 @@ int32_t tTagToValArray(const STag *pTag, SArray **ppArray) {
     }
     (void)tGetTagVal(p + offset, &tv, pTag->flags & TD_TAG_JSON);
     if (taosArrayPush(*ppArray, &tv) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _err;
     }
   }
@@ -3124,6 +3124,198 @@ _exit:
   return code;
 }
 
+int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen) {
+  int32_t code = 0;
+
+  if (!(pBind->num == 1 && pBind->is_null && *pBind->is_null)) {
+    if (!(pColData->type == pBind->buffer_type)) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+  }
+
+  if (IS_VAR_DATA_TYPE(pColData->type)) {  // var-length data type
+    uint8_t *buf = pBind->buffer;
+    for (int32_t i = 0; i < pBind->num; ++i) {
+      if (pBind->is_null && pBind->is_null[i]) {
+        if (pColData->cflag & COL_IS_KEY) {
+          code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+          goto _exit;
+        }
+        if (pBind->is_null[i] == 1) {
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+          if (code) goto _exit;
+        } else {
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+          if (code) goto _exit;
+        }
+      } else if (pBind->length[i] > buffMaxLen) {
+        uError("var data length too big, len:%d, max:%d", pBind->length[i], buffMaxLen);
+        return TSDB_CODE_INVALID_PARA;
+      } else {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, buf, pBind->length[i]);
+        buf += pBind->length[i];
+      }
+    }
+  } else {  // fixed-length data type
+    bool allValue;
+    bool allNull;
+    bool allNone;
+    if (pBind->is_null) {
+      bool same = (memcmp(pBind->is_null, pBind->is_null + 1, pBind->num - 1) == 0);
+      allNull = (same && pBind->is_null[0] == 1);
+      allNone = (same && pBind->is_null[0] > 1);
+      allValue = (same && pBind->is_null[0] == 0);
+    } else {
+      allNull = false;
+      allNone = false;
+      allValue = true;
+    }
+
+    if ((pColData->cflag & COL_IS_KEY) && !allValue) {
+      code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+      goto _exit;
+    }
+
+    if (allValue) {
+      // optimize (todo)
+      for (int32_t i = 0; i < pBind->num; ++i) {
+        uint8_t *val = (uint8_t *)pBind->buffer + TYPE_BYTES[pColData->type] * i;
+        if (TSDB_DATA_TYPE_BOOL == pColData->type && *val > 1) {
+          *val = 1;
+        }
+
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, val, TYPE_BYTES[pColData->type]);
+      }
+    } else if (allNull) {
+      // optimize (todo)
+      for (int32_t i = 0; i < pBind->num; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+        if (code) goto _exit;
+      }
+    } else if (allNone) {
+      // optimize (todo)
+      for (int32_t i = 0; i < pBind->num; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+        if (code) goto _exit;
+      }
+    } else {
+      for (int32_t i = 0; i < pBind->num; ++i) {
+        if (pBind->is_null[i]) {
+          if (pBind->is_null[i] == 1) {
+            code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+            if (code) goto _exit;
+          } else {
+            code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+            if (code) goto _exit;
+          }
+        } else {
+          uint8_t *val = (uint8_t *)pBind->buffer + TYPE_BYTES[pColData->type] * i;
+          if (TSDB_DATA_TYPE_BOOL == pColData->type && *val > 1) {
+            *val = 1;
+          }
+
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, val, TYPE_BYTES[pColData->type]);
+        }
+      }
+    }
+  }
+
+_exit:
+  return code;
+}
+
+/* build rows to `rowArray` from bind
+ * `infos` is the bind information array
+ * `numOfInfos` is the number of bind information
+ * `infoSorted` is whether the bind information is sorted by column id
+ * `pTSchema` is the schema of the table
+ * `rowArray` is the array to store the rows
+ */
+int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
+                           SArray *rowArray) {
+  if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (!infoSorted) {
+    taosqsort_r(infos, numOfInfos, sizeof(SBindInfo), NULL, tBindInfoCompare);
+  }
+
+  int32_t code = 0;
+  int32_t numOfRows = infos[0].bind->num;
+  SArray *colValArray, *bufArray;
+  SColVal colVal;
+
+  if ((colValArray = taosArrayInit(numOfInfos, sizeof(SColVal))) == NULL) {
+    return terrno;
+  }
+  if ((bufArray = taosArrayInit(numOfInfos, sizeof(uint8_t *))) == NULL) {
+    taosArrayDestroy(colValArray);
+    return terrno;
+  }
+  for (int i = 0; i < numOfInfos; ++i) {
+    if (!taosArrayPush(bufArray, &infos[i].bind->buffer)) {
+      taosArrayDestroy(colValArray);
+      taosArrayDestroy(bufArray);
+      return terrno;
+    }
+  }
+
+  for (int32_t iRow = 0; iRow < numOfRows; iRow++) {
+    taosArrayClear(colValArray);
+
+    for (int32_t iInfo = 0; iInfo < numOfInfos; iInfo++) {
+      if (infos[iInfo].bind->is_null && infos[iInfo].bind->is_null[iRow]) {
+        if (infos[iInfo].bind->is_null[iRow] == 1) {
+          colVal = COL_VAL_NULL(infos[iInfo].columnId, infos[iInfo].type);
+        } else {
+          colVal = COL_VAL_NONE(infos[iInfo].columnId, infos[iInfo].type);
+        }
+      } else {
+        SValue value = {
+            .type = infos[iInfo].type,
+        };
+        if (IS_VAR_DATA_TYPE(infos[iInfo].type)) {
+          int32_t   length = infos[iInfo].bind->length[iRow];
+          uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo];
+          value.nData = length;
+          value.pData = *data;
+          *data += length;
+          // value.pData = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow;
+        } else {
+          uint8_t *val = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bytes * iRow;
+          if (TSDB_DATA_TYPE_BOOL == value.type && *val > 1) {
+            *val = 1;
+          }
+          (void)memcpy(&value.val, val,
+                       /*(uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow,*/
+                       infos[iInfo].bytes /*bind->buffer_length*/);
+        }
+        colVal = COL_VAL_VALUE(infos[iInfo].columnId, value);
+      }
+      if (taosArrayPush(colValArray, &colVal) == NULL) {
+        code = terrno;
+        goto _exit;
+      }
+    }
+
+    SRow *row;
+    if ((code = tRowBuild(colValArray, pTSchema, &row))) {
+      goto _exit;
+    }
+
+    if ((taosArrayPush(rowArray, &row)) == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+
+_exit:
+  taosArrayDestroy(colValArray);
+  taosArrayDestroy(bufArray);
+  return code;
+}
+
 static int32_t tColDataCopyRowCell(SColData *pFromColData, int32_t iFromRow, SColData *pToColData, int32_t iToRow) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -3310,7 +3502,7 @@ static int32_t tColDataMerge(SArray **colArr) {
 
   dst = taosArrayInit(taosArrayGetSize(src), sizeof(SColData));
   if (dst == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(src); i++) {

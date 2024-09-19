@@ -45,6 +45,7 @@ typedef struct STranslateContext {
   bool             showRewrite;
   SNode*           pPrevRoot;
   SNode*           pPostRoot;
+  bool             dual; // whether select stmt without from stmt, true for without.
 } STranslateContext;
 
 int32_t biRewriteToTbnameFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRet);

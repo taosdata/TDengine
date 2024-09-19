@@ -48,7 +48,7 @@ int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char*
 static int32_t smlBoundColumnData(SArray* cols, SBoundColInfo* pBoundInfo, SSchema* pSchema, bool isTag) {
   bool* pUseCols = taosMemoryCalloc(pBoundInfo->numOfCols, sizeof(bool));
   if (NULL == pUseCols) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pBoundInfo->numOfBound = 0;
@@ -139,17 +139,17 @@ static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchem
       int32_t output = 0;
       void*   p = taosMemoryCalloc(1, kv->length * TSDB_NCHAR_SIZE);
       if (p == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto end;
       }
       if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)(p), kv->length * TSDB_NCHAR_SIZE, &output)) {
-        if (errno == E2BIG) {
+        if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
           taosMemoryFree(p);
           code = generateSyntaxErrMsg(msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pTagSchema->name);
           goto end;
         }
         char buf[512] = {0};
-        (void)snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(errno));
+        (void)snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(terrno));
         taosMemoryFree(p);
         code = buildSyntaxErrMsg(msg, buf, kv->value);
         goto end;
@@ -240,7 +240,7 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
       taosMemoryFree(tmp);
     } else {
       uError("SML smlBuildCol out of memory");
-      ret = TSDB_CODE_OUT_OF_MEMORY;
+      ret = terrno;
     }
     goto end;
   }
@@ -253,11 +253,11 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
     }
     char* pUcs4 = taosMemoryCalloc(1, size);
     if (NULL == pUcs4) {
-      ret = TSDB_CODE_OUT_OF_MEMORY;
+      ret = terrno;
       goto end;
     }
     if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)pUcs4, size, &len)) {
-      if (errno == E2BIG) {
+      if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
         taosMemoryFree(pUcs4);
         ret = TSDB_CODE_PAR_VALUE_TOO_LONG;
         goto end;
@@ -315,7 +315,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
 
   pCreateTblReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
   if (NULL == pCreateTblReq) {
-    ret = TSDB_CODE_OUT_OF_MEMORY;
+    ret = terrno;
     goto end;
   }
   insBuildCreateTbReq(pCreateTblReq, tableName, pTag, pTableMeta->suid, NULL, tagName, pTableMeta->tableInfo.numOfTags,
@@ -323,7 +323,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
 
   pCreateTblReq->ctb.stbName = taosMemoryCalloc(1, sTableNameLen + 1);
   if (pCreateTblReq->ctb.stbName == NULL){
-    ret = TSDB_CODE_OUT_OF_MEMORY;
+    ret = terrno;
     goto end;
   }
   (void)memcpy(pCreateTblReq->ctb.stbName, sTableName, sTableNameLen);
@@ -400,18 +400,18 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
         int32_t len = 0;
         char*   pUcs4 = taosMemoryCalloc(1, pColSchema->bytes - VARSTR_HEADER_SIZE);
         if (NULL == pUcs4) {
-          ret = TSDB_CODE_OUT_OF_MEMORY;
+          ret = terrno;
           goto end;
         }
         if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)pUcs4, pColSchema->bytes - VARSTR_HEADER_SIZE, &len)) {
-          if (errno == E2BIG) {
+          if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
             uError("sml bind taosMbsToUcs4 error, kv length:%d, bytes:%d, kv->value:%s", (int)kv->length,
                    pColSchema->bytes, kv->value);
             (void)buildInvalidOperationMsg(&pBuf, "value too long");
             ret = TSDB_CODE_PAR_VALUE_TOO_LONG;
             goto end;
           }
-          ret = buildInvalidOperationMsg(&pBuf, strerror(errno));
+          ret = buildInvalidOperationMsg(&pBuf, strerror(terrno));
           goto end;
         }
         pVal->value.pData = pUcs4;

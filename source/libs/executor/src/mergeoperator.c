@@ -66,6 +66,7 @@ static int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock);
 int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
   int32_t code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
+  blockDataCheck(*ppBlock, false);
   return code;
 }
 
@@ -228,7 +229,7 @@ int32_t doSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       resetLimitInfoForNextGroup(&pInfo->limitInfo);
     }
 
-    (void)applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo);
+    bool limitReached = applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo);
 
     if (p->info.rows > 0) {
       break;
@@ -336,7 +337,7 @@ int32_t openNonSortMergeOperator(SOperatorInfo* pOperator) {
 }
 
 int32_t doNonSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
 
   SExecTaskInfo*              pTaskInfo = pOperator->pTaskInfo;
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
@@ -419,7 +420,7 @@ int32_t copyColumnsValue(SNodeList* pNodeList, uint64_t targetBlkId, SSDataBlock
 }
 
 int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
 
   SExecTaskInfo*              pTaskInfo = pOperator->pTaskInfo;
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
@@ -499,7 +500,7 @@ int32_t openMultiwayMergeOperator(SOperatorInfo* pOperator) {
 }
 
 int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
 
   if (pOperator->status == OP_EXEC_DONE) {
     return 0;
@@ -524,6 +525,7 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   if ((*pResBlock) != NULL) {
     pOperator->resultInfo.totalRows += (*pResBlock)->info.rows;
+    blockDataCheck(*pResBlock, false);
   } else {
     setOperatorCompleted(pOperator);
   }
@@ -556,7 +558,7 @@ int32_t getMultiwayMergeExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplai
 
 int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numStreams, SMergePhysiNode* pMergePhyNode,
                                         SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   SPhysiNode*                 pPhyNode = (SPhysiNode*)pMergePhyNode;
   int32_t                     lino = 0;

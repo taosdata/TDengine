@@ -71,32 +71,32 @@ int32_t mmReadFile(const char *path, SMnodeOpt *pOption) {
   }
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    dInfo("mnode file:%s not exist, reason:%s", file, tstrerror(TAOS_SYSTEM_ERROR(errno)));
+    dInfo("mnode file:%s not exist, reason:%s", file, tstrerror(terrno));
     return 0;
   }
 
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to open mnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
 
   int64_t size = 0;
-  if (taosFStatFile(pFile, &size, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
     dError("failed to fstat mnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
 
   pData = taosMemoryMalloc(size + 1);
   if (pData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
   if (taosReadFile(pFile, pData, size) != size) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     dError("failed to read mnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
@@ -134,14 +134,14 @@ static int32_t mmEncodeOption(SJson *pJson, const SMnodeOpt *pOption) {
 
     SJson *replicas = tjsonCreateArray();
     if (replicas == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if ((code = tjsonAddItemToObject(pJson, "replicas", replicas)) < 0) return code;
 
     for (int32_t i = 0; i < pOption->numOfTotalReplicas; ++i) {
       SJson *replica = tjsonCreateObject();
       if (replica == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       const SReplica *pReplica = pOption->replicas + i;
@@ -183,7 +183,7 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
   // terrno = TSDB_CODE_OUT_OF_MEMORY;
   pJson = tjsonCreateObject();
   if (pJson == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -197,17 +197,17 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
 
   int32_t len = strlen(buffer);
   if (taosWriteFile(pFile, buffer, len) <= 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
   if (taosFsyncFile(pFile) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     goto _OVER;
   }
 
@@ -215,10 +215,7 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _OVER;
   }
-  if (taosRenameFile(file, realfile) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
 
   dInfo("succeed to write mnode file:%s, deloyed:%d", realfile, pOption->deploy);
 

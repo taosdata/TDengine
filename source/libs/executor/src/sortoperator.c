@@ -55,7 +55,7 @@ static void destroySortOpGroupIdCalc(SSortOpGroupIdCalc* pCalc);
 
 // todo add limit/offset impl
 int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t code = 0;
   int32_t lino = 0;
@@ -252,7 +252,7 @@ static STupleHandle* nextTupleWithGroupId(SSortHandle* pHandle, SSortOperatorInf
 
 static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo,
                                 SSortOperatorInfo* pInfo, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
   blockDataCleanup(pDataBlock);
   int32_t lino = 0;
   int32_t code = 0;
@@ -328,7 +328,9 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
 
 int32_t loadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
-  return pOperator->fpSet.getNextFn(pOperator, ppBlock);
+  int32_t code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
+  blockDataCheck(*ppBlock, false);
+  return code;
 }
 
 // todo refactor: merged with fetch fp
@@ -355,25 +357,26 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
   pInfo->startTs = taosGetTimestampUs();
   //  pInfo->binfo.pRes is not equalled to the input datablock.
   pInfo->pSortHandle = NULL;
-  int32_t code = tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1, NULL, pTaskInfo->id.str,
-                                             pInfo->maxRows, pInfo->maxTupleLength, tsPQSortMemThreshold * 1024 * 1024, &pInfo->pSortHandle);
+  int32_t code =
+      tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1, NULL, pTaskInfo->id.str, pInfo->maxRows,
+                            pInfo->maxTupleLength, tsPQSortMemThreshold * 1024 * 1024, &pInfo->pSortHandle);
   if (code) {
     return code;
   }
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, applyScalarFunction, pOperator);
 
-  SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
-  if (ps == NULL) {
+  SSortSource* pSource = taosMemoryCalloc(1, sizeof(SSortSource));
+  if (pSource == NULL) {
     return terrno;
   }
 
-  ps->param = pOperator->pDownstream[0];
-  ps->onlyRef = true;
+  pSource->param = pOperator->pDownstream[0];
+  pSource->onlyRef = true;
 
-  code = tsortAddSource(pInfo->pSortHandle, ps);
+  code = tsortAddSource(pInfo->pSortHandle, pSource);
   if (code) {
-    taosMemoryFree(ps);
+    taosMemoryFree(pSource);
     return code;
   }
 
@@ -390,7 +393,7 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
 }
 
 int32_t doSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
   if (pOperator->status == OP_EXEC_DONE) {
     return 0;
   }
@@ -400,7 +403,7 @@ int32_t doSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   int32_t code = pOperator->fpSet._openFn(pOperator);
   if (code != TSDB_CODE_SUCCESS) {
-    T_LONG_JMP(pTaskInfo->env, code);
+    return code;
   }
 
   // multi-group case not handle here
@@ -408,7 +411,7 @@ int32_t doSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   while (1) {
     if (tsortIsClosed(pInfo->pSortHandle)) {
       code = TSDB_CODE_TSC_QUERY_CANCELLED;
-      T_LONG_JMP(pOperator->pTaskInfo->env, code);
+      T_LONG_JMP(pTaskInfo->env, code);
     }
 
     code = getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
@@ -516,7 +519,7 @@ typedef struct SGroupSortOperatorInfo {
 
 int32_t getGroupSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo,
                                 SGroupSortOperatorInfo* pInfo, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
 
   blockDataCleanup(pDataBlock);
   int32_t code = blockDataEnsureCapacity(pDataBlock, capacity);
@@ -598,7 +601,7 @@ int32_t fetchNextGroupSortDataBlock(void* param, SSDataBlock** ppBlock) {
   SGroupSortOperatorInfo* grpSortOpInfo = source->grpSortOpInfo;
   SSDataBlock*            block = NULL;
 
-  QRY_OPTR_CHECK(ppBlock);
+  QRY_PARAM_CHECK(ppBlock);
 
   if (grpSortOpInfo->prefetchedSortInput) {
     block = grpSortOpInfo->prefetchedSortInput;
@@ -610,6 +613,7 @@ int32_t fetchNextGroupSortDataBlock(void* param, SSDataBlock** ppBlock) {
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (block != NULL) {
+      blockDataCheck(block, false);
       if (block->info.id.groupId == grpSortOpInfo->currGroupId) {
         grpSortOpInfo->childOpStatus = CHILD_OP_SAME_GROUP;
         *ppBlock = block;
@@ -648,23 +652,22 @@ int32_t beginSortGroup(SOperatorInfo* pOperator) {
   SSortSource*           ps = taosMemoryCalloc(1, sizeof(SSortSource));
   SGroupSortSourceParam* param = taosMemoryCalloc(1, sizeof(SGroupSortSourceParam));
   if (ps == NULL || param == NULL) {
-    T_LONG_JMP(pTaskInfo->env, terrno);
+    taosMemoryFree(ps);
+    taosMemoryFree(param);
+    return terrno;
   }
 
   param->childOpInfo = pOperator->pDownstream[0];
   param->grpSortOpInfo = pInfo;
+
   ps->param = param;
   ps->onlyRef = false;
   code = tsortAddSource(pInfo->pCurrSortHandle, ps);
-  if (code) {
-    T_LONG_JMP(pTaskInfo->env, code);
+  if (code != 0) {
+    return code;
   }
 
   code = tsortOpen(pInfo->pCurrSortHandle);
-  if (code != TSDB_CODE_SUCCESS) {
-    T_LONG_JMP(pTaskInfo->env, code);
-  }
-
   return code;
 }
 
@@ -686,7 +689,7 @@ int32_t finishSortGroup(SOperatorInfo* pOperator) {
 }
 
 int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
   SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
   SGroupSortOperatorInfo* pInfo = pOperator->info;
 
@@ -696,7 +699,7 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   int32_t code = pOperator->fpSet._openFn(pOperator);
   if (code != TSDB_CODE_SUCCESS) {
-    T_LONG_JMP(pTaskInfo->env, code);
+    return code;
   }
 
   if (!pInfo->hasGroupId) {
@@ -720,15 +723,14 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   while (pInfo->pCurrSortHandle != NULL) {
     if (tsortIsClosed(pInfo->pCurrSortHandle)) {
       code = TSDB_CODE_TSC_QUERY_CANCELLED;
-      T_LONG_JMP(pOperator->pTaskInfo->env, code);
+      T_LONG_JMP(pTaskInfo->env, code);
     }
 
     // beginSortGroup would fetch all child blocks of pInfo->currGroupId;
     if (pInfo->childOpStatus == CHILD_OP_SAME_GROUP) {
-      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-      pOperator->pTaskInfo->code = code;
+      pTaskInfo->code = code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      T_LONG_JMP(pOperator->pTaskInfo->env, code);
+      return code;
     }
 
     code = getGroupSortedBlockData(pInfo->pCurrSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
@@ -777,7 +779,7 @@ void destroyGroupSortOperatorInfo(void* param) {
 
 int32_t createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNode* pSortPhyNode,
                                     SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
   int32_t code = 0;
   int32_t lino = 0;
 

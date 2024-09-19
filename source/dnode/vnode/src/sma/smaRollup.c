@@ -314,8 +314,9 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
 
     SReadHandle handle = {.vnode = pVnode, .initTqReader = 1, .skipRollup = 1, .pStateBackend = pStreamState};
     initStorageAPI(&handle.api);
-    pRSmaInfo->taskInfo[idx] = qCreateStreamExecTaskInfo(param->qmsg[idx], &handle, TD_VID(pVnode), 0);
-    if (!pRSmaInfo->taskInfo[idx]) {
+
+    code = qCreateStreamExecTaskInfo(&pRSmaInfo->taskInfo[idx], param->qmsg[idx], &handle, TD_VID(pVnode), 0);
+    if (!pRSmaInfo->taskInfo[idx] || (code != 0)) {
       TAOS_RETURN(TSDB_CODE_RSMA_QTASKINFO_CREATE);
     }
 
@@ -392,10 +393,9 @@ int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
     return terrno;
   }
 
-  STSchema *pTSchema = metaGetTbTSchema(SMA_META(pSma), suid, -1, 1);
-  if (!pTSchema) {
-    TAOS_CHECK_EXIT(TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION);
-  }
+  STSchema *pTSchema;
+  code = metaGetTbTSchemaNotNull(SMA_META(pSma), suid, -1, 1,  &pTSchema);
+  TAOS_CHECK_EXIT(code);
   pRSmaInfo->pSma = pSma;
   pRSmaInfo->pTSchema = pTSchema;
   pRSmaInfo->suid = suid;

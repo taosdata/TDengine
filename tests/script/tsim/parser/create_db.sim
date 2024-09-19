@@ -118,10 +118,10 @@ endi
 if $data24 != $replica then
  return -1
 endi
-if $data26 != 14400m then
+if $data26 != 10d then
  return -1
 endi
-if $data27 != 525600m,525600m,525600m then
+if $data27 != 365d,365d,365d then
  return -1
 endi
 
@@ -155,7 +155,7 @@ sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 56160m,56160m,56160m then
+if $data27 != 39d,39d,39d then
  return -1
 endi
 sql drop database dbk0
@@ -164,7 +164,7 @@ sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 56160m,57600m,57600m then
+if $data27 != 39d,40d,40d then
  return -1
 endi
 sql drop database dbka
@@ -174,7 +174,7 @@ sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 15840m,15840m,15840m then
+if $data27 != 11d,11d,11d then
  return -1
 endi
 sql drop database dbk1
@@ -183,7 +183,7 @@ sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 !=  15840m,17280m,18720m then
+if $data27 !=  11d,12d,13d then
  return -1
 endi
 sql drop database dbk2
@@ -192,7 +192,7 @@ sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 15840m,15840m,18720m then
+if $data27 != 11d,11d,13d then
  return -1
 endi
 sql drop database dbk3
@@ -201,7 +201,7 @@ sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 15840m,18720m,18720m then
+if $data27 != 11d,13d,13d then
  return -1
 endi
 sql drop database dbk4

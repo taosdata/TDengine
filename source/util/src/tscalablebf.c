@@ -38,7 +38,7 @@ int32_t tScalableBfInit(uint64_t expectedEntries, double errorRate, SScalableBf*
   }
   SScalableBf* pSBf = taosMemoryCalloc(1, sizeof(SScalableBf));
   if (pSBf == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _error);
   }
   pSBf->maxBloomFilters = DEFAULT_MAX_BLOOMFILTERS;
@@ -218,7 +218,7 @@ int32_t tScalableBfDecode(SDecoder* pDecoder, SScalableBf** ppSBf) {
   int32_t      lino = 0;
   SScalableBf* pSBf = taosMemoryCalloc(1, sizeof(SScalableBf));
   if (!pSBf) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _error);
   }
   pSBf->hashFn1 = HASH_FUNCTION_1;

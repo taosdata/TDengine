@@ -173,7 +173,7 @@ typedef struct TsdReader {
   int32_t      (*tsdReaderOpen)(void* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
                            SSDataBlock* pResBlock, void** ppReader, const char* idstr, SHashObj** pIgnoreTables);
   void         (*tsdReaderClose)();
-  void         (*tsdSetReaderTaskId)(void *pReader, const char *pId);
+  int32_t      (*tsdSetReaderTaskId)(void *pReader, const char *pId);
   int32_t      (*tsdSetQueryTableList)();
   int32_t      (*tsdNextDataBlock)();
 
@@ -197,7 +197,7 @@ typedef struct SStoreCacheReader {
                          SArray *pFuncTypeList, SColumnInfo* pPkCol, int32_t numOfPks);
   void     (*closeReader)(void *pReader);
   int32_t  (*retrieveRows)(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
-                           SArray *pTableUidList);
+                           SArray *pTableUidList, bool* pGotAllRows);
   int32_t  (*reuseReader)(void *pReader, void *pTableIdList, int32_t numOfTables);
 } SStoreCacheReader;
 
@@ -408,9 +408,9 @@ typedef struct SStateStore {
   SStreamStateCur* (*streamStateSessionSeekKeyCurrentPrev)(SStreamState* pState, const SSessionKey* key);
   SStreamStateCur* (*streamStateSessionSeekKeyCurrentNext)(SStreamState* pState, const SSessionKey* key);
 
-  struct SStreamFileState* (*streamFileStateInit)(int64_t memSize, uint32_t keySize, uint32_t rowSize,
-                                                  uint32_t selectRowSize, GetTsFun fp, void* pFile, TSKEY delMark,
-                                                  const char* id, int64_t ckId, int8_t type);
+  int32_t (*streamFileStateInit)(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
+                                 GetTsFun fp, void* pFile, TSKEY delMark, const char* id, int64_t ckId, int8_t type,
+                                 struct SStreamFileState** ppFileState);
 
   void (*streamFileStateDestroy)(struct SStreamFileState* pFileState);
   void (*streamFileStateClear)(struct SStreamFileState* pFileState);

@@ -81,6 +81,7 @@ int32_t tsElectInterval = 25 * 1000;
 int32_t tsHeartbeatInterval = 1000;
 int32_t tsHeartbeatTimeout = 20 * 1000;
 int32_t tsSnapReplMaxWaitN = 128;
+int64_t tsLogBufferMemoryAllowed = 0;  // bytes
 
 // mnode
 int64_t tsMndSdbWriteDelta = 200;
@@ -613,9 +614,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
       cfgAddInt32(pCfg, "timeToGetAvailableConn", tsTimeToGetAvailableConn, 20, 1000000, CFG_SCOPE_BOTH, CFG_DYN_NONE));
 
   tsKeepAliveIdle = TRANGE(tsKeepAliveIdle, 1, 72000);
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "keepAliveIdle", tsKeepAliveIdle, 1, 7200000, CFG_SCOPE_BOTH, CFG_DYN_ENT_BOTH));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "keepAliveIdle", tsKeepAliveIdle, 1, 7200000, CFG_SCOPE_BOTH, CFG_DYN_NONE));
 
-  tsNumOfTaskQueueThreads = tsNumOfCores;
+  tsNumOfTaskQueueThreads = tsNumOfCores * 2;
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 16);
 
   TAOS_CHECK_RETURN(
@@ -702,6 +703,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsQueueMemoryAllowed = tsTotalMemoryKB * 1024 * 0.1;
   tsQueueMemoryAllowed = TRANGE(tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
 
+  tsLogBufferMemoryAllowed = tsTotalMemoryKB * 1024 * 0.1;
+  tsLogBufferMemoryAllowed = TRANGE(tsLogBufferMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
+
   // clang-format off
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "dataDir", tsDataDir, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddFloat(pCfg, "minimalDataDirGB", 2.0f, 0.001f, 10000000, CFG_SCOPE_SERVER, CFG_DYN_NONE));
@@ -736,6 +740,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncHeartbeatInterval", tsHeartbeatInterval, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncHeartbeatTimeout", tsHeartbeatTimeout, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncSnapReplMaxWaitN", tsSnapReplMaxWaitN, 16, (TSDB_SYNC_SNAP_BUFFER_SIZE >> 2), CFG_SCOPE_SERVER, CFG_DYN_NONE));
+  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "syncLogBufferMemoryAllowed", tsLogBufferMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbHeartBeatIntervalSec", tsArbHeartBeatIntervalSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbCheckSyncIntervalSec", tsArbCheckSyncIntervalSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_NONE));
@@ -967,6 +972,14 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
     tsQueueMemoryAllowed = totalMemoryKB * 1024 * 0.1;
     tsQueueMemoryAllowed = TRANGE(tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
     pItem->i64 = tsQueueMemoryAllowed;
+    pItem->stype = stype;
+  }
+
+  pItem = cfgGetItem(tsCfg, "syncLogBufferMemoryAllowed");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    tsLogBufferMemoryAllowed = totalMemoryKB * 1024 * 0.1;
+    tsLogBufferMemoryAllowed = TRANGE(tsLogBufferMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
+    pItem->i64 = tsLogBufferMemoryAllowed;
     pItem->stype = stype;
   }
 
@@ -1520,6 +1533,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "syncSnapReplMaxWaitN");
   tsSnapReplMaxWaitN = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "syncLogBufferMemoryAllowed");
+  tsLogBufferMemoryAllowed = pItem->i64;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "arbHeartBeatIntervalSec");
   tsArbHeartBeatIntervalSec = pItem->i32;
 
@@ -1696,7 +1712,10 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
                            SArray *pArgs) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  if (tsCfg == NULL) osDefaultInit();
+  if (tsCfg == NULL) code = osDefaultInit();
+  if (code != 0) {
+    (void)printf("failed to init os since %s\n", tstrerror(code));
+  }
 
   SConfig *pCfg = NULL;
   TAOS_CHECK_RETURN(cfgInit(&pCfg));
@@ -1954,6 +1973,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"randErrorChance", &tsRandErrChance},
                                          {"randErrorDivisor", &tsRandErrDivisor},
                                          {"randErrorScope", &tsRandErrScope},
+                                         {"syncLogBufferMemoryAllowed", &tsLogBufferMemoryAllowed},
 
                                          {"cacheLazyLoadThreshold", &tsCacheLazyLoadThreshold},
                                          {"checkpointInterval", &tsStreamCheckpointInterval},

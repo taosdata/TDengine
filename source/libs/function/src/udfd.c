@@ -85,13 +85,19 @@ int32_t udfdCPluginUdfInitLoadAggFuncs(SUdfCPluginCtx *udfCtx, const char *udfNa
   char  mergeFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
   char *mergeSuffix = "_merge";
   snprintf(mergeFuncName, sizeof(mergeFuncName), "%s%s", processFuncName, mergeSuffix);
-  (void)(uv_dlsym(&udfCtx->lib, mergeFuncName, (void **)(&udfCtx->aggMergeFunc)));
+  int ret = uv_dlsym(&udfCtx->lib, mergeFuncName, (void **)(&udfCtx->aggMergeFunc));
+  if (ret != 0) {
+    fnInfo("uv_dlsym function %s. error: %s", mergeFuncName, uv_strerror(ret));
+  }
   return 0;
 }
 
 int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
   int32_t         err = 0;
   SUdfCPluginCtx *udfCtx = taosMemoryCalloc(1, sizeof(SUdfCPluginCtx));
+  if (NULL == udfCtx) {
+    return terrno;
+  }
   err = uv_dlopen(udf->path, &udfCtx->lib);
   if (err != 0) {
     fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
@@ -524,7 +530,12 @@ void udfdDeinitScriptPlugins() {
 void udfdProcessRequest(uv_work_t *req) {
   SUvUdfWork *uvUdf = (SUvUdfWork *)(req->data);
   SUdfRequest request = {0};
-  if(decodeUdfRequest(uvUdf->input.base, &request) == NULL) return;
+  if(decodeUdfRequest(uvUdf->input.base, &request) == NULL)
+  {
+    taosMemoryFree(uvUdf->input.base);
+    fnError("udf request decode failed");
+    return;
+  }
 
   switch (request.type) {
     case UDF_TASK_SETUP: {
@@ -601,6 +612,9 @@ int32_t udfdInitUdf(char *udfName, SUdf *udf) {
 
 int32_t udfdNewUdf(SUdf **pUdf, const char *udfName) {
   SUdf *udfNew = taosMemoryCalloc(1, sizeof(SUdf));
+  if (NULL == udfNew) {
+    return terrno;
+  }
   udfNew->refCount = 1;
   udfNew->lastFetchTime = taosGetTimestampMs();
   strncpy(udfNew->name, udfName, TSDB_FUNC_NAME_LEN);
@@ -989,7 +1003,7 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
 
   TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
   if (file == NULL) {
-    fnError("udfd write udf shared library: %s failed, error: %d %s", path, errno, strerror(errno));
+    fnError("udfd write udf shared library: %s failed, error: %d %s", path, errno, strerror(terrno));
     return TSDB_CODE_FILE_CORRUPTED;
   }
   int64_t count = taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
@@ -1100,6 +1114,9 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
   taosArrayDestroy(retrieveReq.pFuncNames);
 
   SUdfdRpcSendRecvInfo *msgInfo = taosMemoryCalloc(1, sizeof(SUdfdRpcSendRecvInfo));
+  if(NULL == msgInfo) {
+    return terrno;
+  }
   msgInfo->rpcType = UDFD_RPC_RETRIVE_FUNC;
   msgInfo->param = udf;
   if(uv_sem_init(&msgInfo->resultSem, 0)  != 0) {

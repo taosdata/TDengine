@@ -237,17 +237,25 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
 
 static int32_t setTableSchema(SCacheRowsReader* p, uint64_t suid, const char* idstr) {
   int32_t numOfTables = p->numOfTables;
+  int32_t  code = TSDB_CODE_SUCCESS;
 
   if (suid != 0) {
-    p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, suid, -1, 1);
-    if (p->pSchema == NULL) {
+    code = metaGetTbTSchemaNotNull(p->pVnode->pMeta, suid, -1, 1, &p->pSchema);
+    if (TSDB_CODE_SUCCESS != code) {
       tsdbWarn("stable:%" PRIu64 " has been dropped, failed to retrieve cached rows, %s", suid, idstr);
-      return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      if(code == TSDB_CODE_NOT_FOUND) {
+        return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      }  else {
+        return code;
+      }
     }
   } else {
     for (int32_t i = 0; i < numOfTables; ++i) {
       uint64_t uid = p->pTableList[i].uid;
-      p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, uid, -1, 1);
+      code = metaGetTbTSchemaMaybeNull(p->pVnode->pMeta, uid, -1, 1, &p->pSchema);
+      if(code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
       if (p->pSchema != NULL) {
         break;
       }
@@ -379,7 +387,7 @@ void tsdbCacherowsReaderClose(void* pReader) {
   }
 
   if (p->pFileReader) {
-    (void) tsdbDataFileReaderClose(&p->pFileReader);
+    tsdbDataFileReaderClose(&p->pFileReader);
     p->pFileReader = NULL;
   }
 
@@ -425,7 +433,7 @@ static int32_t tsdbCacheQueryReseek(void* pQHandle) {
 }
 
 int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32_t* slotIds, const int32_t* dstSlotIds,
-                              SArray* pTableUidList) {
+                              SArray* pTableUidList, bool* pGotAll) {
   if (pReader == NULL || pResBlock == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -465,7 +473,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   }
 
   (void)taosThreadMutexLock(&pr->readerMutex);
-  code = tsdbTakeReadSnap2((STsdbReader*)pr, tsdbCacheQueryReseek, &pr->pReadSnap);
+  code = tsdbTakeReadSnap2((STsdbReader*)pr, tsdbCacheQueryReseek, &pr->pReadSnap, pr->idstr);
   if (code != TSDB_CODE_SUCCESS) {
     goto _end;
   }
@@ -617,7 +625,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
           }
           double cost = (taosGetTimestampUs() - st) / 1000.0;
           if (cost > tsCacheLazyLoadThreshold) {
-            pr->lastTs = totalLastTs;
+            // pr->lastTs = totalLastTs;
           }
         }
       }
@@ -634,7 +642,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
     taosArrayDestroyEx(pLastCols, tsdbCacheFreeSLastColItem);
   } else if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_ALL)) {
-    for (int32_t i = pr->tableIndex; i < pr->numOfTables; ++i) {
+    int32_t i = pr->tableIndex;
+    for (; i < pr->numOfTables; ++i) {
       tb_uid_t uid = pTableList[i].uid;
 
       if ((code = tsdbCacheGetBatch(pr->pTsdb, uid, pRow, pr, ltype)) != 0) {
@@ -665,8 +674,12 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
       ++pr->tableIndex;
       if (pResBlock->info.rows >= pResBlock->info.capacity) {
-        goto _end;
+        break;
       }
+    }
+
+    if (pGotAll && i == pr->numOfTables) {
+      *pGotAll = true;
     }
   } else {
     code = TSDB_CODE_INVALID_PARA;

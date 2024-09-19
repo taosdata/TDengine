@@ -42,6 +42,7 @@ REST connection supports all platforms that can run Java.
 
 | taos-jdbcdriver version |                                                                   major changes                                                                    | TDengine version |
 | :---------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------: |
+|          3.3.2         | 1. Optimized websocket prepareStatement performance; 2. Improved mybatis support|    -       |
 |          3.3.0         | 1. Optimized data transmission performance under Websocket connection; 2. SSL validation skipping is supported but disabled by default|     3.3.2.0 or later          |
 |          3.2.11         | Fixed the result set closing bug when using a native connection.|        -         |
 |          3.2.10         | 1. Automatic compression/decompression for data transmission, disabled by default; 2.Automatic reconnection for websocket with configurable parameter, disabled by default; 3. A new method for schemaless writing is added in the connection class; 4. Optimized performance for data fetching on native connection; 5. Fixing for some known issues; 6. The list of supported functions can be returned by the API for retrieving metadata|        -         |
@@ -179,7 +180,7 @@ Add following dependency in the `pom.xml` file of your Maven project:
 <dependency>
  <groupId>com.taosdata.jdbc</groupId>
  <artifactId>taos-jdbcdriver</artifactId>
- <version>3.3.0</version>
+ <version>3.3.2</version>
 </dependency>
 ```
 

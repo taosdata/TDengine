@@ -165,7 +165,10 @@ int32_t mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray **pList) {
     }
 
     char buf[256] = {0};
-    (void)epsetToStr(&entry.epset, buf, tListLen(buf));
+    code = epsetToStr(&entry.epset, buf, tListLen(buf));
+    if (code != 0) {  // print error and continue
+      mError("failed to convert epset to str, code:%s", tstrerror(code));
+    }
 
     void *p = taosArrayPush(pVgroupList, &entry);
     if (p == NULL) {
@@ -198,7 +201,10 @@ int32_t mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray **pList) {
     }
 
     char buf[256] = {0};
-    (void)epsetToStr(&entry.epset, buf, tListLen(buf));
+    code = epsetToStr(&entry.epset, buf, tListLen(buf));
+    if (code != 0) {  // print error and continue
+      mError("failed to convert epset to str, code:%s", tstrerror(code));
+    }
 
     void *p = taosArrayPush(pVgroupList, &entry);
     if (p == NULL) {
@@ -424,9 +430,12 @@ static int32_t doSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTa
   }
 
   char buf[256] = {0};
-  (void) epsetToStr(&epset, buf, tListLen(buf));
-  mDebug("pause stream task in node:%d, epset:%s", pTask->info.nodeId, buf);
+  code = epsetToStr(&epset, buf, tListLen(buf));
+  if (code != 0) {  // print error and continue
+    mError("failed to convert epset to str, code:%s", tstrerror(code));
+  }
 
+  mDebug("pause stream task in node:%d, epset:%s", pTask->info.nodeId, buf);
   code = setTransAction(pTrans, pReq, sizeof(SVPauseStreamTaskReq), TDMT_STREAM_TASK_PAUSE, &epset, 0, TSDB_CODE_VND_INVALID_VGROUP_ID);
   if (code != 0) {
     taosMemoryFree(pReq);
@@ -639,8 +648,7 @@ static int32_t doBuildStreamTaskUpdateMsg(void **pBuf, int32_t *pLen, SVgroupCha
 static int32_t doSetUpdateTaskAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask, SVgroupChangeInfo *pInfo) {
   void   *pBuf = NULL;
   int32_t len = 0;
-  (void)streamTaskUpdateEpsetInfo(pTask, pInfo->pUpdateNodeList);
-
+  bool    unusedRet = streamTaskUpdateEpsetInfo(pTask, pInfo->pUpdateNodeList);
   int32_t code = doBuildStreamTaskUpdateMsg(&pBuf, &len, pInfo, pTask->info.nodeId, &pTask->id, pTrans->id);
   if (code) {
     return code;
@@ -653,7 +661,7 @@ static int32_t doSetUpdateTaskAction(SMnode *pMnode, STrans *pTrans, SStreamTask
     return code;
   }
 
-  code = setTransAction(pTrans, pBuf, len, TDMT_VND_STREAM_TASK_UPDATE, &epset, TSDB_CODE_VND_INVALID_VGROUP_ID, 0);
+  code = setTransAction(pTrans, pBuf, len, TDMT_VND_STREAM_TASK_UPDATE, &epset, 0, TSDB_CODE_VND_INVALID_VGROUP_ID);
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pBuf);
   }
@@ -914,8 +922,15 @@ void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
   }
 
   // 2. remove stream entry in consensus hash table and checkpoint-report hash table
-  (void) mndClearConsensusCheckpointId(execInfo.pStreamConsensus, pStream->uid);
-  (void) mndClearChkptReportInfo(execInfo.pChkptStreams, pStream->uid);
+  code = mndClearConsensusCheckpointId(execInfo.pStreamConsensus, pStream->uid);
+  if (code) {
+    mError("failed to clear consensus checkpointId, code:%s", tstrerror(code));
+  }
+
+  code = mndClearChkptReportInfo(execInfo.pChkptStreams, pStream->uid);
+  if (code) {
+    mError("failed to clear the checkpoint report info, code:%s", tstrerror(code));
+  }
 
   streamMutexUnlock(&pExecNode->lock);
   destroyStreamTaskIter(pIter);
@@ -1105,8 +1120,8 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
       mDebug("stream:0x%" PRIx64 " %s all %d tasks send checkpoint-report, start to update checkpoint-info",
              pStream->uid, pStream->name, total);
 
-      bool conflict = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_CHKPT_UPDATE_NAME, false);
-      if (!conflict) {
+      code = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_CHKPT_UPDATE_NAME, false);
+      if (code == 0) {
         code = mndCreateStreamChkptInfoUpdateTrans(pMnode, pStream, px->pTaskList);
         if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS) {  // remove this entry
           taosArrayClear(px->pTaskList);
@@ -1858,4 +1873,74 @@ int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlo
     mError("error happens during build task attr result blocks, lino:%d, code:%s", lino, tstrerror(code));
   }
   return code;
+}
+
+uint32_t seed = 0;
+static SRpcMsg createRpcMsg(STransAction* pAction, int64_t traceId, int64_t signature) {
+  SRpcMsg rpcMsg = {.msgType = pAction->msgType, .contLen = pAction->contLen, .info.ahandle = (void *)signature};
+  rpcMsg.pCont = rpcMallocCont(pAction->contLen);
+  if (rpcMsg.pCont == NULL) {
+    return rpcMsg;
+  }
+
+  rpcMsg.info.traceId.rootId = traceId;
+  rpcMsg.info.notFreeAhandle = 1;
+
+  memcpy(rpcMsg.pCont, pAction->pCont, pAction->contLen);
+  return rpcMsg;
+}
+
+void streamTransRandomErrorGen(STransAction *pAction, STrans *pTrans, int64_t signature) {
+  if ((pAction->msgType == TDMT_STREAM_TASK_UPDATE_CHKPT && pAction->id > 2) ||
+      (pAction->msgType == TDMT_STREAM_CONSEN_CHKPT) ||
+      (pAction->msgType == TDMT_VND_STREAM_CHECK_POINT_SOURCE && pAction->id > 2)) {
+    if (seed == 0) {
+      seed = taosGetTimestampSec();
+    }
+
+    uint32_t v = taosRandR(&seed);
+    int32_t  choseItem = v % 5;
+
+    if (choseItem == 0) {
+      // 1. one of update-checkpoint not send, restart and send it again
+      taosMsleep(5000);
+      if (pAction->msgType == TDMT_STREAM_TASK_UPDATE_CHKPT) {
+        mError(
+            "***sleep 5s and core dump, following tasks will not recv update-checkpoint info, so the checkpoint will "
+            "rollback***");
+        exit(-1);
+      } else if (pAction->msgType == TDMT_STREAM_CONSEN_CHKPT) {  // pAction->msgType == TDMT_STREAM_CONSEN_CHKPT
+        mError(
+            "***sleep 5s and core dump, following tasks will not recv consen-checkpoint info, so the tasks will "
+            "not started***");
+      } else {  // pAction->msgType == TDMT_VND_STREAM_CHECK_POINT_SOURCE
+        mError(
+            "***sleep 5s and core dump, following tasks will not recv checkpoint-source info, so the tasks will "
+            "started after restart***");
+        exit(-1);
+      }
+    } else if (choseItem == 1) {
+      // 2. repeat send update chkpt msg
+      mError("***repeat send update-checkpoint/consensus/checkpoint trans msg 3times to vnode***");
+
+      mError("***repeat 1***");
+      SRpcMsg rpcMsg1 = createRpcMsg(pAction, pTrans->mTraceId, signature);
+      int32_t code = tmsgSendReq(&pAction->epSet, &rpcMsg1);
+
+      mError("***repeat 2***");
+      SRpcMsg rpcMsg2 = createRpcMsg(pAction, pTrans->mTraceId, signature);
+      code = tmsgSendReq(&pAction->epSet, &rpcMsg2);
+
+      mError("***repeat 3***");
+      SRpcMsg rpcMsg3 = createRpcMsg(pAction, pTrans->mTraceId, signature);
+      code = tmsgSendReq(&pAction->epSet, &rpcMsg3);
+    } else if (choseItem == 2) {
+      // 3. sleep 40s and then send msg
+      mError("***idle for 30s, and then send msg***");
+      taosMsleep(30000);
+    } else {
+      // do nothing
+      //      mInfo("no error triggered");
+    }
+  }
 }

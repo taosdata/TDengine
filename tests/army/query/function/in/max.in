@@ -1,0 +1,16 @@
+select MAX(id) from ts_4893.meters;
+select MAX(current) from ts_4893.meters;
+select MAX(voltage) from ts_4893.meters;
+select MAX(name) from ts_4893.meters;
+select MAX(nch1) from ts_4893.meters;
+select MAX(nch2) from ts_4893.meters;
+select MAX(var1) from ts_4893.meters;
+select MAX(var2) from ts_4893.meters;
+select MAX(id) from ts_4893.meters interval(60d);
+select MAX(current) from ts_4893.meters interval(60d);
+select MAX(voltage) from ts_4893.meters interval(60d);
+select MAX(name) from ts_4893.meters interval(60d);
+select MAX(nch1) from ts_4893.meters interval(60d);
+select MAX(nch2) from ts_4893.meters interval(60d);
+select MAX(var1) from ts_4893.meters interval(60d);
+select MAX(var2) from ts_4893.meters interval(60d);

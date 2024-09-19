@@ -77,7 +77,7 @@ _err:
 }
 
 void tqSnapReaderClose(STqSnapReader** ppReader) {
-  (void)tdbTbcClose((*ppReader)->pCur);
+  tdbTbcClose((*ppReader)->pCur);
   taosMemoryFree(*ppReader);
   *ppReader = NULL;
 }

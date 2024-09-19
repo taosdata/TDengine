@@ -139,7 +139,7 @@ const static SIpV4Range defaultIpRange = {.ip = 16777343, .mask = 32};
 static int32_t ipWhiteMgtInit() {
   ipWhiteMgt.pIpWhiteTab = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 1, HASH_ENTRY_LOCK);
   if (ipWhiteMgt.pIpWhiteTab == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
   ipWhiteMgt.ver = 0;
   (void)taosThreadRwlockInit(&ipWhiteMgt.rw, NULL);
@@ -342,7 +342,8 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
   SIpV4Range range = {.ip = 0, .mask = 32};
   int32_t    code = taosGetIpv4FromFqdn(fqdn, &range.ip);
   if (code) {
-    //TODO
+    mError("failed to get ip from fqdn: %s at line %d since %s", fqdn, lino, tstrerror(code));
+    TAOS_RETURN(TSDB_CODE_TSC_INVALID_FQDN);
   }
   mDebug("ip-white-list may update for user: %s, fqdn: %s", user, fqdn);
   SIpWhiteList **ppList = taosHashGet(pIpWhiteTab, user, strlen(user));
@@ -558,11 +559,11 @@ int32_t mndFetchAllIpWhite(SMnode *pMnode, SHashObj **ppIpWhiteTab) {
 
   pIpWhiteTab = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 1, HASH_ENTRY_LOCK);
   if (pIpWhiteTab == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
   pUserNames = taosArrayInit(8, sizeof(void *));
   if (pUserNames == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
   while (1) {
@@ -593,7 +594,7 @@ int32_t mndFetchAllIpWhite(SMnode *pMnode, SHashObj **ppIpWhiteTab) {
       taosMemoryFree(name);
       sdbRelease(pSdb, pUser);
       sdbCancelFetch(pSdb, pIter);
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
 
     sdbRelease(pSdb, pUser);
@@ -614,7 +615,7 @@ int32_t mndFetchAllIpWhite(SMnode *pMnode, SHashObj **ppIpWhiteTab) {
     }
     if (taosArrayPush(pUserNames, &name) == NULL) {
       taosMemoryFree(name);
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
   }
 
@@ -1011,7 +1012,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
 
   pRaw = sdbAllocRaw(SDB_USER, USER_VER_NUMBER, size);
   if (pRaw == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
   int32_t dataPos = 0;
@@ -1155,7 +1156,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   int32_t num = pUser->pIpWhiteList->num;
   int32_t tlen = sizeof(SIpWhiteList) + num * sizeof(SIpV4Range) + 4;
   if ((buf = taosMemoryCalloc(1, tlen)) == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _OVER);
+    TAOS_CHECK_GOTO(terrno, NULL, _OVER);
   }
   int32_t len = 0;
   TAOS_CHECK_GOTO(tSerializeIpWhiteList(buf, tlen, pUser->pIpWhiteList, &len), &lino, _OVER);
@@ -1201,12 +1202,12 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
   pRow = sdbAllocRow(sizeof(SUserObj));
   if (pRow == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
   pUser = sdbGetRowObj(pRow);
   if (pUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
   int32_t dataPos = 0;
@@ -1239,7 +1240,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       taosHashInit(numOfWriteDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   pUser->topics = taosHashInit(numOfTopics, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pUser->readDbs == NULL || pUser->writeDbs == NULL || pUser->topics == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     goto _OVER;
   }
 
@@ -1302,7 +1303,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
     if (pUser->readTbs == NULL || pUser->writeTbs == NULL || pUser->alterTbs == NULL || pUser->readViews == NULL ||
         pUser->writeViews == NULL || pUser->alterViews == NULL || pUser->useDbs == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
       goto _OVER;
     }
 
@@ -1312,7 +1313,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
       TAOS_MEMORY_REALLOC(key, keyLen * sizeof(char));
       if (key == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
       }
       (void)memset(key, 0, keyLen);
       SDB_GET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
@@ -1321,7 +1322,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT32(pRaw, dataPos, &valuelen, _OVER);
       TAOS_MEMORY_REALLOC(value, valuelen * sizeof(char));
       if (value == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
       }
       (void)memset(value, 0, valuelen);
       SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
@@ -1335,7 +1336,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
       TAOS_MEMORY_REALLOC(key, keyLen * sizeof(char));
       if (key == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
       }
       (void)memset(key, 0, keyLen);
       SDB_GET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
@@ -1344,7 +1345,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT32(pRaw, dataPos, &valuelen, _OVER);
       TAOS_MEMORY_REALLOC(value, valuelen * sizeof(char));
       if (value == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
       }
       (void)memset(value, 0, valuelen);
       SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
@@ -1359,7 +1360,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
         TAOS_MEMORY_REALLOC(key, keyLen * sizeof(char));
         if (key == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+          TAOS_CHECK_GOTO(terrno, &lino, _OVER);
         }
         (void)memset(key, 0, keyLen);
         SDB_GET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
@@ -1368,7 +1369,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         SDB_GET_INT32(pRaw, dataPos, &valuelen, _OVER);
         TAOS_MEMORY_REALLOC(value, valuelen * sizeof(char));
         if (value == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+          TAOS_CHECK_GOTO(terrno, &lino, _OVER);
         }
         (void)memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
@@ -1382,7 +1383,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
         TAOS_MEMORY_REALLOC(key, keyLen * sizeof(char));
         if (key == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+          TAOS_CHECK_GOTO(terrno, &lino, _OVER);
         }
         (void)memset(key, 0, keyLen);
         SDB_GET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
@@ -1391,7 +1392,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         SDB_GET_INT32(pRaw, dataPos, &valuelen, _OVER);
         TAOS_MEMORY_REALLOC(value, valuelen * sizeof(char));
         if (value == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+          TAOS_CHECK_GOTO(terrno, &lino, _OVER);
         }
         (void)memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
@@ -1405,7 +1406,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
         TAOS_MEMORY_REALLOC(key, keyLen * sizeof(char));
         if (key == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+          TAOS_CHECK_GOTO(terrno, &lino, _OVER);
         }
         (void)memset(key, 0, keyLen);
         SDB_GET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
@@ -1414,7 +1415,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         SDB_GET_INT32(pRaw, dataPos, &valuelen, _OVER);
         TAOS_MEMORY_REALLOC(value, valuelen * sizeof(char));
         if (value == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+          TAOS_CHECK_GOTO(terrno, &lino, _OVER);
         }
         (void)memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
@@ -1428,7 +1429,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
         TAOS_MEMORY_REALLOC(key, keyLen * sizeof(char));
         if (key == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+          TAOS_CHECK_GOTO(terrno, &lino, _OVER);
         }
         (void)memset(key, 0, keyLen);
         SDB_GET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
@@ -1437,7 +1438,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         SDB_GET_INT32(pRaw, dataPos, &valuelen, _OVER);
         TAOS_MEMORY_REALLOC(value, valuelen * sizeof(char));
         if (value == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+          TAOS_CHECK_GOTO(terrno, &lino, _OVER);
         }
         (void)memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
@@ -1452,7 +1453,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
       TAOS_MEMORY_REALLOC(key, keyLen * sizeof(char));
       if (key == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
       }
       (void)memset(key, 0, keyLen);
       SDB_GET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
@@ -1470,7 +1471,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
     TAOS_MEMORY_REALLOC(key, len);
     if (key == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
     SDB_GET_BINARY(pRaw, dataPos, key, len, _OVER);
 
@@ -1535,7 +1536,7 @@ int32_t mndDupTableHash(SHashObj *pOld, SHashObj **ppNew) {
   *ppNew =
       taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (*ppNew == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   char *tb = taosHashIterate(pOld, NULL);
@@ -1560,7 +1561,7 @@ int32_t mndDupUseDbHash(SHashObj *pOld, SHashObj **ppNew) {
   *ppNew =
       taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (*ppNew == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   int32_t *db = taosHashIterate(pOld, NULL);
@@ -1661,7 +1662,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   TAOS_MEMORY_REALLOC(pOld->pIpWhiteList, sz);
   if (pOld->pIpWhiteList == NULL) {
     taosWUnLockLatch(&pOld->lock);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (void)memcpy(pOld->pIpWhiteList, pNew->pIpWhiteList, sz);
   pOld->ipWhiteListVer = pNew->ipWhiteListVer;
@@ -1715,7 +1716,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   } else {
     SHashObj *pUniqueTab = taosHashInit(64, MurmurHash3_32, true, HASH_NO_LOCK);
     if (pUniqueTab == NULL) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
     int32_t dummpy = 0;
     for (int i = 0; i < pCreate->numIpRanges; i++) {
@@ -1764,7 +1765,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   if (pTrans == NULL) {
     mError("user:%s, failed to create since %s", pCreate->user, terrstr());
     taosMemoryFree(userObj.pIpWhiteList);
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
   mInfo("trans:%d, used to create user:%s", pTrans->id, pCreate->user);
 
@@ -1905,7 +1906,7 @@ int32_t mndProcessGetUserWhiteListReq(SRpcMsg *pReq) {
   }
   pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
   contLen = tSerializeSGetUserWhiteListRsp(pRsp, contLen, &wlRsp);
@@ -1952,7 +1953,7 @@ int32_t mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq) {
 
   pRsp = rpcMallocCont(len);
   if (!pRsp) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
   len = tSerializeSUpdateIpWhite(pRsp, len, &ipWhite);
   if (len < 0) {
@@ -2579,7 +2580,7 @@ static int32_t mndProcessGetUserAuthReq(SRpcMsg *pReq) {
   }
   pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
 
   contLen = tSerializeSGetUserAuthRsp(pRsp, contLen, &authRsp);
@@ -2655,7 +2656,7 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       TAOS_MEMORY_REALLOC(varstr, VARSTR_HEADER_SIZE + tlen);
       if (varstr == NULL) {
         sdbRelease(pSdb, pUser);
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
       varDataSetLen(varstr, tlen);
       (void)memcpy(varDataVal(varstr), buf, tlen);
@@ -2800,7 +2801,7 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
     void  *key = taosHashGetKey(value, &keyLen);
 
     char dbName[TSDB_DB_NAME_LEN] = {0};
-    mndExtractShortDbNameFromStbFullName(key, dbName);
+    (void)mndExtractShortDbNameFromStbFullName(key, dbName);
     char dbNameContent[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(dbNameContent, dbName, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -2820,12 +2821,12 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
       if (bufSz < 5) bufSz = 5;
       TAOS_MEMORY_REALLOC(*sql, bufSz + 1);
       if (*sql == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exit;
       }
       TAOS_MEMORY_REALLOC(*condition, TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       if ((*condition) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exit;
       }
 
@@ -2852,7 +2853,7 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
     } else {
       TAOS_MEMORY_REALLOC(*condition, TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       if ((*condition) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exit;
       }
       STR_WITH_MAXSIZE_TO_VARSTR((*condition), "", pShow->pMeta->pSchemas[cols].bytes);
@@ -2952,7 +2953,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       TAOS_MEMORY_REALLOC(condition, TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       if (condition == NULL) {
         sdbRelease(pSdb, pUser);
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -2995,7 +2996,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       TAOS_MEMORY_REALLOC(condition, TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       if (condition == NULL) {
         sdbRelease(pSdb, pUser);
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -3039,7 +3040,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       TAOS_MEMORY_REALLOC(condition, TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       if (condition == NULL) {
         sdbRelease(pSdb, pUser);
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -3093,7 +3094,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       TAOS_MEMORY_REALLOC(condition, TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       if (condition == NULL) {
         sdbRelease(pSdb, pUser);
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -3137,7 +3138,7 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
 
   batchRsp.pArray = taosArrayInit(numOfUses, sizeof(SGetUserAuthRsp));
   if (batchRsp.pArray == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
   for (int32_t i = 0; i < numOfUses; ++i) {
@@ -3169,7 +3170,7 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
     }
 
     if (!(taosArrayPush(batchRsp.pArray, &rsp))) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       mndReleaseUser(pMnode, pUser);
       tFreeSGetUserAuthRsp(&rsp);
       TAOS_CHECK_GOTO(code, &lino, _OVER);
@@ -3191,7 +3192,7 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
   }
   pRsp = taosMemoryMalloc(rspLen);
   if (pRsp == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
   rspLen = tSerializeSUserAuthBatchRsp(pRsp, rspLen, &batchRsp);
   if (rspLen < 0) {
