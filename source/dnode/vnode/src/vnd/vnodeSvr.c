@@ -625,9 +625,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       }
       break;
     case TDMT_STREAM_TASK_DEPLOY: {
-      int32_t code = tqProcessTaskDeployReq(pVnode->pTq, ver, pReq, len);
-      if (code != TSDB_CODE_SUCCESS) {
-        terrno = code;
+      if ((code = tqProcessTaskDeployReq(pVnode->pTq, ver, pReq, len)) != 0) {
         goto _err;
       }
     } break;

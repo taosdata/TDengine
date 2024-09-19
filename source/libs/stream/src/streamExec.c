@@ -119,7 +119,7 @@ int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t*
     uint64_t     ts = 0;
     if ((code = qExecTask(pExecutor, &output, &ts)) < 0) {
       if (code == TSDB_CODE_QRY_IN_EXEC) {
-        resetTaskInfo(pExecutor);
+        qResetTaskInfoCode(pExecutor);
       }
 
       if (code == TSDB_CODE_OUT_OF_MEMORY || code == TSDB_CODE_INVALID_PARA || code == TSDB_CODE_FILE_CORRUPTED) {
