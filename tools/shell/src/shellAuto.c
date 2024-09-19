@@ -981,6 +981,7 @@ bool updateTireValue(int type, bool autoFill) {
     return true;
   }
   taosThreadMutexUnlock(&tiresMutex);
+
   return false;
 }
 

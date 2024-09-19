@@ -55,7 +55,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   SMetaReader    mer1 = {0};
   SMetaReader    mer2 = {0};
   char           tableFName[TSDB_TABLE_FNAME_LEN];
-  bool           optTbUid = false;
+  bool           reqTbUid = false;
   SRpcMsg        rpcMsg = {0};
   int32_t        code = 0;
   int32_t        rspLen = 0;
@@ -69,12 +69,12 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     goto _exit4;
   }
 
-  if (infoReq.option == REQ_OPT_TBUID) optTbUid = true;
+  if (infoReq.option == REQ_OPT_TBUID) reqTbUid = true;
   metaRsp.dbId = pVnode->config.dbId;
   (void)strcpy(metaRsp.tbName, infoReq.tbName);
   (void)memcpy(metaRsp.dbFName, infoReq.dbFName, sizeof(metaRsp.dbFName));
 
-  if (!optTbUid) {
+  if (!reqTbUid) {
     TAOS_UNUSED(sprintf(tableFName, "%s.%s", infoReq.dbFName, infoReq.tbName));
     code = vnodeValidateTableHash(pVnode, tableFName);
     if (code) {
@@ -84,22 +84,16 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   // query meta
   metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK);
-  if (optTbUid) {
+  if (reqTbUid) {
     uint64_t tbUid = taosStr2UInt64(infoReq.tbName, NULL, 10);
     if (errno == ERANGE || tbUid == 0) {
       code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
       goto _exit3;
     }
     char tbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    if (metaGetTableNameByUid(pVnode, tbUid, tbName) < 0) {
-      code = terrno;
-      goto _exit3;
-    }
+    TAOS_CHECK_GOTO(metaGetTableNameByUid(pVnode, tbUid, tbName), NULL, _exit3);
     tstrncpy(metaRsp.tbName, tbName + VARSTR_HEADER_SIZE, TSDB_TABLE_NAME_LEN);
-    if (metaGetTableEntryByName(&mer1, tbName + VARSTR_HEADER_SIZE) < 0) {
-      code = terrno;
-      goto _exit3;
-    }
+    TAOS_CHECK_GOTO(metaGetTableEntryByName(&mer1, tbName + VARSTR_HEADER_SIZE), NULL, _exit3);
   } else if (metaGetTableEntryByName(&mer1, infoReq.tbName) < 0) {
     code = terrno;
     goto _exit3;
