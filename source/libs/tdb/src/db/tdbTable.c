@@ -128,7 +128,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
 
 int tdbTbClose(TTB *pTb) {
   if (pTb) {
-    (void)tdbBtreeClose(pTb->pBt);
+    tdbBtreeClose(pTb->pBt);
     tdbOsFree(pTb);
   }
   return 0;
@@ -260,7 +260,7 @@ int32_t tdbTbTraversal(TTB *pTb, void *data,
   }
   tdbFree(pKey);
   tdbFree(pValue);
-  (void)tdbTbcClose(pCur);
+  tdbTbcClose(pCur);
 
   return 0;
 }
@@ -293,13 +293,11 @@ int tdbTbcUpsert(TBC *pTbc, const void *pKey, int nKey, const void *pData, int n
   return tdbBtcUpsert(&pTbc->btc, pKey, nKey, pData, nData, insert);
 }
 
-int tdbTbcClose(TBC *pTbc) {
+void tdbTbcClose(TBC *pTbc) {
   if (pTbc) {
-    (void)tdbBtcClose(&pTbc->btc);
+    tdbBtcClose(&pTbc->btc);
     tdbOsFree(pTbc);
   }
-
-  return 0;
 }
 
 int tdbTbcIsValid(TBC *pTbc) { return tdbBtcIsValid(&pTbc->btc); }

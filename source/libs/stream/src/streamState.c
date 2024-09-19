@@ -536,6 +536,9 @@ void streamStateCopyBackend(SStreamState* src, SStreamState* dst) {
 }
 SStreamStateCur* createStreamStateCursor() {
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
+  if (pCur == NULL) {
+    return NULL;
+  }
   pCur->buffIndex = -1;
   return pCur;
 }

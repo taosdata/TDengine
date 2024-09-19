@@ -43,6 +43,10 @@ int32_t tHistogramCreate(int32_t numOfEntries, SHistogramInfo** pHisto) {
 #if !defined(USE_ARRAYLIST)
   pHisto->pList = SSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
   SInsertSupporter* pss = taosMemoryMalloc(sizeof(SInsertSupporter));
+  if (NULL == pss) {
+    taosMemoryFree(*pHisto);
+    return terrno;
+  }
   pss->numOfEntries = pHisto->maxEntries;
   pss->pSkipList = pHisto->pList;
 
@@ -119,6 +123,9 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
 #else
   tSkipListKey key = tSkipListCreateKey(TSDB_DATA_TYPE_DOUBLE, &val, tDataTypes[TSDB_DATA_TYPE_DOUBLE].nSize);
   SHistBin*    entry = taosMemoryCalloc(1, sizeof(SHistBin));
+  if (entry == NULL) {
+    return terrno;
+  }
   entry->val = val;
 
   tSkipListNode* pResNode = SSkipListPut((*pHisto)->pList, entry, &key, 0);

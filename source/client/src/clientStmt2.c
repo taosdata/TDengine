@@ -869,6 +869,9 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
   }
 
   pStmt->sql.sqlStr = strndup(sql, length);
+  if (!pStmt->sql.sqlStr) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   pStmt->sql.sqlLen = length;
   pStmt->sql.stbInterlaceMode = pStmt->stbInterlaceMode;
 
@@ -998,7 +1001,7 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags) {
     STMT_ERR_RET(TSDB_CODE_APP_ERROR);
   }
 
-  if (pStmt->bInfo.inExecCache && (!pStmt->sql.autoCreateTbl || (*pDataBlock)->pData->pCreateTbReq)) {
+  if (pStmt->bInfo.inExecCache && !pStmt->sql.autoCreateTbl) {
     return TSDB_CODE_SUCCESS;
   }
 

@@ -59,7 +59,7 @@ _exit:
 
 void metaSnapReaderClose(SMetaSnapReader** ppReader) {
   if (ppReader && *ppReader) {
-    (void)tdbTbcClose((*ppReader)->pTbc);
+    tdbTbcClose((*ppReader)->pTbc);
     taosMemoryFree(*ppReader);
     *ppReader = NULL;
   }
@@ -221,7 +221,7 @@ static void destroySTableInfoForChildTable(void* data) {
 
 static int32_t MoveToSnapShotVersion(SSnapContext* ctx) {
   int32_t code = 0;
-  (void)tdbTbcClose((TBC*)ctx->pCur);
+  tdbTbcClose((TBC*)ctx->pCur);
   code = tdbTbcOpen(ctx->pMeta->pTbDb, (TBC**)&ctx->pCur, NULL);
   if (code != 0) {
     return TAOS_GET_TERRNO(code);
@@ -239,7 +239,7 @@ static int32_t MoveToSnapShotVersion(SSnapContext* ctx) {
 }
 
 static int32_t MoveToPosition(SSnapContext* ctx, int64_t ver, int64_t uid) {
-  (void)tdbTbcClose((TBC*)ctx->pCur);
+  tdbTbcClose((TBC*)ctx->pCur);
   int32_t code = tdbTbcOpen(ctx->pMeta->pTbDb, (TBC**)&ctx->pCur, NULL);
   if (code != 0) {
     return TAOS_GET_TERRNO(code);
@@ -254,7 +254,7 @@ static int32_t MoveToPosition(SSnapContext* ctx, int64_t ver, int64_t uid) {
 }
 
 static int32_t MoveToFirst(SSnapContext* ctx) {
-  (void)tdbTbcClose((TBC*)ctx->pCur);
+  tdbTbcClose((TBC*)ctx->pCur);
   int32_t code = tdbTbcOpen(ctx->pMeta->pTbDb, (TBC**)&ctx->pCur, NULL);
   if (code != 0) {
     return TAOS_GET_TERRNO(code);
@@ -455,7 +455,7 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
 }
 
 void destroySnapContext(SSnapContext* ctx) {
-  (void)tdbTbcClose((TBC*)ctx->pCur);
+  tdbTbcClose((TBC*)ctx->pCur);
   taosArrayDestroy(ctx->idList);
   taosHashCleanup(ctx->idVersion);
   taosHashCleanup(ctx->suidInfo);

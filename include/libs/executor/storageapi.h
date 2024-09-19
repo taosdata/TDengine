@@ -198,7 +198,7 @@ typedef struct SStoreCacheReader {
                          SArray *pFuncTypeList, SColumnInfo* pPkCol, int32_t numOfPks);
   void     (*closeReader)(void *pReader);
   int32_t  (*retrieveRows)(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
-                           SArray *pTableUidList);
+                           SArray *pTableUidList, bool* pGotAllRows);
   int32_t  (*reuseReader)(void *pReader, void *pTableIdList, int32_t numOfTables);
 } SStoreCacheReader;
 
