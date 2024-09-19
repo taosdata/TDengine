@@ -55,7 +55,6 @@ void streamSetupScheduleTrigger(SStreamTask* pTask) {
   streamTmrStart(streamTaskSchedHelper, delay, pTask, streamTimer, &pTask->schedInfo.pDelayTimer,
                  pTask->pMeta->vgId, "sched-tmr");
   pTask->schedInfo.status = TASK_TRIGGER_STATUS__INACTIVE;
-  }
 }
 
 int32_t streamTrySchedExec(SStreamTask* pTask) {
