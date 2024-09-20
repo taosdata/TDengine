@@ -2502,11 +2502,11 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
   SReqCtx* pCtx = pReq->ctx;
   int32_t  code = pResp->code;
 
-  cliRetryMayInitCtx(pInst, pReq);
-
   if (pReq->msg.info.qId != 0) {
     return false;
   }
+
+  cliRetryMayInitCtx(pInst, pReq);
 
   if (!cliRetryShouldRetry(pInst, pResp)) {
     return false;
