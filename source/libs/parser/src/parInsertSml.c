@@ -446,6 +446,7 @@ int32_t smlBuildOutput(SQuery* handle, SHashObj* pVgHash) {
     uError("insMergeTableDataCxt failed");
     return code;
   }
+  uError("write raw data smlBuildOutput block:%d->%d", taosHashGetSize(pVgHash), (int)taosArrayGetSize(pStmt->pVgDataBlocks));
   code = insBuildVgDataBlocks(pVgHash, pStmt->pVgDataBlocks, &pStmt->pDataBlocks, false);
   if (code != TSDB_CODE_SUCCESS) {
     uError("insBuildVgDataBlocks failed");

@@ -1719,7 +1719,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
     return terrno;
   }
 
-  uDebug(LOG_ID_TAG " write raw data, data:%p, dataLen:%d", LOG_ID_VALUE, data, dataLen);
+  uError(LOG_ID_TAG " write raw data, data:%p, dataLen:%d", LOG_ID_VALUE, data, dataLen);
   pRequest->syncQuery = true;
   rspObj.common.resIter = -1;
   rspObj.common.resType = RES_TYPE__TMQ;
@@ -1762,6 +1762,8 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
     goto end;
   }
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  int64_t t1 = taosGetTimestampMs();
+  uError(LOG_ID_TAG " write raw data1, block num:%d", LOG_ID_VALUE, rspObj.rsp.common.blockNum);
   while (++rspObj.common.resIter < rspObj.rsp.common.blockNum) {
     void* pRetrieve = taosArrayGetP(rspObj.rsp.common.blockData, rspObj.common.resIter);
     if (!rspObj.rsp.common.withSchema) {
@@ -1823,19 +1825,24 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
       SET_ERROR_MSG("table:%s, err:%s", tbName, err);
       goto end;
     }
+    uError(LOG_ID_TAG " write raw data2, block iter:%d", LOG_ID_VALUE, rspObj.common.resIter);
   }
+  int64_t t2 = taosGetTimestampMs();
+  uError(LOG_ID_TAG " write raw data2, block num:%d, bind data cost:%" PRId64, LOG_ID_VALUE, rspObj.rsp.common.blockNum, t2 - t1);
 
   code = smlBuildOutput(pQuery, pVgHash);
   if (code != TSDB_CODE_SUCCESS) {
     SET_ERROR_MSG("sml build output failed");
     goto end;
   }
-
+  int64_t t3 = taosGetTimestampMs();
+  uError(LOG_ID_TAG " write raw data3, block num:%d, build output cost:%" PRId64, LOG_ID_VALUE, rspObj.rsp.common.blockNum, t3 - t2);
   launchQueryImpl(pRequest, pQuery, true, NULL);
+  int64_t t4 = taosGetTimestampMs();
   code = pRequest->code;
 
 end:
-  uDebug(LOG_ID_TAG " write raw data return, msg:%s", LOG_ID_VALUE, tstrerror(code));
+  uError(LOG_ID_TAG " write raw data4 return, msg:%s,launch cost:%"PRId64", total cost:%"PRId64, LOG_ID_VALUE, tstrerror(code), t4 - t3, t4 - t1);
   tDeleteMqDataRsp(&rspObj.rsp);
   tDecoderClear(&decoder);
   qDestroyQuery(pQuery);
