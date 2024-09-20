@@ -2686,13 +2686,12 @@ void* doStreamSessionDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
   int32_t mapSize = 0;
   buf = taosDecodeFixedI32(buf, &mapSize);
   for (int32_t i = 0; i < mapSize; i++) {
-    SSessionKey       key = {0};
     SResultWindowInfo winfo = {0};
-    buf = decodeSSessionKey(buf, &key);
+    buf = decodeSSessionKey(buf, &winfo.sessionWin);
     pAggSup->stateStore.streamStateSessionAddIfNotExist(pAggSup->pState, &winfo.sessionWin, pAggSup->gap,
                                                         (void**)&winfo.pStatePos, &pAggSup->resultRowSize);
     buf = decodeSResultWindowInfo(buf, &winfo, pInfo->streamAggSup.resultRowSize);
-    tSimpleHashPut(pInfo->streamAggSup.pResultRows, &key, sizeof(SSessionKey), &winfo, sizeof(SResultWindowInfo));
+    tSimpleHashPut(pInfo->streamAggSup.pResultRows, &winfo.sessionWin, sizeof(SSessionKey), &winfo, sizeof(SResultWindowInfo));
   }
 
   // 2.twAggSup
@@ -3688,14 +3687,13 @@ void* doStreamStateDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOperato
   int32_t mapSize = 0;
   buf = taosDecodeFixedI32(buf, &mapSize);
   for (int32_t i = 0; i < mapSize; i++) {
-    SSessionKey       key = {0};
     SResultWindowInfo winfo = {0};
-    buf = decodeSSessionKey(buf, &key);
+    buf = decodeSSessionKey(buf, &winfo.sessionWin);
     pAggSup->stateStore.streamStateStateAddIfNotExist(pAggSup->pState, &winfo.sessionWin, NULL,
                                                       pAggSup->stateKeySize, compareStateKey,
                                                       (void**)&winfo.pStatePos, &pAggSup->resultRowSize);
     buf = decodeSResultWindowInfo(buf, &winfo, pInfo->streamAggSup.resultRowSize);
-    tSimpleHashPut(pInfo->streamAggSup.pResultRows, &key, sizeof(SSessionKey), &winfo, sizeof(SResultWindowInfo));
+    tSimpleHashPut(pInfo->streamAggSup.pResultRows, &winfo.sessionWin, sizeof(SSessionKey), &winfo, sizeof(SResultWindowInfo));
   }
 
   // 2.twAggSup
