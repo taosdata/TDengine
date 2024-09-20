@@ -50,7 +50,6 @@ typedef struct SExprNode {
   char      aliasName[TSDB_COL_NAME_LEN];
   char      userAlias[TSDB_COL_NAME_LEN];
   SArray*   pAssociation;
-  bool      orderAlias;
   bool      asAlias;
   bool      asParam;
   int32_t   projIdx;
