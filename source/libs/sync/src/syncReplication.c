@@ -75,7 +75,9 @@ int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
       continue;
     }
     SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
-    (void)syncLogReplStart(pMgr, pNode);
+    if (syncLogReplStart(pMgr, pNode) != 0) {
+      sError("vgId:%d, failed to start log replication to dnode:%d", pNode->vgId, DID(&(pNode->replicasId[i])));
+    }
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -84,7 +86,7 @@ int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
 int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg) {
   SyncAppendEntries* pMsg = pRpcMsg->pCont;
   pMsg->destId = *destRaftId;
-  (void)syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg);
+  TAOS_CHECK_RETURN(syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg));
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -116,7 +118,9 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
     STraceId* trace = &(rpcMsg.info.traceId);
     sGTrace("vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId, DID(&(pSyncMsg->destId)));
     syncLogSendHeartbeat(pSyncNode, pSyncMsg, true, 0, 0);
-    (void)syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
+    if (syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg) != 0) {
+      sError("vgId:%d, failed to send sync-heartbeat to dnode:%d", pSyncNode->vgId, DID(&(pSyncMsg->destId)));
+    }
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
