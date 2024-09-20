@@ -216,9 +216,7 @@ static void reportSendProcess(void* param, void* tmrId) {
   SEpSet ep = getEpSet_s(&pInst->mgmtEp);
   generateClusterReport(pMonitor->registry, pInst->pTransporter, &ep);
   bool reset = taosTmrReset(reportSendProcess, pInst->monitorParas.tsMonitorInterval * 1000, param, monitorTimer, &tmrId);
-  if (!reset){
-    tscError("failed to reset timer, pMonitor:%p", pMonitor);
-  }
+  tscDebug("reset timer, pMonitor:%p, %d", pMonitor, reset);
   taosRUnLockLatch(&monitorLock);
 }
 
