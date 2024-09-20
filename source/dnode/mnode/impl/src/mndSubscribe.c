@@ -113,6 +113,7 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, SMqSubscribeObj 
     MND_TMQ_RETURN_CHECK(qSubPlanToString(pPlan, &req.qmsg, &msgLen));
   } else {
     req.qmsg = taosStrdup("");
+    MND_TMQ_NULL_CHECK(req.qmsg);
   }
   req.subType = pSub->subType;
   req.withMeta = pSub->withMeta;

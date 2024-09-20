@@ -135,6 +135,11 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
   sprintf(buf, "0x%" PRIx64 "-0x%x", pTask->id.streamId, pTask->id.taskId);
 
   pTask->id.idStr = taosStrdup(buf);
+  if (pTask->id.idStr == NULL) {
+    stError("s-task:0x%x failed to build task id, code: out of memory", pTask->id.taskId);
+    return terrno;
+  }
+
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
   pTask->status.taskStatus = fillHistory ? TASK_STATUS__SCAN_HISTORY : TASK_STATUS__READY;
   pTask->inputq.status = TASK_INPUT_STATUS__NORMAL;

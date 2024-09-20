@@ -268,6 +268,7 @@ static SArray* functParamClone(const SArray* pSrc) {
   if (NULL == pDst) {
     return NULL;
   }
+  int32_t code = 0;
   for (int i = 0; i < TARRAY_SIZE(pSrc); ++i) {
     SFunctParam* pFunctParam = taosArrayGet(pSrc, i);
     SFunctParam* pNewFunctParam = (SFunctParam*)taosArrayPush(pDst, pFunctParam);
@@ -277,7 +278,15 @@ static SArray* functParamClone(const SArray* pSrc) {
     }
     pNewFunctParam->type = pFunctParam->type;
     pNewFunctParam->pCol = taosMemoryCalloc(1, sizeof(SColumn));
+    if (!pNewFunctParam->pCol) {
+      code = terrno;
+      break;
+    }
     memcpy(pNewFunctParam->pCol, pFunctParam->pCol, sizeof(SColumn));
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    taosArrayDestroyEx(pDst, destroyFuncParam);
+    return NULL;
   }
 
   return pDst;

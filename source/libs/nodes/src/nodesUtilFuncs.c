@@ -826,7 +826,7 @@ static void destroyTableCfg(STableCfg* pCfg) {
 
 static void destroySmaIndex(void* pIndex) { taosMemoryFree(((STableIndexInfo*)pIndex)->expr); }
 
-static void destroyFuncParam(void* pValue) { taosMemoryFree(((SFunctParam*)pValue)->pCol); }
+void destroyFuncParam(void* pValue) { taosMemoryFree(((SFunctParam*)pValue)->pCol); }
 
 static void destroyHintValue(EHintOption option, void* value) {
   switch (option) {

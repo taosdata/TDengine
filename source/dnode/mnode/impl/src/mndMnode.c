@@ -95,7 +95,7 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
     if (terrno != 0) code = terrno;
     return -1;
   }
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
 
   mInfo("mnode:%d, will be created when deploying, raw:%p", mnodeObj.id, pRaw);
 

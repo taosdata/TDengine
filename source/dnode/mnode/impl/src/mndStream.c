@@ -2194,8 +2194,9 @@ static int32_t refreshNodeListFromExistedStreams(SMnode *pMnode, SArray *pNodeLi
 
       SNodeEntry entry = {.hbTimestamp = -1, .nodeId = pTask->info.nodeId, .lastHbMsgId = -1};
       epsetAssign(&entry.epset, &pTask->info.epSet);
-      if (taosHashPut(pHash, &entry.nodeId, sizeof(entry.nodeId), &entry, sizeof(entry)) != 0) {
-        mError("failed to put entry into hash map, nodeId:%d", entry.nodeId);
+      int32_t ret = taosHashPut(pHash, &entry.nodeId, sizeof(entry.nodeId), &entry, sizeof(entry));
+      if (ret != 0 && ret != TSDB_CODE_DUP_KEY) {
+        mError("failed to put entry into hash map, nodeId:%d, code:%s", entry.nodeId, tstrerror(code));
       }
     }
 
