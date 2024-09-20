@@ -591,15 +591,13 @@ void cliHandleResp(SCliConn* conn) {
       code = cliBuildRespFromCont(NULL, &resp, pHead);
       code = cliNotifyCb(conn, NULL, &resp);
       return;
-    } else {
-      tDebug("%s conn %p recv unexpected packet, seqNum:%" PRId64 ",qid:%" PRId64 " reason:%s",
-             CONN_GET_INST_LABEL(conn), conn, seq, qId, tstrerror(code));
     }
     if (code != 0) {
       tWarn("%s conn %p recv unexpected packet, msgType:%s, seqNum:%" PRId64 ", qId:%" PRId64
             ", the sever may sends repeated response,reason:%s",
             CONN_GET_INST_LABEL(conn), conn, TMSG_INFO(pHead->msgType), seq, qId, tstrerror(code));
       // TODO: notify cb
+      taosMemoryFree(pHead);
       if (cliMayRecycleConn(conn)) {
         return;
       }
