@@ -344,7 +344,7 @@ static int32_t dmCompareEncryptKey(char *file, char *key, bool toLogFile) {
   result = taosMemoryMalloc(len);
   if (result == NULL) {
     code = terrno;
-    encryptError("failed to alloc memory since %s", file, tstrerror(code));
+    encryptError("failed to alloc memory file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
 
