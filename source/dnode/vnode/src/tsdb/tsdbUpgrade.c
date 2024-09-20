@@ -56,7 +56,7 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
 
   // read SBlockIdx array
   if ((ctx->aBlockIdx = taosArrayInit(0, sizeof(SBlockIdx))) == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   TAOS_CHECK_GOTO(tsdbReadBlockIdx(reader, ctx->aBlockIdx), &lino, _exit);
@@ -236,7 +236,7 @@ static int32_t tsdbUpgradeSttFile(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReade
 
   SArray *aSttBlk = taosArrayInit(0, sizeof(SSttBlk));
   if (aSttBlk == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   TAOS_CHECK_GOTO(tsdbReadSttBlk(reader, iStt, aSttBlk), &lino, _exit);
@@ -460,7 +460,7 @@ static int32_t tsdbDumpTombDataToFSet(STsdb *tsdb, SDelFReader *reader, SArray *
   tsdbFidKeyRange(fset->fid, tsdb->keepCfg.days, tsdb->keepCfg.precision, &ctx->minKey, &ctx->maxKey);
 
   if ((ctx->aDelData = taosArrayInit(0, sizeof(SDelData))) == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   for (int32_t iDelIdx = 0; iDelIdx < taosArrayGetSize(aDelIdx); iDelIdx++) {
@@ -550,7 +550,7 @@ static int32_t tsdbUpgradeTombFile(STsdb *tsdb, SDelFile *pDelFile, TFileSetArra
   SArray      *aDelIdx = NULL;
 
   if ((aDelIdx = taosArrayInit(0, sizeof(SDelIdx))) == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   TAOS_CHECK_GOTO(tsdbDelFReaderOpen(&reader, pDelFile, tsdb), &lino, _exit);

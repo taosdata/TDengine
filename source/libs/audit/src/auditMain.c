@@ -32,7 +32,7 @@ char* tsAuditBatchUri = "/audit-batch";
 int32_t auditInit(const SAuditCfg *pCfg) {
   tsAudit.cfg = *pCfg;
   tsAudit.records = taosArrayInit(0, sizeof(SAuditRecord *));
-  if(tsAudit.records == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if(tsAudit.records == NULL) return terrno;
   return taosThreadMutexInit(&tsAudit.lock, NULL);
 }
 
