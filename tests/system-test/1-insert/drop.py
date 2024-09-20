@@ -50,9 +50,9 @@ class TDTestCase:
             'col13': 'nchar(20)'
         }
         self.db_names = [ f'dbtest_0', f'dbtest_1']
-        self.stb_names = [ f'`aa\u00bf\u200bstb0`']
-        self.ctb_names = [ f'ctb0', 'ctb1', f'`aa\u00bf\u200bctb0`', f'`aa\u00bf\u200bctb1`']
-        self.ntb_names = [ f'ntb0', f'`aa\u00bf\u200bntb0`', f'ntb1', f'`aa\u00bf\u200bntb1`']
+        self.stb_names = [ f'aa\u00bf\u200bstb0']
+        self.ctb_names = [ f'ctb0', 'ctb1', f'aa\u00bf\u200bctb0', f'aa\u00bf\u200bctb1']
+        self.ntb_names = [ f'ntb0', f'aa\u00bf\u200bntb0', f'ntb1', f'aa\u00bf\u200bntb1']
         self.vgroups_opt = f'vgroups 4'
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
@@ -126,13 +126,13 @@ class TDTestCase:
             tdSql.execute(f'create database if not exists {db_name} {self.vgroups_opt}')
             tdSql.execute(f'use {db_name}')
             for stb_name in self.stb_names:
-                tdSql.execute(f'create table {stb_name} (ts timestamp,c0 int) tags(t0 int)')
+                tdSql.execute(f'create table `{stb_name}` (ts timestamp,c0 int) tags(t0 int)')
                 for ctb_name in self.ctb_names:
-                    tdSql.execute(f'create table {ctb_name} using {stb_name} tags(0)')
-                    tdSql.execute(f'insert into {ctb_name} values (now,1)')
+                    tdSql.execute(f'create table `{ctb_name}` using `{stb_name}` tags(0)')
+                    tdSql.execute(f'insert into `{ctb_name}` values (now,1)')
             for ntb_name in self.ntb_names:
-                tdSql.execute(f'create table {ntb_name} (ts timestamp,c0 int)')
-                tdSql.execute(f'insert into {ntb_name} values (now,1)')
+                tdSql.execute(f'create table `{ntb_name}` (ts timestamp,c0 int)')
+                tdSql.execute(f'insert into `{ntb_name}` values (now,1)')
     def drop_table_check_end(self):
         for db_name in self.db_names:
             tdSql.execute(f'drop database {db_name}')
@@ -174,7 +174,7 @@ class TDTestCase:
         tdSql.checkRows(8)
         tdSql.error(f'drop stable with information_schema.`ins_tables`;')
         tdSql.error(f'drop stable with performance_schema.`perf_connections`;')
-        self.drop_table_check_end()
+        self.drop_table_check_end()    
     def drop_table_with_check(self):
         self.drop_table_check_init()
         tdSql.query(f'select * from information_schema.ins_tables where db_name like "dbtest_%"')
@@ -199,6 +199,43 @@ class TDTestCase:
         tdSql.error(f'drop table with information_schema.`ins_tables`;')
         tdSql.error(f'drop table with performance_schema.`perf_connections`;')
         self.drop_table_check_end()
+    def drop_table_with_check_tsma(self):
+        tdSql.execute(f'create database if not exists {self.dbname} {self.vgroups_opt}')
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(f'create table {self.dbname}.stb (ts timestamp,c0 int) tags(t0 int)')
+        tdSql.execute(f'create tsma stb_tsma on {self.dbname}.stb function(avg(c0),count(c0)) interval(1d)')
+        tdSql.execute(f'create table {self.dbname}.ctb using {self.dbname}.stb tags(0)')
+        tdSql.execute(f'insert into {self.dbname}.ctb values (now,1)')
+        tdSql.execute(f'create table {self.dbname}.ntb (ts timestamp,c0 int)')
+        tdSql.execute(f'create tsma ntb_tsma on {self.dbname}.ntb function(avg(c0),count(c0)) interval(1d)')
+        tdSql.execute(f'insert into {self.dbname}.ntb values (now,1)')
+        tdSql.query(f'select * from information_schema.ins_tsmas where db_name = "{self.dbname}"')
+        tdSql.checkRows(2)
+        tdSql.query(f'select * from information_schema.ins_tables where db_name = "{self.dbname}" and type="CHILD_TABLE"')
+        tdSql.checkRows(1)
+        tdSql.execute(f'drop table with {tdSql.queryResult[0][1]}.`{tdSql.queryResult[0][5]}`')
+        tdSql.query(f'select * from information_schema.ins_tables where db_name = "{self.dbname}" and type="CHILD_TABLE"')
+        tdSql.checkRows(0)
+        tdSql.query(f'select * from information_schema.ins_stables where db_name = "{self.dbname}"')
+        tdSql.checkRows(1)
+        tdSql.error(f'drop table with {tdSql.queryResult[0][1]}.`{tdSql.queryResult[0][10]}`')
+        tdSql.query(f'select * from information_schema.ins_stables where db_name = "{self.dbname}"')
+        tdSql.error(f'drop stable with {tdSql.queryResult[0][1]}.`{tdSql.queryResult[0][10]}`')
+        tdSql.query(f'select * from information_schema.ins_stables where db_name = "{self.dbname}"')
+        tdSql.checkRows(1)
+        tdSql.query(f'select * from information_schema.ins_tables where db_name = "{self.dbname}" and type="NORMAL_TABLE"')
+        tdSql.checkRows(1)
+        tdSql.execute(f'drop table with {tdSql.queryResult[0][1]}.`{tdSql.queryResult[0][5]}`')
+        tdSql.query(f'select * from information_schema.ins_tables where db_name = "{self.dbname}" and type="NORMAL_TABLE"')
+        tdSql.checkRows(0)
+        tdSql.query(f'select * from information_schema.ins_tsmas where db_name = "{self.dbname}"')
+        tsmas = tdSql.queryResult
+        tdSql.checkEqual(len(tsmas),2)
+        for tsma in tsmas:
+            tdSql.execute(f'drop tsma {tsma[1]}.{tsma[0]}')
+        tdSql.query(f'show tsmas')
+        tdSql.checkRows(0)
+        tdSql.execute(f'drop database {self.dbname}')
     def drop_topic_check(self):
         tdSql.execute(f'create database {self.dbname} replica {self.replicaVar} wal_retention_period 3600')
         tdSql.execute(f'use {self.dbname}')
@@ -246,6 +283,7 @@ class TDTestCase:
         self.drop_stb_ctb_check()
         self.drop_stable_with_check()
         self.drop_table_with_check()
+        self.drop_table_with_check_tsma()
         self.drop_topic_check()
         if platform.system().lower() == 'windows':        
             self.drop_stream_check()

@@ -606,12 +606,12 @@ static int32_t ctgInitGetTbNamesTask(SCtgJob* pJob, int32_t taskId, void* param)
     qError("qid:0x%" PRIx64 " taosArrayInit %d SMetaRes %d failed", pJob->queryId, pJob->tbNameNum,
            (int32_t)sizeof(SMetaRes));
     ctgFreeTask(&task, true);
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   if (NULL == taosArrayPush(pJob->pTasks, &task)) {
     ctgFreeTask(&task, true);
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1942,15 +1942,13 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
     case TDMT_MND_USE_DB: {
       SUseDbOutput* pOut = (SUseDbOutput*)pMsgCtx->out;
       CTG_ERR_RET(ctgMakeVgArray(pOut->dbVgroup));
-      int32_t vgSize = taosArrayGetSize(pOut->dbVgroup->vgArray);
+      SArray* pVgArray = NULL;
+      TSWAP(pVgArray, pOut->dbVgroup->vgArray);
+      int32_t vgSize = taosArrayGetSize(pVgArray);
       if (0 == vgSize) {
+        taosArrayDestroy(pVgArray);
         ctgTaskError("no vgroup got, dbName:%s", pName->dbname);
         CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
-      }
-      SArray* pVgArray = taosArrayDup(pOut->dbVgroup->vgArray, NULL);
-      if (NULL == pVgArray) {
-        ctgTaskError("fail to dup vgArray:%s", pName->dbname);
-        CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
       for (int32_t i = 0; i < vgSize; ++i) {
         SVgroupInfo* vgInfo = TARRAY_GET_ELEM(pVgArray, i);
@@ -1961,12 +1959,12 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
         }
         ctgTaskDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d, vgId:%d",
                      tNameGetTableName(pName), flag, vgInfo->vgId);
-        // *vgId = 100; //vgInfo->vgId;
+        // *vgId = vgInfo->vgId;
         if (i > 0) atomic_add_fetch_32(&ctx->fetchNum, 1);
         code = ctgGetTbMetaFromVnode(pCtg, pConn, pName, vgInfo, NULL, tReq);
         if (code) {
           taosArrayDestroy(pVgArray);
-          CTG_ERR_RET(code);
+          CTG_ERR_JRET(code);
         }
       }
       taosArrayDestroy(pVgArray);
@@ -4006,7 +4004,7 @@ static int32_t ctgLaunchGetTbNamesTask(SCtgTask* pTask) {
   pTask->msgCtxs = taosArrayInit_s(sizeof(SCtgMsgCtx), pCtx->fetchNum);
   if (NULL == pTask->msgCtxs) {
     ctgError("taosArrayInit_s %d SCtgMsgCtx %d failed", pCtx->fetchNum, (int32_t)sizeof(SCtgMsgCtx));
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   for (int32_t i = 0; i < pCtx->fetchNum; ++i) {
