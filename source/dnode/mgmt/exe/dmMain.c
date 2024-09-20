@@ -433,7 +433,8 @@ int mainWindows(int argc, char **argv) {
   }
 
   if (global.dumpSdb) {
-    mndDumpSdb();
+    int32_t code = 0;
+    TAOS_CHECK_RETURN(mndDumpSdb());
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();
@@ -442,6 +443,7 @@ int mainWindows(int argc, char **argv) {
   }
 
   if (global.deleteTrans) {
+    int32_t   code = 0;
     TdFilePtr pFile;
     if ((code = dmCheckRunning(tsDataDir, &pFile)) != 0) {
       printf("failed to generate encrypt code since taosd is running, please stop it first, reason:%s",
@@ -449,7 +451,7 @@ int mainWindows(int argc, char **argv) {
       return code;
     }
 
-    mndDeleteTrans();
+    TAOS_CHECK_RETURN(mndDeleteTrans());
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();
