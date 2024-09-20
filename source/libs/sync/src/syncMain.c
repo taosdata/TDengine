@@ -3644,7 +3644,9 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
 
       if (code > 0) {
         SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
-        (void)syncRespMgrGetAndDel(ths->pSyncRespMgr, pEntry->seqNum, &rsp.info);
+        int32_t num = syncRespMgrGetAndDel(ths->pSyncRespMgr, pEntry->seqNum, &rsp.info);
+        sDebug("vgId:%d, get response stub for config change, seqNum:%" PRIu64 ", num:%d", ths->vgId, pEntry->seqNum,
+               num);
         if (rsp.info.handle != NULL) {
           tmsgSendRsp(&rsp);
         }

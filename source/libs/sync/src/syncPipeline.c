@@ -650,7 +650,10 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
     }
 
     // replicate on demand
-    TAOS_CHECK_GOTO(syncNodeReplicateWithoutLock(pNode), NULL, _out);
+    int32_t ret = 0;
+    if ((ret = syncNodeReplicateWithoutLock(pNode)) != 0) {
+      sError("vgId:%d, failed to replicate since %s. index:%" PRId64, pNode->vgId, tstrerror(ret), pEntry->index);
+    }
 
     if (pEntry->index != pBuf->matchIndex) {
       sError("vgId:%d, failed to proceed, pEntry->index:%" PRId64 ", pBuf->matchIndex:%" PRId64, pNode->vgId,
@@ -721,7 +724,8 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
     cbMeta.currentTerm = term;
     cbMeta.flag = -1;
 
-    TAOS_CHECK_GOTO(syncRespMgrGetAndDel(pNode->pSyncRespMgr, cbMeta.seqNum, &rpcMsg.info), NULL, _exit);
+    int32_t num = syncRespMgrGetAndDel(pNode->pSyncRespMgr, cbMeta.seqNum, &rpcMsg.info);
+    sDebug("vgId:%d, get response info,  seqNum:%" PRId64 ", num:%d", pNode->vgId, cbMeta.seqNum, num);
     code = pFsm->FpCommitCb(pFsm, &rpcMsg, &cbMeta);
     retry = (code != 0) && (terrno == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE);
     if (retry) {
