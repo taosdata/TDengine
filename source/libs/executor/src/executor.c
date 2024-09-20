@@ -1093,8 +1093,20 @@ _end:
   return code;
 }
 
+static int32_t getOpratorIntervalInfo(SOperatorInfo* pOperator, int64_t* pWaterMark, SInterval* pInterval) {
+  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    return getOpratorIntervalInfo(pOperator->pDownstream[0], pWaterMark, pInterval);
+  }
+  SStreamScanInfo* pScanOp = (SStreamScanInfo*) pOperator->info;
+  *pWaterMark = pScanOp->twAggSup.waterMark;
+  *pInterval = pScanOp->interval;
+  return TSDB_CODE_SUCCESS; 
+}
+
 int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval) {
-  return 0;
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  SOperatorInfo* pOperator = pTaskInfo->pRoot;
+  return getOpratorIntervalInfo(pOperator, pWaterMark, pInterval);
 }
 
 int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo) {
