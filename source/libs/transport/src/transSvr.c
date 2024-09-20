@@ -825,17 +825,20 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrRespMsg* smsg) {
 
   transRefSrvHandle(pConn);
 
-  if (req == NULL) {
-    if (!uv_is_closing((uv_handle_t*)(pConn->pTcp))) {
-      tError("conn %p failed to write data, reason:%s", pConn, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-      pConn->broken = true;
-      freeWReqToWQ(&pConn->wq, req->data);
-      taosMemoryFree(pWreq);
-      transUnrefSrvHandle(pConn);
-      return;
+  int32_t ret = uv_write(req, (uv_stream_t*)pConn->pTcp, pBuf, bufNum, uvOnSendCb);
+  if (ret != 0) {
+    tError("conn %p failed to write data, reason:%s", pConn, tstrerror(TSDB_CODE_OUT_OF_MEMORY), uv_err_name(ret));
+    pConn->broken = true;
+    while (!QUEUE_IS_EMPTY(&pWreq->node)) {
+      queue* head = QUEUE_HEAD(&pWreq->node);
+      QUEUE_REMOVE(head);
+      SSvrRespMsg* smsg = QUEUE_DATA(head, SSvrRespMsg, q);
+      destroySmsg(smsg);
     }
+    freeWReqToWQ(&pConn->wq, req->data);
+
+    transUnrefSrvHandle(pConn);
   }
-  (void)uv_write(req, (uv_stream_t*)pConn->pTcp, pBuf, bufNum, uvOnSendCb);
 }
 int32_t uvMayHandleReleaseResp(SSvrRespMsg* pMsg) {
   SSvrConn* pConn = pMsg->pConn;
