@@ -388,7 +388,7 @@ int32_t resetDataBlockIterator(SDataBlockIter* pIter, int32_t order, bool needFr
   if (pIter->blockList == NULL) {
     pIter->blockList = taosArrayInit(4, sizeof(SFileDataBlockInfo));
     if (pIter->blockList == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   } else {
     clearDataBlockIterator(pIter, needFree);
@@ -691,7 +691,7 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
 
     void* p1 = taosArrayPush(pIndexList, pBrinBlk);
     if (p1 == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     i += 1;
@@ -815,7 +815,7 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
       pScanInfo->pBlockList = taosArrayInit(4, sizeof(SFileDataBlockInfo));
       if (pScanInfo->pBlockList == NULL) {
         clearBrinBlockIter(&iter);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
 
@@ -823,16 +823,20 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
       pScanInfo->pBlockIdxList = taosArrayInit(4, sizeof(STableDataBlockIdx));
       if (pScanInfo->pBlockIdxList == NULL) {
         clearBrinBlockIter(&iter);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
 
     SFileDataBlockInfo blockInfo = {.tbBlockIdx = TARRAY_SIZE(pScanInfo->pBlockList)};
-    recordToBlockInfo(&blockInfo, pRecord);
+    code = recordToBlockInfo(&blockInfo, pRecord);
+    if (code != TSDB_CODE_SUCCESS) {
+      clearBrinBlockIter(&iter);
+      return code;
+    }
     void* p1 = taosArrayPush(pScanInfo->pBlockList, &blockInfo);
     if (p1 == NULL) {
       clearBrinBlockIter(&iter);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     // todo: refactor to record the fileset skey/ekey
@@ -861,7 +865,7 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
 
     if (p1 == NULL) {
       clearBrinBlockIter(&iter);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -2904,7 +2908,7 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, int32_t orde
   } else {
     pBlockScanInfo->delSkyline = taosArrayInit(4, sizeof(TSDBKEY));
     if (pBlockScanInfo->delSkyline == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -3017,7 +3021,7 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum, SAr
   size_t  numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
   SArray* pIndexList = taosArrayInit(numOfTables, sizeof(SBrinBlk));
   if (pIndexList == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   while (1) {
@@ -3537,7 +3541,7 @@ static int32_t initForFirstBlockInFile(STsdbReader* pReader, SDataBlockIter* pBl
   SBlockNumber num = {0};
   SArray*      pTableList = taosArrayInit(40, POINTER_BYTES);
   if (pTableList == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t code = moveToNextFile(pReader, &num, pTableList);
@@ -4931,7 +4935,7 @@ static int32_t doSuspendCurrentReader(STsdbReader* pCurrentReader) {
     destroySttBlockReader(pStatus->pLDataIterArray, &pCost->sttCost);
     pStatus->pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
     if (pStatus->pLDataIterArray == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 

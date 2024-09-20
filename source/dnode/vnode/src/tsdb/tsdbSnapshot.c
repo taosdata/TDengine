@@ -924,6 +924,31 @@ _exit:
   return code;
 }
 
+static int32_t tsdbSnapWriteFileSetAbort(STsdbSnapWriter* writer) {
+  if (!writer->ctx->fsetWriteBegin) return 0;
+
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  // close write
+  code = tsdbSnapWriteFileSetCloseWriter(writer);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbSnapWriteFileSetCloseIter(writer);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbSnapWriteFileSetCloseReader(writer);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  writer->ctx->fsetWriteBegin = false;
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(writer->tsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
 static int32_t tsdbSnapWriteTimeSeriesData(STsdbSnapWriter* writer, SSnapDataHdr* hdr) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -1075,15 +1100,23 @@ _exit:
   return code;
 }
 
-int32_t tsdbSnapWriterPrepareClose(STsdbSnapWriter* writer) {
+int32_t tsdbSnapWriterPrepareClose(STsdbSnapWriter* writer, bool rollback) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbSnapWriteFileSetEnd(writer);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  if (!rollback) {
+    code = tsdbSnapWriteFileSetEnd(writer);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbFSEditBegin(writer->tsdb->pFS, writer->fopArr, TSDB_FEDIT_COMMIT);
-  TSDB_CHECK_CODE(code, lino, _exit);
+    code = tsdbFSEditBegin(writer->tsdb->pFS, writer->fopArr, TSDB_FEDIT_COMMIT);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else {
+    code = tsdbSnapWriteFileSetAbort(writer);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = tsdbFSEditBegin(writer->tsdb->pFS, writer->fopArr, TSDB_FEDIT_COMMIT);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
 _exit:
   if (code) {

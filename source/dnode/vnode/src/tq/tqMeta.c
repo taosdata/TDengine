@@ -198,7 +198,7 @@ int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset** pOffset){
     if (taosHashPut(pTq->pOffset, subkey, strlen(subkey), &offset, sizeof(STqOffset)) != 0) {
       tDeleteSTqOffset(&offset);
       tdbFree(data);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     tdbFree(data);
 
@@ -350,7 +350,7 @@ int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle) {
     handle->execHandle.execDb.pFilterOutTbUid =
         taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
     if(handle->execHandle.execDb.pFilterOutTbUid == NULL){
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }else if(req->subType == TOPIC_SUB_TYPE__TABLE){
     handle->execHandle.execTb.suid = req->suid;
@@ -397,10 +397,7 @@ static int32_t tqMetaTransformInfo(TDB* pMetaDB, TTB* pOld, TTB* pNew) {
 END:
   tdbFree(pKey);
   tdbFree(pVal);
-  int32_t ret = tdbTbcClose(pCur);
-  if (ret != 0) {
-    tqError("failed to close tbc, ret:%d", ret);
-  }
+  tdbTbcClose(pCur);
   return code;
 }
 
@@ -472,10 +469,7 @@ static int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
 END:
   tdbFree(pKey);
   tdbFree(pVal);
-  int32_t ret = tdbTbcClose(pCur);
-  if (ret != 0) {
-    tqError("failed to close tbc, ret:%d", ret);
-  }
+  tdbTbcClose(pCur);
   tDeleteSTqCheckInfo(&info);
   return code;
 }

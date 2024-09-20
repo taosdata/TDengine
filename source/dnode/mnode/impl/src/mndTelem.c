@@ -68,54 +68,64 @@ static void mndGetStat(SMnode* pMnode, SMnodeStat* pStat) {
 
 static void mndBuildRuntimeInfo(SMnode* pMnode, SJson* pJson) {
   SMnodeStat mstat = {0};
+  int32_t    code = 0;
+  int32_t    lino = 0;
   mndGetStat(pMnode, &mstat);
 
-  (void)tjsonAddDoubleToObject(pJson, "numOfDnode", mstat.numOfDnode);
-  (void)tjsonAddDoubleToObject(pJson, "numOfMnode", mstat.numOfMnode);
-  (void)tjsonAddDoubleToObject(pJson, "numOfVgroup", mstat.numOfVgroup);
-  (void)tjsonAddDoubleToObject(pJson, "numOfDatabase", mstat.numOfDatabase);
-  (void)tjsonAddDoubleToObject(pJson, "numOfSuperTable", mstat.numOfSuperTable);
-  (void)tjsonAddDoubleToObject(pJson, "numOfChildTable", mstat.numOfChildTable);
-  (void)tjsonAddDoubleToObject(pJson, "numOfColumn", mstat.numOfColumn);
-  (void)tjsonAddDoubleToObject(pJson, "numOfPoint", mstat.totalPoints);
-  (void)tjsonAddDoubleToObject(pJson, "totalStorage", mstat.totalStorage);
-  (void)tjsonAddDoubleToObject(pJson, "compStorage", mstat.compStorage);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfDnode", mstat.numOfDnode), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfMnode", mstat.numOfMnode), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfVgroup", mstat.numOfVgroup), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfDatabase", mstat.numOfDatabase), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfSuperTable", mstat.numOfSuperTable), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfChildTable", mstat.numOfChildTable), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfColumn", mstat.numOfColumn), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfPoint", mstat.totalPoints), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "totalStorage", mstat.totalStorage), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "compStorage", mstat.compStorage), &lino, _OVER);
+_OVER:
+  if (code != 0) mError("failed to mndBuildRuntimeInfo at line:%d since %s", lino, tstrerror(code));
 }
 
 static char* mndBuildTelemetryReport(SMnode* pMnode) {
   char        tmp[4096] = {0};
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
+  int32_t     code = 0;
+  int32_t     lino = 0;
 
   SJson* pJson = tjsonCreateObject();
   if (pJson == NULL) return NULL;
 
   char clusterName[64] = {0};
   if ((terrno = mndGetClusterName(pMnode, clusterName, sizeof(clusterName))) != 0) return NULL;
-  (void)tjsonAddStringToObject(pJson, "instanceId", clusterName);
-  (void)tjsonAddDoubleToObject(pJson, "reportVersion", 1);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "instanceId", clusterName), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "reportVersion", 1), &lino, _OVER);
 
   if (taosGetOsReleaseName(tmp, NULL, NULL, sizeof(tmp)) == 0) {
-    (void)tjsonAddStringToObject(pJson, "os", tmp);
+    TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "os", tmp), &lino, _OVER);
   }
 
   float numOfCores = 0;
   if (taosGetCpuInfo(tmp, sizeof(tmp), &numOfCores) == 0) {
-    (void)tjsonAddStringToObject(pJson, "cpuModel", tmp);
-    (void)tjsonAddDoubleToObject(pJson, "numOfCpu", numOfCores);
+    TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "cpuModel", tmp), &lino, _OVER);
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfCpu", numOfCores), &lino, _OVER);
   } else {
-    (void)tjsonAddDoubleToObject(pJson, "numOfCpu", tsNumOfCores);
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfCpu", tsNumOfCores), &lino, _OVER);
   }
 
   snprintf(tmp, sizeof(tmp), "%" PRId64 " kB", tsTotalMemoryKB);
-  (void)tjsonAddStringToObject(pJson, "memory", tmp);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "memory", tmp), &lino, _OVER);
 
-  (void)tjsonAddStringToObject(pJson, "version", version);
-  (void)tjsonAddStringToObject(pJson, "buildInfo", buildinfo);
-  (void)tjsonAddStringToObject(pJson, "gitInfo", gitinfo);
-  (void)tjsonAddStringToObject(pJson, "email", pMgmt->email);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "version", version), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "buildInfo", buildinfo), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "gitInfo", gitinfo), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "email", pMgmt->email), &lino, _OVER);
 
   mndBuildRuntimeInfo(pMnode, pJson);
 
+_OVER:
+  if (code != 0) {
+    mError("failed to build telemetry report at lino:%d, since %s", lino, tstrerror(code));
+  }
   char* pCont = tjsonToString(pJson);
   tjsonDelete(pJson);
   return pCont;

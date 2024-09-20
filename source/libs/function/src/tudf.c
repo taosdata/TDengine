@@ -900,6 +900,9 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
       udfCol->colData.fixLenCol.dataLen = colDataGetLength(col, udfBlock->numOfRows);
       int32_t dataLen = udfCol->colData.fixLenCol.dataLen;
       udfCol->colData.fixLenCol.data = taosMemoryMalloc(udfCol->colData.fixLenCol.dataLen);
+      if (NULL == udfCol->colData.fixLenCol.data) {
+        return terrno;
+      }
       char *data = udfCol->colData.fixLenCol.data;
       memcpy(data, col->pData, dataLen);
     }
@@ -1088,7 +1091,7 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
         taosArrayRemove(gUdfcProxy.udfStubs, stubIndex);
       }
     } else {
-      fnInfo("udf handle expired for %s, will setup udf. move it to expired list", udfName);
+      fnDebug("udf handle expired for %s, will setup udf. move it to expired list", udfName);
       if (taosArrayPush(gUdfcProxy.expiredUdfStubs, foundStub) == NULL) {
         fnError("acquireUdfFuncHandle: failed to push udf stub to array");
       } else {
@@ -1715,7 +1718,7 @@ int32_t udfcQueueUvTask(SClientUvTaskNode *uvTask) {
   }
 
   uv_sem_wait(&uvTask->taskSem);
-  fnInfo("udfc uvTask finished. uvTask:%" PRId64 "-%d-%p", uvTask->seqNum, uvTask->type, uvTask);
+  fnDebug("udfc uvTask finished. uvTask:%" PRId64 "-%d-%p", uvTask->seqNum, uvTask->type, uvTask);
   uv_sem_destroy(&uvTask->taskSem);
 
   return 0;

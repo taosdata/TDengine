@@ -60,7 +60,7 @@ int32_t tdbTbTraversal(TTB *pTb, void *data,
 
 // TBC
 int32_t tdbTbcOpen(TTB *pTb, TBC **ppTbc, TXN *pTxn);
-int32_t tdbTbcClose(TBC *pTbc);
+void    tdbTbcClose(TBC *pTbc);
 int32_t tdbTbcIsValid(TBC *pTbc);
 int32_t tdbTbcMoveTo(TBC *pTbc, const void *pKey, int kLen, int *c);
 int32_t tdbTbcMoveToFirst(TBC *pTbc);

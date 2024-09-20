@@ -96,6 +96,10 @@ int32_t intervalFileGetFn(SStreamFileState* pFileState, void* pKey, void* data, 
 
 void* intervalCreateStateKey(SRowBuffPos* pPos, int64_t num) {
   SStateKey* pStateKey = taosMemoryCalloc(1, sizeof(SStateKey));
+  if (pStateKey == NULL) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    return NULL;
+  }
   SWinKey*   pWinKey = pPos->pKey;
   pStateKey->key = *pWinKey;
   pStateKey->opNum = num;
@@ -112,6 +116,10 @@ int32_t sessionFileGetFn(SStreamFileState* pFileState, void* pKey, void* data, i
 
 void* sessionCreateStateKey(SRowBuffPos* pPos, int64_t num) {
   SStateSessionKey* pStateKey = taosMemoryCalloc(1, sizeof(SStateSessionKey));
+  if (pStateKey == NULL) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    return NULL;
+  }
   SSessionKey*      pWinKey = pPos->pKey;
   pStateKey->key = *pWinKey;
   pStateKey->opNum = num;
@@ -120,11 +128,16 @@ void* sessionCreateStateKey(SRowBuffPos* pPos, int64_t num) {
 
 static void streamFileStateDecode(TSKEY* pKey, void* pBuff, int32_t len) { pBuff = taosDecodeFixedI64(pBuff, pKey); }
 
-static void streamFileStateEncode(TSKEY* pKey, void** pVal, int32_t* pLen) {
+static int32_t streamFileStateEncode(TSKEY* pKey, void** pVal, int32_t* pLen) {
   *pLen = sizeof(TSKEY);
   (*pVal) = taosMemoryCalloc(1, *pLen);
+  if ((*pVal) == NULL) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    return terrno;
+  }
   void*   buff = *pVal;
   int32_t tmp = taosEncodeFixedI64(&buff, *pKey);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize, GetTsFun fp,
@@ -177,6 +190,7 @@ int32_t streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize,
     pFileState->stateFunctionGetFn = getSessionRowBuff;
   }
   QUERY_CHECK_NULL(pFileState->rowStateBuff, code, lino, _error, terrno);
+  QUERY_CHECK_NULL(pFileState->cfName, code, lino, _error, terrno);
 
   pFileState->keyLen = keySize;
   pFileState->rowSize = rowSize;
@@ -480,11 +494,10 @@ SRowBuffPos* getNewRowPos(SStreamFileState* pFileState) {
 
   if (pFileState->curRowCount < pFileState->maxRowCount) {
     pBuff = taosMemoryCalloc(1, pFileState->rowSize);
-    if (pBuff) {
-      pPos->pRowBuff = pBuff;
-      pFileState->curRowCount++;
-      goto _end;
-    }
+    QUERY_CHECK_NULL(pBuff, code, lino, _error, terrno);
+    pPos->pRowBuff = pBuff;
+    pFileState->curRowCount++;
+    goto _end;
   }
 
   code = clearRowBuff(pFileState);
@@ -712,6 +725,8 @@ void flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, boo
     }
 
     void* pSKey = pFileState->stateBuffCreateStateKeyFn(pPos, ((SStreamState*)pFileState->pFileStore)->number);
+    QUERY_CHECK_NULL(pSKey, code, lino, _end, terrno);
+
     code = streamStatePutBatchOptimize(pFileState->pFileStore, idx, batch, pSKey, pPos->pRowBuff, pFileState->rowSize,
                                        0, buf);
     taosMemoryFreeClear(pSKey);
@@ -738,7 +753,9 @@ void flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, boo
   if (flushState) {
     void*   valBuf = NULL;
     int32_t len = 0;
-    streamFileStateEncode(&pFileState->flushMark, &valBuf, &len);
+    code = streamFileStateEncode(&pFileState->flushMark, &valBuf, &len);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     qDebug("===stream===flushMark write:%" PRId64, pFileState->flushMark);
     code = streamStatePutBatch(pFileState->pFileStore, "default", batch, STREAM_STATE_INFO_NAME, valBuf, len, 0);
     taosMemoryFree(valBuf);

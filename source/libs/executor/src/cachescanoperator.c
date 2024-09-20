@@ -48,6 +48,7 @@ typedef struct SCacheRowsScanInfo {
   SArray*         pFuncTypeList;
   int32_t         numOfPks;
   SColumnInfo     pkCol;
+  bool            gotAll;
 } SCacheRowsScanInfo;
 
 static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
@@ -292,12 +293,12 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
     }
 
-    if (pInfo->indexOfBufferedRes >= pBufRes->info.rows) {
+    if (pInfo->indexOfBufferedRes >= pBufRes->info.rows && !pInfo->gotAll) {
       blockDataCleanup(pBufRes);
       taosArrayClear(pInfo->pUidList);
 
-      code =
-          pReaderFn->retrieveRows(pInfo->pLastrowReader, pBufRes, pInfo->pSlotIds, pInfo->pDstSlotIds, pInfo->pUidList);
+      code = pReaderFn->retrieveRows(pInfo->pLastrowReader, pBufRes, pInfo->pSlotIds, pInfo->pDstSlotIds,
+                                     pInfo->pUidList, &pInfo->gotAll);
       QUERY_CHECK_CODE(code, lino, _end);
 
       // check for tag values
@@ -394,7 +395,7 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       taosArrayClear(pInfo->pUidList);
 
       code = pReaderFn->retrieveRows(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pDstSlotIds,
-                                     pInfo->pUidList);
+                                     pInfo->pUidList, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
       pInfo->currentGroupIndex += 1;

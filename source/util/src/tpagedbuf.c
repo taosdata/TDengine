@@ -362,6 +362,9 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
   pPBuf->allocateId = -1;
   pPBuf->pFile = NULL;
   pPBuf->id = taosStrdup(id);
+  if (id != NULL && pPBuf->id == NULL) {
+    goto _error;
+  }
   pPBuf->fileSize = 0;
   pPBuf->pFree = taosArrayInit(4, sizeof(SFreeListItem));
   pPBuf->freePgList = tdListNew(POINTER_BYTES);
@@ -547,6 +550,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
     int32_t code = lruListPushFront(pBuf->lruList, *pi);
     if (TSDB_CODE_SUCCESS != code) {
       taosMemoryFree((*pi)->pData);
+      (*pi)->pData = NULL;
       terrno = code;
       return NULL;
     }
@@ -557,7 +561,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
       int32_t code = loadPageFromDisk(pBuf, *pi);
       if (code != 0) {
         taosMemoryFree((*pi)->pData);
-
+        (*pi)->pData = NULL;
         terrno = code;
         return NULL;
       }
@@ -688,11 +692,15 @@ void setBufPageDirty(void* pPage, bool dirty) {
   ppi->dirty = dirty;
 }
 
-void setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp) {
+int32_t setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp) {
   pBuf->comp = comp;
   if (comp && (pBuf->assistBuf == NULL)) {
     pBuf->assistBuf = taosMemoryMalloc(pBuf->pageSize + 2);  // EXTRA BYTES
+    if (pBuf->assistBuf) {
+      return terrno;
+    }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t dBufSetBufPageRecycled(SDiskbasedBuf* pBuf, void* pPage) {

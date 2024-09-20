@@ -191,11 +191,7 @@ int32_t streamMetaCheckBackendCompatible(SStreamMeta* pMeta) {
   if (code) {
     stError("vgId:%d failed to open stream meta file cursor, not perform compatible check, code:%s", pMeta->vgId,
             tstrerror(code));
-    code = tdbTbcClose(pCur);
-    if (code) {
-      stError("vgId:%d failed to close meta file cursor, code:%s", pMeta->vgId, tstrerror(code));
-    }
-
+    tdbTbcClose(pCur);
     return ret;
   }
 
@@ -223,16 +219,15 @@ int32_t streamMetaCheckBackendCompatible(SStreamMeta* pMeta) {
 
   tdbFree(pKey);
   tdbFree(pVal);
-  code = tdbTbcClose(pCur);
-  if (code != 0) {
-    stError("vgId:%d failed to close meta file cursor, code:%s", pMeta->vgId, tstrerror(code));
-  }
+  tdbTbcClose(pCur);
   return ret;
 }
 
 int32_t streamMetaCvtDbFormat(SStreamMeta* pMeta) {
-  int32_t code = 0;
-  int64_t chkpId = streamMetaGetLatestCheckpointId(pMeta);
+  int32_t          code = 0;
+  SBackendWrapper* pBackend = NULL;
+  int64_t          chkpId = streamMetaGetLatestCheckpointId(pMeta);
+
   terrno = 0;
   bool exist = streamBackendDataIsExist(pMeta->path, chkpId);
   if (exist == false) {
@@ -240,7 +235,10 @@ int32_t streamMetaCvtDbFormat(SStreamMeta* pMeta) {
     return code;
   }
 
-  SBackendWrapper* pBackend = streamBackendInit(pMeta->path, chkpId, pMeta->vgId);
+  code = streamBackendInit(pMeta->path, chkpId, pMeta->vgId, &pBackend);
+  if (code) {
+    return code;
+  }
 
   void* pIter = taosHashIterate(pBackend->cfInst, NULL);
   while (pIter) {
@@ -259,9 +257,13 @@ _EXIT:
 
   if (code == 0) {
     char* state = taosMemoryCalloc(1, strlen(pMeta->path) + 32);
-    sprintf(state, "%s%s%s", pMeta->path, TD_DIRSEP, "state");
-    taosRemoveDir(state);
-    taosMemoryFree(state);
+    if (state != NULL) {
+      sprintf(state, "%s%s%s", pMeta->path, TD_DIRSEP, "state");
+      taosRemoveDir(state);
+      taosMemoryFree(state);
+    } else {
+      stError("vgId:%d, failed to remove file dir:%s, since:%s", pMeta->vgId, pMeta->path, tstrerror(code));
+    }
   }
 
   return code;
@@ -451,15 +453,14 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
   TSDB_CHECK_CODE(code, lino, _err);
 
   int64_t* pRid = taosMemoryMalloc(sizeof(int64_t));
+  TSDB_CHECK_NULL(pRid, code, lino, _err, terrno);
+
   memcpy(pRid, &pMeta->rid, sizeof(pMeta->rid));
   code = metaRefMgtAdd(pMeta->vgId, pRid);
   TSDB_CHECK_CODE(code, lino, _err);
 
   code = createMetaHbInfo(pRid, &pMeta->pHbInfo);
   TSDB_CHECK_CODE(code, lino, _err);
-
-  pMeta->qHandle = taosInitScheduler(32, 1, "stream-chkp", NULL);
-  TSDB_CHECK_NULL(pMeta->qHandle, code, lino, _err, terrno);
 
   code = bkdMgtCreate(tpath, (SBkdMgt**)&pMeta->bkdChkptMgt);
   TSDB_CHECK_CODE(code, lino, _err);
@@ -628,9 +629,6 @@ void streamMetaCloseImpl(void* arg) {
 
   taosMemoryFree(pMeta->path);
   streamMutexDestroy(&pMeta->backendMutex);
-
-  taosCleanUpScheduler(pMeta->qHandle);
-  taosMemoryFree(pMeta->qHandle);
 
   bkdMgtDestroy(pMeta->bkdChkptMgt);
 
@@ -929,32 +927,38 @@ int32_t streamMetaBegin(SStreamMeta* pMeta) {
   streamMetaWLock(pMeta);
   int32_t code = tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
                           TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  if (code) {
+    streamSetFatalError(pMeta, code, __func__, __LINE__);
+  }
   streamMetaWUnLock(pMeta);
   return code;
 }
 
 int32_t streamMetaCommit(SStreamMeta* pMeta) {
-  int32_t code = 0;
-  code = tdbCommit(pMeta->db, pMeta->txn);
+  int32_t code = tdbCommit(pMeta->db, pMeta->txn);
   if (code != 0) {
-    stError("vgId:%d failed to commit stream meta", pMeta->vgId);
-    return code;
+    streamSetFatalError(pMeta, code, __func__, __LINE__);
+    stFatal("vgId:%d failed to commit stream meta, code:%s, line:%d", pMeta->vgId, tstrerror(code),
+            pMeta->fatalInfo.line);
   }
 
   code = tdbPostCommit(pMeta->db, pMeta->txn);
   if (code != 0) {
-    stError("vgId:%d failed to do post-commit stream meta", pMeta->vgId);
+    streamSetFatalError(pMeta, code, __func__, __LINE__);
+    stFatal("vgId:%d failed to do post-commit stream meta, code:%s, line:%d", pMeta->vgId, tstrerror(code),
+            pMeta->fatalInfo.line);
     return code;
   }
 
   code = tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
                   TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
   if (code != 0) {
-    stError("vgId:%d failed to begin trans", pMeta->vgId);
-    return code;
+    streamSetFatalError(pMeta, code, __func__, __LINE__);
+    stFatal("vgId:%d failed to begin trans, code:%s, line:%d", pMeta->vgId, tstrerror(code), pMeta->fatalInfo.line);
+  } else {
+    stDebug("vgId:%d stream meta file commit completed", pMeta->vgId);
   }
 
-  stDebug("vgId:%d stream meta file commit completed", pMeta->vgId);
   return code;
 }
 
@@ -977,10 +981,7 @@ int64_t streamMetaGetLatestCheckpointId(SStreamMeta* pMeta) {
   code = tdbTbcMoveToFirst(pCur);
   if (code) {
     stError("failed to move stream meta file cursor, the latest checkpointId is 0, vgId:%d", pMeta->vgId);
-    int32_t ret = tdbTbcClose(pCur);
-    if (ret != 0) {
-      stError("vgId:%d failed to close meta file cursor, code:%s", pMeta->vgId, tstrerror(ret));
-    }
+    tdbTbcClose(pCur);
     return checkpointId;
   }
 
@@ -1003,11 +1004,7 @@ int64_t streamMetaGetLatestCheckpointId(SStreamMeta* pMeta) {
   tdbFree(pKey);
   tdbFree(pVal);
 
-  int32_t ret = tdbTbcClose(pCur);
-  if (ret != 0) {
-    stError("vgId:%d failed to close meta file cursor, code:%s", pMeta->vgId, tstrerror(ret));
-  }
-
+  tdbTbcClose(pCur);
   return checkpointId;
 }
 
@@ -1047,10 +1044,7 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   if (code) {
     stError("vgId:%d failed to open stream meta cursor, code:%s, not load any stream tasks", vgId, tstrerror(terrno));
     taosArrayDestroy(pRecycleList);
-    int32_t ret = tdbTbcClose(pCur);
-    if (ret != 0) {
-      stError("vgId:%d failed to close meta file cursor, code:%s", pMeta->vgId, tstrerror(ret));
-    }
+    tdbTbcClose(pCur);
     return;
   }
 
@@ -1137,9 +1131,7 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   tdbFree(pKey);
   tdbFree(pVal);
 
-  if (tdbTbcClose(pCur) < 0) {
-    stError("vgId:%d failed to close meta-file cursor, code:%s, continue", vgId, tstrerror(terrno));
-  }
+  tdbTbcClose(pCur);
 
   if (taosArrayGetSize(pRecycleList) > 0) {
     for (int32_t i = 0; i < taosArrayGetSize(pRecycleList); ++i) {
@@ -1261,40 +1253,6 @@ void streamMetaStartHb(SStreamMeta* pMeta) {
   streamMetaHbToMnode(pRid, NULL);
 }
 
-void streamMetaRLock(SStreamMeta* pMeta) {
-  //  stTrace("vgId:%d meta-rlock", pMeta->vgId);
-  int32_t code = taosThreadRwlockRdlock(&pMeta->lock);
-  if (code) {
-    stError("vgId:%d meta-rlock failed, code:%s", pMeta->vgId, tstrerror(code));
-  }
-}
-
-void streamMetaRUnLock(SStreamMeta* pMeta) {
-  //  stTrace("vgId:%d meta-runlock", pMeta->vgId);
-  int32_t code = taosThreadRwlockUnlock(&pMeta->lock);
-  if (code != TSDB_CODE_SUCCESS) {
-    stError("vgId:%d meta-runlock failed, code:%s", pMeta->vgId, tstrerror(code));
-  } else {
-    //    stTrace("vgId:%d meta-runlock completed", pMeta->vgId);
-  }
-}
-
-void streamMetaWLock(SStreamMeta* pMeta) {
-  //  stTrace("vgId:%d meta-wlock", pMeta->vgId);
-  int32_t code = taosThreadRwlockWrlock(&pMeta->lock);
-  if (code) {
-    stError("vgId:%d failed to apply wlock, code:%s", pMeta->vgId, tstrerror(code));
-  }
-}
-
-void streamMetaWUnLock(SStreamMeta* pMeta) {
-  //  stTrace("vgId:%d meta-wunlock", pMeta->vgId);
-  int32_t code = taosThreadRwlockUnlock(&pMeta->lock);
-  if (code) {
-    stError("vgId:%d failed to apply wunlock, code:%s", pMeta->vgId, tstrerror(code));
-  }
-}
-
 int32_t streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta, SArray** pList) {
   QRY_PARAM_CHECK(pList);
 
@@ -1396,60 +1354,6 @@ int32_t streamMetaResetTaskStatus(SStreamMeta* pMeta) {
   }
 
   return 0;
-}
-
-int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int64_t now = taosGetTimestampMs();
-  int64_t startTs = 0;
-  bool    hasFillhistoryTask = false;
-  STaskId hId = {0};
-
-  stDebug("vgId:%d add start failed task:0x%x", pMeta->vgId, taskId);
-
-  streamMetaRLock(pMeta);
-
-  STaskId       id = {.streamId = streamId, .taskId = taskId};
-  SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
-
-  if (ppTask != NULL) {
-    startTs = (*ppTask)->taskCheckInfo.startTs;
-    hasFillhistoryTask = HAS_RELATED_FILLHISTORY_TASK(*ppTask);
-    hId = (*ppTask)->hTaskInfo.id;
-
-    streamMetaRUnLock(pMeta);
-
-    // add the failed task info, along with the related fill-history task info into tasks list.
-    code = streamMetaAddTaskLaunchResult(pMeta, streamId, taskId, startTs, now, false);
-    if (hasFillhistoryTask) {
-      code = streamMetaAddTaskLaunchResult(pMeta, hId.streamId, hId.taskId, startTs, now, false);
-    }
-  } else {
-    streamMetaRUnLock(pMeta);
-
-    stError("failed to locate the stream task:0x%" PRIx64 "-0x%x (vgId:%d), it may have been destroyed or stopped",
-            streamId, taskId, pMeta->vgId);
-    code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
-  }
-
-  return code;
-}
-
-void streamMetaAddFailedTaskSelf(SStreamTask* pTask, int64_t failedTs) {
-  int32_t startTs = pTask->execInfo.checkTs;
-  int32_t code = streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, startTs, failedTs, false);
-  if (code) {
-    stError("s-task:%s failed to add self task failed to start, code:%s", pTask->id.idStr, tstrerror(code));
-  }
-
-  // automatically set the related fill-history task to be failed.
-  if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
-    STaskId* pId = &pTask->hTaskInfo.id;
-    code = streamMetaAddTaskLaunchResult(pTask->pMeta, pId->streamId, pId->taskId, startTs, failedTs, false);
-    if (code) {
-      stError("s-task:0x%" PRIx64 " failed to add self task failed to start, code:%s", pId->taskId, tstrerror(code));
-    }
-  }
 }
 
 void streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTask* pHTask, int32_t transId,

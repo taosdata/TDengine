@@ -273,12 +273,12 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
     pVal->value.pData = (uint8_t*)kv->value;
   } else if (kv->type == TSDB_DATA_TYPE_GEOMETRY || kv->type == TSDB_DATA_TYPE_VARBINARY) {
     pVal->value.nData = kv->length;
-    void* tmp = taosMemoryMalloc(kv->length);
-    if (NULL == tmp) {
+    pVal->value.pData = taosMemoryMalloc(kv->length);
+    if (!pVal->value.pData) {
       ret = terrno;
+      uError("SML smlBuildCol malloc failed %s:%d, err: %s", __func__, __LINE__, tstrerror(ret));
       goto end;
     }
-    pVal->value.pData = tmp;
     (void)memcpy(pVal->value.pData, (uint8_t*)kv->value, kv->length);
   } else {
     (void)memcpy(&pVal->value.val, &(kv->value), kv->length);
@@ -323,8 +323,11 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
     ret = terrno;
     goto end;
   }
-  insBuildCreateTbReq(pCreateTblReq, tableName, pTag, pTableMeta->suid, NULL, tagName, pTableMeta->tableInfo.numOfTags,
-                      ttl);
+  ret = insBuildCreateTbReq(pCreateTblReq, tableName, pTag, pTableMeta->suid, NULL, tagName,
+                            pTableMeta->tableInfo.numOfTags, ttl);
+  if (TSDB_CODE_SUCCESS != ret) {
+    goto end;
+  }
 
   pCreateTblReq->ctb.stbName = taosMemoryCalloc(1, sTableNameLen + 1);
   if (pCreateTblReq->ctb.stbName == NULL){

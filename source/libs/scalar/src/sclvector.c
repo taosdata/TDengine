@@ -596,6 +596,11 @@ int32_t ncharTobinary(void *buf, void **out) {  // todo need to remove , if tobi
   int32_t inputLen = varDataTLen(buf);
 
   *out = taosMemoryCalloc(1, inputLen);
+  if (NULL == *out) {
+    sclError("charset:%s to %s. val:%s convert ncharTobinary failed, since memory alloc failed.",
+             DEFAULT_UNICODE_ENCODEC, tsCharset, (char *)varDataVal(buf));
+    SCL_ERR_RET(terrno);
+  }
   int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(*out));
   if (len < 0) {
     sclError("charset:%s to %s. val:%s convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
