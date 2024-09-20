@@ -724,12 +724,8 @@ static int32_t tsdbCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, 
     SLastCol *pLastCol = NULL;
     code = tsdbCacheDeserialize(values_list[0], values_list_sizes[0], &pLastCol);
     if (code != TSDB_CODE_SUCCESS) {
-      tsdbError("vgId:%d, %s deserialize failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-                tstrerror(code));
-      if (pLastCol != NULL) {
-        taosMemoryFreeClear(pLastCol);
-      }
-      goto _exit;
+      tsdbWarn("vgId:%d, %s deserialize failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+               tstrerror(code));
     }
     if (NULL != pLastCol) {
       rocksdb_writebatch_delete(wb, keys_list[0], klen);
@@ -739,12 +735,8 @@ static int32_t tsdbCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, 
     pLastCol = NULL;
     code = tsdbCacheDeserialize(values_list[1], values_list_sizes[1], &pLastCol);
     if (code != TSDB_CODE_SUCCESS) {
-      tsdbError("vgId:%d, %s deserialize failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-                tstrerror(code));
-      if (pLastCol != NULL) {
-        taosMemoryFreeClear(pLastCol);
-      }
-      goto _exit;
+      tsdbWarn("vgId:%d, %s deserialize failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+               tstrerror(code));
     }
     if (NULL != pLastCol) {
       rocksdb_writebatch_delete(wb, keys_list[1], klen);
@@ -1292,12 +1284,8 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
       SLastCol *pLastCol = NULL;
       code = tsdbCacheDeserialize(values_list[i], values_list_sizes[i], &pLastCol);
       if (code != TSDB_CODE_SUCCESS) {
-        tsdbError("vgId:%d, %s deserialize failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-                  tstrerror(code));
-        if (pLastCol != NULL) {
-          taosMemoryFreeClear(pLastCol);
-        }
-        goto _exit;
+        tsdbWarn("vgId:%d, %s deserialize failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+                 tstrerror(code));
       }
       /*
       if (code) {
@@ -1781,12 +1769,8 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
 
     code = tsdbCacheDeserialize(values_list[i], values_list_sizes[i], &pLastCol);
     if (code != TSDB_CODE_SUCCESS) {
-      tsdbError("vgId:%d, %s deserialize failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-                tstrerror(code));
-      if (pLastCol != NULL) {
-        taosMemoryFreeClear(pLastCol);
-      }
-      goto _exit;
+      tsdbWarn("vgId:%d, %s deserialize failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+               tstrerror(code));
     }
     SLastCol *pToFree = pLastCol;
     SIdxKey  *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[j];
@@ -2071,12 +2055,8 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
     SLastCol *pLastCol = NULL;
     code = tsdbCacheDeserialize(values_list[i], values_list_sizes[i], &pLastCol);
     if (code != TSDB_CODE_SUCCESS) {
-      tsdbError("vgId:%d, %s deserialize failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-                tstrerror(code));
-      if (pLastCol != NULL) {
-        taosMemoryFreeClear(pLastCol);
-      }
-      goto _exit;
+      tsdbWarn("vgId:%d, %s deserialize failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+               tstrerror(code));
     }
     SIdxKey  *idxKey = taosArrayGet(remainCols, i);
     SLastKey *pLastKey = &idxKey->key;
