@@ -14,10 +14,10 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndSnode.h"
 #include "mndDnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
+#include "mndSnode.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 
@@ -223,7 +223,11 @@ static int32_t mndSetCreateSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
     code = terrno;
     TAOS_RETURN(code);
   }
-  (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
+  code = tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
+  if (code < 0) {
+    taosMemoryFree(pReq);
+    TAOS_RETURN(code);
+  }
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -251,7 +255,11 @@ static int32_t mndSetCreateSnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
     code = terrno;
     TAOS_RETURN(code);
   }
-  (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
+  code = tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
+  if (code < 0) {
+    taosMemoryFree(pReq);
+    TAOS_RETURN(code);
+  }
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -320,7 +328,7 @@ static int32_t mndProcessCreateSnodeReq(SRpcMsg *pReq) {
   //    goto _OVER;
   //  }
 
-  if (sdbGetSize(pMnode->pSdb, SDB_SNODE) >= 1){
+  if (sdbGetSize(pMnode->pSdb, SDB_SNODE) >= 1) {
     code = TSDB_CODE_MND_SNODE_ALREADY_EXIST;
     goto _OVER;
   }
@@ -340,7 +348,7 @@ _OVER:
     TAOS_RETURN(code);
   }
 
-//  mndReleaseSnode(pMnode, pObj);
+  //  mndReleaseSnode(pMnode, pObj);
   mndReleaseDnode(pMnode, pDnode);
   tFreeSMCreateQnodeReq(&createReq);
   TAOS_RETURN(code);
@@ -383,7 +391,11 @@ static int32_t mndSetDropSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSn
     code = terrno;
     TAOS_RETURN(code);
   }
-  (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
+  code = tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
+  if (code < 0) {
+    taosMemoryFree(pReq);
+    TAOS_RETURN(code);
+  }
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -482,16 +494,17 @@ static int32_t mndRetrieveSnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false), pSdb, pObj);
 
     char ep[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(ep, pObj->pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)ep, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)ep, false), pSdb, pObj);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false), pSdb,
+                                   pObj);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
