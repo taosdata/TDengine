@@ -1998,10 +1998,8 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
                               .cacheStatus = TSDB_LAST_CACHE_NO_CACHE};
           code = tsdbCachePutToLRU(pTsdb, &lastKey, &noneCol);
         }
-        code = taosLRUCacheRelease(pTsdb->lruCache, h, false);
-        if (code != TSDB_CODE_SUCCESS) {
+        if (taosLRUCacheRelease(pTsdb->lruCache, h, false) != TSDB_CODE_SUCCESS) {
           tsdbError("vgId:%d, %s release lru cache failed at line %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__);
-          goto _exit;
         }
         TAOS_CHECK_EXIT(code);
       } else {
