@@ -650,9 +650,9 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
     }
 
     // replicate on demand
-    int32_t ret = 0;
-    if ((ret = syncNodeReplicateWithoutLock(pNode)) != 0) {
-      sError("vgId:%d, failed to replicate since %s. index:%" PRId64, pNode->vgId, tstrerror(ret), pEntry->index);
+    if ((code = syncNodeReplicateWithoutLock(pNode)) != 0) {
+      sError("vgId:%d, failed to replicate since %s. index:%" PRId64, pNode->vgId, tstrerror(code), pEntry->index);
+      goto _out;
     }
 
     if (pEntry->index != pBuf->matchIndex) {

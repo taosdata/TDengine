@@ -68,7 +68,7 @@ int32_t syncNodeReplicate(SSyncNode* pNode) {
 int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
   if ((pNode->state != TAOS_SYNC_STATE_LEADER && pNode->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) ||
       pNode->raftCfg.cfg.totalReplicaNum == 1) {
-    TAOS_RETURN(TSDB_CODE_FAILED);
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
   for (int32_t i = 0; i < pNode->totalReplicaNum; i++) {
     if (syncUtilSameId(&pNode->replicasId[i], &pNode->myRaftId)) {
