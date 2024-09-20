@@ -332,6 +332,7 @@ int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger, int32_t triggerTyp
     STimeWindow window = getAlignQueryTimeWindow(&interval, now - trigger);
     p->pBlock->info.window = window;
     p->pBlock->info.type = STREAM_GET_RESULT;
+    stDebug("force_window_close trigger block generated, window range:%" PRId64 "-%" PRId64, window.skey, window.ekey);
   } else {
     p->pBlock->info.type = STREAM_GET_ALL;
   }

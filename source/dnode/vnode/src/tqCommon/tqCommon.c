@@ -84,7 +84,6 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
 
     code = qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
     if (code) {
-
       return code;
     }
   }
