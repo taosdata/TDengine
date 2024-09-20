@@ -40,8 +40,8 @@
 #define TD_MSG_RANGE_CODE_
 #include "tmsgdef.h"
 
-#include "tcol.h"
 #include "tanal.h"
+#include "tcol.h"
 #include "tlog.h"
 
 #define DECODESQL()                                                               \
