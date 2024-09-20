@@ -827,7 +827,7 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrRespMsg* smsg) {
 
   int32_t ret = uv_write(req, (uv_stream_t*)pConn->pTcp, pBuf, bufNum, uvOnSendCb);
   if (ret != 0) {
-    tError("conn %p failed to write data, reason:%s", pConn, tstrerror(TSDB_CODE_OUT_OF_MEMORY), uv_err_name(ret));
+    tError("conn %p failed to write data, reason:%s", pConn, uv_err_name(ret));
     pConn->broken = true;
     while (!QUEUE_IS_EMPTY(&pWreq->node)) {
       queue* head = QUEUE_HEAD(&pWreq->node);
