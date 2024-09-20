@@ -300,6 +300,7 @@ void tmq_conf_destroy(tmq_conf_t* conf) {
 tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value) {
   int32_t code = 0;
   if (conf == NULL || key == NULL || value == NULL) {
+    tscError("tmq_conf_set null, conf:%p key:%p value:%p", conf, key, value);
     return TMQ_CONF_INVALID;
   }
   if (strcasecmp(key, "group.id") == 0) {
@@ -320,6 +321,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       conf->autoCommit = false;
       return TMQ_CONF_OK;
     } else {
+      tscError("invalid value for enable.auto.commit: %s", value);
       return TMQ_CONF_INVALID;
     }
   }
@@ -328,6 +330,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp;
     code = taosStr2int64(value, &tmp);
     if (tmp < 0 || code != 0) {
+      tscError("invalid value for auto.commit.interval.ms: %s", value);
       return TMQ_CONF_INVALID;
     }
     conf->autoCommitInterval = (tmp > INT32_MAX ? INT32_MAX : tmp);
@@ -338,6 +341,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp;
     code = taosStr2int64(value, &tmp);
     if (tmp < 6000 || tmp > 1800000 || code != 0) {
+      tscError("invalid value for session.timeout.ms: %s", value);
       return TMQ_CONF_INVALID;
     }
     conf->sessionTimeoutMs = tmp;
@@ -348,6 +352,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp;
     code = taosStr2int64(value, &tmp);
     if (tmp < 1000 || tmp >= conf->sessionTimeoutMs || code != 0) {
+      tscError("invalid value for heartbeat.interval.ms: %s", value);
       return TMQ_CONF_INVALID;
     }
     conf->heartBeatIntervalMs = tmp;
@@ -358,6 +363,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int32_t tmp;
     code = taosStr2int32(value, &tmp);
     if (tmp < 1000 || code != 0) {
+      tscError("invalid value for max.poll.interval.ms: %s", value);
       return TMQ_CONF_INVALID;
     }
     conf->maxPollIntervalMs = tmp;
@@ -375,6 +381,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       conf->resetOffset = TMQ_OFFSET__RESET_LATEST;
       return TMQ_CONF_OK;
     } else {
+      tscError("invalid value for auto.offset.reset: %s", value);
       return TMQ_CONF_INVALID;
     }
   }
@@ -387,6 +394,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       conf->withTbName = false;
       return TMQ_CONF_OK;
     } else {
+      tscError("invalid value for msg.with.table.name: %s", value);
       return TMQ_CONF_INVALID;
     }
   }
@@ -399,22 +407,38 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       conf->snapEnable = false;
       return TMQ_CONF_OK;
     } else {
+      tscError("invalid value for experimental.snapshot.enable: %s", value);
       return TMQ_CONF_INVALID;
     }
   }
 
   if (strcasecmp(key, "td.connect.ip") == 0) {
-    conf->ip = taosStrdup(value);
+    void *tmp = taosStrdup(value);
+    if (tmp == NULL) {
+      tscError("tmq_conf_set out of memory:%d", terrno);
+      return TMQ_CONF_INVALID;
+    }
+    conf->ip = tmp;
     return TMQ_CONF_OK;
   }
 
   if (strcasecmp(key, "td.connect.user") == 0) {
-    conf->user = taosStrdup(value);
+    void *tmp = taosStrdup(value);
+    if (tmp == NULL) {
+      tscError("tmq_conf_set out of memory:%d", terrno);
+      return TMQ_CONF_INVALID;
+    }
+    conf->user = tmp;
     return TMQ_CONF_OK;
   }
 
   if (strcasecmp(key, "td.connect.pass") == 0) {
-    conf->pass = taosStrdup(value);
+    void *tmp = taosStrdup(value);
+    if (tmp == NULL) {
+        tscError("tmq_conf_set out of memory:%d", terrno);
+      return TMQ_CONF_INVALID;
+    }
+    conf->pass = tmp;
     return TMQ_CONF_OK;
   }
 
@@ -422,6 +446,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp;
     code = taosStr2int64(value, &tmp);
     if (tmp <= 0 || tmp > 65535 || code != 0) {
+      tscError("invalid value for td.connect.port: %s", value);
       return TMQ_CONF_INVALID;
     }
 
@@ -437,6 +462,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       conf->replayEnable = false;
       return TMQ_CONF_OK;
     } else {
+      tscError("invalid value for enable.replay: %s", value);
       return TMQ_CONF_INVALID;
     }
   }
@@ -458,6 +484,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     return TMQ_CONF_OK;
   }
 
+  tscError("unknown key: %s", key);
   return TMQ_CONF_UNKNOWN;
 }
 
@@ -468,7 +495,11 @@ int32_t tmq_list_append(tmq_list_t* list, const char* src) {
   SArray* container = &list->container;
   if (src == NULL || src[0] == 0) return TSDB_CODE_INVALID_PARA;
   char* topic = taosStrdup(src);
-  if (taosArrayPush(container, &topic) == NULL) return TSDB_CODE_INVALID_PARA;
+  if (topic == NULL) return terrno;
+  if (taosArrayPush(container, &topic) == NULL) {
+    taosMemoryFree(topic);
+    return terrno;
+  }
   return 0;
 }
 
@@ -947,13 +978,13 @@ void tmqSendHbReq(void* param, void* tmrId) {
 
   int32_t tlen = tSerializeSMqHbReq(NULL, 0, &req);
   if (tlen < 0) {
-    tscError("tSerializeSMqHbReq failed");
+    tscError("tSerializeSMqHbReq failed, size:%d", tlen);
     goto OVER;
   }
 
   void* pReq = taosMemoryCalloc(1, tlen);
-  if (tlen < 0) {
-    tscError("failed to malloc MqHbReq msg, size:%d", tlen);
+  if (pReq == NULL) {
+    tscError("failed to malloc MqHbReq msg, code:%d", terrno);
     goto OVER;
   }
 
@@ -3514,6 +3545,10 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
     }
     (void)taosThreadMutexInit(&pCommon->mutex, 0);
     pCommon->pTopicName = taosStrdup(pTopic->topicName);
+    if (pCommon->pTopicName == NULL) {
+      code = terrno;
+      goto end;
+    }
     pCommon->consumerId = tmq->consumerId;
 
     for (int32_t i = 0; i < (*numOfAssignment); ++i) {

@@ -736,6 +736,16 @@ static void monitorSendAllSlowLogFromTempDir(int64_t clusterId) {
       continue;
     }
     char* tmp = taosStrdup(filename);
+    if (tmp == NULL) {
+      tscError("failed to dup string:%s since %s", filename, terrstr());
+      if (taosUnLockFile(pFile) != 0) {
+        tscError("failed to unlock file:%s, terrno:%d", filename, terrno);
+      }
+      if (taosCloseFile(&(pFile)) != 0) {
+        tscError("failed to close file:%s, terrno:%d", filename, terrno);
+      }
+      continue;
+    }
     monitorSendSlowLogAtBeginning(clusterId, &tmp, pFile, 0);
     taosMemoryFree(tmp);
   }

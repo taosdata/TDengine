@@ -846,6 +846,7 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   if (pShow->pIter == NULL) {
     SProfileMgmt *pMgmt = &pMnode->profileMgmt;
     pShow->pIter = taosCacheCreateIter(pMgmt->connCache);
+    if (!pShow->pIter) return terrno;
   }
 
   while (numOfRows < rows) {
@@ -1005,6 +1006,7 @@ static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   if (pShow->pIter == NULL) {
     SProfileMgmt *pMgmt = &pMnode->profileMgmt;
     pShow->pIter = taosCacheCreateIter(pMgmt->connCache);
+    if (!pShow->pIter) return terrno;
   }
 
   // means fetched some data last time for this conn
@@ -1042,6 +1044,7 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   if (pShow->pIter == NULL) {
     SProfileMgmt *pMgmt = &pMnode->profileMgmt;
     pShow->pIter = taosCacheCreateIter(pMgmt->appCache);
+    if (!pShow->pIter) return terrno;
   }
 
   while (numOfRows < rows) {
