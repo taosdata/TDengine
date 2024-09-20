@@ -115,7 +115,7 @@ static FORCE_INLINE int32_t tRowBuildScanAddNull(SRowBuildScanInfo *sinfo, const
   return 0;
 }
 
-static FORCE_INLINE void tRowBuildScanAddValue(SRowBuildScanInfo *sinfo, SColVal *colVal, const STColumn *pTColumn) {
+static FORCE_INLINE int32_t tRowBuildScanAddValue(SRowBuildScanInfo *sinfo, SColVal *colVal, const STColumn *pTColumn) {
   bool isPK = ((pTColumn->flags & COL_IS_KEY) != 0);
 
   if (isPK) {
@@ -129,6 +129,8 @@ static FORCE_INLINE void tRowBuildScanAddValue(SRowBuildScanInfo *sinfo, SColVal
 
   sinfo->kvMaxOffset = sinfo->kvPayloadSize;
   if (IS_VAR_DATA_TYPE(colVal->value.type)) {
+    if (colVal->value.nData > pTColumn->bytes) return TSDB_CODE_INVALID_PARA;
+
     sinfo->tupleVarSize += tPutU32v(NULL, colVal->value.nData)  // size
                            + colVal->value.nData;               // value
 
@@ -140,6 +142,7 @@ static FORCE_INLINE void tRowBuildScanAddValue(SRowBuildScanInfo *sinfo, SColVal
                             + tDataTypes[colVal->value.type].bytes;  // value
   }
   sinfo->numOfValue++;
+  return 0;
 }
 
 static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildScanInfo *sinfo) {
@@ -177,7 +180,7 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
         }
 
         if (COL_VAL_IS_VALUE(&colValArray[colValIndex])) {
-          tRowBuildScanAddValue(sinfo, &colValArray[colValIndex], schema->columns + i);
+          if ((code = tRowBuildScanAddValue(sinfo, &colValArray[colValIndex], schema->columns + i))) goto _exit;
         } else if (COL_VAL_IS_NULL(&colValArray[colValIndex])) {
           if ((code = tRowBuildScanAddNull(sinfo, schema->columns + i))) goto _exit;
         } else if (COL_VAL_IS_NONE(&colValArray[colValIndex])) {
