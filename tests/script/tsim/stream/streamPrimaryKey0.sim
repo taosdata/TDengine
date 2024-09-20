@@ -242,4 +242,75 @@ if $data01 != 2 then
   goto loop6
 endi
 
+print step3=============
+
+sql create database test3  vgroups 4;
+sql use test3;
+sql create table st(ts timestamp, a int primary key, b int , c int, d double) tags(ta varchar(100),tb int,tc int);
+sql create table t1 using st tags("aa", 1, 2);
+
+sql create stream streams3_1 trigger at_once ignore expired 0 ignore update 0  into streamt3_1 as select _wstart, a, max(b), count(*), ta from st partition by ta, a interval(10s);
+sql create stream streams3_2 trigger at_once ignore expired 0 ignore update 0  into streamt3_2 as select _wstart, a, max(b), count(*), ta from st partition by ta, a session(ts, 10s);
+
+sleep 5000
+
+sql insert into t1 values(1648791210001,1,2,3,4.1);
+sql insert into t1 values(1648791210002,2,2,3,1.1);
+sql insert into t1 values(1648791220000,3,2,3,2.1);
+sql insert into t1 values(1648791220001,4,2,3,3.1);
+
+$loop_count = 0
+
+loop7:
+
+print 1 select * from streamt3_1;
+sql select * from streamt3_1;
+
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+print $data20 $data21 $data22
+print $data30 $data31 $data32
+print $data40 $data41 $data42
+print $data50 $data51 $data52
+print $data60 $data61 $data62
+print $data70 $data71 $data72
+
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop7
+endi
+
+loop8:
+
+print 1 select * from streamt3_2;
+sql select * from streamt3_2;
+
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+print $data20 $data21 $data22
+print $data30 $data31 $data32
+print $data40 $data41 $data42
+print $data50 $data51 $data52
+print $data60 $data61 $data62
+print $data70 $data71 $data72
+
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop8
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

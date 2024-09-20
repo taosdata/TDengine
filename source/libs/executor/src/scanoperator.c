@@ -3208,6 +3208,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
 
   SDataType pkType = {0};
   pInfo->primaryKeyIndex = -1;
+  pInfo->basic.primaryPkIndex = -1;
   int32_t numOfOutput = taosArrayGetSize(pInfo->matchInfo.pList);
   pColIds = taosArrayInit(numOfOutput, sizeof(int16_t));
   for (int32_t i = 0; i < numOfOutput; ++i) {
@@ -3220,6 +3221,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     }
     if (id->isPk) {
       pInfo->primaryKeyIndex = id->dstSlotId;
+      pInfo->basic.primaryPkIndex = id->dstSlotId;
       pkType = id->dataType;
     }
   }
