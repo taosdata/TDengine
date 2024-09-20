@@ -251,6 +251,12 @@ export default {
         this.list = list;
         this.filterTableData = list;
         this.getTableData(list)
+      } else {
+        this.total = 0;
+        this.list = [];
+        this.filterTableData = [];
+        this.getTableData(this.list);
+        this.$error(res?.message)
       }
       this.$store.commit("app/SET_COMPLETE",false)
       this.getEleTop()
