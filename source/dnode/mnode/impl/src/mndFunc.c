@@ -205,6 +205,10 @@ static int32_t mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOld, SFuncObj *pNew) {
   if (pNew->commentSize > 0 && pNew->pComment != NULL) {
     pOld->commentSize = pNew->commentSize;
     pOld->pComment = taosMemoryMalloc(pOld->commentSize);
+    if (pOld->pComment == NULL) {
+      taosWUnLockLatch(&pOld->lock);
+      return terrno;
+    }
     (void)memcpy(pOld->pComment, pNew->pComment, pOld->commentSize);
   }
 
@@ -215,6 +219,10 @@ static int32_t mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOld, SFuncObj *pNew) {
   if (pNew->codeSize > 0 && pNew->pCode != NULL) {
     pOld->codeSize = pNew->codeSize;
     pOld->pCode = taosMemoryMalloc(pOld->codeSize);
+    if (pOld->pCode == NULL) {
+      taosWUnLockLatch(&pOld->lock);
+      return terrno;
+    }
     (void)memcpy(pOld->pCode, pNew->pCode, pOld->codeSize);
   }
 
@@ -264,7 +272,8 @@ static int32_t mndCreateFunc(SMnode *pMnode, SRpcMsg *pReq, SCreateFuncReq *pCre
   }
   func.codeSize = pCreate->codeLen;
   func.pCode = taosMemoryMalloc(func.codeSize);
-  if (func.pCode == NULL || func.pCode == NULL) {
+  if (func.pCode == NULL) {
+    mError("failed to allocate memory for func code, size:%d", func.codeSize);
     code = terrno;
     goto _OVER;
   }
@@ -656,6 +665,11 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     if (pFunc->pComment) {
       char *b2 = taosMemoryCalloc(1, pShow->pMeta->pSchemas[cols].bytes);
+      if (b2 == NULL) {
+        mError("failed to allocate memory for comment");
+        sdbRelease(pSdb, pFunc);
+        continue;
+      }
       STR_WITH_MAXSIZE_TO_VARSTR(b2, pFunc->pComment, pShow->pMeta->pSchemas[cols].bytes);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -704,6 +718,11 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
                              ? TSDB_MAX_BINARY_LEN
                              : pFunc->codeSize + VARSTR_HEADER_SIZE;
     char   *b4 = taosMemoryMalloc(varCodeLen);
+    if (b4 == NULL) {
+      mError("failed to allocate memory for code");
+      sdbRelease(pSdb, pFunc);
+      continue;
+    }
     (void)memcpy(varDataVal(b4), pFunc->pCode, varCodeLen - VARSTR_HEADER_SIZE);
     varDataSetLen(b4, varCodeLen - VARSTR_HEADER_SIZE);
     (void)colDataSetVal(pColInfo, numOfRows, (const char *)b4, false);

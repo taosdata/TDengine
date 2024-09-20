@@ -1851,6 +1851,10 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       }
 
       rsp.useDbRsp = taosMemoryCalloc(1, sizeof(SUseDbRsp));
+      if (rsp.useDbRsp == NULL) {
+        mError("db:%s, failed to malloc usedb response", pDbCacheInfo->dbFName);
+        continue;
+      }
       (void)memcpy(rsp.useDbRsp->db, pDbCacheInfo->dbFName, TSDB_DB_FNAME_LEN);
       rsp.useDbRsp->pVgroupInfos = taosArrayInit(10, sizeof(SVgroupInfo));
 
@@ -1871,6 +1875,10 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
     if (pDb == NULL) {
       mTrace("db:%s, no exist", pDbCacheInfo->dbFName);
       rsp.useDbRsp = taosMemoryCalloc(1, sizeof(SUseDbRsp));
+      if (rsp.useDbRsp == NULL) {
+        mError("db:%s, failed to malloc usedb response", pDbCacheInfo->dbFName);
+        continue;
+      }
       (void)memcpy(rsp.useDbRsp->db, pDbCacheInfo->dbFName, TSDB_DB_FNAME_LEN);
       rsp.useDbRsp->uid = pDbCacheInfo->dbId;
       rsp.useDbRsp->vgVersion = -1;
@@ -1906,6 +1914,11 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
 
     if (pDbCacheInfo->tsmaVersion != pDb->tsmaVersion) {
       rsp.pTsmaRsp = taosMemoryCalloc(1, sizeof(STableTSMAInfoRsp));
+      if (rsp.pTsmaRsp == NULL) {
+        mndReleaseDb(pMnode, pDb);
+        mError("db:%s, failed to malloc tsma response", pDb->name);
+        continue;
+      }
       if (rsp.pTsmaRsp) rsp.pTsmaRsp->pTsmas = taosArrayInit(4, POINTER_BYTES);
       if (rsp.pTsmaRsp && rsp.pTsmaRsp->pTsmas) {
         bool exist = false;
@@ -1929,6 +1942,11 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
     if (pDbCacheInfo->vgVersion < pDb->vgVersion || numOfTable != pDbCacheInfo->numOfTable ||
         pDbCacheInfo->stateTs != pDb->stateTs) {
       rsp.useDbRsp = taosMemoryCalloc(1, sizeof(SUseDbRsp));
+      if (rsp.useDbRsp == NULL) {
+        mndReleaseDb(pMnode, pDb);
+        mError("db:%s, failed to malloc usedb response", pDb->name);
+        continue;
+      }
       rsp.useDbRsp->pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
       if (rsp.useDbRsp->pVgroupInfos == NULL) {
         mndReleaseDb(pMnode, pDb);
@@ -2153,6 +2171,9 @@ static char *buildRetension(SArray *pRetension) {
   }
 
   char       *p1 = taosMemoryCalloc(1, 100);
+  if (p1 == NULL) {
+    return NULL;
+  }
   SRetention *p = taosArrayGet(pRetension, 0);
 
   int32_t len = 2;
@@ -2243,6 +2264,7 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
   int32_t cols = 0;
   int32_t bytes = pShow->pMeta->pSchemas[cols].bytes;
   char   *buf = taosMemoryMalloc(bytes);
+  if (buf == NULL) return;
 
   const char *name = mndGetDbStr(pDb->name);
   if (name != NULL) {

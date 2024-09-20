@@ -302,6 +302,10 @@ int32_t tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType,
     }
 
     char* topicTmp = taosStrdup(topic);
+    if (topicTmp == NULL) {
+      code = terrno;
+      goto END;
+    }
     if (taosArrayPush(pConsumer->rebNewTopics, &topicTmp) == NULL) {
       code = terrno;
       goto END;
@@ -313,6 +317,10 @@ int32_t tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType,
       goto END;
     }
     char* topicTmp = taosStrdup(topic);
+    if (topicTmp == NULL) {
+      code = terrno;
+      goto END;
+    }
     if (taosArrayPush(pConsumer->rebRemovedTopics, &topicTmp) == NULL) {
       code = terrno;
       goto END;
@@ -644,6 +652,10 @@ int32_t tCloneSubscribeObj(const SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub)
   pSubNew->offsetRows = taosArrayDup(pSub->offsetRows, NULL);
   (void)memcpy(pSubNew->dbName, pSub->dbName, TSDB_DB_FNAME_LEN);
   pSubNew->qmsg = taosStrdup(pSub->qmsg);
+  if (pSubNew->qmsg == NULL) {
+    code = terrno;
+    goto END;
+  }
   if (ppSub) {
     *ppSub = pSubNew;
   }
@@ -726,6 +738,9 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
     buf = taosDecodeString(buf, &pSub->qmsg);
   } else {
     pSub->qmsg = taosStrdup("");
+    if (pSub->qmsg == NULL) {
+      return NULL;
+    }
   }
   return (void *)buf;
 }

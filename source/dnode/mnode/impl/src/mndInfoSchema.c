@@ -139,6 +139,10 @@ int32_t mndBuildInsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbN
   memcpy(pRsp->pSchemas, pMeta->pSchemas, pMeta->numOfColumns * sizeof(SSchema));
 
   pRsp->pSchemaExt = taosMemoryCalloc(pMeta->numOfColumns, sizeof(SSchemaExt));
+  if (pRsp->pSchemaExt == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
   TAOS_RETURN(code);
 }
 

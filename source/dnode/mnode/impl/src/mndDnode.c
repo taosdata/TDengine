@@ -1820,6 +1820,11 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
                         _OVER);
 
     char *b = taosMemoryCalloc(VARSTR_HEADER_SIZE + strlen(offlineReason[pDnode->offlineReason]) + 1, 1);
+    if (b == NULL) {
+      mError("failed to malloc memory for offline reason");
+      sdbRelease(pSdb, pDnode);
+      continue;
+    }
     STR_TO_VARSTR(b, online ? "" : offlineReason[pDnode->offlineReason]);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1883,6 +1888,11 @@ SArray *mndGetAllDnodeFqdns(SMnode *pMnode) {
     if (pIter == NULL) break;
 
     char *fqdn = taosStrdup(pObj->fqdn);
+    if (fqdn == NULL) {
+      mError("failed to strdup fqdn, but continue at this time");
+      sdbRelease(pSdb, pObj);
+      continue;
+    }
     if (taosArrayPush(fqdns, &fqdn) == NULL) {
       mError("failed to fqdn into array, but continue at this time");
     }

@@ -869,6 +869,10 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     }
   } else {
     pSub->qmsg = taosStrdup("");
+    if (pSub->qmsg == NULL) {
+      code = terrno;
+      goto END;
+    }
   }
 
 END:
