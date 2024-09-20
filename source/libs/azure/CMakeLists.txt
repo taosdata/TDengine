@@ -1,3 +1,4 @@
+if(${TD_LINUX})
 aux_source_directory(src AZ_SRC)
 
 add_library(az STATIC ${AZ_SRC})
@@ -20,3 +21,4 @@ target_link_libraries(
 if(${BUILD_TEST})
     add_subdirectory(test)
 endif(${BUILD_TEST})
+endif(${TD_LINUX})
