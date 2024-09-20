@@ -403,7 +403,7 @@ impl TaskConfig {
         let document: Result<Document, serde_json::Error> = serde_json::from_str(sql.as_str());
         match document {
             Ok(document) => anyhow::Ok(document),
-            Err(e) => anyhow::bail!("parsing query template failed: {}", e),
+            Err(e) => anyhow::bail!("parsing query template failed, cause: {}, sql: {}", e, sql),
         }
     }
 
