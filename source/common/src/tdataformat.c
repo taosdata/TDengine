@@ -129,7 +129,7 @@ static FORCE_INLINE int32_t tRowBuildScanAddValue(SRowBuildScanInfo *sinfo, SCol
 
   sinfo->kvMaxOffset = sinfo->kvPayloadSize;
   if (IS_VAR_DATA_TYPE(colVal->value.type)) {
-    if (colVal->value.nData > pTColumn->bytes) return TSDB_CODE_INVALID_PARA;
+    if (colVal->value.nData > (pTColumn->bytes - VARSTR_HEADER_SIZE)) return TSDB_CODE_INVALID_PARA;
 
     sinfo->tupleVarSize += tPutU32v(NULL, colVal->value.nData)  // size
                            + colVal->value.nData;               // value
