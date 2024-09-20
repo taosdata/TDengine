@@ -183,7 +183,7 @@ int32_t tsdbDataFileReadBrinBlk(SDataFileReader *reader, const TBrinBlkArray **b
     if (reader->headFooter->brinBlkPtr->size > 0) {
       data = taosMemoryMalloc(reader->headFooter->brinBlkPtr->size);
       if (data == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
 
       int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
@@ -557,7 +557,7 @@ int32_t tsdbDataFileReadTombBlk(SDataFileReader *reader, const TTombBlkArray **t
 
     if (reader->tombFooter->tombBlkPtr->size > 0) {
       if ((data = taosMemoryMalloc(reader->tombFooter->tombBlkPtr->size)) == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
 
       int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
