@@ -1181,7 +1181,7 @@ static void cliBatchSendCb(uv_write_t* req, int status) {
   cliConnMayUpdateTimer(conn, READ_TIMEOUT);
   // if (!uv_is_readable(conn->stream)) {
   if (conn->readerStart == 0) {
-    uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
+    (void)uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
     conn->readerStart = 1;
   }
   //}
