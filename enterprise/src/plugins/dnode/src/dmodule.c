@@ -76,13 +76,13 @@ typedef struct {
 #define STR_STR_SIGN ("ia")
 #define STR_STR_COMM ("unit")
 
-#define STR_CASE_STR_CHECK(s, d) \
-  do {                           \
-    (void)strtolower(s, s);      \
-    (void)strtolower(d, d);      \
-    if (STR_STR_CMP(s, d)) {     \
-      DM_ERR_RTN(0);             \
-    }                            \
+#define STR_CASE_STR_CHECK(s, d)   \
+  do {                             \
+    TAOS_UNUSED(strtolower(s, s)); \
+    TAOS_UNUSED(strtolower(d, d)); \
+    if (STR_STR_CMP(s, d)) {       \
+      DM_ERR_RTN(0);               \
+    }                              \
   } while (0)
 
 #define DM_ERR_RTN(c) \
@@ -386,8 +386,8 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
   }
 
   ptr = hbuf;
-  (void)dmEncodeDFHeader(&ptr, &fHeader);
-  (void)taosCalcChecksumAppend(0, (uint8_t *)hbuf, DM_FILE_HEAD_SIZE);
+  TAOS_UNUSED((&ptr, &fHeader));
+  TAOS_CHECK_EXIT(taosCalcChecksumAppend(0, (uint8_t *)hbuf, DM_FILE_HEAD_SIZE));
 
   if (taosWriteFile(tFile, hbuf, DM_FILE_HEAD_SIZE) < DM_FILE_HEAD_SIZE) {
     code = TAOS_SYSTEM_ERROR(errno);
@@ -406,7 +406,7 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
       TAOS_CHECK_GOTO(len, &lino, _exit);
     }
 
-    (void)taosCalcChecksumAppend(0, (uint8_t *)pBuf, fHeader.len);
+    TAOS_CHECK_EXIT(taosCalcChecksumAppend(0, (uint8_t *)pBuf, fHeader.len));
 
     if (taosWriteFile(tFile, pBuf, fHeader.len) < fHeader.len) {
       code = TAOS_SYSTEM_ERROR(errno);
@@ -432,8 +432,8 @@ _exit:
   taosMemoryFreeClear(pBuf);
   if (code != 0) {
     dError("failed to write vars at line %d since %s", lino, tstrerror(code));
-    (void)taosCloseFile(&tFile);
-    (void)taosRemoveFile(tfname);
+    TAOS_UNUSED(taosCloseFile(&tFile));
+    TAOS_UNUSED(taosRemoveFile(tfname));
   }
 
   return code;
@@ -465,17 +465,17 @@ static int32_t dmInitVersion(SDnode *pDnode) {
   char cfgFile[PATH_MAX] = "\0";
   dmGetFname(DNODE_CFG_FILE, cfgFile);
 
-  (void)taosThreadRwlockRdlock(&pDnode->data.lock);
+  TAOS_UNUSED(taosThreadRwlockRdlock(&pDnode->data.lock));
   // dnode.json not exist, return directly
   if (taosStatFile(cfgFile, NULL, NULL, NULL) < 0) {
-    (void)taosThreadRwlockUnlock(&pDnode->data.lock);
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pDnode->data.lock));
     goto _exit;
   }
   if (((code = dmReadVars(&eInfo)) != 0) && (code != TSDB_CODE_NOT_FOUND)) {
-    (void)taosThreadRwlockUnlock(&pDnode->data.lock);
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pDnode->data.lock));
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
-  (void)taosThreadRwlockUnlock(&pDnode->data.lock);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pDnode->data.lock));
 
   if (pDnode->data.engineVer == 0) {           // dnode.json history version
     if ((eInfo.type & 0x0F) == DM_ETYPE_UN) {  // without DM_ENGINE_FILE, create(handle update from history version)
@@ -488,10 +488,10 @@ static int32_t dmInitVersion(SDnode *pDnode) {
       // save
       (void)taosThreadRwlockWrlock(&pDnode->data.lock);
       if ((code = dmWriteVars(&eInfo)) != 0) {
-        (void)taosThreadRwlockUnlock(&pDnode->data.lock);
+        TAOS_UNUSED(taosThreadRwlockUnlock(&pDnode->data.lock));
         TAOS_CHECK_GOTO(code, &lino, _exit);
       }
-      (void)taosThreadRwlockUnlock(&pDnode->data.lock);
+      TAOS_UNUSED(taosThreadRwlockUnlock(&pDnode->data.lock));
       TAOS_CHECK_GOTO(dmSyncEps(&pDnode->data), &lino, _exit);
     }
   } else if ((eInfo.type & 0x0F) == DM_ETYPE_UN) {  // not history version, but without DM_ENGINE_FILE, fail
@@ -506,10 +506,10 @@ static int32_t dmInitVersion(SDnode *pDnode) {
       eInfo.updateMs = taosGetTimestampMs();
       (void)taosThreadRwlockWrlock(&pDnode->data.lock);
       if ((code = dmWriteVars(&eInfo)) != 0) {
-        (void)taosThreadRwlockUnlock(&pDnode->data.lock);
+        TAOS_UNUSED(taosThreadRwlockUnlock(&pDnode->data.lock));
         TAOS_CHECK_GOTO(code, &lino, _exit);
       }
-      (void)taosThreadRwlockUnlock(&pDnode->data.lock);
+      TAOS_UNUSED(taosThreadRwlockUnlock(&pDnode->data.lock));
       dInfo("update clusterId from 0 to %" PRId64, pDnode->data.clusterId);
     } else {
       dError("failed to init since inconsistent cluster:%" PRIi64 ",%" PRIi64, eInfo.clusterId, pDnode->data.clusterId);
@@ -530,10 +530,10 @@ static int32_t dmInitVersion(SDnode *pDnode) {
     eInfo.updateMs = taosGetTimestampMs();
     (void)taosThreadRwlockWrlock(&pDnode->data.lock);
     if ((code = dmWriteVars(&eInfo)) != 0) {
-      (void)taosThreadRwlockUnlock(&pDnode->data.lock);
+      TAOS_UNUSED(taosThreadRwlockUnlock(&pDnode->data.lock));
       TAOS_CHECK_GOTO(code, &lino, _exit);
     }
-    (void)taosThreadRwlockUnlock(&pDnode->data.lock);
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pDnode->data.lock));
   }
 
 _exit:
@@ -555,7 +555,7 @@ static int32_t dmSyncEps(SDnodeData *pData) {
   if (fileExist) {
     code = dmWriteEps(pData);
   }
-  (void)taosThreadRwlockUnlock(&pData->lock);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pData->lock));
   TAOS_RETURN(code);
 }
 
