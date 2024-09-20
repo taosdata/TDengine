@@ -671,7 +671,10 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     } else {
       int32_t code = buildCtbNameByGroupIdImpl(pTask->outputInfo.shuffleDispatcher.stbFullName, groupId,
                                                pDataBlock->info.parTbName);
-      stError("s-task:%s failed to build child table name, code:%s", pTask->id.idStr, tstrerror(code));
+      if (code) {
+        stError("s-task:%s failed to build child table name for group:%" PRId64 ", code:%s", pTask->id.idStr,
+                groupId, tstrerror(code));
+      }
     }
 
     snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->outputInfo.shuffleDispatcher.dbInfo.db,
