@@ -281,7 +281,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + size + 1);
     if (*ppData == NULL) {
       (void)taosCloseFile(&pFile);
-      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
     ((SSnapDataHdr *)(*ppData))->type = SNAP_DATA_CFG;
     ((SSnapDataHdr *)(*ppData))->size = size + 1;

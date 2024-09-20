@@ -2822,8 +2822,8 @@ enum {
   TOPIC_SUB_TYPE__COLUMN,
 };
 
-#define DEFAULT_MAX_POLL_INTERVAL 3000000
-#define DEFAULT_SESSION_TIMEOUT   12000
+#define DEFAULT_MAX_POLL_INTERVAL      300000
+#define DEFAULT_SESSION_TIMEOUT        12000
 
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];  // accout.topic

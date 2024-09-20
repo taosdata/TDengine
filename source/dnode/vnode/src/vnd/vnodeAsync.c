@@ -679,7 +679,7 @@ int32_t vnodeAChannelInit(int64_t asyncID, SVAChannelID *channelID) {
   // create channel object
   SVAChannel *channel = (SVAChannel *)taosMemoryMalloc(sizeof(SVAChannel));
   if (channel == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   channel->state = EVA_CHANNEL_STATE_OPEN;
   for (int32_t i = 0; i < EVA_PRIORITY_MAX; i++) {
@@ -727,7 +727,7 @@ int32_t vnodeAChannelDestroy(SVAChannelID *channelID, bool waitRunning) {
   };
   SArray *cancelArray = taosArrayInit(0, sizeof(SVATaskCancelInfo));
   if (cancelArray == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (void)taosThreadMutexLock(&async->mutex);

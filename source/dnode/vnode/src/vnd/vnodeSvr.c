@@ -180,7 +180,7 @@ static int32_t vnodePreProcessDropTtlMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   {  // find expired uids
     tbUids = taosArrayInit(8, sizeof(tb_uid_t));
     if (tbUids == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -206,7 +206,7 @@ static int32_t vnodePreProcessDropTtlMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
     SMsgHead *pContNew = rpcMallocCont(contLenNew);
     if (pContNew == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -1536,7 +1536,7 @@ static int32_t vnodeResetTableCxt(SMeta *pMeta, SSubmitReqConvertCxt *pCxt) {
   pCxt->pTbData->pCreateTbReq = NULL;
   pCxt->pTbData->aRowP = taosArrayInit(128, POINTER_BYTES);
   if (NULL == pCxt->pTbData->aRowP) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   taosArrayDestroy(pCxt->pColValues);
@@ -1623,7 +1623,7 @@ static int32_t vnodeDecodeCreateTbReq(SSubmitReqConvertCxt *pCxt) {
 static int32_t vnodeSubmitReqConvertToSubmitReq2(SVnode *pVnode, SSubmitReq *pReq, SSubmitReq2 *pReq2) {
   pReq2->aSubmitTbData = taosArrayInit(128, sizeof(SSubmitTbData));
   if (NULL == pReq2->aSubmitTbData) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SSubmitReqConvertCxt cxt = {0};
@@ -1651,7 +1651,7 @@ static int32_t vnodeSubmitReqConvertToSubmitReq2(SVnode *pVnode, SSubmitReq *pRe
       }
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = (NULL == taosArrayPush(pReq2->aSubmitTbData, cxt.pTbData) ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_SUCCESS);
+      code = (NULL == taosArrayPush(pReq2->aSubmitTbData, cxt.pTbData) ? terrno : TSDB_CODE_SUCCESS);
     }
     if (TSDB_CODE_SUCCESS == code) {
       taosMemoryFreeClear(cxt.pTbData);
@@ -1670,7 +1670,7 @@ static int32_t vnodeRebuildSubmitReqMsg(SSubmitReq2 *pSubmitReq, void **ppMsg) {
   if (TSDB_CODE_SUCCESS == code) {
     pMsg = taosMemoryMalloc(msglen);
     if (NULL == pMsg) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -1847,7 +1847,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
       if (pSubmitRsp->aCreateTbRsp == NULL &&
           (pSubmitRsp->aCreateTbRsp = taosArrayInit(TARRAY_SIZE(pSubmitReq->aSubmitTbData), sizeof(SVCreateTbRsp))) ==
               NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exit;
       }
 
@@ -1859,7 +1859,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
         if (newTbUids == NULL &&
             (newTbUids = taosArrayInit(TARRAY_SIZE(pSubmitReq->aSubmitTbData), sizeof(int64_t))) == NULL) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           goto _exit;
         }
 
@@ -2238,7 +2238,7 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
   pRes->uidList = taosArrayInit(0, sizeof(tb_uid_t));
   if (pRes->uidList == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
 

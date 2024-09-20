@@ -262,7 +262,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     cfgRsp.tagsLen = pTag->len;
     cfgRsp.pTags = taosMemoryMalloc(cfgRsp.tagsLen);
     if (NULL == cfgRsp.pTags) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
     (void)memcpy(cfgRsp.pTags, pTag, cfgRsp.tagsLen);
@@ -288,7 +288,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   cfgRsp.pSchemaExt = (SSchemaExt *)taosMemoryMalloc(cfgRsp.numOfColumns * sizeof(SSchemaExt));
 
   if (NULL == cfgRsp.pSchemas || NULL == cfgRsp.pSchemaExt) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
   (void)memcpy(cfgRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
@@ -391,7 +391,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
 
   batchRsp.pRsps = taosArrayInit(msgNum, sizeof(SBatchRspMsg));
   if (NULL == batchRsp.pRsps) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     qError("taosArrayInit %d SBatchRspMsg failed", msgNum);
     goto _exit;
   }
@@ -448,7 +448,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
 
     if (NULL == taosArrayPush(batchRsp.pRsps, &rsp)) {
       qError("taosArrayPush failed");
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
   }
@@ -586,7 +586,7 @@ int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
     STableKeyInfo info = {uid = id};
     if (NULL == taosArrayPush(list, &info)) {
       qError("taosArrayPush failed");
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
   }
@@ -616,7 +616,7 @@ int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list) {
 
     if (NULL == taosArrayPush(list, &id)) {
       qError("taosArrayPush failed");
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
   }
@@ -641,7 +641,7 @@ int32_t vnodeGetStbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
 
     if (NULL == taosArrayPush(list, &id)) {
       qError("taosArrayPush failed");
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
   }
@@ -671,7 +671,7 @@ int32_t vnodeGetStbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bo
 
     if (NULL == taosArrayPush(list, &id)) {
       qError("taosArrayPush failed");
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
   }
@@ -786,7 +786,7 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
   SArray *suidList = NULL;
 
   if (!(suidList = taosArrayInit(1, sizeof(tb_uid_t)))) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t tbFilterSize = 0;
