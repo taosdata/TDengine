@@ -386,7 +386,7 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
   }
 
   ptr = hbuf;
-  TAOS_UNUSED((&ptr, &fHeader));
+  TAOS_UNUSED(dmEncodeDFHeader(&ptr, &fHeader));
   TAOS_CHECK_EXIT(taosCalcChecksumAppend(0, (uint8_t *)hbuf, DM_FILE_HEAD_SIZE));
 
   if (taosWriteFile(tFile, hbuf, DM_FILE_HEAD_SIZE) < DM_FILE_HEAD_SIZE) {
