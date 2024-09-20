@@ -440,7 +440,7 @@ static int32_t nodeListToJson(SJson* pJson, const char* pName, const SNodeList* 
   if (LIST_LENGTH(pList) > 0) {
     SJson* jList = tjsonAddArrayToObject(pJson, pName);
     if (NULL == jList) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     SNode* pNode;
     FOREACH(pNode, pList) {
@@ -8244,8 +8244,7 @@ int32_t nodesNodeToString(const SNode* pNode, bool format, char** pStr, int32_t*
 
   SJson* pJson = tjsonCreateObject();
   if (NULL == pJson) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t code = nodeToJson(pNode, pJson);
@@ -8295,8 +8294,7 @@ int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int3
 
   SJson* pJson = tjsonCreateArray();
   if (NULL == pJson) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SNode* pNode;

@@ -149,7 +149,7 @@ bool dfaBuilderCacheState(FstDfaBuilder *builder, FstSparseSet *set, uint32_t *r
   int32_t code = 0;
   SArray *tinsts = taosArrayInit(4, sizeof(uint32_t));
   if (tinsts == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exception;
   }
   bool isMatch = false;
@@ -163,13 +163,13 @@ bool dfaBuilderCacheState(FstDfaBuilder *builder, FstSparseSet *set, uint32_t *r
       continue;
     } else if (inst->ty == RANGE) {
       if (taosArrayPush(tinsts, &ip) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exception;
       }
     } else if (inst->ty == MATCH) {
       isMatch = true;
       if (taosArrayPush(tinsts, &ip) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exception;
       }
     }
@@ -185,7 +185,7 @@ bool dfaBuilderCacheState(FstDfaBuilder *builder, FstSparseSet *set, uint32_t *r
   } else {
     DfaState st = {.insts = tinsts, .isMatch = isMatch};
     if (taosArrayPush(builder->dfa->states, &st) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exception;
     }
 

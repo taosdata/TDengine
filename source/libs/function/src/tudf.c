@@ -1678,7 +1678,7 @@ int32_t udfcInitializeUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvT
     void *bufBegin = taosMemoryMalloc(bufLen);
     if(bufBegin == NULL) {
       fnError("udfc create uv task, malloc buffer failed. size: %d", bufLen);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     void *buf = bufBegin;
     if(encodeUdfRequest(&buf, &request) <= 0)
@@ -1733,7 +1733,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
       uv_pipe_t *pipe = taosMemoryMalloc(sizeof(uv_pipe_t));
       if(pipe == NULL) {
         fnError("udfc event loop start connect task malloc pipe failed.");
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       if (uv_pipe_init(&uvTask->udfc->uvLoop, pipe, 0) != 0) {
         fnError("udfc event loop start connect task uv_pipe_init failed.");
@@ -1762,7 +1762,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
         fnError("udfc event loop start connect task malloc connReq failed.");
         taosMemoryFree(pipe);
         taosMemoryFree(conn);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       connReq->data = uvTask;
       uv_pipe_connect(connReq, pipe, uvTask->udfc->udfdPipeName, onUdfcPipeConnect);
@@ -1777,7 +1777,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
         uv_write_t *write = taosMemoryMalloc(sizeof(uv_write_t));
         if(write == NULL) {
           fnError("udfc event loop start req_rsp task malloc write failed.");
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
         write->data = pipe->data;
         QUEUE *connTaskQueue = &((SClientUvConn *)pipe->data)->taskQueue;

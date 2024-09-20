@@ -1616,7 +1616,7 @@ int32_t udfdInitResidentFuncs() {
     if(taosArrayPush(global.residentFuncs, func) == NULL)
     {
       taosArrayDestroy(global.residentFuncs);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 

@@ -128,13 +128,13 @@ int32_t indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
 
   idx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (idx->colObj == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, END);
+    TAOS_CHECK_GOTO(terrno, NULL, END);
   }
 
   idx->version = 1;
   idx->path = taosStrdup(path);
   if (idx->path == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, END);
+    TAOS_CHECK_GOTO(terrno, NULL, END);
   }
 
   (void)taosThreadMutexInit(&idx->mtx, NULL);
@@ -261,7 +261,7 @@ int32_t indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* re
 
   SArray* iRslts = taosArrayInit(4, POINTER_BYTES);
   if (iRslts == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int nQuery = taosArrayGetSize(multiQuerys->query);
@@ -275,7 +275,7 @@ int32_t indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* re
     }
     if (taosArrayPush(iRslts, (void*)&trslt) == NULL) {
       idxInterRsltDestroy(iRslts);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   (void)idxMergeFinalResults(iRslts, opera, result);
@@ -319,7 +319,7 @@ void indexMultiTermQueryDestroy(SIndexMultiTermQuery* pQuery) {
 int32_t indexMultiTermQueryAdd(SIndexMultiTermQuery* pQuery, SIndexTerm* term, EIndexQueryType qType) {
   SIndexTermQuery q = {.qType = qType, .term = term};
   if (taosArrayPush(pQuery->query, &q) == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   return 0;
 }
@@ -387,7 +387,7 @@ SIndexMultiTerm* indexMultiTermCreate() { return taosArrayInit(4, sizeof(SIndexT
 
 int32_t indexMultiTermAdd(SIndexMultiTerm* terms, SIndexTerm* term) {
   if (taosArrayPush(terms, &term) == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   return 0;
 }
@@ -470,7 +470,7 @@ static int32_t idxTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** resu
 
   *result = taosArrayInit(4, sizeof(uint64_t));
   if (*result == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   // TODO: iterator mem and tidex
 
@@ -574,7 +574,7 @@ static int32_t idxMayMergeTempToFinalRslt(SArray* result, TFileValue* tfv, SIdxT
     }
   } else {
     if (taosArrayPush(result, &tfv) == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   return code;
@@ -658,7 +658,7 @@ int32_t idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
 
   SArray* result = taosArrayInit(1024, sizeof(void*));
   if (result == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+    TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
 
   bool cn = cacheIter ? cacheIter->next(cacheIter) : false;
@@ -666,7 +666,7 @@ int32_t idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
 
   SIdxTRslt* tr = idxTRsltCreate();
   if (tr == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+    TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
   while (cn == true || tn == true) {
     IterateValue* cv = (cn == true) ? cacheIter->getValue(cacheIter) : NULL;

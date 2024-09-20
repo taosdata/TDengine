@@ -662,7 +662,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
       } else {
         val->pData = taosMemoryMalloc(size);
         if (NULL == val->pData) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
         } else {
           memcpy(val->pData, output, size);
           val->nData = size;
@@ -679,7 +679,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
       if (realLen > pSchema->bytes - VARSTR_HEADER_SIZE) realLen = pSchema->bytes - VARSTR_HEADER_SIZE;
       void* p = taosMemoryMalloc(realLen);
       if (p == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       if (!taosMbsToUcs4(pToken->z, pToken->n, (TdUcs4*)(p), realLen, &output)) {
         if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
@@ -732,7 +732,7 @@ int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SS
   bool isNull = isNullValue(pTagSchema->type, pToken);
   if (!isNull && pTagName) {
     if (NULL == taosArrayPush(pTagName, pTagSchema->name)) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -754,7 +754,7 @@ int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SS
   int32_t code = parseTagToken(pSql, pToken, pTagSchema, precision, &val, pMsgBuf);
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL == taosArrayPush(pTagVals, &val)){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     }
   }
 
@@ -943,7 +943,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
 
   if (!(pTagVals = taosArrayInit(pCxt->tags.numOfBound, sizeof(STagVal))) ||
       !(pTagName = taosArrayInit(pCxt->tags.numOfBound, TSDB_COL_NAME_LEN))) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -1422,7 +1422,7 @@ int32_t initTableColSubmitData(STableDataCxt* pTableCxt) {
     SSchema*  pSchema = &pTableCxt->pMeta->schema[pTableCxt->boundColsInfo.pColIndex[i]];
     SColData* pCol = taosArrayReserve(pTableCxt->pData->aCol, 1);
     if (NULL == pCol) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     tColDataInit(pCol, pSchema->colId, pSchema->type, pSchema->flags);
   }
@@ -1592,7 +1592,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       }
       pVal->value.pData = taosMemoryMalloc(pToken->n);
       if (NULL == pVal->value.pData) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       memcpy(pVal->value.pData, pToken->z, pToken->n);
       pVal->value.nData = pToken->n;
@@ -1612,7 +1612,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       if (realLen > pSchema->bytes - VARSTR_HEADER_SIZE) realLen = pSchema->bytes - VARSTR_HEADER_SIZE;
       char* pUcs4 = taosMemoryMalloc(realLen);
       if (NULL == pUcs4) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       if (!taosMbsToUcs4(pToken->z, pToken->n, (TdUcs4*)pUcs4, realLen, &len)) {
         taosMemoryFree(pUcs4);
@@ -1633,7 +1633,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       }
       pVal->value.pData = taosMemoryMalloc(pToken->n);
       if (NULL == pVal->value.pData) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       memcpy(pVal->value.pData, pToken->z, pToken->n);
       pVal->value.nData = pToken->n;
@@ -1654,7 +1654,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       } else {
         pVal->value.pData = taosMemoryMalloc(size);
         if (NULL == pVal->value.pData) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
         } else {
           memcpy(pVal->value.pData, output, size);
           pVal->value.nData = size;
@@ -2215,7 +2215,7 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
   if (NULL == pStmt->pTableCxtHashObj) {
     pStmt->pTableCxtHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
     if (!pStmt->pTableCxtHashObj) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   int32_t numOfRows = 0;
@@ -2348,20 +2348,20 @@ static int32_t constructStbRowsDataContext(SVnodeModifyOpStmt* pStmt, SStbRowsDa
 
     pStbRowsCxt->aTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);
     if (!pStbRowsCxt->aTagNames) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
     pStbRowsCxt->aTagVals = taosArrayInit(8, sizeof(STagVal));
     if (!pStbRowsCxt->aTagVals) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
     // col values and bound cols info of STableDataContext is not used
     pStbRowsCxt->aColVals = taosArrayInit(getNumOfColumns(pStbRowsCxt->pStbMeta), sizeof(SColVal));
     if (!pStbRowsCxt->aColVals)
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = insInitColValues(pStbRowsCxt->pStbMeta, pStbRowsCxt->aColVals);
@@ -2536,7 +2536,7 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
 static int32_t setStmtInfo(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   SBoundColInfo* tags = taosMemoryMalloc(sizeof(pCxt->tags));
   if (NULL == tags) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   memcpy(tags, &pCxt->tags, sizeof(pCxt->tags));
 
@@ -2723,13 +2723,13 @@ static int32_t addTableVgroupFromMetaData(const SArray* pTables, SVnodeModifyOpS
 static int32_t buildTagNameFromMeta(STableMeta* pMeta, SArray** pTagName) {
   *pTagName = taosArrayInit(pMeta->tableInfo.numOfTags, TSDB_COL_NAME_LEN);
   if (NULL == *pTagName) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   SSchema* pSchema = getTableTagSchema(pMeta);
   int32_t code = 0;
   for (int32_t i = 0; i < pMeta->tableInfo.numOfTags; ++i) {
     if (NULL == taosArrayPush(*pTagName, pSchema[i].name)) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       taosArrayDestroy(*pTagName);
       *pTagName = NULL;
       break;
@@ -2869,12 +2869,12 @@ static int32_t setRefreshMeta(SQuery* pQuery) {
     taosArrayDestroy(pQuery->pTableList);
     pQuery->pTableList = taosArrayInit(taosHashGetSize(pStmt->pTableNameHashObj), sizeof(SName));
     if (!pQuery->pTableList) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     } else {
       SName* pTable = taosHashIterate(pStmt->pTableNameHashObj, NULL);
       while (NULL != pTable) {
         if (NULL == taosArrayPush(pQuery->pTableList, pTable)) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           taosHashCancelIterate(pStmt->pTableNameHashObj, pTable);
           break;
         }
@@ -2887,12 +2887,12 @@ static int32_t setRefreshMeta(SQuery* pQuery) {
     taosArrayDestroy(pQuery->pDbList);
     pQuery->pDbList = taosArrayInit(taosHashGetSize(pStmt->pDbFNameHashObj), TSDB_DB_FNAME_LEN);
     if (!pQuery->pDbList) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     } else {
       char* pDb = taosHashIterate(pStmt->pDbFNameHashObj, NULL);
       while (NULL != pDb) {
         if (NULL == taosArrayPush(pQuery->pDbList, pDb)) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           taosHashCancelIterate(pStmt->pDbFNameHashObj, pDb);
           break;
         }
@@ -2967,13 +2967,13 @@ static int32_t parseInsertSqlImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt*
 static int32_t buildInsertTableReq(SName* pName, SArray** pTables) {
   *pTables = taosArrayInit(1, sizeof(SName));
   if (NULL == *pTables) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (NULL == taosArrayPush(*pTables, pName)) {
     taosArrayDestroy(*pTables);
     *pTables = NULL;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2982,7 +2982,7 @@ static int32_t buildInsertDbReq(SName* pName, SArray** pDbs) {
   if (NULL == *pDbs) {
     *pDbs = taosArrayInit(1, sizeof(STablesReq));
     if (NULL == *pDbs) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -2999,7 +2999,7 @@ static int32_t buildInsertDbReq(SName* pName, SArray** pDbs) {
 static int32_t buildInsertUserAuthReq(const char* pUser, SName* pName, SArray** pUserAuth) {
   *pUserAuth = taosArrayInit(1, sizeof(SUserAuthInfo));
   if (NULL == *pUserAuth) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SUserAuthInfo userAuth = {.type = AUTH_TYPE_WRITE};
@@ -3008,7 +3008,7 @@ static int32_t buildInsertUserAuthReq(const char* pUser, SName* pName, SArray** 
   if (NULL == taosArrayPush(*pUserAuth, &userAuth)) {
     taosArrayDestroy(*pUserAuth);
     *pUserAuth = NULL;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   return TSDB_CODE_SUCCESS;

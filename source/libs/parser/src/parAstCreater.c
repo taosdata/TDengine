@@ -932,7 +932,7 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
     SValueNode* pVal = (SValueNode*)pLeft;
     char*       pNewLiteral = taosMemoryCalloc(1, strlen(pVal->literal) + 2);
     if (!pNewLiteral) {
-      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+      pCxt->errCode = terrno;
       goto _err;
     }
     if ('+' == pVal->literal[0]) {

@@ -480,7 +480,7 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
       pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
       if (NULL == pIter->pPrevData) {
         qError("out of memory when function get input row.");
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       char* srcData = colDataGetData(pIter->pDataCol, pIter->inputEndIndex);
       (void)memcpy(pIter->pPrevData, srcData, pIter->pDataCol->info.bytes);
@@ -489,7 +489,7 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
       if (NULL == pIter->pPrevPk) {
         qError("out of memory when function get input row.");
         taosMemoryFree(pIter->pPrevData);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       char* pkData = colDataGetData(pIter->pPkCol, pIter->inputEndIndex);
       (void)memcpy(pIter->pPrevPk, pkData, pIter->pPkCol->info.bytes);
@@ -545,14 +545,14 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
       pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
       if (NULL == pIter->pPrevData) {
         qError("out of memory when function get input row.");
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       (void)memcpy(pIter->pPrevData, colDataGetData(pIter->pDataCol, pIter->inputEndIndex), pIter->pDataCol->info.bytes);
       pIter->pPrevPk = taosMemoryMalloc(pIter->pPkCol->info.bytes);
       if (NULL == pIter->pPrevPk) {
         qError("out of memory when function get input row.");
         taosMemoryFree(pIter->pPrevData);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       (void)memcpy(pIter->pPrevPk, colDataGetData(pIter->pPkCol, pIter->inputEndIndex), pIter->pPkCol->info.bytes);
 
@@ -2644,7 +2644,7 @@ static int32_t prepareBuf(SqlFunctionCtx* pCtx) {
     pCtx->subsidiaries.rowLen = rowLen + pCtx->subsidiaries.num * sizeof(bool);
     pCtx->subsidiaries.buf = taosMemoryMalloc(pCtx->subsidiaries.rowLen);
     if (NULL == pCtx->subsidiaries.buf) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -6066,7 +6066,7 @@ int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   if (NULL == pInfo->buf) {
     taosHashCleanup(pInfo->pHash);
     pInfo->pHash = NULL;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   return TSDB_CODE_SUCCESS;
