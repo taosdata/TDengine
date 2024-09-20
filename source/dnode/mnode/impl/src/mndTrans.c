@@ -795,7 +795,7 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
     mError("trans:%d, failed to encode while sync trans since %s", pTrans->id, tstrerror(code));
     TAOS_RETURN(code);
   }
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
 
   mInfo("trans:%d, sync to other mnodes, stage:%s createTime:%" PRId64, pTrans->id, mndTransStr(pTrans->stage),
         pTrans->createdTime);
@@ -1778,7 +1778,7 @@ static bool mndTransPerformFinishStage(SMnode *pMnode, STrans *pTrans, bool topH
     mError("trans:%d, failed to encode while finish trans since %s", pTrans->id, terrstr());
     return false;
   }
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED));
 
   int32_t code = sdbWrite(pMnode->pSdb, pRaw);
   if (code != 0) {
@@ -1943,6 +1943,8 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   int32_t numOfRows = 0;
   STrans *pTrans = NULL;
   int32_t cols = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_TRANS, pShow->pIter, (void **)&pTrans);
@@ -1951,36 +1953,39 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     cols = 0;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->id, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->id, false), pTrans, &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->createdTime, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->createdTime, false), pTrans, &lino,
+                        _OVER);
 
     char stage[TSDB_TRANS_STAGE_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(stage, mndTransStr(pTrans->stage), pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)stage, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)stage, false), pTrans, &lino, _OVER);
 
     char opername[TSDB_TRANS_OPER_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(opername, pTrans->opername, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)opername, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)opername, false), pTrans, &lino, _OVER);
 
     char dbname[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(dbname, mndGetDbStr(pTrans->dbname), pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)dbname, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)dbname, false), pTrans, &lino, _OVER);
 
     char stbname[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(stbname, mndGetDbStr(pTrans->stbname), pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)stbname, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)stbname, false), pTrans, &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->failedTimes, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->failedTimes, false), pTrans, &lino,
+                        _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->lastExecTime, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->lastExecTime, false), pTrans, &lino,
+                        _OVER);
 
     char    lastInfo[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
     char    detail[TSDB_TRANS_ERROR_LEN + 1] = {0};
@@ -1996,12 +2001,14 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
     STR_WITH_MAXSIZE_TO_VARSTR(lastInfo, detail, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)lastInfo, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)lastInfo, false), pTrans, &lino, _OVER);
 
     numOfRows++;
     sdbRelease(pSdb, pTrans);
   }
 
+_OVER:
+  if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }
