@@ -36,6 +36,8 @@ int32_t auditInit(const SAuditCfg *pCfg) {
   return taosThreadMutexInit(&tsAudit.lock, NULL);
 }
 
+void auditSetDnodeId(int32_t dnodeId) { tsAudit.dnodeId = dnodeId; }
+
 static FORCE_INLINE void auditDeleteRecord(SAuditRecord * record) {
   if (record) {
     taosMemoryFree(record->detail);

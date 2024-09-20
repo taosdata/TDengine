@@ -918,7 +918,8 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     unloadUdf = true;
     code = taosHashRemove(global.udfsHash, udf->name, strlen(udf->name));
     if (code != 0) {
-      fnError("udf name %s remove from hash failed", udf->name);
+      fnError("udf name %s remove from hash failed, err:%0x %s", udf->name, code, tstrerror(code));
+      uv_mutex_unlock(&global.udfsMutex);
       goto _send;
     }
   }
