@@ -121,7 +121,7 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
     auto        containerClient = blobServiceClient.GetBlobContainerClient(containerName);
 
     // Create the container if it does not exist
-    std::cout << "Creating container: " << containerName << std::endl;
+    // std::cout << "Creating container: " << containerName << std::endl;
     // containerClient.CreateIfNotExists();
 
     std::string blobName = "blob.txt";
@@ -131,7 +131,7 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
     TDBlockBlobClient blobClient(containerClient.GetBlobClient(blobName));
 
     // Upload the blob
-    std::cout << "Uploading blob: " << blobName << std::endl;
+    // std::cout << "Uploading blob: " << blobName << std::endl;
     blobClient.UploadFrom(blobContent, sizeof(blobContent));
     //(void)_azUploadFrom(blobClient, file, offset, size);
     /*
@@ -148,9 +148,11 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
                   << std::endl;
     */
   } catch (const Azure::Core::RequestFailedException &e) {
+    /*
     std::cout << "Status Code: " << static_cast<int>(e.StatusCode) << ", Reason Phrase: " << e.ReasonPhrase
               << std::endl;
     std::cout << e.what() << std::endl;
+    */
     return 1;
   }
 
