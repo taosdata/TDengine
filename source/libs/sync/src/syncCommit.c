@@ -86,7 +86,9 @@ int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
   if (indexLikely > ths->commitIndex && syncNodeAgreedUpon(ths, indexLikely)) {
     SyncIndex commitIndex = indexLikely;
     // TODO add return when error
-    (void)syncNodeUpdateCommitIndex(ths, commitIndex);
+    if ((code = syncNodeUpdateCommitIndex(ths, commitIndex)) != 0) {
+      sError("vgId:%d, failed to update commit index:%" PRId64 ", since %s", ths->vgId, commitIndex, tstrerror(code));
+    }
     sTrace("vgId:%d, agreed upon. role:%d, term:%" PRId64 ", index:%" PRId64 "", ths->vgId, ths->state,
            raftStoreGetTerm(ths), commitIndex);
   }

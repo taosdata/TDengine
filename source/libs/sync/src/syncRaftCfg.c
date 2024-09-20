@@ -163,7 +163,7 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
     TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
   }
 
-  (void)taosCloseFile(&pFile);
+  TAOS_CHECK_EXIT(taosCloseFile(&pFile));
   TAOS_CHECK_EXIT(taosRenameFile(file, realfile));
 
   sInfo("vgId:%d, succeed to write sync cfg file:%s, len:%d, lastConfigIndex:%" PRId64 ", changeVersion:%d",
