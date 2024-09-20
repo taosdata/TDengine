@@ -37,6 +37,7 @@ typedef struct SEventWindowOperatorInfo {
   bool               inWindow;
   SResultRow*        pRow;
   SSDataBlock*       pPreDataBlock;
+  SOperatorInfo*     pOperator;
 } SEventWindowOperatorInfo;
 
 static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** pRes);
@@ -128,6 +129,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
 
   pInfo->tsSlotId = tsSlotId;
   pInfo->pPreDataBlock = NULL;
+  pInfo->pOperator = pOperator;
 
   setOperatorInfo(pOperator, "EventWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
@@ -150,6 +152,19 @@ _error:
   destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
   return code;
+}
+
+void cleanupResultInfoInEventWindow(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo) {
+  if (pInfo == NULL || pInfo->pRow == NULL) {
+    return;
+  }
+  SExprSupp*       pSup = &pOperator->exprSupp;
+  for (int32_t j = 0; j < pSup->numOfExprs; ++j) {
+    pSup->pCtx[j].resultInfo = getResultEntryInfo(pInfo->pRow, j, pSup->rowEntryInfoOffset);
+    if (pSup->pCtx[j].fpSet.cleanup) {
+      pSup->pCtx[j].fpSet.cleanup(&pSup->pCtx[j]);
+    }
+  }
 }
 
 void destroyEWindowOperatorInfo(void* param) {
@@ -175,6 +190,8 @@ void destroyEWindowOperatorInfo(void* param) {
   cleanupBasicInfo(&pInfo->binfo);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
 
+  cleanupResultInfoInEventWindow(pInfo->pOperator, pInfo);
+  pInfo->pOperator = NULL;
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSup);
   taosMemoryFreeClear(param);
