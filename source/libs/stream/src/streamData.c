@@ -323,8 +323,6 @@ int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger, int32_t triggerTyp
     return terrno;
   }
 
-  p->pBlock->info.type = STREAM_GET_ALL;
-
   // let's calculate the previous time window
   // todo get the time precision for ts
   if (triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
@@ -333,6 +331,9 @@ int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger, int32_t triggerTyp
 
     STimeWindow window = getAlignQueryTimeWindow(&interval, now - trigger);
     p->pBlock->info.window = window;
+    p->pBlock->info.type = STREAM_GET_RESULT;
+  } else {
+    p->pBlock->info.type = STREAM_GET_ALL;
   }
 
   *pTrigger = p;
