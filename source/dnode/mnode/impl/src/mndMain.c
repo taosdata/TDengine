@@ -706,7 +706,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   code = taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
   if (code < 0) {
     mError("failed to parse time since %s", tstrerror(code));
-    taosThreadRwlockDestroy(&pMnode->lock);
+    (void)taosThreadRwlockDestroy(&pMnode->lock);
     taosMemoryFree(pMnode);
     return NULL;
   }
