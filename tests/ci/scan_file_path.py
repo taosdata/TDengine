@@ -129,7 +129,7 @@ def scan_files_path(source_file_path):
 def input_files(change_files):
     # scan_dir_list = ["source", "include", "docs/examples", "tests/script/api", "src/plugins"]
     scan_dir_list = ["source", "include", "docs/examples", "src/plugins"]
-    scan_skip_file_list = [f"{TD_project_path}/TDinternal/community/tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl", "/test/", "contrib", "debug", "deps", f"{TD_project_path}/TDinternal/community/source/libs/parser/src/sql.c",f"{TD_project_path}/TDinternal/community/source/libs/azure/",f"{TD_project_path}/TDinternal/community/source/client/jni/windows/win32/bridge/AccessBridgeCalls.c"]
+    scan_skip_file_list = [f"{TD_project_path}/TDinternal/community/tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl", "/test/", "contrib", "debug", "deps", f"{TD_project_path}/TDinternal/community/source/libs/parser/src/sql.c", "source/libs/azure", f"{TD_project_path}/TDinternal/community/source/client/jni/windows/win32/bridge/AccessBridgeCalls.c"]
     with open(change_files, 'r') as file:
         for line in file:
             file_name = line.strip()
@@ -141,7 +141,7 @@ def input_files(change_files):
                         tdc_file_path = os.path.join(TD_project_path, "community/")
                         file_name = os.path.join(tdc_file_path, file_name)                    
                     all_file_path.append(file_name)
-                    # print(f"all_file_path:{all_file_path}")
+                    print(f"all_file_path:{all_file_path}")
     logger.info("Found %s files" % len(all_file_path))
 file_res_path = ""
 
