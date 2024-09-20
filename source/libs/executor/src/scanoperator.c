@@ -1163,7 +1163,7 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
       if (TSDB_CODE_DUP_KEY == terrno) {
         continue;
       }
-      return terrno;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     info.uid = *pUid;
