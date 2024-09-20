@@ -2504,6 +2504,10 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
 
   cliRetryMayInitCtx(pInst, pReq);
 
+  if (pReq->msg.info.qId != 0) {
+    return false;
+  }
+
   if (!cliRetryShouldRetry(pInst, pResp)) {
     return false;
   }
