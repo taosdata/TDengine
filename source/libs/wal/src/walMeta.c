@@ -1057,7 +1057,7 @@ int32_t walSaveMeta(SWal* pWal) {
 
 _err:
   wError("vgId:%d, %s failed at line %d since %s", pWal->cfg.vgId, __func__, lino, tstrerror(code));
-  taosCloseFile(&pMetaFile);
+  (void)taosCloseFile(&pMetaFile);
   taosMemoryFree(serialized);
   return code;
 }
