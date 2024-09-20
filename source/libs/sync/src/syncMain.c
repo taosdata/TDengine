@@ -991,11 +991,8 @@ static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
 static int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   int32_t ret = 0;
   (void)atomic_add_fetch_64(&pSyncTimer->logicClock, 1);
-  if (taosTmrStop(pSyncTimer->pTimer) == false) {
-    sError("vgId:%d, failed to stop hb timer, return false", pSyncNode->vgId);
-  } else {
-    sError("vgId:%d, stop hb timer, return true", pSyncNode->vgId);
-  }
+  bool stop = taosTmrStop(pSyncTimer->pTimer);
+  sDebug("vgId:%d, stop hb timer stop:%d", pSyncNode->vgId, stop);
   pSyncTimer->pTimer = NULL;
   syncHbTimerDataRemove(pSyncTimer->hbDataRid);
   pSyncTimer->hbDataRid = -1;
@@ -1638,8 +1635,8 @@ int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode) {
 int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode) {
   int32_t code = 0;
   (void)atomic_add_fetch_64(&pSyncNode->pingTimerLogicClockUser, 1);
-  // TODO check return value
-  TAOS_CHECK_RETURN(taosTmrStop(pSyncNode->pPingTimer));
+  bool stop = taosTmrStop(pSyncNode->pPingTimer);
+  sDebug("vgId:%d, stop ping timer, stop:%d", pSyncNode->vgId, stop);
   pSyncNode->pPingTimer = NULL;
   return code;
 }
@@ -1666,8 +1663,8 @@ int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
 int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode) {
   int32_t code = 0;
   (void)atomic_add_fetch_64(&pSyncNode->electTimerLogicClock, 1);
-  // TODO check return value
-  TAOS_CHECK_RETURN(taosTmrStop(pSyncNode->pElectTimer));
+  bool stop = taosTmrStop(pSyncNode->pElectTimer);
+  sDebug("vgId:%d, stop elect timer, stop:%d", pSyncNode->vgId, stop);
   pSyncNode->pElectTimer = NULL;
 
   return code;
@@ -1738,9 +1735,9 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
   int32_t code = 0;
 
 #if 0
-  //TODO check return value
   TAOS_CHECK_RETURN(atomic_add_fetch_64(&pSyncNode->heartbeatTimerLogicClockUser, 1));
-  TAOS_CHECK_RETURN(taosTmrStop(pSyncNode->pHeartbeatTimer));
+  bool stop = taosTmrStop(pSyncNode->pHeartbeatTimer);
+  sDebug("vgId:%d, stop heartbeat timer, stop:%d", pSyncNode->vgId, stop);
   pSyncNode->pHeartbeatTimer = NULL;
 #endif
 
