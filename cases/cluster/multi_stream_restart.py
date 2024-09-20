@@ -10,8 +10,7 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-# -*- taostest --setup=cluster/redistribute_split_test.yaml --case=cluster/redistribute_test.py --keep -*-
-# -*- taostest --setup=cluster/redistribute_split_test_rep3.yaml --case=cluster/redistribute_test.py --keep -*-
+# -*- taostest --setup=cluster/multi_stream_restart.yaml --case=cluster/multi_stream_restart.py --keep -*-
 
 import os
 from taostest.util.common import TDCom
@@ -66,7 +65,7 @@ class MultiStreamRestart(TDCase):
         self.trigger_mode = "at_once"
         self.child_table_exists = "no"
         self.db_drop = "yes"
-        self.wal_retention_period = 300
+        self.wal_retention_period = 1800
         self.stream_drop = "yes"
         self.keep_trying = -1
         self.trying_interval = 10000
@@ -81,7 +80,6 @@ class MultiStreamRestart(TDCase):
         self.stream_sql5 = f"select _wstart,max(c0),min(c1) from {self.dbname5}.{self.stbname} where c1>0 partition by tbname interval(1s) sliding(1s)"
 
         self.fill_history_rows = 100
-        # self.fill_history_rows = 300
         self.pre_num_of_records_per_req = 10000
         self.json_file_name1 = "insert0_0.json"
         self.json_file_name2 = "insert1_0.json"
@@ -136,15 +134,30 @@ class MultiStreamRestart(TDCase):
     def cleanup(self):
         pass
 
-    # def get_dnode_id_list(self):
-    #     self.tdSql.query('show dnodes')
-    #     self.dnode_id_list = list(map(lambda x:x[0], self.tdSql.query_data))
-
     def check_restored_true(self):
+        """
+        Check if the data is restored successfully.
+
+        This method calls the `check_restored_true` method of the `tdCom` object
+        to verify if the data is restored correctly. It also calls the `show_transactions`
+        method to display the transactions.
+
+        Args:
+            self: The current object instance.
+        """
         self.tdCom.check_restored_true(self._remote)
         self.show_transactions()
 
     def prepare_fill_history_data(self):
+        """
+        Prepares the data for filling history in multiple streams.
+
+        This method sets up the necessary database and JSON configurations
+        for filling history data in multiple streams. It generates JSON files
+        containing the configuration information and sends them to the remote
+        server. Finally, it runs the `taosBenchmark` tool on the remote server
+        to fill history data.
+        """
         self.json_filename_list = [self.json_file_name1, self.json_file_name2, self.json_file_name3, self.json_file_name4, self.json_file_name5]
         dbinfo1 = self.tdCom.setDBinfo(name=self.dbname1, replica=self.replica, vgroups=self.vgroups, drop=self.db_drop, wal_retention_period=self.wal_retention_period)
         dbinfo2 = self.tdCom.setDBinfo(name=self.dbname2, replica=self.replica, vgroups=self.vgroups, drop=self.db_drop, wal_retention_period=self.wal_retention_period)
@@ -173,6 +186,9 @@ class MultiStreamRestart(TDCase):
         self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
 
     def insert_data(self):
+        """
+        Inserts data into the database using the specified parameters.
+        """
         self.json_filename_list = [self.json_file_name6, self.json_file_name7, self.json_file_name8, self.json_file_name9, self.json_file_name10]
         self.start_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
         self.child_table_exists = "yes"
@@ -222,17 +238,24 @@ class MultiStreamRestart(TDCase):
         self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
 
     def show_transactions(self):
+        """
+        Retrieves and displays the transactions using the `show transactions` command.
+        """
         self.tdSql.query('show transactions')
         self._remote._logger.info(pd.DataFrame(self.tdSql.query_data))
 
     def restart_dnodes(self):
-        # dnodes_out_mnodes = self.tdSql.get_dnodes_out_mnodes()[0]
-        # print("----dnodes_out_mnodes: ", dnodes_out_mnodes)
+        """
+        Restarts the dnodes in the cluster.
+
+        This method retrieves the list of endpoints for the dnodes to be restarted,
+        creates a copy of the taosd setting, updates the taosd configuration with the
+        new setting, and checks if the restoration is successful.
+        """
         restart_endpoint_list = self.tdCom.get_fqdn_by_dnode_id(self.dnode_id_list)
-        # print("-----restart_endpoint_list: ", restart_endpoint_list)
         for endpoint in restart_endpoint_list:
             taosd_setting = copy.deepcopy(self.taosd_setting)
-            self.taosd.update_cfg('/tmp',taosd_setting , {"supportVnodes": self.cfg["boundary"][-1]}, endpoint, True)
+            self.taosd.update_cfg('/tmp', taosd_setting, {"supportVnodes": self.cfg["boundary"][-1]}, endpoint, True)
         self.check_restored_true()
 
     def run(self):

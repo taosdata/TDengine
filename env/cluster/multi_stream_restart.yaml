@@ -13,7 +13,9 @@ settings:
           config: # will write into taos.cfg
             dataDir: /var/lib/taos
             logDir: /var/log/taos
-            debugFlag: 131
+            mDebugFlag: 135
+            tqDebugFlag: 131
+            stDebugFlag: 131
             supportVnodes: 1024
             asynclog: 0
         - endpoint: u1-56:6030
@@ -23,7 +25,9 @@ settings:
           config: # will write into taos.cfg
             dataDir: /var/lib/taos
             logDir: /var/log/taos
-            debugFlag: 131
+            mDebugFlag: 135
+            tqDebugFlag: 131
+            stDebugFlag: 131
             supportVnodes: 1024
             asynclog: 0
         - endpoint: u1-57:6030
@@ -33,7 +37,9 @@ settings:
           config: # will write into taos.cfg
             dataDir: /var/lib/taos
             logDir: /var/log/taos
-            debugFlag: 131
+            mDebugFlag: 135
+            tqDebugFlag: 131
+            stDebugFlag: 131
             supportVnodes: 1024
             asynclog: 0
   - name: taospy
