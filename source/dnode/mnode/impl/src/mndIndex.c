@@ -133,7 +133,6 @@ int mndSetCreateIdxRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStb
 }
 static void *mndBuildDropIdxReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStbObj, SIdxObj *pIdx, int32_t *contLen) {
   int32_t len = 0;
-  int32_t ret = 0;
 
   SDropIndexReq req = {0};
   memcpy(req.colName, pIdx->colName, sizeof(pIdx->colName));
@@ -159,7 +158,11 @@ static void *mndBuildDropIdxReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStbOb
   pHead->vgId = htonl(pVgroup->vgId);
 
   void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
-  if ((terrno = tSerializeSDropIdxReq(pBuf, len - sizeof(SMsgHead), &req)) != 0) return NULL;
+  int32_t ret = 0;
+  if ((ret = tSerializeSDropIdxReq(pBuf, len - sizeof(SMsgHead), &req)) < 0) {
+    terrno = ret;
+    return NULL;
+  }
   *contLen = len;
   return pHead;
 _err:

@@ -1379,7 +1379,11 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = tSerializeSDbCfgRsp(pRsp, contLen, &cfgRsp)) < 0) goto _OVER;
+  int32_t ret = 0;
+  if ((ret = tSerializeSDbCfgRsp(pRsp, contLen, &cfgRsp)) < 0) {
+    code = ret;
+    goto _OVER;
+  }
 
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = contLen;
@@ -1578,7 +1582,8 @@ static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bo
     TAOS_RETURN(code);
   }
 
-  if ((code = tSerializeSDropDbRsp(pRsp, rspLen, &dropRsp)) < 0) return code;
+  int32_t ret = 0;
+  if ((ret = tSerializeSDropDbRsp(pRsp, rspLen, &dropRsp)) < 0) return ret;
   *pRspLen = rspLen;
   *ppRsp = pRsp;
   TAOS_RETURN(code);
@@ -1822,14 +1827,18 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = tSerializeSUseDbRsp(pRsp, contLen, &usedbRsp)) < 0) goto _OVER;
+  int32_t ret = 0;
+  if ((ret = tSerializeSUseDbRsp(pRsp, contLen, &usedbRsp)) < 0) {
+    code = ret;
+    goto _OVER;
+  }
 
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = contLen;
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("db:%s, failed to process use db req since %s", usedbReq.db, terrstr());
+    mError("db:%s, failed to process use db req since %s", usedbReq.db, tstrerror(code));
   }
 
   mndReleaseDb(pMnode, pDb);
@@ -1981,7 +1990,8 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
     tFreeSDbHbBatchRsp(&batchRsp);
     return -1;
   }
-  if ((code = tSerializeSDbHbBatchRsp(pRsp, rspLen, &batchRsp)) < 0) return code;
+  int32_t ret = 0;
+  if ((ret = tSerializeSDbHbBatchRsp(pRsp, rspLen, &batchRsp)) < 0) return ret;
 
   *ppRsp = pRsp;
   *pRspLen = rspLen;
@@ -2011,9 +2021,10 @@ static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
     }
     pHead->contLen = htonl(contLen);
     pHead->vgId = htonl(pVgroup->vgId);
-    if ((code = tSerializeSVTrimDbReq((char *)pHead + sizeof(SMsgHead), contLen, &trimReq)) < 0) {
+    int32_t ret = 0;
+    if ((ret = tSerializeSVTrimDbReq((char *)pHead + sizeof(SMsgHead), contLen, &trimReq)) < 0) {
       sdbRelease(pSdb, pVgroup);
-      return code;
+      return ret;
     }
 
     SRpcMsg rpcMsg = {.msgType = TDMT_VND_TRIM, .pCont = pHead, .contLen = contLen};
@@ -2083,9 +2094,10 @@ static int32_t mndS3MigrateDb(SMnode *pMnode, SDbObj *pDb) {
     }
     pHead->contLen = htonl(contLen);
     pHead->vgId = htonl(pVgroup->vgId);
-    if ((code = tSerializeSVS3MigrateDbReq((char *)pHead + sizeof(SMsgHead), contLen, &s3migrateReq)) < 0) {
+    int32_t ret = 0;
+    if ((ret = tSerializeSVS3MigrateDbReq((char *)pHead + sizeof(SMsgHead), contLen, &s3migrateReq)) < 0) {
       sdbRelease(pSdb, pVgroup);
-      return code;
+      return ret;
     }
 
     SRpcMsg rpcMsg = {.msgType = TDMT_VND_S3MIGRATE, .pCont = pHead, .contLen = contLen};
