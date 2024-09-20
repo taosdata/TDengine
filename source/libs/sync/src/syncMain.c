@@ -991,8 +991,10 @@ static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
 static int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   int32_t ret = 0;
   (void)atomic_add_fetch_64(&pSyncTimer->logicClock, 1);
-  if (!taosTmrStop(pSyncTimer->pTimer)) {
-    return TSDB_CODE_SYN_INTERNAL_ERROR;
+  if (taosTmrStop(pSyncTimer->pTimer) == false) {
+    sError("vgId:%d, failed to stop hb timer, return false", pSyncNode->vgId);
+  } else {
+    sError("vgId:%d, stop hb timer, return true", pSyncNode->vgId);
   }
   pSyncTimer->pTimer = NULL;
   syncHbTimerDataRemove(pSyncTimer->hbDataRid);
