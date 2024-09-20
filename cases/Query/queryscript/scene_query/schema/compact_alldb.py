@@ -61,7 +61,31 @@ class TDTestQuery(TDCase):
             self.execute_sql(compact_db)
             flush_db = " flush database `%s`" %self.tdSql.getData(i,0)
             self.execute_sql(flush_db)
-                
+    
+    def alter_all_db_2(self):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
+        show_local_sql = "select `name`,`replica` from information_schema.ins_databases where `replica`=1;"
+        self.tdSql.query(show_local_sql)  
+        rows = self.tdSql.query_row
+        
+        for i in range(rows):
+            replica_db = " alter database `%s` replica 2" %self.tdSql.getData(i,0)
+            self.execute_sql(replica_db)
+            flush_db = " flush database `%s`" %self.tdSql.getData(i,0)
+            self.execute_sql(flush_db)
+    
+    def alter_all_db_3(self):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
+        show_local_sql = "select `name`,`replica` from information_schema.ins_databases where `replica`=1;"
+        self.tdSql.query(show_local_sql)  
+        rows = self.tdSql.query_row
+        
+        for i in range(rows):
+            replica_db = " alter database `%s` replica 3" %self.tdSql.getData(i,0)
+            self.execute_sql(replica_db)
+            flush_db = " flush database `%s`" %self.tdSql.getData(i,0)
+            self.execute_sql(flush_db)
+                                
     def execute_sql(self,sql) :
         try:
             self.tdSql.execute(sql,queryTimes=5)
@@ -78,6 +102,7 @@ class TDTestQuery(TDCase):
             
         while 1:
             self.compact_all_db() 
+            self.alter_all_db_3() 
+            self.alter_all_db_2() 
         
   
-
