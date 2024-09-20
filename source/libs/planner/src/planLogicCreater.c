@@ -1196,7 +1196,7 @@ static int32_t createWindowLogicNodeByAnomaly(SLogicPlanContext* pCxt, SAnomalyW
     return code;
   }
 
-  strcpy(pWindow->anomalyOpt, pAnomaly->anomalyOpt);
+  tstrncpy(pWindow->anomalyOpt, pAnomaly->anomalyOpt, sizeof(pWindow->anomalyOpt));
 
   pWindow->pTspk = NULL;
   code = nodesCloneNode(pAnomaly->pCol, &pWindow->pTspk);

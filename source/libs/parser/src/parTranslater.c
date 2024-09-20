@@ -5731,7 +5731,7 @@ static int32_t translateAnomalyWindow(STranslateContext* pCxt, SSelectStmt* pSel
   if (TSDB_CODE_SUCCESS == code) {
     char *pos1 = strstr(pAnomaly->anomalyOpt, "func=");
     if (pos1 == NULL) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_OPT);
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_OPT);
     }
   }
 

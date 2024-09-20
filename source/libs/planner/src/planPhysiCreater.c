@@ -2354,7 +2354,7 @@ static int32_t createAnomalyWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
     // }
   }
 
-  strcpy(pAnomaly->anomalyOpt, pWindowLogicNode->anomalyOpt);
+  tstrncpy(pAnomaly->anomalyOpt, pWindowLogicNode->anomalyOpt, sizeof(pAnomaly->anomalyOpt));
 
   if (TSDB_CODE_SUCCESS == code) {
     code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pAnomaly->window, pWindowLogicNode);
