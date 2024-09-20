@@ -1173,7 +1173,6 @@ static void cliBatchSendCb(uv_write_t* req, int status) {
   if (ref <= 0) {
     return;
   }
-
   cliConnRmReqs(conn);
   if (status != 0) {
     tDebug("%s conn %p failed to send  msg, reason:%s", CONN_GET_INST_LABEL(conn), conn, uv_err_name(status));
@@ -1293,7 +1292,12 @@ int32_t cliBatchSend(SCliConn* pConn) {
   transRefCliHandle(pConn);
   uv_write_t* req = allocWReqFromWQ(&pConn->wq, pConn);
   tDebug("%s conn %p start to send msg, batch size:%d, len:%d", CONN_GET_INST_LABEL(pConn), pConn, size, totalLen);
-  (void)uv_write(req, (uv_stream_t*)pConn->stream, wb, j, cliBatchSendCb);
+  int32_t ret = uv_write(req, (uv_stream_t*)pConn->stream, wb, j, cliBatchSendCb);
+  if (ret != 0) {
+    tError("%s conn %p failed to send msg, reason:%s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(ret));
+    freeWReqToWQ(&pConn->wq, req->data);
+    transUnrefCliHandle(pConn);
+  }
   return 0;
 }
 
