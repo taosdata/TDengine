@@ -651,7 +651,8 @@ void taosPrintLongString(const char *flags, int32_t level, int32_t dflag, const 
   if (!osLogSpaceSufficient()) return;
   if (!(dflag & DEBUG_FILE) && !(dflag & DEBUG_SCREEN)) return;
 
-  char   *buffer = taosMemoryMalloc(LOG_MAX_LINE_DUMP_BUFFER_SIZE);
+  char *buffer = taosMemoryMalloc(LOG_MAX_LINE_DUMP_BUFFER_SIZE);
+  if (!buffer) return;
   int32_t len = taosBuildLogHead(buffer, flags);
 
   va_list argpointer;
