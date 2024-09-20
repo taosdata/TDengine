@@ -1296,7 +1296,7 @@ int32_t cliBatchSend(SCliConn* pConn) {
   if (ret != 0) {
     tError("%s conn %p failed to send msg, reason:%s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(ret));
     freeWReqToWQ(&pConn->wq, req->data);
-    transUnrefCliHandle(pConn);
+    (void)transUnrefCliHandle(pConn);
   }
   return 0;
 }
@@ -1378,7 +1378,7 @@ _exception1:
   return code;
 
 _exception2:
-  transUnrefCliHandle(conn);
+  (void)transUnrefCliHandle(conn);
   tError("%s conn %p failed to do connect, reason:%s", transLabel(pInst), conn, tstrerror(code));
   return code;
 }
