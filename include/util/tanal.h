@@ -25,13 +25,9 @@
 extern "C" {
 #endif
 
-#define TSDB_AFUNC_DEFAULT_ROWS 60
-#define TSDB_AFUNC_DEFAULT_CONF 80
-
-typedef struct {
-  char   *data;
-  int64_t dataLen;
-} SCurlResp;
+#define TSDB_AFUNC_FORECAST_DEFAULT_ROWS  60
+#define TSDB_AFUNC_FORECAST_DEFAULT_CONF  80
+#define TSDB_AFUNC_FORECAST_DEFAULT_EVERY 10000
 
 typedef struct {
   EAFuncType type;
@@ -47,7 +43,6 @@ typedef struct {
 
 int32_t taosFuncInit();
 void    taosFuncCleanup();
-int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp);
 SJson  *taosFuncGetJson(const char *url, bool isGet, const char *file);
 
 void    taosFuncUpdate();

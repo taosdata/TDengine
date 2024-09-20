@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tfunc.h"
+#include "tanal.h"
 #include <curl/curl.h>
 #include "tmsg.h"
 #include "ttypes.h"
@@ -28,6 +28,11 @@ typedef struct {
   SHashObj     *hash;  // funcname -> SAFuncUrl
   TdThreadMutex lock;
 } SAFuncMgmt;
+
+typedef struct {
+  char   *data;
+  int64_t dataLen;
+} SCurlResp;
 
 static SAFuncMgmt tsFuncs = {0};
 static int32_t    taosCurlTestStr(const char *url, SCurlResp *pRsp);
@@ -175,10 +180,7 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
   }
 }
 
-int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
-  pRsp->data = NULL;
-  pRsp->dataLen = 0;
-
+static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
 #if 0
   return taosCurlTestStr(url, pRsp);
 #else
@@ -230,8 +232,6 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   curl_easy_setopt(curl, CURLOPT_POST, 1);
   curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, bufLen);
   curl_easy_setopt(curl, CURLOPT_POSTFIELDS, buf);
-
-  // curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "name=daniel&project=curl");
 
   code = curl_easy_perform(curl);
   if (code != CURLE_OK) {

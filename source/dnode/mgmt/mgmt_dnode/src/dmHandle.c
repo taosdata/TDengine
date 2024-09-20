@@ -19,7 +19,7 @@
 #include "monitor.h"
 #include "systable.h"
 #include "tchecksum.h"
-#include "tfunc.h"
+#include "tanal.h"
 
 extern SConfig *tsCfg;
 

@@ -20,7 +20,7 @@
 #include "libs/function/tudf.h"
 #include "tgrant.h"
 #include "tcompare.h"
-#include "tfunc.h"
+#include "tanal.h"
 // clang-format on
 
 #define DM_INIT_AUDIT()                       \

@@ -25,7 +25,7 @@
 #include "tglobal.h"
 #include "thistogram.h"
 #include "tpercentile.h"
-#include "tfunc.h"
+#include "tanal.h"
 
 #define HISTOGRAM_MAX_BINS_NUM 1000
 #define MAVG_MAX_POINTS_NUM    1000
@@ -3626,11 +3626,11 @@ int32_t forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInf
   pRes->hasStart = taosFuncGetParaStr(options, "start", NULL, 0);
   pRes->hasEvery = taosFuncGetParaStr(options, "every", NULL, 0);
   if (!pRes->hasRows) {
-    pRes->inputRows = TSDB_AFUNC_DEFAULT_ROWS;
+    pRes->inputRows = TSDB_AFUNC_FORECAST_DEFAULT_ROWS;
     qTrace("forecast rows not found from %s, use default:%d", options, pRes->inputRows);
   }
   if (!pRes->hasConf) {
-    pRes->inputConf = TSDB_AFUNC_DEFAULT_CONF;
+    pRes->inputConf = TSDB_AFUNC_FORECAST_DEFAULT_CONF;
     qTrace("forecast conf not found from %s, use default:%d", options, pRes->inputConf);
   }
 

@@ -17,7 +17,7 @@
 #include "dmMgmt.h"
 #include "qworker.h"
 #include "tversion.h"
-#include "tfunc.h"
+#include "tanal.h"
 
 static inline void dmSendRsp(SRpcMsg *pMsg) { (void)rpcSendResponse(pMsg); }
 

@@ -19,10 +19,10 @@
 #include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
+#include "tanal.h"
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
-#include "tfunc.h"
 #include "tjson.h"
 #include "ttime.h"
 

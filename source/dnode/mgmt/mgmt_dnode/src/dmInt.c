@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 #include "libs/function/tudf.h"
-#include "tfunc.h"
+#include "tanal.h"
 
 static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   int32_t code = 0;

@@ -41,7 +41,7 @@
 #include "tmsgdef.h"
 
 #include "tcol.h"
-#include "tfunc.h"
+#include "tanal.h"
 #include "tlog.h"
 
 #define DECODESQL()                                                               \

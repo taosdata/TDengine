@@ -21,7 +21,7 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
-#include "tfunc.h"
+#include "tanal.h"
 #include "tjson.h"
 
 #define TSDB_ANODE_VER_NUMBER   1

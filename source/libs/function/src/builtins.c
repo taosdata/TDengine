@@ -21,7 +21,7 @@
 #include "geomFunc.h"
 #include "taoserror.h"
 #include "ttime.h"
-#include "tfunc.h"
+#include "tanal.h"
 
 static int32_t buildFuncErrMsg(char* pErrBuf, int32_t len, int32_t errCode, const char* pFormat, ...) {
   va_list vArgList;
