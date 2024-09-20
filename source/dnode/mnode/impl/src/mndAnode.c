@@ -777,6 +777,7 @@ static int32_t mndProcessAnalFuncReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeRetrieveAnalFuncReq(pReq->pCont, pReq->contLen, &req), NULL, _OVER);
 
+  //
   rsp.ver = sdbGetTableVer(pSdb, SDB_ANODE);
   if (req.analFuncVer != rsp.ver) {
     mInfo("dnode:%d, update analysis func old ver:%" PRId64 " to new ver:%" PRId64, req.dnodeId, req.analFuncVer,
