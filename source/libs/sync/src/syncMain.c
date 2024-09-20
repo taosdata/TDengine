@@ -3419,7 +3419,8 @@ _out:;
   }
 
   // single replica
-  TAOS_CHECK_RETURN(syncNodeUpdateCommitIndex(ths, matchIndex));
+  SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, matchIndex);
+  sTrace("vgId:%d, update commit return index %" PRId64 "", ths->vgId, returnIndex);
 
   if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
       (code = syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex)) < 0) {
@@ -3676,7 +3677,8 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       return TSDB_CODE_SYN_INTERNAL_ERROR;
     }
     if (pMsg->currentTerm == matchTerm) {
-      TAOS_CHECK_RETURN(syncNodeUpdateCommitIndex(ths, pMsg->commitIndex));
+      SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);
+      sTrace("vgId:%d, update commit return index %" PRId64 "", ths->vgId, returnIndex);
     }
     if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE && syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
       sError("vgId:%d, failed to commit raft log since %s. commit index:%" PRId64 "", ths->vgId, terrstr(),
