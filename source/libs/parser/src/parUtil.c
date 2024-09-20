@@ -1172,13 +1172,13 @@ int32_t getDbTableVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pNam
     code = getMetaDataFromHash(fullName, fullDbLen, pMetaCache->pDbCfg, (void**)&pDbCfg);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = TSDB_CODE_PAR_INTERNAL_ERROR;
     uint32_t hashValue =
         taosGetTbHashVal(fullName, fullTbLen, pDbCfg->hashMethod, pDbCfg->hashPrefix, pDbCfg->hashSuffix);
     SVgroupInfo* pVg = taosArraySearch(pVgArray, &hashValue, ctgHashValueComp, TD_EQ);
     if (pVg) {
       memcpy(pVgroup, pVg, sizeof(SVgroupInfo));
-      code = TSDB_CODE_SUCCESS;
+    } else {
+      code = TSDB_CODE_PAR_INTERNAL_ERROR;
     }
   }
   return code;
