@@ -6173,7 +6173,6 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
           pCxt->pTranslateCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
           return DEAL_RES_ERROR;
         }
-        ((SExprNode*)pNew)->orderAlias = true;
         nodesDestroyNode(*pNode);
         *pNode = pNew;
         return DEAL_RES_CONTINUE;
@@ -6196,7 +6195,6 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
           pCxt->pTranslateCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
           return DEAL_RES_ERROR;
         }
-        ((SExprNode*)pNew)->orderAlias = true;
         ((SOrderByExprNode*)*pNode)->pExpr = pNew;
         nodesDestroyNode(pExpr);
         return DEAL_RES_CONTINUE;
@@ -6566,7 +6564,6 @@ static int32_t addOrderByPrimaryKeyToQueryImpl(STranslateContext* pCxt, SNode* p
     nodesDestroyNode((SNode*)pOrderByExpr);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  ((SExprNode*)pOrderByExpr->pExpr)->orderAlias = true;
   // NODES_DESTORY_LIST(*pOrderByList);
   return nodesListMakeStrictAppend(pOrderByList, (SNode*)pOrderByExpr);
 }
