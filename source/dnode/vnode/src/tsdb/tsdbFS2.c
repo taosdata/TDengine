@@ -122,7 +122,7 @@ static int32_t load_json(const char *fname, cJSON **json) {
 
   data = taosMemoryMalloc(size + 1);
   if (data == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   if (taosReadFile(fp, data, size) < 0) {
@@ -387,7 +387,7 @@ static void tsdbFSDestroyFileObjHash(STFileHash *hash);
 
 static int32_t tsdbFSAddEntryToFileObjHash(STFileHash *hash, const char *fname) {
   STFileHashEntry *entry = taosMemoryMalloc(sizeof(*entry));
-  if (entry == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (entry == NULL) return terrno;
 
   strncpy(entry->fname, fname, TSDB_FILENAME_LEN);
 
@@ -752,7 +752,7 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   STFileSystem *fs = pTsdb->pFS;
   SArray       *channelArray = taosArrayInit(0, sizeof(SVAChannelID));
   if (channelArray == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (void)taosThreadMutexLock(&pTsdb->mutex);
@@ -913,7 +913,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
 
         SMergeArg *arg = taosMemoryMalloc(sizeof(*arg));
         if (arg == NULL) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           TSDB_CHECK_CODE(code, lino, _exit);
         }
 
@@ -962,7 +962,7 @@ int32_t tsdbFSCreateCopySnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
   STFileSet *fset1;
 
   fsetArr[0] = taosMemoryMalloc(sizeof(TFileSetArray));
-  if (fsetArr[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (fsetArr[0] == NULL) return terrno;
 
   TARRAY2_INIT(fsetArr[0]);
 
@@ -1058,7 +1058,7 @@ int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TFileSetRangeArray *pRa
   SHashObj  *pHash = NULL;
 
   fsetArr[0] = taosMemoryMalloc(sizeof(TFileSetArray));
-  if (fsetArr == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (fsetArr == NULL) return terrno;
   TARRAY2_INIT(fsetArr[0]);
 
   if (pRanges) {

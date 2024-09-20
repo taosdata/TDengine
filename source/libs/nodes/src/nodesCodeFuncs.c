@@ -3954,6 +3954,7 @@ static int32_t datumToJson(const void* pObj, SJson* pJson) {
     case TSDB_DATA_TYPE_NCHAR: {
       // cJSON only support utf-8 encoding. Convert memory content to hex string.
       char* buf = taosMemoryCalloc(varDataLen(pNode->datum.p) * 2 + 1, sizeof(char));
+      if (!buf) return terrno;
       code = taosHexEncode(varDataVal(pNode->datum.p), buf, varDataLen(pNode->datum.p));
       if (code != TSDB_CODE_SUCCESS) {
         taosMemoryFree(buf);
@@ -3971,6 +3972,7 @@ static int32_t datumToJson(const void* pObj, SJson* pJson) {
     case TSDB_DATA_TYPE_JSON: {
       int32_t len = getJsonValueLen(pNode->datum.p);
       char*   buf = taosMemoryCalloc(len * 2 + 1, sizeof(char));
+      if (!buf) return terrno;
       code = taosHexEncode(pNode->datum.p, buf, len);
       if (code != TSDB_CODE_SUCCESS) {
         taosMemoryFree(buf);
