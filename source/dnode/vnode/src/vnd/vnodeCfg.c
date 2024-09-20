@@ -125,7 +125,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
     }
     SJson *pNodeRetentions = tjsonCreateArray();
     if (pNodeRetentions == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     TAOS_CHECK_RETURN(tjsonAddItemToObject(pJson, "retentions", pNodeRetentions));
     for (int32_t i = 0; i < nRetention; ++i) {
@@ -167,7 +167,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
 
   SJson *nodeInfo = tjsonCreateArray();
   if (nodeInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   TAOS_CHECK_RETURN(tjsonAddItemToObject(pJson, "syncCfg.nodeInfo", nodeInfo));
   vDebug("vgId:%d, encode config, replicas:%d totalReplicas:%d selfIndex:%d changeVersion:%d", pCfg->vgId,
@@ -175,7 +175,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   for (int i = 0; i < pCfg->syncCfg.totalReplicaNum; ++i) {
     SJson *info = tjsonCreateObject();
     if (info == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     SNodeInfo *pNode = (SNodeInfo *)&pCfg->syncCfg.nodeInfo[i];

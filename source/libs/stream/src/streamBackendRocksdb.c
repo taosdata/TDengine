@@ -3439,7 +3439,6 @@ int32_t streamStateGetFirst_rocksdb(SStreamState* pState, SWinKey* key) {
 }
 
 int32_t streamStateGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
-  stDebug("streamStateGetGroupKVByCur_rocksdb");
   if (!pCur) {
     return -1;
   }
@@ -3885,7 +3884,6 @@ SStreamStateCur* streamStateSessionSeekKeyPrev_rocksdb(SStreamState* pState, con
 }
 
 int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
-  stDebug("streamStateSessionGetKVByCur_rocksdb");
   if (!pCur) {
     return -1;
   }
@@ -3985,7 +3983,6 @@ SStreamStateCur* streamStateFillGetCur_rocksdb(SStreamState* pState, const SWinK
   return NULL;
 }
 int32_t streamStateFillGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
-  stDebug("streamStateFillGetKVByCur_rocksdb");
   if (!pCur) {
     return -1;
   }
