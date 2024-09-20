@@ -623,8 +623,6 @@ void cliHandleResp(SCliConn* conn) {
   cliConnCheckTimoutMsg(conn);
 
   cliConnMayUpdateTimer(conn, READ_TIMEOUT);
-
-  (void)uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
 }
 
 void cliConnTimeout(uv_timer_t* handle) {
@@ -813,7 +811,6 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   if (conn->status == ConnInPool) {
     return;
   }
-  (void)uv_read_stop(conn->stream);
 
   SCliThrd* thrd = conn->hostThrd;
   cliResetConnTimer(conn);
@@ -1182,7 +1179,7 @@ static void cliBatchSendCb(uv_write_t* req, int status) {
 
   cliConnMayUpdateTimer(conn, READ_TIMEOUT);
 
-  (void)uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
+  uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
 
   if (!cliMayRecycleConn(conn)) {
     (void)cliBatchSend(conn);
