@@ -14570,7 +14570,11 @@ static int32_t rewriteDropTableWithOpt(STranslateContext* pCxt, SQuery* pQuery) 
   char   pTableName[TSDB_TABLE_NAME_LEN] = {0};
   FOREACH(pNode, pStmt->pTables) {
     SDropTableClause* pClause = (SDropTableClause*)pNode;
-    SName             name = {0};
+    if (IS_SYS_DBNAME(pClause->dbName)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                     "Cannot drop table of system database: '%s.%s'", pClause->dbName, pClause->tableName);
+    }
+    SName name = {0};
     toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &name);
     int32_t code = getTargetName(pCxt, &name, pTableName);
     if (TSDB_CODE_SUCCESS != code) {
@@ -14679,6 +14683,11 @@ static int32_t rewriteDropSuperTablewithOpt(STranslateContext* pCxt, SQuery* pQu
   SDropSuperTableStmt* pStmt = (SDropSuperTableStmt*)pQuery->pRoot;
   if (!pStmt->withOpt) return code;
   pCxt->withOpt = true;
+
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "Cannot drop table of system database: '%s.%s'", pStmt->dbName, pStmt->tableName);
+  }
 
   char  pTableName[TSDB_TABLE_NAME_LEN] = {0};
   SName name = {0};

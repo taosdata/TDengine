@@ -172,6 +172,8 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query(f'select * from information_schema.ins_tables where db_name like "dbtest_%"')
         tdSql.checkRows(8)
+        tdSql.error(f'drop stable with information_schema.`ins_tables`;')
+        tdSql.error(f'drop stable with performance_schema.`perf_connections`;')
         self.drop_table_check_end()
     def drop_table_with_check(self):
         self.drop_table_check_init()
@@ -194,6 +196,8 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query(f'select * from information_schema.ins_stables where db_name like "dbtest_%"')
         tdSql.checkRows(2)
+        tdSql.error(f'drop table with information_schema.`ins_tables`;')
+        tdSql.error(f'drop table with performance_schema.`perf_connections`;')
         self.drop_table_check_end()
     def drop_topic_check(self):
         tdSql.execute(f'create database {self.dbname} replica {self.replicaVar} wal_retention_period 3600')
