@@ -158,6 +158,8 @@ int64_t taosAddRef(int32_t rsetId, void *p) {
 
   pNode = taosMemoryCalloc(sizeof(SRefNode), 1);
   if (pNode == NULL) {
+    taosDecRsetCount(pSet);
+    uError("rsetId:%d p:%p failed to add, out of memory", rsetId, p);
     return terrno;
   }
 
