@@ -97,13 +97,13 @@ static bool dmIsForbiddenIp(int8_t forbidden, char *user, uint32_t clientIp) {
   }
 }
 
-static void dmUpdateAfunc(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
-  SRetrieveAFuncRsp rsp = {0};
-  if (tDeserializeRetrieveAfuncRsp(pRpc->pCont, pRpc->contLen, &rsp) == 0) {
+static void dmUpdateAnalFunc(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
+  SRetrieveAnalFuncRsp rsp = {0};
+  if (tDeserializeRetrieveAnalFuncRsp(pRpc->pCont, pRpc->contLen, &rsp) == 0) {
     taosFuncUpdate(rsp.ver, rsp.hash);
     rsp.hash = NULL;
   }
-  tFreeRetrieveAfuncRsp(&rsp);
+  tFreeRetrieveAnalFuncRsp(&rsp);
   rpcFreeCont(pRpc->pCont);
 }
 
@@ -150,8 +150,8 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     case TDMT_MND_RETRIEVE_IP_WHITE_RSP:
       dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
-    case TDMT_MND_RETRIEVE_AFUNC_RSP:
-      dmUpdateAfunc(&pDnode->data, pTrans->serverRpc, pRpc);
+    case TDMT_MND_RETRIEVE_ANAL_FUNC_RSP:
+      dmUpdateAnalFunc(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
     default:
       break;

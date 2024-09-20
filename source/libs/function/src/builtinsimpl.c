@@ -3567,34 +3567,34 @@ bool funcInputGetNextRowIndex(SInputColumnInfoData* pInput, int32_t from, bool f
 }
 
 typedef struct {
-  char       funcName[TSDB_FUNC_NAME_LEN];
-  char       funcUrl[TSDB_FUNC_URL_LEN];
-  EAFuncType funcType;
-  uint8_t    inputInit : 1;
-  uint8_t    inputStop : 1;
-  uint8_t    hasRows : 1;
-  uint8_t    hasConf : 1;
-  uint8_t    hasEvery : 1;
-  uint8_t    hasStart : 1;
-  uint8_t    hasTs : 1;
-  uint8_t    hasLow : 1;
-  uint8_t    hasHigh : 1;
-  uint8_t    resTsSlot;
-  uint8_t    resLowSlot;
-  uint8_t    resHighSlot;
-  uint8_t    resPrecision;
-  uint8_t    resDataType;
-  int32_t    resRowSize;
-  int32_t    inputRows;
-  int32_t    inputConf;
-  int64_t    tsStart;
-  int64_t    tsEnd;
-  int64_t    tsEvery;
-  int64_t    numOfElems;
-  int32_t    paraLen;
-  int32_t    bufLen;
-  char*      para;
-  void*      buf;
+  char          funcName[TSDB_FUNC_NAME_LEN];
+  char          funcUrl[TSDB_ANAL_FUNC_URL_LEN];
+  EAnalFuncType funcType;
+  uint8_t       inputInit : 1;
+  uint8_t       inputStop : 1;
+  uint8_t       hasRows : 1;
+  uint8_t       hasConf : 1;
+  uint8_t       hasEvery : 1;
+  uint8_t       hasStart : 1;
+  uint8_t       hasTs : 1;
+  uint8_t       hasLow : 1;
+  uint8_t       hasHigh : 1;
+  uint8_t       resTsSlot;
+  uint8_t       resLowSlot;
+  uint8_t       resHighSlot;
+  uint8_t       resPrecision;
+  uint8_t       resDataType;
+  int32_t       resRowSize;
+  int32_t       inputRows;
+  int32_t       inputConf;
+  int64_t       tsStart;
+  int64_t       tsEnd;
+  int64_t       tsEvery;
+  int64_t       numOfElems;
+  int32_t       paraLen;
+  int32_t       bufLen;
+  char*         para;
+  void*         buf;
 } SForecastRes;
 
 bool getForecastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
@@ -3614,11 +3614,11 @@ int32_t forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInf
   const char* options = varDataVal(pCtx->param[1].param.pz);
   if (!taosFuncGetParaStr(options, "func=", pRes->funcName, sizeof(pRes->funcName))) {
     qError("failed to get forecast funcName from %s", options);
-    return TSDB_CODE_MND_AFUNC_NOT_FOUND;
+    return TSDB_CODE_ANAL_FUNC_NOT_FOUND;
   }
-  if (taosFuncGetUrl(pRes->funcName, AFUNC_TYPE_FORECAST, pRes->funcUrl, sizeof(pRes->funcUrl)) != 0) {
+  if (taosFuncGetUrl(pRes->funcName, ANAL_FUNC_TYPE_FORECAST, pRes->funcUrl, sizeof(pRes->funcUrl)) != 0) {
     qError("failed to get forecast funcUrl from %s", options);
-    return TSDB_CODE_MND_AFUNC_NOT_LOAD;
+    return TSDB_CODE_ANAL_FUNC_NOT_LOAD;
   }
 
   pRes->hasConf = taosFuncGetParaInt(options, "conf", &pRes->inputConf);
@@ -3626,11 +3626,11 @@ int32_t forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInf
   pRes->hasStart = taosFuncGetParaStr(options, "start", NULL, 0);
   pRes->hasEvery = taosFuncGetParaStr(options, "every", NULL, 0);
   if (!pRes->hasRows) {
-    pRes->inputRows = TSDB_AFUNC_FORECAST_DEFAULT_ROWS;
+    pRes->inputRows = ANAL_FUNC_FORECAST_DEFAULT_ROWS;
     qTrace("forecast rows not found from %s, use default:%d", options, pRes->inputRows);
   }
   if (!pRes->hasConf) {
-    pRes->inputConf = TSDB_AFUNC_FORECAST_DEFAULT_CONF;
+    pRes->inputConf = ANAL_FUNC_FORECAST_DEFAULT_CONF;
     qTrace("forecast conf not found from %s, use default:%d", options, pRes->inputConf);
   }
 
@@ -3668,7 +3668,7 @@ int32_t forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInf
   pRes->resRowSize = 32;
   pRes->inputInit = true;
   pRes->inputStop = false;
-  pRes->funcType = AFUNC_TYPE_FORECAST;
+  pRes->funcType = ANAL_FUNC_TYPE_FORECAST;
   pRes->bufLen = 0;
   pRes->buf = NULL;
 

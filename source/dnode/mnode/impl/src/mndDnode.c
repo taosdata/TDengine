@@ -729,7 +729,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
   pMnode->ipWhiteVer = mndGetIpWhiteVer(pMnode);
 
-  int64_t afuncVer = sdbGetTableVer(pMnode->pSdb, SDB_ANODE);
+  int64_t analFuncVer = sdbGetTableVer(pMnode->pSdb, SDB_ANODE);
   int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
   int64_t curMs = taosGetTimestampMs();
   bool    online = mndIsDnodeOnline(pDnode, curMs);
@@ -738,10 +738,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    supportVnodesChanged = pDnode->numOfSupportVnodes != statusReq.numOfSupportVnodes;
   bool    encryptKeyChanged = pDnode->encryptionKeyChksum != statusReq.clusterCfg.encryptionKeyChksum;
   bool    enableWhiteListChanged = statusReq.clusterCfg.enableWhiteList != (tsEnableWhiteList ? 1 : 0);
-  bool    afuncVerChanged = (afuncVer != statusReq.afuncVer);
+  bool    analFuncVerChanged = (analFuncVer != statusReq.analFuncVer);
   bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged ||
                    pMnode->ipWhiteVer != statusReq.ipWhiteVer || encryptKeyChanged || enableWhiteListChanged ||
-                   afuncVerChanged;
+                   analFuncVerChanged;
 
   const STraceId *trace = &pReq->info.traceId;
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
@@ -865,7 +865,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
     SStatusRsp statusRsp = {0};
     statusRsp.statusSeq++;
-    statusRsp.afuncVer = afuncVer;
+    statusRsp.analFuncVer = analFuncVer;
     statusRsp.dnodeVer = dnodeVer;
     statusRsp.dnodeCfg.dnodeId = pDnode->id;
     statusRsp.dnodeCfg.clusterId = pMnode->clusterId;
