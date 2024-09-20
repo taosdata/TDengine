@@ -94,7 +94,7 @@ static void destroyGroupOperatorInfo(void* param) {
 static int32_t initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen, char** keyBuf, const SArray* pGroupColList) {
   *pGroupColVals = taosArrayInit(4, sizeof(SGroupKeys));
   if ((*pGroupColVals) == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t numOfGroupCols = taosArrayGetSize(pGroupColList);
@@ -117,7 +117,7 @@ static int32_t initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen, char**
 
     void* tmp = taosArrayPush((*pGroupColVals), &key);
     if (!tmp) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -1758,7 +1758,7 @@ int32_t extractColumnInfo(SNodeList* pNodeList, SArray** pArrayRes) {
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   SArray* pList = taosArrayInit(numOfCols, sizeof(SColumn));
   if (pList == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     (*pArrayRes) = NULL;
     QUERY_CHECK_CODE(code, lino, _end);
   }
