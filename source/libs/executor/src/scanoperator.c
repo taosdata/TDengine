@@ -191,7 +191,7 @@ static int32_t insertTableToScanIgnoreList(STableScanInfo* pTableScanInfo, uint6
     pTableScanInfo->pIgnoreTables =
         taosHashInit(tableNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
     if (NULL == pTableScanInfo->pIgnoreTables) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -1163,13 +1163,13 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
       if (TSDB_CODE_DUP_KEY == terrno) {
         continue;
       }
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     info.uid = *pUid;
     void* p = taosArrayPush(pListInfo->pTableList, &info);
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     tableIdx++;
