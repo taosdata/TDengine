@@ -82,7 +82,7 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
 
   if ((code = taosFuncInit()) != 0) {
-    dError("failed to start afunc");
+    dError("failed to start analysis func ver");
   }
 
   pOutput->pMgmt = pMgmt;

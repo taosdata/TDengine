@@ -5729,7 +5729,7 @@ static int32_t translateAnomalyWindow(STranslateContext* pCxt, SSelectStmt* pSel
   SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pSelect->pWindow;
   int32_t             code = checkAnomalyExpr(pCxt, pAnomaly->pExpr);
   if (TSDB_CODE_SUCCESS == code) {
-    char *pos1 = strstr(pAnomaly->anomalyOpt, "func=");
+    char* pos1 = strstr(pAnomaly->anomalyOpt, "func=");
     if (pos1 == NULL) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_OPT);
     }
@@ -7828,7 +7828,7 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropQnodeReq, pReq);
       break;
     }
-    
+
     case TDMT_MND_CREATE_ANODE: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateAnodeReq, pReq);
       break;
@@ -9340,10 +9340,6 @@ static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) 
 }
 
 static int32_t translateCreateAnode(STranslateContext* pCxt, SCreateAnodeStmt* pStmt) {
-  // #ifndef TD_ENTERPRISE
-  //   return TSDB_CODE_OPS_NOT_SUPPORT;
-  // #endif
-
   SMCreateAnodeReq createReq = {0};
   createReq.urlLen = strlen(pStmt->url) + 1;
   createReq.url = taosMemoryCalloc(createReq.urlLen, 1);

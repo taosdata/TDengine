@@ -35,7 +35,7 @@ static int32_t  mndAnodeActionDelete(SSdb *pSdb, SAnodeObj *pObj);
 static int32_t  mndProcessCreateAnodeReq(SRpcMsg *pReq);
 static int32_t  mndProcessUpdateAnodeReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropAnodeReq(SRpcMsg *pReq);
-static int32_t  mndProcessAfuncReq(SRpcMsg *pReq);
+static int32_t  mndProcessAnalFuncReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextAnode(SMnode *pMnode, void *pIter);
 static int32_t  mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -57,7 +57,7 @@ int32_t mndInitAnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ANODE, mndProcessCreateAnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_UPDATE_ANODE, mndProcessUpdateAnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_ANODE, mndProcessDropAnodeReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_AFUNC, mndProcessAfuncReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_ANAL_FUNC, mndProcessAnalFuncReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ANODE, mndRetrieveAnodes);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ANODE, mndCancelGetNextAnode);
@@ -295,7 +295,7 @@ static int32_t mndCreateAnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateAnodeReq *p
   anodeObj.updateTime = anodeObj.createdTime;
   anodeObj.version = 0;
   anodeObj.urlLen = pCreate->urlLen;
-  if (anodeObj.urlLen > TSDB_URL_LEN) {
+  if (anodeObj.urlLen > TSDB_ANODE_URL_LEN) {
     code = TSDB_CODE_MND_ANODE_TOO_LONG_URL;
     goto _OVER;
   }
@@ -570,7 +570,7 @@ static int32_t mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   int32_t    numOfRows = 0;
   int32_t    cols = 0;
   SAnodeObj *pObj = NULL;
-  char       buf[TSDB_URL_LEN + VARSTR_HEADER_SIZE];
+  char       buf[TSDB_ANODE_URL_LEN + VARSTR_HEADER_SIZE];
   char       status[64];
 
   while (numOfRows < rows) {
@@ -620,7 +620,7 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
   int32_t    numOfRows = 0;
   int32_t    cols = 0;
   SAnodeObj *pObj = NULL;
-  char       buf[TSDB_FUNC_NAME_LEN + VARSTR_HEADER_SIZE];
+  char       buf[TSDB_ANAL_FUNC_NAME_LEN + VARSTR_HEADER_SIZE];
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_ANODE, pShow->pIter, (void **)&pObj);
@@ -629,7 +629,7 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     for (int32_t f = 0; f < pObj->numOfFuncs; ++f) {
       SAnodeFunc *pFunc = &pObj->pFuncs[f];
       for (int32_t t = 0; t < pFunc->typeLen; ++t) {
-        EAFuncType type = pFunc->types[t];
+        EAnalFuncType type = pFunc->types[t];
 
         cols = 0;
         SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -639,7 +639,7 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         (void)colDataSetVal(pColInfo, numOfRows, buf, false);
 
-        STR_TO_VARSTR(buf, taosFuncStr(type));
+        STR_TO_VARSTR(buf, taosAnalFuncStr(type));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         (void)colDataSetVal(pColInfo, numOfRows, buf, false);
 
@@ -663,7 +663,7 @@ static void mndCancelGetNextAnodeFull(SMnode *pMnode, void *pIter) {
 static int32_t mndDecodeFuncList(SJson *pJson, SAnodeObj *pObj) {
   int32_t code = 0;
   int32_t protocol = 0;
-  char    buf[TSDB_FUNC_NAME_LEN + 1] = {0};
+  char    buf[TSDB_ANAL_FUNC_NAME_LEN + 1] = {0};
 
   tjsonGetInt32ValueFromDouble(pJson, "protocol", protocol, code);
   if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
@@ -688,7 +688,7 @@ static int32_t mndDecodeFuncList(SJson *pJson, SAnodeObj *pObj) {
     code = tjsonGetStringValue(func, "name", buf);
     if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
     pFunc->nameLen = strlen(buf) + 1;
-    if (pFunc->nameLen > TSDB_FUNC_NAME_LEN) return TSDB_CODE_MND_ANODE_TOO_LONG_FUNC_NAME;
+    if (pFunc->nameLen > TSDB_ANAL_FUNC_NAME_LEN) return TSDB_CODE_MND_ANODE_TOO_LONG_FUNC_NAME;
     if (pFunc->nameLen <= 1) return TSDB_CODE_OUT_OF_MEMORY;
 
     pFunc->name = taosMemoryCalloc(pFunc->nameLen, 1);
@@ -710,54 +710,33 @@ static int32_t mndDecodeFuncList(SJson *pJson, SAnodeObj *pObj) {
       char *typestr = NULL;
       code = tjsonGetObjectValueString(type, &typestr);
       if (code != 0) return TSDB_CODE_INVALID_JSON_FORMAT;
-      pFunc->types[j] = taosFuncInt(typestr);
+      pFunc->types[j] = taosAnalFuncInt(typestr);
     }
   }
 
   return 0;
 }
 
-static SJson *mndGetAnodeJson(const char *anodeUrl, const char *path) {
-  SJson    *pJson = NULL;
-  SCurlResp curlRsp = {0};
-
-  char url[TSDB_URL_LEN + 1] = {0};
-  snprintf(url, TSDB_URL_LEN, "%s/%s", anodeUrl, path);
-
-  if (taosCurlGetRequest(url, &curlRsp) != 0) {
-    terrno = TSDB_CODE_MND_ANODE_URL_CANT_ACCESS;
-    goto _OVER;
-  }
-
-  if (curlRsp.data == NULL || curlRsp.dataLen == 0) {
-    terrno = TSDB_CODE_MND_ANODE_RSP_IS_NULL;
-    goto _OVER;
-  }
-
-  pJson = tjsonParse(curlRsp.data);
-  if (pJson == NULL) {
-    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
-    goto _OVER;
-  }
-
-_OVER:
-  if (curlRsp.data != NULL) taosMemoryFreeClear(curlRsp.data);
-  return pJson;
-}
-
 static int32_t mndGetAnodeFuncList(const char *url, SAnodeObj *pObj) {
-  SJson *pJson = mndGetAnodeJson(url, "list");
+  char anodeUrl[TSDB_ANODE_URL_LEN + 1] = {0};
+  snprintf(anodeUrl, TSDB_ANODE_URL_LEN, "%s/%s", url, "list");
+
+  SJson *pJson = taosFuncGetJson(anodeUrl, true, NULL);
   if (pJson == NULL) return terrno;
 
   int32_t code = mndDecodeFuncList(pJson, pObj);
   if (pJson != NULL) tjsonDelete(pJson);
+
   TAOS_RETURN(code);
 }
 
 static int32_t mndGetAnodeStatus(SAnodeObj *pObj, char *status) {
   int32_t code = 0;
   int32_t protocol = 0;
-  SJson  *pJson = mndGetAnodeJson(pObj->url, "status");
+  char    anodeUrl[TSDB_ANODE_URL_LEN + 1] = {0};
+  snprintf(anodeUrl, TSDB_ANODE_URL_LEN, "%s/%s", pObj->url, "status");
+
+  SJson *pJson = taosFuncGetJson(anodeUrl, true, NULL);
   if (pJson == NULL) return terrno;
 
   tjsonGetInt32ValueFromDouble(pJson, "protocol", protocol, code);
@@ -785,22 +764,23 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndProcessAfuncReq(SRpcMsg *pReq) {
-  SMnode           *pMnode = pReq->info.node;
-  SSdb             *pSdb = pMnode->pSdb;
-  int32_t           code = -1;
-  SAnodeObj        *pObj = NULL;
-  SAFuncUrl         url;
-  int32_t           nameLen;
-  char              name[TSDB_FUNC_KEY_LEN];
-  SRetrieveAfuncReq req = {0};
-  SRetrieveAFuncRsp rsp = {0};
+static int32_t mndProcessAnalFuncReq(SRpcMsg *pReq) {
+  SMnode              *pMnode = pReq->info.node;
+  SSdb                *pSdb = pMnode->pSdb;
+  int32_t              code = -1;
+  SAnodeObj           *pObj = NULL;
+  SAnalFuncUrl         url;
+  int32_t              nameLen;
+  char                 name[TSDB_ANAL_FUNC_KEY_LEN];
+  SRetrieveAnalFuncReq req = {0};
+  SRetrieveAnalFuncRsp rsp = {0};
 
-  TAOS_CHECK_GOTO(tDeserializeRetrieveAfuncReq(pReq->pCont, pReq->contLen, &req), NULL, _OVER);
+  TAOS_CHECK_GOTO(tDeserializeRetrieveAnalFuncReq(pReq->pCont, pReq->contLen, &req), NULL, _OVER);
 
   rsp.ver = sdbGetTableVer(pSdb, SDB_ANODE);
-  if (req.afuncVer != rsp.ver) {
-    mInfo("dnode:%d, update afunc old ver:%" PRId64 " to new ver:%" PRId64, req.dnodeId, req.afuncVer, rsp.ver);
+  if (req.analFuncVer != rsp.ver) {
+    mInfo("dnode:%d, update analysis func old ver:%" PRId64 " to new ver:%" PRId64, req.dnodeId, req.analFuncVer,
+          rsp.ver);
     rsp.hash = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
     if (rsp.hash == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -820,12 +800,13 @@ static int32_t mndProcessAfuncReq(SRpcMsg *pReq) {
           url.type = pFunc->types[t];
           nameLen = snprintf(name, sizeof(name) - 1, "%s:%d", pFunc->name, url.type);
 
-          SAFuncUrl *pOldUrl = taosHashAcquire(rsp.hash, name, nameLen);
+          SAnalFuncUrl *pOldUrl = taosHashAcquire(rsp.hash, name, nameLen);
           if (pOldUrl == NULL || (pOldUrl != NULL && pOldUrl->anode < url.anode)) {
-            url.url = taosMemoryMalloc(TSDB_URL_LEN + TSDB_FUNC_TYPE_LEN + 1);
-            url.urlLen =
-                snprintf(url.url, TSDB_URL_LEN + TSDB_FUNC_TYPE_LEN, "%s/%s", pAnode->url, taosFuncStr(url.type)) + 1;
-            if (taosHashPut(rsp.hash, name, nameLen, &url, sizeof(SAFuncUrl)) != 0) {
+            url.url = taosMemoryMalloc(TSDB_ANODE_URL_LEN + TSDB_ANAL_FUNC_TYPE_LEN + 1);
+            url.urlLen = snprintf(url.url, TSDB_ANODE_URL_LEN + TSDB_ANAL_FUNC_TYPE_LEN, "%s/%s", pAnode->url,
+                                  taosAnalFuncStr(url.type)) +
+                         1;
+            if (taosHashPut(rsp.hash, name, nameLen, &url, sizeof(SAnalFuncUrl)) != 0) {
               taosMemoryFree(url.url);
               sdbRelease(pSdb, pAnode);
               goto _OVER;
@@ -838,14 +819,14 @@ static int32_t mndProcessAfuncReq(SRpcMsg *pReq) {
     }
   }
 
-  int32_t contLen = tSerializeRetrieveAfuncRsp(NULL, 0, &rsp);
+  int32_t contLen = tSerializeRetrieveAnalFuncRsp(NULL, 0, &rsp);
   void   *pHead = rpcMallocCont(contLen);
-  (void)tSerializeRetrieveAfuncRsp(pHead, contLen, &rsp);
+  (void)tSerializeRetrieveAnalFuncRsp(pHead, contLen, &rsp);
 
   pReq->info.rspLen = contLen;
   pReq->info.rsp = pHead;
 
 _OVER:
-  tFreeRetrieveAfuncRsp(&rsp);
+  tFreeRetrieveAnalFuncRsp(&rsp);
   TAOS_RETURN(code);
 }

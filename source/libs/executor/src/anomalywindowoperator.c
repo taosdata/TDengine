@@ -43,8 +43,8 @@ typedef struct {
   int32_t            tsSlotId;
   STimeWindowAggSupp twAggSup;
   char               funcName[TSDB_FUNC_NAME_LEN];
-  char               funcUrl[TSDB_FUNC_URL_LEN];
-  char               anomalyOpt[TSDB_FUNC_OPTION_LEN];
+  char               funcUrl[TSDB_ANAL_FUNC_URL_LEN];
+  char               anomalyOpt[TSDB_ANAL_FUNC_OPTION_LEN];
   SAnomalyWindowSupp anomalySup;
   SWindowRowsSup     anomalyWinRowSup;
   SColumn            anomalyCol;
@@ -73,12 +73,12 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
 
   if (!taosFuncGetParaStr(pAnomalyNode->anomalyOpt, "func=", pInfo->funcName, sizeof(pInfo->funcName))) {
     uError("failed to get anomaly_window funcName from %s", pAnomalyNode->anomalyOpt);
-    code = TSDB_CODE_MND_AFUNC_NOT_FOUND;
+    code = TSDB_CODE_ANAL_FUNC_NOT_FOUND;
     goto _error;
   }
-  if (taosFuncGetUrl(pInfo->funcName, AFUNC_TYPE_FORECAST, pInfo->funcUrl, sizeof(pInfo->funcUrl)) != 0) {
+  if (taosFuncGetUrl(pInfo->funcName, ANAL_FUNC_TYPE_FORECAST, pInfo->funcUrl, sizeof(pInfo->funcUrl)) != 0) {
     uError("failed to get anomaly_window funcUrl from %s", pInfo->funcName);
-    code = TSDB_CODE_MND_AFUNC_NOT_LOAD;
+    code = TSDB_CODE_ANAL_FUNC_NOT_LOAD;
     goto _error;
   }
 
@@ -354,7 +354,7 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   SAnomalyWindowOperatorInfo* pInfo = pOperator->info;
   SAnomalyWindowSupp*         pSupp = &pInfo->anomalySup;
   SJson*                      pJson = NULL;
-  SAFuncJson                  file = {0};
+  SAnalFuncJson               file = {0};
   char                        buf[64] = {0};
   int32_t                     code = 0;
   int32_t                     numOfRows = 0;

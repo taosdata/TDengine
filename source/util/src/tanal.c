@@ -20,12 +20,12 @@
 #include "ttypes.h"
 #include "tutil.h"
 
-#define TSDB_AFUNC_FUNC_PREFIX "func="
-#define TSDB_AFUNC_SPLIT       ","
+#define ANAL_FUNC_FUNC_PREFIX "func="
+#define ANAL_FUNC_SPLIT       ","
 
 typedef struct {
   int64_t       ver;
-  SHashObj     *hash;  // funcname -> SAFuncUrl
+  SHashObj     *hash;  // funcname -> SAnalFuncUrl
   TdThreadMutex lock;
 } SAFuncMgmt;
 
@@ -37,29 +37,29 @@ typedef struct {
 static SAFuncMgmt tsFuncs = {0};
 static int32_t    taosCurlTestStr(const char *url, SCurlResp *pRsp);
 
-const char *taosFuncStr(EAFuncType type) {
+const char *taosAnalFuncStr(EAnalFuncType type) {
   switch (type) {
-    case AFUNC_TYPE_ANOMALY_WINDOW:
+    case ANAL_FUNC_TYPE_ANOMALY_WINDOW:
       return "anomaly_window";
-    case AFUNC_TYPE_ANOMALY_DETECT:
+    case ANAL_FUNC_TYPE_ANOMALY_DETECT:
       return "anomaly_detect";
-    case AFUNC_TYPE_FORECAST:
+    case ANAL_FUNC_TYPE_FORECAST:
       return "forecast";
-    case AFUNC_TYPE_HISTORIC:
+    case ANAL_FUNC_TYPE_HISTORIC:
       return "historic";
     default:
       return "unknown";
   }
 }
 
-EAFuncType taosFuncInt(const char *name) {
-  for (EAFuncType i = AFUNC_TYPE_START; i < AFUNC_TYPE_END; ++i) {
-    if (strcasecmp(name, taosFuncStr(i)) == 0) {
+EAnalFuncType taosAnalFuncInt(const char *name) {
+  for (EAnalFuncType i = ANAL_FUNC_TYPE_START; i < ANAL_FUNC_TYPE_END; ++i) {
+    if (strcasecmp(name, taosAnalFuncStr(i)) == 0) {
       return i;
     }
   }
 
-  return AFUNC_TYPE_START;
+  return ANAL_FUNC_TYPE_START;
 }
 
 int32_t taosFuncInit() {
@@ -76,14 +76,14 @@ int32_t taosFuncInit() {
     return -1;
   }
 
-  uInfo("afunc env is initialized");
+  uInfo("analysis func env is initialized");
   return 0;
 }
 
 void taosFuncFreeHash(SHashObj *hash) {
   void *pIter = taosHashIterate(hash, NULL);
   while (pIter != NULL) {
-    SAFuncUrl *pUrl = (SAFuncUrl *)pIter;
+    SAnalFuncUrl *pUrl = (SAnalFuncUrl *)pIter;
     taosMemoryFree(pUrl->url);
     pIter = taosHashIterate(hash, pIter);
   }
@@ -95,7 +95,7 @@ void taosFuncCleanup() {
   taosThreadMutexDestroy(&tsFuncs.lock);
   taosFuncFreeHash(tsFuncs.hash);
   tsFuncs.hash = NULL;
-  uInfo("afunc env is cleaned up");
+  uInfo("analysis func env is cleaned up");
 }
 
 void taosFuncUpdate(int64_t newVer, SHashObj *pHash) {
@@ -113,7 +113,7 @@ void taosFuncUpdate(int64_t newVer, SHashObj *pHash) {
 
 bool taosFuncGetParaStr(const char *option, const char *paraName, char *paraValue, int32_t paraValueMaxLen) {
   char *pos1 = strstr(option, paraName);
-  char *pos2 = strstr(option, TSDB_AFUNC_SPLIT);
+  char *pos2 = strstr(option, ANAL_FUNC_SPLIT);
   if (pos1 != NULL) {
     if (paraValueMaxLen > 0) {
       int32_t copyLen = paraValueMaxLen;
@@ -131,7 +131,7 @@ bool taosFuncGetParaStr(const char *option, const char *paraName, char *paraValu
 
 bool taosFuncGetParaInt(const char *option, const char *paraName, int32_t *paraValue) {
   char *pos1 = strstr(option, paraName);
-  char *pos2 = strstr(option, TSDB_AFUNC_SPLIT);
+  char *pos2 = strstr(option, ANAL_FUNC_SPLIT);
   if (pos1 != NULL) {
     *paraValue = taosStr2Int32(pos1 + strlen(paraName) + 1, NULL, 10);
     return true;
@@ -140,21 +140,21 @@ bool taosFuncGetParaInt(const char *option, const char *paraName, int32_t *paraV
   }
 }
 
-int32_t taosFuncGetUrl(const char *funcName, EAFuncType type, char *url, int32_t urlLen) {
+int32_t taosFuncGetUrl(const char *funcName, EAnalFuncType type, char *url, int32_t urlLen) {
   int32_t code = 0;
-  char    name[TSDB_FUNC_KEY_LEN] = {0};
+  char    name[TSDB_ANAL_FUNC_KEY_LEN] = {0};
   int32_t nameLen = snprintf(name, sizeof(name) - 1, "%s:%d", funcName, type);
 
   taosThreadMutexLock(&tsFuncs.lock);
-  SAFuncUrl *pUrl = taosHashAcquire(tsFuncs.hash, name, nameLen);
+  SAnalFuncUrl *pUrl = taosHashAcquire(tsFuncs.hash, name, nameLen);
   if (pUrl != NULL) {
     tstrncpy(url, pUrl->url, urlLen);
-    uInfo("func:%s, type:%s, url:%s", funcName, taosFuncStr(type), url);
+    uInfo("func:%s, type:%s, url:%s", funcName, taosAnalFuncStr(type), url);
   } else {
     url[0] = 0;
-    terrno = TSDB_CODE_MND_AFUNC_NOT_FOUND;
+    terrno = TSDB_CODE_ANAL_FUNC_NOT_FOUND;
     code = terrno;
-    uInfo("func:%s,type:%s, url not found", funcName, taosFuncStr(type));
+    uInfo("func:%s,type:%s, url not found", funcName, taosAnalFuncStr(type));
   }
   taosThreadMutexUnlock(&tsFuncs.lock);
 
@@ -257,7 +257,7 @@ SJson *taosFuncGetJson(const char *url, bool isGet, const char *file) {
 
   if (isGet) {
     if (taosCurlGetRequest(url, &curlRsp) != 0) {
-      code = TSDB_CODE_MND_ANODE_URL_CANT_ACCESS;
+      code = TSDB_CODE_ANAL_URL_CANT_ACCESS;
       goto _OVER;
     }
   } else {
@@ -284,13 +284,13 @@ SJson *taosFuncGetJson(const char *url, bool isGet, const char *file) {
     content[contentLen] = '\0';
 
     if (taosCurlPostRequest(url, &curlRsp, content, contentLen) != 0) {
-      code = TSDB_CODE_MND_ANODE_URL_CANT_ACCESS;
+      code = TSDB_CODE_ANAL_URL_CANT_ACCESS;
       goto _OVER;
     }
   }
 
   if (curlRsp.data == NULL || curlRsp.dataLen == 0) {
-    code = TSDB_CODE_MND_ANODE_RSP_IS_NULL;
+    code = TSDB_CODE_ANAL_URL_RSP_IS_NULL;
     goto _OVER;
   }
 
@@ -357,7 +357,7 @@ static int32_t taosCurlTestStr(const char *url, SCurlResp *pRsp) {
   return 0;
 }
 
-int32_t taosFuncOpenJson(SAFuncJson *pFile) {
+int32_t taosFuncOpenJson(SAnalFuncJson *pFile) {
   int32_t code = 0;
   pFile->filePtr =
       taosOpenFile(pFile->fileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
@@ -367,7 +367,7 @@ _OVER:
   return code;
 }
 
-int32_t taosFuncWritePara(SAFuncJson *pFile, const char *paras, const char *fmt, const char *prec) {
+int32_t taosFuncWritePara(SAnalFuncJson *pFile, const char *paras, const char *fmt, const char *prec) {
   const char *js =
       "{\n"
       "\"input\": {\n"
@@ -393,7 +393,7 @@ int32_t taosFuncWritePara(SAFuncJson *pFile, const char *paras, const char *fmt,
   return 0;
 }
 
-int32_t taosFuncWriteMeta(SAFuncJson *pFile, int32_t c1, int32_t c2) {
+int32_t taosFuncWriteMeta(SAnalFuncJson *pFile, int32_t c1, int32_t c2) {
   const char *js =
       "\"column_meta\": [\n"
       "  [\"ts\", \"%s\", %d],\n"
@@ -410,7 +410,7 @@ int32_t taosFuncWriteMeta(SAFuncJson *pFile, int32_t c1, int32_t c2) {
   return 0;
 }
 
-int32_t taosFuncWriteData(SAFuncJson *pFile, const char *data, bool isLast) {
+int32_t taosFuncWriteData(SAnalFuncJson *pFile, const char *data, bool isLast) {
   const char *js = "[%s]%s\n";
   char        buf[86] = {0};
   int32_t     bufLen = snprintf(buf, sizeof(buf), js, data, isLast ? "" : ",");
@@ -421,7 +421,7 @@ int32_t taosFuncWriteData(SAFuncJson *pFile, const char *data, bool isLast) {
   return 0;
 }
 
-int32_t taosFuncWriteRows(SAFuncJson *pFile, int32_t numOfRows) {
+int32_t taosFuncWriteRows(SAnalFuncJson *pFile, int32_t numOfRows) {
   const char *js =
       "],\n"
       "\"rows\": %d\n"
@@ -438,6 +438,4 @@ int32_t taosFuncWriteRows(SAFuncJson *pFile, int32_t numOfRows) {
   return 0;
 }
 
-void taosFuncCloseJson(SAFuncJson *pFile) {
-  (void)taosCloseFile(&pFile->filePtr);
-}
+void taosFuncCloseJson(SAnalFuncJson *pFile) { (void)taosCloseFile(&pFile->filePtr); }

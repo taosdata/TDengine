@@ -26,8 +26,6 @@ int32_t    mndInitAnode(SMnode *pMnode);
 void       mndCleanupAnode(SMnode *pMnode);
 SAnodeObj *mndAcquireAnode(SMnode *pMnode, int32_t anodeId);
 void       mndReleaseAnode(SMnode *pMnode, SAnodeObj *pObj);
-// int32_t    mndGetAnodeData(SMnode *pMnode, SArray *pAnodes);
-// int32_t    mndGetAnodeVersion(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

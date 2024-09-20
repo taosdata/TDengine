@@ -84,41 +84,43 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   }
 }
 
-static void dmMayShouldUpdateAfunc(SDnodeMgmt *pMgmt, int64_t newVer) {
+static void dmMayShouldUpdateAnalFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
   int32_t code = 0;
   int64_t oldVer = taosFuncGetVersion();
   if (oldVer == newVer) return;
-  dDebug("dnode afunc ver: %" PRId64 ", status ver: %" PRId64 "", oldVer, newVer);
+  dDebug("dnode analysis func ver: %" PRId64 ", status ver: %" PRId64 "", oldVer, newVer);
 
-  SRetrieveAfuncReq req = {.dnodeId = pMgmt->pData->dnodeId, .afuncVer = oldVer};
-  int32_t           contLen = tSerializeRetrieveAfuncReq(NULL, 0, &req);
+  SRetrieveAnalFuncReq req = {.dnodeId = pMgmt->pData->dnodeId, .analFuncVer = oldVer};
+  int32_t              contLen = tSerializeRetrieveAnalFuncReq(NULL, 0, &req);
   if (contLen < 0) {
-    dError("failed to serialize afuncver request since: %s", tstrerror(contLen));
+    dError("failed to serialize analysis func ver request since: %s", tstrerror(contLen));
     return;
   }
 
   void *pHead = rpcMallocCont(contLen);
-  contLen = tSerializeRetrieveAfuncReq(pHead, contLen, &req);
+  contLen = tSerializeRetrieveAnalFuncReq(pHead, contLen, &req);
   if (contLen < 0) {
     rpcFreeCont(pHead);
-    dError("failed to serialize afuncver request since:%s", tstrerror(contLen));
+    dError("failed to serialize analysis func ver request since:%s", tstrerror(contLen));
     return;
   }
 
-  SRpcMsg rpcMsg = {.pCont = pHead,
-                    .contLen = contLen,
-                    .msgType = TDMT_MND_RETRIEVE_AFUNC,
-                    .info.ahandle = (void *)0x9527,
-                    .info.refId = 0,
-                    .info.noResp = 0,
-                    .info.handle = 0};
-  SEpSet  epset = {0};
+  SRpcMsg rpcMsg = {
+      .pCont = pHead,
+      .contLen = contLen,
+      .msgType = TDMT_MND_RETRIEVE_ANAL_FUNC,
+      .info.ahandle = (void *)0x9527,
+      .info.refId = 0,
+      .info.noResp = 0,
+      .info.handle = 0,
+  };
+  SEpSet epset = {0};
 
   (void)dmGetMnodeEpSet(pMgmt->pData, &epset);
 
   code = rpcSendRequest(pMgmt->msgCb.clientRpc, &epset, &rpcMsg, NULL);
   if (code != 0) {
-    dError("failed to send retrieve afuncver request since:%s", tstrerror(code));
+    dError("failed to send retrieve analysis func ver request since:%s", tstrerror(code));
   }
 }
 
@@ -147,7 +149,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
       }
       dmMayShouldUpdateIpWhiteList(pMgmt, statusRsp.ipWhiteVer);
-      dmMayShouldUpdateAfunc(pMgmt, statusRsp.afuncVer);
+      dmMayShouldUpdateAnalFunc(pMgmt, statusRsp.analFuncVer);
     }
     tFreeSStatusRsp(&statusRsp);
   }
@@ -207,7 +209,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   pMgmt->statusSeq++;
   req.statusSeq = pMgmt->statusSeq;
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
-  req.afuncVer = taosFuncGetVersion();
+  req.analFuncVer = taosFuncGetVersion();
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   if (contLen < 0) {

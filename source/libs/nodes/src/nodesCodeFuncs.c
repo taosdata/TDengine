@@ -6517,7 +6517,7 @@ static int32_t dropQnodeStmtToJson(const void* pObj, SJson* pJson) { return drop
 static int32_t jsonToDropQnodeStmt(const SJson* pJson, void* pObj) { return jsonToDropComponentNodeStmt(pJson, pObj); }
 
 static const char* jkCreateAnodeStmtUrl = "Url";
-const const char* jkUpdateDropANodeStmtId = "AnodeId";
+const const char*  jkUpdateDropANodeStmtId = "AnodeId";
 
 static int32_t createAnodeStmtToJson(const void* pObj, SJson* pJson) {
   const SCreateAnodeStmt* pNode = (const SCreateAnodeStmt*)pObj;

@@ -22,7 +22,7 @@
 #include "wal.h"
 
 #define SDB_TABLE_SIZE_EXTRA   SDB_MAX
-#define SDB_RESERVE_SIZE_EXTRA (512 - (SDB_TABLE_SIZE_EXTRA - 24) * 2 * sizeof(int64_t))
+#define SDB_RESERVE_SIZE_EXTRA (512 - (SDB_TABLE_SIZE_EXTRA - SDB_TABLE_SIZE) * 2 * sizeof(int64_t))
 
 #define SDB_TABLE_SIZE   24
 #define SDB_RESERVE_SIZE 512

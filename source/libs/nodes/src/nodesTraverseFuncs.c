@@ -186,7 +186,7 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       res = walkExpr(pAnomaly->pExpr, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pAnomaly->pCol, order, walker, pContext);
-      } 
+      }
     }
     default:
       break;

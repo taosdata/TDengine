@@ -1103,19 +1103,19 @@ int32_t tDeserializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteR
 
 typedef struct {
   int32_t dnodeId;
-  int64_t afuncVer;
-} SRetrieveAfuncReq;
+  int64_t analFuncVer;
+} SRetrieveAnalFuncReq;
 
 typedef struct {
   int64_t   ver;
-  SHashObj* hash;  // funcname -> SAFuncUrl
-} SRetrieveAFuncRsp;
+  SHashObj* hash;  // funcname -> SAnalFuncUrl
+} SRetrieveAnalFuncRsp;
 
-int32_t tSerializeRetrieveAfuncReq(void* buf, int32_t bufLen, SRetrieveAfuncReq* pReq);
-int32_t tDeserializeRetrieveAfuncReq(void* buf, int32_t bufLen, SRetrieveAfuncReq* pReq);
-int32_t tSerializeRetrieveAfuncRsp(void* buf, int32_t bufLen, SRetrieveAFuncRsp* pRsp);
-int32_t tDeserializeRetrieveAfuncRsp(void* buf, int32_t bufLen, SRetrieveAFuncRsp* pRsp);
-void    tFreeRetrieveAfuncRsp(SRetrieveAFuncRsp* pRsp);
+int32_t tSerializeRetrieveAnalFuncReq(void* buf, int32_t bufLen, SRetrieveAnalFuncReq* pReq);
+int32_t tDeserializeRetrieveAnalFuncReq(void* buf, int32_t bufLen, SRetrieveAnalFuncReq* pReq);
+int32_t tSerializeRetrieveAnalFuncRsp(void* buf, int32_t bufLen, SRetrieveAnalFuncRsp* pRsp);
+int32_t tDeserializeRetrieveAnalFuncRsp(void* buf, int32_t bufLen, SRetrieveAnalFuncRsp* pRsp);
+void    tFreeRetrieveAnalFuncRsp(SRetrieveAnalFuncRsp* pRsp);
 
 typedef struct {
   int8_t alterType;
@@ -1789,7 +1789,7 @@ typedef struct {
   SArray*     pVloads;  // array of SVnodeLoad
   int32_t     statusSeq;
   int64_t     ipWhiteVer;
-  int64_t     afuncVer;
+  int64_t     analFuncVer;
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
@@ -1855,7 +1855,7 @@ typedef struct {
   SArray*   pDnodeEps;  // Array of SDnodeEp
   int32_t   statusSeq;
   int64_t   ipWhiteVer;
-  int64_t   afuncVer;
+  int64_t   analFuncVer;
 } SStatusRsp;
 
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);

@@ -1454,7 +1454,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   }
 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->ipWhiteVer));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->afuncVer));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->analFuncVer));
   TAOS_CHECK_EXIT(tSerializeSMonitorParas(&encoder, &pReq->clusterCfg.monitorParas));
 
   tEndEncode(&encoder);
@@ -1578,7 +1578,7 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->ipWhiteVer));
   }
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->afuncVer));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->analFuncVer));
   }
 
   if (!tDecodeIsEnd(&decoder)) {
@@ -1657,7 +1657,7 @@ int32_t tSerializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->statusSeq));
 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->ipWhiteVer));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->afuncVer));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->analFuncVer));
   tEndEncode(&encoder);
 
 _exit:
@@ -1711,7 +1711,7 @@ int32_t tDeserializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   }
 
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->afuncVer));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->analFuncVer));
   }
 
   tEndDecode(&decoder);
@@ -2055,7 +2055,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeRetrieveAfuncReq(void *buf, int32_t bufLen, SRetrieveAfuncReq *pReq) {
+int32_t tSerializeRetrieveAnalFuncReq(void *buf, int32_t bufLen, SRetrieveAnalFuncReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -2064,7 +2064,7 @@ int32_t tSerializeRetrieveAfuncReq(void *buf, int32_t bufLen, SRetrieveAfuncReq 
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->dnodeId));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->afuncVer));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->analFuncVer));
   tEndEncode(&encoder);
 
 _exit:
@@ -2077,7 +2077,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeRetrieveAfuncReq(void *buf, int32_t bufLen, SRetrieveAfuncReq *pReq) {
+int32_t tDeserializeRetrieveAnalFuncReq(void *buf, int32_t bufLen, SRetrieveAnalFuncReq *pReq) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -2086,7 +2086,7 @@ int32_t tDeserializeRetrieveAfuncReq(void *buf, int32_t bufLen, SRetrieveAfuncRe
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->dnodeId));
-  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->afuncVer));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->analFuncVer));
   tEndDecode(&decoder);
 
 _exit:
@@ -2094,7 +2094,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeRetrieveAfuncRsp(void *buf, int32_t bufLen, SRetrieveAFuncRsp *pRsp) {
+int32_t tSerializeRetrieveAnalFuncRsp(void *buf, int32_t bufLen, SRetrieveAnalFuncRsp *pRsp) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -2104,10 +2104,10 @@ int32_t tSerializeRetrieveAfuncRsp(void *buf, int32_t bufLen, SRetrieveAFuncRsp 
   int32_t numOfFuncs = 0;
   void   *pIter = taosHashIterate(pRsp->hash, NULL);
   while (pIter != NULL) {
-    SAFuncUrl  *pUrl = (SAFuncUrl *)pIter;
-    size_t      nameLen = 0;
-    const char *name = taosHashGetKey(pIter, &nameLen);
-    if (nameLen > 0 && nameLen <= TSDB_FUNC_KEY_LEN && pUrl->urlLen > 0) {
+    SAnalFuncUrl *pUrl = (SAnalFuncUrl *)pIter;
+    size_t        nameLen = 0;
+    const char   *name = taosHashGetKey(pIter, &nameLen);
+    if (nameLen > 0 && nameLen <= TSDB_ANAL_FUNC_KEY_LEN && pUrl->urlLen > 0) {
       numOfFuncs++;
     }
     pIter = taosHashIterate(pRsp->hash, pIter);
@@ -2119,9 +2119,9 @@ int32_t tSerializeRetrieveAfuncRsp(void *buf, int32_t bufLen, SRetrieveAFuncRsp 
 
   pIter = taosHashIterate(pRsp->hash, NULL);
   while (pIter != NULL) {
-    SAFuncUrl  *pUrl = (SAFuncUrl *)pIter;
-    size_t      nameLen = 0;
-    const char *name = taosHashGetKey(pIter, &nameLen);
+    SAnalFuncUrl *pUrl = (SAnalFuncUrl *)pIter;
+    size_t        nameLen = 0;
+    const char   *name = taosHashGetKey(pIter, &nameLen);
     if (nameLen > 0 && pUrl->urlLen > 0) {
       TAOS_CHECK_EXIT(tEncodeI32(&encoder, nameLen));
       TAOS_CHECK_EXIT(tEncodeBinary(&encoder, name, nameLen));
@@ -2145,7 +2145,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeRetrieveAfuncRsp(void *buf, int32_t bufLen, SRetrieveAFuncRsp *pRsp) {
+int32_t tDeserializeRetrieveAnalFuncRsp(void *buf, int32_t bufLen, SRetrieveAnalFuncRsp *pRsp) {
   if (pRsp->hash == NULL) {
     pRsp->hash = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
     if (pRsp->hash == NULL) {
@@ -2159,11 +2159,11 @@ int32_t tDeserializeRetrieveAfuncRsp(void *buf, int32_t bufLen, SRetrieveAFuncRs
   int32_t  lino;
   tDecoderInit(&decoder, buf, bufLen);
 
-  int32_t   numOfFuncs = 0;
-  int32_t   nameLen;
-  int32_t   type;
-  char      name[TSDB_FUNC_KEY_LEN];
-  SAFuncUrl url = {0};
+  int32_t      numOfFuncs = 0;
+  int32_t      nameLen;
+  int32_t      type;
+  char         name[TSDB_ANAL_FUNC_KEY_LEN];
+  SAnalFuncUrl url = {0};
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->ver));
@@ -2171,19 +2171,19 @@ int32_t tDeserializeRetrieveAfuncRsp(void *buf, int32_t bufLen, SRetrieveAFuncRs
 
   for (int32_t f = 0; f < numOfFuncs; ++f) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nameLen));
-    if (nameLen > 0 && nameLen <= TSDB_FUNC_NAME_LEN) {
+    if (nameLen > 0 && nameLen <= TSDB_ANAL_FUNC_NAME_LEN) {
       TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, name));
     }
 
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &url.anode));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &type));
-    url.type = (EAFuncType)type;
+    url.type = (EAnalFuncType)type;
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &url.urlLen));
     if (url.urlLen > 0) {
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&url.url, NULL) < 0);
     }
 
-    TAOS_CHECK_EXIT(taosHashPut(pRsp->hash, name, nameLen, &url, sizeof(SAFuncUrl)));
+    TAOS_CHECK_EXIT(taosHashPut(pRsp->hash, name, nameLen, &url, sizeof(SAnalFuncUrl)));
   }
 
   tEndDecode(&decoder);
@@ -2193,7 +2193,7 @@ _exit:
   return code;
 }
 
-void tFreeRetrieveAfuncRsp(SRetrieveAFuncRsp *pRsp) {
+void tFreeRetrieveAnalFuncRsp(SRetrieveAnalFuncRsp *pRsp) {
   taosFuncFreeHash(pRsp->hash);
   pRsp->hash = NULL;
 }

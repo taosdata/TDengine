@@ -353,7 +353,7 @@ typedef struct SAnomalyWindowNode {
   ENodeType type;  // QUERY_NODE_ANOMALY_WINDOW
   SNode*    pCol;  // timestamp primary key
   SNode*    pExpr;
-  char      anomalyOpt[TSDB_FUNC_OPTION_LEN];
+  char      anomalyOpt[TSDB_ANAL_FUNC_OPTION_LEN];
 } SAnomalyWindowNode;
 
 typedef enum EFillMode {
