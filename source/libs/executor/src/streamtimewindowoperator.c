@@ -541,14 +541,21 @@ void reloadFromDownStream(SOperatorInfo* downstream, SStreamIntervalOperatorInfo
   pInfo->pUpdateInfo = pScanInfo->pUpdateInfo;
 }
 
-int32_t initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SStreamIntervalOperatorInfo* pInfo) {
+bool hasSrcPrimaryKeyCol(SSteamOpBasicInfo* pInfo) { return pInfo->primaryPkIndex != -1; }
+
+int32_t initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SStreamIntervalOperatorInfo* pInfo, struct SSteamOpBasicInfo* pBasic) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SStateStore*   pAPI = &downstream->pTaskInfo->storageAPI.stateStore;
   SExecTaskInfo* pTaskInfo = downstream->pTaskInfo;
 
+  if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION) {
+    SStreamPartitionOperatorInfo* pScanInfo = downstream->info;
+    pBasic->primaryPkIndex = pScanInfo->basic.primaryPkIndex;
+  }
+
   if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    return initIntervalDownStream(downstream->pDownstream[0], type, pInfo);
+    return initIntervalDownStream(downstream->pDownstream[0], type, pInfo, pBasic);
   }
 
   SStreamScanInfo* pScanInfo = downstream->info;
@@ -564,7 +571,9 @@ int32_t initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SStream
   pScanInfo->twAggSup = pInfo->twAggSup;
   pScanInfo->pState = pInfo->pState;
   pInfo->pUpdateInfo = pScanInfo->pUpdateInfo;
-  pInfo->basic.primaryPkIndex = pScanInfo->primaryKeyIndex;
+  if (!hasSrcPrimaryKeyCol(pBasic)) {
+    pBasic->primaryPkIndex = pScanInfo->basic.primaryPkIndex;
+  }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1012,8 +1021,6 @@ static int32_t getNextQualifiedFinalWindow(SInterval* pInterval, STimeWindow* pN
   }
   return startPos;
 }
-
-bool hasSrcPrimaryKeyCol(SSteamOpBasicInfo* pInfo) { return pInfo->primaryPkIndex != -1; }
 
 static int32_t doStreamIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBlock, uint64_t groupId,
                                     SSHashObj* pUpdatedMap, SSHashObj* pDeletedMap) {
@@ -2036,7 +2043,8 @@ int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiN
   setOperatorStreamStateFn(pOperator, streamIntervalReleaseState, streamIntervalReloadState);
   if (pPhyNode->type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL ||
       pPhyNode->type == QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL) {
-    code = initIntervalDownStream(downstream, pPhyNode->type, pInfo);
+    pInfo->basic.primaryPkIndex = -1;
+    code = initIntervalDownStream(downstream, pPhyNode->type, pInfo, &pInfo->basic);
     QUERY_CHECK_CODE(code, lino, _error);
   }
   code = appendDownstream(pOperator, &downstream, 1);
@@ -2140,6 +2148,7 @@ int32_t initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, 
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION) {
     SStreamPartitionOperatorInfo* pScanInfo = downstream->info;
     pScanInfo->tsColIndex = tsColIndex;
+    pBasic->primaryPkIndex = pScanInfo->basic.primaryPkIndex;
   }
 
   if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
@@ -2157,7 +2166,9 @@ int32_t initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, 
   }
   pScanInfo->twAggSup = *pTwSup;
   pAggSup->pUpdateInfo = pScanInfo->pUpdateInfo;
-  pBasic->primaryPkIndex = pScanInfo->primaryKeyIndex;
+  if (!hasSrcPrimaryKeyCol(pBasic)) {
+    pBasic->primaryPkIndex = pScanInfo->basic.primaryPkIndex;
+  }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -3218,7 +3229,7 @@ int32_t doStreamSessionEncodeOpState(void** buf, int32_t len, SOperatorInfo* pOp
   size_t  keyLen = 0;
   int32_t iter = 0;
   while ((pIte = tSimpleHashIterate(pInfo->streamAggSup.pResultRows, pIte, &iter)) != NULL) {
-    void* key = taosHashGetKey(pIte, &keyLen);
+    void* key = tSimpleHashGetKey(pIte, &keyLen);
     tlen += encodeSSessionKey(buf, key);
     tlen += encodeSResultWindowInfo(buf, pIte, pInfo->streamAggSup.resultRowSize);
   }
@@ -3866,6 +3877,7 @@ int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   setOperatorStreamStateFn(pOperator, streamSessionReleaseState, streamSessionReloadState);
 
   if (downstream) {
+    pInfo->basic.primaryPkIndex = -1;
     code = initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex,
                           &pInfo->twAggSup, &pInfo->basic);
     QUERY_CHECK_CODE(code, lino, _error);
@@ -5377,7 +5389,8 @@ int32_t createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
     taosMemoryFree(buff);
   }
 
-  code = initIntervalDownStream(downstream, pPhyNode->type, pInfo);
+  pInfo->basic.primaryPkIndex = -1;
+  code = initIntervalDownStream(downstream, pPhyNode->type, pInfo, &pInfo->basic);
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = appendDownstream(pOperator, &downstream, 1);

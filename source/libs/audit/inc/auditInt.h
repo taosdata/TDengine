@@ -23,6 +23,7 @@ typedef struct {
   SAuditCfg       cfg;
   SArray *records;
   TdThreadMutex lock;
+  int32_t         dnodeId;
 } SAudit;
 
 #endif /*_TD_AUDIT_INT_H_*/

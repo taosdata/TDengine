@@ -60,6 +60,10 @@ TDengine 可以高效地从 Kafka 读取数据并将其写入 TDengine，以实�
 
 在 **主题** 中填写要消费的 Topic 名称。可以配置多个 Topic ， Topic 之间用逗号分隔。例如：`tp1,tp2`。
 
+在 **Client ID** 中填写客户端标识，填写后会生成带有 `taosx` 前缀的客户端 ID （例如，如果填写的标识为 `foo`，则生成的客户端 ID 为 `taosxfoo`）。如果打开末尾处的开关，则会把当前任务的任务 ID 拼接到 `taosx` 之后，输入的标识之前（生成的客户端 ID 形如 `taosx100foo`）。连接到同一个 Kafka 集群的所有客户端 ID 必须保证唯一。
+
+在 **消费者组 ID** 中填写消费者组标识，填写后会生成带有 `taosx` 前缀的消费者组 ID （例如，如果填写的标识为 `foo`，则生成的消费者组 ID 为 `taosxfoo`）。如果打开末尾处的开关，则会把当前任务的任务 ID 拼接到 `taosx` 之后，输入的标识之前（生成的消费者组 ID 形如 `taosx100foo`）。
+
 在 **Offset** 的下拉列表中选择从哪个 Offset 开始消费数据。有三个选项：`Earliest`、`Latest`、`ByTime(ms)`。 默认值为Earliest。
 
 * Earliest：用于请求最早的 offset。

@@ -72,13 +72,13 @@ static int32_t tsdbBinaryToFS(uint8_t *pData, int64_t nData, STsdbFS *pFS) {
 
     int32_t nt = tGetDFileSet(pData + n, &fSet);
     if (nt < 0) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
 
     n += nt;
     if (taosArrayPush(pFS->aDFileSet, &fSet) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
   }
@@ -102,7 +102,7 @@ static int32_t tsdbSaveFSToFile(STsdbFS *pFS, const char *fname) {
   int32_t size = tsdbFSToBinary(NULL, pFS) + sizeof(TSCKSUM);
   pData = taosMemoryMalloc(size);
   if (pData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   int32_t tsize = tsdbFSToBinary(pData, pFS);
@@ -140,7 +140,7 @@ int32_t tsdbFSCreate(STsdbFS *pFS) {
   pFS->pDelFile = NULL;
   pFS->aDFileSet = taosArrayInit(0, sizeof(SDFileSet));
   if (pFS->aDFileSet == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -306,7 +306,7 @@ static int32_t load_fs(const char *fname, STsdbFS *pFS) {
 
   pData = taosMemoryMalloc(size);
   if (pData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     (void)taosCloseFile(&pFD);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -386,7 +386,7 @@ static int32_t tsdbNewFileSet(STsdb *pTsdb, SDFileSet *pSetTo, SDFileSet *pSetFr
   // head
   pSetTo->pHeadF = (SHeadFile *)taosMemoryMalloc(sizeof(SHeadFile));
   if (pSetTo->pHeadF == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   *pSetTo->pHeadF = *pSetFrom->pHeadF;
@@ -395,7 +395,7 @@ static int32_t tsdbNewFileSet(STsdb *pTsdb, SDFileSet *pSetTo, SDFileSet *pSetFr
   // data
   pSetTo->pDataF = (SDataFile *)taosMemoryMalloc(sizeof(SDataFile));
   if (pSetTo->pDataF == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   *pSetTo->pDataF = *pSetFrom->pDataF;
@@ -404,7 +404,7 @@ static int32_t tsdbNewFileSet(STsdb *pTsdb, SDFileSet *pSetTo, SDFileSet *pSetFr
   // sma
   pSetTo->pSmaF = (SSmaFile *)taosMemoryMalloc(sizeof(SSmaFile));
   if (pSetTo->pSmaF == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   *pSetTo->pSmaF = *pSetFrom->pSmaF;
@@ -414,7 +414,7 @@ static int32_t tsdbNewFileSet(STsdb *pTsdb, SDFileSet *pSetTo, SDFileSet *pSetFr
   for (int32_t iStt = 0; iStt < pSetFrom->nSttF; iStt++) {
     pSetTo->aSttF[iStt] = (SSttFile *)taosMemoryMalloc(sizeof(SSttFile));
     if (pSetTo->aSttF[iStt] == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -442,7 +442,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
   if ((!sameDisk) || (pHeadF->commitID != pSetNew->pHeadF->commitID)) {
     pSetOld->pHeadF = (SHeadFile *)taosMemoryMalloc(sizeof(SHeadFile));
     if (pSetOld->pHeadF == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     *pSetOld->pHeadF = *pSetNew->pHeadF;
@@ -465,7 +465,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
   if ((!sameDisk) || (pDataF->commitID != pSetNew->pDataF->commitID)) {
     pSetOld->pDataF = (SDataFile *)taosMemoryMalloc(sizeof(SDataFile));
     if (pSetOld->pDataF == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     *pSetOld->pDataF = *pSetNew->pDataF;
@@ -486,7 +486,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
   if ((!sameDisk) || (pSmaF->commitID != pSetNew->pSmaF->commitID)) {
     pSetOld->pSmaF = (SSmaFile *)taosMemoryMalloc(sizeof(SSmaFile));
     if (pSetOld->pSmaF == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     *pSetOld->pSmaF = *pSetNew->pSmaF;
@@ -507,7 +507,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
     if (pSetNew->nSttF > pSetOld->nSttF) {
       pSetOld->aSttF[pSetOld->nSttF] = (SSttFile *)taosMemoryMalloc(sizeof(SSttFile));
       if (pSetOld->aSttF[pSetOld->nSttF] == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
       *pSetOld->aSttF[pSetOld->nSttF] = *pSetNew->aSttF[pSetOld->nSttF];
@@ -528,7 +528,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
       pSetOld->nSttF = 1;
       pSetOld->aSttF[0] = (SSttFile *)taosMemoryMalloc(sizeof(SSttFile));
       if (pSetOld->aSttF[0] == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
       *pSetOld->aSttF[0] = *pSetNew->aSttF[0];
@@ -546,7 +546,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
 
           pSetOld->aSttF[iStt] = (SSttFile *)taosMemoryMalloc(sizeof(SSttFile));
           if (pSetOld->aSttF[iStt] == NULL) {
-            code = TSDB_CODE_OUT_OF_MEMORY;
+            code = terrno;
             TSDB_CHECK_CODE(code, lino, _exit);
           }
           *pSetOld->aSttF[iStt] = *pSetNew->aSttF[iStt];
@@ -574,7 +574,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
     for (int32_t iStt = 0; iStt < pSetNew->nSttF; iStt++) {
       pSetOld->aSttF[iStt] = (SSttFile *)taosMemoryMalloc(sizeof(SSttFile));
       if (pSetOld->aSttF[iStt] == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
 
@@ -610,7 +610,7 @@ static int32_t tsdbFSApplyChange(STsdb *pTsdb, STsdbFS *pFS) {
     if (pDelFile == NULL || (pDelFile->commitID != pFS->pDelFile->commitID)) {
       pTsdb->fs.pDelFile = (SDelFile *)taosMemoryMalloc(sizeof(SDelFile));
       if (pTsdb->fs.pDelFile == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
 
@@ -668,7 +668,7 @@ static int32_t tsdbFSApplyChange(STsdb *pTsdb, STsdbFS *pFS) {
         TSDB_CHECK_CODE(code, lino, _exit);
 
         if (taosArrayInsert(pTsdb->fs.aDFileSet, iOld, &fSet) == NULL) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           TSDB_CHECK_CODE(code, lino, _exit);
         }
 
@@ -684,7 +684,7 @@ static int32_t tsdbFSApplyChange(STsdb *pTsdb, STsdbFS *pFS) {
       TSDB_CHECK_CODE(code, lino, _exit);
 
       if (taosArrayInsert(pTsdb->fs.aDFileSet, iOld, &fSet) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
 

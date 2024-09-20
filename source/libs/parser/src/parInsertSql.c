@@ -465,6 +465,7 @@ static int32_t parseVarbinary(SToken* pToken, uint8_t** pData, uint32_t* nData, 
     *nData = size;
   } else {
     *pData = taosMemoryCalloc(1, pToken->n);
+    if (!pData) return terrno;
     int32_t len = trimString(pToken->z, pToken->n, *pData, pToken->n);
     *nData = len;
 
@@ -639,6 +640,9 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
       val->pData = taosStrdup(pToken->z);
+      if (!val->pData) {
+        return terrno;
+      }
       val->nData = pToken->n;
       break;
     }
@@ -770,10 +774,9 @@ static int32_t buildCreateTbReq(SVnodeModifyOpStmt* pStmt, STag* pTag, SArray* p
   if (NULL == pStmt->pCreateTblReq) {
     return terrno;
   }
-  insBuildCreateTbReq(pStmt->pCreateTblReq, pStmt->targetTableName.tname, pTag, pStmt->pTableMeta->suid,
+  return insBuildCreateTbReq(pStmt->pCreateTblReq, pStmt->targetTableName.tname, pTag, pStmt->pTableMeta->suid,
                       pStmt->usingTableName.tname, pTagName, pStmt->pTableMeta->tableInfo.numOfTags,
                       TSDB_DEFAULT_TABLE_TTL);
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf, int8_t type) {
@@ -1919,7 +1922,7 @@ static int32_t processCtbAutoCreationAndCtbMeta(SInsertParseContext* pCxt, SVnod
     code = terrno;
   }
   if (code == TSDB_CODE_SUCCESS) {
-    insBuildCreateTbReq(pStbRowsCxt->pCreateCtbReq, pStbRowsCxt->ctbName.tname, pStbRowsCxt->pTag,
+    code = insBuildCreateTbReq(pStbRowsCxt->pCreateCtbReq, pStbRowsCxt->ctbName.tname, pStbRowsCxt->pTag,
                         pStbRowsCxt->pStbMeta->uid, pStbRowsCxt->stbName.tname, pStbRowsCxt->aTagNames,
                         getNumOfTags(pStbRowsCxt->pStbMeta), TSDB_DEFAULT_TABLE_TTL);
     pStbRowsCxt->pTag = NULL;

@@ -81,6 +81,9 @@ bool inSessionWindow(SSessionKey* pKey, TSKEY ts, int64_t gap) {
 
 SStreamStateCur* createSessionStateCursor(SStreamFileState* pFileState) {
   SStreamStateCur* pCur = createStreamStateCursor();
+  if (pCur == NULL) {
+    return NULL;
+  }
   pCur->pStreamFileState = pFileState;
   return pCur;
 }
@@ -533,6 +536,9 @@ static SStreamStateCur* seekKeyCurrentPrev_buff(SStreamFileState* pFileState, co
 
   if (index >= 0) {
     pCur = createSessionStateCursor(pFileState);
+    if (pCur == NULL) {
+      return NULL;
+    }
     pCur->buffIndex = index;
     if (pIndex) {
       *pIndex = index;
@@ -634,6 +640,9 @@ SStreamStateCur* countWinStateSeekKeyPrev(SStreamFileState* pFileState, const SS
     pBuffCur->buffIndex = 0;
   } else if (taosArrayGetSize(pWinStates) > 0) {
     pBuffCur = createSessionStateCursor(pFileState);
+    if (pBuffCur == NULL) {
+      return NULL;
+    }
     pBuffCur->buffIndex = 0;
   }
 
