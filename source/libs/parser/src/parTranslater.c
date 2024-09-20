@@ -6644,7 +6644,6 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
           pCxt->pTranslateCxt->errCode = code;
           return DEAL_RES_ERROR;
         }
-        ((SExprNode*)pNew)->orderAlias = true;
         nodesDestroyNode(*pNode);
         *pNode = pNew;
         return DEAL_RES_CONTINUE;
@@ -6668,7 +6667,6 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
           pCxt->pTranslateCxt->errCode = code;
           return DEAL_RES_ERROR;
         }
-        ((SExprNode*)pNew)->orderAlias = true;
         ((SOrderByExprNode*)*pNode)->pExpr = pNew;
         nodesDestroyNode(pExpr);
         return DEAL_RES_CONTINUE;
@@ -7055,7 +7053,6 @@ static int32_t addOrderByPrimaryKeyToQueryImpl(STranslateContext* pCxt, SNode* p
     nodesDestroyNode((SNode*)pOrderByExpr);
     return code;
   }
-  ((SExprNode*)pOrderByExpr->pExpr)->orderAlias = true;
   // NODES_DESTORY_LIST(*pOrderByList);
   return nodesListMakeStrictAppend(pOrderByList, (SNode*)pOrderByExpr);
 }
