@@ -1,4 +1,3 @@
-use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::time::Duration;
@@ -108,11 +107,7 @@ impl PointsUpdater {
                 }
             };
             if let Err(e) = to_list {
-                tracing::error!(
-                    "failed to get points during points updating, opc config: {:?}, cause: {}",
-                    &self,
-                    e.to_string()
-                );
+                tracing::error!("failed to get to_list, cause: {}", e.to_string());
                 continue;
             }
             let to_list = to_list.unwrap();
@@ -154,11 +149,7 @@ impl PointsUpdater {
                     tracing::info!("update points success");
                 }
                 Err(e) => {
-                    tracing::error!(
-                        "failed to update points during points updating, opc config: {:?}, cause: {}",
-                        &self,
-                        e.to_string()
-                    );
+                    tracing::error!("failed to update points, cause: {}", e.to_string());
                 }
             }
         }
@@ -213,15 +204,15 @@ impl PointsUpdater {
         })?;
 
         let temp_path = format!("{}.temp", &self.opc_toml_path);
-        let mut opc_config_file = File::create(&temp_path).map_err(|e| {
+        let mut temp_file = File::create(&temp_path).map_err(|e| {
             anyhow::anyhow!(
                 "failed to create temporary opc config file during points updating, cause: {}",
                 e.to_string()
             )
         })?;
-        write!(opc_config_file, "{}", toml)?;
+        write!(temp_file, "{}", toml)?;
         tracing::debug!("update points, write opc config file\n{toml}");
-        opc_config_file.sync_all().map_err(|e| {
+        temp_file.sync_all().map_err(|e| {
             anyhow::anyhow!(
                 "failed to sync temporary opc config file during points updating, cause: {}",
                 e.to_string()
@@ -232,7 +223,8 @@ impl PointsUpdater {
             &temp_path,
             &self.opc_toml_path
         );
-        fs::rename(&temp_path, &self.opc_toml_path).map_err(|e| {
+
+        std::fs::rename(temp_path, &self.opc_toml_path).map_err(|e| {
             anyhow::anyhow!(
                 "failed to rename temporary opc config file during points updating, cause: {}",
                 e.to_string()

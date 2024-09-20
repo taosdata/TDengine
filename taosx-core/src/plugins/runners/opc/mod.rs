@@ -212,6 +212,8 @@ pub async fn opc_to_taos(
     let mut config_file = File::create(&config_file_path)?;
     let toml = toml::to_string(&config)?;
     write!(config_file, "{}", &toml)?;
+    config_file.sync_all()?;
+    drop(config_file);
 
     // execute taosx-opc collect
     tracing::info!(
