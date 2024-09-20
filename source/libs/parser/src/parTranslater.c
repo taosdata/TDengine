@@ -2733,6 +2733,9 @@ static int32_t rewriteServerStatusFunc(STranslateContext* pCxt, SNode** pNode) {
     return TSDB_CODE_RPC_NETWORK_UNAVAIL;
   }
   char* pStatus = taosStrdup((void*)"1");
+  if (!pStatus) {
+    return terrno;
+  }
   int32_t code = rewriteFuncToValue(pCxt, &pStatus, pNode);
   if (TSDB_CODE_SUCCESS != code) taosMemoryFree(pStatus);
   return code;
@@ -4122,12 +4125,18 @@ static EDealRes doTranslateTbName(SNode** pNode, void* pContext) {
         pVal->literal = taosStrdup(pCxt->pTbName);
         if (NULL == pVal->literal) {
           pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+          nodesDestroyNode((SNode*)pVal);
           return DEAL_RES_ERROR;
         }
         pVal->translate = true;
         pVal->node.resType.type = TSDB_DATA_TYPE_BINARY;
         pVal->node.resType.bytes = tbLen + VARSTR_HEADER_SIZE;
         pVal->datum.p = taosMemoryCalloc(1, tbLen + VARSTR_HEADER_SIZE + 1);
+        if (!pVal->datum.p) {
+          pCxt->errCode = terrno;
+          nodesDestroyNode((SNode*)pVal);
+          return DEAL_RES_ERROR;
+        }
         varDataSetLen(pVal->datum.p, tbLen);
         strncpy(varDataVal(pVal->datum.p), pVal->literal, tbLen);
         strcpy(pVal->node.userAlias, pFunc->node.userAlias);
@@ -5832,6 +5841,11 @@ static int32_t createDefaultEveryNode(STranslateContext* pCxt, SNode** pOutput) 
   pEvery->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
   pEvery->flag |= VALUE_FLAG_IS_DURATION;
   pEvery->literal = taosStrdup("1s");
+  if (!pEvery->literal) {
+    code = terrno;
+    nodesDestroyNode((SNode*)pEvery);
+    return code;
+  }
 
   *pOutput = (SNode*)pEvery;
   return TSDB_CODE_SUCCESS;
@@ -6333,6 +6347,10 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
     nTbls = taosArrayGetSize(pInfo->aTbnames);
 
     SVgroupsInfo* vgsInfo = taosMemoryMalloc(sizeof(SVgroupsInfo) + nTbls * sizeof(SVgroupInfo));
+    if (!vgsInfo) {
+      code = terrno;
+      break;
+    }
     findVgroupsFromEqualTbname(pCxt, pInfo->aTbnames, pInfo->pRealTable->table.dbName, numOfVgs, vgsInfo);
     if (vgsInfo->numOfVgroups != 0) {
       taosMemoryFree(pInfo->pRealTable->pVgroupList);
@@ -6360,6 +6378,7 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
             break;
           }
           if (NULL == taosArrayPush(pTbNames, &pNewTbName)) {
+            taosMemoryFreeClear(pNewTbName);
             code = terrno;
             break;
           }
@@ -6374,14 +6393,18 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
           findVgroupsFromEqualTbname(pCxt, pTbNames, pInfo->pRealTable->table.dbName, numOfVgs, vgsInfo);
           if (vgsInfo->numOfVgroups != 0) {
             if (NULL == taosArrayPush(pInfo->pRealTable->tsmaTargetTbVgInfo, &vgsInfo)) {
+              taosMemoryFreeClear(vgsInfo);
               code = terrno;
             }
           } else {
-            taosMemoryFree(vgsInfo);
+            taosMemoryFreeClear(vgsInfo);
           }
         }
         taosArrayDestroyP(pTbNames, taosMemoryFree);
         if (code) break;
+      }
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
       }
     }
   }
@@ -9216,6 +9239,9 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.numIpRanges = pStmt->numIpRanges;
   if (pStmt->numIpRanges > 0) {
     createReq.pIpRanges = taosMemoryMalloc(createReq.numIpRanges * sizeof(SIpV4Range));
+    if (!createReq.pIpRanges) {
+      return terrno;
+    }
     memcpy(createReq.pIpRanges, pStmt->pIpRanges, sizeof(SIpV4Range) * createReq.numIpRanges);
   }
   code = buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
@@ -9259,6 +9285,9 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   alterReq.numIpRanges = pStmt->numIpRanges;
   if (pStmt->numIpRanges > 0) {
     alterReq.pIpRanges = taosMemoryMalloc(alterReq.numIpRanges * sizeof(SIpV4Range));
+    if (!alterReq.pIpRanges) {
+      return terrno;
+    }
     memcpy(alterReq.pIpRanges, pStmt->pIpRanges, sizeof(SIpV4Range) * alterReq.numIpRanges);
   }
   code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &alterReq);
@@ -13282,6 +13311,10 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   SVCreateTbReq req = {0};
   req.type = TD_NORMAL_TABLE;
   req.name = taosStrdup(pStmt->tableName);
+  if (!req.name) {
+    tdDestroySVCreateTbReq(&req);
+    return terrno;
+  }
   req.ttl = pStmt->pOptions->ttl;
   if (pStmt->pOptions->commentNull == false) {
     req.comment = taosStrdup(pStmt->pOptions->comment);
@@ -14001,6 +14034,7 @@ static int32_t constructParseFileContext(SCreateSubTableFromFileClause* pStmt, S
   int32_t code = TSDB_CODE_SUCCESS;
 
   SParseFileContext* pParFileCxt = taosMemoryCalloc(1, sizeof(SParseFileContext));
+  if (!pParFileCxt) return terrno;
   pParFileCxt->pStbMeta = pSuperTableMeta;
   pParFileCxt->tagNameFilled = false;
   pParFileCxt->pTag = NULL;
@@ -14265,6 +14299,9 @@ int32_t continueCreateTbFromFile(SParseContext* pParseCxt, SQuery** pQuery) {
 
   SMsgBuf tmpBuf = {0};
   tmpBuf.buf = taosMemoryMalloc(1024);
+  if (!tmpBuf.buf) {
+    return terrno;
+  }
   int32_t code = createSubTableFromFile(&tmpBuf, pParseCxt, pModifyStmt);
   if (TSDB_CODE_SUCCESS != code) goto _OUT;
 

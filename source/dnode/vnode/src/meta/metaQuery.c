@@ -1460,7 +1460,7 @@ int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
       if (!p->pTagVal) {
         if (isLock) metaULock(pMeta);
 
-        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+        TAOS_RETURN(terrno);
       }
       memcpy(p->pTagVal, val, len);
       tdbFree(val);
@@ -1511,13 +1511,13 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
       if (!info.pTagVal) {
         metaCloseCtbCursor(pCur);
         taosHashCleanup(pSepecifiedUidMap);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
       if (taosArrayPush(pUidTagInfo, &info) == NULL) {
         metaCloseCtbCursor(pCur);
         taosHashCleanup(pSepecifiedUidMap);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
   } else {  // only the specified tables need to be added
@@ -1538,7 +1538,7 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
         if (!pTagInfo->pTagVal) {
           metaCloseCtbCursor(pCur);
           taosHashCleanup(pSepecifiedUidMap);
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
         memcpy(pTagInfo->pTagVal, pCur->pVal, pCur->vLen);
       }

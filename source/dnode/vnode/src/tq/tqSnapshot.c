@@ -33,7 +33,7 @@ int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, int8_t type, STqS
   // alloc
   pReader = (STqSnapReader*)taosMemoryCalloc(1, sizeof(STqSnapReader));
   if (pReader == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
   pReader->pTq = pTq;

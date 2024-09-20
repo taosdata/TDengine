@@ -36,11 +36,11 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, void* pRsp, int32_t numOf
   actualLen += sizeof(SRetrieveTableRspForTmq);
   if (taosArrayPush(((SMqDataRspCommon*)pRsp)->blockDataLen, &actualLen) == NULL){
     taosMemoryFree(buf);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if (taosArrayPush(((SMqDataRspCommon*)pRsp)->blockData, &buf) == NULL) {
     taosMemoryFree(buf);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -52,7 +52,7 @@ static int32_t tqAddBlockSchemaToRsp(const STqExecHandle* pExec, void* pRsp) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   if (taosArrayPush(((SMqDataRspCommon*)pRsp)->blockSchema, &pSW) == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   return 0;
 }
@@ -327,12 +327,12 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, STaosxRsp* pRsp, int3
     if (pRsp->createTableNum == 0) {
       pRsp->createTableLen = taosArrayInit(0, sizeof(int32_t));
       if (pRsp->createTableLen == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto END;
       }
       pRsp->createTableReq = taosArrayInit(0, sizeof(void*));
       if (pRsp->createTableReq == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto END;
       }
     }
