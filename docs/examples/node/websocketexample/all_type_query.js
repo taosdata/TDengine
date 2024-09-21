@@ -1,6 +1,6 @@
 const taos = require("@tdengine/websocket");
 
-let dsn = 'ws://127.0.0.1:6041';
+let dsn = 'ws://localhost:6041';
 async function json_tag_example() {
     let wsSql = null;
     try {
