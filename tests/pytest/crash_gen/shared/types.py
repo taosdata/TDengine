@@ -125,7 +125,8 @@ class FunctionMap(Enum):
         'specialFuncs': ['IRATE', 'TWA'],
         'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TOP', 'TAIL', 'SAMPLE', 'DIFF', 'CSUM', 'MAVG', 'DERIVATIVE', 'STATECOUNT', 'STATEDURATION', 'HISTOGRAM'],
         'castFuncs': ['CAST', 'TO_ISO8601'],
-        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
+        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)'],
+        'unsupported': ['LEASTSQUARES', 'PERCENTILE', 'BOTTOM', 'TOP', 'INTERP', 'DERIVATIVE', 'IRATE', 'DIFF', 'STATECOUNT', 'STATEDURATION', 'CSUM', 'MAVG', 'SAMPLE', 'TAIL', 'UNIQUE', 'MODE', 'IRATE', 'TWA', 'HISTOGRAM']
     }
     TEXT = {
         'types': ['BINARY', 'VARCHAR', 'NCHAR'],
@@ -137,7 +138,8 @@ class FunctionMap(Enum):
         'specialFuncs': [],
         'VariableFuncs': ['BOTTOM', 'INTERP', 'UNIQUE', 'TAIL', 'SAMPLE'],
         'castFuncs': ['CAST', 'TO_UNIXTIMESTAMP'],
-        'castTypes': DataBoundary.ALL_TYPE_UNIT.value
+        'castTypes': DataBoundary.ALL_TYPE_UNIT.value,
+        'unsupported': ['BOTTOM', 'INTERP', 'SAMPLE', 'TAIL', 'UNIQUE', 'MODE']
     }
     BINARY = {
         'types': ['VARBINARY'],
@@ -149,7 +151,8 @@ class FunctionMap(Enum):
         'specialFuncs': [],
         'VariableFuncs': ['UNIQUE', 'TAIL', 'SAMPLE'],
         'castFuncs': [],
-        'castTypes': []
+        'castTypes': [],
+        'unsupported': ['SAMPLE', 'TAIL', 'UNIQUE', 'MODE']
     }
     BOOLEAN = {
         'types': ['BOOL'],
@@ -161,7 +164,8 @@ class FunctionMap(Enum):
         'specialFuncs': [],
         'VariableFuncs': ['UNIQUE', 'TAIL', 'SAMPLE'],
         'castFuncs': ['CAST'],
-        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
+        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)'],
+        'unsupported': ['TAIL', 'UNIQUE', 'MODE', 'SAMPLE']
     }
     TIMESTAMP = {
         'types': ['TIMESTAMP'],
@@ -173,7 +177,8 @@ class FunctionMap(Enum):
         'specialFuncs': [],
         'VariableFuncs': ['UNIQUE', 'SAMPLE'],
         'castFuncs': ['CAST', 'TO_ISO8601', 'TO_CHAR'],
-        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
+        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)'],
+        'unsupported': ['ELAPSED', 'UNIQUE', 'MODE', 'SAMPLE']
     }
     # TODO sysinfoFuncs and geometryFuncs
 
@@ -181,5 +186,3 @@ TdColumns = Dict[str, TdDataType]
 TdTags    = Dict[str, TdDataType]
 
 IpcStream = NewType('IpcStream', BinaryIO)
-
-print(TdColumns)

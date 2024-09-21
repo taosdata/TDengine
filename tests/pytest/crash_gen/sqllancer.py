@@ -1,7 +1,7 @@
 
 import random
 from enum import Enum
-
+import re
 class DataBoundary(Enum):
     TINYINT_BOUNDARY = [-128, 127]
     SMALLINT_BOUNDARY = [-32768, 32767]
@@ -380,7 +380,7 @@ class SQLLancer:
     def getSlimitValue(self, rand=None):
         useTag = random.choice([True, False]) if rand is None else True
         if useTag:
-            slimitValList = [f'SLIMIT({random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)})', f'SLIMIT {random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)}, {random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)}']
+            slimitValList = [f'SLIMIT {random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)}', f'SLIMIT {random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)}, {random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)}']
             slimitVal = random.choice(slimitValList)
         else:
             slimitVal = ""
@@ -499,9 +499,18 @@ class SQLLancer:
             str: A string representing a random time unit.
         """
         if stream:
-            return f'{random.randint(*DataBoundary.SAMPLE_BOUNDARY.value)}{random.choice(DataBoundary.TIME_UNIT.value[2:])}'
+            return f'{random.randint(*DataBoundary.SAMPLE_BOUNDARY.value)}{random.choice(DataBoundary.TIME_UNIT.value[3:])}'
         else:
             return f'{random.randint(*DataBoundary.SAMPLE_BOUNDARY.value)}{random.choice(DataBoundary.TIME_UNIT.value)}'
+
+    def sepTimeStr(self, timeStr):
+        match = re.match(r"(\d+)(\D+)", timeStr)
+        return int(match.group(1)), match.group(2)
+
+    def getOffsetFromInterval(self, interval):
+        _, unit = self.sepTimeStr(interval)
+        idx = DataBoundary.TIME_UNIT.value.index(unit)
+        return f'{random.randint(*DataBoundary.SAMPLE_BOUNDARY.value)}{random.choice(DataBoundary.TIME_UNIT.value[2:idx])}'
 
     def getRandomWindow(self):
         """
@@ -566,11 +575,13 @@ class SQLLancer:
         res = [('2024-08-26 14:00:00.000',), ('2024-08-26 18:00:00.000',)]
         return [res[0][0], res[1][0]]
 
-    def getTimeRangeFilter(self, tbname, tsCol, rand=None):
+    def getTimeRangeFilter(self, tbname, tsCol, rand=None, doAggr=0):
         useTag = random.choice([True, False]) if rand is None else True
         if useTag:
             start_time, end_time = self.getTimeRange(tbname, tsCol)
             timeRangeFilter = random.choice([f'WHERE {tsCol} BETWEEN "{start_time}" AND "{end_time}"', f'where {tsCol} > "{start_time}" AND {tsCol} < "{end_time}"'])
+            if doAggr != 0:
+                timeRangeFilter = random.choice([timeRangeFilter, "", "", "", ""])
         else:
             timeRangeFilter = ""
         return timeRangeFilter
@@ -617,7 +628,9 @@ class SQLLancer:
 
     def getWindowStr(self, window, colDict, tsCol="ts", stateUnit="1", countUnit="2", stream=False):
         if window == "INTERVAL":
-            return f"{window}({self.getRandomTimeUnitStr(stream=stream)}{self.getOffsetValue()})"
+            interval = self.getRandomTimeUnitStr(stream=stream)
+            offset = self.getOffsetFromInterval(interval)
+            return f"{window}({interval},{offset})"
         elif window == "SESSION":
             return f"{window}({tsCol}, {self.getRandomTimeUnitStr(stream=stream)})"
         elif window == "STATE_WINDOW":
@@ -629,13 +642,14 @@ class SQLLancer:
         else:
             return ""
 
-
     def getFillHistoryValue(self, rand=None):
         useTag = random.choice([True, False]) if rand is None else True
         fillHistoryVal = f'FILL_HISTORY 1' if useTag else random.choice(["FILL_HISTORY 0", ""])
         return fillHistoryVal
 
-    def getExpiredValue(self, rand=None):
+    def getExpiredValue(self, rand=None, countWindow=False):
+        if countWindow:
+            return random.choice(["IGNORE EXPIRED 1", ""])
         useTag = random.choice([True, False]) if rand is None else True
         expiredVal = f'IGNORE EXPIRED 0' if useTag else random.choice(["IGNORE EXPIRED 1", ""])
         return expiredVal
@@ -645,9 +659,9 @@ class SQLLancer:
         updateVal = f'IGNORE UPDATE 0' if useTag else random.choice(["IGNORE UPDATE 1", ""])
         return updateVal
 
-    def getTriggerValue(self, force_trigger=None):
-        if force_trigger is not None:
-            return f"TRIGGER {force_trigger}"
+    def getTriggerValue(self, forceTrigger=None):
+        if forceTrigger is not None:
+            return f"TRIGGER {forceTrigger}"
         maxDelayTime = random.choice(DataBoundary.MAX_DELAY_UNIT.value)
         return random.choice(["TRIGGER AT_ONCE", "TRIGGER WINDOW_CLOSE", f"TRIGGER MAX_DELAY {maxDelayTime}", ""])
 
@@ -693,12 +707,11 @@ class SQLLancer:
 # CREATE STREAM IF NOT EXISTS stm_stb TRIGGER WINDOW_CLOSE WATERMARK 1y  IGNORE EXPIRED 1  into stm_stb_target   SUBTABLE(CONCAT("pre", tbname)) AS SELECT TO_CHAR(ts, "dy"),TIMETRUNCATE(ts, 1d, 1), POW(c1, 1),ROUND(c1),TODAY(),SIN(c1),ASIN(c1),TO_ISO8601(c1, "-08:00"),CEIL(c1),CAST(c1 AS BIGINT),MAX(c1),SQRT(c1),LOG(c1),MIN(c1),LAST_ROW(c1),TAN(c1),FIRST(c1),ABS(c1),FLOOR(c1),ACOS(c1),COS(c1),TIMEZONE(), CONCAT("pre_", cast(c2 as nchar(8))),CONCAT_WS(",", "pre_", cast(c2 as nchar(8))), LAST(c3),CAST(c3 AS SMALLINT),NOW(),FIRST(c3),LAST_ROW(c3) FROM test.stb partition BY ts,c1,c2,c3  ;;
 # CREATE STREAM IF NOT EXISTS stm_stb3 TRIGGER AT_ONCE WATERMARK 1y  IGNORE EXPIRED 1  into stm_stb_target3   SUBTABLE(CONCAT("pre", tbname)) AS SELECT ts, TO_CHAR(ts, "dy"),TIMETRUNCATE(ts, 1d, 1), POW(c1, 1),ROUND(c1),TODAY(),SIN(c1),ASIN(c1),TO_ISO8601(c1, "-08:00"),CEIL(c1),CAST(c1 AS BIGINT),MAX(c1),SQRT(c1),LOG(c1),MIN(c1),LAST_ROW(c1),TAN(c1),FIRST(c1),ABS(c1),FLOOR(c1),ACOS(c1),COS(c1),TIMEZONE(), CONCAT("pre_", cast(c2 as nchar(8))),CONCAT_WS(",", "pre_", cast(c2 as nchar(8))), LAST(c3),CAST(c3 AS SMALLINT),NOW(),FIRST(c3),LAST_ROW(c3) FROM test.stb partition by tbname group BY ts,c1,c2,c3 ;;
 # CREATE STREAM  stm_stb TRIGGER at_once into stm_stb_target AS SELECT ts,TO_CHAR(ts, "dy"),TIMETRUNCATE(ts, 1d, 1),SIN(c1) FROM test.stb partition by tbname;;
-    def generateRandomSubQuery(self, colDict, tbname, subtable=False):
+    def generateRandomSubQuery(self, colDict, tbname, subtable=False, doAggr=0):
         self._dbName = "test"
         selectPartList = []
         groupKeyList = []
         colTypes = [member.name for member in FunctionMap]
-        doAggr = random.choice([0, 1, 2])
         tsCol = "ts"
         for column_name, column_type in colDict.items():
             if column_type == "TIMESTAMP":
@@ -720,9 +733,9 @@ class SQLLancer:
         if len(groupKeyList) > 0:
             groupKeyStr = ",".join(groupKeyList)
             partitionVal = self.getPartitionValue(groupKeyStr)
-            if subtable and len(partitionVal) > 0:
-                partitionVal = f'{partitionVal},tbname'
-            return f"SELECT {selectPartStr} FROM {self._dbName}.{tbname} {partitionVal} GROUP BY {groupKeyStr} {self.getOrderByValue(groupKeyStr)} {self.getSlimitValue()};"
+            if subtable:
+                partitionVal = f'{partitionVal},tbname' if len(partitionVal) > 0 else "partition by tbname"
+            return f"SELECT {selectPartStr} FROM {self._dbName}.{tbname} {partitionVal} GROUP BY {groupKeyStr} {self.getSlimitValue()};"
         else:
             groupKeyStr = "tbname"
             partitionVal = "partition by tbname" if subtable else ""
@@ -730,20 +743,23 @@ class SQLLancer:
         windowStr = self.getWindowStr(self.getRandomWindow(), colDict, stream=True)
         if ("COUNT_WINDOW" in windowStr or "STATE_WINDOW" in windowStr or "EVENT_WINDOW" in windowStr) and "partition" not in partitionVal:
             windowStr = f"partition by tbname {windowStr}"
-        return f"SELECT {selectPartStr} FROM {self._dbName}.{tbname} {self.getTimeRangeFilter(tbname, tsCol)} {partitionVal} {windowStr};"
+        return f"SELECT {selectPartStr} FROM {self._dbName}.{tbname} {self.getTimeRangeFilter(tbname, tsCol, doAggr=doAggr)} {partitionVal} {windowStr};"
 
 
     def genCreateStreamSql(self, colDict, tbname):
-        streamOps = f'{self.getTriggerValue()} {self.getWatermarkValue()} {self.getFillHistoryValue()} {self.getExpiredValue()} {self.getUpdateValue()}'
-        streamName = f'stm_{tbname}'
+        doAggr = random.choice([0, 1, 2])
+        forceTrigger = "AT_ONCE" if doAggr == 1 else None
+        streamName = f'{self._dbName}_stm_{tbname}'
         target = f'stm_{tbname}_target'
         # TODO
         existStbFields = ""
         customTags = ""
         subtable = self.getSubtableValue(colDict.keys())
-        subQuery = self.generateRandomSubQuery(colDict, tbname, subtable)
+        subQuery = self.generateRandomSubQuery(colDict, tbname, subtable, doAggr)
+        expiredValue = self.getExpiredValue(countWindow=True) if "COUNT_WINDOW" in subQuery else self.getExpiredValue()
+        streamOps = f'{self.getTriggerValue(forceTrigger)} {self.getWatermarkValue()} {self.getFillHistoryValue()} {expiredValue} {self.getUpdateValue()}'
         if ("COUNT_WINDOW" in subQuery or "STATE_WINDOW" in subQuery) and "WATERMARK" not in streamOps:
-            streamOps = f'{self.getTriggerValue()} {self.getWatermarkValue(True)} {self.getFillHistoryValue()} {self.getExpiredValue()} {self.getUpdateValue()}'
+            streamOps = f'{self.getTriggerValue(forceTrigger)} {self.getWatermarkValue(True)} {self.getFillHistoryValue()} {expiredValue} {self.getUpdateValue()}'
         return f"CREATE STREAM IF NOT EXISTS {streamName} {streamOps} into {target} {existStbFields} {customTags} {subtable} AS {subQuery};"
 
     def generateRandomSql(self, colDict, tbname):

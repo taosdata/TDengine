@@ -321,17 +321,17 @@ class TdeSubProcess:
 
         Common POSIX signal values (from man -7 signal):
         SIGHUP           1
-        SIGINT           2 
-        SIGQUIT          3 
+        SIGINT           2
+        SIGQUIT          3
         SIGILL           4
         SIGTRAP          5
-        SIGABRT          6 
-        SIGIOT           6 
-        SIGBUS           7 
-        SIGEMT           - 
-        SIGFPE           8  
-        SIGKILL          9  
-        SIGUSR1         10 
+        SIGABRT          6
+        SIGIOT           6
+        SIGBUS           7
+        SIGEMT           -
+        SIGFPE           8
+        SIGKILL          9
+        SIGUSR1         10
         SIGSEGV         11
         SIGUSR2         12
         """
@@ -387,8 +387,9 @@ class TdeSubProcess:
         def doKillChild(child: psutil.Process, sig: int):
             Logging.info("Killing sub-sub process {} with signal {}".format(child.pid, sig))
             child.send_signal(sig)
-            try:            
+            try:
                 retCode = child.wait(20) # type: ignore
+                print("--------retCode:", retCode)
                 if (- retCode) == signal.SIGSEGV: # type: ignore # Crashed
                     Logging.warning("Process {} CRASHED, please check CORE file!".format(child.pid))
                 elif (- retCode) == sig : # type: ignore
@@ -402,14 +403,17 @@ class TdeSubProcess:
 
         def doKill(proc: Popen, sig: int):
             pid = proc.pid
+            print("kill pid:????", pid)
             try:
                 topSubProc = psutil.Process(pid) # Now that we are doing "exec -c", should not have children any more
+                print("topSubProc:????", topSubProc)
                 for child in topSubProc.children(recursive=True):  # or parent.children() for recursive=False
+                    print("child:????", child)
                     Logging.warning("Unexpected child to be killed")
                     doKillChild(child, sig)
             except psutil.NoSuchProcess as err:
                 Logging.info("Process not found, can't kill, pid = {}".format(pid))
-            
+
             return doKillTdService(proc, sig)
             # TODO: re-examine if we need to kill the top process, which is always the SHELL for now
             # try:
@@ -428,15 +432,15 @@ class TdeSubProcess:
             return doKill(proc, sig)
 
         def hardKill(proc):
-            return doKill(proc, signal.SIGKILL) 
+            return doKill(proc, signal.SIGKILL)
 
         pid = proc.pid
         Logging.info("Terminate running processes under {}, with SIG #{} and wait...".format(pid, sig))
-        if softKill(proc, sig):            
+        if softKill(proc, sig):
             return # success
-        if sig != signal.SIGKILL: # really was soft above            
+        if sig != signal.SIGKILL: # really was soft above
             if hardKill(proc):
-                return 
+                return
         raise CrashGenError("Failed to stop process, pid={}".format(pid))
 
     def getStatus(self):
@@ -474,7 +478,7 @@ class ServiceManager:
         #     self.svcMgrThreads.append(thread)
 
     def _createTdeInstance(self, dnIndex):
-        if not self._runCluster: # single instance 
+        if not self._runCluster: # single instance
             subdir = 'test'
         else:        # Create all threads in a cluster
             subdir = 'cluster_dnode_{}'.format(dnIndex)
@@ -590,7 +594,7 @@ class ServiceManager:
                     if  status.isStopped():
                         ti.procIpcBatch() # one last time?
                     # self._updateThreadStatus()
-                    
+
             time.sleep(self.PAUSE_BETWEEN_IPC_CHECK)  # pause, before next round
         # raise CrashGenError("dummy")
         Logging.info("Service Manager Thread (with subprocess) ended, main thread exiting...")
@@ -627,7 +631,7 @@ class ServiceManager:
 
             for ti in self._tInsts:
                 ti.stop()
-                
+
     def run(self):
         self.startTaosServices()
         self._procIpcAll()  # pump/process all the messages, may encounter SIG + restart
@@ -659,7 +663,7 @@ class ServiceManagerThread:
     A class representing a dedicated thread which manages the "sub process"
     of the TDengine service, interacting with its STDOUT/ERR.
 
-    It takes a TdeInstance parameter at creation time, or create a default    
+    It takes a TdeInstance parameter at creation time, or create a default
     """
     MAX_QUEUE_SIZE = 10000
 
@@ -795,7 +799,7 @@ class ServiceManagerThread:
                 if self._thread:
                     self._thread.join()
                     self._thread = None
-                if self._thread2: # STD ERR thread            
+                if self._thread2: # STD ERR thread
                     self._thread2.join()
                     self._thread2 = None
             else:
@@ -856,11 +860,11 @@ class ServiceManagerThread:
 
     BinaryChunk = NewType('BinaryChunk', bytes) # line with binary data, directly from STDOUT, etc.
     TextChunk   = NewType('TextChunk', str) # properly decoded, suitable for printing, etc.
-   
+
     @classmethod
     def _decodeBinaryChunk(cls, bChunk: bytes) -> Optional[TextChunk] :
         try:
-            tChunk = bChunk.decode("utf-8").rstrip() 
+            tChunk = bChunk.decode("utf-8").rstrip()
             return cls.TextChunk(tChunk)
         except UnicodeError:
             print("\nNon-UTF8 server output: {}\n".format(bChunk.decode('cp437')))
@@ -871,7 +875,7 @@ class ServiceManagerThread:
         '''
         Take an input stream with binary data (likely from Popen), produced a generator of decoded
         "text chunks".
-        
+
         Side effect: it also save the original binary data in a log file.
         '''
         os.makedirs(logDir, exist_ok=True)

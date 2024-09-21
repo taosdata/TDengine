@@ -27,8 +27,6 @@ class DbConn:
     TYPE_NATIVE = "native-c"
     TYPE_REST =   "rest-api"
     TYPE_INVALID = "invalid"
-    
-
 
     # class variables
     lastSqlFromThreads : dict[int, str] = {} # stored by thread id, obtained from threading.current_thread().ident%10000
@@ -37,58 +35,58 @@ class DbConn:
     @classmethod
     def saveSqlForCurrentThread(cls, sql: str):
         '''
-        Let us save the last SQL statement on a per-thread basis, so that when later we 
-        run into a dead-lock situation, we can pick out the deadlocked thread, and use 
+        Let us save the last SQL statement on a per-thread basis, so that when later we
+        run into a dead-lock situation, we can pick out the deadlocked thread, and use
         that information to find what what SQL statement is stuck.
         '''
-        
-        th = threading.current_thread()        
+
+        th = threading.current_thread()
         shortTid = th.native_id % 10000 #type: ignore
         cls.lastSqlFromThreads[shortTid] = sql # Save this for later
         cls.record_save_sql_time()
 
     @classmethod
-    def fetchSqlForThread(cls, shortTid : int) -> str : 
+    def fetchSqlForThread(cls, shortTid : int) -> str :
 
         print("=======================")
         if shortTid not in cls.lastSqlFromThreads:
             raise CrashGenError("No last-attempted-SQL found for thread id: {}".format(shortTid))
-        return cls.lastSqlFromThreads[shortTid] 
+        return cls.lastSqlFromThreads[shortTid]
 
     @classmethod
     def get_save_sql_time(cls, shortTid : int):
         '''
-        Let us save the last SQL statement on a per-thread basis, so that when later we 
-        run into a dead-lock situation, we can pick out the deadlocked thread, and use 
+        Let us save the last SQL statement on a per-thread basis, so that when later we
+        run into a dead-lock situation, we can pick out the deadlocked thread, and use
         that information to find what what SQL statement is stuck.
         '''
-        return cls.current_time[shortTid] 
+        return cls.current_time[shortTid]
 
     @classmethod
     def record_save_sql_time(cls):
         '''
-        Let us save the last SQL statement on a per-thread basis, so that when later we 
-        run into a dead-lock situation, we can pick out the deadlocked thread, and use 
+        Let us save the last SQL statement on a per-thread basis, so that when later we
+        run into a dead-lock situation, we can pick out the deadlocked thread, and use
         that information to find what what SQL statement is stuck.
         '''
-        th = threading.current_thread()        
+        th = threading.current_thread()
         shortTid = th.native_id % 10000 #type: ignore
         cls.current_time[shortTid] = float(time.time()) # Save this for later
  
     @classmethod
     def sql_exec_spend(cls, cost: float):
         '''
-        Let us save the last SQL statement on a per-thread basis, so that when later we 
-        run into a dead-lock situation, we can pick out the deadlocked thread, and use 
+        Let us save the last SQL statement on a per-thread basis, so that when later we
+        run into a dead-lock situation, we can pick out the deadlocked thread, and use
         that information to find what what SQL statement is stuck.
         '''
-        th = threading.current_thread()        
+        th = threading.current_thread()
         shortTid = th.native_id % 10000 #type: ignore
         cls.spendThreads[shortTid] = cost # Save this for later
 
     @classmethod
     def get_time_cost(cls) ->float:
-        th = threading.current_thread()        
+        th = threading.current_thread()
         shortTid = th.native_id % 10000 #type: ignore
         return cls.spendThreads.get(shortTid)
 
@@ -220,7 +218,7 @@ class DbConnRest(DbConn):
             dbTarget.hostAddr, dbTarget.port + self.REST_PORT_INCREMENT)
         self._result = None
 
-    def openByType(self):  # Open connection        
+    def openByType(self):  # Open connection
         pass  # do nothing, always open
 
     def close(self):
@@ -326,8 +324,8 @@ class MyTDSql:
         self._conn.close() # TODO: very important, cursor close does NOT close DB connection!
         self._cursor.close()
 
-    def _execInternal(self, sql):        
-        startTime = time.time() 
+    def _execInternal(self, sql):
+        startTime = time.time()
         # Logging.debug("Executing SQL: " + sql)
         # ret = None # TODO: use strong type here
         # try: # Let's not capture the error, and let taos.error.ProgrammingError pass through
@@ -369,7 +367,7 @@ class MyTDSql:
 
     def query(self, sql):
         self.sql = sql
-        print(self.sql)
+        # print(self.sql)
         self.recordSql(self.sql)
         try:
             self._execInternal(sql)
@@ -385,7 +383,7 @@ class MyTDSql:
 
     def execute(self, sql):
         self.sql = sql
-        print(self.sql)
+        # print(self.sql)
         self.recordSql(self.sql)
         try:
             self.affectedRows = self._execInternal(sql)
@@ -415,7 +413,7 @@ class MyTDSql:
             self._conn.execute(f'use {dbname}')
             self._conn.schemaless_insert(line, TDSmlProtocolType.LINE.value, precision)
             self.recordSmlLine(line)
-            Logging.info(f"Inserted influxDb Line: {line}")
+            # Logging.info(f"Inserted influxDb Line: {line}")
         except SchemalessError as e:
             Logging.error(f"SchemalessError-{e}: {line}")
             raise f"SchemalessError: {e}"
