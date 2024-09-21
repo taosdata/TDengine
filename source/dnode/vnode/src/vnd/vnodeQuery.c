@@ -93,8 +93,8 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     }
     char tbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     TAOS_CHECK_GOTO(metaGetTableNameByUid(pVnode, tbUid, tbName), NULL, _exit3);
-    tstrncpy(metaRsp.tbName, tbName + VARSTR_HEADER_SIZE, TSDB_TABLE_NAME_LEN);
-    TAOS_CHECK_GOTO(metaGetTableEntryByName(&mer1, tbName + VARSTR_HEADER_SIZE), NULL, _exit3);
+    tstrncpy(metaRsp.tbName, varDataVal(tbName), TSDB_TABLE_NAME_LEN);
+    TAOS_CHECK_GOTO(metaGetTableEntryByName(&mer1, varDataVal(tbName)), NULL, _exit3);
   } else if (metaGetTableEntryByName(&mer1, infoReq.tbName) < 0) {
     code = terrno;
     goto _exit3;
