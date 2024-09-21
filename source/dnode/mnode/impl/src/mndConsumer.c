@@ -463,6 +463,15 @@ static void freeItem(void *param) {
   }
 }
 
+#define ADD_TOPIC_TO_ARRAY(element, array) \
+char *newTopicCopy = taosStrdup(element); \
+MND_TMQ_NULL_CHECK(newTopicCopy);\
+if (taosArrayPush(pConsumerNew->array, &newTopicCopy) == NULL){\
+  taosMemoryFree(newTopicCopy);\
+  code = terrno;\
+  goto END;\
+}
+
 static int32_t getTopicAddDelete(SMqConsumerObj *pExistedConsumer, SMqConsumerObj *pConsumerNew){
   int32_t code = 0;
   pConsumerNew->rebNewTopics = taosArrayInit(0, sizeof(void *));
@@ -477,15 +486,13 @@ static int32_t getTopicAddDelete(SMqConsumerObj *pExistedConsumer, SMqConsumerOb
     if (i >= oldTopicNum) {
       void* tmp = taosArrayGetP(pConsumerNew->assignedTopics, j);
       MND_TMQ_NULL_CHECK(tmp);
-      char *newTopicCopy = taosStrdup(tmp);
-      MND_TMQ_NULL_CHECK(taosArrayPush(pConsumerNew->rebNewTopics, &newTopicCopy));
+      ADD_TOPIC_TO_ARRAY(tmp, rebNewTopics);
       j++;
       continue;
     } else if (j >= newTopicNum) {
       void* tmp = taosArrayGetP(pExistedConsumer->currentTopics, i);
       MND_TMQ_NULL_CHECK(tmp);
-      char *oldTopicCopy = taosStrdup(tmp);
-      MND_TMQ_NULL_CHECK(taosArrayPush(pConsumerNew->rebRemovedTopics, &oldTopicCopy));
+      ADD_TOPIC_TO_ARRAY(tmp, rebRemovedTopics);
       i++;
       continue;
     } else {
@@ -499,13 +506,11 @@ static int32_t getTopicAddDelete(SMqConsumerObj *pExistedConsumer, SMqConsumerOb
         j++;
         continue;
       } else if (comp < 0) {
-        char *oldTopicCopy = taosStrdup(oldTopic);
-        MND_TMQ_NULL_CHECK(taosArrayPush(pConsumerNew->rebRemovedTopics, &oldTopicCopy));
+        ADD_TOPIC_TO_ARRAY(oldTopic, rebRemovedTopics);
         i++;
         continue;
       } else {
-        char *newTopicCopy = taosStrdup(newTopic);
-        MND_TMQ_NULL_CHECK(taosArrayPush(pConsumerNew->rebNewTopics, &newTopicCopy));
+        ADD_TOPIC_TO_ARRAY(newTopic, rebNewTopics);
         j++;
         continue;
       }
@@ -789,6 +794,9 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
       return TSDB_CODE_TMQ_INVALID_MSG;
     }
     char *pNewTopic = taosStrdup(tmp);
+    if (pNewTopic == NULL) {
+      return terrno;
+    }
     removeFromTopicList(pOldConsumer->rebNewTopics, pNewTopic, pOldConsumer->consumerId, "new");
     bool existing = existInCurrentTopicList(pOldConsumer, pNewTopic);
     if (existing) {

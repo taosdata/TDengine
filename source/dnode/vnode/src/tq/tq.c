@@ -70,6 +70,9 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
   }
   pVnode->pTq = pTq;
   pTq->path = taosStrdup(path);
+  if (pTq->path == NULL) {
+    return terrno;
+  }
   pTq->pVnode = pVnode;
 
   pTq->pHandle = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);

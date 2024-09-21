@@ -900,9 +900,6 @@ static int32_t doChkptStatusCheck(SStreamTask* pTask) {
     int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
     stDebug("s-task:%s vgId:%d all checkpoint-trigger recv, quit from monitor checkpoint-trigger, ref:%d", id, vgId,
             ref);
-
-//    streamMutexUnlock(&pTask->lock);
-//    streamMetaReleaseTask(pTask->pMeta, pTask);
     return -1;
   }
 
@@ -911,9 +908,6 @@ static int32_t doChkptStatusCheck(SStreamTask* pTask) {
     stWarn("s-task:%s vgId:%d checkpoint-trigger retrieve by previous checkpoint procedure, checkpointId:%" PRId64
                ", quit, ref:%d",
            id, vgId, pTmrInfo->launchChkptId, ref);
-
-//    streamMutexUnlock(&pActiveInfo->lock);
-//    streamMetaReleaseTask(pTask->pMeta, pTask);
     return -1;
   }
 
@@ -922,9 +916,6 @@ static int32_t doChkptStatusCheck(SStreamTask* pTask) {
     int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
     stWarn("s-task:%s vgId:%d active checkpoint may be cleared, quit from retrieve checkpoint-trigger send tmr, ref:%d",
            id, vgId, ref);
-
-//    streamMutexUnlock(&pActiveInfo->lock);
-//    streamMetaReleaseTask(pTask->pMeta, pTask);
     return -1;
   }
 
@@ -1020,7 +1011,7 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
 
   int32_t code = doChkptStatusCheck(pTask);
   if (code) {
-    streamMutexUnlock(&pTask->lock);
+    streamMutexUnlock(&pActiveInfo->lock);
     streamMetaReleaseTask(pTask->pMeta, pTask);
     return;
   }
