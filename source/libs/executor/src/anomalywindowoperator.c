@@ -71,12 +71,12 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
     goto _error;
   }
 
-  if (!taosFuncGetParaStr(pAnomalyNode->anomalyOpt, "func=", pInfo->funcName, sizeof(pInfo->funcName))) {
+  if (!taosAnalGetParaStr(pAnomalyNode->anomalyOpt, "func=", pInfo->funcName, sizeof(pInfo->funcName))) {
     uError("failed to get anomaly_window funcName from %s", pAnomalyNode->anomalyOpt);
     code = TSDB_CODE_ANAL_FUNC_NOT_FOUND;
     goto _error;
   }
-  if (taosFuncGetUrl(pInfo->funcName, ANAL_FUNC_TYPE_FORECAST, pInfo->funcUrl, sizeof(pInfo->funcUrl)) != 0) {
+  if (taosAnalGetFuncUrl(pInfo->funcName, ANAL_FUNC_TYPE_ANOMALY_WINDOW, pInfo->funcUrl, sizeof(pInfo->funcUrl)) != 0) {
     uError("failed to get anomaly_window funcUrl from %s", pInfo->funcName);
     code = TSDB_CODE_ANAL_FUNC_NOT_LOAD;
     goto _error;
@@ -354,22 +354,22 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   SAnomalyWindowOperatorInfo* pInfo = pOperator->info;
   SAnomalyWindowSupp*         pSupp = &pInfo->anomalySup;
   SJson*                      pJson = NULL;
-  SAnalFuncJson               file = {0};
-  char                        buf[64] = {0};
+  SAnalBuf                    analBuf = {.bufType = ANAL_BUF_TYPE_JSON};
+  char                        dataBuf[64] = {0};
   int32_t                     code = 0;
   int32_t                     numOfRows = 0;
 
-  snprintf(file.fileName, sizeof(file.fileName), "/tmp/td_g%" PRId64, pSupp->groupId);  // use rand?
-  code = taosFuncOpenJson(&file);
+  snprintf(analBuf.fileName, sizeof(analBuf.fileName), "/tmp/td_g%" PRId64, pSupp->groupId);  // use rand?
+  code = tsosAnalBufOpen(&analBuf);
   if (code != 0) goto _OVER;
 
   const char* prec = TSDB_TIME_PRECISION_MILLI_STR;
   if (pInfo->anomalyCol.precision == TSDB_TIME_PRECISION_MICRO) prec = TSDB_TIME_PRECISION_MICRO_STR;
   if (pInfo->anomalyCol.precision == TSDB_TIME_PRECISION_NANO) prec = TSDB_TIME_PRECISION_NANO_STR;
-  code = taosFuncWritePara(&file, pInfo->anomalyOpt, "number", prec);
+  code = taosAnalBufWritePara(&analBuf, pInfo->anomalyOpt, "number", prec);
   if (code != 0) goto _OVER;
 
-  code = taosFuncWriteMeta(&file, TSDB_DATA_TYPE_TIMESTAMP, pInfo->anomalyCol.type);
+  code = taosAnalBufWriteMeta(&analBuf, TSDB_DATA_TYPE_TIMESTAMP, pInfo->anomalyCol.type);
   if (code != 0) goto _OVER;
 
   int32_t numOfBlocks = (int32_t)taosArrayGetSize(pSupp->blocks);
@@ -382,21 +382,19 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
     if (pTsCol == NULL) break;
 
     for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-      anomalyPrintRow(pSupp, ((TSKEY*)pTsCol->pData)[j], colDataGetData(pValCol, j), pValCol->info.type, buf,
-                      sizeof(buf));
+      anomalyPrintRow(pSupp, ((TSKEY*)pTsCol->pData)[j], colDataGetData(pValCol, j), pValCol->info.type, dataBuf,
+                      sizeof(dataBuf));
       bool isLast = ((i == numOfBlocks - 1) && (j == pBlock->info.rows - 1));
-      code = taosFuncWriteData(&file, buf, isLast);
+      code = taosAnalBufWriteData(&analBuf, dataBuf, isLast);
       if (code != 0) goto _OVER;
       numOfRows++;
     }
   }
 
-  code = taosFuncWriteRows(&file, numOfRows);
+  code = taosAnalBufWriteRows(&analBuf, numOfRows);
   if (code != 0) goto _OVER;
 
-  taosFuncCloseJson(&file);
-
-  pJson = taosFuncGetJson(pInfo->funcUrl, false, file.fileName);
+  pJson = taosAnalSendReqRetJson(pInfo->funcUrl, ANAL_HTTP_POST, &analBuf);
   if (pJson == NULL) {
     code = terrno;
     goto _OVER;
@@ -406,8 +404,7 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   if (code != 0) goto _OVER;
 
 _OVER:
-  taosFuncCloseJson(&file);
-  taosRemoveFile(file.fileName);
+  taosAnalBufClose(&analBuf);
   if (pJson != NULL) tjsonDelete(pJson);
   return code;
 }

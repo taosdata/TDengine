@@ -3612,25 +3612,25 @@ int32_t forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInf
   SColumnInfoData*      pOutput = (SColumnInfoData*)pCtx->pOutput;
 
   const char* options = varDataVal(pCtx->param[1].param.pz);
-  if (!taosFuncGetParaStr(options, "func=", pRes->funcName, sizeof(pRes->funcName))) {
+  if (!taosAnalGetParaStr(options, "func=", pRes->funcName, sizeof(pRes->funcName))) {
     qError("failed to get forecast funcName from %s", options);
     return TSDB_CODE_ANAL_FUNC_NOT_FOUND;
   }
-  if (taosFuncGetUrl(pRes->funcName, ANAL_FUNC_TYPE_FORECAST, pRes->funcUrl, sizeof(pRes->funcUrl)) != 0) {
+  if (taosAnalGetFuncUrl(pRes->funcName, ANAL_FUNC_TYPE_FORECAST, pRes->funcUrl, sizeof(pRes->funcUrl)) != 0) {
     qError("failed to get forecast funcUrl from %s", options);
     return TSDB_CODE_ANAL_FUNC_NOT_LOAD;
   }
 
-  pRes->hasConf = taosFuncGetParaInt(options, "conf", &pRes->inputConf);
-  pRes->hasRows = taosFuncGetParaInt(options, "rows", &pRes->inputRows);
-  pRes->hasStart = taosFuncGetParaStr(options, "start", NULL, 0);
-  pRes->hasEvery = taosFuncGetParaStr(options, "every", NULL, 0);
+  pRes->hasConf = taosAnalGetParaInt(options, "conf", &pRes->inputConf);
+  pRes->hasRows = taosAnalGetParaInt(options, "rows", &pRes->inputRows);
+  pRes->hasStart = taosAnalGetParaStr(options, "start", NULL, 0);
+  pRes->hasEvery = taosAnalGetParaStr(options, "every", NULL, 0);
   if (!pRes->hasRows) {
-    pRes->inputRows = ANAL_FUNC_FORECAST_DEFAULT_ROWS;
+    pRes->inputRows = ANAL_FORECAST_DEFAULT_ROWS;
     qTrace("forecast rows not found from %s, use default:%d", options, pRes->inputRows);
   }
   if (!pRes->hasConf) {
-    pRes->inputConf = ANAL_FUNC_FORECAST_DEFAULT_CONF;
+    pRes->inputConf = ANAL_FORECAST_DEFAULT_CONF;
     qTrace("forecast conf not found from %s, use default:%d", options, pRes->inputConf);
   }
 

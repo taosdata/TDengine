@@ -356,8 +356,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_TYPE,      "Anode too many functi
 
 TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_URL_RSP_IS_NULL,         "Analysis url response is NULL")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_URL_CANT_ACCESS,         "Analysis url can't access")
-TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_FUNC_NOT_FOUND,          "Analysis func not found")
-TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_FUNC_NOT_LOAD,           "Analysis func not loaded")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_FUNC_NOT_FOUND,          "Analysis function not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_FUNC_NOT_LOAD,           "Analysis function not loaded")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_BUF_INVALID_TYPE,        "Analysis invalid buffer type")
 
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")

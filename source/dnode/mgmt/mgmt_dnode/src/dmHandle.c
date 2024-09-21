@@ -18,8 +18,8 @@
 #include "dmInt.h"
 #include "monitor.h"
 #include "systable.h"
-#include "tchecksum.h"
 #include "tanal.h"
+#include "tchecksum.h"
 
 extern SConfig *tsCfg;
 
@@ -86,11 +86,11 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
 
 static void dmMayShouldUpdateAnalFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
   int32_t code = 0;
-  int64_t oldVer = taosFuncGetVersion();
+  int64_t oldVer = taosAnalGetVersion();
   if (oldVer == newVer) return;
-  dDebug("dnode analysis func ver: %" PRId64 ", status ver: %" PRId64 "", oldVer, newVer);
+  dDebug("dnode analysis ver: %" PRId64 ", status ver: %" PRId64 "", oldVer, newVer);
 
-  SRetrieveAnalFuncReq req = {.dnodeId = pMgmt->pData->dnodeId, .analFuncVer = oldVer};
+  SRetrieveAnalFuncReq req = {.dnodeId = pMgmt->pData->dnodeId, .analVer = oldVer};
   int32_t              contLen = tSerializeRetrieveAnalFuncReq(NULL, 0, &req);
   if (contLen < 0) {
     dError("failed to serialize analysis func ver request since: %s", tstrerror(contLen));
@@ -149,7 +149,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
       }
       dmMayShouldUpdateIpWhiteList(pMgmt, statusRsp.ipWhiteVer);
-      dmMayShouldUpdateAnalFunc(pMgmt, statusRsp.analFuncVer);
+      dmMayShouldUpdateAnalFunc(pMgmt, statusRsp.analVer);
     }
     tFreeSStatusRsp(&statusRsp);
   }
@@ -209,7 +209,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   pMgmt->statusSeq++;
   req.statusSeq = pMgmt->statusSeq;
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
-  req.analFuncVer = taosFuncGetVersion();
+  req.analVer = taosAnalGetVersion();
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   if (contLen < 0) {

@@ -207,7 +207,7 @@ void dmCleanup() {
   walCleanUp();
   (void)udfcClose();
   udfStopUdfd();
-  taosFuncCleanup();
+  taosAnalCleanup();
   taosStopCacheRefreshWorker();
   (void)dmDiskClose();
   DestroyRegexCache();

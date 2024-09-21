@@ -1103,12 +1103,12 @@ int32_t tDeserializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteR
 
 typedef struct {
   int32_t dnodeId;
-  int64_t analFuncVer;
+  int64_t analVer;
 } SRetrieveAnalFuncReq;
 
 typedef struct {
   int64_t   ver;
-  SHashObj* hash;  // funcname -> SAnalFuncUrl
+  SHashObj* hash;  // funcname -> SAnalUrl
 } SRetrieveAnalFuncRsp;
 
 int32_t tSerializeRetrieveAnalFuncReq(void* buf, int32_t bufLen, SRetrieveAnalFuncReq* pReq);
@@ -1789,7 +1789,7 @@ typedef struct {
   SArray*     pVloads;  // array of SVnodeLoad
   int32_t     statusSeq;
   int64_t     ipWhiteVer;
-  int64_t     analFuncVer;
+  int64_t     analVer;
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
@@ -1855,7 +1855,7 @@ typedef struct {
   SArray*   pDnodeEps;  // Array of SDnodeEp
   int32_t   statusSeq;
   int64_t   ipWhiteVer;
-  int64_t   analFuncVer;
+  int64_t   analVer;
 } SStatusRsp;
 
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);

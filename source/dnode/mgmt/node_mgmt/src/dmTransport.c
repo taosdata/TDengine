@@ -100,7 +100,7 @@ static bool dmIsForbiddenIp(int8_t forbidden, char *user, uint32_t clientIp) {
 static void dmUpdateAnalFunc(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
   SRetrieveAnalFuncRsp rsp = {0};
   if (tDeserializeRetrieveAnalFuncRsp(pRpc->pCont, pRpc->contLen, &rsp) == 0) {
-    taosFuncUpdate(rsp.ver, rsp.hash);
+    taosAnalUpdate(rsp.ver, rsp.hash);
     rsp.hash = NULL;
   }
   tFreeRetrieveAnalFuncRsp(&rsp);

@@ -721,7 +721,7 @@ static int32_t mndGetAnodeFuncList(const char *url, SAnodeObj *pObj) {
   char anodeUrl[TSDB_ANODE_URL_LEN + 1] = {0};
   snprintf(anodeUrl, TSDB_ANODE_URL_LEN, "%s/%s", url, "list");
 
-  SJson *pJson = taosFuncGetJson(anodeUrl, true, NULL);
+  SJson *pJson = taosAnalSendReqRetJson(anodeUrl, ANAL_HTTP_GET, NULL);
   if (pJson == NULL) return terrno;
 
   int32_t code = mndDecodeFuncList(pJson, pObj);
@@ -736,7 +736,7 @@ static int32_t mndGetAnodeStatus(SAnodeObj *pObj, char *status) {
   char    anodeUrl[TSDB_ANODE_URL_LEN + 1] = {0};
   snprintf(anodeUrl, TSDB_ANODE_URL_LEN, "%s/%s", pObj->url, "status");
 
-  SJson *pJson = taosFuncGetJson(anodeUrl, true, NULL);
+  SJson *pJson = taosAnalSendReqRetJson(anodeUrl, ANAL_HTTP_GET, NULL);
   if (pJson == NULL) return terrno;
 
   tjsonGetInt32ValueFromDouble(pJson, "protocol", protocol, code);
@@ -769,7 +769,7 @@ static int32_t mndProcessAnalFuncReq(SRpcMsg *pReq) {
   SSdb                *pSdb = pMnode->pSdb;
   int32_t              code = -1;
   SAnodeObj           *pObj = NULL;
-  SAnalFuncUrl         url;
+  SAnalUrl             url;
   int32_t              nameLen;
   char                 name[TSDB_ANAL_FUNC_KEY_LEN];
   SRetrieveAnalFuncReq req = {0};
@@ -778,8 +778,8 @@ static int32_t mndProcessAnalFuncReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeRetrieveAnalFuncReq(pReq->pCont, pReq->contLen, &req), NULL, _OVER);
 
   rsp.ver = sdbGetTableVer(pSdb, SDB_ANODE);
-  if (req.analFuncVer != rsp.ver) {
-    mInfo("dnode:%d, update analysis func old ver:%" PRId64 " to new ver:%" PRId64, req.dnodeId, req.analFuncVer,
+  if (req.analVer != rsp.ver) {
+    mInfo("dnode:%d, update analysis old ver:%" PRId64 " to new ver:%" PRId64, req.dnodeId, req.analVer,
           rsp.ver);
     rsp.hash = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
     if (rsp.hash == NULL) {
@@ -800,13 +800,13 @@ static int32_t mndProcessAnalFuncReq(SRpcMsg *pReq) {
           url.type = pFunc->types[t];
           nameLen = snprintf(name, sizeof(name) - 1, "%s:%d", pFunc->name, url.type);
 
-          SAnalFuncUrl *pOldUrl = taosHashAcquire(rsp.hash, name, nameLen);
+          SAnalUrl *pOldUrl = taosHashAcquire(rsp.hash, name, nameLen);
           if (pOldUrl == NULL || (pOldUrl != NULL && pOldUrl->anode < url.anode)) {
             url.url = taosMemoryMalloc(TSDB_ANODE_URL_LEN + TSDB_ANAL_FUNC_TYPE_LEN + 1);
             url.urlLen = snprintf(url.url, TSDB_ANODE_URL_LEN + TSDB_ANAL_FUNC_TYPE_LEN, "%s/%s", pAnode->url,
                                   taosAnalFuncStr(url.type)) +
                          1;
-            if (taosHashPut(rsp.hash, name, nameLen, &url, sizeof(SAnalFuncUrl)) != 0) {
+            if (taosHashPut(rsp.hash, name, nameLen, &url, sizeof(SAnalUrl)) != 0) {
               taosMemoryFree(url.url);
               sdbRelease(pSdb, pAnode);
               goto _OVER;
