@@ -485,6 +485,10 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
             code = TSDB_CODE_INVALID_PARA;
             goto _exit;
           }
+          if (value.type != pTSchema->columns[iInfo].type) {
+            code = TSDB_CODE_INVALID_PARA;
+            goto _exit;
+          }
           value.pData = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow;
         } else {
           (void)memcpy(&value.val, (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow,
@@ -3284,6 +3288,10 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
           uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo];
           value.nData = length;
           if (value.nData > pTSchema->columns[iInfo].bytes - VARSTR_HEADER_SIZE) {
+            code = TSDB_CODE_INVALID_PARA;
+            goto _exit;
+          }
+          if (value.type != pTSchema->columns[iInfo].type) {
             code = TSDB_CODE_INVALID_PARA;
             goto _exit;
           }
