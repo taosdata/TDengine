@@ -113,7 +113,10 @@ void taosAnalUpdate(int64_t newVer, SHashObj *pHash) {
 }
 
 bool taosAnalGetParaStr(const char *option, const char *paraName, char *paraValue, int32_t paraValueMaxLen) {
-  char *pos1 = strstr(option, paraName);
+  char    buf[TSDB_ANAL_FUNC_OPTION_LEN] = {0};
+  int32_t bufLen = snprintf(buf, sizeof(buf), "%s=", paraName);
+
+  char *pos1 = strstr(option, buf);
   char *pos2 = strstr(option, ANAL_FUNC_SPLIT);
   if (pos1 != NULL) {
     if (paraValueMaxLen > 0) {
@@ -122,7 +125,7 @@ bool taosAnalGetParaStr(const char *option, const char *paraName, char *paraValu
         copyLen = (int32_t)(pos2 - pos1 - strlen(paraName) + 1);
         copyLen = MIN(copyLen, paraValueMaxLen);
       }
-      tstrncpy(paraValue, pos1 + strlen(paraName), copyLen);
+      tstrncpy(paraValue, pos1 + bufLen, copyLen);
     }
     return true;
   } else {
@@ -131,10 +134,13 @@ bool taosAnalGetParaStr(const char *option, const char *paraName, char *paraValu
 }
 
 bool taosAnalGetParaInt(const char *option, const char *paraName, int32_t *paraValue) {
-  char *pos1 = strstr(option, paraName);
+  char    buf[TSDB_ANAL_FUNC_OPTION_LEN] = {0};
+  int32_t bufLen = snprintf(buf, sizeof(buf), "%s=", paraName);
+
+  char *pos1 = strstr(option, buf);
   char *pos2 = strstr(option, ANAL_FUNC_SPLIT);
   if (pos1 != NULL) {
-    *paraValue = taosStr2Int32(pos1 + strlen(paraName) + 1, NULL, 10);
+    *paraValue = taosStr2Int32(pos1 + bufLen + 1, NULL, 10);
     return true;
   } else {
     return false;

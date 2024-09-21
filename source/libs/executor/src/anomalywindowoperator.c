@@ -71,7 +71,7 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
     goto _error;
   }
 
-  if (!taosAnalGetParaStr(pAnomalyNode->anomalyOpt, "func=", pInfo->funcName, sizeof(pInfo->funcName))) {
+  if (!taosAnalGetParaStr(pAnomalyNode->anomalyOpt, "func", pInfo->funcName, sizeof(pInfo->funcName))) {
     uError("failed to get anomaly_window funcName from %s", pAnomalyNode->anomalyOpt);
     code = TSDB_CODE_ANAL_FUNC_NOT_FOUND;
     goto _error;
