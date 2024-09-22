@@ -22,10 +22,8 @@
 extern "C" {
 #endif
 
-int32_t    mndInitAnode(SMnode *pMnode);
-void       mndCleanupAnode(SMnode *pMnode);
-SAnodeObj *mndAcquireAnode(SMnode *pMnode, int32_t anodeId);
-void       mndReleaseAnode(SMnode *pMnode, SAnodeObj *pObj);
+int32_t mndInitAnode(SMnode *pMnode);
+void    mndCleanupAnode(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

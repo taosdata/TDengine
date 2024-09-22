@@ -24,6 +24,7 @@
 #include "parUtil.h"
 #include "scalar.h"
 #include "systable.h"
+#include "tanal.h"
 #include "tcol.h"
 #include "tglobal.h"
 #include "ttime.h"
@@ -5731,8 +5732,7 @@ static int32_t translateAnomalyWindow(STranslateContext* pCxt, SSelectStmt* pSel
   SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pSelect->pWindow;
   int32_t             code = checkAnomalyExpr(pCxt, pAnomaly->pExpr);
   if (TSDB_CODE_SUCCESS == code) {
-    char* pos1 = strstr(pAnomaly->anomalyOpt, "algo=");
-    if (pos1 == NULL) {
+    if (!taosAnalGetParaStr(pAnomaly->anomalyOpt, "algo", NULL, 0) != 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_OPT,
                                      "ANOMALY_WINDOW option should include algo field");
     }

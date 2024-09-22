@@ -738,10 +738,9 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    supportVnodesChanged = pDnode->numOfSupportVnodes != statusReq.numOfSupportVnodes;
   bool    encryptKeyChanged = pDnode->encryptionKeyChksum != statusReq.clusterCfg.encryptionKeyChksum;
   bool    enableWhiteListChanged = statusReq.clusterCfg.enableWhiteList != (tsEnableWhiteList ? 1 : 0);
-  bool    analFuncVerChanged = (analVer != statusReq.analVer);
-  bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged ||
-                   pMnode->ipWhiteVer != statusReq.ipWhiteVer || encryptKeyChanged || enableWhiteListChanged ||
-                   analFuncVerChanged;
+  bool    analVerChanged = (analVer != statusReq.analVer);
+  bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
+                   pMnode->ipWhiteVer != statusReq.ipWhiteVer || encryptKeyChanged || enableWhiteListChanged;
 
   const STraceId *trace = &pReq->info.traceId;
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
