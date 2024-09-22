@@ -2102,7 +2102,7 @@ static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   }
 
   SValueNode* pValue = (SValueNode*)pOption;
-  if (!taosAnalGetParaStr(pValue->literal, "func", NULL, 0) != 0) {
+  if (!taosAnalGetParaStr(pValue->literal, "algo", NULL, 0) != 0) {
     return invaildFuncParaValueErrMsg(pErrBuf, len, "forecast 2nd parameter should include 'func'");
   }
 

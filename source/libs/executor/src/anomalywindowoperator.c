@@ -255,41 +255,40 @@ static int32_t anomalyCacheBlock(SAnomalyWindowOperatorInfo* pInfo, SSDataBlock*
   return 0;
 }
 
-static void anomalyPrintRow(SAnomalyWindowSupp* pSupp, int64_t ts, char* val, int8_t valType, char* buf,
-                            int32_t bufLen) {
+static void anomalyPrintRow(SAnomalyWindowSupp* pSupp, char* val, int8_t valType, char* buf, int32_t bufLen) {
   switch (valType) {
     case TSDB_DATA_TYPE_BOOL:
-      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%d", ts, (*((int8_t*)val) == 1) ? 1 : 0);
+      bufLen = snprintf(buf, bufLen, "%d", (*((int8_t*)val) == 1) ? 1 : 0);
       break;
     case TSDB_DATA_TYPE_TINYINT:
-      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%d", ts, *(int8_t*)val);
+      bufLen = snprintf(buf, bufLen, "%d", *(int8_t*)val);
       break;
     case TSDB_DATA_TYPE_UTINYINT:
-      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%u", ts, *(uint8_t*)val);
+      bufLen = snprintf(buf, bufLen, "%u", *(uint8_t*)val);
       break;
     case TSDB_DATA_TYPE_SMALLINT:
-      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%d", ts, *(int16_t*)val);
+      bufLen = snprintf(buf, bufLen, "%d", *(int16_t*)val);
       break;
     case TSDB_DATA_TYPE_USMALLINT:
-      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%u", ts, *(uint16_t*)val);
+      bufLen = snprintf(buf, bufLen, "%u", *(uint16_t*)val);
       break;
     case TSDB_DATA_TYPE_INT:
-      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%d", ts, *(int32_t*)val);
+      bufLen = snprintf(buf, bufLen, "%d", *(int32_t*)val);
       break;
     case TSDB_DATA_TYPE_UINT:
-      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%u", ts, *(uint32_t*)val);
+      bufLen = snprintf(buf, bufLen, "%u", *(uint32_t*)val);
       break;
     case TSDB_DATA_TYPE_BIGINT:
-      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%" PRId64, ts, *(int64_t*)val);
+      bufLen = snprintf(buf, bufLen, "%" PRId64, *(int64_t*)val);
       break;
     case TSDB_DATA_TYPE_UBIGINT:
-      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%" PRIu64, ts, *(uint64_t*)val);
+      bufLen = snprintf(buf, bufLen, "%" PRIu64, *(uint64_t*)val);
       break;
     case TSDB_DATA_TYPE_FLOAT:
-      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%f", ts, GET_FLOAT_VAL(val));
+      bufLen = snprintf(buf, bufLen, "%f", GET_FLOAT_VAL(val));
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      bufLen = snprintf(buf, bufLen, "%" PRId64 ",%f", ts, GET_DOUBLE_VAL(val));
+      bufLen = snprintf(buf, bufLen, "%f", GET_DOUBLE_VAL(val));
       break;
     default:
       buf[0] = '\0';
@@ -297,7 +296,6 @@ static void anomalyPrintRow(SAnomalyWindowSupp* pSupp, int64_t ts, char* val, in
   }
 
   pSupp->numOfRows++;
-  // uInfo("rows:%" PRId64 ", buf:%s type:%d", pSupp->numOfRows, buf, valType);
 }
 
 static int32_t anomalyFindWindow(SAnomalyWindowSupp* pSupp, TSKEY key) {
@@ -366,30 +364,50 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   const char* prec = TSDB_TIME_PRECISION_MILLI_STR;
   if (pInfo->anomalyCol.precision == TSDB_TIME_PRECISION_MICRO) prec = TSDB_TIME_PRECISION_MICRO_STR;
   if (pInfo->anomalyCol.precision == TSDB_TIME_PRECISION_NANO) prec = TSDB_TIME_PRECISION_NANO_STR;
-  code = taosAnalBufWritePara(&analBuf, pInfo->anomalyOpt, "number", prec);
-  if (code != 0) goto _OVER;
-
-  code = taosAnalBufWriteMeta(&analBuf, TSDB_DATA_TYPE_TIMESTAMP, pInfo->anomalyCol.type);
+  code = taosAnalBufWritePara(&analBuf, pInfo->algoName, pInfo->anomalyOpt, prec, TSDB_DATA_TYPE_TIMESTAMP,
+                              pInfo->anomalyCol.type);
   if (code != 0) goto _OVER;
 
   int32_t numOfBlocks = (int32_t)taosArrayGetSize(pSupp->blocks);
+
+  // timestamp
+  code = taosAnalBufNewCol(&analBuf);
+  if (code != 0) goto _OVER;
+  for (int32_t i = 0; i < numOfBlocks; ++i) {
+    SSDataBlock* pBlock = taosArrayGetP(pSupp->blocks, i);
+    if (pBlock == NULL) break;
+    SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
+    if (pTsCol == NULL) break;
+
+    for (int32_t j = 0; j < pBlock->info.rows; ++j) {
+      (void)snprintf(dataBuf, sizeof(dataBuf), "%" PRId64, ((TSKEY*)pTsCol->pData)[j]);
+      bool isLast = ((i == numOfBlocks - 1) && (j == pBlock->info.rows - 1));
+      code = taosAnalBufWriteRow(&analBuf, dataBuf, isLast);
+      if (code != 0) goto _OVER;
+      numOfRows++;
+    }
+  }
+  code = taosAnalBufEndCol(&analBuf, false);
+  if (code != 0) goto _OVER;
+
+  // data
+  code = taosAnalBufNewCol(&analBuf);
+  if (code != 0) goto _OVER;
   for (int32_t i = 0; i < numOfBlocks; ++i) {
     SSDataBlock* pBlock = taosArrayGetP(pSupp->blocks, i);
     if (pBlock == NULL) break;
     SColumnInfoData* pValCol = taosArrayGet(pBlock->pDataBlock, pInfo->anomalyCol.slotId);
     if (pValCol == NULL) break;
-    SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
-    if (pTsCol == NULL) break;
 
     for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-      anomalyPrintRow(pSupp, ((TSKEY*)pTsCol->pData)[j], colDataGetData(pValCol, j), pValCol->info.type, dataBuf,
-                      sizeof(dataBuf));
+      anomalyPrintRow(pSupp, colDataGetData(pValCol, j), pValCol->info.type, dataBuf, sizeof(dataBuf));
       bool isLast = ((i == numOfBlocks - 1) && (j == pBlock->info.rows - 1));
-      code = taosAnalBufWriteData(&analBuf, dataBuf, isLast);
+      code = taosAnalBufWriteRow(&analBuf, dataBuf, isLast);
       if (code != 0) goto _OVER;
-      numOfRows++;
     }
   }
+  code = taosAnalBufEndCol(&analBuf, true);
+  if (code != 0) goto _OVER;
 
   code = taosAnalBufWriteRows(&analBuf, numOfRows);
   if (code != 0) goto _OVER;

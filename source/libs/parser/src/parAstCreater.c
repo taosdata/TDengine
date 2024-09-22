@@ -1367,7 +1367,7 @@ SNode* createAnomalyWindowNode(SAstCreateContext* pCxt, SNode* pExpr, const STok
   CHECK_MAKE_NODE(pAnomaly->pCol);
   pAnomaly->pExpr = pExpr;
   if (pFuncOpt == NULL) {
-    strcpy(pAnomaly->anomalyOpt, "func=arima");
+    strcpy(pAnomaly->anomalyOpt, "algo=k-sigma");
   } else {
     (void)trimString(pFuncOpt->z, pFuncOpt->n, pAnomaly->anomalyOpt, sizeof(pAnomaly->anomalyOpt));
   }

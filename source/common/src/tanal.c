@@ -20,7 +20,6 @@
 #include "ttypes.h"
 #include "tutil.h"
 
-#define ANAL_ALGO_PREFIX "algo="
 #define ANAL_ALGO_SPLIT  ","
 
 typedef struct {
@@ -350,11 +349,12 @@ static int32_t taosCurlTestStr(const char *url, SCurlResp *pRsp) {
 
   const char *anomalyWindowStr =
       "{\n"
-      "    \"rows\": 3,\n"
-      "    \"data\": [\n"
+      "    \"rows\": 1,\n"
+      "    \"res\": [\n"
       "        [1577808000000, 1578153600000],\n"
       "        [1578153600000, 1578240000000],\n"
       "        [1578240000000, 1578499200000]\n"
+      // "        [1577808016000, 1577808016000]\n"
       "    ]\n"
       "}";
 
@@ -366,7 +366,7 @@ static int32_t taosCurlTestStr(const char *url, SCurlResp *pRsp) {
     pRsp->dataLen = strlen(statusStr);
     pRsp->data = taosMemoryCalloc(1, pRsp->dataLen + 1);
     strcpy(pRsp->data, statusStr);
-  } else if (strstr(url, "anomaly_window") != NULL) {
+  } else if (strstr(url, "anomaly-detect") != NULL) {
     pRsp->dataLen = strlen(anomalyWindowStr);
     pRsp->data = taosMemoryCalloc(1, pRsp->dataLen + 1);
     strcpy(pRsp->data, anomalyWindowStr);
@@ -384,42 +384,21 @@ static int32_t tsosAnalJsonBufOpen(SAnalBuf *pBuf) {
   return 0;
 }
 
-static int32_t taosAnalJsonBufWritePara(SAnalBuf *pBuf, const char *paras, const char *fmt, const char *prec) {
+static int32_t taosAnalJsonBufWritePara(SAnalBuf *pBuf, const char *algo, const char *opt, const char *prec,
+                                        int32_t col1, int32_t col2) {
   const char *js =
       "{\n"
-      "\"input\": {\n"
-      "  \"parameters\": \"%s\",\n"
-      "    \"timestamp\": {\n"
-      "    \"format\": \"%s\",\n"
-      "    \"precision\": \"%s\"\n"
-      "  },\n"
-      "  \"type\": \"forecast\",\n"
-      "  \"weather\": {},\n"
-      "  \"holiday\": {},\n"
-      "  \"season\": {}\n"
-      "},\n"
-      "\"output\": {\n"
-      "  \"columns\": [\"start\", \"end\"]\n"
-      "},\n";
-  char    buf[256] = {0};
-  int32_t bufLen = snprintf(buf, sizeof(buf), js, paras, fmt, prec);
-
-  if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
-    return terrno;
-  }
-  return 0;
-}
-
-static int32_t taosAnalJsonBufWriteMeta(SAnalBuf *pBuf, int32_t c1, int32_t c2) {
-  const char *js =
-      "\"column_meta\": [\n"
+      "\"algo\": \"%s\",\n"
+      "\"opt\": \"%s\",\n"
+      "\"prec\": \"%s\",\n"
+      "\"schema\": [\n"
       "  [\"ts\", \"%s\", %d],\n"
       "  [\"val\", \"%s\", %d]\n"
       "],\n"
       "\"data\": [\n";
-  char    buf[256] = {0};
-  int32_t bufLen = snprintf(buf, sizeof(buf), js, tDataTypes[c1].name, tDataTypes[c1].bytes, tDataTypes[c2].name,
-                            tDataTypes[c2].bytes);
+  char    buf[512] = {0};
+  int32_t bufLen = snprintf(buf, sizeof(buf), js, algo, opt, prec, tDataTypes[col1].name, tDataTypes[col1].bytes,
+                            tDataTypes[col2].name, tDataTypes[col2].bytes);
 
   if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
     return terrno;
@@ -427,10 +406,31 @@ static int32_t taosAnalJsonBufWriteMeta(SAnalBuf *pBuf, int32_t c1, int32_t c2) 
   return 0;
 }
 
-static int32_t taosAnalJsonBufWriteData(SAnalBuf *pBuf, const char *data, bool isLast) {
-  const char *js = "[%s]%s\n";
+int32_t taosAnalJsonBufNewCol(SAnalBuf *pBuf) {
+  if (taosWriteFile(pBuf->filePtr, "[", 1) != 1) {
+    return terrno;
+  }
+  return 0;
+}
+
+int32_t taosAnalJsonBufEndCol(SAnalBuf *pBuf, bool lastCol) {
+  if (lastCol) {
+    if (taosWriteFile(pBuf->filePtr, "]", 1) != 2) {
+      return terrno;
+    }
+  } else {
+    if (taosWriteFile(pBuf->filePtr, "],", 2) != 2) {
+      return terrno;
+    }
+  }
+
+  return 0;
+}
+
+static int32_t taosAnalJsonBufWriteRow(SAnalBuf *pBuf, const char *data, bool lastRow) {
+  const char *js = "%s%s\n";
   char        buf[86] = {0};
-  int32_t     bufLen = snprintf(buf, sizeof(buf), js, data, isLast ? "" : ",");
+  int32_t     bufLen = snprintf(buf, sizeof(buf), js, data, lastRow ? "" : ",");
 
   if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
     return terrno;
@@ -522,25 +522,34 @@ int32_t tsosAnalBufOpen(SAnalBuf *pBuf) {
   }
 }
 
-int32_t taosAnalBufWritePara(SAnalBuf *pBuf, const char *paras, const char *timefmt, const char *timeprec) {
+int32_t taosAnalBufWritePara(SAnalBuf *pBuf, const char *algo, const char *opt, const char *prec, int32_t col1,
+                             int32_t col2) {
   if (pBuf->bufType == ANAL_BUF_TYPE_JSON) {
-    return taosAnalJsonBufWritePara(pBuf, paras, timefmt, timeprec);
+    return taosAnalJsonBufWritePara(pBuf, algo, opt, prec, col1, col2);
   } else {
     return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
   }
 }
 
-int32_t taosAnalBufWriteMeta(SAnalBuf *pBuf, int32_t col1, int32_t col2) {
-  if (pBuf->bufType == ANAL_BUF_TYPE_JSON) {
-    return taosAnalJsonBufWriteMeta(pBuf, col1, col2);
+int32_t taosAnalBufNewCol(SAnalBuf *pBuf){
+    if (pBuf->bufType == ANAL_BUF_TYPE_JSON) {
+    return taosAnalJsonBufNewCol(pBuf);
   } else {
     return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
   }
 }
 
-int32_t taosAnalBufWriteData(SAnalBuf *pBuf, const char *data, bool isLast) {
+int32_t taosAnalBufEndCol(SAnalBuf *pBuf, bool lastCol) {
   if (pBuf->bufType == ANAL_BUF_TYPE_JSON) {
-    return taosAnalJsonBufWriteData(pBuf, data, isLast);
+    return taosAnalJsonBufEndCol(pBuf, lastCol);
+  } else {
+    return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
+  }
+}
+
+int32_t taosAnalBufWriteRow(SAnalBuf *pBuf, const char *data, bool isLast) {
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON) {
+    return taosAnalJsonBufWriteRow(pBuf, data, isLast);
   } else {
     return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
   }

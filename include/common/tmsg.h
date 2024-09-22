@@ -1108,7 +1108,7 @@ typedef struct {
 
 typedef struct {
   int64_t   ver;
-  SHashObj* hash;  // funcname -> SAnalUrl
+  SHashObj* hash;  // algoname:algotype -> SAnalUrl
 } SRetrieveAnalAlgoRsp;
 
 int32_t tSerializeRetrieveAnalAlgoReq(void* buf, int32_t bufLen, SRetrieveAnalAlgoReq* pReq);

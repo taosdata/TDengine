@@ -63,9 +63,11 @@ int64_t taosAnalGetVersion();
 void    taosAnalUpdate(int64_t newVer, SHashObj *pHash);
 
 int32_t tsosAnalBufOpen(SAnalBuf *pBuf);
-int32_t taosAnalBufWritePara(SAnalBuf *pBuf, const char *paras, const char *timefmt, const char *timeprec);
-int32_t taosAnalBufWriteMeta(SAnalBuf *pBuf, int32_t col1, int32_t col2);
-int32_t taosAnalBufWriteData(SAnalBuf *pBuf, const char *data, bool isLast);
+int32_t taosAnalBufWritePara(SAnalBuf *pBuf, const char *algo, const char *opt, const char *prec, int32_t col1,
+                             int32_t col2);
+int32_t taosAnalBufNewCol(SAnalBuf *pBuf);
+int32_t taosAnalBufEndCol(SAnalBuf *pBuf, bool lastCol);
+int32_t taosAnalBufWriteRow(SAnalBuf *pBuf, const char *data, bool lastRow);
 int32_t taosAnalBufWriteRows(SAnalBuf *pBuf, int32_t numOfRows);
 void    taosAnalBufClose(SAnalBuf *pBuf);
 
