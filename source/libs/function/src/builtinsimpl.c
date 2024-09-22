@@ -3612,7 +3612,7 @@ int32_t forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInf
   SColumnInfoData*      pOutput = (SColumnInfoData*)pCtx->pOutput;
 
   const char* options = varDataVal(pCtx->param[1].param.pz);
-  if (!taosAnalGetParaStr(options, "func", pRes->algoName, sizeof(pRes->algoName))) {
+  if (!taosAnalGetParaStr(options, "algo", pRes->algoName, sizeof(pRes->algoName))) {
     qError("failed to get forecast algo name from %s", options);
     return TSDB_CODE_ANAL_ALGO_NOT_FOUND;
   }

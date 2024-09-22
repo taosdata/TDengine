@@ -815,14 +815,14 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
       url.anode = pAnode->id;
       for (int32_t t = 0; t < pAnode->numOfAlgos; ++t) {
         SArray *algos = pAnode->algos[t];
+        url.type = t;
 
         for (int32_t a = 0; a < taosArrayGetSize(algos); ++a) {
           SAnodeAlgo *algo = taosArrayGet(algos, a);
-          nameLen = snprintf(name, sizeof(name) - 1, "%s:%d", algo->name, url.type);
+          nameLen = snprintf(name, sizeof(name) - 1, "%d:%s", url.type, algo->name);
 
           SAnalUrl *pOldUrl = taosHashAcquire(rsp.hash, name, nameLen);
           if (pOldUrl == NULL || (pOldUrl != NULL && pOldUrl->anode < url.anode)) {
-            url.type = t;
             url.url = taosMemoryMalloc(TSDB_ANAL_ANODE_URL_LEN + TSDB_ANAL_ALGO_TYPE_LEN + 1);
             url.urlLen = 1 + snprintf(url.url, TSDB_ANAL_ANODE_URL_LEN + TSDB_ANAL_ALGO_TYPE_LEN, "%s/%s", pAnode->url,
                                       taosAnalAlgoUrlStr(url.type));

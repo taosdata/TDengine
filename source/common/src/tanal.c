@@ -156,7 +156,7 @@ bool taosAnalGetParaInt(const char *option, const char *paraName, int32_t *paraV
 int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen) {
   int32_t code = 0;
   char    name[TSDB_ANAL_ALGO_KEY_LEN] = {0};
-  int32_t nameLen = snprintf(name, sizeof(name) - 1, "%s:%d", algoName, type);
+  int32_t nameLen = snprintf(name, sizeof(name) - 1, "%d:%s", type, algoName);
 
   taosThreadMutexLock(&tsAlgos.lock);
   SAnalUrl *pUrl = taosHashAcquire(tsAlgos.hash, name, nameLen);
@@ -167,7 +167,7 @@ int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, 
     url[0] = 0;
     terrno = TSDB_CODE_ANAL_ALGO_NOT_FOUND;
     code = terrno;
-    uInfo("algo:%s, type:%s, url not found", algoName, taosAnalAlgoStr(type));
+    uError("algo:%s, type:%s, url not found", algoName, taosAnalAlgoStr(type));
   }
   taosThreadMutexUnlock(&tsAlgos.lock);
 
@@ -178,23 +178,30 @@ int64_t taosAnalGetVersion() { return tsAlgos.ver; }
 
 static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void *userdata) {
   SCurlResp *pRsp = userdata;
+  if (contLen == 0 || nmemb == 0 || pCont == NULL) {
+    pRsp->dataLen = 0;
+    pRsp->data = NULL;
+    uError("curl response is received, len:%" PRId64 ", content:%s", pRsp->dataLen, pRsp->data);
+    return 0;
+  }
+
   pRsp->dataLen = (int64_t)contLen * (int64_t)nmemb;
   pRsp->data = taosMemoryMalloc(pRsp->dataLen + 1);
 
   if (pRsp->data != NULL) {
     (void)memcpy(pRsp->data, pCont, pRsp->dataLen);
     pRsp->data[pRsp->dataLen] = 0;
-    uInfo("curl resp is received, len:%" PRId64 ", cont:%s", pRsp->dataLen, pRsp->data);
+    uInfo("curl response is received, len:%" PRId64 ", content:%s", pRsp->dataLen, pRsp->data);
     return pRsp->dataLen;
   } else {
     pRsp->dataLen = 0;
-    uInfo("failed to malloc curl resp");
+    uError("failed to malloc curl response");
     return 0;
   }
 }
 
 static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
-#if 1
+#if 0
   return taosCurlTestStr(url, pRsp);
 #else
   CURL    *curl = NULL;
@@ -223,7 +230,7 @@ _OVER:
 }
 
 static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen) {
-#if 1
+#if 0
   return taosCurlTestStr(url, pRsp);
 #else
   struct curl_slist *headers = NULL;
@@ -351,10 +358,10 @@ static int32_t taosCurlTestStr(const char *url, SCurlResp *pRsp) {
       "{\n"
       "    \"rows\": 1,\n"
       "    \"res\": [\n"
-      "        [1577808000000, 1578153600000],\n"
-      "        [1578153600000, 1578240000000],\n"
-      "        [1578240000000, 1578499200000]\n"
-      // "        [1577808016000, 1577808016000]\n"
+      // "        [1577808000000, 1578153600000],\n"
+      // "        [1578153600000, 1578240000000],\n"
+      // "        [1578240000000, 1578499200000]\n"
+      "        [1577808016000, 1577808016000]\n"
       "    ]\n"
       "}";
 

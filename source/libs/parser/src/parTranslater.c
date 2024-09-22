@@ -5709,11 +5709,13 @@ static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelec
 static int32_t checkAnomalyExpr(STranslateContext* pCxt, SNode* pNode) {
   int32_t type = ((SExprNode*)pNode)->resType.type;
   if (!IS_MATHABLE_TYPE(type)) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_TYPE);
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_TYPE,
+                                   "ANOMALY_WINDOW only support mathable column");
   }
 
   if (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_COL);
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_COL,
+                                   "ANOMALY_WINDOW not support on tag column");
   }
 
   return TSDB_CODE_SUCCESS;
@@ -5729,9 +5731,10 @@ static int32_t translateAnomalyWindow(STranslateContext* pCxt, SSelectStmt* pSel
   SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pSelect->pWindow;
   int32_t             code = checkAnomalyExpr(pCxt, pAnomaly->pExpr);
   if (TSDB_CODE_SUCCESS == code) {
-    char* pos1 = strstr(pAnomaly->anomalyOpt, "func=");
+    char* pos1 = strstr(pAnomaly->anomalyOpt, "algo=");
     if (pos1 == NULL) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_OPT);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_OPT,
+                                     "ANOMALY_WINDOW option should include algo field");
     }
   }
 

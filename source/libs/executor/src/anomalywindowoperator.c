@@ -299,8 +299,7 @@ static void anomalyPrintRow(SAnomalyWindowSupp* pSupp, char* val, int8_t valType
 }
 
 static int32_t anomalyFindWindow(SAnomalyWindowSupp* pSupp, TSKEY key) {
-  int32_t numOfWIndows = (int32_t)taosArrayGetSize(pSupp->windows);
-  for (int32_t i = pSupp->curWinIndex; i < numOfWIndows; ++i) {
+  for (int32_t i = pSupp->curWinIndex; i < taosArrayGetSize(pSupp->windows); ++i) {
     STimeWindow* pWindow = taosArrayGet(pSupp->windows, i);
     if (key >= pWindow->skey && key < pWindow->ekey) {
       pSupp->curWin = *pWindow;
@@ -322,14 +321,14 @@ static int32_t anomalyParseJson(SJson* pJson, SArray* pWindows) {
   if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
   if (rows <= 0) return 0;
 
-  SJson* data = tjsonGetObjectItem(pJson, "data");
-  if (data == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
+  SJson* res = tjsonGetObjectItem(pJson, "res");
+  if (res == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
 
-  int32_t datasize = tjsonGetArraySize(data);
-  if (datasize != rows) return TSDB_CODE_INVALID_JSON_FORMAT;
+  int32_t ressize = tjsonGetArraySize(res);
+  if (ressize != rows) return TSDB_CODE_INVALID_JSON_FORMAT;
 
   for (int32_t i = 0; i < rows; ++i) {
-    SJson* row = tjsonGetArrayItem(data, i);
+    SJson* row = tjsonGetArrayItem(res, i);
     if (row == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
 
     int32_t colsize = tjsonGetArraySize(row);
@@ -342,7 +341,18 @@ static int32_t anomalyParseJson(SJson* pJson, SArray* pWindows) {
     tjsonGetObjectValueBigInt(start, &win.skey);
     tjsonGetObjectValueBigInt(end, &win.ekey);
 
+    if (win.skey >= win.ekey) {
+      win.ekey = win.skey + 1;
+    }
+
     if (taosArrayPush(pWindows, &win) == NULL) return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  int32_t numOfWins = taosArrayGetSize(pWindows);
+  uInfo("anomaly window recevied, total:%d", numOfWins);
+  for (int32_t i = 0; i < numOfWins; ++i) {
+    STimeWindow* pWindow = taosArrayGet(pWindows, i);
+    uInfo("anomaly win:%d [%" PRId64 ", %" PRId64 ")", i, pWindow->skey, pWindow->ekey);
   }
 
   return 0;
