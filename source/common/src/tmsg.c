@@ -2055,7 +2055,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeRetrieveAnalFuncReq(void *buf, int32_t bufLen, SRetrieveAnalFuncReq *pReq) {
+int32_t tSerializeRetrieveAnalAlgoReq(void *buf, int32_t bufLen, SRetrieveAnalAlgoReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -2077,7 +2077,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeRetrieveAnalFuncReq(void *buf, int32_t bufLen, SRetrieveAnalFuncReq *pReq) {
+int32_t tDeserializeRetrieveAnalAlgoReq(void *buf, int32_t bufLen, SRetrieveAnalAlgoReq *pReq) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -2094,28 +2094,28 @@ _exit:
   return code;
 }
 
-int32_t tSerializeRetrieveAnalFuncRsp(void *buf, int32_t bufLen, SRetrieveAnalFuncRsp *pRsp) {
+int32_t tSerializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnalAlgoRsp *pRsp) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
   int32_t  tlen;
   tEncoderInit(&encoder, buf, bufLen);
 
-  int32_t numOfFuncs = 0;
+  int32_t numOfAlgos = 0;
   void   *pIter = taosHashIterate(pRsp->hash, NULL);
   while (pIter != NULL) {
     SAnalUrl   *pUrl = pIter;
     size_t      nameLen = 0;
     const char *name = taosHashGetKey(pIter, &nameLen);
-    if (nameLen > 0 && nameLen <= TSDB_ANAL_FUNC_KEY_LEN && pUrl->urlLen > 0) {
-      numOfFuncs++;
+    if (nameLen > 0 && nameLen <= TSDB_ANAL_ALGO_KEY_LEN && pUrl->urlLen > 0) {
+      numOfAlgos++;
     }
     pIter = taosHashIterate(pRsp->hash, pIter);
   }
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->ver));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, numOfFuncs));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, numOfAlgos));
 
   pIter = taosHashIterate(pRsp->hash, NULL);
   while (pIter != NULL) {
@@ -2145,7 +2145,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeRetrieveAnalFuncRsp(void *buf, int32_t bufLen, SRetrieveAnalFuncRsp *pRsp) {
+int32_t tDeserializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnalAlgoRsp *pRsp) {
   if (pRsp->hash == NULL) {
     pRsp->hash = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
     if (pRsp->hash == NULL) {
@@ -2159,25 +2159,25 @@ int32_t tDeserializeRetrieveAnalFuncRsp(void *buf, int32_t bufLen, SRetrieveAnal
   int32_t  lino;
   tDecoderInit(&decoder, buf, bufLen);
 
-  int32_t      numOfFuncs = 0;
+  int32_t      numOfAlgos = 0;
   int32_t      nameLen;
   int32_t      type;
-  char         name[TSDB_ANAL_FUNC_KEY_LEN];
+  char         name[TSDB_ANAL_ALGO_KEY_LEN];
   SAnalUrl url = {0};
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->ver));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numOfFuncs));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numOfAlgos));
 
-  for (int32_t f = 0; f < numOfFuncs; ++f) {
+  for (int32_t f = 0; f < numOfAlgos; ++f) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nameLen));
-    if (nameLen > 0 && nameLen <= TSDB_ANAL_FUNC_NAME_LEN) {
+    if (nameLen > 0 && nameLen <= TSDB_ANAL_ALGO_NAME_LEN) {
       TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, name));
     }
 
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &url.anode));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &type));
-    url.type = (EAnalFuncType)type;
+    url.type = (EAnalAlgoType)type;
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &url.urlLen));
     if (url.urlLen > 0) {
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&url.url, NULL) < 0);
@@ -2193,7 +2193,7 @@ _exit:
   return code;
 }
 
-void tFreeRetrieveAnalFuncRsp(SRetrieveAnalFuncRsp *pRsp) {
+void tFreeRetrieveAnalAlgoRsp(SRetrieveAnalAlgoRsp *pRsp) {
   void *pIter = taosHashIterate(pRsp->hash, NULL);
   while (pIter != NULL) {
     SAnalUrl *pUrl = (SAnalUrl *)pIter;

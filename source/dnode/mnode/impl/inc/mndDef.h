@@ -235,24 +235,21 @@ typedef struct {
 } SDnodeObj;
 
 typedef struct {
-  int32_t  nameLen;
-  int32_t  typeLen;
-  char*    name;
-  int32_t* types;
-} SAnodeFunc;
+  int32_t nameLen;
+  char*   name;
+} SAnodeAlgo;
 
 typedef struct {
-  int32_t     id;
-  int64_t     createdTime;
-  int64_t     updateTime;
-  int32_t     version;
-  int32_t     urlLen;
-  int32_t     numOfFuncs;
-  int16_t     status;
-  int16_t     reserved;
-  char*       url;
-  SRWLatch    lock;
-  SAnodeFunc* pFuncs;
+  int32_t  id;
+  int64_t  createdTime;
+  int64_t  updateTime;
+  int32_t  version;
+  int32_t  urlLen;
+  int32_t  numOfAlgos;
+  int32_t  status;
+  SRWLatch lock;
+  char*    url;
+  SArray** algos;
 } SAnodeObj;
 
 typedef struct {

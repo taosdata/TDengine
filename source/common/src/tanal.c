@@ -20,47 +20,54 @@
 #include "ttypes.h"
 #include "tutil.h"
 
-#define ANAL_FUNC_FUNC_PREFIX "func="
-#define ANAL_FUNC_SPLIT       ","
+#define ANAL_ALGO_PREFIX "algo="
+#define ANAL_ALGO_SPLIT  ","
 
 typedef struct {
   int64_t       ver;
-  SHashObj     *hash;  // funcname -> SAnalUrl
+  SHashObj     *hash;  // algoname:algotype -> SAnalUrl
   TdThreadMutex lock;
-} SAFuncMgmt;
+} SAlgoMgmt;
 
 typedef struct {
   char   *data;
   int64_t dataLen;
 } SCurlResp;
 
-static SAFuncMgmt tsFuncs = {0};
-static int32_t    taosCurlTestStr(const char *url, SCurlResp *pRsp);
-static int32_t    taosAnalBufGetCont(SAnalBuf *pBuf, char **ppCont, int64_t *pContLen);
+static SAlgoMgmt tsAlgos = {0};
+static int32_t   taosCurlTestStr(const char *url, SCurlResp *pRsp);
+static int32_t   taosAnalBufGetCont(SAnalBuf *pBuf, char **ppCont, int64_t *pContLen);
 
-const char *taosAnalFuncStr(EAnalFuncType type) {
+const char *taosAnalAlgoStr(EAnalAlgoType type) {
   switch (type) {
-    case ANAL_FUNC_TYPE_ANOMALY_WINDOW:
-      return "anomaly_window";
-    case ANAL_FUNC_TYPE_ANOMALY_DETECT:
-      return "anomaly_detect";
-    case ANAL_FUNC_TYPE_FORECAST:
+    case ANAL_ALGO_TYPE_ANOMALY_DETECT:
+      return "anomaly-detection";
+    case ANAL_ALGO_TYPE_FORECAST:
       return "forecast";
-    case ANAL_FUNC_TYPE_HISTORIC:
-      return "historic";
     default:
       return "unknown";
   }
 }
 
-EAnalFuncType taosAnalFuncInt(const char *name) {
-  for (EAnalFuncType i = ANAL_FUNC_TYPE_START; i < ANAL_FUNC_TYPE_END; ++i) {
-    if (strcasecmp(name, taosAnalFuncStr(i)) == 0) {
+const char *taosAnalAlgoUrlStr(EAnalAlgoType type) {
+  switch (type) {
+    case ANAL_ALGO_TYPE_ANOMALY_DETECT:
+      return "anomaly-detect";
+    case ANAL_ALGO_TYPE_FORECAST:
+      return "forecast";
+    default:
+      return "unknown";
+  }
+}
+
+EAnalAlgoType taosAnalAlgoInt(const char *name) {
+  for (EAnalAlgoType i = 0; i < ANAL_ALGO_TYPE_END; ++i) {
+    if (strcasecmp(name, taosAnalAlgoStr(i)) == 0) {
       return i;
     }
   }
 
-  return ANAL_FUNC_TYPE_START;
+  return ANAL_ALGO_TYPE_END;
 }
 
 int32_t taosAnalInit() {
@@ -69,15 +76,15 @@ int32_t taosAnalInit() {
     return -1;
   }
 
-  tsFuncs.ver = 0;
-  taosThreadMutexInit(&tsFuncs.lock, NULL);
-  tsFuncs.hash = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
-  if (tsFuncs.hash == NULL) {
-    uError("failed to init tfunc hash");
+  tsAlgos.ver = 0;
+  taosThreadMutexInit(&tsAlgos.lock, NULL);
+  tsAlgos.hash = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
+  if (tsAlgos.hash == NULL) {
+    uError("failed to init algo hash");
     return -1;
   }
 
-  uInfo("analysis func env is initialized");
+  uInfo("analysis env is initialized");
   return 0;
 }
 
@@ -93,19 +100,19 @@ static void taosAnalFreeHash(SHashObj *hash) {
 
 void taosAnalCleanup() {
   curl_global_cleanup();
-  taosThreadMutexDestroy(&tsFuncs.lock);
-  taosAnalFreeHash(tsFuncs.hash);
-  tsFuncs.hash = NULL;
-  uInfo("analysis func env is cleaned up");
+  taosThreadMutexDestroy(&tsAlgos.lock);
+  taosAnalFreeHash(tsAlgos.hash);
+  tsAlgos.hash = NULL;
+  uInfo("analysis env is cleaned up");
 }
 
 void taosAnalUpdate(int64_t newVer, SHashObj *pHash) {
-  if (newVer > tsFuncs.ver) {
-    taosThreadMutexLock(&tsFuncs.lock);
-    SHashObj *hash = tsFuncs.hash;
-    tsFuncs.ver = newVer;
-    tsFuncs.hash = pHash;
-    taosThreadMutexUnlock(&tsFuncs.lock);
+  if (newVer > tsAlgos.ver) {
+    taosThreadMutexLock(&tsAlgos.lock);
+    SHashObj *hash = tsAlgos.hash;
+    tsAlgos.ver = newVer;
+    tsAlgos.hash = pHash;
+    taosThreadMutexUnlock(&tsAlgos.lock);
     taosAnalFreeHash(hash);
   } else {
     taosAnalFreeHash(pHash);
@@ -113,11 +120,11 @@ void taosAnalUpdate(int64_t newVer, SHashObj *pHash) {
 }
 
 bool taosAnalGetParaStr(const char *option, const char *paraName, char *paraValue, int32_t paraValueMaxLen) {
-  char    buf[TSDB_ANAL_FUNC_OPTION_LEN] = {0};
+  char    buf[TSDB_ANAL_ALGO_OPTION_LEN] = {0};
   int32_t bufLen = snprintf(buf, sizeof(buf), "%s=", paraName);
 
   char *pos1 = strstr(option, buf);
-  char *pos2 = strstr(option, ANAL_FUNC_SPLIT);
+  char *pos2 = strstr(option, ANAL_ALGO_SPLIT);
   if (pos1 != NULL) {
     if (paraValueMaxLen > 0) {
       int32_t copyLen = paraValueMaxLen;
@@ -134,11 +141,11 @@ bool taosAnalGetParaStr(const char *option, const char *paraName, char *paraValu
 }
 
 bool taosAnalGetParaInt(const char *option, const char *paraName, int32_t *paraValue) {
-  char    buf[TSDB_ANAL_FUNC_OPTION_LEN] = {0};
+  char    buf[TSDB_ANAL_ALGO_OPTION_LEN] = {0};
   int32_t bufLen = snprintf(buf, sizeof(buf), "%s=", paraName);
 
   char *pos1 = strstr(option, buf);
-  char *pos2 = strstr(option, ANAL_FUNC_SPLIT);
+  char *pos2 = strstr(option, ANAL_ALGO_SPLIT);
   if (pos1 != NULL) {
     *paraValue = taosStr2Int32(pos1 + bufLen + 1, NULL, 10);
     return true;
@@ -147,28 +154,28 @@ bool taosAnalGetParaInt(const char *option, const char *paraName, int32_t *paraV
   }
 }
 
-int32_t taosAnalGetFuncUrl(const char *funcName, EAnalFuncType type, char *url, int32_t urlLen) {
+int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen) {
   int32_t code = 0;
-  char    name[TSDB_ANAL_FUNC_KEY_LEN] = {0};
-  int32_t nameLen = snprintf(name, sizeof(name) - 1, "%s:%d", funcName, type);
+  char    name[TSDB_ANAL_ALGO_KEY_LEN] = {0};
+  int32_t nameLen = snprintf(name, sizeof(name) - 1, "%s:%d", algoName, type);
 
-  taosThreadMutexLock(&tsFuncs.lock);
-  SAnalUrl *pUrl = taosHashAcquire(tsFuncs.hash, name, nameLen);
+  taosThreadMutexLock(&tsAlgos.lock);
+  SAnalUrl *pUrl = taosHashAcquire(tsAlgos.hash, name, nameLen);
   if (pUrl != NULL) {
     tstrncpy(url, pUrl->url, urlLen);
-    uInfo("func:%s, type:%s, url:%s", funcName, taosAnalFuncStr(type), url);
+    uInfo("algo:%s, type:%s, url:%s", algoName, taosAnalAlgoStr(type), url);
   } else {
     url[0] = 0;
-    terrno = TSDB_CODE_ANAL_FUNC_NOT_FOUND;
+    terrno = TSDB_CODE_ANAL_ALGO_NOT_FOUND;
     code = terrno;
-    uInfo("func:%s,type:%s, url not found", funcName, taosAnalFuncStr(type));
+    uInfo("algo:%s, type:%s, url not found", algoName, taosAnalAlgoStr(type));
   }
-  taosThreadMutexUnlock(&tsFuncs.lock);
+  taosThreadMutexUnlock(&tsAlgos.lock);
 
   return code;
 }
 
-int64_t taosAnalGetVersion() { return tsFuncs.ver; }
+int64_t taosAnalGetVersion() { return tsAlgos.ver; }
 
 static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void *userdata) {
   SCurlResp *pRsp = userdata;
@@ -188,7 +195,7 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
 }
 
 static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
-#if 0
+#if 1
   return taosCurlTestStr(url, pRsp);
 #else
   CURL    *curl = NULL;
@@ -217,7 +224,7 @@ _OVER:
 }
 
 static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen) {
-#if 0
+#if 1
   return taosCurlTestStr(url, pRsp);
 #else
   struct curl_slist *headers = NULL;
@@ -261,7 +268,7 @@ SJson *taosAnalSendReqRetJson(const char *url, EAnalHttpType type, SAnalBuf *pBu
   SJson    *pJson = NULL;
   SCurlResp curlRsp = {0};
 
-  if (type == ANAL_HTTP_GET) {
+  if (type == ANAL_HTTP_TYPE_GET) {
     if (taosCurlGetRequest(url, &curlRsp) != 0) {
       terrno = TSDB_CODE_ANAL_URL_CANT_ACCESS;
       goto _OVER;
@@ -297,23 +304,47 @@ _OVER:
 
 static int32_t taosCurlTestStr(const char *url, SCurlResp *pRsp) {
   const char *listStr =
-      "{"
-      "\"protocol\": 1,"
-      "\"version\": 1,"
-      "\"functions\": [{"
-      "          \"name\": \"arima\","
-      "          \"types\": [\"forecast\", \"anomaly_window\"]"
-      "      },"
-      "      {"
-      "          \"name\": \"ai\","
-      "          \"types\": [\"forecast\", \"historic\"]"
-      "      }"
-      "  ]"
-      "}";
+      "{\n"
+      "  \"details\": [\n"
+      "    {\n"
+      "      \"algo\": [\n"
+      "        {\n"
+      "          \"name\": \"arima\"\n"
+      "        },\n"
+      "        {\n"
+      "          \"name\": \"holt-winters\"\n"
+      "        }\n"
+      "      ],\n"
+      "      \"type\": \"forecast\"\n"
+      "    },\n"
+      "    {\n"
+      "      \"algo\": [\n"
+      "        {\n"
+      "          \"name\": \"k-sigma\"\n"
+      "        },\n"
+      "        {\n"
+      "          \"name\": \"iqr\"\n"
+      "        },\n"
+      "        {\n"
+      "          \"name\": \"grubbs\"\n"
+      "        },\n"
+      "        {\n"
+      "          \"name\": \"lof\"\n"
+      "        },\n"
+      "        {\n"
+      "          \"name\": \"esd\"\n"
+      "        }\n"
+      "      ],\n"
+      "      \"type\": \"anomaly-detection\"\n"
+      "    }\n"
+      "  ],\n"
+      "  \"protocol\": 0.1,\n"
+      "  \"version\": 0.1\n"
+      "}\n";
 
   const char *statusStr =
       "{"
-      "  \"protocol\": 1,"
+      "  \"protocol\": 0.1,"
       "  \"status\": \"ready\""
       "}";
 

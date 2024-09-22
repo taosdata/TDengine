@@ -3567,9 +3567,9 @@ bool funcInputGetNextRowIndex(SInputColumnInfoData* pInput, int32_t from, bool f
 }
 
 typedef struct {
-  char          funcName[TSDB_ANAL_FUNC_NAME_LEN];
-  char          funcUrl[TSDB_ANAL_FUNC_URL_LEN];
-  EAnalFuncType funcType;
+  char          algoName[TSDB_ANAL_ALGO_NAME_LEN];
+  char          algoUrl[TSDB_ANAL_ALGO_URL_LEN];
+  EAnalAlgoType algoType;
   uint8_t       inputInit : 1;
   uint8_t       inputStop : 1;
   uint8_t       hasRows : 1;
@@ -3612,13 +3612,13 @@ int32_t forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInf
   SColumnInfoData*      pOutput = (SColumnInfoData*)pCtx->pOutput;
 
   const char* options = varDataVal(pCtx->param[1].param.pz);
-  if (!taosAnalGetParaStr(options, "func", pRes->funcName, sizeof(pRes->funcName))) {
-    qError("failed to get forecast funcName from %s", options);
-    return TSDB_CODE_ANAL_FUNC_NOT_FOUND;
+  if (!taosAnalGetParaStr(options, "func", pRes->algoName, sizeof(pRes->algoName))) {
+    qError("failed to get forecast algo name from %s", options);
+    return TSDB_CODE_ANAL_ALGO_NOT_FOUND;
   }
-  if (taosAnalGetFuncUrl(pRes->funcName, ANAL_FUNC_TYPE_FORECAST, pRes->funcUrl, sizeof(pRes->funcUrl)) != 0) {
+  if (taosAnalGetAlgoUrl(pRes->algoName, ANAL_ALGO_TYPE_FORECAST, pRes->algoUrl, sizeof(pRes->algoUrl)) != 0) {
     qError("failed to get forecast funcUrl from %s", options);
-    return TSDB_CODE_ANAL_FUNC_NOT_LOAD;
+    return TSDB_CODE_ANAL_ALGO_NOT_LOAD;
   }
 
   pRes->hasConf = taosAnalGetParaInt(options, "conf", &pRes->inputConf);
@@ -3668,7 +3668,7 @@ int32_t forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInf
   pRes->resRowSize = 32;
   pRes->inputInit = true;
   pRes->inputStop = false;
-  pRes->funcType = ANAL_FUNC_TYPE_FORECAST;
+  pRes->algoType = ANAL_ALGO_TYPE_FORECAST;
   pRes->bufLen = 0;
   pRes->buf = NULL;
 

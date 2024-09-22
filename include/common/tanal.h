@@ -30,7 +30,7 @@ extern "C" {
 #define ANAL_FORECAST_DEFAULT_EVERY 10000
 
 typedef struct {
-  EAnalFuncType type;
+  EAnalAlgoType type;
   int32_t       anode;
   int32_t       urlLen;
   char         *url;
@@ -42,8 +42,8 @@ typedef enum {
 } EAnalBufType;
 
 typedef enum {
-  ANAL_HTTP_GET,
-  ANAL_HTTP_POST,
+  ANAL_HTTP_TYPE_GET = 0,
+  ANAL_HTTP_TYPE_POST,
 } EAnalHttpType;
 
 typedef struct {
@@ -56,7 +56,7 @@ int32_t taosAnalInit();
 void    taosAnalCleanup();
 SJson  *taosAnalSendReqRetJson(const char *url, EAnalHttpType type, SAnalBuf *pBuf);
 
-int32_t taosAnalGetFuncUrl(const char *funcName, EAnalFuncType type, char *url, int32_t urlLen);
+int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen);
 bool    taosAnalGetParaStr(const char *option, const char *paraName, char *paraValue, int32_t paraValueMaxLen);
 bool    taosAnalGetParaInt(const char *option, const char *paraName, int32_t *paraValue);
 int64_t taosAnalGetVersion();
@@ -69,8 +69,9 @@ int32_t taosAnalBufWriteData(SAnalBuf *pBuf, const char *data, bool isLast);
 int32_t taosAnalBufWriteRows(SAnalBuf *pBuf, int32_t numOfRows);
 void    taosAnalBufClose(SAnalBuf *pBuf);
 
-const char   *taosAnalFuncStr(EAnalFuncType funcType);
-EAnalFuncType taosAnalFuncInt(const char *funcName);
+const char   *taosAnalAlgoStr(EAnalAlgoType algoType);
+EAnalAlgoType taosAnalAlgoInt(const char *algoName);
+const char   *taosAnalAlgoUrlStr(EAnalAlgoType algoType);
 
 #ifdef __cplusplus
 }

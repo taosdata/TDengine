@@ -90,15 +90,15 @@ static void dmMayShouldUpdateAnalFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
   if (oldVer == newVer) return;
   dDebug("dnode analysis ver: %" PRId64 ", status ver: %" PRId64 "", oldVer, newVer);
 
-  SRetrieveAnalFuncReq req = {.dnodeId = pMgmt->pData->dnodeId, .analVer = oldVer};
-  int32_t              contLen = tSerializeRetrieveAnalFuncReq(NULL, 0, &req);
+  SRetrieveAnalAlgoReq req = {.dnodeId = pMgmt->pData->dnodeId, .analVer = oldVer};
+  int32_t              contLen = tSerializeRetrieveAnalAlgoReq(NULL, 0, &req);
   if (contLen < 0) {
     dError("failed to serialize analysis func ver request since: %s", tstrerror(contLen));
     return;
   }
 
   void *pHead = rpcMallocCont(contLen);
-  contLen = tSerializeRetrieveAnalFuncReq(pHead, contLen, &req);
+  contLen = tSerializeRetrieveAnalAlgoReq(pHead, contLen, &req);
   if (contLen < 0) {
     rpcFreeCont(pHead);
     dError("failed to serialize analysis func ver request since:%s", tstrerror(contLen));
@@ -108,7 +108,7 @@ static void dmMayShouldUpdateAnalFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
   SRpcMsg rpcMsg = {
       .pCont = pHead,
       .contLen = contLen,
-      .msgType = TDMT_MND_RETRIEVE_ANAL_FUNC,
+      .msgType = TDMT_MND_RETRIEVE_ANAL_ALGO,
       .info.ahandle = (void *)0x9527,
       .info.refId = 0,
       .info.noResp = 0,

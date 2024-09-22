@@ -42,9 +42,9 @@ typedef struct {
   SExprSupp          scalarSup;
   int32_t            tsSlotId;
   STimeWindowAggSupp twAggSup;
-  char               funcName[TSDB_FUNC_NAME_LEN];
-  char               funcUrl[TSDB_ANAL_FUNC_URL_LEN];
-  char               anomalyOpt[TSDB_ANAL_FUNC_OPTION_LEN];
+  char               algoName[TSDB_ANAL_ALGO_NAME_LEN];
+  char               algoUrl[TSDB_ANAL_ALGO_URL_LEN];
+  char               anomalyOpt[TSDB_ANAL_ALGO_OPTION_LEN];
   SAnomalyWindowSupp anomalySup;
   SWindowRowsSup     anomalyWinRowSup;
   SColumn            anomalyCol;
@@ -71,14 +71,14 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
     goto _error;
   }
 
-  if (!taosAnalGetParaStr(pAnomalyNode->anomalyOpt, "func", pInfo->funcName, sizeof(pInfo->funcName))) {
-    uError("failed to get anomaly_window funcName from %s", pAnomalyNode->anomalyOpt);
-    code = TSDB_CODE_ANAL_FUNC_NOT_FOUND;
+  if (!taosAnalGetParaStr(pAnomalyNode->anomalyOpt, "algo", pInfo->algoName, sizeof(pInfo->algoName))) {
+    uError("failed to get anomaly_window algo name from %s", pAnomalyNode->anomalyOpt);
+    code = TSDB_CODE_ANAL_ALGO_NOT_FOUND;
     goto _error;
   }
-  if (taosAnalGetFuncUrl(pInfo->funcName, ANAL_FUNC_TYPE_ANOMALY_WINDOW, pInfo->funcUrl, sizeof(pInfo->funcUrl)) != 0) {
-    uError("failed to get anomaly_window funcUrl from %s", pInfo->funcName);
-    code = TSDB_CODE_ANAL_FUNC_NOT_LOAD;
+  if (taosAnalGetAlgoUrl(pInfo->algoName, ANAL_ALGO_TYPE_ANOMALY_DETECT, pInfo->algoUrl, sizeof(pInfo->algoUrl)) != 0) {
+    uError("failed to get anomaly_window algo url from %s", pInfo->algoName);
+    code = TSDB_CODE_ANAL_ALGO_NOT_LOAD;
     goto _error;
   }
 
@@ -394,7 +394,7 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   code = taosAnalBufWriteRows(&analBuf, numOfRows);
   if (code != 0) goto _OVER;
 
-  pJson = taosAnalSendReqRetJson(pInfo->funcUrl, ANAL_HTTP_POST, &analBuf);
+  pJson = taosAnalSendReqRetJson(pInfo->algoUrl, ANAL_HTTP_TYPE_POST, &analBuf);
   if (pJson == NULL) {
     code = terrno;
     goto _OVER;
