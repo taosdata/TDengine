@@ -14569,13 +14569,14 @@ static int32_t rewriteDropTableWithOpt(STranslateContext* pCxt, SQuery* pQuery) 
     SDropTableClause* pClause = (SDropTableClause*)pNode;
     if (IS_SYS_DBNAME(pClause->dbName)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
-                                     "Cannot drop table of system database: '%s.%s'", pClause->dbName, pClause->tableName);
+                                     "Cannot drop table of system database: `%s`.`%s`", pClause->dbName,
+                                     pClause->tableName);
     }
     SName name = {0};
     toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &name);
     int32_t code = getTargetName(pCxt, &name, pTableName);
     if (TSDB_CODE_SUCCESS != code) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Table uid does not exist: '%s.%s'", pClause->dbName,
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "%s: db:`%s`, tbuid:`%s`", tstrerror(code), pClause->dbName,
                                      pClause->tableName);
     }
     tstrncpy(pClause->tableName, pTableName, TSDB_TABLE_NAME_LEN);  // rewrite table uid to table name
@@ -14613,7 +14614,9 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
       taosHashCleanup(pVgroupHashmap);
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DROP_STABLE);
     }
-    if (pCxt->withOpt) continue;
+    if (pCxt->withOpt) {
+      return rewriteToVnodeModifyOpStmt(pQuery, NULL);
+    }
     if (pCxt->pMetaCache) code = getTableTsmasFromCache(pCxt->pMetaCache, &name, &pTsmas);
     if (TSDB_CODE_SUCCESS != code) {
       taosHashCleanup(pVgroupHashmap);
@@ -14683,7 +14686,7 @@ static int32_t rewriteDropSuperTablewithOpt(STranslateContext* pCxt, SQuery* pQu
 
   if (IS_SYS_DBNAME(pStmt->dbName)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
-                                   "Cannot drop table of system database: '%s.%s'", pStmt->dbName, pStmt->tableName);
+                                   "Cannot drop table of system database: `%s`.`%s`", pStmt->dbName, pStmt->tableName);
   }
 
   char  pTableName[TSDB_TABLE_NAME_LEN] = {0};
@@ -14691,7 +14694,7 @@ static int32_t rewriteDropSuperTablewithOpt(STranslateContext* pCxt, SQuery* pQu
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
   code = getTargetName(pCxt, &name, pTableName);
   if (TSDB_CODE_SUCCESS != code) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Table uid does not exist: '%s.%s'", pStmt->dbName,
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "%s: db:`%s`, tbuid:`%s`", tstrerror(code), pStmt->dbName,
                                    pStmt->tableName);
   }
   tstrncpy(pStmt->tableName, pTableName, TSDB_TABLE_NAME_LEN);  // rewrite table uid to table name
