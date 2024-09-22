@@ -1,6 +1,7 @@
 //lemon parser file to generate sql parse by using finite-state-machine code used to parse sql
 //usage: lemon sql.y
 
+%name taosParse
 %token_prefix TK_
 %token_type { SToken }
 %default_type { SNode* }
@@ -1350,7 +1351,7 @@ parenthesized_joined_table(A) ::= NK_LP parenthesized_joined_table(B) NK_RP.    
 
 /************************************************ joined_table ********************************************************/
 joined_table(A) ::=
-  table_reference(B) join_type(C) join_subtype(D) JOIN table_reference(E) join_on_clause_opt(F)
+  table_reference(B) join_type(C) join_subtype(D) JOIN table_primary(E) join_on_clause_opt(F)
   window_offset_clause_opt(G) jlimit_clause_opt(H).                               {
                                                                                     A = createJoinTableNode(pCxt, C, D, B, E, F);
                                                                                     A = addWindowOffsetClause(pCxt, A, G);

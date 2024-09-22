@@ -24,10 +24,10 @@
 typedef void* (*FMalloc)(size_t);
 typedef void (*FFree)(void*);
 
-extern void* ParseAlloc(FMalloc);
-extern void  Parse(void*, int, SToken, void*);
-extern void  ParseFree(void*, FFree);
-extern void  ParseTrace(FILE*, char*);
+extern void* taosParseAlloc(FMalloc);
+extern void  taosParse(void*, int, SToken, void*);
+extern void  taosParseFree(void*, FFree);
+extern void  taosParseTrace(FILE*, char*);
 
 int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placeholderNo, SArray** pPlaceholderValues) {
   *pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
@@ -45,12 +45,12 @@ int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placehol
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
-  void*   pParser = ParseAlloc((FMalloc)taosMemoryMalloc);
+  void*   pParser = taosParseAlloc((FMalloc)taosMemoryMalloc);
   int32_t i = 0;
   while (1) {
     SToken t0 = {0};
     if (cxt.pQueryCxt->pSql[i] == 0) {
-      Parse(pParser, 0, t0, &cxt);
+      taosParse(pParser, 0, t0, &cxt);
       goto abort_parse;
     }
     t0.n = tGetToken((char*)&cxt.pQueryCxt->pSql[i], &t0.type);
@@ -63,7 +63,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
         break;
       }
       case TK_NK_SEMI: {
-        Parse(pParser, 0, t0, &cxt);
+        taosParse(pParser, 0, t0, &cxt);
         goto abort_parse;
       }
       case TK_NK_ILLEGAL: {
@@ -77,8 +77,8 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
         goto abort_parse;
       }
       default:
-        // ParseTrace(stdout, "");
-        Parse(pParser, t0.type, t0, &cxt);
+        // taosParseTrace(stdout, "");
+        taosParse(pParser, t0.type, t0, &cxt);
         if (TSDB_CODE_SUCCESS != cxt.errCode) {
           goto abort_parse;
         }
@@ -86,7 +86,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   }
 
 abort_parse:
-  ParseFree(pParser, (FFree)taosMemoryFree);
+  taosParseFree(pParser, (FFree)taosMemoryFree);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
     int32_t code = buildQueryAfterParse(pQuery, cxt.pRootNode, cxt.placeholderNo, &cxt.pPlaceholderValues);
     if (TSDB_CODE_SUCCESS != code) {

@@ -1,9 +1,27 @@
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/td_sql.c
+                          ${CMAKE_BINARY_DIR}/td_sql.h
+                          ${CMAKE_BINARY_DIR}/td_sql.out
+                    COMMAND lemon -d${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}/source/libs/parser/inc/td_sql.y
+                    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/source/libs/parser/inc/td_sql.y
+                    COMMENT "generating parser by lemon"
+                    VERBATIM
+)
+
+add_custom_target(gen_parser
+                  COMMAND ${CMAKE_COMMAND} -E echo parser generated
+                  DEPENDS ${CMAKE_BINARY_DIR}/td_sql.h
+                  COMMENT "checking parser"
+                  VERBATIM
+)
+
 aux_source_directory(src COMMON_SRC)
 IF (TD_ENTERPRISE)
 LIST(APPEND COMMON_SRC ${TD_ENTERPRISE_DIR}/src/plugins/common/src/tglobal.c)
 ENDIF()
 
 add_library(common STATIC ${COMMON_SRC})
+
+add_dependencies(common gen_parser)
 
 if (DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
@@ -31,6 +49,7 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/include/common"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
     PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
+    INTERFACE "${CMAKE_BINARY_DIR}"
 )
 IF(${TD_WINDOWS})
     target_include_directories(

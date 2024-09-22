@@ -5,6 +5,7 @@ IF (TD_ENTERPRISE)
 ENDIF ()
 
 add_library(parser STATIC ${PARSER_SRC})
+add_dependencies(parser common)
 target_include_directories(
         parser
         PUBLIC "${TD_SOURCE_DIR}/include/libs/parser"
