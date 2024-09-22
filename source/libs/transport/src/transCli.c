@@ -872,7 +872,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
 static int32_t allocConnRef(SCliConn* conn, bool update) {
   if (update) {
     TAOS_UNUSED(transReleaseExHandle(transGetRefMgt(), conn->refId));
-    TAOS_UNUSED((transGetRefMgt(), conn->refId));
+    TAOS_UNUSED(transRemoveExHandle(transGetRefMgt(), conn->refId));
     conn->refId = -1;
   }
 
