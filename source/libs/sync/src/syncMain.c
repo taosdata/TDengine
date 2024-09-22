@@ -403,7 +403,7 @@ int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq) {
     TAOS_RETURN(code);
   }
 
-  SRpcMsg rpcMsg = {0};
+  SRpcMsg rpcMsg = {0, .info.notFreeAhandle = 1};
   int32_t ret = syncRespMgrGetAndDel(pNode->pSyncRespMgr, seq, &rpcMsg.info);
   rpcMsg.code = TSDB_CODE_SYN_TIMEOUT;
 

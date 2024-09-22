@@ -1057,7 +1057,7 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
     pDst->status = res->status;
 
     sifFreeParam(res);
-    (void)taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
+    TAOS_UNUSED(taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES));
   }
   sifFreeRes(ctx.pRes);
   return code;
@@ -1089,7 +1089,7 @@ static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status, SMetaDataFilte
   }
   *status = res->status;
   sifFreeParam(res);
-  (void)taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
+  TAOS_UNUSED(taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES));
 
   void *iter = taosHashIterate(ctx.pRes, NULL);
   while (iter != NULL) {
