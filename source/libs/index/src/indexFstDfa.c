@@ -132,7 +132,7 @@ bool dfaBuilderRunState(FstDfaBuilder *builder, FstSparseSet *cur, FstSparseSet 
     bool succ = sparSetAdd(cur, ip, NULL);
     if (succ == false) return false;
   }
-  (void)dfaRun(builder->dfa, cur, next, byte);
+  TAOS_UNUSED(dfaRun(builder->dfa, cur, next, byte));
 
   t = taosArrayGet(builder->dfa->states, state);
 

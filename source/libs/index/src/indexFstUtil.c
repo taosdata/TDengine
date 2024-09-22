@@ -91,7 +91,7 @@ FstSlice fstSliceCreate(uint8_t* data, uint64_t len) {
 // just shallow copy
 FstSlice fstSliceCopy(FstSlice* s, int32_t start, int32_t end) {
   FstString* str = s->str;
-  (void)atomic_add_fetch_32(&str->ref, 1);
+  TAOS_UNUSED(atomic_add_fetch_32(&str->ref, 1));
 
   FstSlice t = {.str = str, .start = start + s->start, .end = end + s->start};
   return t;
