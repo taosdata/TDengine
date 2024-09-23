@@ -50,7 +50,7 @@ int32_t tfsOpen(SDiskCfg *pCfg, int32_t ndisk, STfs **ppTfs) {
 
   pTfs->hash = taosHashInit(TFS_MAX_DISKS * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (pTfs->hash == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   for (int32_t idisk = 0; idisk < ndisk; idisk++) {
@@ -284,7 +284,7 @@ int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId) {
     if (errno == ENOENT) {
       // Try to create upper
       if ((s = taosStrdup(rname)) == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
 
       // Make a copy of dirname(s) because the implementation of 'dirname' differs on different platforms.
@@ -693,7 +693,7 @@ static STfsDisk *tfsNextDisk(STfs *pTfs, SDiskIter *pIter) {
 int32_t tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo) {
   pInfo->datadirs = taosArrayInit(32, sizeof(SMonDiskDesc));
   if (pInfo->datadirs == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   tfsUpdateSize(pTfs);
@@ -711,7 +711,7 @@ int32_t tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo) {
         (void)tfsUnLock(pTfs);
         taosArrayDestroy(pInfo->datadirs);
         pInfo->datadirs = NULL;
-        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+        TAOS_RETURN(terrno);
       }
     }
   }

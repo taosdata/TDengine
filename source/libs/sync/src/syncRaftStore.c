@@ -66,7 +66,7 @@ int32_t raftStoreReadFile(SSyncNode *pNode) {
 
   pData = taosMemoryMalloc(size + 1);
   if (pData == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
   if (taosReadFile(pFile, pData, size) != size) {
@@ -120,11 +120,11 @@ int32_t raftStoreWriteFile(SSyncNode *pNode) {
   snprintf(file, sizeof(file), "%s.bak", realfile);
 
   pJson = tjsonCreateObject();
-  if (pJson == NULL) TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+  if (pJson == NULL) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   if (raftStoreEncode(pJson, pStore) != 0) TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
 
   buffer = tjsonToString(pJson);
-  if (buffer == NULL) TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+  if (buffer == NULL) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
