@@ -641,7 +641,7 @@ bool filterToRmTimoutReq(void* key, void* arg) {
   if (pReq->msg.info.qId == 0 && !REQUEST_NO_RESP(&pReq->msg) && pReq->ctx) {
     int64_t elapse = ((taosGetTimestampUs() - pReq->st) / 1000);
     if (elapse > READ_TIMEOUT) {
-      return true;
+      return false;
     } else {
       return false;
     }
