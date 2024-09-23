@@ -151,6 +151,11 @@ class TDBlockBlobClient final : public BlobClient {
       const std::string& fileName, const UploadBlockBlobFromOptions& options = UploadBlockBlobFromOptions(),
       const Azure::Core::Context& context = Azure::Core::Context()) const;
 
+  Azure::Response<Models::UploadBlockBlobFromResult> UploadFrom(
+      const std::string& fileName, int64_t offset, int64_t size,
+      const UploadBlockBlobFromOptions& options = UploadBlockBlobFromOptions(),
+      const Azure::Core::Context&       context = Azure::Core::Context()) const;
+
   /**
    * @brief Creates a new Block Blob where the contents of the blob are read from a given URL.
    *
