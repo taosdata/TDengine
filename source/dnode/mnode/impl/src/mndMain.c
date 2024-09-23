@@ -86,8 +86,7 @@ static void *mndBuildTimerMsg(int32_t *pContLen) {
   if (pReq == NULL) return NULL;
 
   if (tSerializeSMTimerMsg(pReq, contLen, &timerReq) < 0) {
-    rpcFreeCont(pReq);
-    return NULL;
+    mError("failed to serialize timer msg since %s", terrstr());
   }
   *pContLen = contLen;
   return pReq;
