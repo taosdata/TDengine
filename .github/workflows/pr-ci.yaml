@@ -186,6 +186,7 @@ jobs:
     outputs: 
       CONTAINER_ID: ${{ steps.run_container.outputs.container_id }}
       RPC_PORT: ${{ steps.run_container.outputs.rpc_port }}
+      EXPLORER_PORT: ${{ steps.run_container.outputs.explorer_port }}
       WINDOWS_AGENT_PROCESS_ID: ${{ steps.deploy_windows_agent.outputs.windows_agent_process_id }}
     steps:
       - name: Update Repo
@@ -212,6 +213,7 @@ jobs:
           echo "rpc_port: $rpc_port"
           echo "container_id=$run_container_id" >> "$GITHUB_OUTPUT"
           echo "rpc_port=$rpc_port" >> "$GITHUB_OUTPUT"
+          echo "explorer_port=$explorer_port" >> "$GITHUB_OUTPUT"
           # 激活 taosd
           docker exec $run_container_id bash -c 'taos -s "show cluster machines;"' | awk 'NR==7' > test && cluster_id=$(awk '{print $1}' test) && machines=$(awk '{print $5}' test) && sql=$(ssh root@192.168.2.13 "cd /data/common/activation-code; ./generateActivationCode.sh $cluster_id $machines" | grep Command | awk -F ":" '{print $2}' | sed 's/^[ \t]*//;s/[ \t]*$//') && docker exec $run_container_id bash -c "taos -s $sql"
 
@@ -262,6 +264,9 @@ jobs:
           echo ${{ needs.run_test.result }}
           allure generate $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile -o $COVERAGE_BASE_DIR/$DIR_PATH/allure_report/ --clean
           echo "see report at $REPORT_BASE_URL/$DIR_PATH/allure_report/"
+          echo "CONTAINER_ID=${{needs.deploy_with_docker.outputs.CONTAINER_ID}}" > environment.properties
+          echo "EXPLORER_URL=http://$RELEASE_HOST:${{needs.deploy_with_docker.outputs.EXPLORER_PORT}}" >> environment.properties
+          echo "WINDOWS_AGENT_PROCESS_ID=${{needs.deploy_with_docker.outputs.WINDOWS_AGENT_PROCESS_ID}}" >> environment.properties
           pass_rate=$(cd /data/github/TestNG_taosX/ && /root/.local/bin/poetry run python3 testng_taosx/ci_calculate_pass_rate.py $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile)
           # 若通过率小于 100 则返回失败
           echo "Pass Rate: $pass_rate"
