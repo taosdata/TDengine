@@ -103,6 +103,8 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
 |BINARY|str|
 |NCHAR|str|
 |JSON|str|
+|GEOMETRY|bytearray|
+|VARBINARY|bytearray|
 
 ## 示例程序汇总
 
@@ -113,6 +115,13 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
 | [insert_lines.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/insert-lines.py)       | InfluxDB 行协议写入     |
 | [json_tag.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/json-tag.py)               | 使用 JSON 类型的标签    |
 | [tmq_consumer.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq_consumer.py)       | tmq 订阅              |
+| [native_all_type_query.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_query.py) | 支持全部类型示例 |
+| [native_all_type_stmt.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_stmt.py) | 参数绑定支持全部类型示例 |
+
+示例程序源码请参考：
+
+1. [原生更多示例程序](https://github.com/taosdata/taos-connector-python/tree/main/examples)
+2. [WebSocket 更多示例程序](https://github.com/taosdata/taos-connector-python/tree/main/taos-ws-py/examples)
 
 ## 关于纳秒 (nanosecond)
 

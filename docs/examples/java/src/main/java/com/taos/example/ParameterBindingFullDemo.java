@@ -3,10 +3,7 @@ package com.taos.example;
 import com.taosdata.jdbc.TSDBPreparedStatement;
 import com.taosdata.jdbc.utils.StringUtils;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -16,15 +13,32 @@ public class ParameterBindingFullDemo {
 
     private static final String host = "127.0.0.1";
     private static final Random random = new Random(System.currentTimeMillis());
-    private static final int BINARY_COLUMN_SIZE = 50;
+    private static final int BINARY_COLUMN_SIZE = 100;
     private static final String[] schemaList = {
-            "create table stable1(ts timestamp, f1 tinyint, f2 smallint, f3 int, f4 bigint) tags(t1 tinyint, t2 smallint, t3 int, t4 bigint)",
-            "create table stable2(ts timestamp, f1 float, f2 double) tags(t1 float, t2 double)",
-            "create table stable3(ts timestamp, f1 bool) tags(t1 bool)",
-            "create table stable4(ts timestamp, f1 binary(" + BINARY_COLUMN_SIZE + ")) tags(t1 binary(" + BINARY_COLUMN_SIZE + "))",
-            "create table stable5(ts timestamp, f1 nchar(" + BINARY_COLUMN_SIZE + ")) tags(t1 nchar(" + BINARY_COLUMN_SIZE + "))",
-            "create table stable6(ts timestamp, f1 varbinary(" + BINARY_COLUMN_SIZE + ")) tags(t1 varbinary(" + BINARY_COLUMN_SIZE + "))",
-            "create table stable7(ts timestamp, f1 geometry(" + BINARY_COLUMN_SIZE + ")) tags(t1 geometry(" + BINARY_COLUMN_SIZE + "))",
+            "drop database if exists example_all_type_stmt",
+            "CREATE DATABASE IF NOT EXISTS example_all_type_stmt",
+            "USE example_all_type_stmt",
+            "CREATE STABLE IF NOT EXISTS stb_json (" +
+                    "ts TIMESTAMP, " +
+                    "int_col INT) " +
+                    "tags (json_tag json)",
+            "CREATE STABLE IF NOT EXISTS stb (" +
+                    "ts TIMESTAMP, " +
+                    "int_col INT, " +
+                    "double_col DOUBLE, " +
+                    "bool_col BOOL, " +
+                    "binary_col BINARY(100), " +
+                    "nchar_col NCHAR(100), " +
+                    "varbinary_col VARBINARY(100), " +
+                    "geometry_col GEOMETRY(100)) " +
+                    "tags (" +
+                    "int_tag INT, " +
+                    "double_tag DOUBLE, " +
+                    "bool_tag BOOL, " +
+                    "binary_tag BINARY(100), " +
+                    "nchar_tag NCHAR(100), " +
+                    "varbinary_tag VARBINARY(100), " +
+                    "geometry_tag GEOMETRY(100))"
     };
     private static final int numOfSubTable = 10, numOfRow = 10;
 
@@ -34,55 +48,37 @@ public class ParameterBindingFullDemo {
         try (Connection conn = DriverManager.getConnection(jdbcUrl, "root", "taosdata")) {
 
             init(conn);
+            stmtJsonTag(conn);
+            stmtAll(conn);
 
-            bindInteger(conn);
-            bindFloat(conn);
-            bindBoolean(conn);
-            bindBytes(conn);
-            bindString(conn);
-            bindVarbinary(conn);
-            bindGeometry(conn);
-
-            clean(conn);
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to insert to table meters using stmt, url: " + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            System.out.println("Failed to insert data using stmt, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             throw ex;
-        } catch (Exception ex){
-            System.out.println("Failed to insert to table meters using stmt, url: " + jdbcUrl + "; ErrMessage: " + ex.getMessage());
+        } catch (Exception ex) {
+            System.out.println("Failed to insert data using stmt, ErrMessage: " + ex.getMessage());
             throw ex;
         }
     }
 
     private static void init(Connection conn) throws SQLException {
-        clean(conn);
         try (Statement stmt = conn.createStatement()) {
-            stmt.execute("create database if not exists test_parabind");
-            stmt.execute("use test_parabind");
             for (int i = 0; i < schemaList.length; i++) {
                 stmt.execute(schemaList[i]);
             }
         }
     }
-    private static void clean(Connection conn) throws SQLException {
-        try (Statement stmt = conn.createStatement()) {
-            stmt.execute("drop database if exists test_parabind");
-        }
-    }
 
-    private static void bindInteger(Connection conn) throws SQLException {
-        String sql = "insert into ? using stable1 tags(?,?,?,?) values(?,?,?,?,?)";
+    private static void stmtJsonTag(Connection conn) throws SQLException {
+        String sql = "INSERT INTO ? using stb_json tags(?) VALUES (?,?)";
 
         try (TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class)) {
 
             for (int i = 1; i <= numOfSubTable; i++) {
                 // set table name
-                pstmt.setTableName("t1_" + i);
+                pstmt.setTableName("ntb_json_" + i);
                 // set tags
-                pstmt.setTagByte(0, Byte.parseByte(Integer.toString(random.nextInt(Byte.MAX_VALUE))));
-                pstmt.setTagShort(1, Short.parseShort(Integer.toString(random.nextInt(Short.MAX_VALUE))));
-                pstmt.setTagInt(2, random.nextInt(Integer.MAX_VALUE));
-                pstmt.setTagLong(3, random.nextLong());
+                pstmt.setTagJson(0, "{\"device\":\"device_" + i + "\"}");
                 // set columns
                 ArrayList<Long> tsList = new ArrayList<>();
                 long current = System.currentTimeMillis();
@@ -90,45 +86,42 @@ public class ParameterBindingFullDemo {
                     tsList.add(current + j);
                 pstmt.setTimestamp(0, tsList);
 
-                ArrayList<Byte> f1List = new ArrayList<>();
+                ArrayList<Integer> f1List = new ArrayList<>();
                 for (int j = 0; j < numOfRow; j++)
-                    f1List.add(Byte.parseByte(Integer.toString(random.nextInt(Byte.MAX_VALUE))));
-                pstmt.setByte(1, f1List);
-
-                ArrayList<Short> f2List = new ArrayList<>();
-                for (int j = 0; j < numOfRow; j++)
-                    f2List.add(Short.parseShort(Integer.toString(random.nextInt(Short.MAX_VALUE))));
-                pstmt.setShort(2, f2List);
-
-                ArrayList<Integer> f3List = new ArrayList<>();
-                for (int j = 0; j < numOfRow; j++)
-                    f3List.add(random.nextInt(Integer.MAX_VALUE));
-                pstmt.setInt(3, f3List);
-
-                ArrayList<Long> f4List = new ArrayList<>();
-                for (int j = 0; j < numOfRow; j++)
-                    f4List.add(random.nextLong());
-                pstmt.setLong(4, f4List);
+                    f1List.add(random.nextInt(Integer.MAX_VALUE));
+                pstmt.setInt(1, f1List);
 
                 // add column
                 pstmt.columnDataAddBatch();
             }
             // execute column
             pstmt.columnDataExecuteBatch();
+            System.out.println("Successfully inserted rows to example_all_type_stmt.ntb_json");
         }
     }
 
-    private static void bindFloat(Connection conn) throws SQLException {
-        String sql = "insert into ? using stable2 tags(?,?) values(?,?,?)";
+    private static void stmtAll(Connection conn) throws SQLException {
+        String sql = "INSERT INTO ? using stb tags(?,?,?,?,?,?,?) VALUES (?,?,?,?,?,?,?,?)";
 
         TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class);
 
         for (int i = 1; i <= numOfSubTable; i++) {
             // set table name
-            pstmt.setTableName("t2_" + i);
+            pstmt.setTableName("ntb" + i);
             // set tags
-            pstmt.setTagFloat(0, random.nextFloat());
-            pstmt.setTagDouble(1, random.nextDouble());
+            pstmt.setTagInt(0, i);
+            pstmt.setTagDouble(1, 1.1);
+            pstmt.setTagBoolean(2, true);
+            pstmt.setTagString(3, "binary_value");
+            pstmt.setTagNString(4, "nchar_value");
+            pstmt.setTagVarbinary(5, new byte[]{(byte) 0x98, (byte) 0xf4, 0x6e});
+            pstmt.setTagGeometry(6, new byte[]{
+                    0x01, 0x01, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x59,
+                    0x40, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x59, 0x40});
+
             // set columns
             ArrayList<Long> tsList = new ArrayList<>();
             long current = System.currentTimeMillis();
@@ -136,190 +129,54 @@ public class ParameterBindingFullDemo {
                 tsList.add(current + j);
             pstmt.setTimestamp(0, tsList);
 
-            ArrayList<Float> f1List = new ArrayList<>();
+            ArrayList<Integer> f1List = new ArrayList<>();
             for (int j = 0; j < numOfRow; j++)
-                f1List.add(random.nextFloat());
-            pstmt.setFloat(1, f1List);
+                f1List.add(random.nextInt(Integer.MAX_VALUE));
+            pstmt.setInt(1, f1List);
 
             ArrayList<Double> f2List = new ArrayList<>();
             for (int j = 0; j < numOfRow; j++)
                 f2List.add(random.nextDouble());
             pstmt.setDouble(2, f2List);
 
+            ArrayList<Boolean> f3List = new ArrayList<>();
+            for (int j = 0; j < numOfRow; j++)
+                f3List.add(true);
+            pstmt.setBoolean(3, f3List);
+
+            ArrayList<String> f4List = new ArrayList<>();
+            for (int j = 0; j < numOfRow; j++)
+                f4List.add("binary_value");
+            pstmt.setString(4, f4List, BINARY_COLUMN_SIZE);
+
+            ArrayList<String> f5List = new ArrayList<>();
+            for (int j = 0; j < numOfRow; j++)
+                f5List.add("nchar_value");
+            pstmt.setNString(5, f5List, BINARY_COLUMN_SIZE);
+
+            ArrayList<byte[]> f6List = new ArrayList<>();
+            for (int j = 0; j < numOfRow; j++)
+                f6List.add(new byte[]{(byte) 0x98, (byte) 0xf4, 0x6e});
+            pstmt.setVarbinary(6, f6List, BINARY_COLUMN_SIZE);
+
+            ArrayList<byte[]> f7List = new ArrayList<>();
+            for (int j = 0; j < numOfRow; j++)
+                f7List.add(new byte[]{
+                        0x01, 0x01, 0x00, 0x00,
+                        0x00, 0x00, 0x00, 0x00,
+                        0x00, 0x00, 0x00, 0x59,
+                        0x40, 0x00, 0x00, 0x00,
+                        0x00, 0x00, 0x00, 0x59, 0x40});
+            pstmt.setGeometry(7, f7List, BINARY_COLUMN_SIZE);
+
             // add column
             pstmt.columnDataAddBatch();
         }
         // execute
         pstmt.columnDataExecuteBatch();
+        System.out.println("Successfully inserted rows to example_all_type_stmt.ntb");
         // close if no try-with-catch statement is used
         pstmt.close();
-    }
-
-    private static void bindBoolean(Connection conn) throws SQLException {
-        String sql = "insert into ? using stable3 tags(?) values(?,?)";
-
-        try (TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class)) {
-            for (int i = 1; i <= numOfSubTable; i++) {
-                // set table name
-                pstmt.setTableName("t3_" + i);
-                // set tags
-                pstmt.setTagBoolean(0, random.nextBoolean());
-                // set columns
-                ArrayList<Long> tsList = new ArrayList<>();
-                long current = System.currentTimeMillis();
-                for (int j = 0; j < numOfRow; j++)
-                    tsList.add(current + j);
-                pstmt.setTimestamp(0, tsList);
-
-                ArrayList<Boolean> f1List = new ArrayList<>();
-                for (int j = 0; j < numOfRow; j++)
-                    f1List.add(random.nextBoolean());
-                pstmt.setBoolean(1, f1List);
-
-                // add column
-                pstmt.columnDataAddBatch();
-            }
-            // execute
-            pstmt.columnDataExecuteBatch();
-        }
-    }
-
-    private static void bindBytes(Connection conn) throws SQLException {
-        String sql = "insert into ? using stable4 tags(?) values(?,?)";
-
-        try (TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class)) {
-
-            for (int i = 1; i <= numOfSubTable; i++) {
-                // set table name
-                pstmt.setTableName("t4_" + i);
-                // set tags
-                pstmt.setTagString(0, new String("abc"));
-
-                // set columns
-                ArrayList<Long> tsList = new ArrayList<>();
-                long current = System.currentTimeMillis();
-                for (int j = 0; j < numOfRow; j++)
-                    tsList.add(current + j);
-                pstmt.setTimestamp(0, tsList);
-
-                ArrayList<String> f1List = new ArrayList<>();
-                for (int j = 0; j < numOfRow; j++) {
-                    f1List.add(new String("abc"));
-                }
-                pstmt.setString(1, f1List, BINARY_COLUMN_SIZE);
-
-                // add column
-                pstmt.columnDataAddBatch();
-            }
-            // execute
-            pstmt.columnDataExecuteBatch();
-        }
-    }
-
-    private static void bindString(Connection conn) throws SQLException {
-        String sql = "insert into ? using stable5 tags(?) values(?,?)";
-
-        try (TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class)) {
-
-            for (int i = 1; i <= numOfSubTable; i++) {
-                // set table name
-                pstmt.setTableName("t5_" + i);
-                // set tags
-                pstmt.setTagNString(0, "California.SanFrancisco");
-
-                // set columns
-                ArrayList<Long> tsList = new ArrayList<>();
-                long current = System.currentTimeMillis();
-                for (int j = 0; j < numOfRow; j++)
-                    tsList.add(current + j);
-                pstmt.setTimestamp(0, tsList);
-
-                ArrayList<String> f1List = new ArrayList<>();
-                for (int j = 0; j < numOfRow; j++) {
-                    f1List.add("California.LosAngeles");
-                }
-                pstmt.setNString(1, f1List, BINARY_COLUMN_SIZE);
-
-                // add column
-                pstmt.columnDataAddBatch();
-            }
-            // execute
-            pstmt.columnDataExecuteBatch();
-        }
-    }
-
-    private static void bindVarbinary(Connection conn) throws SQLException {
-        String sql = "insert into ? using stable6 tags(?) values(?,?)";
-
-        try (TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class)) {
-
-            for (int i = 1; i <= numOfSubTable; i++) {
-                // set table name
-                pstmt.setTableName("t6_" + i);
-                // set tags
-                byte[] bTag = new byte[]{0,2,3,4,5};
-                bTag[0] = (byte) i;
-                pstmt.setTagVarbinary(0, bTag);
-
-                // set columns
-                ArrayList<Long> tsList = new ArrayList<>();
-                long current = System.currentTimeMillis();
-                for (int j = 0; j < numOfRow; j++)
-                    tsList.add(current + j);
-                pstmt.setTimestamp(0, tsList);
-
-                ArrayList<byte[]> f1List = new ArrayList<>();
-                for (int j = 0; j < numOfRow; j++) {
-                    byte[] v = new byte[]{0,2,3,4,5,6};
-                    v[0] = (byte)j;
-                    f1List.add(v);
-                }
-                pstmt.setVarbinary(1, f1List, BINARY_COLUMN_SIZE);
-
-                // add column
-                pstmt.columnDataAddBatch();
-            }
-            // execute
-            pstmt.columnDataExecuteBatch();
-        }
-    }
-
-    private static void bindGeometry(Connection conn) throws SQLException {
-        String sql = "insert into ? using stable7 tags(?) values(?,?)";
-
-        try (TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class)) {
-
-            byte[] g1 = StringUtils.hexToBytes("0101000000000000000000F03F0000000000000040");
-            byte[] g2 = StringUtils.hexToBytes("0102000020E610000002000000000000000000F03F000000000000004000000000000008400000000000001040");
-            List<byte[]> listGeo = new ArrayList<>();
-            listGeo.add(g1);
-            listGeo.add(g2);
-
-            for (int i = 1; i <= 2; i++) {
-                // set table name
-                pstmt.setTableName("t7_" + i);
-                // set tags
-                pstmt.setTagGeometry(0, listGeo.get(i - 1));
-
-                // set columns
-                ArrayList<Long> tsList = new ArrayList<>();
-                long current = System.currentTimeMillis();
-                for (int j = 0; j < numOfRow; j++)
-                    tsList.add(current + j);
-                pstmt.setTimestamp(0, tsList);
-
-                ArrayList<byte[]> f1List = new ArrayList<>();
-                for (int j = 0; j < numOfRow; j++) {
-                    f1List.add(listGeo.get(i - 1));
-                }
-                pstmt.setGeometry(1, f1List, BINARY_COLUMN_SIZE);
-
-                // add column
-                pstmt.columnDataAddBatch();
-            }
-            // execute
-            pstmt.columnDataExecuteBatch();
-        }
     }
 }
 // ANCHOR_END: para_bind

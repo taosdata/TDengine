@@ -67,9 +67,13 @@ TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/
 | VARBINARY         | byte[]           |
 | GEOMETRY          | byte[]           |
 
-:::note
-JSON 类型仅在 tag 中支持。
-:::
+**注意**：JSON 类型仅在 tag 中支持。
+GEOMETRY类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)
+WKB规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)
+
+## 示例程序汇总
+
+示例程序源码请参考：[示例程序](https://github.com/taosdata/taos-connector-dotnet/tree/3.0/examples)
 
 ## API 参考
 

@@ -50,36 +50,68 @@ public class TestAll {
     }
 
     @Test
-    public void testRestInsert() throws SQLException {
-        dropDB("power");
-        RestInsertExample.main(args);
-        RestQueryExample.main(args);
+    public void testWsConnect() throws Exception {
+        WSConnectExample.main(args);
     }
 
     @Test
-    public void testStmtInsert() throws SQLException {
+    public void testBase() throws Exception {
+        JdbcCreatDBDemo.main(args);
+        JdbcInsertDataDemo.main(args);
+        JdbcQueryDemo.main(args);
+
         dropDB("power");
-        StmtInsertExample.main(args);
     }
 
     @Test
-    public void testSubscribe() {
+    public void testWsSchemaless() throws Exception {
+        dropDB("power");
+        SchemalessWsTest.main(args);
+    }
+    @Test
+    public void testJniSchemaless() throws Exception {
+        dropDB("power");
+        SchemalessJniTest.main(args);
+    }
+
+    @Test
+    public void testJniStmtBasic() throws Exception {
+        dropDB("power");
+        ParameterBindingBasicDemo.main(args);
+    }
+
+    @Test
+    public void testJniStmtFull() throws Exception {
+        dropDB("power");
+        ParameterBindingFullDemo.main(args);
+    }
+
+    @Test
+    public void testWsStmtBasic() throws Exception {
+        dropDB("power");
+        WSParameterBindingBasicDemo.main(args);
+    }
+
+    @Test
+    public void testWsStmtFull() throws Exception {
+        dropDB("power");
+        WSParameterBindingFullDemo.main(args);
+    }
+
+    @Test
+    public void testConsumer() throws Exception {
+        dropDB("power");
         SubscribeDemo.main(args);
     }
 
-
-    @Test
-    public void testSubscribeOverWebsocket() {
-        WebsocketSubscribeDemo.main(args);
-    }
-
-    @Test
-    public void testSchemaless() throws SQLException {
-        LineProtocolExample.main(args);
-        TelnetLineProtocolExample.main(args);
-        // for json protocol, tags may be double type. but for telnet protocol tag must be nchar type.
-        // To avoid type mismatch, we delete database test.
-        dropDB("test");
-        JSONProtocolExample.main(args);
-    }
+//    @Test
+//    public void testSubscribeJni() throws SQLException, InterruptedException {
+//        dropDB("power");
+//        ConsumerLoopFull.main(args);
+//    }
+//    @Test
+//    public void testSubscribeWs() throws SQLException, InterruptedException {
+//        dropDB("power");
+//        WsConsumerLoopFull.main(args);
+//    }
 }
