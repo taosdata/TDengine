@@ -99,6 +99,18 @@ if $rows == 0 then
   return -1
 endi
 
+print ========== step2
+
+sql CREATE DATABASE test2 VGROUPS 2;
+sql use test2;
+
+sql CREATE STABLE st (time TIMESTAMP, ca DOUBLE, cb DOUBLE, cc int) TAGS (ta VARCHAR(10) );
+
+sql_error create stream stream_t1 trigger at_once ignore update 0 ignore expired 0 into streamtST as select time, count(*) c1, count(1) c2  from st partition by tbname group by ca,time ;
+
+sql_error create stream stream_t1 trigger at_once ignore update 0 ignore expired 0 into streamtST as select _wstart, count(*) c1, count(1) c2  from st partition by tbname interval(10s) group by ca,time ;
+
+
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 print =============== check
