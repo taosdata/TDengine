@@ -759,7 +759,9 @@ _exit:
     vInfo("vgId:%d, vnode snapshot writer closed, rollback:%d", TD_VID(pVnode), rollback);
     taosMemoryFree(pWriter);
   }
-  vnodeEnableBgTask(pVnode);
+  if (vnodeEnableBgTask(pVnode) != 0) {
+    tsdbError("vgId:%d, failed to enable bg task", TD_VID(pVnode));
+  }
   return code;
 }
 
