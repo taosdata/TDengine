@@ -64,7 +64,10 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   memset(ptr, 0, size);
   pPage = (SPage *)(ptr + pageSize);
 
-  (void)TDB_INIT_PAGE_LOCK(pPage);
+  int32_t code = TDB_INIT_PAGE_LOCK(pPage);
+  if (code) {
+    tdbError("tdb/page-create: init page lock failed.");
+  }
   pPage->pageSize = pageSize;
   pPage->pData = ptr;
   if (pageSize < 65536) {
