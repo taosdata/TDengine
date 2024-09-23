@@ -40,10 +40,11 @@ sysinfo = "0.30.5"
 
 serde_with = { version = "3", features = ["chrono"] }
 
-taoslog = { git = "https://github.com/taosdata/taoslog-rs.git", rev = "ab50118d3cd089f88f5521a39d06061e83b50fe6", features = [
+taoslog = { git = "https://github.com/taosdata/taoslog-rs.git", rev = "1b5e86d1f9c1fe7de9f5412817f4e8e3965f649e", features = [
     "ansi",
 ] }
 http = "0.2.12"
+
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
 version = "0.12"

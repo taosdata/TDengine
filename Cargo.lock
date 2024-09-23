@@ -6772,7 +6772,7 @@ dependencies = [
 [[package]]
 name = "taoslog"
 version = "0.1.0"
-source = "git+https://github.com/taosdata/taoslog-rs.git?rev=ab50118d3cd089f88f5521a39d06061e83b50fe6#ab50118d3cd089f88f5521a39d06061e83b50fe6"
+source = "git+https://github.com/taosdata/taoslog-rs.git?rev=1b5e86d1f9c1fe7de9f5412817f4e8e3965f649e#1b5e86d1f9c1fe7de9f5412817f4e8e3965f649e"
 dependencies = [
  "actix-web",
  "arrow-schema 52.2.0",
