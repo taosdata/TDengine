@@ -96,7 +96,7 @@ static int32_t initWktRegex(pcre2_code **ppRegex, pcre2_match_data **ppMatchData
   int32_t code = 0;
   char   *wktPatternWithSpace = taosMemoryCalloc(4, 1024);
   if (NULL == wktPatternWithSpace) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (void)sprintf(

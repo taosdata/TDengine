@@ -422,7 +422,9 @@ void schResetTaskForRetry(SSchJob *pJob, SSchTask *pTask) {
 
   schDropTaskOnExecNode(pJob, pTask);
   if (pTask->delayTimer) {
-    (void)taosTmrStopA(&pTask->delayTimer);  // ignore error
+    if (!taosTmrStopA(&pTask->delayTimer)) {
+      SCH_TASK_WLOG("stop task delayTimer failed, may stopped, status:%d", pTask->status);
+    }
   }
   taosHashClear(pTask->execNodes);
   (void)schRemoveTaskFromExecList(pJob, pTask);  // ignore error
@@ -1134,6 +1136,7 @@ int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
   qwMsg.msg = pTask->plan;
   qwMsg.msgType = pTask->plan->msgType;
   qwMsg.connInfo.handle = pJob->conn.pTrans;
+  qwMsg.pWorkerCb = pJob->pWorkerCb;
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     explainRes = taosArrayInit(pJob->taskNum, sizeof(SExplainLocalRsp));
@@ -1236,7 +1239,7 @@ _return:
 int32_t schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
   SSchTaskCtx *param = taosMemoryCalloc(1, sizeof(SSchTaskCtx));
   if (NULL == param) {
-    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCH_ERR_RET(terrno);
   }
 
   param->jobRid = pJob->refId;
@@ -1318,7 +1321,9 @@ int32_t schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask) {
       return TSDB_CODE_SUCCESS;
     }
 
-    (void)taosTmrReset(schHandleTimerEvent, pTask->delayExecMs, (void *)param, schMgmt.timer, &pTask->delayTimer);
+    if (taosTmrReset(schHandleTimerEvent, pTask->delayExecMs, (void *)param, schMgmt.timer, &pTask->delayTimer)) {
+      SCH_TASK_ELOG("taosTmrReset delayExec timer failed, handle:%p", schMgmt.timer);
+    }
 
     return TSDB_CODE_SUCCESS;
   }
@@ -1349,7 +1354,9 @@ void schDropTaskInHashList(SSchJob *pJob, SHashObj *list) {
 
     SCH_LOCK_TASK(pTask);
     if (pTask->delayTimer) {
-      (void)taosTmrStopA(&pTask->delayTimer);
+      if (!taosTmrStopA(&pTask->delayTimer)) {
+        SCH_TASK_WLOG("stop delayTimer failed, status:%d", pTask->status);
+      }
     }
     schDropTaskOnExecNode(pJob, pTask);
     SCH_UNLOCK_TASK(pTask);

@@ -150,7 +150,7 @@ void *taosProcessSchedQueue(void *scheduler) {
 
   while (1) {
     if ((ret = tsem_wait(&pSched->fullSem)) != 0) {
-      uFatal("wait %s fullSem failed(%s)", pSched->label, strerror(errno));
+      uFatal("wait %s fullSem failed(%s)", pSched->label, strerror(terrno));
     }
     if (atomic_load_8(&pSched->stop)) {
       break;
@@ -169,7 +169,7 @@ void *taosProcessSchedQueue(void *scheduler) {
     }
 
     if ((ret = tsem_post(&pSched->emptySem)) != 0) {
-      uFatal("post %s emptySem failed(%s)", pSched->label, strerror(errno));
+      uFatal("post %s emptySem failed(%s)", pSched->label, strerror(terrno));
     }
 
     if (msg.fp)
@@ -197,7 +197,7 @@ int taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg) {
   }
 
   if ((ret = tsem_wait(&pSched->emptySem)) != 0) {
-    uFatal("wait %s emptySem failed(%s)", pSched->label, strerror(errno));
+    uFatal("wait %s emptySem failed(%s)", pSched->label, strerror(terrno));
   }
 
   if ((ret = taosThreadMutexLock(&pSched->queueMutex)) != 0) {
@@ -212,7 +212,7 @@ int taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg) {
   }
 
   if ((ret = tsem_post(&pSched->fullSem)) != 0) {
-    uFatal("post %s fullSem failed(%s)", pSched->label, strerror(errno));
+    uFatal("post %s fullSem failed(%s)", pSched->label, strerror(terrno));
   }
   return ret;
 }

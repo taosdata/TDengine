@@ -15,6 +15,7 @@
 
 #include "builtinsimpl.h"
 #include "function.h"
+#include "tcompare.h"
 #include "tdatablock.h"
 #include "tfunctionInt.h"
 #include "tglobal.h"
@@ -365,10 +366,10 @@ static double doubleVectorCmpAVX(const double* pData, int32_t numOfRows, bool is
   return v;
 }
 
-static int32_t findFirstValPosition(const SColumnInfoData* pCol, int32_t start, int32_t numOfRows) {
+static int32_t findFirstValPosition(const SColumnInfoData* pCol, int32_t start, int32_t numOfRows, bool isStr) {
   int32_t i = start;
 
-  while (i < (start + numOfRows) && (colDataIsNull_f(pCol->nullbitmap, i) == true)) {
+  while (i < (start + numOfRows) && (isStr ? colDataIsNull_s(pCol, i) : colDataIsNull_f(pCol->nullbitmap, i) == true)) {
     i += 1;
   }
 
@@ -643,6 +644,52 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
         __COMPARE_ACQUIRED_MIN(i, end, pCol->nullbitmap, pData, pCtx, *(double*)&(pBuf->v), &pBuf->tuplePos)
         break;
       }
+
+      case TSDB_DATA_TYPE_VARCHAR:
+      case TSDB_DATA_TYPE_VARBINARY: {
+        int32_t code = TSDB_CODE_SUCCESS;
+        for (; i < (end); ++i) {
+          if (colDataIsNull_var(pCol, i)) {
+            continue;
+          }
+          char *pLeft = (char *)colDataGetData(pCol, i);
+          char *pRight = (char *)pBuf->str;
+
+          int32_t ret = compareLenBinaryVal(pLeft, pRight);
+          if (ret < 0) {
+            memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
+            if (pCtx->subsidiaries.num > 0) {
+              code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (TSDB_CODE_SUCCESS != code) {
+                return code;
+              }
+            }
+          }
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_NCHAR: {
+        int32_t code = TSDB_CODE_SUCCESS;
+        for (; i < (end); ++i) {
+          if (colDataIsNull_var(pCol, i)) {
+            continue;
+          }
+          char *pLeft = (char *)colDataGetData(pCol, i);
+          char *pRight = (char *)pBuf->str;
+
+          int32_t ret = compareLenPrefixedWStr(pLeft, pRight);
+          if (ret < 0) {
+            memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
+            if (pCtx->subsidiaries.num > 0) {
+              code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (TSDB_CODE_SUCCESS != code) {
+                return code;
+              }
+            }
+          }
+        }
+        break;
+      }
     }
   } else {
     switch (pCol->info.type) {
@@ -706,6 +753,53 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
         __COMPARE_ACQUIRED_MAX(i, end, pCol->nullbitmap, pData, pCtx, *(double*)&(pBuf->v), &pBuf->tuplePos)
         break;
       }
+
+      case TSDB_DATA_TYPE_VARCHAR:
+      case TSDB_DATA_TYPE_VARBINARY: {
+        int32_t code = TSDB_CODE_SUCCESS;
+        for (; i < (end); ++i) {
+          if (colDataIsNull_var(pCol, i)) {
+            continue;
+          }
+          char *pLeft = (char *)colDataGetData(pCol, i);
+          char *pRight = (char *)pBuf->str;
+
+          int32_t ret = compareLenBinaryVal(pLeft, pRight);
+          if (ret > 0) {
+            memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
+            if (pCtx->subsidiaries.num > 0) {
+              code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (TSDB_CODE_SUCCESS != code) {
+                return code;
+              }
+            }
+          }
+        }
+        break;
+      }
+
+      case TSDB_DATA_TYPE_NCHAR: {
+        int32_t code = TSDB_CODE_SUCCESS;
+        for (; i < (end); ++i) {
+          if (colDataIsNull_var(pCol, i)) {
+            continue;
+          }
+          char *pLeft = (char *)colDataGetData(pCol, i);
+          char *pRight = (char *)pBuf->str;
+
+          int32_t ret = compareLenPrefixedWStr(pLeft, pRight);
+          if (ret > 0) {
+            memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
+            if (pCtx->subsidiaries.num > 0) {
+              code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (TSDB_CODE_SUCCESS != code) {
+                return code;
+              }
+            }
+          }
+        }
+        break;
+      }
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -743,7 +837,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
   }
 
   // data in current data block are qualified to the query
-  if (pInput->colDataSMAIsSet) {
+  if (pInput->colDataSMAIsSet && !IS_STR_DATA_TYPE(type)) {
 
     numOfElems = pInput->numOfRows - pAgg->numOfNull;
     if (numOfElems == 0) {
@@ -820,7 +914,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
   // clang-format on
 
   if (pCol->hasNull || numOfRows < threshold[pCol->info.type] || pCtx->subsidiaries.num > 0) {
-    int32_t i = findFirstValPosition(pCol, start, numOfRows);
+    int32_t i = findFirstValPosition(pCol, start, numOfRows, IS_STR_DATA_TYPE(type));
 
     if ((i < end) && (!pBuf->assign)) {
       char* p = pCol->pData + pCol->info.bytes * i;
@@ -846,6 +940,16 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
           break;
         case TSDB_DATA_TYPE_FLOAT: {
           *(float*)&pBuf->v = *(float*)p;
+          break;
+        }
+        case TSDB_DATA_TYPE_VARCHAR:
+        case TSDB_DATA_TYPE_VARBINARY:
+        case TSDB_DATA_TYPE_NCHAR: {
+          pBuf->str = taosMemoryMalloc(pCol->info.bytes);
+          if (pBuf->str == NULL) {
+            return terrno;
+          }
+          (void)memcpy(pBuf->str, colDataGetData(pCol, i), varDataTLen(colDataGetData(pCol, i)));
           break;
         }
         default:

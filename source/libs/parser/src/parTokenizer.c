@@ -206,6 +206,7 @@ static SKeyword keywordTable[] = {
     {"QUERIES",              TK_QUERIES},
     {"QUERY",                TK_QUERY},
     {"PI",                   TK_PI},
+    {"RAND",                 TK_RAND},
     {"RANGE",                TK_RANGE},
     {"RATIO",                TK_RATIO},
     {"PAUSE",                TK_PAUSE},

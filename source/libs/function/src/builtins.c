@@ -271,6 +271,21 @@ static int32_t addUint8Param(SNodeList** pList, uint8_t param) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t addPseudoParam(SNodeList** pList) {
+  SNode *pseudoNode = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LEFT_VALUE, &pseudoNode);
+  if (pseudoNode == NULL) {
+    return code;
+  }
+
+  code = nodesListMakeAppend(pList, pseudoNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pseudoNode);
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static SDataType* getSDataTypeFromNode(SNode* pNode) {
   if (pNode == NULL) return NULL;
   if (nodesIsExprNode(pNode)) {
@@ -296,6 +311,25 @@ static int32_t translateInOutNum(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   }
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[paraType].bytes, .type = paraType};
+  return TSDB_CODE_SUCCESS;
+}
+
+// There is only one parameter of numeric type, and the return type is parameter type
+static int32_t translateMinMax(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SDataType* dataType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
+  uint8_t paraType = dataType->type;
+  if (!IS_NUMERIC_TYPE(paraType) && !IS_NULL_TYPE(paraType) && !IS_STR_DATA_TYPE(paraType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  } else if (IS_NULL_TYPE(paraType)) {
+    paraType = TSDB_DATA_TYPE_BIGINT;
+  }
+  pFunc->hasSMA = !IS_VAR_DATA_TYPE(paraType);
+  int32_t bytes = IS_STR_DATA_TYPE(paraType) ? dataType->bytes : tDataTypes[paraType].bytes;
+  pFunc->node.resType = (SDataType){.bytes = bytes, .type = paraType};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -574,6 +608,30 @@ static int32_t translateNowToday(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 }
 
 static int32_t translatePi(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType =
+      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateRand(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (0 != LIST_LENGTH(pFunc->pParameterList) && 1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (1 == LIST_LENGTH(pFunc->pParameterList)) {
+    uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+    if (!IS_INTEGER_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+  }
+
+  if (!pFunc->dual) {
+    int32_t code = addPseudoParam(&pFunc->pParameterList);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
   pFunc->node.resType =
       (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   return TSDB_CODE_SUCCESS;
@@ -2904,7 +2962,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "min",
     .type = FUNCTION_TYPE_MIN,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC,
-    .translateFunc = translateInOutNum,
+    .translateFunc = translateMinMax,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = minmaxFunctionSetup,
@@ -2920,7 +2978,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "max",
     .type = FUNCTION_TYPE_MAX,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC,
-    .translateFunc = translateInOutNum,
+    .translateFunc = translateMinMax,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = minmaxFunctionSetup,
@@ -3411,7 +3469,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateFirstLast,
     .dynDataRequiredFunc = lastDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
-    .initFunc     = functionSetup,
+    .initFunc     = firstLastFunctionSetup,
     .processFunc  = lastFunction,
     .sprocessFunc = firstLastScalarFunction,
     .finalizeFunc = firstLastFinalize,
@@ -4727,6 +4785,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = weekofyearFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "rand",
+    .type = FUNCTION_TYPE_RAND,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateRand,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = randFunction,
     .finalizeFunc = NULL
   },
 };

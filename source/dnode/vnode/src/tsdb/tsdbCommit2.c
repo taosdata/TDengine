@@ -251,8 +251,8 @@ _exit:
 }
 
 static int32_t tsdbCommitCloseIter(SCommitter2 *committer) {
-  TAOS_UNUSED(tsdbIterMergerClose(&committer->tombIterMerger));
-  TAOS_UNUSED(tsdbIterMergerClose(&committer->dataIterMerger));
+  tsdbIterMergerClose(&committer->tombIterMerger);
+  tsdbIterMergerClose(&committer->dataIterMerger);
   TARRAY2_CLEAR(committer->tombIterArray, tsdbIterClose);
   TARRAY2_CLEAR(committer->dataIterArray, tsdbIterClose);
   return 0;
@@ -418,7 +418,7 @@ static int32_t tsdbCommitInfoDestroy(STsdb *pTsdb) {
       taosMemoryFree(info);
     }
 
-    TAOS_UNUSED(vHashDestroy(&pTsdb->commitInfo->ht));
+    vHashDestroy(&pTsdb->commitInfo->ht);
     taosArrayDestroy(pTsdb->commitInfo->arr);
     pTsdb->commitInfo->arr = NULL;
     taosMemoryFreeClear(pTsdb->commitInfo);
@@ -439,7 +439,7 @@ static int32_t tsdbCommitInfoInit(STsdb *pTsdb) {
 
   pTsdb->commitInfo->arr = taosArrayInit(0, sizeof(SFileSetCommitInfo *));
   if (pTsdb->commitInfo->arr == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
 _exit:
@@ -457,7 +457,7 @@ static int32_t tsdbCommitInfoAdd(STsdb *tsdb, int32_t fid) {
   SFileSetCommitInfo *tinfo;
 
   if ((tinfo = taosMemoryMalloc(sizeof(*tinfo))) == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
   tinfo->fid = fid;
   tinfo->fset = NULL;
@@ -465,7 +465,7 @@ static int32_t tsdbCommitInfoAdd(STsdb *tsdb, int32_t fid) {
   TAOS_CHECK_GOTO(vHashPut(tsdb->commitInfo->ht, tinfo), &lino, _exit);
 
   if ((taosArrayPush(tsdb->commitInfo->arr, &tinfo)) == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
   taosArraySort(tsdb->commitInfo->arr, tFileSetCommitInfoPCompare);
 
@@ -572,7 +572,7 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
   // begin tasks on file set
   for (int i = 0; i < taosArrayGetSize(tsdb->commitInfo->arr); i++) {
     SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
-    TAOS_UNUSED(tsdbBeginTaskOnFileSet(tsdb, info->fid, &fset));
+    tsdbBeginTaskOnFileSet(tsdb, info->fid, &fset);
     if (fset) {
       code = tsdbTFileSetInitCopy(tsdb, fset, &info->fset);
       if (code) {
@@ -669,7 +669,7 @@ int32_t tsdbCommitBegin(STsdb *tsdb, SCommitInfo *info) {
     (void)taosThreadMutexLock(&tsdb->mutex);
     tsdb->imem = NULL;
     (void)taosThreadMutexUnlock(&tsdb->mutex);
-    TAOS_UNUSED(tsdbUnrefMemTable(imem, NULL, true));
+    tsdbUnrefMemTable(imem, NULL, true);
   } else {
     SCommitter2 committer = {0};
 
@@ -710,14 +710,14 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
     for (int32_t i = 0; i < taosArrayGetSize(tsdb->commitInfo->arr); i++) {
       SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
       if (info->fset) {
-        TAOS_UNUSED(tsdbFinishTaskOnFileSet(tsdb, info->fid));
+        tsdbFinishTaskOnFileSet(tsdb, info->fid);
       }
     }
 
     (void)taosThreadMutexUnlock(&tsdb->mutex);
 
     TAOS_UNUSED(tsdbCommitInfoDestroy(tsdb));
-    TAOS_UNUSED(tsdbUnrefMemTable(pMemTable, NULL, true));
+    tsdbUnrefMemTable(pMemTable, NULL, true);
   }
 
 _exit:
@@ -741,7 +741,7 @@ int32_t tsdbCommitAbort(STsdb *pTsdb) {
   for (int32_t i = 0; i < taosArrayGetSize(pTsdb->commitInfo->arr); i++) {
     SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(pTsdb->commitInfo->arr, i);
     if (info->fset) {
-      TAOS_UNUSED(tsdbFinishTaskOnFileSet(pTsdb, info->fid));
+      tsdbFinishTaskOnFileSet(pTsdb, info->fid);
     }
   }
   (void)taosThreadMutexUnlock(&pTsdb->mutex);

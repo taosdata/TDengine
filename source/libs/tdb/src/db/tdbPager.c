@@ -802,7 +802,7 @@ static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
   code = tdbTbcMoveToFirst(pCur);
   if (code) {
     tdbError("tdb/remove-free-page: moveto first failed with ret: %d.", code);
-    (void)tdbTbcClose(pCur);
+    tdbTbcClose(pCur);
     return 0;
   }
 
@@ -812,7 +812,7 @@ static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
   code = tdbTbcGet(pCur, (const void **)&pKey, &nKey, NULL, NULL);
   if (code < 0) {
     // tdbError("tdb/remove-free-page: tbc get failed with ret: %d.", code);
-    (void)tdbTbcClose(pCur);
+    tdbTbcClose(pCur);
     return 0;
   }
 
@@ -823,10 +823,10 @@ static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
   code = tdbTbcDelete(pCur);
   if (code < 0) {
     tdbError("tdb/remove-free-page: tbc delete failed with ret: %d.", code);
-    (void)tdbTbcClose(pCur);
+    tdbTbcClose(pCur);
     return 0;
   }
-  (void)tdbTbcClose(pCur);
+  tdbTbcClose(pCur);
   return 0;
 }
 
@@ -1136,7 +1136,7 @@ int tdbPagerRestoreJournals(SPager *pPager) {
   tdbDirPtr      pDir = taosOpenDir(pPager->pEnv->dbName);
   if (pDir == NULL) {
     tdbError("failed to open %s since %s", pPager->pEnv->dbName, strerror(errno));
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   SArray *pTxnList = taosArrayInit(16, sizeof(int64_t));
@@ -1165,14 +1165,14 @@ int tdbPagerRestoreJournals(SPager *pPager) {
     code = tdbPagerRestore(pPager, jname);
     if (code) {
       taosArrayDestroy(pTxnList);
-      (void)tdbCloseDir(&pDir);
+      tdbCloseDir(&pDir);
       tdbError("failed to restore file due to %s. jFileName:%s", tstrerror(code), jname);
       return code;
     }
   }
 
   taosArrayDestroy(pTxnList);
-  (void)tdbCloseDir(&pDir);
+  tdbCloseDir(&pDir);
 
   return 0;
 }
@@ -1182,7 +1182,7 @@ int tdbPagerRollback(SPager *pPager) {
   tdbDirPtr      pDir = taosOpenDir(pPager->pEnv->dbName);
   if (pDir == NULL) {
     tdbError("failed to open %s since %s", pPager->pEnv->dbName, strerror(errno));
-    return terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   while ((pDirEntry = tdbReadDir(pDir)) != NULL) {
@@ -1195,7 +1195,7 @@ int tdbPagerRollback(SPager *pPager) {
       jname[dirLen] = '/';
       memcpy(jname + dirLen + 1, name, strlen(name));
       if (tdbOsRemove(jname) < 0 && errno != ENOENT) {
-        (void)tdbCloseDir(&pDir);
+        tdbCloseDir(&pDir);
 
         tdbError("failed to remove file due to %s. jFileName:%s", strerror(errno), name);
         return terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1203,7 +1203,7 @@ int tdbPagerRollback(SPager *pPager) {
     }
   }
 
-  (void)tdbCloseDir(&pDir);
+  tdbCloseDir(&pDir);
 
   return 0;
 }

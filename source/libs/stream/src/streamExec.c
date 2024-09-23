@@ -24,7 +24,7 @@
 #define FILL_HISTORY_TASK_EXEC_INTERVAL   5000           // 5 sec
 
 static int32_t streamTransferStateDoPrepare(SStreamTask* pTask);
-static void streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* totalSize, int32_t* totalBlocks);
+static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* totalSize, int32_t* totalBlocks);
 
 bool streamTaskShouldStop(const SStreamTask* pTask) {
   SStreamTaskState pState = streamTaskGetStatus(pTask);
@@ -58,7 +58,7 @@ static int32_t doOutputResultBlockImpl(SStreamTask* pTask, SStreamDataBlock* pBl
 
     // not handle error, if dispatch failed, try next time.
     // checkpoint trigger will be checked
-    (void)streamDispatchStreamBlock(pTask);
+    code = streamDispatchStreamBlock(pTask);
   }
 
   return code;
@@ -95,7 +95,7 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
   return code;
 }
 
-void streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* totalSize, int32_t* totalBlocks) {
+int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* totalSize, int32_t* totalBlocks) {
   int32_t code = TSDB_CODE_SUCCESS;
   void*   pExecutor = pTask->exec.pExecutor;
   int32_t size = 0;
@@ -110,9 +110,9 @@ void streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* to
       pRes = taosArrayInit(4, sizeof(SSDataBlock));
     }
 
-    if (streamTaskShouldStop(pTask)) {
+    if (streamTaskShouldStop(pTask) || (pRes == NULL)) {
       taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
-      return;
+      return code;
     }
 
     SSDataBlock* output = NULL;
@@ -122,8 +122,13 @@ void streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* to
         resetTaskInfo(pExecutor);
       }
 
-      stError("unexpected stream execution, s-task:%s since %s", pTask->id.idStr, tstrerror(code));
-      continue;
+      if (code == TSDB_CODE_OUT_OF_MEMORY || code == TSDB_CODE_INVALID_PARA || code == TSDB_CODE_FILE_CORRUPTED) {
+        stFatal("s-task:%s failed to continue execute since %s", pTask->id.idStr, tstrerror(code));
+        return code;
+      } else {
+        qResetTaskCode(pExecutor);
+        continue;
+      }
     }
 
     if (output == NULL) {
@@ -137,7 +142,12 @@ void streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* to
           continue;
         }
 
-        (void)assignOneDataBlock(&block, taosArrayGet(pRetrieveBlock->blocks, 0));
+        code = assignOneDataBlock(&block, taosArrayGet(pRetrieveBlock->blocks, 0));
+        if (code) {
+          stError("s-task:%s failed to copy datablock, code:%s", pTask->id.idStr, tstrerror(code));
+          continue;
+        }
+
         block.info.type = STREAM_PULL_OVER;
         block.info.childId = pTask->info.selfChildId;
 
@@ -189,7 +199,7 @@ void streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* to
       code = doDumpResult(pTask, pItem, pRes, size, totalSize, totalBlocks);
       // todo: here we need continue retry to put it into output buffer
       if (code != TSDB_CODE_SUCCESS) {
-        return;
+        return code;
       }
 
       pRes = NULL;
@@ -203,6 +213,8 @@ void streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* to
   } else {
     taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
   }
+
+  return code;
 }
 
 // todo contiuous try to create result blocks
@@ -258,9 +270,12 @@ static void streamScanHistoryDataImpl(SStreamTask* pTask, SArray* pRes, int32_t*
     }
 
     SSDataBlock block = {0};
-    (void)assignOneDataBlock(&block, output);
-    block.info.childId = pTask->info.selfChildId;
+    code = assignOneDataBlock(&block, output);
+    if (code) {
+      stError("s-task:%s failed to build result block due to out of memory", pTask->id.idStr);
+    }
 
+    block.info.childId = pTask->info.selfChildId;
     void* p = taosArrayPush(pRes, &block);
     if (p == NULL) {
       stError("s-task:%s failed to add computing results, the final res may be incorrect", pTask->id.idStr);
@@ -284,17 +299,17 @@ static SScanhistoryDataInfo buildScanhistoryExecRet(EScanHistoryCode code, int32
 }
 
 SScanhistoryDataInfo streamScanHistoryData(SStreamTask* pTask, int64_t st) {
+  void*       exec = pTask->exec.pExecutor;
+  bool        finished = false;
+  const char* id = pTask->id.idStr;
+
   if(pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
     stError("s-task:%s not source scan-history task, not exec, quit", pTask->id.idStr);
     return buildScanhistoryExecRet(TASK_SCANHISTORY_QUIT, 0);
   }
 
-  void*       exec = pTask->exec.pExecutor;
-  bool        finished = false;
-  const char* id = pTask->id.idStr;
-
   if (!pTask->hTaskInfo.operatorOpen) {
-    (void)qSetStreamOpOpen(exec);
+    int32_t code = qSetStreamOpOpen(exec);
     pTask->hTaskInfo.operatorOpen = true;
   }
 
@@ -332,7 +347,10 @@ SScanhistoryDataInfo streamScanHistoryData(SStreamTask* pTask, int64_t st) {
     }
 
     // dispatch the generated results, todo fix error
-    (void)handleScanhistoryResultBlocks(pTask, pRes, size);
+    int32_t code = handleScanhistoryResultBlocks(pTask, pRes, size);
+    if (code) {
+      stError("s-task:%s failed to handle scan result block, code:%s", pTask->id.idStr, tstrerror(code));
+    }
 
     if (finished) {
       return buildScanhistoryExecRet(TASK_SCANHISTORY_CONT, 0);
@@ -355,13 +373,13 @@ int32_t streamTransferStateDoPrepare(SStreamTask* pTask) {
   int32_t code = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId, &pStreamTask);
   if (pStreamTask == NULL || code != TSDB_CODE_SUCCESS) {
     stError(
-        "s-task:%s failed to find related stream task:0x%x, it may have been destroyed or closed, destroy the related "
+        "s-task:%s failed to find related stream task:0x%x, may have been destroyed or closed, destroy related "
         "fill-history task",
         id, (int32_t)pTask->streamTaskId.taskId);
 
     // 1. free it and remove fill-history task from disk meta-store
     // todo: this function should never be failed.
-    (void)streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id, 0);
+    code = streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id, 0);
 
     // 2. save to disk
     streamMetaWLock(pMeta);
@@ -425,14 +443,14 @@ int32_t streamTransferStateDoPrepare(SStreamTask* pTask) {
             pStreamTask->id.idStr, TASK_LEVEL__SOURCE, pTimeWindow->skey, pTimeWindow->ekey, INT64_MIN,
             pTimeWindow->ekey, p, pStreamTask->status.schedStatus);
 
-    (void)streamTaskResetTimewindowFilter(pStreamTask);
+    code = streamTaskResetTimewindowFilter(pStreamTask);
   } else {
     stDebug("s-task:%s no need to update/reset filter time window for non-source tasks", pStreamTask->id.idStr);
   }
 
   // NOTE: transfer the ownership of executor state before handle the checkpoint block during stream exec
   // 2. send msg to mnode to launch a checkpoint to keep the state for current stream
-  (void)streamTaskSendCheckpointReq(pStreamTask);
+  code = streamTaskSendCheckpointReq(pStreamTask);
 
   // 3. assign the status to the value that will be kept in disk
   pStreamTask->status.taskStatus = streamTaskGetStatus(pStreamTask).state;
@@ -441,13 +459,12 @@ int32_t streamTransferStateDoPrepare(SStreamTask* pTask) {
   streamTaskOpenAllUpstreamInput(pStreamTask);
 
   streamMetaReleaseTask(pMeta, pStreamTask);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t haltCallback(SStreamTask* pTask, void* param) {
   streamTaskOpenAllUpstreamInput(pTask);
-  (void)streamTaskSendCheckpointReq(pTask);
-  return TSDB_CODE_SUCCESS;
+  return streamTaskSendCheckpointReq(pTask);
 }
 
 int32_t streamTransferStatePrepare(SStreamTask* pTask) {
@@ -549,19 +566,17 @@ void streamProcessTransstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) 
   const char* id = pTask->id.idStr;
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     level = pTask->info.taskLevel;
+  // dispatch the tran-state block to downstream task immediately
+  int32_t type = pTask->outputInfo.type;
 
   if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SINK) {
     int32_t remain = streamAlignTransferState(pTask);
-
     if (remain > 0) {
       streamFreeQitem((SStreamQueueItem*)pBlock);
       stDebug("s-task:%s receive upstream trans-state msg, not sent remain:%d", id, remain);
       return;
     }
   }
-
-  // dispatch the tran-state block to downstream task immediately
-  int32_t type = pTask->outputInfo.type;
 
   // transfer the ownership of executor state
   if (type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
@@ -576,7 +591,10 @@ void streamProcessTransstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) 
       pBlock->srcVgId = pTask->pMeta->vgId;
       code = taosWriteQitem(pTask->outputq.queue->pQueue, pBlock);
       if (code == 0) {
-        (void)streamDispatchStreamBlock(pTask);
+        code = streamDispatchStreamBlock(pTask);
+        if (code) {
+          stError("s-task:%s failed to dispatch stream block, code:%s", id, tstrerror(code));
+        }
       } else {  // todo put into queue failed, retry
         streamFreeQitem((SStreamQueueItem*)pBlock);
       }
@@ -589,7 +607,8 @@ void streamProcessTransstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) 
 
     code = streamTransferStatePrepare(pTask);
     if (code != TSDB_CODE_SUCCESS) {
-      (void)streamTaskSetSchedStatusInactive(pTask);
+      stError("s-task:%s failed to prepare transfer state, code:%s", id, tstrerror(code));
+      int8_t status = streamTaskSetSchedStatusInactive(pTask);  // let's ignore this return status
     }
   }
 }
@@ -615,7 +634,7 @@ static void doRecordThroughput(STaskExecStatisInfo* pInfo, int64_t totalBlocks, 
   }
 }
 
-static void doStreamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pBlock, int32_t num) {
+static int32_t doStreamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pBlock, int32_t num) {
   const char*      id = pTask->id.idStr;
   int32_t          blockSize = 0;
   int64_t          st = taosGetTimestampMs();
@@ -623,23 +642,28 @@ static void doStreamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pBlock, i
   int64_t          ver = pInfo->processedVer;
   int64_t          totalSize = 0;
   int32_t          totalBlocks = 0;
+  int32_t          code = 0;
 
   stDebug("s-task:%s start to process batch blocks, num:%d, type:%s", id, num, streamQueueItemGetTypeStr(pBlock->type));
 
-  int32_t code = doSetStreamInputBlock(pTask, pBlock, &ver, id);
+  code = doSetStreamInputBlock(pTask, pBlock, &ver, id);
   if (code) {
     stError("s-task:%s failed to set input block, not exec for these blocks", id);
-    return;
+    return code;
   }
 
-  streamTaskExecImpl(pTask, pBlock, &totalSize, &totalBlocks);
+  code = streamTaskExecImpl(pTask, pBlock, &totalSize, &totalBlocks);
+  if (code) {
+    return code;
+  }
+
   doRecordThroughput(&pTask->execInfo, totalBlocks, totalSize, blockSize, st, pTask->id.idStr);
 
   // update the currentVer if processing the submit blocks.
   if (!(pInfo->checkpointVer <= pInfo->nextProcessVer && ver >= pInfo->checkpointVer)) {
     stError("s-task:%s invalid info, checkpointVer:%" PRId64 ", nextProcessVer:%" PRId64 " currentVer:%" PRId64, id,
             pInfo->checkpointVer, pInfo->nextProcessVer, ver);
-    return;
+    return code;
   }
 
   if (ver != pInfo->processedVer) {
@@ -648,9 +672,11 @@ static void doStreamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pBlock, i
             id, pInfo->processedVer, ver, pInfo->nextProcessVer, pInfo->checkpointVer);
     pInfo->processedVer = ver;
   }
+
+  return code;
 }
 
-void flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock) {
+int32_t flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock) {
   const char* id = pTask->id.idStr;
 
   // 1. transfer the ownership of executor state
@@ -660,8 +686,18 @@ void flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointB
     SStreamTask* pHTask = NULL;
     int32_t      code = streamMetaAcquireTask(pTask->pMeta, pHTaskId->streamId, pHTaskId->taskId, &pHTask);
     if (code == TSDB_CODE_SUCCESS) {  // ignore the error code.
-      (void)streamTaskReleaseState(pHTask);
-      (void)streamTaskReloadState(pTask);
+      code = streamTaskReleaseState(pHTask);
+      if (code) {
+        stError("s-task:%s failed to release query state, code:%s", pHTask->id.idStr, tstrerror(code));
+      }
+
+      if (code == TSDB_CODE_SUCCESS) {
+        code = streamTaskReloadState(pTask);
+        if (code) {
+          stError("s-task:%s failed to reload query state, code:%s", pTask->id.idStr, tstrerror(code));
+        }
+      }
+
       stDebug("s-task:%s transfer state from fill-history task:%s, status:%s completed", id, pHTask->id.idStr,
               streamTaskGetStatus(pHTask).name);
       // todo execute qExecTask to fetch the reload-generated result, if this is stream is for session window query.
@@ -681,7 +717,12 @@ void flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointB
   }
 
   // 2. flush data in executor to K/V store, which should be completed before do checkpoint in the K/V.
-  doStreamTaskExecImpl(pTask, pCheckpointBlock, 1);
+  int32_t code = doStreamTaskExecImpl(pTask, pCheckpointBlock, 1);
+  if(code) {
+    stError("s-task:%s failed to exec stream task before checkpoint, code:%s", id, tstrerror(code));
+  }
+
+  return code;
 }
 
 /**
@@ -690,6 +731,7 @@ void flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointB
  */
 static int32_t doStreamExecTask(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
+  int32_t     code = 0;
 
   // merge multiple input data if possible in the input queue.
   stDebug("s-task:%s start to extract data block from inputQ", id);
@@ -738,7 +780,10 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
     // dispatch checkpoint msg to all downstream tasks
     int32_t type = pInput->type;
     if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
-      (void)streamProcessCheckpointTriggerBlock(pTask, (SStreamDataBlock*)pInput);
+      int32_t code = streamProcessCheckpointTriggerBlock(pTask, (SStreamDataBlock*)pInput);
+      if (code != 0) {
+        stError("s-task:%s failed to process checkpoint-trigger block, code:%s", pTask->id.idStr, tstrerror(code));
+      }
       continue;
     }
 
@@ -759,9 +804,9 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
       if (type == STREAM_INPUT__DATA_BLOCK) {
         pTask->execInfo.sink.dataSize += blockSize;
         stDebug("s-task:%s sink task start to sink %d blocks, size:%.2fKiB", id, numOfBlocks, SIZE_IN_KiB(blockSize));
-        int32_t code = doOutputResultBlockImpl(pTask, (SStreamDataBlock*)pInput);
+        code = doOutputResultBlockImpl(pTask, (SStreamDataBlock*)pInput);
         if (code != TSDB_CODE_SUCCESS) {
-          // todo handle error.
+          return code;
         }
 
         double el = (taosGetTimestampMs() - st) / 1000.0;
@@ -776,17 +821,19 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
     }
 
     if (type != STREAM_INPUT__CHECKPOINT) {
-      doStreamTaskExecImpl(pTask, pInput, numOfBlocks);
+      code = doStreamTaskExecImpl(pTask, pInput, numOfBlocks);
       streamFreeQitem(pInput);
+      if (code) {
+        return code;
+      }
     } else {  // todo other thread may change the status
       // do nothing after sync executor state to storage backend, untill the vnode-level checkpoint is completed.
       streamMutexLock(&pTask->lock);
       SStreamTaskState pState = streamTaskGetStatus(pTask);
       if (pState.state == TASK_STATUS__CK) {
         stDebug("s-task:%s checkpoint block received, set status:%s", id, pState.name);
-        (void)streamTaskBuildCheckpoint(pTask);  // ignore this error msg, and continue
+        code = streamTaskBuildCheckpoint(pTask);  // ignore this error msg, and continue
       } else {                                   // todo refactor
-        int32_t code = 0;
         if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
           code = streamTaskSendCheckpointSourceRsp(pTask);
         } else {
@@ -802,7 +849,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
 
       streamMutexUnlock(&pTask->lock);
       streamFreeQitem(pInput);
-      return 0;
+      return code;
     }
   }
 }
@@ -833,17 +880,21 @@ bool streamTaskReadyToRun(const SStreamTask* pTask, char** pStatus) {
   }
 }
 
-void streamResumeTask(SStreamTask* pTask) {
+int32_t streamResumeTask(SStreamTask* pTask) {
+  const char* id = pTask->id.idStr;
+  int32_t     code = 0;
+
   if (pTask->status.schedStatus != TASK_SCHED_STATUS__ACTIVE) {
     stError("s-task:%s invalid sched status:%d, not resume task", pTask->id.idStr, pTask->status.schedStatus);
-    return;
+    return code;
   }
 
-  const char* id = pTask->id.idStr;
-
   while (1) {
-    (void)doStreamExecTask(pTask);
-
+    code = doStreamExecTask(pTask);
+    if (code) {
+      stError("s-task:%s failed to exec stream task, code:%s", id, tstrerror(code));
+      return code;
+    }
     // check if continue
     streamMutexLock(&pTask->lock);
 
@@ -859,7 +910,7 @@ void streamResumeTask(SStreamTask* pTask) {
       stDebug("s-task:%s exec completed, status:%s, sched-status:%d, lastExecTs:%" PRId64, id, p,
               pTask->status.schedStatus, pTask->status.lastExecTs);
 
-      return;
+      return code;
     } else {
       // check if this task needs to be idle for a while
       if (pTask->status.schedIdleTime > 0) {
@@ -867,28 +918,31 @@ void streamResumeTask(SStreamTask* pTask) {
 
         streamMutexUnlock(&pTask->lock);
         setLastExecTs(pTask, taosGetTimestampMs());
-        return;
+        return code;
       }
     }
 
     streamMutexUnlock(&pTask->lock);
   }
+
+  return code;
 }
 
 int32_t streamExecTask(SStreamTask* pTask) {
   // this function may be executed by multi-threads, so status check is required.
   const char* id = pTask->id.idStr;
+  int32_t     code = 0;
 
   int8_t schedStatus = streamTaskSetSchedStatusActive(pTask);
   if (schedStatus == TASK_SCHED_STATUS__WAITING) {
-    streamResumeTask(pTask);
+    code = streamResumeTask(pTask);
   } else {
     char* p = streamTaskGetStatus(pTask).name;
     stDebug("s-task:%s already started to exec by other thread, status:%s, sched-status:%d", id, p,
             pTask->status.schedStatus);
   }
 
-  return 0;
+  return code;
 }
 
 int32_t streamTaskReleaseState(SStreamTask* pTask) {

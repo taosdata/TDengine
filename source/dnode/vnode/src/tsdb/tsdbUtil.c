@@ -106,7 +106,7 @@ _exit:
 #endif
 
 void tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *)) {
-  (void)tGetItemFn(pMapData->pData + pMapData->aOffset[idx], pItem);
+  TAOS_UNUSED(tGetItemFn(pMapData->pData + pMapData->aOffset[idx], pItem));
 }
 
 #ifdef BUILD_NO_CALL
@@ -116,7 +116,7 @@ int32_t tMapDataToArray(SMapData *pMapData, int32_t itemSize, int32_t (*tGetItem
 
   SArray *pArray = taosArrayInit(pMapData->nItem, itemSize);
   if (pArray == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 

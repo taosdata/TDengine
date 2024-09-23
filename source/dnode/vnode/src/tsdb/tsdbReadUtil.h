@@ -343,8 +343,8 @@ int32_t loadDataFileTombDataForAll(STsdbReader* pReader);
 int32_t loadSttTombDataForAll(STsdbReader* pReader, SSttFileReader* pSttFileReader, SSttBlockLoadInfo* pLoadInfo);
 int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo* pBlockLoadInfo,
                                TStatisBlkArray* pStatisBlkArray, uint64_t suid, const uint64_t* pUidList,
-                               int32_t numOfTables);
-void    recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record);
+                               int32_t numOfTables, int32_t* pNumOfRows);
+int32_t recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record);
 
 void    destroyLDataIter(SLDataIter* pIter);
 int32_t adjustSttDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet);

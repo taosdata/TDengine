@@ -112,8 +112,8 @@ typedef struct SWal {
   int64_t totSize;
   int64_t lastRollSeq;
   // ctl
-  int64_t       refId;
-  TdThreadMutex mutex;
+  int64_t        refId;
+  TdThreadRwlock mutex;
   // ref
   SHashObj *pRefHash;  // refId -> SWalRef
   // path

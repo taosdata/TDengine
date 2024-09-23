@@ -210,8 +210,11 @@ static void mndPullupGrant(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
-    SRpcMsg rpcMsg = {
-        .msgType = TDMT_MND_GRANT_HB_TIMER, .pCont = pReq, .contLen = contLen, .info.ahandle = (void *)0x9527};
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_GRANT_HB_TIMER,
+                      .pCont = pReq,
+                      .contLen = contLen,
+                      .info.notFreeAhandle = 1,
+                      .info.ahandle = (void *)0x9527};
     // TODO check return value
     (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
@@ -222,8 +225,11 @@ static void mndIncreaseUpTime(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
-    SRpcMsg rpcMsg = {
-        .msgType = TDMT_MND_UPTIME_TIMER, .pCont = pReq, .contLen = contLen, .info.ahandle = (void *)0x9528};
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPTIME_TIMER,
+                      .pCont = pReq,
+                      .contLen = contLen,
+                      .info.notFreeAhandle = 1,
+                      .info.ahandle = (void *)0x9527};
     // TODO check return value
     (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
@@ -559,7 +565,7 @@ static int32_t mndAllocStep(SMnode *pMnode, char *name, MndInitFp initFp, MndCle
   step.initFp = initFp;
   step.cleanupFp = cleanupFp;
   if (taosArrayPush(pMnode->pSteps, &step) == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   TAOS_RETURN(0);

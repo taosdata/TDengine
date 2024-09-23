@@ -36,11 +36,11 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t
   actualLen += sizeof(SRetrieveTableRspForTmq);
   if (taosArrayPush(pRsp->blockDataLen, &actualLen) == NULL){
     taosMemoryFree(buf);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if (taosArrayPush(pRsp->blockData, &buf) == NULL) {
     taosMemoryFree(buf);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -49,10 +49,10 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t
 static int32_t tqAddBlockSchemaToRsp(const STqExecHandle* pExec, SMqDataRsp* pRsp) {
   SSchemaWrapper* pSW = tCloneSSchemaWrapper(pExec->pTqReader->pSchemaWrapper);
   if (pSW == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if (taosArrayPush(pRsp->blockSchema, &pSW) == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   return 0;
 }
@@ -69,7 +69,12 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, SMqDataRsp* pRsp, i
 
   for (int32_t i = 0; i < n; i++) {
     char* tbName = taosStrdup(mr.me.name);
+    if (tbName == NULL) {
+      metaReaderClear(&mr);
+      return terrno;
+    }
     if(taosArrayPush(pRsp->blockTbName, &tbName) == NULL){
+      tqError("failed to push tbName to blockTbName:%s", tbName);
       continue;
     }
   }
@@ -213,6 +218,10 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBat
           }
         } else {
           char* tbName = taosStrdup(qExtractTbnameFromTask(task));
+          if (tbName == NULL) {
+            tqError("vgId:%d, failed to add tbname to rsp msg, null", pTq->pVnode->config.vgId);
+            return terrno;
+          }
           if (taosArrayPush(pRsp->blockTbName, &tbName) == NULL){
             tqError("vgId:%d, failed to add tbname to rsp msg", pTq->pVnode->config.vgId);
             continue;
@@ -327,12 +336,12 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
     if (pRsp->createTableNum == 0) {
       pRsp->createTableLen = taosArrayInit(0, sizeof(int32_t));
       if (pRsp->createTableLen == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto END;
       }
       pRsp->createTableReq = taosArrayInit(0, sizeof(void*));
       if (pRsp->createTableReq == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto END;
       }
     }

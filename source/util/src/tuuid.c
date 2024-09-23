@@ -65,3 +65,18 @@ int64_t tGenIdPI64(void) {
 
   return id;
 }
+
+int64_t tGenQid64(int8_t dnodeId) {
+  int64_t id = dnodeId;
+
+  while (true) {
+    int32_t val = atomic_add_fetch_32(&tUUIDSerialNo, 1);
+
+    id = (id << 56) | (val & 0xFFFFF) << 8;
+    if (id) {
+      break;
+    }
+  }
+
+  return id;
+}

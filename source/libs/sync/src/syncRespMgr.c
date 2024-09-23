@@ -25,7 +25,7 @@ int32_t syncRespMgrCreate(void *data, int64_t ttl, SSyncRespMgr **ppObj) {
   *ppObj = NULL;
 
   if ((pObj = taosMemoryCalloc(1, sizeof(SSyncRespMgr))) == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pObj->pRespHash =

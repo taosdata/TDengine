@@ -180,7 +180,7 @@ static int32_t vnodePreProcessDropTtlMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   {  // find expired uids
     tbUids = taosArrayInit(8, sizeof(tb_uid_t));
     if (tbUids == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -206,7 +206,7 @@ static int32_t vnodePreProcessDropTtlMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
     SMsgHead *pContNew = rpcMallocCont(contLenNew);
     if (pContNew == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -754,8 +754,7 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("message in vnode query queue is processing");
-  if ((pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_VND_TMQ_CONSUME) &&
-      !syncIsReadyForRead(pVnode->sync)) {
+  if ((pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_VND_TMQ_CONSUME) && !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
@@ -1413,6 +1412,10 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
     if (tsEnableAuditCreateTable) {
       char *str = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
+      if (str == NULL) {
+        pRsp->code = terrno;
+        goto _exit;
+      }
       strcpy(str, pDropTbReq->name);
       if (taosArrayPush(tbNames, &str) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1477,7 +1480,8 @@ static int32_t vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, 
   tInitSubmitBlkIter(msgIter, pBlock, &blkIter);
   if (blkIter.row == NULL) return 0;
 
-  int32_t code = metaGetTbTSchemaNotNull(pMeta, msgIter->suid, TD_ROW_SVER(blkIter.row), 1, &pSchema);  // TODO: use the real schema
+  int32_t code = metaGetTbTSchemaNotNull(pMeta, msgIter->suid, TD_ROW_SVER(blkIter.row), 1,
+                                         &pSchema);  // TODO: use the real schema
   if (TSDB_CODE_SUCCESS != code) {
     printf("%s:%d no valid schema\n", tags, __LINE__);
     return code;
@@ -1511,7 +1515,7 @@ typedef struct SSubmitReqConvertCxt {
 static int32_t vnodeResetTableCxt(SMeta *pMeta, SSubmitReqConvertCxt *pCxt) {
   taosMemoryFreeClear(pCxt->pTbSchema);
   int32_t code = metaGetTbTSchemaNotNull(pMeta, pCxt->msgIter.suid > 0 ? pCxt->msgIter.suid : pCxt->msgIter.uid,
-                                     pCxt->msgIter.sversion, 1, &pCxt->pTbSchema);
+                                         pCxt->msgIter.sversion, 1, &pCxt->pTbSchema);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -1531,7 +1535,7 @@ static int32_t vnodeResetTableCxt(SMeta *pMeta, SSubmitReqConvertCxt *pCxt) {
   pCxt->pTbData->pCreateTbReq = NULL;
   pCxt->pTbData->aRowP = taosArrayInit(128, POINTER_BYTES);
   if (NULL == pCxt->pTbData->aRowP) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   taosArrayDestroy(pCxt->pColValues);
@@ -1618,7 +1622,7 @@ static int32_t vnodeDecodeCreateTbReq(SSubmitReqConvertCxt *pCxt) {
 static int32_t vnodeSubmitReqConvertToSubmitReq2(SVnode *pVnode, SSubmitReq *pReq, SSubmitReq2 *pReq2) {
   pReq2->aSubmitTbData = taosArrayInit(128, sizeof(SSubmitTbData));
   if (NULL == pReq2->aSubmitTbData) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SSubmitReqConvertCxt cxt = {0};
@@ -1646,7 +1650,7 @@ static int32_t vnodeSubmitReqConvertToSubmitReq2(SVnode *pVnode, SSubmitReq *pRe
       }
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = (NULL == taosArrayPush(pReq2->aSubmitTbData, cxt.pTbData) ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_SUCCESS);
+      code = (NULL == taosArrayPush(pReq2->aSubmitTbData, cxt.pTbData) ? terrno : TSDB_CODE_SUCCESS);
     }
     if (TSDB_CODE_SUCCESS == code) {
       taosMemoryFreeClear(cxt.pTbData);
@@ -1665,7 +1669,7 @@ static int32_t vnodeRebuildSubmitReqMsg(SSubmitReq2 *pSubmitReq, void **ppMsg) {
   if (TSDB_CODE_SUCCESS == code) {
     pMsg = taosMemoryMalloc(msglen);
     if (NULL == pMsg) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -1842,7 +1846,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
       if (pSubmitRsp->aCreateTbRsp == NULL &&
           (pSubmitRsp->aCreateTbRsp = taosArrayInit(TARRAY_SIZE(pSubmitReq->aSubmitTbData), sizeof(SVCreateTbRsp))) ==
               NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exit;
       }
 
@@ -1854,7 +1858,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
         if (newTbUids == NULL &&
             (newTbUids = taosArrayInit(TARRAY_SIZE(pSubmitReq->aSubmitTbData), sizeof(int64_t))) == NULL) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           goto _exit;
         }
 
@@ -2041,7 +2045,7 @@ _exit:
 }
 
 extern int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb);
-extern int32_t tsdbEnableBgTask(STsdb *pTsdb);
+extern void    tsdbEnableBgTask(STsdb *pTsdb);
 
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   bool walChanged = false;
@@ -2143,10 +2147,10 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
     if (req.sttTrigger > 1 && pVnode->config.sttTrigger > 1) {
       pVnode->config.sttTrigger = req.sttTrigger;
     } else {
-      (void)vnodeAWait(&pVnode->commitTask);
+      vnodeAWait(&pVnode->commitTask);
       (void)tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
       pVnode->config.sttTrigger = req.sttTrigger;
-      (void)tsdbEnableBgTask(pVnode->pTsdb);
+      tsdbEnableBgTask(pVnode->pTsdb);
     }
   }
 
@@ -2166,7 +2170,7 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
   }
 
   if (tsdbChanged) {
-    (void)tsdbSetKeepCfg(pVnode->pTsdb, &pVnode->config.tsdbCfg);
+    tsdbSetKeepCfg(pVnode->pTsdb, &pVnode->config.tsdbCfg);
   }
 
   return 0;
@@ -2233,7 +2237,7 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
   pRes->uidList = taosArrayInit(0, sizeof(tb_uid_t));
   if (pRes->uidList == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
 

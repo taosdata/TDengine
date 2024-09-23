@@ -195,14 +195,14 @@ DLL_EXPORT int       taos_stmt_affected_rows_once(TAOS_STMT *stmt);
 
 typedef void TAOS_STMT2;
 
-typedef enum {
+typedef enum TAOS_FIELD_T {
   TAOS_FIELD_COL = 1,
   TAOS_FIELD_TAG,
   TAOS_FIELD_QUERY,
   TAOS_FIELD_TBNAME,
 } TAOS_FIELD_T;
 
-typedef struct {
+typedef struct TAOS_STMT2_OPTION {
   int64_t           reqid;
   bool              singleStbInsert;
   bool              singleTableBindOnce;
@@ -210,7 +210,7 @@ typedef struct {
   void             *userdata;
 } TAOS_STMT2_OPTION;
 
-typedef struct {
+typedef struct TAOS_STMT2_BIND {
   int      buffer_type;
   void    *buffer;
   int32_t *length;
@@ -218,7 +218,7 @@ typedef struct {
   int      num;
 } TAOS_STMT2_BIND;
 
-typedef struct {
+typedef struct TAOS_STMT2_BINDV {
   int               count;
   char            **tbnames;
   TAOS_STMT2_BIND **tags;

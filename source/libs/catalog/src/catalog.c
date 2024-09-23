@@ -443,11 +443,15 @@ int32_t ctgGetTbTag(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, 
   if (tTagIsJson(pTag)) {
     pTagVals = taosArrayInit(1, sizeof(STagVal));
     if (NULL == pTagVals) {
-      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_JRET(terrno);
     }
 
     char* pJson = NULL;
     parseTagDatatoJson(pTag, &pJson);
+    if(NULL == pJson) {
+      taosArrayDestroy(pTagVals);
+      CTG_ERR_JRET(terrno);
+    }
     STagVal tagVal;
     tagVal.cid = 0;
     tagVal.type = TSDB_DATA_TYPE_JSON;
@@ -456,7 +460,7 @@ int32_t ctgGetTbTag(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, 
     if (NULL == taosArrayPush(pTagVals, &tagVal)) {
       taosMemoryFree(pJson);
       taosArrayDestroy(pTagVals);
-      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_JRET(terrno);
     }
   } else {
     CTG_ERR_JRET(tTagToValArray((const STag*)pCfg->pTags, &pTagVals));
@@ -706,7 +710,9 @@ void ctgProcessTimerEvent(void *param, void *tmrId) {
       int32_t code = ctgClearCacheEnqueue(NULL, true, false, false, false);
       if (code) {
         qError("clear cache enqueue failed, error:%s", tstrerror(code));
-        (void)taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer);
+        if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
+          qError("reset catalog cache monitor timer error, timer stoppped");
+        }
       }
 
       goto _return;
@@ -714,7 +720,9 @@ void ctgProcessTimerEvent(void *param, void *tmrId) {
   }
 
   qTrace("reset catalog timer");
-  (void)taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer);
+  if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
+    qError("reset catalog cache monitor timer error, timer stoppped");
+  }
 
 _return:
 
@@ -849,7 +857,7 @@ int32_t catalogInit(SCatalogCfg* cfg) {
   }
 
   if (tsem_init(&gCtgMgmt.queue.reqSem, 0, 0)) {
-    qError("tsem_init failed, error:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+    qError("tsem_init failed, terror:%s", tstrerror(terrno));
     CTG_ERR_RET(TSDB_CODE_CTG_SYS_ERROR);
   }
 
@@ -930,14 +938,14 @@ int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
                                        false, HASH_ENTRY_LOCK);
     if (NULL == clusterCtg->dbCache) {
       qError("taosHashInit %d dbCache failed", CTG_DEFAULT_CACHE_DB_NUMBER);
-      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_JRET(terrno);
     }
 
     clusterCtg->userCache = taosHashInit(gCtgMgmt.cfg.maxUserCacheNum,
                                          taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
     if (NULL == clusterCtg->userCache) {
       qError("taosHashInit %d user cache failed", gCtgMgmt.cfg.maxUserCacheNum);
-      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_JRET(terrno);
     }
 
     code = taosHashPut(gCtgMgmt.pCluster, &clusterId, sizeof(clusterId), &clusterCtg, POINTER_BYTES);
@@ -1517,10 +1525,16 @@ int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SC
 _return:
 
   if (pJob) {
-    (void)taosReleaseRef(gCtgMgmt.jobPool, pJob->refId);
+    int32_t code2 = taosReleaseRef(gCtgMgmt.jobPool, pJob->refId);
+    if (TSDB_CODE_SUCCESS) {
+      qError("release catalog job refId %" PRId64 "falied, error:%s", pJob->refId, tstrerror(code2));
+    }
 
     if (code) {
-      (void)taosRemoveRef(gCtgMgmt.jobPool, pJob->refId);
+      code2 = taosRemoveRef(gCtgMgmt.jobPool, pJob->refId);
+      if (TSDB_CODE_SUCCESS) {
+        qError("remove catalog job refId %" PRId64 "falied, error:%s", pJob->refId, tstrerror(code2));
+      }
     }
   }
 
@@ -1578,7 +1592,7 @@ int32_t catalogGetExpiredViews(SCatalog* pCtg, SViewVersion** views, uint32_t* n
 
   *dynViewVersion = taosMemoryMalloc(sizeof(SDynViewVersion));
   if (NULL == *dynViewVersion) {
-    CTG_API_LEAVE(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_API_LEAVE(terrno);
   }
 
   (*dynViewVersion)->svrBootTs = atomic_load_64(&pCtg->dynViewVer.svrBootTs);
@@ -1967,7 +1981,9 @@ void catalogDestroy(void) {
   }
 
   if (gCtgMgmt.cacheTimer) {
-    (void)taosTmrStop(gCtgMgmt.cacheTimer);
+    if (taosTmrStop(gCtgMgmt.cacheTimer)) {
+      qTrace("stop catalog cache timer may failed");
+    }
     gCtgMgmt.cacheTimer = NULL;
     taosTmrCleanUp(gCtgMgmt.timer);
     gCtgMgmt.timer = NULL;

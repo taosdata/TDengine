@@ -112,6 +112,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FAILED_TO_CONNECT_S3,         "Failed to connect to 
 TAOS_DEFINE_ERROR(TSDB_CODE_MSG_PREPROCESSED,             "Message has been processed in preprocess")
 TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_BUFFER,                "Out of buffer")
 TAOS_DEFINE_ERROR(TSDB_CODE_INTERNAL_ERROR,               "Internal error")
+TAOS_DEFINE_ERROR(TSDB_CODE_TIME_ERROR,                   "Internal error in time")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
@@ -278,6 +279,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_MNODES,          "The replica of mnode 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARBGROUP_ALREADY_EXIST,   "Arbitrator group already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARBGROUP_NOT_EXIST,       "Arbitrator group not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARB_TOKEN_MISMATCH,       "Arbitrator token mismatch")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VNODE_NOT_OFFLINE,        "Vnode is not offline on this restoring dnode")
 
 // mnode-dnode-part2
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_DNODES,          "Too many dnodes")
@@ -816,6 +818,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_IVLD_STATUS,        "Invalid task status
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_CONFLICT_EVENT,          "Stream conflict event")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INTERNAL_ERROR,          "Stream internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NOT_LEADER,              "Stream task not on leader vnode")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INPUTQ_FULL,              "Task input queue is full")
 
 // TDLite
 TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_FLAGS,         "Invalid TDLite open flags")
@@ -851,6 +854,7 @@ static void tsSortError(void) {
   taosSort(errors, sizeof(errors) / sizeof(errors[0]), sizeof(errors[0]), taosCompareTaosError);
 }
 
+static char WinAPIErrDesc[256] = {0};
 const char* tstrerror(int32_t err) {
   (void)taosThreadOnce(&tsErrorInit, tsSortError);
 
@@ -861,6 +865,15 @@ const char* tstrerror(int32_t err) {
     // invalid code return Unknown error
     return strerror(code);
   }
+  #ifdef WINDOWS
+  if ((err & 0x01ff0000) == 0x01ff0000) {
+    snprintf(WinAPIErrDesc, 256, "windows api error, code: 0x%08x", err & 0x0000ffff);
+    return WinAPIErrDesc;
+  }  else if ((err & 0x02ff0000) == 0x02ff0000) {
+    snprintf(WinAPIErrDesc, 256, "windows socket error, code: 0x%08x", err & 0x0000ffff);
+    return WinAPIErrDesc;
+  }
+  #endif
   int32_t s = 0;
   int32_t e = sizeof(errors) / sizeof(errors[0]);
 
