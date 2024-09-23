@@ -225,8 +225,7 @@ static int32_t mndSetCreateSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   }
   code = tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
   if (code < 0) {
-    taosMemoryFree(pReq);
-    TAOS_RETURN(code);
+    mError("snode:%d, failed to serialize create drop snode request since %s", createReq.dnodeId, terrstr());
   }
 
   STransAction action = {0};
@@ -257,8 +256,7 @@ static int32_t mndSetCreateSnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   }
   code = tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
   if (code < 0) {
-    taosMemoryFree(pReq);
-    TAOS_RETURN(code);
+    mError("snode:%d, failed to serialize create drop snode request since %s", dropReq.dnodeId, terrstr());
   }
 
   STransAction action = {0};
@@ -393,8 +391,7 @@ static int32_t mndSetDropSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSn
   }
   code = tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
   if (code < 0) {
-    taosMemoryFree(pReq);
-    TAOS_RETURN(code);
+    mError("snode:%d, failed to serialize create drop snode request since %s", dropReq.dnodeId, terrstr());
   }
 
   STransAction action = {0};

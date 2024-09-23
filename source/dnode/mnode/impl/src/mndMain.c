@@ -911,11 +911,8 @@ _OVER:
   int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
   pMsg->info.rsp = rpcMallocCont(contLen);
   if (pMsg->info.rsp != NULL) {
-    code = tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet);
-    if (code < 0) {
-      rpcFreeCont(pMsg->info.rsp);
-      pMsg->info.rsp = NULL;
-      TAOS_RETURN(code);
+    if (tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet) < 0) {
+      mError("failed to serialize ep set");
     }
     pMsg->info.hasEpSet = 1;
     pMsg->info.rspLen = contLen;
