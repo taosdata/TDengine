@@ -3649,11 +3649,13 @@ static int32_t doReadDataFromSttFiles(STsdbReader* pReader, ERetrieveType* pRetu
 
     if (pBlockIter->numOfBlocks > 0) {  // there are data blocks existed.
       *pReturnType = TSDB_READ_CONTINUE;
+      return code;
     } else {  // all blocks in data file are checked, let's check the data in stt-files
       code = resetTableListIndex(&pReader->status, pReader->idStr);
+      if (code) {
+        return code;
+      }
     }
-
-    return code;
   }
 }
 
