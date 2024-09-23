@@ -60,4 +60,3 @@ int32_t doValidateSortPhysiNode(SSortPhysiNode* pNode);
 
 int32_t doValidatePartitionPhysiNode(SPartitionPhysiNode* pNode);
 
-SDataBlockDescNode* getDownstreamOutputDesc(SPhysiNode* pChild);
