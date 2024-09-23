@@ -58,14 +58,14 @@ int tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache) {
 
   pCache = (SPCache *)tdbOsCalloc(1, sizeof(*pCache) + sizeof(SPage *) * cacheSize);
   if (pCache == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   pCache->szPage = pageSize;
   pCache->nPages = cacheSize;
   pCache->aPage = (SPage **)tdbOsCalloc(cacheSize, sizeof(SPage *));
   if (pCache->aPage == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   code = tdbPCacheOpenImpl(pCache);
@@ -105,7 +105,7 @@ static int tdbPCacheAlterImpl(SPCache *pCache, int32_t nPage) {
   } else if (pCache->nPages < nPage) {
     SPage **aPage = tdbOsCalloc(nPage, sizeof(SPage *));
     if (aPage == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     for (int32_t iPage = pCache->nPages; iPage < nPage; iPage++) {
@@ -502,7 +502,7 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
   pCache->nHash = pCache->nPages < 8 ? 8 : pCache->nPages;
   pCache->pgHash = (SPage **)tdbOsCalloc(pCache->nHash, sizeof(SPage *));
   if (pCache->pgHash == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   // Open LRU list

@@ -4341,7 +4341,7 @@ int32_t streamDefaultIterGet_rocksdb(SStreamState* pState, const void* start, co
       int64_t checkPoint = 0;
       if (sscanf(key + strlen(key), ":%" PRId64 "", &checkPoint) == 1) {
         if (taosArrayPush(result, &checkPoint) == NULL) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           break;
         }
       }
@@ -4561,7 +4561,7 @@ int32_t compareHashTableImpl(SHashObj* p1, SHashObj* p2, SArray* diff) {
       TAOS_UNUSED(strncpy(fname, name, len));
       if (taosArrayPush(diff, &fname) == NULL) {
         taosMemoryFree(fname);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
     pIter = taosHashIterate(p2, pIter);
@@ -4680,7 +4680,7 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
 
       p->pCurrent = taosStrdup(name);
       if (p->pCurrent == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         break;
       }
       continue;
@@ -4690,7 +4690,7 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
       taosMemoryFreeClear(p->pManifest);
       p->pManifest = taosStrdup(name);
       if (p->pManifest == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         break;
       }
       continue;
@@ -4724,7 +4724,7 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
         if (taosArrayPush(p->pAdd, &fname) == NULL) {
           taosMemoryFree(fname);
           TAOS_UNUSED(taosThreadRwlockUnlock(&p->rwLock));
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
       }
       pIter = taosHashIterate(p->pSstTbl[1 - p->idx], pIter);
@@ -4776,7 +4776,7 @@ int32_t dbChkpCreate(char* path, int64_t initChkpId, SDbChkp** ppChkp) {
   p->preCkptId = -1;
   p->pSST = taosArrayInit(64, sizeof(void*));
   if (p->pSST == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     dbChkpDestroy(p);
     return code;
   }
@@ -4792,25 +4792,25 @@ int32_t dbChkpCreate(char* path, int64_t initChkpId, SDbChkp** ppChkp) {
   p->idx = 0;
   p->pSstTbl[0] = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (p->pSstTbl[0] == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _EXIT;
   }
 
   p->pSstTbl[1] = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (p->pSstTbl[1] == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _EXIT;
   }
 
   p->pAdd = taosArrayInit(64, sizeof(void*));
   if (p->pAdd == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _EXIT;
   }
 
   p->pDel = taosArrayInit(64, sizeof(void*));
   if (p->pDel == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _EXIT;
   }
 

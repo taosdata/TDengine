@@ -79,7 +79,7 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
 
   pBt = (SBTree *)tdbOsCalloc(1, sizeof(*pBt));
   if (pBt == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   // pBt->keyLen
