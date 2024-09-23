@@ -2749,12 +2749,10 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
         STraceId* trace = &(rpcMsg.info.traceId);
         sGTrace("vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId, DID(&(pSyncMsg->destId)));
         syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed, pData->execTime);
-        if ((code = syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg)) != 0) {
+        int ret = 0;
+        if ((ret = syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg)) != 0) {
           sError("vgId:%d, failed to send heartbeat to dnode:%d since %s", pSyncNode->vgId, DID(&(pSyncMsg->destId)),
-                 tstrerror(code));
-          syncNodeRelease(pSyncNode);
-          syncHbTimerDataRelease(pData);
-          return;
+                 tstrerror(ret));
         }
       } else {
       }
