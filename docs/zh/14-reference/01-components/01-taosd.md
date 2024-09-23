@@ -33,7 +33,6 @@ taosd 命令行参数如下
 |        secondEp        | taosd 启动时，如果 firstEp 连接不上，尝试连接集群中第二个 dnode 的 endpoint，缺省值：无 |
 |          fqdn          |        启动 taosd 后所监听的服务地址，缺省值：所在服务器上配置的第一个 hostname         |
 |       serverPort       |                         启动 taosd 后所监听的端口，缺省值：6030                         |
-|     maxShellConns      |              一个 dnode 容许的连接数，取值范围为 10-5000000，缺省值：5000               |
 |    numOfRpcSessions    |          允许一个客户端能创建的最大连接数，取值范围 100-100000，缺省值：30000           |
 | timeToGetAvailableConn |      获得可用连接的最长等待时间，取值范围 10-50000000，单位为毫秒，缺省值：500000       |
 
