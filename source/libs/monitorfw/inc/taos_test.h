@@ -23,6 +23,11 @@
   if (!(i)) return 1;
 #define TAOS_TEST_PARA_NULL(i) \
   if (!(i)) return NULL;
+#define TAOS_TEST_PARA_VOID(i)     \
+  if (!(i)) {                      \
+    TAOS_LOG("parameter is NULL"); \
+    return;                        \
+  }
 #endif  // TAOS_TEST
 
 #endif  // TAOS_TEST_H

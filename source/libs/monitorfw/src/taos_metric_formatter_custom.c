@@ -88,17 +88,47 @@ int taos_metric_formatter_load_sample_new(taos_metric_formatter_t *self, taos_me
       char* value = *(pair + 1);
 
       SJson* tag = tjsonCreateObject();
-      (void)tjsonAddStringToObject(tag, "name", key);
-      (void)tjsonAddStringToObject(tag, "value", value);
+      if (tjsonAddStringToObject(tag, "name", key) != 0) {
+        taosMemoryFreeClear(arr);
+        taosMemoryFreeClear(keyvalue);
+        taosMemoryFreeClear(keyvalues);
+        return 1;
+      }
+      if (tjsonAddStringToObject(tag, "value", value) != 0) {
+        taosMemoryFreeClear(arr);
+        taosMemoryFreeClear(keyvalue);
+        taosMemoryFreeClear(keyvalues);
+        return 1;
+      }
 
-      (void)tjsonAddItemToArray(arrayTag, tag);
+      if (tjsonAddItemToArray(arrayTag, tag) != 0) {
+        taosMemoryFreeClear(arr);
+        taosMemoryFreeClear(keyvalue);
+        taosMemoryFreeClear(keyvalues);
+        return 1;
+      }
     }
-    (void)tjsonAddItemToObject(item, "tags", arrayTag);
+    if (tjsonAddItemToObject(item, "tags", arrayTag) != 0) {
+      taosMemoryFreeClear(arr);
+      taosMemoryFreeClear(keyvalue);
+      taosMemoryFreeClear(keyvalues);
+      return 1;
+    }
 
     metrics = tjsonCreateArray();
-    (void)tjsonAddItemToObject(item, "metrics", metrics);
+    if (tjsonAddItemToObject(item, "metrics", metrics) != 0) {
+      taosMemoryFreeClear(arr);
+      taosMemoryFreeClear(keyvalue);
+      taosMemoryFreeClear(keyvalues);
+      return 1;
+    }
 
-    (void)tjsonAddItemToArray(arrayMetricGroups, item);
+    if (tjsonAddItemToArray(arrayMetricGroups, item) != 0) {
+      taosMemoryFreeClear(arr);
+      taosMemoryFreeClear(keyvalue);
+      taosMemoryFreeClear(keyvalues);
+      return 1;
+    }
   }
   else{
     metrics = tjsonGetObjectItem(item, "metrics");
@@ -109,20 +139,20 @@ int taos_metric_formatter_load_sample_new(taos_metric_formatter_t *self, taos_me
   taosMemoryFreeClear(keyvalues);
 
   SJson* metric = tjsonCreateObject();
-  (void)tjsonAddStringToObject(metric, "name", metricName);
+  if (tjsonAddStringToObject(metric, "name", metricName) != 0) return 1;
 
   double old_value = 0;
 #define USE_EXCHANGE
 #ifdef USE_EXCHANGE
-  (void)taos_metric_sample_exchange(sample, 0, &old_value);
+  if (taos_metric_sample_exchange(sample, 0, &old_value) != 0) return 1;
 #else
   old_value = sample->r_value;
   taos_metric_sample_set(sample, 0);
 #endif
 
-  (void)tjsonAddDoubleToObject(metric, "value", old_value);
-  (void)tjsonAddDoubleToObject(metric, "type", metric_type);
-  (void)tjsonAddItemToArray(metrics, metric);
+  if (tjsonAddDoubleToObject(metric, "value", old_value) != 0) return 1;
+  if (tjsonAddDoubleToObject(metric, "type", metric_type) != 0) return 1;
+  if (tjsonAddItemToArray(metrics, metric) != 0) return 1;
 
   return 0;
 }
@@ -150,7 +180,11 @@ int taos_metric_formatter_load_metric_new(taos_metric_formatter_t *self, taos_me
     SJson* table = tjsonGetArrayItem(tableArray, i);
 
     char tableName[MONITOR_TABLENAME_LEN] = {0};
-    (void)tjsonGetStringValue(table, "name", tableName);
+    r = tjsonGetStringValue(table, "name", tableName);
+    if (r) {
+      taosMemoryFreeClear(name);
+      return r;
+    }
     if(strcmp(tableName, arr[0]) == 0){
       isFound = true;
       arrayMetricGroups = tjsonGetObjectItem(table, "metric_groups");
@@ -161,10 +195,18 @@ int taos_metric_formatter_load_metric_new(taos_metric_formatter_t *self, taos_me
   if(!isFound){
     table = tjsonCreateObject();
 
-    (void)tjsonAddStringToObject(table, "name", arr[0]);
+    r = tjsonAddStringToObject(table, "name", arr[0]);
+    if (r) {
+      taosMemoryFreeClear(name);
+      return r;
+    }
 
     arrayMetricGroups = tjsonCreateArray();
-    (void)tjsonAddItemToObject(table, "metric_groups", arrayMetricGroups);
+    r = tjsonAddItemToObject(table, "metric_groups", arrayMetricGroups);
+    if (r) {
+      taosMemoryFreeClear(name);
+      return r;
+    }
   }
   
   int32_t sample_count = 0;
@@ -183,7 +225,11 @@ int taos_metric_formatter_load_metric_new(taos_metric_formatter_t *self, taos_me
   }
 
   if(!isFound && sample_count > 0){
-    (void)tjsonAddItemToArray(tableArray, table);
+    r = tjsonAddItemToArray(tableArray, table);
+    if (r) {
+      taosMemoryFreeClear(name);
+      return r;
+    }
   }
   else{
     if(table != NULL) tjsonDelete(table);
