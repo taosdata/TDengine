@@ -367,7 +367,7 @@ int32_t syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg) {
   }
   pHead = rpcMallocCont(contLen);
   if (!pHead) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     sError("vgId:%d, failed to malloc memory for SVArbSetAssignedLeaderRsp", ths->vgId);
     goto _OVER;
   }
@@ -2965,7 +2965,7 @@ int32_t syncNodeRebuildAndCopyIfExist(SSyncNode* ths, int32_t oldtotalReplicaNum
   SSyncLogReplMgr* oldLogReplMgrs = NULL;
   int64_t          length = sizeof(SSyncLogReplMgr) * (TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA);
   oldLogReplMgrs = taosMemoryMalloc(length);
-  if (NULL == oldLogReplMgrs) return TSDB_CODE_OUT_OF_MEMORY;
+  if (NULL == oldLogReplMgrs) return terrno;
   memset(oldLogReplMgrs, 0, length);
 
   for (int i = 0; i < oldtotalReplicaNum; i++) {
@@ -3644,7 +3644,9 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
 
       if (code > 0) {
         SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
-        (void)syncRespMgrGetAndDel(ths->pSyncRespMgr, pEntry->seqNum, &rsp.info);
+        int32_t num = syncRespMgrGetAndDel(ths->pSyncRespMgr, pEntry->seqNum, &rsp.info);
+        sDebug("vgId:%d, get response stub for config change, seqNum:%" PRIu64 ", num:%d", ths->vgId, pEntry->seqNum,
+               num);
         if (rsp.info.handle != NULL) {
           tmsgSendRsp(&rsp);
         }

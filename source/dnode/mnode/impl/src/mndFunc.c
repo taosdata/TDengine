@@ -621,8 +621,8 @@ static void *mnodeGenTypeStr(char *buf, int32_t buflen, uint8_t type, int32_t le
     return msg;
   }
 
-  if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_VARBINARY ||
-      type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
+  if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_BINARY ||
+      type == TSDB_DATA_TYPE_GEOMETRY) {
     int32_t bytes = len > 0 ? (int32_t)(len - VARSTR_HEADER_SIZE) : len;
 
     (void)snprintf(buf, buflen - 1, "%s(%d)", tDataTypes[type].name, type == TSDB_DATA_TYPE_NCHAR ? bytes / 4 : bytes);
@@ -640,6 +640,7 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   int32_t   numOfRows = 0;
   SFuncObj *pFunc = NULL;
   int32_t   cols = 0;
+  int32_t   code = 0;
   char      buf[TSDB_TYPE_STR_MAX_LEN];
 
   while (numOfRows < rows) {
@@ -652,40 +653,51 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     STR_WITH_MAXSIZE_TO_VARSTR(b1, pFunc->name, pShow->pMeta->pSchemas[cols].bytes);
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)b1, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)b1, false), pSdb, pFunc);
 
     if (pFunc->pComment) {
       char *b2 = taosMemoryCalloc(1, pShow->pMeta->pSchemas[cols].bytes);
       STR_WITH_MAXSIZE_TO_VARSTR(b2, pFunc->pComment, pShow->pMeta->pSchemas[cols].bytes);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      (void)colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
+      if (code != 0) {
+        sdbRelease(pSdb, pFunc);
+        taosMemoryFree(b2);
+        TAOS_RETURN(code);
+      }
       taosMemoryFree(b2);
     } else {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      (void)colDataSetVal(pColInfo, numOfRows, NULL, true);
+      TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, NULL, true), pSdb, pFunc);
+      if (code != 0) {
+        sdbRelease(pSdb, pFunc);
+        TAOS_RETURN(code);
+      }
     }
 
     int32_t isAgg = (pFunc->funcType == TSDB_FUNC_TYPE_AGGREGATE) ? 1 : 0;
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&isAgg, false);
-
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&isAgg, false), pSdb, pFunc);
     char b3[TSDB_TYPE_STR_MAX_LEN + 1] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b3, mnodeGenTypeStr(buf, TSDB_TYPE_STR_MAX_LEN, pFunc->outputType, pFunc->outputLen),
                                pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)b3, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)b3, false), pSdb, pFunc);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->createdTime, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->createdTime, false), pSdb,
+                                   pFunc);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->codeSize, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->codeSize, false), pSdb,
+                                   pFunc);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->bufSize, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->bufSize, false), pSdb,
+                                   pFunc);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     char *language = "";
@@ -697,7 +709,7 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     char varLang[TSDB_TYPE_STR_MAX_LEN + 1] = {0};
     varDataSetLen(varLang, strlen(language));
     strcpy(varDataVal(varLang), language);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)varLang, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)varLang, false), pSdb, pFunc);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int32_t varCodeLen = (pFunc->codeSize + VARSTR_HEADER_SIZE) > TSDB_MAX_BINARY_LEN
@@ -706,11 +718,17 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     char   *b4 = taosMemoryMalloc(varCodeLen);
     (void)memcpy(varDataVal(b4), pFunc->pCode, varCodeLen - VARSTR_HEADER_SIZE);
     varDataSetLen(b4, varCodeLen - VARSTR_HEADER_SIZE);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)b4, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)b4, false);
+    if (code < 0) {
+      sdbRelease(pSdb, pFunc);
+      taosMemoryFree(b4);
+      TAOS_RETURN(code);
+    }
     taosMemoryFree(b4);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->funcVersion, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->funcVersion, false), pSdb,
+                                   pFunc);
 
     numOfRows++;
     sdbRelease(pSdb, pFunc);

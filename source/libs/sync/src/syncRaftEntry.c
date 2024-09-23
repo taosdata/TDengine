@@ -107,7 +107,7 @@ int32_t syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg) {
   pRpcMsg->contLen = (int32_t)(pEntry->dataLen);
   pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
   if (pRpcMsg->pCont == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   memcpy(pRpcMsg->pCont, pEntry->data, pRpcMsg->contLen);
 

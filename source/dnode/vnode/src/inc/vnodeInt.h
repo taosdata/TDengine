@@ -314,7 +314,7 @@ int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback);
 // STsdbSnapReader ========================================
 int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type, void* pRanges,
                            STsdbSnapReader** ppReader);
-int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader);
+void tsdbSnapReaderClose(STsdbSnapReader** ppReader);
 int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData);
 // STsdbSnapWriter ========================================
 int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, void* pRanges, STsdbSnapWriter** ppWriter);
@@ -323,7 +323,7 @@ int32_t tsdbSnapWriterPrepareClose(STsdbSnapWriter* pWriter, bool rollback);
 int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback);
 // STsdbSnapRAWReader ========================================
 int32_t tsdbSnapRAWReaderOpen(STsdb* pTsdb, int64_t ever, int8_t type, STsdbSnapRAWReader** ppReader);
-int32_t tsdbSnapRAWReaderClose(STsdbSnapRAWReader** ppReader);
+void tsdbSnapRAWReaderClose(STsdbSnapRAWReader** ppReader);
 int32_t tsdbSnapRAWRead(STsdbSnapRAWReader* pReader, uint8_t** ppData);
 // STsdbSnapRAWWriter ========================================
 int32_t tsdbSnapRAWWriterOpen(STsdb* pTsdb, int64_t ever, STsdbSnapRAWWriter** ppWriter);
@@ -368,7 +368,7 @@ int32_t streamStateLoadTasks(SStreamStateWriter* pWriter);
 // SStreamStateReader =====================================
 // SRSmaSnapReader ========================================
 int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapReader** ppReader);
-int32_t rsmaSnapReaderClose(SRSmaSnapReader** ppReader);
+void    rsmaSnapReaderClose(SRSmaSnapReader** ppReader);
 int32_t rsmaSnapRead(SRSmaSnapReader* pReader, uint8_t** ppData);
 // SRSmaSnapWriter ========================================
 int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, void** ppRanges, SRSmaSnapWriter** ppWriter);

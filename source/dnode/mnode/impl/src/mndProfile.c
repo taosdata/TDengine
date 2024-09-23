@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndProfile.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
+#include "mndProfile.h"
 #include "mndQnode.h"
 #include "mndShow.h"
 #include "mndSma.h"
@@ -65,7 +65,7 @@ typedef struct {
   int64_t ipWhiteListVer;
 } SConnPreparedObj;
 
-#define CACHE_OBJ_KEEP_TIME 3 // s
+#define CACHE_OBJ_KEEP_TIME 3  // s
 
 static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, uint32_t ip, uint16_t port,
                                int32_t pid, const char *app, int64_t startTime);
@@ -377,7 +377,8 @@ static SAppObj *mndCreateApp(SMnode *pMnode, uint32_t clientIp, SAppHbReq *pReq)
   (void)memcpy(&app.summary, &pReq->summary, sizeof(pReq->summary));
   app.lastAccessTimeMs = taosGetTimestampMs();
 
-  SAppObj *pApp = taosCachePut(pMgmt->appCache, &pReq->appId, sizeof(pReq->appId), &app, sizeof(app), CACHE_OBJ_KEEP_TIME * 1000);
+  SAppObj *pApp =
+      taosCachePut(pMgmt->appCache, &pReq->appId, sizeof(pReq->appId), &app, sizeof(app), CACHE_OBJ_KEEP_TIME * 1000);
   if (pApp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to app %" PRIx64 " into cache since %s", pReq->appId, terrstr());
@@ -841,6 +842,7 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
   int32_t   cols = 0;
+  int32_t   code = 0;
   SConnObj *pConn = NULL;
 
   if (pShow->pIter == NULL) {
@@ -863,32 +865,60 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     cols = 0;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->id, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->id, false);
+    if (code != 0) {
+      mError("failed to set conn id:%u since %s", pConn->id, tstrerror(code));
+      return code;
+    }
 
     char user[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(user, pConn->user);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)user, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)user, false);
+    if (code != 0) {
+      mError("failed to set user since %s", tstrerror(code));
+      return code;
+    }
 
     char app[TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE];
     STR_TO_VARSTR(app, pConn->app);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)app, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)app, false);
+    if (code != 0) {
+      mError("failed to set app since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->pid, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->pid, false);
+    if (code != 0) {
+      mError("failed to set conn id:%u since %s", pConn->id, tstrerror(code));
+      return code;
+    }
 
     char endpoint[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
     (void)sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
     varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)endpoint, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)endpoint, false);
+    if (code != 0) {
+      mError("failed to set endpoint since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->loginTimeMs, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->loginTimeMs, false);
+    if (code != 0) {
+      mError("failed to set login time since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->lastAccessTimeMs, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->lastAccessTimeMs, false);
+    if (code != 0) {
+      mError("failed to set last access time since %s", tstrerror(code));
+      return code;
+    }
 
     numOfRows++;
   }
@@ -907,6 +937,7 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBlock *pBlock, uint32_t offset,
                                     uint32_t rowsToPack) {
   int32_t cols = 0;
+  int32_t code = 0;
   taosRLockLatch(&pConn->queryLock);
   int32_t numOfQueries = taosArrayGetSize(pConn->pQueries);
   if (NULL == pConn->pQueries || numOfQueries <= offset) {
@@ -924,47 +955,107 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     (void)sprintf(&queryId[VARSTR_HEADER_SIZE], "%x:%" PRIx64, pConn->id, pQuery->reqRid);
     varDataLen(queryId) = strlen(&queryId[VARSTR_HEADER_SIZE]);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)queryId, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)queryId, false);
+    if (code != 0) {
+      mError("failed to set query id:%s since %s", queryId, tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->queryId, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->queryId, false);
+    if (code != 0) {
+      mError("failed to set query id:%" PRIx64 " since %s", pQuery->queryId, tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)&pConn->id, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pConn->id, false);
+    if (code != 0) {
+      mError("failed to set conn id:%u since %s", pConn->id, tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     char app[TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE];
     STR_TO_VARSTR(app, pConn->app);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)app, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)app, false);
+    if (code != 0) {
+      mError("failed to set app since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)&pConn->pid, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pConn->pid, false);
+    if (code != 0) {
+      mError("failed to set conn id:%u since %s", pConn->id, tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     char user[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(user, pConn->user);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)user, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)user, false);
+    if (code != 0) {
+      mError("failed to set user since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     char endpoint[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
     (void)sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
     varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)endpoint, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)endpoint, false);
+    if (code != 0) {
+      mError("failed to set endpoint since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->stime, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->stime, false);
+    if (code != 0) {
+      mError("failed to set start time since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->useconds, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->useconds, false);
+    if (code != 0) {
+      mError("failed to set useconds since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->stableQuery, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->stableQuery, false);
+    if (code != 0) {
+      mError("failed to set stable query since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->isSubQuery, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->isSubQuery, false);
+    if (code != 0) {
+      mError("failed to set sub query since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->subPlanNum, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->subPlanNum, false);
+    if (code != 0) {
+      mError("failed to set sub plan num since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     char    subStatus[TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE] = {0};
     int64_t reserve = 64;
@@ -983,12 +1074,22 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     }
     varDataLen(subStatus) = strlen(&subStatus[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, curRowIndex, subStatus, (varDataLen(subStatus) == 0) ? true : false);
+    code = colDataSetVal(pColInfo, curRowIndex, subStatus, (varDataLen(subStatus) == 0) ? true : false);
+    if (code != 0) {
+      mError("failed to set sub status since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(sql, pQuery->sql);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, curRowIndex, (const char *)sql, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)sql, false);
+    if (code != 0) {
+      mError("failed to set sql since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pBlock->info.rows++;
   }
@@ -1040,6 +1141,7 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   int32_t  numOfRows = 0;
   int32_t  cols = 0;
   SAppObj *pApp = NULL;
+  int32_t  code = 0;
 
   if (pShow->pIter == NULL) {
     SProfileMgmt *pMgmt = &pMnode->profileMgmt;
@@ -1057,55 +1159,115 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     cols = 0;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->appId, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->appId, false);
+    if (code != 0) {
+      mError("failed to set app id since %s", tstrerror(code));
+      return code;
+    }
 
     char ip[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
     (void)sprintf(&ip[VARSTR_HEADER_SIZE], "%s", taosIpStr(pApp->ip));
     varDataLen(ip) = strlen(&ip[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)ip, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)ip, false);
+    if (code != 0) {
+      mError("failed to set ip since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->pid, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->pid, false);
+    if (code != 0) {
+      mError("failed to set pid since %s", tstrerror(code));
+      return code;
+    }
 
     char name[TSDB_APP_NAME_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
     (void)sprintf(&name[VARSTR_HEADER_SIZE], "%s", pApp->name);
     varDataLen(name) = strlen(&name[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)name, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)name, false);
+    if (code != 0) {
+      mError("failed to set app name since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->startTime, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->startTime, false);
+    if (code != 0) {
+      mError("failed to set start time since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertsReq, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertsReq, false);
+    if (code != 0) {
+      mError("failed to set insert req since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertRows, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertRows, false);
+    if (code != 0) {
+      mError("failed to set insert rows since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.insertElapsedTime, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.insertElapsedTime, false);
+    if (code != 0) {
+      mError("failed to set insert elapsed time since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.insertBytes, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.insertBytes, false);
+    if (code != 0) {
+      mError("failed to set insert bytes since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.fetchBytes, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.fetchBytes, false);
+    if (code != 0) {
+      mError("failed to set fetch bytes since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.queryElapsedTime, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.queryElapsedTime, false);
+    if (code != 0) {
+      mError("failed to set query elapsed time since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfSlowQueries, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfSlowQueries, false);
+    if (code != 0) {
+      mError("failed to set slow queries since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.totalRequests, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.totalRequests, false);
+    if (code != 0) {
+      mError("failed to set total requests since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.currentRequests, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.currentRequests, false);
+    if (code != 0) {
+      mError("failed to set current requests since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->lastAccessTimeMs, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->lastAccessTimeMs, false);
+    if (code != 0) {
+      mError("failed to set last access time since %s", tstrerror(code));
+      return code;
+    }
 
     numOfRows++;
   }

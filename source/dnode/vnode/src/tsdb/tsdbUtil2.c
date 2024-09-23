@@ -108,8 +108,8 @@ int32_t tStatisBlockClear(STbStatisBlock *statisBlock) {
     TAOS_UNUSED(tBufferClear(&statisBlock->buffers[i]));
   }
   for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
-    TAOS_UNUSED(tValueColumnClear(&statisBlock->firstKeyPKs[i]));
-    TAOS_UNUSED(tValueColumnClear(&statisBlock->lastKeyPKs[i]));
+    tValueColumnClear(&statisBlock->firstKeyPKs[i]);
+    tValueColumnClear(&statisBlock->lastKeyPKs[i]);
   }
   return 0;
 }
@@ -267,8 +267,8 @@ void tBrinBlockClear(SBrinBlock *brinBlock) {
     TAOS_UNUSED(tBufferClear(&brinBlock->buffers[i]));
   }
   for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
-    TAOS_UNUSED(tValueColumnClear(&brinBlock->firstKeyPKs[i]));
-    TAOS_UNUSED(tValueColumnClear(&brinBlock->lastKeyPKs[i]));
+    tValueColumnClear(&brinBlock->firstKeyPKs[i]);
+    tValueColumnClear(&brinBlock->lastKeyPKs[i]);
   }
 }
 

@@ -41,7 +41,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
 
   pTb = (TTB *)tdbOsCalloc(1, sizeof(*pTb));
   if (pTb == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   // pTb->pEnv
@@ -221,7 +221,7 @@ int tdbTbcOpen(TTB *pTb, TBC **ppTbc, TXN *pTxn) {
   *ppTbc = NULL;
   pTbc = (TBC *)tdbOsMalloc(sizeof(*pTbc));
   if (pTbc == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if ((ret = tdbBtcOpen(&pTbc->btc, pTb->pBt, pTxn)) != 0) {
