@@ -1497,6 +1497,11 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto End;
     }
+    thrd->connRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
+    if (thrd->connRefMgt < 0) {
+      code = thrd->connRefMgt;
+      goto End;
+    }
 
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
     if (srv->pipe[i] == NULL) {
