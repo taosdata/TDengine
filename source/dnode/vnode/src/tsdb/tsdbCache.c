@@ -936,6 +936,7 @@ int32_t tsdbCacheDropSubTables(STsdb *pTsdb, SArray *uids, tb_uid_t suid) {
       if (code != TSDB_CODE_SUCCESS) {
         tsdbError("vgId:%d, %s drop table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
                   tstrerror(code));
+        taosMemoryFree(pTSchema);
         (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
         TAOS_RETURN(code);
       }
