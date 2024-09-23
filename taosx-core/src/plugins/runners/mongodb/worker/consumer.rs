@@ -2,6 +2,7 @@ use arrow::ipc::writer::StreamWriter;
 use arrow_schema::Schema;
 use chrono::Utc;
 use flume::Receiver;
+use std::time::Duration;
 
 use taosx_ipc::ack::AckReaderBuilder;
 
@@ -48,37 +49,58 @@ impl Consumer {
             let mut batch_count = 0;
 
             while let Ok(batch) = rx.recv() {
-                writer.write(&batch)?;
-                tracing::debug!("migrate mongodb write {} rows to ipc", batch.num_rows());
-                row_count += batch.num_rows();
-                batch_count += 1;
-                ack_tx.send(batch.num_rows())?;
+                // if the sending fails, retry 3 times by sleeping 1 second each time
+                for i in 1..4 {
+                    let write_result = writer.write(&batch);
+                    match write_result {
+                        Ok(_) => {
+                            tracing::debug!(
+                                "migrate mongodb, write {} rows to ipc",
+                                batch.num_rows()
+                            );
+                            row_count += batch.num_rows();
+                            batch_count += 1;
+                            ack_tx.send(batch.num_rows())?;
+                            break;
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate mongodb, failed to write to ipc, cause: {}, retrying {i} times...",
+                                e
+                            );
+                            std::thread::sleep(Duration::from_secs(1));
+                        }
+                    }
+                }
             }
-
-            tracing::debug!(
-                send.batches = batch_count,
-                send.records = row_count,
-                "sending finished, waiting for persisting"
-            );
-            let _ = writer.finish()?;
+            let finish_result = writer.finish();
+            match finish_result {
+                Ok(_) => {
+                    tracing::debug!(
+                        send.batches = batch_count,
+                        send.records = row_count,
+                        "migrate mongodb, sending finished, waiting for persisting"
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!("migrate mongodb, sending finished error, cause: {e:?}",);
+                }
+            }
             anyhow::Ok(())
         });
 
         // receive ACK from IPC
-        let ack = tokio::task::spawn_blocking(move || {
+        let ack_handler = tokio::task::spawn_blocking(move || {
             let ack_reader =
                 AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
             for ack in ack_reader {
                 let _ = ack_rx.recv();
                 if !ack.success() {
-                    tracing::error!("migrate mongodb write records error: {ack:?}",);
-                    if let Some(message) = ack.message() {
-                        anyhow::bail!("IPC writer error: {message}")
-                    }
+                    tracing::error!("migrate mongodb, ipc ack, write records error: {ack:?}");
                 }
             }
             tracing::info!("migrate mongodb ACK reader finished");
-            Ok(())
+            anyhow::Ok(())
         });
 
         // query database and send to writer
@@ -127,17 +149,18 @@ impl Consumer {
             }
         }
         drop(tx);
-
         tracing::debug!(
             "migrate mongodb query finished, total batch: {}",
             batch_count
         );
+
         writer_handler.await??;
         tracing::debug!(
             "migrate mongodb writer finished, total batch: {}",
             batch_count
         );
-        ack.await??;
+
+        ack_handler.await??;
         tracing::debug!(
             "migrate mongodb consumer finished, total batch: {}",
             batch_count

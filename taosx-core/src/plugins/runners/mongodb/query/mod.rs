@@ -1,4 +1,3 @@
-use anyhow::Context;
 use arrow::array::RecordBatch;
 use flume::Sender;
 use mongodb::bson::{doc, Bson, Document};
@@ -273,7 +272,20 @@ fn send_documents_to_ipc(
     let batches = appender::to_record_batches(&*documents, batch_size)?;
     for batch in batches {
         if batch.num_rows() > 0 {
-            tx.send(batch).context("failed to send record batch")?;
+            // if the sending fails, retry 3 times by sleeping 1 second each time
+            for i in 1..4 {
+                let send_result = tx.send(batch.clone());
+                match send_result {
+                    Ok(_) => break,
+                    Err(e) => {
+                        tracing::warn!(
+                            "migrate mongodb, failed to send record batch to taosx, cause: {}, retrying {i} times...",
+                            e
+                        );
+                        std::thread::sleep(Duration::from_secs(1));
+                    }
+                }
+            }
         }
     }
     *amount += documents.len() as u64;
