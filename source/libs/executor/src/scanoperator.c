@@ -951,7 +951,8 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
 
     if (isTaskKilled(pTaskInfo)) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->base.dataReader);
-      return pTaskInfo->code;
+      code = pTaskInfo->code;
+      goto _end;
     }
 
     if (pOperator->status == OP_EXEC_DONE) {
@@ -996,6 +997,7 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   return code;
 }
@@ -1416,6 +1418,7 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 
   return code;
@@ -2944,8 +2947,9 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       if (pResult && pResult->info.rows > 0) {
         bool hasPrimaryKey = pAPI->tqReaderFn.tqGetTablePrimaryKey(pInfo->tqReader);
         code = processPrimaryKey(pResult, hasPrimaryKey, &pTaskInfo->streamInfo.currentOffset);
+        QUERY_CHECK_CODE(code, lino, _end);
         qDebug("tmqsnap doQueueScan get data utid:%" PRId64 "", pResult->info.id.uid);
-        if (pResult->info.rows > 0 || code != TSDB_CODE_SUCCESS) {
+        if (pResult->info.rows > 0) {
           (*ppRes) = pResult;
           return code;
         }
@@ -3009,8 +3013,9 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    pTaskInfo->code = code;
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = NULL;
   return code;
@@ -3340,9 +3345,7 @@ FETCH_NEXT_BLOCK:
     if (pBlock->info.parTbName[0]) {
       code =
           pAPI->stateStore.streamStatePutParName(pStreamInfo->pState, pBlock->info.id.groupId, pBlock->info.parTbName);
-      if (code != TSDB_CODE_SUCCESS) {
-        qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-      }
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     // TODO move into scan
@@ -3658,8 +3661,9 @@ FETCH_NEXT_BLOCK:
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    pTaskInfo->code = code;
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = NULL;
   return code;
@@ -3730,6 +3734,7 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       if (pBlock && pBlock->info.rows > 0) {
         bool hasPrimaryKey = pAPI->snapshotFn.taosXGetTablePrimaryKey(pInfo->sContext);
         code = processPrimaryKey(pBlock, hasPrimaryKey, &pTaskInfo->streamInfo.currentOffset);
+        QUERY_CHECK_CODE(code, lino, _end);
         qDebug("tmqsnap doRawScan get data uid:%" PRId64 "", pBlock->info.id.uid);
         (*ppRes) = pBlock;
         return code;
@@ -3741,7 +3746,7 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     QUERY_CHECK_CODE(code, lino, _end);
     if (code != 0) {
       tDeleteSchemaWrapper(mtInfo.schema);
-      goto _end;
+      QUERY_CHECK_CODE(code, lino, _end);
     }
     STqOffsetVal offset = {0};
     if (mtInfo.uid == 0 || pInfo->sContext->withMeta == ONLY_META) {  // read snapshot done, change to get data from wal
@@ -3831,6 +3836,7 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 
   (*ppRes) = NULL;
@@ -4677,6 +4683,7 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 
   return code;
@@ -4684,6 +4691,7 @@ _end:
 
 static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (pOperator->status == OP_EXEC_DONE) {
     (*ppRes) = NULL;
     return code;
@@ -4699,10 +4707,7 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
 
   int32_t size = 0;
   code = tableListGetSize(pInfo->pTableListInfo, &size);
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    return code;
-  }
+  QUERY_CHECK_CODE(code, lino, _end);
 
   if (size == 0) {
     setTaskStatus(pTaskInfo, TASK_COMPLETED);
@@ -4716,11 +4721,11 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
 
   while (pInfo->curPos < size && count < pOperator->resultInfo.capacity) {
     code = doTagScanOneTable(pOperator, pRes, count, &mr, &pTaskInfo->storageAPI);
-    if (code == TSDB_CODE_OUT_OF_MEMORY) {
-      break;
-    } else {
+    if (code != TSDB_CODE_OUT_OF_MEMORY) {
       // ignore other error
+      code = TSDB_CODE_SUCCESS;
     }
+    QUERY_CHECK_CODE(code, lino, _end);
 
     ++count;
     if (++pInfo->curPos >= size) {
@@ -4744,6 +4749,13 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
   pOperator->resultInfo.totalRows += pRes->info.rows;
 
   (*ppRes) = (pRes->info.rows == 0) ? NULL : pInfo->pRes;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
   return code;
 }
 
@@ -5429,6 +5441,7 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   } else {
     (*ppRes) = pBlock;
   }
@@ -5945,6 +5958,7 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   } else {
     (*ppRes) = pBlock;
   }
@@ -6460,7 +6474,12 @@ static int32_t doTableCountScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   }
 
   code = buildVnodeDbTableCount(pOperator, pInfo, pSupp, pRes);
-  if ((pRes->info.rows > 0) && (code == 0)) {
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed since %s", __func__, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
+  if (pRes->info.rows > 0) {
     *ppRes = pRes;
   }
 

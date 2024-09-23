@@ -938,7 +938,9 @@ _return:
   }
 
   if (code) {
+    qError("%s failed since %s", __func__, tstrerror(code));
     pOperator->pTaskInfo->code = code;
+    T_LONG_JMP(pOperator->pTaskInfo->env, code);
   } else {
     seqStableJoinComposeRes(pStbJoin, *pRes);
   }
