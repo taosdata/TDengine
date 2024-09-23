@@ -239,7 +239,7 @@ _OVER:
     }
 
     if (IsReq(pRpc)) {
-      SRpcMsg rsp = {.code = code, .info = pRpc->info};
+      SRpcMsg rsp = {.code = code, .info = pRpc->info, .msgType = pRpc->msgType + 1};
       if (code == TSDB_CODE_MNODE_NOT_FOUND) {
         dmBuildMnodeRedirectRsp(pDnode, &rsp);
       }
