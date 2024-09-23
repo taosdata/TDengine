@@ -439,7 +439,7 @@ static int32_t tsdbCommitInfoInit(STsdb *pTsdb) {
 
   pTsdb->commitInfo->arr = taosArrayInit(0, sizeof(SFileSetCommitInfo *));
   if (pTsdb->commitInfo->arr == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
 _exit:
@@ -457,7 +457,7 @@ static int32_t tsdbCommitInfoAdd(STsdb *tsdb, int32_t fid) {
   SFileSetCommitInfo *tinfo;
 
   if ((tinfo = taosMemoryMalloc(sizeof(*tinfo))) == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
   tinfo->fid = fid;
   tinfo->fset = NULL;
@@ -465,7 +465,7 @@ static int32_t tsdbCommitInfoAdd(STsdb *tsdb, int32_t fid) {
   TAOS_CHECK_GOTO(vHashPut(tsdb->commitInfo->ht, tinfo), &lino, _exit);
 
   if ((taosArrayPush(tsdb->commitInfo->arr, &tinfo)) == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
   taosArraySort(tsdb->commitInfo->arr, tFileSetCommitInfoPCompare);
 

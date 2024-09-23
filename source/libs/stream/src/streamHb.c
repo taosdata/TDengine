@@ -153,7 +153,6 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
   pMsg->pUpdateNodes = taosArrayInit(numOfTasks, sizeof(int32_t));
 
   if (pMsg->pTaskStatus == NULL || pMsg->pUpdateNodes == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -279,7 +278,7 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
   }
 
   if (!waitForEnoughDuration(pMeta->pHbInfo)) {
-    streamTmrReset(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, vgId,
+    streamTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, vgId,
                    "meta-hb-tmr");
 
     code = taosReleaseRef(streamMetaId, rid);
@@ -301,7 +300,7 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
   }
   streamMetaRUnLock(pMeta);
 
-  streamTmrReset(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, pMeta->vgId,
+  streamTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, pMeta->vgId,
                  "meta-hb-tmr");
 
   code = taosReleaseRef(streamMetaId, rid);
@@ -317,7 +316,7 @@ int32_t createMetaHbInfo(int64_t* pRid, SMetaHbInfo** pRes) {
     return terrno;
   }
 
-  pInfo->hbTmr = taosTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamTimer);
+  streamTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamTimer, &pInfo->hbTmr, 0, "stream-hb");
   pInfo->tickCounter = 0;
   pInfo->msgSendTs = -1;
   pInfo->hbCount = 0;

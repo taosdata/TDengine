@@ -135,7 +135,7 @@ typedef struct {
 #define META_ON_S3_FORMATE "%s_%" PRId64 "\n%s_%" PRId64 "\n%s_%" PRId64 ""
 
 bool       streamBackendDataIsExist(const char* path, int64_t chkpId);
-void*      streamBackendInit(const char* path, int64_t chkpId, int32_t vgId);
+int32_t    streamBackendInit(const char* path, int64_t chkpId, int32_t vgId, SBackendWrapper** pBackend);
 void       streamBackendCleanup(void* arg);
 void       streamBackendHandleCleanup(void* arg);
 int32_t    streamBackendLoadCheckpointInfo(void* pMeta);

@@ -116,7 +116,7 @@ static int32_t smlCheckAuth(SSmlHandle *info, SRequestConnInfo *conn, const char
       return TSDB_CODE_SML_INVALID_DATA;
     }
   } else {
-    toName(info->taos->acctId, info->pRequest->pDb, pTabName, &pAuth.tbName); //ignore
+    toName(info->taos->acctId, info->pRequest->pDb, pTabName, &pAuth.tbName);
   }
   pAuth.type = type;
 
@@ -1939,6 +1939,10 @@ int32_t smlClearForRerun(SSmlHandle *info) {
       return TSDB_CODE_SML_INVALID_DATA;
     }
     info->lines = (SSmlLineInfo *)taosMemoryCalloc(info->lineNum, sizeof(SSmlLineInfo));
+    if (unlikely(info->lines == NULL)) {
+      uError("SML:0x%" PRIx64 " info->lines == NULL", info->id);
+      return terrno;
+    }
   }
 
   (void)memset(&info->preLine, 0, sizeof(SSmlLineInfo));
@@ -1971,10 +1975,14 @@ static bool getLine(SSmlHandle *info, char *lines[], char **rawLine, char *rawLi
 
   if (*rawLine != NULL && (uDebugFlag & DEBUG_DEBUG)) {
     char *print = taosMemoryCalloc(*len + 1, 1);
-    (void)memcpy(print, *tmp, *len);
-    uDebug("SML:0x%" PRIx64 " smlParseLine is raw, numLines:%d, protocol:%d, len:%d, data:%s", info->id, numLines,
-           info->protocol, *len, print);
-    taosMemoryFree(print);
+    if (print != NULL){
+      (void)memcpy(print, *tmp, *len);
+      uDebug("SML:0x%" PRIx64 " smlParseLine is raw, numLines:%d, protocol:%d, len:%d, data:%s", info->id, numLines,
+             info->protocol, *len, print);
+      taosMemoryFree(print);
+    } else{
+      uError("SML:0x%" PRIx64 " smlParseLine taosMemoryCalloc failed", info->id);
+    }
   } else {
     uDebug("SML:0x%" PRIx64 " smlParseLine is not numLines:%d, protocol:%d, len:%d, data:%s", info->id, numLines,
            info->protocol, *len, *tmp);
@@ -2217,9 +2225,12 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
         break;
       }
       taosMsleep(100);
-      (void)refreshMeta(request->pTscObj, request); //ignore return code,try again
       uInfo("SML:%" PRIx64 " retry:%d/10,ver is old retry or object is creating code:%d, msg:%s", info->id, cnt, code,
             tstrerror(code));
+      code = refreshMeta(request->pTscObj, request);
+      if (code != 0){
+        uInfo("SML:%" PRIx64 " refresh meta error code:%d, msg:%s", info->id, code, tstrerror(code));
+      }
       smlDestroyInfo(info);
       info = NULL;
       taos_free_result(request);

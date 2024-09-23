@@ -155,6 +155,10 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
     SSchema* pTagSchema = &pSchema[tags->pColIndex[c]];
     int32_t  colLen = pTagSchema->bytes;
     if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
+      if (!bind[c].length) {
+        code = buildInvalidOperationMsg(&pBuf, "var tag length is null");
+        goto end;
+      }
       colLen = bind[c].length[0];
       if ((colLen + VARSTR_HEADER_SIZE) > pTagSchema->bytes) {
         code = buildInvalidOperationMsg(&pBuf, "tag length is too big");
@@ -162,7 +166,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
       }
     }
     if (NULL == taosArrayPush(tagName, pTagSchema->name)) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto end;
     }
     if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
@@ -173,6 +177,10 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
 
       isJson = true;
       char* tmp = taosMemoryCalloc(1, colLen + 1);
+      if (!tmp) {
+        code = terrno;
+        goto end;
+      }
       memcpy(tmp, bind[c].buffer, colLen);
       code = parseJsontoTagData(tmp, pTagArray, &pTag, &pBuf);
       taosMemoryFree(tmp);
@@ -194,13 +202,13 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
           goto end;
         }
         if (!taosMbsToUcs4(bind[c].buffer, colLen, (TdUcs4*)(p), colLen * TSDB_NCHAR_SIZE, &output)) {
-          if (errno == E2BIG) {
+          if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
             taosMemoryFree(p);
             code = generateSyntaxErrMsg(&pBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pTagSchema->name);
             goto end;
           }
           char buf[512] = {0};
-          snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(errno));
+          snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(terrno));
           taosMemoryFree(p);
           code = buildSyntaxErrMsg(&pBuf, buf, bind[c].buffer);
           goto end;
@@ -211,7 +219,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
         memcpy(&val.i64, bind[c].buffer, colLen);
       }
       if (NULL == taosArrayPush(pTagArray, &val)) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto end;
       }
     }
@@ -229,7 +237,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
     }
   }
 
-  insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName,
+  code = insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName,
                       pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
   pTag = NULL;
 
@@ -253,7 +261,7 @@ int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND*
   if (dst->buffer_length < newBuflen) {
     dst->buffer = taosMemoryRealloc(dst->buffer, newBuflen);
     if (NULL == dst->buffer) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -261,7 +269,7 @@ int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND*
     dst->length = taosMemoryRealloc(dst->length, sizeof(int32_t) * src->num);
     if (NULL == dst->length) {
       taosMemoryFreeClear(dst->buffer);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -274,11 +282,11 @@ int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND*
 
     if (!taosMbsToUcs4(((char*)src->buffer) + src->buffer_length * i, src->length[i],
                        (TdUcs4*)(((char*)dst->buffer) + dst->buffer_length * i), dst->buffer_length, &output)) {
-      if (errno == E2BIG) {
+      if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
       char buf[512] = {0};
-      snprintf(buf, tListLen(buf), "%s", strerror(errno));
+      snprintf(buf, tListLen(buf), "%s", strerror(terrno));
       return buildSyntaxErrMsg(pMsgBuf, buf, NULL);
     }
 
@@ -495,6 +503,10 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
     SSchema* pTagSchema = &pSchema[tags->pColIndex[c]];
     int32_t  colLen = pTagSchema->bytes;
     if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
+      if (!bind[c].length) {
+        code = buildInvalidOperationMsg(&pBuf, "var tag length is null");
+        goto end;
+      }
       colLen = bind[c].length[0];
       if ((colLen + VARSTR_HEADER_SIZE) > pTagSchema->bytes) {
         code = buildInvalidOperationMsg(&pBuf, "tag length is too big");
@@ -502,7 +514,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
       }
     }
     if (NULL == taosArrayPush(tagName, pTagSchema->name)) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto end;
     }
     if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
@@ -513,6 +525,10 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
 
       isJson = true;
       char* tmp = taosMemoryCalloc(1, colLen + 1);
+      if (!tmp) {
+        code = terrno;
+        goto end;
+      }
       memcpy(tmp, bind[c].buffer, colLen);
       code = parseJsontoTagData(tmp, pTagArray, &pTag, &pBuf);
       taosMemoryFree(tmp);
@@ -534,13 +550,13 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
           goto end;
         }
         if (!taosMbsToUcs4(bind[c].buffer, colLen, (TdUcs4*)(p), colLen * TSDB_NCHAR_SIZE, &output)) {
-          if (errno == E2BIG) {
+          if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
             taosMemoryFree(p);
             code = generateSyntaxErrMsg(&pBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pTagSchema->name);
             goto end;
           }
           char buf[512] = {0};
-          snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(errno));
+          snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(terrno));
           taosMemoryFree(p);
           code = buildSyntaxErrMsg(&pBuf, buf, bind[c].buffer);
           goto end;
@@ -551,7 +567,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
         memcpy(&val.i64, bind[c].buffer, colLen);
       }
       if (NULL == taosArrayPush(pTagArray, &val)) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto end;
       }
     }
@@ -569,7 +585,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
     }
   }
 
-  insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName,
+  code = insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName,
                       pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
   pTag = NULL;
 
@@ -610,11 +626,11 @@ static int32_t convertStmtStbNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_
     }
 
     if (!taosMbsToUcs4(src_buf, src->length[i], (TdUcs4*)dst_buf, max_buf_len, &output)) {
-      if (errno == E2BIG) {
+      if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
       char buf[512] = {0};
-      snprintf(buf, tListLen(buf), "%s", strerror(errno));
+      snprintf(buf, tListLen(buf), "%s", strerror(terrno));
       return buildSyntaxErrMsg(pMsgBuf, buf, NULL);
     }
 
@@ -674,12 +690,12 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
       if (!ncharBinds) {
         ncharBinds = taosArrayInit(1, sizeof(ncharBind));
         if (!ncharBinds) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           goto _return;
         }
       }
       if (!taosArrayPush(ncharBinds, &ncharBind)) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _return;
       }
       pBindInfos[c].bind = taosArrayGetLast(ncharBinds);
@@ -717,7 +733,7 @@ static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STM
   // if (dst->buffer_length < newBuflen) {
   dst->buffer = taosMemoryRealloc(dst->buffer, newBuflen);
   if (NULL == dst->buffer) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   //}
 
@@ -725,7 +741,7 @@ static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STM
     dst->length = taosMemoryRealloc(dst->length, sizeof(int32_t) * src->num);
     if (NULL == dst->length) {
       taosMemoryFreeClear(dst->buffer);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -740,11 +756,11 @@ static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STM
     /*if (!taosMbsToUcs4(((char*)src->buffer) + src->buffer_length * i, src->length[i],
       (TdUcs4*)(((char*)dst->buffer) + dst->buffer_length * i), dst->buffer_length, &output)) {*/
     if (!taosMbsToUcs4(src_buf, src->length[i], (TdUcs4*)dst_buf, max_buf_len, &output)) {
-      if (errno == E2BIG) {
+      if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
       char buf[512] = {0};
-      snprintf(buf, tListLen(buf), "%s", strerror(errno));
+      snprintf(buf, tListLen(buf), "%s", strerror(terrno));
       return buildSyntaxErrMsg(pMsgBuf, buf, NULL);
     }
 
@@ -892,11 +908,11 @@ int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TA
   if (NULL == tags) {
     return TSDB_CODE_APP_ERROR;
   }
-
+  /*
   if (pDataBlock->pMeta->tableType != TSDB_SUPER_TABLE && pDataBlock->pMeta->tableType != TSDB_CHILD_TABLE) {
     return TSDB_CODE_TSC_STMT_API_ERROR;
   }
-
+  */
   SSchema* pSchema = getTableTagSchema(pDataBlock->pMeta);
   if (tags->numOfBound <= 0) {
     *fieldNum = 0;
@@ -984,7 +1000,7 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
     void* pNewMeta = taosMemoryMalloc(TABLE_META_SIZE(pCxt->pMeta));
     if (NULL == pNewMeta) {
       insDestroyTableDataCxt(*pDst);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     memcpy(pNewMeta, pCxt->pMeta, TABLE_META_SIZE(pCxt->pMeta));
     pNewCxt->pMeta = pNewMeta;
@@ -997,7 +1013,7 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
     void* pNewColIdx = taosMemoryMalloc(pCxt->boundColsInfo.numOfBound * sizeof(*pCxt->boundColsInfo.pColIndex));
     if (NULL == pNewColIdx) {
       insDestroyTableDataCxt(*pDst);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     memcpy(pNewColIdx, pCxt->boundColsInfo.pColIndex,
            pCxt->boundColsInfo.numOfBound * sizeof(*pCxt->boundColsInfo.pColIndex));
@@ -1008,7 +1024,7 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
     SSubmitTbData* pNewTb = (SSubmitTbData*)taosMemoryMalloc(sizeof(SSubmitTbData));
     if (NULL == pNewTb) {
       insDestroyTableDataCxt(*pDst);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     memcpy(pNewTb, pCxt->pData, sizeof(*pCxt->pData));

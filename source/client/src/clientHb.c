@@ -1359,6 +1359,14 @@ static void *hbThreadFunc(void *param) {
       pInfo->msgInfo.len = tlen;
       pInfo->msgType = TDMT_MND_HEARTBEAT;
       pInfo->param = taosMemoryMalloc(sizeof(int32_t));
+      if (pInfo->param  == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        tFreeClientHbBatchReq(pReq);
+        // hbClearReqInfo(pAppHbMgr);
+        taosMemoryFree(buf);
+        taosMemoryFree(pInfo);
+        break;
+      }
       *(int32_t *)pInfo->param = i;
       pInfo->paramFreeFp = taosMemoryFree;
       pInfo->requestId = generateRequestId();
@@ -1636,8 +1644,9 @@ void hbDeregisterConn(STscObj *pTscObj, SClientHbKey connKey) {
     SClientHbReq *pReq = taosHashAcquire(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
     if (pReq) {
       tFreeClientHbReq(pReq);
-      if (TSDB_CODE_SUCCESS != taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey))) {
-        tscError("failed to remove connKey from activeInfo");
+      code = taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
+      if (TSDB_CODE_SUCCESS != code) {
+        tscError("hbDeregisterConn taosHashRemove error, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
       }
       taosHashRelease(pAppHbMgr->activeInfo, pReq);
       (void)atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);

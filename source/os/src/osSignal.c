@@ -31,23 +31,35 @@ int32_t taosSetSignal(int32_t signum, FSignalHandler sigfp) {
 
   // SIGHUP doesn't exist in windows, we handle it in the way of ctrlhandler
   if (signum == SIGHUP) {
-    SetConsoleCtrlHandler((PHANDLER_ROUTINE)sigfp, TRUE);
+    if(SetConsoleCtrlHandler((PHANDLER_ROUTINE)sigfp, TRUE) == 0) {
+      terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+      return terrno;
+    }
   } else {
-    signal(signum, (FWinSignalHandler)sigfp);
+    if(signal(signum, (FWinSignalHandler)sigfp) == SIG_ERR) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return terrno;
+    }
   }
   return 0;
 }
 
 int32_t taosIgnSignal(int32_t signum) {
   if (signum == SIGUSR1 || signum == SIGHUP) return 0;
-  signal(signum, SIG_IGN);
+  if(signal(signum, SIG_IGN) == SIG_ERR) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
 
   return 0;
 }
 
 int32_t taosDflSignal(int32_t signum) {
   if (signum == SIGUSR1 || signum == SIGHUP) return 0;
-  signal(signum, SIG_DFL);
+  if(signal(signum, SIG_DFL) == SIG_ERR) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
 
   return 0;
 }

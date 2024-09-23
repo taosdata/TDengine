@@ -622,14 +622,14 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
   tagFilterAssist ctx = {0};
   ctx.colHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
   if (ctx.colHash == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto end;
   }
 
   ctx.index = 0;
   ctx.cInfoList = taosArrayInit(4, sizeof(SColumnInfo));
   if (ctx.cInfoList == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto end;
   }
 
@@ -766,7 +766,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     pTableListInfo->remainGroups =
         taosHashInit(rows, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     if (pTableListInfo->remainGroups == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto end;
     }
   }
@@ -1024,7 +1024,7 @@ static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* pExistedUidList, S
       uHash = taosHashInit(numOfExisted / 0.7, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
       if (!uHash) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       for (int i = 0; i < numOfExisted; i++) {
@@ -1052,7 +1052,7 @@ static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* pExistedUidList, S
             STUidTagInfo s = {.uid = uid, .name = name, .pTagVal = NULL};
             void*        tmp = taosArrayPush(pExistedUidList, &s);
             if (!tmp) {
-              return TSDB_CODE_OUT_OF_MEMORY;
+              return terrno;
             }
           }
         } else {
@@ -1193,13 +1193,13 @@ static int32_t doSetQualifiedUid(STableListInfo* pListInfo, SArray* pUidList, co
       info.uid = uid;
       void* p = taosArrayPush(pListInfo->pTableList, &info);
       if (p == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       if (addUid) {
         void* tmp = taosArrayPush(pUidList, &uid);
         if (tmp == NULL) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
       }
     }
@@ -1465,7 +1465,7 @@ _end:
       void* p = taosArrayPush(pListInfo->pTableList, &info);
       if (p == NULL) {
         taosArrayDestroy(pUidList);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       qTrace("tagfilter get uid:%" PRIu64 ", %s", info.uid, idstr);
@@ -1652,7 +1652,7 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
 
   SArray* pList = taosArrayInit(numOfCols, sizeof(SColMatchItem));
   if (pList == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     return code;
   }
 
@@ -2643,7 +2643,7 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   pTableListInfo->groupOffset = taosMemoryMalloc(sizeof(int32_t) * pTableListInfo->numOfOuputGroups);
   if (pTableListInfo->groupOffset == NULL) {
     taosArrayDestroy(pList);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   memcpy(pTableListInfo->groupOffset, taosArrayGet(pList, 0), sizeof(int32_t) * pTableListInfo->numOfOuputGroups);
@@ -2666,7 +2666,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
       pTableListInfo->remainGroups =
           taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
       if (pTableListInfo->remainGroups == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       for (int i = 0; i < numOfTables; i++) {
@@ -2833,11 +2833,13 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
     qDebug("%s===stream===%s: Block is Empty. block type %d", taskIdStr, flag, pBlock->info.type);
     return;
   }
-  char*   pBuf = NULL;
-  int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr);
-  if (code == 0) {
-    qDebug("%s", pBuf);
-    taosMemoryFree(pBuf);
+  if (qDebugFlag & DEBUG_DEBUG) {
+    char*   pBuf = NULL;
+    int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr);
+    if (code == 0) {
+      qDebug("%s", pBuf);
+      taosMemoryFree(pBuf);
+    }
   }
 }
 

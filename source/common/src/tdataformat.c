@@ -489,7 +489,7 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
         colVal = COL_VAL_VALUE(infos[iInfo].columnId, value);
       }
       if (taosArrayPush(colValArray, &colVal) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exit;
       }
     }
@@ -500,7 +500,7 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
     }
 
     if ((taosArrayPush(rowArray, &row)) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
   }
@@ -702,7 +702,7 @@ static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, 
 
     if (pColVal) {
       if (taosArrayPush(aColVal, pColVal) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exit;
       }
     }
@@ -1756,7 +1756,7 @@ int32_t tTagToValArray(const STag *pTag, SArray **ppArray) {
     }
     (void)tGetTagVal(p + offset, &tv, pTag->flags & TD_TAG_JSON);
     if (taosArrayPush(*ppArray, &tv) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _err;
     }
   }
@@ -3251,13 +3251,13 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
   }
   if ((bufArray = taosArrayInit(numOfInfos, sizeof(uint8_t *))) == NULL) {
     taosArrayDestroy(colValArray);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   for (int i = 0; i < numOfInfos; ++i) {
     if (!taosArrayPush(bufArray, &infos[i].bind->buffer)) {
       taosArrayDestroy(colValArray);
       taosArrayDestroy(bufArray);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -3294,7 +3294,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
         colVal = COL_VAL_VALUE(infos[iInfo].columnId, value);
       }
       if (taosArrayPush(colValArray, &colVal) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exit;
       }
     }
@@ -3305,7 +3305,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
     }
 
     if ((taosArrayPush(rowArray, &row)) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
   }
@@ -3502,7 +3502,7 @@ static int32_t tColDataMerge(SArray **colArr) {
 
   dst = taosArrayInit(taosArrayGetSize(src), sizeof(SColData));
   if (dst == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(src); i++) {

@@ -281,7 +281,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + size + 1);
     if (*ppData == NULL) {
       (void)taosCloseFile(&pFile);
-      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
     ((SSnapDataHdr *)(*ppData))->type = SNAP_DATA_CFG;
     ((SSnapDataHdr *)(*ppData))->size = size + 1;
@@ -661,7 +661,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
 
   // prepare
   if (pWriter->pTsdbSnapWriter) {
-    (void)tsdbSnapWriterPrepareClose(pWriter->pTsdbSnapWriter);
+    (void)tsdbSnapWriterPrepareClose(pWriter->pTsdbSnapWriter, rollback);
   }
 
   if (pWriter->pTsdbSnapRAWWriter) {
@@ -669,7 +669,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
   }
 
   if (pWriter->pRsmaSnapWriter) {
-    (void)rsmaSnapWriterPrepareClose(pWriter->pRsmaSnapWriter);
+    (void)rsmaSnapWriterPrepareClose(pWriter->pRsmaSnapWriter, rollback);
   }
 
   // commit json

@@ -191,7 +191,7 @@ static int32_t insertTableToScanIgnoreList(STableScanInfo* pTableScanInfo, uint6
     pTableScanInfo->pIgnoreTables =
         taosHashInit(tableNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
     if (NULL == pTableScanInfo->pIgnoreTables) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -667,8 +667,8 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       val = *pVal;
     } else {
       pCache->cacheHit += 1;
-      STableCachedVal* pVal = taosLRUCacheValue(pCache->pTableMetaEntryCache, h);
-      val = *pVal;
+      STableCachedVal* pValTmp = taosLRUCacheValue(pCache->pTableMetaEntryCache, h);
+      val = *pValTmp;
 
       bool bRes = taosLRUCacheRelease(pCache->pTableMetaEntryCache, h, false);
       qTrace("release LRU cache, res %d", bRes);
@@ -720,12 +720,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
         if (IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {
           taosMemoryFree(data);
         }
-        if (code) {
-          if (freeReader) {
-            pHandle->api.metaReaderFn.clearReader(&mr);
-          }
-          return code;
-        }
+        QUERY_CHECK_CODE(code, lino, _end);
       } else {  // todo opt for json tag
         for (int32_t i = 0; i < pBlock->info.rows; ++i) {
           code = colDataSetVal(pColInfoData, i, data, false);
@@ -1174,7 +1169,7 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
     info.uid = *pUid;
     void* p = taosArrayPush(pListInfo->pTableList, &info);
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     tableIdx++;
@@ -3899,8 +3894,8 @@ static void destroyStreamScanOperatorInfo(void* param) {
   if (param == NULL) {
     return;
   }
-  SStreamScanInfo* pStreamScan = (SStreamScanInfo*)param;
 
+  SStreamScanInfo* pStreamScan = (SStreamScanInfo*)param;
   if (pStreamScan->pTableScanOp && pStreamScan->pTableScanOp->info) {
     destroyOperator(pStreamScan->pTableScanOp);
   }
@@ -3919,7 +3914,10 @@ static void destroyStreamScanOperatorInfo(void* param) {
   cleanupExprSupp(&pStreamScan->tbnameCalSup);
   cleanupExprSupp(&pStreamScan->tagCalSup);
 
-  pStreamScan->stateStore.updateInfoDestroy(pStreamScan->pUpdateInfo);
+  if (pStreamScan->stateStore.updateInfoDestroy) {
+    pStreamScan->stateStore.updateInfoDestroy(pStreamScan->pUpdateInfo);
+  }
+
   blockDataDestroy(pStreamScan->pRes);
   blockDataDestroy(pStreamScan->pUpdateRes);
   blockDataDestroy(pStreamScan->pDeleteDataRes);
@@ -4080,6 +4078,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
 
   SDataType pkType = {0};
   pInfo->primaryKeyIndex = -1;
+  pInfo->basic.primaryPkIndex = -1;
   int32_t numOfOutput = taosArrayGetSize(pInfo->matchInfo.pList);
   pColIds = taosArrayInit(numOfOutput, sizeof(int16_t));
   QUERY_CHECK_NULL(pColIds, code, lino, _error, terrno);
@@ -4097,6 +4096,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
     }
     if (id->isPk) {
       pInfo->primaryKeyIndex = id->dstSlotId;
+      pInfo->basic.primaryPkIndex = id->dstSlotId;
       pkType = id->dataType;
     }
   }
@@ -4132,16 +4132,13 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   }
 
   pInfo->pBlockLists = taosArrayInit(4, sizeof(SPackedData));
-  if (pInfo->pBlockLists == NULL) {
-    code = terrno;
-    goto _error;
-  }
+  TSDB_CHECK_NULL(pInfo->pBlockLists, code, lino, _error, terrno);
 
   if (pHandle->vnode) {
     SOperatorInfo* pTableScanOp = NULL;
     code = createTableScanOperatorInfo(pTableScanNode, pHandle, pTableListInfo, pTaskInfo, &pTableScanOp);
     if (pTableScanOp == NULL || code != 0) {
-      qError("createTableScanOperatorInfo error, errorcode: %d", pTaskInfo->code);
+      qError("createTableScanOperatorInfo error, code:%d", pTaskInfo->code);
       goto _error;
     }
 
@@ -4185,6 +4182,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
 
     // set the extract column id to streamHandle
     pAPI->tqReaderFn.tqReaderSetColIdList(pInfo->tqReader, pColIds);
+
     SArray* tableIdList = NULL;
     code = extractTableIdList(((STableScanInfo*)(pInfo->pTableScanOp->info))->base.pTableListInfo, &tableIdList);
     QUERY_CHECK_CODE(code, lino, _error);
@@ -4194,8 +4192,10 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   } else {
     taosArrayDestroy(pColIds);
     tableListDestroy(pTableListInfo);
-    pColIds = NULL;
   }
+
+  // clear the local variable to avoid repeatly free
+  pColIds = NULL;
 
   // create the pseduo columns info
   if (pTableScanNode->scan.pScanPseudoCols != NULL) {
@@ -4273,6 +4273,10 @@ _error:
   }
 
   if (pInfo != NULL) {
+    STableScanInfo* p = (STableScanInfo*) pInfo->pTableScanOp->info;
+    if (p != NULL) {
+      p->base.pTableListInfo = NULL;
+    }
     destroyStreamScanOperatorInfo(pInfo);
   }
 

@@ -28,6 +28,8 @@
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
 
+static int64_t tsLogBufferMemoryUsed = 0;  // total bytes of vnode log buffer
+
 static bool syncIsMsgBlock(tmsg_t type) {
   return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
          (type == TDMT_VND_UPDATE_TAG_VAL) || (type == TDMT_VND_ALTER_CONFIRM);
@@ -101,6 +103,10 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = pMatch->index, .prevLogTerm = pMatch->term};
   pBuf->entries[index % pBuf->size] = tmp;
   pBuf->endIndex = index + 1;
+  if (pNode->vgId > 1) {
+    pBuf->bytes += pEntry->bytes;
+    (void)atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
+  }
 
   (void)taosThreadMutexUnlock(&pBuf->mutex);
   TAOS_CHECK_RETURN(syncLogBufferValidate(pBuf));
@@ -260,6 +266,10 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
       SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = -1, .prevLogTerm = -1};
       pBuf->entries[index % pBuf->size] = tmp;
       taken = true;
+      if (pNode->vgId > 1) {
+        pBuf->bytes += pEntry->bytes;
+        (void)atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
+      }
     }
 
     if (index < toIndex) {
@@ -286,6 +296,10 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
     }
     SSyncLogBufEntry tmp = {.pItem = pDummy, .prevLogIndex = commitIndex - 1, .prevLogTerm = commitTerm};
     pBuf->entries[(commitIndex + pBuf->size) % pBuf->size] = tmp;
+    if (pNode->vgId > 1) {
+      pBuf->bytes += pDummy->bytes;
+      (void)atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pDummy->bytes);
+    }
 
     if (index < toIndex) {
       pBuf->entries[(index + 1) % pBuf->size].prevLogIndex = commitIndex;
@@ -330,6 +344,7 @@ int32_t syncLogBufferReInit(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
     (void)memset(&pBuf->entries[(index + pBuf->size) % pBuf->size], 0, sizeof(pBuf->entries[0]));
   }
   pBuf->startIndex = pBuf->commitIndex = pBuf->matchIndex = pBuf->endIndex = 0;
+  pBuf->bytes = 0;
   int32_t code = syncLogBufferInitWithoutLock(pBuf, pNode);
   if (code < 0) {
     sError("vgId:%d, failed to re-initialize sync log buffer since %s.", pNode->vgId, tstrerror(code));
@@ -435,14 +450,14 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
       goto _out;
     }
     if (pEntry->term != pExist->term) {
-      (void)syncLogBufferRollback(pBuf, pNode, index);
+      TAOS_CHECK_GOTO(syncLogBufferRollback(pBuf, pNode, index), NULL, _out);
     } else {
       sTrace("vgId:%d, duplicate log entry received. index:%" PRId64 ", term:%" PRId64 ". log buffer: [%" PRId64
              " %" PRId64 " %" PRId64 ", %" PRId64 ")",
              pNode->vgId, pEntry->index, pEntry->term, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex,
              pBuf->endIndex);
       SyncTerm existPrevTerm = -1;
-      (void)syncLogReplGetPrevLogTerm(NULL, pNode, index, &existPrevTerm);
+      TAOS_CHECK_GOTO(syncLogReplGetPrevLogTerm(NULL, pNode, index, &existPrevTerm), NULL, _out);
       if (!(pEntry->term == pExist->term && (pEntry->index > pBuf->matchIndex || prevTerm == existPrevTerm))) {
         sError("vgId:%d, failed to accept, pEntry->term:%" PRId64 ", pExist->indexpExist->term:%" PRId64
                ", pEntry->index:%" PRId64 ", pBuf->matchIndex:%" PRId64 ", prevTerm:%" PRId64
@@ -470,8 +485,12 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
     goto _out;
   }
   SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = prevIndex, .prevLogTerm = prevTerm};
-  pEntry = NULL;
   pBuf->entries[index % pBuf->size] = tmp;
+  if (pNode->vgId > 1) {
+    pBuf->bytes += pEntry->bytes;
+    (void)atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
+  }
+  pEntry = NULL;
 
   // update end index
   pBuf->endIndex = TMAX(index + 1, pBuf->endIndex);
@@ -631,7 +650,10 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
     }
 
     // replicate on demand
-    (void)syncNodeReplicateWithoutLock(pNode);
+    if ((code = syncNodeReplicateWithoutLock(pNode)) != 0) {
+      sError("vgId:%d, failed to replicate since %s. index:%" PRId64, pNode->vgId, tstrerror(code), pEntry->index);
+      goto _out;
+    }
 
     if (pEntry->index != pBuf->matchIndex) {
       sError("vgId:%d, failed to proceed, pEntry->index:%" PRId64 ", pBuf->matchIndex:%" PRId64, pNode->vgId,
@@ -702,7 +724,8 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
     cbMeta.currentTerm = term;
     cbMeta.flag = -1;
 
-    (void)syncRespMgrGetAndDel(pNode->pSyncRespMgr, cbMeta.seqNum, &rpcMsg.info);
+    int32_t num = syncRespMgrGetAndDel(pNode->pSyncRespMgr, cbMeta.seqNum, &rpcMsg.info);
+    sDebug("vgId:%d, get response info,  seqNum:%" PRId64 ", num:%d", pNode->vgId, cbMeta.seqNum, num);
     code = pFsm->FpCommitCb(pFsm, &rpcMsg, &cbMeta);
     retry = (code != 0) && (terrno == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE);
     if (retry) {
@@ -846,14 +869,34 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   }
 
   // recycle
+  bool      isVnode = pNode->vgId > 1;
   SyncIndex until = pBuf->commitIndex - TSDB_SYNC_LOG_BUFFER_RETENTION;
-  for (SyncIndex index = pBuf->startIndex; index < until; index++) {
-    SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
-    if (pEntry == NULL) return TSDB_CODE_SYN_INTERNAL_ERROR;
+  do {
+    if ((pBuf->startIndex >= pBuf->commitIndex) ||
+        !((pBuf->startIndex < until) || (isVnode && pBuf->bytes >= TSDB_SYNC_LOG_BUFFER_THRESHOLD &&
+                                         atomic_load_64(&tsLogBufferMemoryUsed) >= tsLogBufferMemoryAllowed))) {
+      break;
+    }
+    SSyncRaftEntry* pEntry = pBuf->entries[(pBuf->startIndex + pBuf->size) % pBuf->size].pItem;
+    if (pEntry == NULL) {
+      sError("vgId:%d, invalid log entry to recycle. index:%" PRId64 ", startIndex:%" PRId64 ", until:%" PRId64
+             ", commitIndex:%" PRId64 ", endIndex:%" PRId64 ", term:%" PRId64,
+             pNode->vgId, pEntry->index, pBuf->startIndex, until, pBuf->commitIndex, pBuf->endIndex, pEntry->term);
+      return TSDB_CODE_SYN_INTERNAL_ERROR;
+    }
+    if (isVnode) {
+      pBuf->bytes -= pEntry->bytes;
+      (void)atomic_sub_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
+    }
+    sDebug("vgId:%d, recycle log entry. index:%" PRId64 ", startIndex:%" PRId64 ", until:%" PRId64
+           ", commitIndex:%" PRId64 ", endIndex:%" PRId64 ", term:%" PRId64 ", entry bytes:%u, buf bytes:%" PRId64
+           ", used:%" PRId64 ", allowed:%" PRId64,
+           pNode->vgId, pEntry->index, pBuf->startIndex, until, pBuf->commitIndex, pBuf->endIndex, pEntry->term,
+           pEntry->bytes, pBuf->bytes, atomic_load_64(&tsLogBufferMemoryUsed), tsLogBufferMemoryAllowed);
     syncEntryDestroy(pEntry);
-    (void)memset(&pBuf->entries[(index + pBuf->size) % pBuf->size], 0, sizeof(pBuf->entries[0]));
-    pBuf->startIndex = index + 1;
-  }
+    (void)memset(&pBuf->entries[(pBuf->startIndex + pBuf->size) % pBuf->size], 0, sizeof(pBuf->entries[0]));
+    ++pBuf->startIndex;
+  } while (true);
 
   code = 0;
 _out:
@@ -994,7 +1037,7 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
     }
   } else {
     if (pMsg->lastSendIndex < pMgr->startIndex || pMsg->lastSendIndex >= pMgr->endIndex) {
-      (void)syncLogReplRetryOnNeed(pMgr, pNode);
+      TAOS_CHECK_RETURN(syncLogReplRetryOnNeed(pMgr, pNode));
       return 0;
     }
 
@@ -1069,7 +1112,7 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
   }
 
   // attempt to replicate the raft log at index
-  (void)syncLogReplReset(pMgr);
+  syncLogReplReset(pMgr);
   return syncLogReplProbe(pMgr, pNode, index);
 }
 
@@ -1097,9 +1140,9 @@ int32_t syncLogReplProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncApp
   }
 
   if (pMgr->restored) {
-    (void)syncLogReplContinue(pMgr, pNode, pMsg);
+    TAOS_CHECK_RETURN(syncLogReplContinue(pMgr, pNode, pMsg));
   } else {
-    (void)syncLogReplRecover(pMgr, pNode, pMsg);
+    TAOS_CHECK_RETURN(syncLogReplRecover(pMgr, pNode, pMsg));
   }
   (void)taosThreadMutexUnlock(&pBuf->mutex);
   return 0;
@@ -1107,9 +1150,9 @@ int32_t syncLogReplProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncApp
 
 int32_t syncLogReplStart(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
   if (pMgr->restored) {
-    (void)syncLogReplAttempt(pMgr, pNode);
+    TAOS_CHECK_RETURN(syncLogReplAttempt(pMgr, pNode));
   } else {
-    (void)syncLogReplProbe(pMgr, pNode, pNode->pLogBuf->matchIndex);
+    TAOS_CHECK_RETURN(syncLogReplProbe(pMgr, pNode, pNode->pLogBuf->matchIndex));
   }
   return 0;
 }
@@ -1125,7 +1168,7 @@ int32_t syncLogReplProbe(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex inde
       nowMs < pMgr->states[pMgr->startIndex % pMgr->size].timeMs + retryMaxWaitMs) {
     return 0;
   }
-  (void)syncLogReplReset(pMgr);
+  syncLogReplReset(pMgr);
 
   SRaftId* pDestId = &pNode->replicasId[pMgr->peerId];
   bool     barrier = false;
@@ -1198,7 +1241,7 @@ int32_t syncLogReplAttempt(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
     }
   }
 
-  (void)syncLogReplRetryOnNeed(pMgr, pNode);
+  TAOS_CHECK_RETURN(syncLogReplRetryOnNeed(pMgr, pNode));
 
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
   sTrace("vgId:%d, replicated %d msgs to peer:%" PRIx64 ". indexes:%" PRId64 "..., terms: ...%" PRId64
@@ -1252,7 +1295,7 @@ void syncLogReplDestroy(SSyncLogReplMgr* pMgr) {
   if (pMgr == NULL) {
     return;
   }
-  (void)taosMemoryFree(pMgr);
+  taosMemoryFree(pMgr);
   return;
 }
 
@@ -1324,6 +1367,7 @@ void syncLogBufferClear(SSyncLogBuffer* pBuf) {
     (void)memset(&pBuf->entries[(index + pBuf->size) % pBuf->size], 0, sizeof(pBuf->entries[0]));
   }
   pBuf->startIndex = pBuf->commitIndex = pBuf->matchIndex = pBuf->endIndex = 0;
+  pBuf->bytes = 0;
   (void)taosThreadMutexUnlock(&pBuf->mutex);
 }
 
@@ -1334,7 +1378,7 @@ void syncLogBufferDestroy(SSyncLogBuffer* pBuf) {
   syncLogBufferClear(pBuf);
   (void)taosThreadMutexDestroy(&pBuf->mutex);
   (void)taosThreadMutexAttrDestroy(&pBuf->attr);
-  (void)taosMemoryFree(pBuf);
+  taosMemoryFree(pBuf);
   return;
 }
 
@@ -1355,7 +1399,7 @@ int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex 
   while (index >= toIndex) {
     SSyncRaftEntry* pEntry = pBuf->entries[index % pBuf->size].pItem;
     if (pEntry != NULL) {
-      (void)syncEntryDestroy(pEntry);
+      syncEntryDestroy(pEntry);
       pEntry = NULL;
       (void)memset(&pBuf->entries[index % pBuf->size], 0, sizeof(pBuf->entries[0]));
     }
@@ -1395,7 +1439,7 @@ int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   if (lastVer != pBuf->matchIndex) return TSDB_CODE_SYN_INTERNAL_ERROR;
   SyncIndex index = pBuf->endIndex - 1;
 
-  (void)syncLogBufferRollback(pBuf, pNode, pBuf->matchIndex + 1);
+  TAOS_CHECK_RETURN(syncLogBufferRollback(pBuf, pNode, pBuf->matchIndex + 1));
 
   sInfo("vgId:%d, reset sync log buffer. buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pNode->vgId,
         pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
@@ -1443,6 +1487,7 @@ int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex ind
   SyncTerm        prevLogTerm = -1;
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
   int32_t         code = 0;
+  int32_t         lino = 0;
 
   code = syncLogBufferGetOneEntry(pBuf, pNode, index, &inBuf, &pEntry);
   if (pEntry == NULL) {
@@ -1452,7 +1497,7 @@ int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex ind
       if (pMgr) {
         sInfo("vgId:%d, reset sync log repl of peer:%" PRIx64 " since %s. index:%" PRId64, pNode->vgId, pDestId->addr,
               tstrerror(code), index);
-        (void)syncLogReplReset(pMgr);
+        syncLogReplReset(pMgr);
       }
     }
     goto _err;
@@ -1472,7 +1517,7 @@ int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex ind
     goto _err;
   }
 
-  (void)syncNodeSendAppendEntries(pNode, pDestId, &msgOut);
+  TAOS_CHECK_GOTO(syncNodeSendAppendEntries(pNode, pDestId, &msgOut), &lino, _err);
 
   sTrace("vgId:%d, replicate one msg index:%" PRId64 " term:%" PRId64 " prevterm:%" PRId64 " to dest: 0x%016" PRIx64,
          pNode->vgId, pEntry->index, pEntry->term, prevLogTerm, pDestId->addr);

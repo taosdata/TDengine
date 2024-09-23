@@ -50,7 +50,10 @@ int32_t osDefaultInit() {
 
   taosSeedRand(taosSafeRand());
   taosGetSystemLocale(tsLocale, tsCharset);
-  taosGetSystemTimezone(tsTimezoneStr, &tsTimezone);
+  code = taosGetSystemTimezone(tsTimezoneStr, &tsTimezone);
+  if(code != 0) {
+    return code;
+  }
   if (strlen(tsTimezoneStr) > 0) { // ignore empty timezone
     if ((code = taosSetSystemTimezone(tsTimezoneStr, tsTimezoneStr, &tsDaylight, &tsTimezone)) != TSDB_CODE_SUCCESS)
       return code;
@@ -94,16 +97,18 @@ int32_t osDefaultInit() {
   return code;
 }
 
-void osUpdate() {
+int32_t osUpdate() {
+  int code = 0;
   if (tsLogDir[0] != 0) {
-    (void)taosGetDiskSize(tsLogDir, &tsLogSpace.size);
+    code = taosGetDiskSize(tsLogDir, &tsLogSpace.size);
   }
   if (tsDataDir[0] != 0) {
-    (void)taosGetDiskSize(tsDataDir, &tsDataSpace.size);
+    code = taosGetDiskSize(tsDataDir, &tsDataSpace.size);
   }
   if (tsTempDir[0] != 0) {
-    (void)taosGetDiskSize(tsTempDir, &tsTempSpace.size);
+    code = taosGetDiskSize(tsTempDir, &tsTempSpace.size);
   }
+  return code;
 }
 
 void osCleanup() {}

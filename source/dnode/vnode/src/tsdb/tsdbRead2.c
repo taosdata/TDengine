@@ -691,7 +691,7 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
 
     void* p1 = taosArrayPush(pIndexList, pBrinBlk);
     if (p1 == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     i += 1;
@@ -815,7 +815,7 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
       pScanInfo->pBlockList = taosArrayInit(4, sizeof(SFileDataBlockInfo));
       if (pScanInfo->pBlockList == NULL) {
         clearBrinBlockIter(&iter);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
 
@@ -823,16 +823,20 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
       pScanInfo->pBlockIdxList = taosArrayInit(4, sizeof(STableDataBlockIdx));
       if (pScanInfo->pBlockIdxList == NULL) {
         clearBrinBlockIter(&iter);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
 
     SFileDataBlockInfo blockInfo = {.tbBlockIdx = TARRAY_SIZE(pScanInfo->pBlockList)};
-    recordToBlockInfo(&blockInfo, pRecord);
+    code = recordToBlockInfo(&blockInfo, pRecord);
+    if (code != TSDB_CODE_SUCCESS) {
+      clearBrinBlockIter(&iter);
+      return code;
+    }
     void* p1 = taosArrayPush(pScanInfo->pBlockList, &blockInfo);
     if (p1 == NULL) {
       clearBrinBlockIter(&iter);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     // todo: refactor to record the fileset skey/ekey
@@ -861,7 +865,7 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
 
     if (p1 == NULL) {
       clearBrinBlockIter(&iter);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -2904,7 +2908,7 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, int32_t orde
   } else {
     pBlockScanInfo->delSkyline = taosArrayInit(4, sizeof(TSDBKEY));
     if (pBlockScanInfo->delSkyline == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -3017,7 +3021,7 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum, SAr
   size_t  numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
   SArray* pIndexList = taosArrayInit(numOfTables, sizeof(SBrinBlk));
   if (pIndexList == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   while (1) {
@@ -3545,7 +3549,7 @@ static int32_t initForFirstBlockInFile(STsdbReader* pReader, SDataBlockIter* pBl
   SBlockNumber num = {0};
   SArray*      pTableList = taosArrayInit(40, POINTER_BYTES);
   if (pTableList == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t code = moveToNextFile(pReader, &num, pTableList);
@@ -4060,26 +4064,30 @@ int32_t doMergeRowsInBuf(SIterInfo* pIter, uint64_t uid, SRowKey* pCurKey, SArra
   return code;
 }
 
-static int32_t doMergeRowsInFileBlockImpl(SBlockData* pBlockData, int32_t rowIndex, SRowKey* pKey, SRowMerger* pMerger,
+static int32_t doMergeRowsInFileBlockImpl(SBlockData* pBlockData, int32_t* rowIndex, SRowKey* pKey, SRowMerger* pMerger,
                                           SVersionRange* pVerRange, int32_t step) {
-  while (rowIndex < pBlockData->nRow && rowIndex >= 0) {
+  int32_t code = 0;
+  while ((*rowIndex) < pBlockData->nRow && (*rowIndex) >= 0) {
     SRowKey cur;
-    tColRowGetKey(pBlockData, rowIndex, &cur);
+    tColRowGetKey(pBlockData, (*rowIndex), &cur);
     if (pkCompEx(&cur, pKey) != 0) {
       break;
     }
 
-    if (pBlockData->aVersion[rowIndex] > pVerRange->maxVer || pBlockData->aVersion[rowIndex] < pVerRange->minVer) {
-      rowIndex += step;
+    if (pBlockData->aVersion[(*rowIndex)] > pVerRange->maxVer ||
+        pBlockData->aVersion[(*rowIndex)] < pVerRange->minVer) {
+      (*rowIndex) += step;
       continue;
     }
 
-    TSDBROW fRow = tsdbRowFromBlockData(pBlockData, rowIndex);
-    int32_t code = tsdbRowMergerAdd(pMerger, &fRow, NULL);
-    rowIndex += step;
+    TSDBROW fRow = tsdbRowFromBlockData(pBlockData, (*rowIndex));
+    code = tsdbRowMergerAdd(pMerger, &fRow, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    (*rowIndex) += step;
   }
-
-  return rowIndex;
+  return code;
 }
 
 typedef enum {
@@ -4101,7 +4109,10 @@ static int32_t checkForNeighborFileBlock(STsdbReader* pReader, STableBlockScanIn
   *state = CHECK_FILEBLOCK_QUIT;
 
   if (loadNeighbor && (code == TSDB_CODE_SUCCESS)) {
-    pDumpInfo->rowIndex = doMergeRowsInFileBlockImpl(pBlockData, pDumpInfo->rowIndex, pKey, pMerger, pVerRange, step);
+    code = doMergeRowsInFileBlockImpl(pBlockData, &pDumpInfo->rowIndex, pKey, pMerger, pVerRange, step);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
     if ((pDumpInfo->rowIndex >= pDumpInfo->totalRows && asc) || (pDumpInfo->rowIndex < 0 && !asc)) {
       *state = CHECK_FILEBLOCK_CONT;
     }
@@ -4121,7 +4132,10 @@ int32_t doMergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pSc
 
   pDumpInfo->rowIndex += step;
   if ((pDumpInfo->rowIndex <= pBlockData->nRow - 1 && asc) || (pDumpInfo->rowIndex >= 0 && !asc)) {
-    pDumpInfo->rowIndex = doMergeRowsInFileBlockImpl(pBlockData, pDumpInfo->rowIndex, pKey, pMerger, pRange, step);
+    code = doMergeRowsInFileBlockImpl(pBlockData, &pDumpInfo->rowIndex, pKey, pMerger, pRange, step);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
 
   // all rows are consumed, let's try next file block
@@ -4947,7 +4961,7 @@ static int32_t doSuspendCurrentReader(STsdbReader* pCurrentReader) {
     destroySttBlockReader(pStatus->pLDataIterArray, &pCost->sttCost);
     pStatus->pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
     if (pStatus->pLDataIterArray == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -6018,13 +6032,18 @@ void tsdbUntakeReadSnap2(STsdbReader* pReader, STsdbReadSnap* pSnap, bool proact
 }
 
 // if failed, do nothing
-void tsdbReaderSetId2(STsdbReader* pReader, const char* idstr) {
+int32_t tsdbReaderSetId(void* p, const char* idstr) {
+  STsdbReader* pReader = (STsdbReader*) p;
   taosMemoryFreeClear(pReader->idStr);
+
   pReader->idStr = taosStrdup(idstr);
   if (pReader->idStr == NULL) {
-    // no need to do anything
+    tsdbError("%s failed to build reader id, code:%s", idstr, tstrerror(terrno));
+    return terrno;
   }
+
   pReader->status.fileIter.pSttBlockReader->mergeTree.idStr = pReader->idStr;
+  return 0;
 }
 
 void tsdbReaderSetCloseFlag(STsdbReader* pReader) { /*pReader->code = TSDB_CODE_TSC_QUERY_CANCELLED;*/ }

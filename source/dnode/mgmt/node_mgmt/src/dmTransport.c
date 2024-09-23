@@ -24,6 +24,12 @@ static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
   SEpSet epSet = {0};
   dmGetMnodeEpSetForRedirect(&pDnode->data, pMsg, &epSet);
 
+  if (epSet.numOfEps <= 1) {
+    pMsg->pCont = NULL;
+    pMsg->code = TSDB_CODE_MNODE_NOT_FOUND;
+    return;
+  }
+
   int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
   pMsg->pCont = rpcMallocCont(contLen);
   if (pMsg->pCont == NULL) {
@@ -109,7 +115,8 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   int32_t svrVer = 0;
   (void)taosVersionStrToInt(version, &svrVer);
   if ((code = taosCheckVersionCompatible(pRpc->info.cliVer, svrVer, 3)) != 0) {
-    dError("Version not compatible, cli ver: %d, svr ver: %d, ip:0x%x", pRpc->info.cliVer, svrVer, pRpc->info.conn.clientIp);
+    dError("Version not compatible, cli ver: %d, svr ver: %d, ip:0x%x", pRpc->info.cliVer, svrVer,
+           pRpc->info.conn.clientIp);
     goto _OVER;
   }
 
@@ -437,7 +444,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
 
   pTrans->statusRpc = rpcOpen(&rpcInit);
   if (pTrans->statusRpc == NULL) {
-    dError("failed to init dnode rpc status client since %s", tstrerror(terrno)); 
+    dError("failed to init dnode rpc status client since %s", tstrerror(terrno));
     return terrno;
   }
 

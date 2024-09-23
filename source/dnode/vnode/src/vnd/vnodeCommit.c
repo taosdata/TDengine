@@ -241,7 +241,7 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
 
   pData = taosMemoryMalloc(size + 1);
   if (pData == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   if (taosReadFile(pFile, pData, size) < 0) {

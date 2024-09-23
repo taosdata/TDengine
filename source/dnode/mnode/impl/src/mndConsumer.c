@@ -199,7 +199,7 @@ static void storeOffsetRows(SMnode *pMnode, SMqHbReq *req, SMqConsumerObj *pCons
     taosWLockLatch(&pSub->lock);
     SMqConsumerEp *pConsumerEp = taosHashGet(pSub->consumerHash, &pConsumer->consumerId, sizeof(int64_t));
     if (pConsumerEp) {
-      (void)taosArrayDestroy(pConsumerEp->offsetRows);
+      taosArrayDestroy(pConsumerEp->offsetRows);
       pConsumerEp->offsetRows = data->offsetRows;
       data->offsetRows = NULL;
     }
@@ -463,6 +463,15 @@ static void freeItem(void *param) {
   }
 }
 
+#define ADD_TOPIC_TO_ARRAY(element, array) \
+char *newTopicCopy = taosStrdup(element); \
+MND_TMQ_NULL_CHECK(newTopicCopy);\
+if (taosArrayPush(pConsumerNew->array, &newTopicCopy) == NULL){\
+  taosMemoryFree(newTopicCopy);\
+  code = terrno;\
+  goto END;\
+}
+
 static int32_t getTopicAddDelete(SMqConsumerObj *pExistedConsumer, SMqConsumerObj *pConsumerNew){
   int32_t code = 0;
   pConsumerNew->rebNewTopics = taosArrayInit(0, sizeof(void *));
@@ -477,15 +486,13 @@ static int32_t getTopicAddDelete(SMqConsumerObj *pExistedConsumer, SMqConsumerOb
     if (i >= oldTopicNum) {
       void* tmp = taosArrayGetP(pConsumerNew->assignedTopics, j);
       MND_TMQ_NULL_CHECK(tmp);
-      char *newTopicCopy = taosStrdup(tmp);
-      MND_TMQ_NULL_CHECK(taosArrayPush(pConsumerNew->rebNewTopics, &newTopicCopy));
+      ADD_TOPIC_TO_ARRAY(tmp, rebNewTopics);
       j++;
       continue;
     } else if (j >= newTopicNum) {
       void* tmp = taosArrayGetP(pExistedConsumer->currentTopics, i);
       MND_TMQ_NULL_CHECK(tmp);
-      char *oldTopicCopy = taosStrdup(tmp);
-      MND_TMQ_NULL_CHECK(taosArrayPush(pConsumerNew->rebRemovedTopics, &oldTopicCopy));
+      ADD_TOPIC_TO_ARRAY(tmp, rebRemovedTopics);
       i++;
       continue;
     } else {
@@ -499,18 +506,21 @@ static int32_t getTopicAddDelete(SMqConsumerObj *pExistedConsumer, SMqConsumerOb
         j++;
         continue;
       } else if (comp < 0) {
-        char *oldTopicCopy = taosStrdup(oldTopic);
-        MND_TMQ_NULL_CHECK(taosArrayPush(pConsumerNew->rebRemovedTopics, &oldTopicCopy));
+        ADD_TOPIC_TO_ARRAY(oldTopic, rebRemovedTopics);
         i++;
         continue;
       } else {
-        char *newTopicCopy = taosStrdup(newTopic);
-        MND_TMQ_NULL_CHECK(taosArrayPush(pConsumerNew->rebNewTopics, &newTopicCopy));
+        ADD_TOPIC_TO_ARRAY(newTopic, rebNewTopics);
         j++;
         continue;
       }
     }
   }
+  // no topics need to be rebalanced
+  if (taosArrayGetSize(pConsumerNew->rebNewTopics) == 0 && taosArrayGetSize(pConsumerNew->rebRemovedTopics) == 0) {
+    code = TSDB_CODE_TMQ_NO_NEED_REBALANCE;
+  }
+
 END:
   return code;
 }
@@ -581,6 +591,10 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   if(ubSubscribe){
     SMqConsumerObj *pConsumerTmp = NULL;
     MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, subscribe.consumerId, &pConsumerTmp));
+    if (taosArrayGetSize(pConsumerTmp->assignedTopics) == 0){
+      mndReleaseConsumer(pMnode, pConsumerTmp);
+      goto END;
+    }
     mndReleaseConsumer(pMnode, pConsumerTmp);
   }
   MND_TMQ_RETURN_CHECK(checkAndSortTopic(pMnode, subscribe.topicNames));
@@ -599,7 +613,7 @@ END:
   mndTransDrop(pTrans);
   tDeleteSMqConsumerObj(pConsumerNew);
   taosArrayDestroyP(subscribe.topicNames, (FDelete)taosMemoryFree);
-  return code;
+  return (code == TSDB_CODE_TMQ_NO_NEED_REBALANCE || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) ? 0 : code;
 }
 
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
@@ -780,6 +794,9 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
       return TSDB_CODE_TMQ_INVALID_MSG;
     }
     char *pNewTopic = taosStrdup(tmp);
+    if (pNewTopic == NULL) {
+      return terrno;
+    }
     removeFromTopicList(pOldConsumer->rebNewTopics, pNewTopic, pOldConsumer->consumerId, "new");
     bool existing = existInCurrentTopicList(pOldConsumer, pNewTopic);
     if (existing) {

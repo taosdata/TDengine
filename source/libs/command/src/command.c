@@ -565,6 +565,10 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
   if (tTagIsJson(pTag)) {
     char* pJson = NULL;
     parseTagDatatoJson(pTag, &pJson);
+    if(NULL == pJson) {
+      qError("failed to parse tag to json, pJson is NULL");
+      return terrno;
+    }
     *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s", pJson);
     taosMemoryFree(pJson);
 
@@ -688,7 +692,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
   SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
   char*            buf2 = taosMemoryMalloc(SHOW_CREATE_TB_RESULT_FIELD2_LEN);
   if (NULL == buf2) {
-    QRY_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QRY_ERR_RET(terrno);
   }
 
   int32_t len = 0;
@@ -860,7 +864,7 @@ static int32_t buildLocalVariablesResultDataBlock(SSDataBlock** pOutput) {
   pBlock->pDataBlock = taosArrayInit(SHOW_LOCAL_VARIABLES_RESULT_COLS, sizeof(SColumnInfoData));
   if (NULL == pBlock->pDataBlock) {
     taosMemoryFree(pBlock);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SColumnInfoData infoData = {0};

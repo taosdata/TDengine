@@ -48,6 +48,15 @@ class TDTestCase(TBase):
         tdSql.execute("insert into ct3 values ('2021-01-01 00:00:01', 'b', NULL);")
         tdSql.execute("insert into ct4 values ('2021-01-01 00:00:00', 'c', '3');")
         tdSql.execute("insert into ct4 values ('2021-01-01 00:00:01', 'd', NULL);")
+        
+        # TD-32051
+        tdSql.execute("drop database if exists db32051;")
+        tdSql.execute("create database db32051 replica 1 vgroups 1 cachemodel 'none';")
+        tdSql.execute("use db32051;")
+        tdSql.execute("create table ntb1(ts timestamp, kval int primary key, ival int);")
+        tdSql.execute("insert into ntb1 values('2024-09-14 10:08:00.8', 3, 3);")
+        tdSql.execute("flush database db32051;")
+        tdSql.execute("insert into ntb1 values('2024-09-14 10:08:00.8', 1, 1);")
 
     def test_last_with_primarykey_int_ct(self):
         tdSql.execute("use db_td30816;")
@@ -174,6 +183,27 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 2, None)
         tdLog.info("Finish test_last_with_primarykey_str_rt")
 
+    def test_ts5389(self):
+        """add test case to cover the crash issue of ts-5389
+        """
+        tdSql.execute("create database db_ts5389;")
+        tdSql.execute("use db_ts5389;")
+        tdSql.execute("create stable trackers(ts timestamp, reg_firmware_rev double) tags(site nchar(8), tracker nchar(16), zone nchar(2));")
+        tdSql.execute("create table tr1 using trackers tags ('MI-01', 'N29-26', '12');")
+        tdSql.execute("create table tr2 using trackers tags ('MI-01', 'N29-6', '11');")
+        tdSql.execute("insert into tr1 values(now,null);")
+        tdSql.execute("insert into tr2 values(now,null);")
+        tdSql.query("select distinct site,zone,tracker,last(reg_firmware_rev) from trackers where ts > now() -1h and site='MI-01' partition by site;")
+        tdSql.checkRows(1)
+
+    def test_td32051(self):
+        tdSql.execute("use db32051;")
+        tdSql.execute("alter database db32051 cachemodel 'both';")
+        time.sleep(5)
+        tdSql.query("select last(ival) from db32051.ntb1;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 3)
+
     def run(self):
         self.prepare_data()
         # regular table
@@ -182,9 +212,14 @@ class TDTestCase(TBase):
         # child tables
         self.test_last_with_primarykey_int_ct()
         self.test_last_with_primarykey_str_ct()
+        # ts-5389
+        self.test_ts5389()
+        # TD-32051
+        self.test_td32051()
 
     def stop(self):
         tdSql.execute("drop database db_td30816;")
+        tdSql.execute("drop database db_ts5389;")
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 

@@ -149,6 +149,9 @@ int32_t mJoinTrimKeepOneRow(SSDataBlock* pBlock, int32_t totalRows, const bool* 
             len = varDataTLen(p1);
           }
           char* p2 = taosMemoryMalloc(len);
+          if (NULL == p2) {
+            MJ_ERR_RET(terrno);
+          }
           TAOS_MEMCPY(p2, p1, len);
           code = colDataSetVal(pDst, numOfRows, p2, false);
           if (code) {
@@ -1378,7 +1381,9 @@ int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* whol
 _return:
 
   if (pTable->noKeepEqGrpRows || !keepGrp || (!pTable->multiEqGrpRows && !restart)) {
-    (void)taosArrayPop(pTable->eqGrps);
+    if (NULL == taosArrayPop(pTable->eqGrps)) {
+      code = terrno;
+    }
   } else {
     pTable->grpTotalRows += pGrp->endIdx - pGrp->beginIdx + 1;  
   }

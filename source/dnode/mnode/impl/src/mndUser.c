@@ -342,7 +342,8 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
   SIpV4Range range = {.ip = 0, .mask = 32};
   int32_t    code = taosGetIpv4FromFqdn(fqdn, &range.ip);
   if (code) {
-    //TODO
+    mError("failed to get ip from fqdn: %s at line %d since %s", fqdn, lino, tstrerror(code));
+    TAOS_RETURN(TSDB_CODE_TSC_INVALID_FQDN);
   }
   mDebug("ip-white-list may update for user: %s, fqdn: %s", user, fqdn);
   SIpWhiteList **ppList = taosHashGet(pIpWhiteTab, user, strlen(user));
@@ -2800,7 +2801,7 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
     void  *key = taosHashGetKey(value, &keyLen);
 
     char dbName[TSDB_DB_NAME_LEN] = {0};
-    mndExtractShortDbNameFromStbFullName(key, dbName);
+    (void)mndExtractShortDbNameFromStbFullName(key, dbName);
     char dbNameContent[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(dbNameContent, dbName, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

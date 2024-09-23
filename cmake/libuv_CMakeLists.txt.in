@@ -5,8 +5,9 @@ ExternalProject_Add(libuv
         GIT_TAG v1.48.0
         SOURCE_DIR "${TD_CONTRIB_DIR}/libuv"
         BINARY_DIR "${TD_CONTRIB_DIR}/libuv"
-        CONFIGURE_COMMAND "" 
-        BUILD_COMMAND ""  
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
         INSTALL_COMMAND ""
         TEST_COMMAND ""
+        GIT_SHALLOW true
         )

@@ -56,7 +56,7 @@ static void    taosLockList(int64_t *lockedBy);
 static void    taosUnlockList(int64_t *lockedBy);
 static void    taosIncRsetCount(SRefSet *pSet);
 static void    taosDecRsetCount(SRefSet *pSet);
-static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove);
+static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove, int32_t* isReleased);
 
 int32_t taosOpenRef(int32_t max, RefFp fp) {
   SRefNode **nodeList;
@@ -158,6 +158,8 @@ int64_t taosAddRef(int32_t rsetId, void *p) {
 
   pNode = taosMemoryCalloc(sizeof(SRefNode), 1);
   if (pNode == NULL) {
+    taosDecRsetCount(pSet);
+    uError("rsetId:%d p:%p failed to add, out of memory", rsetId, p);
     return terrno;
   }
 
@@ -182,7 +184,7 @@ int64_t taosAddRef(int32_t rsetId, void *p) {
   return rid;
 }
 
-int32_t taosRemoveRef(int32_t rsetId, int64_t rid) { return taosDecRefCount(rsetId, rid, 1); }
+int32_t taosRemoveRef(int32_t rsetId, int64_t rid) { return taosDecRefCount(rsetId, rid, 1, NULL); }
 
 // if rid is 0, return the first p in hash list, otherwise, return the next after current rid
 void *taosAcquireRef(int32_t rsetId, int64_t rid) {
@@ -251,7 +253,8 @@ void *taosAcquireRef(int32_t rsetId, int64_t rid) {
   return p;
 }
 
-int32_t taosReleaseRef(int32_t rsetId, int64_t rid) { return taosDecRefCount(rsetId, rid, 0); }
+int32_t taosReleaseRef(int32_t rsetId, int64_t rid) { return taosDecRefCount(rsetId, rid, 0, NULL); }
+int32_t taosReleaseRefEx(int32_t rsetId, int64_t rid, int32_t* isReleased) { return taosDecRefCount(rsetId, rid, 0, isReleased); }
 
 // if rid is 0, return the first p in hash list, otherwise, return the next after current rid
 void *taosIterateRef(int32_t rsetId, int64_t rid) {
@@ -384,7 +387,7 @@ int32_t taosListRef() {
   return num;
 }
 
-static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove) {
+static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove, int32_t* isReleased) {
   int32_t   hash;
   SRefSet  *pSet;
   SRefNode *pNode;
@@ -444,7 +447,7 @@ static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove) {
   } else {
     uTrace("rsetId:%d rid:%" PRId64 " is not there, failed to release/remove", rsetId, rid);
     terrno = TSDB_CODE_REF_NOT_EXIST;
-    code = -1;
+    code = terrno;
   }
 
   taosUnlockList(pSet->lockedBy + hash);
@@ -456,6 +459,10 @@ static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove) {
     taosMemoryFree(pNode);
 
     taosDecRsetCount(pSet);
+  }
+
+  if (isReleased) {
+    *isReleased = released;
   }
 
   return code;

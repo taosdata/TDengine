@@ -130,6 +130,11 @@ int32_t streamGetFileSize(char* path, char* name, int64_t* sz) {
   int32_t ret = 0;
 
   char* fullname = taosMemoryCalloc(1, strlen(path) + 32);
+  if (fullname == NULL) {
+    stError("failed to get file:%s size, code: out of memory", name);
+    return terrno;
+  }
+
   sprintf(fullname, "%s%s%s", path, TD_DIRSEP, name);
 
   ret = taosStatFile(fullname, sz, NULL, NULL);
@@ -555,6 +560,11 @@ _NEXT:
           (int32_t)taosArrayGetSize(pHandle->pDbSnapSet), pHandle->currIdx);
 
   uint8_t* buf = taosMemoryCalloc(1, sizeof(SStreamSnapBlockHdr) + kBlockSize);
+  if (buf == NULL) {
+    stError("%s failed to prepare the block header, code:Out of memory", item->name);
+    return terrno;
+  }
+
   int64_t  nread = taosPReadFile(pSnapFile->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pSnapFile->offset);
   if (nread < 0) {
     taosMemoryFree(buf);
@@ -764,6 +774,11 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
     sprintf(idstr, "0x%" PRIx64 "-0x%x", snapInfo.streamId, (int32_t)(snapInfo.taskId));
 
     char* path = taosMemoryCalloc(1, strlen(pHandle->metaPath) + 256);
+    if (path == NULL) {
+      stError("s-task:0x%x failed to prepare meta header buffer, code:Out of memory", (int32_t) snapInfo.taskId);
+      return terrno;
+    }
+
     sprintf(path, "%s%s%s%s%s%s%s%" PRId64 "", pHandle->metaPath, TD_DIRSEP, idstr, TD_DIRSEP, "checkpoints", TD_DIRSEP,
             "checkpoint", snapInfo.chkpId);
     if (!taosIsDir(path)) {
@@ -778,11 +793,19 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
     pDbSnapFile->path = path;
     pDbSnapFile->snapInfo = snapInfo;
     pDbSnapFile->pFileList = taosArrayInit(64, sizeof(SBackendFileItem));
+    if (pDbSnapFile->pFileList == NULL) {
+      return terrno;
+    }
+
     pDbSnapFile->currFileIdx = 0;
     pDbSnapFile->offset = 0;
 
     SBackendFileItem item = {0};
     item.name = taosStrdup((char*)ROCKSDB_CURRENT);
+    if (item.name == NULL) {
+      return terrno;
+    }
+
     item.type = ROCKSDB_CURRENT_TYPE;
 
     void* p = taosArrayPush(pDbSnapFile->pFileList, &item);

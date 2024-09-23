@@ -562,7 +562,8 @@ static int32_t notifySeqJoinTableCacheEnd(SOperatorInfo* pOperator, SStbJoinPost
 
 static int32_t handleSeqJoinCurrRetrieveEnd(SOperatorInfo* pOperator, SStbJoinDynCtrlInfo*          pStbJoin) {
   SStbJoinPostJoinCtx* pPost = &pStbJoin->ctx.post;
-
+  int32_t code = 0;
+  
   pPost->isStarted = false;
   
   if (pStbJoin->basic.batchFetch) {
@@ -572,7 +573,11 @@ static int32_t handleSeqJoinCurrRetrieveEnd(SOperatorInfo* pOperator, SStbJoinDy
   if (pPost->leftNeedCache) {
     uint32_t* num = tSimpleHashGet(pStbJoin->ctx.prev.leftCache, &pPost->leftCurrUid, sizeof(pPost->leftCurrUid));
     if (num && --(*num) <= 0) {
-      (void)tSimpleHashRemove(pStbJoin->ctx.prev.leftCache, &pPost->leftCurrUid, sizeof(pPost->leftCurrUid));
+      code = tSimpleHashRemove(pStbJoin->ctx.prev.leftCache, &pPost->leftCurrUid, sizeof(pPost->leftCurrUid));
+      if (code) {
+        qError("tSimpleHashRemove leftCurrUid %" PRId64 " from leftCache failed, error:%s", pPost->leftCurrUid, tstrerror(code));
+        QRY_ERR_RET(code);
+      }
       QRY_ERR_RET(notifySeqJoinTableCacheEnd(pOperator, pPost, true));
     }
   }
@@ -580,7 +585,11 @@ static int32_t handleSeqJoinCurrRetrieveEnd(SOperatorInfo* pOperator, SStbJoinDy
   if (!pPost->rightNeedCache) {
     void* v = tSimpleHashGet(pStbJoin->ctx.prev.rightCache, &pPost->rightCurrUid, sizeof(pPost->rightCurrUid));
     if (NULL != v) {
-      (void)tSimpleHashRemove(pStbJoin->ctx.prev.rightCache, &pPost->rightCurrUid, sizeof(pPost->rightCurrUid));
+      code = tSimpleHashRemove(pStbJoin->ctx.prev.rightCache, &pPost->rightCurrUid, sizeof(pPost->rightCurrUid));
+      if (code) {
+        qError("tSimpleHashRemove rightCurrUid %" PRId64 " from rightCache failed, error:%s", pPost->rightCurrUid, tstrerror(code));
+        QRY_ERR_RET(code);
+      }
       QRY_ERR_RET(notifySeqJoinTableCacheEnd(pOperator, pPost, false));
     }
   }
@@ -661,7 +670,11 @@ static FORCE_INLINE int32_t addToJoinTableHash(SSHashObj* pHash, SSHashObj* pOnc
       break;
     default:
       if (1 == (*pNum)) {
-        (void)tSimpleHashRemove(pOnceHash, pKey, keySize);
+        code = tSimpleHashRemove(pOnceHash, pKey, keySize);
+        if (code) {
+          qError("tSimpleHashRemove failed in addToJoinTableHash, error:%s", tstrerror(code));
+          QRY_ERR_RET(code);
+        }
       }
       (*pNum)++;
       break;
@@ -684,7 +697,7 @@ static void freeStbJoinTableList(SStbJoinTableList* pList) {
 
 static int32_t appendStbJoinTableList(SStbJoinPrevJoinCtx* pCtx, int64_t rows, int32_t* pLeftVg, int64_t* pLeftUid, int32_t* pRightVg, int64_t* pRightUid) {
   int32_t code = TSDB_CODE_SUCCESS;
-  SStbJoinTableList* pNew = taosMemoryMalloc(sizeof(SStbJoinTableList));
+  SStbJoinTableList* pNew = taosMemoryCalloc(1, sizeof(SStbJoinTableList));
   if (NULL == pNew) {
     return terrno;
   }
@@ -812,8 +825,12 @@ static void postProcessStbJoinTableHash(SOperatorInfo* pOperator) {
 
   uint64_t* pUid = NULL;
   int32_t iter = 0;
+  int32_t code = 0;
   while (NULL != (pUid = tSimpleHashIterate(pStbJoin->ctx.prev.onceTable, pUid, &iter))) {
-    (void)tSimpleHashRemove(pStbJoin->ctx.prev.leftCache, pUid, sizeof(*pUid));
+    code = tSimpleHashRemove(pStbJoin->ctx.prev.leftCache, pUid, sizeof(*pUid));
+    if (code) {
+      qError("tSimpleHashRemove failed in postProcessStbJoinTableHash, error:%s", tstrerror(code));
+    }
   }
 
   pStbJoin->execInfo.leftCacheNum = tSimpleHashGetSize(pStbJoin->ctx.prev.leftCache);

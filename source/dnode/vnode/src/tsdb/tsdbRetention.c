@@ -364,7 +364,7 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool s3Migrate) 
 
       SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
       if (arg == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
 
       arg->tsdb = tsdb;
