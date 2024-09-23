@@ -40,7 +40,7 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   SRpcInfo* pRpc = taosMemoryCalloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
   pRpc->startReadTimer = pInit->startReadTimer;

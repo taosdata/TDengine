@@ -714,7 +714,7 @@ static int uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
   if (pMsg->pCont == 0) {
     pMsg->pCont = (void*)rpcMallocCont(0);
     if (pMsg->pCont == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     pMsg->contLen = 0;
   }
@@ -1121,7 +1121,7 @@ static int32_t addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
   int32_t code = 0;
   pThrd->loop = (uv_loop_t*)taosMemoryMalloc(sizeof(uv_loop_t));
   if (pThrd->loop == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if ((code = uv_loop_init(pThrd->loop)) != 0) {
@@ -1429,7 +1429,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
   SServerObj* srv = taosMemoryCalloc(1, sizeof(SServerObj));
   if (srv == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     tError("failed to init server since: %s", tstrerror(code));
     return NULL;
   }
@@ -1443,7 +1443,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   srv->pThreadObj = (SWorkThrd**)taosMemoryCalloc(srv->numOfThreads, sizeof(SWorkThrd*));
   srv->pipe = (uv_pipe_t**)taosMemoryCalloc(srv->numOfThreads, sizeof(uv_pipe_t*));
   if (srv->loop == NULL || srv->pThreadObj == NULL || srv->pipe == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto End;
   }
 
@@ -1494,7 +1494,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     thrd->pWhiteList = uvWhiteListCreate();
     if (thrd->pWhiteList == NULL) {
       destroyWorkThrdObj(thrd);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto End;
     }
     thrd->connRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
@@ -1506,7 +1506,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
     if (srv->pipe[i] == NULL) {
       destroyWorkThrdObj(thrd);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto End;
     }
 
@@ -1532,7 +1532,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrd* thrd = (SWorkThrd*)taosMemoryCalloc(1, sizeof(SWorkThrd));
     if (thrd == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto End;
     }
 
@@ -1542,7 +1542,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     thrd->pWhiteList = uvWhiteListCreate();
     if (thrd->pWhiteList == NULL) {
       destroyWorkThrdObj(thrd);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto End;
     }
 
@@ -1554,7 +1554,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
     if (srv->pipe[i] == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto End;
     }
 
@@ -1699,7 +1699,7 @@ void uvHandleUpdate(SSvrRespMsg* msg, SWorkThrd* thrd) {
     SIpWhiteList* pList = taosMemoryCalloc(1, sz + sizeof(SIpWhiteList));
     if (pList == NULL) {
       tError("failed to create ip-white-list since %s", tstrerror(code));
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       break;
     }
     pList->num = pUser->numOfRange;

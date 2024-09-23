@@ -84,10 +84,10 @@ bool taos_monitor_is_match(const SJson* tags, char** pairs, int32_t count) {
     SJson* item = tjsonGetArrayItem(tags, i);
 
     char item_name[MONITOR_TAG_NAME_LEN] = {0};
-    (void)tjsonGetStringValue(item, "name", item_name);
+    if (tjsonGetStringValue(item, "name", item_name) != 0) return false;
 
     char item_value[MONITOR_TAG_VALUE_LEN] = {0};
-    (void)tjsonGetStringValue(item, "value", item_value);
+    if (tjsonGetStringValue(item, "value", item_value) != 0) return false;
 
     bool isfound = false;
     for(int32_t j = 0; j < count; j++){
