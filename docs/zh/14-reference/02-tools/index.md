@@ -1,9 +1,9 @@
 ---
-title: 基础功能
-description: 'TDengine 基础功能'
+title: 工具
+description: TDengine 工具
 ---
 
-本章主要介绍 TDengine 的数据模型以及写入和查询功能。
+本节详细说明 TDengine 中的主要工具的功能和用法。
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';
