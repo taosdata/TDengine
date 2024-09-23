@@ -46,7 +46,7 @@ int32_t smaInit() {
     old = atomic_val_compare_exchange_8(&smaMgmt.inited, 0, 2);
     if (old != 2) break;
     if (++nLoops > 1000) {
-      (void)sched_yield();
+      TAOS_UNUSED(sched_yield());
       nLoops = 0;
     }
   }
@@ -97,7 +97,7 @@ void smaCleanUp() {
     old = atomic_val_compare_exchange_8(&smaMgmt.inited, 1, 2);
     if (old != 2) break;
     if (++nLoops > 1000) {
-      (void)sched_yield();
+      TAOS_UNUSED(sched_yield());
       nLoops = 0;
     }
   }
@@ -130,7 +130,7 @@ static int32_t tdNewSmaEnv(SSma *pSma, int8_t smaType, SSmaEnv **ppEnv) {
                                         : atomic_store_ptr(&SMA_RSMA_ENV(pSma), *ppEnv);
 
   if ((code = tdInitSmaStat(&SMA_ENV_STAT(pEnv), smaType, pSma)) != TSDB_CODE_SUCCESS) {
-    (void)tdFreeSmaEnv(pEnv);
+    TAOS_UNUSED(tdFreeSmaEnv(pEnv));
     *ppEnv = NULL;
     (smaType == TSDB_SMA_TYPE_TIME_RANGE) ? atomic_store_ptr(&SMA_TSMA_ENV(pSma), NULL)
                                           : atomic_store_ptr(&SMA_RSMA_ENV(pSma), NULL);
@@ -183,7 +183,7 @@ static void tRSmaInfoHashFreeNode(void *data) {
         smaError("failed to hash remove %s:%d", __FUNCTION__, __LINE__);
       }
     }
-    (void)tdFreeRSmaInfo(pRSmaInfo->pSma, pRSmaInfo);
+    TAOS_UNUSED(tdFreeRSmaInfo(pRSmaInfo->pSma, pRSmaInfo));
   }
 }
 
@@ -289,7 +289,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     }
 
     // step 3:
-    (void)tdRsmaStopExecutor(pSma);
+    TAOS_UNUSED(tdRsmaStopExecutor(pSma));
 
     // step 4: destroy the rsma info and associated fetch tasks
     taosHashCleanup(RSMA_INFO_HASH(pStat));
@@ -302,7 +302,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
 }
 
 static void *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
-  (void)tdDestroySmaState(pSmaStat, smaType);
+  TAOS_UNUSED(tdDestroySmaState(pSmaStat, smaType));
   if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
     taosMemoryFreeClear(pSmaStat);
   }
@@ -382,16 +382,16 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
   }
 
   // init sma env
-  (void)tdLockSma(pSma);
+  TAOS_UNUSED(tdLockSma(pSma));
   pEnv = (smaType == TSDB_SMA_TYPE_TIME_RANGE) ? atomic_load_ptr(&SMA_TSMA_ENV(pSma))
                                                : atomic_load_ptr(&SMA_RSMA_ENV(pSma));
   if (!pEnv) {
     if ((code = tdInitSmaEnv(pSma, smaType, &pEnv)) < 0) {
-      (void)tdUnLockSma(pSma);
+      TAOS_UNUSED(tdUnLockSma(pSma));
       TAOS_RETURN(code);
     }
   }
-  (void)tdUnLockSma(pSma);
+  TAOS_UNUSED(tdUnLockSma(pSma));
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -399,7 +399,9 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
 void *tdRSmaExecutorFunc(void *param) {
   setThreadName("vnode-rsma");
 
-  (void)tdRSmaProcessExecImpl((SSma *)param, RSMA_EXEC_OVERFLOW);
+  if(tdRSmaProcessExecImpl((SSma *)param, RSMA_EXEC_OVERFLOW) < 0){
+    smaError("vgId:%d, failed to process rsma exec", SMA_VID((SSma *)param));
+  }
   return NULL;
 }
 

@@ -53,7 +53,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   pOut->dbVgroup->vgHash =
       taosHashInit(usedbRsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (NULL == pOut->dbVgroup->vgHash) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int32_t i = 0; i < usedbRsp->vgNum; ++i) {
@@ -259,11 +259,11 @@ int32_t queryBuildRetrieveFuncMsg(void *input, char **msg, int32_t msgSize, int3
   funcReq.ignoreCodeComment = true;
   funcReq.pFuncNames = taosArrayInit(1, strlen(input) + 1);
   if (NULL == funcReq.pFuncNames) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if (taosArrayPush(funcReq.pFuncNames, input) == NULL) {
     taosArrayDestroy(funcReq.pFuncNames);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t bufLen = tSerializeSRetrieveFuncReq(NULL, 0, &funcReq);

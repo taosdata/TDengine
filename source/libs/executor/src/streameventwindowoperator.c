@@ -695,7 +695,7 @@ static int32_t doStreamEventAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   if (pInfo->isHistoryOp) {
     SArray* pHisWins = taosArrayInit(16, sizeof(SEventWindowInfo));
     if (!pHisWins) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
 

@@ -93,7 +93,7 @@ int32_t rsmaSnapRead(SRSmaSnapReader* pReader, uint8_t** ppData) {
 _exit:
   if (code) {
     smaError("vgId:%d, %s failed at line %d since %s", SMA_VID(pReader->pSma), __func__, lino, tstrerror(code));
-    (void)rsmaSnapReaderClose(&pReader);
+    TAOS_UNUSED(rsmaSnapReaderClose(&pReader));
   } else {
     smaInfo("vgId:%d, vnode snapshot rsma read succeed", SMA_VID(pReader->pSma));
   }
@@ -106,7 +106,10 @@ int32_t rsmaSnapReaderClose(SRSmaSnapReader** ppReader) {
 
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pReader->pDataReader[i]) {
-      (void)tsdbSnapReaderClose(&pReader->pDataReader[i]);
+      if ((code = tsdbSnapReaderClose(&pReader->pDataReader[i])) < 0) {
+        smaError("vgId:%d, vnode snapshot rsma , failed to close tsdbSnapReader since %s", SMA_VID(pReader->pSma),
+                 tstrerror(code));
+      }
     }
   }
 

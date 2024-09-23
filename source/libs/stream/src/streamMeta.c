@@ -89,7 +89,7 @@ int32_t metaRefMgtInit() {
   }
 
   if (gMetaRefMgt.pTable == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   } else {
     return code;
   }
@@ -126,7 +126,7 @@ int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid) {
 
     p = taosArrayPush(pList, &rid);
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     code = taosHashPut(gMetaRefMgt.pTable, &vgId, sizeof(vgId), &pList, sizeof(void*));
@@ -138,7 +138,7 @@ int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid) {
     SArray* list = *(SArray**)p;
     void*   px = taosArrayPush(list, &rid);
     if (px == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     }
   }
 
@@ -718,7 +718,7 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   p = taosArrayPush(pMeta->pTaskList, &pTask->id);
   if (p == NULL) {
     stError("s-task:0x%" PRIx64 " failed to register task into meta-list, code: out of memory", id.taskId);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   code = taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask, POINTER_BYTES);
