@@ -125,7 +125,7 @@ This installation method is supported only for Debian and Ubuntu.
 
 **Note**
 - TDengine only supports Windows Server 2016/2019 and Windows 10/11 on the Windows platform.
-- Since TDengine 3.1.0.0, we wonly provide client package for Windows. If you need to run TDenginer server on Windows, please contact TDengine sales team to upgrade to TDengine Enterprise. 
+- Since TDengine 3.1.0.0, we only provide client package for Windows. If you need to run TDenginer server on Windows, please contact TDengine sales team to upgrade to TDengine Enterprise. 
 - To run on Windows, the Microsoft Visual C++ Runtime library is required. If the Microsoft Visual C++ Runtime Library is missing on your platform, you can download and install it from [VC Runtime Library](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170). 
 
 Follow the steps below:
