@@ -720,7 +720,7 @@ static int32_t syncSnapReceiverExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshot
   SSnapshotParam *pParam = &pReceiver->snapshotParam;
   data = taosMemoryRealloc(pParam->data, dataLen);
   if (data == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     sError("vgId:%d, failed to realloc memory for snapshot prep due to %s. dataLen:%d", pSyncNode->vgId,
            tstrerror(code), dataLen);
     goto _exit;
@@ -1094,7 +1094,7 @@ static int32_t syncSnapSenderExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshotSe
   SSnapshotParam *pParam = &pSender->snapshotParam;
   void           *data = taosMemoryRealloc(pParam->data, dataLen);
   if (data == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
   (void)memcpy(data, pMsg->data, dataLen);
 

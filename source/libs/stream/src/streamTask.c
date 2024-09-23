@@ -32,7 +32,7 @@ static int32_t addToTaskset(SArray* pArray, SStreamTask* pTask) {
   int32_t childId = taosArrayGetSize(pArray);
   pTask->info.selfChildId = childId;
   void* p = taosArrayPush(pArray, &pTask);
-  return (p == NULL) ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_SUCCESS;
+  return (p == NULL) ? terrno : TSDB_CODE_SUCCESS;
 }
 
 static int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEpSet, bool* pUpdated) {
@@ -409,7 +409,7 @@ int32_t streamTaskSetBackendPath(SStreamTask* pTask) {
   int32_t len = strlen(pTask->pMeta->path);
   pTask->backendPath = (char*)taosMemoryMalloc(len + nBytes + 2);
   if (pTask->backendPath == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (void)sprintf(pTask->backendPath, "%s%s%s", pTask->pMeta->path, TD_DIRSEP, id);
@@ -555,7 +555,7 @@ int32_t streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstre
   }
 
   void* p = taosArrayPush(pTask->upstreamInfo.pList, &pEpInfo);
-  return (p == NULL) ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_SUCCESS;
+  return (p == NULL) ? terrno : TSDB_CODE_SUCCESS;
 }
 
 int32_t streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdated) {
@@ -1131,7 +1131,7 @@ int32_t createStreamTaskIdStr(int64_t streamId, int32_t taskId, const char** pId
   *pId = taosStrdup(buf);
 
   if (*pId == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   } else {
     return TSDB_CODE_SUCCESS;
   }

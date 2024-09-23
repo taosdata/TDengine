@@ -167,7 +167,7 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
           + fsize + 8 + 1; /* jFileName */
   pPtr = (uint8_t *)tdbOsCalloc(1, zsize);
   if (pPtr == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pPager = (SPager *)pPtr;
@@ -508,7 +508,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
 
   u8 *pageBuf = tdbOsCalloc(1, pPager->pageSize);
   if (pageBuf == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   tdbDebug("pager/abort: %p, %d/%d, txnId:%" PRId64, pPager, pPager->dbOrigSize, pPager->dbFileSize, pTxn->txnId);
@@ -741,7 +741,7 @@ int tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn) {
 
   if (pPager->frps) {
     if (taosArrayPush(pPager->frps, &pgno) == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     pPage->pPager = NULL;
     return code;
@@ -749,7 +749,7 @@ int tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn) {
 
   pPager->frps = taosArrayInit(8, sizeof(SPgno));
   if (pPager->frps == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   // memset(pPage->pData, 0, pPage->pageSize);
   tdbTrace("tdb/insert-free-page: tbc recycle page: %d.", pgno);
@@ -1056,7 +1056,7 @@ static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
 
   pageBuf = tdbOsCalloc(1, pPager->pageSize);
   if (pageBuf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   tdbDebug("pager/restore: %p, %d/%d, txnId:%s", pPager, pPager->dbOrigSize, pPager->dbFileSize, jFileName);
@@ -1141,7 +1141,7 @@ int tdbPagerRestoreJournals(SPager *pPager) {
 
   SArray *pTxnList = taosArrayInit(16, sizeof(int64_t));
   if (pTxnList == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   while ((pDirEntry = tdbReadDir(pDir)) != NULL) {
@@ -1150,7 +1150,7 @@ int tdbPagerRestoreJournals(SPager *pPager) {
       int64_t txnId = -1;
       (void)sscanf(name, TDB_MAINDB_NAME "-journal.%" PRId64, &txnId);
       if (taosArrayPush(pTxnList, &txnId) == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
   }

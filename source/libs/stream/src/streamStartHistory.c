@@ -70,7 +70,7 @@ int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated) {
   int32_t len = sizeof(SStreamScanHistoryReq);
   void*   serializedReq = rpcMallocCont(len);
   if (serializedReq == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   memcpy(serializedReq, &req, len);
