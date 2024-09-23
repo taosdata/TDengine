@@ -25,6 +25,7 @@ extern "C" {
 #include "parUtil.h"
 #include "parser.h"
 #include "querynodes.h"
+#include "parTokenDef.h"
 
 typedef struct SAstCreateContext {
   SParseContext* pQueryCxt;

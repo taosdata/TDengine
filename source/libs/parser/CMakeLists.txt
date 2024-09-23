@@ -10,6 +10,7 @@ target_include_directories(
         parser
         PUBLIC "${TD_SOURCE_DIR}/include/libs/parser"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+        PRIVATE "${CMAKE_BINARY_DIR}"
 )
 
 target_link_libraries(

@@ -20,6 +20,7 @@ TARGET_INCLUDE_DIRECTORIES(
         commonTest
         PUBLIC "${TD_SOURCE_DIR}/include/libs/common/"
         PRIVATE "${TD_SOURCE_DIR}/source/libs/common/inc"
+        PRIVATE "${CMAKE_BINARY_DIR}"
 )
 
 # dataformatTest.cpp 

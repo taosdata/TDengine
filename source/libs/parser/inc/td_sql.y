@@ -27,6 +27,9 @@
 #define YYSTACKDEPTH 0
 }
 
+%code {
+}
+
 %syntax_error {
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     if(TOKEN.z) {
@@ -1586,3 +1589,7 @@ null_ordering_opt(A) ::= NULLS LAST.                                            
 column_options(A) ::= .                                                           { A = createDefaultColumnOptions(pCxt); }
 column_options(A) ::= column_options(B) PRIMARY KEY.                              { A = setColumnOptionsPK(pCxt, B); }
 column_options(A) ::= column_options(B) NK_ID(C) NK_STRING(D).                    { A = setColumnOptions(pCxt, B, &C, &D); }
+
+%code {
+}
+

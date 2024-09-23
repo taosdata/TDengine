@@ -11,6 +11,7 @@ target_include_directories(
         "${TD_SOURCE_DIR}/include/client"
         "${TD_SOURCE_DIR}/contrib/libuv/include"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    PRIVATE "${CMAKE_BINARY_DIR}"
 )
 
 IF (TD_LINUX_64 AND JEMALLOC_ENABLED)

@@ -18,6 +18,7 @@
 
 #include "parInt.h"
 #include "parToken.h"
+#include "parTokenDef.h"
 
 bool qIsInsertValuesSql(const char* pStr, size_t length) {
   if (NULL == pStr) {

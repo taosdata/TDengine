@@ -49,7 +49,7 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/include/common"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
     PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
-    INTERFACE "${CMAKE_BINARY_DIR}"
+    PRIVATE "${CMAKE_BINARY_DIR}"
 )
 IF(${TD_WINDOWS})
     target_include_directories(

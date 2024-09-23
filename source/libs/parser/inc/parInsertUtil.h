@@ -17,6 +17,7 @@
 #define TDENGINE_PAR_INSERT_UTIL_H
 
 #include "parUtil.h"
+#include "parTokenDef.h"
 
 struct SToken;
 
