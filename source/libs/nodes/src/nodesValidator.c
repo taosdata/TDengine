@@ -14,8 +14,9 @@
  */
 
 #include "nodesValidator.h"
+#include "functionMgt.h"
 
-#define qLogWarn() qWarn("validate failed at %s:%d", __func__, __LINE__)
+#define qLogWarn() qWarn("plan validation failed at %s:%d", __func__, __LINE__)
 #define QUERY_NODE_PHYSICAL_NODE_MIN QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN
 #define QUERY_NODE_PHYSICAL_NODE_MAX QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL
 #define TSDB_CODE_PLAN_VALIDATION_ERR TSDB_CODE_PLAN_INTERNAL_ERROR;
@@ -63,7 +64,19 @@ static SDataBlockDescNode* getDownstreamOutputDesc(SPhysiNode* pNode) {
   return pPhysiNode->pOutputDataBlockDesc;
 }
 
-static int32_t doValidateSlotId(int32_t slotId, SDataBlockDescNode* pOutputDesc) {
+static int32_t nodeTypeExpect(SNodeList* pNodes, ENodeType type) {
+  if (!pNodes) return TSDB_CODE_SUCCESS;
+  SNode * pNode = NULL;
+  FOREACH(pNode, pNodes) {
+    if (nodeType(pNode) != type) {
+      qLogWarn();
+      return TSDB_CODE_PLAN_VALIDATION_ERR;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t validateSlotId(int32_t slotId, SDataBlockDescNode* pOutputDesc) {
   if (!pOutputDesc || !pOutputDesc->pSlots) {
     qLogWarn();
     return TSDB_CODE_PLAN_VALIDATION_ERR;
@@ -94,7 +107,7 @@ static EDealRes validateColumns(SNode* pNode, void* pCtxVoid) {
   }
   if (nodeType(pNode) == QUERY_NODE_COLUMN) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    pCtx->code = doValidateSlotId(pCol->slotId, pCtx->pOutputDesc);
+    pCtx->code = validateSlotId(pCol->slotId, pCtx->pOutputDesc);
     if (TSDB_CODE_SUCCESS != pCtx->code) {
       return DEAL_RES_ERROR;
     }
@@ -133,9 +146,23 @@ static int32_t validateTargetNodes(SNodeList* pTargets, NodeValidationCtx* pCtx)
   SNode* pNode = NULL;
   FOREACH(pNode, pTargets) {
     STargetNode* pTarget = (STargetNode*)pNode;
-    pCtx->code = doValidateSlotId(pTarget->slotId, pCtx->pOutputDesc);
+    pCtx->code = validateSlotId(pTarget->slotId, pCtx->pOutputDesc);
     if (TSDB_CODE_SUCCESS != pCtx->code) {
+      qLogWarn();
       return pCtx->code;
+    }
+    if (!pTarget->pExpr) {
+      if (nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN) {
+        // the slot id of SColumnNode is 0
+      } else if (nodeType(pTarget->pExpr) == QUERY_NODE_FUNCTION) {
+        if (!fmIsScanPseudoColumnFunc(((SFunctionNode*)pTarget->pExpr)->funcId)) {
+          qLogWarn();
+          return TSDB_CODE_PLAN_VALIDATION_ERR;
+        }
+      } else {
+        qLogWarn();
+        return TSDB_CODE_PLAN_VALIDATION_ERR;
+      }
     }
   }
   return pCtx->code;
@@ -155,6 +182,25 @@ static int32_t walkAndValidateColumnNodes(SNodeList* pNodes, SPhysiNode* pNode, 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t validateGroupingSetNodes(SNodeList* pGroupingSets, NodeValidationCtx* pCtx) {
+  if (!pGroupingSets) return TSDB_CODE_SUCCESS;
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pGroupingSets) {
+    SGroupingSetNode* pGroupNode = (SGroupingSetNode*)pNode;
+    if (LIST_LENGTH(pGroupNode->pParameterList) != 1) {
+      qLogWarn();
+      return TSDB_CODE_PLAN_VALIDATION_ERR;
+    }
+    pCtx->code = walkAndValidateColumnNodes(pGroupNode->pParameterList, pCtx->pNode, pCtx);
+    if (TSDB_CODE_SUCCESS != pCtx->code) {
+      qLogWarn();
+      return pCtx->code;
+    }
+  }
+  return pCtx->code;
+}
+
 static int32_t walkAndValidateColumnNode(SNode* pNode, SPhysiNode* pPhysiNode, NodeValidationCtx* pCtx) {
   pCtx->code = tryGetOutputDesc(pPhysiNode, pCtx);
   if (TSDB_CODE_SUCCESS != pCtx->code) {
@@ -165,18 +211,6 @@ static int32_t walkAndValidateColumnNode(SNode* pNode, SPhysiNode* pPhysiNode, N
   if (TSDB_CODE_SUCCESS != pCtx->code) {
     qLogWarn();
     return pCtx->code;
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t nodeTypeExpect(SNodeList* pNodes, ENodeType type) {
-  if (!pNodes) return TSDB_CODE_SUCCESS;
-  SNode * pNode = NULL;
-  FOREACH(pNode, pNodes) {
-    if (nodeType(pNode) != type) {
-      qLogWarn();
-      return TSDB_CODE_PLAN_VALIDATION_ERR;
-    }
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -196,7 +230,33 @@ static int32_t validateBasePhysiNode(SPhysiNode* pNode, NodeValidationCtx* pCtx)
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doValidateScanPhysiNode(SScanPhysiNode* pNode, NodeValidationCtx* pCtx) {
+static int32_t validateTableUid(SScanPhysiNode* pNode, NodeValidationCtx* pCtx) {
+  switch (pNode->tableType) {
+    case TSDB_SUPER_TABLE:
+      if (pNode->suid == 0) {
+        qLogWarn();
+        return TSDB_CODE_PLAN_VALIDATION_ERR;
+      }
+    case TSDB_CHILD_TABLE:
+    case TSDB_NORMAL_TABLE:
+      if (pNode->uid == 0) {
+        qLogWarn();
+        return TSDB_CODE_PLAN_VALIDATION_ERR;
+      }
+    case TSDB_TEMP_TABLE:
+    case TSDB_SYSTEM_TABLE:
+    case TSDB_TSMA_TABLE:
+    case TSDB_VIEW_TABLE:
+      // TODO check what for these tables?
+      break;
+    default:
+      qLogWarn();
+      return TSDB_CODE_PLAN_VALIDATION_ERR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t validateScanPhysiNode(SScanPhysiNode* pNode, NodeValidationCtx* pCtx) {
   int32_t code = TSDB_CODE_SUCCESS;
   code = validateBasePhysiNode(&pNode->node, pCtx);
   if (TSDB_CODE_SUCCESS != code) {
@@ -224,12 +284,41 @@ static int32_t doValidateScanPhysiNode(SScanPhysiNode* pNode, NodeValidationCtx*
     qLogWarn();
     return code;
   }
+  code = validateTableUid(pNode, pCtx);
+  if (TSDB_CODE_SUCCESS != code) {
+    qLogWarn();
+    return code;
+  }
   return code;
 }
 
 int32_t doValidateTableScanPhysiNode(STableScanPhysiNode* pNode) {
   NodeValidationCtx ctx = {.code = TSDB_CODE_SUCCESS, .pNode = &pNode->scan.node};
-  ctx.code = doValidateScanPhysiNode(&pNode->scan, &ctx);
+  ctx.code = validateScanPhysiNode(&pNode->scan, &ctx);
+  if (TSDB_CODE_SUCCESS != ctx.code) {
+    qLogWarn();
+    return ctx.code;
+  }
+  // SNodeList*     pDynamicScanFuncs; // seems not used
+  // SNodeList*     pGroupTags;
+  ctx.code = walkAndValidateColumnNodes(pNode->pGroupTags, ctx.pNode, &ctx);
+  if (TSDB_CODE_SUCCESS != ctx.code) {
+    qLogWarn();
+    return ctx.code;
+  }
+
+  // SNodeList*     pTags; // only for create stream
+  // SNode*         pSubtable; // only for create stream
+  return ctx.code;
+}
+
+int32_t doValidateTagScanPhysiNode(STagScanPhysiNode *pNode) {
+  NodeValidationCtx ctx = {.code = TSDB_CODE_SUCCESS, .pNode = &pNode->scan.node};
+  ctx.code = validateScanPhysiNode(&pNode->scan, &ctx);
+  if (TSDB_CODE_SUCCESS != ctx.code) {
+    qLogWarn();
+    return ctx.code;
+  }
   return ctx.code;
 }
 

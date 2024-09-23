@@ -130,6 +130,13 @@ int32_t doValidatePhysiNode(SValidatePlanContext* pCxt, SNode* pNode) {
       break;
   }
 
+  SNode* pChild = NULL;
+  FOREACH(pChild, ((SPhysiNode*)pNode)->pChildren) {
+    int32_t code = doValidatePhysiNode(pCxt, pChild);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
