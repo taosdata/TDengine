@@ -82,7 +82,7 @@ taos -h h1.taos.com -s "use db; show tables;"
 
 ## 配置文件
 
-也可以通过配置文件中的参数设置来控制 TDengine CLI 的行为。可用配置参数请参考[客户端配置](../taosc)
+也可以通过配置文件中的参数设置来控制 TDengine CLI 的行为。可用配置参数请参考[客户端配置](../../components/taosc)
 
 ## TDengine CLI 小技巧
 
