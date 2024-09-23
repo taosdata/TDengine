@@ -280,7 +280,7 @@ static int32_t tfSearchPrefix(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
 
   SArray* offsets = taosArrayInit(16, sizeof(uint64_t));
   if (offsets == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   FAutoCtx* ctx = automCtxCreate((void*)p, AUTOMATION_PREFIX);
@@ -675,7 +675,7 @@ int32_t tfileWriterPut(TFileWriter* tw, void* data, bool order) {
       char* t = (char*)taosMemoryRealloc(buf, cap);
       if (t == NULL) {
         taosMemoryFree(buf);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       buf = t;
     }
@@ -915,7 +915,7 @@ int32_t tfileValuePush(TFileValue* tf, uint64_t val) {
     return TSDB_CODE_INVALID_PARA;
   }
   if (taosArrayPush(tf->tableId, &val) == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   return 0;
 }
@@ -1052,7 +1052,7 @@ static int32_t tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArr
     int32_t left = block + sizeof(block) - p;
     if (left >= sizeof(uint64_t)) {
       if (taosArrayPush(result, (uint64_t*)p) == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       p += sizeof(uint64_t);
     } else {
@@ -1065,7 +1065,7 @@ static int32_t tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArr
       memcpy(buf + left, block, sizeof(uint64_t) - left);
 
       if (taosArrayPush(result, (uint64_t*)buf) == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       p = block + sizeof(uint64_t) - left;
     }
@@ -1118,7 +1118,7 @@ static int32_t tfileGetFileList(const char* path, SArray** ppResult) {
   int64_t  version;
   SArray*  files = taosArrayInit(4, sizeof(void*));
   if (files == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   TdDirPtr pDir = taosOpenDir(path);
@@ -1140,7 +1140,7 @@ static int32_t tfileGetFileList(const char* path, SArray** ppResult) {
 
     sprintf(buf, "%s/%s", path, file);
     if (taosArrayPush(files, &buf) == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+      TAOS_CHECK_GOTO(terrno, NULL, _exception);
     }
   }
   TAOS_UNUSED(taosCloseDir(&pDir));

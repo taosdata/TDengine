@@ -118,7 +118,7 @@ void monSetBmInfo(SMonBmInfo *pInfo) {
 int32_t monInit(const SMonCfg *pCfg) {
   tsMonitor.logs = taosArrayInit(16, sizeof(SMonLogItem));
   if (tsMonitor.logs == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   tsMonitor.cfg = *pCfg;
