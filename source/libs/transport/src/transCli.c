@@ -984,7 +984,7 @@ static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn) {
   // read/write stream handle
   conn->stream = (uv_stream_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
   if (conn->stream == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_CHECK_GOTO(code, NULL, _failed);
   }
 
@@ -1167,7 +1167,7 @@ void cliSendBatch(SCliConn* pConn) {
 
   uv_buf_t* wb = taosMemoryCalloc(wLen, sizeof(uv_buf_t));
   if (wb == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     tError("%s conn %p failed to send batch msg since:%s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
     goto _exception;
   }
@@ -1221,7 +1221,7 @@ void cliSendBatch(SCliConn* pConn) {
 
   uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
   if (req == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     tError("%s conn %p failed to send batch msg since:%s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
     goto _exception;
   }
@@ -1971,7 +1971,7 @@ static int32_t createBatchList(SCliBatchList** ppBatchList, char* key, char* ip,
     taosMemoryFree(pBatchList->dst);
     taosMemoryFree(pBatchList);
     tError("failed to create batch list, reason:%s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   *ppBatchList = pBatchList;
   return 0;
@@ -2205,7 +2205,7 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   int32_t  code = 0;
   SCliObj* cli = taosMemoryCalloc(1, sizeof(SCliObj));
   if (cli == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _err);
+    TAOS_CHECK_GOTO(terrno, NULL, _err);
   }
 
   STrans* pTransInst = shandle;
@@ -2214,7 +2214,7 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
   cli->pThreadObj = (SCliThrd**)taosMemoryCalloc(cli->numOfThreads, sizeof(SCliThrd*));
   if (cli->pThreadObj == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _err);
+    TAOS_CHECK_GOTO(terrno, NULL, _err);
   }
 
   for (int i = 0; i < cli->numOfThreads; i++) {
@@ -2342,29 +2342,29 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
   pThrd->destroyAhandleFp = pTransInst->destroyFp;
   pThrd->fqdn2ipCache = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pThrd->fqdn2ipCache == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
   pThrd->failFastCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pThrd->failFastCache == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
   pThrd->batchCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pThrd->batchCache == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
   int32_t timerSize = 64;
   pThrd->timerList = taosArrayInit(timerSize, sizeof(void*));
   if (pThrd->timerList == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    code = terrno;
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
   for (int i = 0; i < timerSize; i++) {
     uv_timer_t* timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
     if (timer == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+      TAOS_CHECK_GOTO(terrno, NULL, _end);
     }
     (void)uv_timer_init(pThrd->loop, timer);
     if (taosArrayPush(pThrd->timerList, &timer) == NULL) {
