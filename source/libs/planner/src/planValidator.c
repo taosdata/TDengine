@@ -19,6 +19,7 @@
 #include "functionMgt.h"
 #include "systable.h"
 #include "tglobal.h"
+#include "nodesValidator.h"
 
 typedef struct SValidatePlanContext {
   SPlanContext* pPlanCxt;
@@ -73,7 +74,9 @@ int32_t validateQueryPlanNode(SValidatePlanContext* pCxt, SQueryPlan* pPlan) {
 int32_t doValidatePhysiNode(SValidatePlanContext* pCxt, SNode* pNode) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
+      return doValidateTableScanPhysiNode((STableScanPhysiNode*)pNode);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
