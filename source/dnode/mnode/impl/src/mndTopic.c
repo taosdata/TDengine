@@ -451,12 +451,14 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   topicObj.dbUid = pDb->uid;
   topicObj.version = 1;
   topicObj.sql = taosStrdup(pCreate->sql);
+  MND_TMQ_NULL_CHECK(topicObj.sql);
   topicObj.sqlLen = strlen(pCreate->sql) + 1;
   topicObj.subType = pCreate->subType;
   topicObj.withMeta = pCreate->withMeta;
 
   if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {
     topicObj.ast = taosStrdup(pCreate->ast);
+    MND_TMQ_NULL_CHECK(topicObj.ast);
     topicObj.astLen = strlen(pCreate->ast) + 1;
     qDebugL("topic:%s ast %s", topicObj.name, topicObj.ast);
     MND_TMQ_RETURN_CHECK(nodesStringToNode(pCreate->ast, &pAst));
@@ -482,6 +484,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     if(pCreate->ast != NULL){
       qDebugL("topic:%s ast %s", topicObj.name, pCreate->ast);
       topicObj.ast = taosStrdup(pCreate->ast);
+      MND_TMQ_NULL_CHECK(topicObj.ast);
       topicObj.astLen = strlen(pCreate->ast) + 1;
     }
   }

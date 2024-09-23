@@ -582,7 +582,7 @@ int32_t deleteCountWinState(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, S
   int32_t lino = 0;
   SArray* pWins = taosArrayInit(16, sizeof(SSessionKey));
   if (!pWins) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -880,7 +880,7 @@ int32_t createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   pInfo->dataVersion = 0;
   pInfo->historyWins = taosArrayInit(4, sizeof(SSessionKey));
   if (!pInfo->historyWins) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _error);
   }
 

@@ -21,7 +21,7 @@ static int32_t vnodeBufPoolCreate(SVnode *pVnode, int32_t id, int64_t size, SVBu
 
   pPool = taosMemoryMalloc(sizeof(SVBufPool) + size);
   if (pPool == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   memset(pPool, 0, sizeof(SVBufPool));
 
@@ -43,7 +43,7 @@ static int32_t vnodeBufPoolCreate(SVnode *pVnode, int32_t id, int64_t size, SVBu
     pPool->lock = taosMemoryMalloc(sizeof(TdThreadSpinlock));
     if (!pPool->lock) {
       taosMemoryFree(pPool);
-      return terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if (taosThreadSpinInit(pPool->lock, 0) != 0) {
       taosMemoryFree((void *)pPool->lock);

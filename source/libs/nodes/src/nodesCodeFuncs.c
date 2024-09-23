@@ -456,7 +456,7 @@ static int32_t nodeListToJson(SJson* pJson, const char* pName, const SNodeList* 
   if (LIST_LENGTH(pList) > 0) {
     SJson* jList = tjsonAddArrayToObject(pJson, pName);
     if (NULL == jList) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     SNode* pNode;
     FOREACH(pNode, pList) {
@@ -4000,6 +4000,7 @@ static int32_t datumToJson(const void* pObj, SJson* pJson) {
     case TSDB_DATA_TYPE_NCHAR: {
       // cJSON only support utf-8 encoding. Convert memory content to hex string.
       char* buf = taosMemoryCalloc(varDataLen(pNode->datum.p) * 2 + 1, sizeof(char));
+      if (!buf) return terrno;
       code = taosHexEncode(varDataVal(pNode->datum.p), buf, varDataLen(pNode->datum.p));
       if (code != TSDB_CODE_SUCCESS) {
         taosMemoryFree(buf);
@@ -4017,6 +4018,7 @@ static int32_t datumToJson(const void* pObj, SJson* pJson) {
     case TSDB_DATA_TYPE_JSON: {
       int32_t len = getJsonValueLen(pNode->datum.p);
       char*   buf = taosMemoryCalloc(len * 2 + 1, sizeof(char));
+      if (!buf) return terrno;
       code = taosHexEncode(pNode->datum.p, buf, len);
       if (code != TSDB_CODE_SUCCESS) {
         taosMemoryFree(buf);
@@ -8383,8 +8385,7 @@ int32_t nodesNodeToString(const SNode* pNode, bool format, char** pStr, int32_t*
 
   SJson* pJson = tjsonCreateObject();
   if (NULL == pJson) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t code = nodeToJson(pNode, pJson);
@@ -8434,8 +8435,7 @@ int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int3
 
   SJson* pJson = tjsonCreateArray();
   if (NULL == pJson) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SNode* pNode;

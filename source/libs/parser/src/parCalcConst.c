@@ -210,7 +210,7 @@ static int32_t calcConstProject(SCalcConstContext* pCxt, SNode* pProject, bool d
   if (NULL != ((SExprNode*)pProject)->pAssociation) {
     pAssociation = taosArrayDup(((SExprNode*)pProject)->pAssociation, NULL);
     if (NULL == pAssociation) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 

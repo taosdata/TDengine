@@ -443,7 +443,7 @@ int32_t ctgGetTbTag(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, 
   if (tTagIsJson(pTag)) {
     pTagVals = taosArrayInit(1, sizeof(STagVal));
     if (NULL == pTagVals) {
-      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_JRET(terrno);
     }
 
     char* pJson = NULL;
@@ -460,7 +460,7 @@ int32_t ctgGetTbTag(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, 
     if (NULL == taosArrayPush(pTagVals, &tagVal)) {
       taosMemoryFree(pJson);
       taosArrayDestroy(pTagVals);
-      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_JRET(terrno);
     }
   } else {
     CTG_ERR_JRET(tTagToValArray((const STag*)pCfg->pTags, &pTagVals));
@@ -938,14 +938,14 @@ int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
                                        false, HASH_ENTRY_LOCK);
     if (NULL == clusterCtg->dbCache) {
       qError("taosHashInit %d dbCache failed", CTG_DEFAULT_CACHE_DB_NUMBER);
-      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_JRET(terrno);
     }
 
     clusterCtg->userCache = taosHashInit(gCtgMgmt.cfg.maxUserCacheNum,
                                          taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
     if (NULL == clusterCtg->userCache) {
       qError("taosHashInit %d user cache failed", gCtgMgmt.cfg.maxUserCacheNum);
-      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_JRET(terrno);
     }
 
     code = taosHashPut(gCtgMgmt.pCluster, &clusterId, sizeof(clusterId), &clusterCtg, POINTER_BYTES);
@@ -1592,7 +1592,7 @@ int32_t catalogGetExpiredViews(SCatalog* pCtg, SViewVersion** views, uint32_t* n
 
   *dynViewVersion = taosMemoryMalloc(sizeof(SDynViewVersion));
   if (NULL == *dynViewVersion) {
-    CTG_API_LEAVE(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_API_LEAVE(terrno);
   }
 
   (*dynViewVersion)->svrBootTs = atomic_load_64(&pCtg->dynViewVer.svrBootTs);

@@ -123,7 +123,7 @@ int32_t tsdbSttFileReadStatisBlk(SSttFileReader *reader, const TStatisBlkArray *
       int32_t size = reader->footer->statisBlkPtr->size / sizeof(SStatisBlk);
       void   *data = taosMemoryMalloc(reader->footer->statisBlkPtr->size);
       if (!data) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
@@ -157,7 +157,7 @@ int32_t tsdbSttFileReadTombBlk(SSttFileReader *reader, const TTombBlkArray **tom
       int32_t size = reader->footer->tombBlkPtr->size / sizeof(STombBlk);
       void   *data = taosMemoryMalloc(reader->footer->tombBlkPtr->size);
       if (!data) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
@@ -191,7 +191,7 @@ int32_t tsdbSttFileReadSttBlk(SSttFileReader *reader, const TSttBlkArray **sttBl
       int32_t size = reader->footer->sttBlkPtr->size / sizeof(SSttBlk);
       void   *data = taosMemoryMalloc(reader->footer->sttBlkPtr->size);
       if (!data) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
