@@ -224,8 +224,7 @@ int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQnodeOb
   }
   code = tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
   if (code < 0) {
-    taosMemoryFree(pReq);
-    return code;
+    mError("qnode:%d, failed to serialize create drop qnode request since %s", createReq.dnodeId, terrstr());
   }
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -255,8 +254,7 @@ static int32_t mndSetCreateQnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   }
   code = tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
   if (code < 0) {
-    taosMemoryFree(pReq);
-    TAOS_RETURN(code);
+    mError("qnode:%d, failed to serialize create drop qnode request since %s", dropReq.dnodeId, terrstr());
   }
 
   STransAction action = {0};
@@ -390,8 +388,7 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
   }
   code = tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
   if (code < 0) {
-    taosMemoryFree(pReq);
-    TAOS_RETURN(code);
+    mError("qnode:%d, failed to serialize create drop qnode request since %s", dropReq.dnodeId, terrstr());
   }
 
   STransAction action = {0};
@@ -547,8 +544,7 @@ static int32_t mndProcessQnodeListReq(SRpcMsg *pReq) {
 
   code = tSerializeSQnodeListRsp(pRsp, rspLen, &qlistRsp);
   if (code < 0) {
-    rpcFreeCont(pRsp);
-    goto _OVER;
+    mError("failed to serialize qnode list response since %s", terrstr());
   }
 
   pReq->info.rspLen = rspLen;
