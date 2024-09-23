@@ -481,6 +481,10 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
         };
         if (IS_VAR_DATA_TYPE(infos[iInfo].type)) {
           value.nData = infos[iInfo].bind->length[iRow];
+          if (value.nData > pTSchema->columns[iInfo].bytes - VARSTR_HEADER_SIZE) {
+            code = TSDB_CODE_INVALID_PARA;
+            goto _exit;
+          }
           value.pData = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow;
         } else {
           (void)memcpy(&value.val, (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow,
@@ -3279,6 +3283,10 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
           int32_t   length = infos[iInfo].bind->length[iRow];
           uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo];
           value.nData = length;
+          if (value.nData > pTSchema->columns[iInfo].bytes - VARSTR_HEADER_SIZE) {
+            code = TSDB_CODE_INVALID_PARA;
+            goto _exit;
+          }
           value.pData = *data;
           *data += length;
           // value.pData = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow;
