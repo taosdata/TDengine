@@ -534,41 +534,22 @@ END:
   taosMemoryFree(offset);
   taosMemoryFree(offsetNew);
 
-  int32_t ret = tdbTbClose(pExecStore);
-  if (ret != 0) {
-    tqError("failed to close tb, ret:%d", ret);
-  }
-  ret = tdbTbClose(pCheckStore);
-  if (ret != 0) {
-    tqError("failed to close tb, ret:%d", ret);
-  }
-  ret = tdbClose(pMetaDB);
-  if (ret != 0) {
-    tqError("failed to close tdb, ret:%d", ret);
-  }
-
+  tdbTbClose(pExecStore);
+  tdbTbClose(pCheckStore);
+  tdbClose(pMetaDB);
   return code;
 }
 
 void tqMetaClose(STQ* pTq) {
   int32_t ret = 0;
   if (pTq->pExecStore) {
-    ret = tdbTbClose(pTq->pExecStore);
-    if (ret != 0) {
-      tqError("failed to close tb, ret:%d", ret);
-    }
+    tdbTbClose(pTq->pExecStore);
   }
   if (pTq->pCheckStore) {
-    ret = tdbTbClose(pTq->pCheckStore);
-    if (ret != 0) {
-      tqError("failed to close tb, ret:%d", ret);
-    }
+    tdbTbClose(pTq->pCheckStore);
   }
   if (pTq->pOffsetStore) {
-    ret = tdbTbClose(pTq->pOffsetStore);
-    if (ret != 0) {
-      tqError("failed to close tb, ret:%d", ret);
-    }
+    tdbTbClose(pTq->pOffsetStore);
   }
   ret = tdbClose(pTq->pMetaDB);
   if (ret != 0) {

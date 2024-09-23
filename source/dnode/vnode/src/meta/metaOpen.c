@@ -60,12 +60,14 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
 
   pMeta->path = (char *)&pMeta[1];
   strcpy(pMeta->path, path);
-  (void)taosRealPath(pMeta->path, NULL, strlen(path) + 1);
+  code = taosRealPath(pMeta->path, NULL, strlen(path) + 1);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   pMeta->pVnode = pVnode;
 
   // create path if not created yet
-  (void)taosMkDir(pMeta->path);
+  code = taosMkDir(pMeta->path);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // open env
   code = tdbOpen(pMeta->path, pVnode->config.szPage, pVnode->config.szCache, &pMeta->pEnv, rollback,

@@ -476,17 +476,11 @@ _err:
   if (pMeta->pTasksMap) taosHashCleanup(pMeta->pTasksMap);
   if (pMeta->pTaskList) taosArrayDestroy(pMeta->pTaskList);
   if (pMeta->pTaskDb) {
-    int32_t ret = tdbTbClose(pMeta->pTaskDb);
-    if (ret) {
-      stError("vgId:%d tdb failed close task db, code:%s", pMeta->vgId, tstrerror(ret));
-    }
+    tdbTbClose(pMeta->pTaskDb);
     pMeta->pTaskDb = NULL;
   }
   if (pMeta->pCheckpointDb) {
-    int32_t ret = tdbTbClose(pMeta->pCheckpointDb);
-    if (ret) {
-      stError("vgId:%d tdb failed close task checkpointDb, code:%s", pMeta->vgId, tstrerror(ret));
-    }
+    tdbTbClose(pMeta->pCheckpointDb);
   }
   if (pMeta->db) {
     int32_t ret = tdbClose(pMeta->db);
@@ -601,14 +595,8 @@ void streamMetaCloseImpl(void* arg) {
   if (code) {
     stError("vgId:%d failed to jump of trans for tdb, code:%s", vgId, tstrerror(code));
   }
-  code = tdbTbClose(pMeta->pTaskDb);
-  if (code) {
-    stError("vgId:%d failed to close taskDb, code:%s", vgId, tstrerror(code));
-  }
-  code = tdbTbClose(pMeta->pCheckpointDb);
-  if (code) {
-    stError("vgId:%d failed to close checkpointDb, code:%s", vgId, tstrerror(code));
-  }
+  tdbTbClose(pMeta->pTaskDb);
+  tdbTbClose(pMeta->pCheckpointDb);
   code = tdbClose(pMeta->db);
   if (code) {
     stError("vgId:%d failed to close db, code:%s", vgId, tstrerror(code));

@@ -46,7 +46,7 @@ int32_t tdbAlter(TDB *pDb, int pages);
 // TTB
 int32_t tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TDB *pEnv, TTB **ppTb,
                   int8_t rollback);
-int32_t tdbTbClose(TTB *pTb);
+void    tdbTbClose(TTB *pTb);
 bool    tdbTbExist(const char *tbname, TDB *pEnv);
 int     tdbTbDropByName(const char *tbname, TDB *pEnv, TXN *pTxn);
 int32_t tdbTbDrop(TTB *pTb);

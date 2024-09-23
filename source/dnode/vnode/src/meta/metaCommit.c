@@ -66,7 +66,10 @@ int metaPrepareAsyncCommit(SMeta *pMeta) {
   int32_t lino;
 
   metaWLock(pMeta);
-  TAOS_UNUSED(ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn));
+  int32_t ret = ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn);
+  if (ret < 0) {
+    metaError("vgId:%d, failed to flush ttl since %s", TD_VID(pMeta->pVnode), tstrerror(ret));
+  }
   metaULock(pMeta);
 
   code = tdbCommit(pMeta->pEnv, pMeta->txn);
