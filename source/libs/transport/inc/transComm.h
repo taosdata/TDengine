@@ -350,11 +350,6 @@ typedef struct SWriteReq {
   void* conn;
 } SWriteReq;
 
-void  transReqQueueInit(queue* q);
-void* transReqQueuePush(queue* q, SWriteReq* req);
-void* transReqQueueRemove(void* arg);
-void  transReqQueueClear(queue* q);
-
 // queue sending msgs
 typedef struct {
   queue node;

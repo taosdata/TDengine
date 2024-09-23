@@ -413,39 +413,6 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
   return ret;
 }
 
-void transReqQueueInit(queue* q) {
-  // init req queue
-  QUEUE_INIT(q);
-}
-void* transReqQueuePush(queue* q, SWriteReq* userReq) {
-  return NULL;
-  // uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
-  // req->data = userReq;
-
-  // QUEUE_PUSH(q, &userReq->q);
-  // return req;
-}
-void* transReqQueueRemove(void* arg) {
-  return NULL;
-  // void*       ret = NULL;
-  // uv_write_t* req = arg;
-
-  // SWriteReq* userReq = req ? req->data : NULL;
-  // if (req == NULL) return NULL;
-  // QUEUE_REMOVE(&userReq->q);
-
-  // return userReq;
-}
-void transReqQueueClear(queue* q) {
-  return;
-  // while (!QUEUE_IS_EMPTY(q)) {
-  //   queue* h = QUEUE_HEAD(q);
-  //   QUEUE_REMOVE(h);
-  //   SWriteReq* req = QUEUE_DATA(h, SWriteReq, q);
-  //   taosMemoryFree(req);
-  // }
-}
-
 int32_t transQueueInit(STransQueue* wq, void (*freeFunc)(void* arg)) {
   QUEUE_INIT(&wq->node);
   wq->freeFunc = (void (*)(void*))freeFunc;
