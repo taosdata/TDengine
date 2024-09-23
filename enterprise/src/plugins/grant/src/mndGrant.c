@@ -191,7 +191,7 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
     mndTransDrop(pTrans);
     TAOS_CHECK_EXIT(code);
   }
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     code = terrno;
@@ -270,7 +270,7 @@ int32_t mndProcessUpdGrantLog(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines, 
     mndTransDrop(pTrans);
     TAOS_CHECK_EXIT(code);
   }
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     code = terrno;
