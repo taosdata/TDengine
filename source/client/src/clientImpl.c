@@ -126,7 +126,7 @@ int32_t taos_connect_internal(const char* ip, const char* user, const char* pass
 
   char* key = getClusterKey(user, secretEncrypt, ip, port);
   if (NULL == key) {
-    TSC_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    TSC_ERR_RET(terrno);
   }
   tscInfo("connecting to server, numOfEps:%d inUse:%d user:%s db:%s key:%s", epSet.epSet.numOfEps, epSet.epSet.inUse,
           user, db, key);

@@ -1454,7 +1454,7 @@ int32_t appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key, SAppHbMgr **pAppHbMg
   (*pAppHbMgr)->reportBytes = 0;
   (*pAppHbMgr)->key = taosStrdup(key);
   if ((*pAppHbMgr)->key == NULL) {
-    TSC_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    TSC_ERR_JRET(terrno);
   }
 
   // init app info

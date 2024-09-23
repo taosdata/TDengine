@@ -1051,7 +1051,7 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
     }
     if (res->result != NULL) {
       if (taosArrayAddAll(pDst->result, res->result) == NULL) {
-        SIF_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        SIF_ERR_RET(terrno);
       }
     }
     pDst->status = res->status;
@@ -1130,7 +1130,7 @@ int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, 
 
   if (taosArrayAddAll(result, param.result) == NULL) {
     sifFreeParam(&param);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   sifFreeParam(&param);

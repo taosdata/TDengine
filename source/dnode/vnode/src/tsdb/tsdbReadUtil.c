@@ -692,7 +692,7 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
 
     void* p = taosArrayAddAll(pBlockIter->blockList, pTableScanInfo->pBlockList);
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     taosArrayDestroy(pTableScanInfo->pBlockList);

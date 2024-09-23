@@ -588,7 +588,7 @@ int32_t mndFetchAllIpWhite(SMnode *pMnode, SHashObj **ppIpWhiteTab) {
     if (name == NULL) {
       sdbRelease(pSdb, pUser);
       sdbCancelFetch(pSdb, pIter);
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
     if (taosArrayPush(pUserNames, &name) == NULL) {
       taosMemoryFree(name);
@@ -611,7 +611,7 @@ int32_t mndFetchAllIpWhite(SMnode *pMnode, SHashObj **ppIpWhiteTab) {
   if (found == false) {
     char *name = taosStrdup(TSDB_DEFAULT_USER);
     if (name == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
     if (taosArrayPush(pUserNames, &name) == NULL) {
       taosMemoryFree(name);
@@ -3148,7 +3148,7 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
       if (TSDB_CODE_MND_USER_NOT_EXIST == code) {
         SGetUserAuthRsp rsp = {.dropped = 1};
         (void)memcpy(rsp.user, pUsers[i].user, TSDB_USER_LEN);
-        TSDB_CHECK_NULL(taosArrayPush(batchRsp.pArray, &rsp), code, lino, _OVER, TSDB_CODE_OUT_OF_MEMORY);
+        TSDB_CHECK_NULL(taosArrayPush(batchRsp.pArray, &rsp), code, lino, _OVER, terrno);
       }
       mError("user:%s, failed to auth user since %s", pUsers[i].user, tstrerror(code));
       code = 0;

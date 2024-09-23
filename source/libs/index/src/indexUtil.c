@@ -85,7 +85,7 @@ int32_t iUnion(SArray *in, SArray *out) {
   }
   if (sz == 1) {
     if (taosArrayAddAll(out, taosArrayGetP(in, 0)) == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -215,7 +215,7 @@ int32_t idxTRsltMergeTo(SIdxTRslt *tr, SArray *result) {
   if (taosArrayGetSize(tr->total) == 0 || taosArrayGetSize(tr->add) == 0) {
     SArray *t = taosArrayGetSize(tr->total) == 0 ? tr->add : tr->total;
     if (taosArrayAddAll(result, t) == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   } else {
     SArray *arrs = taosArrayInit(2, sizeof(void *));

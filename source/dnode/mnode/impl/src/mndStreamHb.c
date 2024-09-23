@@ -293,7 +293,7 @@ int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo *info) {
       int32_t contLen = tSerializeSMPauseStreamReq(NULL, 0, &reqPause);
       void   *pHead = rpcMallocCont(contLen);
       if (pHead == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         sdbRelease(pSdb, pStream);
         continue;
       }

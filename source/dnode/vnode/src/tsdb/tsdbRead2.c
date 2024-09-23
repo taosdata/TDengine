@@ -300,7 +300,7 @@ static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bo
 
   pReader->status.pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
   if (pReader->status.pLDataIterArray == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   // check file the time range of coverage
@@ -2918,7 +2918,7 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, int32_t orde
   } else {
     void* p1 = taosArrayAddAll(pSource, pBlockScanInfo->pMemDelData);
     if (p1 == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 

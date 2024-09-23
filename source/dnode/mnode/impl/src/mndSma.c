@@ -2324,7 +2324,7 @@ int32_t dumpTSMAInfoFromSmaObj(const SSmaObj* pSma, const SStbObj* pDestStb, STa
   }
   tstrncpy(pInfo->tb, sName.tname, TSDB_TABLE_NAME_LEN);
   pInfo->pFuncs = taosArrayInit(8, sizeof(STableTSMAFuncInfo));
-  if (!pInfo->pFuncs) return TSDB_CODE_OUT_OF_MEMORY;
+  if (!pInfo->pFuncs) return terrno;
 
   SNode *pNode, *pFunc;
   if (TSDB_CODE_SUCCESS != nodesStringToNode(pBaseTsma ? pBaseTsma->ast : pSma->ast, &pNode)) {
@@ -2350,7 +2350,7 @@ int32_t dumpTSMAInfoFromSmaObj(const SSmaObj* pSma, const SStbObj* pDestStb, STa
     nodesDestroyNode(pNode);
   }
   pInfo->ast = taosStrdup(pSma->ast);
-  if (!pInfo->ast) code = TSDB_CODE_OUT_OF_MEMORY;
+  if (!pInfo->ast) code = terrno;
 
   if (code == TSDB_CODE_SUCCESS && pDestStb->numOfTags > 0) {
     pInfo->pTags = taosArrayInit(pDestStb->numOfTags, sizeof(SSchema));

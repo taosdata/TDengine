@@ -605,7 +605,7 @@ static int32_t idxMergeCacheAndTFile(SArray* result, IterateValue* cv, IterateVa
   }
   if (tv != NULL) {
     if (taosArrayAddAll(tr->total, tv->val) == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   return 0;
