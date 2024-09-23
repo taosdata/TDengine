@@ -1,6 +1,6 @@
 ---
-sidebar_label: Docker
-title: 通过 Docker 快速体验 TDengine
+sidebar_label: 用Docker快速体验
+title: 用 Docker 快速体验 TDengine
 description: 使用 Docker 快速体验 TDengine 的高效写入和查询
 ---
 

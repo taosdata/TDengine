@@ -1,5 +1,5 @@
 ---
-title: 立即开始
+title: 快速体验
 description: '快速设置 TDengine 环境并体验其高效写入和查询'
 ---
 
