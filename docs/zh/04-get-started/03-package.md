@@ -1,6 +1,6 @@
 ---
-sidebar_label: 安装包
-title: 使用安装包立即开始
+sidebar_label: 用安装包快速体验
+title: 使用安装包快速体验 TDengine
 description: 使用安装包快速体验 TDengine
 ---
 
