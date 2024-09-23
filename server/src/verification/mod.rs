@@ -168,7 +168,6 @@ async fn request_cloud(
     let sign = sign_string(&string_to_sign);
 
     let mut qid: Qid = Span.get_qid().unwrap_or_else(Qid::init);
-    qid.set_cloud();
     qid.add_sequence_id();
 
     log::info!("post url: {}, request body:{}", url, json_body);

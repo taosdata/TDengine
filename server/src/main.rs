@@ -577,7 +577,6 @@ async fn profile(args: web::Data<Args>, client: web::Data<reqwest::Client>) -> i
     }
 
     let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
-    qid.set_taosx();
     qid.add_sequence_id();
 
     let mut profile = args.profile.clone();
@@ -883,7 +882,6 @@ async fn proxy(
     url: &str,
 ) -> Result<HttpResponse, actix_web::Error> {
     let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
-    qid.set_taosx();
     qid.add_sequence_id();
     if req.headers().contains_key("upgrade") {
         // Websocket proxy.
@@ -1106,7 +1104,6 @@ async fn import(
     let url = format!("{x}/privileges/migrate");
 
     let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
-    qid.set_taosx();
     qid.add_sequence_id();
     debug!(url, "proxy to taosx");
     client
@@ -1483,8 +1480,6 @@ impl Args {
         tz: Option<&String>,
     ) -> Result<RestOkResponse, RestErrResponse> {
         let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
-        qid.set_taos();
-
         // taos connection pool
         let conn = get_connection(&dsn).await.map_err(RestErrResponse::new)?;
 
@@ -1592,7 +1587,6 @@ impl Args {
         let (a, b, c) = get_main_version_from_server_version(&server_version.to_string()).unwrap();
         // check version and use different function
         let mut qid: Qid = Span.get_qid().unwrap_or(Qid::init());
-        qid.set_taos();
         if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
             if let Some(active_code) = license.active_code.as_ref() {
                 if !active_code.is_empty() {
