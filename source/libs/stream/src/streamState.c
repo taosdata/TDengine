@@ -569,7 +569,7 @@ void streamStateGroupCurNext(SStreamStateCur* pCur) {
 }
 
 int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** pVal, int32_t* pVLen) {
-  if (pVal != NULL) {
+  if (pVal == NULL) {
     return -1;
   }
   return streamFileStateGroupGetKVByCur(pCur, pKey, pVal, pVLen);

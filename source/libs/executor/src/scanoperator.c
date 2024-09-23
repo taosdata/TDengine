@@ -3396,6 +3396,7 @@ static bool isStreamWindow(SStreamScanInfo* pInfo) {
 static int32_t copyGetResultBlock(SSDataBlock* dest, const SSDataBlock* src) {
   TSKEY start = src->info.window.skey;
   TSKEY end = src->info.window.ekey;
+  blockDataEnsureCapacity(dest, 1);
   return appendDataToSpecialBlock(dest, &start, &end, NULL, NULL, NULL);
 }
 

@@ -1687,18 +1687,24 @@ static int32_t setAllResultKey(SStreamAggSupporter* pAggSup, TSKEY ts, SSHashObj
   int32_t          lino = 0;
   int64_t          groupId = 0;
   SStreamStateCur* pCur = pAggSup->stateStore.streamStateGroupGetCur(pAggSup->pState);
-  int32_t          winCode = pAggSup->stateStore.streamStateGroupGetKVByCur(pCur, &groupId, NULL, NULL);
-  if (winCode != TSDB_CODE_SUCCESS) {
-    goto _end;
-  }
-  SWinKey key = {.ts = ts, .groupId = groupId};
-  code = saveTimeSliceWinResult(&key, pUpdatedMap);
-  QUERY_CHECK_CODE(code, lino, _end);
+  while (1) {  
+    int32_t winCode = pAggSup->stateStore.streamStateGroupGetKVByCur(pCur, &groupId, NULL, NULL);
+    if (winCode != TSDB_CODE_SUCCESS) {
+      break;
+    }
+    SWinKey key = {.ts = ts, .groupId = groupId};
+    code = saveTimeSliceWinResult(&key, pUpdatedMap);
+    QUERY_CHECK_CODE(code, lino, _end);
 
-  pAggSup->stateStore.streamStateGroupCurNext(pCur);
+    pAggSup->stateStore.streamStateGroupCurNext(pCur);
+  }
+  pAggSup->stateStore.streamStateFreeCur(pCur);
+  pCur = NULL;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    pAggSup->stateStore.streamStateFreeCur(pCur);
+    pCur = NULL;
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
