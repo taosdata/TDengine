@@ -196,14 +196,23 @@ TEST_F(ParserInitialATest, alterDatabase) {
   setAlterDbFsync(200);
   setAlterDbWal(1);
   setAlterDbCacheModel(TSDB_CACHE_MODEL_LAST_ROW);
+#ifdef TD_ENTERPRISE      /* { */
   setAlterDbSttTrigger(16);
+#else                     /* }{ */
+  setAlterDbSttTrigger(1);
+#endif                    /* } */
   setAlterDbBuffer(16);
   setAlterDbPages(128);
   setAlterDbReplica(3);
   setAlterDbWalRetentionPeriod(10);
   setAlterDbWalRetentionSize(20);
+#ifdef TD_ENTERPRISE      /* { */
   run("ALTER DATABASE test BUFFER 16 CACHEMODEL 'last_row' CACHESIZE 32 WAL_FSYNC_PERIOD 200 KEEP 10 PAGES 128 "
-      "REPLICA 3 WAL_LEVEL 1 STT_TRIGGER 16 WAL_RETENTION_PERIOD 10 WAL_RETENTION_SIZE 20");
+      "REPLICA 3 WAL_LEVEL 1 STT_TRIGGER 1y WAL_RETENTION_PERIOD 10 WAL_RETENTION_SIZE 20");
+#else                     /* }{ */
+  run("ALTER DATABASE test BUFFER 16 CACHEMODEL 'last_row' CACHESIZE 32 WAL_FSYNC_PERIOD 200 KEEP 10 PAGES 128 "
+      "REPLICA 3 WAL_LEVEL 1 STT_TRIGGER 1 WAL_RETENTION_PERIOD 10 WAL_RETENTION_SIZE 20");
+#endif                    /* } */
   clearAlterDbReq();
 
   initAlterDb("test");
@@ -289,10 +298,12 @@ TEST_F(ParserInitialATest, alterDatabase) {
   initAlterDb("test");
   setAlterDbSttTrigger(1);
   run("ALTER DATABASE test STT_TRIGGER 1");
+#ifdef TD_ENTERPRISE       /* { */
   setAlterDbSttTrigger(4);
   run("ALTER DATABASE test STT_TRIGGER 4");
   setAlterDbSttTrigger(16);
   run("ALTER DATABASE test STT_TRIGGER 16");
+#endif                     /* } */
   clearAlterDbReq();
 
   initAlterDb("test");

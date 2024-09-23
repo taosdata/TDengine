@@ -27,6 +27,10 @@ add_subdirectory(contrib)
 
 set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
 
+IF (TD_ENTERPRISE)
+  add_definitions(-DTD_ENTERPRISE)
+ENDIF()
+
 # api
 add_library(api INTERFACE)
 target_include_directories(api INTERFACE "include/client")
