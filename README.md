@@ -62,65 +62,51 @@ To build TDengine, use [CMake](https://cmake.org/) 3.13.0 or higher versions in 
 ### Ubuntu 18.04 and above or Debian
 
 ```bash
-sudo apt-get install -y gcc cmake build-essential git libssl-dev libgflags2.2 libgflags-dev libexpat1-dev libapr1-dev libaprutil1-dev libmxml-dev  libgeos-dev 
+apt update -y
+apt install -y build-essential cmake git libjansson-dev liblzma-dev libsnappy-dev zlib1g-dev pkg-config
 ```
 
-#### Install build dependencies for taosTools
-
-To build the [taosTools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
+### Fedora
 
 ```bash
-sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config 
+dnf install -y gcc gcc-c++ make cmake git perl zlib-devel xz-devel snappy-devel jansson-devel pkgconfig
 ```
 
 ### CentOS 7.9
 
 ```bash
-sudo yum install epel-release
-sudo yum update
-sudo yum install -y gcc gcc-c++ make cmake3 gflags git openssl-devel expat-devel geos-devel 
-sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
+yum install epel-release
+yum install -y gcc gcc-c++ make cmake3 git perl-core
+ln -sf /usr/bin/cmake3 /usr/bin/cmake
+yum install -y zlib-static xz-devel snappy-devel jansson-devel pkgconfig
 ```
 
-### CentOS 8/Fedora/Rocky Linux
+### CentOS 8
 
 ```bash
-sudo dnf install -y gcc gcc-c++ make cmake epel-release gflags git openssl-devel
+sed i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS*
+sed i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS*
+yum install -y epel-release
+yum install -y gcc gcc-c++ make cmake git perl
+yum install dnf-plugins-core
+yum config-manager --set-enabled powertools
+yum install -y zlib-static xz-devel snappy-devel jansson-devel pkgconfig
 ```
 
-#### Install build dependencies for taosTools on CentOS
+### Rocky 8
 
-#### CentOS 7.9
-
-```
-sudo yum install -y zlib-devel zlib-static xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libatomic-static libstdc++-static openssl-devel
-```
-
-#### CentOS 8/Fedora/Rocky Linux
-
-```
-sudo yum install -y epel-release
-sudo yum install -y dnf-plugins-core
-sudo yum config-manager --set-enabled powertools
-sudo yum install -y zlib-devel zlib-static xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libatomic-static libstdc++-static openssl-devel
+```bash
+dnf install -y epel-release
+dnf config-manager --set-enabled powertools
+dnf install -y gcc gcc-c++ make cmake git perl
+dnf install -y zlib-static xz-devel snappy-devel jansson-devel pkgconfig
 ```
 
-Note: Since snappy lacks pkg-config support (refer to [link](https://github.com/google/snappy/pull/86)), it leads a cmake prompt libsnappy not found. But snappy still works well.
-
-If the PowerTools installation fails, you can try to use:
-
-```
-sudo yum config-manager --set-enabled powertools
-```
-
-#### For CentOS + devtoolset
-
-Besides above dependencies, please run following commands:
-
-```
-sudo yum install centos-release-scl
-sudo yum install devtoolset-9 devtoolset-9-libatomic-devel
-scl enable devtoolset-9 -- bash
+### Rocky 9
+```bash
+dnf install -y epel-release
+dnf config-manager --enable crb
+dnf install -y gcc gcc-c++ make cmake git perl
 ```
 
 ### macOS
