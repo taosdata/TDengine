@@ -53,12 +53,12 @@ int32_t ttlMgrOpen(STtlManger **ppTtlMgr, TDB *pEnv, int8_t rollback, const char
   *ppTtlMgr = NULL;
 
   STtlManger *pTtlMgr = (STtlManger *)tdbOsCalloc(1, sizeof(*pTtlMgr));
-  if (pTtlMgr == NULL) TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  if (pTtlMgr == NULL) TAOS_RETURN(terrno);
 
   char *logBuffer = (char *)tdbOsCalloc(1, strlen(logPrefix) + 1);
   if (logBuffer == NULL) {
     tdbOsFree(pTtlMgr);
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
   (void)strcpy(logBuffer, logPrefix);
   pTtlMgr->logPrefix = logBuffer;

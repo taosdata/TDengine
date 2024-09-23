@@ -426,7 +426,12 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
   switch (pItem->dtype) {
     case CFG_DTYPE_STRING: {
       if (strcasecmp(name, "slowLogScope") == 0) {
-        char   *tmp = taosStrdup(pVal);
+        char *tmp = taosStrdup(pVal);
+        if (!tmp) {
+          cfgUnLock(pCfg);
+          uError("failed to config:%s since %s", name, terrstr());
+          TAOS_RETURN(terrno);
+        }
         int32_t scope = 0;
         int32_t code = taosSetSlowLogScope(tmp, &scope);
         if (TSDB_CODE_SUCCESS != code) {

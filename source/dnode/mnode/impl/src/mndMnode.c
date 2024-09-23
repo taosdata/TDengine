@@ -14,10 +14,10 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndMnode.h"
 #include "audit.h"
 #include "mndCluster.h"
 #include "mndDnode.h"
+#include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSync.h"
@@ -95,7 +95,7 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
     if (terrno != 0) code = terrno;
     return -1;
   }
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
 
   mInfo("mnode:%d, will be created when deploying, raw:%p", mnodeObj.id, pRaw);
 
@@ -114,7 +114,7 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
     mndTransDrop(pTrans);
     TAOS_RETURN(code);
   }
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -270,19 +270,21 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
       }
     }
     if (pObj->pDnode != NULL) {
-      (void)addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port);
+      if (addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port) != 0) {
+        mError("mnode:%d, failed to add ep:%s:%d into epset", pObj->id, pObj->pDnode->fqdn, pObj->pDnode->port);
+      }
+      sdbRelease(pSdb, pObj);
     }
-    sdbRelease(pSdb, pObj);
-  }
 
-  if (pEpSet->numOfEps == 0) {
-    syncGetRetryEpSet(pMnode->syncMgmt.sync, pEpSet);
-  }
+    if (pEpSet->numOfEps == 0) {
+      syncGetRetryEpSet(pMnode->syncMgmt.sync, pEpSet);
+    }
 
-  if (pEpSet->inUse >= pEpSet->numOfEps) {
-    pEpSet->inUse = 0;
+    if (pEpSet->inUse >= pEpSet->numOfEps) {
+      pEpSet->inUse = 0;
+    }
+    epsetSort(pEpSet);
   }
-  epsetSort(pEpSet);
 }
 
 static int32_t mndSetCreateMnodeRedoLogs(SMnode *pMnode, STrans *pTrans, SMnodeObj *pObj) {
@@ -341,7 +343,11 @@ static int32_t mndBuildCreateMnodeRedoAction(STrans *pTrans, SDCreateMnodeReq *p
   int32_t code = 0;
   int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, pCreateReq);
   void   *pReq = taosMemoryMalloc(contLen);
-  (void)tSerializeSDCreateMnodeReq(pReq, contLen, pCreateReq);
+  code = tSerializeSDCreateMnodeReq(pReq, contLen, pCreateReq);
+  if (code < 0) {
+    taosMemoryFree(pReq);
+    TAOS_RETURN(code);
+  }
 
   STransAction action = {
       .epSet = *pCreateEpSet,
@@ -363,7 +369,11 @@ static int32_t mndBuildAlterMnodeTypeRedoAction(STrans *pTrans, SDAlterMnodeType
   int32_t code = 0;
   int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, pAlterMnodeTypeReq);
   void   *pReq = taosMemoryMalloc(contLen);
-  (void)tSerializeSDCreateMnodeReq(pReq, contLen, pAlterMnodeTypeReq);
+  code = tSerializeSDCreateMnodeReq(pReq, contLen, pAlterMnodeTypeReq);
+  if (code < 0) {
+    taosMemoryFree(pReq);
+    TAOS_RETURN(code);
+  }
 
   STransAction action = {
       .epSet = *pAlterMnodeTypeEpSet,
@@ -385,8 +395,11 @@ static int32_t mndBuildAlterMnodeRedoAction(STrans *pTrans, SDCreateMnodeReq *pA
   int32_t code = 0;
   int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, pAlterReq);
   void   *pReq = taosMemoryMalloc(contLen);
-  (void)tSerializeSDCreateMnodeReq(pReq, contLen, pAlterReq);
-
+  code = tSerializeSDCreateMnodeReq(pReq, contLen, pAlterReq);
+  if (code < 0) {
+    taosMemoryFree(pReq);
+    TAOS_RETURN(code);
+  }
   STransAction action = {
       .epSet = *pAlterEpSet,
       .pCont = pReq,
@@ -407,7 +420,11 @@ static int32_t mndBuildDropMnodeRedoAction(STrans *pTrans, SDDropMnodeReq *pDrop
   int32_t code = 0;
   int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, pDropReq);
   void   *pReq = taosMemoryMalloc(contLen);
-  (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, pDropReq);
+  code = tSerializeSCreateDropMQSNodeReq(pReq, contLen, pDropReq);
+  if (code < 0) {
+    taosMemoryFree(pReq);
+    TAOS_RETURN(code);
+  }
 
   STransAction action = {
       .epSet = *pDroprEpSet,
@@ -868,6 +885,7 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   ESdbStatus objStatus = 0;
   char      *pWrite;
   int64_t    curMs = taosGetTimestampMs();
+  int        code = 0;
 
   pSelfObj = sdbAcquire(pSdb, SDB_MNODE, &pMnode->selfDnodeId);
   if (pSelfObj == NULL) {
@@ -881,13 +899,21 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
+    if (code != 0) {
+      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
+      goto _out;
+    }
 
     char b1[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b1, pObj->pDnode->ep, TSDB_EP_LEN + VARSTR_HEADER_SIZE);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, b1, false);
+    code = colDataSetVal(pColInfo, numOfRows, b1, false);
+    if (code != 0) {
+      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
+      goto _out;
+    }
 
     char role[20] = "offline";
     if (pObj->id == pMnode->selfDnodeId) {
@@ -904,8 +930,11 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     char b2[12 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b2, role, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
-
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
+    if (code != 0) {
+      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
+      goto _out;
+    }
     const char *status = "ready";
     if (objStatus == SDB_STATUS_CREATING) status = "creating";
     if (objStatus == SDB_STATUS_DROPPING) status = "dropping";
@@ -913,14 +942,26 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     char b3[9 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b3, status, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)b3, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)b3, false);
+    if (code != 0) {
+      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
+      goto _out;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
+    if (code != 0) {
+      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
+      goto _out;
+    }
 
     int64_t roleTimeMs = (isDnodeOnline) ? pObj->roleTimeMs : 0;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
+    if (code != 0) {
+      mError("mnode:%d, failed to set col data val since %s", pObj->id, terrstr());
+      goto _out;
+    }
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
@@ -1005,6 +1046,7 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
   void      *pIter = NULL;
   int32_t    updatingMnodes = 0;
   int32_t    readyMnodes = 0;
+  int32_t    code = 0;
   SSyncCfg   cfg = {
         .myIndex = -1,
         .lastIndex = 0,
@@ -1030,7 +1072,10 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
       pNode->nodePort = pObj->pDnode->port;
       pNode->nodeRole = pObj->role;
       tstrncpy(pNode->nodeFqdn, pObj->pDnode->fqdn, TSDB_FQDN_LEN);
-      (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+      code = tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+      if (code != 0) {
+        mError("mnode:%d, failed to update dnode info since %s", pObj->id, terrstr());
+      }
       mInfo("vgId:1, ep:%s:%u dnode:%d", pNode->nodeFqdn, pNode->nodePort, pNode->nodeId);
       if (pObj->pDnode->id == pMnode->selfDnodeId) {
         cfg.myIndex = cfg.totalReplicaNum;

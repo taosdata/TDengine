@@ -714,7 +714,6 @@ static bool tQueryAutoQWorkerTryDecActive(void *p, int32_t minActive) {
     if (atomicCompareExchangeActiveAndRunning(&pPool->activeRunningN, &active, active - 1, &running, running - 1))
       return true;
   }
-  (void)atomicFetchSubRunning(&pPool->activeRunningN, 1);
   return false;
 }
 
@@ -784,6 +783,7 @@ bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool *pPool, SQueryAutoQ
 
     return true;
   } else {
+    (void)atomicFetchSubRunning(&pPool->activeRunningN, 1);
     return true;
   }
 }
@@ -978,7 +978,6 @@ static int32_t tQueryAutoQWorkerAddWorker(SQueryAutoQWorkerPool *pool) {
   SListNode *pNode = tdListAdd(pool->workers, &worker);
   if (!pNode) {
     (void)taosThreadMutexUnlock(&pool->poolLock);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
   (void)taosThreadMutexUnlock(&pool->poolLock);
@@ -1006,6 +1005,7 @@ static int32_t tQueryAutoQWorkerBeforeBlocking(void *p) {
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
+    (void)atomicFetchSubRunning(&pPool->activeRunningN, 1);
   }
 
   return TSDB_CODE_SUCCESS;

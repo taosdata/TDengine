@@ -947,7 +947,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
         case TSDB_DATA_TYPE_NCHAR: {
           pBuf->str = taosMemoryMalloc(pCol->info.bytes);
           if (pBuf->str == NULL) {
-            return TSDB_CODE_OUT_OF_MEMORY;
+            return terrno;
           }
           (void)memcpy(pBuf->str, colDataGetData(pCol, i), varDataTLen(colDataGetData(pCol, i)));
           break;

@@ -47,6 +47,7 @@ typedef struct {
   SMonQmInfo    qmInfo;
   SMonBmInfo    bmInfo;
   SHashObj     *metrics;
+  int32_t       dnodeId;
 } SMonitor;
 
 void monGenClusterInfoTable(SMonInfo *pMonitor);

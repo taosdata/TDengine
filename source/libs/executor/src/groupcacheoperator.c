@@ -45,7 +45,7 @@ static int32_t initGroupColsInfo(SGroupColsInfo* pCols, bool grpColsMayBeNull, S
   pCols->withNull = grpColsMayBeNull;  
   pCols->pColsInfo = taosMemoryMalloc(pCols->colNum * sizeof(SGroupColInfo));
   if (NULL == pCols->pColsInfo) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t i = 0;
@@ -67,7 +67,7 @@ static int32_t initGroupColsInfo(SGroupColsInfo* pCols, bool grpColsMayBeNull, S
   if (pCols->colNum > 1) {
     pCols->pBuf = taosMemoryMalloc(pCols->bufSize);
     if (NULL == pCols->pBuf) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -227,7 +227,7 @@ static int32_t acquireFdFromFileCtx(SGcFileCacheCtx* pFileCtx, int32_t fileId, S
   if (NULL == pFileCtx->pCacheFile) {
     pFileCtx->pCacheFile = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
     if (NULL == pFileCtx->pCacheFile) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     taosHashSetFreeFp(pFileCtx->pCacheFile, freeSGroupCacheFileInfo);
   }
@@ -461,7 +461,7 @@ static int32_t addBlkToBufCache(struct SOperatorInfo* pOperator, SSDataBlock* pB
   pBufInfo->pBuf = taosMemoryMalloc(bufSize);
   if (NULL == pBufInfo->pBuf) {
     qError("group cache add block to cache failed, size:%" PRId64, bufSize);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   QRY_ERR_RET(blockDataToBuf(pBufInfo->pBuf, pBlock));
 
@@ -508,7 +508,7 @@ void blockDataDeepClear(SSDataBlock* pDataBlock) {
 static int32_t buildGroupCacheBaseBlock(SSDataBlock** ppDst, SSDataBlock* pSrc) {
   *ppDst = taosMemoryMalloc(sizeof(*pSrc));
   if (NULL == *ppDst) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (*ppDst)->pBlockAgg = NULL;
   (*ppDst)->pDataBlock = taosArrayDup(pSrc->pDataBlock, NULL);
@@ -578,7 +578,7 @@ static int32_t readBlockFromDisk(SGroupCacheOperatorInfo* pGCache, SGroupCacheDa
 
   *ppBuf = taosMemoryMalloc(pBasic->bufSize);
   if (NULL == *ppBuf) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _return;
   }
   
@@ -643,7 +643,7 @@ static int32_t addNewGroupToVgHash(SOperatorInfo* pOperator, SSHashObj* pHash, S
   if (NULL == pVgCtx) {
     SArray* pList = taosArrayInit(10, sizeof(*pNew));
     if (NULL == pList) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if (NULL == taosArrayPush(pList, pNew)) {
       QRY_ERR_RET(terrno);
@@ -798,7 +798,7 @@ static int32_t addFileRefTableNum(SGcFileCacheCtx* pFileCtx, int32_t fileId, int
   if (NULL == pFileCtx->pCacheFile) {
     pFileCtx->pCacheFile = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
     if (NULL == pFileCtx->pCacheFile) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     taosHashSetFreeFp(pFileCtx->pCacheFile, freeSGroupCacheFileInfo);
   }
@@ -913,7 +913,7 @@ static int32_t addNewGroupData(struct SOperatorInfo* pOperator, SOperatorParam* 
     taosWLockLatch(&pCtx->grpLock);
     if (NULL == taosArrayPush(pCtx->pNewGrpList, &newGroup)) {
       taosWUnLockLatch(&pCtx->grpLock);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     taosWUnLockLatch(&pCtx->grpLock);
     
@@ -1037,16 +1037,13 @@ static int32_t getCacheBlkFromDownstreamOperator(struct SOperatorInfo* pOperator
   SGroupCacheOperatorInfo* pGCache = pOperator->info;
 
   while (continueFetch && TSDB_CODE_SUCCESS == code) {
-    int32_t code = getBlkFromDownstreamOperator(pOperator, pSession->downstreamIdx, ppRes);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
-    }
+    QRY_ERR_RET(getBlkFromDownstreamOperator(pOperator, pSession->downstreamIdx, ppRes));
     
     if (NULL == *ppRes) {
-      code = handleDownstreamFetchDone(pOperator, pSession);
+      QRY_ERR_RET(handleDownstreamFetchDone(pOperator, pSession));
       break;
     } else {
-      code = handleGroupCacheRetrievedBlk(pOperator, *ppRes, pSession, &continueFetch);
+      QRY_ERR_RET(handleGroupCacheRetrievedBlk(pOperator, *ppRes, pSession, &continueFetch));
     }
   }
 
@@ -1129,6 +1126,11 @@ static int32_t getBlkFromSessionCacheImpl(struct SOperatorInfo* pOperator, int64
 
 
 static int32_t groupCacheSessionWait(struct SOperatorInfo* pOperator, SGcDownstreamCtx* pCtx, int64_t sessionId, SGcSessionCtx* pSession, SSDataBlock** ppRes) {
+  // FOR NOW, IT'S ERROR TO REACH HERE
+#if 1
+  qError("should not enter session wait");
+  return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+#else
   SGroupCacheOperatorInfo* pGCache = pOperator->info;
   SGroupCacheData* pGroup = pSession->pGroupData;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1181,6 +1183,7 @@ _return:
   }
 
   return code;
+#endif
 }
 
 
@@ -1206,6 +1209,10 @@ static int32_t getBlkFromSessionCache(struct SOperatorInfo* pOperator, int64_t s
       
       code = getCacheBlkFromDownstreamOperator(pOperator, pCtx, sessionId, pSession, ppRes);
       goto _return;
+    } else {
+      // FOR NOW, SHOULD NOT REACH HERE
+      qError("Invalid fetchSessionId:%" PRId64 ", currentSessionId:%" PRId64, pCtx->fetchSessionId, sessionId);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
 
     if (locked) {
@@ -1241,12 +1248,12 @@ static int32_t initGroupCacheBlockCache(SGroupCacheOperatorInfo* pInfo) {
   SGcBlkCacheInfo* pCache = &pInfo->blkCache;
   pCache->pDirtyBlk = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   if (NULL == pCache->pDirtyBlk) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   taosHashSetFreeFp(pCache->pDirtyBlk, freeGcBlkBufInfo);
   pCache->pReadBlk = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   if (NULL == pCache->pReadBlk) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pCache->writeDownstreamId = -1;
 
@@ -1292,6 +1299,9 @@ static int32_t initGroupCacheSession(struct SOperatorInfo* pOperator, SOperatorP
     qError("fail to get session %" PRId64 " from pSessions", pGcParam->sessionId);
     QRY_ERR_RET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   }
+
+  qDebug("session:%" PRId64 " initialized, downstreamIdx:%d, vgId:%d, tbUid:%" PRId64 ", needCache:%d", 
+    pGcParam->sessionId, pGcParam->downstreamIdx, pGcParam->vgId, pGcParam->tbUid, pGcParam->needCache);
   
   return TSDB_CODE_SUCCESS;
 }
@@ -1323,7 +1333,7 @@ static int32_t getBlkFromGroupCache(struct SOperatorInfo* pOperator, SSDataBlock
     }
   }
   
-  code = getBlkFromSessionCache(pOperator, pGcParam->sessionId, pSession, ppRes);
+  QRY_ERR_RET(getBlkFromSessionCache(pOperator, pGcParam->sessionId, pSession, ppRes));
   if (NULL == *ppRes) {
     qDebug("session %" PRId64 " in downstream %d total got %" PRId64 " rows", pGcParam->sessionId, pCtx->id, pSession->resRows);
     code = taosHashRemove(pCtx->pSessions, &pGcParam->sessionId, sizeof(pGcParam->sessionId));
@@ -1411,30 +1421,30 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
     
     pCtx->pNewGrpList = taosArrayInit(10, sizeof(SGcNewGroupInfo));
     if (NULL == pCtx->pNewGrpList) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if (!pInfo->globalGrp) {
       pCtx->pGrpHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
       if (pCtx->pGrpHash == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       taosHashSetFreeFp(pCtx->pGrpHash, freeRemoveGroupCacheData);      
     }
 
     pCtx->pSessions = taosHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
     if (pCtx->pSessions == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     taosHashSetFreeFp(pCtx->pSessions, freeSGcSessionCtx);
   
     pCtx->pFreeBlock = taosArrayInit(10, POINTER_BYTES);
     if (NULL == pCtx->pFreeBlock) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     
     pCtx->pWaitSessions = taosHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
     if (pCtx->pWaitSessions == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     (void)snprintf(pCtx->fileCtx.baseFilename, sizeof(pCtx->fileCtx.baseFilename) - 1, "%s/gc_%d_%" PRIx64 "_%" PRIu64 "_%d", 
@@ -1529,7 +1539,7 @@ int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfD
   if (pInfo->globalGrp) {
     pInfo->pGrpHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
     if (pInfo->pGrpHash == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _error;
     }
     taosHashSetFreeFp(pInfo->pGrpHash, freeRemoveGroupCacheData);

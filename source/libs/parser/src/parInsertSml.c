@@ -101,11 +101,11 @@ static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchem
                               SMsgBuf* msg) {
   SArray* pTagArray = taosArrayInit(tags->numOfBound, sizeof(STagVal));
   if (!pTagArray) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   *tagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
   if (!*tagName) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -125,7 +125,7 @@ static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchem
     }
 
     if (taosArrayPush(*tagName, pTagSchema->name) == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       uError("SML smlBuildTagRow error push tag name");
       goto end;
     }
@@ -160,7 +160,7 @@ static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchem
       (void)memcpy(&val.i64, &(kv->value), kv->length);
     }
     if (taosArrayPush(pTagArray, &val) == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       uError("SML smlBuildTagRow error push tag array");
       goto end;
     }
@@ -209,7 +209,7 @@ void clearColValArraySml(SArray* pCols) {
 int32_t smlBuildRow(STableDataCxt* pTableCxt) {
   SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
   if (pRow == NULL){
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   int    ret = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
   if (TSDB_CODE_SUCCESS != ret) {
@@ -274,6 +274,11 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
   } else if (kv->type == TSDB_DATA_TYPE_GEOMETRY || kv->type == TSDB_DATA_TYPE_VARBINARY) {
     pVal->value.nData = kv->length;
     pVal->value.pData = taosMemoryMalloc(kv->length);
+    if (!pVal->value.pData) {
+      ret = terrno;
+      uError("SML smlBuildCol malloc failed %s:%d, err: %s", __func__, __LINE__, tstrerror(ret));
+      goto end;
+    }
     (void)memcpy(pVal->value.pData, (uint8_t*)kv->value, kv->length);
   } else {
     (void)memcpy(&pVal->value.val, &(kv->value), kv->length);
@@ -318,8 +323,11 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
     ret = terrno;
     goto end;
   }
-  insBuildCreateTbReq(pCreateTblReq, tableName, pTag, pTableMeta->suid, NULL, tagName, pTableMeta->tableInfo.numOfTags,
-                      ttl);
+  ret = insBuildCreateTbReq(pCreateTblReq, tableName, pTag, pTableMeta->suid, NULL, tagName,
+                            pTableMeta->tableInfo.numOfTags, ttl);
+  if (TSDB_CODE_SUCCESS != ret) {
+    goto end;
+  }
 
   pCreateTblReq->ctb.stbName = taosMemoryCalloc(1, sTableNameLen + 1);
   if (pCreateTblReq->ctb.stbName == NULL){
@@ -423,7 +431,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
         pVal->value.nData = kv->length;
         pVal->value.pData = taosMemoryMalloc(kv->length);
         if (NULL == pVal->value.pData) {
-          ret = TSDB_CODE_OUT_OF_MEMORY;
+          ret = terrno;
           goto end;
         }
         (void)memcpy(pVal->value.pData, (uint8_t*)kv->value, kv->length);
@@ -435,7 +443,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
 
     SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
     if (NULL == pRow) {
-      ret = TSDB_CODE_OUT_OF_MEMORY;
+      ret = terrno;
       goto end;
     }
     ret = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
@@ -480,7 +488,7 @@ int32_t smlInitHandle(SQuery** query) {
     uError("create pTableBlockHashObj error");
     qDestroyQuery(pQuery);
     nodesDestroyNode((SNode*)stmt);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   stmt->freeHashFunc = insDestroyTableDataCxtHashMap;
   stmt->freeArrayFunc = insDestroyVgroupDataCxtList;

@@ -101,7 +101,7 @@ int32_t convertNcharToDouble(const void *inData, void *outData) {
   int32_t code = TSDB_CODE_SUCCESS;
   char   *tmp = taosMemoryMalloc(varDataTLen(inData));
   if (NULL == tmp) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   int   len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp);
   if (len < 0) {
@@ -540,7 +540,7 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
       tmp = taosMemoryMalloc(bufSize);
       if (tmp == NULL) {
         sclError("out of memory in vectorConvertFromVarData");
-        SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+        SCL_ERR_JRET(terrno);
       }
     }
 
@@ -596,6 +596,11 @@ int32_t ncharTobinary(void *buf, void **out) {  // todo need to remove , if tobi
   int32_t inputLen = varDataTLen(buf);
 
   *out = taosMemoryCalloc(1, inputLen);
+  if (NULL == *out) {
+    sclError("charset:%s to %s. val:%s convert ncharTobinary failed, since memory alloc failed.",
+             DEFAULT_UNICODE_ENCODEC, tsCharset, (char *)varDataVal(buf));
+    SCL_ERR_RET(terrno);
+  }
   int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(*out));
   if (len < 0) {
     sclError("charset:%s to %s. val:%s convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,

@@ -210,7 +210,11 @@ static void mndPullupGrant(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_GRANT_HB_TIMER, .pCont = pReq, .contLen = contLen, .info.ahandle = 0};
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_GRANT_HB_TIMER,
+                      .pCont = pReq,
+                      .contLen = contLen,
+                      .info.notFreeAhandle = 1,
+                      .info.ahandle = 0};
     // TODO check return value
     (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
@@ -221,8 +225,11 @@ static void mndIncreaseUpTime(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
-    SRpcMsg rpcMsg = {
-        .msgType = TDMT_MND_UPTIME_TIMER, .pCont = pReq, .contLen = contLen, .info.ahandle = (void *)0x9528};
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPTIME_TIMER,
+                      .pCont = pReq,
+                      .contLen = contLen,
+                      .info.notFreeAhandle = 1,
+                      .info.ahandle = (void *)0x9527};
     // TODO check return value
     (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }

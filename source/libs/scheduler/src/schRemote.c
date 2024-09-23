@@ -754,7 +754,7 @@ int32_t schCloneHbRpcCtx(SRpcCtx *pSrc, SRpcCtx *pDst) {
   pDst->args = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
   if (NULL == pDst->args) {
     qError("taosHashInit %d RpcCtx failed", 1);
-    SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCH_ERR_JRET(terrno);
   }
 
   SRpcCtxVal dst = {0};
@@ -798,7 +798,7 @@ int32_t schMakeHbRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   pCtx->args = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
   if (NULL == pCtx->args) {
     SCH_TASK_ELOG("taosHashInit %d RpcCtx failed", 1);
-    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCH_ERR_RET(terrno);
   }
 
   pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
@@ -872,7 +872,7 @@ int32_t schMakeQueryRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   pCtx->args = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
   if (NULL == pCtx->args) {
     SCH_TASK_ELOG("taosHashInit %d RpcCtx failed", 1);
-    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCH_ERR_RET(terrno);
   }
 
   SSchTrans trans = {.pTrans = pJob->conn.pTrans, .pHandle = SCH_GET_TASK_HANDLE(pTask)};
@@ -907,7 +907,7 @@ int32_t schCloneCallbackParam(SSchCallbackParamHeader *pSrc, SSchCallbackParamHe
     SSchHbCallbackParam *dst = taosMemoryMalloc(sizeof(SSchHbCallbackParam));
     if (NULL == dst) {
       qError("malloc SSchHbCallbackParam failed");
-      SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCH_ERR_RET(terrno);
     }
 
     TAOS_MEMCPY(dst, pSrc, sizeof(*dst));
@@ -919,7 +919,7 @@ int32_t schCloneCallbackParam(SSchCallbackParamHeader *pSrc, SSchCallbackParamHe
   SSchTaskCallbackParam *dst = taosMemoryMalloc(sizeof(SSchTaskCallbackParam));
   if (NULL == dst) {
     qError("malloc SSchTaskCallbackParam failed");
-    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCH_ERR_RET(terrno);
   }
 
   TAOS_MEMCPY(dst, pSrc, sizeof(*dst));

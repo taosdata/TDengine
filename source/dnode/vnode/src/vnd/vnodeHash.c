@@ -55,7 +55,7 @@ int32_t vHashInit(SVHashTable** ht, uint32_t (*hash)(const void*), int32_t (*com
 
   (*ht) = (SVHashTable*)taosMemoryMalloc(sizeof(SVHashTable));
   if (*ht == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*ht)->hash = hash;
@@ -102,7 +102,7 @@ int32_t vHashPut(SVHashTable* ht, void* obj) {
 
   SVHashEntry* entry = (SVHashEntry*)taosMemoryMalloc(sizeof(SVHashEntry));
   if (entry == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   entry->obj = obj;
   entry->next = ht->buckets[bucketIndex];

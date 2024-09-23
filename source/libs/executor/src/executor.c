@@ -488,7 +488,7 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
       keyBuf = taosMemoryMalloc(bufLen);
       if (keyBuf == NULL) {
         taosArrayDestroy(qa);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
 
@@ -877,7 +877,7 @@ int32_t qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo
 
   if (!tmp) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   return TSDB_CODE_SUCCESS;
 }

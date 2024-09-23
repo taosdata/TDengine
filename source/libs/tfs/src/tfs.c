@@ -96,15 +96,15 @@ void tfsUpdateSize(STfs *pTfs) {
     size.used += pTier->size.used;
   }
 
-  (void)tfsLock(pTfs);
+  TAOS_UNUSED(tfsLock(pTfs));
   pTfs->size = size;
-  (void)tfsUnLock(pTfs);
+  TAOS_UNUSED(tfsUnLock(pTfs));
 }
 
 SDiskSize tfsGetSize(STfs *pTfs) {
-  (void)tfsLock(pTfs);
+  TAOS_UNUSED(tfsLock(pTfs));
   SDiskSize size = pTfs->size;
-  (void)tfsUnLock(pTfs);
+  TAOS_UNUSED(tfsUnLock(pTfs));
 
   return size;
 }
@@ -204,8 +204,8 @@ bool tfsIsSameFile(const STfsFile *pFile1, const STfsFile *pFile2) {
   (void)strncpy(nameBuf2, pFile2->rname, TMPNAME_LEN);
   nameBuf1[TMPNAME_LEN - 1] = 0;
   nameBuf2[TMPNAME_LEN - 1] = 0;
-  (void)taosRealPath(nameBuf1, NULL, TMPNAME_LEN);
-  (void)taosRealPath(nameBuf2, NULL, TMPNAME_LEN);
+  TAOS_UNUSED(taosRealPath(nameBuf1, NULL, TMPNAME_LEN));
+  TAOS_UNUSED(taosRealPath(nameBuf2, NULL, TMPNAME_LEN));
   if (strncmp(nameBuf1, nameBuf2, TMPNAME_LEN) != 0) return false;
   return true;
 }
@@ -483,7 +483,7 @@ const STfsFile *tfsReaddir(STfsDir *pTfsDir) {
 void tfsClosedir(STfsDir *pTfsDir) {
   if (pTfsDir) {
     if (pTfsDir->pDir != NULL) {
-      (void)taosCloseDir(&pTfsDir->pDir);
+      TAOS_UNUSED(taosCloseDir(&pTfsDir->pDir));
       pTfsDir->pDir = NULL;
     }
     taosMemoryFree(pTfsDir);
@@ -698,7 +698,7 @@ int32_t tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo) {
 
   tfsUpdateSize(pTfs);
 
-  (void)tfsLock(pTfs);
+  TAOS_UNUSED(tfsLock(pTfs));
   for (int32_t level = 0; level < pTfs->nlevel; level++) {
     STfsTier *pTier = &pTfs->tiers[level];
     for (int32_t disk = 0; disk < pTier->ndisk; ++disk) {
@@ -708,14 +708,14 @@ int32_t tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo) {
       dinfo.level = pDisk->level;
       tstrncpy(dinfo.name, pDisk->path, sizeof(dinfo.name));
       if (taosArrayPush(pInfo->datadirs, &dinfo) == NULL) {
-        (void)tfsUnLock(pTfs);
+        TAOS_UNUSED(tfsUnLock(pTfs));
         taosArrayDestroy(pInfo->datadirs);
         pInfo->datadirs = NULL;
         TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
       }
     }
   }
-  (void)tfsUnLock(pTfs);
+  TAOS_UNUSED(tfsUnLock(pTfs));
 
   TAOS_RETURN(0);
 }

@@ -146,6 +146,10 @@ void syncStop(int64_t rid) {
 void syncPreStop(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode != NULL) {
+    if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
+      sInfo("vgId:%d, stop snapshot receiver", pSyncNode->vgId);
+      snapshotReceiverStop(pSyncNode->pNewNodeReceiver);
+    }
     syncNodePreClose(pSyncNode);
     syncNodeRelease(pSyncNode);
   }
@@ -399,7 +403,7 @@ int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq) {
     TAOS_RETURN(code);
   }
 
-  SRpcMsg rpcMsg = {0};
+  SRpcMsg rpcMsg = {0, .info.notFreeAhandle = 1};
   int32_t ret = syncRespMgrGetAndDel(pNode->pSyncRespMgr, seq, &rpcMsg.info);
   rpcMsg.code = TSDB_CODE_SYN_TIMEOUT;
 
@@ -3640,7 +3644,9 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
 
       if (code > 0) {
         SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
-        (void)syncRespMgrGetAndDel(ths->pSyncRespMgr, pEntry->seqNum, &rsp.info);
+        int32_t num = syncRespMgrGetAndDel(ths->pSyncRespMgr, pEntry->seqNum, &rsp.info);
+        sDebug("vgId:%d, get response stub for config change, seqNum:%" PRIu64 ", num:%d", ths->vgId, pEntry->seqNum,
+               num);
         if (rsp.info.handle != NULL) {
           tmsgSendRsp(&rsp);
         }

@@ -256,7 +256,9 @@ static int32_t mndArbGroupActionUpdate(SSdb *pSdb, SArbGroup *pOld, SArbGroup *p
 _OVER:
   (void)taosThreadMutexUnlock(&pOld->mutex);
 
-  (void)taosHashRemove(arbUpdateHash, &pOld->vgId, sizeof(int32_t));
+  if (taosHashRemove(arbUpdateHash, &pOld->vgId, sizeof(int32_t)) != 0) {
+    mError("arbgroup:%d, failed to remove from arbUpdateHash", pOld->vgId);
+  }
   return 0;
 }
 
@@ -451,7 +453,7 @@ static int32_t mndProcessArbHbTimer(SRpcMsg *pReq) {
     int64_t mndTerm = mndGetTerm(pMnode);
 
     if (mndIsDnodeOnline(pDnode, nowMs)) {
-      (void)mndSendArbHeartBeatReq(pDnode, arbToken, mndTerm, hbMembers);
+      TAOS_CHECK_RETURN(mndSendArbHeartBeatReq(pDnode, arbToken, mndTerm, hbMembers));
     }
 
     mndReleaseDnode(pMnode, pDnode);
@@ -684,7 +686,7 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
     sdbRelease(pSdb, pArbGroup);
   }
 
-  (void)mndPullupArbUpdateGroupBatch(pMnode, pUpdateArray);
+  TAOS_CHECK_RETURN(mndPullupArbUpdateGroupBatch(pMnode, pUpdateArray));
 
   taosArrayDestroy(pUpdateArray);
   return 0;
@@ -795,7 +797,9 @@ _OVER:
   if (ret != 0) {
     for (size_t i = 0; i < sz; i++) {
       SArbGroup *pNewGroup = taosArrayGet(newGroupArray, i);
-      (void)taosHashRemove(arbUpdateHash, &pNewGroup->vgId, sizeof(pNewGroup->vgId));
+      if (taosHashRemove(arbUpdateHash, &pNewGroup->vgId, sizeof(pNewGroup->vgId)) != 0) {
+        mError("failed to remove vgId:%d from arbUpdateHash", pNewGroup->vgId);
+      }
     }
   }
 
@@ -839,7 +843,9 @@ static int32_t mndProcessArbUpdateGroupBatchReq(SRpcMsg *pReq) {
     SArbGroup *pOldGroup = sdbAcquire(pMnode->pSdb, SDB_ARBGROUP, &newGroup.vgId);
     if (!pOldGroup) {
       mInfo("vgId:%d, arb skip to update arbgroup, since no obj found", newGroup.vgId);
-      (void)taosHashRemove(arbUpdateHash, &newGroup.vgId, sizeof(int32_t));
+      if (taosHashRemove(arbUpdateHash, &newGroup.vgId, sizeof(int32_t)) != 0) {
+        mError("failed to remove vgId:%d from arbUpdateHash", newGroup.vgId);
+      }
       continue;
     }
 
@@ -869,7 +875,9 @@ _OVER:
     // failed to update arbgroup
     for (size_t i = 0; i < sz; i++) {
       SMArbUpdateGroup *pUpdateGroup = taosArrayGet(req.updateArray, i);
-      (void)taosHashRemove(arbUpdateHash, &pUpdateGroup->vgId, sizeof(int32_t));
+      if (taosHashRemove(arbUpdateHash, &pUpdateGroup->vgId, sizeof(int32_t)) != 0) {
+        mError("failed to remove vgId:%d from arbUpdateHash", pUpdateGroup->vgId);
+      }
     }
   }
 
@@ -1010,7 +1018,7 @@ static int32_t mndUpdateArbHeartBeat(SMnode *pMnode, int32_t dnodeId, SArray *me
     sdbRelease(pMnode->pSdb, pGroup);
   }
 
-  (void)mndPullupArbUpdateGroupBatch(pMnode, pUpdateArray);
+  TAOS_CHECK_RETURN(mndPullupArbUpdateGroupBatch(pMnode, pUpdateArray));
 
   taosArrayDestroy(pUpdateArray);
   return 0;
@@ -1102,7 +1110,7 @@ static int32_t mndProcessArbHbRsp(SRpcMsg *pRsp) {
     goto _OVER;
   }
 
-  (void)mndUpdateArbHeartBeat(pMnode, arbHbRsp.dnodeId, arbHbRsp.hbMembers);
+  TAOS_CHECK_GOTO(mndUpdateArbHeartBeat(pMnode, arbHbRsp.dnodeId, arbHbRsp.hbMembers), NULL, _OVER);
   code = 0;
 
 _OVER:
@@ -1249,6 +1257,8 @@ static int32_t mndRetrieveArbGroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   int32_t    numOfRows = 0;
   int32_t    cols = 0;
   SArbGroup *pGroup = NULL;
+  int32_t    code = 0;
+  int32_t    lino = 0;
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_ARBGROUP, pShow->pIter, (void **)&pGroup);
@@ -1264,33 +1274,40 @@ static int32_t mndRetrieveArbGroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       sdbRelease(pSdb, pGroup);
       continue;
     }
+    char dbNameInGroup[TSDB_DB_FNAME_LEN];
+    strncpy(dbNameInGroup, pVgObj->dbName, TSDB_DB_FNAME_LEN);
+    sdbRelease(pSdb, pVgObj);
+
     char dbname[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(dbname, mndGetDbStr(pVgObj->dbName), TSDB_ARB_TOKEN_SIZE + VARSTR_HEADER_SIZE);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)dbname, false);
+    STR_WITH_MAXSIZE_TO_VARSTR(dbname, mndGetDbStr(dbNameInGroup), TSDB_ARB_TOKEN_SIZE + VARSTR_HEADER_SIZE);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)dbname, false), pGroup, &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pGroup->vgId, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pGroup->vgId, false), pGroup, &lino, _OVER);
 
     for (int i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
       SArbGroupMember *pMember = &pGroup->members[i];
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pMember->info.dnodeId, false);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pMember->info.dnodeId, false), pGroup,
+                          &lino, _OVER);
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pGroup->isSync, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pGroup->isSync, false), pGroup, &lino, _OVER);
 
     if (pGroup->assignedLeader.dnodeId != 0) {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pGroup->assignedLeader.dnodeId, false);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pGroup->assignedLeader.dnodeId, false),
+                          pGroup, &lino, _OVER);
 
       char token[TSDB_ARB_TOKEN_SIZE + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(token, pGroup->assignedLeader.token, TSDB_ARB_TOKEN_SIZE + VARSTR_HEADER_SIZE);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      (void)colDataSetVal(pColInfo, numOfRows, (const char *)token, false);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)token, false), pGroup, &lino, _OVER);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pGroup->assignedLeader.acked, false);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pGroup->assignedLeader.acked, false),
+                          pGroup, &lino, _OVER);
     } else {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetNULL(pColInfo, numOfRows);
@@ -1305,10 +1322,11 @@ static int32_t mndRetrieveArbGroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     (void)taosThreadMutexUnlock(&pGroup->mutex);
 
     numOfRows++;
-    sdbRelease(pSdb, pVgObj);
     sdbRelease(pSdb, pGroup);
   }
 
+_OVER:
+  if (code != 0) mError("failed to restrieve arb group at line:%d, since %s", lino, tstrerror(code));
   pShow->numOfRows += numOfRows;
 
   return numOfRows;
