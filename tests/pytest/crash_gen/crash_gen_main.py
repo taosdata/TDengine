@@ -687,19 +687,24 @@ class AnyState:
 
     STATE_VAL_IDX = 0
     CAN_CREATE_DB = 1
-    # For below, if we can "drop the DB", but strictly speaking 
+    # For below, if we can "drop the DB", but strictly speaking
     # only "under normal circumstances", as we may override it with the -b option
     CAN_DROP_DB = 2
     CAN_CREATE_FIXED_SUPER_TABLE = 3
     CAN_CREATE_STREAM = 3  # super table must exists
     CAN_CREATE_TOPIC = 3  # super table must exists
     CAN_CREATE_CONSUMERS = 3
+    CAN_CREATE_TSMA = 3
     CAN_DROP_FIXED_SUPER_TABLE = 4
     CAN_DROP_TOPIC = 4
     CAN_DROP_STREAM = 4
+    CAN_PAUSE_STREAM = 4
+    CAN_RESUME_STREAM = 4
+    CAN_DROP_TSMA = 4
     CAN_ADD_DATA = 5
     CAN_READ_DATA = 6
     CAN_DELETE_DATA = 6
+    
 
     def __init__(self):
         self._info = self.getInfo()
@@ -759,11 +764,23 @@ class AnyState:
     def canCreateConsumers(self):
         return self._info[self.CAN_CREATE_CONSUMERS]
 
+    def canCreateTsma(self):
+        return self._info[self.CAN_CREATE_TSMA]
+
+    def canDropTsma(self):
+        return self._info[self.CAN_DROP_TSMA]
+
     def canCreateStreams(self):
         return self._info[self.CAN_CREATE_STREAM]
 
     def canDropStream(self):
         return self._info[self.CAN_DROP_STREAM]
+
+    def canPauseStream(self):
+        return self._info[self.CAN_PAUSE_STREAM]
+
+    def canResumeStream(self):
+        return self._info[self.CAN_RESUME_STREAM]
 
     def canAddData(self):
         return self._info[self.CAN_ADD_DATA]
@@ -1104,11 +1121,11 @@ class StateMechine:
         BasicTypes = self.getTaskTypes()
         weightsTypes = BasicTypes.copy()
 
-        # this matrixs can balance  the Frequency of TaskTypes 
-        balance_TaskType_matrixs = {'TaskDropDb': 5, 'TaskDropTopics': 20, 'TaskDropStreams': 0,
-                                    'TaskDropStreamTables': 10,
+        # this matrixs can balance  the Frequency of TaskTypes
+        balance_TaskType_matrixs = {'TaskDropDb': 5, 'TaskDropTopics': 20, 'TaskDropStreams': 1, 'TaskDropTsmas': 1,
+                                    'TaskDropStreamTables': 10, 'TaskPauseStreams': 1, 'TaskResumeStreams': 1,
                                     'TaskReadData': 50, 'TaskDropSuperTable': 5, 'TaskAlterTags': 3, 'TaskAddData': 10,
-                                    'TaskDeleteData': 10, 'TaskCreateDb': 10, 'TaskCreateStream': 10,
+                                    'TaskDeleteData': 10, 'TaskCreateDb': 10, 'TaskCreateStream': 10, 'TaskCreateTsma': 10,
                                     'TaskCreateTopic': 3,
                                     'TaskCreateConsumers': 10,
                                     'TaskCreateSuperTable': 10}  # TaskType : balance_matrixs of task
@@ -1999,6 +2016,8 @@ class TaskCreateStream(StateTransitionTask):
                 Logging.debug("Skipping task, no DB yet")
                 return
             sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
+            if not sTable.ensureSuperTable(self, wt.getDbConn()):  # Ensure the super table exists
+                return
             print("stream sTable------", sTable)
             tags = sTable._getTags(dbc)
             print("stream tags------", tags)
@@ -2103,6 +2122,8 @@ class TaskCreateTopic(StateTransitionTask):
         # create topic if not exists topic_ctb_column as select ts, c1, c2, c3 from stb1;
 
         stbname = sTable.getName()
+        if not sTable.ensureSuperTable(self, wt.getDbConn()):  # Ensure the super table exists
+            return
         sub_tables = sTable.getRegTables(wt.getDbConn())
 
         scalarExpr = Dice.choice(
@@ -2137,6 +2158,65 @@ class TaskCreateTopic(StateTransitionTask):
         self.execWtSql(wt, topic_sql)
         Logging.debug("[OPS] db topic is creating at {}".format(time.time()))
 
+
+class TaskCreateTsma(StateTransitionTask):
+    maxSelectItems = 5
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        return state.canCreateTsma()
+
+    def generateRandomFuncs(self, st, colDict, dbname, tbname, doAggr=0): # tsma must use agg
+        selectPartList = []
+        for column_name, column_type in colDict.items():
+            for fm in FunctionMap:
+                if column_type in fm.value['types']:
+                    selectStrs, _ = st.selectFuncsFromType(fm.value, column_name, column_type, doAggr)
+                    if len(selectStrs) > 0:
+                        selectPartList.append(selectStrs)
+        return ', '.join(selectPartList)
+
+    def genCreateTsmaSql(self, st, colDict, tbname):
+        dbname = self._db.getName()
+        tsmaName = f'{dbname}_{tbname}_tsma'
+        funcs = self.generateRandomFuncs(st, colDict, dbname, tbname)
+        windowStr = st.getWindowStr("INTERVAL", colDict, stream=True)
+        return f"CREATE TSMA  IF NOT EXISTS {tsmaName} ON {dbname}.{tbname} FUNCTION({funcs}) {windowStr};"
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        # CREATE TSMA tsma1 ON nsdb.meters FUNCTION(avg(c1),avg(c2)) INTERVAL(5m);
+        try:
+            dbname = self._db.getName()
+            dbc = wt.getDbConn()
+
+            if not self._db.exists(dbc):
+                Logging.debug("Skipping task, no DB yet")
+                return
+
+            sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
+            tags = sTable._getTags(dbc)
+            cols = sTable._getCols(dbc)
+            tagCols = {**tags, **cols}
+            selectCnt = random.randint(1, len(tagCols))
+            selectKeys = random.sample(list(tagCols.keys()), selectCnt)
+            selectItems = {key: tagCols[key] for key in selectKeys[:self.maxSelectItems]}
+
+            stbname = sTable.getName()
+            if not sTable.ensureSuperTable(self, wt.getDbConn()):  # Ensure the super table exists
+                return
+            regTables = sTable.getRegTables(wt.getDbConn())
+            tbname = random.choice([stbname, regTables[0]]) if regTables else stbname
+            createTsmaSql = self.genCreateTsmaSql(sTable, selectItems, tbname)
+            # exec create topics
+            self.execWtSql(wt, "use {}".format(dbname))
+            self.execWtSql(wt, createTsmaSql)
+            Logging.debug("[OPS] db tsma is creating at {}".format(time.time()))
+        except Exception as e:
+            self.logError(f"func TaskCreateTsma error: {e}")
+            raise CrashGenError(f"func TaskCreateTsma error: {e}")
 
 class TaskDropTopics(StateTransitionTask):
 
@@ -2187,6 +2267,54 @@ class TaskDropStreams(StateTransitionTask):
             sTable.dropStreams(wt.getDbConn())  # drop stream of database
 
 
+class TaskPauseStreams(StateTransitionTask):
+
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        return state.canPauseStream()
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        # dbname = self._db.getName()
+
+        if not self._db.exists(wt.getDbConn()):
+            Logging.debug("Skipping task, no DB yet")
+            return
+
+        sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
+        # wt.execSql("use db")    # should always be in place
+        # tblName = sTable.getName()
+        # TODO pause stream maybe failed because checkpoint trasactions
+        if sTable.hasStreams(wt.getDbConn()):
+            sTable.pauseStreams(wt.getDbConn())  # pause stream
+
+class TaskResumeStreams(StateTransitionTask):
+
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        return state.canResumeStream()
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        # dbname = self._db.getName()
+
+        if not self._db.exists(wt.getDbConn()):
+            Logging.debug("Skipping task, no DB yet")
+            return
+
+        sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
+        # wt.execSql("use db")    # should always be in place
+        # tblName = sTable.getName()
+        # TODO stream may at ready state but resume can be success, so we just execute it and ignore conflict
+        if sTable.hasStreams(wt.getDbConn()):
+            sTable.resumeStreams(wt.getDbConn())  # pause stream
+
 class TaskDropStreamTables(StateTransitionTask):
 
     @classmethod
@@ -2233,6 +2361,29 @@ class TaskCreateConsumers(StateTransitionTask):
         else:
             print(" restful not support tmq consumers")
             return
+
+class TaskDropTsmas(StateTransitionTask):
+
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        return state.canDropTsma()
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        # dbname = self._db.getName()
+
+        if not self._db.exists(wt.getDbConn()):
+            Logging.debug("Skipping task, no DB yet")
+            return
+
+        sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
+        # wt.execSql("use db")    # should always be in place
+        # tblName = sTable.getName()
+        if sTable.hasTsmas(wt.getDbConn()):
+            sTable.dropStreams(wt.getDbConn())  # drop stream of database
 
 
 class TaskCreateSuperTable(StateTransitionTask):
@@ -2424,6 +2575,9 @@ class TdSuperTable:
     def hasStreams(self, dbc: DbConn):
         return dbc.query("show streams") > 0
 
+    def hasTsmas(self, dbc: DbConn):
+        return dbc.query("show tsmas") > 0
+
     def hasTopics(self, dbc: DbConn):
 
         return dbc.query("show topics") > 0
@@ -2469,6 +2623,15 @@ class TdSuperTable:
 
         return not dbc.query("show streams ") > 0
 
+    def dropTsmas(self, dbc: DbConn):
+        dbc.query("show tsmas ")
+        tsmas = dbc.getQueryResult()
+        for tsma in tsmas:
+            if tsma[0].startswith(self._dbName):
+                dbc.execute('drop tsma {}'.format(tsma[0]))
+
+        return not dbc.query("show tsmas ") > 0
+
     def dropStreamTables(self, dbc: DbConn):
         dbc.query("show {}.stables like 'stream_tb%'".format(self._dbName))
 
@@ -2479,6 +2642,35 @@ class TdSuperTable:
                 dbc.execute('drop table {}.{}'.format(self._dbName, StreamTable[0]))
 
         return not dbc.query("show {}.stables like 'stream_tb%'".format(self._dbName))
+
+    def pauseStreams(self, dbc: DbConn):
+        dbc.query("show streams ")
+        Streams = dbc.getQueryResult()
+        for Stream in Streams:
+            if Stream[0].startswith(self._dbName):
+                dbc.execute('pause stream {}'.format(Stream[0]))
+        return True
+
+    def resumeStreams(self, dbc: DbConn):
+        dbc.query("show streams ")
+        Streams = dbc.getQueryResult()
+        for Stream in Streams:
+            if Stream[0].startswith(self._dbName):
+                resumeSql = random.choice([f'resume stream {Stream[0]}', f'resume stream ignore untreated {Stream[0]}'])
+                dbc.execute(resumeSql)
+        return True
+
+    def ensureSuperTable(self, task: Optional[Task], dbc: DbConn):
+        '''
+        Make sure a super table exists for this database.
+        If there is an associated "Task" that wants to do this, "lock" this table so that
+        others don't access it while we create it.
+        '''
+        dbName = self._dbName
+        # if not self._checkStableExists(dbc, self._stName):
+        #     return
+        sql = f'select `stable_name` from information_schema.ins_stables where db_name = "{dbName}" and stable_name = "{self._stName}";'
+        return dbc.query(sql) > 0
 
     def ensureRegTable(self, task: Optional[Task], dbc: DbConn, regTableName: str):
         '''
@@ -3400,7 +3592,7 @@ class TdSuperTable:
                     if len(groupKey) > 0:
                         groupKeyList.append(groupKey)
         if doAggr == 2:
-            selectPartList = [random.choice(selectPartList)]
+            selectPartList = [random.choice(selectPartList)] if len(selectPartList) > 0 else ["count(*)"]
         if len(groupKeyList) > 0:
             groupKeyStr = ",".join(groupKeyList)
             return f"SELECT {', '.join(selectPartList)} FROM {self._dbName}.{tbname} GROUP BY {groupKeyStr} {self.getOrderByValue(groupKeyStr)} {self.getSlimitValue()};"
@@ -4395,7 +4587,7 @@ class TaskAddData(StateTransitionTask):
             stmt.close()
         except Exception as e:  # Any exception at all
             self.logError(f"func _addDataBySTMT error: {e}")
-            raise CrashGenError("func _addDataBySTMT error: {e}")
+            raise CrashGenError(f"func _addDataBySTMT error: {e}")
         finally:
             conn.close()
 
@@ -4559,6 +4751,8 @@ class TaskAddData(StateTransitionTask):
             regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)
             fullTableName = dbName + '.' + regTableName
             # self._lockTable(fullTableName) # "create table" below. Stop it if the table is "locked"
+            if not sTable.ensureSuperTable(self, wt.getDbConn()): # Ensure the super table exists
+                return
             sTable.ensureRegTable(self, wt.getDbConn(), regTableName)  # Ensure the table exists
             # self._unlockTable(fullTableName)
 
@@ -4787,7 +4981,7 @@ class TaskDeleteData(StateTransitionTask):
             regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)
             fullTableName = dbName + '.' + regTableName
             # self._lockTable(fullTableName) # "create table" below. Stop it if the table is "locked"
-            sTable.ensureRegTable(self, wt.getDbConn(), regTableName)  # Ensure the table exists           
+            sTable.ensureRegTable(self, wt.getDbConn(), regTableName)  # Ensure the table exists
             # self._unlockTable(fullTableName)
 
             self._deleteData(db, dbc, regTableName, te)
