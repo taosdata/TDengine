@@ -19,9 +19,9 @@ MongoDB 是一个介于关系型数据库与非关系型数据库之间的产品
 
 ### 2. 配置基本信息
 
-在 **名称** 字段中输入任务名称，例如 *`test_mongodb_01`* 。
+在 **名称** 字段中输入任务名称，例如 `test_mongodb_01` 。
 
-选择 **类型** 下拉框中的 *`MongoDB`* ，如下图所示（选择完成后页面中的字段会发生变化）。
+选择 **类型** 下拉框中的 `MongoDB` ，如下图所示（选择完成后页面中的字段会发生变化）。
 
 **代理** 是非必填项，如有需要，可以在下拉框中选择指定的代理，也可以先点击右侧的 **+创建新的代理** 按钮创建一个新的代理。
 
@@ -80,19 +80,19 @@ MongoDB 是一个介于关系型数据库与非关系型数据库之间的产品
 |F|相当于 ${Y}-${m}-${d}|2024-01-01|
 
 **子表字段** 用于拆分子表的字段，通常与 transform 中的 tag 相对应，多个字段使用英文逗号分隔，例如 col_name1,col_name2。
-> 此项配置主要为了解决数据迁移乱序问题，需要结合**查询模板**共同使用，否则不能达到预期效果，使用示例如下：
-> 1. 配置两个子表字段 `col_name1,col_name2`
-> 2. 在**查询模板**中添加子表字段占位符，例如 `{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}}, ${col_name1}, ${col_name2}}` 中的 `${col_name1}, ${col_name2}` 部分
-> 3. 在 **transform** 中配置 `col_name1` 与 `col_name2` 两个 tag 映射
+此项配置主要为了解决数据迁移乱序问题，需要结合**查询模板**共同使用，否则不能达到预期效果，使用示例如下：
+1. 配置两个子表字段 `col_name1,col_name2`
+2. 在**查询模板**中添加子表字段占位符，例如 `{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}}, ${col_name1}, ${col_name2}}` 中的 `${col_name1}, ${col_name2}` 部分
+3. 在 **transform** 中配置 `col_name1` 与 `col_name2` 两个 tag 映射
 
 **查询模板** 用于查询数据的查询语句，JSON格式，语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。模板中定义的时间范围由源数据库中的某个代表时间的列和下面定义的占位符组成。
-> 使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：
-> 1. `${start_datetime}`、`${end_datetime}`：对应后端 datetime 类型字段的筛选，如：`{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}}}` 将被转换为 `{"ddate":{"$gte":{"$date":"2024-06-01T00:00:00+00:00"},"$lt":{"$date":"2024-07-01T00:00:00+00:00"}}}`
-> 2. `${start_timestamp}`、`${end_timestamp}`: 对应后端 timestamp 类型字段的筛选，如：`{"ttime":{"$gte":${start_timestamp},"$lt":${end_timestamp}}}` 将被转换为 `{"ttime":{"$gte":{"$timestamp":{"t":123,"i":456}},"$lt":{"$timestamp":{"t":123,"i":456}}}}`
+使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：
+1. `${start_datetime}`、`${end_datetime}`：对应后端 datetime 类型字段的筛选，如：`{"ddate":{"$gte":${start_datetime},"$lt":${end_datetime}}}` 将被转换为 `{"ddate":{"$gte":{"$date":"2024-06-01T00:00:00+00:00"},"$lt":{"$date":"2024-07-01T00:00:00+00:00"}}}`
+2. `${start_timestamp}`、`${end_timestamp}`: 对应后端 timestamp 类型字段的筛选，如：`{"ttime":{"$gte":${start_timestamp},"$lt":${end_timestamp}}}` 将被转换为 `{"ttime":{"$gte":{"$timestamp":{"t":123,"i":456}},"$lt":{"$timestamp":{"t":123,"i":456}}}}`
 
 **查询排序** 执行查询时的排序条件，JSON格式，它必须符合 MongoDB 排序条件的格式规范，使用示例如下：
-> 1. `{"createtime":1}`：MongoDB 查询结果按 createtime 正序返回。
-> 2. `{"createdate":1, "createtime":1}`：MongoDB 查询结果按 createdate 正序、createtime 正序返回。
+1. `{"createtime":1}`：MongoDB 查询结果按 createtime 正序返回。
+2. `{"createdate":1, "createtime":1}`：MongoDB 查询结果按 createdate 正序、createtime 正序返回。
 
 **起始时间** 迁移数据的起始时间，此项为必填字段。
 
@@ -114,7 +114,7 @@ MongoDB 是一个介于关系型数据库与非关系型数据库之间的产品
 
 在 **从列中提取或拆分** 中填写从消息体中提取或拆分的字段，例如：将 vValue 字段拆分成 `vValue_0` 和 `vValue_1` 这 2 个字段，选择 split 提取器，seperator 填写分割符 `,`, number 填写 2，配置完成后点击右侧的 **预览** 按钮可以查看转换的结果。
 
-在 **过滤** 中，填写过滤条件，例如：填写`Value > 0`，则只有 Value 大于 0 的数据才会被写入 TDengine，配置完成后点击右侧的 **预览** 按钮可以查看过滤的结果。
+在 **过滤** 中，填写过滤条件，例如：填写 `Value > 0`，则只有 Value 大于 0 的数据才会被写入 TDengine，配置完成后点击右侧的 **预览** 按钮可以查看过滤的结果。
 
 在 **映射** 中，选择要映射到 TDengine 的超级表，以及映射到超级表的列，配置完成后点击右侧的 **预览** 按钮可以查看映射的结果。
 
