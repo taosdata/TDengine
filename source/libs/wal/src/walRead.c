@@ -212,7 +212,7 @@ static int32_t walReadSeekVerImpl(SWalReader *pReader, int64_t ver) {
   if (pRet == NULL) {
     wError("failed to allocate memory for localRet");
     TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
   TAOS_MEMCPY(pRet, gloablPRet, sizeof(SWalFileInfo));
   TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
@@ -341,7 +341,7 @@ int32_t walFetchBody(SWalReader *pRead) {
   if (pRead->capacity < cryptedBodyLen) {
     SWalCkHead *ptr = (SWalCkHead *)taosMemoryRealloc(pRead->pHead, sizeof(SWalCkHead) + cryptedBodyLen);
     if (ptr == NULL) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
     pRead->pHead = ptr;
     pReadHead = &pRead->pHead->head;
@@ -463,7 +463,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     if (ptr == NULL) {
       TAOS_UNUSED(taosThreadMutexUnlock(&pReader->mutex));
 
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
     pReader->pHead = ptr;
     pReader->capacity = cryptedBodyLen;
@@ -523,7 +523,7 @@ int32_t decryptBody(SWalCfg *cfg, SWalCkHead *pHead, int32_t plainBodyLen, const
     int32_t cryptedBodyLen = ENCRYPTED_LEN(plainBodyLen);
     char   *newBody = taosMemoryMalloc(cryptedBodyLen);
     if (!newBody) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
 
     SCryptOpts opts;

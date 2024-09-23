@@ -99,7 +99,7 @@ static FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, in
 
     ptr = taosMemoryRealloc(buf, capacity);
     if (ptr == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
+      TAOS_CHECK_GOTO(terrno, &lino, _err);
     }
     buf = ptr;
 
@@ -163,7 +163,7 @@ static FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, in
           capacity += extraSize;
           void* ptr = taosMemoryRealloc(buf, capacity);
           if (ptr == NULL) {
-            TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
+            TAOS_CHECK_GOTO(terrno, &lino, _err);
           }
           buf = ptr;
         }
@@ -270,7 +270,7 @@ static int32_t walRebuildFileInfoSet(SArray* metaLogList, SArray* actualLogList)
   for (int i = 0; i < actualFileNum; i++) {
     SWalFileInfo* pFileInfo = taosArrayGet(actualLogList, i);
     if (NULL == taosArrayPush(metaLogList, pFileInfo)) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
   }
 
@@ -728,7 +728,7 @@ int32_t walRollFileInfo(SWal* pWal) {
   // TODO: change to emplace back
   SWalFileInfo* pNewInfo = taosMemoryMalloc(sizeof(SWalFileInfo));
   if (pNewInfo == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
   pNewInfo->firstVer = pWal->vers.lastVer + 1;
   pNewInfo->lastVer = -1;
@@ -738,7 +738,7 @@ int32_t walRollFileInfo(SWal* pWal) {
   pNewInfo->syncedOffset = 0;
   if (!taosArrayPush(pArray, pNewInfo)) {
     taosMemoryFree(pNewInfo);
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   taosMemoryFree(pNewInfo);
@@ -1015,7 +1015,7 @@ int32_t walLoadMeta(SWal* pWal) {
   int   size = (int)fileSize;
   char* buf = taosMemoryMalloc(size + 5);
   if (buf == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
   (void)memset(buf, 0, size + 5);
   TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ);

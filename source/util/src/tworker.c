@@ -803,11 +803,11 @@ int32_t tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pool) {
   code = taosOpenQset(&pool->qset);
   if (code) return terrno = code;
   pool->workers = tdListNew(sizeof(SQueryAutoQWorker));
-  if (!pool->workers) return TSDB_CODE_OUT_OF_MEMORY;
+  if (!pool->workers) return terrno;
   pool->backupWorkers = tdListNew(sizeof(SQueryAutoQWorker));
-  if (!pool->backupWorkers) return TSDB_CODE_OUT_OF_MEMORY;
+  if (!pool->backupWorkers) return terrno;
   pool->exitedWorkers = tdListNew(sizeof(SQueryAutoQWorker));
-  if (!pool->exitedWorkers) return TSDB_CODE_OUT_OF_MEMORY;
+  if (!pool->exitedWorkers) return terrno;
   pool->maxInUse = pool->max * 2 + 2;
 
   if (!pool->pCb) {

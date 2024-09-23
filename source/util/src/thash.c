@@ -352,7 +352,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
     // no data in hash table with the specified key, add it into hash table
     SHashNode *pNewNode = doCreateHashNode(key, keyLen, data, size, hashVal);
     if (pNewNode == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      // terrno = TSDB_CODE_OUT_OF_MEMORY;
       code = terrno;
       goto _exit;
     }
@@ -364,7 +364,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
     if (pHashObj->enableUpdate) {
       SHashNode *pNewNode = doCreateHashNode(key, keyLen, data, size, hashVal);
       if (pNewNode == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        // terrno = TSDB_CODE_OUT_OF_MEMORY;
         code = terrno;
         goto _exit;
       }
