@@ -143,7 +143,7 @@ bool tNameIsValid(const SName* name) {
 
 SName* tNameDup(const SName* name) {
   SName* p = taosMemoryMalloc(sizeof(SName));
-  memcpy(p, name, sizeof(SName));
+  if (p) TAOS_MEMCPY(p, name, sizeof(SName));
   return p;
 }
 

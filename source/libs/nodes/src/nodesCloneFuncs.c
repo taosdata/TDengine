@@ -102,7 +102,6 @@ static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_OBJECT_FIELD(resType, sizeof(SDataType));
   COPY_CHAR_ARRAY_FIELD(aliasName);
   COPY_CHAR_ARRAY_FIELD(userAlias);
-  COPY_SCALAR_FIELD(orderAlias);
   COPY_SCALAR_FIELD(projIdx);
   return TSDB_CODE_SUCCESS;
 }
@@ -268,6 +267,7 @@ static SArray* functParamClone(const SArray* pSrc) {
   if (NULL == pDst) {
     return NULL;
   }
+  int32_t code = 0;
   for (int i = 0; i < TARRAY_SIZE(pSrc); ++i) {
     SFunctParam* pFunctParam = taosArrayGet(pSrc, i);
     SFunctParam* pNewFunctParam = (SFunctParam*)taosArrayPush(pDst, pFunctParam);
@@ -277,7 +277,15 @@ static SArray* functParamClone(const SArray* pSrc) {
     }
     pNewFunctParam->type = pFunctParam->type;
     pNewFunctParam->pCol = taosMemoryCalloc(1, sizeof(SColumn));
+    if (!pNewFunctParam->pCol) {
+      code = terrno;
+      break;
+    }
     memcpy(pNewFunctParam->pCol, pFunctParam->pCol, sizeof(SColumn));
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    taosArrayDestroyEx(pDst, destroyFuncParam);
+    return NULL;
   }
 
   return pDst;

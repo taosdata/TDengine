@@ -651,6 +651,9 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.targetDbUid = pDb->uid;
   streamObj.version = 1;
   streamObj.sql = taosStrdup(pCreate->sql);
+  if (!streamObj.sql) {
+    return terrno;
+  }
   streamObj.smaId = smaObj.uid;
   streamObj.conf.watermark = pCreate->watermark;
   streamObj.deleteMark = pCreate->deleteMark;
@@ -658,6 +661,10 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.conf.trigger = STREAM_TRIGGER_WINDOW_CLOSE;
   streamObj.conf.triggerParam = pCreate->maxDelay;
   streamObj.ast = taosStrdup(smaObj.ast);
+  if (!streamObj.ast) {
+    taosMemoryFree(streamObj.sql);
+    return terrno;
+  }
   streamObj.indexForMultiAggBalance = -1;
 
   // check the maxDelay
@@ -1509,6 +1516,9 @@ static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   if (pShow->pIter == NULL) {
     pShow->pIter = taosMemoryCalloc(1, sizeof(SSmaAndTagIter));
   }
+  if (!pShow->pIter) {
+    return terrno;
+  }
   int32_t read = mndRetrieveSma(pReq, pShow, pBlock, rows);
   if (read < rows) {
     read += mndRetrieveTagIdx(pReq, pShow, pBlock, rows - read);
@@ -1553,27 +1563,6 @@ static void initSMAObj(SCreateTSMACxt* pCxt) {
   pCxt->pSma->expr = pCxt->pCreateSmaReq->expr;
   pCxt->pSma->sql = pCxt->pCreateSmaReq->sql;
   pCxt->pSma->ast = pCxt->pCreateSmaReq->ast;
-}
-
-static void initStreamObj(SStreamObj *pStream, const char *streamName, const SMCreateSmaReq *pCreateReq,
-                          const SDbObj *pDb, SSmaObj *pSma) {
-  tstrncpy(pStream->name, streamName, TSDB_STREAM_FNAME_LEN);
-  tstrncpy(pStream->sourceDb, pDb->name, TSDB_DB_FNAME_LEN);
-  tstrncpy(pStream->targetDb, pDb->name, TSDB_DB_FNAME_LEN);
-  pStream->createTime = taosGetTimestampMs();
-  pStream->updateTime = pStream->createTime;
-  pStream->uid = mndGenerateUid(streamName, strlen(streamName));
-  pStream->sourceDbUid = pDb->uid;
-  pStream->targetDbUid = pDb->uid;
-  pStream->version = 1;
-  pStream->sql = taosStrdup(pCreateReq->sql);
-  pStream->smaId = pSma->uid;
-  pStream->conf.watermark = 0;
-  pStream->deleteMark = 0;
-  pStream->conf.fillHistory = STREAM_FILL_HISTORY_ON;
-  pStream->conf.trigger = STREAM_TRIGGER_WINDOW_CLOSE;
-  pStream->conf.triggerParam = 10000;
-  pStream->ast = taosStrdup(pSma->ast);
 }
 
 static int32_t mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
@@ -1653,11 +1642,15 @@ static int32_t mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   return code;
 }
 
-static void mndCreateTSMABuildDropStreamReq(SCreateTSMACxt* pCxt) {
+static int32_t mndCreateTSMABuildDropStreamReq(SCreateTSMACxt* pCxt) {
   tstrncpy(pCxt->pDropStreamReq->name, pCxt->streamName, TSDB_STREAM_FNAME_LEN);
   pCxt->pDropStreamReq->igNotExists = false;
   pCxt->pDropStreamReq->sql = taosStrdup(pCxt->pDropSmaReq->name);
+  if (!pCxt->pDropStreamReq->sql) {
+    return terrno;
+  }
   pCxt->pDropStreamReq->sqlLen = strlen(pCxt->pDropStreamReq->sql);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mndSetUpdateDbTsmaVersionPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
@@ -1815,7 +1808,10 @@ static int32_t mndCreateTSMA(SCreateTSMACxt *pCxt) {
   if (TSDB_CODE_SUCCESS != code) {
     goto _OVER;
   }
-  mndCreateTSMABuildDropStreamReq(pCxt);
+  code = mndCreateTSMABuildDropStreamReq(pCxt);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _OVER;
+  }
 
   if (TSDB_CODE_SUCCESS != (code = mndCreateTSMATxnPrepare(pCxt))) {
     goto _OVER;
@@ -1985,7 +1981,10 @@ static int32_t mndDropTSMA(SCreateTSMACxt* pCxt) {
   }
   SMDropStreamReq dropStreamReq = {0};
   pCxt->pDropStreamReq = &dropStreamReq;
-  mndCreateTSMABuildDropStreamReq(pCxt);
+  code = mndCreateTSMABuildDropStreamReq(pCxt);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _OVER;
+  }
   mndTransSetDbName(pTrans, pCxt->pDb->name, NULL);
   if (mndTransCheckConflict(pCxt->pMnode, pTrans) != 0) goto _OVER;
   mndTransSetSerial(pTrans);
@@ -2141,11 +2140,14 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   SMnode *         pMnode = pReq->info.node;
   int32_t          code = 0;
   SColumnInfoData *pColInfo;
-  if (pShow->db[0]) {
-    pDb = mndAcquireDb(pMnode, pShow->db);
-  }
   if (pShow->pIter == NULL) {
     pShow->pIter = taosMemoryCalloc(1, sizeof(SSmaAndTagIter));
+  }
+  if (!pShow->pIter) {
+    return terrno;
+  }
+  if (pShow->db[0]) {
+    pDb = mndAcquireDb(pMnode, pShow->db);
   }
   SSmaAndTagIter *pIter = pShow->pIter;
   while (numOfRows < rows) {
@@ -2273,7 +2275,7 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     mndReleaseDb(pMnode, pSrcDb);
     if (TSDB_CODE_SUCCESS != code) {
       sdbCancelFetch(pMnode->pSdb, pIter->pSmaIter);
-      numOfRows = -1;
+      numOfRows = code;
       break;
     }
   }

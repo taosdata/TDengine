@@ -287,6 +287,8 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
   SCompactObj *pCompact = NULL;
   char        *sep = NULL;
   SDbObj      *pDb = NULL;
+  int32_t      code = 0;
+  int32_t      lino = 0;
 
   if (strlen(pShow->db) > 0) {
     sep = strchr(pShow->db, '.');
@@ -310,26 +312,30 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
     char tmpBuf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompact->compactId, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pCompact->compactId, false), pCompact, &lino,
+                        _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (pDb != NULL || !IS_SYS_DBNAME(pCompact->dbname)) {
       SName name = {0};
-      (void)tNameFromString(&name, pCompact->dbname, T_NAME_ACCT | T_NAME_DB);
+      TAOS_CHECK_GOTO(tNameFromString(&name, pCompact->dbname, T_NAME_ACCT | T_NAME_DB), &lino, _OVER);
       (void)tNameGetDbName(&name, varDataVal(tmpBuf));
     } else {
       (void)strncpy(varDataVal(tmpBuf), pCompact->dbname, TSDB_SHOW_SQL_LEN);
     }
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), pCompact, &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompact->startTime, false);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pCompact->startTime, false), pCompact, &lino,
+                        _OVER);
 
     numOfRows++;
     sdbRelease(pSdb, pCompact);
   }
 
+_OVER:
+  if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
   pShow->numOfRows += numOfRows;
   mndReleaseDb(pMnode, pDb);
   return numOfRows;
@@ -468,7 +474,7 @@ static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompa
         mndTransDrop(pTrans);
         return -1;
       }
-      (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+      sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
       */
     }
 

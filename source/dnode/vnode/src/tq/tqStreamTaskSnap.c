@@ -46,7 +46,7 @@ int32_t streamTaskSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTa
   pReader->ever = ever;
   pReader->tdbTbList = taosArrayInit(4, sizeof(STablePair));
   if (pReader->tdbTbList == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _err);
+    TAOS_CHECK_GOTO(terrno, NULL, _err);
   }
 
   STablePair pair1 = {.tbl = pTq->pStreamMeta->pTaskDb, .type = SNAP_DATA_STREAM_TASK};
@@ -159,7 +159,7 @@ NextTbl:
   }
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + vLen);
   if (*ppData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
 

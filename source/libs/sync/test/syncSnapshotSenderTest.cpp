@@ -40,7 +40,7 @@ SSyncSnapshotSender* createSender() {
 #endif
 
   SSyncSnapshotSender* pSender = NULL;
-  (void)snapshotSenderCreate(pSyncNode, 2, &pSender);
+  assert(snapshotSenderCreate(pSyncNode, 2, &pSender) == 0);
   pSender->start = true;
   pSender->seq = 10;
   pSender->ack = 20;

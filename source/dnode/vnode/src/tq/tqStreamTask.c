@@ -96,7 +96,7 @@ int32_t tqScanWalInFuture(STQ* pTq, int32_t numOfTasks, int32_t idleDuration) {
 
   SBuildScanWalMsgParam* pParam = taosMemoryMalloc(sizeof(SBuildScanWalMsgParam));
   if (pParam == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pParam->pTq = pTq;
@@ -114,7 +114,7 @@ int32_t tqScanWalInFuture(STQ* pTq, int32_t numOfTasks, int32_t idleDuration) {
   } else {
     bool ret = taosTmrReset(doStartScanWal, idleDuration, pParam, pTimer, &pMeta->scanInfo.scanTimer);
     if (!ret) {
-      tqError("vgId:%d failed to start scan wal in:%dms", vgId, idleDuration);
+//      tqError("vgId:%d failed to start scan wal in:%dms", vgId, idleDuration);
     }
   }
 
