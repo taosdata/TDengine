@@ -362,7 +362,7 @@ static int32_t taosSplitS3Cfg(SConfig *pCfg, const char *name, char gVarible[TSD
 
   char *strDup = NULL;
   if ((strDup = taosStrdup(pItem->str))== NULL){
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 

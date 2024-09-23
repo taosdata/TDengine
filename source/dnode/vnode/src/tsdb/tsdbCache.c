@@ -2983,7 +2983,7 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
         }
 
         if (!taosArrayAddAll(pInfo->pTombData, pIter->pMemDelData)) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
+          TAOS_CHECK_GOTO(terrno, &lino, _err);
         }
 
         size_t delSize = TARRAY_SIZE(pInfo->pTombData);

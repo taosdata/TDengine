@@ -941,7 +941,7 @@ void taos_init_imp(void) {
       taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (NULL == appInfo.pInstMap || NULL == appInfo.pInstMapByClusterId) {
     (void)printf("failed to allocate memory when init appInfo\n");
-    tscInitRes = TSDB_CODE_OUT_OF_MEMORY;
+    tscInitRes = terrno;
     return;
   }
   taosHashSetFreeFp(appInfo.pInstMap, destroyAppInst);

@@ -469,8 +469,7 @@ static int32_t mndCreateDir(SMnode *pMnode, const char *path) {
   int32_t code = 0;
   pMnode->path = taosStrdup(path);
   if (pMnode->path == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TAOS_RETURN(code);
+    TAOS_RETURN(terrno);
   }
 
   if (taosMkDir(pMnode->path) != 0) {

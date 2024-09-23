@@ -393,7 +393,7 @@ int32_t smlProcessChildTable(SSmlHandle *info, SSmlLineInfo *elements) {
     tinfo->tags = taosArrayDup(info->preLineTagKV, NULL);
     if(tinfo->tags == NULL){
       smlDestroyTableInfo(&tinfo);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     for (size_t i = 0; i < taosArrayGetSize(info->preLineTagKV); i++) {
       SSmlKv *kv = (SSmlKv *)taosArrayGet(info->preLineTagKV, i);
@@ -560,7 +560,7 @@ int32_t smlSetCTableName(SSmlTableInfo *oneTable, char *tbnameKey) {
   if (strlen(oneTable->childTableName) == 0) {
     SArray *dst = taosArrayDup(oneTable->tags, NULL);
     if (dst == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if(oneTable->sTableNameLen >= TSDB_TABLE_NAME_LEN){
       uError("SML:smlSetCTableName super table name is too long");

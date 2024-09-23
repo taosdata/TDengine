@@ -1064,7 +1064,7 @@ int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TFileSetRangeArray *pRa
   if (pRanges) {
     pHash = tsdbFSetRangeArrayToHash(pRanges);
     if (pHash == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _out;
     }
   }
@@ -1120,7 +1120,7 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
   if (pRanges) {
     pHash = tsdbFSetRangeArrayToHash(pRanges);
     if (pHash == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _out;
     }
   }
