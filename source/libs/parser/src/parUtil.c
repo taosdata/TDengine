@@ -424,7 +424,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
 
   keyHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
   if (!keyHash) {
-    retCode = TSDB_CODE_OUT_OF_MEMORY;
+    retCode = terrno;
     goto end;
   }
   for (int32_t i = 0; i < size; i++) {
@@ -494,7 +494,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
       goto end;
     }
     if (NULL == taosArrayPush(pTagVals, &val)) {
-      retCode = TSDB_CODE_OUT_OF_MEMORY;
+      retCode = terrno;
       goto end;
     }
   }
@@ -641,7 +641,7 @@ static int32_t buildTableReq(SHashObj* pTablesHash, SArray** pTables) {
   if (NULL != pTablesHash) {
     *pTables = taosArrayInit(taosHashGetSize(pTablesHash), sizeof(SName));
     if (NULL == *pTables) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     void* p = taosHashIterate(pTablesHash, NULL);
     while (NULL != p) {
@@ -653,7 +653,7 @@ static int32_t buildTableReq(SHashObj* pTablesHash, SArray** pTables) {
       int32_t code = tNameFromString(&name, fullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
       if (TSDB_CODE_SUCCESS == code) {
         if (NULL == taosArrayPush(*pTables, &name)) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
         }
       }
       if (TSDB_CODE_SUCCESS != code) {
@@ -672,7 +672,7 @@ static int32_t buildDbReq(SHashObj* pDbsHash, SArray** pDbs) {
   if (NULL != pDbsHash) {
     *pDbs = taosArrayInit(taosHashGetSize(pDbsHash), TSDB_DB_FNAME_LEN);
     if (NULL == *pDbs) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     void* p = taosHashIterate(pDbsHash, NULL);
     while (NULL != p) {
@@ -684,7 +684,7 @@ static int32_t buildDbReq(SHashObj* pDbsHash, SArray** pDbs) {
         taosHashCancelIterate(pDbsHash, p);
         taosArrayDestroy(*pDbs);
         *pDbs = NULL;
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       p = taosHashIterate(pDbsHash, p);
     }
@@ -697,7 +697,7 @@ static int32_t buildTableReqFromDb(SHashObj* pDbsHash, SArray** pDbs) {
     if (NULL == *pDbs) {
       *pDbs = taosArrayInit(taosHashGetSize(pDbsHash), sizeof(STablesReq));
       if (NULL == *pDbs) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
     SParseTablesMetaReq* p = taosHashIterate(pDbsHash, NULL);
@@ -707,7 +707,7 @@ static int32_t buildTableReqFromDb(SHashObj* pDbsHash, SArray** pDbs) {
       int32_t code = buildTableReq(p->pTables, &req.pTables);
       if (TSDB_CODE_SUCCESS == code) {
         if (NULL == taosArrayPush(*pDbs, &req)) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
         }
       }
       if (TSDB_CODE_SUCCESS != code) {
@@ -726,7 +726,7 @@ static int32_t buildUserAuthReq(SHashObj* pUserAuthHash, SArray** pUserAuth) {
   if (NULL != pUserAuthHash) {
     *pUserAuth = taosArrayInit(taosHashGetSize(pUserAuthHash), sizeof(SUserAuthInfo));
     if (NULL == *pUserAuth) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     void* p = taosHashIterate(pUserAuthHash, NULL);
     while (NULL != p) {
@@ -740,7 +740,7 @@ static int32_t buildUserAuthReq(SHashObj* pUserAuthHash, SArray** pUserAuth) {
         taosHashCancelIterate(pUserAuthHash, p);
         taosArrayDestroy(*pUserAuth);
         *pUserAuth = NULL;
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       p = taosHashIterate(pUserAuthHash, p);
     }
@@ -752,7 +752,7 @@ static int32_t buildUdfReq(SHashObj* pUdfHash, SArray** pUdf) {
   if (NULL != pUdfHash) {
     *pUdf = taosArrayInit(taosHashGetSize(pUdfHash), TSDB_FUNC_NAME_LEN);
     if (NULL == *pUdf) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     void* p = taosHashIterate(pUdfHash, NULL);
     while (NULL != p) {
@@ -764,7 +764,7 @@ static int32_t buildUdfReq(SHashObj* pUdfHash, SArray** pUdf) {
         taosHashCancelIterate(pUdfHash, p);
         taosArrayDestroy(*pUdf);
         *pUdf = NULL;
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       p = taosHashIterate(pUdfHash, p);
     }
@@ -837,7 +837,7 @@ static int32_t putMetaDataToHash(const char* pKey, int32_t len, const SArray* pD
   if (NULL == *pHash) {
     *pHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
     if (NULL == *pHash) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   SMetaRes* pRes = taosArrayGet(pData, index);
@@ -973,7 +973,7 @@ static int32_t reserveTableReqInCacheImpl(const char* pTbFName, int32_t len, SHa
   if (NULL == *pTables) {
     *pTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
     if (NULL == *pTables) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   return taosHashPut(*pTables, pTbFName, len, &nullPointer, POINTER_BYTES);
@@ -999,7 +999,7 @@ static int32_t reserveTableReqInDbCache(int32_t acctId, const char* pDb, const c
   if (NULL == *pDbs) {
     *pDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
     if (NULL == *pDbs) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   char                 fullName[TSDB_DB_FNAME_LEN];
@@ -1074,7 +1074,7 @@ static int32_t reserveDbReqInCache(int32_t acctId, const char* pDb, SHashObj** p
   if (NULL == *pDbs) {
     *pDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
     if (NULL == *pDbs) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   char    fullName[TSDB_TABLE_FNAME_LEN];
@@ -1155,7 +1155,7 @@ static int32_t reserveUserAuthInCacheImpl(const char* pKey, int32_t len, SParseM
   if (NULL == pMetaCache->pUserAuth) {
     pMetaCache->pUserAuth = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
     if (NULL == pMetaCache->pUserAuth) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   return taosHashPut(pMetaCache->pUserAuth, pKey, len, &nullPointer, POINTER_BYTES);
@@ -1191,7 +1191,7 @@ int32_t reserveUdfInCache(const char* pFunc, SParseMetaCache* pMetaCache) {
   if (NULL == pMetaCache->pUdf) {
     pMetaCache->pUdf = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
     if (NULL == pMetaCache->pUdf) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   return taosHashPut(pMetaCache->pUdf, pFunc, strlen(pFunc), &nullPointer, POINTER_BYTES);

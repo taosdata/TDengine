@@ -865,7 +865,7 @@ int32_t initCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamNodeId, int32
 
   buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   ((SMsgHead*)buf)->vgId = htonl(req.upstreamNodeId);
@@ -1280,7 +1280,7 @@ int32_t streamTaskBuildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRp
 
   void* pBuf = rpcMallocCont(sizeof(SMsgHead) + len);
   if (pBuf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   ((SMsgHead*)pBuf)->vgId = htonl(pReq->mnodeId);
@@ -1668,7 +1668,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 static int32_t buildDispatchRsp(const SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t status, void** pBuf) {
   *pBuf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamDispatchRsp));
   if (*pBuf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   ((SMsgHead*)(*pBuf))->vgId = htonl(pReq->upstreamNodeId);
