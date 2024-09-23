@@ -51,9 +51,9 @@ impl LicenseKind {
     pub fn ok(self) -> Result<()> {
         match self {
             LicenseKind::Good { .. } => Ok(()),
-            LicenseKind::Edition(err) => Err(err).context("License error"),
-            LicenseKind::Feature(err) => Err(err).context("License error"),
-            LicenseKind::Connector(err) => Err(err).context("License error"),
+            LicenseKind::Edition(err) => anyhow::bail!(format!("License error: {:#}", err)),
+            LicenseKind::Feature(err) => anyhow::bail!(format!("License error: {:#}", err)),
+            LicenseKind::Connector(err) => anyhow::bail!(format!("License error: {:#}", err)),
         }
     }
 
