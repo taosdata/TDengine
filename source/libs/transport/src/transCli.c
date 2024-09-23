@@ -632,8 +632,8 @@ void cliConnTimeout(uv_timer_t* handle) {
     cliResetConnTimer(conn);
     return;
   }
-
   tTrace("%s conn %p conn timeout", CONN_GET_INST_LABEL(conn), conn);
+  TAOS_UNUSED(transUnrefCliHandle(conn));
 }
 
 bool filterToRmTimoutReq(void* key, void* arg) {
@@ -1363,13 +1363,13 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _exception1);
   }
 
+  conn->registered = 1;
   transRefCliHandle(conn);
   ret = uv_timer_start(conn->timer, cliConnTimeout, TRANS_CONN_TIMEOUT, 0);
   if (ret != 0) {
     tError("%s conn %p failed to start timer, reason:%s", transLabel(pInst), conn, uv_err_name(ret));
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _exception2);
   }
-  conn->registered = 1;
   return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
 
 _exception1:
