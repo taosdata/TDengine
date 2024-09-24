@@ -69,8 +69,13 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 ///     }}
 /// }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
+    let dsn = dsn.clone();
+    tokio::task::spawn_blocking(move || get_sample_sync(dsn)).await?
+}
+
+fn get_sample_sync(dsn: Dsn) -> anyhow::Result<DsSampleIn> {
     // create oracle query
-    let mut config = OracleConfig::from_dsn(dsn)?;
+    let mut config = OracleConfig::from_dsn(&dsn)?;
     let mut query = OracleQuery::try_new(config.connect, config.task.time_zone.clone())?;
 
     // results
