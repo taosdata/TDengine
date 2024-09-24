@@ -49,11 +49,11 @@ target_link_libraries(
                  PRIVATE ${CURL_LIBRARY}
                  PRIVATE ${SSL_LIBRARY}
                  PRIVATE ${CRYPTO_LIBRARY}
-		 #PRIVATE xml2
 		 PRIVATE ${XML2_LIBRARY}
+		 #PRIVATE xml2
+		 PRIVATE zlib
 # PRIVATE ${CoreFoundation_Library}
 # PRIVATE ${SystemConfiguration_Library}
- PRIVATE zlib
 )
 
 # Originally, on Windows azure-core is built with bcrypt and crypt32 by default

@@ -166,7 +166,6 @@ target_link_libraries(
     PUBLIC tdb
     PUBLIC audit
     PUBLIC crypt
-    PUBLIC az
 
     # PUBLIC bdb
     # PUBLIC scalar
@@ -177,6 +176,13 @@ target_link_libraries(
     PUBLIC index
     PUBLIC tqCommon
 )
+
+if(${TD_LINUX})
+target_link_libraries(
+    vnode
+    PUBLIC az
+)
+endif(${TD_LINUX})
 
 IF (TD_GRANT)
   TARGET_LINK_LIBRARIES(vnode PUBLIC grant)
