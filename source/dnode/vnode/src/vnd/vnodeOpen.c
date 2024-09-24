@@ -414,7 +414,10 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   pVnode->blocked = false;
   pVnode->disableWrite = false;
 
-  (void)tsem_init(&pVnode->syncSem, 0, 0);
+  if (tsem_init(&pVnode->syncSem, 0, 0) != 0) {
+    vError("vgId:%d, failed to init semaphore", TD_VID(pVnode));
+    goto _err;
+  }
   (void)taosThreadMutexInit(&pVnode->mutex, NULL);
   (void)taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
 
