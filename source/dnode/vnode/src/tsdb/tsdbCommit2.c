@@ -716,7 +716,7 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
 
     (void)taosThreadMutexUnlock(&tsdb->mutex);
 
-    TAOS_UNUSED();
+    tsdbCommitInfoDestroy(tsdb);
     tsdbUnrefMemTable(pMemTable, NULL, true);
   }
 
