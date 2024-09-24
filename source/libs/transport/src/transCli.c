@@ -3251,11 +3251,10 @@ static int32_t getOrCreateHeap(SHashObj* pConnHeapCache, char* key, SHeap** pHea
 
 static FORCE_INLINE int8_t shouldSWitchToOtherConn(int32_t reqNum, int32_t sentNum, int32_t stateNum) {
   int32_t total = reqNum + sentNum;
-  if (total >= BUFFER_LIMIT) {
+  if (stateNum >= STATE_BUFFER_LIMIT) {
     return 1;
   }
-
-  if (stateNum >= BUFFER_LIMIT * 2) {
+  if (total >= BUFFER_LIMIT) {
     return 1;
   }
 
