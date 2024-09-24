@@ -460,7 +460,7 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
       pSlot->info.pageId = pageId;
       if (taosArrayPush(pPageIdList, &pageId) == NULL) {
         taosArrayDestroy(pPageIdList);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
 

@@ -2576,7 +2576,7 @@ int32_t optSysIntersection(SArray* in, SArray* out) {
     if (has == true) {
       void* tmp = taosArrayPush(out, &tgt);
       if (!tmp) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _end;
       }
     }

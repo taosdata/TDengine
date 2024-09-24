@@ -2443,8 +2443,7 @@ typedef struct SCollectFuncsCxt {
 
 static EDealRes collectFuncs(SNode* pNode, void* pContext) {
   SCollectFuncsCxt* pCxt = (SCollectFuncsCxt*)pContext;
-  if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId) &&
-      !(((SExprNode*)pNode)->orderAlias)) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId)) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     if (FUNCTION_TYPE_TBNAME == pFunc->funcType && pCxt->tableAlias) {
       SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
@@ -2765,7 +2764,7 @@ int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode) {
     pValNode->node.resType.bytes = lenStr + VARSTR_HEADER_SIZE;
     char* p = taosMemoryMalloc(lenStr + 1  + VARSTR_HEADER_SIZE);
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     varDataSetLen(p, lenStr);
     memcpy(varDataVal(p), literal, lenStr + 1);

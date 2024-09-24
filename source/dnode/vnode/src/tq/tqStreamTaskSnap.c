@@ -210,7 +210,7 @@ int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback, i
   streamMetaWLock(pTq->pStreamMeta);
   tqDebug("vgId:%d, vnode stream-task snapshot writer closed", TD_VID(pTq->pVnode));
   if (rollback) {
-    (void)tdbAbort(pTq->pStreamMeta->db, pTq->pStreamMeta->txn);
+    tdbAbort(pTq->pStreamMeta->db, pTq->pStreamMeta->txn);
   } else {
     code = tdbCommit(pTq->pStreamMeta->db, pTq->pStreamMeta->txn);
     if (code) goto _err;

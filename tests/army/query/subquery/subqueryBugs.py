@@ -78,6 +78,72 @@ class TDTestCase(TBase):
         rows = [row1, row2, row3, row4]
         tdSql.checkDataMem(sql1, rows)
 
+    def ts_5443(self):
+        tdLog.info("create database ts_5443")
+        tdSql.execute("create database ts_5443")
+        tdSql.execute("use ts_5443")
+        sqls = [
+            "CREATE STABLE demo (ts TIMESTAMP, site NCHAR(8), expected BIGINT) TAGS (group_id BIGINT UNSIGNED)",
+            "CREATE TABLE demo_1 USING demo (group_id) TAGS (1)",
+            "INSERT INTO demo_1 VALUES ('2022-10-25 16:05:00.000', 'MN-01', 1)",
+            "CREATE TABLE demo_2 USING demo (group_id) TAGS (2)",
+            "INSERT INTO demo_2 VALUES ('2022-10-25 16:10:00.000', 'MN-02', 2)",
+            "CREATE TABLE demo_3 USING demo (group_id) TAGS (3)",
+            "INSERT INTO demo_3 VALUES ('2022-10-25 16:15:00.000', 'MN-03', 3)",
+        ]
+        tdSql.executes(sqls)
+        # test result of order by in plain query
+        query = '''
+            SELECT _wend, site, SUM(expected) AS check
+            FROM ts_5443.demo
+            PARTITION BY site INTERVAL(5m) SLIDING (5m)
+            ORDER BY 1 DESC, 2, 3
+                '''
+        tdSql.query(query)
+        tdSql.checkRows(3)
+        rows = [
+            ['2022-10-25 16:20:00.000', 'MN-03', 3],
+            ['2022-10-25 16:15:00.000', 'MN-02', 2],
+            ['2022-10-25 16:10:00.000', 'MN-01', 1],
+        ]
+        tdSql.checkDataMem(query, rows)
+        # test order by position alias within subquery
+        query = '''
+            SELECT COUNT(*) FROM (
+                SELECT _wend, site, SUM(expected) AS check
+                FROM ts_5443.demo
+                PARTITION BY site INTERVAL(5m) SLIDING (5m)
+                ORDER BY 1 DESC, 2, 3
+            ) WHERE check <> 0
+                '''
+        tdSql.query(query)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 3)
+        # test order by target name within subquery
+        query = '''
+            SELECT COUNT(*) FROM (
+                SELECT _wend, site, SUM(expected) AS check
+                FROM ts_5443.demo
+                PARTITION BY site INTERVAL(5m) SLIDING (5m)
+                ORDER BY _wend DESC, site, check
+            ) WHERE check <> 0
+                '''
+        tdSql.query(query)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 3)
+        # test having clause within subquery
+        query = '''
+            SELECT COUNT(*) FROM (
+                SELECT _wend, site, SUM(expected) AS check
+                FROM ts_5443.demo
+                PARTITION BY site INTERVAL(5m) SLIDING (5m)
+                HAVING _wend > '2022-10-25 16:13:00.000'
+            ) WHERE check <> 0
+                '''
+        tdSql.query(query)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 2)
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -85,6 +151,8 @@ class TDTestCase(TBase):
         # TS-30189
         self.ts_30189()
 
+        # TS-5443
+        self.ts_5443()
 
         tdLog.success(f"{__file__} successfully executed")
 

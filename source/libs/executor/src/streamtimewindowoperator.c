@@ -157,7 +157,7 @@ static int32_t savePullWindow(SPullWindowInfo* pPullInfo, SArray* pPullWins) {
     }
   }
   if (taosArrayInsert(pPullWins, index, pPullInfo) == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -298,7 +298,7 @@ static int32_t doDeleteWindows(SOperatorInfo* pOperator, SInterval* pInterval, S
       if (pUpWins) {
         void* tmp = taosArrayPush(pUpWins, &winRes);
         if (!tmp) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           QUERY_CHECK_CODE(code, lino, _end);
         }
       }
@@ -683,7 +683,7 @@ int32_t addPullWindow(SHashObj* pMap, SWinKey* pWinRes, int32_t size) {
   for (int32_t i = 0; i < size; i++) {
     void* tmp = taosArrayPush(childIds, &i);
     if (!tmp) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -819,13 +819,13 @@ static int32_t processPullOver(SSDataBlock* pBlock, SHashObj* pMap, SHashObj* pF
 
                 void* tmp = taosArrayPush(pInfo->pMidPullDatas, &winRes);
                 if (!tmp) {
-                  code = TSDB_CODE_OUT_OF_MEMORY;
+                  code = terrno;
                   QUERY_CHECK_CODE(code, lino, _end);
                 }
               } else if (savePullWindow(&pull, pPullWins) == TSDB_CODE_SUCCESS) {
                 void* tmp = taosArrayPush(pInfo->pDelWins, &winRes);
                 if (!tmp) {
-                  code = TSDB_CODE_OUT_OF_MEMORY;
+                  code = terrno;
                   QUERY_CHECK_CODE(code, lino, _end);
                 }
 
@@ -1172,8 +1172,9 @@ static int32_t doStreamIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pS
     }
 
     updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &nextWin, 1);
-    applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, forwardRows,
-                                    pSDataBlock->info.rows, numOfOutput);
+    code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos,
+                                           forwardRows, pSDataBlock->info.rows, numOfOutput);
+    QUERY_CHECK_CODE(code, lino, _end);
     key.ts = nextWin.skey;
 
     if (pInfo->delKey.ts > key.ts) {
@@ -1302,7 +1303,7 @@ int32_t decodeSPullWindowInfoArray(void* buf, SArray* pPullInfos, void** ppBuf) 
     buf = decodeSPullWindowInfo(buf, &item);
     void* tmp = taosArrayPush(pPullInfos, &item);
     if (!tmp) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -1417,7 +1418,7 @@ void doStreamIntervalDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
     SWinKey key = {0};
     SArray* pArray = taosArrayInit(0, sizeof(int32_t));
     if (!pArray) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -1429,7 +1430,7 @@ void doStreamIntervalDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
       buf = taosDecodeFixedI32(buf, &chId);
       void* tmp = taosArrayPush(pArray, &chId);
       if (!tmp) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
@@ -1477,7 +1478,7 @@ static int32_t copyIntervalDeleteKey(SSHashObj* pMap, SArray* pWins) {
     void* pKey = tSimpleHashGetKey(pIte, NULL);
     void* tmp = taosArrayPush(pWins, pKey);
     if (!tmp) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -1539,7 +1540,7 @@ int32_t copyUpdateResult(SSHashObj** ppWinUpdated, SArray* pUpdated, __compar_fn
   while ((pIte = tSimpleHashIterate(*ppWinUpdated, pIte, &iter)) != NULL) {
     void* tmp = taosArrayPush(pUpdated, pIte);
     if (!tmp) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -2315,7 +2316,7 @@ int32_t saveDeleteInfo(SArray* pWins, SSessionKey key) {
   int32_t lino = 0;
   void*   res = taosArrayPush(pWins, &key);
   if (!res) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -2442,7 +2443,7 @@ int32_t doOneWindowAggImpl(SColumnInfoData* pTimeWindowData, SResultWindowInfo* 
   QUERY_CHECK_CODE(code, lino, _end);
 
   updateTimeWindowInfo(pTimeWindowData, &pCurWin->sessionWin.win, winDelta);
-  applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, pTimeWindowData, startIndex, winRows, rows, numOutput);
+  code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, pTimeWindowData, startIndex, winRows, rows, numOutput);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -3159,7 +3160,7 @@ int32_t getMaxTsWins(const SArray* pAllWins, SArray* pMaxWins) {
   SSessionKey*       pSeKey = &pWinInfo->sessionWin;
   void*              tmp = taosArrayPush(pMaxWins, pSeKey);
   if (!tmp) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -3173,7 +3174,7 @@ int32_t getMaxTsWins(const SArray* pAllWins, SArray* pMaxWins) {
     if (preGpId != pSeKey->groupId) {
       void* tmp = taosArrayPush(pMaxWins, pSeKey);
       if (!tmp) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         QUERY_CHECK_CODE(code, lino, _end);
       }
       preGpId = pSeKey->groupId;
@@ -3287,9 +3288,8 @@ int32_t doStreamSessionDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpe
   int32_t mapSize = 0;
   buf = taosDecodeFixedI32(buf, &mapSize);
   for (int32_t i = 0; i < mapSize; i++) {
-    SSessionKey       key = {0};
     SResultWindowInfo winfo = {0};
-    buf = decodeSSessionKey(buf, &key);
+    buf = decodeSSessionKey(buf, &winfo.sessionWin);
     int32_t winCode = TSDB_CODE_SUCCESS;
     code = pAggSup->stateStore.streamStateSessionAddIfNotExist(
         pAggSup->pState, &winfo.sessionWin, pAggSup->gap, (void**)&winfo.pStatePos, &pAggSup->resultRowSize, &winCode);
@@ -3298,7 +3298,7 @@ int32_t doStreamSessionDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpe
 
     buf = decodeSResultWindowInfo(buf, &winfo, pInfo->streamAggSup.resultRowSize);
     code =
-        tSimpleHashPut(pInfo->streamAggSup.pResultRows, &key, sizeof(SSessionKey), &winfo, sizeof(SResultWindowInfo));
+        tSimpleHashPut(pInfo->streamAggSup.pResultRows, &winfo.sessionWin, sizeof(SSessionKey), &winfo, sizeof(SResultWindowInfo));
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -3911,7 +3911,7 @@ int32_t deleteSessionWinState(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock,
   int32_t lino = 0;
   SArray* pWins = taosArrayInit(16, sizeof(SSessionKey));
   if (!pWins) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
   code = doDeleteTimeWindows(pAggSup, pBlock, pWins);
@@ -4128,7 +4128,7 @@ int32_t createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream, SPhys
       pAPI->stateStore.streamStateSetNumber(pChInfo->streamAggSup.pState, i, pInfo->primaryTsIndex);
       void* tmp = taosArrayPush(pInfo->pChildren, &pChildOp);
       if (!tmp) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         QUERY_CHECK_CODE(code, lino, _error);
       }
     }
@@ -4588,9 +4588,8 @@ int32_t doStreamStateDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
   int32_t mapSize = 0;
   buf = taosDecodeFixedI32(buf, &mapSize);
   for (int32_t i = 0; i < mapSize; i++) {
-    SSessionKey       key = {0};
     SResultWindowInfo winfo = {0};
-    buf = decodeSSessionKey(buf, &key);
+    buf = decodeSSessionKey(buf, &winfo.sessionWin);
     int32_t winCode = TSDB_CODE_SUCCESS;
     code = pAggSup->stateStore.streamStateStateAddIfNotExist(
         pAggSup->pState, &winfo.sessionWin, NULL, pAggSup->stateKeySize, compareStateKey, (void**)&winfo.pStatePos,
@@ -4599,7 +4598,7 @@ int32_t doStreamStateDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
 
     buf = decodeSResultWindowInfo(buf, &winfo, pInfo->streamAggSup.resultRowSize);
     code =
-        tSimpleHashPut(pInfo->streamAggSup.pResultRows, &key, sizeof(SSessionKey), &winfo, sizeof(SResultWindowInfo));
+        tSimpleHashPut(pInfo->streamAggSup.pResultRows, &winfo.sessionWin, sizeof(SSessionKey), &winfo, sizeof(SResultWindowInfo));
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -5225,7 +5224,7 @@ static int32_t doStreamIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** p
   while ((pIte = tSimpleHashIterate(pInfo->pUpdatedMap, pIte, &iter)) != NULL) {
     void* tmp = taosArrayPush(pInfo->pUpdated, pIte);
     if (!tmp) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -5476,8 +5475,9 @@ static void doStreamMidIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pS
     }
 
     updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &nextWin, 1);
-    applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, forwardRows,
-                                    pSDataBlock->info.rows, numOfOutput);
+    code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos,
+                                           forwardRows, pSDataBlock->info.rows, numOfOutput);
+    QUERY_CHECK_CODE(code, lino, _end);
     key.ts = nextWin.skey;
 
     if (pInfo->delKey.ts > key.ts) {
@@ -5646,7 +5646,7 @@ static int32_t doStreamMidIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock*
                pBlock->info.type == STREAM_CLEAR) {
       SArray* delWins = taosArrayInit(8, sizeof(SWinKey));
       if (!delWins) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         QUERY_CHECK_CODE(code, lino, _end);
       }
       code =
@@ -5700,7 +5700,7 @@ static int32_t doStreamMidIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock*
     } else if (pBlock->info.type == STREAM_MID_RETRIEVE) {
       SArray* delWins = taosArrayInit(8, sizeof(SWinKey));
       if (!delWins) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         QUERY_CHECK_CODE(code, lino, _end);
       }
       code = doDeleteWindows(pOperator, &pInfo->interval, pBlock, delWins, pInfo->pUpdatedMap, NULL);
@@ -5745,7 +5745,7 @@ static int32_t doStreamMidIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock*
   while ((pIte = tSimpleHashIterate(pInfo->pUpdatedMap, pIte, &iter)) != NULL) {
     void* tmp = taosArrayPush(pInfo->pUpdated, pIte);
     if (!tmp) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }

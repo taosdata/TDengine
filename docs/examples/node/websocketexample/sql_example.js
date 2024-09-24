@@ -24,13 +24,18 @@ async function createConnect() {
 async function createDbAndTable() {
     let wsSql = null;
     try {
-        wsSql = await createConnect();
+        let conf = new taos.WSConfig(dsn);
+        conf.setUser('root');
+        conf.setPwd('taosdata');
+        conf.setDb('power');
+        wsSql = await taos.sqlConnect(conf);
+        console.log("Connected to " + dsn + " successfully.");
         // create database
         await wsSql.exec('CREATE DATABASE IF NOT EXISTS power');
         console.log("Create database power successfully.");
         // create table
         await wsSql.exec('CREATE STABLE IF NOT EXISTS power.meters ' +
-            '(_ts timestamp, current float, voltage int, phase float) ' +
+            '(ts timestamp, current float, voltage int, phase float) ' +
             'TAGS (location binary(64), groupId int);');
 
         console.log("Create stable power.meters successfully");

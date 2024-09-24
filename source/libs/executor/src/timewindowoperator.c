@@ -653,8 +653,11 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
     setNotInterpoWindowKey(pSup->pCtx, numOfExprs, RESULT_ROW_START_INTERP);
 
     updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &w, 1);
-    applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, 0,
-                                    pBlock->info.rows, numOfExprs);
+    ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, 0,
+                                          pBlock->info.rows, numOfExprs);
+    if (ret != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, ret);
+    }
 
     if (isResultRowInterpolated(pResult, RESULT_ROW_END_INTERP)) {
       closeResultRow(pr);
@@ -799,8 +802,11 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   }
 
   updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &win, 1);
-  applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, forwardRows,
+  ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, forwardRows,
                                   pBlock->info.rows, numOfOutput);
+  if (ret != TSDB_CODE_SUCCESS) {
+    T_LONG_JMP(pTaskInfo->env, ret);
+  }
 
   doCloseWindow(pResultRowInfo, pInfo, pResult);
 
@@ -838,8 +844,11 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
     }
 #endif
     updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &nextWin, 1);
-    applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, forwardRows,
-                                    pBlock->info.rows, numOfOutput);
+    ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, forwardRows,
+                                          pBlock->info.rows, numOfOutput);
+    if (ret != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, ret);
+    }
     doCloseWindow(pResultRowInfo, pInfo, pResult);
   }
 
@@ -1031,8 +1040,11 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
       }
 
       updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &window, 0);
-      applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
-                                      pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
+      ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData,
+                                            pRowSup->startRowIndex, pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
+      if (ret != TSDB_CODE_SUCCESS) {
+        T_LONG_JMP(pTaskInfo->env, ret);
+      }
 
       // here we start a new session window
       doKeepNewWindowStartInfo(pRowSup, tsList, j, gid);
@@ -1056,8 +1068,11 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   }
 
   updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRowSup->win, 0);
-  applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
-                                  pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
+  ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
+                                        pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
+  if (ret != TSDB_CODE_SUCCESS) {
+    T_LONG_JMP(pTaskInfo->env, ret);
+  }
 }
 
 static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
@@ -1492,8 +1507,11 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
 
         // pInfo->numOfRows data belong to the current session window
         updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &window, 0);
-        applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
-                                        pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
+        ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
+                                              pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
+        if (ret != TSDB_CODE_SUCCESS) {
+          T_LONG_JMP(pTaskInfo->env, ret);
+        }
       }
 
       // here we start a new session window
@@ -1511,8 +1529,11 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
   }
 
   updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRowSup->win, 0);
-  applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
-                                  pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
+  ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
+                                        pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
+  if (ret != TSDB_CODE_SUCCESS) {
+    T_LONG_JMP(pTaskInfo->env, ret);
+  }
 }
 
 static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
@@ -1874,8 +1895,11 @@ static void doMergeAlignedIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultR
     }
 
     updateTimeWindowInfo(&iaInfo->twAggSup.timeWindowData, &currWin, 1);
-    applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &iaInfo->twAggSup.timeWindowData, startPos,
-                                    currPos - startPos, pBlock->info.rows, pSup->numOfExprs);
+    ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &iaInfo->twAggSup.timeWindowData, startPos,
+                                          currPos - startPos, pBlock->info.rows, pSup->numOfExprs);
+    if (ret != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, ret);
+    }
 
     finalizeResultRows(iaInfo->aggSup.pResultBuf, &pResultRowInfo->cur, pSup, pResultBlock, pTaskInfo);
     resetResultRow(miaInfo->pResultRow, iaInfo->aggSup.resultRowSize - sizeof(SResultRow));
@@ -1894,8 +1918,11 @@ static void doMergeAlignedIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultR
   }
 
   updateTimeWindowInfo(&iaInfo->twAggSup.timeWindowData, &currWin, 1);
-  applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &iaInfo->twAggSup.timeWindowData, startPos, currPos - startPos,
-                                  pBlock->info.rows, pSup->numOfExprs);
+  ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &iaInfo->twAggSup.timeWindowData, startPos,
+                                        currPos - startPos, pBlock->info.rows, pSup->numOfExprs);
+  if (ret != TSDB_CODE_SUCCESS) {
+    T_LONG_JMP(pTaskInfo->env, ret);
+  }
 }
 
 static void cleanupAfterGroupResultGen(SMergeAlignedIntervalAggOperatorInfo* pMiaInfo, SSDataBlock* pRes) {
@@ -2223,8 +2250,11 @@ static void doMergeIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultRowInfo*
   }
 
   updateTimeWindowInfo(&iaInfo->twAggSup.timeWindowData, &win, 1);
-  applyAggFunctionOnPartialTuples(pTaskInfo, pExprSup->pCtx, &iaInfo->twAggSup.timeWindowData, startPos, forwardRows,
+  ret = applyAggFunctionOnPartialTuples(pTaskInfo, pExprSup->pCtx, &iaInfo->twAggSup.timeWindowData, startPos, forwardRows,
                                   pBlock->info.rows, numOfOutput);
+  if (ret != TSDB_CODE_SUCCESS) {
+    T_LONG_JMP(pTaskInfo->env, ret);
+  }
   doCloseWindow(pResultRowInfo, iaInfo, pResult);
 
   // output previous interval results after this interval (&win) is closed
@@ -2262,8 +2292,11 @@ static void doMergeIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultRowInfo*
     }
 
     updateTimeWindowInfo(&iaInfo->twAggSup.timeWindowData, &nextWin, 1);
-    applyAggFunctionOnPartialTuples(pTaskInfo, pExprSup->pCtx, &iaInfo->twAggSup.timeWindowData, startPos, forwardRows,
-                                    pBlock->info.rows, numOfOutput);
+    code = applyAggFunctionOnPartialTuples(pTaskInfo, pExprSup->pCtx, &iaInfo->twAggSup.timeWindowData, startPos,
+                                           forwardRows, pBlock->info.rows, numOfOutput);
+    if (code != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
     doCloseWindow(pResultRowInfo, iaInfo, pResult);
 
     // output previous interval results after this interval (&nextWin) is closed

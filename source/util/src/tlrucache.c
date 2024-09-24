@@ -305,8 +305,7 @@ static void taosLRUCacheShardEvictLRU(SLRUCacheShard *shard, size_t charge, SArr
     SLRUEntry *old = shard->lru.next;
 
     taosLRUCacheShardLRURemove(shard, old);
-    SLRUEntry *e = taosLRUEntryTableRemove(&shard->table, old->keyData, old->keyLength, old->hash);
-
+    SLRUEntry *tentry = taosLRUEntryTableRemove(&shard->table, old->keyData, old->keyLength, old->hash);
     TAOS_LRU_ENTRY_SET_IN_CACHE(old, false);
     shard->usage -= old->totalCharge;
 
@@ -529,7 +528,7 @@ static void taosLRUCacheShardEraseUnrefEntries(SLRUCacheShard *shard) {
   while (shard->lru.next != &shard->lru) {
     SLRUEntry *old = shard->lru.next;
     taosLRUCacheShardLRURemove(shard, old);
-    SLRUEntry *e = taosLRUEntryTableRemove(&shard->table, old->keyData, old->keyLength, old->hash);
+    SLRUEntry *tentry = taosLRUEntryTableRemove(&shard->table, old->keyData, old->keyLength, old->hash);
     TAOS_LRU_ENTRY_SET_IN_CACHE(old, false);
     shard->usage -= old->totalCharge;
 
@@ -574,7 +573,7 @@ static bool taosLRUCacheShardRelease(SLRUCacheShard *shard, LRUHandle *handle, b
   lastReference = taosLRUEntryUnref(e);
   if (lastReference && TAOS_LRU_ENTRY_IN_CACHE(e)) {
     if (shard->usage > shard->capacity || eraseIfLastRef) {
-      SLRUEntry *new = taosLRUEntryTableRemove(&shard->table, e->keyData, e->keyLength, e->hash);
+      SLRUEntry *tentry = taosLRUEntryTableRemove(&shard->table, e->keyData, e->keyLength, e->hash);
       TAOS_LRU_ENTRY_SET_IN_CACHE(e, false);
     } else {
       taosLRUCacheShardLRUInsert(shard, e);

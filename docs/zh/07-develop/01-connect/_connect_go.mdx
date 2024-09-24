@@ -1,0 +1,17 @@
+#### 使用数据库访问统一接口
+
+```go title="原生连接"
+{{#include docs/examples/go/connect/cgoexample/main.go}}
+```
+
+```go title="REST 连接"
+{{#include docs/examples/go/connect/restexample/main.go}}
+```
+
+#### 使用高级封装
+
+也可以使用 driver-go 的 af 包建立连接。这个模块封装了 TDengine 的高级功能, 如：参数绑定、订阅等。
+
+```go title="使用 af 包建立原生连接"
+{{#include docs/examples/go/connect/afconn/main.go}}
+```

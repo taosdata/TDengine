@@ -128,7 +128,7 @@ FstRegistryEntry* fstRegistryGetEntry(FstRegistry* registry, FstBuilderNode* bNo
       entry->addr = cell->addr;
       return entry;
     } else {
-      (void)fstBuilderNodeCloneFrom(cell->node, bNode);
+      TAOS_UNUSED(fstBuilderNodeCloneFrom(cell->node, bNode));
       entry->state = NOTFOUND;
       entry->cell = cell;  // copy or not
     }
@@ -148,7 +148,7 @@ FstRegistryEntry* fstRegistryGetEntry(FstRegistry* registry, FstBuilderNode* bNo
       return entry;
     }
     // clone from bNode, refactor later
-    (void)fstBuilderNodeCloneFrom(cell2->node, bNode);
+    TAOS_UNUSED(fstBuilderNodeCloneFrom(cell2->node, bNode));
 
     fstRegistryCellSwap(registry->table, start, start + 1);
     FstRegistryCell* cCell = taosArrayGet(registry->table, start);
@@ -169,7 +169,7 @@ FstRegistryEntry* fstRegistryGetEntry(FstRegistry* registry, FstBuilderNode* bNo
       uint64_t         last = end - 1;
       FstRegistryCell* cell = (FstRegistryCell*)taosArrayGet(registry->table, last);
       // clone from bNode, refactor later
-      (void)fstBuilderNodeCloneFrom(cell->node, bNode);
+      TAOS_UNUSED(fstBuilderNodeCloneFrom(cell->node, bNode));
 
       fstRegistryCellPromote(registry->table, last, start);
       FstRegistryCell* cCell = taosArrayGet(registry->table, start);

@@ -112,7 +112,7 @@ void tEndEncode(SEncoder* pCoder) {
     pCoder->size = pNode->size;
     pCoder->pos = pNode->pos;
 
-    (void)tEncodeI32(pCoder, len);
+    int32_t ret = tEncodeI32(pCoder, len);
 
     pCoder->pos += len;
   }

@@ -858,7 +858,7 @@ static int32_t doDeleteFillResultImpl(SOperatorInfo* pOperator, TSKEY startTs, T
     };
     void* tmp = taosArrayPush(pInfo->pFillInfo->delRanges, &tw);
     if (!tmp) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -1264,13 +1264,13 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
   if (pFillSup->type == TSDB_FILL_LINEAR) {
     pFillInfo->pLinearInfo->pEndPoints = taosArrayInit(pFillSup->numOfAllCols, sizeof(SPoint));
     if (!pFillInfo->pLinearInfo->pEndPoints) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
     pFillInfo->pLinearInfo->pNextEndPoints = taosArrayInit(pFillSup->numOfAllCols, sizeof(SPoint));
     if (!pFillInfo->pLinearInfo->pNextEndPoints) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -1285,7 +1285,7 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
 
       void* tmpRes = taosArrayPush(pFillInfo->pLinearInfo->pEndPoints, &value);
       if (!tmpRes) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         QUERY_CHECK_CODE(code, lino, _end);
       }
 
@@ -1297,7 +1297,7 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
 
       tmpRes = taosArrayPush(pFillInfo->pLinearInfo->pNextEndPoints, &value);
       if (!tmpRes) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
@@ -1331,7 +1331,7 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
   pFillInfo->type = pFillSup->type;
   pFillInfo->delRanges = taosArrayInit(16, sizeof(STimeRange));
   if (!pFillInfo->delRanges) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 

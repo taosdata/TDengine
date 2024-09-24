@@ -64,7 +64,10 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   memset(ptr, 0, size);
   pPage = (SPage *)(ptr + pageSize);
 
-  (void)TDB_INIT_PAGE_LOCK(pPage);
+  int32_t code = TDB_INIT_PAGE_LOCK(pPage);
+  if (code) {
+    tdbError("tdb/page-create: init page lock failed.");
+  }
   pPage->pageSize = pageSize;
   pPage->pData = ptr;
   if (pageSize < 65536) {
@@ -322,7 +325,7 @@ int32_t tdbPageCopy(SPage *pFromPage, SPage *pToPage, int deepCopyOvfl) {
       pNewCell = (SCell *)tdbOsMalloc(szCell);
       if (pNewCell == NULL) {
         tdbError("tdb/page-copy: out of memory, size: %d", szCell);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       memcpy(pNewCell, pFromPage->apOvfl[iOvfl], szCell);
       tdbTrace("tdbPage/copy/new ovfl cell: %p/%p/%p", pNewCell, pToPage, pFromPage);
@@ -524,7 +527,7 @@ static int tdbPageDefragment(SPage *pPage) {
 
   SCellIdx *aCellIdx = (SCellIdx *)tdbOsMalloc(sizeof(SCellIdx) * nCell);
   if (aCellIdx == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   for (int32_t iCell = 0; iCell < nCell; iCell++) {
     aCellIdx[iCell].iCell = iCell;

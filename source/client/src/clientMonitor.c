@@ -73,7 +73,7 @@ static void destroyMonitorClient(void* data) {
   }
   taosHashCleanup(pMonitor->counters);
   int ret = taos_collector_registry_destroy(pMonitor->registry);
-  if (ret){
+  if (ret) {
     tscError("failed to destroy registry, pMonitor:%p ret:%d", pMonitor, ret);
   }
   taosMemoryFree(pMonitor);
@@ -192,7 +192,7 @@ static void generateClusterReport(taos_collector_registry_t* registry, void* pTr
 
   if (strlen(pCont) != 0 && sendReport(pTransporter, epSet, pCont, MONITOR_TYPE_COUNTER, NULL) == 0) {
     int ret = taos_collector_registry_clear_batch(registry);
-    if (ret){
+    if (ret) {
       tscError("failed to clear registry, ret:%d", ret);
     }
   }
@@ -215,10 +215,9 @@ static void reportSendProcess(void* param, void* tmrId) {
 
   SEpSet ep = getEpSet_s(&pInst->mgmtEp);
   generateClusterReport(pMonitor->registry, pInst->pTransporter, &ep);
-  bool reset = taosTmrReset(reportSendProcess, pInst->monitorParas.tsMonitorInterval * 1000, param, monitorTimer, &tmrId);
-  if (!reset){
-    tscError("failed to reset timer, pMonitor:%p", pMonitor);
-  }
+  bool reset =
+      taosTmrReset(reportSendProcess, pInst->monitorParas.tsMonitorInterval * 1000, param, monitorTimer, &tmrId);
+  tscDebug("reset timer, pMonitor:%p, %d", pMonitor, reset);
   taosRUnLockLatch(&monitorLock);
 }
 
@@ -267,7 +266,7 @@ void monitorCreateClient(int64_t clusterId) {
     }
 
     int r = taos_collector_registry_register_collector(pMonitor->registry, pMonitor->colector);
-    if (r){
+    if (r) {
       tscError("failed to register collector, ret:%d", r);
       goto fail;
     }
@@ -320,7 +319,7 @@ void monitorCreateClientCounter(int64_t clusterId, const char* name, const char*
   if (taos_collector_add_metric(pMonitor->colector, newCounter) != 0) {
     tscError("failed to add metric to collector");
     int r = taos_counter_destroy(newCounter);
-    if (r){
+    if (r) {
       tscError("failed to destroy counter, code: %d", r);
     }
     goto end;
@@ -328,7 +327,7 @@ void monitorCreateClientCounter(int64_t clusterId, const char* name, const char*
   if (taosHashPut(pMonitor->counters, name, strlen(name), &newCounter, POINTER_BYTES) != 0) {
     tscError("failed to put counter to monitor");
     int r = taos_counter_destroy(newCounter);
-    if (r){
+    if (r) {
       tscError("failed to destroy counter, code: %d", r);
     }
     goto end;
@@ -396,7 +395,7 @@ static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char* tmpP
     if (pClient == NULL) {
       tscError("failed to allocate memory for slow log client");
       int32_t ret = taosCloseFile(&pFile);
-      if (ret != 0){
+      if (ret != 0) {
         tscError("failed to close file:%p ret:%d", pFile, ret);
       }
       return;
@@ -408,7 +407,7 @@ static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char* tmpP
     if (taosHashPut(monitorSlowLogHash, &slowLogData->clusterId, LONG_BYTES, &pClient, POINTER_BYTES) != 0) {
       tscError("failed to put clusterId:%" PRId64 " to hash table", slowLogData->clusterId);
       int32_t ret = taosCloseFile(&pFile);
-      if (ret != 0){
+      if (ret != 0) {
         tscError("failed to close file:%p ret:%d", pFile, ret);
       }
       taosMemoryFree(pClient);
@@ -637,7 +636,7 @@ static void processFileRemoved(SlowLogClient* pClient) {
     return;
   }
   int32_t ret = taosCloseFile(&(pClient->pFile));
-  if (ret != 0){
+  if (ret != 0) {
     tscError("failed to close file:%p ret:%d", pClient->pFile, ret);
     return;
   }
@@ -730,18 +729,28 @@ static void monitorSendAllSlowLogFromTempDir(int64_t clusterId) {
     if (taosLockFile(pFile) < 0) {
       tscInfo("failed to lock file:%s since %s, maybe used by other process", filename, terrstr());
       int32_t ret = taosCloseFile(&pFile);
-      if (ret != 0){
+      if (ret != 0) {
         tscError("failed to close file:%p ret:%d", pFile, ret);
       }
       continue;
     }
     char* tmp = taosStrdup(filename);
+    if (tmp == NULL) {
+      tscError("failed to dup string:%s since %s", filename, terrstr());
+      if (taosUnLockFile(pFile) != 0) {
+        tscError("failed to unlock file:%s, terrno:%d", filename, terrno);
+      }
+      if (taosCloseFile(&(pFile)) != 0) {
+        tscError("failed to close file:%s, terrno:%d", filename, terrno);
+      }
+      continue;
+    }
     monitorSendSlowLogAtBeginning(clusterId, &tmp, pFile, 0);
     taosMemoryFree(tmp);
   }
 
   int32_t ret = taosCloseDir(&pDir);
-  if (ret != 0){
+  if (ret != 0) {
     tscError("failed to close dir, ret:%d", ret);
   }
 }
@@ -823,7 +832,7 @@ static int32_t tscMonitortInit() {
 static void tscMonitorStop() {
   if (taosCheckPthreadValid(monitorThread)) {
     (void)taosThreadJoin(monitorThread, NULL);
-    (void)taosThreadClear(&monitorThread);
+    taosThreadClear(&monitorThread);
   }
 }
 
@@ -889,7 +898,7 @@ void monitorClose() {
   taosHashCleanup(monitorSlowLogHash);
   taosTmrCleanUp(monitorTimer);
   taosCloseQueue(monitorQueue);
-  if(tsem2_destroy(&monitorSem) != 0) {
+  if (tsem2_destroy(&monitorSem) != 0) {
     tscError("failed to destroy semaphore");
   }
   taosWUnLockLatch(&monitorLock);
@@ -913,7 +922,7 @@ int32_t monitorPutData2MonitorQueue(MonitorSlowLogData data) {
   tscDebug("[monitor] write slow log to queue, clusterId:%" PRIx64 " type:%s, data:%s", slowLogData->clusterId,
            queueTypeStr[slowLogData->type], slowLogData->data);
   if (taosWriteQitem(monitorQueue, slowLogData) == 0) {
-    if(tsem2_post(&monitorSem) != 0) {
+    if (tsem2_post(&monitorSem) != 0) {
       tscError("failed to post semaphore");
     }
   } else {

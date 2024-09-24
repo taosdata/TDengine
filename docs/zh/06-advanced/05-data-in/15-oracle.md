@@ -17,7 +17,7 @@ TDengine 可以高效地从 Oracle 读取数据并将其写入 TDengine，以实
 
 在数据写入页面中点击左上角的 **+新增数据源** 按钮进入新增数据源页面，如下图所示：
 
-![Oracle-01zh-EnterDataSourcePage.png](./pic/Oracle-01zh-EnterDataSourcePage.png "进入新增数据源页面")
+![Common-zh00-EnterDataSourcePage.png](./pic/Common-zh00-EnterDataSourcePage.png "进入新增数据源页面")
 
 ### 2. 配置基本信息
 
@@ -49,11 +49,19 @@ TDengine 可以高效地从 Oracle 读取数据并将其写入 TDengine，以实
 
 ### 5. 配置 SQL 查询
 
+**子表字段** 用于拆分子表的字段，它是一条 select distinct 的 SQL 语句，查询指定字段组合的非重复项，通常与 transform 中的 tag 相对应：
+> 此项配置主要为了解决数据迁移乱序问题，需要结合**SQL 模板**共同使用，否则不能达到预期效果，使用示例如下：
+> 1. 子表字段填写语句 `select distinct col_name1, col_name2 from table`，它表示使用源表中的字段 col_name1 与 col_name2 拆分目标超级表的子表
+> 2. 在**SQL 模板**中添加子表字段占位符，例如 `select * from table where ts >= ${start} and ts < ${end} and ${col_name1} and ${col_name2}` 中的 `${col_name1} and ${col_name2}` 部分
+> 3. 在 **transform** 中配置 `col_name1` 与 `col_name2` 两个 tag 映射
+
 **SQL 模板** 用于查询的 SQL 语句模板，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。SQL 语句模板中定义的时间范围由源数据库中的某个代表时间的列和下面定义的占位符组成。
 > SQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：
 > 1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如： 2024-03-14T08:00:00+0800
 > 2. `${start_no_tz}`、`${end_no_tz}`: 表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00
 > 3. `${start_date}`、`${end_date}`：表示仅日期，但 Oracle 中没有纯日期类型，所以它会带零时零分零秒，如：2024-03-14 00:00:00，所以使用 `date <= ${end_date}` 时需要注意，它不能包含 2024-03-14 当天数据
+>
+> 为了解决迁移数据乱序的问题，应在查询语句中添加排序条件，例如 `order by ts asc`。
 
 **起始时间** 迁移数据的起始时间，此项为必填字段。
 
