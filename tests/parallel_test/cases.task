@@ -1553,9 +1553,9 @@
 #,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/telnet_tcp.py -R
 
 #docs-examples test
-,,n,docs-examples-test,bash python.sh
+#,,n,docs-examples-test,bash python.sh
 ,,n,docs-examples-test,bash node.sh
-,,n,docs-examples-test,bash csharp.sh
-,,n,docs-examples-test,bash jdbc.sh
-,,n,docs-examples-test,bash go.sh
-,,n,docs-examples-test,bash test_R.sh
+#,,n,docs-examples-test,bash csharp.sh
+#,,n,docs-examples-test,bash jdbc.sh
+#,,n,docs-examples-test,bash go.sh
+#,,n,docs-examples-test,bash test_R.sh

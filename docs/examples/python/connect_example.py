@@ -4,7 +4,7 @@ def create_connection():
     # all parameters are optional.
     conn = None
     host = "localhost"
-    port = 6031
+    port = 6030
     try:
         conn = taos.connect(
             user="root",
