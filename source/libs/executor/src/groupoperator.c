@@ -39,6 +39,7 @@ typedef struct SGroupbyOperatorInfo {
   int32_t        groupKeyLen;    // total group by column width
   SGroupResInfo  groupResInfo;
   SExprSupp      scalarSup;
+  SOperatorInfo  *pOperator;
 } SGroupbyOperatorInfo;
 
 // The sort in partition may be needed later.
@@ -85,9 +86,11 @@ static void destroyGroupOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->pGroupCols);
   taosArrayDestroyEx(pInfo->pGroupColVals, freeGroupKey);
   cleanupExprSupp(&pInfo->scalarSup);
-
+  cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
+                    &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
   cleanupGroupResInfo(&pInfo->groupResInfo);
   cleanupAggSup(&pInfo->aggSup);
+  pInfo->pOperator = NULL;
   taosMemoryFreeClear(param);
 }
 
@@ -568,6 +571,8 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
   pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
   pInfo->binfo.inputTsOrder = pAggNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pAggNode->node.outputTsOrder;
+
+  pInfo->pOperator = pOperator;
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashGroupbyAggregateNext, NULL, destroyGroupOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);

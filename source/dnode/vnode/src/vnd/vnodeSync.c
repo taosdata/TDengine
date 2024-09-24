@@ -69,7 +69,9 @@ void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg, int32_t code) {
   if (rsp.pCont == NULL) {
     pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
   } else {
-    (void)tSerializeSEpSet(rsp.pCont, contLen, &newEpSet);
+    if (tSerializeSEpSet(rsp.pCont, contLen, &newEpSet) != 0) {
+      vError("vgId:%d, failed to serialize ep set", pVnode->config.vgId);
+    }
     rsp.contLen = contLen;
   }
 
@@ -163,7 +165,9 @@ void vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit) {
     rpcFreeCont(rpcMsg.pCont);
     rpcMsg.pCont = NULL;
   } else {
-    (void)tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &rpcMsg);
+    if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      vTrace("vgId:%d, failed to put vnode commit to queue since %s", pVnode->config.vgId, terrstr());
+    }
   }
 }
 
@@ -560,7 +564,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
     }
   } while (true);
 
-  (void)walApplyVer(pVnode->pWal, commitIdx);
+  walApplyVer(pVnode->pWal, commitIdx);
   pVnode->restored = true;
 
   SStreamMeta *pMeta = pVnode->pTq->pStreamMeta;
@@ -615,7 +619,9 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
 
   if (pVnode->pTq) {
     tqUpdateNodeStage(pVnode->pTq, false);
-    (void)tqStopStreamTasksAsync(pVnode->pTq);
+    if (tqStopStreamTasksAsync(pVnode->pTq) != 0) {
+      vError("vgId:%d, failed to stop stream tasks", pVnode->config.vgId);
+    }
   }
 }
 
@@ -750,7 +756,10 @@ int32_t vnodeSyncStart(SVnode *pVnode) {
 
 void vnodeSyncPreClose(SVnode *pVnode) {
   vInfo("vgId:%d, sync pre close", pVnode->config.vgId);
-  (void)syncLeaderTransfer(pVnode->sync);
+  int32_t code = syncLeaderTransfer(pVnode->sync);
+  if (code) {
+    vError("vgId:%d, failed to transfer leader since %s", pVnode->config.vgId, tstrerror(code));
+  }
   syncPreStop(pVnode->sync);
 
   (void)taosThreadMutexLock(&pVnode->lock);

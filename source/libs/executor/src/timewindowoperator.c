@@ -37,6 +37,7 @@ typedef struct SSessionAggOperatorInfo {
   int64_t            gap;       // session window gap
   int32_t            tsSlotId;  // primary timestamp slot id
   STimeWindowAggSupp twAggSup;
+  SOperatorInfo*     pOperator;
 } SSessionAggOperatorInfo;
 
 typedef struct SStateWindowOperatorInfo {
@@ -50,6 +51,7 @@ typedef struct SStateWindowOperatorInfo {
   SStateKeys         stateKey;
   int32_t            tsSlotId;  // primary timestamp column slot id
   STimeWindowAggSupp twAggSup;
+  SOperatorInfo*     pOperator;
 } SStateWindowOperatorInfo;
 
 typedef enum SResultTsInterpType {
@@ -1224,6 +1226,9 @@ static void destroyStateWindowOperatorInfo(void* param) {
   SStateWindowOperatorInfo* pInfo = (SStateWindowOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   taosMemoryFreeClear(pInfo->stateKey.pData);
+  cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
+                    &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
+  pInfo->pOperator = NULL;
   cleanupExprSupp(&pInfo->scalarSup);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   cleanupAggSup(&pInfo->aggSup);
@@ -1243,6 +1248,9 @@ void destroyIntervalOperatorInfo(void* param) {
   }
   SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
+  cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
+                    &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
+  pInfo->pOperator = NULL;
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSupp);
 
@@ -1430,6 +1438,7 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
     }
   }
 
+  pInfo->pOperator = pOperator;
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
   setOperatorInfo(pOperator, "TimeIntervalAggOperator", QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
@@ -1706,7 +1715,7 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWinodwPhy
   QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->tsSlotId = tsSlotId;
-
+  pInfo->pOperator = pOperator;
   setOperatorInfo(pOperator, "StateWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(openStateWindowAggOptr, doStateWindowAggNext, NULL, destroyStateWindowOperatorInfo,
@@ -1738,7 +1747,9 @@ void destroySWindowOperatorInfo(void* param) {
 
   cleanupBasicInfo(&pInfo->binfo);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
-
+  cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
+                    &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
+  pInfo->pOperator = NULL;
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSupp);
 
@@ -1805,6 +1816,7 @@ int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPh
   code = filterInitFromNode((SNode*)pSessionNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   QUERY_CHECK_CODE(code, lino, _error);
 
+  pInfo->pOperator = pOperator;
   setOperatorInfo(pOperator, "SessionWindowAggOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doSessionWindowAggNext, NULL, destroySWindowOperatorInfo,
@@ -2121,6 +2133,7 @@ int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
   initResultRowInfo(&iaInfo->binfo.resultRowInfo);
   code = blockDataEnsureCapacity(iaInfo->binfo.pRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);
+  iaInfo->pOperator = pOperator;
   setOperatorInfo(pOperator, "TimeMergeAlignedIntervalAggOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL,
                   false, OP_NOT_OPENED, miaInfo, pTaskInfo);
 
@@ -2460,6 +2473,7 @@ int32_t createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeInterva
     }
   }
 
+  pIntervalInfo->pOperator = pOperator;
   initResultRowInfo(&pIntervalInfo->binfo.resultRowInfo);
   setOperatorInfo(pOperator, "TimeMergeIntervalAggOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL, false,
                   OP_NOT_OPENED, pMergeIntervalInfo, pTaskInfo);
