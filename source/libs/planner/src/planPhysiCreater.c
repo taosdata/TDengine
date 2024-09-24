@@ -3044,11 +3044,11 @@ static int32_t setExecNodeList(SPhysiPlanContext* pCxt, SArray* pExecNodeList) {
   if (NULL == pExecNodeList) {
     return code;
   }
-  if (pCxt->hasSysScan || !pCxt->hasScan) {
-    SQueryNodeLoad node = {.addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
-    if (NULL == taosArrayPush(pExecNodeList, &node))
-      code = terrno;
-  }
+
+  SQueryNodeLoad node = {.addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
+  if (NULL == taosArrayPush(pExecNodeList, &node))
+    code = terrno;
+
   return code;
 }
 
