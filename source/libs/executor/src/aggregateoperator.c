@@ -592,9 +592,16 @@ void cleanupResultInfoInStream(SExecTaskInfo* pTaskInfo, void* pState, SExprSupp
   int32_t         numOfExprs = pSup->numOfExprs;
   int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
   SqlFunctionCtx* pCtx = pSup->pCtx;
+  int32_t         numOfRows = getNumOfTotalRes(pGroupResInfo);
+  bool            needCleanup = false;
 
-  int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
-
+  for (int32_t j = 0; j < numOfExprs; ++j) {
+    needCleanup |= pCtx[j].needCleanup;
+  }
+  if (!needCleanup) {
+    return;
+  }
+  
   for (int32_t i = pGroupResInfo->index; i < numOfRows; i += 1) {
     SResultWindowInfo* pWinInfo = taosArrayGet(pGroupResInfo->pRows, i);
     SRowBuffPos*       pPos = pWinInfo->pStatePos;
@@ -620,6 +627,13 @@ void cleanupResultInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf*
   int32_t         numOfExprs = pSup->numOfExprs;
   int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
   SqlFunctionCtx* pCtx = pSup->pCtx;
+  bool            needCleanup = false;
+  for (int32_t j = 0; j < numOfExprs; ++j) {
+    needCleanup |= pCtx[j].needCleanup;
+  }
+  if (!needCleanup) {
+    return;
+  }
 
   // begin from last iter
   void*   pData = pGroupResInfo->dataPos;

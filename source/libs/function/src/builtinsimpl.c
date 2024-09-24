@@ -2114,6 +2114,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
     SET_VAL(pResInfo, numOfElems, 1);
   }
 
+  pCtx->needCleanup = true;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -6078,6 +6079,7 @@ int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
     pInfo->pHash = NULL;
     return terrno;
   }
+  pCtx->needCleanup = true;
   return TSDB_CODE_SUCCESS;
 }
 
