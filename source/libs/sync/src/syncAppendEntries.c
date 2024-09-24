@@ -175,7 +175,8 @@ _SEND_RESPONSE:
   if (accepted && matched) {
     pReply->success = true;
     // update commit index only after matching
-    (void)syncNodeUpdateCommitIndex(ths, TMIN(pMsg->commitIndex, pReply->lastSendIndex));
+    SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, TMIN(pMsg->commitIndex, pReply->lastSendIndex));
+    sTrace("vgId:%d, update commit return index %" PRId64 "", ths->vgId, returnIndex);
   }
 
   // ack, i.e. send response
