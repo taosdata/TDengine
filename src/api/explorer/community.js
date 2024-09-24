@@ -3412,10 +3412,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "str"
                 },
-                "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.",
-                "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n",
+                "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs(at least one closed interval).",
+                "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs(at least one closed interval).\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n\nIf you use subtable fields, you need to concatenate field placeholders \`and ${col_name1} and ${col_name2}\` in the statement,note that field placeholders are case sensitive and need to be consistent with the fields in the database. If you want to sort by a specific field (recommended in ascending time order), you need to concatenate \`ORDER BY time\` in the statement.\n\nExample:\`SELECT * FROM table WHERE time >= ${start} AND time < ${end} and ${col_name1} and ${col_name2} ORDER BY time\`",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "placeholder": "See the description for a complete example",
                 "grid_two": true,
               },
               {
@@ -3650,10 +3650,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "str"
                 },
-                "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.",
-                "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n",
+                "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs(at least one closed interval).",
+                "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs(at least one closed interval).\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n\nIf you use subtable fields, you need to concatenate field placeholders \`and ${col_name1} and ${col_name2}\` in the statement. If you want to sort by a specific field (recommended in ascending time order), you need to concatenate \`ORDER BY time\` in the statement.\n\nExample:\`SELECT * FROM table WHERE time >= ${start} AND time < ${end} and ${col_name1} and ${col_name2} ORDER BY time\`",
                 "required": true,
-                "placeholder": "SELECT * FROM schema.table WHERE time >= ${start} AND time < ${end}",
+                "placeholder": "See the description for a complete example",
                 "grid_two": true,
               },
               {
@@ -3851,10 +3851,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "str"
                 },
-                "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.",
-                "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, but there's no pure date type in Oracle, so it will contain zero hours, zero minutes, and zero seconds, such as: 2024-03-14 00:00:00, Therefore, when using date<=`${end_date}`, it should be noted that it cannot contain the day of 2024-03-14\n",
+                "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs(at least one closed interval).",
+                "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs(at least one closed interval).\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, but there's no pure date type in Oracle, so it will contain zero hours, zero minutes, and zero seconds, such as: 2024-03-14 00:00:00, Therefore, when using date<=`${end_date}`, it should be noted that it cannot contain the day of 2024-03-14\n\nIf you use subtable fields, you need to concatenate field placeholders \`and ${col_name1} and ${col_name2}\` in the statement. If you want to sort by a specific field (recommended in ascending time order), you need to concatenate \`ORDER BY time\` in the statement.\n\nExample:\`SELECT * FROM table WHERE time >= ${start} AND time < ${end} and ${col_name1} and ${col_name2} ORDER BY time\`",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "placeholder": "See the description for a complete example",
                 "grid_two": true,
               },
               {
@@ -4120,10 +4120,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "str"
                 },
-                "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.",
-                "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n",
+                "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs(at least one closed interval).",
+                "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs(at least one closed interval).\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n\nIf you use subtable fields, you need to concatenate field placeholders \`and ${col_name1} and ${col_name2}\` in the statement. If you want to sort by a specific field (recommended in ascending time order), you need to concatenate \`ORDER BY time\` in the statement.\n\nExample:\`SELECT * FROM table WHERE time >= ${start} AND time < ${end} and ${col_name1} and ${col_name2} ORDER BY time\`",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "placeholder": "See the description for a complete example",
                 "grid_two": true,
               },
               {
@@ -4466,8 +4466,8 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "str"
                 },
-                "short_description": "A query statement used to query data, in JSON format, must contain a time range condition, and the start time and end time must appear in pairs.",
-                "description": "A query statement used to query data, in JSON format, must contain a time range condition, and the start time and end time must appear in pairs.\nUse different placeholders to indicate different time format requirements, specifically the following placeholder formats:\n1. `${start_datetime}`、`${end_datetime}`:Filters corresponding to back-end datetime fields, for example:{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}} will be converted to {\"ddate\":{\"$gte\":{\"$date\":\"2024-06-01T00:00:00+00:00\"},\"$lt\":{\"$date\":\"2024-07-01T00:00:00+00:00\"}}}\n2. `${start_timestamp}`、`${end_timestamp}`: indicates the filtering of back-end timestamp fields, for example:{\"ttime\":{\"$gte\":${start_timestamp},\"$lt\":${end_timestamp}}} will be converted to {\"ttime\":{\"$gte\":{\"$timestamp\":{\"t\":123,\"i\":456}},\"$lt\":{\"$timestamp\":{\"t\":123,\"i\":456}}}}\n",
+                "short_description": "A query statement used to query data, in JSON format, must contain a time range condition, and the start time and end time must appear in pairs(at least one closed interval).",
+                "description": "A query statement used to query data, in JSON format, must contain a time range condition, and the start time and end time must appear in pairs(at least one closed interval).\nUse different placeholders to indicate different time format requirements, specifically the following placeholder formats:\n1. `${start_datetime}`、`${end_datetime}`:Filters corresponding to back-end datetime fields, for example:{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}} will be converted to {\"ddate\":{\"$gte\":{\"$date\":\"2024-06-01T00:00:00+00:00\"},\"$lt\":{\"$date\":\"2024-07-01T00:00:00+00:00\"}}}\n2. `${start_timestamp}`、`${end_timestamp}`: indicates the filtering of back-end timestamp fields, for example:{\"ttime\":{\"$gte\":${start_timestamp},\"$lt\":${end_timestamp}}} will be converted to {\"ttime\":{\"$gte\":{\"$timestamp\":{\"t\":123,\"i\":456}},\"$lt\":{\"$timestamp\":{\"t\":123,\"i\":456}}}}\n\nExample:\`{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}},${col_name1},${col_name2}}\`",
                 "required": true,
                 "placeholder": "{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}},${col_name1},${col_name2}}",
                 "grid_two": true,
@@ -7997,9 +7997,9 @@ export function getDataSources(lang) {
                   "type": "str"
                 },
                 "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
-                "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n",
+                "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现（至少一个闭区间）。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n\n如果使用子表字段，需要在语句中拼接字段占位符 \`and ${col_name1} and ${col_name2}\`，请注意，字段占位符大小写敏感，需要与数据库中字段保持一致。如果要按指定字段排序（建议按时间正序），需要在语句中拼接 \`ORDER BY time。\`\n\n示例：\`SELECT * FROM table WHERE time >= ${start} AND time < ${end} and ${col_name1} and ${col_name2} ORDER BY time\`",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "placeholder": "完整示例请在描述中查看",
                 "grid_two": true,
               },
               {
@@ -8235,9 +8235,9 @@ export function getDataSources(lang) {
                   "type": "str"
                 },
                 "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
-                "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n",
+                "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现（至少一个闭区间）。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n\n如果使用子表字段，需要在语句中拼接字段占位符 \`and ${col_name1} and ${col_name2}\`，请注意，字段占位符大小写敏感，需要与数据库中字段保持一致。如果要按指定字段排序（建议按时间正序），需要在语句中拼接 \`ORDER BY time\`。\n\n示例：\`SELECT * FROM table WHERE time >= ${start} AND time < ${end} and ${col_name1} and ${col_name2} ORDER BY time\`",
                 "required": true,
-                "placeholder": "SELECT * FROM schema.table WHERE time >= ${start} AND time < ${end}",
+                "placeholder": "完整示例请在描述中查看",
                 "grid_two": true,
               },
               {
@@ -8436,9 +8436,9 @@ export function getDataSources(lang) {
                   "type": "str"
                 },
                 "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
-                "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，但 Oracle 中没有纯日期类型，所以它会带零时零分零秒，如：2024-03-14 00:00:00，所以使用 date <= `${end_date}` 时需要注意，它不能包含 2024-03-14 当天数据\n",
+                "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现（至少一个闭区间）。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，但 Oracle 中没有纯日期类型，所以它会带零时零分零秒，如：2024-03-14 00:00:00，所以使用 date <= `${end_date}` 时需要注意，它不能包含 2024-03-14 当天数据。\n\n如果使用子表字段，需要在语句中拼接字段占位符 \`and ${col_name1} and ${col_name2}\`，请注意，字段占位符大小写敏感，需要与数据库中字段保持一致。如果要按指定字段排序（建议按时间正序），需要在语句中拼接 \`ORDER BY time\`。\n\n示例：\`SELECT * FROM table WHERE time >= ${start} AND time < ${end} and ${col_name1} and ${col_name2} ORDER BY time\`",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "placeholder": "完整示例请在描述中查看",
                 "grid_two": true,
               },
               {
@@ -8705,9 +8705,9 @@ export function getDataSources(lang) {
                   "type": "str"
                 },
                 "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
-                "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n",
+                "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现（至少一个闭区间）。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n\n如果使用子表字段，需要在语句中拼接字段占位符 \`and ${col_name1} and ${col_name2}\`，如果要按指定字段排序（建议按时间正序），需要在语句中拼接 \`ORDER BY time\`。\n\n示例：\`SELECT * FROM table WHERE time >= ${start} AND time < ${end} and ${col_name1} and ${col_name2} ORDER BY time\`",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "placeholder": "完整示例请在描述中查看",
                 "grid_two": true,
               },
               {
@@ -9051,7 +9051,7 @@ export function getDataSources(lang) {
                   "type": "str"
                 },
                 "short_description": "用于查询数据的查询语句，JSON格式，语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
-                "description": "用于查询数据的查询语句，JSON格式，语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\n使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start_datetime}`、`${end_datetime}`：对应后端 datetime 类型字段的筛选，如：{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}} 将被转换为 {\"ddate\":{\"$gte\":{\"$date\":\"2024-06-01T00:00:00+00:00\"},\"$lt\":{\"$date\":\"2024-07-01T00:00:00+00:00\"}}}\n2. `${start_timestamp}`、`${end_timestamp}`：对应后端 timestamp 类型字段的筛选，如：{\"ttime\":{\"$gte\":${start_timestamp},\"$lt\":${end_timestamp}}} 将被转换为 {\"ttime\":{\"$gte\":{\"$timestamp\":{\"t\":123,\"i\":456}},\"$lt\":{\"$timestamp\":{\"t\":123,\"i\":456}}}}\n",
+                "description": "用于查询数据的查询语句，JSON格式，语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现（至少一个闭区间）。\n使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start_datetime}`、`${end_datetime}`：对应后端 datetime 类型字段的筛选，如：{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}} 将被转换为 {\"ddate\":{\"$gte\":{\"$date\":\"2024-06-01T00:00:00+00:00\"},\"$lt\":{\"$date\":\"2024-07-01T00:00:00+00:00\"}}}\n2. `${start_timestamp}`、`${end_timestamp}`：对应后端 timestamp 类型字段的筛选，如：{\"ttime\":{\"$gte\":${start_timestamp},\"$lt\":${end_timestamp}}} 将被转换为 {\"ttime\":{\"$gte\":{\"$timestamp\":{\"t\":123,\"i\":456}},\"$lt\":{\"$timestamp\":{\"t\":123,\"i\":456}}}}\n\n示例：\`{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}},${col_name1},${col_name2}}\`",
                 "required": true,
                 "placeholder": "{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}},${col_name1},${col_name2}}",
                 "grid_two": true,
