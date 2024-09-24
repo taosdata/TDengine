@@ -197,6 +197,7 @@ export default {
           try {
             let res = await importTaosInfo(params)
             if (res && Object.hasOwnProperty.call(res,'code')) {
+              this.loading = false;
               this.$error(res?.message);
               return
             }
