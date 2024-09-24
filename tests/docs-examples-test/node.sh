@@ -11,7 +11,7 @@ npm config set registry https://registry.npmjs.org/
 
 npm install
 
-cd websocketet
+cd websocketexample
 
 node all_type_query.js
 
