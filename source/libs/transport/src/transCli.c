@@ -493,10 +493,6 @@ void cliHandleResp(SCliConn* conn) {
   }
 
   if (CONN_NO_PERSIST_BY_APP(conn)) {
-    if (refId != 0) {
-      (void)transReleaseExHandle(transGetRefMgt(), refId);
-      (void)transRemoveExHandle(transGetRefMgt(), refId);
-    }
     return addConnToPool(pThrd->pool, conn);
   }
 
@@ -3361,6 +3357,9 @@ int32_t transFreeConnById(void* shandle, int64_t transpointId) {
 
 _exception:
   transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
+
+  (void)transReleaseExHandle(transGetRefMgt(), transpointId);
+  (void)transRemoveExHandle(transGetRefMgt(), transpointId);
   taosMemoryFree(pCli);
 
   return code;
