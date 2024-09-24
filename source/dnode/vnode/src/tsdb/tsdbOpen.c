@@ -102,7 +102,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbClose(STsdb **pTsdb) {
+void tsdbClose(STsdb **pTsdb) {
   if (*pTsdb) {
     STsdb *pdb = *pTsdb;
     tsdbDebug("vgId:%d, tsdb is close at %s, days:%d, keep:%d,%d,%d, keepTimeOffset:%d", TD_VID(pdb->pVnode), pdb->path,
@@ -121,5 +121,5 @@ int32_t tsdbClose(STsdb **pTsdb) {
     (void)taosThreadMutexDestroy(&(*pTsdb)->mutex);
     taosMemoryFreeClear(*pTsdb);
   }
-  return 0;
+  return;
 }
