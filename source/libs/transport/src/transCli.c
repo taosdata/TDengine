@@ -1232,6 +1232,10 @@ int32_t cliBatchSend(SCliConn* pConn) {
   if (pConn->broken) {
     return 0;
   }
+
+  if (pConn->connnected != 1) {
+    return 0;
+  }
   int32_t size = transQueueSize(&pConn->reqsToSend);
 
   int32_t totalLen = 0;
@@ -1319,6 +1323,7 @@ int32_t cliBatchSend(SCliConn* pConn) {
 int32_t cliSendReq(SCliConn* pConn, SCliReq* pCliMsg) {
   int32_t code = 0;
   (void)transQueuePush(&pConn->reqsToSend, &pCliMsg->q);
+
   code = cliBatchSend(pConn);
   return code;
 }
