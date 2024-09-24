@@ -51,7 +51,7 @@ int32_t cfgInit(SConfig **ppCfg) {
   pCfg->array = taosArrayInit(32, sizeof(SConfigItem));
   if (pCfg->array == NULL) {
     taosMemoryFree(pCfg);
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   TAOS_CHECK_RETURN(taosThreadMutexInit(&pCfg->lock, NULL));
@@ -127,7 +127,7 @@ static int32_t cfgCheckAndSetConf(SConfigItem *pItem, const char *conf) {
 
   pItem->str = taosStrdup(conf);
   if (pItem->str == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -144,7 +144,7 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
   taosMemoryFreeClear(pItem->str);
   pItem->str = taosStrdup(fullDir);
   if (pItem->str == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -211,7 +211,7 @@ static int32_t cfgSetString(SConfigItem *pItem, const char *value, ECfgSrcType s
   if (tmp == NULL) {
     uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s", pItem->name, cfgDtypeStr(pItem->dtype),
            cfgStypeStr(stype), value, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   taosMemoryFreeClear(pItem->str);
@@ -272,7 +272,7 @@ static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value,
     if (pItem->array == NULL) {
       (void)taosThreadMutexUnlock(&pCfg->lock);
 
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
   }
 
@@ -285,7 +285,7 @@ static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value,
   if (ret == NULL) {
     (void)taosThreadMutexUnlock(&pCfg->lock);
 
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pItem->stype = stype;
@@ -304,7 +304,7 @@ static int32_t cfgUpdateDebugFlagItem(SConfig *pCfg, const char *name, bool rese
     if (pDebugFlagItem->array == NULL) {
       pDebugFlagItem->array = taosArrayInit(16, sizeof(SLogVar));
       if (pDebugFlagItem->array == NULL) {
-        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+        TAOS_RETURN(terrno);
       }
     }
     taosArrayClear(pDebugFlagItem->array);
@@ -317,7 +317,7 @@ static int32_t cfgUpdateDebugFlagItem(SConfig *pCfg, const char *name, bool rese
     SLogVar logVar = {0};
     (void)strncpy(logVar.name, name, TSDB_LOG_VAR_LEN - 1);
     if (NULL == taosArrayPush(pDebugFlagItem->array, &logVar)) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
   }
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -426,7 +426,12 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
   switch (pItem->dtype) {
     case CFG_DTYPE_STRING: {
       if (strcasecmp(name, "slowLogScope") == 0) {
-        char   *tmp = taosStrdup(pVal);
+        char *tmp = taosStrdup(pVal);
+        if (!tmp) {
+          cfgUnLock(pCfg);
+          uError("failed to config:%s since %s", name, terrstr());
+          TAOS_RETURN(terrno);
+        }
         int32_t scope = 0;
         int32_t code = taosSetSlowLogScope(tmp, &scope);
         if (TSDB_CODE_SUCCESS != code) {
@@ -500,7 +505,7 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
   pItem->stype = CFG_STYPE_DEFAULT;
   pItem->name = taosStrdup(name);
   if (pItem->name == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   int32_t size = taosArrayGetSize(pCfg->array);
@@ -522,7 +527,7 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
     }
 
     taosMemoryFree(pItem->name);
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -582,7 +587,7 @@ int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, in
   SConfigItem item = {.dtype = CFG_DTYPE_STRING, .scope = scope, .dynScope = dynScope};
   item.str = taosStrdup(defaultVal);
   if (item.str == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
   return cfgAddItem(pCfg, &item, name);
 }
@@ -1304,7 +1309,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
         size_t itemValueStringLen = strlen(itemValueString);
         void  *px = taosMemoryRealloc(cfgLineBuf, itemNameLen + itemValueStringLen + 3);
         if (NULL == px) {
-          TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+          TAOS_CHECK_EXIT(terrno);
         }
 
         cfgLineBuf = px;

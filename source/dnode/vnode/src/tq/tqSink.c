@@ -198,7 +198,7 @@ int32_t initCreateTableMsg(SVCreateTbReq* pCreateTableReq, uint64_t suid, const 
     pCreateTableReq->ctb.stbName = taosStrdup((char*)tNameGetTableName(&name));
     if (pCreateTableReq->ctb.stbName == NULL) { // ignore this error code
       tqError("failed to duplicate the stb name:%s, failed to init create-table msg and create req table", stbFullName);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     }
   }
 
@@ -291,7 +291,7 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
 
       void* p = taosArrayPush(tagArray, &tagVal);
       if (p == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       code = createDefaultTagColName(&pCreateTbReq->ctb.tagName);
@@ -317,7 +317,7 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
         }
         void* p = taosArrayPush(tagArray, &tagVal);
         if (p == NULL) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           goto _end;
         }
       }
@@ -356,7 +356,7 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
 
     void* p = taosArrayPush(reqs.pArray, pCreateTbReq);
     if (p == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _end;
     }
 
@@ -446,13 +446,13 @@ int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, c
     if (pNewRow->ts < pOldRow->ts) {
       void* p = taosArrayPush(pFinal, &pNewRow);
       if (p == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       j += 1;
     } else if (pNewRow->ts > pOldRow->ts) {
       void* p = taosArrayPush(pFinal, &pOldRow);
       if (p == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       k += 1;
@@ -461,7 +461,7 @@ int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, c
         if (pNewRow->numOfPKs == 0) {
           void* p = taosArrayPush(pFinal, &pNewRow);
           if (p == NULL) {
-            return TSDB_CODE_OUT_OF_MEMORY;
+            return terrno;
           }
 
           k += 1;
@@ -478,7 +478,7 @@ int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, c
           if (ret <= 0) {
             void* p = taosArrayPush(pFinal, &pNewRow);
             if (p == NULL) {
-              return TSDB_CODE_OUT_OF_MEMORY;
+              return terrno;
             }
 
             j += 1;
@@ -490,7 +490,7 @@ int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, c
           } else {
             void* p = taosArrayPush(pFinal, &pOldRow);
             if (p == NULL) {
-              return TSDB_CODE_OUT_OF_MEMORY;
+              return terrno;
             }
 
             k += 1;
@@ -503,7 +503,7 @@ int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, c
     SRow* pRow = *(SRow**)TARRAY_GET_ELEM(pNew->aRowP, j++);
     void* p = taosArrayPush(pFinal, &pRow);
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -511,7 +511,7 @@ int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, c
     SRow* pRow = *(SRow**)TARRAY_GET_ELEM(pExisted->aRowP, k++);
     void* p = taosArrayPush(pFinal, &pRow);
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -564,7 +564,7 @@ int32_t buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t n
   STagVal tagVal = {.cid = numOfCols, .type = TSDB_DATA_TYPE_UBIGINT, .i64 = pDataBlock->info.id.groupId};
   void* p = taosArrayPush(pTagArray, &tagVal);
   if (p == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   code = tTagNew(pTagArray, 1, false, (STag**)&pCreateTbReq->ctb.pTag);
@@ -604,7 +604,7 @@ int32_t buildSubmitMsgImpl(SSubmitReq2* pSubmitReq, int32_t vgId, void** pMsg, i
   pBuf = rpcMallocCont(len);
   if (NULL == pBuf) {
     tDestroySubmitReq(pSubmitReq, TSDB_MSG_FLG_ENCODE);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   ((SSubmitReq2Msg*)pBuf)->header.vgId = vgId;
@@ -652,7 +652,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
     taosArrayDestroy(pTableData->aRowP);
     pTableData->aRowP = NULL;
     taosArrayDestroy(pVals);
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     tqError("s-task:%s failed to prepare write stream res blocks, code:%s", id, tstrerror(code));
     return code;
   }
@@ -695,7 +695,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
         SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
         void* p = taosArrayPush(pVals, &cv);
         if (p == NULL) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
       } else {
         SColumnInfoData* pColData = taosArrayGet(pDataBlock->pDataBlock, dataIndex);
@@ -713,7 +713,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
           SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
           void* p = taosArrayPush(pVals, &cv);
           if (p == NULL) {
-            return TSDB_CODE_OUT_OF_MEMORY;
+            return terrno;
           }
 
           dataIndex++;
@@ -725,7 +725,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
             SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
             void* p = taosArrayPush(pVals, &cv);
             if (p == NULL) {
-              return TSDB_CODE_OUT_OF_MEMORY;
+              return terrno;
             }
           } else {
             SValue sv = {.type = pCol->type};
@@ -733,7 +733,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
             SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
             void* p = taosArrayPush(pVals, &cv);
             if (p == NULL) {
-              return TSDB_CODE_OUT_OF_MEMORY;
+              return terrno;
             }
           }
           dataIndex++;
@@ -752,7 +752,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
 
     void* p = taosArrayPush(pTableData->aRowP, &pRow);
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -1026,7 +1026,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
 
         SSubmitReq2 submitReq = {.aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData))};
         if (submitReq.aSubmitTbData == NULL) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           tqError("s-task:%s vgId:%d failed to prepare submit msg in sink task, code:%s", id, vgId, tstrerror(code));
           return;
         }
@@ -1066,7 +1066,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
 
     SSubmitReq2 submitReq = {.aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData))};
     if (submitReq.aSubmitTbData == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       tqError("s-task:%s vgId:%d failed to prepare submit msg in sink task, code:%s", id, vgId, tstrerror(code));
       taosHashCleanup(pTableIndexMap);
       return;

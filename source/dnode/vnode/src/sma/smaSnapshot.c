@@ -93,27 +93,26 @@ int32_t rsmaSnapRead(SRSmaSnapReader* pReader, uint8_t** ppData) {
 _exit:
   if (code) {
     smaError("vgId:%d, %s failed at line %d since %s", SMA_VID(pReader->pSma), __func__, lino, tstrerror(code));
-    (void)rsmaSnapReaderClose(&pReader);
+    rsmaSnapReaderClose(&pReader);
   } else {
     smaInfo("vgId:%d, vnode snapshot rsma read succeed", SMA_VID(pReader->pSma));
   }
   TAOS_RETURN(code);
 }
 
-int32_t rsmaSnapReaderClose(SRSmaSnapReader** ppReader) {
-  int32_t          code = 0;
+void rsmaSnapReaderClose(SRSmaSnapReader** ppReader) {
   SRSmaSnapReader* pReader = *ppReader;
 
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pReader->pDataReader[i]) {
-      (void)tsdbSnapReaderClose(&pReader->pDataReader[i]);
+      tsdbSnapReaderClose(&pReader->pDataReader[i]);
     }
   }
 
   smaInfo("vgId:%d, vnode snapshot rsma reader closed", SMA_VID(pReader->pSma));
 
   taosMemoryFreeClear(*ppReader);
-  TAOS_RETURN(code);
+  return;
 }
 
 // SRSmaSnapWriter ========================================

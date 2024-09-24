@@ -229,7 +229,7 @@ static int32_t doAddNewBucket(SLHashObj* pHashObj) {
 
     char* p = taosMemoryRealloc(pHashObj->pBucket, POINTER_BYTES * newLen);
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     memset(p + POINTER_BYTES * pHashObj->numOfBuckets, 0, newLen - pHashObj->numOfBuckets);
@@ -238,11 +238,14 @@ static int32_t doAddNewBucket(SLHashObj* pHashObj) {
   }
 
   SLHashBucket* pBucket = taosMemoryCalloc(1, sizeof(SLHashBucket));
+  if (pBucket == NULL) {
+    return terrno;
+  }
   pHashObj->pBucket[pHashObj->numOfBuckets] = pBucket;
 
   pBucket->pPageIdList = taosArrayInit(2, sizeof(int32_t));
   if (pBucket->pPageIdList == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t    pageId = -1;
@@ -281,13 +284,14 @@ SLHashObj* tHashInit(int32_t inMemPages, int32_t pageSize, _hash_fn_t fn, int32_
 
   int32_t code = createDiskbasedBuf(&pHashObj->pBuf, pageSize, inMemPages * pageSize, "", tsTempDir);
   if (code != 0) {
-    taosMemoryFree(pHashObj);
-    terrno = code;
-    return NULL;
+    goto _error;
   }
 
   // disable compress when flushing to disk
-  setBufPageCompressOnDisk(pHashObj->pBuf, false);
+  code = setBufPageCompressOnDisk(pHashObj->pBuf, false);
+  if (code != 0) {
+    goto _error;
+  }
 
   /**
    * The number of bits in the hash value, which is used to decide the exact bucket where the object should be located
@@ -299,16 +303,32 @@ SLHashObj* tHashInit(int32_t inMemPages, int32_t pageSize, _hash_fn_t fn, int32_
 
   pHashObj->numOfAlloc = 4;  // initial allocated array list
   pHashObj->pBucket = taosMemoryCalloc(pHashObj->numOfAlloc, POINTER_BYTES);
+  if (pHashObj->pBucket == NULL) {
+    code = terrno;
+    goto _error;
+  }
 
   code = doAddNewBucket(pHashObj);
   if (code != TSDB_CODE_SUCCESS) {
-    destroyDiskbasedBuf(pHashObj->pBuf);
-    taosMemoryFreeClear(pHashObj);
-    terrno = code;
-    return NULL;
+    goto _error;
   }
 
   return pHashObj;
+
+_error:
+  if (pHashObj->pBuf) {
+    destroyDiskbasedBuf(pHashObj->pBuf);
+  }
+  if (pHashObj->pBucket) {
+    for (int32_t i = 0; i < pHashObj->numOfBuckets; ++i) {
+      taosArrayDestroy(pHashObj->pBucket[i]->pPageIdList);
+      taosMemoryFree(pHashObj->pBucket[i]);
+    }
+    taosMemoryFree(pHashObj->pBucket);
+  }
+  taosMemoryFree(pHashObj);
+  terrno = code;
+  return NULL;
 }
 
 void* tHashCleanup(SLHashObj* pHashObj) {

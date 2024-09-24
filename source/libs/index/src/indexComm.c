@@ -349,7 +349,7 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       if (*dst == NULL) {
         return terrno;
       }
-      (void)idxInt2str(*(int64_t*)src, *dst, -1);
+      TAOS_UNUSED(idxInt2str(*(int64_t*)src, *dst, -1));
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_BOOL:
@@ -358,7 +358,7 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       if (*dst == NULL) {
         return terrno;
       }
-      (void)idxInt2str(*(uint8_t*)src, *dst, 1);
+      TAOS_UNUSED(idxInt2str(*(uint8_t*)src, *dst, 1));
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_TINYINT:
@@ -366,7 +366,7 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       if (*dst == NULL) {
         return terrno;
       }
-      (void)idxInt2str(*(int8_t*)src, *dst, 1);
+      TAOS_UNUSED(idxInt2str(*(int8_t*)src, *dst, 1));
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_SMALLINT:
@@ -374,12 +374,12 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       if (*dst == NULL) {
         return terrno;
       }
-      (void)idxInt2str(*(int16_t*)src, *dst, -1);
+      TAOS_UNUSED(idxInt2str(*(int16_t*)src, *dst, -1));
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_USMALLINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      (void)idxInt2str(*(uint16_t*)src, *dst, -1);
+      TAOS_UNUSED(idxInt2str(*(uint16_t*)src, *dst, -1));
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_INT:
@@ -387,7 +387,7 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       if (*dst == NULL) {
         return terrno;
       }
-      (void)idxInt2str(*(int32_t*)src, *dst, -1);
+      TAOS_UNUSED(idxInt2str(*(int32_t*)src, *dst, -1));
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_UINT:
@@ -395,7 +395,7 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       if (*dst == NULL) {
         return terrno;
       }
-      (void)idxInt2str(*(uint32_t*)src, *dst, 1);
+      TAOS_UNUSED(idxInt2str(*(uint32_t*)src, *dst, 1));
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_BIGINT:
@@ -411,7 +411,7 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       if (*dst == NULL) {
         return terrno;
       }
-      (void)idxInt2str(*(uint64_t*)src, *dst, 1);
+      TAOS_UNUSED(idxInt2str(*(uint64_t*)src, *dst, 1));
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_FLOAT:

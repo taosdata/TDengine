@@ -48,6 +48,9 @@ void destroyStreamEventOperatorInfo(void* param) {
   }
   SStreamEventAggOperatorInfo* pInfo = (SStreamEventAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
+  cleanupResultInfoInStream(pInfo->pOperator->pTaskInfo, pInfo->streamAggSup.pState, &pInfo->pOperator->exprSupp,
+                            &pInfo->groupResInfo);
+  pInfo->pOperator = NULL;
   destroyStreamAggSupporter(&pInfo->streamAggSup);
   clearGroupResInfo(&pInfo->groupResInfo);
   taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
@@ -695,7 +698,7 @@ static int32_t doStreamEventAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   if (pInfo->isHistoryOp) {
     SArray* pHisWins = taosArrayInit(16, sizeof(SEventWindowInfo));
     if (!pHisWins) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -951,6 +954,7 @@ int32_t createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   QUERY_CHECK_NULL(pInfo->pPkDeleted, code, lino, _error, terrno);
   pInfo->destHasPrimaryKey = pEventNode->window.destHasPrimayKey;
 
+  pInfo->pOperator = pOperator;
   setOperatorInfo(pOperator, "StreamEventAggOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   // for stream

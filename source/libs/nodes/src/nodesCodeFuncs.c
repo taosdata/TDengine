@@ -440,7 +440,7 @@ static int32_t nodeListToJson(SJson* pJson, const char* pName, const SNodeList* 
   if (LIST_LENGTH(pList) > 0) {
     SJson* jList = tjsonAddArrayToObject(pJson, pName);
     if (NULL == jList) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     SNode* pNode;
     FOREACH(pNode, pList) {
@@ -3954,6 +3954,7 @@ static int32_t datumToJson(const void* pObj, SJson* pJson) {
     case TSDB_DATA_TYPE_NCHAR: {
       // cJSON only support utf-8 encoding. Convert memory content to hex string.
       char* buf = taosMemoryCalloc(varDataLen(pNode->datum.p) * 2 + 1, sizeof(char));
+      if (!buf) return terrno;
       code = taosHexEncode(varDataVal(pNode->datum.p), buf, varDataLen(pNode->datum.p));
       if (code != TSDB_CODE_SUCCESS) {
         taosMemoryFree(buf);
@@ -3971,6 +3972,7 @@ static int32_t datumToJson(const void* pObj, SJson* pJson) {
     case TSDB_DATA_TYPE_JSON: {
       int32_t len = getJsonValueLen(pNode->datum.p);
       char*   buf = taosMemoryCalloc(len * 2 + 1, sizeof(char));
+      if (!buf) return terrno;
       code = taosHexEncode(pNode->datum.p, buf, len);
       if (code != TSDB_CODE_SUCCESS) {
         taosMemoryFree(buf);
@@ -6038,6 +6040,7 @@ static int32_t jsonToDropTableStmt(const SJson* pJson, void* pObj) {
 static const char* jkDropSuperTableStmtDbName = "DbName";
 static const char* jkDropSuperTableStmtTableName = "TableName";
 static const char* jkDropSuperTableStmtIgnoreNotExists = "IgnoreNotExists";
+static const char* jkDropSuperTableStmtwithOpt = "withOpt";
 
 static int32_t dropStableStmtToJson(const void* pObj, SJson* pJson) {
   const SDropSuperTableStmt* pNode = (const SDropSuperTableStmt*)pObj;
@@ -6048,6 +6051,9 @@ static int32_t dropStableStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkDropSuperTableStmtIgnoreNotExists, pNode->ignoreNotExists);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkDropSuperTableStmtwithOpt, pNode->withOpt);
   }
 
   return code;
@@ -6062,6 +6068,9 @@ static int32_t jsonToDropStableStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkDropSuperTableStmtIgnoreNotExists, &pNode->ignoreNotExists);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkDropSuperTableStmtwithOpt, &pNode->withOpt);
   }
 
   return code;
@@ -8244,8 +8253,7 @@ int32_t nodesNodeToString(const SNode* pNode, bool format, char** pStr, int32_t*
 
   SJson* pJson = tjsonCreateObject();
   if (NULL == pJson) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t code = nodeToJson(pNode, pJson);
@@ -8295,8 +8303,7 @@ int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int3
 
   SJson* pJson = tjsonCreateArray();
   if (NULL == pJson) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SNode* pNode;

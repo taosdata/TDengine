@@ -76,14 +76,14 @@ int32_t fstBuilderNodeCloneFrom(FstBuilderNode* dst, FstBuilderNode* src) {
   size_t sz = taosArrayGetSize(src->trans);
   dst->trans = taosArrayInit(sz, sizeof(FstTransition));
   if (dst->trans == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   for (size_t i = 0; i < sz; i++) {
     FstTransition* trn = taosArrayGet(src->trans, i);
     if (taosArrayPush(dst->trans, trn) == NULL) {
       taosArrayDestroy(dst->trans);
       dst->trans = NULL;
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   return 0;
