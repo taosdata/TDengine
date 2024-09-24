@@ -279,6 +279,9 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
     }
 
     TSDB_CHECK_CODE(code, lino, _error);
+    if (pTupleHandle == NULL) {
+      break;
+    }
 
     code = appendOneRowToDataBlock(p, pTupleHandle);
     QUERY_CHECK_CODE(code, lino, _error);
