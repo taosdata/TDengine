@@ -40,7 +40,7 @@ sysinfo = "0.30.5"
 
 serde_with = { version = "3", features = ["chrono"] }
 
-taoslog = { git = "https://github.com/taosdata/taoslog-rs.git", rev = "aa74799b88ce90400a5085d3ee8e63eb82db3dfd", features = [
+taoslog = { git = "https://github.com/taosdata/taoslog-rs.git", rev = "6870c18bf8fb2d41cc246a97ca00026ece2885be", features = [
     "ansi",
 ] }
 http = "0.2.12"
