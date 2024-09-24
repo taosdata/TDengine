@@ -606,7 +606,7 @@ void dmRemoveDnodePairs(SDnodeData *pData) {
   snprintf(bak, sizeof(bak), "%s%sdnode%sep.json.bak", tsDataDir, TD_DIRSEP, TD_DIRSEP);
   dInfo("dnode file:%s is rename to bak file", file);
   if (taosRenameFile(file, bak) != 0) {
-    dError("failed to rename file %s to %s since", file, bak, tstrerror(terrno));
+    dError("failed to rename file %s to %s since %s", file, bak, tstrerror(terrno));
   }
 }
 
