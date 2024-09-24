@@ -7,7 +7,7 @@ pgrep taosadapter || taosadapter >> /dev/null 2>&1 &
 
 cd ../../docs/examples/node
 
-npm install -g npm@latest
+npm config set registry https://registry.npmjs.org/
 
 npm install
 
