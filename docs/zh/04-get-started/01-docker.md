@@ -90,7 +90,7 @@ taosBenchmark 提供了丰富的选项，允许用户自定义测试参数，如
 taosBenchmark --help
 ```
 
-有关taosBenchmark 的详细使用方法，请参考[taosBenchmark 参考手册](../../reference/components/taosbenchmark)
+有关taosBenchmark 的详细使用方法，请参考[taosBenchmark 参考手册](../../reference/tools/taosbenchmark)
 
 ### 体验查询
 

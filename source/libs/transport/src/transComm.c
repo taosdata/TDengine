@@ -128,7 +128,7 @@ int32_t transClearBuffer(SConnBuffer* buf) {
     p->cap = BUFFER_CAP;
     p->buf = taosMemoryRealloc(p->buf, BUFFER_CAP);
     if (p->buf == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   p->left = -1;
@@ -179,7 +179,7 @@ int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf) {
         p->cap = BUFFER_CAP;
         p->buf = taosMemoryRealloc(p->buf, p->cap);
         if (p->buf == NULL) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
       }
     }
@@ -209,7 +209,7 @@ int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
       if (p->buf == NULL) {
         uvBuf->base = NULL;
         uvBuf->len = 0;
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       uvBuf->base = p->buf + p->len;
       uvBuf->len = p->left;
@@ -443,7 +443,7 @@ void transReqQueueClear(queue* q) {
 int32_t transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg)) {
   queue->q = taosArrayInit(2, sizeof(void*));
   if (queue->q == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   queue->freeFunc = (void (*)(const void*))freeFunc;
 
@@ -565,12 +565,12 @@ int32_t transDQCreate(uv_loop_t* loop, SDelayQueue** queue) {
 
   heap = heapCreate(timeCompare);
   if (heap == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _return1);
+    TAOS_CHECK_GOTO(terrno, NULL, _return1);
   }
 
   q = taosMemoryCalloc(1, sizeof(SDelayQueue));
   if (q == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _return1);
+    TAOS_CHECK_GOTO(terrno, NULL, _return1);
   }
   q->heap = heap;
   q->timer = timer;

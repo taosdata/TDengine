@@ -547,7 +547,7 @@ int32_t streamTaskGetNumOfUpstream(const SStreamTask* pTask) { return taosArrayG
 int32_t streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask) {
   SStreamUpstreamEpInfo* pEpInfo = createStreamTaskEpInfo(pUpstreamTask);
   if (pEpInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (pTask->upstreamInfo.pList == NULL) {

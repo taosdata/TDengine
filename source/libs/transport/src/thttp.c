@@ -154,7 +154,7 @@ static int32_t taosCompressHttpRport(char* pSrc, int32_t srcLen) {
   void*   pDest = taosMemoryMalloc(destLen);
 
   if (pDest == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -258,7 +258,7 @@ static int32_t httpCreateMsg(const char* server, const char* uri, uint16_t port,
   SHttpMsg* msg = taosMemoryMalloc(sizeof(SHttpMsg));
   if (msg == NULL) {
     *httpMsg = NULL;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   msg->seq = seqNum;
@@ -273,7 +273,7 @@ static int32_t httpCreateMsg(const char* server, const char* uri, uint16_t port,
   if (msg->server == NULL || msg->uri == NULL || msg->cont == NULL) {
     httpDestroyMsg(msg);
     *httpMsg = NULL;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   memcpy(msg->cont, pCont, contLen);
@@ -585,7 +585,7 @@ static void httpHandleReq(SHttpMsg* msg) {
   int32_t cap = 2048;
   header = taosMemoryCalloc(1, cap);
   if (header == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto END;
   }
 
@@ -597,7 +597,7 @@ static void httpHandleReq(SHttpMsg* msg) {
 
   uv_buf_t* wb = taosMemoryCalloc(2, sizeof(uv_buf_t));
   if (wb == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto END;
   }
 
@@ -607,7 +607,7 @@ static void httpHandleReq(SHttpMsg* msg) {
   SHttpClient* cli = taosMemoryCalloc(1, sizeof(SHttpClient));
   if (cli == NULL) {
     taosMemoryFree(wb);
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto END;
   }
   cli->seq = msg->seq;
@@ -784,13 +784,13 @@ int64_t transInitHttpChanImpl() {
 
   http->connStatusTable = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (http->connStatusTable == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _ERROR;
   }
 
   http->loop = taosMemoryMalloc(sizeof(uv_loop_t));
   if (http->loop == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _ERROR;
   }
 

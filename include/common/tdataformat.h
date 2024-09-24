@@ -116,7 +116,7 @@ typedef struct {
 
 int32_t tValueColumnInit(SValueColumn *valCol);
 int32_t tValueColumnDestroy(SValueColumn *valCol);
-int32_t tValueColumnClear(SValueColumn *valCol);
+void    tValueColumnClear(SValueColumn *valCol);
 int32_t tValueColumnAppend(SValueColumn *valCol, const SValue *value);
 int32_t tValueColumnUpdate(SValueColumn *valCol, int32_t idx, const SValue *value);
 int32_t tValueColumnGet(SValueColumn *valCol, int32_t idx, SValue *value);
