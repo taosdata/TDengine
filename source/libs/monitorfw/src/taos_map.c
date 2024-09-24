@@ -45,21 +45,19 @@ taos_map_node_t *taos_map_node_new(const char *key, void *value, taos_map_node_f
   return self;
 }
 
-int taos_map_node_destroy(taos_map_node_t *self) {
-  TAOS_TEST_PARA(self != NULL);
-  if (self == NULL) return 0;
+void taos_map_node_destroy(taos_map_node_t *self) {
+  TAOS_TEST_PARA_VOID(self != NULL);
   taos_free((void *)self->key);
   self->key = NULL;
   if (self->value != NULL) (*self->free_value_fn)(self->value);
   self->value = NULL;
   taos_free(self);
   self = NULL;
-  return 0;
 }
 
 void taos_map_node_free(void *item) {
   taos_map_node_t *map_node = (taos_map_node_t *)item;
-  (void)taos_map_node_destroy(map_node);
+  taos_map_node_destroy(map_node);
 }
 
 taos_linked_list_compare_t taos_map_node_compare(void *item_a, void *item_b) {
@@ -87,7 +85,9 @@ taos_map_t *taos_map_new() {
   // we will only have to deallocate each key once. That will happen on taos_map_node_destroy.
   r = taos_linked_list_set_free_fn(self->keys, taos_linked_list_no_op_free);
   if (r) {
-    (void)taos_map_destroy(self);
+    if (taos_map_destroy(self) != 0) {
+      TAOS_LOG("TAOS_MAP_DESTROY_ERROR");
+    }
     return NULL;
   }
 
@@ -98,12 +98,16 @@ taos_map_t *taos_map_new() {
     self->addrs[i] = taos_linked_list_new();
     r = taos_linked_list_set_free_fn(self->addrs[i], taos_map_node_free);
     if (r) {
-      (void)taos_map_destroy(self);
+      if (taos_map_destroy(self) != 0) {
+        TAOS_LOG("TAOS_MAP_DESTROY_ERROR");
+      }
       return NULL;
     }
     r = taos_linked_list_set_compare_fn(self->addrs[i], taos_map_node_compare);
     if (r) {
-      (void)taos_map_destroy(self);
+      if (taos_map_destroy(self) != 0) {
+        TAOS_LOG("TAOS_MAP_DESTROY_ERROR");
+      }
       return NULL;
     }
   }
@@ -112,7 +116,9 @@ taos_map_t *taos_map_new() {
   r = pthread_rwlock_init(self->rwlock, NULL);
   if (r) {
     TAOS_LOG(TAOS_PTHREAD_RWLOCK_INIT_ERROR);
-    (void)taos_map_destroy(self);
+    if (taos_map_destroy(self) != 0) {
+      TAOS_LOG("TAOS_MAP_DESTROY_ERROR");
+    }
     return NULL;
   }
 
@@ -188,12 +194,12 @@ static void *taos_map_get_internal(const char *key, size_t *size, size_t *max_si
     taos_map_node_t *current_map_node = (taos_map_node_t *)current_node->item;
     taos_linked_list_compare_t result = taos_linked_list_compare(list, current_map_node, temp_map_node);
     if (result == TAOS_EQUAL) {
-      (void)taos_map_node_destroy(temp_map_node);
+      taos_map_node_destroy(temp_map_node);
       temp_map_node = NULL;
       return current_map_node->value;
     }
   }
-  (void)taos_map_node_destroy(temp_map_node);
+  taos_map_node_destroy(temp_map_node);
   temp_map_node = NULL;
   return NULL;
 }
@@ -388,7 +394,7 @@ static int taos_map_delete_internal(const char *key, size_t *size, size_t *max_s
       break;
     }
   }
-  r = taos_map_node_destroy(temp_map_node);
+  taos_map_node_destroy(temp_map_node);
   temp_map_node = NULL;
   return r;
 }

@@ -373,8 +373,16 @@ _return:
   return code;
 }
 
+
+void freeGcBlkBufInfo(void* ptr) {
+  SGcBlkBufInfo* pBlk = (SGcBlkBufInfo*)ptr;
+  taosMemoryFreeClear(pBlk->pBuf);
+}
+
+
 static int32_t addBlkToDirtyBufList(SGroupCacheOperatorInfo* pGCache, SGcDownstreamCtx* pCtx, SGcBlkCacheInfo* pCache, SGcBlkBufInfo* pBufInfo) {
   if (0 != taosHashPut(pCache->pDirtyBlk, &pBufInfo->basic.blkId, sizeof(pBufInfo->basic.blkId), pBufInfo, sizeof(*pBufInfo))) {
+    freeGcBlkBufInfo(pBufInfo);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pBufInfo = taosHashGet(pCache->pDirtyBlk, &pBufInfo->basic.blkId, sizeof(pBufInfo->basic.blkId));
@@ -1239,10 +1247,6 @@ _return:
   return code;
 }
 
-void freeGcBlkBufInfo(void* ptr) {
-  SGcBlkBufInfo* pBlk = (SGcBlkBufInfo*)ptr;
-  taosMemoryFree(pBlk->pBuf);
-}
 
 static int32_t initGroupCacheBlockCache(SGroupCacheOperatorInfo* pInfo) {
   SGcBlkCacheInfo* pCache = &pInfo->blkCache;

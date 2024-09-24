@@ -48,6 +48,7 @@ typedef struct SAggOperatorInfo {
   bool             hasValidBlock;
   SSDataBlock*     pNewGroupBlock;
   bool             hasCountFunc;
+  SOperatorInfo*   pOperator;
 } SAggOperatorInfo;
 
 static void destroyAggOperatorInfo(void* param);
@@ -119,6 +120,7 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
   pInfo->binfo.inputTsOrder = pAggNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pAggNode->node.outputTsOrder;
   pInfo->hasCountFunc = pAggNode->hasCountLikeFunc;
+  pInfo->pOperator = pOperator;
 
   setOperatorInfo(pOperator, "TableAggregate", QUERY_NODE_PHYSICAL_PLAN_HASH_AGG,
                   !pAggNode->node.forceCreateNonBlockingOptr, OP_NOT_OPENED, pInfo, pTaskInfo);
@@ -153,6 +155,9 @@ void destroyAggOperatorInfo(void* param) {
   SAggOperatorInfo* pInfo = (SAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
 
+  cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
+                    &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
+  pInfo->pOperator = NULL;
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarExprSup);
   cleanupGroupResInfo(&pInfo->groupResInfo);
@@ -581,6 +586,80 @@ int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t n
   return code;
 }
 
+void cleanupResultInfoInStream(SExecTaskInfo* pTaskInfo, void* pState, SExprSupp* pSup, SGroupResInfo* pGroupResInfo) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
+  int32_t         numOfExprs = pSup->numOfExprs;
+  int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
+  SqlFunctionCtx* pCtx = pSup->pCtx;
+  int32_t         numOfRows = getNumOfTotalRes(pGroupResInfo);
+  bool            needCleanup = false;
+
+  for (int32_t j = 0; j < numOfExprs; ++j) {
+    needCleanup |= pCtx[j].needCleanup;
+  }
+  if (!needCleanup) {
+    return;
+  }
+  
+  for (int32_t i = pGroupResInfo->index; i < numOfRows; i += 1) {
+    SResultWindowInfo* pWinInfo = taosArrayGet(pGroupResInfo->pRows, i);
+    SRowBuffPos*       pPos = pWinInfo->pStatePos;
+    SResultRow*        pRow = NULL;
+
+    code = pAPI->stateStore.streamStateGetByPos(pState, pPos, (void**)&pRow);
+    if (TSDB_CODE_SUCCESS != code) {
+      qError("failed to get state by pos, code:%s, %s", tstrerror(code), GET_TASKID(pTaskInfo));
+      continue;
+    }
+
+    for (int32_t j = 0; j < numOfExprs; ++j) {
+      pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
+      if (pCtx[j].fpSet.cleanup) {
+        pCtx[j].fpSet.cleanup(&pCtx[j]);
+      }
+    }
+  }
+}
+
+void cleanupResultInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
+                       SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap) {
+  int32_t         numOfExprs = pSup->numOfExprs;
+  int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
+  SqlFunctionCtx* pCtx = pSup->pCtx;
+  bool            needCleanup = false;
+  for (int32_t j = 0; j < numOfExprs; ++j) {
+    needCleanup |= pCtx[j].needCleanup;
+  }
+  if (!needCleanup) {
+    return;
+  }
+
+  // begin from last iter
+  void*   pData = pGroupResInfo->dataPos;
+  int32_t iter = pGroupResInfo->iter;
+  while ((pData = tSimpleHashIterate(pHashmap, pData, &iter)) != NULL) {
+    SResultRowPosition* pos = pData;
+
+    SFilePage* page = getBufPage(pBuf, pos->pageId);
+    if (page == NULL) {
+      qError("failed to get buffer, code:%s, %s", tstrerror(terrno), GET_TASKID(pTaskInfo));
+      continue;
+    }
+
+    SResultRow* pRow = (SResultRow*)((char*)page + pos->offset);
+
+    for (int32_t j = 0; j < numOfExprs; ++j) {
+      pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
+      if (pCtx[j].fpSet.cleanup) {
+        pCtx[j].fpSet.cleanup(&pCtx[j]);
+      }
+    }
+
+    releaseBufPage(pBuf, page);
+  }
+}
+
 void cleanupAggSup(SAggSupporter* pAggSup) {
   taosMemoryFreeClear(pAggSup->keyBuf);
   tSimpleHashCleanup(pAggSup->pResultRowHashTable);
@@ -613,8 +692,9 @@ int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo
   return TSDB_CODE_SUCCESS;
 }
 
-void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData,
-                                     int32_t offset, int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput) {
+int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData,
+                                        int32_t offset, int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput) {
+  int32_t code = TSDB_CODE_SUCCESS;
   for (int32_t k = 0; k < numOfOutput; ++k) {
     // keep it temporarily
     SFunctionCtxStatus status = {0};
@@ -641,15 +721,14 @@ void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pC
 
       SScalarParam out = {.columnData = &idata};
       SScalarParam tw = {.numOfRows = 5, .columnData = pTimeWindowData};
-      int32_t      code = pCtx[k].sfp.process(&tw, 1, &out);
+      code = pCtx[k].sfp.process(&tw, 1, &out);
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
         taskInfo->code = code;
-        T_LONG_JMP(taskInfo->env, code);
+        return code;
       }
       pEntryInfo->numOfRes = 1;
     } else {
-      int32_t code = TSDB_CODE_SUCCESS;
       if (functionNeedToExecute(&pCtx[k]) && pCtx[k].fpSet.process != NULL) {
         if ((&pCtx[k])->input.pData[0] == NULL) {
           code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -664,7 +743,7 @@ void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pC
           }
           qError("%s apply functions error, code: %s", GET_TASKID(taskInfo), tstrerror(code));
           taskInfo->code = code;
-          T_LONG_JMP(taskInfo->env, code);
+          return code;
         }
       }
 
@@ -672,6 +751,7 @@ void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pC
       functionCtxRestore(&pCtx[k], &status);
     }
   }
+  return code;
 }
 
 void functionCtxSave(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus) {
