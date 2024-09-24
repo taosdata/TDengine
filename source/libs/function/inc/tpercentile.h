@@ -69,7 +69,7 @@ typedef struct tMemBucket {
 int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, double maxval, bool hasWindowOrGroup,
                          tMemBucket **pBucket);
 
-void tMemBucketDestroy(tMemBucket *pBucket);
+void tMemBucketDestroy(tMemBucket **pBucket);
 
 int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size);
 
