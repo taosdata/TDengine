@@ -459,9 +459,18 @@ static bool dmIsEpChanged(SDnodeData *pData, int32_t dnodeId, const char *ep) {
 }
 
 void dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
-  (void)taosThreadRwlockRdlock(&pData->lock);
+  int32_t code = 0;
+  code = taosThreadRwlockRdlock(&pData->lock);
+  if (code != 0) {
+    dError("failed to get mnode ep set since %s", tstrerror(code));
+    return;
+  }
+
   *pEpSet = pData->mnodeEps;
-  (void)taosThreadRwlockUnlock(&pData->lock);
+  code = taosThreadRwlockUnlock(&pData->lock);
+  if (code != 0) {
+    dError("failed to unlock mnode ep set since %s", tstrerror(code));
+  }
 }
 
 void dmEpSetToStr(char *buf, int32_t len, SEpSet *epSet) {

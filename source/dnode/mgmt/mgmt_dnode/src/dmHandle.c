@@ -26,7 +26,12 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
   int32_t code = 0;
   if (pMgmt->pData->dnodeId == 0 || pMgmt->pData->clusterId == 0) {
     dInfo("set local info, dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
-    (void)taosThreadRwlockWrlock(&pMgmt->pData->lock);
+    code = taosThreadRwlockWrlock(&pMgmt->pData->lock);
+    if (code != 0) {
+      dError("failed to lock local info since:%s", tstrerror(code));
+      return;
+    }
+
     pMgmt->pData->dnodeId = pCfg->dnodeId;
     pMgmt->pData->clusterId = pCfg->clusterId;
     monSetDnodeId(pCfg->dnodeId);
@@ -36,7 +41,10 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
       dInfo("failed to set local info, dnodeId:%d clusterId:%" PRId64 " reason:%s", pCfg->dnodeId, pCfg->clusterId,
             tstrerror(code));
     }
-    (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
+    code = taosThreadRwlockUnlock(&pMgmt->pData->lock);
+    if (code != 0) {
+      dError("failed to unlock local info since:%s", tstrerror(code));
+    }
   }
 }
 static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
@@ -45,7 +53,10 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   if (pMgmt->pData->ipWhiteVer == ver) {
     if (ver == 0) {
       dDebug("disable ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
-      (void)rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL);
+      code = rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL);
+      if (code != 0) {
+        dError("failed to disable ip white list since:%s", tstrerror(code));
+      }
     }
     return;
   }
@@ -75,7 +86,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
                     .info.handle = 0};
   SEpSet  epset = {0};
 
-  (void)dmGetMnodeEpSet(pMgmt->pData, &epset);
+  dmGetMnodeEpSet(pMgmt->pData, &epset);
 
   code = rpcSendRequest(pMgmt->msgCb.clientRpc, &epset, &rpcMsg, NULL);
   if (code != 0) {
@@ -83,6 +94,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   }
 }
 static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
+  int32_t         code = 0;
   const STraceId *trace = &pRsp->info.traceId;
   dGTrace("status rsp received from mnode, statusSeq:%d code:0x%x", pMgmt->statusSeq, pRsp->code);
 
@@ -91,9 +103,15 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
       dGInfo("dnode:%d, set to dropped since not exist in mnode, statusSeq:%d", pMgmt->pData->dnodeId,
              pMgmt->statusSeq);
       pMgmt->pData->dropped = 1;
-      (void)dmWriteEps(pMgmt->pData);
+      code = dmWriteEps(pMgmt->pData);
+      if (code != 0) {
+        dError("failed to set dnode to dropped since:%s", tstrerror(code));
+      }
       dInfo("dnode will exit since it is in the dropped state");
-      (void)raise(SIGINT);
+      code = raise(SIGINT);
+      if (code != 0) {
+        dError("failed to reaise SIGINT since:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
+      }
     }
   } else {
     SStatusRsp statusRsp = {0};
@@ -117,7 +135,10 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   int32_t    code = 0;
   SStatusReq req = {0};
 
-  (void)taosThreadRwlockRdlock(&pMgmt->pData->lock);
+  code = taosThreadRwlockRdlock(&pMgmt->pData->lock);
+  if (code != 0) {
+    dError("failed to lock local info since:%s", tstrerror(code));
+  }
   req.sver = tsVersion;
   req.dnodeVer = pMgmt->pData->dnodeVer;
   req.dnodeId = pMgmt->pData->dnodeId;
@@ -147,11 +168,17 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.monitorParas.tsSlowLogThresholdTest = tsSlowLogThresholdTest;
   tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   char timestr[32] = "1970-01-01 00:00:00.00";
-  (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+  code = taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+  if (code != 0) {
+    dError("failed to parse time since:%s", tstrerror(code));
+  }
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
-  (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
+  code = taosThreadRwlockUnlock(&pMgmt->pData->lock);
+  if (code != 0) {
+    dError("failed to unlock local info since:%s", tstrerror(code));
+  }
 
   SMonVloadInfo vinfo = {0};
   (*pMgmt->getVnodeLoadsFp)(&vinfo);
@@ -196,7 +223,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   SEpSet epSet = {0};
   int8_t epUpdated = 0;
-  (void)dmGetMnodeEpSet(pMgmt->pData, &epSet);
+  dmGetMnodeEpSet(pMgmt->pData, &epSet);
 
   code =
       rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
@@ -243,7 +270,11 @@ void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
-  (void)rpcSendRequest(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, NULL);
+
+  int32_t code = rpcSendRequest(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, NULL);
+  if (code != 0) {
+    dError("failed to send request since %s", tstrerror(code));
+  }
 }
 
 int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {

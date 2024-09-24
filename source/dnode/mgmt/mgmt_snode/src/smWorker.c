@@ -23,15 +23,19 @@ static inline void smSendRsp(SRpcMsg *pMsg, int32_t code) {
       .contLen = pMsg->info.rspLen,
       .info = pMsg->info,
   };
-  (void)tmsgSendRsp(&rsp);
+  tmsgSendRsp(&rsp);
 }
 
 static void smProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SSnodeMgmt *pMgmt = pInfo->ahandle;
-
+  int32_t     code = 0;
   for (int32_t i = 0; i < numOfMsgs; i++) {
     SRpcMsg *pMsg = NULL;
-    (void)taosGetQitem(qall, (void **)&pMsg);
+    code = taosGetQitem(qall, (void **)&pMsg);
+    if (code != 0) {
+      dError("failed to get msg from snode-write queue since %s", tstrerror(code));
+      continue;
+    }
     const STraceId *trace = &pMsg->info.traceId;
 
     dTrace("msg:%p, get from snode-write queue", pMsg);

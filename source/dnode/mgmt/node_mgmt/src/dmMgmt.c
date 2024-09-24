@@ -47,8 +47,11 @@ int32_t dmInitDnode(SDnode *pDnode) {
   }
 
   // compress module init
-  (void)tsCompressInit(tsLossyColumns, tsFPrecision, tsDPrecision, tsMaxRange, tsCurRange, (int)tsIfAdtFse,
-                       tsCompressor);
+  code =
+      tsCompressInit(tsLossyColumns, tsFPrecision, tsDPrecision, tsMaxRange, tsCurRange, (int)tsIfAdtFse, tsCompressor);
+  if (code != 0) {
+    goto _OVER;
+  }
 
   pDnode->wrappers[DNODE].func = dmGetMgmtFunc();
   pDnode->wrappers[MNODE].func = mmGetMgmtFunc();
@@ -211,23 +214,39 @@ int32_t dmInitVars(SDnode *pDnode) {
 
   if (pData->dropped) {
     dError("dnode will not start since its already dropped");
-    return -1;
+    return TSDB_CODE_MNODE_STOPPED;
   }
 
-  (void)taosThreadRwlockInit(&pData->lock, NULL);
-  (void)taosThreadMutexInit(&pDnode->mutex, NULL);
-  return 0;
+  code = taosThreadRwlockInit(&pData->lock, NULL);
+  if (code != 0) {
+    dError("failed to init rwlock since %s", tstrerror(code));
+    return code;
+  }
+  code = taosThreadMutexInit(&pDnode->mutex, NULL);
+  if (code != 0) {
+    dError("failed to init mutex since %s", tstrerror(code));
+    return code;
+  }
+
+  return code;
 }
 
 void dmClearVars(SDnode *pDnode) {
+  int32_t code = 0;
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
     taosMemoryFreeClear(pWrapper->path);
     (void)taosThreadRwlockDestroy(&pWrapper->lock);
   }
   if (pDnode->lockfile != NULL) {
-    (void)taosUnLockFile(pDnode->lockfile);
-    (void)taosCloseFile(&pDnode->lockfile);
+    code = taosUnLockFile(pDnode->lockfile);
+    if (code != 0) {
+      dError("failed to unlock file since %s", tstrerror(code));
+    }
+    code = taosCloseFile(&pDnode->lockfile);
+    if (code != 0) {
+      dError("failed to close file since %s", tstrerror(code));
+    }
     pDnode->lockfile = NULL;
   }
 
@@ -348,6 +367,7 @@ void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg) {
 }
 
 void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg) {
+  int32_t code = 0;
   dDebug("msg:%p, server startup status req will be processed", pMsg);
 
   SServerStatusRsp statusRsp = {0};
@@ -360,11 +380,20 @@ void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg) {
   } else {
     rsp.pCont = rpcMallocCont(contLen);
     if (rsp.pCont != NULL) {
-      (void)tSerializeSServerStatusRsp(rsp.pCont, contLen, &statusRsp);
+      code = tSerializeSServerStatusRsp(rsp.pCont, contLen, &statusRsp);
+      if (code < 0) {
+        rsp.code = TSDB_CODE_OUT_OF_MEMORY;
+        rpcFreeCont(rsp.pCont);
+        rsp.pCont = NULL;
+      } else {
+      }
       rsp.contLen = contLen;
     }
   }
 
-  (void)rpcSendResponse(&rsp);
+  code = rpcSendResponse(&rsp);
+  if (code != 0) {
+    dError("failed to send response, code:%d, msg:%p", code, pMsg);
+  }
   rpcFreeCont(pMsg->pCont);
 }
