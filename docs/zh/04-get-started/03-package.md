@@ -263,7 +263,7 @@ SELECT * FROM t;
 Query OK, 2 row(s) in set (0.003128s)
 ```
 
-除执行 SQL 语句外，系统管理员还可以从 TDengine CLI 进行检查系统运行状态、添加删除用户账号等操作。TDengine CLI 连同应用驱动也可以独立安装在机器上运行，更多细节请参考 [TDengine 命令行](../../reference/components/taos-cli/)。
+除执行 SQL 语句外，系统管理员还可以从 TDengine CLI 进行检查系统运行状态、添加删除用户账号等操作。TDengine CLI 连同应用驱动也可以独立安装在机器上运行，更多细节请参考 [TDengine 命令行](../../reference/tools/taos-cli/)。
 
 ## 快速体验
 
@@ -286,7 +286,7 @@ taosBenchmark 提供了丰富的选项，允许用户自定义测试参数，如
 taosBenchmark --help
 ```
 
-有关taosBenchmark 的详细使用方法，请参考[taosBenchmark 参考手册](../../reference/components/taosbenchmark)
+有关taosBenchmark 的详细使用方法，请参考[taosBenchmark 参考手册](../../reference/tools/taosbenchmark)
 
 ### 体验查询
 
