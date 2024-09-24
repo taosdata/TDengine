@@ -53,7 +53,7 @@ chrono = "0.4"
 chrono-tz = "0.9.0"
 scc = "2.1.16"
 
-taoslog = { git = "https://github.com/taosdata/taoslog-rs.git", rev = "aa74799b88ce90400a5085d3ee8e63eb82db3dfd", features = [
+taoslog = { git = "https://github.com/taosdata/taoslog-rs.git", rev = "b0c53e27fff15f97237e808f83d9a7f113ee6463", features = [
 	"ansi",
 ] }
 http = "0.2.12"
