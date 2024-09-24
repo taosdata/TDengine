@@ -440,9 +440,9 @@ _exit:
   return code;
 }
 
-int32_t tsdbSnapReaderClose(STsdbSnapReader** reader) {
+void tsdbSnapReaderClose(STsdbSnapReader** reader) {
   if (reader[0] == NULL) {
-    return 0;
+    return;
   }
 
   int32_t code = 0;
@@ -469,7 +469,7 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** reader) {
   taosMemoryFree(reader[0]);
   reader[0] = NULL;
 
-  return code;
+  return;
 }
 
 int32_t tsdbSnapRead(STsdbSnapReader* reader, uint8_t** data) {

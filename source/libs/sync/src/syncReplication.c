@@ -118,8 +118,9 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
     STraceId* trace = &(rpcMsg.info.traceId);
     sGTrace("vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId, DID(&(pSyncMsg->destId)));
     syncLogSendHeartbeat(pSyncNode, pSyncMsg, true, 0, 0);
-    if (syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg) != 0) {
-      sError("vgId:%d, failed to send sync-heartbeat to dnode:%d", pSyncNode->vgId, DID(&(pSyncMsg->destId)));
+    int32_t ret = syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
+    if (ret != 0) {
+      sError("vgId:%d, failed to send sync-heartbeat since %s", pSyncNode->vgId, tstrerror(ret));
     }
   }
 

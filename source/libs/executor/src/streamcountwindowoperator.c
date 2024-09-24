@@ -48,6 +48,9 @@ typedef struct SBuffInfo {
 void destroyStreamCountAggOperatorInfo(void* param) {
   SStreamCountAggOperatorInfo* pInfo = (SStreamCountAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
+  cleanupResultInfoInStream(pInfo->pOperator->pTaskInfo, pInfo->streamAggSup.pState, &pInfo->pOperator->exprSupp,
+                            &pInfo->groupResInfo);
+  pInfo->pOperator = NULL;
   destroyStreamAggSupporter(&pInfo->streamAggSup);
   cleanupExprSupp(&pInfo->scalarSupp);
   clearGroupResInfo(&pInfo->groupResInfo);
@@ -906,6 +909,7 @@ int32_t createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
     QUERY_CHECK_CODE(code, lino, _error);
     taosMemoryFree(buff);
   }
+  pInfo->pOperator = pOperator;
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamCountAggNext, NULL, destroyStreamCountAggOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamCountReleaseState, streamCountReloadState);

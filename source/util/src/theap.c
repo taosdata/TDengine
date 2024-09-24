@@ -258,10 +258,11 @@ static PriorityQueueNode* pqHeapify(PriorityQueue* pq, size_t from, size_t last)
 
 static void pqBuildHeap(PriorityQueue* pq) {
   if (pqContainerSize(pq) > 1) {
+    PriorityQueueNode* node;
     for (size_t i = pqContainerSize(pq) - 1; i > 0; --i) {
-      (void)pqHeapify(pq, i, pqContainerSize(pq));
+      node = pqHeapify(pq, i, pqContainerSize(pq));
     }
-    (void)pqHeapify(pq, 0, pqContainerSize(pq));
+    node = pqHeapify(pq, 0, pqContainerSize(pq));
   }
 }
 
@@ -275,23 +276,24 @@ static PriorityQueueNode* pqReverseHeapify(PriorityQueue* pq, size_t i) {
 }
 
 static void pqUpdate(PriorityQueue* pq, size_t i) {
+  PriorityQueueNode* node;
   if (i == 0 || pq->fn(pqContainerGetEle(pq, i)->data, pqContainerGetEle(pq, pqParent(i))->data, pq->param)) {
     // if value in pos i is smaller than parent, heapify down from i to the end
-    (void)pqHeapify(pq, i, pqContainerSize(pq));
+    node = pqHeapify(pq, i, pqContainerSize(pq));
   } else {
     // if value in pos i is big than parent, heapify up from i
-    (void)pqReverseHeapify(pq, i);
+    node = pqReverseHeapify(pq, i);
   }
 }
 
 static void pqRemove(PriorityQueue* pq, size_t i) {
   if (i == pqContainerSize(pq) - 1) {
-    (void)taosArrayPop(pq->container);
+    void* tmp = taosArrayPop(pq->container);
     return;
   }
 
   taosArraySet(pq->container, i, taosArrayGet(pq->container, pqContainerSize(pq) - 1));
-  (void)taosArrayPop(pq->container);
+  void* tmp = taosArrayPop(pq->container);
   pqUpdate(pq, i);
 }
 

@@ -195,11 +195,11 @@ static void sendQuitToWorkThrd(SWorkThrd* pThrd);
 static int32_t addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName);
 static int32_t addHandleToAcceptloop(void* arg);
 
-#define SRV_RELEASE_UV(loop)             \
-  do {                                   \
-    (void)uv_walk(loop, uvWalkCb, NULL); \
-    (void)uv_run(loop, UV_RUN_DEFAULT);  \
-    (void)uv_loop_close(loop);           \
+#define SRV_RELEASE_UV(loop)                    \
+  do {                                          \
+    TAOS_UNUSED(uv_walk(loop, uvWalkCb, NULL)); \
+    TAOS_UNUSED(uv_run(loop, UV_RUN_DEFAULT));  \
+    TAOS_UNUSED(uv_loop_close(loop));           \
   } while (0);
 
 #define ASYNC_ERR_JRET(thrd)                            \
@@ -898,9 +898,9 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
   queue       wq;
 
   // batch process to avoid to lock/unlock frequently
-  (void)taosThreadMutexLock(&item->mtx);
+  TAOS_UNUSED(taosThreadMutexLock(&item->mtx));
   QUEUE_MOVE(&item->qmsg, &wq);
-  (void)taosThreadMutexUnlock(&item->mtx);
+  TAOS_UNUSED(taosThreadMutexUnlock(&item->mtx));
 
   while (!QUEUE_IS_EMPTY(&wq)) {
     queue* head = QUEUE_HEAD(&wq);
@@ -1010,7 +1010,8 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
 
     tTrace("new connection accepted by main server, dispatch to %dth worker-thread", pObj->workerIdx);
 
-    (void)uv_write2(wr, (uv_stream_t*)&(pObj->pipe[pObj->workerIdx][0]), &buf, 1, (uv_stream_t*)cli, uvOnPipeWriteCb);
+    TAOS_UNUSED(
+        uv_write2(wr, (uv_stream_t*)&(pObj->pipe[pObj->workerIdx][0]), &buf, 1, (uv_stream_t*)cli, uvOnPipeWriteCb));
   } else {
     if (!uv_is_closing((uv_handle_t*)cli)) {
       tError("failed to accept tcp: %s", uv_err_name(err));
@@ -1064,7 +1065,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
 
   if (uv_accept(q, (uv_stream_t*)(pConn->pTcp)) == 0) {
     uv_os_fd_t fd;
-    (void)uv_fileno((const uv_handle_t*)pConn->pTcp, &fd);
+    TAOS_UNUSED(uv_fileno((const uv_handle_t*)pConn->pTcp, &fd));
     tTrace("conn %p created, fd:%d", pConn, fd);
 
     struct sockaddr peername, sockname;
@@ -1074,7 +1075,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       transUnrefSrvHandle(pConn);
       return;
     }
-    (void)transSockInfo2Str(&peername, pConn->dst);
+    TAOS_UNUSED(transSockInfo2Str(&peername, pConn->dst));
 
     addrlen = sizeof(sockname);
     if (0 != uv_tcp_getsockname(pConn->pTcp, (struct sockaddr*)&sockname, &addrlen)) {
@@ -1082,7 +1083,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       transUnrefSrvHandle(pConn);
       return;
     }
-    (void)transSockInfo2Str(&sockname, pConn->src);
+    TAOS_UNUSED(transSockInfo2Str(&sockname, pConn->src));
 
     struct sockaddr_in addr = *(struct sockaddr_in*)&peername;
     struct sockaddr_in saddr = *(struct sockaddr_in*)&sockname;
@@ -1104,7 +1105,7 @@ void* transAcceptThread(void* arg) {
   // opt
   setThreadName("trans-accept");
   SServerObj* srv = (SServerObj*)arg;
-  (void)uv_run(srv->loop, UV_RUN_DEFAULT);
+  TAOS_UNUSED(uv_run(srv->loop, UV_RUN_DEFAULT));
 
   return NULL;
 }
@@ -1115,7 +1116,7 @@ void uvOnPipeConnectionCb(uv_connect_t* connect, int status) {
   };
 
   SWorkThrd* pThrd = container_of(connect, SWorkThrd, connect_req);
-  (void)uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
+  TAOS_UNUSED(uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb));
 }
 static int32_t addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
   int32_t code = 0;
@@ -1737,7 +1738,7 @@ void destroyWorkThrd(SWorkThrd* pThrd) {
   }
   if (pThrd->inited) {
     sendQuitToWorkThrd(pThrd);
-    (void)taosThreadJoin(pThrd->thread, NULL);
+    TAOS_UNUSED(taosThreadJoin(pThrd->thread, NULL));
     SRV_RELEASE_UV(pThrd->loop);
     TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SSvrRespMsg, destroySmsgWrapper, NULL);
   }
@@ -1747,7 +1748,7 @@ void sendQuitToWorkThrd(SWorkThrd* pThrd) {
   SSvrRespMsg* msg = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
   msg->type = Quit;
   tDebug("server send quit msg to work thread");
-  (void)transAsyncSend(pThrd->asyncPool, &msg->q);
+  TAOS_UNUSED(transAsyncSend(pThrd->asyncPool, &msg->q));
 }
 
 void transCloseServer(void* arg) {
@@ -1756,8 +1757,8 @@ void transCloseServer(void* arg) {
 
   if (srv->inited) {
     tDebug("send quit msg to accept thread");
-    (void)uv_async_send(srv->pAcceptAsync);
-    (void)taosThreadJoin(srv->thread, NULL);
+    TAOS_UNUSED(uv_async_send(srv->pAcceptAsync));
+    TAOS_UNUSED(taosThreadJoin(srv->thread, NULL));
 
     SRV_RELEASE_UV(srv->loop);
     for (int i = 0; i < srv->numOfThreads; i++) {
@@ -1992,7 +1993,7 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
       break;
     }
   }
-  (void)transReleaseExHandle(transGetInstMgt(), (int64_t)thandle);
+  TAOS_UNUSED(transReleaseExHandle(transGetInstMgt(), (int64_t)thandle));
 
   if (code != 0) {
     tError("ip-white-list update failed since %s", tstrerror(code));

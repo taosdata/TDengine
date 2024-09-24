@@ -17,7 +17,7 @@ InfluxDB 是一种流行的开源时间序列数据库，它针对处理大量�
 
 在数据写入页面中点击左上角的 **+新增数据源** 按钮进入新增数据源页面，如下图所示：
 
-![InfluxDB-01zh-EnterDataSourcePage.png](./pic/InfluxDB-01zh-EnterDataSourcePage.png "进入新增数据源页面")
+![Common-zh00-EnterDataSourcePage.png](./pic/Common-zh00-EnterDataSourcePage.png "进入新增数据源页面")
 
 ### 2. 配置基本信息
 

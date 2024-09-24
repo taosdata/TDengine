@@ -42,7 +42,7 @@ int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, int8_t type, STqS
   pReader->type = type;
 
   // impl
-  TTB *pTb = NULL;
+  TTB* pTb = NULL;
   if (type == SNAP_DATA_TQ_CHECKINFO) {
     pTb = pTq->pCheckStore;
   } else if (type == SNAP_DATA_TQ_HANDLE) {
@@ -132,7 +132,8 @@ int32_t tqSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapWriter** p
   // alloc
   pWriter = (STqSnapWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
   if (pWriter == NULL) {
-    code = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);;
+    code = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    ;
     goto _err;
   }
   pWriter->pTq = pTq;
@@ -160,7 +161,7 @@ int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback) {
   STQ*           pTq = pWriter->pTq;
 
   if (rollback) {
-    (void)tdbAbort(pWriter->pTq->pMetaDB, pWriter->txn);
+    tdbAbort(pWriter->pTq->pMetaDB, pWriter->txn);
   } else {
     code = tdbCommit(pWriter->pTq->pMetaDB, pWriter->txn);
     if (code) goto _err;
@@ -189,7 +190,8 @@ int32_t tqSnapHandleWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData
   code = tDecodeSTqHandle(pDecoder, &handle);
   if (code) goto end;
   taosWLockLatch(&pTq->lock);
-  code = tqMetaSaveInfo(pTq, pTq->pExecStore, handle.subKey, (int)strlen(handle.subKey), pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
+  code = tqMetaSaveInfo(pTq, pTq->pExecStore, handle.subKey, (int)strlen(handle.subKey), pData + sizeof(SSnapDataHdr),
+                        nData - sizeof(SSnapDataHdr));
   taosWUnLockLatch(&pTq->lock);
 
 end:
@@ -200,15 +202,16 @@ end:
 }
 
 int32_t tqSnapCheckInfoWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
-  int32_t   code = 0;
-  STQ*      pTq = pWriter->pTq;
+  int32_t      code = 0;
+  STQ*         pTq = pWriter->pTq;
   STqCheckInfo info = {0};
   code = tqMetaDecodeCheckInfo(&info, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
-  if(code != 0){
+  if (code != 0) {
     goto _err;
   }
 
-  code = tqMetaSaveInfo(pTq, pTq->pCheckStore, &info.topic, strlen(info.topic), pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
+  code = tqMetaSaveInfo(pTq, pTq->pCheckStore, &info.topic, strlen(info.topic), pData + sizeof(SSnapDataHdr),
+                        nData - sizeof(SSnapDataHdr));
   tDeleteSTqCheckInfo(&info);
   if (code) goto _err;
 
@@ -220,22 +223,23 @@ _err:
 }
 
 int32_t tqSnapOffsetWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
-  int32_t   code = 0;
-  STQ*      pTq = pWriter->pTq;
+  int32_t code = 0;
+  STQ*    pTq = pWriter->pTq;
 
   STqOffset info = {0};
   code = tqMetaDecodeOffsetInfo(&info, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
-  if(code != 0){
+  if (code != 0) {
     goto _err;
   }
 
-  code = tqMetaSaveInfo(pTq, pTq->pOffsetStore, info.subKey, strlen(info.subKey), pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
+  code = tqMetaSaveInfo(pTq, pTq->pOffsetStore, info.subKey, strlen(info.subKey), pData + sizeof(SSnapDataHdr),
+                        nData - sizeof(SSnapDataHdr));
   tDeleteSTqOffset(&info);
   if (code) goto _err;
 
   return code;
 
-  _err:
+_err:
   tqError("vgId:%d, vnode check info tq write failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
   return code;
 }

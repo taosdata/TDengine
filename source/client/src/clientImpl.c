@@ -2895,6 +2895,10 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
     taosMemoryFree(param);
     return NULL;
   }
+  code = tsem_destroy(&param->sem);
+  if(TSDB_CODE_SUCCESS != code) {
+      tscError("failed to destroy semaphore since %s", tstrerror(code));
+  }
 
   SRequestObj* pRequest = NULL;
   if (param->pRequest != NULL) {
