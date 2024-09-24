@@ -91,7 +91,9 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
 
         struct timeval  tv;
         struct timespec ts;
-        (void)taosGetTimeOfDay(&tv);
+        if (taosGetTimeOfDay(&tv) != 0) {
+          continue;
+        }
         ts.tv_nsec = tv.tv_usec * 1000 + WAIT_TIME_MILI_SEC * 1000000;
         if (ts.tv_nsec > 999999999l) {
           ts.tv_sec = tv.tv_sec + 1;

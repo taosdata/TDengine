@@ -67,22 +67,28 @@ int32_t mndRetrieveCompactDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     char tmpBuf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->compactId, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->compactId, false),
+                                   pSdb, pCompactDetail);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->vgId, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->vgId, false), pSdb,
+                                   pCompactDetail);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->dnodeId, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->dnodeId, false),
+                                   pSdb, pCompactDetail);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->numberFileset, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(
+        colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->numberFileset, false), pSdb, pCompactDetail);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->finished, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->finished, false),
+                                   pSdb, pCompactDetail);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->startTime, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->startTime, false),
+                                   pSdb, pCompactDetail);
 
     numOfRows++;
     sdbRelease(pSdb, pCompactDetail);
@@ -302,7 +308,7 @@ int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj *p
     if (terrno != 0) code = terrno;
     TAOS_RETURN(code);
   }
-  (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+  code = sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
 
   TAOS_RETURN(code);
 }

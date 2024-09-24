@@ -667,13 +667,11 @@ void destroyOperator(SOperatorInfo* pOperator) {
     pOperator->numOfDownstream = 0;
   }
 
-  cleanupExprSupp(&pOperator->exprSupp);
-
-  // close operator after cleanup exprSupp, since we need to call cleanup of sqlFunctionCtx first to avoid mem leak.
   if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
     pOperator->fpSet.closeFn(pOperator->info);
   }
 
+  cleanupExprSupp(&pOperator->exprSupp);
   taosMemoryFreeClear(pOperator);
 }
 

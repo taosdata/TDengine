@@ -30,7 +30,7 @@ taos_metric_formatter_t *taos_metric_formatter_new();
 /**
  * @brief API PRIVATE taos_metric_formatter destructor
  */
-int taos_metric_formatter_destroy(taos_metric_formatter_t *self);
+void taos_metric_formatter_destroy(taos_metric_formatter_t *self);
 
 /**
  * @brief API PRIVATE Loads the help text

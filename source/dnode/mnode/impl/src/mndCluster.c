@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndCluster.h"
 #include "audit.h"
+#include "mndCluster.h"
 #include "mndGrant.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
@@ -257,7 +257,11 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
     code = terrno;
     TAOS_RETURN(code);
   }
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  code = sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  if (code != 0) {
+    sdbFreeRaw(pRaw);
+    TAOS_RETURN(code);
+  }
 
   mInfo("cluster:%" PRId64 ", will be created when deploying, raw:%p", clusterObj.id, pRaw);
 
@@ -275,7 +279,12 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
     mndTransDrop(pTrans);
     TAOS_RETURN(code);
   }
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  code = sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  if (code != 0) {
+    sdbFreeRaw(pRaw);
+    mndTransDrop(pTrans);
+    TAOS_RETURN(code);
+  }
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -316,7 +325,6 @@ static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO((const char *)&pCluster->createdTime, false, pCluster, _OVER);
-
 
     char ver[12] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(ver, tsVersionName, pShow->pMeta->pSchemas[cols].bytes);
@@ -386,7 +394,12 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
     mndTransDrop(pTrans);
     TAOS_RETURN(code);
   }
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  if (code != 0) {
+    sdbFreeRaw(pCommitRaw);
+    mndTransDrop(pTrans);
+    TAOS_RETURN(code);
+  }
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());

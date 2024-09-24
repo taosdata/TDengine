@@ -1,8 +1,9 @@
 ---
-sidebar_label: 管理开发
-title: 与各种管理开发工具的集成
-toc_max_heading_level: 4
+title: 工具
+description: TDengine 工具
 ---
+
+本节详细说明 TDengine 中的主要工具的功能和用法。
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

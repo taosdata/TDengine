@@ -90,7 +90,7 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
   return 0;
 }
 
-int tdbClose(TDB *pDb) {
+void tdbClose(TDB *pDb) {
   SPager *pPager;
 
   if (pDb) {
@@ -101,15 +101,15 @@ int tdbClose(TDB *pDb) {
 
     for (pPager = pDb->pgrList; pPager; pPager = pDb->pgrList) {
       pDb->pgrList = pPager->pNext;
-      (void)tdbPagerClose(pPager);
+      tdbPagerClose(pPager);
     }
 
-    (void)tdbPCacheClose(pDb->pCache);
+    tdbPCacheClose(pDb->pCache);
     tdbOsFree(pDb->pgrHash);
     tdbOsFree(pDb);
   }
 
-  return 0;
+  return;
 }
 
 int32_t tdbAlter(TDB *pDb, int pages) { return tdbPCacheAlter(pDb->pCache, pages); }
@@ -199,7 +199,7 @@ int32_t tdbPrepareAsyncCommit(TDB *pDb, TXN *pTxn) {
   return 0;
 }
 
-int32_t tdbAbort(TDB *pDb, TXN *pTxn) {
+void tdbAbort(TDB *pDb, TXN *pTxn) {
   SPager *pPager;
   int     ret;
 
@@ -208,13 +208,12 @@ int32_t tdbAbort(TDB *pDb, TXN *pTxn) {
     if (ret < 0) {
       tdbError("failed to abort pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName,
                pTxn->txnId);
-      return ret;
     }
   }
 
   tdbTxnClose(pTxn);
 
-  return 0;
+  return;
 }
 
 SPager *tdbEnvGetPager(TDB *pDb, const char *fname) {

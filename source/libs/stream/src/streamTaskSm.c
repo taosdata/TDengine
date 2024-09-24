@@ -88,7 +88,7 @@ static int32_t attachWaitedEvent(SStreamTask* pTask, SFutureHandleEventInfo* pEv
   if (px == NULL) {
     stError("s-task:%s failed to add into waiting list, total waiting events:%d, code: out of memory", pTask->id.idStr,
             (int32_t)taosArrayGetSize(pList));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   } else {
     stDebug("s-task:%s add into waiting list, total waiting events:%d", pTask->id.idStr,
             (int32_t)taosArrayGetSize(pList));
@@ -298,7 +298,7 @@ int32_t streamCreateStateMachine(SStreamTask* pTask) {
     taosMemoryFree(pSM);
     stError("s-task:%s failed to create task stateMachine, size:%d, code:%s", id, (int32_t)sizeof(SStreamTaskSM),
             tstrerror(terrno));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   // set the initial state for the state-machine of stream task

@@ -25,7 +25,7 @@ int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType timeoutType, uint64_t l
   pMsg->msgType = (timeoutType == SYNC_TIMEOUT_ELECTION) ? TDMT_SYNC_TIMEOUT_ELECTION : TDMT_SYNC_TIMEOUT;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SyncTimeout* pTimeout = pMsg->pCont;
@@ -45,7 +45,7 @@ int32_t syncBuildClientRequest(SRpcMsg* pMsg, const SRpcMsg* pOriginal, uint64_t
 
   pMsg->pCont = rpcMallocCont(bytes);
   if (pMsg->pCont == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pMsg->msgType = TDMT_SYNC_CLIENT_REQUEST;
   pMsg->contLen = bytes;
@@ -69,7 +69,7 @@ int32_t syncBuildClientRequestFromNoopEntry(SRpcMsg* pMsg, const SSyncRaftEntry*
   pMsg->msgType = TDMT_SYNC_CLIENT_REQUEST;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SyncClientRequest* pClientRequest = pMsg->pCont;
@@ -89,7 +89,7 @@ int32_t syncBuildRequestVote(SRpcMsg* pMsg, int32_t vgId) {
   pMsg->msgType = TDMT_SYNC_REQUEST_VOTE;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SyncRequestVote* pRequestVote = pMsg->pCont;
@@ -105,7 +105,7 @@ int32_t syncBuildRequestVoteReply(SRpcMsg* pMsg, int32_t vgId) {
   pMsg->msgType = TDMT_SYNC_REQUEST_VOTE_REPLY;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SyncRequestVoteReply* pRequestVoteReply = pMsg->pCont;
@@ -121,7 +121,7 @@ int32_t syncBuildAppendEntries(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId) {
   pMsg->msgType = TDMT_SYNC_APPEND_ENTRIES;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SyncAppendEntries* pAppendEntries = pMsg->pCont;
@@ -138,7 +138,7 @@ int32_t syncBuildAppendEntriesReply(SRpcMsg* pMsg, int32_t vgId) {
   pMsg->msgType = TDMT_SYNC_APPEND_ENTRIES_REPLY;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SyncAppendEntriesReply* pAppendEntriesReply = pMsg->pCont;
@@ -155,7 +155,7 @@ int32_t syncBuildAppendEntriesFromRaftEntry(SSyncNode* pNode, SSyncRaftEntry* pE
   pRpcMsg->contLen = bytes;
   pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
   if (pRpcMsg->pCont == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SyncAppendEntries* pMsg = pRpcMsg->pCont;
@@ -181,7 +181,7 @@ int32_t syncBuildHeartbeat(SRpcMsg* pMsg, int32_t vgId) {
   pMsg->msgType = TDMT_SYNC_HEARTBEAT;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SyncHeartbeat* pHeartbeat = pMsg->pCont;
@@ -197,7 +197,7 @@ int32_t syncBuildHeartbeatReply(SRpcMsg* pMsg, int32_t vgId) {
   pMsg->msgType = TDMT_SYNC_HEARTBEAT_REPLY;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SyncHeartbeatReply* pHeartbeatReply = pMsg->pCont;
@@ -213,7 +213,7 @@ int32_t syncBuildSnapshotSend(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId) {
   pMsg->msgType = TDMT_SYNC_SNAPSHOT_SEND;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SyncSnapshotSend* pSnapshotSend = pMsg->pCont;
@@ -230,7 +230,7 @@ int32_t syncBuildSnapshotSendRsp(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId) {
   pMsg->msgType = TDMT_SYNC_SNAPSHOT_RSP;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SyncSnapshotRsp* pPreSnapshotRsp = pMsg->pCont;
@@ -246,7 +246,7 @@ int32_t syncBuildLeaderTransfer(SRpcMsg* pMsg, int32_t vgId) {
   pMsg->msgType = TDMT_SYNC_LEADER_TRANSFER;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SyncLeaderTransfer* pLeaderTransfer = pMsg->pCont;
@@ -262,7 +262,7 @@ int32_t syncBuildLocalCmd(SRpcMsg* pMsg, int32_t vgId) {
   pMsg->msgType = TDMT_SYNC_LOCAL_CMD;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SyncLocalCmd* pLocalCmd = pMsg->pCont;

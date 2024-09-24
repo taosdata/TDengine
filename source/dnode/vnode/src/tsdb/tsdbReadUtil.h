@@ -357,7 +357,7 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
 void    clearRowKey(SRowKey* pKey);
 
 bool    shouldFreePkBuf(SBlockLoadSuppInfo* pSupp);
-int32_t resetDataBlockIterator(SDataBlockIter* pIter, int32_t order, bool hasPk);
+int32_t resetDataBlockIterator(SDataBlockIter* pIter, int32_t order, bool hasPk, const char* id);
 void    clearDataBlockIterator(SDataBlockIter* pIter, bool needFree);
 void    cleanupDataBlockIterator(SDataBlockIter* pIter, bool hasPk);
 

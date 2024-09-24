@@ -236,7 +236,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
       taosArrayRemove(pExchangeInfo->pResultBlockList, 0);
       void* tmp = taosArrayPush(pExchangeInfo->pRecycledBlocks, &p);
       if (!tmp) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
         pTaskInfo->code = code;
         T_LONG_JMP(pTaskInfo->env, code);
@@ -590,7 +590,7 @@ int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, in
   if (NULL == pScan->pUidList) {
     taosMemoryFree(pScan);
     taosMemoryFreeClear(*ppRes);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pScan->tableSeq = tableSeq;
 

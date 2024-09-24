@@ -123,7 +123,7 @@ static int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t ver, const char *pMsg
     TAOS_CHECK_EXIT(metaCreateTSma(SMA_META(pSma), ver, pCfg));
 
     // create stable to save tsma result in dstVgId
-    (void)tNameFromString(&stbFullName, pCfg->dstTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    TAOS_CHECK_EXIT(tNameFromString(&stbFullName, pCfg->dstTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
     pReq.name = (char *)tNameGetTableName(&stbFullName);
     pReq.suid = pCfg->dstTbUid;
     pReq.schemaRow = pCfg->schemaRow;
@@ -283,7 +283,10 @@ static int32_t tsmaProcessDelReq(SSma *pSma, int64_t indexUid, SBatchDeleteReq *
 
     SEncoder encoder;
     tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SMsgHead)), len);
-    (void)tEncodeSBatchDeleteReq(&encoder, pDelReq);
+    if ((code = tEncodeSBatchDeleteReq(&encoder, pDelReq)) < 0) {
+      tEncoderClear(&encoder);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
     tEncoderClear(&encoder);
 
     ((SMsgHead *)pBuf)->vgId = TD_VID(pSma->pVnode);

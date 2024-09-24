@@ -39,6 +39,7 @@ typedef struct SGroupbyOperatorInfo {
   int32_t        groupKeyLen;    // total group by column width
   SGroupResInfo  groupResInfo;
   SExprSupp      scalarSup;
+  SOperatorInfo  *pOperator;
 } SGroupbyOperatorInfo;
 
 // The sort in partition may be needed later.
@@ -85,9 +86,11 @@ static void destroyGroupOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->pGroupCols);
   taosArrayDestroyEx(pInfo->pGroupColVals, freeGroupKey);
   cleanupExprSupp(&pInfo->scalarSup);
-
+  cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
+                    &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
   cleanupGroupResInfo(&pInfo->groupResInfo);
   cleanupAggSup(&pInfo->aggSup);
+  pInfo->pOperator = NULL;
   taosMemoryFreeClear(param);
 }
 
@@ -329,8 +332,11 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     }
 
     int32_t rowIndex = j - num;
-    applyAggFunctionOnPartialTuples(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows,
-                                    pOperator->exprSupp.numOfExprs);
+    ret = applyAggFunctionOnPartialTuples(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows,
+                                                   pOperator->exprSupp.numOfExprs);
+    if (ret != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, ret);
+    }
 
     // assign the group keys or user input constant values if required
     doAssignGroupKeys(pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.rows, rowIndex);
@@ -347,8 +353,11 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     }
 
     int32_t rowIndex = pBlock->info.rows - num;
-    applyAggFunctionOnPartialTuples(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows,
-                                    pOperator->exprSupp.numOfExprs);
+    ret = applyAggFunctionOnPartialTuples(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows,
+                                          pOperator->exprSupp.numOfExprs);
+    if (ret != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, ret);
+    }
     doAssignGroupKeys(pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.rows, rowIndex);
   }
 }
@@ -562,6 +571,8 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
   pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
   pInfo->binfo.inputTsOrder = pAggNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pAggNode->node.outputTsOrder;
+
+  pInfo->pOperator = pOperator;
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashGroupbyAggregateNext, NULL, destroyGroupOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);

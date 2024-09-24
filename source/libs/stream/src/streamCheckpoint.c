@@ -62,7 +62,7 @@ int32_t createChkptTriggerBlock(SStreamTask* pTask, int32_t checkpointType, int6
   if (pChkpoint->blocks == NULL) {
     taosMemoryFree(pBlock);
     taosFreeQitem(pChkpoint);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   void* p = taosArrayPush(pChkpoint->blocks, pBlock);
@@ -70,7 +70,7 @@ int32_t createChkptTriggerBlock(SStreamTask* pTask, int32_t checkpointType, int6
     taosArrayDestroy(pChkpoint->blocks);
     taosMemoryFree(pBlock);
     taosFreeQitem(pChkpoint);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   *pRes = pChkpoint;
@@ -740,7 +740,7 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
 
   SArray* toDelFiles = taosArrayInit(4, POINTER_BYTES);
   if (toDelFiles == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if ((code = taskDbGenChkpUploadData(pTask->pBackend, pMeta->bkdChkptMgt, checkpointId, type, &path, toDelFiles,
@@ -1077,7 +1077,7 @@ int32_t doSendRetrieveTriggerMsg(SStreamTask* pTask, SArray* pNotSendList) {
 
     SRetrieveChkptTriggerReq* pReq = rpcMallocCont(sizeof(SRetrieveChkptTriggerReq));
     if (pReq == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       stError("vgId:%d failed to create msg to retrieve trigger msg for task:%s exec, code:out of memory", vgId, pId);
       continue;
     }
