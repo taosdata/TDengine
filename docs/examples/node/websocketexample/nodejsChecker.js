@@ -11,7 +11,7 @@ for(var i = 2; i < global.process.argv.length; i++){
 
 if(host == null){
     console.log("Usage: node nodejsChecker.js host=<hostname> port=<port>");
-    process.exit(0);
+    process.exit(1);
 }
 
 
@@ -62,6 +62,7 @@ async function test() {
     }
     catch (err) {
         console.error(err.code, err.message);
+        process.exitCode = 1;
     }
     finally {
         if (wsRows) {

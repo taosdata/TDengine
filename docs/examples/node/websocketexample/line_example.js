@@ -29,6 +29,7 @@ async function test() {
     }
     catch (err) {
         console.error(`Failed to insert data with schemaless, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
+        process.exitCode = 1;
     }
     finally {
         if (wsRows) {

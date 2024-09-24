@@ -89,6 +89,7 @@ async function test() {
     }
     catch (err) {
         console.error(`Failed to seek offset, topic: ${topic}, groupId: ${groupId}, clientId: ${clientId}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
+        process.exitCode = 1;
     }
     finally {
         if (consumer) {

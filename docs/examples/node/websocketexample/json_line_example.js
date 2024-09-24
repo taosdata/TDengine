@@ -38,6 +38,7 @@ async function test() {
     }
     catch (err) {
         console.error(err.code, err.message);
+        process.exitCode = 1;
     }
     finally {
         if (wsRows) {

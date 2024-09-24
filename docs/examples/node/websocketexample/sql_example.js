@@ -41,6 +41,7 @@ async function createDbAndTable() {
         console.log("Create stable power.meters successfully");
     } catch (err) {
         console.error(`Failed to create database power or stable meters, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
+        throw err;
     } finally {
         if (wsSql) {
             await wsSql.close();
@@ -68,6 +69,7 @@ async function insertData() {
         console.log("Successfully inserted " + taosResult.getAffectRows() + " rows to power.meters.");
     } catch (err) {
         console.error(`Failed to insert data to power.meters, sql: ${insertQuery}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
+        throw err;
     } finally {
         if (wsSql) {
             await wsSql.close();
@@ -91,6 +93,7 @@ async function queryData() {
     }
     catch (err) {
         console.error(`Failed to query data from power.meters, sql: ${sql}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
+        throw err;
     }
     finally {
         if (wsRows) {
@@ -118,6 +121,7 @@ async function sqlWithReqid() {
     }
     catch (err) {
         console.error(`Failed to query data from power.meters, reqId: ${reqId}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
+        throw err;
     }
     finally {
         if (wsRows) {
@@ -131,11 +135,16 @@ async function sqlWithReqid() {
 // ANCHOR_END: sqlWithReqid
 
 async function test() {
-    await createDbAndTable();
-    await insertData();
-    await queryData();
-    await sqlWithReqid();
-    taos.destroy();
+    try {
+        await createDbAndTable();
+        await insertData();
+        await queryData();
+        await sqlWithReqid();
+        taos.destroy();        
+    } catch(e) {
+        process.exitCode = 1;
+    }
+
 }
 
 test()

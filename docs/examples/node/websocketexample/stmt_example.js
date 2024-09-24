@@ -60,6 +60,7 @@ async function prepare() {
     }
     catch (err) {
         console.error(`Failed to insert to table meters using stmt, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
+        process.exitCode = 1;
     }
     finally {
         if (stmt) {
