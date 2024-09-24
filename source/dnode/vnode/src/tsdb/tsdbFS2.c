@@ -865,7 +865,7 @@ static void tsdbFSSetBlockCommit(STFileSet *fset, bool block) {
   }
 }
 
-int32_t tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
+void tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
   (void)taosThreadMutexLock(&tsdb->mutex);
   STFileSet *fset;
   tsdbFSGetFSet(tsdb->pFS, fid, &fset);
@@ -877,7 +877,7 @@ int32_t tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
     }
   }
   (void)taosThreadMutexUnlock(&tsdb->mutex);
-  return 0;
+  return;
 }
 
 // IMPORTANT: the caller must hold fs->tsdb->mutex

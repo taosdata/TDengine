@@ -4171,12 +4171,12 @@ int32_t tValueColumnInit(SValueColumn *valCol) {
   return 0;
 }
 
-int32_t tValueColumnDestroy(SValueColumn *valCol) {
+void tValueColumnDestroy(SValueColumn *valCol) {
   valCol->type = TSDB_DATA_TYPE_NULL;
   valCol->numOfValues = 0;
   tBufferDestroy(&valCol->data);
   tBufferDestroy(&valCol->offsets);
-  return 0;
+  return;
 }
 
 void tValueColumnClear(SValueColumn *valCol) {
