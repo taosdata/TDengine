@@ -3482,7 +3482,7 @@ FETCH_NEXT_BLOCK:
           return code;
         }
         qError("%s===stream=== %s failed at line %d since pInfo->pUpdateRes is empty", GET_TASKID(pTaskInfo), __func__,
-               lino);
+               __LINE__);
         blockDataCleanup(pInfo->pUpdateDataRes);
         pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
       } break;
@@ -3496,7 +3496,7 @@ FETCH_NEXT_BLOCK:
           return code;
         }
         qError("%s===stream=== %s failed at line %d since pInfo->pUpdateRes is empty", GET_TASKID(pTaskInfo), __func__,
-               lino);
+               __LINE__);
         blockDataCleanup(pInfo->pUpdateDataRes);
         pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
       } break;
