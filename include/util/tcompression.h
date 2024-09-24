@@ -268,7 +268,7 @@ typedef struct {
   uint8_t lvl[3];  // l[0] = 'low', l[1] = 'mid', l[2] = 'high'
 } TCmprLvlSet;
 
-int32_t tcompressDebug(uint32_t cmprAlg, uint8_t *l1Alg, uint8_t *l2Alg, uint8_t *level);
+void tcompressDebug(uint32_t cmprAlg, uint8_t *l1Alg, uint8_t *l2Alg, uint8_t *level);
 
 #define DEFINE_VAR(cmprAlg)                   \
   uint8_t l1 = COMPRESS_L1_TYPE_U32(cmprAlg); \
