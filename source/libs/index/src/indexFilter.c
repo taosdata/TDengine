@@ -1033,7 +1033,7 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
 
   if (NULL == ctx.pRes) {
     indexError("index-filter failed to taosHashInit");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   nodesWalkExprPostOrder(pNode, sifCalcWalker, &ctx);
@@ -1057,7 +1057,7 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
     pDst->status = res->status;
 
     sifFreeParam(res);
-    (void)taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
+    TAOS_UNUSED(taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES));
   }
   sifFreeRes(ctx.pRes);
   return code;
@@ -1073,7 +1073,7 @@ static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status, SMetaDataFilte
   ctx.pRes = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == ctx.pRes) {
     indexError("index-filter failed to taosHashInit");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   nodesWalkExprPostOrder(pNode, sifCalcWalker, &ctx);
@@ -1089,7 +1089,7 @@ static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status, SMetaDataFilte
   }
   *status = res->status;
   sifFreeParam(res);
-  (void)taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
+  TAOS_UNUSED(taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES));
 
   void *iter = taosHashIterate(ctx.pRes, NULL);
   while (iter != NULL) {
@@ -1113,7 +1113,7 @@ int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, 
 
   SArray *output = taosArrayInit(8, sizeof(uint64_t));
   if (output == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SIFParam param = {.arg = *metaArg, .result = output, .status = SFLT_NOT_INDEX, .api = *pAPI};

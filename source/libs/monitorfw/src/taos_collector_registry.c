@@ -50,7 +50,7 @@ taos_collector_registry_t *taos_collector_registry_new(const char *name) {
 
   self->name = taos_strdup(name);
   self->collectors = taos_map_new();
-  (void)taos_map_set_free_value_fn(self->collectors, &taos_collector_free_generic);
+  if (taos_map_set_free_value_fn(self->collectors, &taos_collector_free_generic) != 0) return NULL;
   if (taos_map_set(self->collectors, "default", taos_collector_new("default")) != 0) return NULL;
 
   self->metric_formatter = taos_metric_formatter_new();
@@ -86,17 +86,14 @@ int taos_collector_registry_destroy(taos_collector_registry_t *self) {
   self->collectors = NULL;
   if (r) ret = r;
 
-  r = taos_metric_formatter_destroy(self->metric_formatter);
+  taos_metric_formatter_destroy(self->metric_formatter);
   self->metric_formatter = NULL;
-  if (r) ret = r;
 
-  r = taos_string_builder_destroy(self->string_builder);
+  taos_string_builder_destroy(self->string_builder);
   self->string_builder = NULL;
-  if (r) ret = r;
 
-  r = taos_string_builder_destroy(self->string_builder_batch);
+  taos_string_builder_destroy(self->string_builder_batch);
   self->string_builder_batch = NULL;
-  if (r) ret = r;
 
   r = pthread_rwlock_destroy(self->lock);
   taos_free(self->lock);
@@ -241,13 +238,25 @@ const char *taos_collector_registry_bridge_new(taos_collector_registry_t *self, 
 
   SJson* pJson = tjsonCreateArray();
   SJson* item = tjsonCreateObject();
-  (void)tjsonAddItemToArray(pJson, item);
-  (void)tjsonAddStringToObject(item, "ts", ts);
-  (void)tjsonAddDoubleToObject(item, "protocol", 2);
-  SJson* array = tjsonCreateArray();
-  (void)tjsonAddItemToObject(item, "tables", array);
+  if (tjsonAddItemToArray(pJson, item) != 0) {
+    tjsonDelete(pJson);
+    return NULL;
+  }
+  if (tjsonAddStringToObject(item, "ts", ts) != 0) {
+    tjsonDelete(pJson);
+    return NULL;
+  }
+  if (tjsonAddDoubleToObject(item, "protocol", 2) != 0) {
+    tjsonDelete(pJson);
+    return NULL;
+  }
+  SJson *array = tjsonCreateArray();
+  if (tjsonAddItemToObject(item, "tables", array) != 0) {
+    tjsonDelete(pJson);
+    return NULL;
+  }
 
-  if(taos_metric_formatter_load_metrics_new(self->metric_formatter, self->collectors, ts, format, array) != 0){
+  if (taos_metric_formatter_load_metrics_new(self->metric_formatter, self->collectors, ts, format, array) != 0) {
     TAOS_LOG("failed to load metrics");
     tjsonDelete(pJson);
     return NULL;
@@ -294,9 +303,8 @@ const char *taos_collector_registry_bridge_new(taos_collector_registry_t *self, 
   r = taos_string_builder_clear(tmp_builder);
   if (r) goto _OVER;;
 
-  r = taos_string_builder_destroy(tmp_builder);
+  taos_string_builder_destroy(tmp_builder);
   tmp_builder = NULL;
-  if (r) goto _OVER;;
 
   tjsonDelete(pJson);
   return data;
@@ -304,7 +312,7 @@ const char *taos_collector_registry_bridge_new(taos_collector_registry_t *self, 
 _OVER:
   tjsonDelete(pJson);
   if(tmp_builder != NULL){
-    (void)taos_string_builder_destroy(tmp_builder);
+    taos_string_builder_destroy(tmp_builder);
   }
 
   return NULL;

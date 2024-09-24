@@ -412,7 +412,7 @@ int32_t remoteChkpGetDelFile(char* path, SArray* toDel) {
     if (taosArrayPush(toDel, &p) == NULL) {
       taosMemoryFree(pMeta);
       taosMemoryFree(p);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -1102,17 +1102,17 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
   (void)taosThreadRwlockWrlock(&pBackend->chkpDirLock);
 
   if (taosArrayPush(pBackend->chkpSaved, &chkpId) == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+    TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
 
   chkpDel = taosArrayInit(8, sizeof(int64_t));
   if (chkpDel == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+    TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
 
   chkpDup = taosArrayInit(8, sizeof(int64_t));
   if (chkpDup == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+    TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
 
   int64_t firsId = 0;
@@ -1123,11 +1123,11 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
       int64_t id = *(int64_t*)taosArrayGet(pBackend->chkpSaved, i);
       if (id >= firsId) {
         if (taosArrayPush(chkpDup, &id) == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+          TAOS_CHECK_GOTO(terrno, NULL, _exception);
         }
       } else {
         if (taosArrayPush(chkpDel, &id) == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+          TAOS_CHECK_GOTO(terrno, NULL, _exception);
         }
       }
     }
@@ -1138,13 +1138,13 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
     for (int i = 0; i < dsz; i++) {
       int64_t id = *(int64_t*)taosArrayGet(pBackend->chkpSaved, i);
       if (taosArrayPush(chkpDel, &id) == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+        TAOS_CHECK_GOTO(terrno, NULL, _exception);
       }
     }
     for (int i = dsz < 0 ? 0 : dsz; i < sz; i++) {
       int64_t id = *(int64_t*)taosArrayGet(pBackend->chkpSaved, i);
       if (taosArrayPush(chkpDup, &id) == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+        TAOS_CHECK_GOTO(terrno, NULL, _exception);
       }
     }
   }
@@ -1305,7 +1305,7 @@ int32_t taskDbLoadChkpInfo(STaskDbWrapper* pBackend) {
       int ret = sscanf(taosGetDirEntryName(de), "checkpoint%" PRId64 "", &checkpointId);
       if (ret == 1) {
         if (taosArrayPush(pBackend->chkpSaved, &checkpointId) == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+          TAOS_CHECK_GOTO(terrno, NULL, _exception);
         }
       }
     } else {
@@ -1330,7 +1330,7 @@ int32_t chkpGetAllDbCfHandle2(STaskDbWrapper* pBackend, rocksdb_column_family_ha
     if (pBackend->pCf[i]) {
       rocksdb_column_family_handle_t* p = pBackend->pCf[i];
       if (taosArrayPush(pHandle, &p) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exception;
       }
     }
@@ -1485,7 +1485,7 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
       // remove chkpid from chkp-in-use set
       taskDbUnRefChkp(pTaskDb, pTaskDb->chkpId);
       taskDbRemoveRef(pTaskDb);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       break;
     }
     if (taosArrayPush(pSnap, &snap) == NULL) {
@@ -3439,7 +3439,6 @@ int32_t streamStateGetFirst_rocksdb(SStreamState* pState, SWinKey* key) {
 }
 
 int32_t streamStateGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
-  stDebug("streamStateGetGroupKVByCur_rocksdb");
   if (!pCur) {
     return -1;
   }
@@ -3885,7 +3884,6 @@ SStreamStateCur* streamStateSessionSeekKeyPrev_rocksdb(SStreamState* pState, con
 }
 
 int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
-  stDebug("streamStateSessionGetKVByCur_rocksdb");
   if (!pCur) {
     return -1;
   }
@@ -3985,7 +3983,6 @@ SStreamStateCur* streamStateFillGetCur_rocksdb(SStreamState* pState, const SWinK
   return NULL;
 }
 int32_t streamStateFillGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
-  stDebug("streamStateFillGetKVByCur_rocksdb");
   if (!pCur) {
     return -1;
   }
@@ -4348,7 +4345,7 @@ int32_t streamDefaultIterGet_rocksdb(SStreamState* pState, const void* start, co
       int64_t checkPoint = 0;
       if (sscanf(key + strlen(key), ":%" PRId64 "", &checkPoint) == 1) {
         if (taosArrayPush(result, &checkPoint) == NULL) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           break;
         }
       }
@@ -4568,7 +4565,7 @@ int32_t compareHashTableImpl(SHashObj* p1, SHashObj* p2, SArray* diff) {
       (void)strncpy(fname, name, len);
       if (taosArrayPush(diff, &fname) == NULL) {
         taosMemoryFree(fname);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
     pIter = taosHashIterate(p2, pIter);
@@ -4687,7 +4684,7 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
 
       p->pCurrent = taosStrdup(name);
       if (p->pCurrent == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         break;
       }
       continue;
@@ -4697,7 +4694,7 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
       taosMemoryFreeClear(p->pManifest);
       p->pManifest = taosStrdup(name);
       if (p->pManifest == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         break;
       }
       continue;
@@ -4731,7 +4728,7 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
         if (taosArrayPush(p->pAdd, &fname) == NULL) {
           taosMemoryFree(fname);
           (void)taosThreadRwlockUnlock(&p->rwLock);
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
       }
       pIter = taosHashIterate(p->pSstTbl[1 - p->idx], pIter);
@@ -4783,7 +4780,7 @@ int32_t dbChkpCreate(char* path, int64_t initChkpId, SDbChkp** ppChkp) {
   p->preCkptId = -1;
   p->pSST = taosArrayInit(64, sizeof(void*));
   if (p->pSST == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     dbChkpDestroy(p);
     return code;
   }
@@ -4799,25 +4796,25 @@ int32_t dbChkpCreate(char* path, int64_t initChkpId, SDbChkp** ppChkp) {
   p->idx = 0;
   p->pSstTbl[0] = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (p->pSstTbl[0] == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _EXIT;
   }
 
   p->pSstTbl[1] = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (p->pSstTbl[1] == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _EXIT;
   }
 
   p->pAdd = taosArrayInit(64, sizeof(void*));
   if (p->pAdd == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _EXIT;
   }
 
   p->pDel = taosArrayInit(64, sizeof(void*));
   if (p->pDel == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _EXIT;
   }
 
@@ -4933,12 +4930,12 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
     char* filename = taosArrayGetP(p->pDel, i);
     char* p = taosStrdup(filename);
     if (p == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _ERROR;
     }
     if (taosArrayPush(list, &p) == NULL) {
       taosMemoryFree(p);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _ERROR;
     }
   }
@@ -5039,14 +5036,14 @@ int32_t bkdMgtCreate(char* path, SBkdMgt** mgt) {
 
   p->pDbChkpTbl = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (p->pDbChkpTbl == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     bkdMgtDestroy(p);
     return code;
   }
 
   p->path = taosStrdup(path);
   if (p->path == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     bkdMgtDestroy(p);
     return code;
   }

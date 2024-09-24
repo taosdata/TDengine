@@ -1939,6 +1939,10 @@ int32_t smlClearForRerun(SSmlHandle *info) {
       return TSDB_CODE_SML_INVALID_DATA;
     }
     info->lines = (SSmlLineInfo *)taosMemoryCalloc(info->lineNum, sizeof(SSmlLineInfo));
+    if (unlikely(info->lines == NULL)) {
+      uError("SML:0x%" PRIx64 " info->lines == NULL", info->id);
+      return terrno;
+    }
   }
 
   (void)memset(&info->preLine, 0, sizeof(SSmlLineInfo));
@@ -1971,10 +1975,14 @@ static bool getLine(SSmlHandle *info, char *lines[], char **rawLine, char *rawLi
 
   if (*rawLine != NULL && (uDebugFlag & DEBUG_DEBUG)) {
     char *print = taosMemoryCalloc(*len + 1, 1);
-    (void)memcpy(print, *tmp, *len);
-    uDebug("SML:0x%" PRIx64 " smlParseLine is raw, numLines:%d, protocol:%d, len:%d, data:%s", info->id, numLines,
-           info->protocol, *len, print);
-    taosMemoryFree(print);
+    if (print != NULL){
+      (void)memcpy(print, *tmp, *len);
+      uDebug("SML:0x%" PRIx64 " smlParseLine is raw, numLines:%d, protocol:%d, len:%d, data:%s", info->id, numLines,
+             info->protocol, *len, print);
+      taosMemoryFree(print);
+    } else{
+      uError("SML:0x%" PRIx64 " smlParseLine taosMemoryCalloc failed", info->id);
+    }
   } else {
     uDebug("SML:0x%" PRIx64 " smlParseLine is not numLines:%d, protocol:%d, len:%d, data:%s", info->id, numLines,
            info->protocol, *len, *tmp);

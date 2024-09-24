@@ -240,7 +240,7 @@ int32_t sclCopyValueNodeValue(SValueNode *pNode, void **res) {
   *res = taosMemoryMalloc(pNode->node.resType.bytes);
   if (NULL == (*res)) {
     sclError("malloc %d failed", pNode->node.resType.bytes);
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   (void)memcpy(*res, nodesGetValueFromNode(pNode), pNode->node.resType.bytes);

@@ -31,7 +31,7 @@ taos_string_builder_t *taos_string_builder_new(void);
  * API PRIVATE
  * @brief Destroys a taos_string_builder*
  */
-int taos_string_builder_destroy(taos_string_builder_t *self);
+void taos_string_builder_destroy(taos_string_builder_t *self);
 
 /**
  * API PRIVATE

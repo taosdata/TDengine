@@ -191,7 +191,7 @@ static int32_t insertTableToScanIgnoreList(STableScanInfo* pTableScanInfo, uint6
     pTableScanInfo->pIgnoreTables =
         taosHashInit(tableNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
     if (NULL == pTableScanInfo->pIgnoreTables) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -1169,7 +1169,7 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
     info.uid = *pUid;
     void* p = taosArrayPush(pListInfo->pTableList, &info);
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     tableIdx++;
@@ -4078,6 +4078,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
 
   SDataType pkType = {0};
   pInfo->primaryKeyIndex = -1;
+  pInfo->basic.primaryPkIndex = -1;
   int32_t numOfOutput = taosArrayGetSize(pInfo->matchInfo.pList);
   pColIds = taosArrayInit(numOfOutput, sizeof(int16_t));
   QUERY_CHECK_NULL(pColIds, code, lino, _error, terrno);
@@ -4095,6 +4096,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
     }
     if (id->isPk) {
       pInfo->primaryKeyIndex = id->dstSlotId;
+      pInfo->basic.primaryPkIndex = id->dstSlotId;
       pkType = id->dataType;
     }
   }

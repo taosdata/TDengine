@@ -39,18 +39,24 @@ taos_collector_t *taos_collector_new(const char *name) {
   self->name = taos_strdup(name);
   self->metrics = taos_map_new();
   if (self->metrics == NULL) {
-    (void)taos_collector_destroy(self);
+    if (taos_collector_destroy(self) != 0) {
+      TAOS_LOG("taos_collector_destroy failed");
+    }
     return NULL;
   }
   r = taos_map_set_free_value_fn(self->metrics, &taos_metric_free_generic);
   if (r) {
-    (void)taos_collector_destroy(self);
+    if (taos_collector_destroy(self) != 0) {
+      TAOS_LOG("taos_collector_destroy failed");
+    }
     return NULL;
   }
   self->collect_fn = &taos_collector_default_collect;
   self->string_builder = taos_string_builder_new();
   if (self->string_builder == NULL) {
-    (void)taos_collector_destroy(self);
+    if (taos_collector_destroy(self) != 0) {
+      TAOS_LOG("taos_collector_destroy failed");
+    }
     return NULL;
   }
   self->proc_limits_file_path = NULL;
@@ -70,8 +76,7 @@ int taos_collector_destroy(taos_collector_t *self) {
   self->metrics = NULL;
 
   if(self->string_builder != NULL){
-    r = taos_string_builder_destroy(self->string_builder);
-    if (r) ret = r;
+    taos_string_builder_destroy(self->string_builder);
     self->string_builder = NULL;
   }
 
@@ -93,7 +98,9 @@ int taos_collector_destroy_generic(void *gen) {
 
 void taos_collector_free_generic(void *gen) {
   taos_collector_t *self = (taos_collector_t *)gen;
-  (void)taos_collector_destroy(self);
+  if (taos_collector_destroy(self) != 0) {
+    TAOS_LOG("taos_collector_destroy failed");
+  }
 }
 
 int taos_collector_set_collect_fn(taos_collector_t *self, taos_collect_fn *fn) {

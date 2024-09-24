@@ -37,7 +37,6 @@ void setQueryRequest(int64_t rId) {
     pReq->isQuery = true;
     (void)releaseRequest(rId);
   }
-
 }
 
 static bool stringLengthCheck(const char* str, size_t maxsize) {
@@ -2245,7 +2244,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
         } else if (tTagIsJson(data)) {
           char* jsonString = NULL;
           parseTagDatatoJson(data, &jsonString);
-          if(jsonString == NULL) {
+          if (jsonString == NULL) {
             tscError("doConvertJson error: parseTagDatatoJson failed");
             return terrno;
           }
@@ -2517,10 +2516,10 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   void*              clientRpc = NULL;
   SServerStatusRsp   statusRsp = {0};
   SEpSet             epSet = {.inUse = 0, .numOfEps = 1};
-  SRpcMsg            rpcMsg = {.info.ahandle = (void*)0x9526, .msgType = TDMT_DND_SERVER_STATUS};
-  SRpcMsg            rpcRsp = {0};
-  SRpcInit           rpcInit = {0};
-  char               pass[TSDB_PASSWORD_LEN + 1] = {0};
+  SRpcMsg  rpcMsg = {.info.ahandle = (void*)0x9527, .info.notFreeAhandle = 1, .msgType = TDMT_DND_SERVER_STATUS};
+  SRpcMsg  rpcRsp = {0};
+  SRpcInit rpcInit = {0};
+  char     pass[TSDB_PASSWORD_LEN + 1] = {0};
 
   rpcInit.label = "CHK";
   rpcInit.numOfThreads = 1;
@@ -3032,7 +3031,8 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   pRequest->inCallback = true;
   int64_t this = pRequest->self;
-  if (tsQueryTbNotExistAsEmpty && TD_RES_QUERY(&pRequest->resType) && pRequest->isQuery && (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
+  if (tsQueryTbNotExistAsEmpty && TD_RES_QUERY(&pRequest->resType) && pRequest->isQuery &&
+      (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
     code = TSDB_CODE_SUCCESS;
     pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
   }

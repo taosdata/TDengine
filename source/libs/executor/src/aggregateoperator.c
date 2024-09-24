@@ -613,8 +613,9 @@ int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo
   return TSDB_CODE_SUCCESS;
 }
 
-void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData,
-                                     int32_t offset, int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput) {
+int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData,
+                                        int32_t offset, int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput) {
+  int32_t code = TSDB_CODE_SUCCESS;
   for (int32_t k = 0; k < numOfOutput; ++k) {
     // keep it temporarily
     SFunctionCtxStatus status = {0};
@@ -641,15 +642,14 @@ void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pC
 
       SScalarParam out = {.columnData = &idata};
       SScalarParam tw = {.numOfRows = 5, .columnData = pTimeWindowData};
-      int32_t      code = pCtx[k].sfp.process(&tw, 1, &out);
+      code = pCtx[k].sfp.process(&tw, 1, &out);
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
         taskInfo->code = code;
-        T_LONG_JMP(taskInfo->env, code);
+        return code;
       }
       pEntryInfo->numOfRes = 1;
     } else {
-      int32_t code = TSDB_CODE_SUCCESS;
       if (functionNeedToExecute(&pCtx[k]) && pCtx[k].fpSet.process != NULL) {
         if ((&pCtx[k])->input.pData[0] == NULL) {
           code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -664,7 +664,7 @@ void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pC
           }
           qError("%s apply functions error, code: %s", GET_TASKID(taskInfo), tstrerror(code));
           taskInfo->code = code;
-          T_LONG_JMP(taskInfo->env, code);
+          return code;
         }
       }
 
@@ -672,6 +672,7 @@ void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pC
       functionCtxRestore(&pCtx[k], &status);
     }
   }
+  return code;
 }
 
 void functionCtxSave(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus) {
