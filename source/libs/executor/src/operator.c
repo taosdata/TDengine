@@ -889,6 +889,7 @@ int32_t optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam*
   } else {
     code = pOperator->fpSet.getNextFn(pOperator, pRes);
     if (code) {
+      qError("failed to get next data block from upstream, %s code:%s", __func__, tstrerror(code));
       pOperator->pTaskInfo->code = code;
     }
   }

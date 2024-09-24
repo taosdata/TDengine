@@ -67,6 +67,9 @@ int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
   int32_t code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
   blockDataCheck(*ppBlock, false);
+  if (code) {
+    qError("failed to get next data block from upstream, %s code:%s", __func__, tstrerror(code));
+  }
   return code;
 }
 
@@ -518,6 +521,7 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   if (NULL != gMultiwayMergeFps[pInfo->type].getNextFn) {
     code = (*gMultiwayMergeFps[pInfo->type].getNextFn)(pOperator, pResBlock);
     if (code) {
+      qError("failed to get next data block from upstream, code:%s", tstrerror(code));
       pTaskInfo->code = code;
       return code;
     }

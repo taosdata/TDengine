@@ -1378,8 +1378,7 @@ static int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       code = tableListGetSize(pInfo->base.pTableListInfo, &numOfTables);
       if (code != TSDB_CODE_SUCCESS) {
         taosRUnLockLatch(&pTaskInfo->lock);
-        lino = __LINE__;
-        goto _end;
+        TSDB_CHECK_CODE(code, lino, _end);
       }
 
       if (pInfo->currentTable >= numOfTables) {
@@ -1391,11 +1390,11 @@ static int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
       STableKeyInfo* tmp = (STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->currentTable);
       if (!tmp) {
-        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
         taosRUnLockLatch(&pTaskInfo->lock);
         (*ppRes) = NULL;
-        return terrno;
+        QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
       }
+
       tInfo = *tmp;
       taosRUnLockLatch(&pTaskInfo->lock);
 
@@ -1410,11 +1409,12 @@ static int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     }
   } else {  // scan table group by group sequentially
     code = groupSeqTableScan(pOperator, ppRes);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s %s failed at line %d since %s", GET_TASKID(pTaskInfo), __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
   }
 
@@ -5820,9 +5820,10 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
                                               SOperatorInfo* pOperator) {
   STableMergeScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
+  STupleHandle*        pTupleHandle = NULL;
 
   blockDataCleanup(pResBlock);
-  STupleHandle* pTupleHandle = NULL;
+
   while (1) {
     while (1) {
       pTupleHandle = NULL;

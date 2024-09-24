@@ -771,7 +771,7 @@ static int32_t getSortedBlockDataInner(SSortHandle* pHandle, SMsortComparParam* 
 
     code = adjustMergeTreeForNextTuple(pSource, pHandle->pMergeTree, pHandle, &pHandle->numOfCompletedSources);
     if (code != TSDB_CODE_SUCCESS) {
-      return terrno = code;
+      return code;
     }
 
     if (pHandle->pDataBlock->info.rows >= capacity) {
@@ -2867,6 +2867,7 @@ static int32_t tsortSingleTableMergeNextTuple(SSortHandle* pHandle, STupleHandle
       pHandle->tupleHandle.pBlock = NULL;
       return code;
     }
+
     pHandle->tupleHandle.pBlock = pBlock;
     pHandle->tupleHandle.rowIndex = 0;
   }
@@ -2882,8 +2883,7 @@ int32_t tsortOpen(SSortHandle* pHandle) {
   }
 
   if (pHandle == NULL || pHandle->fetchfp == NULL || pHandle->comparFn == NULL) {
-    code = TSDB_CODE_INVALID_PARA;
-    return code;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   pHandle->opened = true;
