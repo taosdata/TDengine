@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tlrucache.h"
 #include "os.h"
 #include "taoserror.h"
 #include "tarray.h"
 #include "tdef.h"
 #include "tlog.h"
+#include "tlrucache.h"
 #include "tutil.h"
 
 typedef struct SLRUEntry      SLRUEntry;
@@ -306,7 +306,6 @@ static void taosLRUCacheShardEvictLRU(SLRUCacheShard *shard, size_t charge, SArr
 
     taosLRUCacheShardLRURemove(shard, old);
     SLRUEntry *tentry = taosLRUEntryTableRemove(&shard->table, old->keyData, old->keyLength, old->hash);
-
     TAOS_LRU_ENTRY_SET_IN_CACHE(old, false);
     shard->usage -= old->totalCharge;
 
