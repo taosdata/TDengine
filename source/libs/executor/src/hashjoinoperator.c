@@ -155,7 +155,7 @@ static int32_t hJoinInitKeyColsInfo(SHJoinTableCtx* pTable, SNodeList* pList) {
   
   pTable->keyCols = taosMemoryMalloc(pTable->keyNum * sizeof(SHJoinColInfo));
   if (NULL == pTable->keyCols) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int64_t bufSize = 0;
@@ -173,7 +173,7 @@ static int32_t hJoinInitKeyColsInfo(SHJoinTableCtx* pTable, SNodeList* pList) {
   if (pTable->keyNum > 1) {
     pTable->keyBuf = taosMemoryMalloc(bufSize);
     if (NULL == pTable->keyBuf) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -212,7 +212,7 @@ static int32_t hJoinInitValColsInfo(SHJoinTableCtx* pTable, SNodeList* pList) {
   
   pTable->valCols = taosMemoryMalloc(pTable->valNum * sizeof(SHJoinColInfo));
   if (NULL == pTable->valCols) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t i = 0;
@@ -260,7 +260,7 @@ static int32_t hJoinInitValColsInfo(SHJoinTableCtx* pTable, SNodeList* pList) {
 static int32_t hJoinInitPrimKeyInfo(SHJoinTableCtx* pTable, int32_t slotId) {
   pTable->primCol = taosMemoryMalloc(sizeof(SHJoinColMap));
   if (NULL == pTable->primCol) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pTable->primCol->srcSlot = slotId;
@@ -413,7 +413,7 @@ static FORCE_INLINE int32_t hJoinAddPageToBufs(SArray* pRowBufs) {
   page.offset = 0;
   page.data = taosMemoryMalloc(page.pageSize);
   if (NULL == page.data) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (NULL == taosArrayPush(pRowBufs, &page)) {
@@ -425,7 +425,7 @@ static FORCE_INLINE int32_t hJoinAddPageToBufs(SArray* pRowBufs) {
 static int32_t hJoinInitBufPages(SHJoinOperatorInfo* pInfo) {
   pInfo->pRowBufs = taosArrayInit(32, sizeof(SBufPageInfo));
   if (NULL == pInfo->pRowBufs) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   return hJoinAddPageToBufs(pInfo->pRowBufs);
@@ -784,13 +784,13 @@ static int32_t hJoinAddRowToHashImpl(SHJoinOperatorInfo* pJoin, SGroupData* pGro
   if (NULL == pGroup) {
     group.rows = taosMemoryMalloc(sizeof(SBufRowInfo));
     if (NULL == group.rows) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     pRow = group.rows;
   } else {
     pRow = taosMemoryMalloc(sizeof(SBufRowInfo));
     if (NULL == pRow) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 

@@ -89,7 +89,7 @@ int32_t metaRefMgtInit() {
   }
 
   if (gMetaRefMgt.pTable == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   } else {
     return code;
   }
@@ -126,7 +126,7 @@ int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid) {
 
     p = taosArrayPush(pList, &rid);
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     code = taosHashPut(gMetaRefMgt.pTable, &vgId, sizeof(vgId), &pList, sizeof(void*));
@@ -138,7 +138,7 @@ int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid) {
     SArray* list = *(SArray**)p;
     void*   px = taosArrayPush(list, &rid);
     if (px == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     }
   }
 
@@ -191,11 +191,7 @@ int32_t streamMetaCheckBackendCompatible(SStreamMeta* pMeta) {
   if (code) {
     stError("vgId:%d failed to open stream meta file cursor, not perform compatible check, code:%s", pMeta->vgId,
             tstrerror(code));
-    code = tdbTbcClose(pCur);
-    if (code) {
-      stError("vgId:%d failed to close meta file cursor, code:%s", pMeta->vgId, tstrerror(code));
-    }
-
+    tdbTbcClose(pCur);
     return ret;
   }
 
@@ -223,10 +219,7 @@ int32_t streamMetaCheckBackendCompatible(SStreamMeta* pMeta) {
 
   tdbFree(pKey);
   tdbFree(pVal);
-  code = tdbTbcClose(pCur);
-  if (code != 0) {
-    stError("vgId:%d failed to close meta file cursor, code:%s", pMeta->vgId, tstrerror(code));
-  }
+  tdbTbcClose(pCur);
   return ret;
 }
 
@@ -725,7 +718,7 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   p = taosArrayPush(pMeta->pTaskList, &pTask->id);
   if (p == NULL) {
     stError("s-task:0x%" PRIx64 " failed to register task into meta-list, code: out of memory", id.taskId);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   code = taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask, POINTER_BYTES);
@@ -988,10 +981,7 @@ int64_t streamMetaGetLatestCheckpointId(SStreamMeta* pMeta) {
   code = tdbTbcMoveToFirst(pCur);
   if (code) {
     stError("failed to move stream meta file cursor, the latest checkpointId is 0, vgId:%d", pMeta->vgId);
-    int32_t ret = tdbTbcClose(pCur);
-    if (ret != 0) {
-      stError("vgId:%d failed to close meta file cursor, code:%s", pMeta->vgId, tstrerror(ret));
-    }
+    tdbTbcClose(pCur);
     return checkpointId;
   }
 
@@ -1014,11 +1004,7 @@ int64_t streamMetaGetLatestCheckpointId(SStreamMeta* pMeta) {
   tdbFree(pKey);
   tdbFree(pVal);
 
-  int32_t ret = tdbTbcClose(pCur);
-  if (ret != 0) {
-    stError("vgId:%d failed to close meta file cursor, code:%s", pMeta->vgId, tstrerror(ret));
-  }
-
+  tdbTbcClose(pCur);
   return checkpointId;
 }
 
@@ -1058,10 +1044,7 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   if (code) {
     stError("vgId:%d failed to open stream meta cursor, code:%s, not load any stream tasks", vgId, tstrerror(terrno));
     taosArrayDestroy(pRecycleList);
-    int32_t ret = tdbTbcClose(pCur);
-    if (ret != 0) {
-      stError("vgId:%d failed to close meta file cursor, code:%s", pMeta->vgId, tstrerror(ret));
-    }
+    tdbTbcClose(pCur);
     return;
   }
 
@@ -1148,9 +1131,7 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   tdbFree(pKey);
   tdbFree(pVal);
 
-  if (tdbTbcClose(pCur) < 0) {
-    stError("vgId:%d failed to close meta-file cursor, code:%s, continue", vgId, tstrerror(terrno));
-  }
+  tdbTbcClose(pCur);
 
   if (taosArrayGetSize(pRecycleList) > 0) {
     for (int32_t i = 0; i < taosArrayGetSize(pRecycleList); ++i) {

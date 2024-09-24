@@ -981,7 +981,8 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
-  (void)tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB);
+  if (tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
+    mError("db:%s, failed to parse db name", createReq.db);
 
   auditRecord(pReq, pMnode->clusterId, "createDB", name.dbname, "", createReq.sql, createReq.sqlLen);
 
@@ -1135,7 +1136,10 @@ static int32_t mndSetAlterDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *
     TAOS_RETURN(code);
   }
 
-  (void)sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
+  if ((code = sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY)) != 0) {
+    sdbFreeRaw(pRedoRaw);
+    TAOS_RETURN(code);
+  }
   return 0;
 }
 
@@ -1152,7 +1156,10 @@ static int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
     TAOS_RETURN(code);
   }
 
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY)) != 0) {
+    sdbFreeRaw(pCommitRaw);
+    TAOS_RETURN(code);
+  }
   TAOS_RETURN(code);
 }
 
@@ -1284,7 +1291,8 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   }
 
   SName name = {0};
-  (void)tNameFromString(&name, alterReq.db, T_NAME_ACCT | T_NAME_DB);
+  if (tNameFromString(&name, alterReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
+    mError("db:%s, failed to parse db name", alterReq.db);
 
   auditRecord(pReq, pMnode->clusterId, "alterDB", name.dbname, "", alterReq.sql, alterReq.sqlLen);
 
@@ -1371,7 +1379,11 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  (void)tSerializeSDbCfgRsp(pRsp, contLen, &cfgRsp);
+  int32_t ret = 0;
+  if ((ret = tSerializeSDbCfgRsp(pRsp, contLen, &cfgRsp)) < 0) {
+    code = ret;
+    goto _OVER;
+  }
 
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = contLen;
@@ -1473,7 +1485,11 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
         sdbRelease(pSdb, pVgroup);
         TAOS_RETURN(code);
       }
-      (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_DROPPED);
+      if ((code = sdbSetRawStatus(pVgRaw, SDB_STATUS_DROPPED)) != 0) {
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pVgroup);
+        TAOS_RETURN(code);
+      }
     }
 
     sdbRelease(pSdb, pVgroup);
@@ -1498,7 +1514,11 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
         sdbRelease(pSdb, pStbRaw);
         return -1;
       }
-      (void)sdbSetRawStatus(pStbRaw, SDB_STATUS_DROPPED);
+      if ((code = sdbSetRawStatus(pStbRaw, SDB_STATUS_DROPPED)) != 0) {
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pStbRaw);
+        return -1;
+      }
     }
 
     sdbRelease(pSdb, pStb);
@@ -1562,7 +1582,8 @@ static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bo
     TAOS_RETURN(code);
   }
 
-  (void)tSerializeSDropDbRsp(pRsp, rspLen, &dropRsp);
+  int32_t ret = 0;
+  if ((ret = tSerializeSDropDbRsp(pRsp, rspLen, &dropRsp)) < 0) return ret;
   *pRspLen = rspLen;
   *ppRsp = pRsp;
   TAOS_RETURN(code);
@@ -1643,7 +1664,8 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   }
 
   SName name = {0};
-  (void)tNameFromString(&name, dropReq.db, T_NAME_ACCT | T_NAME_DB);
+  if (tNameFromString(&name, dropReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
+    mError("db:%s, failed to parse db name", dropReq.db);
 
   auditRecord(pReq, pMnode->clusterId, "dropDB", name.dbname, "", dropReq.sql, dropReq.sqlLen);
 
@@ -1805,14 +1827,18 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  (void)tSerializeSUseDbRsp(pRsp, contLen, &usedbRsp);
+  int32_t ret = 0;
+  if ((ret = tSerializeSUseDbRsp(pRsp, contLen, &usedbRsp)) < 0) {
+    code = ret;
+    goto _OVER;
+  }
 
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = contLen;
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("db:%s, failed to process use db req since %s", usedbReq.db, terrstr());
+    mError("db:%s, failed to process use db req since %s", usedbReq.db, tstrerror(code));
   }
 
   mndReleaseDb(pMnode, pDb);
@@ -1964,7 +1990,8 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
     tFreeSDbHbBatchRsp(&batchRsp);
     return -1;
   }
-  (void)tSerializeSDbHbBatchRsp(pRsp, rspLen, &batchRsp);
+  int32_t ret = 0;
+  if ((ret = tSerializeSDbHbBatchRsp(pRsp, rspLen, &batchRsp)) < 0) return ret;
 
   *ppRsp = pRsp;
   *pRspLen = rspLen;
@@ -1977,6 +2004,7 @@ static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
   SSdb       *pSdb = pMnode->pSdb;
   SVgObj     *pVgroup = NULL;
   void       *pIter = NULL;
+  int32_t     code = 0;
   SVTrimDbReq trimReq = {.timestamp = taosGetTimestampSec()};
   int32_t     reqLen = tSerializeSVTrimDbReq(NULL, 0, &trimReq);
   int32_t     contLen = reqLen + sizeof(SMsgHead);
@@ -1993,7 +2021,11 @@ static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
     }
     pHead->contLen = htonl(contLen);
     pHead->vgId = htonl(pVgroup->vgId);
-    (void)tSerializeSVTrimDbReq((char *)pHead + sizeof(SMsgHead), contLen, &trimReq);
+    int32_t ret = 0;
+    if ((ret = tSerializeSVTrimDbReq((char *)pHead + sizeof(SMsgHead), contLen, &trimReq)) < 0) {
+      sdbRelease(pSdb, pVgroup);
+      return ret;
+    }
 
     SRpcMsg rpcMsg = {.msgType = TDMT_VND_TRIM, .pCont = pHead, .contLen = contLen};
     SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
@@ -2046,6 +2078,7 @@ static int32_t mndS3MigrateDb(SMnode *pMnode, SDbObj *pDb) {
   SVS3MigrateDbReq s3migrateReq = {.timestamp = taosGetTimestampSec()};
   int32_t          reqLen = tSerializeSVS3MigrateDbReq(NULL, 0, &s3migrateReq);
   int32_t          contLen = reqLen + sizeof(SMsgHead);
+  int32_t          code = 0;
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
@@ -2061,7 +2094,11 @@ static int32_t mndS3MigrateDb(SMnode *pMnode, SDbObj *pDb) {
     }
     pHead->contLen = htonl(contLen);
     pHead->vgId = htonl(pVgroup->vgId);
-    (void)tSerializeSVS3MigrateDbReq((char *)pHead + sizeof(SMsgHead), contLen, &s3migrateReq);
+    int32_t ret = 0;
+    if ((ret = tSerializeSVS3MigrateDbReq((char *)pHead + sizeof(SMsgHead), contLen, &s3migrateReq)) < 0) {
+      sdbRelease(pSdb, pVgroup);
+      return ret;
+    }
 
     SRpcMsg rpcMsg = {.msgType = TDMT_VND_S3MIGRATE, .pCont = pHead, .contLen = contLen};
     SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
@@ -2243,6 +2280,8 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
   int32_t cols = 0;
   int32_t bytes = pShow->pMeta->pSchemas[cols].bytes;
   char   *buf = taosMemoryMalloc(bytes);
+  int32_t code = 0;
+  int32_t lino = 0;
 
   const char *name = mndGetDbStr(pDb->name);
   if (name != NULL) {
@@ -2286,47 +2325,47 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     for (int32_t i = 0; i < pShow->numOfColumns; ++i) {
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, i);
       if (i == 0) {
-        (void)colDataSetVal(pColInfo, rows, buf, false);
+        TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, buf, false), &lino, _OVER);
       } else if (i == 1) {
-        (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false);
+        TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false), &lino, _OVER);
       } else if (i == 3) {
-        (void)colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false);
+        TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false), &lino, _OVER);
       } else if (i == 14) {
-        (void)colDataSetVal(pColInfo, rows, precVstr, false);
+        TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, precVstr, false), &lino, _OVER);
       } else if (i == 15) {
-        (void)colDataSetVal(pColInfo, rows, statusVstr, false);
+        TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, statusVstr, false), &lino, _OVER);
       } else {
         colDataSetNULL(pColInfo, rows);
       }
     }
   } else {
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, buf, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, buf, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfVgroups, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfVgroups, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.replications, false), &lino, _OVER);
 
     const char *strictStr = pDb->cfg.strict ? "on" : "off";
     char        strictVstr[24] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(strictVstr, strictStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)strictVstr, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)strictVstr, false), &lino, _OVER);
 
     char    durationVstr[128] = {0};
     int32_t len = formatDurationOrKeep(&durationVstr[VARSTR_HEADER_SIZE], pDb->cfg.daysPerFile);
 
     varDataSetLen(durationVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)durationVstr, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)durationVstr, false), &lino, _OVER);
 
     char keepVstr[512] = {0};
     char keep0Str[128] = {0};
@@ -2344,67 +2383,67 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     }
     varDataSetLen(keepVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)keepVstr, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)keepVstr, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.buffer, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.buffer, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pageSize, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pageSize, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pages, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pages, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.minRows, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.minRows, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.maxRows, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.maxRows, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.compression, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)precVstr, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)precVstr, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)statusVstr, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)statusVstr, false), &lino, _OVER);
 
     char *rentensionVstr = buildRetension(pDb->cfg.pRetensions);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (rentensionVstr == NULL) {
       colDataSetNULL(pColInfo, rows);
     } else {
-      (void)colDataSetVal(pColInfo, rows, (const char *)rentensionVstr, false);
+      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)rentensionVstr, false), &lino, _OVER);
       taosMemoryFree(rentensionVstr);
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false), &lino, _OVER);
 
     const char *cacheModelStr = getCacheModelStr(pDb->cfg.cacheLast);
     char        cacheModelVstr[24] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(cacheModelVstr, cacheModelStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)cacheModelVstr, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)cacheModelVstr, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.cacheLastSize, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.cacheLastSize, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walFsyncPeriod, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walFsyncPeriod, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionPeriod, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionPeriod, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionSize, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionSize, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.sstTrigger, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.sstTrigger, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int16_t hashPrefix = pDb->cfg.hashPrefix;
@@ -2413,39 +2452,40 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     } else if (hashPrefix < 0) {
       hashPrefix = pDb->cfg.hashPrefix + strlen(pDb->name) + 1;
     }
-    (void)colDataSetVal(pColInfo, rows, (const char *)&hashPrefix, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&hashPrefix, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.hashSuffix, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.hashSuffix, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.tsdbPageSize, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.tsdbPageSize, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.keepTimeOffset, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.keepTimeOffset, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3ChunkSize, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3ChunkSize, false), &lino, _OVER);
 
     char keeplocalVstr[128] = {0};
     len = sprintf(&keeplocalVstr[VARSTR_HEADER_SIZE], "%dm", pDb->cfg.s3KeepLocal);
     varDataSetLen(keeplocalVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)keeplocalVstr, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)keeplocalVstr, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3Compact, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3Compact, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.withArbitrator, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.withArbitrator, false), &lino, _OVER);
 
     const char *encryptAlgorithmStr = getEncryptAlgorithmStr(pDb->cfg.encryptAlgorithm);
     char        encryptAlgorithmVStr[24] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(encryptAlgorithmVStr, encryptAlgorithmStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, rows, (const char *)encryptAlgorithmVStr, false);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)encryptAlgorithmVStr, false), &lino, _OVER);
   }
-
+_OVER:
+  if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
   taosMemoryFree(buf);
 }
 

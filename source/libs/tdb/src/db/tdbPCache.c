@@ -149,7 +149,7 @@ static int tdbPCacheAlterImpl(SPCache *pCache, int32_t nPage) {
         SPage *pPage = *ppPage;
         *ppPage = pPage->pFreeNext;
         pCache->aPage[pPage->id] = NULL;
-        (void)tdbPageDestroy(pPage, tdbDefaultFree, NULL);
+        tdbPageDestroy(pPage, tdbDefaultFree, NULL);
         pCache->nFree--;
       } else {
         ppPage = &(*ppPage)->pFreeNext;
@@ -209,7 +209,7 @@ static void tdbPCacheFreePage(SPCache *pCache, SPage *pPage) {
     tdbTrace("pcache/free2 page: %p/%d, pgno:%d, ", pPage, pPage->id, TDB_PAGE_PGNO(pPage));
 
     tdbPCacheRemovePageFromHash(pCache, pPage);
-    (void)tdbPageDestroy(pPage, tdbDefaultFree, NULL);
+    tdbPageDestroy(pPage, tdbDefaultFree, NULL);
   }
 }
 
@@ -268,7 +268,7 @@ void tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn) {
         tdbPCacheRemovePageFromHash(pCache, pPage);
       }
 
-      (void)tdbPageDestroy(pPage, pTxn->xFree, pTxn->xArg);
+      tdbPageDestroy(pPage, pTxn->xFree, pTxn->xArg);
     }
     // }
   }
@@ -432,7 +432,7 @@ static void tdbPCacheUnpinPage(SPCache *pCache, SPage *pPage) {
     tdbTrace("pcache destroy page: %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
 
     tdbPCacheRemovePageFromHash(pCache, pPage);
-    (void)tdbPageDestroy(pPage, tdbDefaultFree, NULL);
+    tdbPageDestroy(pPage, tdbDefaultFree, NULL);
   }
 }
 
@@ -518,14 +518,14 @@ static int tdbPCacheCloseImpl(SPCache *pCache) {
   // free free page
   for (SPage *pPage = pCache->pFree; pPage;) {
     SPage *pPageT = pPage->pFreeNext;
-    (void)tdbPageDestroy(pPage, tdbDefaultFree, NULL);
+    tdbPageDestroy(pPage, tdbDefaultFree, NULL);
     pPage = pPageT;
   }
 
   for (int32_t iBucket = 0; iBucket < pCache->nHash; iBucket++) {
     for (SPage *pPage = pCache->pgHash[iBucket]; pPage;) {
       SPage *pPageT = pPage->pHashNext;
-      (void)tdbPageDestroy(pPage, tdbDefaultFree, NULL);
+      tdbPageDestroy(pPage, tdbDefaultFree, NULL);
       pPage = pPageT;
     }
   }

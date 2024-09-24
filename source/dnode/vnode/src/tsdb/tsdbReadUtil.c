@@ -31,7 +31,7 @@ static int32_t initBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
   if (pBuf->pData == NULL) {
     pBuf->pData = taosArrayInit(num + 1, POINTER_BYTES);
     if (pBuf->pData == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -43,7 +43,7 @@ static int32_t initBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
 
     void* px = taosArrayPush(pBuf->pData, &p);
     if (px == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -54,7 +54,7 @@ static int32_t initBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
     }
     void* px = taosArrayPush(pBuf->pData, &p);
     if (px == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -101,7 +101,7 @@ int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
 
     void* px = taosArrayPush(pBuf->pData, &p);
     if (px == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -112,7 +112,7 @@ int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
     }
     void* px = taosArrayPush(pBuf->pData, &p);
     if (px == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -559,7 +559,7 @@ static int32_t fileDataBlockOrderCompar(const void* pLeft, const void* pRight, v
   return pLeftBlock->offset > pRightBlock->offset ? 1 : -1;
 }
 
-void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
+int32_t recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
   pBlockInfo->uid = record->uid;
   pBlockInfo->firstKey = record->firstKey.key.ts;
   pBlockInfo->lastKey = record->lastKey.key.ts;
@@ -580,17 +580,24 @@ void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
       pBlockInfo->lastPk.val = record->lastKey.key.pks[0].val;
     } else {
       char* p = taosMemoryCalloc(1, pFirstKey->pks[0].nData + VARSTR_HEADER_SIZE);
+      if (p == NULL) {
+        return terrno;
+      }
       memcpy(varDataVal(p), pFirstKey->pks[0].pData, pFirstKey->pks[0].nData);
       varDataSetLen(p, pFirstKey->pks[0].nData);
       pBlockInfo->firstPk.pData = (uint8_t*)p;
 
       int32_t keyLen = record->lastKey.key.pks[0].nData;
       p = taosMemoryCalloc(1, keyLen + VARSTR_HEADER_SIZE);
+      if (p == NULL) {
+        return terrno;
+      }
       memcpy(varDataVal(p), record->lastKey.key.pks[0].pData, keyLen);
       varDataSetLen(p, keyLen);
       pBlockInfo->lastPk.pData = (uint8_t*)p;
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static void freePkItem(void* pItem) {
@@ -648,7 +655,7 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     char* buf = taosMemoryMalloc(sizeof(SBlockOrderWrapper) * num);
     if (buf == NULL) {
       cleanupBlockOrderSupporter(&sup);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     sup.pDataBlockInfo[sup.numOfTables] = (SBlockOrderWrapper*)buf;
@@ -679,7 +686,7 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
       STableDataBlockIdx tableDataBlockIdx = {.globalIndex = i};
       void*              px = taosArrayPush(pTableScanInfo->pBlockIdxList, &tableDataBlockIdx);
       if (px == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
 
@@ -723,7 +730,7 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
 
     void* px = taosArrayPush(pBlockIter->blockList, pBlockInfo);
     if (px == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     STableBlockScanInfo* pTableScanInfo = sup.pDataBlockInfo[pos][index].pInfo;
@@ -731,7 +738,7 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
 
     px = taosArrayPush(pTableScanInfo->pBlockIdxList, &tableDataBlockIdx);
     if (px == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     // set data block index overflow, in order to disable the offset comparator
@@ -855,7 +862,7 @@ static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_
       SDelData delData = {.version = record.version, .sKey = record.skey, .eKey = record.ekey};
       void*    px = taosArrayPush(pScanInfo->pFileDelData, &delData);
       if (px == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
   }
@@ -1115,7 +1122,7 @@ int32_t doAdjustValidDataIters(SArray* pLDIterList, int32_t numOfFileObj) {
       void* px = taosArrayPush(pLDIterList, &pIter);
       if (px == NULL) {
         taosMemoryFree(pIter);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
   } else if (size > numOfFileObj) {  // remove unused LDataIter
@@ -1142,7 +1149,7 @@ int32_t adjustSttDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet) 
     }
     void* px = taosArrayPush(pSttFileBlockIterArray, &pList);
     if (px == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 

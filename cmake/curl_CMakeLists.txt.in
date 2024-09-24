@@ -16,4 +16,5 @@ ExternalProject_Add(curl2
         BUILD_COMMAND make -j
         INSTALL_COMMAND make install
         TEST_COMMAND ""
+        GIT_SHALLOW true
 )

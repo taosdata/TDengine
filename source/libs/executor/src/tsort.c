@@ -432,7 +432,7 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
 
 int32_t tsortAddSource(SSortHandle* pSortHandle, void* pSource) {
   void* p = taosArrayPush(pSortHandle->pOrderedSource, &pSource);
-  return (p != NULL)? TSDB_CODE_SUCCESS:TSDB_CODE_OUT_OF_MEMORY;
+  return (p != NULL)? TSDB_CODE_SUCCESS:terrno;
 }
 
 static int32_t doAddNewExternalMemSource(SDiskbasedBuf* pBuf, SArray* pAllSources, SSDataBlock* pBlock,
@@ -449,7 +449,7 @@ static int32_t doAddNewExternalMemSource(SDiskbasedBuf* pBuf, SArray* pAllSource
   void* p = taosArrayPush(pAllSources, &pSource);
   if (p == NULL) {
     taosArrayDestroy(pPageIdList);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*sourceId) += 1;
@@ -525,7 +525,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     if (px == NULL) {
       taosArrayDestroy(pPageIdList);
       blockDataDestroy(p);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     int32_t size = blockDataGetSize(p) + sizeof(int32_t) + taosArrayGetSize(p->pDataBlock) * sizeof(int32_t);

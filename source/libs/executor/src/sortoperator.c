@@ -739,7 +739,10 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
     code = getGroupSortedBlockData(pInfo->pCurrSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
                                      pInfo->matchInfo.pList, pInfo, &pBlock);
-    if (pBlock != NULL && (code == 0)) {
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    if (pBlock != NULL) {
       pBlock->info.id.groupId = pInfo->currGroupId;
       pOperator->resultInfo.totalRows += pBlock->info.rows;
       *pResBlock = pBlock;
@@ -749,6 +752,9 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
         (void) finishSortGroup(pOperator);
         pInfo->currGroupId = pInfo->prefetchedSortInput->info.id.groupId;
         code = beginSortGroup(pOperator);
+        if (code) {
+          return code;
+        }
       } else if (pInfo->childOpStatus == CHILD_OP_FINISHED) {
         (void) finishSortGroup(pOperator);
         setOperatorCompleted(pOperator);

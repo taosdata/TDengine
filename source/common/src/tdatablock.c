@@ -2620,11 +2620,15 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
   }
   len += snprintf(dumpBuf + len, size - len, "%s |end\n", flag);
 
-  *pDataBuf = dumpBuf;
-  dumpBuf = NULL;
 _exit:
-  if (dumpBuf) {
-    taosMemoryFree(dumpBuf);
+  if (code == TSDB_CODE_SUCCESS) {
+    *pDataBuf = dumpBuf;
+    dumpBuf = NULL;
+  } else {
+    uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    if (dumpBuf) {
+      taosMemoryFree(dumpBuf);
+    }
   }
   return code;
 }

@@ -580,6 +580,7 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
   }
   SNodeList*  pHintList = NULL;
   char*       hint = strndup(pLiteral->z + 3, pLiteral->n - 5);
+  if (!hint) return NULL;
   int32_t     i = 0;
   bool        quit = false;
   bool        inParamList = false;
@@ -932,7 +933,7 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
     SValueNode* pVal = (SValueNode*)pLeft;
     char*       pNewLiteral = taosMemoryCalloc(1, strlen(pVal->literal) + 2);
     if (!pNewLiteral) {
-      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+      pCxt->errCode = terrno;
       goto _err;
     }
     if ('+' == pVal->literal[0]) {
@@ -2775,6 +2776,7 @@ _err:
 static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange) {
   int32_t code = TSDB_CODE_SUCCESS;
   char*   ipCopy = taosStrdup(ipRange);
+  if (!ipCopy) return terrno;
   char*   slash = strchr(ipCopy, '/');
   if (slash) {
     *slash = '\0';
