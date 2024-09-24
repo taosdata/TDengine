@@ -2,7 +2,7 @@ use taos::*;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let dsn = "taos://localhost:6030".to_string();
+    let dsn = "taos://localhost:6031".to_string();
     
     match TaosBuilder::from_dsn(&dsn)?.build().await {
         Ok(_taos) => {
