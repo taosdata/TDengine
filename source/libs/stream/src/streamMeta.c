@@ -483,10 +483,7 @@ _err:
     tdbTbClose(pMeta->pCheckpointDb);
   }
   if (pMeta->db) {
-    int32_t ret = tdbClose(pMeta->db);
-    if (ret) {
-      stError("vgId:%d tdb failed close meta db, code:%s", pMeta->vgId, tstrerror(ret));
-    }
+    tdbClose(pMeta->db);
   }
 
   if (pMeta->pHbInfo) taosMemoryFreeClear(pMeta->pHbInfo);
@@ -592,18 +589,9 @@ void streamMetaCloseImpl(void* arg) {
 
   // already log the error, ignore here
   tdbAbort(pMeta->db, pMeta->txn);
-  code = tdbTbClose(pMeta->pTaskDb);
-  if (code) {
-    stError("vgId:%d failed to close taskDb, code:%s", vgId, tstrerror(code));
-  }
-  code = tdbTbClose(pMeta->pCheckpointDb);
-  if (code) {
-    stError("vgId:%d failed to close checkpointDb, code:%s", vgId, tstrerror(code));
-  }
-  code = tdbClose(pMeta->db);
-  if (code) {
-    stError("vgId:%d failed to close db, code:%s", vgId, tstrerror(code));
-  }
+  tdbTbClose(pMeta->pTaskDb);
+  tdbTbClose(pMeta->pCheckpointDb);
+  tdbClose(pMeta->db);
 
   taosArrayDestroy(pMeta->pTaskList);
   taosArrayDestroy(pMeta->chkpSaved);

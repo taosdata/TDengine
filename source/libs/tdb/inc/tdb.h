@@ -34,7 +34,7 @@ typedef struct STxn TXN;
 // TDB
 int32_t tdbOpen(const char *dbname, int szPage, int pages, TDB **ppDb, int8_t rollback, int32_t encryptAlgorithm,
                 char *encryptKey);
-int32_t tdbClose(TDB *pDb);
+void    tdbClose(TDB *pDb);
 int32_t tdbBegin(TDB *pDb, TXN **pTxn, void *(*xMalloc)(void *, size_t), void (*xFree)(void *, void *), void *xArg,
                  int flags);
 int32_t tdbCommit(TDB *pDb, TXN *pTxn);
