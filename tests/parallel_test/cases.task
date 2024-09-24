@@ -197,6 +197,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_taosx.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts-5473.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts4563.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmq_offset.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmqDataPrecisionUnit.py
