@@ -342,6 +342,11 @@ static int32_t dmCompareEncryptKey(char *file, char *key, bool toLogFile) {
 
   int len = ENCRYPTED_LEN(size);
   result = taosMemoryMalloc(len);
+  if (result == NULL) {
+    code = terrno;
+    encryptError("failed to alloc memory file:%s since %s", file, tstrerror(code));
+    goto _OVER;
+  }
 
   SCryptOpts opts = {0};
   strncpy(opts.key, key, ENCRYPT_KEY_LEN);
