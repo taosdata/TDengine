@@ -40,7 +40,7 @@ int32_t tdbBegin(TDB *pDb, TXN **pTxn, void *(*xMalloc)(void *, size_t), void (*
 int32_t tdbCommit(TDB *pDb, TXN *pTxn);
 int32_t tdbPostCommit(TDB *pDb, TXN *pTxn);
 int32_t tdbPrepareAsyncCommit(TDB *pDb, TXN *pTxn);
-int32_t tdbAbort(TDB *pDb, TXN *pTxn);
+void    tdbAbort(TDB *pDb, TXN *pTxn);
 int32_t tdbAlter(TDB *pDb, int pages);
 
 // TTB
@@ -79,11 +79,11 @@ int32_t tdbTbcUpsert(TBC *pTbc, const void *pKey, int nKey, const void *pData, i
 
 int32_t tdbTxnOpen(TXN *pTxn, int64_t txnid, void *(*xMalloc)(void *, size_t), void (*xFree)(void *, void *),
                    void *xArg, int flags);
-int32_t tdbTxnCloseImpl(TXN *pTxn);
-#define tdbTxnClose(pTxn)        \
-  do {                           \
-    (void)tdbTxnCloseImpl(pTxn); \
-    (pTxn) = NULL;               \
+void    tdbTxnCloseImpl(TXN *pTxn);
+#define tdbTxnClose(pTxn)  \
+  do {                     \
+    tdbTxnCloseImpl(pTxn); \
+    (pTxn) = NULL;         \
   } while (0)
 
 // other

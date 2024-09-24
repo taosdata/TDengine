@@ -391,14 +391,13 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen) {
 
 int32_t taosHashGetDup(SHashObj *pHashObj, const void *key, size_t keyLen, void *destBuf) {
   terrno = 0;
-  (void)taosHashGetImpl(pHashObj, key, keyLen, &destBuf, 0, false);
+  void *data = taosHashGetImpl(pHashObj, key, keyLen, &destBuf, 0, false);
   return terrno;
 }
 
 int32_t taosHashGetDup_m(SHashObj *pHashObj, const void *key, size_t keyLen, void **destBuf, int32_t *size) {
   terrno = 0;
-
-  (void)taosHashGetImpl(pHashObj, key, keyLen, destBuf, size, false);
+  void *data = taosHashGetImpl(pHashObj, key, keyLen, destBuf, size, false);
   return terrno;
 }
 

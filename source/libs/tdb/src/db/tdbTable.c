@@ -112,7 +112,11 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
       return ret;
     }
   } else {
-    (void)tdbPagerRollback(pPager);
+    ret = tdbPagerRollback(pPager);
+    if (ret < 0) {
+      tdbOsFree(pTb);
+      return ret;
+    }
   }
 
   // pTb->pBt
@@ -202,7 +206,7 @@ int tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, int va
 int tdbTbDelete(TTB *pTb, const void *pKey, int kLen, TXN *pTxn) { return tdbBtreeDelete(pTb->pBt, pKey, kLen, pTxn); }
 
 int tdbTbUpsert(TTB *pTb, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn) {
-  (void)tdbTbDelete(pTb, pKey, kLen, pTxn);
+  TAOS_UNUSED(tdbTbDelete(pTb, pKey, kLen, pTxn));
   return tdbTbInsert(pTb, pKey, kLen, pVal, vLen, pTxn);
 }
 
@@ -241,7 +245,11 @@ int32_t tdbTbTraversal(TTB *pTb, void *data,
     return ret;
   }
 
-  (void)tdbTbcMoveToFirst(pCur);
+  ret = tdbTbcMoveToFirst(pCur);
+  if (ret < 0) {
+    tdbTbcClose(pCur);
+    return ret;
+  }
 
   void *pKey = NULL;
   int   kLen = 0;
