@@ -2524,20 +2524,28 @@ static void cliSchedMsgToDebug(SCliMsg* pMsg, char* label) {
   return;
 }
 
-static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
+static int32_t cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
   STrans*        pTransInst = pThrd->pTransInst;
   STransConnCtx* pCtx = pMsg->ctx;
-  cliSchedMsgToDebug(pMsg, transLabel(pThrd->pTransInst));
 
   STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
+  if (arg == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   arg->param1 = pMsg;
   arg->param2 = pThrd;
 
-  (void)transDQSched(pThrd->delayQueue, doDelayTask, arg, pCtx->retryNextInterval);
+  cliSchedMsgToDebug(pMsg, transLabel(pThrd->pTransInst));
+
+  if (transDQSched(pThrd->delayQueue, doDelayTask, arg, pCtx->retryNextInterval) == NULL) {
+    taosMemoryFree(arg);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return 0;
 }
 
 FORCE_INLINE bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
-  if ((pResp == NULL || pResp->info.hasEpSet == 0)) {
+  if ((pResp == NULL || pResp->pCont == NULL || pResp->info.hasEpSet == 0)) {
     return false;
   }
   // rebuild resp msg
@@ -2708,7 +2716,13 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   }
 
   pMsg->sent = 0;
-  cliSchedMsgToNextNode(pMsg, pThrd);
+  code = cliSchedMsgToNextNode(pMsg, pThrd);
+  if (code != 0) {
+    pCtx->retryCode = code;
+    pResp->pCont = NULL;
+    pResp->contLen = 0;
+    return false;
+  }
   return true;
 }
 int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
@@ -3156,6 +3170,7 @@ _EXIT:
   taosMemoryFree(pSyncMsg);
   return code;
 }
+
 int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
                                  int32_t timeoutMs) {
   int32_t code = 0;
@@ -3323,6 +3338,8 @@ int32_t transAllocHandle(int64_t* refId) {
   *refId = exh->refId;
   return 0;
 }
+
+
 int32_t transFreeConnById(void* shandle, int64_t transpointId) {
   int32_t code = 0;
   STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
