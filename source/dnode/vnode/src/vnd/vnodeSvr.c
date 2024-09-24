@@ -210,8 +210,7 @@ static int32_t vnodePreProcessDropTtlMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    code = tSerializeSVDropTtlTableReq((char *)pContNew + sizeof(SMsgHead), reqLenNew, &ttlReq);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    (void)tSerializeSVDropTtlTableReq((char *)pContNew + sizeof(SMsgHead), reqLenNew, &ttlReq);
     pContNew->contLen = htonl(reqLenNew);
     pContNew->vgId = pContOld->vgId;
 
@@ -421,11 +420,7 @@ static int32_t vnodePreProcessDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   ((SMsgHead *)pCont)->vgId = TD_VID(pVnode);
 
   tEncoderInit(pCoder, pCont + sizeof(SMsgHead), size);
-  code = tEncodeDeleteRes(pCoder, &res);
-  if (code) {
-    vError("vgId:%d %s failed to encode delete response since %s", TD_VID(pVnode), __func__, tstrerror(code));
-    goto _exit;
-  }
+  (void)tEncodeDeleteRes(pCoder, &res);
   tEncoderClear(pCoder);
 
   rpcFreeCont(pMsg->pCont);
@@ -652,9 +647,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     } break;
     case TDMT_STREAM_CONSEN_CHKPT: {
       if (pVnode->restored) {
-        if (tqProcessTaskConsenChkptIdReq(pVnode->pTq, pMsg) < 0) {
-          goto _err;
-        }
+        (void)tqProcessTaskConsenChkptIdReq(pVnode->pTq, pMsg);
       }
     } break;
     case TDMT_STREAM_TASK_PAUSE: {
@@ -671,9 +664,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     } break;
     case TDMT_VND_STREAM_TASK_RESET: {
       if (pVnode->restored && vnodeIsLeader(pVnode)) {
-        if (tqProcessTaskResetReq(pVnode->pTq, pMsg) < 0) {
-          goto _err;
-        }
+        (void)tqProcessTaskResetReq(pVnode->pTq, pMsg);
       }
     } break;
     case TDMT_VND_ALTER_CONFIRM:
@@ -1223,13 +1214,8 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
   if (tsEnableAudit && tsEnableAuditCreateTable) {
     int64_t clusterId = pVnode->config.syncCfg.nodeInfo[0].clusterId;
 
-    SName   name = {0};
-    int32_t code = tNameFromString(&name, pVnode->config.dbname, T_NAME_ACCT | T_NAME_DB);
-    if (code) {
-      terrno = code;
-      rcode = -1;
-      goto _exit;
-    }
+    SName name = {0};
+    (void)tNameFromString(&name, pVnode->config.dbname, T_NAME_ACCT | T_NAME_DB);
 
     SStringBuilder sb = {0};
     for (int32_t i = 0; i < tbNames->size; i++) {
@@ -1847,11 +1833,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
       }
 
       if (info.suid) {
-        if (metaGetInfo(pVnode->pMeta, info.suid, &info, NULL) != 0) {
-          code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
-          vWarn("vgId:%d, table uid:%" PRId64 " not exists", TD_VID(pVnode), info.suid);
-          goto _exit;
-        }
+        (void)metaGetInfo(pVnode->pMeta, info.suid, &info, NULL);
       }
 
       if (pSubmitTbData->sver != info.skmVer) {
@@ -1958,9 +1940,7 @@ _exit:
   tEncodeSize(tEncodeSSubmitRsp2, pSubmitRsp, pRsp->contLen, ret);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
   tEncoderInit(&ec, pRsp->pCont, pRsp->contLen);
-  if (tEncodeSSubmitRsp2(&ec, pSubmitRsp) != 0) {
-    vError("vgId:%d, failed to encode submit response", TD_VID(pVnode));
-  }
+  (void)tEncodeSSubmitRsp2(&ec, pSubmitRsp);
   tEncoderClear(&ec);
 
   // update statistics
@@ -2241,11 +2221,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
   SBatchDeleteReq deleteReq;
   SDecoder        decoder;
   tDecoderInit(&decoder, pReq, len);
-  int32_t ret = tDecodeSBatchDeleteReq(&decoder, &deleteReq);
-  if (ret != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return TSDB_CODE_INVALID_MSG;
-  }
+  (void)tDecodeSBatchDeleteReq(&decoder, &deleteReq);
 
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, pVnode->pMeta, META_READER_NOLOCK);
