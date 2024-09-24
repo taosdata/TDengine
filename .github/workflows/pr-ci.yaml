@@ -68,14 +68,22 @@ jobs:
     needs: remove_artifacts
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+        with:
+          repository: taosdata/explorer
+          ref: '3.0'
+
       - name: Build explorer
         run: |
-          ssh root@$RELEASE_HOST "cd /data/github/explorer && git pull --prune && yarn install && yarn build:bin"
+          # ssh root@$RELEASE_HOST "cd /data/github/explorer && git pull --prune && yarn install && yarn build:bin"
+          yarn install && yarn build:bin
 
       - name: Copy files
         run: |
           ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
-          cp /data/github/explorer/target/release/taos-explorer $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
+          # cp /data/github/explorer/target/release/taos-explorer $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
+          cp ./target/release/taos-explorer $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
 
   build_go:
     needs: remove_artifacts
@@ -221,10 +229,10 @@ jobs:
         run: |
           echo "container_id: ${{ steps.run_container.outputs.container_id }}"
           # 由于容器每次启动的时候都会有一个全新的 cluster id，所以 agent 的状态无法直接通过 explorer 查看
-          echo "docker exec ${{ steps.run_container.outputs.container_id }} bash -c \"nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH/bin/ nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'\""
-          echo "run command: docker exec ${{ steps.run_container.outputs.container_id }} bash -c \"nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH/bin/ nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'\""
-          docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH/bin/ nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'"
-          docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/  PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH/bin/ nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'"
+          echo "docker exec ${{ steps.run_container.outputs.container_id }} bash -c \"nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/oracle/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH/bin/ nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'\""
+          echo "run command: docker exec ${{ steps.run_container.outputs.container_id }} bash -c \"nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/oracle/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH/bin/ nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'\""
+          docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/oracle/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH/bin/ nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'"
+          docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/oracle/  PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH/bin/ nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'"
           docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup sh -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taos-explorer > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taos-explorer.log 2>&1 &'"
           docker exec ${{ steps.run_container.outputs.container_id }} bash -c "ps -ef |grep taos"
 
