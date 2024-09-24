@@ -91,12 +91,7 @@ int metaAbort(SMeta *pMeta) {
     return 0;
   }
 
-  int code = tdbAbort(pMeta->pEnv, pMeta->txn);
-  if (code) {
-    metaError("vgId:%d, failed to abort meta since %s", TD_VID(pMeta->pVnode), tstrerror(terrno));
-  } else {
-    pMeta->txn = NULL;
-  }
-
-  return code;
+  tdbAbort(pMeta->pEnv, pMeta->txn);
+  pMeta->txn = NULL;
+  return 0;
 }

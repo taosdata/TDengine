@@ -101,10 +101,10 @@ int tdbClose(TDB *pDb) {
 
     for (pPager = pDb->pgrList; pPager; pPager = pDb->pgrList) {
       pDb->pgrList = pPager->pNext;
-      (void)tdbPagerClose(pPager);
+      tdbPagerClose(pPager);
     }
 
-    (void)tdbPCacheClose(pDb->pCache);
+    tdbPCacheClose(pDb->pCache);
     tdbOsFree(pDb->pgrHash);
     tdbOsFree(pDb);
   }
@@ -199,7 +199,7 @@ int32_t tdbPrepareAsyncCommit(TDB *pDb, TXN *pTxn) {
   return 0;
 }
 
-int32_t tdbAbort(TDB *pDb, TXN *pTxn) {
+void tdbAbort(TDB *pDb, TXN *pTxn) {
   SPager *pPager;
   int     ret;
 
@@ -208,13 +208,12 @@ int32_t tdbAbort(TDB *pDb, TXN *pTxn) {
     if (ret < 0) {
       tdbError("failed to abort pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName,
                pTxn->txnId);
-      return ret;
     }
   }
 
   tdbTxnClose(pTxn);
 
-  return 0;
+  return;
 }
 
 SPager *tdbEnvGetPager(TDB *pDb, const char *fname) {

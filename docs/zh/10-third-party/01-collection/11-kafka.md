@@ -243,6 +243,7 @@ vi source-demo.json
     "topic.per.stable": true,
     "topic.ignore.db": false,
     "out.format": "line",
+    "data.precision": "ms",
     "key.converter": "org.apache.kafka.connect.storage.StringConverter",
     "value.converter": "org.apache.kafka.connect.storage.StringConverter"
     }
@@ -331,14 +332,13 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 
 1. 打开 KAFKA_HOME/config/producer.properties 配置文件。
 2. 参数说明及配置建议如下：
-    | **参数** |            **参数说明**            |   **设置建议**  |
-    | --------| --------------------------------- | -------------- |
-    | producer.type | 此参数用于设置消息的发送方式，默认值为 `sync` 表示同步发送，`async` 表示异步发送。采用异步发送能够提升消息发送的吞吐量。 | async |
-    | request.required.acks | 参数用于配置生产者发送消息后需要等待的确认数量。当设置为1时，表示只要领导者副本成功写入消息就会给生产者发送确认，而无需等待集群中的其他副本写入成功。这种设置可以在一定程度上保证消息的可靠性，同时也能保证一定的吞吐量。因为不需要等待所有副本都写入成功，所以可以减少生产者的等待时间，提高发送消息的效率。|1|
-    | max.request.size| 该参数决定了生产者在一次请求中可以发送的最大数据量。其默认值为 1048576，也就是 1M。如果设置得太小，可能会导致频繁的网络请求，降低吞吐量。如果设置得太大，可能会导致内存占用过高，或者在网络状况不佳时增加请求失败的概率。建议设置为 100M。|104857600|
-    |batch.size| 此参数用于设定 batch 的大小，默认值为 16384，即 16KB。在消息发送过程中，发送到 Kafka 缓冲区中的消息会被划分成一个个的 batch。故而减小 batch 大小有助于降低消息延迟，而增大 batch 大小则有利于提升吞吐量，可根据实际的数据量大小进行合理配置。可根据实际情况进行调整，建议设置为 512K。|524288|
-    | buffer.memory| 此参数用于设置生产者缓冲待发送消息的内存总量。较大的缓冲区可以允许生产者积累更多的消息后批量发送，提高吞吐量，但也会增加延迟和内存使用。可根据机器资源来配置，建议配置为 1G。|1073741824|
-    
+    | **参数**              | **参数说明**                                                                                                                                                                                                                                                                                                  | **设置建议** |
+    | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+    | producer.type         | 此参数用于设置消息的发送方式，默认值为 `sync` 表示同步发送，`async` 表示异步发送。采用异步发送能够提升消息发送的吞吐量。                                                                                                                                                                                      | async        |
+    | request.required.acks | 参数用于配置生产者发送消息后需要等待的确认数量。当设置为1时，表示只要领导者副本成功写入消息就会给生产者发送确认，而无需等待集群中的其他副本写入成功。这种设置可以在一定程度上保证消息的可靠性，同时也能保证一定的吞吐量。因为不需要等待所有副本都写入成功，所以可以减少生产者的等待时间，提高发送消息的效率。 | 1            |
+    | max.request.size      | 该参数决定了生产者在一次请求中可以发送的最大数据量。其默认值为 1048576，也就是 1M。如果设置得太小，可能会导致频繁的网络请求，降低吞吐量。如果设置得太大，可能会导致内存占用过高，或者在网络状况不佳时增加请求失败的概率。建议设置为 100M。                                                                    | 104857600    |
+    | batch.size            | 此参数用于设定 batch 的大小，默认值为 16384，即 16KB。在消息发送过程中，发送到 Kafka 缓冲区中的消息会被划分成一个个的 batch。故而减小 batch 大小有助于降低消息延迟，而增大 batch 大小则有利于提升吞吐量，可根据实际的数据量大小进行合理配置。可根据实际情况进行调整，建议设置为 512K。                        | 524288       |
+    | buffer.memory         | 此参数用于设置生产者缓冲待发送消息的内存总量。较大的缓冲区可以允许生产者积累更多的消息后批量发送，提高吞吐量，但也会增加延迟和内存使用。可根据机器资源来配置，建议配置为 1G。                                                                                                                                 | 1073741824   |
 
 ## 配置参考
 
@@ -370,7 +370,7 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 7. `data.precision`: 使用 InfluxDB 行协议格式时，时间戳的精度。可选值为：
    1. ms ： 表示毫秒
    2. us ： 表示微秒
-   3. ns ： 表示纳秒。默认为纳秒。
+   3. ns ： 表示纳秒。
 
 ### TDengine Source Connector 特有的配置
 
@@ -381,12 +381,16 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 5. `fetch.max.rows` : 检索数据库时最大检索条数。 默认为 100。
 6. `query.interval.ms`: 从 TDengine 一次读取数据的时间跨度，需要根据表中的数据特征合理配置，避免一次查询的数据量过大或过小；在具体的环境中建议通过测试设置一个较优值，默认值为 0，即获取到当前最新时间的所有数据。
 7. `out.format` : 结果集输出格式。`line` 表示输出格式为 InfluxDB Line 协议格式，`json` 表示输出格式是 json。默认为 line。
-8. `topic.per.stable`: 如果设置为 true，表示一个超级表对应一个 Kafka topic，topic的命名规则 `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`；如果设置为 false，则指定的 DB 中的所有数据进入一个 Kafka topic，topic 的命名规则为 `<topic.prefix><topic.delimiter><connection.database>`
-9. `topic.ignore.db`: topic 命名规则是否包含 database 名称，true 表示规则为 `<topic.prefix><topic.delimiter><stable.name>`，false 表示规则为 `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`，默认 false。此配置项在 `topic.per.stable` 设置为 false 时不生效。
-10. `topic.delimiter`: topic 名称分割符，默认为 `-`。
-11. `read.method`: 从 TDengine 读取数据方式，query 或是 subscription。默认为 subscription。
-12. `subscription.group.id`: 指定 TDengine 数据订阅的组 id，当 `read.method` 为 subscription 时，此项为必填项。
-13. `subscription.from`: 指定 TDengine 数据订阅起始位置，latest 或是 earliest。默认为 latest。
+8. `data.precision`: 使用 InfluxDB 行协议格式时，时间戳的精度。可选值为：
+   1. ms ： 表示毫秒，
+   2. us ： 表示微秒
+   3. ns ： 表示纳秒。
+9. `topic.per.stable`: 如果设置为 true，表示一个超级表对应一个 Kafka topic，topic的命名规则 `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`；如果设置为 false，则指定的 DB 中的所有数据进入一个 Kafka topic，topic 的命名规则为 `<topic.prefix><topic.delimiter><connection.database>`
+10. `topic.ignore.db`: topic 命名规则是否包含 database 名称，true 表示规则为 `<topic.prefix><topic.delimiter><stable.name>`，false 表示规则为 `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`，默认 false。此配置项在 `topic.per.stable` 设置为 false 时不生效。
+11. `topic.delimiter`: topic 名称分割符，默认为 `-`。
+12. `read.method`: 从 TDengine 读取数据方式，query 或是 subscription。默认为 subscription。
+13. `subscription.group.id`: 指定 TDengine 数据订阅的组 id，当 `read.method` 为 subscription 时，此项为必填项。
+14. `subscription.from`: 指定 TDengine 数据订阅起始位置，latest 或是 earliest。默认为 latest。
 
 ## 其他说明
 
