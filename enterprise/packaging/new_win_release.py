@@ -431,7 +431,7 @@ def process_build_taosws_32bit():
     
     subprocess.check_call("rustup toolchain install stable-i686", shell=True)
     subprocess.check_call("rustup target add i686-pc-windows-msvc", shell=True)
-    subprocess.check_call("cargo build --target=i686-pc-windows-msvc", shell=True)
+    subprocess.check_call("cargo build --target=i686-pc-windows-msvc --release -p taos-ws-sys --features rustls", shell=True)
     
     dll_dir = os.path.join(build_dir, "debug")
     x86_target_lib_dir = os.path.join(install_info.install_dir, "taos_odbc", "x86", "lib")
@@ -466,7 +466,7 @@ def process_build_odbc():
     os.system("xcopy /YS {}\\taos_odbc.lib {}".format(x86_dll_dir, x86_target_lib_dir))    
     
     x86_template_dir = os.path.join(odbc_dir, "build32", "templates")
-    os.system("xcopy /YS {}\\win_odbcinst.ini {}\\taos_odbc\\x86".format(x86_template_dir, install_info.install_dir))
+    os.system("xcopy /YS {}\\win_odbc_install.ini {}\\taos_odbc\\x86".format(x86_template_dir, install_info.install_dir))
     
     # build 64 bit ODBC    
     
@@ -490,7 +490,7 @@ def process_build_odbc():
     os.system("xcopy /YS {}\\taos_odbc.lib {}".format(x64_dll_dir, x64_target_lib_dir))
     
     x64_template_dir = os.path.join(odbc_dir, "build64", "templates")
-    os.system("xcopy /YS {}\\win_odbcinst.ini {}\\taos_odbc\\x64".format(x64_template_dir, install_info.install_dir))    
+    os.system("xcopy /YS {}\\win_odbc_install.ini {}\\taos_odbc\\x64".format(x64_template_dir, install_info.install_dir))    
 
 def process_add_enterprice_extent():
     connector_install_dir = os.path.join(install_info.install_dir, "connector")
