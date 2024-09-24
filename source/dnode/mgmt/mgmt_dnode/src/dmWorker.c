@@ -267,22 +267,31 @@ static void *dmCrashReportThreadFp(void *param) {
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
   int32_t      code = 0;
   TdThreadAttr thAttr;
-  (void)taosThreadAttrInit(&thAttr);
-  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  TAOS_CHECK_GOTO(taosThreadAttrInit(&thAttr), NULL, _exception);
+
+  TAOS_CHECK_GOTO(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE), NULL, _exception);
   if (taosThreadCreate(&pMgmt->statusThread, &thAttr, dmStatusThreadFp, pMgmt) != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     dError("failed to create status thread since %s", tstrerror(code));
     return code;
   }
 
-  (void)taosThreadAttrDestroy(&thAttr);
+  TAOS_CHECK_GOTO(taosThreadAttrDestroy(&thAttr), NULL, _exception);
   tmsgReportStartup("dnode-status", "initialized");
   return 0;
+
+_exception:
+  dError("failed to create status thread since %s", tstrerror(code));
+  return code;
 }
 
 void dmStopStatusThread(SDnodeMgmt *pMgmt) {
+  int32_t code = 0;
   if (taosCheckPthreadValid(pMgmt->statusThread)) {
-    (void)taosThreadJoin(pMgmt->statusThread, NULL);
+    code = taosThreadJoin(pMgmt->statusThread, NULL);
+    if (code != 0) {
+      dError("failed to stop status thread since %s", tstrerror(code));
+    }
     taosThreadClear(&pMgmt->statusThread);
   }
 }
