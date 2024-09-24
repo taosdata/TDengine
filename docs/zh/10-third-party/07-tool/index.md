@@ -1,6 +1,6 @@
 ---
-sidebar_label: 管理开发
-title: 与各种管理开发工具的集成
+sidebar_label: 数据库管理
+title: 与各种数据库管理开发工具的集成
 toc_max_heading_level: 4
 ---
 
