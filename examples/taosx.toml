@@ -74,4 +74,7 @@
 #
 # keepDays = 30
 
+# listen on this file to update the log.loggers level in real time
+# watching = true
+
 [log.loggers]

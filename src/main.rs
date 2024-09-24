@@ -237,7 +237,8 @@ struct LogOpts {
         env = "LOG_RESERVED_DISK_SIZE"
     )]
     reserved_disk_size: Option<String>,
-
+    #[clap(id = "log.watching", long = "log.watching", env = "LOG_WATCHING", action = clap::ArgAction::SetTrue, default_value = "true")]
+    watching: Option<bool>,
     #[clap(skip)]
     loggers: Option<HashMap<String, String>>,
 }
@@ -259,6 +260,7 @@ impl Default for LogOpts {
             keep_days: Some(30),
             rotation_size: Some("1GB".to_string()),
             reserved_disk_size: Some("1GB".to_string()),
+            watching: Some(true),
             loggers: None,
         }
     }
@@ -280,6 +282,7 @@ impl LogOpts {
         update_if_none!(keep_days);
         update_if_none!(rotation_size);
         update_if_none!(reserved_disk_size);
+        update_if_none!(watching);
     }
 }
 
@@ -519,9 +522,11 @@ fn init_tracing_layers(
     args: &mut Args,
     tracing_level_filter: TracingLevelFilter,
 ) -> Result<
-    reload::Handle<
-        EnvFilter,
-        Layered<Vec<Box<dyn tracing_subscriber::Layer<Registry> + Send + Sync>>, Registry>,
+    Option<
+        reload::Handle<
+            EnvFilter,
+            Layered<Vec<Box<dyn tracing_subscriber::Layer<Registry> + Send + Sync>>, Registry>,
+        >,
     >,
     anyhow::Error,
 > {
@@ -542,14 +547,13 @@ fn init_tracing_layers(
 
     let mut layers = Vec::new();
 
-    let (filter_layer, handle) = reload::Layer::new(env_filter);
-
     let LogOpts {
         compress,
         rotation_count,
         keep_days,
         rotation_size,
         reserved_disk_size,
+        watching,
         ..
     } = args.global.log.clone().context("log opts not found")?;
 
@@ -584,10 +588,20 @@ fn init_tracing_layers(
         layers.push(console_subscriber::spawn().boxed());
     }
 
-    // Create event subscriber
-    let layered = tracing_subscriber::registry()
-        .with(layers)
-        .with(filter_layer);
+    let layered;
+    let mut handle = None;
+    if watching.is_some_and(|x| x) {
+        let (filter_layer, reload_handle) = reload::Layer::new(env_filter);
+        // Create event subscriber
+        layered = tracing_subscriber::registry()
+            .with(layers)
+            .with(filter_layer.boxed());
+        handle = Some(reload_handle);
+    } else {
+        layered = tracing_subscriber::registry()
+            .with(layers)
+            .with(env_filter.boxed());
+    }
 
     // Enable opentelemetry layer
     if otel_enabled(args) {
@@ -834,25 +848,29 @@ fn main() -> Result<()> {
     let _span = tracing::info_span!("main").entered();
 
     let config_file = get_effective_config_path(&args);
-    let mut notify_watcher = notify::recommended_watcher({
-        let config_file = config_file.clone();
-        move |event: notify::Result<notify::Event>| {
-            let event = match event {
-                Ok(event) => event,
-                Err(e) => {
-                    tracing::error!("notify event error: {e}");
-                    return;
-                }
-            };
-            log_level_reload(event, &config_file, &handle, tracing_level_filter);
-        }
-    })?;
-    notify_watcher
-        .watch(
-            &config_file.parent().context("get config dir error")?,
-            notify::RecursiveMode::NonRecursive,
-        )
-        .context("start watch config file error")?;
+    let mut _notify_watcher = None;
+    if let Some(handle) = handle {
+        let mut watcher = notify::recommended_watcher({
+            let config_file = config_file.clone();
+            move |event: notify::Result<notify::Event>| {
+                let event = match event {
+                    Ok(event) => event,
+                    Err(e) => {
+                        tracing::error!("notify event error: {e}");
+                        return;
+                    }
+                };
+                log_level_reload(event, &config_file, &handle, tracing_level_filter);
+            }
+        })?;
+        watcher
+            .watch(
+                &config_file.parent().context("get config dir error")?,
+                notify::RecursiveMode::NonRecursive,
+            )
+            .context("start watch config file error")?;
+        _notify_watcher = Some(watcher);
+    }
     tracing::info!(
         "listen on config file {} data change",
         config_file.display()
