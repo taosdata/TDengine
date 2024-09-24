@@ -1949,9 +1949,6 @@ class TaskCreateStream(StateTransitionTask):
                 result.append(part)
         return ', '.join(result)
 
-# CREATE STREAM IF NOT EXISTS stm_stb TRIGGER WINDOW_CLOSE WATERMARK 1y  IGNORE EXPIRED 1  into stm_stb_target   SUBTABLE(CONCAT("pre", tbname)) AS SELECT TO_CHAR(ts, "dy"),TIMETRUNCATE(ts, 1d, 1), POW(c1, 1),ROUND(c1),TODAY(),SIN(c1),ASIN(c1),TO_ISO8601(c1, "-08:00"),CEIL(c1),CAST(c1 AS BIGINT),MAX(c1),SQRT(c1),LOG(c1),MIN(c1),LAST_ROW(c1),TAN(c1),FIRST(c1),ABS(c1),FLOOR(c1),ACOS(c1),COS(c1),TIMEZONE(), CONCAT("pre_", cast(c2 as nchar(8))),CONCAT_WS(",", "pre_", cast(c2 as nchar(8))), LAST(c3),CAST(c3 AS SMALLINT),NOW(),FIRST(c3),LAST_ROW(c3) FROM test.stb partition BY ts,c1,c2,c3  ;;
-# CREATE STREAM IF NOT EXISTS stm_stb3 TRIGGER AT_ONCE WATERMARK 1y  IGNORE EXPIRED 1  into stm_stb_target3   SUBTABLE(CONCAT("pre", tbname)) AS SELECT ts, TO_CHAR(ts, "dy"),TIMETRUNCATE(ts, 1d, 1), POW(c1, 1),ROUND(c1),TODAY(),SIN(c1),ASIN(c1),TO_ISO8601(c1, "-08:00"),CEIL(c1),CAST(c1 AS BIGINT),MAX(c1),SQRT(c1),LOG(c1),MIN(c1),LAST_ROW(c1),TAN(c1),FIRST(c1),ABS(c1),FLOOR(c1),ACOS(c1),COS(c1),TIMEZONE(), CONCAT("pre_", cast(c2 as nchar(8))),CONCAT_WS(",", "pre_", cast(c2 as nchar(8))), LAST(c3),CAST(c3 AS SMALLINT),NOW(),FIRST(c3),LAST_ROW(c3) FROM test.stb partition by tbname group BY ts,c1,c2,c3 ;;
-# CREATE STREAM  stm_stb TRIGGER at_once into stm_stb_target AS SELECT ts,TO_CHAR(ts, "dy"),TIMETRUNCATE(ts, 1d, 1),SIN(c1) FROM test.stb partition by tbname;;
     def generateRandomSubQuery(self, st, colDict, dbname, tbname, subtable=False, doAggr=0):
         selectPartList = []
         groupKeyList = []
@@ -1962,7 +1959,7 @@ class TaskCreateStream(StateTransitionTask):
                 tsCol = column_name
             for fm in FunctionMap:
                 if column_type in fm.value['types']:
-                    selectStrs, groupKey = st.selectFuncsFromType(fm.value, column_name, column_type, doAggr, True)
+                    selectStrs, groupKey = st.selectFuncsFromType(fm.value, column_name, column_type, doAggr, subquery=True)
                     if len(selectStrs) > 0:
                         selectPartList.append(selectStrs)
                     if len(groupKey) > 0:
@@ -2169,25 +2166,36 @@ class TaskCreateTsma(StateTransitionTask):
     def canBeginFrom(cls, state: AnyState):
         return state.canCreateTsma()
 
-    def generateRandomFuncs(self, st, colDict, dbname, tbname, doAggr=0): # tsma must use agg
+    def generateRandomFuncs(self, st, colDict):
         selectPartList = []
+        doAggr = random.choice([0, 1]) # tsma must use aggFuncs or selectFuncs
         for column_name, column_type in colDict.items():
             for fm in FunctionMap:
                 if column_type in fm.value['types']:
-                    selectStrs, _ = st.selectFuncsFromType(fm.value, column_name, column_type, doAggr)
+                    selectStrs, _ = st.selectFuncsFromType(fm.value, column_name, column_type, doAggr, tsma=True)
                     if len(selectStrs) > 0:
                         selectPartList.append(selectStrs)
         return ', '.join(selectPartList)
 
+    def doubleWindow(self, windowStr):
+        match = re.search(r"INTERVAL\((\d+)(\w+)\)", windowStr)
+        if match:
+            num = int(match.group(1))
+            unit = match.group(2)
+            new_num = num * 2
+            return f"INTERVAL({new_num}{unit})"
+
     def genCreateTsmaSql(self, st, colDict, tbname):
         dbname = self._db.getName()
         tsmaName = f'{dbname}_{tbname}_tsma'
-        funcs = self.generateRandomFuncs(st, colDict, dbname, tbname)
-        windowStr = st.getWindowStr("INTERVAL", colDict, stream=True)
-        return f"CREATE TSMA  IF NOT EXISTS {tsmaName} ON {dbname}.{tbname} FUNCTION({funcs}) {windowStr};"
+        recursiveTsmaName = f'{dbname}_{tbname}_rcs_tsma'
+        funcs = self.generateRandomFuncs(st, colDict)
+        windowStr = st.getWindowStr("INTERVAL", colDict, tsma=True)
+        createTsmaSql = f"CREATE TSMA  IF NOT EXISTS {tsmaName} ON {dbname}.{tbname} FUNCTION({funcs}) {windowStr};"
+        createRecursiveTsmaSql = f"CREATE RECURSIVE TSMA IF NOT EXISTS {recursiveTsmaName} ON {dbname}.{tsmaName} {self.doubleWindow(windowStr)};"
+        return [createTsmaSql, createRecursiveTsmaSql]
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        # CREATE TSMA tsma1 ON nsdb.meters FUNCTION(avg(c1),avg(c2)) INTERVAL(5m);
         try:
             dbname = self._db.getName()
             dbc = wt.getDbConn()
@@ -2195,24 +2203,19 @@ class TaskCreateTsma(StateTransitionTask):
             if not self._db.exists(dbc):
                 Logging.debug("Skipping task, no DB yet")
                 return
-
             sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
-            tags = sTable._getTags(dbc)
             cols = sTable._getCols(dbc)
-            tagCols = {**tags, **cols}
-            selectCnt = random.randint(1, len(tagCols))
-            selectKeys = random.sample(list(tagCols.keys()), selectCnt)
-            selectItems = {key: tagCols[key] for key in selectKeys[:self.maxSelectItems]}
-
+            selectCnt = random.randint(1, len(cols))
+            selectKeys = random.sample(list(cols.keys()), selectCnt)
+            selectItems = {key: cols[key] for key in selectKeys[:self.maxSelectItems]}
             stbname = sTable.getName()
             if not sTable.ensureSuperTable(self, wt.getDbConn()):  # Ensure the super table exists
                 return
-            regTables = sTable.getRegTables(wt.getDbConn())
-            tbname = random.choice([stbname, regTables[0]]) if regTables else stbname
-            createTsmaSql = self.genCreateTsmaSql(sTable, selectItems, tbname)
+            createTsmaSqls = self.genCreateTsmaSql(sTable, selectItems, stbname)
             # exec create topics
             self.execWtSql(wt, "use {}".format(dbname))
-            self.execWtSql(wt, createTsmaSql)
+            for createTsmaSql in createTsmaSqls:
+                self.execWtSql(wt, createTsmaSql)
             Logging.debug("[OPS] db tsma is creating at {}".format(time.time()))
         except Exception as e:
             self.logError(f"func TaskCreateTsma error: {e}")
@@ -3260,7 +3263,7 @@ class TdSuperTable:
         else:
             return False
 
-    def selectFuncsFromType(self, fm, colname, column_type, doAggr, subquery=False):
+    def selectFuncsFromType(self, fm, colname, column_type, doAggr, subquery=False, tsma=False):
         """
         Selects functions based on the given parameters.
 
@@ -3277,7 +3280,7 @@ class TdSuperTable:
         if doAggr == 0:
             categoryList = ['aggFuncs']
         elif doAggr == 1:
-            categoryList = ['mathFuncs', 'strFuncs', 'timeFuncs', 'selectFuncs', 'castFuncs']
+            categoryList = ['mathFuncs', 'strFuncs', 'timeFuncs', 'selectFuncs', 'castFuncs'] if not tsma else ['selectFuncs']
         elif doAggr == 2:
             categoryList = ['VariableFuncs']
         elif doAggr == 3:
@@ -3292,7 +3295,9 @@ class TdSuperTable:
             funcList += fm[category]
         # print("----funcList", funcList)
         if subquery:
-            funcList = [func for func in funcList if func not in fm['unsupported']]
+            funcList = [func for func in funcList if func not in fm['streamUnsupported']]
+        if tsma:
+            funcList = [func for func in funcList if func not in fm['tsmaUnsupported']]
         selectItems = random.sample(funcList, random.randint(1, len(funcList))) if len(funcList) > 0 else list()
         funcStrList = list()
         for func in selectItems:
@@ -3333,7 +3338,7 @@ class TdSuperTable:
         else:
             return "spFuncs"
 
-    def getRandomTimeUnitStr(self, stream=False):
+    def getRandomTimeUnitStr(self, stream=False, tsma=False):
         """
         Generates a random time unit string.
 
@@ -3343,7 +3348,10 @@ class TdSuperTable:
         if stream:
             return f'{random.randint(*DataBoundary.SAMPLE_BOUNDARY.value)}{random.choice(DataBoundary.TIME_UNIT.value[3:])}'
         else:
-            return f'{random.randint(*DataBoundary.SAMPLE_BOUNDARY.value)}{random.choice(DataBoundary.TIME_UNIT.value)}'
+            if tsma:
+                return f'{random.randint(*DataBoundary.SAMPLE_BOUNDARY.value)}{random.choice(DataBoundary.TIME_UNIT.value[4:6])}'
+            else:
+                return f'{random.randint(*DataBoundary.SAMPLE_BOUNDARY.value)}{random.choice(DataBoundary.TIME_UNIT.value)}'
 
     def sepTimeStr(self, timeStr):
         match = re.match(r"(\d+)(\D+)", timeStr)
@@ -3523,7 +3531,7 @@ class TdSuperTable:
             conditionList.append(f'EVENT_WINDOW start with {startTriggerCondition} end with {endTriggerCondition}')
         return random.choice(conditionList)
 
-    def getWindowStr(self, window, colDict, tsCol="ts", stateUnit="1", countUnit="2", stream=False):
+    def getWindowStr(self, window, colDict, tsCol="ts", stateUnit="1", countUnit="2", stream=False, tsma=False):
         """
         Returns a string representation of the window based on the given parameters.
 
@@ -3539,9 +3547,9 @@ class TdSuperTable:
 
         """
         if window == "INTERVAL":
-            interval = self.getRandomTimeUnitStr(stream=stream)
-            offset = self.getOffsetFromInterval(interval)
-            return f"{window}({interval},{offset})"
+            interval = self.getRandomTimeUnitStr(stream=stream, tsma=tsma)
+            offset = f',{self.getOffsetFromInterval(interval)}' if not tsma else ""
+            return f"{window}({interval}{offset})"
         elif window == "SESSION":
             return f"{window}({tsCol}, {self.getRandomTimeUnitStr()})"
         elif window == "STATE_WINDOW":
