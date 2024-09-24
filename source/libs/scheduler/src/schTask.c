@@ -100,7 +100,7 @@ int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask) {
   if (NULL == addr) {
     SCH_TASK_ELOG("taosArrayGet candidate addr failed, idx:%d, size:%d", pTask->candidateIdx,
                   (int32_t)taosArrayGetSize(pTask->candidateAddrs));
-    SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+    SCH_ERR_RET(terrno);
   }
 
   pTask->succeedAddr = *addr;
@@ -299,7 +299,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     SSchTask *parent = *(SSchTask **)taosArrayGet(pTask->parents, i);
     if (NULL == parent) {
       SCH_TASK_ELOG("fail to get task %d parent, parentNum: %d", i, parentNum);
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      SCH_ERR_RET(terrno);
     }
 
     SCH_LOCK(SCH_WRITE, &parent->planLock);
@@ -457,7 +457,7 @@ int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
       if (NULL == addr) {
         SCH_TASK_ELOG("fail to get the %dth condidateAddr, totalNum:%d", pTask->candidateIdx,
                       (int32_t)taosArrayGetSize(pTask->candidateAddrs));
-        SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
+        SCH_ERR_JRET(terrno);
       }
 
       SEp *pEp = &addr->epSet.eps[addr->epSet.inUse];
@@ -468,7 +468,7 @@ int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
       if (NULL == addr) {
         SCH_TASK_ELOG("fail to get the %dth condidateAddr, totalNum:%d", pTask->candidateIdx,
                       (int32_t)taosArrayGetSize(pTask->candidateAddrs));
-        SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
+        SCH_ERR_JRET(terrno);
       }
 
       SCH_SWITCH_EPSET(addr);
@@ -527,7 +527,7 @@ int32_t schResetTaskSetLevelInfo(SSchJob *pJob, SSchTask *pTask) {
     SSchTask *pChild = taosArrayGetP(pTask->children, i);
     if (NULL == pChild) {
       SCH_TASK_ELOG("fail to get the %dth child, childrenNum:%d", i, childrenNum);
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      SCH_ERR_RET(terrno);
     }
 
     SCH_LOCK_TASK(pChild);
@@ -755,7 +755,7 @@ int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
     if (NULL == addr) {
       SCH_TASK_ELOG("fail to the %dth condidateAddr, totalNum:%d", pTask->candidateIdx,
                     (int32_t)taosArrayGetSize(pTask->candidateAddrs));
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      SCH_ERR_RET(terrno);
     }
 
     SCH_SWITCH_EPSET(addr);
@@ -779,7 +779,7 @@ int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask) {
       SQueryNodeLoad *nload = taosArrayGet(pJob->nodeList, i);
       if (NULL == nload) {
         SCH_TASK_ELOG("fail to get the %dth node in nodeList, nodeNum:%d", i, nodeNum);
-        SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+        SCH_ERR_RET(terrno);
       }
 
       SQueryNodeAddr *naddr = &nload->addr;
@@ -859,7 +859,7 @@ int32_t schUpdateTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSe
   SQueryNodeAddr *pAddr = taosArrayGet(pTask->candidateAddrs, 0);
   if (NULL == pAddr) {
     SCH_TASK_ELOG("fail to get task 0th condidataAddr, totalNum:%d", (int32_t)taosArrayGetSize(pTask->candidateAddrs));
-    SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+    SCH_ERR_RET(terrno);
   }
 
   char *origEpset = NULL;

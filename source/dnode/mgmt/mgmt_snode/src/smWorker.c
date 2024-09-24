@@ -174,7 +174,7 @@ int32_t smPutNodeMsgToMgmtQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t       code = 0;
   SMultiWorker *pWorker = taosArrayGetP(pMgmt->writeWroker, 0);
   if (pWorker == NULL) {
-    return TSDB_CODE_INVALID_MSG;
+    return terrno;
   }
 
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
@@ -184,7 +184,7 @@ int32_t smPutNodeMsgToMgmtQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 int32_t smPutNodeMsgToWriteQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SMultiWorker *pWorker = taosArrayGetP(pMgmt->writeWroker, 0);
   if (pWorker == NULL) {
-    return TSDB_CODE_INVALID_MSG;
+    return terrno;
   }
 
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);

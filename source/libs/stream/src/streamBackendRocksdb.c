@@ -4909,7 +4909,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
     char* filename = taosArrayGetP(p->pAdd, i);
     nBytes = snprintf(srcBuf, cap, "%s%s%s", srcDir, TD_DIRSEP, filename);
     if (nBytes <= 0 || nBytes >= cap) {
-      code = TSDB_CODE_OUT_OF_RANGE;
+      code = terrno;
       goto _ERROR;
     }
 

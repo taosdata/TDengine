@@ -423,7 +423,7 @@ int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
 
   SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, 0);
   if (pColInfo == NULL) {
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
 
   return colDataSetNItems(pColInfo, 0, (const char *)&dnodeId, pBlock->info.rows, false);

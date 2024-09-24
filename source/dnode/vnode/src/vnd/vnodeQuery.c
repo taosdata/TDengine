@@ -399,7 +399,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   for (int32_t i = 0; i < msgNum; ++i) {
     req = taosArrayGet(batchReq.pMsgs, i);
     if (req == NULL) {
-      code = TSDB_CODE_OUT_OF_RANGE;
+      code = terrno;
       goto _exit;
     }
 

@@ -659,7 +659,7 @@ int32_t appendSelectivityCols(SqlFunctionCtx* pCtx, SSDataBlock* pSrcBlock, int3
 
     SColumnInfoData* pSrcCol = taosArrayGet(pSrcBlock->pDataBlock, srcSlotId);
     if (NULL == pSrcCol) {
-      return TSDB_CODE_OUT_OF_RANGE;
+      return terrno;
     }
 
     char* pData = colDataGetData(pSrcCol, rowIndex);
@@ -669,7 +669,7 @@ int32_t appendSelectivityCols(SqlFunctionCtx* pCtx, SSDataBlock* pSrcBlock, int3
 
     SColumnInfoData* pDstCol = taosArrayGet(pCtx->pDstBlock->pDataBlock, dstSlotId);
     if (NULL == pDstCol) {
-      return TSDB_CODE_OUT_OF_RANGE;
+      return terrno;
     }
     if (colDataIsNull_s(pSrcCol, rowIndex) == true) {
       colDataSetNULL(pDstCol, pos);
@@ -705,7 +705,7 @@ int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   if (NULL == pCol) {
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
@@ -735,7 +735,7 @@ int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock,
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   if (NULL == pCol) {
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
@@ -1070,7 +1070,7 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   if (NULL == pCol) {
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
   pEntryInfo->isNullRes = (pEntryInfo->numOfRes == 0) ? 1 : 0;
 
@@ -1178,7 +1178,7 @@ int32_t setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STu
 
       SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
       if (NULL == pDstCol) {
-        return TSDB_CODE_OUT_OF_RANGE;
+        return terrno;
       }
       if (nullList[j]) {
         colDataSetNULL(pDstCol, rowIndex);
@@ -1212,7 +1212,7 @@ int32_t appendSelectivityValue(SqlFunctionCtx* pCtx, int32_t rowIndex, int32_t p
 
     SColumnInfoData* pSrcCol = taosArrayGet(pCtx->pSrcBlock->pDataBlock, srcSlotId);
     if (NULL == pSrcCol) {
-      return TSDB_CODE_OUT_OF_RANGE;
+      return terrno;
     }
 
     char* pData = colDataGetData(pSrcCol, rowIndex);
@@ -1222,7 +1222,7 @@ int32_t appendSelectivityValue(SqlFunctionCtx* pCtx, int32_t rowIndex, int32_t p
 
     SColumnInfoData* pDstCol = taosArrayGet(pCtx->pDstBlock->pDataBlock, dstSlotId);
     if (NULL == pDstCol) {
-      return TSDB_CODE_OUT_OF_RANGE;
+      return terrno;
     }
 
     if (colDataIsNull_s(pSrcCol, rowIndex) == true) {
@@ -1705,7 +1705,7 @@ int32_t stdPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   if (NULL == pCol) {
     taosMemoryFree(res);
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
 
   int32_t code = colDataSetVal(pCol, pBlock->info.rows, res, false);
@@ -1916,7 +1916,7 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData*     pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
   if (NULL == pCol) {
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
   int32_t currentRow = pBlock->info.rows;
 
@@ -2153,7 +2153,7 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
       SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
       if (NULL == pCol) {
-        code = TSDB_CODE_OUT_OF_RANGE;
+        code = terrno;
         goto _fin_error;
       }
 
@@ -2488,7 +2488,7 @@ int32_t apercentilePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   if (NULL == pCol) {
     taosMemoryFree(res);
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
 
   int32_t code = colDataSetVal(pCol, pBlock->info.rows, res, false);
@@ -3132,7 +3132,7 @@ int32_t firstLastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   if (NULL == pCol) {
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
@@ -3176,7 +3176,7 @@ int32_t firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   if (NULL == pCol) {
     taosMemoryFree(res);
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
 
   if (pEntryInfo->numOfRes == 0) {
@@ -3675,7 +3675,7 @@ int32_t diffFunctionByRow(SArray* pCtxArray) {
   for (int i = 0; i < diffColNum; ++i) {
     SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
     if (NULL == pCtx) {
-      code = TSDB_CODE_OUT_OF_RANGE;
+      code = terrno;
       goto _exit;
     }
     funcInputUpdate(pCtx);
@@ -3689,7 +3689,7 @@ int32_t diffFunctionByRow(SArray* pCtxArray) {
   SqlFunctionCtx* pCtx0 = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, 0);
   SFuncInputRow* pRow0 = (SFuncInputRow*)taosArrayGet(pRows, 0);
   if (NULL == pCtx0 || NULL == pRow0) {
-    code = TSDB_CODE_OUT_OF_RANGE;
+    code = terrno;
     goto _exit;
   }
   int32_t startOffset = pCtx0->offset;
@@ -3707,7 +3707,7 @@ int32_t diffFunctionByRow(SArray* pCtxArray) {
       SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
       SFuncInputRow* pRow = (SFuncInputRow*)taosArrayGet(pRows, i);
       if (NULL == pCtx || NULL == pRow) {
-        code = TSDB_CODE_OUT_OF_RANGE;
+        code = terrno;
         goto _exit;
       }
       code = funcInputGetNextRow(pCtx, pRow, &result);
@@ -3730,7 +3730,7 @@ int32_t diffFunctionByRow(SArray* pCtxArray) {
       SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
       SFuncInputRow*  pRow = (SFuncInputRow*)taosArrayGet(pRows, i);
       if (NULL == pCtx || NULL == pRow) {
-        code = TSDB_CODE_OUT_OF_RANGE;
+        code = terrno;
         goto _exit;
       }
       if ((keepNull || hasNotNullValue) && !isFirstRow(pCtx, pRow)){
@@ -3752,7 +3752,7 @@ int32_t diffFunctionByRow(SArray* pCtxArray) {
   for (int i = 0; i < diffColNum; ++i) {
     SqlFunctionCtx*      pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
     if (NULL == pCtx) {
-      code = TSDB_CODE_OUT_OF_RANGE;
+      code = terrno;
       goto _exit;
     }
     SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
@@ -4003,7 +4003,7 @@ int32_t serializeTupleData(const SSDataBlock* pSrcBlock, int32_t rowIndex, SSubs
 
     SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, srcSlotId);
     if (NULL == pCol) {
-      return TSDB_CODE_OUT_OF_RANGE;
+      return terrno;
     }
     if ((nullList[i] = colDataIsNull_s(pCol, rowIndex)) == true) {
       offset += pCol->info.bytes;
@@ -4078,7 +4078,7 @@ int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock*
   if (pCtx->saveHandle.pBuf == NULL) {
     SColumnInfoData* pColInfo = taosArrayGet(pSrcBlock->pDataBlock, pCtx->saveHandle.pState->tsIndex);
     if (NULL == pColInfo) {
-      return TSDB_CODE_OUT_OF_RANGE;
+      return terrno;
     }
     if (pColInfo->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
       return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
@@ -4164,7 +4164,7 @@ int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   if (NULL == pCol) {
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
 
   // todo assign the tag value and the corresponding row data
@@ -4429,7 +4429,7 @@ int32_t spreadPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t          code = TSDB_CODE_SUCCESS;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   if (NULL == pCol) {
-    code = TSDB_CODE_OUT_OF_RANGE;
+    code = terrno;
     goto _exit;
   }
 
@@ -4619,7 +4619,7 @@ int32_t elapsedPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t          code = TSDB_CODE_SUCCESS;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   if (NULL == pCol) {
-    code = TSDB_CODE_OUT_OF_RANGE;
+    code = terrno;
     goto _exit;
   }
 
@@ -4952,7 +4952,7 @@ int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   int32_t currentRow = pBlock->info.rows;
   if (NULL == pCol) {
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
 
   if (pInfo->normalized) {
@@ -5002,7 +5002,7 @@ int32_t histogramPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t          code = TSDB_CODE_SUCCESS;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   if (NULL == pCol) {
-    code = TSDB_CODE_OUT_OF_RANGE;
+    code = terrno;
     goto _exit;
   }
   code = colDataSetVal(pCol, pBlock->info.rows, res, false);
@@ -5235,7 +5235,7 @@ int32_t hllPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t          code = TSDB_CODE_SUCCESS;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   if (NULL == pCol) {
-    code = TSDB_CODE_OUT_OF_RANGE;
+    code = terrno;
     goto _exit;
   }
 
@@ -5785,7 +5785,7 @@ int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   if (NULL == pCol) {
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
 
   int32_t currentRow = pBlock->info.rows;
@@ -6193,7 +6193,7 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t              currentRow = pBlock->info.rows;
   if (NULL == pCol) {
     modeFunctionCleanup(pInfo);
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
 
   STuplePos resDataPos, resTuplePos;
@@ -6581,7 +6581,7 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, 0);
   if (NULL == pColInfo) {
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
 
   if (pData->totalRows == 0) {
@@ -7090,7 +7090,7 @@ int32_t iratePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   if (NULL == pCol) {
       taosMemoryFree(res);
-      return TSDB_CODE_OUT_OF_RANGE;
+      return terrno;
   }
 
   int32_t code = colDataSetVal(pCol, pBlock->info.rows, res, false);
@@ -7103,7 +7103,7 @@ int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   if (NULL == pCol) {
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
@@ -7160,7 +7160,7 @@ int32_t groupConstValueFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t          code = TSDB_CODE_SUCCESS;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   if (NULL == pCol) {
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);

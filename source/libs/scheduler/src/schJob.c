@@ -169,14 +169,14 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
     SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
     if (NULL == pLevel) {
       SCH_JOB_ELOG("fail to get the %dth level, levelNum: %d", i, pJob->levelNum);
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      SCH_ERR_RET(terrno);
     }
 
     for (int32_t m = 0; m < pLevel->taskNum; ++m) {
       SSchTask *pTask = taosArrayGet(pLevel->subTasks, m);
       if (NULL == pTask) {
         SCH_JOB_ELOG("fail to get the %dth task in level %d, taskNum: %d", m, pLevel->level, pLevel->taskNum);
-        SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+        SCH_ERR_RET(terrno);
       }
 
       SSubplan *pPlan = pTask->plan;
@@ -263,7 +263,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
   SSchLevel *pLevel = taosArrayGet(pJob->levels, 0);
   if (NULL == pLevel) {
     SCH_JOB_ELOG("fail to get level 0 level, levelNum:%d", (int32_t)taosArrayGetSize(pJob->levels));
-    SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+    SCH_ERR_RET(terrno);
   }
 
   if (SCH_IS_QUERY_JOB(pJob)) {
@@ -275,7 +275,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
     SSchTask *pTask = taosArrayGet(pLevel->subTasks, 0);
     if (NULL == pLevel) {
       SCH_JOB_ELOG("fail to get the first task in level 0, taskNum:%d", (int32_t)taosArrayGetSize(pLevel->subTasks));
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      SCH_ERR_RET(terrno);
     }
 
     if (SUBPLAN_TYPE_MODIFY != pTask->plan->subplanType || EXPLAIN_MODE_DISABLE != pJob->attr.explainMode) {
@@ -352,7 +352,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
     pLevel = taosArrayGet(pJob->levels, i);
     if (NULL == pLevel) {
       SCH_JOB_ELOG("fail to get the %dth level, levelNum: %d", i, levelNum);
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      SCH_ERR_RET(terrno);
     }
 
     pLevel->level = i;
@@ -629,14 +629,14 @@ int32_t schLaunchJobLowerLevel(SSchJob *pJob, SSchTask *pTask) {
     pLevel = taosArrayGet(pJob->levels, pJob->levelIdx);
     if (NULL == pLevel) {
       SCH_JOB_ELOG("fail to get the %dth level, levelNum:%d", pJob->levelIdx, (int32_t)taosArrayGetSize(pJob->levels));
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      SCH_ERR_RET(terrno);
     }
 
     for (int32_t i = 0; i < pLevel->taskNum; ++i) {
       SSchTask *pTask = taosArrayGet(pLevel->subTasks, i);
       if (NULL == pTask) {
         SCH_JOB_ELOG("fail to get the %dth task in level %d, taskNum:%d", i, pLevel->level, pLevel->taskNum);
-        SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+        SCH_ERR_RET(terrno);
       }
 
       if (pTask->children && taosArrayGetSize(pTask->children) > 0) {
@@ -700,7 +700,7 @@ int32_t schLaunchJob(SSchJob *pJob) {
     SSchLevel *level = taosArrayGet(pJob->levels, pJob->levelIdx);
     if (NULL == level) {
       SCH_JOB_ELOG("fail to get the %dth level, levelNum:%d", pJob->levelIdx, (int32_t)taosArrayGetSize(pJob->levels));
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      SCH_ERR_RET(terrno);
     }
 
     SCH_ERR_RET(schLaunchLevelTasks(pJob, level));
@@ -982,7 +982,7 @@ int32_t schResetJobForRetry(SSchJob *pJob, int32_t rspCode, bool *inRetry) {
     SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
     if (NULL == pLevel) {
       SCH_JOB_ELOG("fail to get the %dth level, levelNum:%d", i, numOfLevels);
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      SCH_ERR_RET(terrno);
     }
 
     pLevel->taskExecDoneNum = 0;
@@ -993,7 +993,7 @@ int32_t schResetJobForRetry(SSchJob *pJob, int32_t rspCode, bool *inRetry) {
       SSchTask *pTask = taosArrayGet(pLevel->subTasks, j);
       if (NULL == pTask) {
         SCH_JOB_ELOG("fail to get the %dth task in level %d, taskNum:%d", j, i, numOfTasks);
-        SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+        SCH_ERR_RET(terrno);
       }
 
       SCH_LOCK_TASK(pTask);

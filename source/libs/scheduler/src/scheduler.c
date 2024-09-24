@@ -110,14 +110,14 @@ int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
     SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
     if (NULL == pLevel) {
       qError("failed to get level %d", i);
-      SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      SCH_ERR_JRET(terrno);
     }
 
     for (int32_t m = 0; m < pLevel->taskNum; ++m) {
       SSchTask     *pTask = taosArrayGet(pLevel->subTasks, m);
       if (NULL == pTask) {
         qError("failed to get task %d, total: %d", m, pLevel->taskNum);
-        SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
+        SCH_ERR_JRET(terrno);
       }
 
       SQuerySubDesc subDesc = {0};

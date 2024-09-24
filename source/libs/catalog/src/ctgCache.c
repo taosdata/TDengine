@@ -1602,7 +1602,7 @@ int32_t ctgDropTSMAForTbEnqueue(SCatalog *pCtg, SName *pName, bool syncOp) {
   STSMACache *pCache = taosArrayGetP(pCtgCache->pTsmas, 0);
   if (NULL == pCache) {
     ctgError("fail to get the 0th STSMACache, total:%d", (int32_t)pCtgCache->pTsmas->size);
-    code = TSDB_CODE_CTG_INTERNAL_ERROR;
+    code = terrno;
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createDropAllTbTsmaCtgCacheOp(pCtg, pCache, syncOp, &pOp);
@@ -2132,7 +2132,7 @@ int32_t ctgWriteTbTSMAToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
       STableTSMAInfo* pInfo = taosArrayGetP(pCache->pTsmas, i);
       if (NULL == pInfo) {
         ctgError("fail to get the %dth STableTSMAInfo, total:%d", i, (int32_t)pCache->pTsmas->size);
-        CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+        CTG_ERR_RET(terrno);
       }
       
       if (pInfo->tsmaId == pTsmaCache->tsmaId) {
@@ -3404,7 +3404,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
   SName      *pName = taosArrayGet(pList, 0);
   if (NULL == pName) {
     ctgError("fail to get the 0th SName from tableList, tableNum:%d", (int32_t)taosArrayGetSize(pList));
-    return TSDB_CODE_CTG_INVALID_INPUT;
+    return terrno;
   }
   
   if (IS_SYS_DBNAME(pName->dbname)) {
@@ -3434,7 +3434,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     pName = taosArrayGet(pList, i);
     if (NULL == pName) {
       ctgError("fail to get the %dth SName from tableList, tableNum:%d", i, (int32_t)taosArrayGetSize(pList));
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
 
     pCache = taosHashAcquire(dbCache->tbCache, pName->tname, strlen(pName->tname));
@@ -3702,7 +3702,7 @@ int32_t ctgGetTbNamesFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbNa
   SName      *pName = taosArrayGet(pList, 0);
   if (NULL == pName) {
     ctgError("fail to get the 0th SName from tableList, tableNum:%d", (int32_t)taosArrayGetSize(pList));
-    CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+    CTG_ERR_JRET(terrno);
   }
 
   if (IS_SYS_DBNAME(pName->dbname)) {
@@ -3773,7 +3773,7 @@ int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsC
   SName      *pName = taosArrayGet(pList, 0);
   if (NULL == pName) {
     ctgError("fail to get the 0th SName from viewList, viewNum:%d", (int32_t)taosArrayGetSize(pList));
-    return TSDB_CODE_CTG_INVALID_INPUT;
+    return terrno;
   }
 
   if (IS_SYS_DBNAME(pName->dbname)) {
@@ -3803,7 +3803,7 @@ int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsC
     pName = taosArrayGet(pList, i);
     if (NULL == pName) {
       ctgError("fail to get the %dth SName from viewList, viewNum:%d", i, (int32_t)taosArrayGetSize(pList));
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
 
     pCache = taosHashAcquire(dbCache->viewCache, pName->tname, strlen(pName->tname));
@@ -3893,7 +3893,7 @@ int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx
   SName *        pName = taosArrayGet(pList, 0);
   if (NULL == pName) {
     ctgError("fail to get the 0th SName from tbTSMAList, num:%d", (int32_t)taosArrayGetSize(pList));
-    return TSDB_CODE_CTG_INVALID_INPUT;
+    return terrno;
   }
 
   if (IS_SYS_DBNAME(pName->dbname)) {
@@ -3920,7 +3920,7 @@ int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx
     pName = taosArrayGet(pList, i);
     if (NULL == pName) {
       ctgError("fail to get the %dth SName from tbTSMAList, num:%d", i, (int32_t)taosArrayGetSize(pList));
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     
     pTbCache = taosHashAcquire(dbCache->tbCache, pName->tname, strlen(pName->tname));

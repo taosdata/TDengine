@@ -791,7 +791,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
   } else if (pNewConsumer->updateType == CONSUMER_ADD_REB) {
     void *tmp = taosArrayGetP(pNewConsumer->rebNewTopics, 0);
     if (tmp == NULL){
-      return TSDB_CODE_TMQ_INVALID_MSG;
+      return terrno;
     }
     char *pNewTopic = taosStrdup(tmp);
     if (pNewTopic == NULL) {
@@ -805,7 +805,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     } else {
       if (taosArrayPush(pOldConsumer->currentTopics, &pNewTopic) == NULL) {
         taosMemoryFree(pNewTopic);
-        return TSDB_CODE_TMQ_INVALID_MSG;
+        return terrno;
       }
       taosArraySort(pOldConsumer->currentTopics, taosArrayCompareString);
     }
@@ -829,7 +829,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
   } else if (pNewConsumer->updateType == CONSUMER_REMOVE_REB) {
     char *topic = taosArrayGetP(pNewConsumer->rebRemovedTopics, 0);
     if (topic == NULL){
-      return TSDB_CODE_TMQ_INVALID_MSG;
+      return terrno;
     }
     removeFromTopicList(pOldConsumer->rebRemovedTopics, topic, pOldConsumer->consumerId, "remove");
     removeFromTopicList(pOldConsumer->currentTopics, topic, pOldConsumer->consumerId, "current");

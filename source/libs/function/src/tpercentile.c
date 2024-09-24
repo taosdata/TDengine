@@ -52,7 +52,7 @@ static int32_t loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx, SFi
     int32_t *pageId = taosArrayGet(pIdList, i);
     if (pageId == NULL) {
       taosMemoryFree(*buffer);
-      return TSDB_CODE_OUT_OF_RANGE;
+      return terrno;
     }
 
     SFilePage *pg = getBufPage(pMemBucket->pBuffer, *pageId);
@@ -131,7 +131,7 @@ int32_t findOnlyResult(tMemBucket *pMemBucket, double *result) {
 
       int32_t   *pageId = taosArrayGet(list, 0);
       if (NULL == pageId) {
-        return TSDB_CODE_OUT_OF_RANGE;
+        return terrno;
       }
       SFilePage *pPage = getBufPage(pMemBucket->pBuffer, *pageId);
       if (pPage == NULL) {
@@ -609,7 +609,7 @@ int32_t getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction
         for (int32_t f = 0; f < list->size; ++f) {
           int32_t *pageId = taosArrayGet(list, f);
           if (NULL == pageId) {
-            return TSDB_CODE_OUT_OF_RANGE;
+            return terrno;
           }
           SFilePage *pg = getBufPage(pMemBucket->pBuffer, *pageId);
           if (pg == NULL) {

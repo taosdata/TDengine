@@ -15,7 +15,7 @@ static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void**
   } else if (pTblBuf->buffIdx < taosArrayGetSize(pTblBuf->pBufList)) {
     pTblBuf->pCurBuff = taosArrayGetP(pTblBuf->pBufList, pTblBuf->buffIdx++);
     if (NULL == pTblBuf->pCurBuff) {
-      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+      return TAOS_GET_TERRNO(terrno);
     }
     *pBuf = pTblBuf->pCurBuff;
     pTblBuf->buffOffset = pTblBuf->buffUnit;

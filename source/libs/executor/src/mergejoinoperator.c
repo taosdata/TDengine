@@ -1492,7 +1492,7 @@ static int32_t mJoinGetAvailableGrpArray(SMJoinTableCtx* pTable, SArray** ppRes)
     if (pTable->grpArrayIdx < taosArrayGetSize(pTable->pGrpArrays)) {
       *ppRes = taosArrayGetP(pTable->pGrpArrays, pTable->grpArrayIdx++);
       if (NULL == *ppRes) {
-        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        return terrno;
       }
       taosArrayClear(*ppRes);
       return TSDB_CODE_SUCCESS;

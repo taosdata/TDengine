@@ -52,7 +52,7 @@ int32_t schChkJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel) {
     SSchTask *pTask = *(SSchTask **)taosArrayGet(pJob->dataSrcTasks, i);
     if (NULL == pTask) {
       SCH_JOB_DLOG("fail to get the %dth task", i);
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      SCH_ERR_RET(terrno);
     }
 
     sum += pTask->plan->execNodeStat.tableNum;
@@ -220,7 +220,7 @@ int32_t schLaunchTasksInFlowCtrlListImpl(SSchJob *pJob, SSchFlowControl *ctrl) {
     pTask = *(SSchTask **)taosArrayGet(ctrl->taskList, i);
     if (NULL == pTask) {
       SCH_JOB_ELOG("fail to get the %dth task", i);
-      SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      SCH_ERR_JRET(terrno);
     }
     SEp *ep = SCH_GET_CUR_EP(&pTask->plan->execNode);
 
@@ -253,7 +253,7 @@ int32_t schLaunchTasksInFlowCtrlListImpl(SSchJob *pJob, SSchFlowControl *ctrl) {
       SSchTask *pLastTask = *(SSchTask **)taosArrayGetLast(ctrl->taskList);
       if (NULL == pLastTask) {
         SCH_JOB_ELOG("fail to get the last task, num:%d", (int32_t)taosArrayGetSize(ctrl->taskList));
-        SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
+        SCH_ERR_JRET(terrno);
       }
       
       if (remainNum < pLastTask->plan->execNodeStat.tableNum) {

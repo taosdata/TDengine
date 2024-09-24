@@ -855,7 +855,7 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
       STableBlockScanInfo** p = taosArrayGetLast(pTableScanInfoList);
       if (p == NULL) {
         clearBrinBlockIter(&iter);
-        return TSDB_CODE_INVALID_PARA;
+        return terrno;
       }
 
       if ((*p)->uid != uid) {

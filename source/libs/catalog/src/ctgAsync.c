@@ -623,7 +623,7 @@ int32_t ctgHandleForceUpdateView(SCatalog* pCtg, const SCatalogReq* pReq) {
     STablesReq* p = taosArrayGet(pReq->pView, i);
     if (NULL == p) {
       qError("taosArrayGet the %dth view in req failed", i);
-      CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_RET(terrno);
     }
 
     int32_t viewNum = taosArrayGetSize(p->pTables);
@@ -650,7 +650,7 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
     char* dbFName = taosArrayGet(pReq->pDbVgroup, i);
     if (NULL == dbFName) {
       qError("taosArrayGet the %dth db in req failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     CTG_ERR_JRET(taosHashPut(pDb, dbFName, strlen(dbFName), dbFName, TSDB_DB_FNAME_LEN));
   }
@@ -659,7 +659,7 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
     char* dbFName = taosArrayGet(pReq->pDbCfg, i);
     if (NULL == dbFName) {
       qError("taosArrayGet the %dth db in req failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     CTG_ERR_JRET(taosHashPut(pDb, dbFName, strlen(dbFName), dbFName, TSDB_DB_FNAME_LEN));
   }
@@ -668,7 +668,7 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
     char* dbFName = taosArrayGet(pReq->pDbInfo, i);
     if (NULL == dbFName) {
       qError("taosArrayGet the %dth db in req failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     CTG_ERR_JRET(taosHashPut(pDb, dbFName, strlen(dbFName), dbFName, TSDB_DB_FNAME_LEN));
   }
@@ -678,7 +678,7 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
     STablesReq* p = taosArrayGet(pReq->pTableMeta, i);
     if (NULL == p) {
       qError("taosArrayGet the %dth tb in req failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     CTG_ERR_JRET(taosHashPut(pDb, p->dbFName, strlen(p->dbFName), p->dbFName, TSDB_DB_FNAME_LEN));
 
@@ -687,7 +687,7 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
       SName* name = taosArrayGet(p->pTables, m);
       if (NULL == name) {
         qError("taosArrayGet the %dth tb in req failed", m);
-        CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+        CTG_ERR_JRET(terrno);
       }
       CTG_ERR_JRET(taosHashPut(pTb, name, sizeof(SName), name, sizeof(SName)));
     }
@@ -698,7 +698,7 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
     STablesReq* p = taosArrayGet(pReq->pTableHash, i);
     if (NULL == p) {
       qError("taosArrayGet the %dth tb in req failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
 
     CTG_ERR_JRET(taosHashPut(pDb, p->dbFName, strlen(p->dbFName), p->dbFName, TSDB_DB_FNAME_LEN));
@@ -708,7 +708,7 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
       SName* name = taosArrayGet(p->pTables, m);
       if (NULL == name) {
         qError("taosArrayGet the %dth tb in req failed", m);
-        CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+        CTG_ERR_JRET(terrno);
       }
       CTG_ERR_JRET(taosHashPut(pTb, name, sizeof(SName), name, sizeof(SName)));
     }
@@ -719,7 +719,7 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
     STablesReq* p = taosArrayGet(pReq->pView, i);
     if (NULL == p) {
       qError("taosArrayGet the %dth db in req failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     CTG_ERR_JRET(taosHashPut(pDb, p->dbFName, strlen(p->dbFName), p->dbFName, TSDB_DB_FNAME_LEN));
   }
@@ -728,7 +728,7 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
     SName* name = taosArrayGet(pReq->pTableCfg, i);
     if (NULL == name) {
       qError("taosArrayGet the %dth tb in req failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
 
     char dbFName[TSDB_DB_FNAME_LEN];
@@ -741,7 +741,7 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
     SName* name = taosArrayGet(pReq->pTableTag, i);
     if (NULL == name) {
       qError("taosArrayGet the %dth tb in req failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
 
     char dbFName[TSDB_DB_FNAME_LEN];
@@ -765,7 +765,7 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
     SName* name = taosArrayGet(pReq->pTableCfg, i);
     if (NULL == name) {
       qError("taosArrayGet the %dth tb in req failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     CTG_ERR_JRET(taosHashPut(pTb, name, sizeof(SName), name, sizeof(SName)));
   }
@@ -783,7 +783,7 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
     SName* name = taosArrayGet(pReq->pTableIndex, i);
     if (NULL == name) {
       qError("taosArrayGet the %dth tb in req failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     CTG_ERR_JRET(ctgDropTbIndexEnqueue(pCtg, name, true));
   }
@@ -792,7 +792,7 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
     STablesReq* pTbReq = taosArrayGet(pReq->pTableTSMAs, i);
     if (NULL == pTbReq) {
       qError("taosArrayGet the %dth tb in req failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     for (int32_t j = 0; j < pTbReq->pTables->size; ++j) {
       SName* name = taosArrayGet(pTbReq->pTables, j);
@@ -914,7 +914,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
     char* dbFName = taosArrayGet(pReq->pDbVgroup, i);
     if (NULL == dbFName) {
       qError("taosArrayGet the %dth db in pDbVgroup failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_DB_VGROUP, dbFName, NULL));
   }
@@ -923,7 +923,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
     char* dbFName = taosArrayGet(pReq->pDbCfg, i);
     if (NULL == dbFName) {
       qError("taosArrayGet the %dth db in pDbCfg failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_DB_CFG, dbFName, NULL));
   }
@@ -932,7 +932,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
     char* dbFName = taosArrayGet(pReq->pDbInfo, i);
     if (NULL == dbFName) {
       qError("taosArrayGet the %dth db in pDbInfo failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_DB_INFO, dbFName, NULL));
   }
@@ -963,7 +963,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
     SName* name = taosArrayGet(pReq->pTableIndex, i);
     if (NULL == name) {
       qError("taosArrayGet the %dth tb in pTableIndex failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_TB_SMA_INDEX, name, NULL));
   }
@@ -972,7 +972,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
     SName* name = taosArrayGet(pReq->pTableCfg, i);
     if (NULL == name) {
       qError("taosArrayGet the %dth tb in pTableCfg failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_TB_CFG, name, NULL));
   }
@@ -981,7 +981,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
     SName* name = taosArrayGet(pReq->pTableTag, i);
     if (NULL == name) {
       qError("taosArrayGet the %dth tb in pTableTag failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_TB_TAG, name, NULL));
   }
@@ -990,7 +990,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
     char* indexName = taosArrayGet(pReq->pIndex, i);
     if (NULL == indexName) {
       qError("taosArrayGet the %dth index in pIndex failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_INDEX_INFO, indexName, NULL));
   }
@@ -999,7 +999,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
     char* udfName = taosArrayGet(pReq->pUdf, i);
     if (NULL == udfName) {
       qError("taosArrayGet the %dth udf in pUdf failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_UDF, udfName, NULL));
   }
@@ -1008,7 +1008,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
     SUserAuthInfo* user = taosArrayGet(pReq->pUser, i);
     if (NULL == user) {
       qError("taosArrayGet the %dth user in pUser failed", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_JRET(terrno);
     }
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_USER, user, NULL));
   }
@@ -3072,7 +3072,7 @@ int32_t ctgLaunchGetTbMetasTask(SCtgTask* pTask) {
     STablesReq* pReq = taosArrayGet(pCtx->pNames, i);
     if (NULL == pReq) {
       ctgError("fail to get the %dth STablesReq, num:%d", i, dbNum);
-      CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+      CTG_ERR_RET(terrno);
     }
 
     ctgDebug("start to check tb metas in db %s, tbNum %ld", pReq->dbFName, taosArrayGetSize(pReq->pTables));

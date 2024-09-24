@@ -589,7 +589,7 @@ int32_t buildVnodePolicyNodeList(SRequestObj* pRequest, SArray** pNodeList, SArr
       SVgroupInfo* pInfo = taosArrayGet(pVg, j);
       if (NULL == pInfo) {
         taosArrayDestroy(nodeList);
-        return TSDB_CODE_OUT_OF_RANGE;
+        return terrno;
       }
       SQueryNodeLoad load = {0};
       load.addr.nodeId = pInfo->vgId;
@@ -617,7 +617,7 @@ int32_t buildVnodePolicyNodeList(SRequestObj* pRequest, SArray** pNodeList, SArr
   void* pData = taosArrayGet(pMnodeList, 0);
   if (NULL == pData) {
     taosArrayDestroy(nodeList);
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
   if (NULL == taosArrayAddBatch(nodeList, pData, mnodeNum)) {
     taosArrayDestroy(nodeList);
@@ -644,7 +644,7 @@ int32_t buildQnodePolicyNodeList(SRequestObj* pRequest, SArray** pNodeList, SArr
     void* pData = taosArrayGet(pQnodeList, 0);
     if (NULL == pData) {
       taosArrayDestroy(nodeList);
-      return TSDB_CODE_OUT_OF_RANGE;
+      return terrno;
     }
     if (NULL == taosArrayAddBatch(nodeList, pData, qNodeNum)) {
       taosArrayDestroy(nodeList);
@@ -663,7 +663,7 @@ int32_t buildQnodePolicyNodeList(SRequestObj* pRequest, SArray** pNodeList, SArr
   void* pData = taosArrayGet(pMnodeList, 0);
   if (NULL == pData) {
     taosArrayDestroy(nodeList);
-    return TSDB_CODE_OUT_OF_RANGE;
+    return terrno;
   }
   if (NULL == taosArrayAddBatch(nodeList, pData, mnodeNum)) {
     taosArrayDestroy(nodeList);
@@ -911,7 +911,7 @@ int32_t handleQueryExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog,
   for (int32_t i = 0; i < tbNum; ++i) {
     STbVerInfo* tbInfo = taosArrayGet(pTbArray, i);
     if (NULL == tbInfo) {
-      code = TSDB_CODE_OUT_OF_RANGE;
+      code = terrno;
       goto _return;
     }
     STbSVersion tbSver = {.tbFName = tbInfo->tbFName, .sver = tbInfo->sversion, .tver = tbInfo->tversion};

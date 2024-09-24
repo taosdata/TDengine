@@ -1426,7 +1426,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   for (int32_t i = 0; i < sz; i++) {
     char* topic = taosArrayGetP(container, i);
     if (topic == NULL) {
-      code = TSDB_CODE_INVALID_PARA;
+      code = terrno;
       goto FAIL;
     }
     SName name = {0};

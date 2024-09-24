@@ -612,7 +612,7 @@ int32_t schMakeCallbackParam(SSchJob *pJob, SSchTask *pTask, int32_t msgType, bo
     if (NULL == addr) {
       taosMemoryFree(param);
       SCH_TASK_ELOG("fail to get the %dth condidateAddr, totalNum: %d", pTask->candidateIdx, (int32_t)taosArrayGetSize(pTask->candidateAddrs));
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      SCH_ERR_RET(terrno);
     }
     param->nodeEpId.nodeId = addr->nodeId;
     SEp *pEp = SCH_GET_CUR_EP(addr);

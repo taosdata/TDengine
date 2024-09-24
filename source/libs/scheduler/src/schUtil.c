@@ -241,7 +241,7 @@ int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
   SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
   if (NULL == addr) {
     SCH_TASK_ELOG("fail to get the %dth condidateAddr in task, totalNum:%d", pTask->candidateIdx, (int32_t)taosArrayGetSize(pTask->candidateAddrs));
-    return TSDB_CODE_SCH_INTERNAL_ERROR;
+    return terrno;
   }
 
   SQueryNodeEpId  epId = {0};

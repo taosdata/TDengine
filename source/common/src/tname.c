@@ -312,7 +312,7 @@ int32_t buildChildTableName(RandTableName* rName) {
     taosStringBuilderAppendChar(&sb, ',');
     SSmlKv* tagKv = taosArrayGet(rName->tags, j);
     if (tagKv == NULL) {
-      return TSDB_CODE_SML_INVALID_DATA;
+      return terrno;
     }
 
     taosStringBuilderAppendStringLen(&sb, tagKv->key, tagKv->keyLen);

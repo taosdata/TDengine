@@ -85,7 +85,7 @@ int32_t iUnion(SArray *in, SArray *out) {
   }
   if (sz == 1) {
     if (taosArrayAddAll(out, taosArrayGetP(in, 0)) == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
