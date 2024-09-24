@@ -34,7 +34,7 @@ typedef struct STxn TXN;
 // TDB
 int32_t tdbOpen(const char *dbname, int szPage, int pages, TDB **ppDb, int8_t rollback, int32_t encryptAlgorithm,
                 char *encryptKey);
-int32_t tdbClose(TDB *pDb);
+void    tdbClose(TDB *pDb);
 int32_t tdbBegin(TDB *pDb, TXN **pTxn, void *(*xMalloc)(void *, size_t), void (*xFree)(void *, void *), void *xArg,
                  int flags);
 int32_t tdbCommit(TDB *pDb, TXN *pTxn);
@@ -46,7 +46,7 @@ int32_t tdbAlter(TDB *pDb, int pages);
 // TTB
 int32_t tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TDB *pEnv, TTB **ppTb,
                   int8_t rollback);
-int32_t tdbTbClose(TTB *pTb);
+void    tdbTbClose(TTB *pTb);
 bool    tdbTbExist(const char *tbname, TDB *pEnv);
 int     tdbTbDropByName(const char *tbname, TDB *pEnv, TXN *pTxn);
 int32_t tdbTbDrop(TTB *pTb);
