@@ -130,12 +130,12 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
   return 0;
 }
 
-int tdbTbClose(TTB *pTb) {
+void tdbTbClose(TTB *pTb) {
   if (pTb) {
     tdbBtreeClose(pTb->pBt);
     tdbOsFree(pTb);
   }
-  return 0;
+  return;
 }
 
 bool tdbTbExist(const char *tbname, TDB *pEnv) {

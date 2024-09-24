@@ -1124,7 +1124,7 @@ int32_t getDbVgInfoFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, 
   if (TSDB_CODE_SUCCESS == code && NULL != pVgList) {
     *pVgInfo = taosArrayDup(pVgList, NULL);
     if (NULL == *pVgInfo) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     }
   }
   return code;
@@ -1439,7 +1439,7 @@ int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes) {
 
   *pDnodes = taosArrayDup((SArray*)pRes->pRes, NULL);
   if (NULL == *pDnodes) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   return TSDB_CODE_SUCCESS;
 }

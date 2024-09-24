@@ -90,7 +90,7 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
   return 0;
 }
 
-int tdbClose(TDB *pDb) {
+void tdbClose(TDB *pDb) {
   SPager *pPager;
 
   if (pDb) {
@@ -109,7 +109,7 @@ int tdbClose(TDB *pDb) {
     tdbOsFree(pDb);
   }
 
-  return 0;
+  return;
 }
 
 int32_t tdbAlter(TDB *pDb, int pages) { return tdbPCacheAlter(pDb->pCache, pages); }

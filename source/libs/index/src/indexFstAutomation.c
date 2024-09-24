@@ -28,6 +28,11 @@ StartWithStateValue* startWithStateValueCreate(StartWithStateKind kind, ValueTyp
   } else if (ty == FST_CHAR) {
     size_t len = strlen((char*)val);
     sv->ptr = (char*)taosMemoryCalloc(1, len + 1);
+    if (sv->ptr == NULL) {
+      taosMemoryFree(sv);
+      return NULL;
+    }
+
     memcpy(sv->ptr, val, len);
   } else if (ty == FST_ARRAY) {
     // TODO,
@@ -63,6 +68,11 @@ StartWithStateValue* startWithStateValueDump(StartWithStateValue* sv) {
   } else if (nsv->type == FST_CHAR) {
     size_t len = strlen(sv->ptr);
     nsv->ptr = (char*)taosMemoryCalloc(1, len + 1);
+    if (nsv->ptr == NULL) {
+      taosMemoryFree(nsv);
+      return NULL;
+    }
+
     memcpy(nsv->ptr, sv->ptr, len);
   } else if (nsv->type == FST_ARRAY) {
     //

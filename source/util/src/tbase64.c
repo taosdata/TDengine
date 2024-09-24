@@ -22,7 +22,7 @@ int32_t base64_encode(const uint8_t *value, int32_t vlen, char **result) {
   uint8_t oval = 0;
   *result = (char *)taosMemoryMalloc((size_t)(vlen * 4) / 3 + 10);
   if (*result == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   char *out = *result;
   while (vlen >= 3) {
@@ -58,7 +58,7 @@ int32_t base64_decode(const char *value, int32_t inlen, int32_t *outlen, uint8_t
   int32_t c1, c2, c3, c4;
   *result = (uint8_t *)taosMemoryMalloc((size_t)(inlen * 3) / 4 + 1);
   if (*result == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   uint8_t *out = *result;
 
