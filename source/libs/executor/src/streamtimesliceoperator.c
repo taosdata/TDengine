@@ -942,14 +942,6 @@ static void copyCalcRowDeltaData(SResultRowData* pEndRow, SArray* pEndPoins, SFi
 }
 
 static void setForceWindowCloseFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, TSKEY ts) {
-  TSKEY prevWKey = INT64_MIN;
-  TSKEY nextWKey = INT64_MIN;
-  if (hasPrevWindow(pFillSup)) {
-    prevWKey = pFillSup->prev.key;
-  }
-  if (hasNextWindow(pFillSup)) {
-    nextWKey = pFillSup->next.key;
-  }
   TSKEY endTs = adustEndTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
   TSKEY startTs = adustPrevTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
 
@@ -960,38 +952,31 @@ static void setForceWindowCloseFillRule(SStreamFillSupporter* pFillSup, SStreamF
     case TSDB_FILL_NULL_F:
     case TSDB_FILL_SET_VALUE:
     case TSDB_FILL_SET_VALUE_F: {
-      if (ts != pFillSup->cur.key) {
+      if (ts == pFillSup->cur.key) {
+        pFillInfo->pos = FILL_POS_START;
+        pFillInfo->needFill = false;
+      } else {
         pFillInfo->pos = FILL_POS_INVALID;
         setFillKeyInfo(ts, ts + 1, &pFillSup->interval, pFillInfo);
-      } else {
-        pFillInfo->needFill = false;
-        pFillInfo->pos = FILL_POS_START;
-        goto _end;
+        copyNonFillValueInfo(pFillSup, pFillInfo);
       }
-      copyNonFillValueInfo(pFillSup, pFillInfo);
     } break;
     case TSDB_FILL_PREV: {
-      if (ts != pFillSup->cur.key) {
-        pFillInfo->pos = FILL_POS_INVALID;
-        setFillKeyInfo(ts, ts + 1, &pFillSup->interval, pFillInfo);
+      if (ts == pFillSup->cur.key) {
+        pFillInfo->pos = FILL_POS_START;
+        pFillInfo->needFill = false;
       } else if (hasPrevWindow(pFillSup)) {
         pFillInfo->pos = FILL_POS_INVALID;
         setFillKeyInfo(ts, ts + 1, &pFillSup->interval, pFillInfo);
+        pFillInfo->pResRow = &pFillSup->prev;
       } else {
         pFillInfo->needFill = false;
-        pFillInfo->pos = FILL_POS_START;
-        goto _end;
+        pFillInfo->pos = FILL_POS_INVALID;
       }
-      pFillInfo->pResRow = &pFillSup->prev;
     } break;
     default:
       qError("%s failed at line %d since invalid fill type", __func__, __LINE__);
       break;
-  }
-
-_end:
-  if (ts != pFillSup->cur.key) {
-    pFillInfo->pos = FILL_POS_INVALID;
   }
 }
 

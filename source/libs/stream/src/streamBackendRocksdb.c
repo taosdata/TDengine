@@ -4306,7 +4306,6 @@ void streamStateParTagSeekKeyNext_rocksdb(SStreamState* pState, const int64_t gr
   char    buf[128] = {0};
   int32_t klen = ginitDict[i].enFunc((void*)&groupId, buf);
   if (!streamStateIterSeekAndValid(pCur->iter, buf, klen)) {
-    streamStateFreeCur(pCur);
     return ;
   }
   // skip ttl expired data

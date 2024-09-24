@@ -145,6 +145,7 @@ void    deleteHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey)
 int32_t streamFileStateGroupPut(SStreamFileState* pFileState, int64_t groupId, void* value, int32_t vLen);
 void streamFileStateGroupCurNext(SStreamStateCur* pCur);
 int32_t streamFileStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** pVal, int32_t* pVLen);
+SSHashObj* getGroupIdCache(SStreamFileState* pFileState);
 
 #ifdef __cplusplus
 }

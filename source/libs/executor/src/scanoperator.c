@@ -3632,7 +3632,7 @@ FETCH_NEXT_BLOCK:
         pInfo->updateResIndex = 0;
         code = copyGetResultBlock(pInfo->pUpdateRes, pBlock);
         QUERY_CHECK_CODE(code, lino, _end);
-        pInfo->pUpdateInfo->maxDataVersion = pBlock->info.version;
+        pInfo->pUpdateInfo->maxDataVersion = -1;
         prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex, NULL);
         pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
       } break;

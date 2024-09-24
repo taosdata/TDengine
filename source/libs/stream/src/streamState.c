@@ -561,6 +561,12 @@ SStreamStateCur* streamStateGroupGetCur(SStreamState* pState) {
   SStreamStateCur* pCur = createStateCursor(pState->pFileState);
   pCur->hashIter = 0;
   pCur->pHashData = NULL;
+  SSHashObj* pMap = getGroupIdCache(pState->pFileState);
+  pCur->pHashData = tSimpleHashIterate(pMap, pCur->pHashData, &pCur->hashIter);
+  if (pCur->pHashData == NULL) {
+    pCur->hashIter = -1;
+    streamStateParTagSeekKeyNext_rocksdb(pState, INT64_MIN, pCur);
+  }
   return pCur;
 }
 
@@ -569,7 +575,7 @@ void streamStateGroupCurNext(SStreamStateCur* pCur) {
 }
 
 int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** pVal, int32_t* pVLen) {
-  if (pVal == NULL) {
+  if (pVal != NULL) {
     return -1;
   }
   return streamFileStateGroupGetKVByCur(pCur, pKey, pVal, pVLen);
