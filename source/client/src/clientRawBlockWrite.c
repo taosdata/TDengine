@@ -310,7 +310,7 @@ static cJSON* processAlterStb(SMqMetaRsp* metaRsp) {
   }
   pJson = buildAlterSTableJson(req.alterOriData, req.alterOriDataLen);
 _err:
-  uDebug("alter stable return", );
+  uDebug("alter stable return");
   tDecoderClear(&coder);
   return pJson;
 }
