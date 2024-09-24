@@ -16,7 +16,7 @@ pub(crate) const DEFAULT_INSTANCE_ID: u8 = 1;
 static SESSION_ID: OnceLock<AtomicU64> = OnceLock::new();
 
 bitfield! {
-    pub struct Qid(u64);
+    struct QidInner(u64);
 
     u8, extension_id, set_extension_id: 7,0;
     u8, sequence_id, set_sequence_id: 15,8;
@@ -24,23 +24,38 @@ bitfield! {
     u8, instance_id, set_instance_id: 63, 56;
 }
 
+pub struct Qid {
+    inner: QidInner,
+    first: bool,
+}
+
 impl Qid {
     pub(crate) fn add_sequence_id(&mut self) {
-        self.set_sequence_id(self.sequence_id() + 1);
+        if self.first {
+            self.first = false;
+            return;
+        }
+        self.inner.set_sequence_id(self.inner.sequence_id() + 1);
         Span.set_qid(self);
     }
 }
 
 impl Clone for Qid {
     fn clone(&self) -> Self {
-        Self(self.0)
+        Self {
+            inner: QidInner(self.inner.0),
+            first: self.first,
+        }
     }
 }
 
 impl QidManager for Qid {
     fn init() -> Self {
-        let mut this = Self(0);
-        this.set_instance_id(*INSTANCE_ID.get().unwrap());
+        let mut this = Self {
+            inner: QidInner(0),
+            first: true,
+        };
+        this.inner.set_instance_id(*INSTANCE_ID.get().unwrap());
         this
     }
 
@@ -50,19 +65,22 @@ impl QidManager for Qid {
         let session_id = SESSION_ID
             .get_or_init(AtomicU64::default)
             .fetch_add(1, atomic::Ordering::Relaxed);
-        qid.set_session_id(session_id);
+        qid.inner.set_session_id(session_id);
 
         qid
     }
 
     fn get(&self) -> u64 {
-        self.0
+        self.inner.0
     }
 }
 
 impl From<u64> for Qid {
     fn from(value: u64) -> Self {
-        Self(value)
+        Self {
+            inner: QidInner(value),
+            first: true,
+        }
     }
 }
 
@@ -78,18 +96,26 @@ mod tests {
 
     #[test]
     fn qid_test() {
+        use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+        let _guard = tracing_subscriber::registry()
+            .with(tracing_subscriber::fmt::layer())
+            .set_default();
+
         INSTANCE_ID.get_or_init(|| 1);
 
         let mut qid = Qid::init();
         assert_eq!(qid.get(), 0x0100000000000000);
 
-        qid.set_session_id(1);
-        assert_eq!(qid.get(), 0x0100000000010000);
+        qid.add_sequence_id();
+        assert_eq!(qid.get(), 0x0100000000000000);
 
-        qid.set_sequence_id(1);
-        assert_eq!(qid.get(), 0x0100000000010100);
+        qid.add_sequence_id();
+        assert_eq!(qid.get(), 0x0100000000000100);
 
-        qid.set_extension_id(1);
-        assert_eq!(qid.get(), 0x0100000000010101);
+        qid.inner.set_extension_id(1);
+        assert_eq!(qid.get(), 0x0100000000000101);
+
+        qid.inner.set_session_id(1);
+        assert_eq!(qid.get(), 0x0100000000010101)
     }
 }
