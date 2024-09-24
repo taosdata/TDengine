@@ -1069,11 +1069,11 @@ int32_t      tsdbSnapPrepDescription(SVnode *pVnode, SSnapshot *pSnap);
 
 void tsdbRemoveFile(const char *path);
 
-#define taosCloseFileWithLog(fd)                                           \
-  do {                                                                     \
-    if (taosCloseFile(fd) < 0) {                                           \
-      tsdbError("failed to close file, fd:%d, %s", fd, tstrerror(terrno)); \
-    }                                                                      \
+#define taosCloseFileWithLog(fd)         \
+  do {                                   \
+    if (taosCloseFile(fd) < 0) {         \
+      tsdbTrace("failed to close file"); \
+    }                                    \
   } while (0)
 
 #ifdef __cplusplus
