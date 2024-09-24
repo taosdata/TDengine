@@ -68,7 +68,7 @@ impl Drop for Port {
         let index = port - 6051;
 
         // TD-32208: use sync lock to avoid use tokio::spawn, which may run with no tokio runtime and cause panic.
-        let mut bitmap = bitmap.blocking_lock();
+        let mut bitmap = futures::executor::block_on(bitmap.lock());
         bitmap.set(index as _, false);
     }
 }
