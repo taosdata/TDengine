@@ -493,6 +493,10 @@ void cliHandleResp(SCliConn* conn) {
   }
 
   if (CONN_NO_PERSIST_BY_APP(conn)) {
+    if (refId != 0) {
+      (void)transReleaseExHandle(transGetRefMgt(), refId);
+      (void)transRemoveExHandle(transGetRefMgt(), refId);
+    }
     return addConnToPool(pThrd->pool, conn);
   }
 
@@ -1402,8 +1406,7 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
     tTrace("%s conn %p try to connect to %s", pTransInst->label, conn, pList->dst);
     int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 10);
     if (fd == -1) {
-      tError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn,
-             tstrerror(terrno));
+      tError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn, tstrerror(terrno));
       cliHandleFastFail(conn, -1);
       return;
     }
@@ -1636,7 +1639,7 @@ static void cliHandleFreeById(SCliMsg* pMsg, SCliThrd* pThrd) {
   int64_t    refId = (int64_t)(pMsg->msg.info.handle);
   SExHandle* exh = transAcquireExHandle(transGetRefMgt(), refId);
   if (exh == NULL) {
-    tDebug("id %" PRId64 " already released", refId);
+    tDebug("refId %" PRId64 " already released", refId);
     destroyCmsg(pMsg);
     return;
   }
@@ -1648,7 +1651,7 @@ static void cliHandleFreeById(SCliMsg* pMsg, SCliThrd* pThrd) {
   if (conn == NULL || conn->refId != refId) {
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _exception);
   }
-  tDebug("do free conn %p by id %" PRId64 "", conn, refId);
+  tDebug("do free conn %p by refId %" PRId64 "", conn, refId);
 
   int32_t size = transQueueSize(&conn->cliMsgs);
   if (size == 0) {
@@ -1882,8 +1885,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     tGTrace("%s conn %p try to connect to %s", pTransInst->label, conn, conn->dstAddr);
     int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 10);
     if (fd == -1) {
-      tGError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn,
-              tstrerror(terrno));
+      tGError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn, tstrerror(terrno));
       cliHandleExcept(conn, -1);
       terrno = 0;
       return;
@@ -3319,13 +3321,14 @@ int32_t transAllocHandle(int64_t* refId) {
 
   QUEUE_INIT(&exh->q);
   taosInitRWLatch(&exh->latch);
-  tDebug("pre alloc refId %" PRId64 "", exh->refId);
+  tDebug("pre alloc refId %" PRId64 ", alloc exhandle %p", exh->refId, exh);
   *refId = exh->refId;
   return 0;
 }
 int32_t transFreeConnById(void* shandle, int64_t transpointId) {
-  int32_t code = 0;
-  STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
+  int32_t  code = 0;
+  SCliMsg* pCli = NULL;
+  STrans*  pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
   if (pTransInst == NULL) {
     return TSDB_CODE_RPC_MODULE_QUIT;
   }
@@ -3339,7 +3342,7 @@ int32_t transFreeConnById(void* shandle, int64_t transpointId) {
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _exception);
   }
 
-  SCliMsg* pCli = taosMemoryCalloc(1, sizeof(SCliMsg));
+  pCli = taosMemoryCalloc(1, sizeof(SCliMsg));
   if (pCli == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
@@ -3352,11 +3355,13 @@ int32_t transFreeConnById(void* shandle, int64_t transpointId) {
 
   code = transAsyncSend(pThrd->asyncPool, &pCli->q);
   if (code != 0) {
-    taosMemoryFree(pCli);
+    taosMemoryFreeClear(pCli);
     TAOS_CHECK_GOTO(code, NULL, _exception);
   }
 
 _exception:
   transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
+  taosMemoryFree(pCli);
+
   return code;
 }
