@@ -2190,7 +2190,7 @@ int32_t valueDecode(void* value, int32_t vlen, int64_t* ttl, char** dest) {
     // compatiable with previous data
     p = taosDecodeBinary(p, (void**)&pOutput, key.len);
     if (p == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _EXCEPT;
     }
 
@@ -2205,7 +2205,7 @@ int32_t valueDecode(void* value, int32_t vlen, int64_t* ttl, char** dest) {
     if (key.compress == 1) {
       p = taosDecodeBinary(p, (void**)&pCompressData, key.len);
       if (p == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _EXCEPT;
       }
       pOutput = taosMemoryCalloc(1, key.rawLen);
@@ -2224,7 +2224,7 @@ int32_t valueDecode(void* value, int32_t vlen, int64_t* ttl, char** dest) {
     } else {
       p = taosDecodeBinary(p, (void**)&pOutput, key.len);
       if (p == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _EXCEPT;
       }
     }
@@ -3464,7 +3464,7 @@ int32_t streamStateAddIfNotExist_rocksdb(SStreamState* pState, const SWinKey* ke
   }
   *pVal = taosMemoryMalloc(size);
   if (*pVal == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   memset(*pVal, 0, size);
   return 0;
@@ -4154,7 +4154,7 @@ int32_t streamStateSessionAddIfNotExist_rocksdb(SStreamState* pState, SSessionKe
 
   void* tmp = taosMemoryMalloc(valSize);
   if (tmp == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SStreamStateCur* pCur = streamStateSessionSeekKeyCurrentPrev_rocksdb(pState, key);

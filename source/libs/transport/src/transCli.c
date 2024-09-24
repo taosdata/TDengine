@@ -2324,8 +2324,8 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
 
   pThrd->pool = createConnPool(4);
   if (pThrd->pool == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    code = terrno;
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
   if ((code = transDQCreate(pThrd->loop, &pThrd->delayQueue)) != 0) {
     TAOS_CHECK_GOTO(code, NULL, _end);
@@ -2368,7 +2368,7 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
     }
     (void)uv_timer_init(pThrd->loop, timer);
     if (taosArrayPush(pThrd->timerList, &timer) == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+      TAOS_CHECK_GOTO(terrno, NULL, _end);
     }
   }
   pThrd->nextTimeout = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
