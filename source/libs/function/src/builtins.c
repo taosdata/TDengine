@@ -2111,7 +2111,13 @@ static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateForecastConfidence(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+// use diff type to distinguish _low and _high
+static int32_t translateForecastConfidenceLow(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_FLOAT].bytes, .type = TSDB_DATA_TYPE_FLOAT};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateForecastConfidenceHigh(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   return TSDB_CODE_SUCCESS;
 }
@@ -3676,7 +3682,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "_flow",
     .type = FUNCTION_TYPE_FORECAST_LOW,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
-    .translateFunc = translateForecastConfidence,
+    .translateFunc = translateForecastConfidenceLow,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = NULL,
@@ -3686,7 +3692,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "_fhigh",
     .type = FUNCTION_TYPE_FORECAST_HIGH,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
-    .translateFunc = translateForecastConfidence,
+    .translateFunc = translateForecastConfidenceHigh,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = NULL,

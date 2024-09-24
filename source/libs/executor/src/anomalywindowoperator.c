@@ -365,43 +365,54 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   SAnalBuf                    analBuf = {.bufType = ANAL_BUF_TYPE_JSON};
   char                        dataBuf[64] = {0};
   int32_t                     code = 0;
-  int32_t                     numOfRows = 0;
 
-  snprintf(analBuf.fileName, sizeof(analBuf.fileName), "/tmp/td_g%" PRId64, pSupp->groupId);  // use rand?
-  code = tsosAnalBufOpen(&analBuf);
+  int64_t ts = 0;  // taosGetTimestampMs();
+  snprintf(analBuf.fileName, sizeof(analBuf.fileName), "/tmp/tdengine-anom-%" PRId64 "-%" PRId64, ts, pSupp->groupId);
+  code = tsosAnalBufOpen(&analBuf, 2);
   if (code != 0) goto _OVER;
 
   const char* prec = TSDB_TIME_PRECISION_MILLI_STR;
   if (pInfo->anomalyCol.precision == TSDB_TIME_PRECISION_MICRO) prec = TSDB_TIME_PRECISION_MICRO_STR;
   if (pInfo->anomalyCol.precision == TSDB_TIME_PRECISION_NANO) prec = TSDB_TIME_PRECISION_NANO_STR;
-  code = taosAnalBufWritePara(&analBuf, pInfo->algoName, pInfo->anomalyOpt, prec, TSDB_DATA_TYPE_TIMESTAMP,
-                              pInfo->anomalyCol.type);
+
+  code = taosAnalBufWriteAlgo(&analBuf, pInfo->algoName);
+  if (code != 0) goto _OVER;
+
+  code = taosAnalBufWriteOpt(&analBuf, pInfo->anomalyOpt);
+  if (code != 0) goto _OVER;
+
+  code = taosAnalBufWritePrec(&analBuf, prec);
+  if (code != 0) goto _OVER;
+
+  code = taosAnalBufWriteColMeta(&analBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, "ts");
+  if (code != 0) goto _OVER;
+
+  code = taosAnalBufWriteColMeta(&analBuf, 1, pInfo->anomalyCol.type, "val");
+  if (code != 0) goto _OVER;
+
+  code = taosAnalBufWriteDataBegin(&analBuf);
   if (code != 0) goto _OVER;
 
   int32_t numOfBlocks = (int32_t)taosArrayGetSize(pSupp->blocks);
 
   // timestamp
-  code = taosAnalBufNewCol(&analBuf);
+  code = taosAnalBufWriteColBegin(&analBuf, 0);
   if (code != 0) goto _OVER;
   for (int32_t i = 0; i < numOfBlocks; ++i) {
     SSDataBlock* pBlock = taosArrayGetP(pSupp->blocks, i);
     if (pBlock == NULL) break;
     SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
     if (pTsCol == NULL) break;
-
     for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-      (void)snprintf(dataBuf, sizeof(dataBuf), "%" PRId64, ((TSKEY*)pTsCol->pData)[j]);
-      bool isLast = ((i == numOfBlocks - 1) && (j == pBlock->info.rows - 1));
-      code = taosAnalBufWriteRow(&analBuf, dataBuf, isLast);
+      code = taosAnalBufWriteColData(&analBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, &((TSKEY*)pTsCol->pData)[j]);
       if (code != 0) goto _OVER;
-      numOfRows++;
     }
   }
-  code = taosAnalBufEndCol(&analBuf, false);
+  code = taosAnalBufWriteColEnd(&analBuf, 0);
   if (code != 0) goto _OVER;
 
   // data
-  code = taosAnalBufNewCol(&analBuf);
+  code = taosAnalBufWriteColBegin(&analBuf, 1);
   if (code != 0) goto _OVER;
   for (int32_t i = 0; i < numOfBlocks; ++i) {
     SSDataBlock* pBlock = taosArrayGetP(pSupp->blocks, i);
@@ -410,16 +421,18 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
     if (pValCol == NULL) break;
 
     for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-      anomalyPrintRow(pSupp, colDataGetData(pValCol, j), pValCol->info.type, dataBuf, sizeof(dataBuf));
-      bool isLast = ((i == numOfBlocks - 1) && (j == pBlock->info.rows - 1));
-      code = taosAnalBufWriteRow(&analBuf, dataBuf, isLast);
+      code = taosAnalBufWriteColData(&analBuf, 1, pValCol->info.type, colDataGetData(pValCol, j));
+      if (code != 0) goto _OVER;
       if (code != 0) goto _OVER;
     }
   }
-  code = taosAnalBufEndCol(&analBuf, true);
+  code = taosAnalBufWriteColEnd(&analBuf, 1);
   if (code != 0) goto _OVER;
 
-  code = taosAnalBufWriteRows(&analBuf, numOfRows);
+  code = taosAnalBufWriteDataEnd(&analBuf);
+  if (code != 0) goto _OVER;
+
+  code = taosAnalBufClose(&analBuf);
   if (code != 0) goto _OVER;
 
   pJson = taosAnalSendReqRetJson(pInfo->algoUrl, ANAL_HTTP_TYPE_POST, &analBuf);
@@ -432,7 +445,7 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   if (code != 0) goto _OVER;
 
 _OVER:
-  taosAnalBufClose(&analBuf);
+  taosAnalBufDestroy(&analBuf);
   if (pJson != NULL) tjsonDelete(pJson);
   return code;
 }

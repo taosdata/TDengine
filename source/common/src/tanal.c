@@ -20,7 +20,7 @@
 #include "ttypes.h"
 #include "tutil.h"
 
-#define ANAL_ALGO_SPLIT  ","
+#define ANAL_ALGO_SPLIT ","
 
 typedef struct {
   int64_t       ver;
@@ -365,6 +365,17 @@ static int32_t taosCurlTestStr(const char *url, SCurlResp *pRsp) {
       "    ]\n"
       "}";
 
+  const char *forecastStr =
+      "{\n"
+      "    \"rows\": 1,\n"
+      "    \"res\": [\n"
+      "        [1577808000000, 1],\n"
+      "        [1578153600000, 2],\n"
+      "        [1578240000000, 3]\n"
+      "        [1577808016000, 4]\n"
+      "    ]\n"
+      "}";
+
   if (strstr(url, "list") != NULL) {
     pRsp->dataLen = strlen(listStr);
     pRsp->data = taosMemoryCalloc(1, pRsp->dataLen + 1);
@@ -377,112 +388,17 @@ static int32_t taosCurlTestStr(const char *url, SCurlResp *pRsp) {
     pRsp->dataLen = strlen(anomalyWindowStr);
     pRsp->data = taosMemoryCalloc(1, pRsp->dataLen + 1);
     strcpy(pRsp->data, anomalyWindowStr);
+  } else if (strstr(url, "forecast") != NULL) {
+    pRsp->dataLen = strlen(forecastStr);
+    pRsp->data = taosMemoryCalloc(1, pRsp->dataLen + 1);
+    strcpy(pRsp->data, forecastStr);
   } else {
   }
 
   return 0;
 }
 
-static int32_t tsosAnalJsonBufOpen(SAnalBuf *pBuf) {
-  pBuf->filePtr = taosOpenFile(pBuf->fileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pBuf->filePtr == NULL) {
-    return terrno;
-  }
-  return 0;
-}
-
-static int32_t taosAnalJsonBufWritePara(SAnalBuf *pBuf, const char *algo, const char *opt, const char *prec,
-                                        int32_t col1, int32_t col2) {
-  const char *js =
-      "{\n"
-      "\"algo\": \"%s\",\n"
-      "\"opt\": \"%s\",\n"
-      "\"prec\": \"%s\",\n"
-      "\"schema\": [\n"
-      "  [\"ts\", \"%s\", %d],\n"
-      "  [\"val\", \"%s\", %d]\n"
-      "],\n"
-      "\"data\": [\n";
-  char    buf[512] = {0};
-  int32_t bufLen = snprintf(buf, sizeof(buf), js, algo, opt, prec, tDataTypes[col1].name, tDataTypes[col1].bytes,
-                            tDataTypes[col2].name, tDataTypes[col2].bytes);
-
-  if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
-    return terrno;
-  }
-  return 0;
-}
-
-int32_t taosAnalJsonBufNewCol(SAnalBuf *pBuf) {
-  if (taosWriteFile(pBuf->filePtr, "[", 1) != 1) {
-    return terrno;
-  }
-  return 0;
-}
-
-int32_t taosAnalJsonBufEndCol(SAnalBuf *pBuf, bool lastCol) {
-  if (lastCol) {
-    if (taosWriteFile(pBuf->filePtr, "]", 1) != 2) {
-      return terrno;
-    }
-  } else {
-    if (taosWriteFile(pBuf->filePtr, "],", 2) != 2) {
-      return terrno;
-    }
-  }
-
-  return 0;
-}
-
-static int32_t taosAnalJsonBufWriteRow(SAnalBuf *pBuf, const char *data, bool lastRow) {
-  const char *js = "%s%s\n";
-  char        buf[86] = {0};
-  int32_t     bufLen = snprintf(buf, sizeof(buf), js, data, lastRow ? "" : ",");
-
-  if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
-    return terrno;
-  }
-  return 0;
-}
-
-static int32_t taosAnalJsonBufWriteRows(SAnalBuf *pBuf, int32_t numOfRows) {
-  int32_t code = 0;
-
-  const char *js =
-      "],\n"
-      "\"rows\": %d\n"
-      "}";
-  char    buf[256] = {0};
-  int32_t bufLen = snprintf(buf, sizeof(buf), js, numOfRows);
-
-  if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  code = taosFsyncFile(pBuf->filePtr);
-  if (code != 0) goto _OVER;
-
-_OVER:
-  (void)taosCloseFile(&pBuf->filePtr);
-  return code;
-}
-
-void taosAnalJsonBufClose(SAnalBuf *pBuf) {
-  if (pBuf->bufType == ANAL_BUF_TYPE_JSON) {
-    if (pBuf->filePtr != NULL) {
-      (void)taosCloseFile(&pBuf->filePtr);
-    }
-#if 0
-    if (pBuf->fileName[0] != 0) {
-      taosRemoveFile(pBuf->fileName);
-      pBuf->fileName[0] = 0;
-    }
-#endif
-  }
-}
-
-static int32_t taosAnalBufGetJsonCont(SAnalBuf *pBuf, char **ppCont, int64_t *pContLen) {
+static int32_t taosAnalJsonBufGetCont(SAnalBuf *pBuf, char **ppCont, int64_t *pContLen) {
   int32_t   code = 0;
   int64_t   contLen;
   char     *pCont = NULL;
@@ -521,58 +437,357 @@ _OVER:
   return code;
 }
 
-int32_t tsosAnalBufOpen(SAnalBuf *pBuf) {
+static int32_t taosAnalJsonBufWriteParaInt32(SAnalBuf *pBuf, const char *paraName, int32_t paraVal) {
+  char    buf[64] = {0};
+  int32_t bufLen = snprintf(buf, sizeof(buf), "\"%s\": %d,\n", paraName, paraVal);
+  if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
+    return terrno;
+  }
+  return 0;
+}
+
+static int32_t taosAnalJsonBufWriteParaStr(SAnalBuf *pBuf, const char *paraName, const char *paraVal) {
+  char    buf[64] = {0};
+  int32_t bufLen = snprintf(buf, sizeof(buf), "\"%s\": \"%s\",\n", paraName, paraVal);
+  if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
+    return terrno;
+  }
+  return 0;
+}
+
+static int32_t taosAnalJsonBufWriteStr(SAnalBuf *pBuf, const char *buf, int32_t bufLen) {
+  if (bufLen <= 0) {
+    bufLen = strlen(buf);
+  }
+  if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
+    return terrno;
+  }
+  return 0;
+}
+
+static int32_t taosAnalJsonBufWriteStart(SAnalBuf *pBuf) { return taosAnalJsonBufWriteStr(pBuf, "{\n", 0); }
+
+static int32_t tsosAnalJsonBufOpen(SAnalBuf *pBuf, int32_t numOfCols) {
+  pBuf->filePtr = taosOpenFile(pBuf->fileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  if (pBuf->filePtr == NULL) {
+    return terrno;
+  }
+
+  pBuf->pCols = taosMemoryCalloc(numOfCols, sizeof(SAnalColBuf));
+  if (pBuf->pCols == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  pBuf->numOfCols = numOfCols;
+
   if (pBuf->bufType == ANAL_BUF_TYPE_JSON) {
-    return tsosAnalJsonBufOpen(pBuf);
+    return taosAnalJsonBufWriteStart(pBuf);
+  }
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SAnalColBuf *pCol = &pBuf->pCols[i];
+    snprintf(pCol->fileName, sizeof(pCol->fileName), "%s-c%d", pBuf->fileName, i);
+    pCol->filePtr =
+        taosOpenFile(pCol->fileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+    if (pCol->filePtr == NULL) {
+      return terrno;
+    }
+  }
+
+  return taosAnalJsonBufWriteStart(pBuf);
+}
+
+static int32_t taosAnalJsonBufWriteAlgo(SAnalBuf *pBuf, const char *algo) {
+  return taosAnalJsonBufWriteParaStr(pBuf, "algo", algo);
+}
+
+static int32_t taosAnalJsonBufWriteOpt(SAnalBuf *pBuf, const char *opt) {
+  return taosAnalJsonBufWriteParaStr(pBuf, "opt", opt);
+}
+
+static int32_t taosAnalJsonBufWritePrec(SAnalBuf *pBuf, const char *prec) {
+  return taosAnalJsonBufWriteParaStr(pBuf, "prec", prec);
+}
+
+static int32_t taosAnalJsonBufWriteColMeta(SAnalBuf *pBuf, int32_t colIndex, int32_t colType, const char *colName) {
+  char buf[128] = {0};
+  bool first = (colIndex == 0);
+  bool last = (colIndex == pBuf->numOfCols - 1);
+
+  if (first) {
+    if (taosAnalJsonBufWriteStr(pBuf, "\"schema\": [\n", 0) != 0) {
+      return terrno;
+    }
+  }
+
+  int32_t bufLen = snprintf(buf, sizeof(buf), "  [\"%s\", \"%s\", %d]%s\n", colName, tDataTypes[colType].name,
+                            tDataTypes[colType].bytes, last ? "" : ",");
+  if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
+    return terrno;
+  }
+
+  if (last) {
+    if (taosAnalJsonBufWriteStr(pBuf, "],\n", 0) != 0) {
+      return terrno;
+    }
+  }
+
+  return 0;
+}
+
+static int32_t taosAnalJsonBufWriteDataBegin(SAnalBuf *pBuf) {
+  return taosAnalJsonBufWriteStr(pBuf, "\"data\": [\n", 0);
+}
+
+static int32_t taosAnalJsonBufWriteStrUseCol(SAnalBuf *pBuf, const char *buf, int32_t bufLen, int32_t colIndex) {
+  if (bufLen <= 0) {
+    bufLen = strlen(buf);
+  }
+
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON) {
+    if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
+      return terrno;
+    }
+  } else {
+    if (taosWriteFile(pBuf->pCols[colIndex].filePtr, buf, bufLen) != bufLen) {
+      return terrno;
+    }
+  }
+
+  return 0;
+}
+
+static int32_t taosAnalJsonBufWriteColBegin(SAnalBuf *pBuf, int32_t colIndex) {
+  return taosAnalJsonBufWriteStrUseCol(pBuf, "[\n", 0, colIndex);
+}
+
+static int32_t taosAnalJsonBufWriteColEnd(SAnalBuf *pBuf, int32_t colIndex) {
+  if (colIndex == pBuf->numOfCols - 1) {
+    return taosAnalJsonBufWriteStrUseCol(pBuf, "\n]\n", 0, colIndex);
+
+  } else {
+    return taosAnalJsonBufWriteStrUseCol(pBuf, "\n],\n", 0, colIndex);
+  }
+}
+
+static int32_t taosAnalJsonBufWriteColData(SAnalBuf *pBuf, int32_t colIndex, int32_t colType, void *colValue) {
+  char    buf[64];
+  int32_t bufLen = 0;
+
+  if (pBuf->pCols[colIndex].numOfRows != 0) {
+    buf[bufLen] = ',';
+    buf[bufLen + 1] = '\n';
+    buf[bufLen + 2] = 0;
+    bufLen += 2;
+  }
+
+  switch (colType) {
+    case TSDB_DATA_TYPE_BOOL:
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", (*((int8_t *)colValue) == 1) ? 1 : 0);
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", *(int8_t *)colValue);
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%u", *(uint8_t *)colValue);
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", *(int16_t *)colValue);
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%u", *(uint16_t *)colValue);
+      break;
+    case TSDB_DATA_TYPE_INT:
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", *(int32_t *)colValue);
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%u", *(uint32_t *)colValue);
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%" PRId64 "", *(int64_t *)colValue);
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%" PRIu64 "", *(uint64_t *)colValue);
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%f", GET_FLOAT_VAL(colValue));
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%f", GET_DOUBLE_VAL(colValue));
+      break;
+    default:
+      buf[bufLen] = '\0';
+  }
+
+  pBuf->pCols[colIndex].numOfRows++;
+  return taosAnalJsonBufWriteStrUseCol(pBuf, buf, bufLen, colIndex);
+}
+
+static int32_t taosAnalJsonBufWriteDataEnd(SAnalBuf *pBuf) {
+  int32_t code = 0;
+  char   *pCont = NULL;
+  int64_t contLen = 0;
+
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
+    for (int32_t i = 0; i < pBuf->numOfCols; ++i) {
+      SAnalColBuf *pCol = &pBuf->pCols[i];
+      code = taosFsyncFile(pCol->filePtr);
+      if (code != 0) return code;
+      code = taosCloseFile(&pCol->filePtr);
+      if (code != 0) return code;
+    }
+
+    code = taosAnalJsonBufGetCont(pBuf, &pCont, &contLen);
+    if (code != 0) return code;
+
+    code = taosAnalJsonBufWriteStr(pBuf, pCont, contLen);
+    if (code != 0) return code;
+
+    taosMemoryFreeClear(pCont);
+    contLen = 0;
+  }
+
+  return taosAnalJsonBufWriteStr(pBuf, "],\n", 0);
+}
+
+static int32_t taosAnalJsonBufWriteEnd(SAnalBuf *pBuf) {
+  int32_t code = taosAnalJsonBufWriteParaInt32(pBuf, "rows", pBuf->pCols[0].numOfRows);
+  if (code != 0) return code;
+
+  return taosAnalJsonBufWriteStr(pBuf, "\"protocol\": 0.1\n}", 0);
+}
+
+int32_t taosAnalJsonBufClose(SAnalBuf *pBuf) {
+  int32_t code = taosAnalJsonBufWriteEnd(pBuf);
+  if (code != 0) return code;
+
+  if (pBuf->filePtr != NULL) {
+    code = taosFsyncFile(pBuf->filePtr);
+    if (code != 0) return code;
+    code = taosCloseFile(&pBuf->filePtr);
+    if (code != 0) return code;
+  }
+
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
+    for (int32_t i = 0; i < pBuf->numOfCols; ++i) {
+      SAnalColBuf *pCol = &pBuf->pCols[i];
+      if (pCol->filePtr != NULL) {
+        code = taosFsyncFile(pCol->filePtr);
+        if (code != 0) return code;
+        code = taosCloseFile(&pCol->filePtr);
+        if (code != 0) return code;
+      }
+    }
+  }
+
+  return 0;
+}
+
+void taosAnalBufDestroy(SAnalBuf *pBuf) {
+  if (pBuf->fileName[0] != 0) {
+    if (pBuf->filePtr != NULL) (void)taosCloseFile(&pBuf->filePtr);
+    // taosRemoveFile(pBuf->fileName);
+    pBuf->fileName[0] = 0;
+  }
+
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
+    for (int32_t i = 0; i < pBuf->numOfCols; ++i) {
+      SAnalColBuf *pCol = &pBuf->pCols[i];
+      if (pCol->fileName[0] != 0) {
+        if (pCol->filePtr != NULL) (void)taosCloseFile(&pCol->filePtr);
+        // taosRemoveFile(pCol->fileName);
+        pCol->fileName[0] = 0;
+      }
+    }
+  }
+
+  taosMemoryFreeClear(pBuf->pCols);
+  pBuf->numOfCols = 0;
+}
+
+int32_t tsosAnalBufOpen(SAnalBuf *pBuf, int32_t numOfCols) {
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
+    return tsosAnalJsonBufOpen(pBuf, numOfCols);
   } else {
     return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
   }
 }
 
-int32_t taosAnalBufWritePara(SAnalBuf *pBuf, const char *algo, const char *opt, const char *prec, int32_t col1,
-                             int32_t col2) {
-  if (pBuf->bufType == ANAL_BUF_TYPE_JSON) {
-    return taosAnalJsonBufWritePara(pBuf, algo, opt, prec, col1, col2);
+int32_t taosAnalBufWriteAlgo(SAnalBuf *pBuf, const char *algo) {
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
+    return taosAnalJsonBufWriteAlgo(pBuf, algo);
   } else {
     return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
   }
 }
 
-int32_t taosAnalBufNewCol(SAnalBuf *pBuf){
-    if (pBuf->bufType == ANAL_BUF_TYPE_JSON) {
-    return taosAnalJsonBufNewCol(pBuf);
+int32_t taosAnalBufWriteOpt(SAnalBuf *pBuf, const char *opt) {
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
+    return taosAnalJsonBufWriteOpt(pBuf, opt);
   } else {
     return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
   }
 }
 
-int32_t taosAnalBufEndCol(SAnalBuf *pBuf, bool lastCol) {
-  if (pBuf->bufType == ANAL_BUF_TYPE_JSON) {
-    return taosAnalJsonBufEndCol(pBuf, lastCol);
+int32_t taosAnalBufWritePrec(SAnalBuf *pBuf, const char *prec) {
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
+    return taosAnalJsonBufWritePrec(pBuf, prec);
   } else {
     return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
   }
 }
 
-int32_t taosAnalBufWriteRow(SAnalBuf *pBuf, const char *data, bool isLast) {
-  if (pBuf->bufType == ANAL_BUF_TYPE_JSON) {
-    return taosAnalJsonBufWriteRow(pBuf, data, isLast);
+int32_t taosAnalBufWriteColMeta(SAnalBuf *pBuf, int32_t colIndex, int32_t colType, const char *colName) {
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
+    return taosAnalJsonBufWriteColMeta(pBuf, colIndex, colType, colName);
   } else {
     return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
   }
 }
 
-int32_t taosAnalBufWriteRows(SAnalBuf *pBuf, int32_t numOfRows) {
-  if (pBuf->bufType == ANAL_BUF_TYPE_JSON) {
-    return taosAnalJsonBufWriteRows(pBuf, numOfRows);
+int32_t taosAnalBufWriteDataBegin(SAnalBuf *pBuf) {
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
+    return taosAnalJsonBufWriteDataBegin(pBuf);
   } else {
     return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
   }
 }
 
-void taosAnalBufClose(SAnalBuf *pBuf) {
-  if (pBuf->bufType == ANAL_BUF_TYPE_JSON) {
-    taosAnalJsonBufClose(pBuf);
+int32_t taosAnalBufWriteColBegin(SAnalBuf *pBuf, int32_t colIndex) {
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
+    return taosAnalJsonBufWriteColBegin(pBuf, colIndex);
+  } else {
+    return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
+  }
+}
+
+int32_t taosAnalBufWriteColData(SAnalBuf *pBuf, int32_t colIndex, int32_t colType, void *colValue) {
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
+    return taosAnalJsonBufWriteColData(pBuf, colIndex, colType, colValue);
+  } else {
+    return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
+  }
+}
+
+int32_t taosAnalBufWriteColEnd(SAnalBuf *pBuf, int32_t colIndex) {
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
+    return taosAnalJsonBufWriteColEnd(pBuf, colIndex);
+  } else {
+    return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
+  }
+}
+
+int32_t taosAnalBufWriteDataEnd(SAnalBuf *pBuf) {
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
+    return taosAnalJsonBufWriteDataEnd(pBuf);
+  } else {
+    return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
+  }
+}
+
+int32_t taosAnalBufClose(SAnalBuf *pBuf) {
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
+    return taosAnalJsonBufClose(pBuf);
+  } else {
+    return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
   }
 }
 
@@ -580,8 +795,8 @@ static int32_t taosAnalBufGetCont(SAnalBuf *pBuf, char **ppCont, int64_t *pContL
   *ppCont = NULL;
   *pContLen = 0;
 
-  if (pBuf->bufType == ANAL_BUF_TYPE_JSON) {
-    return taosAnalBufGetJsonCont(pBuf, ppCont, pContLen);
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
+    return taosAnalJsonBufGetCont(pBuf, ppCont, pContLen);
   } else {
     return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
   }

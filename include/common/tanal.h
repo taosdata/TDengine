@@ -38,6 +38,7 @@ typedef struct {
 
 typedef enum {
   ANAL_BUF_TYPE_JSON = 0,
+  ANAL_BUF_TYPE_JSON_COL = 1,
   ANAL_BUF_TYPE_OTHERS,
 } EAnalBufType;
 
@@ -47,9 +48,17 @@ typedef enum {
 } EAnalHttpType;
 
 typedef struct {
+  TdFilePtr filePtr;
+  char      fileName[TSDB_FILENAME_LEN + 5];
+  int64_t   numOfRows;
+} SAnalColBuf;
+
+typedef struct {
   EAnalBufType bufType;
   TdFilePtr    filePtr;
-  char         fileName[PATH_MAX];
+  char         fileName[TSDB_FILENAME_LEN];
+  int32_t      numOfCols;
+  SAnalColBuf *pCols;
 } SAnalBuf;
 
 int32_t taosAnalInit();
@@ -62,14 +71,18 @@ bool    taosAnalGetParaInt(const char *option, const char *paraName, int32_t *pa
 int64_t taosAnalGetVersion();
 void    taosAnalUpdate(int64_t newVer, SHashObj *pHash);
 
-int32_t tsosAnalBufOpen(SAnalBuf *pBuf);
-int32_t taosAnalBufWritePara(SAnalBuf *pBuf, const char *algo, const char *opt, const char *prec, int32_t col1,
-                             int32_t col2);
-int32_t taosAnalBufNewCol(SAnalBuf *pBuf);
-int32_t taosAnalBufEndCol(SAnalBuf *pBuf, bool lastCol);
-int32_t taosAnalBufWriteRow(SAnalBuf *pBuf, const char *data, bool lastRow);
-int32_t taosAnalBufWriteRows(SAnalBuf *pBuf, int32_t numOfRows);
-void    taosAnalBufClose(SAnalBuf *pBuf);
+int32_t tsosAnalBufOpen(SAnalBuf *pBuf, int32_t numOfCols);
+int32_t taosAnalBufWriteAlgo(SAnalBuf *pBuf, const char *algo);
+int32_t taosAnalBufWriteOpt(SAnalBuf *pBuf, const char *opt);
+int32_t taosAnalBufWritePrec(SAnalBuf *pBuf, const char *prec);
+int32_t taosAnalBufWriteColMeta(SAnalBuf *pBuf, int32_t colIndex, int32_t colType, const char *colName);
+int32_t taosAnalBufWriteDataBegin(SAnalBuf *pBuf);
+int32_t taosAnalBufWriteColBegin(SAnalBuf *pBuf, int32_t colIndex);
+int32_t taosAnalBufWriteColData(SAnalBuf *pBuf, int32_t colIndex, int32_t colType, void *colValue);
+int32_t taosAnalBufWriteColEnd(SAnalBuf *pBuf, int32_t colIndex);
+int32_t taosAnalBufWriteDataEnd(SAnalBuf *pBuf);
+int32_t taosAnalBufClose(SAnalBuf *pBuf);
+void    taosAnalBufDestroy(SAnalBuf *pBuf);
 
 const char   *taosAnalAlgoStr(EAnalAlgoType algoType);
 EAnalAlgoType taosAnalAlgoInt(const char *algoName);

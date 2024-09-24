@@ -3567,34 +3567,18 @@ bool funcInputGetNextRowIndex(SInputColumnInfoData* pInput, int32_t from, bool f
 }
 
 typedef struct {
-  char          algoName[TSDB_ANAL_ALGO_NAME_LEN];
-  char          algoUrl[TSDB_ANAL_ALGO_URL_LEN];
-  EAnalAlgoType algoType;
-  uint8_t       inputInit : 1;
-  uint8_t       inputStop : 1;
-  uint8_t       hasRows : 1;
-  uint8_t       hasConf : 1;
-  uint8_t       hasEvery : 1;
-  uint8_t       hasStart : 1;
-  uint8_t       hasTs : 1;
-  uint8_t       hasLow : 1;
-  uint8_t       hasHigh : 1;
-  uint8_t       resTsSlot;
-  uint8_t       resLowSlot;
-  uint8_t       resHighSlot;
-  uint8_t       resPrecision;
-  uint8_t       resDataType;
-  int32_t       resRowSize;
-  int32_t       inputRows;
-  int32_t       inputConf;
-  int64_t       tsStart;
-  int64_t       tsEnd;
-  int64_t       tsEvery;
-  int64_t       numOfElems;
-  int32_t       paraLen;
-  int32_t       bufLen;
-  char*         para;
-  void*         buf;
+  char     algoName[TSDB_ANAL_ALGO_NAME_LEN];
+  char     algoUrl[TSDB_ANAL_ALGO_URL_LEN];
+  char     algoOpt[TSDB_ANAL_ALGO_OPTION_LEN];
+  int64_t  maxTs;
+  int64_t  minTs;
+  int64_t  numOfRows;
+  int16_t  resLowSlot;
+  int16_t  resHighSlot;
+  int16_t  resTsSlot;
+  int32_t  optRows;
+  int32_t  optConf;
+  SAnalBuf analBuf;
 } SForecastRes;
 
 bool getForecastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
@@ -3606,174 +3590,131 @@ int32_t forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInf
   if (pResInfo->initialized) return TSDB_CODE_SUCCESS;
   if (functionSetup(pCtx, pResInfo) != 0) return TSDB_CODE_OUT_OF_MEMORY;
 
-  SForecastRes*         pRes = GET_ROWCELL_INTERBUF(pResInfo);
-  SResultDataInfo*      pResDataInfo = &pCtx->resDataInfo;
-  SInputColumnInfoData* pInput = &pCtx->input;
-  SColumnInfoData*      pOutput = (SColumnInfoData*)pCtx->pOutput;
+  SForecastRes*    pRes = GET_ROWCELL_INTERBUF(pResInfo);
+  SResultDataInfo* pResDataInfo = &pCtx->resDataInfo;
 
-  const char* options = varDataVal(pCtx->param[1].param.pz);
-  if (!taosAnalGetParaStr(options, "algo", pRes->algoName, sizeof(pRes->algoName))) {
-    qError("failed to get forecast algo name from %s", options);
+  pRes->maxTs = 0;
+  pRes->minTs = INT64_MAX;
+  pRes->numOfRows = 0;
+  pRes->resLowSlot = -1;
+  pRes->resHighSlot = -1;
+  pRes->resTsSlot = -1;
+  pRes->analBuf.bufType = ANAL_BUF_TYPE_JSON_COL;
+
+  tstrncpy(pRes->algoOpt, varDataVal(pCtx->param[1].param.pz), sizeof(pRes->algoOpt));
+
+  if (!taosAnalGetParaStr(pRes->algoOpt, "algo", pRes->algoName, sizeof(pRes->algoName))) {
+    qError("failed to get forecast algorithm name from %s", pRes->algoOpt);
     return TSDB_CODE_ANAL_ALGO_NOT_FOUND;
   }
   if (taosAnalGetAlgoUrl(pRes->algoName, ANAL_ALGO_TYPE_FORECAST, pRes->algoUrl, sizeof(pRes->algoUrl)) != 0) {
-    qError("failed to get forecast funcUrl from %s", options);
+    qError("failed to get forecast algorithm url from %s", pRes->algoName);
     return TSDB_CODE_ANAL_ALGO_NOT_LOAD;
   }
 
-  pRes->hasConf = taosAnalGetParaInt(options, "conf", &pRes->inputConf);
-  pRes->hasRows = taosAnalGetParaInt(options, "rows", &pRes->inputRows);
-  pRes->hasStart = taosAnalGetParaStr(options, "start", NULL, 0);
-  pRes->hasEvery = taosAnalGetParaStr(options, "every", NULL, 0);
-  if (!pRes->hasRows) {
-    pRes->inputRows = ANAL_FORECAST_DEFAULT_ROWS;
-    qTrace("forecast rows not found from %s, use default:%d", options, pRes->inputRows);
+  int32_t len = strlen(pRes->algoOpt);
+  bool    hasRows = taosAnalGetParaInt(pRes->algoOpt, "rows", &pRes->optRows);
+  if (!hasRows) {
+    pRes->optRows = ANAL_FORECAST_DEFAULT_ROWS;
+    len += snprintf(pRes->algoOpt + len, sizeof(pRes->algoOpt) - len, ",rows:%d", pRes->optRows);
+    uInfo("forecast rows not found from %s, use default:%d", pRes->algoOpt, pRes->optRows);
   }
-  if (!pRes->hasConf) {
-    pRes->inputConf = ANAL_FORECAST_DEFAULT_CONF;
-    qTrace("forecast conf not found from %s, use default:%d", options, pRes->inputConf);
-  }
-
-  pRes->paraLen = strlen(options) + 1;
-  if (!pRes->hasRows) pRes->paraLen += 16;
-  if (!pRes->hasConf) pRes->paraLen += 16;
-  pRes->para = taosMemoryMalloc(pRes->paraLen);
-  if (pRes->para == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-  if (pRes->hasRows && pRes->hasConf) {
-    pRes->paraLen = snprintf(pRes->para, pRes->paraLen, "%s", options);
-  } else if (pRes->hasRows && !pRes->hasConf) {
-    pRes->paraLen = snprintf(pRes->para, pRes->paraLen, "%s,conf=%d", options, pRes->inputConf);
-  } else if (!pRes->hasRows && pRes->hasConf) {
-    pRes->paraLen = snprintf(pRes->para, pRes->paraLen, "%s,rows=%d", options, pRes->inputRows);
-  } else {
-    pRes->paraLen =
-        snprintf(pRes->para, pRes->paraLen, "%s,rows=%d,conf=%d", options, pRes->inputRows, pRes->inputConf);
+  bool hasConf = taosAnalGetParaInt(pRes->algoOpt, "rows", &pRes->optConf);
+  if (!hasConf) {
+    pRes->optConf = ANAL_FORECAST_DEFAULT_CONF;
+    len += snprintf(pRes->algoOpt + len, sizeof(pRes->algoOpt) - len, ",conf:%d", pRes->optConf);
+    uInfo("forecast conf not found from %s, use default:%d", pRes->algoOpt, pRes->optConf);
   }
 
-  for (int j = 0; j < pCtx->subsidiaries.num; j++) {
-    SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
+  for (int32_t r = 0; r < pCtx->subsidiaries.num; r++) {
+    SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[r];
     SFunctParam*    pFuncParam = &pc->pExpr->base.pParam[0];
-    int32_t         srcSlotId = pFuncParam->pCol->slotId;
-
-    pRes->hasLow = 1;
-    pRes->hasHigh = 1;
-    pRes->hasTs = 1;
-    pRes->resLowSlot = 3;
-    pRes->resHighSlot = 2;
-    pRes->resTsSlot = 1;
+    if (pFuncParam->pCol->type == TSDB_DATA_TYPE_TIMESTAMP) {
+      pRes->resTsSlot = pFuncParam->pCol->slotId;
+    }
+    if (pFuncParam->pCol->type == TSDB_DATA_TYPE_FLOAT) {
+      pRes->resLowSlot = pFuncParam->pCol->slotId;
+    }
+    if (pFuncParam->pCol->type == TSDB_DATA_TYPE_DOUBLE) {
+      pRes->resHighSlot = pFuncParam->pCol->slotId;
+    }
   }
 
-  pRes->resPrecision = pResDataInfo->precision;
-  pRes->resDataType = pResDataInfo->type;
-  pRes->resRowSize = 32;
-  pRes->inputInit = true;
-  pRes->inputStop = false;
-  pRes->algoType = ANAL_ALGO_TYPE_FORECAST;
-  pRes->bufLen = 0;
-  pRes->buf = NULL;
+  int64_t ts = taosGetTimestampMs();
+  snprintf(pRes->analBuf.fileName, sizeof(pRes->analBuf.fileName), "/tmp/tdengine-forecast-%" PRId64, ts);
+  int32_t code = tsosAnalBufOpen(&pRes->analBuf, pCtx->subsidiaries.num);
+  if (code != 0) goto _OVER;
 
-  qTrace("forecast env is initialized, option:%s", options);
-  return TSDB_CODE_SUCCESS;
+  code = taosAnalBufWriteAlgo(&pRes->analBuf, pRes->algoName);
+  if (code != 0) goto _OVER;
+
+  const char* prec = TSDB_TIME_PRECISION_MILLI_STR;
+  if (pResDataInfo->precision == TSDB_TIME_PRECISION_MICRO) prec = TSDB_TIME_PRECISION_MICRO_STR;
+  if (pResDataInfo->precision == TSDB_TIME_PRECISION_NANO) prec = TSDB_TIME_PRECISION_NANO_STR;
+  code = taosAnalBufWritePrec(&pRes->analBuf, prec);
+
+  code = taosAnalBufWriteColMeta(&pRes->analBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, "ts");
+  if (code != 0) goto _OVER;
+
+  code = taosAnalBufWriteColMeta(&pRes->analBuf, 1, pResDataInfo->type, "val");
+  if (code != 0) goto _OVER;
+
+   code = taosAnalBufWriteDataBegin(&pRes->analBuf);
+  if (code != 0) goto _OVER;
+
+  for (int32_t i = 0; i < pCtx->subsidiaries.num; ++i) {
+    code = taosAnalBufWriteColBegin(&pRes->analBuf, i);
+    if (code != 0) goto _OVER;
+  }
+
+_OVER:
+  if (code != 0) {
+    taosAnalBufClose(&pRes->analBuf);
+    taosAnalBufDestroy(&pRes->analBuf);
+  }
+  uInfo("forecast env is initialized, option:%s", pRes->algoOpt);
+  return code;
 }
 
 static int32_t forecastFunctionImpl(SqlFunctionCtx* pCtx, bool isPartial) {
   SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
   SForecastRes*         pRes = GET_ROWCELL_INTERBUF(pResInfo);
   SInputColumnInfoData* pInput = &pCtx->input;
-  SColumnInfoData*      pOutput = (SColumnInfoData*)pCtx->pOutput;
   SColumnInfoData*      pTsCol = pInput->pPTS;
   SColumnInfoData*      pValCol = pInput->pData[0];
   int32_t               valType = pValCol->info.type;
   int32_t               start = pInput->startRowIndex;
   int32_t               numOfRows = pInput->numOfRows;
-  int32_t               numOfElems = 0;
   uint8_t               precision = pTsCol->info.precision;
   SFuncInputRow         row = {0};
   int32_t               code = 0;
   bool                  result = false;
   SPoint1               st = {0};
 
-  qInfo("forecast number of input cols:%d, precision:%d start:%d total:%d, input finished:%d, result complete:%d",
+  uInfo("forecast number of input cols:%d, precision:%d start:%d total:%d, input finished:%d, result complete:%d",
         pInput->numOfInputCols, precision, start, numOfRows, pCtx->bInputFinished, pCtx->resultInfo->complete);
 
   funcInputUpdate(pCtx);
+
   while (1) {
     code = funcInputGetNextRow(pCtx, &row, &result);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
-    }
-    if (!result) {
-      break;
-    }
-    if (row.isDataNull) {
-      continue;
-    }
+    if (TSDB_CODE_SUCCESS != code) return code;
+    if (!result) break;
+    if (row.isDataNull) continue;
 
-    switch (valType) {
-      case TSDB_DATA_TYPE_BOOL: {
-        INIT_INTP_POINT(st, row.ts, *(int8_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_TINYINT: {
-        INIT_INTP_POINT(st, row.ts, *(int8_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_SMALLINT: {
-        INIT_INTP_POINT(st, row.ts, *(int16_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_INT: {
-        INIT_INTP_POINT(st, row.ts, *(int32_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_BIGINT: {
-        INIT_INTP_POINT(st, row.ts, *(int64_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_FLOAT: {
-        INIT_INTP_POINT(st, row.ts, *(float_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_DOUBLE: {
-        INIT_INTP_POINT(st, row.ts, *(double*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_UTINYINT: {
-        INIT_INTP_POINT(st, row.ts, *(uint8_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_USMALLINT: {
-        INIT_INTP_POINT(st, row.ts, *(uint16_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_UINT: {
-        INIT_INTP_POINT(st, row.ts, *(uint32_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_UBIGINT: {
-        INIT_INTP_POINT(st, row.ts, *(uint64_t*)row.pData);
-        break;
-      }
-      default: {
-        return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
-      }
-    }
+    pRes->minTs = MIN(pRes->minTs, row.ts);
+    pRes->maxTs = MAX(pRes->maxTs, row.ts);
+    pRes->numOfRows++;
 
-    if (!pRes->hasStart || !pRes->hasEvery) {
-      if (pRes->numOfElems == 0) pRes->tsStart = row.ts;
-      pRes->tsStart = MIN(pRes->tsStart, row.ts);
-      pRes->tsEnd = MAX(pRes->tsEnd, row.ts);
-      pRes->numOfElems++;
-    }
+    code = taosAnalBufWriteColData(&pRes->analBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, &row.ts);
+    if (TSDB_CODE_SUCCESS != code) return code;
 
-    numOfElems++;
-
-    // add into buf
+    code = taosAnalBufWriteColData(&pRes->analBuf, 1, valType, row.pData);
+    if (TSDB_CODE_SUCCESS != code) return code;
   }
 
-  // todo
   if (!isPartial) {
-    pResInfo->numOfRes = pRes->inputRows;
+    pResInfo->numOfRes = pRes->optRows;
   } else {
     pResInfo->numOfRes = 1;
   }
@@ -3789,14 +3730,38 @@ int32_t forecastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int8_t               resType = pCtx->pExpr->base.resSchema.type;
   int32_t              resCurRow = pBlock->info.rows;
   SColumnInfoData*     pResValCol = taosArrayGet(pBlock->pDataBlock, resSlotId);
-  SColumnInfoData*     pResTsCol = pRes->hasTs ? taosArrayGet(pBlock->pDataBlock, pRes->resTsSlot) : NULL;
-  SColumnInfoData*     pResLowCol = pRes->hasLow ? taosArrayGet(pBlock->pDataBlock, pRes->resLowSlot) : NULL;
-  SColumnInfoData*     pResHighCol = pRes->hasHigh ? taosArrayGet(pBlock->pDataBlock, pRes->resHighSlot) : NULL;
+  SColumnInfoData*     pResTsCol = (pRes->resTsSlot == -1 ? taosArrayGet(pBlock->pDataBlock, pRes->resTsSlot) : NULL);
+  SColumnInfoData* pResLowCol = (pRes->resLowSlot == -1 ? taosArrayGet(pBlock->pDataBlock, pRes->resLowSlot) : NULL);
+  SColumnInfoData* pResHighCol = (pRes->resHighSlot == -1 ? taosArrayGet(pBlock->pDataBlock, pRes->resHighSlot) : NULL);
+  int32_t          code = 0;
+  SJson*           pJson = NULL;
+  SAnalBuf*        pBuf = &pRes->analBuf;
 
   qInfo("forecast slotId:%d resType:%d currentRow:%d", resSlotId, resType, resCurRow);
   if (NULL == pResValCol) {
-    return TSDB_CODE_OUT_OF_RANGE;
+    code = TSDB_CODE_OUT_OF_RANGE;
+    goto _OVER;
   }
+
+  for (int32_t i = 0; i < pCtx->subsidiaries.num; ++i) {
+    code = taosAnalBufWriteColEnd(pBuf, i);
+    if (code != 0) goto _OVER;
+  }
+
+  code = taosAnalBufWriteDataEnd(pBuf);
+  if (code != 0) goto _OVER;
+
+  code = taosAnalBufClose(pBuf);
+  if (code != 0) goto _OVER;
+
+  // pJson = taosAnalSendReqRetJson(pRes->algoUrl, ANAL_HTTP_TYPE_POST, pBuf);
+  // if (pJson == NULL) {
+  //   code = terrno;
+  //   goto _OVER;
+  // }
+
+  // code = anomalyParseJson(pJson, pSupp->windows);
+  // if (code != 0) goto _OVER;
 
   int8_t  psedoI8 = 1;
   int16_t psedoI16 = 10;
@@ -3806,7 +3771,7 @@ int32_t forecastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   double  psedoDouble = 100000;
   int64_t psedoTimestamp = 1727000000000;
 
-  for (int32_t i = 0; i < pRes->inputRows; i++) {
+  for (int32_t i = 0; i < 60; i++) {
     switch (resType) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_UTINYINT:
@@ -3863,11 +3828,14 @@ int32_t forecastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   pResValCol->hasNull = false;
-  pResInfo->numOfRes = pRes->inputRows;
+  pResInfo->numOfRes = 60;
   pResInfo->isNullRes = 0;
   qInfo("forecast finalize rows:%d", pResInfo->numOfRes);
 
-  return 0;
+_OVER:
+  taosAnalBufDestroy(pBuf);
+  if (pJson != NULL) tjsonDelete(pJson);
+  return code;
 }
 
 int32_t diffResultIsNull(SqlFunctionCtx* pCtx, SFuncInputRow* pRow){
