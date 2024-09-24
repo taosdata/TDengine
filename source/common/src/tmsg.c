@@ -8510,6 +8510,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
 void tDestroySVCreateTbReq(SVCreateTbReq *pReq, int32_t flags) {
   if (pReq == NULL) return;
 
+  uDebug("SVCreateTbReq_oom_test3:%p, flags:%d", pReq, flags);
   if (flags & TSDB_MSG_FLG_ENCODE) {
     // TODO
   } else if (flags & TSDB_MSG_FLG_DECODE) {
@@ -9819,6 +9820,8 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
   if (NULL == pTbData) {
     return;
   }
+
+  uDebug("SVCreateTbReq_oom_test8 :%p, %p %d", pTbData->pCreateTbReq, pTbData, flag);
 
   if (flag == TSDB_MSG_FLG_ENCODE || flag == TSDB_MSG_FLG_CMPT) {
     if (pTbData->pCreateTbReq) {

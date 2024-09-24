@@ -1955,6 +1955,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       }
       if (strcmp(tbName, pCreateReq.name) == 0) {
         cloneSVreateTbReq(&pCreateReq, &pCreateReqDst);
+        uDebug(LOG_ID_TAG " SVCreateTbReq_oom_test1:%p", LOG_ID_VALUE, pCreateReqDst);
         //        pCreateReqDst->ctb.suid = processSuid(pCreateReqDst->ctb.suid, pRequest->pDb);
         tDecoderClear(&decoderTmp);
         tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
@@ -1971,6 +1972,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       goto end;
     }
 
+    uDebug(LOG_ID_TAG " SVCreateTbReq_oom_test4:%p", LOG_ID_VALUE, pCreateReqDst);
     if (pCreateReqDst) {  // change stable name to get meta
       strcpy(pName.tname, pCreateReqDst->ctb.stbName);
     }

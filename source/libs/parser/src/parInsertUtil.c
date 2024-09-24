@@ -267,6 +267,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
       pTableCxt->pData->uid = pTableMeta->uid;
       pTableCxt->pData->sver = pTableMeta->sversion;
       pTableCxt->pData->pCreateTbReq = pCreateTbReq != NULL ? *pCreateTbReq : NULL;
+      uDebug("SVCreateTbReq_oom_test5 pCreateTbReq:%p", pTableCxt->pData->pCreateTbReq);
       if (pCreateTbReq != NULL) *pCreateTbReq = NULL;
       if (pTableCxt->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
         pTableCxt->pData->aCol = taosArrayInit(128, sizeof(SColData));
@@ -372,6 +373,7 @@ void insDestroyTableDataCxt(STableDataCxt* pTableCxt) {
   if (NULL == pTableCxt) {
     return;
   }
+  uDebug("SVCreateTbReq_oom_test10 %p", pTableCxt->pData);
 
   taosMemoryFreeClear(pTableCxt->pMeta);
   tDestroyTSchema(pTableCxt->pSchema);
@@ -388,7 +390,7 @@ void insDestroyVgroupDataCxt(SVgroupDataCxt* pVgCxt) {
   if (NULL == pVgCxt) {
     return;
   }
-
+  uDebug("SVCreateTbReq_oom_test9 insDestroyVgroupDataCxt:%p", pVgCxt->pData);
   tDestroySubmitReq(pVgCxt->pData, TSDB_MSG_FLG_ENCODE);
   taosMemoryFree(pVgCxt->pData);
   taosMemoryFree(pVgCxt);
@@ -448,11 +450,14 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
 
   // push data to submit, rebuild empty data for next submit
   taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData);
+  uDebug("SVCreateTbReq_oom_test6 pCreateTbReq:%p, %p", pTableCxt->pData->pCreateTbReq, pTableCxt->pData);
   if (isRebuild) {
     rebuildTableData(pTableCxt->pData, &pTableCxt->pData);
   } else if (clear) {
     taosMemoryFreeClear(pTableCxt->pData);
   }
+
+  uDebug("SVCreateTbReq_oom_test7 pCreateTbReq:%p, %p", pTableCxt->pData->pCreateTbReq, pTableCxt->pData);
 
   qDebug("add tableDataCxt uid:%" PRId64 " to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
 

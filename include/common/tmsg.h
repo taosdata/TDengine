@@ -3022,6 +3022,7 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
     return;
   }
 
+  uDebug("SVCreateTbReq_oom_test2 destroy create table req %p", req);
   taosMemoryFreeClear(req->sql);
   taosMemoryFreeClear(req->name);
   taosMemoryFreeClear(req->comment);
