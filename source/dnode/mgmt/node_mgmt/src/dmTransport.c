@@ -18,7 +18,12 @@
 #include "qworker.h"
 #include "tversion.h"
 
-static inline void dmSendRsp(SRpcMsg *pMsg) { (void)rpcSendResponse(pMsg); }
+static inline void dmSendRsp(SRpcMsg *pMsg) {
+  int32_t code = rpcSendResponse(pMsg);
+  if (code != 0) {
+    dError("failed to send response since %s", tstrerror(code));
+  }
+}
 
 static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
   SEpSet epSet = {0};
@@ -113,7 +118,12 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
           pRpc->info.handle, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId);
 
   int32_t svrVer = 0;
-  (void)taosVersionStrToInt(version, &svrVer);
+  code = taosVersionStrToInt(version, &svrVer);
+  if (code != 0) {
+    dError("failed to get ver since %s", tstrerror(code));
+    goto _OVER;
+  }
+
   if ((code = taosCheckVersionCompatible(pRpc->info.cliVer, svrVer, 3)) != 0) {
     dError("Version not compatible, cli ver: %d, svr ver: %d, ip:0x%x", pRpc->info.cliVer, svrVer,
            pRpc->info.conn.clientIp);
@@ -253,7 +263,10 @@ _OVER:
       if (pWrapper != NULL) {
         dmSendRsp(&rsp);
       } else {
-        (void)rpcSendResponse(&rsp);
+        int32_t ret = rpcSendResponse(&rsp);
+        if (ret != 0) {
+          dError("failed to send response since %s", tstrerror(ret));
+        }
       }
     }
 
@@ -396,7 +409,11 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.notWaitAvaliableConn = 0;
 
-  (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  int32_t code = taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  if (code != 0) {
+    dError("failed to init dnode rpc client since %s", tstrerror(code));
+    return terrno = code;
+  }
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {
@@ -440,7 +457,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.supportBatch = 1;
   rpcInit.batchSize = 8 * 1024;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-  (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  int32_t code = taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
 
   pTrans->statusRpc = rpcOpen(&rpcInit);
   if (pTrans->statusRpc == NULL) {
@@ -485,7 +502,11 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.supportBatch = 1;
   rpcInit.batchSize = 8 * 1024;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-  (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  int32_t code = taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  if (code != 0) {
+    dError("failed to init dnode rpc sync since %s", tstrerror(code));
+    return terrno = code;
+  }
 
   pTrans->syncRpc = rpcOpen(&rpcInit);
   if (pTrans->syncRpc == NULL) {
@@ -536,7 +557,13 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.parent = pDnode;
   rpcInit.compressSize = tsCompressMsgSize;
-  (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  int32_t code = taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  if (code != 0) {
+    terrno = code;
+    dError("failed to init dnode rpc server since:%s", tstrerror(terrno));
+    return terrno;
+  }
+
   pTrans->serverRpc = rpcOpen(&rpcInit);
   if (pTrans->serverRpc == NULL) {
     dError("failed to init dnode rpc server since:%s", tstrerror(terrno));

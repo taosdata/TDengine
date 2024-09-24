@@ -81,19 +81,21 @@ static void dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert
 static void dmStopDnode(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGUSR1);
   // taosIgnSignal(SIGUSR2);
-  (void)taosIgnSignal(SIGTERM);
-  (void)taosIgnSignal(SIGHUP);
-  (void)taosIgnSignal(SIGINT);
-  (void)taosIgnSignal(SIGABRT);
-  (void)taosIgnSignal(SIGBREAK);
+  int32_t code = 0;
+  TAOS_CHECK_GOTO(taosIgnSignal(SIGTERM), NULL, _exception);
+  TAOS_CHECK_GOTO(taosIgnSignal(SIGHUP), NULL, _exception);
+  TAOS_CHECK_GOTO(taosIgnSignal(SIGINT), NULL, _exception);
+  TAOS_CHECK_GOTO(taosIgnSignal(SIGABRT), NULL, _exception);
+  TAOS_CHECK_GOTO(taosIgnSignal(SIGBREAK), NULL, _exception);
 
   dInfo("shut down signal is %d", signum);
 #ifndef WINDOWS
   dInfo("sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
         taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
 #endif
-
   dmStop();
+_exception:
+  dError("failed to stop dnode since %s", tstrerror(code));
 }
 
 void dmLogCrash(int signum, void *sigInfo, void *context) {
@@ -101,13 +103,13 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGHUP);
   // taosIgnSignal(SIGINT);
   // taosIgnSignal(SIGBREAK);
-
+  int32_t code = 0;
 #ifndef WINDOWS
-  (void)taosIgnSignal(SIGBUS);
+  TAOS_CHECK_GOTO(taosIgnSignal(SIGBUS), NULL, _exception);
 #endif
-  (void)taosIgnSignal(SIGABRT);
-  (void)taosIgnSignal(SIGFPE);
-  (void)taosIgnSignal(SIGSEGV);
+  TAOS_CHECK_GOTO(taosIgnSignal(SIGABRT), NULL, _exception);
+  TAOS_CHECK_GOTO(taosIgnSignal(SIGFPE), NULL, _exception);
+  TAOS_CHECK_GOTO(taosIgnSignal(SIGSEGV), NULL, _exception);
 
   char       *pMsg = NULL;
   const char *flags = "UTL FATAL ";
@@ -133,6 +135,9 @@ _return:
 #elif defined(WINDOWS)
   exit(signum);
 #endif
+
+_exception:
+  dError("failed to log crash since %s", tstrerror(code));
 }
 
 static void dmSetSignalHandle() {

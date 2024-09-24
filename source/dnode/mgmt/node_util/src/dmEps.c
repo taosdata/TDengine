@@ -249,8 +249,11 @@ int32_t dmReadEps(SDnodeData *pData) {
 _OVER:
   if (content != NULL) taosMemoryFree(content);
   if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
-
+  if (pFile != NULL) {
+    if (taosCloseFile(&pFile) != 0) {
+      dError("failed to close file:%s since %s", file, tstrerror(terrno));
+    }
+  }
   if (code != 0) {
     dError("failed to read dnode file:%s since %s", file, terrstr());
     return terrno = code;
@@ -259,7 +262,12 @@ _OVER:
   if (taosArrayGetSize(pData->dnodeEps) == 0) {
     SDnodeEp dnodeEp = {0};
     dnodeEp.isMnode = 1;
-    (void)taosGetFqdnPortFromEp(tsFirst, &dnodeEp.ep);
+    code = taosGetFqdnPortFromEp(tsFirst, &dnodeEp.ep);
+    if (code != 0) {
+      dError("failed to get fqdn and port from ep:%s since %s", tsFirst, tstrerror(code));
+      return code;
+    }
+
     if (taosArrayPush(pData->dnodeEps, &dnodeEp) == NULL) {
       return terrno;
     }
@@ -343,7 +351,11 @@ int32_t dmWriteEps(SDnodeData *pData) {
   if (taosWriteFile(pFile, buffer, len) <= 0) TAOS_CHECK_GOTO(terrno, NULL, _OVER);
   if (taosFsyncFile(pFile) < 0) TAOS_CHECK_GOTO(terrno, NULL, _OVER);
 
-  (void)taosCloseFile(&pFile);
+  {
+    if (taosCloseFile(&pFile) != 0) {
+      dError("failed to close file:%s since %s", file, tstrerror(terrno));
+    }
+  }
   TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
 
   pData->updateTime = taosGetTimestampMs();
@@ -353,7 +365,10 @@ int32_t dmWriteEps(SDnodeData *pData) {
 _OVER:
   if (pJson != NULL) tjsonDelete(pJson);
   if (buffer != NULL) taosMemoryFree(buffer);
-  if (pFile != NULL) (void)taosCloseFile(&pFile);
+  if (pFile != NULL)
+    if (taosCloseFile(&pFile) != 0) {
+      dError("failed to close file:%s since %s", file, tstrerror(terrno));
+    }
 
   if (code != 0) {
     dError("failed to write dnode file:%s since %s, dnodeVer:%" PRId64, realfile, tstrerror(code), pData->dnodeVer);
@@ -590,7 +605,9 @@ void dmRemoveDnodePairs(SDnodeData *pData) {
   snprintf(file, sizeof(file), "%s%sdnode%sep.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
   snprintf(bak, sizeof(bak), "%s%sdnode%sep.json.bak", tsDataDir, TD_DIRSEP, TD_DIRSEP);
   dInfo("dnode file:%s is rename to bak file", file);
-  (void)taosRenameFile(file, bak);
+  if (taosRenameFile(file, bak) != 0) {
+    dError("failed to rename file %s to %s since", file, bak, tstrerror(terrno));
+  }
 }
 
 static int32_t dmReadDnodePairs(SDnodeData *pData) {
@@ -663,7 +680,11 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
 _OVER:
   if (content != NULL) taosMemoryFree(content);
   if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
+  if (pFile != NULL) {
+    if (taosCloseFile(&pFile) != 0) {
+      dError("failed to close file:%s since %s", file, tstrerror(terrno));
+    }
+  }
 
   if (code != 0) {
     dError("failed to read dnode file:%s since %s", file, tstrerror(code));
