@@ -272,15 +272,12 @@ Azure::Response<Models::UploadBlockBlobFromResult> TDBlockBlobClient::UploadFrom
 Azure::Response<Models::UploadBlockBlobFromResult> TDBlockBlobClient::UploadFrom(
     const std::string& fileName, int64_t offset, int64_t size, const UploadBlockBlobFromOptions& options,
     const Azure::Core::Context& context) const {
-  constexpr int64_t DefaultStageBlockSize = 4 * 1024 * 1024ULL;
-  constexpr int64_t MaxStageBlockSize = 4000 * 1024 * 1024ULL;
-  constexpr int64_t MaxBlockNumber = 50000;
-  constexpr int64_t BlockGrainSize = 1 * 1024 * 1024;
+  _internal::FileReader fileReader(fileName);
 
   {
-    Azure::Core::IO::FileBodyStream contentStream(fileName);
+    Azure::Core::IO::_internal::RandomAccessFileBodyStream contentStream(fileReader.GetHandle(), offset, size);
 
-    if (contentStream.Length() <= options.TransferOptions.SingleUploadThreshold) {
+    if (size <= options.TransferOptions.SingleUploadThreshold) {
       UploadBlockBlobOptions uploadBlockBlobOptions;
       uploadBlockBlobOptions.HttpHeaders = options.HttpHeaders;
       uploadBlockBlobOptions.Metadata = options.Metadata;
@@ -300,8 +297,6 @@ Azure::Response<Models::UploadBlockBlobFromResult> TDBlockBlobClient::UploadFrom
     return Azure::Core::Convert::Base64Encode(std::vector<uint8_t>(blockId.begin(), blockId.end()));
   };
 
-  _internal::FileReader fileReader(fileName);
-
   auto uploadBlockFunc = [&](int64_t offset, int64_t length, int64_t chunkId, int64_t numChunks) {
     Azure::Core::IO::_internal::RandomAccessFileBodyStream contentStream(fileReader.GetHandle(), offset, length);
     StageBlockOptions                                      chunkOptions;
@@ -311,11 +306,16 @@ Azure::Response<Models::UploadBlockBlobFromResult> TDBlockBlobClient::UploadFrom
     }
   };
 
+  constexpr int64_t DefaultStageBlockSize = 4 * 1024 * 1024ULL;
+  constexpr int64_t MaxStageBlockSize = 4000 * 1024 * 1024ULL;
+  constexpr int64_t MaxBlockNumber = 50000;
+  constexpr int64_t BlockGrainSize = 1 * 1024 * 1024;
+
   int64_t chunkSize;
   if (options.TransferOptions.ChunkSize.HasValue()) {
     chunkSize = options.TransferOptions.ChunkSize.Value();
   } else {
-    int64_t minChunkSize = (fileReader.GetFileSize() + MaxBlockNumber - 1) / MaxBlockNumber;
+    int64_t minChunkSize = (size + MaxBlockNumber - 1) / MaxBlockNumber;
     minChunkSize = (minChunkSize + BlockGrainSize - 1) / BlockGrainSize * BlockGrainSize;
     chunkSize = (std::max)(DefaultStageBlockSize, minChunkSize);
   }
@@ -323,8 +323,7 @@ Azure::Response<Models::UploadBlockBlobFromResult> TDBlockBlobClient::UploadFrom
     throw Azure::Core::RequestFailedException("Block size is too big.");
   }
 
-  _internal::ConcurrentTransfer(0, fileReader.GetFileSize(), chunkSize, options.TransferOptions.Concurrency,
-                                uploadBlockFunc);
+  _internal::ConcurrentTransfer(offset, length, chunkSize, options.TransferOptions.Concurrency, uploadBlockFunc);
 
   for (size_t i = 0; i < blockIds.size(); ++i) {
     blockIds[i] = getBlockId(static_cast<int64_t>(i));

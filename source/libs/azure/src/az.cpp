@@ -113,29 +113,28 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
 
   try {
     auto sharedKeyCredential = std::make_shared<StorageSharedKeyCredential>(accountName, accountKey);
-    /*
-std::string accountURL = tsS3Hostname[0];
-StorageSharedKeyCredential *pSharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
-std::shared_ptr<StorageSharedKeyCredential> sharedKeyCredential(pSharedKeyCredential);
 
-BlobServiceClient blobServiceClient(accountURL, sharedKeyCredential);
+    std::string                 accountURL = tsS3Hostname[0];
+    StorageSharedKeyCredential *pSharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
 
-std::string containerName = tsS3BucketName;
-auto        containerClient = blobServiceClient.GetBlobContainerClient(containerName);
+    BlobServiceClient blobServiceClient(accountURL, sharedKeyCredential);
 
-// Create the container if it does not exist
-// std::cout << "Creating container: " << containerName << std::endl;
-// containerClient.CreateIfNotExists();
+    std::string containerName = tsS3BucketName;
+    auto        containerClient = blobServiceClient.GetBlobContainerClient(containerName);
 
-std::string blobName = "blob.txt";
-uint8_t     blobContent[] = "Hello Azure!";
-// Create the block blob client
-// BlockBlobClient blobClient = containerClient.GetBlockBlobClient(blobName);
-TDBlockBlobClient blobClient(containerClient.GetBlobClient(blobName));
+    // Create the container if it does not exist
+    // std::cout << "Creating container: " << containerName << std::endl;
+    // containerClient.CreateIfNotExists();
 
-// Upload the blob
-// std::cout << "Uploading blob: " << blobName << std::endl;
-blobClient.UploadFrom(blobContent, sizeof(blobContent));*/
+    std::string blobName = "blob.txt";
+    uint8_t     blobContent[] = "Hello Azure!";
+    // Create the block blob client
+    // BlockBlobClient blobClient = containerClient.GetBlockBlobClient(blobName);
+    TDBlockBlobClient blobClient(containerClient.GetBlobClient(blobName));
+
+    // Upload the blob
+    // std::cout << "Uploading blob: " << blobName << std::endl;
+    blobClient.UploadFrom(blobContent, sizeof(blobContent));
     //(void)_azUploadFrom(blobClient, file, offset, size);
     /*
         auto blockBlobClient = BlockBlobClient(endpointUrl, sharedKeyCredential);
