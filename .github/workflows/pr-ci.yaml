@@ -264,9 +264,9 @@ jobs:
           echo ${{ needs.run_test.result }}
           allure generate $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile -o $COVERAGE_BASE_DIR/$DIR_PATH/allure_report/ --clean
           echo "see report at $REPORT_BASE_URL/$DIR_PATH/allure_report/"
-          echo "CONTAINER_ID=${{needs.deploy_with_docker.outputs.CONTAINER_ID}}" > environment.properties
-          echo "EXPLORER_URL=http://$RELEASE_HOST:${{needs.deploy_with_docker.outputs.EXPLORER_PORT}}" >> environment.properties
-          echo "WINDOWS_AGENT_PROCESS_ID=${{needs.deploy_with_docker.outputs.WINDOWS_AGENT_PROCESS_ID}}" >> environment.properties
+          echo "CONTAINER_ID=${{needs.deploy_with_docker.outputs.CONTAINER_ID}}" > $COVERAGE_BASE_DIR/$DIR_PATH/allure_report/environment.properties
+          echo "EXPLORER_URL=http://$RELEASE_HOST:${{needs.deploy_with_docker.outputs.EXPLORER_PORT}}" >> $COVERAGE_BASE_DIR/$DIR_PATH/allure_report/environment.properties
+          echo "WINDOWS_AGENT_PROCESS_ID=${{needs.deploy_with_docker.outputs.WINDOWS_AGENT_PROCESS_ID}}" >> $COVERAGE_BASE_DIR/$DIR_PATH/allure_report/environment.properties
           pass_rate=$(cd /data/github/TestNG_taosX/ && /root/.local/bin/poetry run python3 testng_taosx/ci_calculate_pass_rate.py $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile)
           # 若通过率小于 100 则返回失败
           echo "Pass Rate: $pass_rate"
