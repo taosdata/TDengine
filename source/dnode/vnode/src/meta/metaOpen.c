@@ -60,8 +60,7 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
 
   pMeta->path = (char *)&pMeta[1];
   strcpy(pMeta->path, path);
-  code = taosRealPath(pMeta->path, NULL, strlen(path) + 1);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  (void)taosRealPath(pMeta->path, NULL, strlen(path) + 1);
 
   pMeta->pVnode = pVnode;
 
