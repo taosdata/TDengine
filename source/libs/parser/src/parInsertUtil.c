@@ -450,14 +450,14 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
 
   // push data to submit, rebuild empty data for next submit
   taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData);
-  uDebug("SVCreateTbReq_oom_test6 pCreateTbReq:%p, %p", pTableCxt->pData->pCreateTbReq, pTableCxt->pData);
+  uDebug("SVCreateTbReq_oom_test6 pCreateTbReq:%p, %p %d", pTableCxt->pData->pCreateTbReq, pTableCxt->pData, clear);
   if (isRebuild) {
     rebuildTableData(pTableCxt->pData, &pTableCxt->pData);
+    uDebug("SVCreateTbReq_oom_test7 pCreateTbReq:%p, %p", pTableCxt->pData->pCreateTbReq, pTableCxt->pData);
+
   } else if (clear) {
     taosMemoryFreeClear(pTableCxt->pData);
   }
-
-  uDebug("SVCreateTbReq_oom_test7 pCreateTbReq:%p, %p", pTableCxt->pData->pCreateTbReq, pTableCxt->pData);
 
   qDebug("add tableDataCxt uid:%" PRId64 " to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
 
