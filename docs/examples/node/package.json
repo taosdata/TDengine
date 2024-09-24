@@ -5,6 +5,7 @@
   "license": "MIT",
   "dependencies": {
     "@tdengine/client": "^3.0.1",
-    "@tdengine/rest": "^3.0.0"
+    "@tdengine/rest": "^3.0.0",
+    "@tdengine/websocket": "^3.1.0"
   }
 }

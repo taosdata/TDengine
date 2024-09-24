@@ -91,3 +91,43 @@ python3 conn_websocket_pandas.py
 
 # 22
 python3 connect_websocket_examples.py
+
+# 23
+python3 create_db_ws.py
+
+# 24
+python3 create_db_native.py
+
+# 25
+python3 create_db_rest.py
+
+python3 insert_native.py
+
+python3 insert_rest.py
+
+python3 insert_ws.py
+
+python3 query_native.py
+
+python3 query_rest.py
+
+python3 query_ws.py
+
+python3 reqid_native.py
+
+python3 reqid_rest.py
+
+python3 reqid_ws.py
+
+python3 schemaless_native.py
+
+python3 schemaless_ws.py
+
+python3 stmt_native.py
+
+python3 stmt_ws.py
+
+python3 tmq_native.py
+
+python3 tmq_websocket_example.py
+

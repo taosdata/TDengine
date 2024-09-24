@@ -8,35 +8,25 @@ pgrep taosadapter || taosadapter >> /dev/null 2>&1 &
 cd ../../docs/examples/node
 
 npm install
-cd restexample;
 
-node connect.js
+cd websocketet
 
-cd ../nativeexample
+node all_type_query.js
 
-node connect.js
+node all_type_stmt.js
 
-taos -s "drop database if exists power"
-node insert_example.js
+node json_line_example.js
 
-node query_example.js 
+node line_example.js
 
-node async_query_example.js
+node nodejsChecker.js
 
-# node subscribe_demo.js
+node sql_example.js
 
-taos -s "drop topic if exists topic_name_example"
-taos -s "drop database if exists power"
-node param_bind_example.js 
+node stmt_example.js
 
-taos -s "drop database if exists power"
-node multi_bind_example.js
+node telnet_line_example.js
 
-taos -s "drop database if exists test"
-node influxdb_line_example.js
+node tmq_example.js
 
-taos -s "drop database if exists test"
-node opentsdb_telnet_example.js
-
-taos -s "drop database if exists test"
-node opentsdb_json_example.js
+node tmq_seek_example.js
