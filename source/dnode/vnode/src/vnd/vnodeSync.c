@@ -28,7 +28,9 @@ static inline void vnodeWaitBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
   vGTrace("vgId:%d, msg:%p wait block, type:%s sec:%d seq:%" PRId64, pVnode->config.vgId, pMsg,
           TMSG_INFO(pMsg->msgType), pVnode->blockSec, pVnode->blockSeq);
-  (void)tsem_wait(&pVnode->syncSem);
+  if (tsem_wait(&pVnode->syncSem) != 0) {
+    vError("vgId:%d, failed to wait sem", pVnode->config.vgId);
+  }
 }
 
 static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
@@ -41,7 +43,9 @@ static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
       pVnode->blocked = false;
       pVnode->blockSec = 0;
       pVnode->blockSeq = 0;
-      (void)tsem_post(&pVnode->syncSem);
+      if (tsem_post(&pVnode->syncSem) != 0) {
+        vError("vgId:%d, failed to post sem", pVnode->config.vgId);
+      }
     }
     (void)taosThreadMutexUnlock(&pVnode->lock);
   }
@@ -613,7 +617,9 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
   if (pVnode->blocked) {
     pVnode->blocked = false;
     vDebug("vgId:%d, become follower and post block", pVnode->config.vgId);
-    (void)tsem_post(&pVnode->syncSem);
+    if (tsem_post(&pVnode->syncSem) != 0) {
+      vError("vgId:%d, failed to post sync semaphore", pVnode->config.vgId);
+    }
   }
   (void)taosThreadMutexUnlock(&pVnode->lock);
 
@@ -633,7 +639,9 @@ static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
   if (pVnode->blocked) {
     pVnode->blocked = false;
     vDebug("vgId:%d, become learner and post block", pVnode->config.vgId);
-    (void)tsem_post(&pVnode->syncSem);
+    if (tsem_post(&pVnode->syncSem) != 0) {
+      vError("vgId:%d, failed to post sync semaphore", pVnode->config.vgId);
+    }
   }
   (void)taosThreadMutexUnlock(&pVnode->lock);
 }
@@ -766,7 +774,9 @@ void vnodeSyncPreClose(SVnode *pVnode) {
   if (pVnode->blocked) {
     vInfo("vgId:%d, post block after close sync", pVnode->config.vgId);
     pVnode->blocked = false;
-    (void)tsem_post(&pVnode->syncSem);
+    if (tsem_post(&pVnode->syncSem) != 0) {
+      vError("vgId:%d, failed to post block", pVnode->config.vgId);
+    }
   }
   (void)taosThreadMutexUnlock(&pVnode->lock);
 }
@@ -801,7 +811,9 @@ void vnodeSyncCheckTimeout(SVnode *pVnode) {
       pVnode->blocked = false;
       pVnode->blockSec = 0;
       pVnode->blockSeq = 0;
-      (void)tsem_post(&pVnode->syncSem);
+      if (tsem_post(&pVnode->syncSem) != 0) {
+        vError("vgId:%d, failed to post block", pVnode->config.vgId);
+      }
     }
   }
   (void)taosThreadMutexUnlock(&pVnode->lock);

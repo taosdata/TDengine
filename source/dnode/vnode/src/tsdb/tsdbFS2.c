@@ -44,7 +44,12 @@ static int32_t create_fs(STsdb *pTsdb, STFileSystem **fs) {
   }
 
   fs[0]->tsdb = pTsdb;
-  (void)tsem_init(&fs[0]->canEdit, 0, 1);
+  int32_t code = tsem_init(&fs[0]->canEdit, 0, 1);
+  if (code) {
+    taosMemoryFree(fs[0]);
+    return code;
+  }
+
   fs[0]->fsstate = TSDB_FS_STATE_NORMAL;
   fs[0]->neid = 0;
   TARRAY2_INIT(fs[0]->fSetArr);
@@ -100,7 +105,7 @@ _exit:
     tsdbError("%s failed at %s:%d since %s", __func__, fname, __LINE__, tstrerror(code));
   }
   taosMemoryFree(data);
-  (void)taosCloseFile(&fp);
+  taosCloseFileWithLog(&fp);
   return code;
 }
 
@@ -140,7 +145,7 @@ _exit:
     tsdbError("%s failed at %s:%d since %s", __func__, fname, __LINE__, tstrerror(code));
     json[0] = NULL;
   }
-  (void)taosCloseFile(&fp);
+  taosCloseFileWithLog(&fp);
   taosMemoryFree(data);
   return code;
 }

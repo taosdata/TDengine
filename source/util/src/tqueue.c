@@ -224,7 +224,9 @@ int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
   (void)taosThreadMutexUnlock(&queue->mutex);
 
   if (queue->qset) {
-    (void)tsem_post(&queue->qset->sem);
+    if (tsem_post(&queue->qset->sem) != 0) {
+      uError("failed to post semaphore for queue set:%p", queue->qset);
+    }
   }
   return code;
 }
@@ -333,7 +335,10 @@ int32_t taosOpenQset(STaosQset **qset) {
   }
 
   (void)taosThreadMutexInit(&(*qset)->mutex, NULL);
-  (void)tsem_init(&(*qset)->sem, 0, 0);
+  if (tsem_init(&(*qset)->sem, 0, 0) != 0) {
+    taosMemoryFree(*qset);
+    return terrno;
+  }
 
   uDebug("qset:%p is opened", qset);
   return 0;
@@ -354,7 +359,9 @@ void taosCloseQset(STaosQset *qset) {
   (void)taosThreadMutexUnlock(&qset->mutex);
 
   (void)taosThreadMutexDestroy(&qset->mutex);
-  (void)tsem_destroy(&qset->sem);
+  if (tsem_destroy(&qset->sem) != 0) {
+    uError("failed to destroy semaphore for qset:%p", qset);
+  }
   taosMemoryFree(qset);
   uDebug("qset:%p is closed", qset);
 }
@@ -364,7 +371,9 @@ void taosCloseQset(STaosQset *qset) {
 // thread to exit.
 void taosQsetThreadResume(STaosQset *qset) {
   uDebug("qset:%p, it will exit", qset);
-  (void)tsem_post(&qset->sem);
+  if (tsem_post(&qset->sem) != 0) {
+    uError("failed to post semaphore for qset:%p", qset);
+  }
 }
 
 int32_t taosAddIntoQset(STaosQset *qset, STaosQueue *queue, void *ahandle) {
@@ -432,7 +441,9 @@ int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, SQueueInfo *qinfo)
   STaosQnode *pNode = NULL;
   int32_t     code = 0;
 
-  (void)tsem_wait(&qset->sem);
+  if (tsem_wait(&qset->sem) != 0) {
+    uError("failed to wait semaphore for qset:%p", qset);
+  }
 
   (void)taosThreadMutexLock(&qset->mutex);
 
@@ -476,7 +487,9 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *
   STaosQueue *queue;
   int32_t     code = 0;
 
-  (void)tsem_wait(&qset->sem);
+  if (tsem_wait(&qset->sem) != 0) {
+    uError("failed to wait semaphore for qset:%p", qset);
+  }
   (void)taosThreadMutexLock(&qset->mutex);
 
   for (int32_t i = 0; i < qset->numOfQueues; ++i) {
@@ -510,7 +523,9 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *
 
       (void)atomic_sub_fetch_32(&qset->numOfItems, qall->numOfItems);
       for (int32_t j = 1; j < qall->numOfItems; ++j) {
-        (void)tsem_wait(&qset->sem);
+        if (tsem_wait(&qset->sem) != 0) {
+          uError("failed to wait semaphore for qset:%p", qset);
+        }
       }
     }
 

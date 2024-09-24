@@ -187,10 +187,12 @@ static void vnodeAsyncCancelAllTasks(SVAsync *async, SArray *cancelArray) {
         task->prev->next = task->next;
         task->next->prev = task->prev;
         if (task->cancel) {
-          TAOS_UNUSED(taosArrayPush(cancelArray, &(SVATaskCancelInfo){
-                                                     .cancel = task->cancel,
-                                                     .arg = task->arg,
-                                                 }));
+          if (taosArrayPush(cancelArray, &(SVATaskCancelInfo){
+                                             .cancel = task->cancel,
+                                             .arg = task->arg,
+                                         }) == NULL) {
+            vError("failed to push cancel task into array");
+          };
         }
         vnodeAsyncTaskDone(async, task);
       }
@@ -748,10 +750,12 @@ int32_t vnodeAChannelDestroy(SVAChannelID *channelID, bool waitRunning) {
         task->prev->next = task->next;
         task->next->prev = task->prev;
         if (task->cancel) {
-          TAOS_UNUSED(taosArrayPush(cancelArray, &(SVATaskCancelInfo){
-                                                     .cancel = task->cancel,
-                                                     .arg = task->arg,
-                                                 }));
+          if (taosArrayPush(cancelArray, &(SVATaskCancelInfo){
+                                             .cancel = task->cancel,
+                                             .arg = task->arg,
+                                         }) == NULL) {
+            vError("failed to push cancel info");
+          };
         }
         vnodeAsyncTaskDone(async, task);
       }
@@ -763,10 +767,12 @@ int32_t vnodeAChannelDestroy(SVAChannelID *channelID, bool waitRunning) {
         channel->scheduled->prev->next = channel->scheduled->next;
         channel->scheduled->next->prev = channel->scheduled->prev;
         if (channel->scheduled->cancel) {
-          TAOS_UNUSED(taosArrayPush(cancelArray, &(SVATaskCancelInfo){
-                                                     .cancel = channel->scheduled->cancel,
-                                                     .arg = channel->scheduled->arg,
-                                                 }));
+          if (taosArrayPush(cancelArray, &(SVATaskCancelInfo){
+                                             .cancel = channel->scheduled->cancel,
+                                             .arg = channel->scheduled->arg,
+                                         }) == NULL) {
+            vError("failed to push cancel info");
+          }
         }
         vnodeAsyncTaskDone(async, channel->scheduled);
       }
