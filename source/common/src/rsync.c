@@ -32,10 +32,14 @@ static void removeEmptyDir() {
       empty = false;
     }
     if (empty) taosRemoveDir(filename);
-    (void)taosCloseDir(&pDirTmp);
+    if (taosCloseDir(&pDirTmp) != 0) {
+      uError("[rsync] close dir error," ERRNO_ERR_FORMAT, ERRNO_ERR_DATA);
+    }
   }
 
-  (void)taosCloseDir(&pDir);
+  if (taosCloseDir(&pDir) != 0) {
+    uError("[rsync] close dir error," ERRNO_ERR_FORMAT, ERRNO_ERR_DATA);
+  }
 }
 
 #ifdef WINDOWS
@@ -297,7 +301,7 @@ int32_t downloadByRsync(const char* id, const char* path, int64_t checkpointId) 
            path, el);
   }
 
-  if (code != TSDB_CODE_SUCCESS) { // if failed, try to load it from data directory
+  if (code != TSDB_CODE_SUCCESS) {  // if failed, try to load it from data directory
 #ifdef WINDOWS
     memset(pathTransform, 0, PATH_MAX);
     changeDirFromWindowsToLinux(path, pathTransform);

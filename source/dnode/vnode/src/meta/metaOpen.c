@@ -169,9 +169,9 @@ _exit:
   return code;
 }
 
-int metaClose(SMeta **ppMeta) {
+void metaClose(SMeta **ppMeta) {
   metaCleanup(ppMeta);
-  return 0;
+  return;
 }
 
 int metaAlterCache(SMeta *pMeta, int32_t nPage) {

@@ -86,11 +86,9 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-int32_t walApplyVer(SWal *pWal, int64_t ver) {
+void walApplyVer(SWal *pWal, int64_t ver) {
   // TODO: error check
   pWal->vers.appliedVer = ver;
-
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 int32_t walCommit(SWal *pWal, int64_t ver) {

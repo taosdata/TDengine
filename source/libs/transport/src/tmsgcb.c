@@ -81,6 +81,6 @@ bool tmsgUpdateDnodeInfo(int32_t* dnodeId, int64_t* clusterId, char* fqdn, uint1
 
 void tmsgUpdateDnodeEpSet(SEpSet* epset) {
   for (int32_t i = 0; i < epset->numOfEps; ++i) {
-    (void)tmsgUpdateDnodeInfo(NULL, NULL, epset->eps[i].fqdn, &epset->eps[i].port);
+    bool ret = tmsgUpdateDnodeInfo(NULL, NULL, epset->eps[i].fqdn, &epset->eps[i].port);
   }
 }
