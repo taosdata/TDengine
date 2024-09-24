@@ -9,11 +9,8 @@ use taos::{
     taos_query::{common::Describe, Manager},
     AsyncFetchable, AsyncQueryable, Error as TaosError, RawBlock, TaosBuilder, TaosPool,
 };
-use taoslog::{utils::QidMetadataGetter, QidManager};
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
-
-use super::trace::Qid;
 
 type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>;
 
@@ -393,7 +390,6 @@ pub async fn describe_table_with_connection_retries(
     max_retries: u32,
     cancel: &CancellationToken,
 ) -> Result<Describe, TaosError> {
-    let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
     if taos.is_none() {
         taos.replace(
             reconnect_with_max_retries(pool, max_retries, cancel)
@@ -402,7 +398,6 @@ pub async fn describe_table_with_connection_retries(
         );
     }
 
-    qid.add_sub_batch_id();
     match taos
         .as_ref()
         .unwrap()
@@ -424,7 +419,6 @@ pub async fn describe_table_with_connection_retries(
                             .in_current_span()
                             .await?,
                     );
-                    qid.add_sub_batch_id();
                     taos.as_ref()
                         .unwrap()
                         .describe(table)

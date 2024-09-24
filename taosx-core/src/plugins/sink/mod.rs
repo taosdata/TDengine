@@ -655,6 +655,7 @@ async fn consume_lush_record(
                             let exist_value = exist.to_sql_value();
                             let expect_value = expect.to_sql_value();
                             if exist_value != expect_value {
+                                qid.add_sub_batch_id();
                                 tracing::info!(
                                     "table {table_name} tag value not match, new: {}, old:{}",
                                     expect.to_sql_value(),
@@ -665,7 +666,6 @@ async fn consume_lush_record(
                                     expect.to_sql_value()
                                 );
                                 tracing::info!("alter_set_sql: {alter_set_sql}");
-                                qid.add_sub_batch_id();
                                 if let Err(err) = taos
                                     .exec_with_req_id(alter_set_sql, qid.get())
                                     .in_current_span()
@@ -733,8 +733,8 @@ async fn consume_lush_record(
 
             for (stable_name, message_modify) in create_sql_map {
                 for sql in message_modify.sqls {
-                    info!("Tables: {}", sql.0);
                     qid.add_sub_batch_id();
+                    info!("Tables: {}", sql.0);
                     match taos
                         .exec_with_req_id(&sql.0, qid.get())
                         .in_current_span()
@@ -775,8 +775,8 @@ async fn consume_lush_record(
                                 );
                                 if alter_sqls.is_some() {
                                     for alter_sql in alter_sqls.unwrap() {
-                                        info!("lush table alter sql: {alter_sql}");
                                         qid.add_sub_batch_id();
+                                        info!("lush table alter sql: {alter_sql}");
                                         taos.exec_with_req_id(alter_sql, qid.get())
                                             .in_current_span()
                                             .await
@@ -2419,8 +2419,8 @@ async fn consume_point_record(
                                     "CREATE STABLE `{}` ({}) tags ({})",
                                     stable_name, temp_conlumns, tags
                                 );
-                                tracing::info!("create stable sql: {}", &stable_sql);
                                 qid.add_sub_batch_id();
+                                tracing::info!("create stable sql: {}", &stable_sql);
                                 match taos
                                     .as_ref()
                                     .unwrap()
@@ -3333,15 +3333,11 @@ pub fn generate_alter_sql_diff_desc(
 }
 
 async fn get_current_precision(conn: &Taos) -> anyhow::Result<taos::Precision> {
-    let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
-
-    qid.add_sub_batch_id();
     let database: String = conn
         .query_one("select database()")
         .await?
         .expect("target database should be set");
 
-    qid.add_sub_batch_id();
     let precision = conn
         .query_one(format!(
             "select `precision` from information_schema.ins_databases where name = '{}'",
@@ -3579,8 +3575,8 @@ pub async fn handle_lush_message_init(
             Err(err) => {
                 tracing::warn!("describe failed: {}", err.to_string());
                 // create table
-                info!("create sql: {sql}");
                 qid.add_sub_batch_id();
+                info!("create sql: {sql}");
                 let res: Result<usize, taos::Error> = taos
                     .exec_with_req_id(&sql, qid.get())
                     .in_current_span()

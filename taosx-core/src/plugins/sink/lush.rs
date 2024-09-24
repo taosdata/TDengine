@@ -706,8 +706,8 @@ async fn alter_stable(
                 f.ty(),
                 length
             );
-            tracing::info!(sql = sql, "Alter table");
             qid.add_sub_batch_id();
+            tracing::info!(sql = sql, "Alter table");
             match taos
                 .as_ref()
                 .unwrap()

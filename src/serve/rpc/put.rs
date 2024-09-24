@@ -313,7 +313,6 @@ async fn spawn_stream_writer(
     spawn_sender: AgentSpawnSender,
     schema: Arc<Schema>,
 ) -> anyhow::Result<PutStreamChannel> {
-    let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
     let task = controller
         .get(task_id)
         .await
@@ -396,7 +395,6 @@ async fn spawn_stream_writer(
 
     let license: Option<ConnectorLicense> = if let Some(connector) = connector {
         // get tdengine server version and handle compatibility
-        qid.add_sub_batch_id();
         let server_version = get_server_version(&taos).await?;
         let (a, b, c) = get_main_version_from_server_version(&server_version).unwrap();
         let grants_sql = if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
@@ -412,7 +410,6 @@ async fn spawn_stream_writer(
             if to_dsn.get("token").is_some() && to_dsn.protocol.is_some() {
                 None
             } else {
-                qid.add_sub_batch_id();
                 taos.query_one::<_, String>(&grants_sql)
                     .await
                     .unwrap_or(None)

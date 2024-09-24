@@ -315,7 +315,6 @@ pub async fn flat_write_with_sql(
                             }
                             FlatWriteError::ContainerLengthTooShort(field) => {
                                 if let Some(stable) = stable.as_deref() {
-                                    qid.add_sub_batch_id();
                                     let desc = taos.as_ref().unwrap().describe(stable).await?;
                                     let f = desc.iter().find(|f| f.field() == field).ok_or_else(
                                         || {
@@ -345,7 +344,6 @@ pub async fn flat_write_with_sql(
                                                 (f.length() * 2).min(max)
                                             })
                                         );
-                                        qid.add_sub_batch_id();
                                         let _ = taos.as_ref().unwrap().exec(&sql).await;
                                     } else {
                                         let sql = format!(
@@ -362,7 +360,6 @@ pub async fn flat_write_with_sql(
                                                 (f.length() * 2).min(max)
                                             })
                                         );
-                                        qid.add_sub_batch_id();
                                         let _ = taos.as_ref().unwrap().exec(&sql).await;
                                     }
                                 }
@@ -489,8 +486,8 @@ pub async fn flat_write_with_raw_block(
                                 }
                                 // Table not exists.
                                 if let Some(sql) = records.stable_sql() {
-                                    tracing::debug!("flat message stable sql : {sql}");
                                     qid.add_sub_batch_id();
+                                    tracing::debug!("flat message stable sql : {sql}");
                                     match taos
                                         .as_ref()
                                         .unwrap()
@@ -638,6 +635,7 @@ pub async fn flat_write_with_raw_block(
                 }
             }
             qid.add_sub_batch_id();
+            trace!("write raw block");
             if let Err(err) = taos
                 .as_ref()
                 .unwrap()
