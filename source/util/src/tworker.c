@@ -178,7 +178,7 @@ int32_t tAutoQWorkerInit(SAutoQWorkerPool *pool) {
   pool->workers = taosArrayInit(2, sizeof(SQueueWorker *));
   if (pool->workers == NULL) {
     taosCloseQset(pool->qset);
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (void)taosThreadMutexInit(&pool->mutex, NULL);

@@ -57,9 +57,17 @@ void fstUnFinishedNodesDestroy(FstUnFinishedNodes* nodes) {
 
 void fstUnFinishedNodesPushEmpty(FstUnFinishedNodes* nodes, bool isFinal) {
   FstBuilderNode* node = taosMemoryMalloc(sizeof(FstBuilderNode));
+  if (node == NULL) {
+    return;
+  }
+
   node->isFinal = isFinal;
   node->finalOutput = 0;
   node->trans = taosArrayInit(16, sizeof(FstTransition));
+  if (node->trans == NULL) {
+    taosMemoryFree(node);
+    return;
+  }
 
   FstBuilderNodeUnfinished un = {.node = node, .last = NULL};
   if (taosArrayPush(nodes->stack, &un) == NULL) {
@@ -112,6 +120,9 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes* nodes, FstSlice bs, Output 
 
   for (uint64_t i = 1; i < len; i++) {
     FstBuilderNode* n = taosMemoryMalloc(sizeof(FstBuilderNode));
+    if (n == NULL) {
+      return;
+    }
     n->isFinal = false;
     n->finalOutput = 0;
     n->trans = taosArrayInit(16, sizeof(FstTransition));
@@ -295,6 +306,9 @@ void fstStateCompileForAnyTrans(IdxFstFile* w, CompiledAddr addr, FstBuilderNode
   if (sz > TRANS_INDEX_THRESHOLD) {
     // A value of 255 indicates that no transition exists for the byte at that idx
     uint8_t* index = (uint8_t*)taosMemoryMalloc(sizeof(uint8_t) * 256);
+    if (index == NULL) {
+      return;
+    }
     memset(index, 255, sizeof(uint8_t) * 256);
     for (int32_t i = 0; i < sz; i++) {
       FstTransition* t = taosArrayGet(node->trans, i);
@@ -973,6 +987,10 @@ Fst* fstCreate(FstSlice* slice) {
   fst->meta->checkSum = checkSum;
 
   FstSlice* s = taosMemoryCalloc(1, sizeof(FstSlice));
+  if (s == NULL) {
+    goto FST_CREAT_FAILED;
+  }
+
   *s = fstSliceCopy(slice, 0, FST_SLICE_LEN(slice) - 1);
   fst->data = s;
 
@@ -1326,6 +1344,9 @@ FStmStRslt* stmStNextWith(FStmSt* sws, streamCallback__fn callback) {
 
     int32_t  isz = taosArrayGetSize(sws->inp);
     uint8_t* buf = (uint8_t*)taosMemoryMalloc(isz * sizeof(uint8_t));
+    if (buf == NULL) {
+      return NULL;
+    }
     for (uint32_t i = 0; i < isz; i++) {
       buf[i] = *(uint8_t*)taosArrayGet(sws->inp, i);
     }

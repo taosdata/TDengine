@@ -1461,7 +1461,7 @@ int32_t catalogGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SCatalo
     pRsp->pTableMeta = taosArrayInit(tbNum, POINTER_BYTES);
     if (NULL == pRsp->pTableMeta) {
       ctgError("taosArrayInit %d failed", tbNum);
-      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_JRET(terrno);
     }
 
     for (int32_t i = 0; i < tbNum; ++i) {
@@ -1476,7 +1476,7 @@ int32_t catalogGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SCatalo
       if (NULL == taosArrayPush(pRsp->pTableMeta, &pTableMeta)) {
         ctgError("taosArrayPush failed, idx:%d", i);
         taosMemoryFreeClear(pTableMeta);
-        CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+        CTG_ERR_JRET(terrno);
       }
     }
   }

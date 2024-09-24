@@ -335,7 +335,7 @@ int32_t taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, con
   if (buf == NULL) {
     tmp = taosMemoryMalloc(size);
     if (NULL == tmp) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   } else {
     tmp = buf;
@@ -467,7 +467,7 @@ static int32_t taosMergeSortHelper(void *src, int64_t numOfElem, int64_t size, c
     int32_t currSize;
     void   *tmp = taosMemoryMalloc(numOfElem * size);
     if (tmp == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     for (currSize = THRESHOLD_SIZE; currSize <= numOfElem - 1; currSize = 2 * currSize) {
