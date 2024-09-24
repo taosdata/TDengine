@@ -82,14 +82,18 @@ YELLOW_DARK='\033[0;33m'
 BLUE_DARK='\033[0;34m'
 GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
-
+if [ "${originversion}" = "ProDB" ]; then
+    TDengine="ProDB"
+else
+    TDengine="TDengine"
+fi
 if [[ ${verMode} = "enterprise" ]];then
-    prePackage="TDengine-enterprise"
+    prePackage="${TDengine}-enterprise"
     if [[ ${testFile} = "client" ]];then
-        prePackage="TDengine-enterprise-${testFile}"
+        prePackage="${TDengine}-enterprise-${testFile}"
     fi
 elif [ ${verMode} = "community" ];then
-    prePackage="TDengine-${testFile}"
+    prePackage="${TDengine}-${testFile}"
 fi
 if [ ${lite} = "true" ];then
     packageLite="-Lite"
@@ -149,7 +153,11 @@ wgetFile() {
     versionPath=$2
     sourceP=$3
     nasServerIP="192.168.1.213"
-    packagePath="/nas/TDengine/${originversion}/v${versionPath}/${verMode}"
+    if [ "${originversion}" = "ProDB" ]; then
+        packagePath="/nas/OEM/ProDB/v${versionPath}"
+    else
+        packagePath="/nas/TDengine/${originversion}/v${versionPath}/${verMode}"
+    fi
     if [ -f  ${file}  ];then
         echoColor  YD "${file} already exists ,it will delete it and download  it again "
         # rm -rf ${file}
@@ -194,6 +202,18 @@ fi
 if [[ ${packageName} =~ "server" ]] ;then
     echoColor BD " pkill -9 taosd "
     pkill -9 taosd
+fi
+
+if command -v rmprodb ;then
+    echoColor YD "uninstall all components of TDeingne:rmprodb"
+    rmprodb
+else
+     echoColor YD "os doesn't include TDengine"
+fi
+
+if [[ ${packageName} =~ "server" ]] ;then
+    echoColor BD " pkill -9 prodbd "
+    pkill -9 prodbd
 fi
 
 echoColor G "===== new workroom path ====="

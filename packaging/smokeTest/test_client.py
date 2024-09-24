@@ -7,21 +7,24 @@ import getopt
 import re
 import time
 import taos
-
+from versionCheckAndUninstallforPytest import UninstallTaos
 
 # python3 smokeTestClient.py -h 192.168.0.22 -P 6031 -v ${version} -u
 
+OEM = ["ProDB"]
+
+
 @pytest.fixture(scope="module")
 def get_config(request):
-    # verMode = request.config.getoption("--verMode")
+    verMode = request.config.getoption("--verMode")
     taosVersion = request.config.getoption("--tVersion")
-    # baseVersion = request.config.getoption("--baseVersion")
-    # sourcePath = request.config.getoption("--sourcePath")
+    baseVersion = request.config.getoption("--baseVersion")
+    sourcePath = request.config.getoption("--sourcePath")
     config = {
-        # "verMode": verMode,
+        "verMode": verMode,
         "taosVersion": taosVersion,
-        # "baseVersion": baseVersion,
-        # "sourcePath": sourcePath,
+        "baseVersion": baseVersion,
+        "sourcePath": sourcePath,
         "system": platform.system(),
         "arch": platform.machine(),
         "serverHost": "192.168.0.22",
@@ -72,10 +75,18 @@ class TestClient:
     @pytest.mark.all
     def test_basic(self, get_config, setup_module):
         config = get_config
-        # prepare data by taosBenchmark
-        cmd = "taosBenchmark -y -a 3 -n 100 -t 100 -d %s -h %s -P %s &" % (
-            config["databaseName"], config["serverHost"], config["serverPort"])
-        run_cmd(cmd)
+        name = "taos"
+
+        if config["baseVersion"] in OEM:
+            name = config["baseVersion"].lower()
+        if config["baseVersion"] in OEM and config["system"] == 'Windows':
+            cmd = f'{name} -s "create database {config["databaseName"]};"  -h {config["serverHost"]}  -P {config["serverPort"]}'
+            run_cmd(cmd)
+            cmd = f'{name} -s "CREATE STABLE {config["databaseName"]}.meters (`ts` TIMESTAMP,`current` FLOAT, `phase` FLOAT) TAGS (`groupid` INT, `location` VARCHAR(24));"  -h {config["serverHost"]}  -P {config["serverPort"]}'
+            run_cmd(cmd)
+        else:
+            cmd = f'{name}Benchmark -y -a 3 -n 100 -t 100 -d {config["databaseName"]} -h {config["serverHost"]} -P {config["serverPort"]} &'
+            run_cmd(cmd)
         # os.system("taosBenchmark -y -a 3 -n 100 -t 100 -d %s -h %s -P %d" % (databaseName, serverHost, serverPort))
         time.sleep(5)
         conn = get_connect(config["serverHost"], config["serverPort"], config["databaseName"])
@@ -84,11 +95,12 @@ class TestClient:
         data = result.fetch_all()
         print("SQL: %s" % sql)
         print("Result: %s" % data)
-        if data[0][0] != 10000:
-            raise " taosBenchmark work not as expected "
+        if config["system"] == 'Windows' and config["baseVersion"] in OEM:
+            pass
+        elif data[0][0] != 10000:
+            raise f"{name}Benchmark work not as expected "
         # drop database of test
-        cmd = 'taos -s "drop database %s;"  -h %s  -P %d' % (
-            config["databaseName"], config["serverHost"], config["serverPort"])
+        cmd = f'{name} -s "drop database {config["databaseName"]};"  -h {config["serverHost"]}  -P {config["serverPort"]}'
         result = run_cmd(cmd)
         assert "Drop OK" in result.stdout
         conn.close()
@@ -101,10 +113,13 @@ class TestClient:
         print("server_version: ", server_version)
         client_version = conn.client_info
         print("client_version: ", client_version)
+        name = "taos"
+        if config["baseVersion"] in OEM:
+            name = config["baseVersion"].lower()
         if config["system"] == "Windows":
-            taos_V_output = subprocess.getoutput("taos -V | findstr version")
+            taos_V_output = subprocess.getoutput(f"{name} -V | findstr version")
         else:
-            taos_V_output = subprocess.getoutput("taos -V | grep version")
+            taos_V_output = subprocess.getoutput(f"{name} -V | grep version")
         assert config["taosVersion"] in taos_V_output
         assert config["taosVersion"] in client_version
         if config["taosVersion"] not in server_version:
@@ -114,100 +129,9 @@ class TestClient:
     @pytest.mark.all
     def test_uninstall(self, get_config, setup_module):
         config = get_config
-        print("Start to run rmtaos")
-        leftFile = False
-        print("Platform: ", config["system"])
-
-        if config["system"] == "Linux":
-            # 创建一个subprocess.Popen对象，并使用stdin和stdout进行交互
-            process = subprocess.Popen(['rmtaos'],
-                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
-            # 向子进程发送输入
-            process.stdin.write("y\n")
-            process.stdin.flush()  # 确保输入被发送到子进程
-            process.stdin.write("I confirm that I would like to delete all data, log and configuration files\n")
-            process.stdin.flush()  # 确保输入被发送到子进程
-            # 关闭子进程的stdin，防止它无限期等待更多输入
-            process.stdin.close()
-            # 等待子进程结束
-            process.wait()
-            # 检查目录清除情况
-            out = subprocess.getoutput("ls /etc/systemd/system/taos*")
-            if "No such file or directory" not in out:
-                print("Uninstall left some files: %s" % out)
-                leftFile = True
-            out = subprocess.getoutput("ls /usr/bin/taos*")
-            if "No such file or directory" not in out:
-                print("Uninstall left some files: %s" % out)
-                leftFile = True
-            out = subprocess.getoutput("ls /usr/local/bin/taos*")
-            if "No such file or directory" not in out:
-                print("Uninstall left some files: %s" % out)
-                leftFile = True
-            out = subprocess.getoutput("ls /usr/lib/libtaos*")
-            if "No such file or directory" not in out:
-                print("Uninstall left some files: %s" % out)
-                leftFile = True
-            out = subprocess.getoutput("ls /usr/lib64/libtaos*")
-            if "No such file or directory" not in out:
-                print("Uninstall left some files: %s" % out)
-                leftFile = True
-            out = subprocess.getoutput("ls /usr/include/taos*")
-            if "No such file or directory" not in out:
-                print("Uninstall left some files: %s" % out)
-                leftFile = True
-            out = subprocess.getoutput("ls /usr/local/taos")
-            # print(out)
-            if "No such file or directory" not in out:
-                print("Uninstall left some files in /usr/local/taos：%s" % out)
-                leftFile = True
-            if not leftFile:
-                print("*******Test Result: uninstall test passed ************")
-
-        elif config["system"] == "Darwin":
-            # 创建一个subprocess.Popen对象，并使用stdin和stdout进行交互
-            process = subprocess.Popen(['sudo', 'rmtaos'],
-                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
-            # 向子进程发送输入
-            process.stdin.write("y\n")
-            process.stdin.flush()  # 确保输入被发送到子进程
-            process.stdin.write("I confirm that I would like to delete all data, log and configuration files\n")
-            process.stdin.flush()  # 确保输入被发送到子进程
-            # 关闭子进程的stdin，防止它无限期等待更多输入
-            process.stdin.close()
-            # 等待子进程结束
-            process.wait()
-            # 检查目录清除情况
-            out = subprocess.getoutput("ls /usr/local/bin/taos*")
-            if "No such file or directory" not in out:
-                print("Uninstall left some files: %s" % out)
-                leftFile = True
-            out = subprocess.getoutput("ls /usr/local/lib/libtaos*")
-            if "No such file or directory" not in out:
-                print("Uninstall left some files: %s" % out)
-                leftFile = True
-            out = subprocess.getoutput("ls /usr/local/include/taos*")
-            if "No such file or directory" not in out:
-                print("Uninstall left some files: %s" % out)
-                leftFile = True
-            # out = subprocess.getoutput("ls /usr/local/Cellar/tdengine/")
-            # print(out)
-            # if out:
-            #    print("Uninstall left some files: /usr/local/Cellar/tdengine/%s" % out)
-            #    leftFile = True
-            # if not leftFile:
-            #    print("*******Test Result: uninstall test passed ************")
-
-        elif config["system"] == "Windows":
-            process = subprocess.Popen(['unins000', '/silent'],
-                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
-            process.wait()
-            time.sleep(10)
-            out = subprocess.getoutput("ls C:\TDengine")
-            print(out)
-            if len(out.split("\n")) > 3:
-                leftFile = True
-                print("Uninstall left some files: %s" % out)
-
-        if leftFile:
-            raise "Uninstall fail"
+        name = "taos"
+        if config["baseVersion"] in OEM:
+            name = config["baseVersion"].lower()
+            subprocess.getoutput("rm /usr/local/bin/taos")
+            subprocess.getoutput("pkill taosd")
+        UninstallTaos(config["taosVersion"], config["verMode"], True, name)

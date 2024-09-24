@@ -24,7 +24,7 @@ from lib import run_cmd
 
 
 # input for server
-def UninstallTaos(version, verMode, uninstall):
+def UninstallTaos(version, verMode, uninstall, name):
     if not version:
         raise "No version specified, will not run version check."
 
@@ -32,22 +32,20 @@ def UninstallTaos(version, verMode, uninstall):
     arch = platform.machine()
     leftFile = False
     if uninstall:
-        print("Start to run rmtaos")
+        print("Start to run rm%s" % name)
         print("Platform: ", system)
         # stop taosd server
         if system == 'Windows':
             cmd = "C:\\TDengine\\stop_all.bat"
-        elif system == 'Linux':
-            cmd = "systemctl stop taosd"
         else:
-            cmd = "sudo launchctl stop com.tdengine.taosd"
+            cmd = "stop_all.sh"
         process_out = subprocess.getoutput(cmd)
         print(cmd)
         time.sleep(5)
-        print("start to rmtaos")
+        print("start to rm%s" % name)
         if system == "Linux":
             # 启动命令
-            process = subprocess.Popen(['rmtaos'], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            process = subprocess.Popen(['rm%s' % name], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                        stderr=subprocess.PIPE, text=True)
 
             # 发送交互输入
@@ -58,41 +56,41 @@ def UninstallTaos(version, verMode, uninstall):
             print(stdout)
             print(stderr)
             # 检查目录清除情况
-            out = subprocess.getoutput("ls /etc/systemd/system/taos*")
+            out = subprocess.getoutput("ls /etc/systemd/system/%s*" % name)
             if "No such file or directory" not in out:
                 print("Uninstall left some files: %s" % out)
                 leftFile = True
-            out = subprocess.getoutput("ls /usr/bin/taos*")
+            out = subprocess.getoutput("ls /usr/bin/%s*" % name)
             if "No such file or directory" not in out:
                 print("Uninstall left some files: %s" % out)
                 leftFile = True
-            out = subprocess.getoutput("ls /usr/local/bin/taos*")
+            out = subprocess.getoutput("ls /usr/local/bin/%s*" % name)
             if "No such file or directory" not in out:
                 print("Uninstall left some files: %s" % out)
                 leftFile = True
-            out = subprocess.getoutput("ls /usr/lib/libtaos*")
+            out = subprocess.getoutput("ls /usr/lib/lib%s*" % name)
             if "No such file or directory" not in out:
                 print("Uninstall left some files: %s" % out)
                 leftFile = True
-            out = subprocess.getoutput("ls /usr/lib64/libtaos*")
+            out = subprocess.getoutput("ls /usr/lib64/lib%s*" % name)
             if "No such file or directory" not in out:
                 print("Uninstall left some files: %s" % out)
                 leftFile = True
-            out = subprocess.getoutput("ls /usr/include/taos*")
+            out = subprocess.getoutput("ls /usr/include/%s*" % name)
             if "No such file or directory" not in out:
                 print("Uninstall left some files: %s" % out)
                 leftFile = True
-            out = subprocess.getoutput("ls /usr/local/taos")
+            out = subprocess.getoutput("ls /usr/local/%s" % name)
             # print(out)
             if "No such file or directory" not in out:
-                print("Uninstall left some files in /usr/local/taos：%s" % out)
+                print("Uninstall left some files in /usr/local/%s：%s" % (name, out))
                 leftFile = True
             if not leftFile:
                 print("*******Test Result: uninstall test passed ************")
 
         elif system == "Darwin":
             # 创建一个subprocess.Popen对象，并使用stdin和stdout进行交互
-            process = subprocess.Popen(['sudo', 'rmtaos'],
+            process = subprocess.Popen(['sudo', 'rm%s' % name],
                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
             # 向子进程发送输入
             process.stdin.write("y\n")
@@ -104,15 +102,15 @@ def UninstallTaos(version, verMode, uninstall):
             # 等待子进程结束
             process.wait()
             # 检查目录清除情况
-            out = subprocess.getoutput("ls /usr/local/bin/taos*")
+            out = subprocess.getoutput("ls /usr/local/bin/%s*" % name)
             if "No such file or directory" not in out:
                 print("Uninstall left some files: %s" % out)
                 leftFile = True
-            out = subprocess.getoutput("ls /usr/local/lib/libtaos*")
+            out = subprocess.getoutput("ls /usr/local/lib/lib%s*" % name)
             if "No such file or directory" not in out:
                 print("Uninstall left some files: %s" % out)
                 leftFile = True
-            out = subprocess.getoutput("ls /usr/local/include/taos*")
+            out = subprocess.getoutput("ls /usr/local/include/%s*" % name)
             if "No such file or directory" not in out:
                 print("Uninstall left some files: %s" % out)
                 leftFile = True
@@ -129,15 +127,11 @@ def UninstallTaos(version, verMode, uninstall):
                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
             process.wait()
             time.sleep(10)
-            out = subprocess.getoutput("ls C:\TDengine")
-            print(out)
-            if len(out.split("\n")) > 3:
-                leftFile = True
-                print("Uninstall left some files: %s" % out)
-
-    if not leftFile:
-        print("**********Test Result: uninstall test passed! **********")
-    else:
-        print("!!!!!!!!!!!Test Result: uninstall test failed! !!!!!!!!!!")
+            for file in ["C:\TDengine\\taos.exe", "C:\TDengine\\unins000.exe", "C:\ProDB\prodb.exe",
+                         "C:\ProDB\\unins000.exe"]:
+                if os.path.exists(file):
+                    leftFile = True
     if leftFile:
-        raise "uninstall taos fail, please check"
+        raise "uninstall %s fail, please check" % name
+    else:
+        print("**********Test Result: uninstall test passed! **********")
