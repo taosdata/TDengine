@@ -90,6 +90,10 @@ int32_t iUnion(SArray *in, SArray *out) {
   }
 
   MergeIndex *mi = taosMemoryCalloc(sz, sizeof(MergeIndex));
+  if (mi == NULL) {
+    return terrno;
+  }
+
   for (int i = 0; i < sz; i++) {
     SArray *t = taosArrayGetP(in, i);
     mi[i].len = (int32_t)taosArrayGetSize(t);
