@@ -3356,7 +3356,7 @@ int32_t transFreeConnById(void* shandle, int64_t transpointId) {
   }
 
 _exception:
-  transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
+ transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
 
   (void)transReleaseExHandle(transGetRefMgt(), transpointId);
   (void)transRemoveExHandle(transGetRefMgt(), transpointId);
