@@ -264,7 +264,10 @@ jobs:
           echo ${{ needs.run_test.result }}
           echo "CONTAINER_ID=${{needs.deploy_with_docker.outputs.CONTAINER_ID}}" > $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile/environment.properties
           echo "EXPLORER_URL=http://$RELEASE_HOST:${{needs.deploy_with_docker.outputs.EXPLORER_PORT}}" >> $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile/environment.properties
-          echo "WINDOWS_AGENT_PROCESS_ID=${{needs.deploy_with_docker.outputs.WINDOWS_AGENT_PROCESS_ID}}" >> $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile/environment.properties
+          echo "PYTEST_VERSION=$(docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c 'pytest --version')" >> $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile/environment.properties
+          echo "POETRY_VERSION=$(docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c 'poetry --version')" >> $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile/environment.properties
+          echo "PYTHON_VERSION=$(docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c 'python --version')" >> $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile/environment.properties
+          # echo "WINDOWS_AGENT_PROCESS_ID=${{needs.deploy_with_docker.outputs.WINDOWS_AGENT_PROCESS_ID}}" >> $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile/environment.properties
           allure generate $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile -o $COVERAGE_BASE_DIR/$DIR_PATH/allure_report/ --clean
           echo "see report at $REPORT_BASE_URL/$DIR_PATH/allure_report/"
           pass_rate=$(cd /data/github/TestNG_taosX/ && /root/.local/bin/poetry run python3 testng_taosx/ci_calculate_pass_rate.py $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile)
