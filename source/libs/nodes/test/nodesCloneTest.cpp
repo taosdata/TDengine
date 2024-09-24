@@ -258,8 +258,8 @@ TEST_F(NodesCloneTest, physiSystemTableScan) {
 TEST_F(NodesCloneTest, physiStreamSemiSessionWinodw) {
   registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
     ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
-    SStreamSemiSessionWinodwPhysiNode* pSrcNode = (SStreamSemiSessionWinodwPhysiNode*)pSrc;
-    SStreamSemiSessionWinodwPhysiNode* pDstNode = (SStreamSemiSessionWinodwPhysiNode*)pDst;
+    SStreamSemiSessionWindowPhysiNode* pSrcNode = (SStreamSemiSessionWindowPhysiNode*)pSrc;
+    SStreamSemiSessionWindowPhysiNode* pDstNode = (SStreamSemiSessionWindowPhysiNode*)pDst;
     ASSERT_EQ(pSrcNode->gap, pDstNode->gap);
   });
 
@@ -269,7 +269,7 @@ TEST_F(NodesCloneTest, physiStreamSemiSessionWinodw) {
     SNode*  pNew = NULL;
     int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION, &pNew);
     srcNode.reset(pNew);
-    SStreamSemiSessionWinodwPhysiNode* pNode = (SStreamSemiSessionWinodwPhysiNode*)srcNode.get();
+    SStreamSemiSessionWindowPhysiNode* pNode = (SStreamSemiSessionWindowPhysiNode*)srcNode.get();
     return srcNode.get();
   }());
 }
@@ -277,8 +277,8 @@ TEST_F(NodesCloneTest, physiStreamSemiSessionWinodw) {
 TEST_F(NodesCloneTest, physiStreamFinalSessionWinodw) {
   registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
     ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
-    SStreamFinalSessionWinodwPhysiNode* pSrcNode = (SStreamFinalSessionWinodwPhysiNode*)pSrc;
-    SStreamFinalSessionWinodwPhysiNode* pDstNode = (SStreamFinalSessionWinodwPhysiNode*)pDst;
+    SStreamFinalSessionWindowPhysiNode* pSrcNode = (SStreamFinalSessionWindowPhysiNode*)pSrc;
+    SStreamFinalSessionWindowPhysiNode* pDstNode = (SStreamFinalSessionWindowPhysiNode*)pDst;
     ASSERT_EQ(pSrcNode->gap, pDstNode->gap);
   });
 
@@ -288,7 +288,7 @@ TEST_F(NodesCloneTest, physiStreamFinalSessionWinodw) {
     SNode*  pNew = NULL;
     int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION, &pNew);
     srcNode.reset(pNew);
-    SStreamFinalSessionWinodwPhysiNode* pNode = (SStreamFinalSessionWinodwPhysiNode*)srcNode.get();
+    SStreamFinalSessionWindowPhysiNode* pNode = (SStreamFinalSessionWindowPhysiNode*)srcNode.get();
     return srcNode.get();
   }());
 }
