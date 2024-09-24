@@ -168,7 +168,7 @@ _end:
     pAggSup->stateStore.streamStateSessionDel(pAggSup->pState, &pCurWin->winInfo.sessionWin);
   }
   pAggSup->stateStore.streamStateFreeCur(pCur);
-  qDebug("===stream===set event next win buff. skey:%" PRId64 ", endkey:%" PRId64, pCurWin->winInfo.sessionWin.win.skey,
+  qDebug("===stream===set event cur win buff. skey:%" PRId64 ", endkey:%" PRId64, pCurWin->winInfo.sessionWin.win.skey,
          pCurWin->winInfo.sessionWin.win.ekey);
 }
 
@@ -210,7 +210,7 @@ int32_t updateEventWindowInfo(SStreamAggSupporter* pAggSup, SEventWindowInfo* pW
       pWinInfo->pWinFlag->endFlag = ends[i];
     } else if (pWin->ekey == pTsData[i]) {
       pWinInfo->pWinFlag->endFlag |= ends[i];
-    } else {
+    } else if (ends[i] && !pWinInfo->pWinFlag->endFlag) {
       *pRebuild = true;
       pWinInfo->pWinFlag->endFlag |= ends[i];
       return i + 1 - start;
