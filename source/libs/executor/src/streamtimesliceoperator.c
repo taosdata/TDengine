@@ -827,6 +827,8 @@ static int32_t getPointInfoFromStateRight(SStreamAggSupporter* pAggSup, SStreamF
                                                           &curVLen, pWinCode);
   QUERY_CHECK_CODE(code, lino, _end);
 
+  qDebug("===stream=== set stream interp next point buf.ts:%" PRId64 ", groupId:%" PRId64 ", res:%d", pNextPoint->key.ts, pNextPoint->key.groupId, pWinCode);
+
   setPointBuff(pNextPoint, pFillSup);
 
   if (*pWinCode != TSDB_CODE_SUCCESS) {
@@ -844,6 +846,9 @@ static int32_t getPointInfoFromStateRight(SStreamAggSupporter* pAggSup, SStreamF
   code = pAggSup->stateStore.streamStateFillGetPrev(pState, &pNextPoint->key, &pCurPoint->key,
                                                     (void**)&pCurPoint->pResPos, &nextVLen, &tmpRes);
   QUERY_CHECK_CODE(code, lino, _end);
+
+  qDebug("===stream=== set stream interp cur point buf.ts:%" PRId64 ", groupId:%" PRId64 ", res:%d", pCurPoint->key.ts, pCurPoint->key.groupId, tmpRes);
+
   if (tmpRes == TSDB_CODE_SUCCESS) {
     setPointBuff(pCurPoint, pFillSup);
   }
@@ -871,6 +876,8 @@ static int32_t getPointInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillSu
   code = pAggSup->stateStore.streamStateFillAddIfNotExist(pState, &pCurPoint->key, (void**)&pCurPoint->pResPos,
                                                           &curVLen, pWinCode);
   QUERY_CHECK_CODE(code, lino, _end);
+
+  qDebug("===stream=== set stream interp buf.ts:%" PRId64 ", groupId:%" PRId64, pCurPoint->key.ts, pCurPoint->key.groupId);
 
   setPointBuff(pCurPoint, pFillSup);
 
@@ -942,9 +949,8 @@ static void copyCalcRowDeltaData(SResultRowData* pEndRow, SArray* pEndPoins, SFi
 }
 
 static void setForceWindowCloseFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, TSKEY ts) {
-  TSKEY endTs = adustEndTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
-  TSKEY startTs = adustPrevTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
-
+  qDebug("===stream=== set force window close rule.ts:%" PRId64 ",cur key:%" PRId64 ", has prev%d, has next:%d", ts,
+         pFillSup->cur.key, hasPrevWindow(pFillSup), hasNextWindow(pFillSup));
   pFillInfo->needFill = true;
   pFillInfo->pos = FILL_POS_INVALID;
   switch (pFillInfo->type) {
@@ -962,9 +968,9 @@ static void setForceWindowCloseFillRule(SStreamFillSupporter* pFillSup, SStreamF
       }
     } break;
     case TSDB_FILL_PREV: {
-      if (ts == pFillSup->cur.key) {
-        pFillInfo->pos = FILL_POS_START;
-        pFillInfo->needFill = false;
+      if (ts >= pFillSup->cur.key) {
+        setFillKeyInfo(ts, ts + 1, &pFillSup->interval, pFillInfo);
+        pFillInfo->pResRow = &pFillSup->cur;
       } else if (hasPrevWindow(pFillSup)) {
         pFillInfo->pos = FILL_POS_INVALID;
         setFillKeyInfo(ts, ts + 1, &pFillSup->interval, pFillInfo);
@@ -1430,6 +1436,7 @@ void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, STimeWindowAggSup
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
   for (; pGroupResInfo->index < numOfRows; pGroupResInfo->index++) {
     SWinKey* pKey = (SWinKey*)taosArrayGet(pGroupResInfo->pRows, pGroupResInfo->index);
+    qDebug("===stream=== build interp res. key:%" PRId64 ",groupId:%" PRId64, pKey->ts, pKey->groupId);
     if (pBlock->info.id.groupId == 0) {
       pBlock->info.id.groupId = pKey->groupId;
     } else if (pBlock->info.id.groupId != pKey->groupId) {

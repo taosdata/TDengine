@@ -276,14 +276,16 @@ int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
     streamStateFreeCur(pCur);
     return code;
   } else {
-    SWinKey* pNext = taosArrayGet(pWinStates, index - 1);
-    if (qDebugFlag & DEBUG_DEBUG) {
-      SWinKey* pTmp = taosArrayGet(pWinStates, index);
-      if (winKeyCmprImpl(pTmp, pKey) != 0) {
-        qError("%s failed at line %d since do not find cur SWinKey", __func__, lino);
-      }
+    SWinKey* pPrevKey = NULL;
+    SWinKey* pCurKey = taosArrayGet(pWinStates, index);
+    if (winKeyCmprImpl(pCurKey, pKey) == 0) {
+      pPrevKey = taosArrayGet(pWinStates, index - 1);
+    } else {
+      pPrevKey = taosArrayGet(pWinStates, index);
+      qDebug("%s failed at line %d since do not find cur SWinKey. trigger may be force window close", __func__, __LINE__);
     }
-    *pResKey = *pNext;
+
+    *pResKey = *pPrevKey;
     return getHashSortRowBuff(pFileState, pResKey, ppVal, pVLen, pWinCode);
   }
   (*pWinCode) = TSDB_CODE_FAILED;
