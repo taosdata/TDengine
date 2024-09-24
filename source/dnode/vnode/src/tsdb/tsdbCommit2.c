@@ -413,7 +413,7 @@ static void tsdbCommitInfoDestroy(STsdb *pTsdb) {
   if (pTsdb->commitInfo) {
     for (int32_t i = 0; i < taosArrayGetSize(pTsdb->commitInfo->arr); i++) {
       SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(pTsdb->commitInfo->arr, i);
-      TAOS_UNUSED(vHashDrop(pTsdb->commitInfo->ht, info));
+      int32_t             ret = vHashDrop(pTsdb->commitInfo->ht, info);
       tsdbTFileSetClear(&info->fset);
       taosMemoryFree(info);
     }
@@ -514,7 +514,7 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
       SFileSetCommitInfo  tinfo = {
            .fid = fid,
       };
-      TAOS_UNUSED(vHashGet(tsdb->commitInfo->ht, &tinfo, (void **)&info));
+      int32_t ret = vHashGet(tsdb->commitInfo->ht, &tinfo, (void **)&info);
       if (info == NULL) {
         TAOS_CHECK_GOTO(tsdbCommitInfoAdd(tsdb, fid), &lino, _exit);
       }
@@ -538,7 +538,7 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
       };
 
       // check if the file set already on the commit list
-      TAOS_UNUSED(vHashGet(tsdb->commitInfo->ht, &tinfo, (void **)&info));
+      int32_t ret = vHashGet(tsdb->commitInfo->ht, &tinfo, (void **)&info);
       if (info != NULL) {
         continue;
       }

@@ -432,7 +432,7 @@ static void vnodeAsyncLaunchWorker(SVAsync *async) {
     if (async->workers[i].state == EVA_WORKER_STATE_ACTIVE) {
       continue;
     } else if (async->workers[i].state == EVA_WORKER_STATE_STOP) {
-      TAOS_UNUSED(taosThreadJoin(async->workers[i].thread, NULL));
+      int32_t ret = taosThreadJoin(async->workers[i].thread, NULL);
       async->workers[i].state = EVA_WORKER_STATE_UINIT;
     }
 
