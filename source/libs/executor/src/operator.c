@@ -881,14 +881,17 @@ SSDataBlock* getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, i
 int32_t optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SSDataBlock** pRes) {
   QRY_PARAM_CHECK(pRes);
 
+  int32_t lino = 0;
   int32_t code = setOperatorParams(pOperator, pParam, OP_GET_PARAM);
-  if (TSDB_CODE_SUCCESS != code) {
+  QUERY_CHECK_CODE(code, lino, _end);
+  code = pOperator->fpSet.getNextFn(pOperator, pRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     pOperator->pTaskInfo->code = code;
-  } else {
-    code = pOperator->fpSet.getNextFn(pOperator, pRes);
-    if (code) {
-      pOperator->pTaskInfo->code = code;
-    }
+    T_LONG_JMP(pOperator->pTaskInfo->env, code);
   }
 
   return code;

@@ -54,6 +54,7 @@ class TDTestCase:
         self.ctb_names = [ f'ctb0', 'ctb1', f'aa\u00bf\u200bctb0', f'aa\u00bf\u200bctb1']
         self.ntb_names = [ f'ntb0', f'aa\u00bf\u200bntb0', f'ntb1', f'aa\u00bf\u200bntb1']
         self.vgroups_opt = f'vgroups 4'
+        self.err_dup_cnt = 5
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
         for i in range(row_num):
@@ -147,13 +148,31 @@ class TDTestCase:
             if i == 0:
                 dropTable = f'drop table with `{stb_result[1]}`.`{stb_result[10]}`,'
                 dropStable = f'drop stable with `{stb_result[1]}`.`{stb_result[10]}`,'
+                dropTableWithSpace = f'drop table with `{stb_result[1]}`.`{stb_result[10]} `,'
+                dropStableWithSpace = f'drop stable with `{stb_result[1]}`.` {stb_result[10]}`,'
+                dropStableNotExist = f'drop stable with `{stb_result[1]}`.`{stb_result[10]}_notexist`,'
+                for _ in range(self.err_dup_cnt):
+                    tdLog.info(dropTableWithSpace[:-1])
+                    tdSql.error(dropTableWithSpace[:-1], expectErrInfo="Table does not exist", fullMatched=False)
+                    tdLog.info(dropStableWithSpace[:-1])
+                    tdSql.error(dropStableWithSpace[:-1], expectErrInfo="STable not exist", fullMatched=False)
+                    tdLog.info(dropStableNotExist[:-1])
+                    tdSql.error(dropStableWithSpace[:-1], expectErrInfo="STable not exist", fullMatched=False)
             else:
                 dropTable += f'`{stb_result[1]}`.`{stb_result[10]}`,'
                 dropStable += f'`{stb_result[1]}`.`{stb_result[10]}`,'
-                tdLog.info(dropTable[:-1])
-                tdLog.info(dropStable[:-1])
-                tdSql.error(dropTable[:-1])
-                tdSql.error(dropStable[:-1])
+                for _ in range(self.err_dup_cnt):
+                    tdLog.info(dropTable[:-1])
+                    tdLog.info(dropStable[:-1])
+                    tdSql.error(dropTable[:-1], expectErrInfo="Cannot drop super table in batch")
+                    tdSql.error(dropStable[:-1], expectErrInfo="syntax error", fullMatched=False)
+                dropTableWithSpace += f'`{stb_result[1]}`.` {stb_result[10]}`,'
+                dropStableWithSpace += f'`{stb_result[1]}`.`{stb_result[10]} `,'
+                for _ in range(self.err_dup_cnt):
+                    tdLog.info(dropTableWithSpace[:-1])
+                    tdLog.info(dropStableWithSpace[:-1])
+                    tdSql.error(dropTableWithSpace[:-1], expectErrInfo="Table does not exist", fullMatched=False)
+                    tdSql.error(dropStableWithSpace[:-1], expectErrInfo="syntax error", fullMatched=False)
             i += 1
         i = 0
         for stb_result in result:
@@ -172,9 +191,10 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query(f'select * from information_schema.ins_tables where db_name like "dbtest_%"')
         tdSql.checkRows(8)
-        tdSql.error(f'drop stable with information_schema.`ins_tables`;')
-        tdSql.error(f'drop stable with performance_schema.`perf_connections`;')
-        self.drop_table_check_end()    
+        for _ in range(self.err_dup_cnt):
+            tdSql.error(f'drop stable with information_schema.`ins_tables`;', expectErrInfo="Cannot drop table of system database", fullMatched=False)
+            tdSql.error(f'drop stable with performance_schema.`perf_connections`;', expectErrInfo="Cannot drop table of system database", fullMatched=False)
+        self.drop_table_check_end()
     def drop_table_with_check(self):
         self.drop_table_check_init()
         tdSql.query(f'select * from information_schema.ins_tables where db_name like "dbtest_%"')
@@ -196,8 +216,9 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query(f'select * from information_schema.ins_stables where db_name like "dbtest_%"')
         tdSql.checkRows(2)
-        tdSql.error(f'drop table with information_schema.`ins_tables`;')
-        tdSql.error(f'drop table with performance_schema.`perf_connections`;')
+        for _ in range(self.err_dup_cnt):
+            tdSql.error(f'drop table with information_schema.`ins_tables`;', expectErrInfo="Cannot drop table of system database", fullMatched=False)
+            tdSql.error(f'drop table with performance_schema.`perf_connections`;', expectErrInfo="Cannot drop table of system database", fullMatched=False)
         self.drop_table_check_end()
     def drop_table_with_check_tsma(self):
         tdSql.execute(f'create database if not exists {self.dbname} {self.vgroups_opt}')

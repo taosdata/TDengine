@@ -270,6 +270,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SSDataBlock*          pRes = pInfo->pRes;
   SSDataBlock*          pFinalRes = pProjectInfo->pFinalRes;
   int32_t               code = 0;
+  int32_t               lino = 0;
   int64_t               st = 0;
   int32_t               order = pInfo->inputTsOrder;
   int32_t               scanFlag = 0;
@@ -290,9 +291,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   if (downstream == NULL) {
     code = doGenerateSourceData(pOperator);
-    if (code != TSDB_CODE_SUCCESS) {
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
 
     if (pProjectInfo->outputIgnoreGroup) {
       pRes->info.id.groupId = 0;
@@ -348,20 +347,14 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       }
 
       code = setInputDataBlock(pSup, pBlock, order, scanFlag, false);
-      if (code) {
-        T_LONG_JMP(pTaskInfo->env, code);
-      }
+      QUERY_CHECK_CODE(code, lino, _end);
 
       code = blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
-      if (code != TSDB_CODE_SUCCESS) {
-        T_LONG_JMP(pTaskInfo->env, code);
-      }
+      QUERY_CHECK_CODE(code, lino, _end);
 
       code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
                                    pProjectInfo->pPseudoColInfo);
-      if (code != TSDB_CODE_SUCCESS) {
-        T_LONG_JMP(pTaskInfo->env, code);
-      }
+      QUERY_CHECK_CODE(code, lino, _end);
 
       status = doIngroupLimitOffset(pLimitInfo, pBlock->info.id.groupId, pInfo->pRes, pOperator);
       if (status == PROJECT_RETRIEVE_CONTINUE) {
@@ -377,11 +370,8 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
         pFinalRes->info.version = pRes->info.version;
 
         // continue merge data, ignore the group id
-        int32_t ret = blockDataMerge(pFinalRes, pRes);
-        if (ret < 0) {
-          pTaskInfo->code = code;
-          return code;
-        }
+        code = blockDataMerge(pFinalRes, pRes);
+        QUERY_CHECK_CODE(code, lino, _end);
 
         if (pFinalRes->info.rows + pRes->info.rows <= pOperator->resultInfo.threshold && (pOperator->status != OP_EXEC_DONE)) {
           continue;
@@ -390,10 +380,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
       // do apply filter
       code = doFilter(pFinalRes, pOperator->exprSupp.pFilterInfo, NULL);
-      if (code) {
-        pTaskInfo->code = code;
-        return code;
-      }
+      QUERY_CHECK_CODE(code, lino, _end);
 
       // when apply the limit/offset for each group, pRes->info.rows may be 0, due to limit constraint.
       if (pFinalRes->info.rows > 0 || (pOperator->status == OP_EXEC_DONE)) {
@@ -404,10 +391,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       // do apply filter
       if (pRes->info.rows > 0) {
         code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
-        if (code) {
-          pTaskInfo->code = code;
-          return code;
-        }
+        QUERY_CHECK_CODE(code, lino, _end);
 
         if (pRes->info.rows == 0) {
           continue;
@@ -436,6 +420,13 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   }
 
   *pResBlock = (p->info.rows > 0)? p:NULL;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
   return code;
 }
 
@@ -578,14 +569,15 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
   SOptrBasicInfo*     pInfo = &pIndefInfo->binfo;
   SExprSupp*          pSup = &pOperator->exprSupp;
   int64_t             st = 0;
-  int32_t             code = 0;
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
   SSDataBlock*        pRes = pInfo->pRes;
 
   blockDataCleanup(pRes);
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   if (pOperator->status == OP_EXEC_DONE) {
-    return 0;
+    return code;
   }
 
   if (pOperator->cost.openCost == 0) {
@@ -637,10 +629,7 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
     }
 
     code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
-    if (code) {
-      pTaskInfo->code = code;
-      return code;
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
 
     size_t rows = pInfo->pRes->info.rows;
     if (rows > 0 || pOperator->status == OP_EXEC_DONE) {
@@ -658,6 +647,13 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
   }
 
   *pResBlock = (rows > 0) ? pInfo->pRes : NULL;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
   return code;
 }
 
