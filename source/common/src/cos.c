@@ -897,8 +897,6 @@ upload:
     if (partData.put_object_data.status != S3StatusOK) {
       s3PrintError(__FILE__, __LINE__, __func__, partData.put_object_data.status, partData.put_object_data.err_msg);
       TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(EIO), &lino, _exit);
-
-      //(void)cos_cp_dump(&cp);
     }
 
     if (!manager.etags[seq - 1]) {
