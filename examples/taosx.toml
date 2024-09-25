@@ -77,4 +77,8 @@
 # listen on this file to update the log.loggers level in real time
 # watching = true
 
+# customize the log output level of modules, and changes will be applied after modifying the file when log.watching is enabled
 [log.loggers]
+
+# "actix_server::accept" = "warn"
+# "taos::query" = "warn"

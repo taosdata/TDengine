@@ -229,8 +229,11 @@ impl Udt {
         }
 
         let _map = ENGINE
-            .parse_json(item_raw_data, false)
-            .map_err(|rhai_error| super::ParseError::UdtError(*rhai_error))?;
+            .parse_json(item_raw_data, true)
+            .map_err(|rhai_error| {
+                tracing::error!("json parse error, the raw string: {}", item_raw_data);
+                super::ParseError::UdtError(*rhai_error)
+            })?;
 
         let mut scope = Scope::new();
         scope.push("data", _map);
