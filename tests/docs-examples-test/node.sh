@@ -17,8 +17,7 @@ node all_type_query.js
 
 node all_type_stmt.js
 
-node json_line_example.js
-
+taos -s "drop database if exists power"
 node line_example.js
 
 node nodejsChecker.js
@@ -26,8 +25,6 @@ node nodejsChecker.js
 node sql_example.js
 
 node stmt_example.js
-
-node telnet_line_example.js
 
 node tmq_example.js
 
