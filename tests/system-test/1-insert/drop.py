@@ -151,8 +151,7 @@ class TDTestCase:
                 dropTableWithSpace = f'drop table with `{stb_result[1]}`.`{stb_result[10]} `,'
                 dropStableWithSpace = f'drop stable with `{stb_result[1]}`.` {stb_result[10]}`,'
                 dropStableNotExist = f'drop stable with `{stb_result[1]}`.`{stb_result[10]}_notexist`,'
-                k = 0
-                for k in range(self.err_dup_cnt):
+                for _ in range(self.err_dup_cnt):
                     tdLog.info(dropTableWithSpace[:-1])
                     tdSql.error(dropTableWithSpace[:-1], expectErrInfo="Table does not exist", fullMatched=False)
                     tdLog.info(dropStableWithSpace[:-1])
@@ -162,16 +161,14 @@ class TDTestCase:
             else:
                 dropTable += f'`{stb_result[1]}`.`{stb_result[10]}`,'
                 dropStable += f'`{stb_result[1]}`.`{stb_result[10]}`,'
-                k = 0
-                for k in range(self.err_dup_cnt):
+                for _ in range(self.err_dup_cnt):
                     tdLog.info(dropTable[:-1])
                     tdLog.info(dropStable[:-1])
                     tdSql.error(dropTable[:-1], expectErrInfo="Cannot drop super table in batch")
                     tdSql.error(dropStable[:-1], expectErrInfo="syntax error", fullMatched=False)
                 dropTableWithSpace += f'`{stb_result[1]}`.` {stb_result[10]}`,'
                 dropStableWithSpace += f'`{stb_result[1]}`.`{stb_result[10]} `,'
-                k = 0
-                for k in range(self.err_dup_cnt):
+                for _ in range(self.err_dup_cnt):
                     tdLog.info(dropTableWithSpace[:-1])
                     tdLog.info(dropStableWithSpace[:-1])
                     tdSql.error(dropTableWithSpace[:-1], expectErrInfo="Table does not exist", fullMatched=False)
@@ -194,8 +191,7 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query(f'select * from information_schema.ins_tables where db_name like "dbtest_%"')
         tdSql.checkRows(8)
-        k = 0
-        for k in range(self.err_dup_cnt):
+        for _ in range(self.err_dup_cnt):
             tdSql.error(f'drop stable with information_schema.`ins_tables`;', expectErrInfo="Cannot drop table of system database", fullMatched=False)
             tdSql.error(f'drop stable with performance_schema.`perf_connections`;', expectErrInfo="Cannot drop table of system database", fullMatched=False)
         self.drop_table_check_end()
@@ -220,8 +216,7 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query(f'select * from information_schema.ins_stables where db_name like "dbtest_%"')
         tdSql.checkRows(2)
-        k = 0
-        for k in range(self.err_dup_cnt):
+        for _ in range(self.err_dup_cnt):
             tdSql.error(f'drop table with information_schema.`ins_tables`;', expectErrInfo="Cannot drop table of system database", fullMatched=False)
             tdSql.error(f'drop table with performance_schema.`perf_connections`;', expectErrInfo="Cannot drop table of system database", fullMatched=False)
         self.drop_table_check_end()
