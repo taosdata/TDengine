@@ -203,7 +203,7 @@ class TDTestCase:
                     assert str(v) == str(value)
         else:
             for v in values:
-                tdLog.debug("Set {} to {}".format(name, v))
+                tdLog.debug("Set client {} to {}".format(name, v))
                 tdSql.error(f'alter local "{name} {v}";')
 
     def svr_check(self, item, except_values=False):

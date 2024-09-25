@@ -285,7 +285,7 @@ class TDTestCase:
         self.drop_table_with_check()
         self.drop_table_with_check_tsma()
         self.drop_topic_check()
-        if platform.system().lower() == 'windows':        
+        if platform.system().lower() != 'windows':        
             self.drop_stream_check()
         pass
     def stop(self):
