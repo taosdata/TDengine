@@ -2010,6 +2010,17 @@ int32_t percentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResu
   return TSDB_CODE_SUCCESS;
 }
 
+void percentileFunctionCleanupExt(SqlFunctionCtx* pCtx) {
+  if (pCtx == NULL || GET_RES_INFO(pCtx) == NULL || GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx)) == NULL) {
+    return;
+  }
+  SPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  if (pInfo->pMemBucket != NULL) {
+    tMemBucketDestroy(&(pInfo->pMemBucket));
+    pInfo->pMemBucket = NULL;
+  }
+}
+
 int32_t percentileFunction(SqlFunctionCtx* pCtx) {
   int32_t              code = TSDB_CODE_SUCCESS;
   int32_t              numOfElems = 0;
@@ -2096,7 +2107,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
       numOfElems += 1;
       code = tMemBucketPut(pInfo->pMemBucket, data, 1);
       if (code != TSDB_CODE_SUCCESS) {
-        tMemBucketDestroy(pInfo->pMemBucket);
+        tMemBucketDestroy(&(pInfo->pMemBucket));
         return code;
       }
     }
@@ -2104,6 +2115,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
     SET_VAL(pResInfo, numOfElems, 1);
   }
 
+  pCtx->needCleanup = true;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2114,8 +2126,8 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t code = 0;
   double  v = 0;
 
-  tMemBucket* pMemBucket = ppInfo->pMemBucket;
-  if (pMemBucket != NULL && pMemBucket->total > 0) {  // check for null
+  tMemBucket** pMemBucket = &ppInfo->pMemBucket;
+  if ((*pMemBucket) != NULL && (*pMemBucket)->total > 0) {  // check for null
     if (pCtx->numOfParams > 2) {
       char   buf[3200] = {0};
       // max length of double num is 317, e.g. use %.6lf to print -1.0e+308, consider the comma and bracket, 3200 is enough.
@@ -2127,7 +2139,7 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
         GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
 
-        code = getPercentile(pMemBucket, v, &ppInfo->result);
+        code = getPercentile((*pMemBucket), v, &ppInfo->result);
         if (code != TSDB_CODE_SUCCESS) {
           goto _fin_error;
         }
@@ -2159,7 +2171,7 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
       GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
 
-      code = getPercentile(pMemBucket, v, &ppInfo->result);
+      code = getPercentile((*pMemBucket), v, &ppInfo->result);
       if (code != TSDB_CODE_SUCCESS) {
         goto _fin_error;
       }
@@ -6415,7 +6427,7 @@ int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
     pInfo->pHash = NULL;
     return terrno;
   }
-
+  pCtx->needCleanup = true;
   return TSDB_CODE_SUCCESS;
 }
 

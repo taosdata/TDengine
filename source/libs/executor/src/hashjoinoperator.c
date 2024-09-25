@@ -993,6 +993,7 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
   SHJoinOperatorInfo* pJoin = pOperator->info;
   SExecTaskInfo*      pTaskInfo = pOperator->pTaskInfo;
   int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
   SSDataBlock*        pRes = pJoin->finBlk;
   int64_t             st = 0;
 
@@ -1003,7 +1004,7 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
 
   if (pOperator->status == OP_EXEC_DONE) {
     pRes->info.rows = 0;
-    goto _return;
+    goto _end;
   }
 
   if (!pJoin->keyHashBuilt) {
@@ -1011,13 +1012,10 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
 
     bool queryDone = false;
     code = hJoinBuildHash(pOperator, &queryDone);
-    if (code) {
-      pTaskInfo->code = code;
-      return code;
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
 
     if (queryDone) {
-      goto _return;
+      goto _end;
     }
   }
 
@@ -1025,17 +1023,11 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
 
   if (pJoin->ctx.rowRemains) {
     code = (*pJoin->joinFp)(pOperator);
-    if (code) {
-      pTaskInfo->code = code;
-      return pTaskInfo->code;
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
 
     if (pRes->info.rows > 0 && pJoin->pFinFilter != NULL) {
       code = doFilter(pRes, pJoin->pFinFilter, NULL);
-      if (code) {
-        pTaskInfo->code = code;
-        return pTaskInfo->code;
-      }
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     if (pRes->info.rows > 0) {
@@ -1055,10 +1047,7 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
     pJoin->execInfo.probeBlkRows += pBlock->info.rows;
 
     code = hJoinPrepareStart(pOperator, pBlock);
-    if (code) {
-      pTaskInfo->code = code;
-      return pTaskInfo->code;
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
 
     if (!hJoinBlkReachThreshold(pJoin, pRes->info.rows)) {
       continue;
@@ -1066,10 +1055,7 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
 
     if (pRes->info.rows > 0 && pJoin->pFinFilter != NULL) {
       code = doFilter(pRes, pJoin->pFinFilter, NULL);
-      if (code) {
-        pTaskInfo->code = code;
-        return pTaskInfo->code;
-      }
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     if (pRes->info.rows > 0) {
@@ -1077,11 +1063,15 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
     }
   }
 
-_return:
+_end:
   if (pOperator->cost.openCost == 0) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
-
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
   if (pRes->info.rows > 0) {
     *pResBlock = pRes;
   }

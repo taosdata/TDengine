@@ -679,9 +679,15 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
+void freeVgList(void* list) {
+  SArray* pList = *(SArray**)list;
+  taosArrayDestroy(pList);
+}
+
 int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList, SMetaData* pResultMeta) {
   SArray* pDbVgList = NULL;
   SArray* pQnodeList = NULL;
+  FDelete fp = NULL;
   int32_t code = 0;
 
   switch (tsQueryPolicy) {
@@ -703,6 +709,43 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
           if (NULL == taosArrayPush(pDbVgList, &pRes->pRes)) {
             code = terrno;
             goto _return;
+          }
+        }
+      } else {
+        fp = freeVgList;
+
+        int32_t dbNum = taosArrayGetSize(pRequest->dbList);
+        if (dbNum > 0) {
+          SCatalog*     pCtg = NULL;
+          SAppInstInfo* pInst = pRequest->pTscObj->pAppInfo;
+          code = catalogGetHandle(pInst->clusterId, &pCtg);
+          if (code != TSDB_CODE_SUCCESS) {
+            goto _return;
+          }
+
+          pDbVgList = taosArrayInit(dbNum, POINTER_BYTES);
+          if (NULL == pDbVgList) {
+            code = terrno;
+            goto _return;
+          }
+          SArray* pVgList = NULL;
+          for (int32_t i = 0; i < dbNum; ++i) {
+            char*            dbFName = taosArrayGet(pRequest->dbList, i);
+            SRequestConnInfo conn = {.pTrans = pInst->pTransporter,
+                                     .requestId = pRequest->requestId,
+                                     .requestObjRefId = pRequest->self,
+                                     .mgmtEps = getEpSet_s(&pInst->mgmtEp)};
+
+            // catalogGetDBVgList will handle dbFName == null.
+            code = catalogGetDBVgList(pCtg, &conn, dbFName, &pVgList);
+            if (code) {
+              goto _return;
+            }
+
+            if (NULL == taosArrayPush(pDbVgList, &pVgList)) {
+              code = terrno;
+              goto _return;
+            }
           }
         }
       }
@@ -745,15 +788,10 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
   }
 
 _return:
-  taosArrayDestroy(pDbVgList);
+  taosArrayDestroyEx(pDbVgList, fp);
   taosArrayDestroy(pQnodeList);
 
   return code;
-}
-
-void freeVgList(void* list) {
-  SArray* pList = *(SArray**)list;
-  taosArrayDestroy(pList);
 }
 
 int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList) {
@@ -2894,6 +2932,10 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(param);
     return NULL;
+  }
+  code = tsem_destroy(&param->sem);
+  if(TSDB_CODE_SUCCESS != code) {
+      tscError("failed to destroy semaphore since %s", tstrerror(code));
   }
 
   SRequestObj* pRequest = NULL;

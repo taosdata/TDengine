@@ -68,14 +68,16 @@ int32_t syncNodeReplicate(SSyncNode* pNode) {
 int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
   if ((pNode->state != TAOS_SYNC_STATE_LEADER && pNode->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) ||
       pNode->raftCfg.cfg.totalReplicaNum == 1) {
-    TAOS_RETURN(TSDB_CODE_FAILED);
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
   for (int32_t i = 0; i < pNode->totalReplicaNum; i++) {
     if (syncUtilSameId(&pNode->replicasId[i], &pNode->myRaftId)) {
       continue;
     }
     SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
-    (void)syncLogReplStart(pMgr, pNode);
+    if (syncLogReplStart(pMgr, pNode) != 0) {
+      sError("vgId:%d, failed to start log replication to dnode:%d", pNode->vgId, DID(&(pNode->replicasId[i])));
+    }
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -84,7 +86,7 @@ int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
 int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg) {
   SyncAppendEntries* pMsg = pRpcMsg->pCont;
   pMsg->destId = *destRaftId;
-  (void)syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg);
+  TAOS_CHECK_RETURN(syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg));
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -116,7 +118,10 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
     STraceId* trace = &(rpcMsg.info.traceId);
     sGTrace("vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId, DID(&(pSyncMsg->destId)));
     syncLogSendHeartbeat(pSyncNode, pSyncMsg, true, 0, 0);
-    (void)syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
+    int32_t ret = syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
+    if (ret != 0) {
+      sError("vgId:%d, failed to send sync-heartbeat since %s", pSyncNode->vgId, tstrerror(ret));
+    }
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);

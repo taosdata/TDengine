@@ -108,7 +108,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t
     pNode->nodePort = pReq->replicas[i].port;
     tstrncpy(pNode->nodeFqdn, pReq->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
     pNode->nodeRole = TAOS_SYNC_ROLE_VOTER;
-    (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    bool ret = tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
     vInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", pReq->vgId, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId);
     pCfg->replicaNum++;
   }
@@ -121,7 +121,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t
     pNode->nodePort = pReq->learnerReplicas[pCfg->totalReplicaNum].port;
     pNode->nodeRole = TAOS_SYNC_ROLE_LEARNER;
     tstrncpy(pNode->nodeFqdn, pReq->learnerReplicas[pCfg->totalReplicaNum].fqdn, sizeof(pNode->nodeFqdn));
-    (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    bool ret = tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
     vInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", pReq->vgId, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId);
     pCfg->totalReplicaNum++;
   }
@@ -176,8 +176,10 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
   int32_t prefixLen = strlen(tsdbFilePrefix);
 
   STfsDir *tsdbDir = NULL;
-  (void)tfsOpendir(pTfs, tsdbPath, &tsdbDir);
-  if (tsdbDir == NULL) return 0;
+  int32_t  tret = tfsOpendir(pTfs, tsdbPath, &tsdbDir);
+  if (tsdbDir == NULL) {
+    return 0;
+  }
 
   while (1) {
     const STfsFile *tsdbFile = tfsReaddir(tsdbDir);
@@ -248,7 +250,7 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
   SNodeInfo *pNode = &pCfg->nodeInfo[0];
   pNode->nodePort = tsServerPort;
   tstrncpy(pNode->nodeFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
-  (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+  bool ret1 = tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
   vInfo("vgId:%d, ep:%s:%u dnode:%d", pReq->srcVgId, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId);
 
   info.config.syncCfg = *pCfg;
@@ -317,7 +319,9 @@ int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t s
 
 void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId) {
   vInfo("path:%s is removed while destroy vnode", path);
-  (void)tfsRmdir(pTfs, path);
+  if (tfsRmdir(pTfs, path) < 0) {
+    vError("failed to remove path:%s since %s", path, tstrerror(terrno));
+  }
 
   // int32_t nlevel = tfsGetLevel(pTfs);
   if (nodeId > 0 && vgId > 0 /*&& nlevel > 1*/ && tsS3Enabled) {
@@ -378,8 +382,13 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
   if (updated) {
     vInfo("vgId:%d, save vnode info since dnode info changed", info.config.vgId);
-    (void)vnodeSaveInfo(dir, &info);
-    (void)vnodeCommitInfo(dir);
+    if (vnodeSaveInfo(dir, &info) < 0) {
+      vError("vgId:%d, failed to save vnode info since %s", info.config.vgId, tstrerror(terrno));
+    }
+
+    if (vnodeCommitInfo(dir) < 0) {
+      vError("vgId:%d, failed to commit vnode info since %s", info.config.vgId, tstrerror(terrno));
+    }
   }
 
   // create handle
@@ -405,7 +414,10 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   pVnode->blocked = false;
   pVnode->disableWrite = false;
 
-  (void)tsem_init(&pVnode->syncSem, 0, 0);
+  if (tsem_init(&pVnode->syncSem, 0, 0) != 0) {
+    vError("vgId:%d, failed to init semaphore", TD_VID(pVnode));
+    goto _err;
+  }
   (void)taosThreadMutexInit(&pVnode->mutex, NULL);
   (void)taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
 
@@ -499,9 +511,9 @@ _err:
   if (pVnode->pQuery) vnodeQueryClose(pVnode);
   if (pVnode->pTq) tqClose(pVnode->pTq);
   if (pVnode->pWal) walClose(pVnode->pWal);
-  if (pVnode->pTsdb) (void)tsdbClose(&pVnode->pTsdb);
-  if (pVnode->pSma) (void)smaClose(pVnode->pSma);
-  if (pVnode->pMeta) (void)metaClose(&pVnode->pMeta);
+  if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
+  if (pVnode->pSma) smaClose(pVnode->pSma);
+  if (pVnode->pMeta) metaClose(&pVnode->pMeta);
   if (pVnode->freeList) vnodeCloseBufPool(pVnode);
 
   taosMemoryFree(pVnode);
@@ -518,13 +530,16 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
     vnodeAWait(&pVnode->commitTask);
-    (void)vnodeAChannelDestroy(&pVnode->commitChannel, true);
+    if (vnodeAChannelDestroy(&pVnode->commitChannel, true) != 0) {
+      vError("vgId:%d, failed to destroy commit channel", TD_VID(pVnode));
+    }
+
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     tqClose(pVnode->pTq);
     walClose(pVnode->pWal);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
-    (void)smaClose(pVnode->pSma);
+    smaClose(pVnode->pSma);
     if (pVnode->pMeta) metaClose(&pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
 

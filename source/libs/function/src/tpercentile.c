@@ -291,12 +291,12 @@ int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, dou
   (*pBucket)->maxCapacity = 200000;
   (*pBucket)->groupPagesMap = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   if ((*pBucket)->groupPagesMap == NULL) {
-    tMemBucketDestroy(*pBucket);
+    tMemBucketDestroy(pBucket);
     return terrno;
   }
   if (setBoundingBox(&(*pBucket)->range, (*pBucket)->type, minval, maxval) != 0) {
     //    qError("MemBucket:%p, invalid value range: %f-%f", pBucket, minval, maxval);
-    tMemBucketDestroy(*pBucket);
+    tMemBucketDestroy(pBucket);
     return TSDB_CODE_FUNC_INVALID_VALUE_RANGE;
   }
 
@@ -306,13 +306,13 @@ int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, dou
   (*pBucket)->hashFunc = getHashFunc((*pBucket)->type);
   if ((*pBucket)->hashFunc == NULL) {
     //    qError("MemBucket:%p, not support data type %d, failed", pBucket, pBucket->type);
-    tMemBucketDestroy(*pBucket);
+    tMemBucketDestroy(pBucket);
     return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
   }
 
   (*pBucket)->pSlots = (tMemBucketSlot *)taosMemoryCalloc((*pBucket)->numOfSlots, sizeof(tMemBucketSlot));
   if ((*pBucket)->pSlots == NULL) {
-    tMemBucketDestroy(*pBucket);
+    tMemBucketDestroy(pBucket);
     return terrno;
   }
 
@@ -320,13 +320,13 @@ int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, dou
 
   if (!osTempSpaceAvailable()) {
     // qError("MemBucket create disk based Buf failed since %s", terrstr(terrno));
-    tMemBucketDestroy(*pBucket);
+    tMemBucketDestroy(pBucket);
     return TSDB_CODE_NO_DISKSPACE;
   }
 
   int32_t ret = createDiskbasedBuf(&(*pBucket)->pBuffer, (*pBucket)->bufPageSize, (*pBucket)->bufPageSize * DEFAULT_NUM_OF_SLOT * 4, "1", tsTempDir);
   if (ret != 0) {
-    tMemBucketDestroy(*pBucket);
+    tMemBucketDestroy(pBucket);
     return ret;
   }
 
@@ -334,22 +334,22 @@ int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, dou
   return TSDB_CODE_SUCCESS;
 }
 
-void tMemBucketDestroy(tMemBucket *pBucket) {
-  if (pBucket == NULL) {
+void tMemBucketDestroy(tMemBucket **pBucket) {
+  if (*pBucket == NULL) {
     return;
   }
 
-  void *p = taosHashIterate(pBucket->groupPagesMap, NULL);
+  void *p = taosHashIterate((*pBucket)->groupPagesMap, NULL);
   while (p) {
     SArray **p1 = p;
-    p = taosHashIterate(pBucket->groupPagesMap, p);
+    p = taosHashIterate((*pBucket)->groupPagesMap, p);
     taosArrayDestroy(*p1);
   }
 
-  destroyDiskbasedBuf(pBucket->pBuffer);
-  taosMemoryFreeClear(pBucket->pSlots);
-  taosHashCleanup(pBucket->groupPagesMap);
-  taosMemoryFreeClear(pBucket);
+  destroyDiskbasedBuf((*pBucket)->pBuffer);
+  taosMemoryFreeClear((*pBucket)->pSlots);
+  taosHashCleanup((*pBucket)->groupPagesMap);
+  taosMemoryFreeClear(*pBucket);
 }
 
 int32_t tMemBucketUpdateBoundingBox(MinMaxEntry *r, const char *data, int32_t dataType) {

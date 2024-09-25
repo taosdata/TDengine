@@ -122,6 +122,7 @@ bool    getPercentileFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t  percentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t percentileFunction(SqlFunctionCtx* pCtx);
 int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+void    percentileFunctionCleanupExt(SqlFunctionCtx* pCtx);
 
 bool    getApercentileFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t apercentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);

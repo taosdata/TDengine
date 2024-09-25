@@ -3158,6 +3158,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = percentileFunction,
     .sprocessFunc = percentileScalarFunction,
     .finalizeFunc = percentileFinalize,
+    .cleanupFunc  = percentileFunctionCleanupExt,
 #ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
 #endif

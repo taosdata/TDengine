@@ -232,7 +232,7 @@ int32_t tsem_init(tsem_t *psem, int flags, unsigned int count) {
   if(sem_init(psem, flags, count) == 0) {
     return 0;
   } else {
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno = TAOS_SYSTEM_ERROR(errno);
   }
 }
 

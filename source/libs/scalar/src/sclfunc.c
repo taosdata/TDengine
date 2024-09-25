@@ -1178,7 +1178,7 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   char *outputBuf = taosMemoryMalloc(outputLen);
   if (outputBuf == NULL) {
     qError("substr function memory allocation failure. size: %d", outputLen);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t numOfRows = 0;
@@ -1271,7 +1271,7 @@ int32_t md5Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutpu
   char* pOutputBuf = taosMemoryMalloc(bufLen);
   if (!pOutputBuf) {
     qError("md5 function alloc memory failed");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
@@ -1284,7 +1284,7 @@ int32_t md5Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutpu
       pOutputBuf = taosMemoryRealloc(pOutputBuf, bufLen);
       if (!pOutputBuf) {
         qError("md5 function alloc memory failed");
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
     char *output = pOutputBuf;
@@ -2306,7 +2306,7 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     SArray *pTagVals = taosArrayInit(8, sizeof(STagVal));
     if (NULL == pTagVals) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     STag   *pTag = NULL;
 
@@ -2356,7 +2356,7 @@ int32_t toTimestampFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam
   SArray *formats = NULL;
 
   if (tsStr == NULL || format == NULL) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[1].columnData, i) || colDataIsNull_s(pInput[0].columnData, i)) {

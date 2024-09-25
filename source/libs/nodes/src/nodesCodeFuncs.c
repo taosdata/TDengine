@@ -6116,6 +6116,7 @@ static int32_t jsonToDropTableStmt(const SJson* pJson, void* pObj) {
 static const char* jkDropSuperTableStmtDbName = "DbName";
 static const char* jkDropSuperTableStmtTableName = "TableName";
 static const char* jkDropSuperTableStmtIgnoreNotExists = "IgnoreNotExists";
+static const char* jkDropSuperTableStmtwithOpt = "withOpt";
 
 static int32_t dropStableStmtToJson(const void* pObj, SJson* pJson) {
   const SDropSuperTableStmt* pNode = (const SDropSuperTableStmt*)pObj;
@@ -6126,6 +6127,9 @@ static int32_t dropStableStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkDropSuperTableStmtIgnoreNotExists, pNode->ignoreNotExists);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkDropSuperTableStmtwithOpt, pNode->withOpt);
   }
 
   return code;
@@ -6140,6 +6144,9 @@ static int32_t jsonToDropStableStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkDropSuperTableStmtIgnoreNotExists, &pNode->ignoreNotExists);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkDropSuperTableStmtwithOpt, &pNode->withOpt);
   }
 
   return code;
