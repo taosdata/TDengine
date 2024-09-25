@@ -285,7 +285,7 @@ static void taosUnLockLogFile(TdFilePtr pFile) {
   if (tsLogObj.fileNum > 1) {
     int32_t code = taosUnLockFile(pFile);
     if (code != 0) {
-      printf("failed to unlock log file:%p, reason:%s\n", pFile, tstrerror(code));
+      TAOS_UNUSED(printf("failed to unlock log file:%p, reason:%s\n", pFile, tstrerror(code)));
     }
   }
 }
@@ -317,7 +317,7 @@ static void taosKeepOldLog(char *oldName) {
     if (taosCompressFile(oldName, compressFileName) == 0) {
       int32_t code = taosRemoveFile(oldName);
       if (code != 0) {
-        printf("failed to remove file:%s, reason:%s\n", oldName, tstrerror(code));
+        TAOS_UNUSED(printf("failed to remove file:%s, reason:%s\n", oldName, tstrerror(code)));
       }
     }
   }
@@ -393,7 +393,7 @@ static int32_t taosOpenNewLogFile() {
 
     OldFileKeeper *oldFileKeeper = taosOpenNewFile();
     if (!oldFileKeeper) {
-      (void)taosThreadMutexUnlock(&tsLogObj.logMutex);
+       TAOS_UNUSED(taosThreadMutexUnlock(&tsLogObj.logMutex));
       return terrno;
     }
     if (taosThreadCreate(&thread, &attr, taosThreadToCloseOldFile, oldFileKeeper) != 0) {
@@ -636,7 +636,7 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
       TAOS_UNUSED(taosPushLogBuffer(tsLogObj.logHandle, buffer, len));
     } else {
       if (taosWriteFile(tsLogObj.logHandle->pFile, buffer, len) <= 0) {
-        printf("failed to write log to file, reason:%s\n", tstrerror(terrno));
+        TAOS_UNUSED(printf("failed to write log to file, reason:%s\n", tstrerror(terrno)));
       }
     }
 
@@ -655,7 +655,7 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-result"
     if (write(1, buffer, (uint32_t)len) < 0) {
-      printf("failed to write log to screen, reason:%s\n", strerror(errno));
+      TAOS_UNUSED(printf("failed to write log to screen, reason:%s\n", strerror(errno)));
     }
 #pragma GCC diagnostic pop
   }
@@ -733,7 +733,7 @@ void taosPrintSlowLog(const char *format, ...) {
     TAOS_UNUSED(taosPushLogBuffer(tsLogObj.slowHandle, buffer, len));
   } else {
     if (taosWriteFile(tsLogObj.slowHandle->pFile, buffer, len) <= 0) {
-      printf("failed to write slow log to file, reason:%s\n", tstrerror(terrno));
+      TAOS_UNUSED(printf("failed to write slow log to file, reason:%s\n", tstrerror(terrno)));
     }
   }
 
