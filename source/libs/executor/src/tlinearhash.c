@@ -229,7 +229,7 @@ static int32_t doAddNewBucket(SLHashObj* pHashObj) {
 
     char* p = taosMemoryRealloc(pHashObj->pBucket, POINTER_BYTES * newLen);
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     memset(p + POINTER_BYTES * pHashObj->numOfBuckets, 0, newLen - pHashObj->numOfBuckets);

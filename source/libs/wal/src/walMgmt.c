@@ -160,7 +160,9 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->writeHead.magic = WAL_MAGIC;
 
   // load meta
-  (void)walLoadMeta(pWal);
+  if (walLoadMeta(pWal) < 0) {
+    wInfo("vgId:%d, failed to load meta since %s", pWal->cfg.vgId, tstrerror(terrno));
+  }
 
   if (walCheckAndRepairMeta(pWal) < 0) {
     wError("vgId:%d, cannot open wal since repair meta file failed", pWal->cfg.vgId);
@@ -187,6 +189,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
 
 _err:
   taosArrayDestroy(pWal->fileInfoSet);
+  taosArrayDestroy(pWal->toDeleteFiles);
   taosHashCleanup(pWal->pRefHash);
   TAOS_UNUSED(taosThreadRwlockDestroy(&pWal->mutex));
   taosMemoryFreeClear(pWal);
@@ -233,7 +236,9 @@ int32_t walPersist(SWal *pWal) {
 
 void walClose(SWal *pWal) {
   TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
-  (void)walSaveMeta(pWal);
+  if (walSaveMeta(pWal) < 0) {
+    wError("vgId:%d, failed to save meta since %s", pWal->cfg.vgId, tstrerror(terrno));
+  }
   TAOS_UNUSED(taosCloseFile(&pWal->pLogFile));
   pWal->pLogFile = NULL;
   (void)taosCloseFile(&pWal->pIdxFile);
@@ -257,10 +262,14 @@ void walClose(SWal *pWal) {
   if (pWal->cfg.level == TAOS_WAL_SKIP) {
     wInfo("vgId:%d, remove all wals, path:%s", pWal->cfg.vgId, pWal->path);
     taosRemoveDir(pWal->path);
-    (void)taosMkDir(pWal->path);
+    if (taosMkDir(pWal->path) != 0) {
+      wError("vgId:%d, path:%s, failed to create directory since %s", pWal->cfg.vgId, pWal->path, tstrerror(terrno));
+    }
   }
 
-  (void)taosRemoveRef(tsWal.refSetId, pWal->refId);
+  if (taosRemoveRef(tsWal.refSetId, pWal->refId) < 0) {
+    wError("vgId:%d, failed to remove ref for Wal since %s", pWal->cfg.vgId, tstrerror(terrno));
+  }
 }
 
 static void walFreeObj(void *wal) {
@@ -285,7 +294,9 @@ static bool walNeedFsync(SWal *pWal) {
 
 static void walUpdateSeq() {
   taosMsleep(WAL_REFRESH_MS);
-  (void)atomic_add_fetch_32((volatile int32_t *)&tsWal.seq, 1);
+  if (atomic_add_fetch_32((volatile int32_t *)&tsWal.seq, 1) < 0) {
+    wError("failed to update wal seq since %s", strerror(errno));
+  }
 }
 
 static void walFsyncAll() {

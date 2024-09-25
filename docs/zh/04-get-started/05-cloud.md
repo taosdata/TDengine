@@ -1,6 +1,6 @@
 ---
-sidebar_label: 云服务
-title: 通过 云服务 快速体验 TDengine
+sidebar_label: 用云服务快速体验
+title: 通过云服务 快速体验 TDengine
 toc_max_heading_level: 4
 ---
 

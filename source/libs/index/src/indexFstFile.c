@@ -30,7 +30,9 @@ typedef struct {
 } SDataBlock;
 
 static void deleteDataBlockFromLRU(const void* key, size_t keyLen, void* value, void* ud) {
-  (void)ud;
+  TAOS_UNUSED(ud);
+  TAOS_UNUSED(key);
+  TAOS_UNUSED(keyLen);
   taosMemoryFree(value);
 }
 
@@ -38,7 +40,7 @@ static FORCE_INLINE void idxGenLRUKey(char* buf, const char* path, int32_t block
   char* p = buf;
   SERIALIZE_STR_VAR_TO_BUF(p, path, strlen(path));
   SERIALIZE_VAR_TO_BUF(p, '_', char);
-  (void)idxInt2str(blockId, p, 0);
+  TAOS_UNUSED(idxInt2str(blockId, p, 0));
   return;
 }
 static FORCE_INLINE int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) {
@@ -48,7 +50,7 @@ static FORCE_INLINE int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) 
     if (len + ctx->file.wBufOffset >= cap) {
       int32_t nw = cap - ctx->file.wBufOffset;
       memcpy(ctx->file.wBuf + ctx->file.wBufOffset, buf, nw);
-      (void)taosWriteFile(ctx->file.pFile, ctx->file.wBuf, cap);
+      TAOS_UNUSED(taosWriteFile(ctx->file.pFile, ctx->file.wBuf, cap));
 
       memset(ctx->file.wBuf, 0, cap);
       ctx->file.wBufOffset = 0;
@@ -58,7 +60,7 @@ static FORCE_INLINE int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) 
 
       nw = (len / cap) * cap;
       if (nw != 0) {
-        (void)taosWriteFile(ctx->file.pFile, buf, nw);
+        TAOS_UNUSED(taosWriteFile(ctx->file.pFile, buf, nw));
       }
 
       len -= nw;
@@ -115,7 +117,7 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
       SDataBlock* blk = taosLRUCacheValue(ctx->lru, h);
       nread = TMIN(blkLeft, len);
       memcpy(buf + total, blk->buf + blkOffset, nread);
-      (void)taosLRUCacheRelease(ctx->lru, h, false);
+      TAOS_UNUSED(taosLRUCacheRelease(ctx->lru, h, false));
     } else {
       int32_t left = ctx->file.size - offset;
       if (left < kBlockSize) {
@@ -132,6 +134,9 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
         int32_t cacheMemSize = sizeof(SDataBlock) + kBlockSize;
 
         SDataBlock* blk = taosMemoryCalloc(1, cacheMemSize);
+        if (blk == NULL) {
+          return terrno;
+        }
         blk->blockId = blkId;
         blk->nread = taosPReadFile(ctx->file.pFile, blk->buf, kBlockSize, blkId * kBlockSize);
         if (blk->nread < kBlockSize && blk->nread < len) {
@@ -166,7 +171,7 @@ static FORCE_INLINE int idxFileCtxGetSize(IFileCtx* ctx) {
       return ctx->offset;
     } else {
       int64_t file_size = 0;
-      (void)taosStatFile(ctx->file.buf, &file_size, NULL, NULL);
+      TAOS_UNUSED(taosStatFile(ctx->file.buf, &file_size, NULL, NULL));
       return (int)file_size;
     }
   }
@@ -209,6 +214,10 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
       ctx->file.wBufOffset = 0;
       ctx->file.wBufCap = kBlockSize * 4;
       ctx->file.wBuf = taosMemoryCalloc(1, ctx->file.wBufCap);
+      if (ctx->file.wBuf == NULL) {
+        indexError("failed to allocate memory for write buffer");
+        goto END;
+      }
     } else {
       ctx->file.pFile = taosOpenFile(path, TD_FILE_READ);
       code = taosFStatFile(ctx->file.pFile, &ctx->file.size, NULL);
@@ -226,6 +235,11 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
     }
   } else if (ctx->type == TMEMORY) {
     ctx->mem.buf = taosMemoryCalloc(1, sizeof(char) * capacity);
+    if (ctx->mem.buf == NULL) {
+      indexError("failed to allocate memory for memory buffer");
+      goto END;
+    }
+
     ctx->mem.cap = capacity;
   }
 
@@ -254,16 +268,16 @@ void idxFileCtxDestroy(IFileCtx* ctx, bool remove) {
       int32_t nw = taosWriteFile(ctx->file.pFile, ctx->file.wBuf, ctx->file.wBufOffset);
       ctx->file.wBufOffset = 0;
     }
-    (void)(ctx->flush(ctx));
+    TAOS_UNUSED(ctx->flush(ctx));
     taosMemoryFreeClear(ctx->file.wBuf);
-    (void)taosCloseFile(&ctx->file.pFile);
+    TAOS_UNUSED(taosCloseFile(&ctx->file.pFile));
     if (ctx->file.readOnly) {
 #ifdef USE_MMAP
       munmap(ctx->file.ptr, ctx->file.size);
 #endif
     }
     if (remove) {
-      (void)unlink(ctx->file.buf);
+      TAOS_UNUSED(unlink(ctx->file.buf));
     }
   }
   taosMemoryFree(ctx);
@@ -279,7 +293,7 @@ IdxFstFile* idxFileCreate(void* wrt) {
   return cw;
 }
 void idxFileDestroy(IdxFstFile* cw) {
-  (void)idxFileFlush(cw);
+  TAOS_UNUSED(idxFileFlush(cw));
   taosMemoryFree(cw);
 }
 
@@ -317,17 +331,21 @@ uint32_t idxFileMaskedCheckSum(IdxFstFile* write) {
 
 int idxFileFlush(IdxFstFile* write) {
   IFileCtx* ctx = write->wrt;
-  (void)(ctx->flush(ctx));
+  TAOS_UNUSED(ctx->flush(ctx));
   return 1;
 }
 
 void idxFilePackUintIn(IdxFstFile* writer, uint64_t n, uint8_t nBytes) {
   uint8_t* buf = taosMemoryCalloc(8, sizeof(uint8_t));
+  if (buf == NULL) {
+    indexError("failed to allocate memory for packing uint");
+    return;
+  }
   for (uint8_t i = 0; i < nBytes; i++) {
     buf[i] = (uint8_t)n;
     n = n >> 8;
   }
-  (void)idxFileWrite(writer, buf, nBytes);
+  TAOS_UNUSED(idxFileWrite(writer, buf, nBytes));
   taosMemoryFree(buf);
   return;
 }

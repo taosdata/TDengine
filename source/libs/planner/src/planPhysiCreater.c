@@ -171,18 +171,18 @@ static int32_t putSlotToHashImpl(int16_t dataBlockId, int16_t slotId, const char
   if (NULL != pIndex) {
     SSlotIdInfo info = {.slotId = slotId, .set = false};
     if (NULL == taosArrayPush(pIndex->pSlotIdsInfo, &info)) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     return TSDB_CODE_SUCCESS;
   }
 
   SSlotIndex index = {.dataBlockId = dataBlockId, .pSlotIdsInfo = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SSlotIdInfo))};
   if (NULL == index.pSlotIdsInfo) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   SSlotIdInfo info = {.slotId = slotId, .set = false};
   if (NULL == taosArrayPush(index.pSlotIdsInfo, &info)) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   return taosHashPut(pHash, pName, len, &index, sizeof(SSlotIndex));
 }
@@ -195,22 +195,22 @@ static int32_t createDataBlockDescHash(SPhysiPlanContext* pCxt, int32_t capacity
                                        SHashObj** pDescHash, SHashObj** ppProjIdxDescHash) {
   SHashObj* pHash = taosHashInit(capacity, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (NULL == pHash) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   SHashObj* pProjIdxHash = taosHashInit(capacity, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   if (!pProjIdxHash) {
     taosHashCleanup(pHash);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if (NULL == taosArrayInsert(pCxt->pLocationHelper, dataBlockId, &pHash)) {
     taosHashCleanup(pHash);
     taosHashCleanup(pProjIdxHash);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if (NULL == taosArrayInsert(pCxt->pProjIdxLocHelper, dataBlockId, &pProjIdxHash)) {
     taosHashCleanup(pHash);
     taosHashCleanup(pProjIdxHash);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   *pDescHash = pHash;
@@ -529,14 +529,14 @@ static int32_t colIdCompare(const void* pLeft, const void* pRight) {
 static int32_t sortScanCols(SNodeList* pScanCols) {
   SArray* pArray = taosArrayInit(LIST_LENGTH(pScanCols), POINTER_BYTES);
   if (NULL == pArray) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t code = 0;
   SNode* pCol = NULL;
   FOREACH(pCol, pScanCols) {
     if (NULL == taosArrayPush(pArray, &pCol)) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       break;
     }
   }
@@ -708,7 +708,7 @@ static int32_t createLastRowScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSu
   if (TSDB_CODE_SUCCESS == code && pScanLogicNode->pFuncTypes != NULL) {
     pScan->pFuncTypes = taosArrayInit(taosArrayGetSize(pScanLogicNode->pFuncTypes), sizeof(int32_t));
     if (NULL == pScan->pFuncTypes) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     SNode* pTargetNode = NULL;
@@ -724,7 +724,7 @@ static int32_t createLastRowScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSu
         if (pColNode->colId == pFunctParam->pCol->colId &&
              0 == strncmp(pColNode->colName, pFunctParam->pCol->name, strlen(pColNode->colName))) {
           if (NULL == taosArrayInsert(pScan->pFuncTypes, funcTypeIndex, &pFunctParam->type)) {
-            code = TSDB_CODE_OUT_OF_MEMORY;
+            code = terrno;
           }
           break;
         }
@@ -3054,7 +3054,7 @@ static int32_t setExecNodeList(SPhysiPlanContext* pCxt, SArray* pExecNodeList) {
   if (pCxt->hasSysScan || !pCxt->hasScan) {
     SQueryNodeLoad node = {.addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
     if (NULL == taosArrayPush(pExecNodeList, &node))
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
   }
   return code;
 }
@@ -3070,7 +3070,7 @@ int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryP
   if (NULL == cxt.pLocationHelper || !cxt.pProjIdxLocHelper) {
     taosArrayDestroy(cxt.pLocationHelper);
     taosArrayDestroy(cxt.pProjIdxLocHelper);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t code = doCreatePhysiPlan(&cxt, pLogicPlan, pPlan);

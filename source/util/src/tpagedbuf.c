@@ -57,7 +57,7 @@ static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
     taosGetTmpfilePath(pBuf->prefix, "paged-buf", path);
     pBuf->path = taosStrdup(path);
     if (pBuf->path == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 

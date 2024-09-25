@@ -131,7 +131,7 @@ int32_t tjsonAddArray(SJson* pJson, const char* pName, FToJson func, const void*
   if (num > 0) {
     SJson* pJsonArray = tjsonAddArrayToObject(pJson, pName);
     if (NULL == pJsonArray) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     for (size_t i = 0; i < num; ++i) {
       int32_t code = tjsonAddItem(pJsonArray, func, (const char*)pArray + itemSize * i);
@@ -148,7 +148,7 @@ int32_t tjsonAddTArray(SJson* pJson, const char* pName, FToJson func, const SArr
   if (num > 0) {
     SJson* pJsonArray = tjsonAddArrayToObject(pJson, pName);
     if (NULL == pJsonArray) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     for (int32_t i = 0; i < num; ++i) {
       int32_t code = tjsonAddItem(pJsonArray, func, taosArrayGet(pArray, i));
@@ -343,7 +343,7 @@ int32_t tjsonToTArray(const SJson* pJson, const char* pName, FToObject func, SAr
   if (size > 0) {
     *pArray = taosArrayInit_s(itemSize, size);
     if (NULL == *pArray) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     for (int32_t i = 0; i < size; ++i) {
       int32_t code = func(tjsonGetArrayItem(jArray, i), taosArrayGet(*pArray, i));

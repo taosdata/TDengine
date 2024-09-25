@@ -89,7 +89,7 @@ int32_t metaRefMgtInit() {
   }
 
   if (gMetaRefMgt.pTable == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   } else {
     return code;
   }
@@ -126,7 +126,7 @@ int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid) {
 
     p = taosArrayPush(pList, &rid);
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     code = taosHashPut(gMetaRefMgt.pTable, &vgId, sizeof(vgId), &pList, sizeof(void*));
@@ -138,7 +138,7 @@ int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid) {
     SArray* list = *(SArray**)p;
     void*   px = taosArrayPush(list, &rid);
     if (px == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     }
   }
 
@@ -476,23 +476,14 @@ _err:
   if (pMeta->pTasksMap) taosHashCleanup(pMeta->pTasksMap);
   if (pMeta->pTaskList) taosArrayDestroy(pMeta->pTaskList);
   if (pMeta->pTaskDb) {
-    int32_t ret = tdbTbClose(pMeta->pTaskDb);
-    if (ret) {
-      stError("vgId:%d tdb failed close task db, code:%s", pMeta->vgId, tstrerror(ret));
-    }
+    tdbTbClose(pMeta->pTaskDb);
     pMeta->pTaskDb = NULL;
   }
   if (pMeta->pCheckpointDb) {
-    int32_t ret = tdbTbClose(pMeta->pCheckpointDb);
-    if (ret) {
-      stError("vgId:%d tdb failed close task checkpointDb, code:%s", pMeta->vgId, tstrerror(ret));
-    }
+    tdbTbClose(pMeta->pCheckpointDb);
   }
   if (pMeta->db) {
-    int32_t ret = tdbClose(pMeta->db);
-    if (ret) {
-      stError("vgId:%d tdb failed close meta db, code:%s", pMeta->vgId, tstrerror(ret));
-    }
+    tdbClose(pMeta->db);
   }
 
   if (pMeta->pHbInfo) taosMemoryFreeClear(pMeta->pHbInfo);
@@ -597,22 +588,10 @@ void streamMetaCloseImpl(void* arg) {
   streamMetaWUnLock(pMeta);
 
   // already log the error, ignore here
-  code = tdbAbort(pMeta->db, pMeta->txn);
-  if (code) {
-    stError("vgId:%d failed to jump of trans for tdb, code:%s", vgId, tstrerror(code));
-  }
-  code = tdbTbClose(pMeta->pTaskDb);
-  if (code) {
-    stError("vgId:%d failed to close taskDb, code:%s", vgId, tstrerror(code));
-  }
-  code = tdbTbClose(pMeta->pCheckpointDb);
-  if (code) {
-    stError("vgId:%d failed to close checkpointDb, code:%s", vgId, tstrerror(code));
-  }
-  code = tdbClose(pMeta->db);
-  if (code) {
-    stError("vgId:%d failed to close db, code:%s", vgId, tstrerror(code));
-  }
+  tdbAbort(pMeta->db, pMeta->txn);
+  tdbTbClose(pMeta->pTaskDb);
+  tdbTbClose(pMeta->pCheckpointDb);
+  tdbClose(pMeta->db);
 
   taosArrayDestroy(pMeta->pTaskList);
   taosArrayDestroy(pMeta->chkpSaved);
@@ -718,7 +697,7 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   p = taosArrayPush(pMeta->pTaskList, &pTask->id);
   if (p == NULL) {
     stError("s-task:0x%" PRIx64 " failed to register task into meta-list, code: out of memory", id.taskId);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   code = taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask, POINTER_BYTES);
@@ -895,7 +874,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
       stError("vgId:%d failed to remove task:0x%" PRIx64 ", code:%s", pMeta->vgId, id.taskId, tstrerror(code));
     }
 
-    int32_t size = (int32_t) taosHashGetSize(pMeta->pTasksMap);
+    int32_t size = (int32_t)taosHashGetSize(pMeta->pTasksMap);
     int32_t sizeInList = taosArrayGetSize(pMeta->pTaskList);
     if (sizeInList != size) {
       stError("vgId:%d tasks number not consistent in list:%d and map:%d, ", vgId, sizeInList, size);
@@ -1077,7 +1056,7 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       tFreeStreamTask(pTask);
 
       STaskId id = streamTaskGetTaskId(pTask);
-      void* px = taosArrayPush(pRecycleList, &id);
+      void*   px = taosArrayPush(pRecycleList, &id);
       if (px == NULL) {
         stError("s-task:0x%x failed record the task into recycle list due to out of memory", taskId);
       }

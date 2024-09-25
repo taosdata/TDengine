@@ -513,13 +513,13 @@ SRowBuffPos* getNewRowPos(SStreamFileState* pFileState) {
   int32_t      lino = 0;
   SRowBuffPos* pPos = taosMemoryCalloc(1, sizeof(SRowBuffPos));
   if (!pPos) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
   pPos->pKey = taosMemoryCalloc(1, pFileState->keyLen);
   if (!pPos->pKey) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
@@ -756,7 +756,7 @@ void flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, boo
   int32_t len = pFileState->rowSize + sizeof(uint64_t) + sizeof(int32_t) + 64;
   char*   buf = taosMemoryCalloc(1, len);
   if (!buf) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 

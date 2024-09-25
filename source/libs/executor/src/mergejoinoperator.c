@@ -1731,6 +1731,7 @@ int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBloc
     if (pJoin->pFinFilter != NULL) {
       code = doFilter(pBlock, pJoin->pFinFilter, NULL);
       if (code) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
         pJoin->errCode = code;
         T_LONG_JMP(pOperator->pTaskInfo->env, pJoin->errCode);
       }

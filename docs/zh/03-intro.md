@@ -14,9 +14,9 @@ TDengine 是一个高性能、分布式的时序数据库。通过集成的缓�
 
 TDengine OSS 是一个开源的高性能时序数据库，与其他时序数据库相比，它的核心优势在于其集群开源、高性能和云原生架构。而且除了基础的写入、查询和存储功能外，TDengine OSS 还集成了缓存、流式计算和数据订阅等高级功能，这些功能显著简化了系统设计，降低了企业的研发和运营成本。
 
-在 TDengine OSS 的基础上，企业版 TDengine Enterprise 提供了增强的辅助功能，包括数据的备份恢复、异地容灾、多级存储、视图、权限控制、安全加密、IP 白名单、支持 MQTT、OPC-UA、OPC-DA、PI、Wonderware、Kafka 等各种数据源。这些功能为企业提供了更为全面、安全、可靠和高效的时序数据管理解决方案。
+在 TDengine OSS 的基础上，企业版 TDengine Enterprise 提供了增强的辅助功能，包括数据的备份恢复、异地容灾、多级存储、视图、权限控制、安全加密、IP 白名单、支持 MQTT、OPC-UA、OPC-DA、PI、Wonderware、Kafka 等各种数据源。这些功能为企业提供了更为全面、安全、可靠和高效的时序数据管理解决方案。更多的细节请看 [TDengine Enterprise](https://www.taosdata.com/tdengine-pro)
 
-此外，TDengine Cloud 作为一种全托管的云服务，存储与计算分离，分开计费，为企业提供了企业级的工具和服务，彻底解决了运维难题，尤其适合中小规模的用户使用。
+此外，TDengine Cloud 作为一种全托管的云服务，存储与计算分离，分开计费，为企业提供了企业级的工具和服务，彻底解决了运维难题，尤其适合中小规模的用户使用。更多的细节请看[TDengine 云服务](https://cloud.taosdata.com/?utm_source=menu&utm_medium=webcn)
 
 ## TDengine 主要功能与特性
 
@@ -134,10 +134,4 @@ TDengine 经过特别优化，以适应时间序列数据的独特需求，引�
 - [TDengine 和 InfluxDB 查询性能对比测试报告](https://www.taosdata.com/2022/02/22/5969.html)
 - [TDengine 与 InfluxDB、OpenTSDB、Cassandra、MySQL、ClickHouse 等数据库的对比测试报告](https://www.taosdata.com/downloads/TDengine_Testing_Report_cn.pdf)
 
-
-## 主要产品
-
-TDengine 有两个主要产品：TDengine Enterprise （即 TDengine 企业版）和 TDengine Cloud，关于它们的具体定义请参考 
-- [TDengine 企业版](https://www.taosdata.com/tdengine-pro)
-- [TDengine 云服务](https://cloud.taosdata.com/?utm_source=menu&utm_medium=webcn)
 

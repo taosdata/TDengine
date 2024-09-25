@@ -4912,6 +4912,7 @@ int32_t tSerializeSDbCfgRspImpl(SEncoder *encoder, const SDbCfgRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pRsp->s3ChunkSize));
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pRsp->s3KeepLocal));
   TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->s3Compact));
+  TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->hashMethod));
 
   return 0;
 }
@@ -5002,6 +5003,11 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
     TAOS_CHECK_RETURN(tDecodeI32(decoder, &pRsp->s3ChunkSize));
     TAOS_CHECK_RETURN(tDecodeI32(decoder, &pRsp->s3KeepLocal));
     TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->s3Compact));
+  }
+  if (!tDecodeIsEnd(decoder)) {
+    TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->hashMethod));
+  } else {
+    pRsp->hashMethod = 1;  // default value
   }
 
   return 0;
@@ -5720,6 +5726,7 @@ int32_t tSerializeSTableInfoReq(void *buf, int32_t bufLen, STableInfoReq *pReq) 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->dbFName));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tbName));
+  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->option));
   tEndEncode(&encoder);
 
 _exit:
@@ -5754,6 +5761,11 @@ int32_t tDeserializeSTableInfoReq(void *buf, int32_t bufLen, STableInfoReq *pReq
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->dbFName));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tbName));
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pReq->option));
+  } else {
+    pReq->option = 0;
+  }
 
   tEndDecode(&decoder);
 _exit:

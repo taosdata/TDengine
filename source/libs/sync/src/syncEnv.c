@@ -87,7 +87,10 @@ int64_t syncNodeAdd(SSyncNode *pNode) {
 void syncNodeRemove(int64_t rid) {
   sDebug("sync node refId:%" PRId64 " is removed from rsetId:%d", rid, gNodeRefId);
   if (rid > 0) {
-    (void)taosRemoveRef(gNodeRefId, rid);
+    int32_t code = 0;
+    if ((code = taosRemoveRef(gNodeRefId, rid)) != 0)
+      sError("failed to remove sync node from refId:%" PRId64 ", rsetId:%d, since %s", rid, gNodeRefId,
+             tstrerror(code));
   }
 }
 
@@ -103,7 +106,10 @@ SSyncNode *syncNodeAcquire(int64_t rid) {
 
 void syncNodeRelease(SSyncNode *pNode) {
   if (pNode) {
-    (void)taosReleaseRef(gNodeRefId, pNode->rid);
+    int32_t code = 0;
+    if ((code = taosReleaseRef(gNodeRefId, pNode->rid)) != 0)
+      sError("failed to release sync node from refId:%" PRId64 ", rsetId:%d, since %s", pNode->rid, gNodeRefId,
+             tstrerror(code));
   }
 }
 
@@ -118,7 +124,9 @@ int64_t syncHbTimerDataAdd(SSyncHbTimerData *pData) {
 
 void syncHbTimerDataRemove(int64_t rid) {
   if (rid > 0) {
-    (void)taosRemoveRef(gHbDataRefId, rid);
+    int32_t code = 0;
+    if ((code = taosRemoveRef(gHbDataRefId, rid)) != 0)
+      sError("failed to remove hbdata from refId:%" PRId64 ", rsetId:%d, since %s", rid, gHbDataRefId, tstrerror(code));
   }
 }
 
@@ -134,6 +142,10 @@ SSyncHbTimerData *syncHbTimerDataAcquire(int64_t rid) {
 
 void syncHbTimerDataRelease(SSyncHbTimerData *pData) {
   if (pData) {
-    (void)taosReleaseRef(gHbDataRefId, pData->rid);
+    int32_t code = 0;
+    if ((code = taosReleaseRef(gHbDataRefId, pData->rid)) != 0) {
+      sError("failed to release hbdata from refId:%" PRId64 ", rsetId:%d, since %s", pData->rid, gHbDataRefId,
+             tstrerror(code));
+    }
   }
 }

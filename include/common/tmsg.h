@@ -463,6 +463,7 @@ typedef enum ENodeType {
 
 typedef struct {
   int32_t     vgId;
+  uint8_t     option;  // 0x0 REQ_OPT_TBNAME, 0x01 REQ_OPT_TBUID
   const char* dbFName;
   const char* tbName;
 } SBuildTableInput;
@@ -1460,6 +1461,7 @@ typedef struct {
   int32_t walFsyncPeriod;
   int16_t hashPrefix;
   int16_t hashSuffix;
+  int8_t  hashMethod;
   int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
@@ -2045,10 +2047,13 @@ typedef struct {
 int32_t tSerializeSAlterVnodeHashRangeReq(void* buf, int32_t bufLen, SAlterVnodeHashRangeReq* pReq);
 int32_t tDeserializeSAlterVnodeHashRangeReq(void* buf, int32_t bufLen, SAlterVnodeHashRangeReq* pReq);
 
+#define REQ_OPT_TBNAME 0x0
+#define REQ_OPT_TBUID  0x01
 typedef struct {
   SMsgHead header;
   char     dbFName[TSDB_DB_FNAME_LEN];
   char     tbName[TSDB_TABLE_NAME_LEN];
+  uint8_t  option;
 } STableInfoReq;
 
 int32_t tSerializeSTableInfoReq(void* buf, int32_t bufLen, STableInfoReq* pReq);

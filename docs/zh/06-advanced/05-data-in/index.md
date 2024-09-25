@@ -38,7 +38,6 @@ TDengine Enterprise 配备了一个强大的可视化数据管理工具—taosEx
 
 下面详细讲解数据转换规则
 
-
 ### 解析
 
 仅非结构化的数据源需要这个步骤，目前 MQTT 和 Kafka 数据源会使用这个步骤提供的规则来解析非结构化数据，以初步获取结构化数据，即可以以字段描述的行列数据。在 explorer 中您需要提供示例数据和解析规则，来预览解析出以表格呈现的结构化数据。
@@ -53,19 +52,31 @@ TDengine Enterprise 配备了一个强大的可视化数据管理工具—taosEx
 2. 点击右侧按钮 “从服务器检索” 则从配置的服务器获取示例数据，并追加到示例数据 textarea 中；
 3. 上传文件，将文件内容追加到示例数据 textarea 中。
 
+每一条示例数据以回车符结尾。
+
 #### 解析<a name="parse"></a>
 
 解析就是通过解析规则，将非结构化字符串解析为结构化数据。消息体的解析规则目前支持 JSON、Regex 和 UDT。
 
 ##### JSON 解析
 
-如下 JSON 示例数据，可自动解析出字段：`groupid`、`voltage`、`current`、`ts`、`inuse`、`location`。
+JSON 解析支持 JSONObject 或者 JSONArray。 如下 JSON 示例数据，可自动解析出字段：`groupid`、`voltage`、`current`、`ts`、`inuse`、`location`。
 
 ``` json
 {"groupid": 170001, "voltage": "221V", "current": 12.3, "ts": "2023-12-18T22:12:00", "inuse": true, "location": "beijing.chaoyang.datun"}
 {"groupid": 170001, "voltage": "220V", "current": 12.2, "ts": "2023-12-18T22:12:02", "inuse": true, "location": "beijing.chaoyang.datun"}
 {"groupid": 170001, "voltage": "216V", "current": 12.5, "ts": "2023-12-18T22:12:04", "inuse": false, "location": "beijing.chaoyang.datun"}
 ```
+
+或者
+
+``` json
+[{"groupid": 170001, "voltage": "221V", "current": 12.3, "ts": "2023-12-18T22:12:00", "inuse": true, "location": "beijing.chaoyang.datun"},
+{"groupid": 170001, "voltage": "220V", "current": 12.2, "ts": "2023-12-18T22:12:02", "inuse": true, "location": "beijing.chaoyang.datun"},
+{"groupid": 170001, "voltage": "216V", "current": 12.5, "ts": "2023-12-18T22:12:04", "inuse": false, "location": "beijing.chaoyang.datun"}]
+```
+
+后续示例仅以JSONObject 为例说明。
 
 如下嵌套结构的 JSON 数据，可自动解析出字段`groupid`、`data_voltage`、`data_current`、`ts`、`inuse`、`location_0_province`、`location_0_city`、`location_0_datun`，也可以选择要解析的字段，并设置解析的别名。
 

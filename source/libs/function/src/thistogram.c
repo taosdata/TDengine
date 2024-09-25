@@ -37,7 +37,7 @@ int32_t tHistogramCreate(int32_t numOfEntries, SHistogramInfo** pHisto) {
   /* need one redundant slot */
   *pHisto = taosMemoryMalloc(sizeof(SHistogramInfo) + sizeof(SHistBin) * (numOfEntries + 1));
   if (NULL == *pHisto) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
 #if !defined(USE_ARRAYLIST)
@@ -468,7 +468,7 @@ int32_t tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num, do
 #if defined(USE_ARRAYLIST)
   *pVal = taosMemoryMalloc(num * sizeof(double));
   if (NULL == *pVal) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int32_t i = 0; i < num; ++i) {
@@ -521,7 +521,7 @@ int32_t tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num, do
 #else
   double* pVal = taosMemoryMalloc(num * sizeof(double));
   if (NULL == *pVal) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   for (int32_t i = 0; i < num; ++i) {
     double numOfElem = ratio[i] * pHisto->numOfElems;

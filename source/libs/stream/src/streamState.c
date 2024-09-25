@@ -106,14 +106,14 @@ SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, i
   stDebug("open stream state %p, %s", pState, path);
 
   if (pState == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
   pState->pTdbState = taosMemoryCalloc(1, sizeof(STdbState));
   if (pState->pTdbState == NULL) {
     streamStateDestroy(pState, true);
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
