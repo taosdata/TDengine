@@ -10,10 +10,8 @@ for(var i = 2; i < global.process.argv.length; i++){
 }
 
 if(host == null){
-    console.log("Usage: node nodejsChecker.js host=<hostname> port=<port>");
-    process.exit(1);
+    host = 'localhost';
 }
-
 
 async function createConnect() {
     let dsn = 'ws://' + host + ':6041'
