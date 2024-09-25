@@ -332,7 +332,7 @@ int64_t tsmaDataDeleteMark = 1000 * 60 * 60 * 24;  // in ms, default to 1d
 int32_t taosSetTfsCfg(SConfig *pCfg) {
   SConfigItem *pItem = NULL;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "dataDir");
-  (void)memset(tsDataDir, 0, PATH_MAX);
+  TAOS_UNUSED(memset(tsDataDir, 0, PATH_MAX));
 
   int32_t size = taosArrayGetSize(pItem->array);
   tsDiskCfgNum = 1;
@@ -466,48 +466,48 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
   }
   if (taosIsDir(cfgDir)) {
 #ifdef CUS_PROMPT
-    (void)snprintf(cfgFile, sizeof(cfgFile),
-                   "%s"
-                   "%s"
-                   "%s.cfg",
-                   cfgDir, tdDirsep, CUS_PROMPT);
+    TAOS_UNUSED(snprintf(cfgFile, sizeof(cfgFile),
+                         "%s"
+                         "%s"
+                         "%s.cfg",
+                         cfgDir, tdDirsep, CUS_PROMPT));
 #else
-    (void)snprintf(cfgFile, sizeof(cfgFile),
-                   "%s"
-                   "%s"
-                   "taos.cfg",
-                   cfgDir, tdDirsep);
+    TAOS_UNUSED(snprintf(cfgFile, sizeof(cfgFile),
+                         "%s"
+                         "%s"
+                         "taos.cfg",
+                         cfgDir, tdDirsep));
 #endif
   } else {
     tstrncpy(cfgFile, cfgDir, sizeof(cfgDir));
   }
 
   if (apolloUrl != NULL && apolloUrl[0] == '\0') {
-    (void)(cfgGetApollUrl(envCmd, envFile, apolloUrl));
+    TAOS_UNUSED(cfgGetApollUrl(envCmd, envFile, apolloUrl));
   }
 
   if ((code = cfgLoad(pCfg, CFG_STYPE_APOLLO_URL, apolloUrl)) != 0) {
-    (void)printf("failed to load from apollo url:%s since %s\n", apolloUrl, tstrerror(code));
+    TAOS_UNUSED(printf("failed to load from apollo url:%s since %s\n", apolloUrl, tstrerror(code)));
     TAOS_RETURN(code);
   }
 
   if ((code = cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgFile)) != 0) {
-    (void)printf("failed to load from cfg file:%s since %s\n", cfgFile, tstrerror(code));
+    TAOS_UNUSED(printf("failed to load from cfg file:%s since %s\n", cfgFile, tstrerror(code)));
     TAOS_RETURN(code);
   }
 
   if ((code = cfgLoad(pCfg, CFG_STYPE_ENV_FILE, envFile)) != 0) {
-    (void)printf("failed to load from env file:%s since %s\n", envFile, tstrerror(code));
+    TAOS_UNUSED(printf("failed to load from env file:%s since %s\n", envFile, tstrerror(code)));
     TAOS_RETURN(code);
   }
 
   if ((code = cfgLoad(pCfg, CFG_STYPE_ENV_VAR, NULL)) != 0) {
-    (void)printf("failed to load from global env variables since %s\n", tstrerror(code));
+    TAOS_UNUSED(printf("failed to load from global env variables since %s\n", tstrerror(code)));
     TAOS_RETURN(code);
   }
 
   if ((code = cfgLoad(pCfg, CFG_STYPE_ENV_CMD, envCmd)) != 0) {
-    (void)printf("failed to load from cmd env variables since %s\n", tstrerror(code));
+    TAOS_UNUSED(printf("failed to load from cmd env variables since %s\n", tstrerror(code)));
     TAOS_RETURN(code);
   }
 
@@ -557,7 +557,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   char    defaultFqdn[TSDB_FQDN_LEN] = {0};
   int32_t defaultServerPort = 6030;
   if (taosGetFqdn(defaultFqdn) != 0) {
-    (void)strcpy(defaultFqdn, "localhost");
+    TAOS_UNUSED(strcpy(defaultFqdn, "localhost"));
   }
 
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "firstEp", "", CFG_SCOPE_BOTH, CFG_DYN_CLIENT));
@@ -1095,7 +1095,7 @@ int32_t taosSetSlowLogScope(char *pScopeStr, int32_t *pScope) {
     if (tmp == NULL) {
       TAOS_RETURN(terrno);
     }
-    (void)strtrim(tmp);
+    TAOS_UNUSED(strtrim(tmp));
     if (0 == strcasecmp(tmp, "all")) {
       slowScope |= SLOW_LOG_TYPE_ALL;
       continue;
@@ -1140,21 +1140,21 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "serverPort");
   tsServerPort = (uint16_t)pItem->i32;
-  (void)snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
+  if (snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort) < 0) TAOS_RETURN(TSDB_CODE_INVALID_CFG_VALUE);
 
   char defaultFirstEp[TSDB_EP_LEN] = {0};
-  (void)snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
+  if (snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort) < 0) TAOS_RETURN(TSDB_CODE_INVALID_CFG_VALUE);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "firstEp");
   SEp          firstEp = {0};
   TAOS_CHECK_RETURN(taosGetFqdnPortFromEp(strlen(pItem->str) == 0 ? defaultFirstEp : pItem->str, &firstEp));
-  (void)snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
+  if (snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port) < 0) TAOS_RETURN(TSDB_CODE_INVALID_CFG_VALUE);
   TAOS_CHECK_RETURN(cfgSetItem(pCfg, "firstEp", tsFirst, pItem->stype, true));
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "secondEp");
   SEp          secondEp = {0};
   TAOS_CHECK_RETURN(taosGetFqdnPortFromEp(strlen(pItem->str) == 0 ? defaultFirstEp : pItem->str, &secondEp));
-  (void)snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port);
+  if (snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port) < 0) TAOS_RETURN(TSDB_CODE_INVALID_CFG_VALUE);
   TAOS_CHECK_RETURN(cfgSetItem(pCfg, "secondEp", tsSecond, pItem->stype, true));
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tempDir");
@@ -1672,12 +1672,12 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   }
 
   if ((code = taosLoadCfg(pCfg, envCmd, cfgDir, envFile, apolloUrl)) != TSDB_CODE_SUCCESS) {
-    (void)printf("failed to load cfg since %s\n", tstrerror(code));
+    TAOS_UNUSED(printf("failed to load cfg since %s\n", tstrerror(code)));
     goto _exit;
   }
 
   if ((code = cfgLoadFromArray(pCfg, pArgs)) != TSDB_CODE_SUCCESS) {
-    (void)printf("failed to load cfg from array since %s\n", tstrerror(code));
+    TAOS_UNUSED(printf("failed to load cfg from array since %s\n", tstrerror(code)));
     goto _exit;
   }
 
@@ -1693,18 +1693,18 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   TAOS_CHECK_GOTO(taosSetAllDebugFlag(pCfg, pDebugItem->i32), &lino, _exit);
 
   if ((code = taosMulModeMkDir(tsLogDir, 0777, true)) != TSDB_CODE_SUCCESS) {
-    (void)printf("failed to create dir:%s since %s\n", tsLogDir, tstrerror(code));
+    TAOS_UNUSED(printf("failed to create dir:%s since %s\n", tsLogDir, tstrerror(code)));
     goto _exit;
   }
 
   if ((code = taosInitLog(logname, logFileNum, tsc)) != 0) {
-    (void)printf("failed to init log file since %s\n", tstrerror(code));
+    TAOS_UNUSED(printf("failed to init log file since %s\n", tstrerror(code)));
     goto _exit;
   }
 
 _exit:
   if (TSDB_CODE_SUCCESS != code) {
-    (void)printf("failed to create log at %d since %s\n", lino, tstrerror(code));
+    TAOS_UNUSED(printf("failed to create log at %d since %s\n", lino, tstrerror(code)));
   }
 
   cfgCleanup(pCfg);
@@ -1717,7 +1717,7 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
 
   if (tsCfg == NULL) code = osDefaultInit();
   if (code != 0) {
-    (void)printf("failed to init os since %s\n", tstrerror(code));
+    TAOS_UNUSED(printf("failed to init os since %s\n", tstrerror(code)));
   }
 
   SConfig *pCfg = NULL;
@@ -1727,12 +1727,12 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
   TAOS_CHECK_GOTO(cfgAddInt32(pCfg, "dDebugFlag", dDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER) ,NULL, _exit);
 
   if ((code = taosLoadCfg(pCfg, envCmd, cfgDir, envFile, apolloUrl)) != 0) {
-    (void)printf("failed to load cfg since %s\n", tstrerror(code));
+    TAOS_UNUSED(printf("failed to load cfg since %s\n", tstrerror(code)));
     goto _exit;
   }
 
   if ((code = cfgLoadFromArray(pCfg, pArgs)) != 0) {
-    (void)printf("failed to load cfg from array since %s\n", tstrerror(code));
+    TAOS_UNUSED(printf("failed to load cfg from array since %s\n", tstrerror(code)));
     goto _exit;
   }
 
@@ -1796,14 +1796,14 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
   TAOS_CHECK_GOTO(taosAddSystemCfg(tsCfg), &lino, _exit);
 
   if ((code = taosLoadCfg(tsCfg, envCmd, cfgDir, envFile, apolloUrl)) != 0) {
-    (void)printf("failed to load cfg since %s\n", tstrerror(code));
+    TAOS_UNUSED(printf("failed to load cfg since %s\n", tstrerror(code)));
     cfgCleanup(tsCfg);
     tsCfg = NULL;
     TAOS_RETURN(code);
   }
 
   if ((code = cfgLoadFromArray(tsCfg, pArgs)) != 0) {
-    (void)printf("failed to load cfg from array since %s\n", tstrerror(code));
+    TAOS_UNUSED(printf("failed to load cfg from array since %s\n", tstrerror(code)));
     cfgCleanup(tsCfg);
     tsCfg = NULL;
     TAOS_RETURN(code);
@@ -1825,7 +1825,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
 
   SConfigItem *pItem = cfgGetItem(tsCfg, "debugFlag");
   if (NULL == pItem) {
-    (void)printf("debugFlag not found in cfg\n");
+    TAOS_UNUSED(printf("debugFlag not found in cfg\n"));
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
   TAOS_CHECK_GOTO(taosSetAllDebugFlag(tsCfg, pItem->i32), &lino, _exit);
@@ -1838,7 +1838,7 @@ _exit:
   if (TSDB_CODE_SUCCESS != code) {
     cfgCleanup(tsCfg);
     tsCfg = NULL;
-    (void)printf("failed to init cfg at %d since %s\n", lino, tstrerror(code));
+    TAOS_UNUSED(printf("failed to init cfg at %d since %s\n", lino, tstrerror(code)));
   }
 
   TAOS_RETURN(code);
@@ -2032,7 +2032,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
 
   int32_t len = strlen(name);
   char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
-  (void)strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
+  TAOS_UNUSED(strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len)));
 
   switch (lowcaseName[0]) {
     case 'd': {
@@ -2064,16 +2064,28 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
 
         tstrncpy(tsLocalFqdn, pFqdnItem->str, TSDB_FQDN_LEN);
         tsServerPort = (uint16_t)pServerPortItem->i32;
-        (void)snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
+        if (snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort) <0) {
+          uError("failed to set localEp");
+          code = TSDB_CODE_INVALID_CFG;
+          goto _out;
+        }
 
         char defaultFirstEp[TSDB_EP_LEN] = {0};
-        (void)snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
+        if (snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort) < 0) {
+          uError("failed to set defaultFirstEp");
+          code = TSDB_CODE_INVALID_CFG;
+          goto _out;
+        }
 
         SEp          firstEp = {0};
         TAOS_CHECK_GOTO(
             taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp), &lino,
             _out);
-        (void)snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
+        if (snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port) < 0) {
+          uError("failed to set firstEp");
+          code = TSDB_CODE_INVALID_CFG;
+          goto _out;
+        }
 
         TAOS_CHECK_GOTO(cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, false), &lino, _out);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
@@ -2090,16 +2102,28 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
 
         tstrncpy(tsLocalFqdn, pFqdnItem->str, TSDB_FQDN_LEN);
         tsServerPort = (uint16_t)pServerPortItem->i32;
-        (void)snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
+        if (snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort) < 0) {
+          uError("failed to set localEp");
+          code = TSDB_CODE_INVALID_CFG;
+          goto _out;
+        }
 
         char defaultFirstEp[TSDB_EP_LEN] = {0};
-        (void)snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
+        if (snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort) < 0) {
+          uError("failed to set defaultFirstEp");
+          code = TSDB_CODE_INVALID_CFG;
+          goto _out;
+        }
 
         SEp firstEp = {0};
         TAOS_CHECK_GOTO(
             taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp), &lino,
             _out);
-        (void)snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
+        if (snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port) < 0) {
+          uError("failed to set firstEp");
+          code = TSDB_CODE_INVALID_CFG;
+          goto _out;
+        }
 
         TAOS_CHECK_GOTO(cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, false), &lino, _out);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
@@ -2146,7 +2170,11 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
       if (strcasecmp("secondEp", name) == 0) {
         SEp secondEp = {0};
         TAOS_CHECK_GOTO(taosGetFqdnPortFromEp(strlen(pItem->str) == 0 ? tsFirst : pItem->str, &secondEp), &lino, _out);
-        (void)snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port);
+        if (snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port) < 0) {
+          uError("failed to set secondEp");
+          code = TSDB_CODE_INVALID_CFG;
+          goto _out;
+        }
         TAOS_CHECK_GOTO(cfgSetItem(pCfg, "secondEp", tsSecond, pItem->stype, false), &lino, _out);
         uInfo("%s set to %s", name, tsSecond);
         matched = true;
@@ -2178,16 +2206,28 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
 
         tstrncpy(tsLocalFqdn, pFqdnItem->str, TSDB_FQDN_LEN);
         tsServerPort = (uint16_t)pServerPortItem->i32;
-        (void)snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
+        if (snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort) < 0) {
+          uError("failed to set localEp");
+          code = TSDB_CODE_INVALID_CFG;
+          goto _out;
+        }
 
         char defaultFirstEp[TSDB_EP_LEN] = {0};
-        (void)snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
+        if (snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort) < 0) {
+          uError("failed to set defaultFirstEp");
+          code = TSDB_CODE_INVALID_CFG;
+          goto _out;
+        }
 
-        SEp          firstEp = {0};
+        SEp firstEp = {0};
         TAOS_CHECK_GOTO(
             taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp), &lino,
             _out);
-        (void)snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
+        if (snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port) < 0) {
+          uError("failed to set firstEp");
+          code = TSDB_CODE_INVALID_CFG;
+          goto _out;
+        }
 
         TAOS_CHECK_GOTO(cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, false), &lino, _out);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
@@ -2320,29 +2360,29 @@ static int32_t taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
   pItem->i32 = flag;
   noNeedToSetVars = pItem->array;
 
-  (void)taosCheckAndSetDebugFlag(&simDebugFlag, "simDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&uDebugFlag, "uDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&rpcDebugFlag, "rpcDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&qDebugFlag, "qDebugFlag", flag, noNeedToSetVars);
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&simDebugFlag, "simDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&uDebugFlag, "uDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&rpcDebugFlag, "rpcDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&qDebugFlag, "qDebugFlag", flag, noNeedToSetVars));
 
-  (void)taosCheckAndSetDebugFlag(&jniDebugFlag, "jniDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&cDebugFlag, "cDebugFlag", flag, noNeedToSetVars);
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&jniDebugFlag, "jniDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&cDebugFlag, "cDebugFlag", flag, noNeedToSetVars));
 
-  (void)taosCheckAndSetDebugFlag(&dDebugFlag, "dDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&vDebugFlag, "vDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&mDebugFlag, "mDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&wDebugFlag, "wDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&sDebugFlag, "sDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&tsdbDebugFlag, "tsdbDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&tqDebugFlag, "tqDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&fsDebugFlag, "fsDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&udfDebugFlag, "udfDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&smaDebugFlag, "smaDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&idxDebugFlag, "idxDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&tdbDebugFlag, "tdbDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&stDebugFlag, "stDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&sndDebugFlag, "sndDebugFlag", flag, noNeedToSetVars);
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&dDebugFlag, "dDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&vDebugFlag, "vDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&mDebugFlag, "mDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&wDebugFlag, "wDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&sDebugFlag, "sDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&tsdbDebugFlag, "tsdbDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&tqDebugFlag, "tqDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&fsDebugFlag, "fsDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&udfDebugFlag, "udfDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&smaDebugFlag, "smaDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&idxDebugFlag, "idxDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&tdbDebugFlag, "tdbDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&stDebugFlag, "stDebugFlag", flag, noNeedToSetVars));
+  TAOS_UNUSED(taosCheckAndSetDebugFlag(&sndDebugFlag, "sndDebugFlag", flag, noNeedToSetVars));
 
   taosArrayClear(noNeedToSetVars);  // reset array
 
