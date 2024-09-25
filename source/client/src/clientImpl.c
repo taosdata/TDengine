@@ -2503,13 +2503,13 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
 
   taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly);
   tsem_wait(&param->sem);
-  tsem_destroy(&param->sem);
 
   SRequestObj* pRequest = NULL;
   if (param->pRequest != NULL) {
     param->pRequest->syncQuery = true;
     pRequest = param->pRequest;
   } else {
+    tsem_destroy(&param->sem);
     taosMemoryFree(param);
   }
 
