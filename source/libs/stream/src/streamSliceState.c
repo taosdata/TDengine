@@ -233,10 +233,11 @@ int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
   SArray*    pWinStates = NULL;
   SSHashObj* pSearchBuff = getSearchBuff(pFileState);
   void*      pState = getStateFileStore(pFileState);
-  void**     ppBuff = tSimpleHashGet(pSearchBuff, &pKey->groupId, sizeof(uint64_t));
+  void**     ppBuff = (void**) tSimpleHashGet(pSearchBuff, &pKey->groupId, sizeof(uint64_t));
   if (ppBuff) {
     pWinStates = (SArray*)(*ppBuff);
   } else {
+    qTrace("===stream=== search buff is empty.group id:%" PRId64, pKey->groupId);
     SStreamStateCur* pCur = streamStateFillSeekKeyPrev_rocksdb(pState, pKey);
     void*            tmpVal = NULL;
     int32_t          len = 0;
@@ -257,7 +258,15 @@ int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
   }
   int32_t size = taosArrayGetSize(pWinStates);
   int32_t index = binarySearch(pWinStates, size, pKey, fillStateKeyCompare);
-  if (index == -1 || index == 0) {
+  if (index >= 0) {
+    SWinKey* pCurKey = taosArrayGet(pWinStates, index);
+    if (winKeyCmprImpl(pCurKey, pKey) == 0) {
+      index--;
+    } else {
+      qDebug("%s failed at line %d since do not find cur SWinKey. trigger may be force window close", __func__, __LINE__);
+    }
+  }
+  if (index == -1) {
     SStreamStateCur* pCur = streamStateFillSeekKeyPrev_rocksdb(pState, pKey);
     void*            tmpVal = NULL;
     int32_t          len = 0;
@@ -276,15 +285,7 @@ int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
     streamStateFreeCur(pCur);
     return code;
   } else {
-    SWinKey* pPrevKey = NULL;
-    SWinKey* pCurKey = taosArrayGet(pWinStates, index);
-    if (winKeyCmprImpl(pCurKey, pKey) == 0) {
-      pPrevKey = taosArrayGet(pWinStates, index - 1);
-    } else {
-      pPrevKey = taosArrayGet(pWinStates, index);
-      qDebug("%s failed at line %d since do not find cur SWinKey. trigger may be force window close", __func__, __LINE__);
-    }
-
+    SWinKey* pPrevKey = taosArrayGet(pWinStates, index);
     *pResKey = *pPrevKey;
     return getHashSortRowBuff(pFileState, pResKey, ppVal, pVLen, pWinCode);
   }

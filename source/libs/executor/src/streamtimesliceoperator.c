@@ -757,6 +757,8 @@ static int32_t getResultInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillS
   code = pAggSup->stateStore.streamStateFillGetPrev(pState, &pCurPoint->key, &pPrevPoint->key,
                                                     (void**)&pPrevPoint->pResPos, &preVLen, &tmpRes);
   QUERY_CHECK_CODE(code, lino, _end);
+  qDebug("===stream=== set stream interp resutl prev buf.ts:%" PRId64 ", groupId:%" PRId64 ", res:%d", pPrevPoint->key.ts, pPrevPoint->key.groupId, tmpRes);
+
   if (tmpRes == TSDB_CODE_SUCCESS) {
     QUERY_CHECK_CONDITION(!IS_INVALID_WIN_KEY(pPrevPoint->key.ts), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     setPointBuff(pPrevPoint, pFillSup);
