@@ -189,6 +189,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
 
 _err:
   taosArrayDestroy(pWal->fileInfoSet);
+  taosArrayDestroy(pWal->toDeleteFiles);
   taosHashCleanup(pWal->pRefHash);
   TAOS_UNUSED(taosThreadRwlockDestroy(&pWal->mutex));
   taosMemoryFreeClear(pWal);

@@ -1833,7 +1833,9 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
       }
 
       if (info.suid) {
-        (void)metaGetInfo(pVnode->pMeta, info.suid, &info, NULL);
+        if (metaGetInfo(pVnode->pMeta, info.suid, &info, NULL) != 0) {
+          vWarn("vgId:%d, table uid:%" PRId64 " not exists", TD_VID(pVnode), info.suid);
+        }
       }
 
       if (pSubmitTbData->sver != info.skmVer) {
