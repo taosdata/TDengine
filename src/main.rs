@@ -237,7 +237,7 @@ struct LogOpts {
         env = "LOG_RESERVED_DISK_SIZE"
     )]
     reserved_disk_size: Option<String>,
-    #[clap(id = "log.watching", long = "log.watching", env = "LOG_WATCHING", action = clap::ArgAction::SetTrue, default_value = "true")]
+    #[clap(id = "log.watching", long = "log.watching", env = "LOG_WATCHING", action = clap::ArgAction::SetTrue)]
     watching: Option<bool>,
     #[clap(skip)]
     loggers: Option<HashMap<String, String>>,
