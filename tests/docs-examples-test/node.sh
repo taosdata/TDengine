@@ -7,8 +7,6 @@ pgrep taosadapter || taosadapter >> /dev/null 2>&1 &
 
 cd ../../docs/examples/node
 
-npm config set registry https://registry.npmjs.org/
-
 npm install
 
 cd websocketexample

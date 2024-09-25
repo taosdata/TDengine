@@ -16,7 +16,6 @@ async function createConnect() {
 }
 
 async function test() {
-    let dsn = 'ws://localhost:6041'
     let wsSql = null;
     let wsRows = null;
     let ttl = 0;
