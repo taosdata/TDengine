@@ -194,9 +194,9 @@ int32_t tjsonGetObjectValueString(const SJson* pJson, char** pValueString) {
   return TSDB_CODE_SUCCESS;
 }
 
-void tjsonGetObjectValueBigInt(const SJson* pJson, int64_t* pBigInt) {
-  *pBigInt = (int64_t)((cJSON*)pJson)->valuedouble;
-}
+void tjsonGetObjectValueBigInt(const SJson* pJson, int64_t* pVal) { *pVal = (int64_t)((cJSON*)pJson)->valuedouble; }
+
+void tjsonGetObjectValueDouble(const SJson* pJson, double* pVal) { *pVal = ((cJSON*)pJson)->valuedouble; }
 
 int32_t tjsonGetStringValue(const SJson* pJson, const char* pName, char* pVal) {
   char* p = cJSON_GetStringValue(tjsonGetObjectItem((cJSON*)pJson, pName));

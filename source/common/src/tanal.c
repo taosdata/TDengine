@@ -201,9 +201,10 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
 }
 
 static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
-#if 0
-  return taosCurlTestStr(url, pRsp);
-#else
+  if (0) {
+    return taosCurlTestStr(url, pRsp);
+  }
+
   CURL    *curl = NULL;
   CURLcode code = 0;
 
@@ -226,13 +227,13 @@ static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
 _OVER:
   if (curl != NULL) curl_easy_cleanup(curl);
   return code;
-#endif
 }
 
 static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen) {
-#if 0
-  return taosCurlTestStr(url, pRsp);
-#else
+  if (strstr(url, "forecast") != NULL) {
+    return taosCurlTestStr(url, pRsp);
+  }
+
   struct curl_slist *headers = NULL;
   CURL              *curl = NULL;
   CURLcode           code = 0;
@@ -264,7 +265,6 @@ _OVER:
     curl_easy_cleanup(curl);
   }
   return code;
-#endif
 }
 
 SJson *taosAnalSendReqRetJson(const char *url, EAnalHttpType type, SAnalBuf *pBuf) {
@@ -367,12 +367,14 @@ static int32_t taosCurlTestStr(const char *url, SCurlResp *pRsp) {
 
   const char *forecastStr =
       "{\n"
-      "    \"rows\": 1,\n"
+      "    \"rows\": 6,\n"
       "    \"res\": [\n"
-      "        [1577808000000, 1],\n"
-      "        [1578153600000, 2],\n"
-      "        [1578240000000, 3]\n"
-      "        [1577808016000, 4]\n"
+      "        [1578220000000, 1, 21, 31],\n"
+      "        [1578230000000, 2, 22, 32],\n"
+      "        [1578240000000, 3, 23, 33],\n"
+      "        [1578250000000, 4, 24, 34],\n"
+      "        [1578260000000, 5, 25, 35],\n"
+      "        [1578280000000, 6, 26, 36]\n"
       "    ]\n"
       "}";
 
@@ -398,13 +400,13 @@ static int32_t taosCurlTestStr(const char *url, SCurlResp *pRsp) {
   return 0;
 }
 
-static int32_t taosAnalJsonBufGetCont(SAnalBuf *pBuf, char **ppCont, int64_t *pContLen) {
+static int32_t taosAnalJsonBufGetCont(const char *fileName, char **ppCont, int64_t *pContLen) {
   int32_t   code = 0;
   int64_t   contLen;
   char     *pCont = NULL;
   TdFilePtr pFile = NULL;
 
-  pFile = taosOpenFile(pBuf->fileName, TD_FILE_READ);
+  pFile = taosOpenFile(fileName, TD_FILE_READ);
   if (pFile == NULL) {
     code = terrno;
     goto _OVER;
@@ -447,7 +449,7 @@ static int32_t taosAnalJsonBufWriteParaInt32(SAnalBuf *pBuf, const char *paraNam
 }
 
 static int32_t taosAnalJsonBufWriteParaStr(SAnalBuf *pBuf, const char *paraName, const char *paraVal) {
-  char    buf[64] = {0};
+  char    buf[128] = {0};
   int32_t bufLen = snprintf(buf, sizeof(buf), "\"%s\": \"%s\",\n", paraName, paraVal);
   if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
     return terrno;
@@ -629,20 +631,22 @@ static int32_t taosAnalJsonBufWriteDataEnd(SAnalBuf *pBuf) {
   if (pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
     for (int32_t i = 0; i < pBuf->numOfCols; ++i) {
       SAnalColBuf *pCol = &pBuf->pCols[i];
+
       code = taosFsyncFile(pCol->filePtr);
       if (code != 0) return code;
+
       code = taosCloseFile(&pCol->filePtr);
       if (code != 0) return code;
+
+      code = taosAnalJsonBufGetCont(pBuf->pCols[i].fileName, &pCont, &contLen);
+      if (code != 0) return code;
+
+      code = taosAnalJsonBufWriteStr(pBuf, pCont, contLen);
+      if (code != 0) return code;
+
+      taosMemoryFreeClear(pCont);
+      contLen = 0;
     }
-
-    code = taosAnalJsonBufGetCont(pBuf, &pCont, &contLen);
-    if (code != 0) return code;
-
-    code = taosAnalJsonBufWriteStr(pBuf, pCont, contLen);
-    if (code != 0) return code;
-
-    taosMemoryFreeClear(pCont);
-    contLen = 0;
   }
 
   return taosAnalJsonBufWriteStr(pBuf, "],\n", 0);
@@ -796,7 +800,7 @@ static int32_t taosAnalBufGetCont(SAnalBuf *pBuf, char **ppCont, int64_t *pContL
   *pContLen = 0;
 
   if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
-    return taosAnalJsonBufGetCont(pBuf, ppCont, pContLen);
+    return taosAnalJsonBufGetCont(pBuf->fileName, ppCont, pContLen);
   } else {
     return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
   }
