@@ -86,11 +86,9 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-int32_t walApplyVer(SWal *pWal, int64_t ver) {
+void walApplyVer(SWal *pWal, int64_t ver) {
   // TODO: error check
   pWal->vers.appliedVer = ver;
-
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 int32_t walCommit(SWal *pWal, int64_t ver) {
@@ -603,7 +601,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
       wError("vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
              strerror(errno));
 
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+      TAOS_CHECK_GOTO(terrno, &lino, _exit);
     }
     TAOS_UNUSED(memset(newBody, 0, cyptedBodyLen));
     TAOS_UNUSED(memcpy(newBody, body, plainBodyLen));
@@ -615,7 +613,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
       if (newBody != NULL) taosMemoryFreeClear(newBody);
 
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+      TAOS_CHECK_GOTO(terrno, &lino, _exit);
     }
 
     SCryptOpts opts;

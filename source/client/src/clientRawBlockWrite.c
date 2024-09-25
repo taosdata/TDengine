@@ -361,7 +361,7 @@ static void processCreateStb(SMqMetaRsp* metaRsp, cJSON** pJson) {
   buildCreateTableJson(&req.schemaRow, &req.schemaTag, req.name, req.suid, TSDB_SUPER_TABLE, &req.colCmpr, pJson);
 
 end:
-  uDebug("create stable return, sql json:%s", cJSON_PrintUnformatted(*pJson));
+  uDebug("create stable return");
   tDecoderClear(&coder);
 }
 
@@ -381,7 +381,7 @@ static void processAlterStb(SMqMetaRsp* metaRsp, cJSON** pJson) {
   buildAlterSTableJson(req.alterOriData, req.alterOriDataLen, pJson);
 
 end:
-  uDebug("alter stable return, sql json:%s", cJSON_PrintUnformatted(*pJson));
+  uDebug("alter stable return");
   tDecoderClear(&coder);
 }
 
@@ -393,7 +393,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
   int64_t id = pCreateReq->uid;
   uint8_t tagNum = pCreateReq->ctb.tagNum;
   int32_t code = 0;
-
+  cJSON*  tags = NULL;
   cJSON* tableName = cJSON_CreateString(name);
   RAW_NULL_CHECK(tableName);
   RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableName", tableName));
@@ -404,7 +404,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
   RAW_NULL_CHECK(tagNumJson);
   RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tagNum", tagNumJson));
 
-  cJSON* tags = cJSON_CreateArray();
+  tags = cJSON_CreateArray();
   RAW_NULL_CHECK(tags);
   SArray* pTagVals = NULL;
   RAW_RETURN_CHECK(tTagToValArray(pTag, &pTagVals));
@@ -543,7 +543,7 @@ static void processCreateTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   }
 
 end:
-  uDebug("create table return, sql json:%s", cJSON_PrintUnformatted(*pJson));
+  uDebug("create table return");
   tDeleteSVCreateTbBatchReq(&req);
   tDecoderClear(&decoder);
 }
@@ -772,7 +772,7 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   }
 
 end:
-  uDebug("alter table return, sql json:%s", cJSON_PrintUnformatted(json));
+  uDebug("alter table return");
   tDecoderClear(&decoder);
   *pJson = json;
 }
@@ -807,7 +807,7 @@ static void processDropSTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableName", tableName));
 
 end:
-  uDebug("processDropSTable return, sql json:%s", cJSON_PrintUnformatted(json));
+  uDebug("processDropSTable return");
   tDecoderClear(&decoder);
   *pJson = json;
 }
@@ -843,7 +843,7 @@ static void processDeleteTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "sql", sqlJson));
 
 end:
-  uDebug("processDeleteTable return, sql json:%s", cJSON_PrintUnformatted(json));
+  uDebug("processDeleteTable return");
   tDecoderClear(&coder);
   *pJson = json;
 }
@@ -880,7 +880,7 @@ static void processDropTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableNameList", tableNameList));
 
 end:
-  uDebug("processDropTable return, json sql:%s", cJSON_PrintUnformatted(json));
+  uDebug("processDropTable return");
   tDecoderClear(&decoder);
   *pJson = json;
 }
@@ -1923,6 +1923,10 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     code = rawBlockBindData(pQuery, pTableMeta, rawData, &pCreateReqDst, fields, pSW->nCols, true, err, ERR_MSG_LEN);
     taosMemoryFree(fields);
     taosMemoryFreeClear(pTableMeta);
+    if (pCreateReqDst) {
+      tdDestroySVCreateTbReq(pCreateReqDst);
+      taosMemoryFreeClear(pCreateReqDst);
+    }
     if (code != TSDB_CODE_SUCCESS) {
       SET_ERROR_MSG("table:%s, err:%s", tbName, err);
       goto end;
@@ -1944,7 +1948,7 @@ end:
   taosMemoryFreeClear(pTableMeta);
   if (pCreateReqDst) {
     tdDestroySVCreateTbReq(pCreateReqDst);
-    taosMemoryFree(pCreateReqDst);
+    taosMemoryFreeClear(pCreateReqDst);
   }
   return code;
 }
@@ -2038,6 +2042,7 @@ char* tmq_get_json_meta(TAOS_RES* res) {
   processSimpleMeta(&pMetaRspObj->metaRsp, &pJson);
   char* string = cJSON_PrintUnformatted(pJson);
   cJSON_Delete(pJson);
+  uDebug("tmq_get_json_meta string:%s", string);
   return string;
 }
 

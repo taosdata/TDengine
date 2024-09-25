@@ -150,6 +150,10 @@ int32_t dmReadEps(SDnodeData *pData) {
       }
 
       char *tmp = taosMemoryMalloc(scopeLen + 1);
+      if (tmp == NULL) {
+        dError("failed to malloc memory for tsEncryptScope:%s", tsEncryptScope);
+        goto _OVER;
+      }
       memset(tmp, 0, scopeLen + 1);
       memcpy(tmp, tsEncryptScope, scopeLen);
 

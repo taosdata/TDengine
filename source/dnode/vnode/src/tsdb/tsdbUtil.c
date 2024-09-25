@@ -609,7 +609,10 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   SValue    value;
 
   if (pRow->type == TSDBROW_ROW_FMT) {
-    (void)tRowGet(pRow->pTSRow, pTSchema, iCol, pColVal);
+    int32_t ret = tRowGet(pRow->pTSRow, pTSchema, iCol, pColVal);
+    if (ret != 0) {
+      tsdbError("failed to get column value, code:%d", ret);
+    }
   } else if (pRow->type == TSDBROW_COL_FMT) {
     if (iCol == 0) {
       *pColVal =
