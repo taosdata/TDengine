@@ -94,6 +94,7 @@ static void dmStopDnode(int signum, void *sigInfo, void *context) {
         taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
 #endif
   dmStop();
+  return;
 _exception:
   dError("failed to stop dnode since %s", tstrerror(code));
 }
@@ -135,7 +136,7 @@ _return:
 #elif defined(WINDOWS)
   exit(signum);
 #endif
-
+  return;
 _exception:
   dError("failed to log crash since %s", tstrerror(code));
 }

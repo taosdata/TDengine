@@ -547,6 +547,7 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
   }
 
   dInfo("total vnodes:%d are all closed", numOfVnodes);
+  return;
 _exception:
   dError("failed to close all vnodes since %s", tstrerror(code));
 }
