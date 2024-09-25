@@ -7,6 +7,10 @@ use std::mem::ManuallyDrop;
 use std::os::raw::c_char;
 use std::os::raw::c_void;
 
+#[cfg(feature = "mimalloc")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 #[no_mangle]
 pub extern "C" fn parser_name() -> *mut c_char {
     let name = CString::new("hebeipower").unwrap();

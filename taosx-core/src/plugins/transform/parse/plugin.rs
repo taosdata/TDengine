@@ -102,18 +102,7 @@ impl ParserObject {
         if !result.is_null() {
             return Err("parser_mutate failed".to_string());
         }
-        let parsed_data = unsafe {
-            String::from_utf8_lossy(std::slice::from_raw_parts(
-                output_p as *const u8,
-                output_l as usize,
-            ))
-            .to_string()
-        };
-
-        // 释放 output 字符串内存，对应插件中的实现：ManuallyDrop::new(output_string);
-        let layout = Layout::array::<u8>(output_l as usize).unwrap();
-        unsafe { std::alloc::dealloc(output_p as *mut u8, layout) };
-
+	let parsed_data = unsafe { String::from_raw_parts(output_p as *mut u8, output_l as usize, output_l as usize) };
         Ok(parsed_data)
     }
 }
