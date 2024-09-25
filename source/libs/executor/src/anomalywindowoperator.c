@@ -255,49 +255,6 @@ static int32_t anomalyCacheBlock(SAnomalyWindowOperatorInfo* pInfo, SSDataBlock*
   return 0;
 }
 
-static void anomalyPrintRow(SAnomalyWindowSupp* pSupp, char* val, int8_t valType, char* buf, int32_t bufLen) {
-  switch (valType) {
-    case TSDB_DATA_TYPE_BOOL:
-      bufLen = snprintf(buf, bufLen, "%d", (*((int8_t*)val) == 1) ? 1 : 0);
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-      bufLen = snprintf(buf, bufLen, "%d", *(int8_t*)val);
-      break;
-    case TSDB_DATA_TYPE_UTINYINT:
-      bufLen = snprintf(buf, bufLen, "%u", *(uint8_t*)val);
-      break;
-    case TSDB_DATA_TYPE_SMALLINT:
-      bufLen = snprintf(buf, bufLen, "%d", *(int16_t*)val);
-      break;
-    case TSDB_DATA_TYPE_USMALLINT:
-      bufLen = snprintf(buf, bufLen, "%u", *(uint16_t*)val);
-      break;
-    case TSDB_DATA_TYPE_INT:
-      bufLen = snprintf(buf, bufLen, "%d", *(int32_t*)val);
-      break;
-    case TSDB_DATA_TYPE_UINT:
-      bufLen = snprintf(buf, bufLen, "%u", *(uint32_t*)val);
-      break;
-    case TSDB_DATA_TYPE_BIGINT:
-      bufLen = snprintf(buf, bufLen, "%" PRId64, *(int64_t*)val);
-      break;
-    case TSDB_DATA_TYPE_UBIGINT:
-      bufLen = snprintf(buf, bufLen, "%" PRIu64, *(uint64_t*)val);
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-      bufLen = snprintf(buf, bufLen, "%f", GET_FLOAT_VAL(val));
-      break;
-    case TSDB_DATA_TYPE_DOUBLE:
-      bufLen = snprintf(buf, bufLen, "%f", GET_DOUBLE_VAL(val));
-      break;
-    default:
-      buf[0] = '\0';
-      break;
-  }
-
-  pSupp->numOfRows++;
-}
-
 static int32_t anomalyFindWindow(SAnomalyWindowSupp* pSupp, TSKEY key) {
   for (int32_t i = pSupp->curWinIndex; i < taosArrayGetSize(pSupp->windows); ++i) {
     STimeWindow* pWindow = taosArrayGet(pSupp->windows, i);

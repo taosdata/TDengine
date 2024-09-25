@@ -3657,7 +3657,7 @@ static int32_t forecastCreateBuf(SqlFunctionCtx* pCtx, SForecastRes* pInfo) {
   pInfo->analBuf.bufType = ANAL_BUF_TYPE_JSON_COL;
 
   snprintf(pInfo->analBuf.fileName, sizeof(pInfo->analBuf.fileName), "/tmp/tdengine-forecast-%" PRId64, ts);
-  int32_t code = tsosAnalBufOpen(pBuf, pCtx->subsidiaries.num);
+  int32_t code = tsosAnalBufOpen(pBuf, 2);
   if (code != 0) goto _OVER;
 
   code = taosAnalBufWriteAlgo(pBuf, pInfo->algoName);
@@ -3892,9 +3892,15 @@ static int32_t forecastAnalysic(SqlFunctionCtx* pCtx, SForecastRes* pInfo, SSDat
 
   for (int32_t i = rows; i < pInfo->optRows; ++i) {
     colDataSetNNULL(pResValCol, rows, (pInfo->optRows - rows));
-    colDataSetNNULL(pResTsCol, rows, (pInfo->optRows - rows));
-    colDataSetNNULL(pResValCol, rows, (pInfo->optRows - rows));
-    colDataSetNNULL(pResHighCol, rows, (pInfo->optRows - rows));
+    if (pResTsCol != NULL) {
+      colDataSetNNULL(pResTsCol, rows, (pInfo->optRows - rows));
+    }
+    if (pResLowCol != NULL) {
+      colDataSetNNULL(pResLowCol, rows, (pInfo->optRows - rows));
+    }
+    if (pResHighCol != NULL) {
+      colDataSetNNULL(pResHighCol, rows, (pInfo->optRows - rows));
+    }
   }
 
   if (rows == pInfo->optRows) {
