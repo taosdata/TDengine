@@ -39,7 +39,7 @@ async function execSql() {
         taosResult = await wsSql.exec('USE power', reqId++);
         console.log(taosResult);
 
-        taosResult = await wsSql.exec('CREATE STABLE IF NOT EXISTS meters (_ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);', reqId++);
+        taosResult = await wsSql.exec('CREATE STABLE IF NOT EXISTS meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);', reqId++);
         console.log(taosResult);
 
         taosResult = await wsSql.exec('DESCRIBE meters', reqId++);
