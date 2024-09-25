@@ -1873,6 +1873,8 @@ int stmtGetParamNum2(TAOS_STMT2* stmt, int* nums) {
 
 int stmtGetParamTbName(TAOS_STMT2* stmt, int* nums) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
+  int32_t    code = 0;
+  int32_t    preCode = pStmt->errCode;
 
   STMT_DLOG_E("start to get param num");
 
@@ -1895,17 +1897,19 @@ int stmtGetParamTbName(TAOS_STMT2* stmt, int* nums) {
   STMT_ERR_RET(stmtCreateRequest(pStmt));
 
   if (pStmt->bInfo.needParse) {
-    STMT_ERR_RET(stmtParseSql(pStmt));
+    STMT_ERRI_JRET(stmtParseSql(pStmt));
   }
 
-  if (TSDB_CODE_TSC_STMT_TBNAME_ERROR == pStmt->errCode) {
+  *nums = STMT_TYPE_MULTI_INSERT == pStmt->sql.type ? 1 : 0;
+
+_return:
+  if (TSDB_CODE_TSC_STMT_TBNAME_ERROR == code) {
     *nums = 1;
-    pStmt->errCode = TSDB_CODE_SUCCESS;
-  } else {
-    *nums = STMT_TYPE_MULTI_INSERT == pStmt->sql.type ? 1 : 0;
+    code = TSDB_CODE_SUCCESS;
   }
 
-  return TSDB_CODE_SUCCESS;
+  pStmt->errCode = preCode;
+  return code;
 }
 /*
 int stmtGetParam(TAOS_STMT* stmt, int idx, int* type, int* bytes) {
