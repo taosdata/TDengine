@@ -309,7 +309,7 @@ int32_t cos_cp_dump(SCheckpoint* cp) {
     if (!item) {
       TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
     }
-    cJSON_AddItemToArray(ajson, item);
+    if (!cJSON_AddItemToArray(ajson, item)) goto _exit;
 
     if (NULL == cJSON_AddNumberToObject(item, "index", cp->parts[i].index)) {
       TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
