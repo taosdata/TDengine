@@ -10,29 +10,19 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-
-import sys
 import os
-import threading as thd
-import multiprocessing as mp
 from numpy.lib.function_base import insert
 import taos
 from taos import *
-import numpy as np
-import datetime as dt
-from datetime import datetime
+
 from ctypes import *
 from taos.constants import FieldType
-
-
 from frame.log import *
 from frame.cases import *
 from frame.sql import *
 from frame.caseBase import *
 from frame import *
 
-# constant define
-WAITS = 5 # wait seconds
 
 class TDTestCase:
     #
@@ -97,9 +87,6 @@ class TDTestCase:
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
-        # tdSql.prepare()
-        # self.create_tables();
-        self.ts = 1500000000000
 
     # stop
     def stop(self):
@@ -432,12 +419,10 @@ class TDTestCase:
             self.compare_result(conn, "select twa(15) from log", rows)
             tdLog.info("[query9: time-series specific Functions] PASS")
 
-            conn.close()
-            tdLog.success("%s successfully executed" % __file__)
-
         except Exception as err:
-            conn.close()
             raise err
+        finally:
+            conn.close()
 
     def run(self):
         buildPath = self.getBuildPath()
