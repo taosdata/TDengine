@@ -38,19 +38,10 @@ cd ../../docs/examples/node
 
 npm install
 
-taos -s "drop database if exists power"
-check_transactions || exit 1
-reset_cache || exit 1
 cd websocketexample
 
-taos -s "drop database if exists power"
-check_transactions || exit 1
-reset_cache || exit 1
 node all_type_query.js
 
-taos -s "drop database if exists power"
-check_transactions || exit 1
-reset_cache || exit 1
 node all_type_stmt.js
 
 taos -s "drop database if exists power"
@@ -63,19 +54,10 @@ check_transactions || exit 1
 reset_cache || exit 1
 node nodejsChecker.js
 
-taos -s "drop database if exists power"
-check_transactions || exit 1
-reset_cache || exit 1
 node sql_example.js
 
-taos -s "drop database if exists power"
-check_transactions || exit 1
-reset_cache || exit 1
 node stmt_example.js
 
-taos -s "drop database if exists power"
-check_transactions || exit 1
-reset_cache || exit 1
 node tmq_example.js
 
 node tmq_seek_example.js

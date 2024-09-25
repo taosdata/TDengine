@@ -34,7 +34,6 @@ async function createConsumer() {
 
 }
 
-
 async function prepare() {
     let conf = new taos.WSConfig('ws://192.168.1.98:6041');
     conf.setUser('root');
