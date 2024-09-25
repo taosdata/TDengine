@@ -184,6 +184,8 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
     int fileSetSize = taosArrayGetSize(pWal->fileInfoSet);
     for (int i = pWal->writeCur + 1; i < fileSetSize; i++) {
       SWalFileInfo *pInfo = taosArrayPop(pWal->fileInfoSet);
+      wInfo("vgId:%d, wal roll back pop file info first:%" PRId64 " last:%" PRId64, pWal->cfg.vgId, pInfo->firstVer,
+            pInfo->lastVer);
 
       walBuildLogName(pWal, pInfo->firstVer, fnameStr);
       TAOS_UNUSED(taosRemoveFile(fnameStr));
@@ -465,6 +467,8 @@ int32_t walEndSnapshot(SWal *pWal) {
       TAOS_UNUSED(taosArrayPush(pWal->toDeleteFiles, iter));
     }
 
+    wInfo("vgId:%d, wal end snapshot pop %d file infos firstVer:%" PRId64 " lastVer:%" PRId64, pWal->cfg.vgId,
+          deleteCnt, pInfo->firstVer, pInfo->lastVer);
     // make new array, remove files
     taosArrayPopFrontBatch(pWal->fileInfoSet, deleteCnt);
     if (taosArrayGetSize(pWal->fileInfoSet) == 0) {

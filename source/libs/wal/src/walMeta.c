@@ -247,7 +247,7 @@ _err:
   TAOS_RETURN(code);
 }
 
-static int32_t walRebuildFileInfoSet(SArray* metaLogList, SArray* actualLogList) {
+static int32_t walRebuildFileInfoSet(int vgId, SArray* metaLogList, SArray* actualLogList) {
   int metaFileNum = taosArrayGetSize(metaLogList);
   int actualFileNum = taosArrayGetSize(actualLogList);
   int j = 0;
@@ -273,6 +273,8 @@ static int32_t walRebuildFileInfoSet(SArray* metaLogList, SArray* actualLogList)
 
   for (int i = 0; i < actualFileNum; i++) {
     SWalFileInfo* pFileInfo = taosArrayGet(actualLogList, i);
+    wInfo("vgId:%d, rebuild meta file, firstVer:%" PRId64 ", lastVer:%" PRId64 ", fileSize:%" PRId64, vgId,
+          pFileInfo->firstVer, pFileInfo->lastVer, pFileInfo->fileSize);
     if (NULL == taosArrayPush(metaLogList, pFileInfo)) {
       TAOS_RETURN(terrno);
     }
@@ -468,7 +470,7 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
   bool    updateMeta = (metaFileNum != actualFileNum);
 
   // rebuild meta of file info
-  code = walRebuildFileInfoSet(pWal->fileInfoSet, actualLog);
+  code = walRebuildFileInfoSet(pWal->cfg.vgId, pWal->fileInfoSet, actualLog);
   taosArrayDestroy(actualLog);
   if (code) {
     TAOS_RETURN(code);
