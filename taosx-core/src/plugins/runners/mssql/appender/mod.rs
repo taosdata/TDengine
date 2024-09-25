@@ -567,9 +567,10 @@ mod tests {
 
         let result = MssqlQuery::try_new(config, String::from("+08:00")).await;
         match result {
-            Ok(mut query) => {
+            Ok(query) => {
                 let sql_create_database = "create database test_taosx";
-                let _ = query.client.execute(sql_create_database, &[]).await;
+                let mut conn = query.pool.get().await.unwrap();
+                let _ = conn.execute(sql_create_database, &[]).await;
             }
             Err(e) => {
                 println!("error: {:?}", e);
@@ -588,9 +589,10 @@ mod tests {
 
         let result = MssqlQuery::try_new(config, String::from("+08:00")).await;
         match result {
-            Ok(mut query) => {
+            Ok(query) => {
                 let sql_create_table = "create table t_metric (id bigint, name char(10), value float, ts datetimeoffset(7))";
-                let x = query.client.execute(sql_create_table, &[]).await;
+                let mut conn = query.pool.get().await.unwrap();
+                let x = conn.execute(sql_create_table, &[]).await;
                 println!("create table: {:?}", x);
             }
             Err(e) => {
@@ -610,10 +612,11 @@ mod tests {
 
         let result = MssqlQuery::try_new(config, String::from("+08:00")).await;
         match result {
-            Ok(mut query) => {
+            Ok(query) => {
                 for i in 0..len {
                     let sql_insert_data = format!("insert into t_metric (id, name, value, ts) values ({}, 'cpu', 0.8, GETDATE())", i);
-                    let _ = query.client.execute(sql_insert_data, &[]).await;
+                    let mut conn = query.pool.get().await.unwrap();
+                    let _ = conn.execute(sql_insert_data, &[]).await;
                 }
             }
             Err(e) => {
@@ -633,9 +636,10 @@ mod tests {
 
         let result = MssqlQuery::try_new(config, String::from("+08:00")).await;
         match result {
-            Ok(mut query) => {
+            Ok(query) => {
                 let sql = "delete from t_metric where 1 = 1";
-                let _ = query.client.execute(sql, &[]).await;
+                let mut conn = query.pool.get().await.unwrap();
+                let _ = conn.execute(sql, &[]).await;
             }
             Err(e) => {
                 println!("error: {:?}", e);

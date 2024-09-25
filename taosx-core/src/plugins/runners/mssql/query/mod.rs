@@ -1,22 +1,21 @@
-use arrow::array::RecordBatch;
-use futures::TryStreamExt;
-use linked_hash_map::LinkedHashMap;
-use tiberius::{error::Error, AuthMethod, Client, Config};
-use tiberius::{ColumnType, EncryptionLevel, QueryItem, Row};
-use tokio::net::TcpStream;
-use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
-
 use crate::runners::mssql::appender;
 use crate::runners::mssql::config::connect::ConnectConfig;
+use arrow::array::RecordBatch;
+use deadpool_tiberius::{self};
+use futures::TryStreamExt;
+use linked_hash_map::LinkedHashMap;
+use tiberius::AuthMethod;
+use tiberius::{ColumnType, EncryptionLevel, QueryItem, Row};
 
+#[derive(Clone)]
 pub struct MssqlQuery {
-    pub client: Client<Compat<TcpStream>>,
+    pub pool: deadpool::managed::Pool<deadpool_tiberius::Manager>,
     time_zone: String,
 }
 
 impl MssqlQuery {
     pub async fn try_new(config: ConnectConfig, time_zone: String) -> anyhow::Result<Self> {
-        let client = Self::connect(
+        let pool = Self::connect(
             &config.host,
             config.port,
             &config.database,
@@ -29,12 +28,11 @@ impl MssqlQuery {
             &config.password,
             time_zone.clone(),
         )
-        .await
         .map_err(|err| anyhow::anyhow!("failed to connect to mssql, cause: {}", err.to_string()))?;
-        Ok(Self { client, time_zone })
+        Ok(Self { pool, time_zone })
     }
 
-    async fn connect(
+    fn connect(
         host: &String,
         port: u16,
         database: &String,
@@ -46,58 +44,54 @@ impl MssqlQuery {
         username: &String,
         password: &String,
         _time_zone: String,
-    ) -> anyhow::Result<Client<Compat<TcpStream>>> {
-        let mut config = Config::new();
-        config.host(host);
-        config.port(port);
-        config.database(database);
-        config.instance_name(instance_name);
-        config.application_name(application_name);
+    ) -> std::result::Result<
+        deadpool::managed::Pool<
+            deadpool_tiberius::Manager,
+            deadpool::managed::Object<deadpool_tiberius::Manager>,
+        >,
+        deadpool_tiberius::SqlServerError,
+    > {
+        let mut manager = deadpool_tiberius::Manager::new()
+            .host(host)
+            .port(port)
+            .database(database)
+            .instance_name(instance_name)
+            .application_name(application_name)
+            .max_size(50)
+            .wait_timeout(10)
+            .pre_recycle_sync(|_client, _metrics| {
+                // do sth with client object and pool metrics
+                Ok(())
+            });
         // The configured encryption level specifying if encryption is required
-        match encryption.as_str() {
-            "Off" => config.encryption(EncryptionLevel::Off),
-            "On" => config.encryption(EncryptionLevel::On),
-            "NotSupported" => config.encryption(EncryptionLevel::NotSupported),
-            "Required" => config.encryption(EncryptionLevel::Required),
-            _ => config.encryption(EncryptionLevel::NotSupported),
+        manager = match encryption.as_str() {
+            "Off" => manager.encryption(EncryptionLevel::Off),
+            "On" => manager.encryption(EncryptionLevel::On),
+            "NotSupported" => manager.encryption(EncryptionLevel::NotSupported),
+            "Required" => manager.encryption(EncryptionLevel::Required),
+            _ => manager.encryption(EncryptionLevel::NotSupported),
         };
         // Trust the server certificate
         if trust_cert {
             if let Some(ca) = trust_cert_ca {
-                config.trust_cert_ca(ca.as_str());
+                manager = manager.trust_cert_ca(ca.as_str());
             } else {
-                config.trust_cert();
+                manager = manager.trust_cert();
             }
         }
-        config.authentication(AuthMethod::sql_server(username, password));
-        // create a tcp connection
-        let tcp = TcpStream::connect(config.get_addr()).await?;
-        tcp.set_nodelay(true)?;
-        // create a client
-        let client = match Client::connect(config.clone(), tcp.compat_write()).await {
-            // Connection successful.
-            Ok(client) => client,
-            // The server wants us to redirect to a different address
-            Err(Error::Routing { host, port }) => {
-                config.host(host);
-                config.port(port);
-                // create a tcp connection
-                let tcp = TcpStream::connect(config.get_addr()).await?;
-                tcp.set_nodelay(true)?;
-                // we should not have more than one redirect, so we'll short-circuit here.
-                Client::connect(config, tcp.compat_write()).await?
-            }
-            Err(e) => Err(e)?,
-        };
-        Ok(client)
+        manager = manager.authentication(AuthMethod::sql_server(username, password));
+        // create a pool
+        manager.create_pool()
     }
 
     pub async fn select_distinct_values(
         &mut self,
         sql: &str,
     ) -> anyhow::Result<(LinkedHashMap<String, ColumnType>, Vec<Row>)> {
+        // get a connection
+        let mut conn = self.pool.get().await?;
         // select data
-        let result = self.client.query(sql, &[]).await;
+        let result = conn.query(sql, &[]).await;
         match result {
             Ok(mut stream) => {
                 let mut col_map = LinkedHashMap::new();
@@ -147,8 +141,10 @@ impl MssqlQuery {
         &mut self,
         sql: &str,
     ) -> anyhow::Result<LinkedHashMap<String, ColumnType>> {
+        // get a connection
+        let mut conn = self.pool.get().await?;
         // select data
-        let result = self.client.query(sql, &[]).await;
+        let result = conn.query(sql, &[]).await;
         match result {
             Ok(mut stream) => {
                 let mut col_map = LinkedHashMap::new();
@@ -179,8 +175,10 @@ impl MssqlQuery {
         &mut self,
         sql: &str,
     ) -> anyhow::Result<(LinkedHashMap<String, ColumnType>, Vec<Row>)> {
+        // get a connection
+        let mut conn = self.pool.get().await?;
         // select data
-        let result = self.client.query(sql, &[]).await;
+        let result = conn.query(sql, &[]).await;
         match result {
             Ok(mut stream) => {
                 let mut col_map = LinkedHashMap::new();
@@ -225,8 +223,10 @@ impl MssqlQuery {
         sql: &str,
         batch_size: usize,
     ) -> anyhow::Result<Vec<RecordBatch>> {
+        // get a connection
+        let mut conn = self.pool.get().await?;
         // select data
-        let result = self.client.query(sql, &[]).await;
+        let result = conn.query(sql, &[]).await;
         match result {
             Ok(mut stream) => {
                 let mut col_map = LinkedHashMap::new();
@@ -273,8 +273,10 @@ impl MssqlQuery {
         sql: &str,
         top_n: u32,
     ) -> anyhow::Result<(LinkedHashMap<String, ColumnType>, Vec<Row>)> {
+        // get a connection
+        let mut conn = self.pool.get().await?;
         // select data
-        let result = self.client.query(sql, &[]).await;
+        let result = conn.query(sql, &[]).await;
         match result {
             Ok(mut stream) => {
                 let mut col_map = LinkedHashMap::new();
@@ -333,9 +335,10 @@ mod tests {
 
         let result = MssqlQuery::try_new(config, String::from("+08:00")).await;
         match result {
-            Ok(mut query) => {
+            Ok(query) => {
                 let sql_create_database = "create database test_taosx";
-                let _ = query.client.execute(sql_create_database, &[]).await;
+                let mut conn = query.pool.get().await.unwrap();
+                let _ = conn.execute(sql_create_database, &[]).await;
             }
             Err(e) => {
                 println!("error: {:?}", e);
@@ -354,9 +357,10 @@ mod tests {
 
         let result = MssqlQuery::try_new(config, String::from("+08:00")).await;
         match result {
-            Ok(mut query) => {
+            Ok(query) => {
                 let sql_create_table = "create table t_metric (id bigint, name char(10), value float, ts datetimeoffset(7))";
-                let x = query.client.execute(sql_create_table, &[]).await;
+                let mut conn = query.pool.get().await.unwrap();
+                let x = conn.execute(sql_create_table, &[]).await;
                 println!("create table: {:?}", x);
             }
             Err(e) => {
@@ -376,10 +380,11 @@ mod tests {
 
         let result = MssqlQuery::try_new(config, String::from("+08:00")).await;
         match result {
-            Ok(mut query) => {
+            Ok(query) => {
                 for i in 0..len {
                     let sql_insert_data = format!("insert into t_metric (id, name, value, ts) values ({}, 'cpu', 0.8, GETDATE())", i);
-                    let _ = query.client.execute(sql_insert_data, &[]).await;
+                    let mut conn = query.pool.get().await.unwrap();
+                    let _ = conn.execute(sql_insert_data, &[]).await;
                 }
             }
             Err(e) => {
@@ -399,9 +404,10 @@ mod tests {
 
         let result = MssqlQuery::try_new(config, String::from("+08:00")).await;
         match result {
-            Ok(mut query) => {
+            Ok(query) => {
                 let sql = "delete from t_metric where 1 = 1";
-                let _ = query.client.execute(sql, &[]).await;
+                let mut conn = query.pool.get().await.unwrap();
+                let _ = conn.execute(sql, &[]).await;
             }
             Err(e) => {
                 println!("error: {:?}", e);
@@ -420,7 +426,7 @@ mod tests {
         let query = MssqlQuery::try_new(config, String::from("+08:00"))
             .await
             .unwrap();
-        dbg!(query.client);
+        dbg!(query.pool.get().await.is_ok());
     }
 
     #[tokio::test]
