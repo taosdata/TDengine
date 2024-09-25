@@ -43,9 +43,15 @@ async function schemalessInsert() {
 }
 
 async function test() {
-    console.log("begin line_example")
-    await schemalessInsert();
-    console.log("end line_example")
+    try {
+        console.log("begin line_example")
+        await schemalessInsert();
+        console.log("end line_example")        
+    } catch(e) {
+        console.log("eeeeeeeeeeeeeer", err)
+        await taos.sleep(100);
+    }
+
 }
 
 test()
