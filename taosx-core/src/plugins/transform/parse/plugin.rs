@@ -102,7 +102,9 @@ impl ParserObject {
         if !result.is_null() {
             return Err("parser_mutate failed".to_string());
         }
-	let parsed_data = unsafe { String::from_raw_parts(output_p as *mut u8, output_l as usize, output_l as usize) };
+        let parsed_data = unsafe {
+            String::from_raw_parts(output_p as *mut u8, output_l as usize, output_l as usize)
+        };
         Ok(parsed_data)
     }
 }
@@ -252,23 +254,21 @@ impl Parse for ParserPlugin {
                     JsonValue::Null
                 }
             };
+            parsed_json_values.push(Some(value.clone()));
+
             match value {
                 JsonValue::Object(object) => {
-                    parsed_json_values.push(Some(JsonValue::Object(object.clone())));
                     json_data.push(Ok(JsonValue::Object(object)));
                 }
                 JsonValue::Array(array) => {
                     for v in array {
                         if v.is_object() {
-                            parsed_json_values.push(Some(v.clone()));
                             json_data.push(Ok(v));
                         } else {
                             tracing::warn!(
                                 "plugin should return json object array, but one item is: {}",
                                 v
                             );
-                            parsed_json_values.push(None);
-                            continue;
                         }
                     }
                 }
@@ -277,11 +277,10 @@ impl Parse for ParserPlugin {
                         "plugin should return a json array, but return value as: {}",
                         string.value(i)
                     );
-                    parsed_json_values.push(None);
-                    continue;
                 }
             }
         }
+
         if json_data.len() == 0 {
             return Ok((RecordBatch::new_empty(Arc::new(Schema::empty())), None));
         }
@@ -310,10 +309,7 @@ impl Parse for ParserPlugin {
                 Some(JsonValue::Object(object)) => {
                     vec![(n, Some(JsonValue::Object(object)))]
                 }
-                None => {
-                    vec![(n, None)]
-                }
-                _ => unreachable!(),
+                _ => vec![(n, None)],
             })
             .collect();
 
