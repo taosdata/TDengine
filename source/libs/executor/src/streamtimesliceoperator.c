@@ -2105,10 +2105,7 @@ _error:
   if (pInfo != NULL) {
     destroyStreamTimeSliceOperatorInfo(pInfo);
   }
-  if (pOperator != NULL) {
-    pOperator->info = NULL;
-    destroyOperator(pOperator);
-  }
+  destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
   (*ppOptInfo) = NULL;
   return code;
