@@ -368,15 +368,23 @@ _exception:
 }
 
 void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
+  int32_t code = 0;
   if (taosCheckPthreadValid(pMgmt->monitorThread)) {
-    (void)taosThreadJoin(pMgmt->monitorThread, NULL);
+    code = taosThreadJoin(pMgmt->monitorThread, NULL);
+    if (code != 0) {
+      dError("failed to stop monitor thread since %s", tstrerror(code));
+    }
     taosThreadClear(&pMgmt->monitorThread);
   }
 }
 
 void dmStopAuditThread(SDnodeMgmt *pMgmt) {
+  int32_t code = 0;
   if (taosCheckPthreadValid(pMgmt->auditThread)) {
-    (void)taosThreadJoin(pMgmt->auditThread, NULL);
+    code = taosThreadJoin(pMgmt->auditThread, NULL);
+    if (code != 0) {
+      dDebug("failed to stop audit thread since %s", tstrerror(code));
+    }
     taosThreadClear(&pMgmt->auditThread);
   }
 }
@@ -388,26 +396,33 @@ int32_t dmStartCrashReportThread(SDnodeMgmt *pMgmt) {
   }
 
   TdThreadAttr thAttr;
-  (void)taosThreadAttrInit(&thAttr);
-  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  TAOS_CHECK_GOTO(taosThreadAttrInit(&thAttr), NULL, _exception);
+  TAOS_CHECK_GOTO(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE), NULL, _exception);
   if (taosThreadCreate(&pMgmt->crashReportThread, &thAttr, dmCrashReportThreadFp, pMgmt) != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     dError("failed to create crashReport thread since %s", tstrerror(code));
     return code;
   }
 
-  (void)taosThreadAttrDestroy(&thAttr);
+  TAOS_CHECK_GOTO(taosThreadAttrDestroy(&thAttr), NULL, _exception);
   tmsgReportStartup("dnode-crashReport", "initialized");
   return 0;
+_exception:
+  dError("failed to start crashReport thread since %s", tstrerror(code));
+  return code;
 }
 
 void dmStopCrashReportThread(SDnodeMgmt *pMgmt) {
+  int32_t code = 0;
   if (!tsEnableCrashReport) {
     return;
   }
 
   if (taosCheckPthreadValid(pMgmt->crashReportThread)) {
-    (void)taosThreadJoin(pMgmt->crashReportThread, NULL);
+    code = taosThreadJoin(pMgmt->crashReportThread, NULL);
+    if (code != 0) {
+      dError("failed to stop crashReport thread since %s", tstrerror(code));
+    }
     taosThreadClear(&pMgmt->crashReportThread);
   }
 }

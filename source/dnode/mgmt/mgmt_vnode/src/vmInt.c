@@ -20,16 +20,19 @@
 #include "vnd.h"
 
 int32_t vmGetPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
+  int32_t    code = 0;
   int32_t    diskId = -1;
   SVnodeObj *pVnode = NULL;
 
-  (void)taosThreadRwlockRdlock(&pMgmt->lock);
-  (void)taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
+  TAOS_CHECK_GOTO(taosThreadRwlockRdlock(&pMgmt->lock), NULL, _exception);
+  TAOS_CHECK_GOTO(taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode), NULL, _exception);
   if (pVnode != NULL) {
     diskId = pVnode->diskPrimary;
   }
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  TAOS_CHECK_GOTO(taosThreadRwlockUnlock(&pMgmt->lock), NULL, _exception);
   return diskId;
+_exception:
+  return code;
 }
 
 int32_t vmAllocPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
@@ -94,31 +97,41 @@ int32_t vmAllocPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
 }
 
 SVnodeObj *vmAcquireVnodeImpl(SVnodeMgmt *pMgmt, int32_t vgId, bool strict) {
+  int32_t    code = 0;
   SVnodeObj *pVnode = NULL;
 
-  (void)taosThreadRwlockRdlock(&pMgmt->lock);
-  (void)taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
+  TAOS_CHECK_GOTO(taosThreadRwlockRdlock(&pMgmt->lock), NULL, _exit;);
+  TAOS_CHECK_GOTO(taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode), NULL, _exit);
   if (pVnode == NULL || strict && (pVnode->dropped || pVnode->failed)) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     pVnode = NULL;
   } else {
     int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
-    // dTrace("vgId:%d, acquire vnode, ref:%d", pVnode->vgId, refCount);
+    dTrace("vgId:%d, acquire vnode, ref:%d", pVnode->vgId, refCount);
   }
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  TAOS_CHECK_GOTO(taosThreadRwlockUnlock(&pMgmt->lock), NULL, _exit);
 
   return pVnode;
+_exit:
+  dError("vgId:%d, failed to acquire vnode, reason:%s", vgId, tstrerror(code));
+  return NULL;
 }
 
 SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId) { return vmAcquireVnodeImpl(pMgmt, vgId, true); }
 
 void vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
+  int32_t code = 0;
   if (pVnode == NULL) return;
 
-  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+  TAOS_CHECK_GOTO(taosThreadRwlockRdlock(&pMgmt->lock), NULL, _exit);
   int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
-  // dTrace("vgId:%d, release vnode, ref:%d", pVnode->vgId, refCount);
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  dTrace("vgId:%d, release vnode, ref:%d", pVnode->vgId, refCount);
+  TAOS_CHECK_GOTO(taosThreadRwlockUnlock(&pMgmt->lock), NULL, _exit);
+  return;
+_exit:
+  if (code != 0) {
+    dError("vgId:%d, failed to release vnode, reason:%s", pVnode->vgId, tstrerror(code));
+  }
 }
 
 static void vmFreeVnodeObj(SVnodeObj **ppVnode) {
@@ -131,10 +144,11 @@ static void vmFreeVnodeObj(SVnodeObj **ppVnode) {
 }
 
 int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
+  int32_t    code = 0;
   SVnodeObj *pVnode = taosMemoryCalloc(1, sizeof(SVnodeObj));
   if (pVnode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno;
   }
 
   pVnode->vgId = pCfg->vgId;
@@ -149,7 +163,7 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   if (pVnode->path == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(pVnode);
-    return -1;
+    return terrno;
   }
 
   if (pImpl) {
@@ -157,35 +171,40 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       taosMemoryFree(pVnode->path);
       taosMemoryFree(pVnode);
-      return -1;
+      return terrno;
     }
   } else {
     pVnode->failed = 1;
   }
 
-  (void)taosThreadRwlockWrlock(&pMgmt->lock);
+  TAOS_CHECK_GOTO(taosThreadRwlockWrlock(&pMgmt->lock), NULL, _exception);
   SVnodeObj *pOld = NULL;
-  (void)taosHashGetDup(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), (void *)&pOld);
+  TAOS_CHECK_GOTO(taosHashGetDup(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), (void *)&pOld), NULL, _exception);
   if (pOld) {
     vmFreeVnodeObj(&pOld);
   }
-  int32_t code = taosHashPut(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), &pVnode, sizeof(SVnodeObj *));
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  TAOS_CHECK_GOTO(taosHashPut(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), &pVnode, sizeof(SVnodeObj *)), NULL,
+                  _exception);
+  TAOS_CHECK_GOTO(taosThreadRwlockUnlock(&pMgmt->lock), NULL, _exception);
 
+  return code;
+_exception:
+  dError("failed to open vnode, vgId:%d, reason:%s", pVnode->vgId, tstrerror(code));
   return code;
 }
 
 void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal) {
-  char path[TSDB_FILENAME_LEN] = {0};
-  bool atExit = true;
+  int32_t code = 0;
+  char    path[TSDB_FILENAME_LEN] = {0};
+  bool    atExit = true;
 
   if (pVnode->pImpl && vnodeIsLeader(pVnode->pImpl)) {
     vnodeProposeCommitOnNeed(pVnode->pImpl, atExit);
   }
 
-  (void)taosThreadRwlockWrlock(&pMgmt->lock);
-  (void)taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t));
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  TAOS_CHECK_GOTO(taosThreadRwlockWrlock(&pMgmt->lock), NULL, _closed);
+  TAOS_CHECK_GOTO(taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t)), NULL, _closed);
+  TAOS_CHECK_GOTO(taosThreadRwlockUnlock(&pMgmt->lock), NULL, _closed);
   vmReleaseVnode(pMgmt, pVnode);
 
   if (pVnode->failed) {
@@ -233,8 +252,8 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
 
   if (commitAndRemoveWal) {
     dInfo("vgId:%d, commit data for vnode split", pVnode->vgId);
-    (void)vnodeSyncCommit(pVnode->pImpl);
-    (void)vnodeBegin(pVnode->pImpl);
+    TAOS_CHECK_GOTO(vnodeSyncCommit(pVnode->pImpl), NULL, _closed);
+    TAOS_CHECK_GOTO(vnodeBegin(pVnode->pImpl), NULL, _closed);
     dInfo("vgId:%d, commit data finished", pVnode->vgId);
   }
 
@@ -248,8 +267,14 @@ _closed:
   if (commitAndRemoveWal) {
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d%swal", TD_DIRSEP, pVnode->vgId, TD_DIRSEP);
     dInfo("vgId:%d, remove all wals, path:%s", pVnode->vgId, path);
-    (void)tfsRmdir(pMgmt->pTfs, path);
-    (void)tfsMkdir(pMgmt->pTfs, path);
+    code = tfsRmdir(pMgmt->pTfs, path);
+    if (code != 0) {
+      dError("vgId:%d, failed to remove wal, path:%s, reason:%s", pVnode->vgId, path, tstrerror(code));
+    }
+    code = tfsMkdir(pMgmt->pTfs, path);
+    if (code != 0) {
+      dError("vgId:%d, failed to create wal, path:%s, reason:%s", pVnode->vgId, path, tstrerror(code));
+    }
   }
 
   if (pVnode->dropped) {
@@ -330,7 +355,8 @@ static void *vmOpenVnodeInThread(void *param) {
 
     dInfo("vgId:%d, is opened by thread:%d", pCfg->vgId, pThread->threadIndex);
     pThread->opened++;
-    (void)atomic_add_fetch_32(&pMgmt->state.openVnodes, 1);
+    int32_t count = atomic_add_fetch_32(&pMgmt->state.openVnodes, 1);
+    dInfo("vgId:%d, count:%d, total:%d", pCfg->vgId, count, pMgmt->state.totalVnodes);
   }
 
   dInfo("thread:%d, numOfVnodes:%d, opened:%d failed:%d", pThread->threadIndex, pThread->vnodeNum, pThread->opened,
@@ -339,18 +365,19 @@ static void *vmOpenVnodeInThread(void *param) {
 }
 
 static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
+  int32_t code = 0;
   pMgmt->hash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (pMgmt->hash == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     dError("failed to init vnode hash since %s", terrstr());
-    return -1;
+    return terrno;
   }
 
   SWrapperCfg *pCfgs = NULL;
   int32_t      numOfVnodes = 0;
   if (vmGetVnodeListFromFile(pMgmt, &pCfgs, &numOfVnodes) != 0) {
     dInfo("failed to get vnode list from disk since %s", terrstr());
-    return -1;
+    return terrno;
   }
 
   pMgmt->state.totalVnodes = numOfVnodes;
@@ -385,13 +412,13 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
     if (pThread->vnodeNum == 0) continue;
 
     TdThreadAttr thAttr;
-    (void)taosThreadAttrInit(&thAttr);
-    (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+    TAOS_CHECK_GOTO(taosThreadAttrInit(&thAttr), NULL, _exception);
+    TAOS_CHECK_GOTO(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE), NULL, _exception);
     if (taosThreadCreate(&pThread->thread, &thAttr, vmOpenVnodeInThread, pThread) != 0) {
       dError("thread:%d, failed to create thread to open vnode, reason:%s", pThread->threadIndex, strerror(errno));
     }
 
-    (void)taosThreadAttrDestroy(&thAttr);
+    TAOS_CHECK_GOTO(taosThreadAttrDestroy(&thAttr), NULL, _exception);
   }
 
   bool updateVnodesList = false;
@@ -399,7 +426,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
   for (int32_t t = 0; t < threadNum; ++t) {
     SVnodeThread *pThread = &threads[t];
     if (pThread->vnodeNum > 0 && taosCheckPthreadValid(pThread->thread)) {
-      (void)taosThreadJoin(pThread->thread, NULL);
+      TAOS_CHECK_GOTO(taosThreadJoin(pThread->thread, NULL), NULL, _exception);
       taosThreadClear(&pThread->thread);
     }
     taosMemoryFree(pThread->pCfgs);
@@ -421,6 +448,9 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
 
   dInfo("successfully opened %d vnodes", pMgmt->state.totalVnodes);
   return 0;
+_exception:
+  taosMemoryFree(pCfgs);
+  return code;
 }
 
 static void *vmCloseVnodeInThread(void *param) {
@@ -488,19 +518,19 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
     if (pThread->vnodeNum == 0) continue;
 
     TdThreadAttr thAttr;
-    (void)taosThreadAttrInit(&thAttr);
-    (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+    TAOS_CHECK_GOTO(taosThreadAttrInit(&thAttr), NULL, _exception);
+    TAOS_CHECK_GOTO(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE), NULL, _exception);
     if (taosThreadCreate(&pThread->thread, &thAttr, vmCloseVnodeInThread, pThread) != 0) {
       dError("thread:%d, failed to create thread to close vnode since %s", pThread->threadIndex, strerror(errno));
     }
 
-    (void)taosThreadAttrDestroy(&thAttr);
+    TAOS_CHECK_GOTO(taosThreadAttrDestroy(&thAttr), NULL, _exception);
   }
 
   for (int32_t t = 0; t < threadNum; ++t) {
     SVnodeThread *pThread = &threads[t];
     if (pThread->vnodeNum > 0 && taosCheckPthreadValid(pThread->thread)) {
-      (void)taosThreadJoin(pThread->thread, NULL);
+      TAOS_CHECK_GOTO(taosThreadJoin(pThread->thread, NULL), NULL, _exception);
       taosThreadClear(&pThread->thread);
     }
     taosMemoryFree(pThread->ppVnodes);
@@ -517,15 +547,21 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
   }
 
   dInfo("total vnodes:%d are all closed", numOfVnodes);
+_exception:
+  dError("failed to close all vnodes since %s", tstrerror(code));
 }
 
 static void vmCleanup(SVnodeMgmt *pMgmt) {
+  int32_t code = 0;
   vmCloseVnodes(pMgmt);
   vmStopWorker(pMgmt);
   vnodeCleanup();
-  (void)taosThreadRwlockDestroy(&pMgmt->lock);
-  (void)taosThreadMutexDestroy(&pMgmt->createLock);
+  TAOS_CHECK_GOTO(taosThreadRwlockDestroy(&pMgmt->lock), NULL, _exception);
+  TAOS_CHECK_GOTO(taosThreadMutexDestroy(&pMgmt->createLock), NULL, _exception);
   taosMemoryFree(pMgmt);
+  return;
+_exception:
+  dError("failed to cleanup vnode mgmt since %s", tstrerror(code));
 }
 
 static void vmCheckSyncTimeout(SVnodeMgmt *pMgmt) {
@@ -573,22 +609,28 @@ static void *vmThreadFp(void *param) {
 static int32_t vmInitTimer(SVnodeMgmt *pMgmt) {
   int32_t      code = 0;
   TdThreadAttr thAttr;
-  (void)taosThreadAttrInit(&thAttr);
-  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  TAOS_CHECK_GOTO(taosThreadAttrInit(&thAttr), NULL, _exception);
+  TAOS_CHECK_GOTO(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE), NULL, _exception);
   if (taosThreadCreate(&pMgmt->thread, &thAttr, vmThreadFp, pMgmt) != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     dError("failed to create vnode timer thread since %s", tstrerror(code));
     return code;
   }
 
-  (void)taosThreadAttrDestroy(&thAttr);
+  TAOS_CHECK_GOTO(taosThreadAttrDestroy(&thAttr), NULL, _exception);
   return 0;
+_exception:
+  dError("failed to init vnode timer since %s", tstrerror(code));
+  return code;
 }
 
 static void vmCleanupTimer(SVnodeMgmt *pMgmt) {
   pMgmt->stop = true;
   if (taosCheckPthreadValid(pMgmt->thread)) {
-    (void)taosThreadJoin(pMgmt->thread, NULL);
+    int32_t code = taosThreadJoin(pMgmt->thread, NULL);
+    if (code != 0) {
+      dError("failed to join vnode timer thread since %s", tstrerror(code));
+    }
     taosThreadClear(&pMgmt->thread);
   }
 }
@@ -708,7 +750,8 @@ static void *vmRestoreVnodeInThread(void *param) {
     } else {
       dInfo("vgId:%d, is restored by thread:%d", pVnode->vgId, pThread->threadIndex);
       pThread->opened++;
-      (void)atomic_add_fetch_32(&pMgmt->state.openVnodes, 1);
+      int32_t count = atomic_add_fetch_32(&pMgmt->state.openVnodes, 1);
+      dInfo("vgId:%d, count:%d, total:%d", pVnode->vgId, count, pMgmt->state.totalVnodes);
     }
   }
 
@@ -762,19 +805,25 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
     if (pThread->vnodeNum == 0) continue;
 
     TdThreadAttr thAttr;
-    (void)taosThreadAttrInit(&thAttr);
-    (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+    TAOS_CHECK_GOTO(taosThreadAttrInit(&thAttr), NULL, _exit);
+    TAOS_CHECK_GOTO(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE), NULL, _exit);
     if (taosThreadCreate(&pThread->thread, &thAttr, vmRestoreVnodeInThread, pThread) != 0) {
-      dError("thread:%d, failed to create thread to restore vnode since %s", pThread->threadIndex, strerror(errno));
+      code = TAOS_SYSTEM_ERROR(errno);
+      dError("thread:%d, failed to create thread to restore vnode since %s", pThread->threadIndex, strerror(code));
+      break;
     }
 
-    (void)taosThreadAttrDestroy(&thAttr);
+    TAOS_CHECK_GOTO(taosThreadAttrDestroy(&thAttr), NULL, _exit);
   }
 
   for (int32_t t = 0; t < threadNum; ++t) {
     SVnodeThread *pThread = &threads[t];
     if (pThread->vnodeNum > 0 && taosCheckPthreadValid(pThread->thread)) {
-      (void)taosThreadJoin(pThread->thread, NULL);
+      code = taosThreadJoin(pThread->thread, NULL);
+      if (code != 0) {
+        dError("thread:%d, failed to join thread to restore vnode since %s", pThread->threadIndex, tstrerror(code));
+        break;
+      }
       taosThreadClear(&pThread->thread);
     }
     taosMemoryFree(pThread->ppVnodes);
