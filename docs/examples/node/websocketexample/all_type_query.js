@@ -92,13 +92,8 @@ async function all_type_example() {
 }
 
 async function test() {
-    try {
-        await json_tag_example()
-        await all_type_example()        
-    } catch (err) {
-        process.exitCode = 1;
-    }
-
+    await json_tag_example()
+    await all_type_example()        
     taos.destroy();
 }
 

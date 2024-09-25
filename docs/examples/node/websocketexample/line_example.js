@@ -15,7 +15,8 @@ async function createConnect() {
     return wsSql;
 }
 
-async function test() {
+
+async function schemalessInsert() {
     let wsSql = null;
     let wsRows = null;
     let ttl = 0;
@@ -28,7 +29,7 @@ async function test() {
     }
     catch (err) {
         console.error(`Failed to insert data with schemaless, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
-        process.exitCode = 1;
+        throw err;
     }
     finally {
         if (wsRows) {
@@ -40,4 +41,9 @@ async function test() {
         taos.destroy();
     }
 }
+
+async function test() {
+   await schemalessInsert();
+}
+
 test()

@@ -63,7 +63,7 @@ async function insertData() {
         "power.d1002 USING power.meters TAGS('California.SanFrancisco', 3) " +
         "VALUES " +
         "(NOW + 1a, 10.30000, 218, 0.25000) "; 
-           
+
     try {
         wsSql = await createConnect();
         taosResult = await wsSql.exec(insertQuery);
@@ -136,16 +136,11 @@ async function sqlWithReqid() {
 // ANCHOR_END: sqlWithReqid
 
 async function test() {
-    try {
-        await createDbAndTable();
-        await insertData();
-        await queryData();
-        await sqlWithReqid();
-        taos.destroy();        
-    } catch(e) {
-        process.exitCode = 1;
-    }
-
+    await createDbAndTable();
+    await insertData();
+    await queryData();
+    await sqlWithReqid();
+    taos.destroy();        
 }
 
 test()

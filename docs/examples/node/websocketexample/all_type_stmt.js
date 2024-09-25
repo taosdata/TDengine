@@ -138,18 +138,10 @@ async function all_type_example() {
 
 }
 
-
-
-async function test() {
-    try {
-        taos.setLevel("debug")
-        await json_tag_example()
-        await all_type_example()
-        taos.destroy();        
-    } catch(e) {
-        process.exitCode = 1
-    }
-
+async function test() { 
+    await json_tag_example()
+    await all_type_example()
+    taos.destroy();
 }
 
 test()

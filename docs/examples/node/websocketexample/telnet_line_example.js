@@ -32,7 +32,7 @@ async function createConnect() {
     return await taos.sqlConnect(conf);
 }
 
-async function test() {
+async function schemalessInsert() {
     let wsSql = null;
     let wsRows = null;
     let reqId = 0;
@@ -56,4 +56,9 @@ async function test() {
         taos.destroy();
     }
 }
-test()
+
+async function test() {
+    await schemalessInsert();
+ }
+ 
+ test()

@@ -10,9 +10,8 @@ for(var i = 2; i < global.process.argv.length; i++){
 }
 
 if(host == null){
-    console.log("Usage: node nodejsChecker.js host=<hostname> port=<port>");
-    process.exit(0);
-  }
+    host = 'localhost'
+}
 
 let dbData = ["{\"metric\": \"meter_current\",\"timestamp\": 1626846402,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"California.SanFrancisco\", \"id\": \"d1001\"}}",
               "{\"metric\": \"meter_current\",\"timestamp\": 1626846403,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"California.SanFrancisco\", \"id\": \"d1002\"}}",
@@ -27,7 +26,7 @@ async function createConnect() {
     return await taos.sqlConnect(conf);
 }
 
-async function test() {
+async function schemalessInsert() {
     let wsSql = null;
     let wsRows = null;
     let reqId = 0;
@@ -38,7 +37,7 @@ async function test() {
     }
     catch (err) {
         console.error(err.code, err.message);
-        process.exitCode = 1;
+        throw err
     }
     finally {
         if (wsRows) {
@@ -49,6 +48,10 @@ async function test() {
         }
         taos.destroy();
     }
+}
+
+async function test() {
+    await schemalessInsert();
 }
 
 test()

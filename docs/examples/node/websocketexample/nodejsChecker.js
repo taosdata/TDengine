@@ -22,7 +22,7 @@ async function createConnect() {
     return await taos.sqlConnect(conf);
 }
 
-async function test() {
+async function execSql() {
     let wsSql = null;
     let wsRows = null;
     let reqId = 0;
@@ -71,6 +71,10 @@ async function test() {
         }
         taos.destroy();
     }
+}
+
+async function test() {
+    await execSql();
 }
 
 test()

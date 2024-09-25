@@ -77,7 +77,7 @@ async function subscribe(consumer) {
     // ANCHOR_END: commit
 }
 
-async function test() {
+async function consumer() {
     // ANCHOR: unsubscribe
     let consumer = null;
     try {
@@ -89,7 +89,7 @@ async function test() {
     }
     catch (err) {
         console.error(`Failed to unsubscribe consumer, topic: ${topic}, groupId: ${groupId}, clientId: ${clientId}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
-        process.exitCode = 1;
+        throw err;
     }
     finally {
         if (consumer) {
@@ -99,6 +99,10 @@ async function test() {
         taos.destroy();
     }
     // ANCHOR_END: unsubscribe
+}
+
+async function test() {
+   await consumer();
 }
 
 test()

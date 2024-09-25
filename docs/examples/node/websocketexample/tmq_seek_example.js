@@ -72,7 +72,7 @@ async function subscribe(consumer) {
 // ANCHOR_END: subscribe
 
 // ANCHOR: offset 
-async function test() {
+async function consumer() {
     let consumer = null;
     try {
         await prepare();
@@ -89,7 +89,7 @@ async function test() {
     }
     catch (err) {
         console.error(`Failed to seek offset, topic: ${topic}, groupId: ${groupId}, clientId: ${clientId}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
-        process.exitCode = 1;
+        throw err;
     }
     finally {
         if (consumer) {
@@ -99,4 +99,9 @@ async function test() {
     }
 }
 // ANCHOR_END: offset 
+
+async function test() {
+    await consumer();
+ }
+ 
 test()
