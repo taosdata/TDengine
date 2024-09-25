@@ -53,7 +53,7 @@ async function prepare() {
 }
 
 async function insert() {
-    let conf = new taos.WSConfig('ws://192.168.1.98:6041');
+    let conf = new taos.WSConfig('ws://localhost:6041');
     conf.setUser('root');
     conf.setPwd('taosdata');
     conf.setDb('power');
