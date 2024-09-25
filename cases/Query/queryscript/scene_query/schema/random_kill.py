@@ -12,7 +12,7 @@
 # -*- coding: utf-8 -*-
 
 import random
-import os
+import os,time
 from taostest import TDCase
 from Query.queryutil.createdata import *
 
@@ -96,7 +96,10 @@ class TDTestQuery(TDCase):
             
         while 1:
             self.random_kill_query() 
+            time.sleep(20)
             self.random_kill_transaction()
+            time.sleep(20)
             self.random_kill_connection()
+            time.sleep(20)
         
   
