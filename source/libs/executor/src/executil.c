@@ -93,6 +93,122 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   return rowSize;
 }
 
+// Convert buf read from rocksdb to result row
+int32_t getResultRowFromBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize, char **outBuf, size_t *outBufSize) {
+  SqlFunctionCtx *pCtx = pSup->pCtx;
+  int32_t        *offset = pSup->rowEntryInfoOffset;
+  SResultRow     *pResultRow = (SResultRow*)outBuf;
+  size_t          processedSize = 0;
+  int32_t         code = TSDB_CODE_SUCCESS;
+  if (inBuf == NULL) {
+    qError("invalid input buffer, inBuf:%p", inBuf);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // calculate the size of output buffer
+  *outBufSize = getResultRowSize(pCtx, pSup->numOfExprs);
+  *outBuf = taosMemoryMalloc(*outBufSize);
+  if (*outBuf == NULL) {
+    qError("failed to allocate memory for output buffer, size:%zu", *outBufSize);
+    return terrno;
+  }
+  (void)memcpy(pResultRow, inBuf, sizeof(SResultRow));
+  inBuf += sizeof(SResultRow);
+  processedSize += sizeof(SResultRow);
+  for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
+    int32_t len = *(int32_t*)inBuf;
+    inBuf += sizeof(int32_t);
+    processedSize += sizeof(int32_t);
+    if (pCtx->fpSet.decode) {
+      code = pCtx->fpSet.decode(&pCtx[i], inBuf, getResultEntryInfo(pResultRow, i, offset), pResultRow->version);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("failed to decode result row, code:%d", code);
+        return code;
+      }
+    } else {
+      (void)memcpy(getResultEntryInfo(pResultRow, i, offset), inBuf, len);
+    }
+    inBuf += len;
+    processedSize += len;
+  }
+  void *pos = getResultEntryInfo(pResultRow, pSup->numOfExprs - 1, offset) +
+              sizeof(SResultRowEntryInfo) +
+              pCtx[pSup->numOfExprs - 1].resDataInfo.interBufSize;
+  (void)memcpy(pos, inBuf, pSup->numOfExprs * sizeof(bool));
+  inBuf += pSup->numOfExprs * sizeof(bool);
+  processedSize += pSup->numOfExprs * sizeof(bool);
+
+  if (processedSize < inBufSize) {
+    // stream stores extra data after result row
+    size_t leftLen = inBufSize - processedSize;
+    TAOS_MEMORY_REALLOC(*outBuf, *outBufSize + leftLen);
+    if (*outBuf == NULL) {
+      qError("failed to reallocate memory for output buffer, size:%zu", *outBufSize + leftLen);
+      return terrno;
+    }
+    (void)memcpy(outBuf + processedSize, inBuf, leftLen);
+    inBuf += leftLen;
+    processedSize += leftLen;
+    *outBufSize += leftLen;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Convert result row to buf for rocksdb
+int32_t putResultRowToBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize, char **outBuf, size_t *outBufSize) {
+  SqlFunctionCtx *pCtx = pSup->pCtx;
+  int32_t        *offset = pSup->rowEntryInfoOffset;
+  SResultRow     *pResultRow = (SResultRow*)inBuf;
+  size_t          rowSize = getResultRowSize(pCtx, pSup->numOfExprs);
+
+  if (inBuf == NULL) {
+    qError("invalid input buffer, inBuf:%p", inBuf);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (rowSize > inBufSize) {
+    qError("invalid input buffer size, rowSize:%zu, inBufSize:%zu", rowSize, inBufSize);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // calculate the size of output buffer
+  *outBufSize = rowSize + sizeof(int32_t) * pSup->numOfExprs;
+  if (rowSize < inBufSize) {
+    *outBufSize += inBufSize - rowSize;
+  }
+
+  *outBuf = taosMemoryMalloc(*outBufSize);
+  if (*outBuf == NULL) {
+    qError("failed to allocate memory for output buffer, size:%zu", *outBufSize);
+    return terrno;
+  }
+
+  pResultRow->version = FUNCTION_RESULT_INFO_VERSION;
+  (void)memcpy(outBuf, pResultRow, sizeof(SResultRow));
+  outBuf += sizeof(SResultRow);
+  for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
+    *(int32_t *) outBuf = offset[i];
+    outBuf += sizeof(int32_t);
+    size_t len = sizeof(SResultRowEntryInfo) + pCtx[i].resDataInfo.interBufSize;
+    (void)memcpy(outBuf, getResultEntryInfo(pResultRow, i, offset), len);
+    outBuf += len;
+  }
+
+  // mark if col is null for top/bottom result(saveTupleData)
+  void *pos = getResultEntryInfo(pResultRow, pSup->numOfExprs - 1, offset) +
+              sizeof(SResultRowEntryInfo) +
+              pCtx[pSup->numOfExprs - 1].resDataInfo.interBufSize;
+
+  (void)memcpy(outBuf, pos, pSup->numOfExprs * sizeof(bool));
+
+  if (rowSize < inBufSize) {
+    // stream stores extra data after result row
+    size_t leftLen = inBufSize - rowSize;
+    (void)memcpy(outBuf, inBuf + rowSize, leftLen);
+    outBuf += leftLen;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static void freeEx(void* p) { taosMemoryFree(*(void**)p); }
 
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {

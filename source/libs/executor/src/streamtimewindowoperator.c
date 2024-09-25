@@ -2230,6 +2230,11 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
   pSup->pResultRows = tSimpleHashInit(32, hashFn);
   QUERY_CHECK_NULL(pSup->pResultRows, code, lino, _end, terrno);
 
+  // used for backward compatibility of function's result info
+  pSup->pState->pResultRowStore->resultRowGet = getResultRowFromBuf;
+  pSup->pState->pResultRowStore->resultRowPut = putResultRowToBuf;
+  pSup->pState->pExprSupp = pExpSup;
+
   for (int32_t i = 0; i < numOfOutput; ++i) {
     pExpSup->pCtx[i].saveHandle.pState = pSup->pState;
   }
