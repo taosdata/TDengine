@@ -54,17 +54,18 @@ async function createDbAndTable() {
 // ANCHOR: insertData
 async function insertData() {
     let wsSql = null
+    let insertQuery = "INSERT INTO " +
+        "power.d1001 USING power.meters (location, groupId) TAGS('California.SanFrancisco', 2) " +
+        "VALUES " +
+        "(NOW + 1a, 10.30000, 219, 0.31000) " +
+        "(NOW + 2a, 12.60000, 218, 0.33000) " +
+        "(NOW + 3a, 12.30000, 221, 0.31000) " +
+        "power.d1002 USING power.meters TAGS('California.SanFrancisco', 3) " +
+        "VALUES " +
+        "(NOW + 1a, 10.30000, 218, 0.25000) "; 
+           
     try {
         wsSql = await createConnect();
-        let insertQuery = "INSERT INTO " +
-            "power.d1001 USING power.meters (location, groupId) TAGS('California.SanFrancisco', 2) " +
-            "VALUES " +
-            "(NOW + 1a, 10.30000, 219, 0.31000) " +
-            "(NOW + 2a, 12.60000, 218, 0.33000) " +
-            "(NOW + 3a, 12.30000, 221, 0.31000) " +
-            "power.d1002 USING power.meters TAGS('California.SanFrancisco', 3) " +
-            "VALUES " +
-            "(NOW + 1a, 10.30000, 218, 0.25000) ";
         taosResult = await wsSql.exec(insertQuery);
         console.log("Successfully inserted " + taosResult.getAffectRows() + " rows to power.meters.");
     } catch (err) {
