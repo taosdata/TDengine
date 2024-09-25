@@ -134,6 +134,102 @@ if $rows < 5 then
   goto loop3
 endi
 
+print step2
+print =============== create database
+sql create database test2 vgroups 1;
+sql use test2;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams2 trigger force_window_close IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a) as a, interp(b) as b, now  from t1 every(2s) fill(NULL);
+
+run tsim/stream/checkTaskStatus.sim
+
+
+sql insert into t1 values(now,1,1,1,1.1) (now + 10s,2,2,2,2.1) (now + 20s,3,3,3,3.1);
+
+print sql select * from t1;
+sql select * from t1;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+$loop_count = 0
+loop4:
+
+sleep 2000
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+print 2 sql select * from streamt where a is null;
+sql select * from streamt where a is null;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+if $rows < 5 then
+  print ======rows=$rows
+  goto loop4
+endi
+
+print step3
+print =============== create database
+sql create database test3 vgroups 1;
+sql use test3;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams3 trigger force_window_close IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a) as a, interp(b) as b, now  from t1 every(2s) fill(value,100,200);
+
+run tsim/stream/checkTaskStatus.sim
+
+
+sql insert into t1 values(now,1,1,1,1.1) (now + 10s,2,2,2,2.1) (now + 20s,3,3,3,3.1);
+
+print sql select * from t1;
+sql select * from t1;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+$loop_count = 0
+loop5:
+
+sleep 2000
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+print 2 sql select * from streamt where a == 100;
+sql select * from streamt where a == 100;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+if $rows < 5 then
+  print ======rows=$rows
+  goto loop5
+endi
+
 print end
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
