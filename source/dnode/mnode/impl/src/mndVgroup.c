@@ -1670,7 +1670,7 @@ int32_t mndAddNewVgPrepareAction(SMnode *pMnode, STrans *pTrans, SVgObj *pVg) {
   }
 
   TAOS_CHECK_GOTO(mndTransAppendPrepareLog(pTrans, pRaw), NULL, _err);
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_CREATING);
+  code = sdbSetRawStatus(pRaw, SDB_STATUS_CREATING);
   if (code != 0) {
     mError("vgId:%d, failed to set raw status since %s at line:%d", pVg->vgId, tstrerror(code), __LINE__);
     TAOS_RETURN(code);
