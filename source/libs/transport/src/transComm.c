@@ -768,6 +768,7 @@ void transDestroyExHandle(void* handle) {
   if (!QUEUE_IS_EMPTY(&eh->q)) {
     tDebug("handle %p mem leak", handle);
   }
+  tDebug("free exhandle %p", handle);
   taosMemoryFree(handle);
 }
 
