@@ -73,7 +73,7 @@ static int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTas
   if (pReq->data == NULL || pReq->dataLen == NULL) {
     taosArrayDestroyP(pReq->data, taosMemoryFree);
     taosArrayDestroy(pReq->dataLen);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -110,7 +110,7 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
 
     buf = rpcMallocCont(sizeof(SMsgHead) + len);
     if (buf == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     ((SMsgHead*)buf)->vgId = htonl(pEpInfo->nodeId);
@@ -209,7 +209,7 @@ int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, 
 
   buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   ((SMsgHead*)buf)->vgId = htonl(nodeId);

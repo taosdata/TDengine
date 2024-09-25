@@ -1634,7 +1634,7 @@ static void cliHandleFreeById(SCliMsg* pMsg, SCliThrd* pThrd) {
   int64_t    refId = (int64_t)(pMsg->msg.info.handle);
   SExHandle* exh = transAcquireExHandle(transGetRefMgt(), refId);
   if (exh == NULL) {
-    tDebug("id %" PRId64 " already released", refId);
+    tDebug("refId %" PRId64 " already released", refId);
     destroyCmsg(pMsg);
     return;
   }
@@ -1646,7 +1646,7 @@ static void cliHandleFreeById(SCliMsg* pMsg, SCliThrd* pThrd) {
   if (conn == NULL || conn->refId != refId) {
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _exception);
   }
-  tDebug("do free conn %p by id %" PRId64 "", conn, refId);
+  tDebug("do free conn %p by refId %" PRId64 "", conn, refId);
 
   int32_t size = transQueueSize(&conn->cliMsgs);
   if (size == 0) {
@@ -2321,8 +2321,8 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
 
   pThrd->pool = createConnPool(4);
   if (pThrd->pool == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    code = terrno;
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
   if ((code = transDQCreate(pThrd->loop, &pThrd->delayQueue)) != 0) {
     TAOS_CHECK_GOTO(code, NULL, _end);
@@ -2365,7 +2365,7 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
     }
     TAOS_UNUSED(uv_timer_init(pThrd->loop, timer));
     if (taosArrayPush(pThrd->timerList, &timer) == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+      TAOS_CHECK_GOTO(terrno, NULL, _end);
     }
   }
   pThrd->nextTimeout = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
@@ -3316,13 +3316,14 @@ int32_t transAllocHandle(int64_t* refId) {
 
   QUEUE_INIT(&exh->q);
   taosInitRWLatch(&exh->latch);
-  tDebug("pre alloc refId %" PRId64 "", exh->refId);
+  tDebug("pre alloc refId %" PRId64 ", alloc exhandle %p", exh->refId, exh);
   *refId = exh->refId;
   return 0;
 }
 int32_t transFreeConnById(void* shandle, int64_t transpointId) {
-  int32_t code = 0;
-  STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
+  int32_t  code = 0;
+  SCliMsg* pCli = NULL;
+  STrans*  pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
   if (pTransInst == NULL) {
     return TSDB_CODE_RPC_MODULE_QUIT;
   }
@@ -3336,7 +3337,7 @@ int32_t transFreeConnById(void* shandle, int64_t transpointId) {
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _exception);
   }
 
-  SCliMsg* pCli = taosMemoryCalloc(1, sizeof(SCliMsg));
+  pCli = taosMemoryCalloc(1, sizeof(SCliMsg));
   if (pCli == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
@@ -3349,11 +3350,19 @@ int32_t transFreeConnById(void* shandle, int64_t transpointId) {
 
   code = transAsyncSend(pThrd->asyncPool, &pCli->q);
   if (code != 0) {
-    taosMemoryFree(pCli);
+    taosMemoryFreeClear(pCli);
     TAOS_CHECK_GOTO(code, NULL, _exception);
   }
 
 _exception:
   transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
+  if (code != 0) {
+    if (transpointId != 0) {
+      (void)transReleaseExHandle(transGetRefMgt(), transpointId);
+      (void)transRemoveExHandle(transGetRefMgt(), transpointId);
+    }
+    taosMemoryFree(pCli);
+  }
+
   return code;
 }

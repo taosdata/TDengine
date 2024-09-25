@@ -295,7 +295,7 @@ int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId) {
       // https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/dirname.3.html
 
       if ((dir = taosStrdup(taosDirName(s))) == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
 
       if (strlen(dir) >= strlen(rname)) {  // TODO: check if it is necessary for equal length

@@ -605,6 +605,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
   tDecoderInit(&dc, pVal, vLen);
   ret = metaDecodeEntry(&dc, &me);
   if (ret < 0) {
+    tDecoderClear(&dc);
     ret = TAOS_GET_TERRNO(ret);
     goto END;
   }

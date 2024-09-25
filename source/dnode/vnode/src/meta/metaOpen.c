@@ -60,7 +60,7 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
 
   pMeta->path = (char *)&pMeta[1];
   strcpy(pMeta->path, path);
-  (void)taosRealPath(pMeta->path, NULL, strlen(path) + 1);
+  int32_t ret = taosRealPath(pMeta->path, NULL, strlen(path) + 1);
 
   pMeta->pVnode = pVnode;
 
@@ -98,7 +98,7 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   sprintf(indexFullPath, "%s/%s", pMeta->path, "invert");
-  TAOS_UNUSED(taosMkDir(indexFullPath));
+  ret = taosMkDir(indexFullPath);
 
   SIndexOpts opts = {.cacheSize = 8 * 1024 * 1024};
   code = indexOpen(&opts, indexFullPath, (SIndex **)&pMeta->pTagIvtIdx);
