@@ -1,5 +1,6 @@
 extern crate dlopen2;
 
+use std::alloc::Layout;
 use std::collections::HashMap;
 use std::fs;
 use std::os::raw::c_char;
@@ -102,11 +103,7 @@ impl ParserObject {
             return Err("parser_mutate failed".to_string());
         }
         let parsed_data = unsafe {
-            String::from_utf8_lossy(std::slice::from_raw_parts(
-                output_p as *const u8,
-                output_l as usize,
-            ))
-            .to_string()
+            String::from_raw_parts(output_p as *mut u8, output_l as usize, output_l as usize)
         };
         Ok(parsed_data)
     }
@@ -232,16 +229,19 @@ impl Parse for ParserPlugin {
 
         let string = array.as_any().downcast_ref::<StringArray>().unwrap();
         let num_rows = string.len();
+        let mut parsed_json_values = vec![];
 
         let mut json_data = Vec::with_capacity(num_rows);
         for i in 0..num_rows {
             if string.is_null(i) {
+                parsed_json_values.push(None);
                 continue;
             }
 
             let value = self.parser_object.mutate(string.value(i).as_bytes());
             if value.is_err() {
                 tracing::warn!("plugin parser failed with raw data: {}", string.value(i));
+                parsed_json_values.push(None);
                 continue;
             }
             let s = value.unwrap();
@@ -254,6 +254,8 @@ impl Parse for ParserPlugin {
                     JsonValue::Null
                 }
             };
+            parsed_json_values.push(Some(value.clone()));
+
             match value {
                 JsonValue::Object(object) => {
                     json_data.push(Ok(JsonValue::Object(object)));
@@ -267,7 +269,6 @@ impl Parse for ParserPlugin {
                                 "plugin should return json object array, but one item is: {}",
                                 v
                             );
-                            continue;
                         }
                     }
                 }
@@ -276,10 +277,10 @@ impl Parse for ParserPlugin {
                         "plugin should return a json array, but return value as: {}",
                         string.value(i)
                     );
-                    continue;
                 }
             }
         }
+
         if json_data.len() == 0 {
             return Ok((RecordBatch::new_empty(Arc::new(Schema::empty())), None));
         }
@@ -287,50 +288,28 @@ impl Parse for ParserPlugin {
         let mut schema =
             arrow::json::reader::infer_json_schema_from_iterator(json_data.into_iter())?;
 
-        let json_values: Vec<_> = (0..num_rows)
+        let json_values: Vec<_> = parsed_json_values
+            .into_iter()
             .enumerate()
-            .flat_map(|(n, i)| {
-                if string.is_null(i) {
-                    return vec![(n, None)];
-                }
-
-                let value = self.parser_object.mutate(string.value(i).as_bytes());
-                if value.is_err() {
-                    return vec![(n, None)];
-                }
-
-                let str = value.unwrap();
-                let value = serde_json::from_str::<serde_json::Value>(&str);
-
-                match value {
-                    Ok(JsonValue::Array(array)) => array
-                        .into_iter()
-                        .map(|v| {
-                            (n, {
-                                if v.is_null() {
-                                    None
-                                } else {
-                                    debug_assert!(v.is_object());
-                                    Some(v)
-                                }
-                            })
+            .flat_map(|(n, value)| match value {
+                Some(JsonValue::Array(array)) => array
+                    .into_iter()
+                    .map(|v| {
+                        (n, {
+                            if v.is_null() {
+                                None
+                            } else {
+                                debug_assert!(v.is_object());
+                                Some(v)
+                            }
                         })
-                        .collect(),
-                    Ok(JsonValue::Null) => {
-                        vec![(n, None)]
-                    }
-                    Ok(JsonValue::Object(object)) => {
-                        vec![(n, Some(JsonValue::Object(object)))]
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            "{:#}",
-                            super::ParseError::JsonDeserializeError(str.to_string(), e)
-                        );
-                        vec![(n, None)]
-                    }
-                    _ => unreachable!(),
+                    })
+                    .collect(),
+
+                Some(JsonValue::Object(object)) => {
+                    vec![(n, Some(JsonValue::Object(object)))]
                 }
+                _ => vec![(n, None)],
             })
             .collect();
 
