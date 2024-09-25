@@ -77,5 +77,5 @@ int32_t taosEnvToCfg(const char *envStr, char *cfgStr) {
       return TSDB_CODE_INVALID_PARA;
     }
   }
-  return strlen(cfgStr);
+  return TSDB_CODE_SUCCESS;
 }

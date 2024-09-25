@@ -113,7 +113,7 @@ int32_t      cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const ch
 int32_t      cfgCreateIter(SConfig *pConf, SConfigIter **ppIter);
 SConfigItem *cfgNextIter(SConfigIter *pIter);
 void         cfgDestroyIter(SConfigIter *pIter);
-void         cfgLock(SConfig *pCfg);
+int32_t      cfgLock(SConfig *pCfg);
 void         cfgUnLock(SConfig *pCfg);
 
 // clang-format off

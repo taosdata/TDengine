@@ -113,7 +113,7 @@ void cfgCleanup(SConfig *pCfg) {
   }
 
   taosArrayDestroy(pCfg->array);
-  (void)taosThreadMutexDestroy(&pCfg->lock);
+  TAOS_UNUSED(taosThreadMutexDestroy(&pCfg->lock));
   taosMemoryFree(pCfg);
 }
 
@@ -258,11 +258,11 @@ static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType
 
 static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value, const char *level, const char *primary,
                              const char *disable, ECfgSrcType stype) {
-  (void)taosThreadMutexLock(&pCfg->lock);
+  TAOS_CHECK_RETURN(taosThreadMutexLock(&pCfg->lock));
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (pItem == NULL) {
-    (void)taosThreadMutexUnlock(&pCfg->lock);
+    TAOS_UNUSED(taosThreadMutexUnlock(&pCfg->lock));
 
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
@@ -270,7 +270,7 @@ static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value,
   if (pItem->array == NULL) {
     pItem->array = taosArrayInit(16, sizeof(SDiskCfg));
     if (pItem->array == NULL) {
-      (void)taosThreadMutexUnlock(&pCfg->lock);
+      TAOS_UNUSED(taosThreadMutexUnlock(&pCfg->lock));
 
       TAOS_RETURN(terrno);
     }
@@ -283,13 +283,13 @@ static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value,
   cfg.disable = disable ? atoi(disable) : 0;
   void *ret = taosArrayPush(pItem->array, &cfg);
   if (ret == NULL) {
-    (void)taosThreadMutexUnlock(&pCfg->lock);
+    TAOS_UNUSED(taosThreadMutexUnlock(&pCfg->lock));
 
     TAOS_RETURN(terrno);
   }
 
   pItem->stype = stype;
-  (void)taosThreadMutexUnlock(&pCfg->lock);
+  TAOS_UNUSED(taosThreadMutexUnlock(&pCfg->lock));
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -315,7 +315,7 @@ static int32_t cfgUpdateDebugFlagItem(SConfig *pCfg, const char *name, bool rese
   if (pDebugFlagItem == NULL) return -1;
   if (pDebugFlagItem->array != NULL) {
     SLogVar logVar = {0};
-    (void)strncpy(logVar.name, name, TSDB_LOG_VAR_LEN - 1);
+    TAOS_UNUSED(strncpy(logVar.name, name, TSDB_LOG_VAR_LEN - 1));
     if (NULL == taosArrayPush(pDebugFlagItem->array, &logVar)) {
       TAOS_RETURN(terrno);
     }
@@ -328,12 +328,12 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (lock) {
-    (void)taosThreadMutexLock(&pCfg->lock);
+    TAOS_CHECK_RETURN(taosThreadMutexLock(&pCfg->lock));
   }
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (pItem == NULL) {
-    (void)taosThreadMutexUnlock(&pCfg->lock);
+    TAOS_UNUSED(taosThreadMutexUnlock(&pCfg->lock));
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
 
@@ -382,7 +382,7 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
   }
 
   if (lock) {
-    (void)taosThreadMutexUnlock(&pCfg->lock);
+    TAOS_UNUSED(taosThreadMutexUnlock(&pCfg->lock));
   }
 
   TAOS_RETURN(code);
@@ -401,25 +401,29 @@ SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName) {
   return NULL;
 }
 
-void cfgLock(SConfig *pCfg) {
+int32_t cfgLock(SConfig *pCfg) {
+  if (pCfg == NULL) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+  return taosThreadMutexLock(&pCfg->lock);
+}
+
+void cfgUnLock(SConfig *pCfg) {
   if (pCfg == NULL) {
     return;
   }
-
-  (void)taosThreadMutexLock(&pCfg->lock);
+  (void)taosThreadMutexUnlock(&pCfg->lock);
 }
-
-void cfgUnLock(SConfig *pCfg) { (void)taosThreadMutexUnlock(&pCfg->lock); }
 
 int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer) {
   ECfgDynType dynType = isServer ? CFG_DYN_SERVER : CFG_DYN_CLIENT;
 
-  cfgLock(pCfg);
+  TAOS_CHECK_RETURN(taosThreadMutexLock(&pCfg->lock));
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (!pItem || (pItem->dynScope & dynType) == 0) {
     uError("failed to config:%s, not support update this config", name);
-    cfgUnLock(pCfg);
+    TAOS_UNUSED(taosThreadMutexUnlock(&pCfg->lock));
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
 
@@ -428,14 +432,14 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
       if (strcasecmp(name, "slowLogScope") == 0) {
         char *tmp = taosStrdup(pVal);
         if (!tmp) {
-          cfgUnLock(pCfg);
+          TAOS_UNUSED(taosThreadMutexUnlock(&pCfg->lock));
           uError("failed to config:%s since %s", name, terrstr());
           TAOS_RETURN(terrno);
         }
         int32_t scope = 0;
         int32_t code = taosSetSlowLogScope(tmp, &scope);
         if (TSDB_CODE_SUCCESS != code) {
-          cfgUnLock(pCfg);
+          TAOS_UNUSED(taosThreadMutexUnlock(&pCfg->lock));
           taosMemoryFree(tmp);
           TAOS_RETURN(code);
         }
@@ -446,7 +450,7 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
       int32_t ival = (int32_t)atoi(pVal);
       if (ival != 0 && ival != 1) {
         uError("cfg:%s, type:%s value:%d out of range[0, 1]", pItem->name, cfgDtypeStr(pItem->dtype), ival);
-        cfgUnLock(pCfg);
+        TAOS_UNUSED(taosThreadMutexUnlock(&pCfg->lock));
         TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
       }
     } break;
@@ -454,13 +458,13 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
       int32_t ival;
       int32_t code = (int32_t)taosStrHumanToInt32(pVal, &ival);
       if (code != TSDB_CODE_SUCCESS) {
-        cfgUnLock(pCfg);
+        TAOS_UNUSED(taosThreadMutexUnlock(&pCfg->lock));
         return code;
       }
       if (ival < pItem->imin || ival > pItem->imax) {
         uError("cfg:%s, type:%s value:%d out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
                cfgDtypeStr(pItem->dtype), ival, pItem->imin, pItem->imax);
-        cfgUnLock(pCfg);
+        TAOS_UNUSED(taosThreadMutexUnlock(&pCfg->lock));
         TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
       }
     } break;
@@ -468,13 +472,13 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
       int64_t ival;
       int32_t code = taosStrHumanToInt64(pVal, &ival);
       if (code != TSDB_CODE_SUCCESS) {
-        cfgUnLock(pCfg);
+        TAOS_UNUSED(taosThreadMutexUnlock(&pCfg->lock));
         TAOS_RETURN(code);
       }
       if (ival < pItem->imin || ival > pItem->imax) {
         uError("cfg:%s, type:%s value:%" PRId64 " out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
                cfgDtypeStr(pItem->dtype), ival, pItem->imin, pItem->imax);
-        cfgUnLock(pCfg);
+        TAOS_UNUSED(taosThreadMutexUnlock(&pCfg->lock));
         TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
       }
     } break;
@@ -483,13 +487,13 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
       float  dval = 0;
       int32_t code = parseCfgReal(pVal, &dval);
       if (code != TSDB_CODE_SUCCESS) {
-        cfgUnLock(pCfg);
+        TAOS_UNUSED(taosThreadMutexUnlock(&pCfg->lock));
         TAOS_RETURN(code);
       }
       if (dval < pItem->fmin || dval > pItem->fmax) {
         uError("cfg:%s, type:%s value:%g out of range[%g, %g]", pItem->name, cfgDtypeStr(pItem->dtype), dval,
                pItem->fmin, pItem->fmax);
-        cfgUnLock(pCfg);
+        TAOS_UNUSED(taosThreadMutexUnlock(&pCfg->lock));
         TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
       }
     } break;
@@ -497,7 +501,7 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
       break;
   }
 
-  cfgUnLock(pCfg);
+  TAOS_UNUSED(taosThreadMutexUnlock(&pCfg->lock));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -519,7 +523,7 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
 
   int32_t len = strlen(name);
   char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
-  (void)strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
+  TAOS_UNUSED(strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len)));
 
   if (taosArrayPush(pCfg->array, pItem) == NULL) {
     if (pItem->dtype == CFG_DTYPE_STRING) {
@@ -734,10 +738,10 @@ int32_t cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
 
 void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump) {
   if (dump) {
-    (void)printf("                     s3 config");
-    (void)printf("\n");
-    (void)printf("=================================================================");
-    (void)printf("\n");
+    TAOS_UNUSED(printf("                     s3 config"));
+    TAOS_UNUSED(printf("\n"));
+    TAOS_UNUSED(printf("================================================================="));
+    TAOS_UNUSED(printf("\n"));
   } else {
     uInfo("                     s3 config");
     uInfo("=================================================================");
@@ -765,7 +769,7 @@ void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump) {
     switch (pItem->dtype) {
       case CFG_DTYPE_BOOL:
         if (dump) {
-          (void)printf("%s %s %u\n", src, name, pItem->bval);
+          TAOS_UNUSED(printf("%s %s %u\n", src, name, pItem->bval));
         } else {
           uInfo("%s %s %u", src, name, pItem->bval);
         }
@@ -773,14 +777,14 @@ void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump) {
         break;
       case CFG_DTYPE_INT32:
         if (dump) {
-          (void)printf("%s %s %d\n", src, name, pItem->i32);
+          TAOS_UNUSED(printf("%s %s %d\n", src, name, pItem->i32));
         } else {
           uInfo("%s %s %d", src, name, pItem->i32);
         }
         break;
       case CFG_DTYPE_INT64:
         if (dump) {
-          (void)printf("%s %s %" PRId64 "\n", src, name, pItem->i64);
+          TAOS_UNUSED(printf("%s %s %" PRId64 "\n", src, name, pItem->i64));
         } else {
           uInfo("%s %s %" PRId64, src, name, pItem->i64);
         }
@@ -788,7 +792,7 @@ void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump) {
       case CFG_DTYPE_DOUBLE:
       case CFG_DTYPE_FLOAT:
         if (dump) {
-          (void)printf("%s %s %.2f\n", src, name, pItem->fval);
+          TAOS_UNUSED(printf("%s %s %.2f\n", src, name, pItem->fval));
         } else {
           uInfo("%s %s %.2f", src, name, pItem->fval);
         }
@@ -800,7 +804,7 @@ void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump) {
       case CFG_DTYPE_TIMEZONE:
       case CFG_DTYPE_NONE:
         if (dump) {
-          (void)printf("%s %s %s\n", src, name, pItem->str);
+          TAOS_UNUSED(printf("%s %s %s\n", src, name, pItem->str));
         } else {
           uInfo("%s %s %s", src, name, pItem->str);
         }
@@ -809,7 +813,7 @@ void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump) {
   }
 
   if (dump) {
-    (void)printf("=================================================================\n");
+    TAOS_UNUSED(printf("=================================================================\n"));
   } else {
     uInfo("=================================================================");
   }
@@ -817,10 +821,10 @@ void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump) {
 
 void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
   if (dump) {
-    (void)printf("                     global config");
-    (void)printf("\n");
-    (void)printf("=================================================================");
-    (void)printf("\n");
+    TAOS_UNUSED(printf("                     global config"));
+    TAOS_UNUSED(printf("\n"));
+    TAOS_UNUSED(printf("================================================================="));
+    TAOS_UNUSED(printf("\n"));
   } else {
     uInfo("                     global config");
     uInfo("=================================================================");
@@ -847,7 +851,7 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
     switch (pItem->dtype) {
       case CFG_DTYPE_BOOL:
         if (dump) {
-          (void)printf("%s %s %u\n", src, name, pItem->bval);
+          TAOS_UNUSED(printf("%s %s %u\n", src, name, pItem->bval));
         } else {
           uInfo("%s %s %u", src, name, pItem->bval);
         }
@@ -855,14 +859,14 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
         break;
       case CFG_DTYPE_INT32:
         if (dump) {
-          (void)printf("%s %s %d\n", src, name, pItem->i32);
+          TAOS_UNUSED(printf("%s %s %d\n", src, name, pItem->i32));
         } else {
           uInfo("%s %s %d", src, name, pItem->i32);
         }
         break;
       case CFG_DTYPE_INT64:
         if (dump) {
-          (void)printf("%s %s %" PRId64 "\n", src, name, pItem->i64);
+          TAOS_UNUSED(printf("%s %s %" PRId64 "\n", src, name, pItem->i64));
         } else {
           uInfo("%s %s %" PRId64, src, name, pItem->i64);
         }
@@ -870,7 +874,7 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
       case CFG_DTYPE_DOUBLE:
       case CFG_DTYPE_FLOAT:
         if (dump) {
-          (void)printf("%s %s %.2f\n", src, name, pItem->fval);
+          TAOS_UNUSED(printf("%s %s %.2f\n", src, name, pItem->fval));
         } else {
           uInfo("%s %s %.2f", src, name, pItem->fval);
         }
@@ -882,7 +886,7 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
       case CFG_DTYPE_TIMEZONE:
       case CFG_DTYPE_NONE:
         if (dump) {
-          (void)printf("%s %s %s\n", src, name, pItem->str);
+          TAOS_UNUSED(printf("%s %s %s\n", src, name, pItem->str));
         } else {
           uInfo("%s %s %s", src, name, pItem->str);
         }
@@ -891,7 +895,7 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
   }
 
   if (dump) {
-    (void)printf("=================================================================\n");
+    TAOS_UNUSED(printf("=================================================================\n"));
   } else {
     uInfo("=================================================================");
   }
@@ -911,23 +915,23 @@ int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
 
     strncpy(line, *pEnv, sizeof(line) - 1);
     pEnv++;
-    (void)taosEnvToCfg(line, line);
+    if (TSDB_CODE_SUCCESS != taosEnvToCfg(line, line)) continue;
 
-    (void)paGetToken(line, &name, &olen);
+    TAOS_UNUSED(paGetToken(line, &name, &olen));
     if (olen == 0) continue;
     name[olen] = 0;
 
-    (void)paGetToken(name + olen + 1, &value, &vlen);
+    TAOS_UNUSED(paGetToken(name + olen + 1, &value, &vlen));
     if (vlen == 0) continue;
     value[vlen] = 0;
 
-    (void)paGetToken(value + vlen + 1, &value2, &vlen2);
+    TAOS_UNUSED(paGetToken(value + vlen + 1, &value2, &vlen2));
     if (vlen2 != 0) {
       value2[vlen2] = 0;
-      (void)paGetToken(value2 + vlen2 + 1, &value3, &vlen3);
+      TAOS_UNUSED(paGetToken(value2 + vlen2 + 1, &value3, &vlen3));
       if (vlen3 != 0) {
         value3[vlen3] = 0;
-        (void)paGetToken(value3 + vlen3 + 1, &value4, &vlen4);
+        TAOS_UNUSED(paGetToken(value3 + vlen3 + 1, &value4, &vlen4));
         if (vlen4 != 0) value4[vlen4] = 0;
       }
     }
@@ -953,28 +957,29 @@ int32_t cfgLoadFromEnvCmd(SConfig *pConfig, const char **envCmd) {
   if (envCmd == NULL) TAOS_RETURN(TSDB_CODE_SUCCESS);
   while (envCmd[index] != NULL) {
     strncpy(buf, envCmd[index], sizeof(buf) - 1);
-    buf[sizeof(buf) - 1] = 0;
-    (void)taosEnvToCfg(buf, buf);
     index++;
+
+    buf[sizeof(buf) - 1] = 0;
+    if (TSDB_CODE_SUCCESS != taosEnvToCfg(buf, buf)) continue;
 
     name = value = value2 = value3 = value4 = NULL;
     olen = vlen = vlen2 = vlen3 = vlen4 = 0;
 
-    (void)paGetToken(buf, &name, &olen);
+    TAOS_UNUSED(paGetToken(buf, &name, &olen));
     if (olen == 0) continue;
     name[olen] = 0;
 
-    (void)paGetToken(name + olen + 1, &value, &vlen);
+    TAOS_UNUSED(paGetToken(name + olen + 1, &value, &vlen));
     if (vlen == 0) continue;
     value[vlen] = 0;
 
-    (void)paGetToken(value + vlen + 1, &value2, &vlen2);
+    TAOS_UNUSED(paGetToken(value + vlen + 1, &value2, &vlen2));
     if (vlen2 != 0) {
       value2[vlen2] = 0;
-      (void)paGetToken(value2 + vlen2 + 1, &value3, &vlen3);
+      TAOS_UNUSED(paGetToken(value2 + vlen2 + 1, &value3, &vlen3));
       if (vlen3 != 0) {
         value3[vlen3] = 0;
-        (void)paGetToken(value3 + vlen3 + 1, &value4, &vlen4);
+        TAOS_UNUSED(paGetToken(value3 + vlen3 + 1, &value4, &vlen4));
         if (vlen4 != 0) value4[vlen4] = 0;
       }
     }
@@ -1001,7 +1006,7 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile) {
   const char *filepath = ".env";
   if (envFile != NULL && strlen(envFile) > 0) {
     if (!taosCheckExistFile(envFile)) {
-      (void)printf("failed to load env file:%s\n", envFile);
+      TAOS_UNUSED(printf("failed to load env file:%s\n", envFile));
       TAOS_RETURN(TSDB_CODE_NOT_FOUND);
     }
     filepath = envFile;
@@ -1026,23 +1031,23 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile) {
       break;
     }
     if (line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
-    (void)taosEnvToCfg(line, line);
+    if (TSDB_CODE_SUCCESS != taosEnvToCfg(line, line)) continue;
 
-    (void)paGetToken(line, &name, &olen);
+    TAOS_UNUSED(paGetToken(line, &name, &olen));
     if (olen == 0) continue;
     name[olen] = 0;
 
-    (void)paGetToken(name + olen + 1, &value, &vlen);
+    TAOS_UNUSED(paGetToken(name + olen + 1, &value, &vlen));
     if (vlen == 0) continue;
     value[vlen] = 0;
 
-    (void)paGetToken(value + vlen + 1, &value2, &vlen2);
+    TAOS_UNUSED(paGetToken(value + vlen + 1, &value2, &vlen2));
     if (vlen2 != 0) {
       value2[vlen2] = 0;
-      (void)paGetToken(value2 + vlen2 + 1, &value3, &vlen3);
+      TAOS_UNUSED(paGetToken(value2 + vlen2 + 1, &value3, &vlen3));
       if (vlen3 != 0) {
         value3[vlen3] = 0;
-        (void)paGetToken(value3 + vlen3 + 1, &value4, &vlen4);
+        TAOS_UNUSED(paGetToken(value3 + vlen3 + 1, &value4, &vlen4));
         if (vlen4 != 0) value4[vlen4] = 0;
       }
     }
@@ -1056,7 +1061,7 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile) {
     }
   }
 
-  (void)taosCloseFile(&pFile);
+  TAOS_UNUSED(taosCloseFile(&pFile));
 
   uInfo("load from env cfg file %s success", filepath);
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -1076,7 +1081,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
       uInfo("failed to load from cfg file %s since %s, use default parameters", filepath, tstrerror(code));
       TAOS_RETURN(TSDB_CODE_SUCCESS);
     } else {
-      (void)printf("failed to load from cfg file %s since %s\n", filepath, tstrerror(code));
+      TAOS_UNUSED(printf("failed to load from cfg file %s since %s\n", filepath, tstrerror(code)));
       TAOS_RETURN(code);
     }
   }
@@ -1092,11 +1097,11 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
 
     if (line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
 
-    (void)paGetToken(line, &name, &olen);
+    TAOS_UNUSED(paGetToken(line, &name, &olen));
     if (olen == 0) continue;
     name[olen] = 0;
 
-    (void)paGetToken(name + olen + 1, &value, &vlen);
+    TAOS_UNUSED(paGetToken(name + olen + 1, &value, &vlen));
     if (vlen == 0) continue;
     value[vlen] = 0;
 
@@ -1109,7 +1114,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
 
       int32_t count = 1;
       while (vlen < 1024) {
-        (void)paGetToken(value + vlen + 1 * count, &tmp, &len);
+        TAOS_UNUSED(paGetToken(value + vlen + 1 * count, &tmp, &len));
         if (len == 0) break;
         tmp[len] = 0;
         strcpy(newValue + vlen, tmp);
@@ -1119,24 +1124,24 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
 
       code = cfgSetItem(pConfig, name, newValue, CFG_STYPE_CFG_FILE, true);
       if (TSDB_CODE_SUCCESS != code && TSDB_CODE_CFG_NOT_FOUND != code) {
-        (void)printf("cfg:%s, value:%s failed since %s\n", name,newValue, tstrerror(code));
+        TAOS_UNUSED(printf("cfg:%s, value:%s failed since %s\n", name,newValue, tstrerror(code)));
         break;
       }
     } else {
-      (void)paGetToken(value + vlen + 1, &value2, &vlen2);
+      TAOS_UNUSED(paGetToken(value + vlen + 1, &value2, &vlen2));
       if (vlen2 != 0) {
         value2[vlen2] = 0;
-        (void)paGetToken(value2 + vlen2 + 1, &value3, &vlen3);
+        TAOS_UNUSED(paGetToken(value2 + vlen2 + 1, &value3, &vlen3));
         if (vlen3 != 0) {
           value3[vlen3] = 0;
-          (void)paGetToken(value3 + vlen3 + 1, &value4, &vlen4);
+          TAOS_UNUSED(paGetToken(value3 + vlen3 + 1, &value4, &vlen4));
           if (vlen4 != 0) value4[vlen4] = 0;
         }
       }
 
       code = cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE, true);
       if (TSDB_CODE_SUCCESS != code && TSDB_CODE_CFG_NOT_FOUND != code) {
-        (void)printf("cfg:%s, value:%s failed since %s\n", name, value, tstrerror(code));
+        TAOS_UNUSED(printf("cfg:%s, value:%s failed since %s\n", name, value, tstrerror(code)));
         break;
       }
     }
@@ -1155,81 +1160,16 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
     }
   }
 
-  (void)taosCloseFile(&pFile);
+  TAOS_UNUSED(taosCloseFile(&pFile));
 
   if (TSDB_CODE_SUCCESS == code || TSDB_CODE_CFG_NOT_FOUND == code) {
     uInfo("load from cfg file %s success", filepath);
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   } else {
-    (void)printf("failed to load from cfg file %s since %s\n", filepath, tstrerror(code));
+    TAOS_UNUSED(printf("failed to load from cfg file %s since %s\n", filepath, tstrerror(code)));
     TAOS_RETURN(code);
   }
 }
-
-// int32_t cfgLoadFromCfgText(SConfig *pConfig, const char *configText) {
-//   char   *line = NULL, *name, *value, *value2, *value3;
-//   int32_t olen, vlen, vlen2, vlen3;
-//   ssize_t _bytes = 0;
-//   int32_t code = 0;
-
-//   TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ | TD_FILE_STREAM);
-//   if (pFile == NULL) {
-//     // success when the file does not exist
-//     if (errno == ENOENT) {
-//       terrno = TAOS_SYSTEM_ERROR(errno);
-//       uInfo("failed to load from cfg file %s since %s, use default parameters", filepath, terrstr());
-//       return 0;
-//     } else {
-//       uError("failed to load from cfg file %s since %s", filepath, terrstr());
-//       return -1;
-//     }
-//   }
-
-//   while (!taosEOFFile(pFile)) {
-//     name = value = value2 = value3 = NULL;
-//     olen = vlen = vlen2 = vlen3 = 0;
-
-//     _bytes = taosGetLineFile(pFile, &line);
-//     if (_bytes <= 0) {
-//       break;
-//     }
-
-//     if(line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
-
-//     (void)paGetToken(line, &name, &olen);
-//     if (olen == 0) continue;
-//     name[olen] = 0;
-
-//     (void)paGetToken(name + olen + 1, &value, &vlen);
-//     if (vlen == 0) continue;
-//     value[vlen] = 0;
-
-//     (void)paGetToken(value + vlen + 1, &value2, &vlen2);
-//     if (vlen2 != 0) {
-//       value2[vlen2] = 0;
-//       (void)paGetToken(value2 + vlen2 + 1, &value3, &vlen3);
-//       if (vlen3 != 0) value3[vlen3] = 0;
-//     }
-
-//     code = cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE);
-//     if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
-//     if (strcasecmp(name, "dataDir") == 0) {
-//       code = cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_CFG_FILE);
-//       if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
-//     }
-//   }
-
-//   (void)taosCloseFile(&pFile);
-//   if (line != NULL) taosMemoryFreeClear(line);
-
-//   if (code == 0 || (code != 0 && terrno == TSDB_CODE_CFG_NOT_FOUND)) {
-//     uInfo("load from cfg file %s success", filepath);
-//     return 0;
-//   } else {
-//     uError("failed to load from cfg file %s since %s", filepath, terrstr());
-//     return -1;
-//   }
-// }
 
 int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   char   *cfgLineBuf = NULL, *name, *value, *value2, *value3, *value4;
@@ -1243,7 +1183,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
 
   char *p = strchr(url, ':');
   if (p == NULL) {
-    (void)printf("fail to load apoll url: %s, unknown format\n", url);
+    TAOS_UNUSED(printf("fail to load apoll url: %s, unknown format\n", url));
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
   p++;
@@ -1251,7 +1191,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   if (strncmp(url, "jsonFile", 8) == 0) {
     char *filepath = p;
     if (!taosCheckExistFile(filepath)) {
-      (void)printf("failed to load json file:%s\n", filepath);
+      TAOS_UNUSED(printf("failed to load json file:%s\n", filepath));
       TAOS_RETURN(TSDB_CODE_NOT_FOUND);
     }
 
@@ -1261,31 +1201,37 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
     }
     size_t fileSize = taosLSeekFile(pFile, 0, SEEK_END);
     if(fileSize <= 0) {
-      (void)taosCloseFile(&pFile);
-      (void)printf("load json file error: %s\n", filepath);
+      TAOS_UNUSED(taosCloseFile(&pFile));
+      TAOS_UNUSED(printf("load json file error: %s\n", filepath));
       TAOS_CHECK_EXIT(terrno);
     }
     char  *buf = taosMemoryMalloc(fileSize + 1);
     if (!buf) {
-      (void)taosCloseFile(&pFile);
-      (void)printf("load json file error: %s, failed to alloc memory\n", filepath);
+      TAOS_UNUSED(taosCloseFile(&pFile));
+      TAOS_UNUSED(printf("load json file error: %s, failed to alloc memory\n", filepath));
       TAOS_RETURN(terrno);
     }
 
     buf[fileSize] = 0;
-    (void)taosLSeekFile(pFile, 0, SEEK_SET);
+    if (taosLSeekFile(pFile, 0, SEEK_SET) < 0) {
+      TAOS_UNUSED(taosCloseFile(&pFile));
+      TAOS_UNUSED(printf("load json file error, failed to seek 0: %s\n", filepath));
+      taosMemoryFreeClear(buf);
+      TAOS_RETURN(terrno);
+    }
+
     if (taosReadFile(pFile, buf, fileSize) <= 0) {
-      (void)taosCloseFile(&pFile);
-      (void)printf("load json file error: %s\n", filepath);
+      TAOS_UNUSED(taosCloseFile(&pFile));
+      TAOS_UNUSED(printf("load json file error: %s\n", filepath));
       taosMemoryFreeClear(buf);
       TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
     }
-    (void)taosCloseFile(&pFile);
+    TAOS_UNUSED(taosCloseFile(&pFile));
     pJson = tjsonParse(buf);
     if (NULL == pJson) {
       const char *jsonParseError = tjsonGetError();
       if (jsonParseError != NULL) {
-        (void)printf("load json file parse error: %s\n", jsonParseError);
+        TAOS_UNUSED(printf("load json file parse error: %s\n", jsonParseError));
       }
       taosMemoryFreeClear(buf);
       TAOS_CHECK_EXIT(TSDB_CODE_INVALID_DATA_FMT);
@@ -1313,27 +1259,27 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
         }
 
         cfgLineBuf = px;
-        (void)memset(cfgLineBuf, 0, itemNameLen + itemValueStringLen + 3);
+        TAOS_UNUSED(memset(cfgLineBuf, 0, itemNameLen + itemValueStringLen + 3));
 
-        (void)memcpy(cfgLineBuf, itemName, itemNameLen);
+        TAOS_UNUSED(memcpy(cfgLineBuf, itemName, itemNameLen));
         cfgLineBuf[itemNameLen] = ' ';
-        (void)memcpy(&cfgLineBuf[itemNameLen + 1], itemValueString, itemValueStringLen);
+        TAOS_UNUSED(memcpy(&cfgLineBuf[itemNameLen + 1], itemValueString, itemValueStringLen));
 
-        (void)paGetToken(cfgLineBuf, &name, &olen);
+        TAOS_UNUSED(paGetToken(cfgLineBuf, &name, &olen));
         if (olen == 0) continue;
         name[olen] = 0;
 
-        (void)paGetToken(name + olen + 1, &value, &vlen);
+        TAOS_UNUSED(paGetToken(name + olen + 1, &value, &vlen));
         if (vlen == 0) continue;
         value[vlen] = 0;
 
-        (void)paGetToken(value + vlen + 1, &value2, &vlen2);
+        TAOS_UNUSED(paGetToken(value + vlen + 1, &value2, &vlen2));
         if (vlen2 != 0) {
           value2[vlen2] = 0;
-          (void)paGetToken(value2 + vlen2 + 1, &value3, &vlen3);
+          TAOS_UNUSED(paGetToken(value2 + vlen2 + 1, &value3, &vlen3));
           if (vlen3 != 0) {
             value3[vlen3] = 0;
-            (void)paGetToken(value3 + vlen3 + 1, &value4, &vlen4);
+            TAOS_UNUSED(paGetToken(value3 + vlen3 + 1, &value4, &vlen4));
             if (vlen4 != 0) value4[vlen4] = 0;
           }
         }
@@ -1353,7 +1299,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
     // } else if (strncmp(url, "jsonUrl", 7) == 0) {
     // } else if (strncmp(url, "etcdUrl", 7) == 0) {
   } else {
-    (void)printf("Unsupported url: %s\n", url);
+    TAOS_UNUSED(printf("Unsupported url: %s\n", url));
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
@@ -1365,7 +1311,7 @@ _exit:
   taosMemoryFree(cfgLineBuf);
   tjsonDelete(pJson);
   if (code != 0) {
-    (void)printf("failed to load from apollo url:%s at line %d since %s\n", url, lino, tstrerror(code));
+    TAOS_UNUSED(printf("failed to load from apollo url:%s at line %d since %s\n", url, lino, tstrerror(code)));
   }
   TAOS_RETURN(code);
 }
@@ -1382,7 +1328,7 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char *apolloUrl
           p++;
           p[strlen(p) - 1] = '\0';
         }
-        (void)memcpy(apolloUrl, p, TMIN(strlen(p) + 1, PATH_MAX));
+        TAOS_UNUSED(memcpy(apolloUrl, p, TMIN(strlen(p) + 1, PATH_MAX)));
         uInfo("get apollo url from env cmd success");
         TAOS_RETURN(TSDB_CODE_SUCCESS);
       }
@@ -1404,7 +1350,7 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char *apolloUrl
           p++;
           p[strlen(p) - 1] = '\0';
         }
-        (void)memcpy(apolloUrl, p, TMIN(strlen(p) + 1, PATH_MAX));
+        TAOS_UNUSED(memcpy(apolloUrl, p, TMIN(strlen(p) + 1, PATH_MAX)));
         uInfo("get apollo url from env variables success, apolloUrl=%s", apolloUrl);
         TAOS_RETURN(TSDB_CODE_SUCCESS);
       }
@@ -1441,14 +1387,14 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char *apolloUrl
             p++;
             p[strlen(p) - 1] = '\0';
           }
-          (void)memcpy(apolloUrl, p, TMIN(strlen(p) + 1, PATH_MAX));
-          (void)taosCloseFile(&pFile);
+          TAOS_UNUSED(memcpy(apolloUrl, p, TMIN(strlen(p) + 1, PATH_MAX)));
+          TAOS_UNUSED(taosCloseFile(&pFile));
           uInfo("get apollo url from env file success");
           TAOS_RETURN(TSDB_CODE_SUCCESS);
         }
       }
     }
-    (void)taosCloseFile(&pFile);
+    TAOS_UNUSED(taosCloseFile(&pFile));
   }
 
   uInfo("fail get apollo url from cmd env file");

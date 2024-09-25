@@ -1914,7 +1914,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
-  cfgLock(pCfg);
+  TAOS_CHECK_RETURN(cfgLock(pCfg));
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (!pItem || (pItem->dynScope & CFG_DYN_SERVER) == 0) {
@@ -2019,7 +2019,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  cfgLock(pCfg);
+  TAOS_CHECK_RETURN(cfgLock(pCfg));
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if ((pItem == NULL) || (pItem->dynScope & CFG_DYN_CLIENT) == 0) {

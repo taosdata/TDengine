@@ -272,7 +272,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
   TAOS_CHECK_GOTO(cfgCreateIter(pConf, &pIter), NULL, _exit);
 
-  cfgLock(pConf);
+  TAOS_CHECK_GOTO(cfgLock(pConf), NULL, _exit);
   locked = 1;
 
   while ((pItem = cfgNextIter(pIter)) != NULL) {
