@@ -1362,6 +1362,7 @@
 ,,y,script,./test.sh -f tsim/stream/streamInterpDelete1.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpDelete2.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpError.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpForceWindowClose.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpHistory.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpHistory1.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpLarge.sim
