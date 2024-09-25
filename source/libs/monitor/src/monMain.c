@@ -228,7 +228,7 @@ static void monGenBasicJson(SMonInfo *pMonitor) {
 
   SJson *pJson = pMonitor->pJson;
   char   buf[40] = {0};
-  if (taosFormatUtcTime(buf, sizeof(buf), pMonitor->curTime, TSDB_TIME_PRECISION_MILLI) == 0) {
+  if (taosFormatUtcTime(buf, sizeof(buf), pMonitor->curTime, TSDB_TIME_PRECISION_MILLI) != 0) {
     uError("failed to format time");
     return;
   }
