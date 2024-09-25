@@ -1292,7 +1292,10 @@ int32_t s3DeleteObjects(const char *object_name[], int nobject) {
 void s3DeleteObjectsByPrefix(const char *prefix) {
   SArray *objectArray = getListByPrefix(prefix);
   if (objectArray == NULL) return;
-  (void)s3DeleteObjects(TARRAY_DATA(objectArray), TARRAY_SIZE(objectArray));
+  int32_t code = s3DeleteObjects(TARRAY_DATA(objectArray), TARRAY_SIZE(objectArray));
+  if (code) {
+    uError("failed to delete objects with prefix %s", prefix);
+  }
   taosArrayDestroyEx(objectArray, s3FreeObjectKey);
 }
 
