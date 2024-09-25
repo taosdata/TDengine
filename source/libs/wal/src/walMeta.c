@@ -517,6 +517,8 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
     // update lastVer
     pFileInfo->lastVer = lastVer;
     totSize += pFileInfo->fileSize;
+    wInfo("vgId:%d, repair meta file %s, firstVer:%" PRId64 ", lastVer:%" PRId64 ", fileSize:%" PRId64, pWal->cfg.vgId,
+          fnameStr, pFileInfo->firstVer, pFileInfo->lastVer, pFileInfo->fileSize);
   }
 
   // reset vers info and so on
@@ -594,6 +596,7 @@ static int32_t walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
 
     TAOS_CHECK_GOTO(terrno, &lino, _err);
   }
+  wInfo("vgId:%d, wal open or create file %s for check and repair", pWal->cfg.vgId, fnameStr);
 
   pLogFile = taosOpenFile(fLogNameStr, TD_FILE_READ);
   if (pLogFile == NULL) {
@@ -601,7 +604,7 @@ static int32_t walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
 
     TAOS_CHECK_GOTO(terrno, &lino, _err);
   }
-
+  wDebug("vgId:%d, wal open or create file %s for check and repair", pWal->cfg.vgId, fLogNameStr);
   // determine the last valid entry end, i.e. offset
   while ((offset -= sizeof(SWalIdxEntry)) >= 0) {
     if (taosLSeekFile(pIdxFile, offset, SEEK_SET) < 0) {
@@ -771,6 +774,8 @@ int32_t walRollFileInfo(SWal* pWal) {
     taosMemoryFree(pNewInfo);
     TAOS_RETURN(terrno);
   }
+  wInfo("vgId:%d, push new file info, firstVer:%" PRId64 ", lastVer:% " PRId64, pWal->cfg.vgId, pNewInfo->firstVer,
+        pNewInfo->lastVer);
 
   taosMemoryFree(pNewInfo);
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -1051,6 +1056,8 @@ int32_t walSaveMeta(SWal* pWal) {
       wInfo("vgId:%d, remove old meta file: %s", pWal->cfg.vgId, fnameStr);
     }
   }
+  wInfo("vgId:%d, wal save meta firstVer:%" PRId64 ", lastVer:%" PRId64, pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
+        walGetCurFileLastVer(pWal));
 
   taosMemoryFree(serialized);
   return code;

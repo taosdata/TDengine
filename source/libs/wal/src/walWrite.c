@@ -141,6 +141,7 @@ static int64_t walChangeWrite(SWal *pWal, int64_t ver) {
 
     TAOS_RETURN(terrno);
   }
+  wInfo("vgId:%d, wal open idx file %s for change write", pWal->cfg.vgId, fnameStr);
   walBuildLogName(pWal, fileFirstVer, fnameStr);
   pLogTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pLogTFile == NULL) {
@@ -149,6 +150,7 @@ static int64_t walChangeWrite(SWal *pWal, int64_t ver) {
 
     TAOS_RETURN(terrno);
   }
+  wInfo("vgId:%d, wal open log file %s for change write", pWal->cfg.vgId, fnameStr);
 
   pWal->pLogFile = pLogTFile;
   pWal->pIdxFile = pIdxTFile;
@@ -184,11 +186,11 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
       SWalFileInfo *pInfo = taosArrayPop(pWal->fileInfoSet);
 
       walBuildLogName(pWal, pInfo->firstVer, fnameStr);
-      wDebug("vgId:%d, wal remove file %s for rollback", pWal->cfg.vgId, fnameStr);
       TAOS_UNUSED(taosRemoveFile(fnameStr));
+      wDebug("vgId:%d, wal remove file %s for rollback", pWal->cfg.vgId, fnameStr);
       walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
-      wDebug("vgId:%d, wal remove file %s for rollback", pWal->cfg.vgId, fnameStr);
       TAOS_UNUSED(taosRemoveFile(fnameStr));
+      wDebug("vgId:%d, wal remove file %s for rollback", pWal->cfg.vgId, fnameStr);
     }
   }
 
@@ -319,13 +321,13 @@ static int32_t walRollImpl(SWal *pWal) {
   if (pIdxFile == NULL) {
     TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
+  wInfo("vgId:%d, wal create new file for roll:%s", pWal->cfg.vgId, fnameStr);
   walBuildLogName(pWal, newFileFirstVer, fnameStr);
   pLogFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
-  wDebug("vgId:%d, wal create new file for write:%s", pWal->cfg.vgId, fnameStr);
   if (pLogFile == NULL) {
     TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
-
+  wInfo("vgId:%d, wal create new file for roll:%s", pWal->cfg.vgId, fnameStr);
   TAOS_CHECK_GOTO(walRollFileInfo(pWal), &lino, _exit);
 
   // switch file
@@ -493,11 +495,13 @@ int32_t walEndSnapshot(SWal *pWal) {
       wError("vgId:%d, failed to remove log file %s due to %s", pWal->cfg.vgId, fnameStr, strerror(errno));
       goto _exit;
     }
+    wInfo("vgId:%d, wal remove log file %s for end snapshot", pWal->cfg.vgId, fnameStr);
     walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
     if (taosRemoveFile(fnameStr) < 0 && errno != ENOENT) {
       wError("vgId:%d, failed to remove idx file %s due to %s", pWal->cfg.vgId, fnameStr, strerror(errno));
       goto _exit;
     }
+    wInfo("vgId:%d, wal remove idx file %s for end snapshot", pWal->cfg.vgId, fnameStr);
   }
   if (pInfo != NULL) {
     wInfo("vgId:%d, wal log files recycled. count:%d, until ver:%" PRId64 ", closeTs:%" PRId64, pWal->cfg.vgId,
@@ -698,11 +702,13 @@ static int32_t walInitWriteFile(SWal *pWal) {
   if (pIdxTFile == NULL) {
     TAOS_RETURN(terrno);
   }
+  wInfo("vgId:%d, wal open idx file %s for init write", pWal->cfg.vgId, fnameStr);
   walBuildLogName(pWal, fileFirstVer, fnameStr);
   pLogTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pLogTFile == NULL) {
     TAOS_RETURN(terrno);
   }
+  wInfo("vgId:%d, wal open log file %s for init write", pWal->cfg.vgId, fnameStr);
   // switch file
   pWal->pIdxFile = pIdxTFile;
   pWal->pLogFile = pLogTFile;

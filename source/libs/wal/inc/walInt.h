@@ -88,6 +88,12 @@ static inline int64_t walGetLastFileFirstVer(SWal* pWal) {
   return pInfo->firstVer;
 }
 
+static inline int64_t walGetLastFileLastVer(SWal* pWal) {
+  if (taosArrayGetSize(pWal->fileInfoSet) == 0) return -1;
+  SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet);
+  return pInfo->lastVer;
+}
+
 static inline int64_t walGetCurFileFirstVer(SWal* pWal) {
   if (pWal->writeCur == -1) return -1;
   SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
