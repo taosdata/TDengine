@@ -60,7 +60,7 @@ async function insertData() {
         "(NOW + 1a, 10.30000, 219, 0.31000) " +
         "(NOW + 2a, 12.60000, 218, 0.33000) " +
         "(NOW + 3a, 12.30000, 221, 0.31000) " +
-        "power.d1002 USING power.meters TAGS('California.SanFrancisco', 3) " +
+        "power.d1002 USING power.meters (location, groupId) TAGS('California.SanFrancisco', 3) " +
         "VALUES " +
         "(NOW + 1a, 10.30000, 218, 0.25000) "; 
 
