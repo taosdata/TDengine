@@ -551,7 +551,7 @@ export default {
         });
         this.requestIng = false;
         this.opcPointForm.opcCsvHeaders.map(item => {
-          if (item.name == 'point_id') {
+          if (item.name == 'point_id' || item.name == 'tag_name') {
             item.value = ""
           }
         })
