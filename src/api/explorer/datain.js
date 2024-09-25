@@ -181,6 +181,8 @@ function mergeAuthentication(cfgAuth, data) {
             cfgAuth.value = 'plain';
         } else if (data.params.auth_certificate && haveAuthentication(cfgAuth.alternatives, 'certificates')) {
             cfgAuth.value = 'certificates';
+        } else if (data.params.version && data.params.version.split('.')[0] == '1' && haveAuthentication(cfgAuth.alternatives, '1.x')) {
+            cfgAuth.value = '1.x'
         }
     }
 
