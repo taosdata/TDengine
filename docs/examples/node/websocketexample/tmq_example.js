@@ -50,7 +50,7 @@ async function prepare() {
 
     let createTopic = `CREATE TOPIC IF NOT EXISTS ${topics[0]} AS SELECT * FROM ${db}.${stable}`;
     await wsSql.exec(createTopic);
-    wsSql.close();
+    await wsSql.close();
 }
 
 async function insert() {
@@ -63,7 +63,7 @@ async function insert() {
         await wsSql.exec(`INSERT INTO d1001 USING ${stable} (location, groupId) TAGS ("California.SanFrancisco", 3) VALUES (NOW, ${10 + i}, ${200 + i}, ${0.32 + i})`);
         await sleep(100);
     }
-    wsSql.close();
+    await wsSql.close();
 }
 
 async function subscribe(consumer) {

@@ -96,7 +96,7 @@ async function consumer() {
         console.log("Consumer unsubscribed successfully.");
     }
     catch (err) {
-        console.error(`Failed to unsubscribe consumer, topic: ${topic}, groupId: ${groupId}, clientId: ${clientId}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
+        console.error(`Failed to consumer, topic: ${topic}, groupId: ${groupId}, clientId: ${clientId}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
         throw err;
     }
     finally {
