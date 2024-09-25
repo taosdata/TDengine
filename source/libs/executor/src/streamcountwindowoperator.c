@@ -46,11 +46,16 @@ typedef struct SBuffInfo {
 } SBuffInfo;
 
 void destroyStreamCountAggOperatorInfo(void* param) {
+  if (param == NULL) {
+    return;
+  }
   SStreamCountAggOperatorInfo* pInfo = (SStreamCountAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
-  cleanupResultInfoInStream(pInfo->pOperator->pTaskInfo, pInfo->streamAggSup.pState, &pInfo->pOperator->exprSupp,
-                            &pInfo->groupResInfo);
-  pInfo->pOperator = NULL;
+  if (pInfo->pOperator) {
+    cleanupResultInfoInStream(pInfo->pOperator->pTaskInfo, pInfo->streamAggSup.pState, &pInfo->pOperator->exprSupp,
+                              &pInfo->groupResInfo);
+    pInfo->pOperator = NULL;
+  }
   destroyStreamAggSupporter(&pInfo->streamAggSup);
   cleanupExprSupp(&pInfo->scalarSupp);
   clearGroupResInfo(&pInfo->groupResInfo);
