@@ -41,7 +41,10 @@ SWalReader *walOpenReader(SWal *pWal, SWalFilterCond *cond, int64_t id) {
     pReader->cond.enableRef = 0;
   }
 
-  TAOS_UNUSED(taosThreadMutexInit(&pReader->mutex, NULL));
+  if (taosThreadMutexInit(&pReader->mutex, NULL) < 0) {
+    taosMemoryFree(pReader);
+    return NULL;
+  }
 
   pReader->pHead = taosMemoryMalloc(sizeof(SWalCkHead));
   if (pReader->pHead == NULL) {
@@ -401,7 +404,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     TAOS_RETURN(TSDB_CODE_WAL_LOG_NOT_EXIST);
   }
 
-  TAOS_UNUSED(taosThreadMutexLock(&pReader->mutex));
+  (void)taosThreadMutexLock(&pReader->mutex);
 
   if (pReader->curVersion != ver) {
     code = walReaderSeekVer(pReader, ver);
@@ -531,13 +534,13 @@ int32_t decryptBody(SWalCfg *cfg, SWalCkHead *pHead, int32_t plainBodyLen, const
     opts.source = pHead->head.body;
     opts.result = newBody;
     opts.unitLen = 16;
-    TAOS_UNUSED(strncpy((char *)opts.key, cfg->encryptKey, 16));
+    (void)strncpy((char *)opts.key, cfg->encryptKey, 16);
 
     int32_t count = CBC_Decrypt(&opts);
 
     // wDebug("CBC_Decrypt cryptedBodyLen:%d, plainBodyLen:%d, %s", count, plainBodyLen, func);
 
-    TAOS_UNUSED(memcpy(pHead->head.body, newBody, plainBodyLen));
+    (void)memcpy(pHead->head.body, newBody, plainBodyLen);
 
     taosMemoryFree(newBody);
   }
@@ -546,7 +549,7 @@ int32_t decryptBody(SWalCfg *cfg, SWalCkHead *pHead, int32_t plainBodyLen, const
 }
 
 void walReadReset(SWalReader *pReader) {
-  TAOS_UNUSED(taosThreadMutexLock(&pReader->mutex));
+  (void)taosThreadMutexLock(&pReader->mutex);
   TAOS_UNUSED(taosCloseFile(&pReader->pIdxFile));
   TAOS_UNUSED(taosCloseFile(&pReader->pLogFile));
   pReader->curFileFirstVer = -1;
