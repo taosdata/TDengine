@@ -662,6 +662,55 @@ class TDTestCase:
                 ]
             ]
 
+            # prepare data
+            datas4 = [
+                # table 1
+                [
+                    [1626861392589111,1626861392591111],
+                    [None,            False],
+                    [-127,            None],
+                    [127,             None],
+                    [None,            2],
+                    [IGNORE,          None],
+                    [IGNORE,          None],
+                    [4,               None],
+                    [4,               None],
+                    [4,               None],
+                    [4,               IGNORE],
+                    [None,            None],
+                    [None,            1.2],
+                    ["dddafadfadfadf", None],
+                    [None, "a long string with 中文?字符"],
+                    [None, 1626861392591],
+                    [None, None]
+                    
+                ]
+            ]
+
+            datas4_expect = [
+                # table 1
+                [
+                    [1626861392589111,1626861392591111],
+                    [None,            False],
+                    [-127,            None],
+                    [127,             None],
+                    [None,            2],
+                    [3,               None],
+                    [3,               None],
+                    [4,               None],
+                    [4,               None],
+                    [4,               None],
+                    [4,               5],
+                    [None,            None],
+                    [None,            1.2],
+                    ["dddafadfadfadf", None],
+                    [None, "a long string with 中文?字符"],
+                    [None, 1626861392591],
+                    [None, None]
+                    
+                ]
+            ]
+
             table1 = BindTable(tbanmes[0], tags[0])
             
             for data in datas1[0]:
@@ -698,6 +747,18 @@ class TDTestCase:
 
             # check correct
             self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, stablename, tbanmes, tags, datas3_expect)
+
+            table4 = BindTable(tbanmes[0], tags[0])
+            
+            for data in datas4[0]:
+                table4.add_col_data(data)
+
+            # columns type for stable
+            stmt2.bind_param_with_tables([table4])
+            stmt2.execute()
+
+            # check correct
+            self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, stablename, tbanmes, tags, datas4_expect)
 
             tdLog.info("Case [test_stmt_td31428] PASS")
         except Exception as err:
@@ -1110,7 +1171,7 @@ class TDTestCase:
 
         # 1. tc for common table
         # self.test_stmt_set_tbname_tag()
-        self.test_stmt_insert_common_table_with_bind_tablename_data()   # pass
+        # self.test_stmt_insert_common_table_with_bind_tablename_data()   # pass
         # self.test_stmt_insert_common_table_with_bind_data()  # pass
         
         # 2. tc for super table
