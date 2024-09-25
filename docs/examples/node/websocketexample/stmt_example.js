@@ -74,7 +74,9 @@ async function stmtInsert() {
 }
 
 async function test () {
+    console.log("begin stmt_example")
     await stmtInsert();
+    console.log("end stmt_example")
 }
 
 test()

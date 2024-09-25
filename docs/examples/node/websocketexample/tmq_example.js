@@ -1,3 +1,4 @@
+const { sleep } = require("@tdengine/websocket");
 const taos = require("@tdengine/websocket");
 
 // ANCHOR: create_consumer
@@ -49,10 +50,18 @@ async function prepare() {
 
     let createTopic = `CREATE TOPIC IF NOT EXISTS ${topics[0]} AS SELECT * FROM ${db}.${stable}`;
     await wsSql.exec(createTopic);
+    wsSql.close();
+}
 
-
-    for (let i = 0; i < 10; i++) {
+async function insert() {
+    let conf = new taos.WSConfig('ws://localhost:6041');
+    conf.setUser('root');
+    conf.setPwd('taosdata');
+    conf.setDb('power');
+    let wsSql = await taos.sqlConnect(conf);
+    for (let i = 0; i < 50; i++) {
         await wsSql.exec(`INSERT INTO d1001 USING ${stable} (location, groupId) TAGS ("California.SanFrancisco", 3) VALUES (NOW, ${10 + i}, ${200 + i}, ${0.32 + i})`);
+        await sleep(100);
     }
     wsSql.close();
 }
@@ -82,8 +91,11 @@ async function consumer() {
     let consumer = null;
     try {
         await prepare();
-        consumer = await createConsumer()
-        await subscribe(consumer)
+        consumer = await createConsumer();
+        const allPromises = [];
+        allPromises.push(subscribe(consumer));
+        allPromises.push(insert());
+        await Promise.all(allPromises);
         await consumer.unsubscribe();
         console.log("Consumer unsubscribed successfully.");
     }
@@ -102,7 +114,9 @@ async function consumer() {
 }
 
 async function test() {
-   await consumer();
+    console.log("begin tmq_example")
+    await consumer();
+    console.log("end tmq_example")
 }
 
 test()

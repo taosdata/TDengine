@@ -74,7 +74,9 @@ async function execSql() {
 }
 
 async function test() {
+    console.log("begin nodejsChecker")
     await execSql();
+    console.log("end nodejsChecker")
 }
 
 test()

@@ -43,7 +43,9 @@ async function schemalessInsert() {
 }
 
 async function test() {
-   await schemalessInsert();
+    console.log("begin line_example")
+    await schemalessInsert();
+    console.log("end line_example")
 }
 
 test()

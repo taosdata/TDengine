@@ -101,7 +101,9 @@ async function consumer() {
 // ANCHOR_END: offset 
 
 async function test() {
+    console.log("begin tmq_seek_example")
     await consumer();
+    console.log("end tmq_seek_example")
  }
  
 test()

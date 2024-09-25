@@ -58,7 +58,9 @@ async function schemalessInsert() {
 }
 
 async function test() {
+    console.log("begin telnet_line_example")
     await schemalessInsert();
+    console.log("end telnet_line_example")
  }
  
  test()
