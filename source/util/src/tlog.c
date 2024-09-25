@@ -549,6 +549,7 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
    */
   maxFileNum = 1;
 #endif
+
   processLogFileName(logName, maxFileNum);
 
   char name[PATH_MAX + 50] = "\0";
