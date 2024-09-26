@@ -41,10 +41,7 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
       dInfo("failed to set local info, dnodeId:%d clusterId:%" PRId64 " reason:%s", pCfg->dnodeId, pCfg->clusterId,
             tstrerror(code));
     }
-    code = taosThreadRwlockUnlock(&pMgmt->pData->lock);
-    if (code != 0) {
-      dError("failed to unlock local info since:%s", tstrerror(code));
-    }
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pMgmt->pData->lock));
   }
 }
 static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
@@ -175,10 +172,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
-  code = taosThreadRwlockUnlock(&pMgmt->pData->lock);
-  if (code != 0) {
-    dError("failed to unlock local info since:%s", tstrerror(code));
-  }
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgmt->pData->lock));
 
   SMonVloadInfo vinfo = {0};
   (*pMgmt->getVnodeLoadsFp)(&vinfo);

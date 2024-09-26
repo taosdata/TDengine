@@ -29,7 +29,7 @@ int32_t vmGetPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
   if (pVnode != NULL) {
     diskId = pVnode->diskPrimary;
   }
-  TAOS_CHECK_GOTO(taosThreadRwlockUnlock(&pMgmt->lock), NULL, _exception);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgmt->lock));
   return diskId;
 _exception:
   return code;
@@ -109,7 +109,7 @@ SVnodeObj *vmAcquireVnodeImpl(SVnodeMgmt *pMgmt, int32_t vgId, bool strict) {
     int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
     dTrace("vgId:%d, acquire vnode, ref:%d", pVnode->vgId, refCount);
   }
-  TAOS_CHECK_GOTO(taosThreadRwlockUnlock(&pMgmt->lock), NULL, _exit);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgmt->lock));
 
   return pVnode;
 _exit:
@@ -126,7 +126,7 @@ void vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   TAOS_CHECK_GOTO(taosThreadRwlockRdlock(&pMgmt->lock), NULL, _exit);
   int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
   dTrace("vgId:%d, release vnode, ref:%d", pVnode->vgId, refCount);
-  TAOS_CHECK_GOTO(taosThreadRwlockUnlock(&pMgmt->lock), NULL, _exit);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgmt->lock));
   return;
 _exit:
   if (code != 0) {
@@ -185,7 +185,7 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   }
   TAOS_CHECK_GOTO(taosHashPut(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), &pVnode, sizeof(SVnodeObj *)), NULL,
                   _exception);
-  TAOS_CHECK_GOTO(taosThreadRwlockUnlock(&pMgmt->lock), NULL, _exception);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgmt->lock));
 
   return code;
 _exception:
@@ -204,7 +204,7 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
 
   TAOS_CHECK_GOTO(taosThreadRwlockWrlock(&pMgmt->lock), NULL, _closed);
   TAOS_CHECK_GOTO(taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t)), NULL, _closed);
-  TAOS_CHECK_GOTO(taosThreadRwlockUnlock(&pMgmt->lock), NULL, _closed);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgmt->lock));
   vmReleaseVnode(pMgmt, pVnode);
 
   if (pVnode->failed) {

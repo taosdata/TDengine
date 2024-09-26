@@ -267,10 +267,10 @@ void dmClearVars(SDnode *pDnode) {
     taosHashCleanup(pData->dnodeHash);
     pData->dnodeHash = NULL;
   }
-  (void)taosThreadRwlockUnlock(&pData->lock);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pData->lock));
 
-  (void)taosThreadRwlockDestroy(&pData->lock);
-  (void)taosThreadMutexDestroy(&pDnode->mutex);
+  TAOS_UNUSED(taosThreadRwlockDestroy(&pData->lock));
+  TAOS_UNUSED(taosThreadMutexDestroy(&pDnode->mutex));
   memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
 }
 

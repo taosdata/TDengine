@@ -299,11 +299,7 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     pWrapper->required = true;
   }
 
-  code = taosThreadMutexUnlock(&pDnode->mutex);
-  if (code != 0) {
-    dError("failed to unlock mutex since %s", tstrerror(code));
-    return code;
-  }
+  TAOS_UNUSED(taosThreadMutexUnlock(&pDnode->mutex));
   return code;
 }
 
@@ -355,10 +351,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
 
   pWrapper = &pDnode->wrappers[ntype];
   if (taosMkDir(pWrapper->path) != 0) {
-    code = taosThreadMutexUnlock(&pDnode->mutex);
-    if (code != 0) {
-      dError("failed to unlock mutex since %s", tstrerror(code));
-    }
+    TAOS_UNUSED(taosThreadMutexUnlock(&pDnode->mutex));
     code = terrno;
     dError("failed to create dir:%s since %s", pWrapper->path, tstrerror(code));
     return code;
@@ -380,10 +373,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     pWrapper->required = true;
   }
 
-  code = taosThreadMutexUnlock(&pDnode->mutex);
-  if (code != 0) {
-    dError("failed to unlock mutex since %s", tstrerror(code));
-  }
+  TAOS_UNUSED(taosThreadMutexUnlock(&pDnode->mutex));
   return code;
 }
 
@@ -434,10 +424,7 @@ static int32_t dmProcessDropNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     dmCloseNode(pWrapper);
     taosRemoveDir(pWrapper->path);
   }
-  code = taosThreadMutexUnlock(&pDnode->mutex);
-  if (code != 0) {
-    dError("failed to unlock mutex since %s", tstrerror(code));
-  }
+  TAOS_UNUSED(taosThreadMutexUnlock(&pDnode->mutex));
   return code;
 }
 

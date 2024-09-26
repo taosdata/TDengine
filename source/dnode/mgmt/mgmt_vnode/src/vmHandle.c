@@ -49,7 +49,7 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
 
-  TAOS_CHECK_GOTO(taosThreadRwlockUnlock(&pMgmt->lock), NULL, _exception);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgmt->lock));
   return;
 _exception:
   dError("failed to get vnode loads since %s", tstrerror(code));
@@ -83,7 +83,7 @@ void vmGetVnodeLoadsLite(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
 
-  TAOS_CHECK_GOTO(taosThreadRwlockUnlock(&pMgmt->lock), NULL, _exception);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgmt->lock));
   return;
 _exception:
   dError("failed to get vnode loads since %s", tstrerror(code));
@@ -163,7 +163,7 @@ void vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {
       }
     }
   }
-  TAOS_CHECK_GOTO(taosThreadRwlockUnlock(&pMgmt->lock), NULL, _exception);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgmt->lock));
   if (vgroup_ids) taosMemoryFree(vgroup_ids);
   if (keys) taosMemoryFree(keys);
   return;

@@ -19,21 +19,31 @@
 #define PROCESS_THRESHOLD (2000 * 1000)
 
 static inline int32_t mmAcquire(SMnodeMgmt *pMgmt) {
-  int32_t code = 0;
-  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+  int32_t code = taosThreadRwlockRdlock(&pMgmt->lock);
+  if (code != 0) {
+    dError("failed to lock since %s", tstrerror(code));
+    return code;
+  }
   if (pMgmt->stopped) {
     code = TSDB_CODE_MNODE_STOPPED;
   } else {
-    (void)atomic_add_fetch_32(&pMgmt->refCount, 1);
+    int32_t count = atomic_add_fetch_32(&pMgmt->refCount, 1);
+    dTrace("mm ref count:%d", count);
   }
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgmt->lock));
   return code;
 }
 
 static inline void mmRelease(SMnodeMgmt *pMgmt) {
-  (void)taosThreadRwlockRdlock(&pMgmt->lock);
-  (void)atomic_sub_fetch_32(&pMgmt->refCount, 1);
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  int32_t code = taosThreadRwlockRdlock(&pMgmt->lock);
+  if (code != 0) {
+    dError("failed to lock since %s", tstrerror(code));
+    return;
+  }
+
+  int32_t count = atomic_sub_fetch_32(&pMgmt->refCount, 1);
+  dTrace("mm ref count:%d", count);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgmt->lock));
 }
 
 static inline void mmSendRsp(SRpcMsg *pMsg, int32_t code) {
