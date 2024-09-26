@@ -1139,10 +1139,15 @@ int32_t syncLogReplProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncApp
     pMgr->peerStartTime = pMsg->startTime;
   }
 
+  int32_t code = 0;
   if (pMgr->restored) {
-    TAOS_CHECK_RETURN(syncLogReplContinue(pMgr, pNode, pMsg));
+    if ((code = syncLogReplContinue(pMgr, pNode, pMsg)) != 0) {
+      sError("vgId:%d, failed to continue sync log repl since %s", pNode->vgId, tstrerror(code));
+    }
   } else {
-    TAOS_CHECK_RETURN(syncLogReplRecover(pMgr, pNode, pMsg));
+    if ((code = syncLogReplRecover(pMgr, pNode, pMsg)) != 0) {
+      sError("vgId:%d, failed to recover sync log repl since %s", pNode->vgId, tstrerror(code));
+    }
   }
   (void)taosThreadMutexUnlock(&pBuf->mutex);
   return 0;
@@ -1439,7 +1444,10 @@ int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   if (lastVer != pBuf->matchIndex) return TSDB_CODE_SYN_INTERNAL_ERROR;
   SyncIndex index = pBuf->endIndex - 1;
 
-  TAOS_CHECK_RETURN(syncLogBufferRollback(pBuf, pNode, pBuf->matchIndex + 1));
+  int32_t code = 0;
+  if ((code = syncLogBufferRollback(pBuf, pNode, pBuf->matchIndex + 1)) != 0) {
+    sError("vgId:%d, failed to rollback sync log buffer since %s", pNode->vgId, tstrerror(code));
+  }
 
   sInfo("vgId:%d, reset sync log buffer. buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pNode->vgId,
         pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
