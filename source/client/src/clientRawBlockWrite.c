@@ -887,7 +887,11 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
     terrno = code;
     return code;
   }
-
+  SArray*            pTagList = taosArrayInit(0, POINTER_BYTES);
+  if (pTagList == NULL){
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
+  }
   uDebug(LOG_ID_TAG " create table, meta:%p, metaLen:%d", LOG_ID_VALUE, meta, metaLen);
 
   pRequest->syncQuery = true;
@@ -958,17 +962,45 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
       }
       pCreateReq->ctb.suid = pTableMeta->uid;
 
+      SArray* pTagVals = NULL;
+      code = tTagToValArray((STag *)pCreateReq->ctb.pTag, &pTagVals);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosMemoryFreeClear(pTableMeta);
+        goto end;
+      }
+
+      bool rebuildTag = false;
       for (int32_t i = 0; i < taosArrayGetSize(pCreateReq->ctb.tagName); i++) {
         char* tName = taosArrayGet(pCreateReq->ctb.tagName, i);
         for (int32_t j = pTableMeta->tableInfo.numOfColumns;
              j < pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags; j++) {
           SSchema* tag = &pTableMeta->schema[j];
           if (strcmp(tag->name, tName) == 0 && tag->type != TSDB_DATA_TYPE_JSON) {
-            tTagSetCid((STag*)pCreateReq->ctb.pTag, i, tag->colId);
+            STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, i);
+            if (pTagVal) {
+              if (pTagVal->cid != tag->colId){
+                pTagVal->cid = tag->colId;
+                rebuildTag = true;
+              }
+            } else {
+              uError("create tb invalid data %s, size:%d index:%d cid:%d", pCreateReq->name, (int)taosArrayGetSize(pTagVals), i, tag->colId);
+            }
           }
         }
       }
       taosMemoryFreeClear(pTableMeta);
+      if (rebuildTag){
+        STag* ppTag = NULL;
+        code = tTagNew(pTagVals, 1, false, &ppTag);
+        taosArrayDestroy(pTagVals);
+        pTagVals = NULL;
+        if (code != TSDB_CODE_SUCCESS) {
+          goto end;
+        }
+        pCreateReq->ctb.pTag = (uint8_t*)ppTag;
+        taosArrayPush(pTagList, &ppTag);
+      }
+      taosArrayDestroy(pTagVals);
     }
     taosArrayPush(pRequest->tableList, &pName);
 
@@ -1022,6 +1054,7 @@ end:
   destroyRequest(pRequest);
   tDecoderClear(&coder);
   qDestroyQuery(pQuery);
+  taosArrayDestroyP(pTagList, taosMemoryFree);
   terrno = code;
   return code;
 }
