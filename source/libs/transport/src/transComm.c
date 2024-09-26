@@ -272,7 +272,11 @@ int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAs
     }
     item->pThrd = arg;
     QUEUE_INIT(&item->qmsg);
-    TAOS_UNUSED(taosThreadMutexInit(&item->mtx, NULL));
+    code = taosThreadMutexInit(&item->mtx, NULL);
+    if (code) {
+      taosMemoryFree(item);
+      break;
+    }
 
     async->data = item;
     err = uv_async_init(loop, async, cb);
@@ -328,7 +332,10 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   uv_async_t* async = &(pool->asyncs[idx]);
   SAsyncItem* item = async->data;
 
-  TAOS_UNUSED(taosThreadMutexLock(&item->mtx));
+  if (taosThreadMutexLock(&item->mtx) != 0) {
+    tError("failed to lock mutex");
+  }
+
   QUEUE_PUSH(&item->qmsg, q);
   TAOS_UNUSED(taosThreadMutexUnlock(&item->mtx));
   int ret = uv_async_send(async);
