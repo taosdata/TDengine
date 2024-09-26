@@ -16,6 +16,10 @@ DATA_DIR="/var/lib/${PREFIX}"
 csudo=""
 COMMAND_ARGS=$@
 
+TAOSX_LOG_NAME="taosx_*.log*"
+TAOSX_AGENT_LOG_NAME="taosx_agent_*.log*"
+TAOS_EXPLORER_LOG_NAME="taosexplorer_*.log*"
+
 target="taosx-agent"
 
 if command -v taosx >/dev/null; then
@@ -153,21 +157,24 @@ remove_taosx() {
     remove_custom_data_dir ${CONFIG_DIR}/${xName}.toml
     ${csudo}rm -rf ${DATA_DIR}/${xName}
     ${csudo}rm -rf ${LOG_DIR}/${xName}.log*
-    remove_plugin_logs
+    ${csudo}rm -rf ${LOG_DIR}/${TAOSX_LOG_NAME}
     ${csudo}rm -rf ${CONFIG_DIR}/${xName}.toml*
     echo "${xName} is removed successfully!"
 
-    
     remove_custom_data_dir ${CONFIG_DIR}/${EXPLORER_CONFIG_NAME}.toml
     ${csudo}rm -rf ${DATA_DIR}/${EXPLORER_CONFIG_NAME}
+    ${csudo}rm -rf ${LOG_DIR}/${TAOS_EXPLORER_LOG_NAME}
     ${csudo}rm -rf ${CONFIG_DIR}/${EXPLORER_CONFIG_NAME}.toml*
     echo "${explorerName} is removed successfully!"
 
     ${csudo}rm -rf ${LOG_DIR}/${AGENT_CONFIG_NAME}.log*
+    ${csudo}rm -rf ${LOG_DIR}/${TAOSX_AGENT_LOG_NAME}
     ${csudo}rm -rf ${CONFIG_DIR}/${AGENT_CONFIG_NAME}.toml*
     if [ $hasAgent -eq 1 ]; then
         echo "${agentname} is removed successfully!"
     fi
+
+    remove_plugin_logs
 }
 
 remove_custom_data_dir() {
@@ -204,7 +211,11 @@ remove_taos_agent() {
 
     ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/bin/${agentname}
-    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
+    # remove plugins, but keep the udt plugin
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins/influxdb
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins/mqtt
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins/opc
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins/opentsdb
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
 
     if ! need_remove_data $COMMAND_ARGS; then 
@@ -215,11 +226,13 @@ remove_taos_agent() {
     fi
 
     ${csudo}rm -rf ${LOG_DIR}/${AGENT_CONFIG_NAME}.log*
-    remove_plugin_logs
+    ${csudo}rm -rf ${LOG_DIR}/${TAOSX_AGENT_LOG_NAME}
     ${csudo}rm -rf ${CONFIG_DIR}/${AGENT_CONFIG_NAME}.toml
     if [ $hasAgent -eq 1 ]; then
         echo "${agentname} is removed successfully!"
     fi
+
+    remove_plugin_logs
 }
 
 remove_target() {
