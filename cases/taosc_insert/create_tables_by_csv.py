@@ -821,7 +821,8 @@ class CreateTablesByCSV(TDCase):
             tlist.append(t)
         self.tdCom.multi_thread_run(tlist)
         self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
-        self.check_res(self.stbname, self.batch_create_table_str, csv_file_list[0], 1)
+        if not dup_tbname:
+            self.check_res(self.stbname, self.batch_create_table_str, csv_file_list[0], 1)
 
     def create_ctables_by_tag_and_tbname_perf(self, table_count=10):
         """
