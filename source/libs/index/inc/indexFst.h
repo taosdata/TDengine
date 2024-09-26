@@ -288,7 +288,7 @@ FStmSt* stmBuilderIntoStm(FStmBuilder* sb);
 bool fstVerify(Fst* fst);
 
 // refactor this function
-bool fstBuilderNodeCompileTo(FstBuilderNode* b, IdxFstFile* wrt, CompiledAddr lastAddr, CompiledAddr startAddr);
+void fstBuilderNodeCompileTo(FstBuilderNode* b, IdxFstFile* wrt, CompiledAddr lastAddr, CompiledAddr startAddr);
 
 typedef struct FstStreamState {
   FstNode*  node;

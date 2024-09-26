@@ -230,9 +230,13 @@ void fstStateCompileForOneTransNext(IdxFstFile* w, CompiledAddr addr, uint8_t in
   uint8_t v = fstStateCommInput(&s, &null);
   if (null) {
     // w->write_all(&[inp])
-    TAOS_UNUSED(idxFileWrite(w, &inp, 1));
+    if (idxFileWrite(w, &inp, 1) < 0) {
+      indexError("failed to write since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+    }
   }
-  TAOS_UNUSED(idxFileWrite(w, &(s.val), 1));
+  if (idxFileWrite(w, &(s.val), 1) < 0) {
+    indexError("failed to write since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
   // w->write_all(&[s.val])
   return;
 }
@@ -244,7 +248,9 @@ void fstStateCompileForOneTrans(IdxFstFile* w, CompiledAddr addr, FstTransition*
 
   FST_SET_OUTPUT_PACK_SIZE(packSizes, outPackSize);
   FST_SET_TRANSITION_PACK_SIZE(packSizes, transPackSize);
-  TAOS_UNUSED(idxFileWrite(w, (char*)&packSizes, sizeof(packSizes)));
+  if (idxFileWrite(w, (char*)&packSizes, sizeof(packSizes)) < 0) {
+    indexError("failed to write since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
 
   FstState st = fstStateCreate(OneTrans);
 
@@ -253,9 +259,13 @@ void fstStateCompileForOneTrans(IdxFstFile* w, CompiledAddr addr, FstTransition*
   bool    null = false;
   uint8_t inp = fstStateCommInput(&st, &null);
   if (null == true) {
-    TAOS_UNUSED(idxFileWrite(w, (char*)&trn->inp, sizeof(trn->inp)));
+    if ((idxFileWrite(w, (char*)&trn->inp, sizeof(trn->inp))) < 0) {
+      indexError("failed to write since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+    }
   }
-  TAOS_UNUSED(idxFileWrite(w, (char*)(&(st.val)), sizeof(st.val)));
+  if (idxFileWrite(w, (char*)(&(st.val)), sizeof(st.val)) < 0) {
+    indexError("failed to write since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
   return;
 }
 void fstStateCompileForAnyTrans(IdxFstFile* w, CompiledAddr addr, FstBuilderNode* node) {
@@ -301,7 +311,9 @@ void fstStateCompileForAnyTrans(IdxFstFile* w, CompiledAddr addr, FstBuilderNode
   }
   for (int32_t i = sz - 1; i >= 0; i--) {
     FstTransition* t = taosArrayGet(node->trans, i);
-    TAOS_UNUSED(idxFileWrite(w, (char*)&t->inp, 1));
+    if (idxFileWrite(w, (char*)&t->inp, 1) < 0) {
+      indexError("failed to write since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+    }
   }
   if (sz > TRANS_INDEX_THRESHOLD) {
     // A value of 255 indicates that no transition exists for the byte at that idx
@@ -314,24 +326,36 @@ void fstStateCompileForAnyTrans(IdxFstFile* w, CompiledAddr addr, FstBuilderNode
       FstTransition* t = taosArrayGet(node->trans, i);
       index[t->inp] = i;
     }
-    TAOS_UNUSED(idxFileWrite(w, (char*)index, 256));
+    if ((idxFileWrite(w, (char*)index, 256)) < 0) {
+      indexError("failed to write since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+    }
     taosMemoryFree(index);
   }
-  TAOS_UNUSED(idxFileWrite(w, (char*)&packSizes, 1));
+  if ((idxFileWrite(w, (char*)&packSizes, 1)) < 0) {
+    indexError("failed to write since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
   bool null = false;
-  TAOS_UNUSED(fstStateStateNtrans(&st, &null));
+  if ((fstStateStateNtrans(&st, &null)) < 0) {
+    indexError("failed to write since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
   if (null == true) {
     // 256 can't be represented in a u8, so we abuse the fact that
     // the # of transitions can never be 1 here, since 1 is always
     // encoded in the state byte.
     uint8_t v = 1;
     if (sz == 256) {
-      TAOS_UNUSED(idxFileWrite(w, (char*)&v, 1));
+      if ((idxFileWrite(w, (char*)&v, 1)) < 0) {
+        indexError("failed to write since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+      }
     } else {
-      TAOS_UNUSED(idxFileWrite(w, (char*)&sz, 1));
+      if ((idxFileWrite(w, (char*)&sz, 1)) < 0) {
+        indexError("failed to write since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+      }
     }
   }
-  TAOS_UNUSED(idxFileWrite(w, (char*)(&(st.val)), 1));
+  if ((idxFileWrite(w, (char*)(&(st.val)), 1)) < 0) {
+    indexError("failed to write since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
   return;
 }
 
@@ -357,7 +381,9 @@ uint8_t fstStateCommInput(FstState* s, bool* null) {
 
 uint64_t fstStateInputLen(FstState* s) {
   bool null = false;
-  TAOS_UNUSED(fstStateCommInput(s, &null));
+  if (fstStateCommInput(s, &null) < 0) {
+    indexError("failed to get common input since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
   return null ? 1 : 0;
 }
 
@@ -493,7 +519,9 @@ uint64_t fstStateTransIndexSize(FstState* s, uint64_t version, uint64_t nTrans) 
 }
 uint64_t fstStateNtransLen(FstState* s) {
   bool null = false;
-  TAOS_UNUSED(fstStateStateNtrans(s, &null));
+  if (fstStateStateNtrans(s, &null) < 0) {
+    indexError("failed to get state ntrans since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
   return null == true ? 1 : 0;
 }
 uint64_t fstStateNtrans(FstState* s, FstSlice* slice) {
@@ -665,11 +693,17 @@ bool fstNodeGetTransitionAddrAt(FstNode* node, uint64_t i, CompiledAddr* res) {
   bool      s = true;
   FstState* st = &node->state;
   if (st->state == OneTransNext) {
-    TAOS_UNUSED(fstStateTransAddr(st, node));
+    if (fstStateTransAddr(st, node) < 0) {
+      indexError("failed to get transition address since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+    }
   } else if (st->state == OneTrans) {
-    TAOS_UNUSED(fstStateTransAddr(st, node));
+    if (fstStateTransAddr(st, node) < 0) {
+      indexError("failed to get transition address since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+    }
   } else if (st->state == AnyTrans) {
-    TAOS_UNUSED(fstStateTransAddrForAnyTrans(st, node, i));
+    if ((fstStateTransAddrForAnyTrans(st, node, i)) < 0) {
+      indexError("failed to get transition address since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+    }
   } else if (FST_STATE_EMPTY_FINAL(node)) {
     s = false;
   } else {
@@ -725,8 +759,13 @@ bool fstNodeCompile(FstNode* node, void* w, CompiledAddr lastAddr, CompiledAddr 
   return true;
 }
 
-bool fstBuilderNodeCompileTo(FstBuilderNode* b, IdxFstFile* wrt, CompiledAddr lastAddr, CompiledAddr startAddr) {
-  return fstNodeCompile(NULL, wrt, lastAddr, startAddr, b);
+void fstBuilderNodeCompileTo(FstBuilderNode* b, IdxFstFile* wrt, CompiledAddr lastAddr, CompiledAddr startAddr) {
+  bool ret = fstNodeCompile(NULL, wrt, lastAddr, startAddr, b);
+  if (ret == false) {
+    indexDebug("failed to compile index trans");
+  } else {
+    indexDebug("succ to compile index trans");
+  }
 }
 
 FstBuilder* fstBuilderCreate(void* w, FstType ty) {
@@ -744,13 +783,21 @@ FstBuilder* fstBuilderCreate(void* w, FstType ty) {
 
   char  buf64[8] = {0};
   void* pBuf64 = buf64;
-  TAOS_UNUSED(taosEncodeFixedU64(&pBuf64, VERSION));
-  TAOS_UNUSED(idxFileWrite(b->wrt, buf64, sizeof(buf64)));
+  if (taosEncodeFixedU64(&pBuf64, VERSION) < 0) {
+    indexError("failed to encode fixed u64 since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
+  if (idxFileWrite(b->wrt, buf64, sizeof(buf64)) < 0) {
+    indexError("failed to encode fixed u64 since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
 
   pBuf64 = buf64;
   memset(buf64, 0, sizeof(buf64));
-  TAOS_UNUSED(taosEncodeFixedU64(&pBuf64, ty));
-  TAOS_UNUSED(idxFileWrite(b->wrt, buf64, sizeof(buf64)));
+  if (taosEncodeFixedU64(&pBuf64, ty) < 0) {
+    indexError("failed to encode fixed u64 since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
+  if (idxFileWrite(b->wrt, buf64, sizeof(buf64)) < 0) {
+    indexError("failed to encode fixed u64 since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
 
   return b;
 }
@@ -849,7 +896,7 @@ CompiledAddr fstBuilderCompile(FstBuilder* b, FstBuilderNode* bn) {
   }
   CompiledAddr startAddr = (CompiledAddr)(FST_WRITER_COUNT(b->wrt));
 
-  TAOS_UNUSED(fstBuilderNodeCompileTo(bn, b->wrt, b->lastAddr, startAddr));
+  fstBuilderNodeCompileTo(bn, b->wrt, b->lastAddr, startAddr);
   b->lastAddr = (CompiledAddr)(FST_WRITER_COUNT(b->wrt) - 1);
   if (entry->state == NOTFOUND) {
     FST_REGISTRY_CELL_INSERT(entry->cell, b->lastAddr);
@@ -868,23 +915,44 @@ void* fstBuilderInsertInner(FstBuilder* b) {
   char buf64[8] = {0};
 
   void* pBuf64 = buf64;
-  TAOS_UNUSED(taosEncodeFixedU64(&pBuf64, b->len));
-  TAOS_UNUSED(idxFileWrite(b->wrt, buf64, sizeof(buf64)));
+  if (taosEncodeFixedU64(&pBuf64, b->len) < 0) {
+    indexError("failed to encode fixed u64 since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
+  if (idxFileWrite(b->wrt, buf64, sizeof(buf64)) < 0) {
+    indexError("failed to encode fixed u64 since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
 
   pBuf64 = buf64;
-  TAOS_UNUSED(taosEncodeFixedU64(&pBuf64, rootAddr));
-  TAOS_UNUSED(idxFileWrite(b->wrt, buf64, sizeof(buf64)));
+  if (taosEncodeFixedU64(&pBuf64, rootAddr) < 0) {
+    indexError("failed to encode fixed u64 since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
+  if (idxFileWrite(b->wrt, buf64, sizeof(buf64)) < 0) {
+    indexError("failed to encode fixed u64 since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
 
   char     buf32[4] = {0};
   void*    pBuf32 = buf32;
   uint32_t sum = idxFileMaskedCheckSum(b->wrt);
-  TAOS_UNUSED(taosEncodeFixedU32(&pBuf32, sum));
-  TAOS_UNUSED(idxFileWrite(b->wrt, buf32, sizeof(buf32)));
+  if (taosEncodeFixedU32(&pBuf32, sum) < 0) {
+    indexError("failed to encode fixed u32 since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
+  if (idxFileWrite(b->wrt, buf32, sizeof(buf32)) < 0) {
+    indexError("failed to encode fixed u32 since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
 
-  TAOS_UNUSED(idxFileFlush(b->wrt));
+  if (idxFileFlush(b->wrt) < 0) {
+    indexError("failed to encode fixed u32 since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
   return b->wrt;
 }
-void fstBuilderFinish(FstBuilder* b) { TAOS_UNUSED(fstBuilderInsertInner(b)); }
+void fstBuilderFinish(FstBuilder* b) {
+  void* p = fstBuilderInsertInner(b);
+  if (p == NULL) {
+    indexError("failed to insert inner since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  } else {
+    indexDebug("succ to insert inner");
+  }
+}
 
 FstSlice fstNodeAsSlice(FstNode* node) {
   FstSlice* slice = &node->data;
@@ -944,19 +1012,25 @@ Fst* fstCreate(FstSlice* slice) {
   uint64_t skip = 0;
 
   uint64_t version;
-  TAOS_UNUSED(taosDecodeFixedU64(buf, &version));
+  if (taosDecodeFixedU64(buf, &version) < 0) {
+    indexError("failed to decode fixed u64 since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
   skip += sizeof(version);
   if (version == 0 || version > VERSION) {
     return NULL;
   }
 
   uint64_t type;
-  TAOS_UNUSED(taosDecodeFixedU64(buf + skip, &type));
+  if ((taosDecodeFixedU64(buf + skip, &type)) < 0) {
+    indexError("failed to decode fixed u64 since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
   skip += sizeof(type);
 
   uint32_t checkSum = 0;
   len -= sizeof(checkSum);
-  TAOS_UNUSED(taosDecodeFixedU32(buf + len, &checkSum));
+  if ((taosDecodeFixedU32(buf + len, &checkSum)) < 0) {
+    indexError("failed to decode fixed u32 since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
   if (taosCheckChecksum(buf, len, checkSum)) {
     indexError("index file is corrupted");
     // verify fst
@@ -964,11 +1038,15 @@ Fst* fstCreate(FstSlice* slice) {
   }
   CompiledAddr rootAddr;
   len -= sizeof(rootAddr);
-  TAOS_UNUSED(taosDecodeFixedU64(buf + len, &rootAddr));
+  if ((taosDecodeFixedU64(buf + len, &rootAddr)) < 0) {
+    indexError("failed to decode fixed u64 since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
 
   uint64_t fstLen;
   len -= sizeof(fstLen);
-  TAOS_UNUSED(taosDecodeFixedU64(buf + len, &fstLen));
+  if (taosDecodeFixedU64(buf + len, &fstLen) < 0) {
+    indexError("failed to decode fixed u64 since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
   // TODO(validate root addr)
   Fst* fst = (Fst*)taosMemoryCalloc(1, sizeof(Fst));
   if (fst == NULL) {
@@ -1010,7 +1088,9 @@ void fstDestroy(Fst* fst) {
     taosMemoryFree(fst->meta);
     fstSliceDestroy(fst->data);
     taosMemoryFree(fst->data);
-    TAOS_UNUSED(taosThreadMutexDestroy(&fst->mtx));
+    if (taosThreadMutexDestroy(&fst->mtx) < 0) {
+      indexError("failed to destroy mutex since %s", tstrerror(terrno));
+    }
   }
   taosMemoryFree(fst);
 }
@@ -1038,7 +1118,13 @@ bool fstGet(Fst* fst, FstSlice* b, Output* out) {
     }
 
     FstTransition trn;
-    TAOS_UNUSED(fstNodeGetTransitionAt(root, res, &trn));
+
+    bool ret = fstNodeGetTransitionAt(root, res, &trn);
+    if (ret == false) {
+      indexDebug("failed to get state transition");
+    } else {
+      indexDebug("succ to get state transition");
+    }
     tOut += trn.out;
     root = fstGetNode(fst, trn.addr);
     if (taosArrayPush(nodes, &root) == NULL) {
@@ -1165,7 +1251,8 @@ FStmSt* stmStCreate(Fst* fst, FAutoCtx* automation, FstBoundWithData* min, FstBo
 
   sws->stack = (SArray*)taosArrayInit(256, sizeof(FstStreamState));
   sws->endAt = max;
-  TAOS_UNUSED(stmStSeekMin(sws, min));
+  bool ret = stmStSeekMin(sws, min);
+  indexDebug("seek min %d", ret);
 
   return sws;
 }
@@ -1218,7 +1305,8 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
     uint64_t res = 0;
     if (fstNodeFindInput(node, b, &res)) {
       FstTransition trn;
-      TAOS_UNUSED(fstNodeGetTransitionAt(node, res, &trn));
+      bool          ret = fstNodeGetTransitionAt(node, res, &trn);
+      indexDebug("get transition %d", ret);
       void* preState = autState;
       autState = automFuncs[aut->type].accept(aut, preState, b);
       if (taosArrayPush(sws->inp, &b) == NULL) {
@@ -1264,12 +1352,16 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
     FstStreamState* s = taosArrayGet(sws->stack, sz - 1);
     if (inclusize) {
       s->trans -= 1;
-      TAOS_UNUSED(taosArrayPop(sws->inp));
+      if (taosArrayPop(sws->inp) == NULL) {
+        indexDebug("failed to pop input");
+      }
     } else {
       FstNode*      n = s->node;
       uint64_t      trans = s->trans;
       FstTransition trn;
-      TAOS_UNUSED(fstNodeGetTransitionAt(n, trans - 1, &trn));
+      if (fstNodeGetTransitionAt(n, trans - 1, &trn)) {
+        indexDebug("get transition ");
+      }
       FstStreamState s = {
           .node = fstGetNode(sws->fst, trn.addr), .trans = 0, .out = {.null = false, .out = out}, .autState = autState};
       if (taosArrayPush(sws->stack, &s) == NULL) {
@@ -1303,13 +1395,17 @@ FStmStRslt* stmStNextWith(FStmSt* sws, streamCallback__fn callback) {
     FstStreamState* p = (FstStreamState*)taosArrayPop(sws->stack);
     if (p->trans >= FST_NODE_LEN(p->node) || !automFuncs[aut->type].canMatch(aut, p->autState)) {
       if (FST_NODE_ADDR(p->node) != fstGetRootAddr(sws->fst)) {
-        TAOS_UNUSED(taosArrayPop(sws->inp));
+        if (taosArrayPop(sws->inp) == NULL) {
+          indexDebug("failed to pop input");
+        }
       }
       fstStreamStateDestroy(p);
       continue;
     }
     FstTransition trn;
-    TAOS_UNUSED(fstNodeGetTransitionAt(p->node, p->trans, &trn));
+    if (fstNodeGetTransitionAt(p->node, p->trans, &trn)) {
+      indexDebug("get transition");
+    }
 
     Output out = p->out.out + trn.out;
     void*  nextState = automFuncs[aut->type].accept(aut, p->autState, trn.inp);

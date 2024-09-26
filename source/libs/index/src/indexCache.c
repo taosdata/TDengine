@@ -113,7 +113,8 @@ static int32_t cacheSearchTerm(void* cache, SIndexTerm* term, SIdxTRslt* tr, STe
   }
 
   taosMemoryFree(pCt);
-  TAOS_UNUSED(tSkipListDestroyIter(iter));
+  tSkipListDestroyIter(iter);
+
   return code;
 }
 static int32_t cacheSearchPrefix(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
@@ -182,7 +183,7 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
 
 _return:
   taosMemoryFree(pCt);
-  TAOS_UNUSED(tSkipListDestroyIter(iter));
+  tSkipListDestroyIter(iter);
   return code;
 }
 static int32_t cacheSearchLessThan(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
@@ -248,7 +249,7 @@ static int32_t cacheSearchTerm_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr
 
   taosMemoryFree(pCt);
   taosMemoryFree(exBuf);
-  TAOS_UNUSED(tSkipListDestroyIter(iter));
+  tSkipListDestroyIter(iter);
   return code;
 }
 static int32_t cacheSearchSuffix_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
@@ -371,7 +372,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
 _return:
   taosMemoryFree(pCt);
   taosMemoryFree(exBuf);
-  TAOS_UNUSED(tSkipListDestroyIter(iter));
+  tSkipListDestroyIter(iter);
 
   return code;
 }
@@ -441,7 +442,7 @@ void idxCacheDebug(IndexCache* cache) {
         indexInfo("{colVal: %s, version: %" PRId64 "} \t", ct->colVal, ct->version);
       }
     }
-    TAOS_UNUSED(tSkipListDestroyIter(iter));
+    tSkipListDestroyIter(iter);
 
     idxMemUnRef(tbl);
   }
@@ -452,7 +453,9 @@ void idxCacheDebug(IndexCache* cache) {
     }
     tbl = cache->imm;
     idxMemRef(tbl);
-    TAOS_UNUSED(taosThreadMutexUnlock(&cache->mtx));
+    if (taosThreadMutexUnlock(&cache->mtx) < 0) {
+      indexError("failed to unlock cache mutex since %s", tstrerror(terrno));
+    }
     if (tbl != NULL) {
       SSkipList*         slt = tbl->mem;
       SSkipListIterator* iter = tSkipListCreateIter(slt);
@@ -464,7 +467,7 @@ void idxCacheDebug(IndexCache* cache) {
           indexInfo("{colVal: %s, version: %" PRId64 "} \t", ct->colVal, ct->version);
         }
       }
-      TAOS_UNUSED(tSkipListDestroyIter(iter));
+      tSkipListDestroyIter(iter);
     }
 
     idxMemUnRef(tbl);
@@ -481,16 +484,24 @@ void idxCacheDestroySkiplist(SSkipList* slt) {
       taosMemoryFree(ct);
     }
   }
-  TAOS_UNUSED(tSkipListDestroyIter(iter));
+  tSkipListDestroyIter(iter);
   tSkipListDestroy(slt);
 }
 void idxCacheBroadcast(void* cache) {
+  int32_t     code = 0;
   IndexCache* pCache = cache;
-  TAOS_UNUSED(taosThreadCondBroadcast(&pCache->finished));
+  code = taosThreadCondBroadcast(&pCache->finished);
+  if (code < 0) {
+    indexError("failed to broadcast cache since %s", tstrerror(code));
+  }
 }
 void idxCacheWait(void* cache) {
+  int32_t     code = 0;
   IndexCache* pCache = cache;
-  TAOS_UNUSED(taosThreadCondWait(&pCache->finished, &pCache->mtx));
+  code = taosThreadCondWait(&pCache->finished, &pCache->mtx);
+  if (code < 0) {
+    indexError("failed to wait cache since %s", tstrerror(code));
+  }
 }
 void idxCacheDestroyImm(IndexCache* cache) {
   if (cache == NULL) {
@@ -505,7 +516,9 @@ void idxCacheDestroyImm(IndexCache* cache) {
   cache->imm = NULL;  // or throw int bg thread
   idxCacheBroadcast(cache);
 
-  TAOS_UNUSED(taosThreadMutexUnlock(&cache->mtx));
+  if (taosThreadMutexUnlock(&cache->mtx)) {
+    indexError("failed to unlock cache mutex");
+  }
 
   idxMemUnRef(tbl);
   idxMemUnRef(tbl);
@@ -520,8 +533,12 @@ void idxCacheDestroy(void* cache) {
   idxMemUnRef(pCache->imm);
   taosMemoryFree(pCache->colName);
 
-  TAOS_UNUSED(taosThreadMutexDestroy(&pCache->mtx));
-  TAOS_UNUSED(taosThreadCondDestroy(&pCache->finished));
+  if (taosThreadMutexDestroy(&pCache->mtx) < 0) {
+    indexError("failed to destroy cache mutex");
+  }
+  if (taosThreadCondDestroy(&pCache->finished) < 0) {
+    indexError("failed to destroy cache mutex cond");
+  }
   if (pCache->index != NULL) {
     idxReleaseRef(((SIndex*)pCache->index)->refId);
   }
@@ -551,7 +568,9 @@ Iterate* idxCacheIteratorCreate(IndexCache* cache) {
   iter->next = idxCacheIteratorNext;
   iter->getValue = idxCacheIteratorGetValue;
 
-  TAOS_UNUSED(taosThreadMutexUnlock(&cache->mtx));
+  if (taosThreadMutexUnlock(&cache->mtx) < 0) {
+    indexError("failed to unlock cache mutex since", tstrerror(terrno));
+  }
 
   return iter;
 }
@@ -559,7 +578,7 @@ void idxCacheIteratorDestroy(Iterate* iter) {
   if (iter == NULL) {
     return;
   }
-  TAOS_UNUSED(tSkipListDestroyIter(iter->iter));
+  tSkipListDestroyIter(iter->iter);
   iterateValueDestroy(&iter->val, true);
   taosMemoryFree(iter);
 }
@@ -577,7 +596,9 @@ int idxCacheSchedToMerge(IndexCache* pCache, bool notify) {
   }
   schedMsg.msg = NULL;
   idxAcquireRef(pCache->index->refId);
-  TAOS_UNUSED(taosScheduleTask(indexQhandle, &schedMsg));
+  if (taosScheduleTask(indexQhandle, &schedMsg) < 0) {
+    indexError("failed to do index schedule task since %s", tstrerror(terrno));
+  }
   return 0;
 }
 
@@ -602,11 +623,14 @@ static void idxCacheMakeRoomForWrite(IndexCache* cache) {
       }
       // 1. sched to merge
       // 2. unref cache in bgwork
-      TAOS_UNUSED(idxCacheSchedToMerge(cache, quit));
+      if (idxCacheSchedToMerge(cache, quit) < 0) {
+        indexError("failed to schedule merge task since %s", tstrerror(terrno));
+      }
     }
   }
 }
 int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
+  int32_t code = 0;
   if (cache == NULL) {
     return -1;
   }
@@ -645,14 +669,17 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   idxCacheMakeRoomForWrite(pCache);
   MemTable* tbl = pCache->mem;
   idxMemRef(tbl);
-  TAOS_UNUSED(tSkipListPut(tbl->mem, (char*)ct));
+  if (tSkipListPut(tbl->mem, (char*)ct) == NULL) {
+    code = TSDB_CODE_OUT_OF_BUFFER;
+    indexError("failed to put cache term since %s", tstrerror(code));
+  }
   idxMemUnRef(tbl);
 
   if (taosThreadMutexUnlock(&pCache->mtx) != 0) {
     indexError("failed to unlock cache mutex");
   }
   idxCacheUnRef(pCache);
-  return 0;
+  return code;
 }
 void idxCacheForceToMerge(void* cache) {
   IndexCache* pCache = cache;
@@ -839,12 +866,15 @@ static MemTable* idxInternalCacheCreate(int8_t type) {
 }
 
 static void idxDoMergeWork(SSchedMsg* msg) {
+  int32_t     code = 0;
   IndexCache* pCache = msg->ahandle;
   SIndex*     sidx = (SIndex*)pCache->index;
 
   int quit = msg->thandle ? true : false;
   taosMemoryFree(msg->thandle);
-  TAOS_UNUSED(idxFlushCacheToTFile(sidx, pCache, quit));
+  if ((code = idxFlushCacheToTFile(sidx, pCache, quit)) < 0) {
+    indexError("failed to flush cache to tfile since %s", tstrerror(code));
+  }
 }
 static bool idxCacheIteratorNext(Iterate* itera) {
   SSkipListIterator* iter = itera->iter;

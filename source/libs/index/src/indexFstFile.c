@@ -40,7 +40,9 @@ static FORCE_INLINE void idxGenLRUKey(char* buf, const char* path, int32_t block
   char* p = buf;
   SERIALIZE_STR_VAR_TO_BUF(p, path, strlen(path));
   SERIALIZE_VAR_TO_BUF(p, '_', char);
-  TAOS_UNUSED(idxInt2str(blockId, p, 0));
+  if (idxInt2str(blockId, p, 0) == NULL) {
+    indexError("failed to generate lru key");
+  }
   return;
 }
 static FORCE_INLINE int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) {
@@ -50,7 +52,9 @@ static FORCE_INLINE int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) 
     if (len + ctx->file.wBufOffset >= cap) {
       int32_t nw = cap - ctx->file.wBufOffset;
       memcpy(ctx->file.wBuf + ctx->file.wBufOffset, buf, nw);
-      TAOS_UNUSED(taosWriteFile(ctx->file.pFile, ctx->file.wBuf, cap));
+      if (taosWriteFile(ctx->file.pFile, ctx->file.wBuf, cap) < 0) {
+        indexError("failed to write file:%s", ctx->file.buf);
+      }
 
       memset(ctx->file.wBuf, 0, cap);
       ctx->file.wBufOffset = 0;
@@ -60,7 +64,9 @@ static FORCE_INLINE int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) 
 
       nw = (len / cap) * cap;
       if (nw != 0) {
-        TAOS_UNUSED(taosWriteFile(ctx->file.pFile, buf, nw));
+        if (taosWriteFile(ctx->file.pFile, buf, nw) < 0) {
+          indexError("failed to write file:%s", ctx->file.buf);
+        }
       }
 
       len -= nw;
@@ -117,7 +123,9 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
       SDataBlock* blk = taosLRUCacheValue(ctx->lru, h);
       nread = TMIN(blkLeft, len);
       memcpy(buf + total, blk->buf + blkOffset, nread);
-      TAOS_UNUSED(taosLRUCacheRelease(ctx->lru, h, false));
+      if (taosLRUCacheRelease(ctx->lru, h, false)) {
+        indexDebug("succ to release lru cache");
+      }
     } else {
       int32_t left = ctx->file.size - offset;
       if (left < kBlockSize) {
@@ -171,7 +179,9 @@ static FORCE_INLINE int idxFileCtxGetSize(IFileCtx* ctx) {
       return ctx->offset;
     } else {
       int64_t file_size = 0;
-      TAOS_UNUSED(taosStatFile(ctx->file.buf, &file_size, NULL, NULL));
+      if (taosStatFile(ctx->file.buf, &file_size, NULL, NULL) < 0) {
+        indexError("failed to get file size since %s", tstrerror(terrno));
+      }
       return (int)file_size;
     }
   }
@@ -268,16 +278,22 @@ void idxFileCtxDestroy(IFileCtx* ctx, bool remove) {
       int32_t nw = taosWriteFile(ctx->file.pFile, ctx->file.wBuf, ctx->file.wBufOffset);
       ctx->file.wBufOffset = 0;
     }
-    TAOS_UNUSED(ctx->flush(ctx));
+    if ((ctx->flush(ctx)) < 0) {
+      indexError("failed to flush file since %s", tstrerror(terrno));
+    }
     taosMemoryFreeClear(ctx->file.wBuf);
-    TAOS_UNUSED(taosCloseFile(&ctx->file.pFile));
+    if ((taosCloseFile(&ctx->file.pFile)) < 0) {
+      indexError("failed to close file since %s", tstrerror(terrno));
+    }
     if (ctx->file.readOnly) {
 #ifdef USE_MMAP
       munmap(ctx->file.ptr, ctx->file.size);
 #endif
     }
     if (remove) {
-      TAOS_UNUSED(unlink(ctx->file.buf));
+      if ((unlink(ctx->file.buf)) < 0) {
+        indexError("failed to unlink file since %s", tstrerror(terrno));
+      }
     }
   }
   taosMemoryFree(ctx);
@@ -293,7 +309,9 @@ IdxFstFile* idxFileCreate(void* wrt) {
   return cw;
 }
 void idxFileDestroy(IdxFstFile* cw) {
-  TAOS_UNUSED(idxFileFlush(cw));
+  if (idxFileFlush(cw) < 0) {
+    indexError("failed to flush file since %s", tstrerror(terrno));
+  }
   taosMemoryFree(cw);
 }
 
@@ -331,7 +349,9 @@ uint32_t idxFileMaskedCheckSum(IdxFstFile* write) {
 
 int idxFileFlush(IdxFstFile* write) {
   IFileCtx* ctx = write->wrt;
-  TAOS_UNUSED(ctx->flush(ctx));
+  if ((ctx->flush(ctx)) < 0) {
+    indexError("failed to flush file since %s", tstrerror(terrno));
+  }
   return 1;
 }
 
@@ -345,7 +365,9 @@ void idxFilePackUintIn(IdxFstFile* writer, uint64_t n, uint8_t nBytes) {
     buf[i] = (uint8_t)n;
     n = n >> 8;
   }
-  TAOS_UNUSED(idxFileWrite(writer, buf, nBytes));
+  if (idxFileWrite(writer, buf, nBytes) < 0) {
+    indexError("failed to write file since %s", tstrerror(TSDB_CODE_INDEX_INVALID_FILE));
+  }
   taosMemoryFree(buf);
   return;
 }

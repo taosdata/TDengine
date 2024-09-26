@@ -344,6 +344,7 @@ int idxUidCompare(const void* a, const void* b) {
 }
 
 int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
+  int32_t code = 0;
   if (src == NULL) {
     *dst = strndup(INDEX_DATA_NULL_STR, (int)strlen(INDEX_DATA_NULL_STR));
     if (*dst == NULL) {
@@ -359,7 +360,10 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       if (*dst == NULL) {
         return terrno;
       }
-      TAOS_UNUSED(idxInt2str(*(int64_t*)src, *dst, -1));
+      if (idxInt2str(*(int64_t*)src, *dst, -1) == NULL) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        TAOS_CHECK_GOTO(code, NULL, _quit);
+      }
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_BOOL:
@@ -368,7 +372,10 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       if (*dst == NULL) {
         return terrno;
       }
-      TAOS_UNUSED(idxInt2str(*(uint8_t*)src, *dst, 1));
+      if (idxInt2str(*(uint8_t*)src, *dst, 1) == NULL) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        TAOS_CHECK_GOTO(code, NULL, _quit);
+      }
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_TINYINT:
@@ -376,7 +383,10 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       if (*dst == NULL) {
         return terrno;
       }
-      TAOS_UNUSED(idxInt2str(*(int8_t*)src, *dst, 1));
+      if (idxInt2str(*(int8_t*)src, *dst, 1) == NULL) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        TAOS_CHECK_GOTO(code, NULL, _quit);
+      }
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_SMALLINT:
@@ -384,12 +394,18 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       if (*dst == NULL) {
         return terrno;
       }
-      TAOS_UNUSED(idxInt2str(*(int16_t*)src, *dst, -1));
+      if (idxInt2str(*(int16_t*)src, *dst, -1) == NULL) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        TAOS_CHECK_GOTO(code, NULL, _quit);
+      }
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_USMALLINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      TAOS_UNUSED(idxInt2str(*(uint16_t*)src, *dst, -1));
+      if (idxInt2str(*(uint16_t*)src, *dst, -1) == NULL) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        TAOS_CHECK_GOTO(code, NULL, _quit);
+      }
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_INT:
@@ -397,7 +413,10 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       if (*dst == NULL) {
         return terrno;
       }
-      TAOS_UNUSED(idxInt2str(*(int32_t*)src, *dst, -1));
+      if (idxInt2str(*(int32_t*)src, *dst, -1) == NULL) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        TAOS_CHECK_GOTO(code, NULL, _quit);
+      }
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_UINT:
@@ -405,7 +424,10 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       if (*dst == NULL) {
         return terrno;
       }
-      TAOS_UNUSED(idxInt2str(*(uint32_t*)src, *dst, 1));
+      if (idxInt2str(*(uint32_t*)src, *dst, 1) == NULL) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        TAOS_CHECK_GOTO(code, NULL, _quit);
+      }
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_BIGINT:
@@ -421,7 +443,10 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       if (*dst == NULL) {
         return terrno;
       }
-      TAOS_UNUSED(idxInt2str(*(uint64_t*)src, *dst, 1));
+      if (idxInt2str(*(uint64_t*)src, *dst, 1) == NULL) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        TAOS_CHECK_GOTO(code, NULL, _quit);
+      }
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_FLOAT:
@@ -467,4 +492,6 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       break;
   }
   return tlen;
+_quit:
+  return code;
 }

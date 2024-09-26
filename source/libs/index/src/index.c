@@ -98,18 +98,29 @@ static int32_t idxMergeCacheAndTFile(SArray* result, IterateValue* icache, Itera
 // int32_t        indexSerialKey(ICacheKey* key, char* buf);
 
 static void idxPost(void* idx) {
+  int32_t code = 0;
   SIndex* pIdx = idx;
-  TAOS_UNUSED(tsem_post(&pIdx->sem));
+  code = tsem_post(&pIdx->sem);
+  if (code != 0) {
+    indexError("failed to post sem since %s", tstrerror(code));
+  }
 }
 static void indexWait(void* idx) {
+  int32_t code = 0;
   SIndex* pIdx = idx;
-  TAOS_UNUSED(tsem_wait(&pIdx->sem));
+  code = tsem_wait(&pIdx->sem);
+  if (code != 0) {
+    indexError("failed to sem wait sice %s", tstrerror(code));
+  }
 }
 
 int32_t indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
-  TAOS_UNUSED(taosThreadOnce(&isInit, indexEnvInit));
+  int code = TSDB_CODE_SUCCESS;
+  code = taosThreadOnce(&isInit, indexEnvInit);
+  if (code != 0) {
+    indexError("failed to init index env since %s", tstrerror(code));
+  }
 
-  int     code = TSDB_CODE_SUCCESS;
   SIndex* idx = taosMemoryCalloc(1, sizeof(SIndex));
   if (idx == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, END);
@@ -162,8 +173,15 @@ END:
 void indexDestroy(void* handle) {
   if (handle == NULL) return;
   SIndex* idx = handle;
-  TAOS_UNUSED(taosThreadMutexDestroy(&idx->mtx));
-  TAOS_UNUSED(tsem_destroy(&idx->sem));
+  int32_t code = taosThreadMutexDestroy(&idx->mtx);
+  if (code != 0) {
+    indexError("failed to destroy index since %s", tstrerror(code));
+  }
+  code = tsem_destroy(&idx->sem);
+  if (code != 0) {
+    indexError("failed to destroy index sem since %s", tstrerror(code));
+  }
+
   idxTFileDestroy(idx->tindex);
   taosMemoryFree(idx->path);
 
@@ -194,24 +212,33 @@ void indexClose(SIndex* sIdx) {
   }
 
   idxReleaseRef(sIdx->refId);
-  TAOS_UNUSED(idxRemoveRef(sIdx->refId));
+  idxRemoveRef(sIdx->refId);
 }
 int64_t idxAddRef(void* p) {
   // impl
   return taosAddRef(indexRefMgt, p);
 }
-int32_t idxRemoveRef(int64_t ref) {
+void idxRemoveRef(int64_t ref) {
   // impl later
-  return taosRemoveRef(indexRefMgt, ref);
+  int32_t code = taosRemoveRef(indexRefMgt, ref);
+  if (code < 0) {
+    indexError("failed to to remove index since %s", tstrerror(code));
+  }
 }
 
 void idxAcquireRef(int64_t ref) {
   // impl
-  TAOS_UNUSED(taosAcquireRef(indexRefMgt, ref));
+  void* p = taosAcquireRef(indexRefMgt, ref);
+  if (p == NULL) {
+    indexError("failed to acquire index ref since %s", tstrerror(terrno));
+  }
 }
 void idxReleaseRef(int64_t ref) {
   // impl
-  TAOS_UNUSED(taosReleaseRef(indexRefMgt, ref));
+  int32_t code = taosReleaseRef(indexRefMgt, ref);
+  if (code < 0) {
+    indexError("failed to release index ref since %s", tstrerror(code));
+  }
 }
 
 int32_t indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
@@ -287,7 +314,10 @@ int32_t indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* re
       return terrno;
     }
   }
-  TAOS_UNUSED(idxMergeFinalResults(iRslts, opera, result));
+  code = idxMergeFinalResults(iRslts, opera, result);
+  if (code != 0) {
+    indexError("failed to do idx merge since %s", tstrerror(code));
+  }
   idxInterRsltDestroy(iRslts);
   return 0;
 }
@@ -430,7 +460,10 @@ void indexRebuild(SIndexJson* idx, void* iter) {
   schedMsg.fp = idxSchedRebuildIdx;
   schedMsg.ahandle = idx;
   idxAcquireRef(idx->refId);
-  TAOS_UNUSED(taosScheduleTask(indexQhandle, &schedMsg));
+  int32_t code = taosScheduleTask(indexQhandle, &schedMsg);
+  if (code != 0) {
+    indexError("failed to do index schedule task");
+  }
 }
 
 /*
@@ -478,7 +511,9 @@ static int32_t idxTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** resu
 
   IndexCache** pCache = taosHashGet(sIdx->colObj, buf, sz);
   cache = (pCache == NULL) ? NULL : *pCache;
-  TAOS_UNUSED(taosThreadMutexUnlock(&sIdx->mtx));
+  if (taosThreadMutexUnlock(&sIdx->mtx) < 0) {
+    indexError("failed to unlock index mutex since %s", tstrerror(terrno));
+  }
 
   *result = taosArrayInit(4, sizeof(uint64_t));
   if (*result == NULL) {
@@ -773,7 +808,9 @@ static int64_t idxGetAvailableVer(SIndex* sIdx, IndexCache* cache) {
     indexError("failed to lock tfile mutex");
   }
   TFileReader* rd = tfileCacheGet(tf->cache, &key);
-  TAOS_UNUSED(taosThreadMutexUnlock(&tf->mtx));
+  if (taosThreadMutexUnlock(&tf->mtx) < 0) {
+    indexError("failed to unlock tfile mutex");
+  }
 
   if (rd != NULL) {
     ver = (ver > rd->header.version ? ver : rd->header.version) + 1;
@@ -840,7 +877,9 @@ int32_t idxSerialCacheKey(ICacheKey* key, char* buf) {
 
   char* p = buf;
   char  tbuf[65] = {0};
-  TAOS_UNUSED(idxInt2str((int64_t)key->suid, tbuf, 0));
+  if (idxInt2str((int64_t)key->suid, tbuf, 0) == NULL) {
+    indexError("failed to convert suid to string");
+  }
 
   SERIALIZE_STR_VAR_TO_BUF(buf, tbuf, strlen(tbuf));
   SERIALIZE_VAR_TO_BUF(buf, '_', char);
