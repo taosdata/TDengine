@@ -180,7 +180,19 @@ python3 stmt_native.py
 
 python3 stmt_ws.py
 
+taos -s "drop topic if exists topic_meters"
+check_transactions || exit 1
+reset_cache || exit 1
+taos -s "drop database if exists power"
+check_transactions || exit 1
+reset_cache || exit 1
 python3 tmq_native.py
 
+taos -s "drop topic if exists topic_meters"
+check_transactions || exit 1
+reset_cache || exit 1
+taos -s "drop database if exists power"
+check_transactions || exit 1
+reset_cache || exit 1
 python3 tmq_websocket_example.py
 
