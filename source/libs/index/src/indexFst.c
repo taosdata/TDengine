@@ -1157,11 +1157,20 @@ FStmSt* stmStCreate(Fst* fst, FAutoCtx* automation, FstBoundWithData* min, FstBo
   sws->fst = fst;
   sws->aut = automation;
   sws->inp = (SArray*)taosArrayInit(256, sizeof(uint8_t));
+  if (sws->inp == NULL) {
+    taosMemoryFree(sws);
+    return NULL;
+  }
 
   sws->emptyOutput.null = true;
   sws->emptyOutput.out = 0;
 
   sws->stack = (SArray*)taosArrayInit(256, sizeof(FstStreamState));
+  if (sws->stack == NULL) {
+    taosArrayDestroy(sws->inp);
+    taosMemoryFree(sws);
+    return NULL;
+  }
   sws->endAt = max;
   TAOS_UNUSED(stmStSeekMin(sws, min));
 

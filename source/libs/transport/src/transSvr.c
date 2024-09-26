@@ -846,6 +846,10 @@ static bool uvRecvReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
 
     STransMsg tmsg = {.code = 0, .info.handle = (void*)pConn, .info.traceId = traceId, .info.ahandle = (void*)0x9527};
     SSvrMsg*  srvMsg = taosMemoryCalloc(1, sizeof(SSvrMsg));
+    if (srvMsg == NULL) {
+      tError("failed to alloc buf to send release resp since %s", tstrerror(terrno));
+      return true;
+    }
     srvMsg->msg = tmsg;
     srvMsg->type = Release;
     srvMsg->pConn = pConn;
@@ -1410,6 +1414,10 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrd* thrd = (SWorkThrd*)taosMemoryCalloc(1, sizeof(SWorkThrd));
+    if (thrd == NULL) {
+      code = terrno;
+      goto End;
+    }
     thrd->pTransInst = shandle;
     thrd->quit = false;
     thrd->pTransInst = shandle;
@@ -1663,6 +1671,10 @@ void destroyWorkThrd(SWorkThrd* pThrd) {
 }
 void sendQuitToWorkThrd(SWorkThrd* pThrd) {
   SSvrMsg* msg = taosMemoryCalloc(1, sizeof(SSvrMsg));
+  if (msg == NULL) {
+    tError("failed to send quit msg to work thread since %s", tstrerror(terrno));
+    return;
+  }
   msg->type = Quit;
   tDebug("server send quit msg to work thread");
   TAOS_UNUSED(transAsyncSend(pThrd->asyncPool, &msg->q));

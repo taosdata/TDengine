@@ -667,6 +667,10 @@ static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
     plist = taosHashGet(pool, key, klen);
 
     SMsgList* nList = taosMemoryCalloc(1, sizeof(SMsgList));
+    if (nList == NULL) {
+      tError("failed to alloc memory for msg list, reason:%s", tstrerror(terrno));
+      return NULL;
+    }
     QUEUE_INIT(&nList->msgQ);
     nList->numOfConn++;
 
@@ -715,7 +719,7 @@ static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
 
     SMsgList* nList = taosMemoryCalloc(1, sizeof(SMsgList));
     if (nList == NULL) {
-      tError("failed to alloc memory for msg list, reason:%s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      tError("failed to alloc memory for msg list, reason:%s", tstrerror(terrno));
       return NULL;
     }
 
@@ -1300,11 +1304,16 @@ void cliSend(SCliConn* pConn) {
     uv_timer_t* timer = taosArrayGetSize(pThrd->timerList) > 0 ? *(uv_timer_t**)taosArrayPop(pThrd->timerList) : NULL;
     if (timer == NULL) {
       timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
+      if (timer == NULL) {
+        tError("failed to alloc timer since %s", tstrerror(terrno));
+      }
       tDebug("no available timer, create a timer %p", timer);
       TAOS_UNUSED(uv_timer_init(pThrd->loop, timer));
     }
-    timer->data = pConn;
-    pConn->timer = timer;
+    if (timer != NULL) {
+      timer->data = pConn;
+      pConn->timer = timer;
+    }
 
     tGTrace("%s conn %p start timer for msg:%s", CONN_GET_INST_LABEL(pConn), pConn, TMSG_INFO(pMsg->msgType));
     TAOS_UNUSED(uv_timer_start((uv_timer_t*)pConn->timer, cliReadTimeoutCb, TRANS_READ_TIMEOUT, 0));
@@ -2552,6 +2561,10 @@ static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
   cliSchedMsgToDebug(pMsg, transLabel(pThrd->pTransInst));
 
   STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
+  if (arg == NULL) {
+    tError("failed to malloc memory, reason:%s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return;
+  }
   arg->param1 = pMsg;
   arg->param2 = pThrd;
 

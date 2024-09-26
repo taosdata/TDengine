@@ -836,6 +836,7 @@ static MemTable* idxInternalCacheCreate(int8_t type) {
       IDX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? idxCacheJsonTermCompare : idxCacheTermCompare;
 
   MemTable* tbl = taosMemoryCalloc(1, sizeof(MemTable));
+  if (tbl == NULL) return NULL;
   idxMemRef(tbl);
   // if (ttype == TSDB_DATA_TYPE_BINARY || ttype == TSDB_DATA_TYPE_NCHAR || ttype == TSDB_DATA_TYPE_GEOMETRY) {
   tbl->mem = tSkipListCreate(MAX_SKIP_LIST_LEVEL, ttype, MAX_INDEX_KEY_LEN, cmpFn, SL_ALLOW_DUP_KEY, idxCacheTermGet);
