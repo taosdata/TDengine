@@ -18,8 +18,6 @@ fi
 
 echo "setting TEST_PATH: $TEST_PATH" 
 
-TEST_PATH="../../debug/build/bin"
-
 LOG_FILE="docs-c-test-out.log"
 
 > $LOG_FILE
