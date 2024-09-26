@@ -11,15 +11,15 @@
 
 # -*- coding: utf-8 -*-
 
+# -*- taostest --setup=cluster/compact_test_rep3.yaml --case=taosc_insert/create_tables_by_csv.py --keep -*-
+
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 import copy
-import random
 import os
 import threading
 import time
 import csv
-from shapely.geometry import Point
 from shapely import wkb
 from shapely.geometry.base import BaseGeometry
 import re
@@ -44,8 +44,6 @@ class CreateTablesByCSV(TDCase):
         self.tdCom.default_tag_index_start_num = 1
         self.common_tag_name_str = ",".join(self.common_tag_name_list)
         self.batch_create_table_str = self.common_tag_name_str + ",tbname"
-        
-        print(self.common_tag_type_str)
         self.tdCom.full_type_list = self.common_type_list
         self.tdCom.default_varchar_length = 64
         self.tdCom.default_nchar_length = 64
@@ -272,7 +270,6 @@ class CreateTablesByCSV(TDCase):
             csv_reader = csv.reader(file)
             data_list = [row for row in csv_reader if not row[0].startswith('#')]
             data_list = [[item.strip("'") for item in row if item != "exceed_tags"] for row in data_list]
-        print("------", data_list)
         csv_check_list = list()
         for i in range(check_rows):
             # if i < 2:
@@ -306,8 +303,6 @@ class CreateTablesByCSV(TDCase):
         for data_list, checklist in zip(sorted_new_data_list,sorted_csv_check_list):
             if 0.9 < float(data_list[float_index])/float(checklist[float_index]) < 1.1:
                 data_list[float_index] = str(checklist[float_index])
-        print("-----sorted_new_data_list", sorted_new_data_list)
-        print("-----sorted_csv_check_list", sorted_csv_check_list)
         self.tdSql.checkEqual(sorted_new_data_list, sorted_csv_check_list)
 
     def create_ctables_by_tag_and_tbname(self, table_count=10):
@@ -866,7 +861,7 @@ class CreateTablesByCSV(TDCase):
         self.create_tables_by_csv(tag_fields=tag_cnt_str, csv=self.csv_file)
         end = time.time()
         perf = int(table_count/(end - start))
-        self.logger.info(f'create {table_count} tables with {custom_tag_count*self.perf_type_count} tags by csv cost {end-start:.2f}s, and QPS is {perf}tables/s')
+        self.logger.info(f'create {table_count} tables with {custom_tag_count*self.perf_type_count} tags by csv cost {end-start:.2f}s, and QPS is {perf} tables/s')
 
     def create_ctables_by_exchange_tag_and_tbname(self, table_count=10, idx1=-1, idx2=-2):
         """
@@ -918,19 +913,16 @@ class CreateTablesByCSV(TDCase):
         self.tdSql.checkEqual(t1_query_res, t1_expected_res)
 
     def run(self):
-        # self.gen_csv(custom_tag_count=128)
-        # print(self.tdCom.gen_default_tag_str())
+        self.tdSql.execute(f'alter local "maxInsertBatchRows 10000"')
         # return
         self.create_ctables_by_tag_and_tbname()
         self.create_ctables_by_notag_and_tbname()
         self.create_ctables_by_128tag_and_tbname(use_except=True)
         self.create_ctables_by_tag_and_tbname_with_note()
-        # # return
         self.create_exists_ctables_without_if_not_exists()
         self.create_ctables_with_disorder_tagtype_legal()
         self.create_ctables_with_disorder_tagtype_illegal()
         self.create_ctables_with_no_stables()
-        # TODO confirm TD-30865
         self.create_ctables_with_dup_tagname()
         self.create_ctables_by_tag_and_notbname()
         self.create_ctables_by_no_contained_tag()
@@ -946,8 +938,8 @@ class CreateTablesByCSV(TDCase):
         self.create_ctables_numeric_cross_border()
         self.create_ctables_float_cross_border()
         self.create_ctables_by_txt_or_xlsx()
-        # #  TODO
-        # self.creating_but_killed()
+        # # #  TODO
+        # # self.creating_but_killed()
         self.threading_create_ctables()
         self.threading_create_ctables(part_except=True)
         self.threading_create_ctables(dup_tbname=True)
@@ -957,17 +949,16 @@ class CreateTablesByCSV(TDCase):
         # perf test
         
         self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=1)
-        self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=2)
-        self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=4)
-        self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=8)
-        self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=16)
-        self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=32)
-        # ! TD-30856
+        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=2)
+        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=4)
+        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=8)
+        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=16)
+        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=32)
         # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=1000000, custom_tag_count=32)
         # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=10000000, custom_tag_count=32)
         
-        # stability
-        self.create_ctables_by_tag_and_tbname_perf(100000000)
+        # # stability
+        # self.create_ctables_by_tag_and_tbname_perf(10000000)
         
         
         

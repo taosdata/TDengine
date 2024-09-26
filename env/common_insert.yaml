@@ -20,6 +20,7 @@ settings:
             checkpointInterval: 60
             snodeAddress: 127.0.0.1:873
             ratioOfVnodeStreamThreads: 4
+            maxInsertBatchRows: 10000
   - name: taospy
     fqdn: [ceph01]
     spec:
