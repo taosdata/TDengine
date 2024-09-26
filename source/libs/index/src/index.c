@@ -377,7 +377,7 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
       taosMemoryFree(tm->colName);
       taosMemoryFree(tm);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return NULL
+      return NULL;
     }
     len = (int32_t)strlen(emptyStr);
   }
