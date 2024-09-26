@@ -89,7 +89,7 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo) {
       if (pItem->tmrId) {
         smaDebug("vgId:%d, stop fetch timer %p for table %" PRIi64 " level %d", SMA_VID(pSma), pItem->tmrId,
                  pInfo->suid, i + 1);
-        if(!taosTmrStopA(&pItem->tmrId)){
+        if (!taosTmrStopA(&pItem->tmrId)) {
           smaError("vgId:%d, failed to stop fetch timer for table %" PRIi64 " level %d", SMA_VID(pSma), pInfo->suid,
                    i + 1);
         }
@@ -404,7 +404,7 @@ int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
   }
 
   STSchema *pTSchema;
-  code = metaGetTbTSchemaNotNull(SMA_META(pSma), suid, -1, 1,  &pTSchema);
+  code = metaGetTbTSchemaNotNull(SMA_META(pSma), suid, -1, 1, &pTSchema);
   TAOS_CHECK_EXIT(code);
   pRSmaInfo->pSma = pSma;
   pRSmaInfo->pTSchema = pTSchema;
@@ -820,7 +820,10 @@ static int32_t tdExecuteRSmaImplAsync(SSma *pSma, int64_t version, const void *p
   int64_t nItems = atomic_fetch_add_64(&pRSmaStat->nBufItems, 1);
 
   if (atomic_load_8(&pInfo->assigned) == 0) {
-    (void)tsem_post(&(pRSmaStat->notEmpty));
+    if (tsem_post(&(pRSmaStat->notEmpty)) != 0) {
+      smaError("vgId:%d, failed to post notEmpty semaphore for rsma %" PRIi64 " since %s", SMA_VID(pSma), suid,
+               tstrerror(terrno));
+    }
   }
 
   // smoothing consume
@@ -1385,7 +1388,8 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
       if (rsmaTriggerStat == TASK_TRIGGER_STAT_PAUSED) {
         bool ret = taosTmrReset(tdRSmaFetchTrigger, RSMA_FETCH_INTERVAL, pItem, smaMgmt.tmrHandle, &pItem->tmrId);
         if (!ret) {
-          smaWarn("vgId:%d, rsma fetch task not reset for level %" PRIi8 " since tmr reset failed, rsetId:%d refId:%" PRIi64,
+          smaWarn("vgId:%d, rsma fetch task not reset for level %" PRIi8
+                  " since tmr reset failed, rsetId:%d refId:%" PRIi64,
                   SMA_VID(pSma), pItem->level, smaMgmt.rsetId, pRSmaRef->refId);
         }
       }
@@ -1407,7 +1411,10 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
       atomic_store_8(&pItem->fetchLevel, 1);
 
       if (atomic_load_8(&pRSmaInfo->assigned) == 0) {
-        (void)tsem_post(&(pStat->notEmpty));
+        if (tsem_post(&(pStat->notEmpty)) != 0) {
+          smaError("vgId:%d, rsma fetch task not start for level:%" PRIi8 " suid:%" PRIi64 " since sem post failed",
+                   SMA_VID(pSma), pItem->level, pRSmaInfo->suid);
+        }
       }
     } break;
     case TASK_TRIGGER_STAT_INACTIVE: {
@@ -1641,7 +1648,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
               batchMax = 100 / batchMax;
               batchMax = TMAX(batchMax, 4);
             }
-            while (occupied || (++batchCnt < batchMax)) {    // greedy mode
+            while (occupied || (++batchCnt < batchMax)) {                 // greedy mode
               TAOS_UNUSED(taosReadAllQitems(pInfo->queue, pInfo->qall));  // queue has mutex lock
               int32_t qallItemSize = taosQallItemSize(pInfo->qall);
               if (qallItemSize > 0) {

@@ -44,7 +44,12 @@ static int32_t create_fs(STsdb *pTsdb, STFileSystem **fs) {
   }
 
   fs[0]->tsdb = pTsdb;
-  (void)tsem_init(&fs[0]->canEdit, 0, 1);
+  int32_t code = tsem_init(&fs[0]->canEdit, 0, 1);
+  if (code) {
+    taosMemoryFree(fs[0]);
+    return code;
+  }
+
   fs[0]->fsstate = TSDB_FS_STATE_NORMAL;
   fs[0]->neid = 0;
   TARRAY2_INIT(fs[0]->fSetArr);
@@ -58,7 +63,9 @@ static void destroy_fs(STFileSystem **fs) {
 
   TARRAY2_DESTROY(fs[0]->fSetArr, NULL);
   TARRAY2_DESTROY(fs[0]->fSetArrTmp, NULL);
-  (void)tsem_destroy(&fs[0]->canEdit);
+  if (tsem_destroy(&fs[0]->canEdit) != 0) {
+    tsdbError("failed to destroy semaphore");
+  }
   taosMemoryFree(fs[0]);
   fs[0] = NULL;
 }
@@ -100,7 +107,7 @@ _exit:
     tsdbError("%s failed at %s:%d since %s", __func__, fname, __LINE__, tstrerror(code));
   }
   taosMemoryFree(data);
-  (void)taosCloseFile(&fp);
+  taosCloseFileWithLog(&fp);
   return code;
 }
 
@@ -140,7 +147,7 @@ _exit:
     tsdbError("%s failed at %s:%d since %s", __func__, fname, __LINE__, tstrerror(code));
     json[0] = NULL;
   }
-  (void)taosCloseFile(&fp);
+  taosCloseFileWithLog(&fp);
   taosMemoryFree(data);
   return code;
 }
@@ -803,7 +810,11 @@ void tsdbEnableBgTask(STsdb *pTsdb) {
 void tsdbCloseFS(STFileSystem **fs) {
   if (fs[0] == NULL) return;
 
-  TAOS_UNUSED(tsdbDisableAndCancelAllBgTask((*fs)->tsdb));
+  int32_t code = tsdbDisableAndCancelAllBgTask((*fs)->tsdb);
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID((*fs)->tsdb->pVnode), __func__, __LINE__,
+              tstrerror(code));
+  }
   close_file_system(fs[0]);
   destroy_fs(fs);
   return;
@@ -833,7 +844,9 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT e
     current_fname(fs->tsdb, current_t, TSDB_FCURRENT_M);
   }
 
-  (void)tsem_wait(&fs->canEdit);
+  if (tsem_wait(&fs->canEdit) != 0) {
+    tsdbError("vgId:%d failed to wait semaphore", TD_VID(fs->tsdb->pVnode));
+  }
   fs->etype = etype;
 
   // edit
@@ -865,7 +878,7 @@ static void tsdbFSSetBlockCommit(STFileSet *fset, bool block) {
   }
 }
 
-int32_t tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
+void tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
   (void)taosThreadMutexLock(&tsdb->mutex);
   STFileSet *fset;
   tsdbFSGetFSet(tsdb->pFS, fid, &fset);
@@ -877,7 +890,7 @@ int32_t tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
     }
   }
   (void)taosThreadMutexUnlock(&tsdb->mutex);
-  return 0;
+  return;
 }
 
 // IMPORTANT: the caller must hold fs->tsdb->mutex
@@ -939,13 +952,17 @@ _exit:
   } else {
     tsdbInfo("vgId:%d %s done, etype:%d", TD_VID(fs->tsdb->pVnode), __func__, fs->etype);
   }
-  (void)tsem_post(&fs->canEdit);
+  if (tsem_post(&fs->canEdit) != 0) {
+    tsdbError("vgId:%d failed to post semaphore", TD_VID(fs->tsdb->pVnode));
+  }
   return code;
 }
 
 int32_t tsdbFSEditAbort(STFileSystem *fs) {
   int32_t code = abort_edit(fs);
-  (void)tsem_post(&fs->canEdit);
+  if (tsem_post(&fs->canEdit) != 0) {
+    tsdbError("vgId:%d failed to post semaphore", TD_VID(fs->tsdb->pVnode));
+  }
   return code;
 }
 

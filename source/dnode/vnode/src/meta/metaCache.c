@@ -216,7 +216,7 @@ void metaCacheClose(SMeta* pMeta) {
   }
 }
 
-static int32_t metaRehashCache(SMetaCache* pCache, int8_t expand) {
+static void metaRehashCache(SMetaCache* pCache, int8_t expand) {
   int32_t code = 0;
   int32_t nBucket;
 
@@ -228,8 +228,7 @@ static int32_t metaRehashCache(SMetaCache* pCache, int8_t expand) {
 
   SMetaCacheEntry** aBucket = (SMetaCacheEntry**)taosMemoryCalloc(nBucket, sizeof(SMetaCacheEntry*));
   if (aBucket == NULL) {
-    code = terrno;
-    goto _exit;
+    return;
   }
 
   // rehash
@@ -250,9 +249,7 @@ static int32_t metaRehashCache(SMetaCache* pCache, int8_t expand) {
   taosMemoryFree(pCache->sEntryCache.aBucket);
   pCache->sEntryCache.nBucket = nBucket;
   pCache->sEntryCache.aBucket = aBucket;
-
-_exit:
-  return code;
+  return;
 }
 
 int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo) {
@@ -279,7 +276,7 @@ int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo) {
     }
   } else {  // insert
     if (pCache->sEntryCache.nEntry >= pCache->sEntryCache.nBucket) {
-      TAOS_UNUSED(metaRehashCache(pCache, 1));
+      metaRehashCache(pCache, 1);
 
       iBucket = TABS(pInfo->uid) % pCache->sEntryCache.nBucket;
     }
@@ -317,7 +314,7 @@ int32_t metaCacheDrop(SMeta* pMeta, int64_t uid) {
     pCache->sEntryCache.nEntry--;
     if (pCache->sEntryCache.nEntry < pCache->sEntryCache.nBucket / 4 &&
         pCache->sEntryCache.nBucket > META_CACHE_BASE_BUCKET) {
-      TAOS_UNUSED(metaRehashCache(pCache, 0));
+      metaRehashCache(pCache, 0);
     }
   } else {
     code = TSDB_CODE_NOT_FOUND;

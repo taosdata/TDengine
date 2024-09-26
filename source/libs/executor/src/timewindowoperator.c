@@ -1223,6 +1223,9 @@ _end:
 }
 
 static void destroyStateWindowOperatorInfo(void* param) {
+  if (param == NULL) {
+    return;
+  }
   SStateWindowOperatorInfo* pInfo = (SStateWindowOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   taosMemoryFreeClear(pInfo->stateKey.pData);

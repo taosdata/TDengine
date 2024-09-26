@@ -152,15 +152,17 @@ _error:
 }
 
 void destroyAggOperatorInfo(void* param) {
+  if (param == NULL) {
+    return;
+  }
   SAggOperatorInfo* pInfo = (SAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
 
-  if (pInfo->pOperator != NULL) {
+  if (pInfo->pOperator) {
     cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
                       &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
     pInfo->pOperator = NULL;
   }
-
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarExprSup);
   cleanupGroupResInfo(&pInfo->groupResInfo);

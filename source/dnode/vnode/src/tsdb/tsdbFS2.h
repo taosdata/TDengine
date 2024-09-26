@@ -59,10 +59,10 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT e
 int32_t tsdbFSEditCommit(STFileSystem *fs);
 int32_t tsdbFSEditAbort(STFileSystem *fs);
 // other
-void    tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
-int32_t tsdbFSCheckCommit(STsdb *tsdb, int32_t fid);
-void    tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset);
-void    tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid);
+void tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
+void tsdbFSCheckCommit(STsdb *tsdb, int32_t fid);
+void tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset);
+void tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid);
 // utils
 int32_t save_fs(const TFileSetArray *arr, const char *fname);
 void    current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype);
