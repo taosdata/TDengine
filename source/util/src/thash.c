@@ -837,8 +837,8 @@ void taosHashCancelIterate(SHashObj *pHashObj, void *p) {
   // only add the read lock to disable the resize process
   taosHashRLock(pHashObj);
 
-  int slot;
-  (void)taosHashReleaseNode(pHashObj, p, &slot);
+  int   slot;
+  void *tp = taosHashReleaseNode(pHashObj, p, &slot);
 
   SHashEntry *pe = pHashObj->hashList[slot];
 

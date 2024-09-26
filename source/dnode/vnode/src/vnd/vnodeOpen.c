@@ -544,7 +544,9 @@ void vnodeClose(SVnode *pVnode) {
     vnodeCloseBufPool(pVnode);
 
     // destroy handle
-    (void)tsem_destroy(&pVnode->syncSem);
+    if (tsem_destroy(&pVnode->syncSem) != 0) {
+      vError("vgId:%d, failed to destroy semaphore", TD_VID(pVnode));
+    }
     (void)taosThreadCondDestroy(&pVnode->poolNotEmpty);
     (void)taosThreadMutexDestroy(&pVnode->mutex);
     (void)taosThreadMutexDestroy(&pVnode->lock);

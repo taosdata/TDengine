@@ -178,7 +178,6 @@ void *taosProcessSchedQueue(void *scheduler) {
       (*(msg.tfp))(msg.ahandle, msg.thandle);
   }
 
-
   return NULL;
 }
 
@@ -230,7 +229,9 @@ void taosCleanUpScheduler(void *param) {
 
   for (int32_t i = 0; i < pSched->numOfThreads; ++i) {
     if (taosCheckPthreadValid(pSched->qthread[i])) {
-      (void)tsem_post(&pSched->fullSem);
+      if (tsem_post(&pSched->fullSem) != 0) {
+        uError("post %s fullSem failed(%s)", pSched->label, strerror(terrno));
+      }
     }
   }
   for (int32_t i = 0; i < pSched->numOfThreads; ++i) {
@@ -240,12 +241,17 @@ void taosCleanUpScheduler(void *param) {
     }
   }
 
-  (void)tsem_destroy(&pSched->emptySem);
-  (void)tsem_destroy(&pSched->fullSem);
+  if (tsem_destroy(&pSched->emptySem) != 0) {
+    uError("failed to destroy %s emptySem", pSched->label);
+  }
+  if (tsem_destroy(&pSched->fullSem) != 0) {
+    uError("failed to destroy %s fullSem", pSched->label);
+  }
   (void)taosThreadMutexDestroy(&pSched->queueMutex);
 
   if (pSched->pTimer) {
-    (void)taosTmrStop(pSched->pTimer);
+    bool r = taosTmrStop(pSched->pTimer);
+    uTrace("stop timer:%p, result:%d", pSched->pTimer, r);
     pSched->pTimer = NULL;
   }
 

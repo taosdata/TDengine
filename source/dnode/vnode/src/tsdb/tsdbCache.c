@@ -1474,6 +1474,9 @@ int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlo
   TAOS_CHECK_RETURN(metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, sver, &pTSchema));
 
   ctxArray = taosArrayInit(pBlockData->nColData, sizeof(SLastUpdateCtx));
+  if (ctxArray == NULL) {
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
+  }
 
   // 1. prepare last
   STsdbRowKey tsdbRowKey = {0};
