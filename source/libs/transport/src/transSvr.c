@@ -759,9 +759,15 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
   queue       wq;
 
   // batch process to avoid to lock/unlock frequently
-  TAOS_UNUSED(taosThreadMutexLock(&item->mtx));
+  if (taosThreadMutexLock(&item->mtx) != 0) {
+    tError("failed to lock mutex");
+  }
+
   QUEUE_MOVE(&item->qmsg, &wq);
-  TAOS_UNUSED(taosThreadMutexUnlock(&item->mtx));
+
+  if (taosThreadMutexUnlock(&item->mtx) != 0) {
+    tError("failed to unlock mutex");
+  }
 
   while (!QUEUE_IS_EMPTY(&wq)) {
     queue* head = QUEUE_HEAD(&wq);
@@ -1637,7 +1643,10 @@ void destroyWorkThrd(SWorkThrd* pThrd) {
   }
   if (pThrd->inited) {
     sendQuitToWorkThrd(pThrd);
-    TAOS_UNUSED(taosThreadJoin(pThrd->thread, NULL));
+    if ((taosThreadJoin(pThrd->thread, NULL)) != 0) {
+      tError("failed to join work-thread");
+    }
+
     SRV_RELEASE_UV(pThrd->loop);
     TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SSvrMsg, destroySmsgWrapper, NULL);
   }
@@ -1657,7 +1666,9 @@ void transCloseServer(void* arg) {
   if (srv->inited) {
     tDebug("send quit msg to accept thread");
     TAOS_UNUSED(uv_async_send(srv->pAcceptAsync));
-    TAOS_UNUSED(taosThreadJoin(srv->thread, NULL));
+    if (taosThreadJoin(srv->thread, NULL) != 0) {
+      tError("failed to join accept-thread");
+    }
 
     SRV_RELEASE_UV(srv->loop);
     for (int i = 0; i < srv->numOfThreads; i++) {

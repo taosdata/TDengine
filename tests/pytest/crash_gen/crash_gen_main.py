@@ -1949,6 +1949,11 @@ class TaskCreateStream(StateTransitionTask):
                 result.append(part)
         return ', '.join(result)
 
+    # def formatSelectPartStr(self, selectPart):
+    #     parts = selectPart.split(',')
+    #     parts = [f"`{part}`" for part in parts]
+    #     return ','.join(parts)
+
     def generateRandomSubQuery(self, st, colDict, dbname, tbname, subtable=False, doAggr=0):
         selectPartList = []
         groupKeyList = []
@@ -1963,7 +1968,7 @@ class TaskCreateStream(StateTransitionTask):
                     if len(selectStrs) > 0:
                         selectPartList.append(selectStrs)
                     if len(groupKey) > 0:
-                        groupKeyList.append(groupKey)
+                        groupKeyList.append(f'`{groupKey}`')
 
         if doAggr == 2:
             selectPartList = [random.choice(selectPartList)] if len(selectPartList) > 0 else ["count(*)"]
@@ -1976,16 +1981,16 @@ class TaskCreateStream(StateTransitionTask):
             partitionVal = st.getPartitionValue(groupKeyStr)
             if subtable:
                 partitionVal = f'{partitionVal},tbname' if len(partitionVal) > 0 else "partition by tbname"
-            return f"SELECT {selectPartStr} FROM {dbname}.{tbname} {partitionVal} GROUP BY {groupKeyStr} {st.getSlimitValue()};"
+            return f"SELECT {selectPartStr} FROM {dbname}.{tbname} {partitionVal} {st.getOrderByValue(groupKeyStr)} {st.getSlimitValue()};"
         else:
             groupKeyStr = "tbname"
             partitionVal = "partition by tbname" if subtable else ""
-        # randomSelectPart = f'`{random.choice(selectPartList)}`' if len(selectPartList) > 0 else groupKeyStr
+        randomSelectPart = random.choice(selectPartList) if len(selectPartList) > 0 else groupKeyStr
+        randomSelectPartStr = st.formatSelectPartStr(randomSelectPart)
         windowStr = st.getWindowStr(st.getRandomWindow(), colDict, stream=True)
         if ("COUNT_WINDOW" in windowStr or "STATE_WINDOW" in windowStr or "EVENT_WINDOW" in windowStr) and "partition" not in partitionVal:
             windowStr = f"partition by tbname {windowStr}"
-        return f"SELECT {selectPartStr} FROM {dbname}.{tbname} {st.getTimeRangeFilter(tbname, tsCol, doAggr=doAggr)} {partitionVal} {windowStr};"
-
+        return f"SELECT {selectPartStr} FROM {dbname}.{tbname} {st.getTimeRangeFilter(tbname, tsCol, doAggr=doAggr)} {partitionVal} {windowStr} {st.getFillValue()} {st.getOrderByValue(randomSelectPartStr)};"
 
     def genCreateStreamSql(self, st, colDict, tbname):
         dbname = self._db.getName()
@@ -2007,15 +2012,12 @@ class TaskCreateStream(StateTransitionTask):
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         try:
             dbc = wt.getDbConn()
-            print("stream dbc------", dbc)
-
             if not self._db.exists(dbc):
                 Logging.debug("Skipping task, no DB yet")
                 return
             sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
             if not sTable.ensureSuperTable(self, wt.getDbConn()):  # Ensure the super table exists
                 return
-            print("stream sTable------", sTable)
             tags = sTable._getTags(dbc)
             print("stream tags------", tags)
             cols = sTable._getCols(dbc)
@@ -2212,7 +2214,6 @@ class TaskCreateTsma(StateTransitionTask):
             if not sTable.ensureSuperTable(self, wt.getDbConn()):  # Ensure the super table exists
                 return
             createTsmaSqls = self.genCreateTsmaSql(sTable, selectItems, stbname)
-            # exec create topics
             self.execWtSql(wt, "use {}".format(dbname))
             for createTsmaSql in createTsmaSqls:
                 self.execWtSql(wt, createTsmaSql)
@@ -2707,6 +2708,29 @@ class TdSuperTable:
                 # Logging.info("Unlocking table after creation: {}".format(fullTableName))
                 task.unlockTable(fullTableName)  # no matter what
                 # Logging.info("Table unlocked after creation: {}".format(fullTableName))
+
+    def formatSelectPartStr(self, selectPart):
+        level = 0
+        parts = []
+        current_part = []
+
+        for char in selectPart:
+            if char == '(':
+                level += 1
+            elif char == ')':
+                level -= 1
+
+            if char == ',' and level == 0:
+                parts.append(''.join(current_part))
+                current_part = []
+            else:
+                current_part.append(char)
+
+        if current_part:
+            parts.append(''.join(current_part))
+
+        parts = [f"`{part}`" for part in parts]
+        return ','.join(parts)
 
     def _getTagStrForSql(self, dbc):
         tags = self._getTags(dbc)
@@ -3587,7 +3611,6 @@ class TdSuperTable:
             return self.getSystableSql()
         tsCol = "ts"
         for column_name, column_type in colDict.items():
-            # print(f"-----column_name, column_type: {column_name}, {column_type}")
             if column_type == "TIMESTAMP":
                 tsCol = column_name
             for fm in FunctionMap:
@@ -3598,7 +3621,7 @@ class TdSuperTable:
                         selectPartList.append(selectStrs)
                     # print("-----selectPartList", selectPartList)
                     if len(groupKey) > 0:
-                        groupKeyList.append(groupKey)
+                        groupKeyList.append(f'`{groupKey}`')
         if doAggr == 2:
             selectPartList = [random.choice(selectPartList)] if len(selectPartList) > 0 else ["count(*)"]
         if len(groupKeyList) > 0:
@@ -3606,8 +3629,9 @@ class TdSuperTable:
             return f"SELECT {', '.join(selectPartList)} FROM {self._dbName}.{tbname} GROUP BY {groupKeyStr} {self.getOrderByValue(groupKeyStr)} {self.getSlimitValue()};"
         else:
             groupKeyStr = "tbname"
-        randomSelectPart = f'`{random.choice(selectPartList)}`' if len(selectPartList) > 0 else groupKeyStr
-        return f"SELECT {', '.join(selectPartList)} FROM {self._dbName}.{tbname} {self.getTimeRangeFilter(tbname, tsCol)} {self.getPartitionValue(groupKeyStr)} {self.getWindowStr(self.getRandomWindow(), colDict)} {self.getSlidingValue()} {self.getOrderByValue(randomSelectPart)} {self.getSlimitValue()};"
+        partitionGroupPart = random.choice(selectPartList) if len(selectPartList) > 0 else groupKeyStr
+        partitionGroupPartStr = self.formatSelectPartStr(partitionGroupPart)
+        return f"SELECT {', '.join(selectPartList)} FROM {self._dbName}.{tbname} {self.getTimeRangeFilter(tbname, tsCol)} {self.getPartitionValue(groupKeyStr)} {self.getWindowStr(self.getRandomWindow(), colDict)} {self.getSlidingValue()} {self.getFillValue()} {self.getOrderByValue(partitionGroupPartStr)} {self.getSlimitValue()};"
 
     def remove_duplicates(self, selectPartStr):
         parts = selectPartStr.split(',')
@@ -3842,7 +3866,6 @@ class TaskAlterTags(StateTransitionTask):
         else:  # dice == 3
             sTable.changeTag(dbc, "extraTag", "newTag")
             # sql = "alter table db.{} change tag extraTag newTag".format(tblName)
-
 
 class TaskRestartService(StateTransitionTask):
     _isRunning = False

@@ -621,7 +621,7 @@ class ServiceManager:
                     tFirst = self._getFirstInstance()
                     tFirst.createDnode(ti.getDbTarget())
                 ti.printFirst10Lines()
-                # ti.getSmThread().procIpcBatch(trimToTarget=10, forceOutput=True)  # for printing 10 lines                                     
+                # ti.getSmThread().procIpcBatch(trimToTarget=10, forceOutput=True)  # for printing 10 lines
 
     def stopTaosServices(self):
         with self._lock:

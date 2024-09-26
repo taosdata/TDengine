@@ -252,7 +252,9 @@ double tdigestQuantile(TDigest *t, double q) {
   int64_t    weight_so_far;
   SCentroid *a, *b, tmp;
 
-  (void)tdigestCompress(t);
+  if (tdigestCompress(t) != 0) {
+    uError("failed to compress t-digest");
+  }
   if (t->num_centroids == 0) return NAN;
   if (t->num_centroids == 1) return t->centroids[0].mean;
   if (FLOAT_EQ(q, 0.0)) return t->min;

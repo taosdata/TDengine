@@ -994,7 +994,9 @@ Fst* fstCreate(FstSlice* slice) {
   *s = fstSliceCopy(slice, 0, FST_SLICE_LEN(slice) - 1);
   fst->data = s;
 
-  TAOS_UNUSED(taosThreadMutexInit(&fst->mtx, NULL));
+  if (taosThreadMutexInit(&fst->mtx, NULL) != 0) {
+    goto FST_CREAT_FAILED;
+  }
   return fst;
 
 FST_CREAT_FAILED:
