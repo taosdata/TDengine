@@ -483,7 +483,7 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
     int nPage = pgnoEnd - pgno + 1;
     for (int i = 0; i < nPage; ++i) {
       if (pFD->szFile != pgno) {  // DONOT cache last volatile page
-        (void)tsdbCacheSetPageS3(pFD->pTsdb->pgCache, pFD, pgno, pBlock + i * pFD->szPage);
+        tsdbCacheSetPageS3(pFD->pTsdb->pgCache, pFD, pgno, pBlock + i * pFD->szPage);
       }
 
       if (szHint > 0 && n >= size) {
