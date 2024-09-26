@@ -87,18 +87,18 @@ char *stpncpy(char *dest, const char *src, int n) {
   if (size == n) return dest;
   return memset(dest, '\0', n - size);
 }
-#endif
-
+#else
 char *taosStrndup(const char *s, int size) {
   if (s == NULL) {
     return NULL;
   }
-  char* p = strndup(s, size);
+  char *p = strndup(s, size);
   if (NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
   return p;
 }
+#endif
 
 int32_t taosStr2int64(const char *str, int64_t *val) {
   if (str == NULL || val == NULL) {

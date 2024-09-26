@@ -324,7 +324,7 @@ void killAllCheckpointTrans(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo) {
 
     size_t len = 0;
     void  *pKey = taosHashGetKey(pDb, &len);
-    stpncpy(p, pKey, 127);
+    tstrncpy(p, pKey, 128);
 
     int32_t code = doKillCheckpointTrans(pMnode, pKey, len);
     if (code) {
