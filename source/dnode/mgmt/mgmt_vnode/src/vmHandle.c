@@ -35,10 +35,14 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
     SVnodeObj *pVnode = *ppVnode;
     SVnodeLoad vload = {.vgId = pVnode->vgId};
     if (!pVnode->failed) {
-      (void)vnodeGetLoad(pVnode->pImpl, &vload);
+      if (vnodeGetLoad(pVnode->pImpl, &vload) != 0) {
+        dError("failed to get vnode load");
+      }
       if (isReset) vnodeResetLoad(pVnode->pImpl, &vload);
     }
-    (void)taosArrayPush(pInfo->pVloads, &vload);
+    if (taosArrayPush(pInfo->pVloads, &vload) == NULL) {
+      dError("failed to push vnode load");
+    }
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
 
@@ -116,7 +120,9 @@ void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   pMgmt->state.numOfBatchInsertReqs = numOfBatchInsertReqs;
   pMgmt->state.numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs;
 
-  (void)tfsGetMonitorInfo(pMgmt->pTfs, &pInfo->tfs);
+  if (tfsGetMonitorInfo(pMgmt->pTfs, &pInfo->tfs) != 0) {
+    dError("failed to get tfs monitor info");
+  }
   taosArrayDestroy(pVloads);
 }
 
@@ -845,7 +851,9 @@ int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   vmCloseVnode(pMgmt, pVnode, false);
-  (void)vmWriteVnodeListToFile(pMgmt);
+  if (vmWriteVnodeListToFile(pMgmt) != 0) {
+    dError("vgId:%d, failed to write vnode list since %s", vgId, terrstr());
+  }
 
   dInfo("vgId:%d, is dropped", vgId);
   return 0;

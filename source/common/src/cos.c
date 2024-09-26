@@ -63,12 +63,9 @@ int32_t s3Begin() {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-void s3End() { (void)S3_deinitialize(); }
+void s3End() { S3_deinitialize(); }
 
 int32_t s3Init() { TAOS_RETURN(TSDB_CODE_SUCCESS); /*s3Begin();*/ }
-
-void s3CleanUp() { /*s3End();*/
-}
 
 static int32_t s3ListBucket(char const *bucketname);
 
@@ -506,7 +503,9 @@ S3Status initial_multipart_callback(const char *upload_id, void *callbackData) {
 }
 
 S3Status MultipartResponseProperiesCallback(const S3ResponseProperties *properties, void *callbackData) {
-  (void)responsePropertiesCallbackNull(properties, callbackData);
+  if (S3StatusOK != responsePropertiesCallbackNull(properties, callbackData)) {
+    uError("%s failed at line %d to process null callback.", __func__, __LINE__);
+  }
 
   MultipartPartData *data = (MultipartPartData *)callbackData;
   int                seq = data->seq;
@@ -517,7 +516,9 @@ S3Status MultipartResponseProperiesCallback(const S3ResponseProperties *properti
 }
 
 S3Status MultipartResponseProperiesCallbackWithCp(const S3ResponseProperties *properties, void *callbackData) {
-  (void)responsePropertiesCallbackNull(properties, callbackData);
+  if (S3StatusOK != responsePropertiesCallbackNull(properties, callbackData)) {
+    uError("%s failed at line %d to process null callback.", __func__, __LINE__);
+  }
 
   MultipartPartData *data = (MultipartPartData *)callbackData;
   int                seq = data->seq;
@@ -897,8 +898,6 @@ upload:
     if (partData.put_object_data.status != S3StatusOK) {
       s3PrintError(__FILE__, __LINE__, __func__, partData.put_object_data.status, partData.put_object_data.err_msg);
       TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(EIO), &lino, _exit);
-
-      //(void)cos_cp_dump(&cp);
     }
 
     if (!manager.etags[seq - 1]) {
@@ -952,7 +951,9 @@ _exit:
   }
 
   if (cp.thefile) {
-    (void)cos_cp_close(cp.thefile);
+    if (cos_cp_close(cp.thefile)) {
+      uError("%s failed at line %d to close cp file.", __func__, lino);
+    }
   }
   if (cp.parts) {
     taosMemoryFree(cp.parts);
@@ -1293,8 +1294,8 @@ void s3DeleteObjectsByPrefix(const char *prefix) {
   SArray *objectArray = getListByPrefix(prefix);
   if (objectArray == NULL) return;
   int32_t code = s3DeleteObjects(TARRAY_DATA(objectArray), TARRAY_SIZE(objectArray));
-  if (code) {
-    uError("failed to delete objects with prefix %s", prefix);
+  if (!code) {
+    uError("%s failed at line %d since %s.", __func__, __LINE__, tstrerror(code));
   }
   taosArrayDestroyEx(objectArray, s3FreeObjectKey);
 }
@@ -1542,7 +1543,7 @@ int32_t s3Init() {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-void s3CleanUp() { cos_http_io_deinitialize(); }
+// void s3CleanUp() { cos_http_io_deinitialize(); }
 
 static void log_status(cos_status_t *s) {
   cos_warn_log("status->code: %d", s->code);
@@ -1748,20 +1749,20 @@ bool s3Get(const char *object_name, const char *path) {
   cos_table_t           *headers = NULL;
   int                    traffic_limit = 0;
 
-  //创建内存池
+  // 创建内存池
   cos_pool_create(&p, NULL);
 
-  //初始化请求选项
+  // 初始化请求选项
   options = cos_request_options_create(p);
   s3InitRequestOptions(options, is_cname);
   cos_str_set(&bucket, tsS3BucketName);
   if (traffic_limit) {
-    //限速值设置范围为819200 - 838860800，即100KB/s - 100MB/s，如果超出该范围将返回400错误
+    // 限速值设置范围为819200 - 838860800，即100KB/s - 100MB/s，如果超出该范围将返回400错误
     headers = cos_table_make(p, 1);
     cos_table_add_int(headers, "x-cos-traffic-limit", 819200);
   }
 
-  //下载对象
+  // 下载对象
   cos_str_set(&file, path);
   cos_str_set(&object, object_name);
   s = cos_get_object_to_file(options, &bucket, &object, headers, NULL, &file, &resp_headers);
@@ -1772,7 +1773,7 @@ bool s3Get(const char *object_name, const char *path) {
     cos_warn_log("get object failed\n");
   }
 
-  //销毁内存池
+  // 销毁内存池
   cos_pool_destroy(p);
 
   return ret;
@@ -1794,10 +1795,10 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_
   // int  traffic_limit = 0;
   char range_buf[64];
 
-  //创建内存池
+  // 创建内存池
   cos_pool_create(&p, NULL);
 
-  //初始化请求选项
+  // 初始化请求选项
   options = cos_request_options_create(p);
   // init_test_request_options(options, is_cname);
   s3InitRequestOptions(options, is_cname);
@@ -1846,7 +1847,7 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_
   // cos_warn_log("Download data=%s", buf);
 
 _exit:
-  //销毁内存池
+  // 销毁内存池
   cos_pool_destroy(p);
 
   *ppBlock = buf;
@@ -1935,15 +1936,15 @@ long s3Size(const char *object_name) {
   cos_string_t           object;
   cos_table_t           *resp_headers = NULL;
 
-  //创建内存池
+  // 创建内存池
   cos_pool_create(&p, NULL);
 
-  //初始化请求选项
+  // 初始化请求选项
   options = cos_request_options_create(p);
   s3InitRequestOptions(options, is_cname);
   cos_str_set(&bucket, tsS3BucketName);
 
-  //获取对象元数据
+  // 获取对象元数据
   cos_str_set(&object, object_name);
   s = cos_head_object(options, &bucket, &object, NULL, &resp_headers);
   // print_headers(resp_headers);
@@ -1957,7 +1958,7 @@ long s3Size(const char *object_name) {
     cos_warn_log("head object failed\n");
   }
 
-  //销毁内存池
+  // 销毁内存池
   cos_pool_destroy(p);
 
   return size;
@@ -1966,7 +1967,6 @@ long s3Size(const char *object_name) {
 #else
 
 int32_t s3Init() { return 0; }
-void    s3CleanUp() {}
 int32_t s3PutObjectFromFile(const char *file, const char *object) { return 0; }
 int32_t s3PutObjectFromFile2(const char *file, const char *object, int8_t withcp) { return 0; }
 int32_t s3PutObjectFromFileOffset(const char *file, const char *object_name, int64_t offset, int64_t size) { return 0; }
