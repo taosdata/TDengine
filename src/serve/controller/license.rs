@@ -82,13 +82,13 @@ impl<'a> LicenseValidator<'a> {
                     return Ok(match license.number {
                         0 => LicenseKind::Connector(anyhow!(
                             "Number of {:?} has reached the licensed upper limit.",
-                            license.r#type.clone().unwrap_or_default()
+                            license.r#type
                         )),
                         n if n > 0 => {
                             if used > n as usize {
                                 LicenseKind::Connector(anyhow!(
                                     "Number of {:?} has reached the licensed upper limit.",
-                                    license.r#type.clone().unwrap_or_default()
+                                    license.r#type
                                 ))
                             } else {
                                 kind

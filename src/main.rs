@@ -878,7 +878,6 @@ fn main() -> Result<()> {
 
     let worker_threads = args.global.jobs.clone();
     let runtime = build_runtime(&format!("{}x", build::CUS_PROMPT), worker_threads)?;
-
     tracing::info!("{}x version: {version}", build::CUS_PROMPT);
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");

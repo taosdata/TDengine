@@ -156,7 +156,6 @@ impl Consumer {
             "migrate mongodb query finished, total batch: {}",
             batch_count
         );
-
         writer_handler.await??;
         tracing::debug!(
             "migrate mongodb writer finished, total batch: {}",
