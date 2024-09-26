@@ -43,7 +43,6 @@
 //   }
 //   strcpy(tsSnodeAddress, "127.0.0.1");
 //   int ret = RUN_ALL_TESTS();
-//   s3CleanUp();
 //   return ret;
 // }
 

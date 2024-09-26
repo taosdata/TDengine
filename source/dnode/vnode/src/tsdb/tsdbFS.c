@@ -130,7 +130,7 @@ _exit:
     tsdbError("%s failed at line %d since %s, fname:%s", __func__, lino, tstrerror(code), fname);
   }
   taosMemoryFree(pData);
-  (void)taosCloseFile(&pFD);
+  taosCloseFileWithLog(&pFD);
   return code;
 }
 
@@ -300,26 +300,26 @@ static int32_t load_fs(const char *fname, STsdbFS *pFS) {
   int64_t size;
   code = taosFStatFile(pFD, &size, NULL);
   if (code != 0) {
-    (void)taosCloseFile(&pFD);
+    taosCloseFileWithLog(&pFD);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   pData = taosMemoryMalloc(size);
   if (pData == NULL) {
     code = terrno;
-    (void)taosCloseFile(&pFD);
+    taosCloseFileWithLog(&pFD);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (taosReadFile(pFD, pData, size) < 0) {
     code = terrno;
-    (void)taosCloseFile(&pFD);
+    taosCloseFileWithLog(&pFD);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (!taosCheckChecksumWhole(pData, size)) {
     code = TSDB_CODE_FILE_CORRUPTED;
-    (void)taosCloseFile(&pFD);
+    taosCloseFileWithLog(&pFD);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -331,7 +331,7 @@ _exit:
     tsdbError("%s failed at line %d since %s, fname:%s", __func__, lino, tstrerror(code), fname);
   }
   taosMemoryFree(pData);
-  (void)taosCloseFile(&pFD);
+  taosCloseFileWithLog(&pFD);
   return code;
 }
 

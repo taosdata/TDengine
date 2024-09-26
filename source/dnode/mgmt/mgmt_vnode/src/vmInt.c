@@ -252,8 +252,12 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
 
   if (commitAndRemoveWal) {
     dInfo("vgId:%d, commit data for vnode split", pVnode->vgId);
-    TAOS_CHECK_GOTO(vnodeSyncCommit(pVnode->pImpl), NULL, _closed);
-    TAOS_CHECK_GOTO(vnodeBegin(pVnode->pImpl), NULL, _closed);
+    if (vnodeSyncCommit(pVnode->pImpl) != 0) {
+      dError("vgId:%d, failed to commit data", pVnode->vgId);
+    }
+    if (vnodeBegin(pVnode->pImpl) != 0) {
+      dError("vgId:%d, failed to begin", pVnode->vgId);
+    }
     dInfo("vgId:%d, commit data finished", pVnode->vgId);
   }
 
@@ -267,13 +271,11 @@ _closed:
   if (commitAndRemoveWal) {
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d%swal", TD_DIRSEP, pVnode->vgId, TD_DIRSEP);
     dInfo("vgId:%d, remove all wals, path:%s", pVnode->vgId, path);
-    code = tfsRmdir(pMgmt->pTfs, path);
-    if (code != 0) {
-      dError("vgId:%d, failed to remove wal, path:%s, reason:%s", pVnode->vgId, path, tstrerror(code));
+    if (tfsRmdir(pMgmt->pTfs, path) != 0) {
+      dTrace("vgId:%d, failed to remove wals, path:%s", pVnode->vgId, path);
     }
-    code = tfsMkdir(pMgmt->pTfs, path);
-    if (code != 0) {
-      dError("vgId:%d, failed to create wal, path:%s, reason:%s", pVnode->vgId, path, tstrerror(code));
+    if (tfsMkdir(pMgmt->pTfs, path) != 0) {
+      dTrace("vgId:%d, failed to create wals, path:%s", pVnode->vgId, path);
     }
   }
 

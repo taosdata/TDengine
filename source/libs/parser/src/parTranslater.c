@@ -522,7 +522,7 @@ static int32_t rewriteDropTableWithMetaCache(STranslateContext* pCxt) {
   if (!pMetaCache->pTableMeta &&
       !(pMetaCache->pTableMeta =
             taosHashInit(tbMetaExSize, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK))) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SMetaRes** ppMetaRes = NULL;
@@ -2087,7 +2087,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
       pVal->datum.p = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
       if (NULL == pVal->datum.p) {
         if (isHexChar) taosMemoryFree(data);
-        return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
+        return generateDealNodeErrMsg(pCxt, terrno);
       }
       varDataSetLen(pVal->datum.p, size);
       memcpy(varDataVal(pVal->datum.p), data, size);
@@ -2103,7 +2103,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
       int32_t len = TMIN(targetDt.bytes - VARSTR_HEADER_SIZE, vlen);
       pVal->datum.p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE + 1);
       if (NULL == pVal->datum.p) {
-        return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
+        return generateDealNodeErrMsg(pCxt, terrno);
       }
       varDataSetLen(pVal->datum.p, len);
       strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
@@ -2119,7 +2119,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
     case TSDB_DATA_TYPE_NCHAR: {
       pVal->datum.p = taosMemoryCalloc(1, targetDt.bytes + 1);
       if (NULL == pVal->datum.p) {
-        return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
+        return generateDealNodeErrMsg(pCxt, terrno);
       }
 
       int32_t len = 0;
@@ -6264,7 +6264,7 @@ static int32_t unionEqualCondTbnamesOfSameTable(SArray* aTableTbnames, SEqCondTb
     SEqCondTbNameTableInfo* info = taosArrayGet(aTableTbnames, i);
     if (info->pRealTable == pInfo->pRealTable) {
       if (NULL == taosArrayAddAll(info->aTbnames, pInfo->aTbnames)) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         break;
       }
       taosArrayDestroy(pInfo->aTbnames);
@@ -14705,7 +14705,7 @@ static int32_t rewriteDropSuperTablewithOpt(STranslateContext* pCxt, SQuery* pQu
       break;
     }
     if (!isdigit(pStmt->tableName[i])) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, "Table does not exist: `%s`.`%s`",
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, "STable not exist: `%s`.`%s`",
                                      pStmt->dbName, pStmt->tableName);
     }
   }
@@ -14715,8 +14715,11 @@ static int32_t rewriteDropSuperTablewithOpt(STranslateContext* pCxt, SQuery* pQu
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
   code = getTargetName(pCxt, &name, pTableName);
   if (TSDB_CODE_SUCCESS != code) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "%s: db:`%s`, tbuid:`%s`", tstrerror(code), pStmt->dbName,
-                                   pStmt->tableName);
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "%s: db:`%s`, tbuid:`%s`",
+                                   (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)
+                                       ? "STable not exist"
+                                       : tstrerror(code),
+                                   pStmt->dbName, pStmt->tableName);
   }
   tstrncpy(pStmt->tableName, pTableName, TSDB_TABLE_NAME_LEN);  // rewrite table uid to table name
 

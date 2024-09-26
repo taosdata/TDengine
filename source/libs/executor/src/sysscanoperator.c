@@ -2049,7 +2049,7 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     if (isTaskKilled(pOperator->pTaskInfo)) {
       setOperatorCompleted(pOperator);
       (*ppRes) = NULL;
-      return pTaskInfo->code;
+      break;
     }
 
     blockDataCleanup(pInfo->pRes);
@@ -2092,12 +2092,18 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
         continue;
       }
       (*ppRes) = pBlock;
-      return pTaskInfo->code;
     } else {
       (*ppRes) = NULL;
-      return pTaskInfo->code;
     }
+    break;
   }
+
+_end:
+  if (pTaskInfo->code) {
+    qError("%s failed since %s", __func__, tstrerror(pTaskInfo->code));
+    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+  }
+  return pTaskInfo->code;
 }
 
 static void sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScanInfo* pInfo, const char* name,

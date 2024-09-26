@@ -450,7 +450,7 @@ static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
 
   QRY_PARAM_CHECK(ppRes);
   if (pOperator->status == OP_EXEC_DONE) {
-    return TSDB_CODE_SUCCESS;
+    return code;
   }
 
   if (pOperator->status == OP_RES_TO_RETURN) {
@@ -502,6 +502,7 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   } else {
     (*ppRes) = buildGroupResultDataBlockByHash(pOperator);
   }
@@ -1533,8 +1534,9 @@ static int32_t doStreamHashPartitionNext(SOperatorInfo* pOperator, SSDataBlock**
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    pTaskInfo->code = code;
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = NULL;
   return code;

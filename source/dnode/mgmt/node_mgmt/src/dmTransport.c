@@ -19,9 +19,8 @@
 #include "tversion.h"
 
 static inline void dmSendRsp(SRpcMsg *pMsg) {
-  int32_t code = rpcSendResponse(pMsg);
-  if (code != 0) {
-    dError("failed to send response since %s", tstrerror(code));
+  if (rpcSendResponse(pMsg) != 0) {
+    dError("failed to send response, msg:%p", pMsg);
   }
 }
 
@@ -120,10 +119,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   int32_t svrVer = 0;
   code = taosVersionStrToInt(version, &svrVer);
   if (code != 0) {
-    dError("failed to get ver since %s", tstrerror(code));
+    dError("failed to convert version string:%s to int, code:%d", version, code);
     goto _OVER;
   }
-
   if ((code = taosCheckVersionCompatible(pRpc->info.cliVer, svrVer, 3)) != 0) {
     dError("Version not compatible, cli ver: %d, svr ver: %d, ip:0x%x", pRpc->info.cliVer, svrVer,
            pRpc->info.conn.clientIp);
@@ -263,9 +261,8 @@ _OVER:
       if (pWrapper != NULL) {
         dmSendRsp(&rsp);
       } else {
-        int32_t ret = rpcSendResponse(&rsp);
-        if (ret != 0) {
-          dError("failed to send response since %s", tstrerror(ret));
+        if (rpcSendResponse(&rsp) != 0) {
+          dError("failed to send response, msg:%p", &rsp);
         }
       }
     }
@@ -323,7 +320,9 @@ static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
     return code;
   } else {
     pMsg->info.handle = 0;
-    (void)rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL);
+    if (rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL) != 0) {
+      dError("failed to send rpc msg");
+    }
     return 0;
   }
 }
@@ -409,10 +408,8 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.notWaitAvaliableConn = 0;
 
-  int32_t code = taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
-  if (code != 0) {
-    dError("failed to init dnode rpc client since %s", tstrerror(code));
-    return terrno = code;
+  if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
+    dError("failed to convert version string:%s to int", version);
   }
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
@@ -457,7 +454,10 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.supportBatch = 1;
   rpcInit.batchSize = 8 * 1024;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-  int32_t code = taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+
+  if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
+    dError("failed to convert version string:%s to int", version);
+  }
 
   pTrans->statusRpc = rpcOpen(&rpcInit);
   if (pTrans->statusRpc == NULL) {
@@ -502,10 +502,8 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.supportBatch = 1;
   rpcInit.batchSize = 8 * 1024;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-  int32_t code = taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
-  if (code != 0) {
-    dError("failed to init dnode rpc sync since %s", tstrerror(code));
-    return terrno = code;
+  if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
+    dError("failed to convert version string:%s to int", version);
   }
 
   pTrans->syncRpc = rpcOpen(&rpcInit);
@@ -557,11 +555,9 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.parent = pDnode;
   rpcInit.compressSize = tsCompressMsgSize;
-  int32_t code = taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
-  if (code != 0) {
-    terrno = code;
-    dError("failed to init dnode rpc server since:%s", tstrerror(terrno));
-    return terrno;
+
+  if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
+    dError("failed to convert version string:%s to int", version);
   }
 
   pTrans->serverRpc = rpcOpen(&rpcInit);

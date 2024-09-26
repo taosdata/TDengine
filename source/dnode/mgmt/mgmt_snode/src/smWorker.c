@@ -30,12 +30,8 @@ static void smProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
   SSnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = 0;
   for (int32_t i = 0; i < numOfMsgs; i++) {
-    SRpcMsg *pMsg = NULL;
-    code = taosGetQitem(qall, (void **)&pMsg);
-    if (code != 0) {
-      dError("failed to get msg from snode-write queue since %s", tstrerror(code));
-      continue;
-    }
+    SRpcMsg        *pMsg = NULL;
+    int32_t         num = taosGetQitem(qall, (void **)&pMsg);
     const STraceId *trace = &pMsg->info.traceId;
 
     dTrace("msg:%p, get from snode-write queue", pMsg);

@@ -81,12 +81,21 @@ static void dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert
 static void dmStopDnode(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGUSR1);
   // taosIgnSignal(SIGUSR2);
-  int32_t code = 0;
-  TAOS_CHECK_GOTO(taosIgnSignal(SIGTERM), NULL, _exception);
-  TAOS_CHECK_GOTO(taosIgnSignal(SIGHUP), NULL, _exception);
-  TAOS_CHECK_GOTO(taosIgnSignal(SIGINT), NULL, _exception);
-  TAOS_CHECK_GOTO(taosIgnSignal(SIGABRT), NULL, _exception);
-  TAOS_CHECK_GOTO(taosIgnSignal(SIGBREAK), NULL, _exception);
+  if (taosIgnSignal(SIGTERM) != 0) {
+    dWarn("failed to ignore signal SIGTERM");
+  }
+  if (taosIgnSignal(SIGHUP) != 0) {
+    dWarn("failed to ignore signal SIGHUP");
+  }
+  if (taosIgnSignal(SIGINT) != 0) {
+    dWarn("failed to ignore signal SIGINT");
+  }
+  if (taosIgnSignal(SIGABRT) != 0) {
+    dWarn("failed to ignore signal SIGABRT");
+  }
+  if (taosIgnSignal(SIGBREAK) != 0) {
+    dWarn("failed to ignore signal SIGBREAK");
+  }
 
   dInfo("shut down signal is %d", signum);
 #ifndef WINDOWS
@@ -106,11 +115,19 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGBREAK);
   int32_t code = 0;
 #ifndef WINDOWS
-  TAOS_CHECK_GOTO(taosIgnSignal(SIGBUS), NULL, _exception);
+  if (taosIgnSignal(SIGBUS) != 0) {
+    dWarn("failed to ignore signal SIGBUS");
+  }
 #endif
-  TAOS_CHECK_GOTO(taosIgnSignal(SIGABRT), NULL, _exception);
-  TAOS_CHECK_GOTO(taosIgnSignal(SIGFPE), NULL, _exception);
-  TAOS_CHECK_GOTO(taosIgnSignal(SIGSEGV), NULL, _exception);
+  if (taosIgnSignal(SIGABRT) != 0) {
+    dWarn("failed to ignore signal SIGABRT");
+  }
+  if (taosIgnSignal(SIGFPE) != 0) {
+    dWarn("failed to ignore signal SIGABRT");
+  }
+  if (taosIgnSignal(SIGSEGV) != 0) {
+    dWarn("failed to ignore signal SIGABRT");
+  }
 
   char       *pMsg = NULL;
   const char *flags = "UTL FATAL ";
@@ -142,24 +159,31 @@ _exception:
 }
 
 static void dmSetSignalHandle() {
-  (void)taosSetSignal(SIGUSR1, dmSetDebugFlag);
-  (void)taosSetSignal(SIGUSR2, dmSetAssert);
-  (void)taosSetSignal(SIGTERM, dmStopDnode);
-  (void)taosSetSignal(SIGHUP, dmStopDnode);
-  (void)taosSetSignal(SIGINT, dmStopDnode);
-  (void)taosSetSignal(SIGBREAK, dmStopDnode);
+  if (taosSetSignal(SIGUSR1, dmSetDebugFlag) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGUSR2, dmSetAssert) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGTERM, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGHUP, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGINT, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGBREAK, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
 #ifndef WINDOWS
-  (void)taosSetSignal(SIGTSTP, dmStopDnode);
-  (void)taosSetSignal(SIGQUIT, dmStopDnode);
-#endif
-
-#if 0
-#ifndef WINDOWS
-  (void)taosSetSignal(SIGBUS, dmLogCrash);
-#endif
-  (void)taosSetSignal(SIGABRT, dmLogCrash);
-  (void)taosSetSignal(SIGFPE, dmLogCrash);
-  (void)taosSetSignal(SIGSEGV, dmLogCrash);
+  if (taosSetSignal(SIGTSTP, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGQUIT, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
 #endif
 }
 

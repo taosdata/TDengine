@@ -3179,7 +3179,7 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
         }
 
         if (!taosArrayAddAll(pInfo->pTombData, pIter->pMemDelData)) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
+          TAOS_CHECK_GOTO(terrno, &lino, _err);
         }
 
         size_t delSize = TARRAY_SIZE(pInfo->pTombData);
@@ -3682,8 +3682,7 @@ int32_t tsdbCacheGetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHan
   return code;
 }
 
-int32_t tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *pPage) {
-  int32_t    code = 0;
+void tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *pPage) {
   char       key[128] = {0};
   int        keyLen = 0;
   LRUHandle *handle = NULL;
@@ -3696,7 +3695,7 @@ int32_t tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_
     _taos_lru_deleter_t deleter = deleteBCache;
     uint8_t            *pPg = taosMemoryMalloc(charge);
     if (!pPg) {
-      TAOS_RETURN(terrno);
+      return;  // ignore error with s3 cache and leave error untouched
     }
     memcpy(pPg, pPage, charge);
 
@@ -3710,6 +3709,4 @@ int32_t tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_
   (void)taosThreadMutexUnlock(&pFD->pTsdb->pgMutex);
 
   tsdbCacheRelease(pFD->pTsdb->pgCache, handle);
-
-  TAOS_RETURN(code);
 }

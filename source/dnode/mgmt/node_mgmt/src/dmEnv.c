@@ -47,15 +47,14 @@ static int32_t dmCheckRepeatInit(SDnode *pDnode) {
 }
 
 static int32_t dmInitSystem() {
-  int32_t code = taosIgnSIGPIPE();
-  if (code != 0) {
-    dError("failed to init system since %s", tstrerror(code));
+  if (taosIgnSIGPIPE() != 0) {
+    dError("failed to ignore SIGPIPE");
   }
 
-  code = taosBlockSIGPIPE();
-  if (code != 0) {
-    dError("failed to init system since %s", tstrerror(code));
+  if (taosBlockSIGPIPE() != 0) {
+    dError("failed to block SIGPIPE");
   }
+
   taosResolveCRC();
   return 0;
 }
@@ -203,6 +202,7 @@ static int32_t dmCheckRepeatCleanup(SDnode *pDnode) {
 }
 
 void dmCleanup() {
+  int32_t code = 0;
   dDebug("start to cleanup dnode env");
   SDnode *pDnode = dmInstance();
   if (dmCheckRepeatCleanup(pDnode) != 0) return;
@@ -211,9 +211,8 @@ void dmCleanup() {
   auditCleanup();
   syncCleanUp();
   walCleanUp();
-  int32_t code = udfcClose();
-  if (code != 0) {
-    dError("failed to close udfc since %s", tstrerror(code));
+  if (udfcClose() != 0) {
+    dError("failed to close udfc");
   }
   udfStopUdfd();
   taosStopCacheRefreshWorker();

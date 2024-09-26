@@ -318,15 +318,16 @@ _exception:
 void dmStopNotifyThread(SDnodeMgmt *pMgmt) {
   int32_t code = 0;
   if (taosCheckPthreadValid(pMgmt->notifyThread)) {
-    TAOS_CHECK_GOTO(tsem_post(&dmNotifyHdl.sem), NULL, _exception);
-    TAOS_CHECK_GOTO(taosThreadJoin(pMgmt->notifyThread, NULL), NULL, _exception);
+    if (tsem_post(&dmNotifyHdl.sem) != 0) {
+      dError("failed to post notify sem");
+    }
+
+    (void)taosThreadJoin(pMgmt->notifyThread, NULL);
     taosThreadClear(&pMgmt->notifyThread);
   }
-  TAOS_CHECK_GOTO(tsem_destroy(&dmNotifyHdl.sem), NULL, _exception);
-  return;
-_exception:
-  dError("failed to stop notify thread since %s", tstrerror(code));
-  return;
+  if (tsem_destroy(&dmNotifyHdl.sem) != 0) {
+    dError("failed to destroy notify sem");
+  }
 }
 
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt) {

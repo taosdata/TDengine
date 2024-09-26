@@ -47,11 +47,7 @@ int32_t dmInitDnode(SDnode *pDnode) {
   }
 
   // compress module init
-  code =
-      tsCompressInit(tsLossyColumns, tsFPrecision, tsDPrecision, tsMaxRange, tsCurRange, (int)tsIfAdtFse, tsCompressor);
-  if (code != 0) {
-    goto _OVER;
-  }
+  tsCompressInit(tsLossyColumns, tsFPrecision, tsDPrecision, tsMaxRange, tsCurRange, (int)tsIfAdtFse, tsCompressor);
 
   pDnode->wrappers[DNODE].func = dmGetMgmtFunc();
   pDnode->wrappers[MNODE].func = mmGetMgmtFunc();
@@ -239,14 +235,11 @@ void dmClearVars(SDnode *pDnode) {
     (void)taosThreadRwlockDestroy(&pWrapper->lock);
   }
   if (pDnode->lockfile != NULL) {
-    code = taosUnLockFile(pDnode->lockfile);
-    if (code != 0) {
-      dError("failed to unlock file since %s", tstrerror(code));
+    if (taosUnLockFile(pDnode->lockfile) != 0) {
+      dError("failed to unlock file");
     }
-    code = taosCloseFile(&pDnode->lockfile);
-    if (code != 0) {
-      dError("failed to close file since %s", tstrerror(code));
-    }
+
+    (void)taosCloseFile(&pDnode->lockfile);
     pDnode->lockfile = NULL;
   }
 
@@ -362,7 +355,9 @@ void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg) {
     rsp.contLen = pMsg->contLen;
   }
 
-  (void)rpcSendResponse(&rsp);
+  if (rpcSendResponse(&rsp) != 0) {
+    dError("failed to send response, msg:%p", &rsp);
+  }
   rpcFreeCont(pMsg->pCont);
 }
 
@@ -380,20 +375,16 @@ void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg) {
   } else {
     rsp.pCont = rpcMallocCont(contLen);
     if (rsp.pCont != NULL) {
-      code = tSerializeSServerStatusRsp(rsp.pCont, contLen, &statusRsp);
-      if (code < 0) {
-        rsp.code = TSDB_CODE_OUT_OF_MEMORY;
-        rpcFreeCont(rsp.pCont);
-        rsp.pCont = NULL;
+      if (tSerializeSServerStatusRsp(rsp.pCont, contLen, &statusRsp) < 0) {
+        rsp.code = TSDB_CODE_APP_ERROR;
       } else {
+        rsp.contLen = contLen;
       }
-      rsp.contLen = contLen;
     }
   }
 
-  code = rpcSendResponse(&rsp);
-  if (code != 0) {
-    dError("failed to send response, code:%d, msg:%p", code, pMsg);
+  if (rpcSendResponse(&rsp) != 0) {
+    dError("failed to send response, msg:%p", &rsp);
   }
   rpcFreeCont(pMsg->pCont);
 }

@@ -50,9 +50,8 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   if (pMgmt->pData->ipWhiteVer == ver) {
     if (ver == 0) {
       dDebug("disable ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
-      code = rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL);
-      if (code != 0) {
-        dError("failed to disable ip white list since:%s", tstrerror(code));
+      if (rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL) != 0) {
+        dError("failed to disable ip white list on dnode");
       }
     }
     return;
@@ -100,9 +99,8 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
       dGInfo("dnode:%d, set to dropped since not exist in mnode, statusSeq:%d", pMgmt->pData->dnodeId,
              pMgmt->statusSeq);
       pMgmt->pData->dropped = 1;
-      code = dmWriteEps(pMgmt->pData);
-      if (code != 0) {
-        dError("failed to set dnode to dropped since:%s", tstrerror(code));
+      if (dmWriteEps(pMgmt->pData) != 0) {
+        dError("failed to write dnode file");
       }
       dInfo("dnode will exit since it is in the dropped state");
       code = raise(SIGINT);
@@ -165,9 +163,8 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.monitorParas.tsSlowLogThresholdTest = tsSlowLogThresholdTest;
   tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   char timestr[32] = "1970-01-01 00:00:00.00";
-  code = taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
-  if (code != 0) {
-    dError("failed to parse time since:%s", tstrerror(code));
+  if (taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0) != 0) {
+    dError("failed to parse time since %s", tstrerror(code));
   }
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
@@ -264,10 +261,8 @@ void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
-
-  int32_t code = rpcSendRequest(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, NULL);
-  if (code != 0) {
-    dError("failed to send request since %s", tstrerror(code));
+  if (rpcSendRequest(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, NULL) != 0) {
+    dError("failed to send notify req");
   }
 }
 

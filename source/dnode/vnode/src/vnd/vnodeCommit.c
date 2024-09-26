@@ -201,7 +201,9 @@ _exit:
     vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d changeVersion:%d", pInfo->config.vgId, fname,
           pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex, pInfo->config.syncCfg.changeVersion);
   }
-  (void)taosCloseFile(&pFile);
+  if (taosCloseFile(&pFile) != 0) {
+    vError("vgId:%d, failed to close file", pInfo->config.vgId);
+  }
   taosMemoryFree(data);
   return code;
 }
@@ -263,7 +265,9 @@ _exit:
     }
   }
   taosMemoryFree(pData);
-  (void)taosCloseFile(&pFile);
+  if (taosCloseFile(&pFile) != 0) {
+    vError("vgId:%d, failed to close file", pInfo->config.vgId);
+  }
   return code;
 }
 
@@ -496,7 +500,9 @@ void vnodeRollback(SVnode *pVnode) {
   offset = strlen(tFName);
   snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 
-  TAOS_UNUSED(taosRemoveFile(tFName));
+  if (taosRemoveFile(tFName) != 0) {
+    vError("vgId:%d, failed to remove file %s since %s", TD_VID(pVnode), tFName, tstrerror(terrno));
+  }
 }
 
 static int vnodeEncodeState(const void *pObj, SJson *pJson) {
