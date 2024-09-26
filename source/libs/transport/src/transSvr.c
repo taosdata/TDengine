@@ -707,6 +707,10 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
 
   transRefSrvHandle(pConn);
   uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
+  if (req == NULL) {
+    tError("failed to send resp since %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return;
+  }
   TAOS_UNUSED(uv_write(req, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb));
 }
 static void uvStartSendResp(SSvrMsg* smsg) {
@@ -905,6 +909,11 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
 #endif
 
     uv_write_t* wr = (uv_write_t*)taosMemoryMalloc(sizeof(uv_write_t));
+    if (wr == NULL) {
+      tError("failed to accept since %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      return;
+    }
+
     wr->data = cli;
     uv_buf_t buf = uv_buf_init((char*)notify, strlen(notify));
 

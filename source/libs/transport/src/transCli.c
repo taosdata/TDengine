@@ -714,6 +714,11 @@ static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
     plist = taosHashGet(pool, key, klen);
 
     SMsgList* nList = taosMemoryCalloc(1, sizeof(SMsgList));
+    if (nList == NULL) {
+      tError("failed to alloc memory for msg list, reason:%s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      return NULL;
+    }
+
     QUEUE_INIT(&nList->msgQ);
     nList->numOfConn++;
 
@@ -1319,6 +1324,11 @@ void cliSend(SCliConn* pConn) {
 
   uv_buf_t    wb = uv_buf_init((char*)pHead, msgLen);
   uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
+  if (req == NULL) {
+    tGError("%s conn %p failed to send msg:%s, errmsg:%s", CONN_GET_INST_LABEL(pConn), pConn, TMSG_INFO(pMsg->msgType),
+            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    cliHandleExcept(pConn, -1);
+  }
 
   int status = uv_write(req, (uv_stream_t*)pConn->stream, &wb, 1, cliSendCb);
   if (status != 0) {
@@ -1863,6 +1873,10 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     TAOS_UNUSED(transQueuePush(&conn->cliMsgs, pMsg));
 
     conn->dstAddr = taosStrdup(addr);
+    if (conn->dstAddr == NULL) {
+      tGError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn, tstrerror(terrno));
+      cliHandleExcept(conn, -1);
+    }
 
     uint32_t ipaddr;
     int32_t  code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, fqdn, &ipaddr);

@@ -421,6 +421,9 @@ void transReqQueueInit(queue* q) {
 }
 void* transReqQueuePush(queue* q) {
   STransReq* req = taosMemoryCalloc(1, sizeof(STransReq));
+  if (req == NULL) {
+    return NULL;
+  }
   req->wreq.data = req;
   QUEUE_PUSH(q, &req->q);
   return &req->wreq;

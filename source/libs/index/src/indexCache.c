@@ -384,7 +384,7 @@ static IterateValue* idxCacheIteratorGetValue(Iterate* iter);
 IndexCache* idxCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8_t type) {
   IndexCache* cache = taosMemoryCalloc(1, sizeof(IndexCache));
   if (cache == NULL) {
-    indexError("failed to create index cache");
+    indexError("failed to create index cache since %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     return NULL;
   };
 
@@ -392,6 +392,11 @@ IndexCache* idxCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8
   cache->mem->pCache = cache;
   cache->colName =
       IDX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? taosStrdup(JSON_COLUMN) : taosStrdup(colName);
+  if (cache->colName == NULL) {
+    taosMemoryFree(cache);
+    indexError("failed to create index cache since %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return NULL;
+  }
   cache->type = type;
   cache->index = idx;
   cache->version = 0;
