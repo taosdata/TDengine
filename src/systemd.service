@@ -15,7 +15,6 @@ LimitCORE=infinity
 TimeoutStartSec=0
 StartLimitBurst=3
 StartLimitInterval=60s
-StandardError=null
 StandardOutput=null
 
 [Install]
