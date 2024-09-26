@@ -26,7 +26,7 @@
 #define RAW_NULL_CHECK(c)             \
   do {                                \
     if (c == NULL) {                  \
-      code = TSDB_CODE_OUT_OF_MEMORY; \
+      code = terrno; \
       goto end;                       \
     }                                 \
   } while (0)
@@ -1790,7 +1790,7 @@ static int32_t buildCreateTbMap(STaosxRsp* rsp, SHashObj* pHashObj) {
     void** dataTmp = taosArrayGet(rsp->createTableReq, j);
     RAW_NULL_CHECK(dataTmp);
     int32_t* lenTmp = taosArrayGet(rsp->createTableLen, j);
-    RAW_NULL_CHECK(dataTmp);
+    RAW_NULL_CHECK(lenTmp);
 
     tDecoderInit(&decoderTmp, *dataTmp, *lenTmp);
     RAW_RETURN_CHECK (tDecodeSVCreateTbReq(&decoderTmp, &pCreateReq));
