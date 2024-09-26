@@ -91,7 +91,6 @@ typedef struct SCliConn {
   char*   ipStr;
   int32_t port;
 
-  int64_t refId;
   int64_t seq;
 
   int8_t    registered;
@@ -216,8 +215,7 @@ SCliBatch* cliGetHeadFromList(SCliBatchList* pList);
 
 static void destroyCliConnQTable(SCliConn* conn);
 
-static void    cliHandleException(SCliConn* conn);
-static int32_t allocConnRef(SCliConn* conn, bool update);
+static void cliHandleException(SCliConn* conn);
 
 static int cliNotifyCb(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp);
 void       cliResetConnTimer(SCliConn* conn);
@@ -852,41 +850,6 @@ static void addConnToPool(void* pool, SCliConn* conn) {
     conn->task = transDQSched(thrd->timeoutQueue, doCloseIdleConn, arg, 10 * CONN_PERSIST_TIME(pInst->idleTime));
   }
 }
-static int32_t allocConnRef(SCliConn* conn, bool update) {
-  if (update) {
-    TAOS_UNUSED(transReleaseExHandle(transGetRefMgt(), conn->refId));
-    TAOS_UNUSED(transRemoveExHandle(transGetRefMgt(), conn->refId));
-    conn->refId = -1;
-  }
-
-  SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
-  if (exh == NULL) {
-    return terrno;
-  }
-
-  exh->refId = transAddExHandle(transGetRefMgt(), exh);
-  if (exh->refId < 0) {
-    taosMemoryFree(exh);
-    return TSDB_CODE_REF_INVALID_ID;
-  }
-
-  QUEUE_INIT(&exh->q);
-  taosInitRWLatch(&exh->latch);
-  exh->handle = conn;
-  exh->pThrd = conn->hostThrd;
-
-  SExHandle* self = transAcquireExHandle(transGetRefMgt(), exh->refId);
-  if (self != exh) {
-    taosMemoryFree(exh);
-    return TSDB_CODE_REF_INVALID_ID;
-  }
-
-  conn->refId = exh->refId;
-  if (conn->refId < 0) {
-    taosMemoryFree(exh);
-  }
-  return 0;
-}
 
 static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   SCliConn*    conn = handle->data;
@@ -997,7 +960,6 @@ static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int
   if (conn->pQTable == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _failed);
   }
-  TAOS_CHECK_GOTO(allocConnRef(conn, false), NULL, _failed);
 
   TAOS_CHECK_GOTO(cliGetConnTimer(pThrd, conn), &lino, _failed);
 
@@ -1035,9 +997,6 @@ _failed:
     transQueueDestroy(&conn->reqsToSend);
     transQueueDestroy(&conn->reqsSentOut);
     taosMemoryFree(conn->dstAddr);
-
-    (void)transReleaseExHandle(transGetRefMgt(), conn->refId);
-    (void)transRemoveExHandle(transGetRefMgt(), conn->refId);
   }
   tError("failed to create conn, code:%d", code);
   taosMemoryFree(conn);
@@ -1054,10 +1013,6 @@ static void cliDestroy(uv_handle_t* handle) {
 
   (void)destroyAllReqs(conn);
 
-  if (conn->refId > 0) {
-    TAOS_UNUSED(transReleaseExHandle(transGetRefMgt(), conn->refId));
-    TAOS_UNUSED(transRemoveExHandle(transGetRefMgt(), conn->refId));
-  }
   (void)delConnFromHeapCache(pThrd->connHeapCache, conn);
   taosMemoryFree(conn->dstAddr);
   taosMemoryFree(conn->stream);
