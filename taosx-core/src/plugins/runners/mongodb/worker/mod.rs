@@ -2,6 +2,7 @@ use std::cmp;
 use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use chrono::{DateTime, Days, FixedOffset, Utc};
 use mongodb::bson::Bson;
@@ -32,18 +33,24 @@ pub async fn migrate_history(
     // origin task end
     let origin_end = config.task.end.clone();
 
-    let mut config_clone = config.clone();
-    let cancel_clone = cancel.clone();
     // if origin end is None, or origin end is greater than now, set end to now
+    let mut config_clone = config.clone();
     if origin_end.is_none() || origin_end.unwrap() > now {
         config_clone.task.end = Some(now);
     }
-    // migrate history by subtable
-    let future_migrate = migrate_history_by_subtable(config_clone, cancel_clone);
+
+    // create an instance of MongoDBQuery
+    let query = MongoDBQuery::try_new(config.connect.clone()).await?;
+
+    // clone cancel for migrate history
     let cancel_clone = cancel.clone();
+    // migrate history by subtable
+    let future_migrate = migrate_history_by_subtable(config_clone, cancel.clone(), query.clone());
     tokio::select! {
         res = future_migrate => {
-            res?;
+            if let Err(e) = res {
+                tracing::error!("migrate mongodb from history data error: {e}");
+            }
         }
         _ = cancel_clone.cancelled() => {
             tracing::info!("Migrate cancelled");
@@ -51,6 +58,7 @@ pub async fn migrate_history(
         }
     };
 
+    // clone cancel for sync live
     let cancel_clone = cancel.clone();
     // sync live data
     let future_sync = async move {
@@ -70,7 +78,12 @@ pub async fn migrate_history(
                 let mut config_clone = config.clone();
                 config_clone.task.start = real_start;
                 config_clone.task.end = Some(real_end);
-                let _ = migrate_history_by_subtable(config_clone, cancel_clone.clone()).await;
+                let migrate_result =
+                    migrate_history_by_subtable(config_clone, cancel_clone.clone(), query.clone())
+                        .await;
+                if let Err(e) = migrate_result {
+                    tracing::error!("migrate mongodb from live data error: {e}");
+                }
                 // move the window
                 now = real_end;
             }
@@ -94,12 +107,14 @@ pub async fn migrate_history(
 pub async fn migrate_history_by_subtable(
     config: MongoDBConfig,
     cancel: CancellationToken,
+    query: MongoDBQuery,
 ) -> anyhow::Result<()> {
-    // additional filters, get distinct values
+    // clone config and cancel
     let config_clone = config.clone();
     let cancel_clone = cancel.clone();
+    // additional filters, get distinct values
     let filters;
-    let future_get_distinct = get_all_distinct_values(&config_clone);
+    let future_get_distinct = get_all_distinct_values(&config_clone, query.clone());
     tokio::select! {
         res = future_get_distinct => {
             filters = res?;
@@ -140,7 +155,7 @@ pub async fn migrate_history_by_subtable(
 
     // migrate data by combinations
     let concurrency = cmp::max(config.advanced.read_concurrency.unwrap_or(1), 1);
-    let cancel_clone = cancel.clone();
+    // create a semaphore to limit the number of concurrent requests
     let semaphore = Arc::new(Semaphore::new(concurrency));
     let mut migrate_join_set = JoinSet::new();
     for sub_sql in combinations {
@@ -148,14 +163,28 @@ pub async fn migrate_history_by_subtable(
         // Acquire permit before sending request.
         let _permit = semaphore.acquire_owned().await.unwrap();
         // modify config and produce task
-        let cancel_clone = cancel_clone.clone();
         let mut config_clone = config.clone();
         config_clone.task.sql = sub_sql.sql;
         config_clone.sub_task_id = Some(format!("{MIGRATE_TASK_PREFIX}-{}", sub_sql.sub_values));
+        // clone cancel and query
+        let cancel_clone = cancel.clone();
+        let query_clone = query.clone();
         // spawn migrate task
         migrate_join_set.spawn(async move {
-            // do migrate
-            let _ = migrate_history_by_interval(config_clone, cancel_clone).await;
+            // do migrate, if fails, retry 3 times by sleeping 1 second each time
+            for i in 1..4 {
+                let migrate_result = migrate_history_by_interval(config_clone.clone(), cancel_clone.clone(), query_clone.clone()).await;
+                match migrate_result {
+                    Ok(_) => break,
+                    Err(e) => {
+                        tracing::warn!(
+                            "migrate mongodb, migrate history by interval failed, cause: {}, retrying {i} times...",
+                            e
+                        );
+                        std::thread::sleep(Duration::from_secs(1));
+                    }
+                }
+            }
             // Drop the permit after the request has been sent.
             drop(_permit);
         });
@@ -168,7 +197,7 @@ pub async fn migrate_history_by_subtable(
     tokio::select! {
         res = futures => {
             if let Err(err) = &res {
-                tracing::error!("do migrate runtime error: {err:#}");
+                tracing::error!("migrate mongodb, do migrate runtime error: {err:#}");
             }
             return res;
         },
@@ -182,10 +211,11 @@ pub async fn migrate_history_by_subtable(
 pub async fn migrate_history_by_interval(
     mut config: MongoDBConfig,
     cancel: CancellationToken,
+    query: MongoDBQuery,
 ) -> anyhow::Result<()> {
     // schema
     let schema = to_schema()?;
-    tracing::debug!("schema: {:?}", schema);
+    tracing::debug!("migrate mongodb, schema: {:?}", schema);
 
     // get break point
     let breakpoint = get_breakpoint(config.task_id, &config.sub_task_id.clone().unwrap());
@@ -198,8 +228,11 @@ pub async fn migrate_history_by_interval(
     let (tx, rx) = flume::bounded(0);
     let config_clone = config.clone();
     // consumer
-    let consumer =
-        tokio::spawn(async move { Consumer::new(config_clone, schema).consume(rx).await });
+    let consumer = tokio::spawn(async move {
+        Consumer::new(config_clone, schema, query.clone())
+            .consume(rx)
+            .await
+    });
 
     // produce task
     let producer = Producer::new(&config);
@@ -228,9 +261,8 @@ pub async fn migrate_history_by_interval(
 
 pub async fn get_all_distinct_values(
     config: &MongoDBConfig,
+    mut query: MongoDBQuery,
 ) -> anyhow::Result<HashMap<String, HashSet<String>>> {
-    // connect to database
-    let mut query = MongoDBQuery::try_new(config.connect.clone()).await?;
     // additional filters, get distinct values
     let mut filters = HashMap::new();
 
@@ -424,7 +456,10 @@ mod tests {
         let dsn = Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27017?source=admin&database=test_taosx&collection=metrics&sql_placeholder={\"double\":\"{\\\"double\\\":${v}}\",\"string\":\"{\\\"string\\\":${v}}\"}&sql={\"datetime\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}&start=1970-01-01T00:00:00+00:00&end=2024-09-01T00:00:00+00:00&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
         let config = MongoDBConfig::from_dsn(&dsn).unwrap();
-        let filters = get_all_distinct_values(&config).await.unwrap();
+        let query = MongoDBQuery::try_new(config.connect.clone()).await.unwrap();
+        let filters = get_all_distinct_values(&config, query.clone())
+            .await
+            .unwrap();
         dbg!(filters);
     }
 

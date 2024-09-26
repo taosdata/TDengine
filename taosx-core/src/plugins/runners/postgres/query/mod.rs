@@ -7,6 +7,7 @@ use sqlx_postgres::{PgConnectOptions, PgPool, PgRow, Postgres};
 
 use crate::runners::postgres::config::connect::ConnectConfig;
 
+#[derive(Clone)]
 pub struct PostgresQuery {
     pub pool: Pool<Postgres>,
 }

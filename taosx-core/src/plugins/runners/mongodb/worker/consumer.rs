@@ -14,17 +14,19 @@ use crate::runners::set_tcp_keepalive;
 pub struct Consumer {
     config: MongoDBConfig,
     schema: Schema,
+    query: MongoDBQuery,
 }
 
 impl Consumer {
-    pub fn new(config: MongoDBConfig, schema: Schema) -> Self {
-        Self { config, schema }
+    pub fn new(config: MongoDBConfig, schema: Schema, query: MongoDBQuery) -> Self {
+        Self {
+            config,
+            schema,
+            query,
+        }
     }
 
     pub async fn consume(&mut self, receiver: Receiver<MongoDBConfig>) -> anyhow::Result<()> {
-        // connect to database
-        let mut query = MongoDBQuery::try_new(self.config.connect.clone()).await?;
-
         // IPC Tcp stream
         let socket = format!("127.0.0.1:{}", &self.config.ipc_port.unwrap_or(0));
         let stream = std::net::TcpStream::connect(socket)?;
@@ -127,7 +129,8 @@ impl Consumer {
             // let result = query.select_all_and_to_record_batches(&database, &collection, filter, batch_size).await;
 
             let run_start = Utc::now().timestamp_millis();
-            let result = query
+            let result = self
+                .query
                 .select_all_and_send(&database, &collection, filter, sort, batch_size, tx.clone())
                 .await;
             let run_end = Utc::now().timestamp_millis();
@@ -144,7 +147,7 @@ impl Consumer {
                     set_breakpoint(&config, &end).await?;
                 }
                 Err(e) => {
-                    tracing::warn!("migrate mongodb query error: {e:?}");
+                    tracing::error!("migrate mongodb query error: {e:?}");
                 }
             }
         }
@@ -197,8 +200,12 @@ mod tests {
 
         // consumer
         let config_clone = config.clone();
-        let consumer =
-            tokio::spawn(async move { Consumer::new(config_clone, schema).consume(rx).await });
+        let mut query = MongoDBQuery::try_new(config.connect.clone()).await.unwrap();
+        let consumer = tokio::spawn(async move {
+            Consumer::new(config_clone, schema, query.clone())
+                .consume(rx)
+                .await
+        });
 
         // produce task
         let producer = Producer::new(&config);

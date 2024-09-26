@@ -7,6 +7,7 @@ use oracle::{
     sql_type::OracleType,
 };
 
+#[derive(Clone)]
 pub struct OracleQuery {
     pub pool: Pool,
     time_zone: String,

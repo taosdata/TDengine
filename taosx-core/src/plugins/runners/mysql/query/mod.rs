@@ -8,6 +8,7 @@ use sqlx::{Error, Executor, MySql, MySqlPool, Pool, Row};
 
 use crate::runners::mysql::config::connect::ConnectConfig;
 
+#[derive(Clone)]
 pub struct MySqlQuery {
     pub pool: Pool<MySql>,
 }

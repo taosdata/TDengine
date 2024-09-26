@@ -11,6 +11,7 @@ use taos::StreamExt;
 use crate::runners::mongodb::appender;
 use crate::runners::mongodb::config::connect::ConnectConfig;
 
+#[derive(Clone)]
 pub struct MongoDBQuery {
     pub client: Client,
 }
