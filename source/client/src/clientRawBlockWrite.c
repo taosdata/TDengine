@@ -204,7 +204,7 @@ static cJSON* processCreateStb(SMqMetaRsp* metaRsp) {
   }
   pJson = buildCreateTableJson(&req.schemaRow, &req.schemaTag, req.name, req.suid, TSDB_SUPER_TABLE);
 _err:
-  uDebug("create stable return");
+  uDebug("create stable return, sql json:%s", cJSON_PrintUnformatted(pJson));
   tDecoderClear(&coder);
   return pJson;
 }
@@ -225,7 +225,7 @@ static cJSON* processAlterStb(SMqMetaRsp* metaRsp) {
   }
   pJson = buildAlterSTableJson(req.alterOriData, req.alterOriDataLen);
 _err:
-  uDebug("alter stable return");
+  uDebug("alter stable return, sql json:%s", cJSON_PrintUnformatted(pJson));
   tDecoderClear(&coder);
   return pJson;
 }
@@ -374,7 +374,7 @@ static cJSON* processCreateTable(SMqMetaRsp* metaRsp) {
   }
 
 _exit:
-  uDebug("create table return");
+  uDebug("create table return, sql json:%s", cJSON_PrintUnformatted(pJson));
   tDeleteSVCreateTbBatchReq(&req);
   tDecoderClear(&decoder);
   return pJson;
@@ -542,7 +542,7 @@ static cJSON* processAlterTable(SMqMetaRsp* metaRsp) {
   }
 
 _exit:
-  uDebug("alter table return");
+  uDebug("alter table return, sql json:%s", cJSON_PrintUnformatted(json));
   tDecoderClear(&decoder);
   return json;
 }
@@ -575,7 +575,7 @@ static cJSON* processDropSTable(SMqMetaRsp* metaRsp) {
   cJSON_AddItemToObject(json, "tableName", tableName);
 
 _exit:
-  uDebug("processDropSTable return");
+  uDebug("processDropSTable return, sql json:%s", cJSON_PrintUnformatted(json));
   tDecoderClear(&decoder);
   return json;
 }
@@ -611,7 +611,7 @@ static cJSON* processDeleteTable(SMqMetaRsp* metaRsp) {
   cJSON_AddItemToObject(json, "sql", sqlJson);
 
 _exit:
-  uDebug("processDeleteTable return");
+  uDebug("processDeleteTable return, sql json:%s", cJSON_PrintUnformatted(json));
   tDecoderClear(&coder);
   return json;
 }
@@ -653,7 +653,7 @@ static cJSON* processDropTable(SMqMetaRsp* metaRsp) {
   cJSON_AddItemToObject(json, "tableNameList", tableNameList);
 
 _exit:
-  uDebug("processDropTable return");
+  uDebug("processDropTable return, json sql:%s", cJSON_PrintUnformatted(json));
   tDecoderClear(&decoder);
   return json;
 }
@@ -887,11 +887,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
     terrno = code;
     return code;
   }
-  SArray*            pTagList = taosArrayInit(0, POINTER_BYTES);
-  if (pTagList == NULL){
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto end;
-  }
+
   uDebug(LOG_ID_TAG " create table, meta:%p, metaLen:%d", LOG_ID_VALUE, meta, metaLen);
 
   pRequest->syncQuery = true;
@@ -962,45 +958,17 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
       }
       pCreateReq->ctb.suid = pTableMeta->uid;
 
-      SArray* pTagVals = NULL;
-      code = tTagToValArray((STag *)pCreateReq->ctb.pTag, &pTagVals);
-      if (code != TSDB_CODE_SUCCESS) {
-        taosMemoryFreeClear(pTableMeta);
-        goto end;
-      }
-
-      bool rebuildTag = false;
       for (int32_t i = 0; i < taosArrayGetSize(pCreateReq->ctb.tagName); i++) {
         char* tName = taosArrayGet(pCreateReq->ctb.tagName, i);
         for (int32_t j = pTableMeta->tableInfo.numOfColumns;
              j < pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags; j++) {
           SSchema* tag = &pTableMeta->schema[j];
           if (strcmp(tag->name, tName) == 0 && tag->type != TSDB_DATA_TYPE_JSON) {
-            STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, i);
-            if (pTagVal) {
-              if (pTagVal->cid != tag->colId){
-                pTagVal->cid = tag->colId;
-                rebuildTag = true;
-              }
-            } else {
-              uError("create tb invalid data %s, size:%d index:%d cid:%d", pCreateReq->name, (int)taosArrayGetSize(pTagVals), i, tag->colId);
-            }
+            tTagSetCid((STag*)pCreateReq->ctb.pTag, i, tag->colId);
           }
         }
       }
       taosMemoryFreeClear(pTableMeta);
-      if (rebuildTag){
-        STag* ppTag = NULL;
-        code = tTagNew(pTagVals, 1, false, &ppTag);
-        taosArrayDestroy(pTagVals);
-        pTagVals = NULL;
-        if (code != TSDB_CODE_SUCCESS) {
-          goto end;
-        }
-        pCreateReq->ctb.pTag = (uint8_t*)ppTag;
-        taosArrayPush(pTagList, &ppTag);
-      }
-      taosArrayDestroy(pTagVals);
     }
     taosArrayPush(pRequest->tableList, &pName);
 
@@ -1054,7 +1022,6 @@ end:
   destroyRequest(pRequest);
   tDecoderClear(&coder);
   qDestroyQuery(pQuery);
-  taosArrayDestroyP(pTagList, taosMemoryFree);
   terrno = code;
   return code;
 }
@@ -1962,13 +1929,12 @@ static cJSON* processSimpleMeta(SMqMetaRsp* pMetaRsp) {
 static char* processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp) {
   SDecoder        coder;
   SMqBatchMetaRsp rsp = {0};
-  cJSON*          pJson = NULL;
   tDecoderInit(&coder, pMsgRsp->pMetaBuff, pMsgRsp->metaBuffLen);
   if (tDecodeMqBatchMetaRsp(&coder, &rsp) < 0) {
     goto _end;
   }
 
-  pJson = cJSON_CreateObject();
+  cJSON* pJson = cJSON_CreateObject();
   cJSON_AddStringToObject(pJson, "tmq_meta_version", TMQ_META_VERSION);
   cJSON* pMetaArr = cJSON_CreateArray();
   int32_t num = taosArrayGetSize(rsp.batchMetaReq);
@@ -2017,7 +1983,6 @@ char* tmq_get_json_meta(TAOS_RES* res) {
   cJSON* pJson = processSimpleMeta(&pMetaRspObj->metaRsp);
   char* string = cJSON_PrintUnformatted(pJson);
   cJSON_Delete(pJson);
-  uDebug("tmq_get_json_meta string:%s", string);
   return string;
 }
 
