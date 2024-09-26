@@ -38,8 +38,19 @@ static int DemoSmlInsert() {
     return -1;
   }
 
+  // drop database if exists
+  TAOS_RES *result = taos_query(taos, "DROP DATABASE IF EXISTS power");
+  code = taos_errno(result);
+  if (code != 0) {
+    fprintf(stderr, "Failed to drop database power, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(result));
+    taos_close(taos);
+    taos_cleanup();
+    return -1;
+  }
+  taos_free_result(result);
+
   // create database
-  TAOS_RES *result = taos_query(taos, "CREATE DATABASE IF NOT EXISTS power");
+  result = taos_query(taos, "CREATE DATABASE IF NOT EXISTS power");
   code = taos_errno(result);
   if (code != 0) {
     fprintf(stderr, "Failed to create database power, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(result));

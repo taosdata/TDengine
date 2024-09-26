@@ -14,15 +14,15 @@ LOG_FILE="docs-c-test-out.log"
 
 > $LOG_FILE
 
-TEST_EXES=(
+declare -a TEST_EXES=(
     "docs_connect_example"
     "docs_create_db_demo"
     "docs_insert_data_demo"
     "docs_query_data_demo"
     "docs_with_reqid_demo"
-    "docs_sml_insert_demo"
     "docs_stmt_insert_demo"
     "docs_tmq_demo"
+    "docs_sml_insert_demo"
 )
 
 totalCases=0
