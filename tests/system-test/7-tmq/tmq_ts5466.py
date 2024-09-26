@@ -26,8 +26,8 @@ class TDTestCase:
         tdSql.execute(f'create database if not exists db_taosx')
         tdSql.execute(f'create database if not exists db_5466')
         tdSql.execute(f'use db_5466')
-        tdSql.execute(f'create stable if not exists s5466 (ts timestamp, c1 int, c2 int) tags (t int)')
-        tdSql.execute(f'insert into t1 using s5466 tags(1) values(1669092069068, 0, 1)')
+        tdSql.execute(f'create stable if not exists s5466 (ts timestamp, c1 int, c2 int) tags (t binary(32))')
+        tdSql.execute(f'insert into t1 using s5466 tags("__devicid__") values(1669092069068, 0, 1)')
         for i in range(80):
             if i < 3:
                 continue
