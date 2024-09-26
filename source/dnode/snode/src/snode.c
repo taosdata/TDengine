@@ -38,9 +38,7 @@ int32_t sndBuildStreamTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProce
   streamTaskOpenAllUpstreamInput(pTask);
 
   streamTaskResetUpstreamStageInfo(pTask);
-  if (streamSetupScheduleTrigger(pTask) != 0) {
-    sndError("failed to setup schedule trigger for task:%s", pTask->id.idStr);
-  }
+  streamSetupScheduleTrigger(pTask);
 
   SCheckpointInfo *pChkInfo = &pTask->chkInfo;
   tqSetRestoreVersionInfo(pTask);

@@ -2235,7 +2235,10 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
   SBatchDeleteReq deleteReq;
   SDecoder        decoder;
   tDecoderInit(&decoder, pReq, len);
-  (void)tDecodeSBatchDeleteReq(&decoder, &deleteReq);
+  if (tDecodeSBatchDeleteReq(&decoder, &deleteReq) < 0) {
+    tDecoderClear(&decoder);
+    return terrno = TSDB_CODE_INVALID_MSG;
+  }
 
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, pVnode->pMeta, META_READER_NOLOCK);
