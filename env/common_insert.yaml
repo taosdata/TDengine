@@ -21,6 +21,7 @@ settings:
             snodeAddress: 127.0.0.1:873
             ratioOfVnodeStreamThreads: 4
             maxInsertBatchRows: 10000
+            UdfdLdLibPath: /usr/local/lib/python3.8/site-packages/taospyudf:/usr/local/lib/python3.8/dist-packages/taospyudf
   - name: taospy
     fqdn: [ceph01]
     spec:
@@ -33,6 +34,8 @@ settings:
         asyncLog: 0
         maxQueryTimeRange: 3
         disableCount: 0
+        queryTableNotExistAsEmpty: false
+        maxInsertBatchRows: 10000
 
   - name: taosAdapter
     fqdn: [ceph01]

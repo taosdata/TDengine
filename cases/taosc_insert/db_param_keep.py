@@ -54,7 +54,7 @@ class TestKeep(TDCase):
                 break
             else:
                 continue
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{int(int(data['config']['keep0'])/60/24)}d,{int(int(data['config']['keep1'])/60/24)}d,{int(int(data['config']['keep2'])/60/24)}d")
         self.tdSql.execute(f'drop database {dbname}')
         # boundary
         for param_value in self.cfg["boundary"]:
@@ -64,16 +64,16 @@ class TestKeep(TDCase):
             self.tdSql.query('select * from information_schema.ins_databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             if param_value==1 or param_value ==365000:
-                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param_value*24*60}m,{param_value*24*60}m,{param_value*24*60}m')
+                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param_value}d,{param_value}d,{param_value}d')
             elif param_value == '1d' or param_value == '365000d':
                 param = int(re.sub('\D','', param_value))
-                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param*24*60}m,{param*24*60}m,{param*24*60}m')
+                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param_value},{param_value},{param_value}')
             elif param_value == '1440m' or param_value == '525600000m':
                 param = int(re.sub('\D','', param_value))
-                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param}m,{param}m,{param}m')
+                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{int(param/60/24)}d,{int(param/60/24)}d,{int(param/60/24)}d')
             elif param_value == '24h' or param_value =='8760000h':
                 param = int(re.sub('\D','', param_value))
-                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param*60}m,{param*60}m,{param*60}m')
+                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{int(param/24)}d,{int(param/24)}d,{int(param/24)}d')
             self.tdSql.query(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
             for i in self.taosd_setting['spec']['dnodes']:
@@ -84,23 +84,23 @@ class TestKeep(TDCase):
                     break
                 else:
                     continue
-            self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
+            self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{int(int(data['config']['keep0'])/60/24)}d,{int(int(data['config']['keep1'])/60/24)}d,{int(int(data['config']['keep2'])/60/24)}d")
             self.tdSql.execute(f'drop database {dbname}')
-        
+
         dbname = self.tdCom.get_long_name()
-        
+
         self.tdSql.error(f'create database if not exists {dbname} duration {self.common_days_value} {test_param} {self.cfg["boundary"][0]-1}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][1] + 1}')
         for logical_error_value in self.logical_error_list:
             self.tdSql.error(f'create database if not exists {dbname} duration {self.common_days_value} {test_param} {logical_error_value}')
-        
+
         # keep2 >= keep1 >= keep0 >= days (default = 14400)
         # keep2 >= keep1 >= keep0 >= days
         kv_dict = {test_param: "36500,36501,36502"}
         self.tdCom.createDb(dbname, **kv_dict)
         self.tdSql.query('select * from information_schema.ins_databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], "52560000m,52561440m,52562880m")
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], "36500d,36501d,36502d")
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
         for i in self.taosd_setting['spec']['dnodes']:
@@ -111,7 +111,7 @@ class TestKeep(TDCase):
                 break
             else:
                 continue
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{int(int(data['config']['keep0'])/60/24)}d,{int(int(data['config']['keep1'])/60/24)}d,{int(int(data['config']['keep2'])/60/24)}d")
         self.tdSql.execute(f'drop database {dbname}')
         # keep2(default) > keep1 >= keep0 >= days
         dbname = self.tdCom.get_long_name()
@@ -119,7 +119,7 @@ class TestKeep(TDCase):
         self.tdCom.createDb(dbname, **kv_dict)
         self.tdSql.query('select * from information_schema.ins_databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], "52560000m,52561440m,52561440m")
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], "36500d,36501d,36501d")
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
         for i in self.taosd_setting['spec']['dnodes']:
@@ -130,7 +130,7 @@ class TestKeep(TDCase):
                 break
             else:
                 continue
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{int(int(data['config']['keep0'])/60/24)}d,{int(int(data['config']['keep1'])/60/24)}d,{int(int(data['config']['keep2'])/60/24)}d")
         self.tdSql.execute(f'drop database {dbname}')
         # keep2 = keep1 = keep0 = days
         dbname = self.tdCom.get_long_name()
@@ -138,7 +138,7 @@ class TestKeep(TDCase):
         self.tdCom.createDb(dbname, **kv_dict)
         self.tdSql.query('select * from information_schema.ins_databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], "14400m,14400m,14400m")
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], "10d,10d,10d")
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
         for i in self.taosd_setting['spec']['dnodes']:
@@ -149,7 +149,7 @@ class TestKeep(TDCase):
                 break
             else:
                 continue
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{int(int(data['config']['keep0'])/60/24)}d,{int(int(data['config']['keep1'])/60/24)}d,{int(int(data['config']['keep2'])/60/24)}d")
         self.tdSql.execute(f'drop database {dbname}')
         # error
         # keep2 >= keep1 >= days >= keep0

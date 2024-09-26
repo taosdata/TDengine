@@ -53,7 +53,7 @@ class TestDuration(TDCase):
                 break
             else:
                 continue
-        self.tdSql.checkEqual(db_field, f'{data["config"][self.cfg["vnode_json_key"]]}m')
+        self.tdSql.checkEqual(db_field, f'{int(int(data["config"][self.cfg["vnode_json_key"]])/60/24)}d')
         self.tdRest.request(f'drop database {dbname}')
         # without unit
         for param_value in self.cfg["boundary"]:
@@ -70,17 +70,19 @@ class TestDuration(TDCase):
             self.tdRest.request('select * from information_schema.ins_databases')
             #TODO
             db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
-            if param_value == 1 or param_value == 3650: # days
-                self.tdSql.checkEqual(db_field, f'{param_value*60*24}m')
-            elif param_value == '60m' or param_value == '5256000m': # minutes
+            if param_value == 1: # days
+                self.tdSql.checkEqual(db_field, '1d')
+            elif param_value == 3650: # days
+                self.tdSql.checkEqual(db_field, '3650d')
+            elif param_value == '60m': # minutes
+                self.tdSql.checkEqual(db_field, '1h')
+            elif param_value == '5256000m': # minutes
+                self.tdSql.checkEqual(db_field, f'3650d')
+            elif param_value == '24h' or param_value =='87600h': # hours
                 trans_value = int(re.sub('\D','', param_value))
-                self.tdSql.checkEqual(db_field, f'{trans_value}m')
-            elif param_value == '1h' or param_value =='87600h': # hours
-                trans_value = int(re.sub('\D','', param_value))
-                self.tdSql.checkEqual(db_field, f'{trans_value * 60}m')
+                self.tdSql.checkEqual(db_field, f'{int(trans_value / 24)}d')
             elif param_value == '1d' or param_value == '3650d':
-                trans_value = int(re.sub('\D','', param_value))
-                self.tdSql.checkEqual(db_field, f'{trans_value * 60 *24}m')
+                self.tdSql.checkEqual(db_field, param_value)
             self.tdRest.request(f'show {dbname}.vgroups')
              # TODO
             db_vnode_kv_dict = self.tdRest.getOneRow(1, dbname)
@@ -92,11 +94,20 @@ class TestDuration(TDCase):
                     break
                 else:
                     continue
-            self.tdSql.checkEqual(db_field, f'{data["config"][self.cfg["vnode_json_key"]]}m')
+            if param_value == 1 or param_value == 3650 or param_value == "5256000m" or param_value == "1d" or param_value == "3650d": # days
+                self.tdSql.checkEqual(db_field, f'{int(int(data["config"][self.cfg["vnode_json_key"]])/60/24)}d')
+            elif param_value == "60m": # m
+                self.tdSql.checkEqual(db_field, f'{int(int(data["config"][self.cfg["vnode_json_key"]])/60)}h')
+            elif param_value == "24h" or param_value == '87600h': # h
+                self.tdSql.checkEqual(db_field, f'{int(int(data["config"][self.cfg["vnode_json_key"]])/60/24)}d')
+            elif param_value == "1h": # h
+                self.tdSql.checkEqual(db_field, f'{int(int(data["config"][self.cfg["vnode_json_key"]])/60)}h')
+            else:
+                self.tdSql.checkEqual(db_field, f'{data["config"][self.cfg["vnode_json_key"]]}m')
             self.tdRest.request(f'drop database {dbname}')
         for error_value in self.error_value_list:
             self.tdRest.error(f'create database if not exists {dbname} {test_param} {error_value}')
-        
+
     def run(self) -> bool:
         self.duration_check()
 

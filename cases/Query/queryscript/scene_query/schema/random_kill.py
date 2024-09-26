@@ -12,7 +12,7 @@
 # -*- coding: utf-8 -*-
 
 import random
-import os
+import os,time
 from taostest import TDCase
 from Query.queryutil.createdata import *
 
@@ -44,48 +44,42 @@ class TDTestQuery(TDCase):
 
     def desc(self) -> str:
         case_description = '''
-        case1:# compact all databases
+        case1:# ramdom kill query
+        case2:# ramdom kill transaction
+        case3:# ramdom kill connection
         '''
         return case_description
     
-    
-    def compact_all_db(self):
-        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
-        show_local_sql = "select `name` from information_schema.ins_databases where `vgroups` is not null;"
-        self.tdSql.query(show_local_sql)  
+    def random_kill_query(self):
+        query_sql = "select mode(kill_id) from performance_schema.perf_queries;"
+        self.tdSql.query(query_sql)  
         rows = self.tdSql.query_row
         
         for i in range(rows):
-            compact_db = " compact database `%s`" %self.tdSql.getData(i,0)
-            #self.tdSql.execute(compact_db)
-            self.execute_sql(compact_db)
-            flush_db = " flush database `%s`" %self.tdSql.getData(i,0)
-            self.execute_sql(flush_db)
+            kill_sql = " kill query  '%s' ;" %self.tdSql.getData(i,0)
+            self.execute_sql(kill_sql)
+            
     
-    def alter_all_db_2(self):
-        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
-        show_local_sql = "select `name`,`replica` from information_schema.ins_databases where `replica`=1;"
-        self.tdSql.query(show_local_sql)  
+    def random_kill_transaction(self):
+        transaction_sql = "select mode(id) from performance_schema.perf_trans;"
+        self.tdSql.query(transaction_sql)  
         rows = self.tdSql.query_row
         
         for i in range(rows):
-            replica_db = " alter database `%s` replica 2" %self.tdSql.getData(i,0)
-            self.execute_sql(replica_db)
-            flush_db = " flush database `%s`" %self.tdSql.getData(i,0)
-            self.execute_sql(flush_db)
-    
-    def alter_all_db_3(self):
-        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
-        show_local_sql = "select `name`,`replica` from information_schema.ins_databases where `replica`=1;"
-        self.tdSql.query(show_local_sql)  
+            kill_transaction = " kill transaction %s ;" %self.tdSql.getData(i,0)
+            self.execute_sql(kill_transaction)
+           
+                          
+    def random_kill_connection(self):
+        connection_sql = "select mode(conn_id) from performance_schema.perf_connections;"
+        self.tdSql.query(connection_sql)  
         rows = self.tdSql.query_row
         
         for i in range(rows):
-            replica_db = " alter database `%s` replica 3" %self.tdSql.getData(i,0)
-            self.execute_sql(replica_db)
-            flush_db = " flush database `%s`" %self.tdSql.getData(i,0)
-            self.execute_sql(flush_db)
+            kill_connection = " kill connection %s ;" %self.tdSql.getData(i,0)
+            self.execute_sql(kill_connection)
                                 
+                                      
     def execute_sql(self,sql) :
         try:
             self.tdSql.execute(sql,queryTimes=5)
@@ -101,8 +95,11 @@ class TDTestQuery(TDCase):
         # #     self.compact_all_db() 
             
         while 1:
-            self.compact_all_db() 
-            self.alter_all_db_3() 
-            self.alter_all_db_2() 
+            self.random_kill_query() 
+            time.sleep(20)
+            self.random_kill_transaction()
+            time.sleep(20)
+            self.random_kill_connection()
+            time.sleep(20)
         
   
