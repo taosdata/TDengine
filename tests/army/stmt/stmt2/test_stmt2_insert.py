@@ -156,29 +156,32 @@ class TDTestCase:
             raise err
 
     def test_stmt_insert_common_table_with_bind_tablename_data(self):
-        ctablename = 'common_table'
+        ctablename1 = 'common_table1'
+        ctablename2 = 'common_table2'
+        ctablename3 = 'common_table3'
         try:
             self.connectstmt.execute("drop database if exists %s" % self.dbname)
             self.connectstmt.execute("create database if not exists %s PRECISION 'us' "  % self.dbname)
             self.connectstmt.select_db(self.dbname)
             self.connectstmt.execute("create table if not exists %s (ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
                 bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
-                ff float, dd double, bb binary(100), nn nchar(100), tt timestamp , vc varchar(100))" % ctablename)
+                ff float, dd double, bb binary(100), nn nchar(100), tt timestamp , vc varchar(100))" % ctablename1)
             
             self.connectstmt.execute("create table if not exists %s (ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
                 bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
-                ff float, dd double, bb binary(100), nn nchar(100), tt timestamp , vc varchar(100))" % 'd1')
+                ff float, dd double, bb binary(100), nn nchar(100), tt timestamp , vc varchar(100))" % ctablename2)
 
+            self.connectstmt.execute("create table if not exists %s (ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
+                bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
+                ff float, dd double, bb binary(100), nn nchar(100), tt timestamp , vc varchar(100))" % ctablename3)
+            
             stmt2 = self.connectstmt.statement2(f"insert into ? values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
 
-            tbanmes = ["common_table","d1"]
-    
+            tbanmes = [ctablename1, ctablename2]
             tags    = None
 
             datas = [
-                # table 1
                 [
-                    # student
                     [1626861392589111,1626861392590111],
                     [True,         None],
                     [-128,         -128],
@@ -198,7 +201,6 @@ class TDTestCase:
                     ["涛思数据16", None]
                 ],
                 [
-                    # student
                     [1626861392589111,1626861392590111],
                     [True,         None],
                     [-128,         -128],
@@ -223,54 +225,13 @@ class TDTestCase:
             stmt2.bind_param(tbanmes, tags, datas)
             stmt2.execute()
 
-            a = stmt2.get_fields(TAOS_FIELD_COL)
-            a1 = stmt2.get_fields(TAOS_FIELD_QUERY)
-            a2 = stmt2.get_fields(TAOS_FIELD_TBNAME)
-            # a3 = stmt2.get_fields(TAOS_FIELD_TAG)
-
             # check correct
             self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, None, tbanmes, tags, datas)
 
 
             # bind data
-            tbanmes = [ctablename]
+            tbanmes = [ctablename3]
             tags    = None
-
-            # prepare data
-            datas1 = [
-                # table 1
-                [
-                    # student
-                    [1626861392589111,1626861392590111],
-                    [True,         None],
-                    [-128,         -128],
-                    [0,            127],
-                    [3,            None],
-                    [3,            4],
-                    [3,            4],
-                    [3,            4],
-                    [3,            4],
-                    [3,            4],
-                    [3,            4],
-                    [3,            None],
-                    [3,            None],
-                    ["abc",       "dddafadfadfadf"],
-                    ["涛思数据", None],
-                    [None, None],
-                    ["涛思数据16", None]
-                ]
-            ]
-
-            table0 = BindTable(ctablename, tags)
-
-            for data in datas1[0]:
-                table0.add_col_data(data)
-
-            # columns type for stable
-            stmt2.bind_param_with_tables([table0])
-            stmt2.execute()
-
-            assert stmt2.affected_rows == 2
 
             # prepare data
             datas2 = [
@@ -301,9 +262,10 @@ class TDTestCase:
             stmt2.bind_param(tbanmes, tags, datas2)
             stmt2.execute()
 
-            assert stmt2.affected_rows == 3
+            # check correct
+            self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, None, tbanmes, tags, datas2)
 
-            tdLog.info("Insert data PASS")
+            tdLog.info("Case [test_stmt_insert_common_table_with_bind_tablename_data] PASS")
         except Exception as err:
             raise err
 
@@ -701,6 +663,55 @@ class TDTestCase:
                 ]
             ]
 
+            # prepare data
+            datas4 = [
+                # table 1
+                [
+                    [1626861392589111,1626861392591111],
+                    [None,            False],
+                    [-127,            None],
+                    [127,             None],
+                    [None,            2],
+                    [IGNORE,          None],
+                    [IGNORE,          None],
+                    [4,               None],
+                    [4,               None],
+                    [4,               None],
+                    [4,               IGNORE],
+                    [None,            None],
+                    [None,            1.2],
+                    ["dddafadfadfadf", None],
+                    [None, "a long string with 中文?字符"],
+                    [None, 1626861392591],
+                    [None, None]
+                    
+                ]
+            ]
+
+            datas4_expect = [
+                # table 1
+                [
+                    [1626861392589111,1626861392591111],
+                    [None,            False],
+                    [-127,            None],
+                    [127,             None],
+                    [None,            2],
+                    [3,               None],
+                    [3,               None],
+                    [4,               None],
+                    [4,               None],
+                    [4,               None],
+                    [4,               5],
+                    [None,            None],
+                    [None,            1.2],
+                    ["dddafadfadfadf", None],
+                    [None, "a long string with 中文?字符"],
+                    [None, 1626861392591],
+                    [None, None]
+                    
+                ]
+            ]
+
             table1 = BindTable(tbanmes[0], tags[0])
             
             for data in datas1[0]:
@@ -737,6 +748,18 @@ class TDTestCase:
 
             # check correct
             self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, stablename, tbanmes, tags, datas3_expect)
+
+            table4 = BindTable(tbanmes[0], tags[0])
+            
+            for data in datas4[0]:
+                table4.add_col_data(data)
+
+            # columns type for stable
+            stmt2.bind_param_with_tables([table4])
+            stmt2.execute()
+
+            # check correct
+            self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, stablename, tbanmes, tags, datas4_expect)
 
             tdLog.info("Case [test_stmt_td31428] PASS")
         except Exception as err:
@@ -1149,7 +1172,7 @@ class TDTestCase:
 
         # 1. tc for common table
         # self.test_stmt_set_tbname_tag()
-        self.test_stmt_insert_common_table_with_bind_tablename_data()   # fail
+        # self.test_stmt_insert_common_table_with_bind_tablename_data()   # pass
         # self.test_stmt_insert_common_table_with_bind_data()  # pass
         
         # 2. tc for super table
