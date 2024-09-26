@@ -1428,7 +1428,7 @@ void qWorkerDestroy(void **qWorkerMgmt) {
     return;
   }
 
-  qInfo("wait for destroyed, refId:%" PRIx64, mgmt->refId);
+  qInfo("wait for destroyed");
   while (0 == destroyed) {
     taosMsleep(2);
   }
