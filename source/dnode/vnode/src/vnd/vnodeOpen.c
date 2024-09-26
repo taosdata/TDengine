@@ -414,7 +414,10 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   pVnode->blocked = false;
   pVnode->disableWrite = false;
 
-  (void)tsem_init(&pVnode->syncSem, 0, 0);
+  if (tsem_init(&pVnode->syncSem, 0, 0) != 0) {
+    vError("vgId:%d, failed to init semaphore", TD_VID(pVnode));
+    goto _err;
+  }
   (void)taosThreadMutexInit(&pVnode->mutex, NULL);
   (void)taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
 
@@ -449,7 +452,8 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
 
   // open wal
   sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
-  (void)taosRealPath(tdir, NULL, sizeof(tdir));
+  ret = taosRealPath(tdir, NULL, sizeof(tdir));
+  TAOS_UNUSED(ret);
 
   pVnode->pWal = walOpen(tdir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
@@ -459,7 +463,8 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
 
   // open tq
   sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
-  (void)taosRealPath(tdir, NULL, sizeof(tdir));
+  ret = taosRealPath(tdir, NULL, sizeof(tdir));
+  TAOS_UNUSED(ret);
 
   // open query
   if (vnodeQueryOpen(pVnode)) {
@@ -541,7 +546,9 @@ void vnodeClose(SVnode *pVnode) {
     vnodeCloseBufPool(pVnode);
 
     // destroy handle
-    (void)tsem_destroy(&pVnode->syncSem);
+    if (tsem_destroy(&pVnode->syncSem) != 0) {
+      vError("vgId:%d, failed to destroy semaphore", TD_VID(pVnode));
+    }
     (void)taosThreadCondDestroy(&pVnode->poolNotEmpty);
     (void)taosThreadMutexDestroy(&pVnode->mutex);
     (void)taosThreadMutexDestroy(&pVnode->lock);

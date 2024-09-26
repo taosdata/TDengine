@@ -415,7 +415,7 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
                   &lino, _exit);
 
   // decode data
-  TAOS_UNUSED(tStatisBlockClear(statisBlock));
+  tStatisBlockClear(statisBlock);
   statisBlock->numOfPKs = statisBlk->numOfPKs;
   statisBlock->numOfRecords = statisBlk->numRec;
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
@@ -654,7 +654,7 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
 
   TAOS_CHECK_GOTO(TARRAY2_APPEND_PTR(writer->statisBlkArray, &statisBlk), &lino, _exit);
 
-  TAOS_UNUSED(tStatisBlockClear(writer->staticBlock));
+  tStatisBlockClear(writer->staticBlock);
 
 _exit:
   if (code) {

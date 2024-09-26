@@ -427,7 +427,9 @@ void cleanDir(const char* pPath, const char* id) {
 
   if (taosIsDir(pPath)) {
     taosRemoveDir(pPath);
-    TAOS_UNUSED(taosMkDir(pPath));
+    if (taosMkDir(pPath) != 0) {
+      stError("%s failed to create dir:%s", id, pPath);
+    }
     stInfo("%s clear dir:%s, succ", id, pPath);
   }
 }
@@ -833,8 +835,12 @@ int32_t streamBackendInit(const char* streamPath, int64_t chkpId, int32_t vgId, 
   pHandle->list = tdListNew(sizeof(SCfComparator));
   TSDB_CHECK_NULL(pHandle->list, code, lino, _EXIT, terrno);
 
-  TAOS_UNUSED(taosThreadMutexInit(&pHandle->mutex, NULL));
-  TAOS_UNUSED(taosThreadMutexInit(&pHandle->cfMutex, NULL));
+  code = taosThreadMutexInit(&pHandle->mutex, NULL);
+  TSDB_CHECK_CODE(code, lino, _EXIT);
+
+  code = taosThreadMutexInit(&pHandle->cfMutex, NULL);
+  TSDB_CHECK_CODE(code, lino, _EXIT);
+
   pHandle->cfInst = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   TSDB_CHECK_NULL(pHandle->cfInst, code, lino, _EXIT, terrno);
 
@@ -2583,7 +2589,9 @@ STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath) {
   pTaskDb->idstr = key ? taosStrdup(key) : NULL;
   pTaskDb->path = statePath ? taosStrdup(statePath) : NULL;
 
-  TAOS_UNUSED(taosThreadMutexInit(&pTaskDb->mutex, NULL));
+  code = taosThreadMutexInit(&pTaskDb->mutex, NULL);
+  TSDB_CHECK_CODE(code, lino, _EXIT);
+
   taskDbInitChkpOpt(pTaskDb);
   taskDbInitOpt(pTaskDb);
 

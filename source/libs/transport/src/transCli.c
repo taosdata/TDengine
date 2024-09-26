@@ -1932,9 +1932,15 @@ static void cliAsyncCb(uv_async_t* handle) {
 
   // batch process to avoid to lock/unlock frequently
   queue wq;
-  TAOS_UNUSED(taosThreadMutexLock(&item->mtx));
+  if (taosThreadMutexLock(&item->mtx) != 0) {
+    tError("failed to lock mutex, reason:%s", tstrerror(terrno));
+  }
+
   QUEUE_MOVE(&item->qmsg, &wq);
-  TAOS_UNUSED(taosThreadMutexUnlock(&item->mtx));
+
+  if (taosThreadMutexUnlock(&item->mtx) != 0) {
+    tError("failed to unlock mutex, reason:%s", tstrerror(terrno));
+  }
 
   cliDealFunc[pInst->supportBatch](&wq, pThrd);
 
@@ -2077,7 +2083,9 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
   }
 
   QUEUE_INIT(&pThrd->msg);
-  TAOS_UNUSED(taosThreadMutexInit(&pThrd->msgMtx, NULL));
+  if (taosThreadMutexInit(&pThrd->msgMtx, NULL) != 0) {
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
+  }
 
   pThrd->loop = (uv_loop_t*)taosMemoryMalloc(sizeof(uv_loop_t));
   if (pThrd->loop == NULL) {
@@ -2196,7 +2204,10 @@ static void destroyThrdObj(SCliThrd* pThrd) {
     return;
   }
 
-  TAOS_UNUSED(taosThreadJoin(pThrd->thread, NULL));
+  if (taosThreadJoin(pThrd->thread, NULL) != 0) {
+    tTrace("failed to join thread, reason:%s", tstrerror(terrno));
+  }
+
   CLI_RELEASE_UV(pThrd->loop);
   (void)taosThreadMutexDestroy(&pThrd->msgMtx);
   TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SCliReq, destroyReqWrapper, (void*)pThrd);
@@ -3217,7 +3228,7 @@ int32_t transFreeConnById(void* pInstRef, int64_t transpointId) {
 
   code = transAsyncSend(pThrd->asyncPool, &pCli->q);
   if (code != 0) {
-    taosMemoryFree(pCli);
+    taosMemoryFreeClear(pCli);
     TAOS_CHECK_GOTO(code, NULL, _exception);
   }
 

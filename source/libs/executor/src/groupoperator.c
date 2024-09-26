@@ -76,21 +76,23 @@ static void freeGroupKey(void* param) {
 }
 
 static void destroyGroupOperatorInfo(void* param) {
-  SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
-  if (pInfo == NULL) {
+  if (param == NULL) {
     return;
   }
+  SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
 
   cleanupBasicInfo(&pInfo->binfo);
   taosMemoryFreeClear(pInfo->keyBuf);
   taosArrayDestroy(pInfo->pGroupCols);
   taosArrayDestroyEx(pInfo->pGroupColVals, freeGroupKey);
   cleanupExprSupp(&pInfo->scalarSup);
-  cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
-                    &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
+  if (pInfo->pOperator) {
+    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
+                      &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
+    pInfo->pOperator = NULL;
+  }
   cleanupGroupResInfo(&pInfo->groupResInfo);
   cleanupAggSup(&pInfo->aggSup);
-  pInfo->pOperator = NULL;
   taosMemoryFreeClear(param);
 }
 
@@ -450,7 +452,7 @@ static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
 
   QRY_PARAM_CHECK(ppRes);
   if (pOperator->status == OP_EXEC_DONE) {
-    return TSDB_CODE_SUCCESS;
+    return code;
   }
 
   if (pOperator->status == OP_RES_TO_RETURN) {
@@ -502,6 +504,7 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   } else {
     (*ppRes) = buildGroupResultDataBlockByHash(pOperator);
   }
@@ -1533,8 +1536,9 @@ static int32_t doStreamHashPartitionNext(SOperatorInfo* pOperator, SSDataBlock**
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    pTaskInfo->code = code;
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = NULL;
   return code;

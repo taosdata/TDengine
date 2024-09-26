@@ -115,7 +115,7 @@ typedef struct {
 } SValueColumnCompressInfo;
 
 int32_t tValueColumnInit(SValueColumn *valCol);
-int32_t tValueColumnDestroy(SValueColumn *valCol);
+void    tValueColumnDestroy(SValueColumn *valCol);
 void    tValueColumnClear(SValueColumn *valCol);
 int32_t tValueColumnAppend(SValueColumn *valCol, const SValue *value);
 int32_t tValueColumnUpdate(SValueColumn *valCol, int32_t idx, const SValue *value);

@@ -1,6 +1,5 @@
 import queue
 import random
-from fabric2.runners import threading
 from pandas._libs import interval
 import taos
 import sys
@@ -9,6 +8,7 @@ from util.common import TDCom
 from util.log import *
 from util.sql import *
 from util.cases import *
+import threading
 
 
 

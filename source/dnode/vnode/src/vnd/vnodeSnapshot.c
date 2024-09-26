@@ -274,13 +274,17 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     int64_t size;
     code = taosFStatFile(pFile, &size, NULL);
     if (code != 0) {
-      (void)taosCloseFile(&pFile);
+      if (taosCloseFile(&pFile) != 0) {
+        vError("vgId:%d, failed to close file", vgId);
+      }
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + size + 1);
     if (*ppData == NULL) {
-      (void)taosCloseFile(&pFile);
+      if (taosCloseFile(&pFile) != 0) {
+        vError("vgId:%d, failed to close file", vgId);
+      }
       TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
     ((SSnapDataHdr *)(*ppData))->type = SNAP_DATA_CFG;
@@ -289,11 +293,15 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
 
     if (taosReadFile(pFile, ((SSnapDataHdr *)(*ppData))->data, size) < 0) {
       taosMemoryFree(*ppData);
-      (void)taosCloseFile(&pFile);
+      if (taosCloseFile(&pFile) != 0) {
+        vError("vgId:%d, failed to close file", vgId);
+      }
       TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
 
-    (void)taosCloseFile(&pFile);
+    if (taosCloseFile(&pFile) != 0) {
+      vError("vgId:%d, failed to close file", vgId);
+    }
 
     pReader->cfgDone = 1;
     goto _exit;

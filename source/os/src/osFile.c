@@ -427,16 +427,19 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
     return terrno;
   }
 
+  int64_t res = 0;
   DWORD bytesRead;
   if (!ReadFile(pFile->hFile, buf, count, &bytesRead, NULL)) {
     DWORD errCode = GetLastError();
     terrno = TAOS_SYSTEM_WINAPI_ERROR(errCode);
-    bytesRead = -1;
+    res = -1;
+  } else {
+    res = bytesRead;
   }
 #if FILE_WITH_LOCK
   (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
-  return bytesRead;
+  return res;
 }
 
 int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {

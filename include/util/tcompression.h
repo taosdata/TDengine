@@ -72,8 +72,8 @@ extern "C" {
 #ifdef TD_TSZ
 extern bool lossyFloat;
 extern bool lossyDouble;
-int32_t     tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
-                           uint32_t intervals, int32_t ifAdtFse, const char *compressor);
+void tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals, uint32_t intervals,
+                    int32_t ifAdtFse, const char *compressor);
 
 void tsCompressExit();
 
@@ -153,11 +153,10 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
 int32_t getWordLength(char type);
 
 int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements, char *const output, const char type);
-int32_t tsDecompressFloatImplAvx512(const char *const input, const int32_t nelements, char *const output);
-int32_t tsDecompressFloatImplAvx2(const char *const input, const int32_t nelements, char *const output);
-int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output,
-                                    bool bigEndian);
-int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output, bool bigEndian);
+void    tsDecompressFloatImplAvx512(const char *const input, const int32_t nelements, char *const output);
+void    tsDecompressFloatImplAvx2(const char *const input, const int32_t nelements, char *const output);
+void tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output, bool bigEndian);
+void tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output, bool bigEndian);
 
 /*************************************************************************
  *                  REGULAR COMPRESSION 2
