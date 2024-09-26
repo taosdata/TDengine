@@ -1559,3 +1559,4 @@
 ,,n,docs-examples-test,bash jdbc.sh
 ,,n,docs-examples-test,bash go.sh
 ,,n,docs-examples-test,bash test_R.sh
+,,n,docs-examples-test,bash c.sh
