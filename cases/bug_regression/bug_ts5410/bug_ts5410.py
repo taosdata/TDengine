@@ -22,7 +22,14 @@ class TestTS5410(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
+        self.taospy_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taospy")
+        self.taosd_fqdn = self.taosd_setting["fqdn"]
+        self.taospy_fqdn = self.taospy_setting["fqdn"]
         self._remote: Remote = Remote(self.logger)
+        self._remote.cmd(self.taosd_fqdn[0], ["python3 -m pip install --upgrade pip"])
+        self._remote.cmd(self.taosd_fqdn[0], ["pip3 install taospyudf"])
+        self._remote.cmd(self.taosd_fqdn[0], ["python3 -m pip install --upgrade pip"])
+        self._remote.cmd(self.taospy_fqdn[0], ["pip3 install taospyudf"])
         self.table_count = 400
         self.dbname = "DEFAULT_MEIOT_1"
         self.stbname = "t_lingang_stable_sensor_shadow_pressure_1"
