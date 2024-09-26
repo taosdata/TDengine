@@ -15,7 +15,7 @@ def create_connection():
         print(f"Connected to {host}:{port} successfully.");
     except Exception as err:
         print(f"Failed to connect to {host}:{port} , ErrMessage:{err}")
-   
+        raise err
     return conn
  # ANCHOR_END: connect
 
@@ -28,6 +28,7 @@ def create_db_table(conn):
         conn.execute("CREATE TABLE  IF NOT EXISTS `d0` USING `meters` (groupId, location) TAGS(0, 'Los Angles')")
     except Exception as err:
         print(f'Exception {err}')
+        raise err
 # ANCHOR_END: create_db
 
 def insert(conn):
@@ -45,6 +46,7 @@ def insert(conn):
         assert inserted == 8
     except Exception as err:
         print(f'Exception111 {err}')
+        raise err
 # ANCHOR_END: insert
 
 def query(conn):
@@ -58,6 +60,7 @@ def query(conn):
             print(row)
     except Exception as err:
         print(f'Exception {err}')
+        raise err
 # ANCHOR_END: query
 
 if __name__ == "__main__":

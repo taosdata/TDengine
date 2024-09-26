@@ -155,6 +155,7 @@ def unsubscribe(consumer):
         print("Consumer unsubscribed successfully.");
     except Exception as err:
         print(f"Failed to unsubscribe consumer. topic: {topic}, groupId: {groupId}, clientId: {clientId}, ErrMessage:{err}.")
+        raise err
     finally:
         if consumer:
             consumer.close()
@@ -170,7 +171,6 @@ if __name__ == "__main__":
         subscribe(consumer)
         seek_offset(consumer)
         commit_offset(consumer)      
-    except Exception as err:
-        print(f"Failed to execute consumer example, topic: {topic}, groupId: {groupId}, clientId: {clientId}, ErrMessage:{err}.")
     finally:
-        unsubscribe(consumer)
+        if consumer:
+            unsubscribe(consumer)
