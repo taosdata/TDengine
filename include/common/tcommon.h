@@ -89,32 +89,6 @@ typedef struct {
   int32_t  exprIdx;
 } STupleKey;
 
-typedef struct STuplePos {
-  union {
-    struct {
-      int32_t pageId;
-      int32_t offset;
-    };
-    SWinKey streamTupleKey;
-  };
-} STuplePos;
-
-typedef struct SFirstLastRes {
-  bool hasResult;
-  // used for last_row function only, isNullRes in SResultRowEntry can not be passed to downstream.So,
-  // this attribute is required
-  bool      isNull;
-  int32_t   bytes;
-  int64_t   ts;
-  char*     pkData;
-  int32_t   pkBytes;
-  int8_t    pkType;
-  STuplePos pos;
-  STuplePos nullTuplePos;
-  bool      nullTupleSaved;
-  char      buf[];
-} SFirstLastRes;
-
 static inline int STupleKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
   STupleKey* pTuple1 = (STupleKey*)pKey1;
   STupleKey* pTuple2 = (STupleKey*)pKey2;
