@@ -532,7 +532,7 @@ dependencies = [
 
 [[package]]
 name = "arrow-compute-ext"
-version = "1.7.0"
+version = "1.8.0"
 dependencies = [
  "arrow",
  "arrow-schema 50.0.0",
@@ -2318,7 +2318,7 @@ dependencies = [
 
 [[package]]
 name = "futures-ext"
-version = "1.7.0"
+version = "1.8.0"
 dependencies = [
  "futures",
  "futures-core",
@@ -6794,7 +6794,7 @@ dependencies = [
 
 [[package]]
 name = "taosx"
-version = "1.7.0"
+version = "1.8.0"
 dependencies = [
  "actix-cors 0.7.0",
  "actix-files",
@@ -6901,7 +6901,7 @@ dependencies = [
 
 [[package]]
 name = "taosx-agent"
-version = "1.7.0"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -6941,7 +6941,7 @@ dependencies = [
 
 [[package]]
 name = "taosx-core"
-version = "1.7.0"
+version = "1.8.0"
 dependencies = [
  "actix-cors 0.6.5",
  "actix-web",
@@ -7085,7 +7085,7 @@ dependencies = [
 
 [[package]]
 name = "taosx-metrics"
-version = "1.7.0"
+version = "1.8.0"
 dependencies = [
  "bincode",
  "flume",

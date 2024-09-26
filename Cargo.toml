@@ -53,7 +53,7 @@ default-features = false
 features = ["ws", "optin", "deadpool"]
 
 [workspace.package]
-version = "1.7.0"
+version = "1.8.0"
 rust-version = "1.78.0"
 
 [package]
