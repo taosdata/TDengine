@@ -155,7 +155,7 @@ _error:
 }
 
 void cleanupResultInfoInEventWindow(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo) {
-  if (pInfo == NULL || pInfo->pRow == NULL) {
+  if (pInfo == NULL || pInfo->pRow == NULL || pOperator == NULL) {
     return;
   }
   SExprSupp*       pSup = &pOperator->exprSupp;

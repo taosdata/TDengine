@@ -106,7 +106,7 @@ _exit:
 #endif
 
 void tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *)) {
-  TAOS_UNUSED(tGetItemFn(pMapData->pData + pMapData->aOffset[idx], pItem));
+  int32_t r = tGetItemFn(pMapData->pData + pMapData->aOffset[idx], pItem);
 }
 
 #ifdef BUILD_NO_CALL

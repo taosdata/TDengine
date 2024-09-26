@@ -394,7 +394,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
   uint8_t tagNum = pCreateReq->ctb.tagNum;
   int32_t code = 0;
   cJSON*  tags = NULL;
-  cJSON* tableName = cJSON_CreateString(name);
+  cJSON*  tableName = cJSON_CreateString(name);
   RAW_NULL_CHECK(tableName);
   RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableName", tableName));
   cJSON* using = cJSON_CreateString(sname);
@@ -417,7 +417,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
     }
     char* pJson = NULL;
     parseTagDatatoJson(pTag, &pJson);
-    if(pJson == NULL) {
+    if (pJson == NULL) {
       uError("parseTagDatatoJson failed, pJson == NULL");
       goto end;
     }
@@ -731,7 +731,7 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
             goto end;
           }
           parseTagDatatoJson(vAlterTbReq.pTagVal, &buf);
-          if(buf == NULL) {
+          if (buf == NULL) {
             uError("parseTagDatatoJson failed, buf == NULL");
             goto end;
           }
@@ -978,7 +978,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
   pQuery.msgType = pQuery.pCmdMsg->msgType;
   pQuery.stableQuery = true;
 
-  (void)launchQueryImpl(pRequest, &pQuery, true, NULL);  // ignore, because return value is pRequest
+  launchQueryImpl(pRequest, &pQuery, true, NULL);  // ignore, because return value is pRequest
 
   taosMemoryFree(pCmdMsg.pMsg);
 
@@ -1082,7 +1082,7 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
   pQuery.msgType = pQuery.pCmdMsg->msgType;
   pQuery.stableQuery = true;
 
-  (void)launchQueryImpl(pRequest, &pQuery, true, NULL);  // ignore, because return value is pRequest
+  launchQueryImpl(pRequest, &pQuery, true, NULL);  // ignore, because return value is pRequest
   taosMemoryFree(pCmdMsg.pMsg);
   if (pRequest->code == TSDB_CODE_SUCCESS) {
     // ignore the error code
@@ -1236,7 +1236,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
 
   RAW_RETURN_CHECK(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
 
-  (void)launchQueryImpl(pRequest, pQuery, true, NULL);
+  launchQueryImpl(pRequest, pQuery, true, NULL);
   if (pRequest->code == TSDB_CODE_SUCCESS) {
     RAW_RETURN_CHECK(removeMeta(pTscObj, pRequest->tableList, false));
   }
@@ -1365,7 +1365,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
   if (TSDB_CODE_SUCCESS != code) goto end;
   RAW_RETURN_CHECK(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
 
-  (void)launchQueryImpl(pRequest, pQuery, true, NULL);
+  launchQueryImpl(pRequest, pQuery, true, NULL);
   if (pRequest->code == TSDB_CODE_SUCCESS) {
     RAW_RETURN_CHECK(removeMeta(pTscObj, pRequest->tableList, false));
   }
@@ -1510,7 +1510,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   if (TSDB_CODE_SUCCESS != code) goto end;
   RAW_RETURN_CHECK(rewriteToVnodeModifyOpStmt(pQuery, pArray));
 
-  (void)launchQueryImpl(pRequest, pQuery, true, NULL);
+  launchQueryImpl(pRequest, pQuery, true, NULL);
 
   pVgData = NULL;
   pArray = NULL;
@@ -1587,7 +1587,7 @@ int taos_write_raw_block_with_fields_with_reqid(TAOS* taos, int rows, char* pDat
   RAW_RETURN_CHECK(rawBlockBindData(pQuery, pTableMeta, pData, NULL, fields, numFields, false, NULL, 0));
   RAW_RETURN_CHECK(smlBuildOutput(pQuery, pVgHash));
 
-  (void)launchQueryImpl(pRequest, pQuery, true, NULL);
+  launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
 
 end:
@@ -1647,7 +1647,7 @@ int taos_write_raw_block_with_reqid(TAOS* taos, int rows, char* pData, const cha
   RAW_RETURN_CHECK(rawBlockBindData(pQuery, pTableMeta, pData, NULL, NULL, 0, false, NULL, 0));
   RAW_RETURN_CHECK(smlBuildOutput(pQuery, pVgHash));
 
-  (void)launchQueryImpl(pRequest, pQuery, true, NULL);
+  launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
 
 end:
@@ -1766,7 +1766,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
 
   RAW_RETURN_CHECK(smlBuildOutput(pQuery, pVgHash));
 
-  (void)launchQueryImpl(pRequest, pQuery, true, NULL);
+  launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
 
 end:
@@ -1935,7 +1935,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
 
   RAW_RETURN_CHECK(smlBuildOutput(pQuery, pVgHash));
 
-  (void)launchQueryImpl(pRequest, pQuery, true, NULL);
+  launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
 
 end:

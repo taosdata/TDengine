@@ -447,20 +447,19 @@ static char* readFile(TdFilePtr pFile, int64_t* offset, int64_t size) {
   char*   pCont = NULL;
   int64_t totalSize = 0;
   if (size - *offset >= SLOW_LOG_SEND_SIZE_MAX) {
-    pCont = taosMemoryCalloc(1, 4 + SLOW_LOG_SEND_SIZE_MAX);  // 4 reserved for []
     totalSize = 4 + SLOW_LOG_SEND_SIZE_MAX;
   } else {
-    pCont = taosMemoryCalloc(1, 4 + (size - *offset));
     totalSize = 4 + (size - *offset);
   }
 
+  pCont = taosMemoryCalloc(1, totalSize);  // 4 reserved for []
   if (pCont == NULL) {
     tscError("failed to allocate memory for slow log, size:%" PRId64, totalSize);
     return NULL;
   }
   char* buf = pCont;
   (void)strcat(buf++, "[");
-  int64_t readSize = taosReadFile(pFile, buf, SLOW_LOG_SEND_SIZE_MAX);
+  int64_t readSize = taosReadFile(pFile, buf, totalSize - 4); // 4 reserved for []
   if (readSize <= 0) {
     if (readSize < 0) {
       tscError("failed to read len from file:%p since %s", pFile, terrstr());

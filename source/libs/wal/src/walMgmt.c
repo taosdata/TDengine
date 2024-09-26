@@ -104,7 +104,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   }
 
   // set config
-  TAOS_UNUSED(memcpy(&pWal->cfg, pCfg, sizeof(SWalCfg)));
+  (void)memcpy(&pWal->cfg, pCfg, sizeof(SWalCfg));
 
   pWal->fsyncSeq = pCfg->fsyncPeriod / 1000;
   if (pWal->cfg.retentionSize > 0) {
@@ -155,7 +155,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->lastRollSeq = -1;
 
   // init write buffer
-  TAOS_UNUSED(memset(&pWal->writeHead, 0, sizeof(SWalCkHead)));
+  (void)memset(&pWal->writeHead, 0, sizeof(SWalCkHead));
   pWal->writeHead.head.protoVer = WAL_PROTO_VER;
   pWal->writeHead.magic = WAL_MAGIC;
 
@@ -189,6 +189,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
 
 _err:
   taosArrayDestroy(pWal->fileInfoSet);
+  taosArrayDestroy(pWal->toDeleteFiles);
   taosHashCleanup(pWal->pRefHash);
   TAOS_UNUSED(taosThreadRwlockDestroy(&pWal->mutex));
   taosMemoryFreeClear(pWal);
