@@ -104,8 +104,6 @@ static void dmStopDnode(int signum, void *sigInfo, void *context) {
 #endif
   dmStop();
   return;
-_exception:
-  dError("failed to stop dnode since %s", tstrerror(code));
 }
 
 void dmLogCrash(int signum, void *sigInfo, void *context) {
