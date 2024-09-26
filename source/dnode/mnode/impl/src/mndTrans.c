@@ -367,6 +367,7 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pTrans->paramLen, _OVER)
   if (pTrans->paramLen != 0) {
     pTrans->param = taosMemoryMalloc(pTrans->paramLen);
+    if (pTrans->param == NULL) goto _OVER;
     SDB_GET_BINARY(pRaw, dataPos, pTrans->param, pTrans->paramLen, _OVER);
   }
 
@@ -899,6 +900,14 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
           }
           pGidIter = taosHashIterate(pNew->arbGroupIds, pGidIter);
         }
+      }
+    }
+
+    if (pNew->conflict == TRN_CONFLICT_TSMA) {
+      if (pTrans->conflict == TRN_CONFLICT_GLOBAL || pTrans->conflict == TRN_CONFLICT_TSMA) {
+        mndTransLogConflict(pNew, pTrans, true, &conflict);
+      } else {
+        mndTransLogConflict(pNew, pTrans, false, &conflict);
       }
     }
 

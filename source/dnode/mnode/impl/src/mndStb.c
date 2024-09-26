@@ -2352,6 +2352,11 @@ static int32_t mndBuildSMAlterStbRsp(SDbObj *pDb, SStbObj *pObj, void **pCont, i
   }
 
   void *cont = taosMemoryMalloc(contLen);
+  if (NULL == cont) {
+    code = terrno;
+    tFreeSMAlterStbRsp(&alterRsp);
+    TAOS_RETURN(code);
+  }
   tEncoderInit(&ec, cont, contLen);
   code = tEncodeSMAlterStbRsp(&ec, &alterRsp);
   tEncoderClear(&ec);
@@ -2407,6 +2412,11 @@ int32_t mndBuildSMCreateStbRsp(SMnode *pMnode, char *dbFName, char *stbFName, vo
   }
 
   void *cont = taosMemoryMalloc(contLen);
+  if (NULL == cont) {
+    code = terrno;
+    tFreeSMCreateStbRsp(&stbRsp);
+    goto _OVER;
+  }
   tEncoderInit(&ec, cont, contLen);
   TAOS_CHECK_GOTO(tEncodeSMCreateStbRsp(&ec, &stbRsp), NULL, _OVER);
   tEncoderClear(&ec);

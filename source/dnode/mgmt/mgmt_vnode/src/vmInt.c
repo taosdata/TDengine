@@ -24,7 +24,7 @@ int32_t vmGetPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
   SVnodeObj *pVnode = NULL;
 
   (void)taosThreadRwlockRdlock(&pMgmt->lock);
-  (void)taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
+  int32_t r = taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
   if (pVnode != NULL) {
     diskId = pVnode->diskPrimary;
   }
@@ -97,7 +97,7 @@ SVnodeObj *vmAcquireVnodeImpl(SVnodeMgmt *pMgmt, int32_t vgId, bool strict) {
   SVnodeObj *pVnode = NULL;
 
   (void)taosThreadRwlockRdlock(&pMgmt->lock);
-  (void)taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
+  int32_t r = taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
   if (pVnode == NULL || strict && (pVnode->dropped || pVnode->failed)) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     pVnode = NULL;
@@ -165,7 +165,7 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
 
   (void)taosThreadRwlockWrlock(&pMgmt->lock);
   SVnodeObj *pOld = NULL;
-  (void)taosHashGetDup(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), (void *)&pOld);
+  int32_t    r = taosHashGetDup(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), (void *)&pOld);
   if (pOld) {
     vmFreeVnodeObj(&pOld);
   }
@@ -184,7 +184,7 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
   }
 
   (void)taosThreadRwlockWrlock(&pMgmt->lock);
-  (void)taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t));
+  int32_t r = taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t));
   (void)taosThreadRwlockUnlock(&pMgmt->lock);
   vmReleaseVnode(pMgmt, pVnode);
 

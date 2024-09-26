@@ -1749,20 +1749,20 @@ bool s3Get(const char *object_name, const char *path) {
   cos_table_t           *headers = NULL;
   int                    traffic_limit = 0;
 
-  //创建内存池
+  // 创建内存池
   cos_pool_create(&p, NULL);
 
-  //初始化请求选项
+  // 初始化请求选项
   options = cos_request_options_create(p);
   s3InitRequestOptions(options, is_cname);
   cos_str_set(&bucket, tsS3BucketName);
   if (traffic_limit) {
-    //限速值设置范围为819200 - 838860800，即100KB/s - 100MB/s，如果超出该范围将返回400错误
+    // 限速值设置范围为819200 - 838860800，即100KB/s - 100MB/s，如果超出该范围将返回400错误
     headers = cos_table_make(p, 1);
     cos_table_add_int(headers, "x-cos-traffic-limit", 819200);
   }
 
-  //下载对象
+  // 下载对象
   cos_str_set(&file, path);
   cos_str_set(&object, object_name);
   s = cos_get_object_to_file(options, &bucket, &object, headers, NULL, &file, &resp_headers);
@@ -1773,7 +1773,7 @@ bool s3Get(const char *object_name, const char *path) {
     cos_warn_log("get object failed\n");
   }
 
-  //销毁内存池
+  // 销毁内存池
   cos_pool_destroy(p);
 
   return ret;
@@ -1795,10 +1795,10 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_
   // int  traffic_limit = 0;
   char range_buf[64];
 
-  //创建内存池
+  // 创建内存池
   cos_pool_create(&p, NULL);
 
-  //初始化请求选项
+  // 初始化请求选项
   options = cos_request_options_create(p);
   // init_test_request_options(options, is_cname);
   s3InitRequestOptions(options, is_cname);
@@ -1847,7 +1847,7 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_
   // cos_warn_log("Download data=%s", buf);
 
 _exit:
-  //销毁内存池
+  // 销毁内存池
   cos_pool_destroy(p);
 
   *ppBlock = buf;
@@ -1936,15 +1936,15 @@ long s3Size(const char *object_name) {
   cos_string_t           object;
   cos_table_t           *resp_headers = NULL;
 
-  //创建内存池
+  // 创建内存池
   cos_pool_create(&p, NULL);
 
-  //初始化请求选项
+  // 初始化请求选项
   options = cos_request_options_create(p);
   s3InitRequestOptions(options, is_cname);
   cos_str_set(&bucket, tsS3BucketName);
 
-  //获取对象元数据
+  // 获取对象元数据
   cos_str_set(&object, object_name);
   s = cos_head_object(options, &bucket, &object, NULL, &resp_headers);
   // print_headers(resp_headers);
@@ -1958,7 +1958,7 @@ long s3Size(const char *object_name) {
     cos_warn_log("head object failed\n");
   }
 
-  //销毁内存池
+  // 销毁内存池
   cos_pool_destroy(p);
 
   return size;
