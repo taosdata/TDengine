@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 import os
-from numpy.lib.function_base import insert
+# from numpy.lib.function_base import insert
 import taos
 from taos import *
 from stmt.common import StmtCommon
