@@ -2010,6 +2010,8 @@ void* nodesGetValueFromNode(SValueNode* pNode) {
 
 int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
   switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_NULL:
+      break;
     case TSDB_DATA_TYPE_BOOL:
       pNode->datum.b = *(bool*)value;
       *(bool*)&pNode->typeData = pNode->datum.b;
@@ -2061,7 +2063,10 @@ int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
     case TSDB_DATA_TYPE_GEOMETRY:
       pNode->datum.p = (char*)value;
       break;
