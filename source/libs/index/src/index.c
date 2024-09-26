@@ -358,11 +358,11 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
   if (colVal != NULL && nColVal != 0) {
     len = idxConvertDataToStr((void*)colVal, IDX_TYPE_GET_TYPE(colType), (void**)&buf);
   } else if (colVal == NULL) {
-    buf = strndup(INDEX_DATA_NULL_STR, (int32_t)strlen(INDEX_DATA_NULL_STR));
+    buf = taosStrndup(INDEX_DATA_NULL_STR, (int32_t)strlen(INDEX_DATA_NULL_STR));
     len = (int32_t)strlen(INDEX_DATA_NULL_STR);
   } else {
     static const char* emptyStr = " ";
-    buf = strndup(emptyStr, (int32_t)strlen(emptyStr));
+    buf = taosStrndup(emptyStr, (int32_t)strlen(emptyStr));
     len = (int32_t)strlen(emptyStr);
   }
 
@@ -370,7 +370,6 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
   if (tm->colVal == NULL) {
     taosMemoryFree(tm->colName);
     taosMemoryFree(tm);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 

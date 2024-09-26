@@ -345,9 +345,9 @@ int idxUidCompare(const void* a, const void* b) {
 
 int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
   if (src == NULL) {
-    *dst = strndup(INDEX_DATA_NULL_STR, (int)strlen(INDEX_DATA_NULL_STR));
+    *dst = taosStrndup(INDEX_DATA_NULL_STR, (int)strlen(INDEX_DATA_NULL_STR));
     if (*dst == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     return (int32_t)strlen(INDEX_DATA_NULL_STR);
   }
