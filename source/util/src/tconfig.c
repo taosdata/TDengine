@@ -911,7 +911,9 @@ int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
 
     strncpy(line, *pEnv, sizeof(line) - 1);
     pEnv++;
-    (void)taosEnvToCfg(line, line);
+    if (taosEnvToCfg(line, line) < 0) {
+      uError("failed to convert env to cfg:%s", line);
+    }
 
     (void)paGetToken(line, &name, &olen);
     if (olen == 0) continue;
@@ -954,7 +956,9 @@ int32_t cfgLoadFromEnvCmd(SConfig *pConfig, const char **envCmd) {
   while (envCmd[index] != NULL) {
     strncpy(buf, envCmd[index], sizeof(buf) - 1);
     buf[sizeof(buf) - 1] = 0;
-    (void)taosEnvToCfg(buf, buf);
+    if (taosEnvToCfg(buf, buf) < 0) {
+      uError("failed to convert env to cfg:%s", buf);
+    }
     index++;
 
     name = value = value2 = value3 = value4 = NULL;
@@ -1026,7 +1030,9 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile) {
       break;
     }
     if (line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
-    (void)taosEnvToCfg(line, line);
+    if (taosEnvToCfg(line, line) < 0) {
+      uError("failed to convert env to cfg:%s", line);
+    }
 
     (void)paGetToken(line, &name, &olen);
     if (olen == 0) continue;
@@ -1273,7 +1279,12 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
     }
 
     buf[fileSize] = 0;
-    (void)taosLSeekFile(pFile, 0, SEEK_SET);
+    if (taosLSeekFile(pFile, 0, SEEK_SET) < 0) {
+      (void)taosCloseFile(&pFile);
+      (void)printf("load json file error: %s\n", filepath);
+      taosMemoryFreeClear(buf);
+      TAOS_RETURN(terrno);
+    }
     if (taosReadFile(pFile, buf, fileSize) <= 0) {
       (void)taosCloseFile(&pFile);
       (void)printf("load json file error: %s\n", filepath);
