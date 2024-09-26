@@ -2339,11 +2339,14 @@ static int taosLogVarComp(void const *lp, void const *rp) {
   return strcasecmp(lpVar->name, rpVar->name);
 }
 
-static int32_t taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag, SArray *noNeedToSetVars) {
+static void taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag, SArray *noNeedToSetVars) {
   if (noNeedToSetVars != NULL && taosArraySearch(noNeedToSetVars, name, taosLogVarComp, TD_EQ) != NULL) {
-    TAOS_RETURN(TSDB_CODE_SUCCESS);
+    return;
   }
-  return taosSetDebugFlag(pFlagPtr, name, flag);
+  if (taosSetDebugFlag(pFlagPtr, name, flag) != 0) {
+    uError("failed to set flag %s to %d", name, flag);
+  }
+  return;
 }
 
 int32_t taosSetGlobalDebugFlag(int32_t flag) { return taosSetAllDebugFlag(tsCfg, flag); }

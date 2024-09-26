@@ -324,8 +324,8 @@ bool lossyFloat = false;
 bool lossyDouble = false;
 
 // init call
-int32_t tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
-                       uint32_t intervals, int32_t ifAdtFse, const char *compressor) {
+void tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals, uint32_t intervals,
+                    int32_t ifAdtFse, const char *compressor) {
   // config
   lossyFloat = strstr(lossyColumns, "float") != NULL;
   lossyDouble = strstr(lossyColumns, "double") != NULL;
@@ -333,7 +333,7 @@ int32_t tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, 
   tdszInit(fPrecision, dPrecision, maxIntervals, intervals, ifAdtFse, compressor);
   if (lossyFloat) uTrace("lossy compression float  is opened. ");
   if (lossyDouble) uTrace("lossy compression double is opened. ");
-  return 0;
+  return;
 }
 // exit call
 void tsCompressExit() { tdszExit(); }

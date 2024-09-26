@@ -80,7 +80,6 @@ database_option: {
 
 ```sql
 create database if not exists db vgroups 10 buffer 10
-
 ```
 
 以上示例创建了一个有 10 个 vgroup 名为 db 的数据库， 其中每个 vnode 分配 10MB 的写入缓存

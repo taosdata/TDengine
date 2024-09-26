@@ -2107,9 +2107,15 @@ static void cliAsyncCb(uv_async_t* handle) {
 
   // batch process to avoid to lock/unlock frequently
   queue wq;
-  TAOS_UNUSED(taosThreadMutexLock(&item->mtx));
+  if (taosThreadMutexLock(&item->mtx) != 0) {
+    tError("failed to lock mutex, reason:%s", tstrerror(terrno));
+  }
+
   QUEUE_MOVE(&item->qmsg, &wq);
-  TAOS_UNUSED(taosThreadMutexUnlock(&item->mtx));
+
+  if (taosThreadMutexUnlock(&item->mtx) != 0) {
+    tError("failed to unlock mutex, reason:%s", tstrerror(terrno));
+  }
 
   int8_t supportBatch = pTransInst->supportBatch;
   if (supportBatch == 0) {
@@ -2299,7 +2305,9 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
   }
 
   QUEUE_INIT(&pThrd->msg);
-  TAOS_UNUSED(taosThreadMutexInit(&pThrd->msgMtx, NULL));
+  if (taosThreadMutexInit(&pThrd->msgMtx, NULL) != 0) {
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
+  }
 
   pThrd->loop = (uv_loop_t*)taosMemoryMalloc(sizeof(uv_loop_t));
   if (pThrd->loop == NULL) {
@@ -2406,7 +2414,10 @@ static void destroyThrdObj(SCliThrd* pThrd) {
     return;
   }
 
-  TAOS_UNUSED(taosThreadJoin(pThrd->thread, NULL));
+  if (taosThreadJoin(pThrd->thread, NULL) != 0) {
+    tTrace("failed to join thread, reason:%s", tstrerror(terrno));
+  }
+
   CLI_RELEASE_UV(pThrd->loop);
   TAOS_UNUSED(taosThreadMutexDestroy(&pThrd->msgMtx));
   TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SCliMsg, destroyCmsgWrapper, (void*)pThrd);
@@ -3358,8 +3369,13 @@ _exception:
   transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
   if (code != 0) {
     if (transpointId != 0) {
-      (void)transReleaseExHandle(transGetRefMgt(), transpointId);
-      (void)transRemoveExHandle(transGetRefMgt(), transpointId);
+      if (transReleaseExHandle(transGetRefMgt(), transpointId) != 0) {
+        tError("failed to release refId %" PRId64 "", transpointId);
+      }
+
+      if (transRemoveExHandle(transGetRefMgt(), transpointId) != 0) {
+        tError("failed to remove refId %" PRId64 "", transpointId);
+      }
     }
     taosMemoryFree(pCli);
   }

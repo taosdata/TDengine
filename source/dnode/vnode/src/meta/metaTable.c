@@ -565,6 +565,7 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   if (ret < 0) {
     metaError("vgId:%d, failed to decode stb:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
               pReq->suid, tstrerror(ret));
+    tDecoderClear(&dc);
     tdbTbcClose(pTbDbc);
     tdbTbcClose(pUidIdxc);
     return terrno;
@@ -1504,6 +1505,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
         tDecoderInit(&tdc, tData, tLen);
         int32_t ret = metaDecodeEntry(&tdc, &stbEntry);
         if (ret < 0) {
+          tDecoderClear(&tdc);
           metaError("vgId:%d, failed to decode child table:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), e.name,
                     e.ctbEntry.suid, tstrerror(ret));
           return ret;
@@ -2399,6 +2401,7 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
   tDecoderInit(&dc, pVal, nVal);
   ret = metaDecodeEntry(&dc, &stbEntry);
   if (ret < 0) {
+    tDecoderClear(&dc);
     goto _err;
   }
 
@@ -2540,6 +2543,7 @@ static int metaDropTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterT
   tDecoderInit(&dc, pVal, nVal);
   ret = metaDecodeEntry(&dc, &stbEntry);
   if (ret < 0) {
+    tDecoderClear(&dc);
     goto _err;
   }
 

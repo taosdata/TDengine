@@ -233,8 +233,12 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
 
   if (commitAndRemoveWal) {
     dInfo("vgId:%d, commit data for vnode split", pVnode->vgId);
-    (void)vnodeSyncCommit(pVnode->pImpl);
-    (void)vnodeBegin(pVnode->pImpl);
+    if (vnodeSyncCommit(pVnode->pImpl) != 0) {
+      dError("vgId:%d, failed to commit data", pVnode->vgId);
+    }
+    if (vnodeBegin(pVnode->pImpl) != 0) {
+      dError("vgId:%d, failed to begin", pVnode->vgId);
+    }
     dInfo("vgId:%d, commit data finished", pVnode->vgId);
   }
 
@@ -248,8 +252,12 @@ _closed:
   if (commitAndRemoveWal) {
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d%swal", TD_DIRSEP, pVnode->vgId, TD_DIRSEP);
     dInfo("vgId:%d, remove all wals, path:%s", pVnode->vgId, path);
-    (void)tfsRmdir(pMgmt->pTfs, path);
-    (void)tfsMkdir(pMgmt->pTfs, path);
+    if (tfsRmdir(pMgmt->pTfs, path) != 0) {
+      dTrace("vgId:%d, failed to remove wals, path:%s", pVnode->vgId, path);
+    }
+    if (tfsMkdir(pMgmt->pTfs, path) != 0) {
+      dTrace("vgId:%d, failed to create wals, path:%s", pVnode->vgId, path);
+    }
   }
 
   if (pVnode->dropped) {
