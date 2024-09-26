@@ -902,6 +902,14 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
       }
     }
 
+    if (pNew->conflict == TRN_CONFLICT_TSMA) {
+      if (pTrans->conflict == TRN_CONFLICT_GLOBAL || pTrans->conflict == TRN_CONFLICT_TSMA) {
+        mndTransLogConflict(pNew, pTrans, true, &conflict);
+      } else {
+        mndTransLogConflict(pNew, pTrans, false, &conflict);
+      }
+    }
+
     sdbRelease(pMnode->pSdb, pTrans);
   }
 
