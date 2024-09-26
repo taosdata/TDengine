@@ -5,6 +5,7 @@ use std::io::Read;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
+use clap::arg;
 use clap::{parser::ValueSource, CommandFactory, Parser, Subcommand};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
@@ -200,13 +201,18 @@ struct Global {
 }
 
 #[serde_as]
-#[derive(Parser, Debug, Serialize, Deserialize, Clone)]
+#[derive(Parser, Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 struct LogOpts {
+    /// Log path.
     #[clap(id = "log.path", long = "log.path", env = "LOG_PATH")]
     path: Option<PathBuf>,
+
+    /// Log level.
     #[clap(id = "log.level", long = "log.level", env = "LOG_LEVEL")]
     level: Option<LevelFilter>,
+
+    /// Enable compress for log files.
     #[clap(
         id = "log.compress",
         long = "log.compress",
@@ -215,30 +221,53 @@ struct LogOpts {
         default_missing_value = "true",
         value_parser = compress_arg_parser,
     )]
+
+    /// Enable compress for log files.
     #[serde_as(as = "Option<FromInto<CompressType>>")]
     compress: Option<bool>,
+
+    /// Rotation count for log files.
     #[clap(
         id = "log.rotationCount",
         long = "log.rotationCount",
         env = "LOG_ROTATION_COUNT"
     )]
     rotation_count: Option<u16>,
+
+    /// Keep days for log files.
     #[clap(id = "log.keepDays", long = "log.keepDays", env = "LOG_KEEP_DAYS")]
     keep_days: Option<u16>,
+
+    /// Rotation size for log files.
     #[clap(
         id = "log.rotationSize",
         long = "log.rotationSize",
         env = "LOG_ROTATION_SIZE"
     )]
     rotation_size: Option<String>,
+
+    /// Reserved disk size for log files.
     #[clap(
         id = "log.reservedDiskSize",
         long = "log.reservedDiskSize",
         env = "LOG_RESERVED_DISK_SIZE"
     )]
     reserved_disk_size: Option<String>,
-    #[clap(id = "log.watching", long = "log.watching", env = "LOG_WATCHING", action = clap::ArgAction::SetTrue, default_value = "true")]
+
+    /// Enable watching for loggers changes.
+    #[clap(
+        hide = true,
+        env = "LOG_WATCHING",
+        default_value_if("log.watching", "true", Some("true"))
+    )]
     watching: Option<bool>,
+
+    /// Enable watching for loggers changes.
+    #[clap(long = "log.watching", id = "log.watching")]
+    #[serde(skip)]
+    _log_watching_helper: bool,
+
+    /// Loggers.
     #[clap(skip)]
     loggers: Option<HashMap<String, String>>,
 }
@@ -250,8 +279,8 @@ fn compress_arg_parser(value: &str) -> Result<bool, clap::Error> {
     }
 }
 
-impl Default for LogOpts {
-    fn default() -> Self {
+impl LogOpts {
+    fn new() -> Self {
         Self {
             path: Some(PathBuf::from(get_env_log_dir())),
             level: Some(LevelFilter::Info),
@@ -262,12 +291,13 @@ impl Default for LogOpts {
             reserved_disk_size: Some("1GB".to_string()),
             watching: Some(true),
             loggers: None,
+            _log_watching_helper: true,
         }
     }
 }
 
 impl LogOpts {
-    fn merge_from(&mut self, rhs: Self) {
+    fn merge_from(&mut self, rhs: Self) -> &mut Self {
         macro_rules! update_if_none {
             ($field: ident) => {
                 if self.$field.is_none() {
@@ -283,6 +313,7 @@ impl LogOpts {
         update_if_none!(rotation_size);
         update_if_none!(reserved_disk_size);
         update_if_none!(watching);
+        self
     }
 }
 
@@ -411,14 +442,18 @@ impl Args {
         layers.push(Layer::Clap(Args::command().get_matches()));
 
         let configurable_opts = ConfigurableOpts::with_layers(&layers)?;
+        let default_log_opts = LogOpts::new();
         match (
             args.global.log.as_mut(),
             configurable_opts.global.log.clone(),
         ) {
-            (None, None) => args.global.log = Some(LogOpts::default()),
-            (None, Some(opts)) => args.global.log = Some(opts),
+            (None, None) => args.global.log = Some(default_log_opts),
+            (None, Some(mut opts)) => {
+                opts.merge_from(default_log_opts);
+                args.global.log = Some(opts);
+            }
             (Some(args), Some(configs)) => {
-                args.merge_from(configs);
+                args.merge_from(configs).merge_from(default_log_opts);
             }
             _ => {}
         }
@@ -833,13 +868,13 @@ fn main() -> Result<()> {
         Some(opts) => {
             opts.level = Some(level_filter);
             opts.keep_days = Some(get_log_keep_days() as u16);
-            opts.merge_from(LogOpts::default())
+            opts.merge_from(LogOpts::new());
         }
         None => {
-            let mut opts = LogOpts::default();
+            let mut opts = LogOpts::new();
             opts.level = Some(level_filter);
             opts.keep_days = Some(get_log_keep_days() as u16);
-            args.global.log = Some(opts)
+            args.global.log = Some(opts);
         }
     };
 
