@@ -16,7 +16,7 @@ go.work*
 /.idea/centos7.target
 .idea
 logs/*
-release
+/release
 centos7.target
 vendor
 # plugins/opentsdb/target/

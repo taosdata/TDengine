@@ -382,7 +382,7 @@ pub async fn write_raw_block_with_connection_retries(
     }
 }
 
-// #[tracing::instrument(skip(pool, taos))]
+#[tracing::instrument(skip(pool, taos))]
 pub async fn describe_table_with_connection_retries(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,

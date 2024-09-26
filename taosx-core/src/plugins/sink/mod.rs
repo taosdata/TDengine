@@ -526,7 +526,6 @@ async fn ipc_tcp_read(
 ) -> anyhow::Result<()> {
     // let stream = Arc::new(stream);
     // let reader = stream.clone();
-
     info!("Prepare IPC stream reader");
     let reader_stream = stream.try_clone().context("Clone tcp stream error")?;
     let ipc_reader = tokio::task::spawn_blocking(move || {
@@ -962,7 +961,6 @@ async fn consume_lush_record_with_transform(
         tracing::trace!("consume lush record in dry-run mode with transform");
         return Ok(());
     }
-
     match record {
         LushMessage::Control(message) => match message {
             taosx_ipc::stream::lush::LushMessageControl::DELETE(msg) => {
@@ -3246,7 +3244,11 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
 ) -> anyhow::Result<()> {
     let stream = ipc_reader.into_stream();
     let sink = futures_util::sink::unfold(ipc_ack_writer, |mut ack_writer, ack| async move {
-        ack_writer.ack(ack)?;
+        ack_writer.ack(ack).map_err(|err| {
+            error!("Write ack error: {err:#}");
+            err
+        })?;
+        info!("Ack done");
         Ok(ack_writer)
     });
 
