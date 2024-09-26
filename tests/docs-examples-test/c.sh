@@ -8,6 +8,16 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 
+current_path=$(pwd)  
+  
+if [[ $current_path == *"TDinternal"* ]]; then  
+    TEST_PATH="../../../debug/build/bin"
+else  
+    TEST_PATH="../../debug/build/bin"
+fi  
+
+echo "setting TEST_PATH: $TEST_PATH" 
+
 TEST_PATH="../../debug/build/bin"
 
 LOG_FILE="docs-c-test-out.log"
