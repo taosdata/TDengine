@@ -225,7 +225,7 @@ static int32_t tsdbMemTableIterNext(STsdbIter *iter, const TABLEID *tbid) {
 
       iter->row->row = row[0];
 
-      TAOS_UNUSED(tsdbTbDataIterNext(iter->memtData->tbIter));
+      bool r = tsdbTbDataIterNext(iter->memtData->tbIter);
       goto _exit;
     }
 

@@ -80,7 +80,7 @@ int32_t windowSBfAdd(SUpdateInfo* pInfo, uint64_t count) {
     QUERY_CHECK_CODE(code, lino, _error);
     void* res = taosArrayPush(pInfo->pTsSBFs, &tsSBF);
     if (!res) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _error);
     }
   }
@@ -168,7 +168,7 @@ int32_t updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, b
     pInfo->pTsSBFs = taosArrayInit(bfSize, sizeof(void*));
     if (pInfo->pTsSBFs == NULL) {
       updateInfoDestroy(pInfo);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
     code = windowSBfAdd(pInfo, bfSize);
@@ -177,7 +177,7 @@ int32_t updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, b
     pInfo->pTsBuckets = taosArrayInit(DEFAULT_BUCKET_SIZE, sizeof(TSKEY));
     if (pInfo->pTsBuckets == NULL) {
       updateInfoDestroy(pInfo);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -185,7 +185,7 @@ int32_t updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, b
     for (uint64_t i = 0; i < DEFAULT_BUCKET_SIZE; ++i) {
       void* tmp = taosArrayPush(pInfo->pTsBuckets, &dumy);
       if (!tmp) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
@@ -195,7 +195,7 @@ int32_t updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, b
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT);
   pInfo->pMap = taosHashInit(DEFAULT_MAP_CAPACITY, hashFn, true, HASH_NO_LOCK);
   if (!pInfo->pMap) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
   pInfo->maxDataVersion = 0;
@@ -255,7 +255,7 @@ static int32_t getSBf(SUpdateInfo* pInfo, TSKEY ts, SScalableBf** ppSBf) {
 
     void* tmp = taosArrayPush(pInfo->pTsSBFs, &res);
     if (!tmp) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -575,7 +575,7 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
     if (tDecodeI64(&decoder, &ts) < 0) return -1;
     void* tmp = taosArrayPush(pInfo->pTsBuckets, &ts);
     if (!tmp) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _error);
     }
   }
@@ -594,7 +594,7 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
 
     void* tmp = taosArrayPush(pInfo->pTsSBFs, &pSBf);
     if (!tmp) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _error);
     }
   }

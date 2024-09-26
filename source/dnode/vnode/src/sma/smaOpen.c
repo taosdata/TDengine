@@ -171,9 +171,9 @@ _exit:
   TAOS_RETURN(code);
 }
 
-int32_t smaClose(SSma *pSma) {
+void smaClose(SSma *pSma) {
   if (pSma) {
-    (void)smaPreClose(pSma);
+    TAOS_UNUSED(smaPreClose(pSma));
     (void)taosThreadMutexDestroy(&pSma->mutex);
     SMA_TSMA_ENV(pSma) = tdFreeSmaEnv(SMA_TSMA_ENV(pSma));
     SMA_RSMA_ENV(pSma) = tdFreeSmaEnv(SMA_RSMA_ENV(pSma));
@@ -182,7 +182,7 @@ int32_t smaClose(SSma *pSma) {
     if SMA_RSMA_TSDB2 (pSma) tsdbClose(&SMA_RSMA_TSDB2(pSma));
     taosMemoryFreeClear(pSma);
   }
-  return 0;
+  return;
 }
 
 /**

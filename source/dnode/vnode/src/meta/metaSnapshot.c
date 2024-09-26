@@ -87,7 +87,9 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
 
     if (key.version < pReader->sver  //
         || metaGetInfo(pReader->pMeta, key.uid, &info, NULL) == TSDB_CODE_NOT_FOUND) {
-      (void)tdbTbcMoveToNext(pReader->pTbc);
+      if (tdbTbcMoveToNext(pReader->pTbc) != 0) {
+        metaTrace("vgId:%d, vnode snapshot meta read data done", TD_VID(pReader->pMeta->pVnode));
+      }
       continue;
     }
 
@@ -110,7 +112,9 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
     metaDebug("vgId:%d, vnode snapshot meta read data, version:%" PRId64 " uid:%" PRId64 " blockLen:%d",
               TD_VID(pReader->pMeta->pVnode), key.version, key.uid, nData);
 
-    (void)tdbTbcMoveToNext(pReader->pTbc);
+    if (tdbTbcMoveToNext(pReader->pTbc) != 0) {
+      metaTrace("vgId:%d, vnode snapshot meta read data done", TD_VID(pReader->pMeta->pVnode));
+    }
     break;
   }
 
@@ -233,7 +237,9 @@ static int32_t MoveToSnapShotVersion(SSnapContext* ctx) {
     return TAOS_GET_TERRNO(code);
   }
   if (c < 0) {
-    (void)tdbTbcMoveToPrev((TBC*)ctx->pCur);
+    if (tdbTbcMoveToPrev((TBC*)ctx->pCur) != 0) {
+      metaTrace("vgId:%d, vnode snapshot move to prev failed", TD_VID(ctx->pMeta->pVnode));
+    }
   }
   return 0;
 }
@@ -599,6 +605,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
   tDecoderInit(&dc, pVal, vLen);
   ret = metaDecodeEntry(&dc, &me);
   if (ret < 0) {
+    tDecoderClear(&dc);
     ret = TAOS_GET_TERRNO(ret);
     goto END;
   }

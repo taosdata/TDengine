@@ -72,15 +72,30 @@ TDengine 可以通过 MQTT 连接器从 MQTT 代理订阅数据并将其写入 T
 
 taosX 可以使用 JSON 提取器解析数据，并允许用户在数据库中指定数据模型，包括，指定表名称和超级表名，设置普通列和标签列等。
 
-
 #### 6.1 解析
+
 有三种获取示例数据的方法：
 
 点击 **从服务器检索** 按钮，从 MQTT 获取示例数据。
 
 点击 **文件上传** 按钮，上传 CSV 文件，获取示例数据。
 
-在 **消息体** 中填写 MQTT 消息体中的示例数据，例如：`{"id": 1, "message": "hello-word"}{"id": 2, "message": "hello-word"}`。之后会使用这条示例数据来配置提取和过滤条件。
+在 **消息体** 中填写 MQTT 消息体中的示例数据。
+
+json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解析一下数据：
+
+``` json
+{"id": 1, "message": "hello-word"}
+{"id": 2, "message": "hello-word"}
+```
+
+或者
+
+``` json
+[{"id": 1, "message": "hello-word"},{"id": 2, "message": "hello-word"}]
+```
+
+解析结果如下所示：
 
 ![mqtt-06.png](./mqtt-06.png)
 

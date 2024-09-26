@@ -1198,7 +1198,7 @@ static int32_t pdcJoinCollectColsFromParent(SJoinLogicNode* pJoin, SSHashObj* pT
     .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)
   };
   if (NULL == cxt.pColHash) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   
   nodesWalkExpr(pJoin->pPrimKeyEqCond, pdcJoinCollectCondCol, &cxt);
@@ -4304,7 +4304,7 @@ static int32_t lastRowScanBuildFuncTypes(SScanLogicNode* pScan, SColumnNode* pCo
     pScan->pFuncTypes = taosArrayInit(pScan->pScanCols->length, sizeof(SFunctParam));
     if (NULL == pScan->pFuncTypes) {
       taosMemoryFree(pFuncTypeParam);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
  
@@ -4317,7 +4317,7 @@ static int32_t lastRowScanBuildFuncTypes(SScanLogicNode* pScan, SColumnNode* pCo
   strcpy(pFuncTypeParam->pCol->name, pColNode->colName);
   if (NULL == taosArrayPush(pScan->pFuncTypes, pFuncTypeParam)) {
     taosMemoryFree(pFuncTypeParam);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   taosMemoryFree(pFuncTypeParam);
@@ -6692,7 +6692,7 @@ static int32_t fillTSMAOptCtx(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pScan) {
   pTsmaOptCtx->pUsefulTsmas = taosArrayInit(pScan->pTsmas->size, sizeof(STSMAOptUsefulTsma));
   pTsmaOptCtx->pUsedTsmas = taosArrayInit(3, sizeof(STSMAOptUsefulTsma));
   if (!pTsmaOptCtx->pUsefulTsmas || !pTsmaOptCtx->pUsedTsmas) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
   }
   return code;
 }
@@ -6755,7 +6755,7 @@ static int32_t tsmaOptCheckValidFuncs(const SArray* pTsmaFuncs, const SNodeList*
       }
       found = true;
       if (NULL == taosArrayPush(pTsmaScanCols, &i)) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       break;
     }
@@ -6813,7 +6813,7 @@ static int32_t tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
   for (int32_t i = 0; i < pTsmaOptCtx->pTsmas->size; ++i) {
     if (!pTsmaScanCols) {
       pTsmaScanCols = taosArrayInit(pTsmaOptCtx->pAggFuncs->length, sizeof(int32_t));
-      if (!pTsmaScanCols) return TSDB_CODE_OUT_OF_MEMORY;
+      if (!pTsmaScanCols) return terrno;
     }
     if (pTsmaOptCtx->pScan->tableType == TSDB_CHILD_TABLE || pTsmaOptCtx->pScan->tableType == TSDB_NORMAL_TABLE) {
       const STsmaTargetTbInfo* ptbInfo = taosArrayGet(pTsmaOptCtx->pScan->pTsmaTargetTbInfo, i);
@@ -6842,7 +6842,7 @@ static int32_t tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
       if (pTsmaScanCols) {
         taosArrayDestroy(pTsmaScanCols);
       }
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   if (pTsmaScanCols) taosArrayDestroy(pTsmaScanCols);
@@ -6949,7 +6949,7 @@ static int32_t tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* 
                                      .scanRange = scanRange,
                                      .pTsmaScanCols = pTsmaFound ? pTsmaFound->pTsmaScanCols : NULL};
     if (NULL == taosArrayPush(pTsmaOptCtx->pUsedTsmas, &usefulTsma))
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
   }
 
   // the main tsma
@@ -6962,7 +6962,7 @@ static int32_t tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* 
     STSMAOptUsefulTsma usefulTsma = {
         .pTsma = pTsma, .scanRange = scanRange, .pTsmaScanCols = pUsefulTsma->pTsmaScanCols};
     if (NULL == taosArrayPush(pTsmaOptCtx->pUsedTsmas, &usefulTsma))
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
   }
 
   // add tail tsma if possible
@@ -6976,7 +6976,7 @@ static int32_t tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* 
                                      .scanRange = scanRange,
                                      .pTsmaScanCols = pTsmaFound ? pTsmaFound->pTsmaScanCols : NULL};
     if (NULL == taosArrayPush(pTsmaOptCtx->pUsedTsmas, &usefulTsma))
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
   }
   return code;
 }

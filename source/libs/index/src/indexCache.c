@@ -80,6 +80,10 @@ static int32_t cacheSearchTerm(void* cache, SIndexTerm* term, SIdxTRslt* tr, STe
   IndexCache* pCache = mem->pCache;
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
+  if (pCt == NULL) {
+    return terrno;
+  }
+
   pCt->colVal = term->colVal;
   pCt->version = atomic_load_64(&pCache->version);
 
@@ -290,6 +294,10 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
   IndexCache* pCache = mem->pCache;
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
+  if (pCt == NULL) {
+    return terrno;
+  }
+
   pCt->colVal = term->colVal;
   pCt->version = atomic_load_64(&pCache->version);
 
@@ -390,8 +398,17 @@ IndexCache* idxCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8
   cache->suid = suid;
   cache->occupiedMem = 0;
 
-  TAOS_UNUSED(taosThreadMutexInit(&cache->mtx, NULL));
-  TAOS_UNUSED(taosThreadCondInit(&cache->finished, NULL));
+  if (taosThreadMutexInit(&cache->mtx, NULL) != 0) {
+    indexError("failed to create mutex for index cache");
+    taosMemoryFree(cache);
+    return NULL;
+  }
+
+  if (taosThreadCondInit(&cache->finished, NULL) != 0) {
+    indexError("failed to create cond for index cache");
+    taosMemoryFree(cache);
+    return NULL;
+  }
 
   idxCacheRef(cache);
   if (idx != NULL) {
@@ -402,10 +419,16 @@ IndexCache* idxCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8
 void idxCacheDebug(IndexCache* cache) {
   MemTable* tbl = NULL;
 
-  TAOS_UNUSED(taosThreadMutexLock(&cache->mtx));
+  if ((taosThreadMutexLock(&cache->mtx)) != 0) {
+    indexError("failed to lock cache mutex");
+  }
+
   tbl = cache->mem;
   idxMemRef(tbl);
-  TAOS_UNUSED(taosThreadMutexUnlock(&cache->mtx));
+
+  if (taosThreadMutexUnlock(&cache->mtx) != 0) {
+    indexError("failed to unlock cache mutex");
+  }
 
   {
     SSkipList*         slt = tbl->mem;
@@ -424,7 +447,9 @@ void idxCacheDebug(IndexCache* cache) {
   }
 
   {
-    TAOS_UNUSED(taosThreadMutexLock(&cache->mtx));
+    if (taosThreadMutexLock(&cache->mtx) != 0) {
+      indexError("failed to lock cache mutex");
+    }
     tbl = cache->imm;
     idxMemRef(tbl);
     TAOS_UNUSED(taosThreadMutexUnlock(&cache->mtx));
@@ -472,7 +497,9 @@ void idxCacheDestroyImm(IndexCache* cache) {
     return;
   }
   MemTable* tbl = NULL;
-  TAOS_UNUSED(taosThreadMutexLock(&cache->mtx));
+  if (taosThreadMutexLock(&cache->mtx) != 0) {
+    indexError("failed to lock cache mutex");
+  }
 
   tbl = cache->imm;
   cache->imm = NULL;  // or throw int bg thread
@@ -509,7 +536,11 @@ Iterate* idxCacheIteratorCreate(IndexCache* cache) {
   if (iter == NULL) {
     return NULL;
   }
-  TAOS_UNUSED(taosThreadMutexLock(&cache->mtx));
+  if (taosThreadMutexLock(&cache->mtx) != 0) {
+    indexError("failed to lock cache mutex");
+    taosMemoryFree(iter);
+    return NULL;
+  }
 
   idxMemRef(cache->imm);
 
@@ -539,6 +570,10 @@ int idxCacheSchedToMerge(IndexCache* pCache, bool notify) {
   schedMsg.ahandle = pCache;
   if (notify) {
     schedMsg.thandle = taosMemoryMalloc(1);
+    if (schedMsg.thandle == NULL) {
+      indexError("fail to schedule merge task");
+      return terrno;
+    }
   }
   schedMsg.msg = NULL;
   idxAcquireRef(pCache->index->refId);
@@ -603,7 +638,9 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   // ugly code, refactor later
   int64_t estimate = sizeof(ct) + strlen(ct->colVal);
 
-  TAOS_UNUSED(taosThreadMutexLock(&pCache->mtx));
+  if (taosThreadMutexLock(&pCache->mtx) != 0) {
+    indexError("failed to lock cache mutex");
+  }
   pCache->occupiedMem += estimate;
   idxCacheMakeRoomForWrite(pCache);
   MemTable* tbl = pCache->mem;
@@ -611,7 +648,9 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   TAOS_UNUSED(tSkipListPut(tbl->mem, (char*)ct));
   idxMemUnRef(tbl);
 
-  TAOS_UNUSED(taosThreadMutexUnlock(&pCache->mtx));
+  if (taosThreadMutexUnlock(&pCache->mtx) != 0) {
+    indexError("failed to unlock cache mutex");
+  }
   idxCacheUnRef(pCache);
   return 0;
 }
@@ -619,13 +658,17 @@ void idxCacheForceToMerge(void* cache) {
   IndexCache* pCache = cache;
 
   idxCacheRef(pCache);
-  TAOS_UNUSED(taosThreadMutexLock(&pCache->mtx));
+  if (taosThreadMutexLock(&pCache->mtx) != 0) {
+    indexError("failed to lock cache mutex");
+  }
 
   indexInfo("%p is forced to merge into tfile", pCache);
   pCache->occupiedMem += MEM_SIGNAL_QUIT;
   idxCacheMakeRoomForWrite(pCache);
 
-  TAOS_UNUSED(taosThreadMutexUnlock(&pCache->mtx));
+  if (taosThreadMutexUnlock(&pCache->mtx) != 0) {
+    indexError("failed to unlock cache mutex");
+  }
   idxCacheUnRef(pCache);
   return;
 }
@@ -656,12 +699,16 @@ int idxCacheSearch(void* cache, SIndexTermQuery* query, SIdxTRslt* result, STerm
   IndexCache* pCache = cache;
 
   MemTable *mem = NULL, *imm = NULL;
-  TAOS_UNUSED(taosThreadMutexLock(&pCache->mtx));
+  if (taosThreadMutexLock(&pCache->mtx) != 0) {
+    indexError("failed to lock cache mutex");
+  }
   mem = pCache->mem;
   imm = pCache->imm;
   idxMemRef(mem);
   idxMemRef(imm);
-  TAOS_UNUSED(taosThreadMutexUnlock(&pCache->mtx));
+  if (taosThreadMutexUnlock(&pCache->mtx) != 0) {
+    indexError("failed to unlock cache mutex");
+  }
 
   int64_t st = taosGetTimestampUs();
 

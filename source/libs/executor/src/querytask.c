@@ -73,7 +73,7 @@ int32_t doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC
   p->schemaInfos = taosArrayInit(1, sizeof(SSchemaInfo));
   if (p->id.str == NULL || p->schemaInfos == NULL) {
     doDestroyTask(p);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   *pTaskInfo = p;

@@ -42,12 +42,31 @@ static void   tdbPCachePinPage(SPCache *pCache, SPage *pPage);
 static void   tdbPCacheRemovePageFromHash(SPCache *pCache, SPage *pPage);
 static void   tdbPCacheAddPageToHash(SPCache *pCache, SPage *pPage);
 static void   tdbPCacheUnpinPage(SPCache *pCache, SPage *pPage);
-static int    tdbPCacheCloseImpl(SPCache *pCache);
+static void   tdbPCacheCloseImpl(SPCache *pCache);
 
-static void tdbPCacheInitLock(SPCache *pCache) { (void)tdbMutexInit(&(pCache->mutex), NULL); }
-static void tdbPCacheDestroyLock(SPCache *pCache) { (void)tdbMutexDestroy(&(pCache->mutex)); }
-static void tdbPCacheLock(SPCache *pCache) { (void)tdbMutexLock(&(pCache->mutex)); }
-static void tdbPCacheUnlock(SPCache *pCache) { (void)tdbMutexUnlock(&(pCache->mutex)); }
+static void tdbPCacheInitLock(SPCache *pCache) {
+  if (tdbMutexInit(&(pCache->mutex), NULL) != 0) {
+    tdbError("tdb/pcache: mutex init failed.");
+  }
+}
+
+static void tdbPCacheDestroyLock(SPCache *pCache) {
+  if (tdbMutexDestroy(&(pCache->mutex)) != 0) {
+    tdbError("tdb/pcache: mutex destroy failed.");
+  }
+}
+
+static void tdbPCacheLock(SPCache *pCache) {
+  if (tdbMutexLock(&(pCache->mutex)) != 0) {
+    tdbError("tdb/pcache: mutex lock failed.");
+  }
+}
+
+static void tdbPCacheUnlock(SPCache *pCache) {
+  if (tdbMutexUnlock(&(pCache->mutex)) != 0) {
+    tdbError("tdb/pcache: mutex unlock failed.");
+  }
+}
 
 int tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache) {
   int32_t  code = 0;
@@ -58,14 +77,14 @@ int tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache) {
 
   pCache = (SPCache *)tdbOsCalloc(1, sizeof(*pCache) + sizeof(SPage *) * cacheSize);
   if (pCache == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   pCache->szPage = pageSize;
   pCache->nPages = cacheSize;
   pCache->aPage = (SPage **)tdbOsCalloc(cacheSize, sizeof(SPage *));
   if (pCache->aPage == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   code = tdbPCacheOpenImpl(pCache);
@@ -74,7 +93,7 @@ int tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache) {
 _exit:
   if (code) {
     tdbError("%s failed at %s:%d since %s", __func__, __FILE__, __LINE__, tstrerror(code));
-    (void)tdbPCacheClose(pCache);
+    tdbPCacheClose(pCache);
     *ppCache = NULL;
   } else {
     *ppCache = pCache;
@@ -82,13 +101,13 @@ _exit:
   return code;
 }
 
-int tdbPCacheClose(SPCache *pCache) {
+void tdbPCacheClose(SPCache *pCache) {
   if (pCache) {
-    (void)tdbPCacheCloseImpl(pCache);
+    tdbPCacheCloseImpl(pCache);
     tdbOsFree(pCache->aPage);
     tdbOsFree(pCache);
   }
-  return 0;
+  return;
 }
 
 // TODO:
@@ -105,7 +124,7 @@ static int tdbPCacheAlterImpl(SPCache *pCache, int32_t nPage) {
   } else if (pCache->nPages < nPage) {
     SPage **aPage = tdbOsCalloc(nPage, sizeof(SPage *));
     if (aPage == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     for (int32_t iPage = pCache->nPages; iPage < nPage; iPage++) {
@@ -502,7 +521,7 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
   pCache->nHash = pCache->nPages < 8 ? 8 : pCache->nPages;
   pCache->pgHash = (SPage **)tdbOsCalloc(pCache->nHash, sizeof(SPage *));
   if (pCache->pgHash == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   // Open LRU list
@@ -514,7 +533,7 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
   return 0;
 }
 
-static int tdbPCacheCloseImpl(SPCache *pCache) {
+static void tdbPCacheCloseImpl(SPCache *pCache) {
   // free free page
   for (SPage *pPage = pCache->pFree; pPage;) {
     SPage *pPageT = pPage->pFreeNext;
@@ -532,5 +551,5 @@ static int tdbPCacheCloseImpl(SPCache *pCache) {
 
   tdbOsFree(pCache->pgHash);
   tdbPCacheDestroyLock(pCache);
-  return 0;
+  return ;
 }

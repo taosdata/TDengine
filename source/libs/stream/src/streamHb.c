@@ -153,7 +153,6 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
   pMsg->pUpdateNodes = taosArrayInit(numOfTasks, sizeof(int32_t));
 
   if (pMsg->pTaskStatus == NULL || pMsg->pUpdateNodes == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 

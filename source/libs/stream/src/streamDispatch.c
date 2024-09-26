@@ -73,7 +73,7 @@ static int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTas
   if (pReq->data == NULL || pReq->dataLen == NULL) {
     taosArrayDestroyP(pReq->data, taosMemoryFree);
     taosArrayDestroy(pReq->dataLen);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -110,7 +110,7 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
 
     buf = rpcMallocCont(sizeof(SMsgHead) + len);
     if (buf == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     ((SMsgHead*)buf)->vgId = htonl(pEpInfo->nodeId);
@@ -209,7 +209,7 @@ int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, 
 
   buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   ((SMsgHead*)buf)->vgId = htonl(nodeId);
@@ -868,7 +868,7 @@ int32_t initCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamNodeId, int32
 
   buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   ((SMsgHead*)buf)->vgId = htonl(req.upstreamNodeId);
@@ -1283,7 +1283,7 @@ int32_t streamTaskBuildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRp
 
   void* pBuf = rpcMallocCont(sizeof(SMsgHead) + len);
   if (pBuf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   ((SMsgHead*)pBuf)->vgId = htonl(pReq->mnodeId);
@@ -1671,7 +1671,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 static int32_t buildDispatchRsp(const SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t status, void** pBuf) {
   *pBuf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamDispatchRsp));
   if (*pBuf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   ((SMsgHead*)(*pBuf))->vgId = htonl(pReq->upstreamNodeId);

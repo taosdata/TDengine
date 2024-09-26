@@ -273,7 +273,7 @@ int32_t qwGenerateSchHbRsp(SQWorker *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo)
   if (NULL == hbInfo->rsp.taskStatus) {
     QW_UNLOCK(QW_READ, &sch->tasksLock);
     QW_ELOG("taosArrayInit taskStatus failed, num:%d", taskNum);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   void       *key = NULL;
@@ -1343,14 +1343,14 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
   if (NULL == mgmt->schHash) {
     taosMemoryFreeClear(mgmt);
     qError("init %d scheduler hash failed", mgmt->cfg.maxSchedulerNum);
-    QW_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_JRET(terrno);
   }
 
   mgmt->ctxHash =
       taosHashInit(mgmt->cfg.maxTaskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (NULL == mgmt->ctxHash) {
     qError("init %d task ctx hash failed", mgmt->cfg.maxTaskNum);
-    QW_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_JRET(terrno);
   }
 
   mgmt->timer = taosTmrInit(0, 0, 0, "qworker");
@@ -1428,6 +1428,7 @@ void qWorkerDestroy(void **qWorkerMgmt) {
     return;
   }
 
+  qInfo("wait for destroyed");
   while (0 == destroyed) {
     taosMsleep(2);
   }

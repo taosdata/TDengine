@@ -313,23 +313,22 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
   return nelements * word_length;
 }
 
-int32_t tsDecompressFloatImplAvx512(const char *const input, const int32_t nelements, char *const output) {
+void tsDecompressFloatImplAvx512(const char *const input, const int32_t nelements, char *const output) {
 #if __AVX512F__
   // todo add it
 #endif
-  return 0;
+  return;
 }
 
 // todo add later
-int32_t tsDecompressFloatImplAvx2(const char *const input, const int32_t nelements, char *const output) {
+void tsDecompressFloatImplAvx2(const char *const input, const int32_t nelements, char *const output) {
 #if __AVX2__
 #endif
-  return 0;
+  return;
 }
 
 // decode two timestamps in one loop.
-int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output,
-                                  bool bigEndian) {
+void tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output, bool bigEndian) {
   int64_t *ostream = (int64_t *)output;
   int32_t  ipos = 1, opos = 0;
 
@@ -466,11 +465,11 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
     }
   }
 #endif
-  return 0;
+  return;
 }
 
-int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output,
-                                    bool UNUSED_PARAM(bigEndian)) {
+void tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output,
+                                 bool UNUSED_PARAM(bigEndian)) {
   int64_t *ostream = (int64_t *)output;
   int32_t  ipos = 1, opos = 0;
 
@@ -581,5 +580,5 @@ int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelem
   }
 
 #endif
-  return 0;
+  return;
 }

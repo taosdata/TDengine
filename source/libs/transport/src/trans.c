@@ -40,7 +40,7 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   SRpcInfo* pRpc = taosMemoryCalloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
   if (pInit->label) {
     int len = strlen(pInit->label) > sizeof(pRpc->label) ? sizeof(pRpc->label) : strlen(pInit->label);
@@ -113,7 +113,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   }
 
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
-  (void)transAcquireExHandle(transGetInstMgt(), refId);
+  void*   tmp = transAcquireExHandle(transGetInstMgt(), refId);
   pRpc->refId = refId;
   return (void*)refId;
 _end:
@@ -127,8 +127,13 @@ void rpcClose(void* arg) {
   if (arg == NULL) {
     return;
   }
-  (void)transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
-  (void)transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
+  if (transRemoveExHandle(transGetInstMgt(), (int64_t)arg) != 0) {
+    tError("failed to remove rpc handle");
+  }
+
+  if (transReleaseExHandle(transGetInstMgt(), (int64_t)arg) != 0) {
+    tError("failed to release rpc handle");
+  }
   tInfo("end to close rpc");
   return;
 }

@@ -236,7 +236,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
       taosArrayRemove(pExchangeInfo->pResultBlockList, 0);
       void* tmp = taosArrayPush(pExchangeInfo->pRecycledBlocks, &p);
       if (!tmp) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
         pTaskInfo->code = code;
         T_LONG_JMP(pTaskInfo->env, code);
@@ -529,8 +529,6 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   int32_t          index = pWrapper->sourceIndex;
-  int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, index);
-  *pRpcHandle = -1;
   SSourceDataInfo* pSourceDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, index);
   if (!pSourceDataInfo) {
     return terrno;
@@ -592,7 +590,7 @@ int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, in
   if (NULL == pScan->pUidList) {
     taosMemoryFree(pScan);
     taosMemoryFreeClear(*ppRes);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pScan->tableSeq = tableSeq;
 
@@ -1096,6 +1094,7 @@ int32_t addDynamicExchangeSource(SOperatorInfo* pOperator) {
 int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
   int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
   if ((OPTR_IS_OPENED(pOperator) && !pExchangeInfo->dynamicOp) ||
       (pExchangeInfo->dynamicOp && NULL == pOperator->pOperatorGetParam)) {
     return TSDB_CODE_SUCCESS;
@@ -1103,23 +1102,26 @@ int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
 
   if (pExchangeInfo->dynamicOp) {
     code = addDynamicExchangeSource(pOperator);
-    if (code) {
-      return code;
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   int64_t st = taosGetTimestampUs();
 
   if (!pExchangeInfo->seqLoadData) {
-    int32_t code = prepareConcurrentlyLoad(pOperator);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
+    code = prepareConcurrentlyLoad(pOperator);
+    QUERY_CHECK_CODE(code, lino, _end);
     pExchangeInfo->openedTs = taosGetTimestampUs();
   }
 
   OPTR_SET_OPENED(pOperator);
   pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pOperator->pTaskInfo->code = code;
+    T_LONG_JMP(pOperator->pTaskInfo->env, code);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
