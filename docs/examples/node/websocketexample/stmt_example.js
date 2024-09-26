@@ -23,7 +23,7 @@ async function prepare() {
     return wsSql
 }
 
-async function stmtInsert() {
+async function test() {
     let stmt = null;
     let connector = null;
     try {
@@ -71,12 +71,6 @@ async function stmtInsert() {
         }
         taos.destroy();
     }
-}
-
-async function test () {
-    console.log("begin stmt_example")
-    await stmtInsert();
-    console.log("end stmt_example")
 }
 
 test()

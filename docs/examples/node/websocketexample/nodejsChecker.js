@@ -22,7 +22,7 @@ async function createConnect() {
     return await taos.sqlConnect(conf);
 }
 
-async function execSql() {
+async function test() {
     let wsSql = null;
     let wsRows = null;
     let reqId = 0;
@@ -60,7 +60,7 @@ async function execSql() {
     }
     catch (err) {
         console.error(err.code, err.message);
-        process.exitCode = 1;
+        throw err;
     }
     finally {
         if (wsRows) {
@@ -71,12 +71,6 @@ async function execSql() {
         }
         taos.destroy();
     }
-}
-
-async function test() {
-    console.log("begin nodejsChecker")
-    await execSql();
-    console.log("end nodejsChecker")
 }
 
 test()

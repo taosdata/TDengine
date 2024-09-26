@@ -136,13 +136,11 @@ async function sqlWithReqid() {
 // ANCHOR_END: sqlWithReqid
 
 async function test() {
-    console.log("begin sql_example")
     await createDbAndTable();
     await insertData();
     await queryData();
     await sqlWithReqid();
     taos.destroy();    
-    console.log("end sql_example")
 }
 
 test()

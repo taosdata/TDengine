@@ -82,7 +82,7 @@ async function subscribe(consumer) {
 }
 // ANCHOR_END: offset 
 
-async function consumer() {
+async function test() {
     let consumer = null;
     try {
         await prepare();
@@ -105,12 +105,6 @@ async function consumer() {
         }
         taos.destroy();
     }
-}
-
-async function test() {
-    console.log("begin tmq_example")
-    await consumer();
-    console.log("end tmq_example")
 }
 
 test()

@@ -86,7 +86,7 @@ async function subscribe(consumer) {
     // ANCHOR_END: commit
 }
 
-async function consumer() {
+async function test() {
     // ANCHOR: unsubscribe
     let consumer = null;
     try {
@@ -111,12 +111,6 @@ async function consumer() {
         taos.destroy();
     }
     // ANCHOR_END: unsubscribe
-}
-
-async function test() {
-    console.log("begin tmq_example")
-    await consumer();
-    console.log("end tmq_example")
 }
 
 test()

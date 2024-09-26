@@ -92,11 +92,9 @@ async function all_type_example() {
 }
 
 async function test() {
-    console.log("begin all_type_query")
     await json_tag_example()
     await all_type_example()        
     taos.destroy();
-    console.log("end all_type_query")
 }
 
 test()
