@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 import os
-from numpy.lib.function_base import insert
+# from numpy.lib.function_base import insert
 import taos
 from taos import *
 from stmt.common import StmtCommon
@@ -219,13 +219,14 @@ class TDTestCase:
                 ]
             ]  
 
+            print("tags: %s" % tags)
             stmt2.bind_param(tbanmes, tags, datas)
             stmt2.execute()
 
             a = stmt2.get_fields(TAOS_FIELD_COL)
             a1 = stmt2.get_fields(TAOS_FIELD_QUERY)
             a2 = stmt2.get_fields(TAOS_FIELD_TBNAME)
-            a3 = stmt2.get_fields(TAOS_FIELD_TAG)
+            # a3 = stmt2.get_fields(TAOS_FIELD_TAG)
 
             # check correct
             self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, None, tbanmes, tags, datas)
