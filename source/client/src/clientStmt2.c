@@ -698,7 +698,9 @@ static void* stmtBindThreadFunc(void* param) {
       continue;
     }
 
-    (void)stmtAsyncOutput(pStmt, asyncParam);
+    if (stmtAsyncOutput(pStmt, asyncParam) != 0) {
+      qError("stmt async output failed");
+    }
   }
 
   qInfo("stmt bind thread stopped");
@@ -822,7 +824,11 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
 
   pStmt->sql.siInfo.tableColsReady = true;
   if (pStmt->options.asyncExecFn) {
-    (void)tsem_init(&pStmt->asyncQuerySem, 0, 1);
+    if (tsem_init(&pStmt->asyncQuerySem, 0, 1) != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      (void)stmtClose(pStmt);
+      return NULL;
+    }
   }
   pStmt->semWaited = false;
 
@@ -1603,7 +1609,9 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
   (void)stmtCleanExecInfo(pStmt, (code ? false : true), false);
   ++pStmt->sql.runTimes;
 
-  (void)tsem_post(&pStmt->asyncQuerySem);
+  if (tsem_post(&pStmt->asyncQuerySem) != 0) {
+    tscError("failed to post asyncQuerySem");
+  }
 }
 
 int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
@@ -1710,7 +1718,9 @@ int stmtClose2(TAOS_STMT2* stmt) {
   }
 
   if (pStmt->options.asyncExecFn && !pStmt->semWaited) {
-    (void)tsem_wait(&pStmt->asyncQuerySem);
+    if (tsem_wait(&pStmt->asyncQuerySem) != 0) {
+      tscError("failed to wait asyncQuerySem");
+    }
   }
 
   STMT_DLOG("stmt %p closed, stbInterlaceMode: %d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
@@ -1727,7 +1737,9 @@ int stmtClose2(TAOS_STMT2* stmt) {
   STMT_ERR_RET(stmtCleanSQLInfo(pStmt));
 
   if (pStmt->options.asyncExecFn) {
-    (void)tsem_destroy(&pStmt->asyncQuerySem);
+    if (tsem_destroy(&pStmt->asyncQuerySem) != 0) {
+      tscError("failed to destroy asyncQuerySem");
+    }
   }
   taosMemoryFree(stmt);
 

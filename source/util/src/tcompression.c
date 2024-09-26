@@ -825,9 +825,9 @@ int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelement
     return nelements * longBytes;
   } else if (input[0] == 1) {  // Decompress
     if (tsSIMDEnable && tsAVX512Supported && tsAVX512Enable) {
-      (void)tsDecompressTimestampAvx512(input, nelements, output, false);
+      tsDecompressTimestampAvx512(input, nelements, output, false);
     } else if (tsSIMDEnable && tsAVX2Supported) {
-      (void)tsDecompressTimestampAvx2(input, nelements, output, false);
+      tsDecompressTimestampAvx2(input, nelements, output, false);
     } else {
       int64_t *ostream = (int64_t *)output;
 
@@ -1201,9 +1201,9 @@ int32_t tsDecompressFloatImp(const char *const input, const int32_t nelements, c
   }
 
   if (tsSIMDEnable && tsAVX2Supported) {
-    (void)tsDecompressFloatImplAvx2(input, nelements, output);
+    tsDecompressFloatImplAvx2(input, nelements, output);
   } else if (tsSIMDEnable && tsAVX512Supported && tsAVX512Enable) {
-    (void)tsDecompressFloatImplAvx512(input, nelements, output);
+    tsDecompressFloatImplAvx512(input, nelements, output);
   } else {  // alternative implementation without SIMD instructions.
     tsDecompressFloatHelper(input, nelements, (float *)output);
   }
