@@ -43,7 +43,7 @@ def insert(conn):
     """
     try:
         inserted = conn.execute(sql)
-        assert inserted == 8
+        assert inserted == 4
     except Exception as err:
         print(f'Exception111 {err}')
         raise err
