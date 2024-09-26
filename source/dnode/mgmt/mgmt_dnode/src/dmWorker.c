@@ -305,11 +305,16 @@ int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt) {
 
 void dmStopNotifyThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->notifyThread)) {
-    (void)tsem_post(&dmNotifyHdl.sem);
+    if (tsem_post(&dmNotifyHdl.sem) != 0) {
+      dError("failed to post notify sem");
+    }
+
     (void)taosThreadJoin(pMgmt->notifyThread, NULL);
     taosThreadClear(&pMgmt->notifyThread);
   }
-  (void)tsem_destroy(&dmNotifyHdl.sem);
+  if (tsem_destroy(&dmNotifyHdl.sem) != 0) {
+    dError("failed to destroy notify sem");
+  }
 }
 
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt) {

@@ -211,7 +211,10 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       SRSmaStat *pRSmaStat = (SRSmaStat *)(*pSmaStat);
       pRSmaStat->pSma = (SSma *)pSma;
       atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_INIT);
-      (void)tsem_init(&pRSmaStat->notEmpty, 0, 0);
+      if (tsem_init(&pRSmaStat->notEmpty, 0, 0) != 0) {
+        code = terrno;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+      }
       if (!(pRSmaStat->blocks = taosArrayInit(1, sizeof(SSDataBlock)))) {
         code = terrno;
         TAOS_CHECK_GOTO(code, &lino, _exit);
@@ -295,7 +298,10 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     taosHashCleanup(RSMA_INFO_HASH(pStat));
 
     // step 5: free pStat
-    (void)tsem_destroy(&(pStat->notEmpty));
+    if (tsem_destroy(&(pStat->notEmpty)) != 0) {
+      smaError("vgId:%d, failed to destroy notEmpty semaphore for rsma stat:%p since %s", SMA_VID(pSma), pRSmaStat,
+               tstrerror(terrno));
+    }
     taosArrayDestroy(pStat->blocks);
     taosMemoryFreeClear(pStat);
   }
@@ -399,7 +405,7 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
 void *tdRSmaExecutorFunc(void *param) {
   setThreadName("vnode-rsma");
 
-  if(tdRSmaProcessExecImpl((SSma *)param, RSMA_EXEC_OVERFLOW) < 0){
+  if (tdRSmaProcessExecImpl((SSma *)param, RSMA_EXEC_OVERFLOW) < 0) {
     smaError("vgId:%d, failed to process rsma exec", SMA_VID((SSma *)param));
   }
   return NULL;
@@ -444,7 +450,9 @@ static int32_t tdRsmaStopExecutor(const SSma *pSma) {
     pthread = (TdThread *)&pStat->data;
 
     for (int32_t i = 0; i < tsNumOfVnodeRsmaThreads; ++i) {
-      (void)tsem_post(&(pRSmaStat->notEmpty));
+      if (tsem_post(&(pRSmaStat->notEmpty)) != 0) {
+        smaError("vgId:%d, failed to post notEmpty semaphore for rsma since %s", SMA_VID(pSma), tstrerror(terrno));
+      }
     }
 
     for (int32_t i = 0; i < tsNumOfVnodeRsmaThreads; ++i) {

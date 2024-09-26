@@ -185,10 +185,14 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
 
       walBuildLogName(pWal, pInfo->firstVer, fnameStr);
       wDebug("vgId:%d, wal remove file %s for rollback", pWal->cfg.vgId, fnameStr);
-      TAOS_UNUSED(taosRemoveFile(fnameStr));
+      if (taosRemoveFile(fnameStr) != 0) {
+        wWarn("vgId:%d, failed to remove file %s for rollback since %s", pWal->cfg.vgId, fnameStr, terrstr());
+      }
       walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
       wDebug("vgId:%d, wal remove file %s for rollback", pWal->cfg.vgId, fnameStr);
-      TAOS_UNUSED(taosRemoveFile(fnameStr));
+      if (taosRemoveFile(fnameStr) != 0) {
+        wWarn("vgId:%d, failed to remove file %s for rollback since %s", pWal->cfg.vgId, fnameStr, terrstr());
+      }
     }
   }
 
@@ -460,7 +464,9 @@ int32_t walEndSnapshot(SWal *pWal) {
     }
     for (SWalFileInfo *iter = pWal->fileInfoSet->pData; iter <= pUntil; iter++) {
       deleteCnt++;
-      TAOS_UNUSED(taosArrayPush(pWal->toDeleteFiles, iter));
+      if (taosArrayPush(pWal->toDeleteFiles, iter) == NULL) {
+        wError("vgId:%d, failed to push file info to delete list", pWal->cfg.vgId);
+      }
     }
 
     // make new array, remove files
@@ -603,8 +609,8 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
       TAOS_CHECK_GOTO(terrno, &lino, _exit);
     }
-    TAOS_UNUSED(memset(newBody, 0, cyptedBodyLen));
-    TAOS_UNUSED(memcpy(newBody, body, plainBodyLen));
+    (void)memset(newBody, 0, cyptedBodyLen);
+    (void)memcpy(newBody, body, plainBodyLen);
 
     newBodyEncrypted = taosMemoryMalloc(cyptedBodyLen);
     if (newBodyEncrypted == NULL) {

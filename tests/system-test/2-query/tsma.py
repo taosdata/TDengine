@@ -871,6 +871,7 @@ class TDTestCase:
                     .should_query_with_table('meters', '2018-09-17 09:00:00.200', '2018-09-17 09:29:59:999')
                     .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
                     .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.800').get_qc())
+        tdSql.query('show create table test.meters')
         self.check(ctxs)
         if not ignore_some_tests:
             tdSql.execute('create database db2')
