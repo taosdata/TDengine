@@ -46,11 +46,16 @@ typedef struct SBuffInfo {
 } SBuffInfo;
 
 void destroyStreamCountAggOperatorInfo(void* param) {
+  if (param == NULL) {
+    return;
+  }
   SStreamCountAggOperatorInfo* pInfo = (SStreamCountAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
-  cleanupResultInfoInStream(pInfo->pOperator->pTaskInfo, pInfo->streamAggSup.pState, &pInfo->pOperator->exprSupp,
-                            &pInfo->groupResInfo);
-  pInfo->pOperator = NULL;
+  if (pInfo->pOperator) {
+    cleanupResultInfoInStream(pInfo->pOperator->pTaskInfo, pInfo->streamAggSup.pState, &pInfo->pOperator->exprSupp,
+                              &pInfo->groupResInfo);
+    pInfo->pOperator = NULL;
+  }
   destroyStreamAggSupporter(&pInfo->streamAggSup);
   cleanupExprSupp(&pInfo->scalarSupp);
   clearGroupResInfo(&pInfo->groupResInfo);
@@ -744,8 +749,9 @@ static int32_t doStreamCountAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    pTaskInfo->code = code;
     qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   setStreamOperatorCompleted(pOperator);
   (*ppRes) = NULL;

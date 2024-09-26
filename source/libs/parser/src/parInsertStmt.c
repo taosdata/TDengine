@@ -46,7 +46,7 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
   }
   pNew->aCol = taosArrayDup(pDataBlock->pData->aCol, NULL);
   if (!pNew->aCol) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     taosMemoryFreeClear(*pData);
     return code;
   }
@@ -951,7 +951,7 @@ int32_t qResetStmtColumns(SArray* pCols, bool deepClear) {
     SColData* pCol = (SColData*)taosArrayGet(pCols, i);
     if (pCol == NULL) {
       qError("qResetStmtColumns column is NULL");
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if (deepClear) {
       tColDataDeepClear(pCol);
@@ -971,7 +971,7 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
     SColData* pCol = (SColData*)taosArrayGet(pBlock->pData->aCol, i);
     if (pCol == NULL) {
       qError("qResetStmtDataBlock column is NULL");
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if (deepClear) {
       tColDataDeepClear(pCol);
@@ -1033,7 +1033,7 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
     pNewTb->aCol = taosArrayDup(pCxt->pData->aCol, NULL);
     if (NULL == pNewTb->aCol) {
       insDestroyTableDataCxt(*pDst);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     pNewCxt->pData = pNewTb;

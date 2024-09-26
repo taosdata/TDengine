@@ -78,7 +78,7 @@ int32_t tStartEncode(SEncoder* pCoder) {
 
     pNode = tEncoderMalloc(pCoder, sizeof(*pNode));
     if (pNode == NULL) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
 
     pNode->data = pCoder->data;
@@ -126,7 +126,7 @@ int32_t tStartDecode(SDecoder* pCoder) {
 
   pNode = tDecoderMalloc(pCoder, sizeof(*pNode));
   if (pNode == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pNode->data = pCoder->data;

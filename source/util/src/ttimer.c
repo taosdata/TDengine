@@ -314,7 +314,9 @@ static void addToExpired(tmr_obj_t* head) {
     schedMsg.msg = NULL;
     schedMsg.ahandle = head;
     schedMsg.thandle = NULL;
-    (void)taosScheduleTask(tmrQhandle, &schedMsg);
+    if (taosScheduleTask(tmrQhandle, &schedMsg) != 0) {
+      tmrError("%s failed to add expired timer[id=%" PRIuPTR "] to queue.", head->ctrl->label, id);
+    }
 
     tmrDebug("timer[id=%" PRIuPTR "] has been added to queue.", id);
     head = next;
@@ -560,7 +562,9 @@ static int32_t taosTmrModuleInit(void) {
   }
 
   tmrQhandle = taosInitScheduler(10000, taosTmrThreads, "tmr", NULL);
-  (void)taosInitTimer(taosTimerLoopFunc, MSECONDS_PER_TICK);
+  if (taosInitTimer(taosTimerLoopFunc, MSECONDS_PER_TICK) != 0) {
+    tmrError("failed to initialize timer");
+  }
 
   tmrDebug("timer module is initialized, number of threads: %d", taosTmrThreads);
 

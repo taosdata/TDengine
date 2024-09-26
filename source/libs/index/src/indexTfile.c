@@ -739,7 +739,11 @@ IndexTFile* idxTFileCreate(SIndex* idx, const char* path) {
     tfileCacheDestroy(cache);
     return NULL;
   }
-  TAOS_UNUSED(taosThreadMutexInit(&tfile->mtx, NULL));
+  if (taosThreadMutexInit(&tfile->mtx, NULL) != 0) {
+    taosMemoryFree(tfile);
+    tfileCacheDestroy(cache);
+    return NULL;
+  }
   tfile->cache = cache;
   return tfile;
 }
@@ -764,9 +768,16 @@ int idxTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTRslt* result) {
   SIndexTerm* term = query->term;
   ICacheKey key = {.suid = term->suid, .colType = term->colType, .colName = term->colName, .nColName = term->nColName};
 
-  TAOS_UNUSED(taosThreadMutexLock(&pTfile->mtx));
+  if (taosThreadMutexLock(&pTfile->mtx) != 0) {
+    indexError("failed to lock tfile mutex");
+  }
+
   TFileReader* reader = tfileCacheGet(pTfile->cache, &key);
-  TAOS_UNUSED(taosThreadMutexUnlock(&pTfile->mtx));
+
+  if (taosThreadMutexUnlock(&pTfile->mtx) != 0) {
+    indexError("failed to unlock tfile mutex");
+  }
+
   if (reader == NULL) {
     return 0;
   }
@@ -799,6 +810,10 @@ static bool tfileIteratorNext(Iterate* iiter) {
   int32_t sz = 0;
   char*   ch = (char*)fstSliceData(&rt->data, &sz);
   colVal = taosMemoryCalloc(1, sz + 1);
+  if (colVal == NULL) {
+    return false;
+  }
+
   memcpy(colVal, ch, sz);
 
   offset = (uint64_t)(rt->out.out);
@@ -835,6 +850,10 @@ Iterate* tfileIteratorCreate(TFileReader* reader) {
   }
 
   Iterate* iter = taosMemoryCalloc(1, sizeof(Iterate));
+  if (iter == NULL) {
+    return NULL;
+  }
+
   iter->iter = tfileFstIteratorCreate(reader);
   if (iter->iter == NULL) {
     taosMemoryFree(iter);
@@ -843,6 +862,11 @@ Iterate* tfileIteratorCreate(TFileReader* reader) {
   iter->next = tfileIteratorNext;
   iter->getValue = tifileIterateGetValue;
   iter->val.val = taosArrayInit(1, sizeof(uint64_t));
+  if (iter->val.val == NULL) {
+    tfileIteratorDestroy(iter);
+    return NULL;
+  }
+
   iter->val.colVal = NULL;
   return iter;
 }
@@ -870,9 +894,13 @@ TFileReader* tfileGetReaderByCol(IndexTFile* tf, uint64_t suid, char* colName) {
   TFileReader* rd = NULL;
   ICacheKey    key = {.suid = suid, .colType = TSDB_DATA_TYPE_BINARY, .colName = colName, .nColName = strlen(colName)};
 
-  TAOS_UNUSED(taosThreadMutexLock(&tf->mtx));
+  if (taosThreadMutexLock(&tf->mtx) != 0) {
+    indexError("failed to lock tfile mutex");
+  }
   rd = tfileCacheGet(tf->cache, &key);
-  TAOS_UNUSED(taosThreadMutexUnlock(&tf->mtx));
+  if (taosThreadMutexUnlock(&tf->mtx) != 0) {
+    indexError("failed to unlock tfile mutex");
+  }
   return rd;
 }
 

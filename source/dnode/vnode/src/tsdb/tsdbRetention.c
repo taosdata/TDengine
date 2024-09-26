@@ -100,8 +100,12 @@ _exit:
     tsdbError("vgId:%d, %s failed at %s:%d since %s", TD_VID(rtner->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
   }
-  (void)taosCloseFile(&fdFrom);
-  (void)taosCloseFile(&fdTo);
+  if (taosCloseFile(&fdFrom) != 0) {
+    tsdbError("vgId:%d, failed to close file %s", TD_VID(rtner->tsdb->pVnode), fname_from);
+  }
+  if (taosCloseFile(&fdTo) != 0) {
+    tsdbError("vgId:%d, failed to close file %s", TD_VID(rtner->tsdb->pVnode), fname_to);
+  }
   return code;
 }
 
@@ -137,8 +141,12 @@ _exit:
     tsdbError("vgId:%d, %s failed at %s:%d since %s", TD_VID(rtner->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
   }
-  (void)taosCloseFile(&fdFrom);
-  (void)taosCloseFile(&fdTo);
+  if (taosCloseFile(&fdFrom) != 0) {
+    tsdbTrace("vgId:%d, failed to close file", TD_VID(rtner->tsdb->pVnode));
+  }
+  if (taosCloseFile(&fdTo) != 0) {
+    tsdbTrace("vgId:%d, failed to close file", TD_VID(rtner->tsdb->pVnode));
+  }
   return code;
 }
 
@@ -442,7 +450,9 @@ _exit:
     tsdbError("vgId:%d %s failed at line %s:%d since %s", TD_VID(rtner->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
   }
-  (void)taosCloseFile(&fdFrom);
+  if (taosCloseFile(&fdFrom) != 0) {
+    tsdbTrace("vgId:%d, failed to close file", TD_VID(rtner->tsdb->pVnode));
+  }
   return code;
 }
 
@@ -542,8 +552,13 @@ _exit:
     tsdbError("vgId:%d %s failed at line %s:%d since %s", TD_VID(rtner->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
   }
-  (void)taosCloseFile(&fdFrom);
-  (void)taosCloseFile(&fdTo);
+  if (taosCloseFile(&fdFrom) != 0) {
+    tsdbTrace("vgId:%d, failed to close file", TD_VID(rtner->tsdb->pVnode));
+  }
+
+  if (taosCloseFile(&fdTo) != 0) {
+    tsdbTrace("vgId:%d, failed to close file", TD_VID(rtner->tsdb->pVnode));
+  }
   return code;
 }
 
@@ -640,8 +655,12 @@ _exit:
     tsdbError("vgId:%d %s failed at line %s:%d since %s", TD_VID(rtner->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
   }
-  (void)taosCloseFile(&fdFrom);
-  (void)taosCloseFile(&fdTo);
+  if (taosCloseFile(&fdFrom) != 0) {
+    tsdbTrace("vgId:%d, failed to close file", TD_VID(rtner->tsdb->pVnode));
+  }
+  if (taosCloseFile(&fdTo) != 0) {
+    tsdbTrace("vgId:%d, failed to close file", TD_VID(rtner->tsdb->pVnode));
+  }
   return code;
 }
 
@@ -673,7 +692,7 @@ static int32_t tsdbDoS3Migrate(SRTNer *rtner) {
   if (/*lcn < 1 && */ taosCheckExistFile(fobj->fname)) {
     int32_t mtime = 0;
     int64_t size = 0;
-    (void)taosStatFile(fobj->fname, &size, &mtime, NULL);
+    int32_t r = taosStatFile(fobj->fname, &size, &mtime, NULL);
     if (size > chunksize && mtime < rtner->now - tsS3UploadDelaySec) {
       if (pCfg->s3Compact && lcn < 0) {
         extern int32_t tsdbAsyncCompact(STsdb * tsdb, const STimeWindow *tw, bool sync);
@@ -700,7 +719,9 @@ static int32_t tsdbDoS3Migrate(SRTNer *rtner) {
     if (taosCheckExistFile(fname1)) {
       int32_t mtime = 0;
       int64_t size = 0;
-      (void)taosStatFile(fname1, &size, &mtime, NULL);
+      if (taosStatFile(fname1, &size, &mtime, NULL) != 0) {
+        tsdbError("vgId:%d, %s failed at %s:%d ", TD_VID(rtner->tsdb->pVnode), __func__, __FILE__, __LINE__);
+      }
       if (size > chunksize && mtime < rtner->now - tsS3UploadDelaySec) {
         TAOS_CHECK_GOTO(tsdbMigrateDataFileLCS3(rtner, fobj, size, chunksize), &lino, _exit);
       }

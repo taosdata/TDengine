@@ -404,7 +404,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInMs, bool extendLi
     return NULL;
   }
 
-  (void)doRegisterCacheObj(pCacheObj);
+  TdThread refreshWorker = doRegisterCacheObj(pCacheObj);
   return pCacheObj;
 }
 

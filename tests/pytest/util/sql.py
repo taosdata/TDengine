@@ -24,26 +24,48 @@ from util.log import *
 from util.constant import *
 import ctypes
 import random
-# from datetime import timezone
+import datetime
 import time
+from tzlocal import get_localzone
 
 def _parse_ns_timestamp(timestr):
     dt_obj = datetime.datetime.strptime(timestr[:len(timestr)-3], "%Y-%m-%d %H:%M:%S.%f")
     tz = int(int((dt_obj-datetime.datetime.fromtimestamp(0,dt_obj.tzinfo)).total_seconds())*1e9) + int(dt_obj.microsecond * 1000) + int(timestr[-3:])
     return tz
 
-
 def _parse_datetime(timestr):
-    try:
-        return datetime.datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S.%f')
-    except ValueError:
-        pass
-    try:
-        return datetime.datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S')
-    except ValueError:
-        pass
+    # defined timestr formats
+    formats = [
+        '%Y-%m-%d %H:%M:%S.%f%z',  # 包含微秒和时区偏移
+        '%Y-%m-%d %H:%M:%S%z',      # 不包含微秒但包含时区偏移
+        '%Y-%m-%d %H:%M:%S.%f',     # 包含微秒
+        '%Y-%m-%d %H:%M:%S'         # 不包含微秒
+    ]
+    
+    for fmt in formats:
+        try:
+            # try to parse the string with the current format
+            dt = datetime.datetime.strptime(timestr, fmt)
+            # 如果字符串包含时区信息，则返回 aware 对象
+            # if sting contains timezone info, return aware object
+            if dt.tzinfo is not None:
+                return dt
+
+            else:
+            # if sting does not contain timezone info, assume it is in local timezone
+                # get local timezone
+                local_timezone = get_localzone()
+                # print("Timezone:", local_timezone)
+                return dt.replace(tzinfo=local_timezone)
+        except ValueError:
+            continue  # if the current format does not match, try the next format
+    
+    # 如果所有格式都不匹配，返回 None
+    # if none of the formats match, return 
+    raise ValueError(f"input format does not match. correct formats include: '{', '.join(formats)}'")
 
 class TDSql:
+
     def __init__(self):
         self.queryRows = 0
         self.queryCols = 0
@@ -408,6 +430,7 @@ class TDSql:
 
         if self.queryResult[row][col] != data:
             if self.cursor.istype(col, "TIMESTAMP"):
+                # tdLog.debug(f"self.queryResult[row][col]:{self.queryResult[row][col]}, data:{data},len(data):{len(data)}, isinstance(data,str) :{isinstance(data,str)}")
                 # suppose user want to check nanosecond timestamp if a longer data passed``
                 if isinstance(data,str) :
                     if (len(data) >= 28):
@@ -419,8 +442,9 @@ class TDSql:
                             args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
                             tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
                     else:
+                        # tdLog.info(f"datetime.timezone.utc:{datetime.timezone.utc},data:{data},_parse_datetime(data).astimezone(datetime.timezone.utc):{_parse_datetime(data).astimezone(datetime.timezone.utc)}")
                         if self.queryResult[row][col].astimezone(datetime.timezone.utc) == _parse_datetime(data).astimezone(datetime.timezone.utc):
-                            # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                            # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col].astimezone(datetime.timezone.utc)} == expect:{_parse_datetime(data).astimezone(datetime.timezone.utc)}")
                             if(show):
                                tdLog.info("check successfully")
                         else:
