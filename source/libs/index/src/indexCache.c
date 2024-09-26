@@ -569,7 +569,7 @@ Iterate* idxCacheIteratorCreate(IndexCache* cache) {
   iter->getValue = idxCacheIteratorGetValue;
 
   if (taosThreadMutexUnlock(&cache->mtx) < 0) {
-    indexError("failed to unlock cache mutex since", tstrerror(terrno));
+    indexError("failed to unlock cache mutex since %s", tstrerror(terrno));
   }
 
   return iter;
