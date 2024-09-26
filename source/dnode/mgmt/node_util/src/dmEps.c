@@ -249,8 +249,11 @@ int32_t dmReadEps(SDnodeData *pData) {
 _OVER:
   if (content != NULL) taosMemoryFree(content);
   if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
-
+  if (pFile != NULL) {
+    if (taosCloseFile(&pFile) != 0) {
+      dError("failed to close file:%s since %s", file, tstrerror(terrno));
+    }
+  }
   if (code != 0) {
     dError("failed to read dnode file:%s since %s", file, terrstr());
     return terrno = code;
@@ -345,7 +348,11 @@ int32_t dmWriteEps(SDnodeData *pData) {
   if (taosWriteFile(pFile, buffer, len) <= 0) TAOS_CHECK_GOTO(terrno, NULL, _OVER);
   if (taosFsyncFile(pFile) < 0) TAOS_CHECK_GOTO(terrno, NULL, _OVER);
 
-  (void)taosCloseFile(&pFile);
+  {
+    if (taosCloseFile(&pFile) != 0) {
+      dError("failed to close file:%s since %s", file, tstrerror(terrno));
+    }
+  }
   TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
 
   pData->updateTime = taosGetTimestampMs();
@@ -355,7 +362,10 @@ int32_t dmWriteEps(SDnodeData *pData) {
 _OVER:
   if (pJson != NULL) tjsonDelete(pJson);
   if (buffer != NULL) taosMemoryFree(buffer);
-  if (pFile != NULL) (void)taosCloseFile(&pFile);
+  if (pFile != NULL)
+    if (taosCloseFile(&pFile) != 0) {
+      dError("failed to close file:%s since %s", file, tstrerror(terrno));
+    }
 
   if (code != 0) {
     dError("failed to write dnode file:%s since %s, dnodeVer:%" PRId64, realfile, tstrerror(code), pData->dnodeVer);
@@ -454,9 +464,18 @@ static bool dmIsEpChanged(SDnodeData *pData, int32_t dnodeId, const char *ep) {
 }
 
 void dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
-  (void)taosThreadRwlockRdlock(&pData->lock);
+  int32_t code = 0;
+  code = taosThreadRwlockRdlock(&pData->lock);
+  if (code != 0) {
+    dError("failed to get mnode ep set since %s", tstrerror(code));
+    return;
+  }
+
   *pEpSet = pData->mnodeEps;
-  (void)taosThreadRwlockUnlock(&pData->lock);
+  code = taosThreadRwlockUnlock(&pData->lock);
+  if (code != 0) {
+    dError("failed to unlock mnode ep set since %s", tstrerror(code));
+  }
 }
 
 void dmEpSetToStr(char *buf, int32_t len, SEpSet *epSet) {
@@ -675,7 +694,11 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
 _OVER:
   if (content != NULL) taosMemoryFree(content);
   if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
+  if (pFile != NULL) {
+    if (taosCloseFile(&pFile) != 0) {
+      dError("failed to close file:%s since %s", file, tstrerror(terrno));
+    }
+  }
 
   if (code != 0) {
     dError("failed to read dnode file:%s since %s", file, tstrerror(code));

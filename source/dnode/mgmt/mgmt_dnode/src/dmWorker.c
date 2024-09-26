@@ -267,22 +267,31 @@ static void *dmCrashReportThreadFp(void *param) {
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
   int32_t      code = 0;
   TdThreadAttr thAttr;
-  (void)taosThreadAttrInit(&thAttr);
-  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  TAOS_CHECK_GOTO(taosThreadAttrInit(&thAttr), NULL, _exception);
+
+  TAOS_CHECK_GOTO(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE), NULL, _exception);
   if (taosThreadCreate(&pMgmt->statusThread, &thAttr, dmStatusThreadFp, pMgmt) != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     dError("failed to create status thread since %s", tstrerror(code));
     return code;
   }
 
-  (void)taosThreadAttrDestroy(&thAttr);
+  TAOS_CHECK_GOTO(taosThreadAttrDestroy(&thAttr), NULL, _exception);
   tmsgReportStartup("dnode-status", "initialized");
   return 0;
+
+_exception:
+  dError("failed to create status thread since %s", tstrerror(code));
+  return code;
 }
 
 void dmStopStatusThread(SDnodeMgmt *pMgmt) {
+  int32_t code = 0;
   if (taosCheckPthreadValid(pMgmt->statusThread)) {
-    (void)taosThreadJoin(pMgmt->statusThread, NULL);
+    code = taosThreadJoin(pMgmt->statusThread, NULL);
+    if (code != 0) {
+      dError("failed to stop status thread since %s", tstrerror(code));
+    }
     taosThreadClear(&pMgmt->statusThread);
   }
 }
@@ -290,20 +299,24 @@ void dmStopStatusThread(SDnodeMgmt *pMgmt) {
 int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt) {
   int32_t      code = 0;
   TdThreadAttr thAttr;
-  (void)taosThreadAttrInit(&thAttr);
-  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  TAOS_CHECK_GOTO(taosThreadAttrInit(&thAttr), NULL, _exception);
+  TAOS_CHECK_GOTO(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE), NULL, _exception);
   if (taosThreadCreate(&pMgmt->notifyThread, &thAttr, dmNotifyThreadFp, pMgmt) != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     dError("failed to create notify thread since %s", tstrerror(code));
     return code;
   }
 
-  (void)taosThreadAttrDestroy(&thAttr);
+  TAOS_CHECK_GOTO(taosThreadAttrDestroy(&thAttr), NULL, _exception);
   tmsgReportStartup("dnode-notify", "initialized");
   return 0;
+_exception:
+  dError("failed to start notify thread since %s", tstrerror(code));
+  return code;
 }
 
 void dmStopNotifyThread(SDnodeMgmt *pMgmt) {
+  int32_t code = 0;
   if (taosCheckPthreadValid(pMgmt->notifyThread)) {
     if (tsem_post(&dmNotifyHdl.sem) != 0) {
       dError("failed to post notify sem");
@@ -320,45 +333,59 @@ void dmStopNotifyThread(SDnodeMgmt *pMgmt) {
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt) {
   int32_t      code = 0;
   TdThreadAttr thAttr;
-  (void)taosThreadAttrInit(&thAttr);
-  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  TAOS_CHECK_GOTO(taosThreadAttrInit(&thAttr), NULL, _exception);
+  TAOS_CHECK_GOTO(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE), NULL, _exception);
   if (taosThreadCreate(&pMgmt->monitorThread, &thAttr, dmMonitorThreadFp, pMgmt) != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     dError("failed to create monitor thread since %s", tstrerror(code));
     return code;
   }
 
-  (void)taosThreadAttrDestroy(&thAttr);
+  TAOS_CHECK_GOTO(taosThreadAttrDestroy(&thAttr), NULL, _exception);
   tmsgReportStartup("dnode-monitor", "initialized");
   return 0;
+_exception:
+  dError("failed to start monitor thread since %s", tstrerror(code));
+  return code;
 }
 
 int32_t dmStartAuditThread(SDnodeMgmt *pMgmt) {
   int32_t      code = 0;
   TdThreadAttr thAttr;
-  (void)taosThreadAttrInit(&thAttr);
-  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  TAOS_CHECK_GOTO(taosThreadAttrInit(&thAttr), NULL, _exception);
+  TAOS_CHECK_GOTO(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE), NULL, _exception);
   if (taosThreadCreate(&pMgmt->auditThread, &thAttr, dmAuditThreadFp, pMgmt) != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     dError("failed to create audit thread since %s", tstrerror(code));
     return code;
   }
 
-  (void)taosThreadAttrDestroy(&thAttr);
+  TAOS_CHECK_GOTO(taosThreadAttrDestroy(&thAttr), NULL, _exception);
   tmsgReportStartup("dnode-audit", "initialized");
   return 0;
+_exception:
+  dError("failed to start audit thread since %s", tstrerror(code));
+  return code;
 }
 
 void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
+  int32_t code = 0;
   if (taosCheckPthreadValid(pMgmt->monitorThread)) {
-    (void)taosThreadJoin(pMgmt->monitorThread, NULL);
+    code = taosThreadJoin(pMgmt->monitorThread, NULL);
+    if (code != 0) {
+      dError("failed to stop monitor thread since %s", tstrerror(code));
+    }
     taosThreadClear(&pMgmt->monitorThread);
   }
 }
 
 void dmStopAuditThread(SDnodeMgmt *pMgmt) {
+  int32_t code = 0;
   if (taosCheckPthreadValid(pMgmt->auditThread)) {
-    (void)taosThreadJoin(pMgmt->auditThread, NULL);
+    code = taosThreadJoin(pMgmt->auditThread, NULL);
+    if (code != 0) {
+      dDebug("failed to stop audit thread since %s", tstrerror(code));
+    }
     taosThreadClear(&pMgmt->auditThread);
   }
 }
@@ -370,26 +397,33 @@ int32_t dmStartCrashReportThread(SDnodeMgmt *pMgmt) {
   }
 
   TdThreadAttr thAttr;
-  (void)taosThreadAttrInit(&thAttr);
-  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  TAOS_CHECK_GOTO(taosThreadAttrInit(&thAttr), NULL, _exception);
+  TAOS_CHECK_GOTO(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE), NULL, _exception);
   if (taosThreadCreate(&pMgmt->crashReportThread, &thAttr, dmCrashReportThreadFp, pMgmt) != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     dError("failed to create crashReport thread since %s", tstrerror(code));
     return code;
   }
 
-  (void)taosThreadAttrDestroy(&thAttr);
+  TAOS_CHECK_GOTO(taosThreadAttrDestroy(&thAttr), NULL, _exception);
   tmsgReportStartup("dnode-crashReport", "initialized");
   return 0;
+_exception:
+  dError("failed to start crashReport thread since %s", tstrerror(code));
+  return code;
 }
 
 void dmStopCrashReportThread(SDnodeMgmt *pMgmt) {
+  int32_t code = 0;
   if (!tsEnableCrashReport) {
     return;
   }
 
   if (taosCheckPthreadValid(pMgmt->crashReportThread)) {
-    (void)taosThreadJoin(pMgmt->crashReportThread, NULL);
+    code = taosThreadJoin(pMgmt->crashReportThread, NULL);
+    if (code != 0) {
+      dError("failed to stop crashReport thread since %s", tstrerror(code));
+    }
     taosThreadClear(&pMgmt->crashReportThread);
   }
 }

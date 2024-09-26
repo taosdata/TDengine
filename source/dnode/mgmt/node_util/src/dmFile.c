@@ -207,7 +207,12 @@ int32_t dmCheckRunning(const char *dataDir, TdFilePtr *pFile) {
 
   if (ret < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
-    (void)taosCloseFile(pFile);
+    {
+      int32_t ret = taosCloseFile(pFile);
+      if (ret != 0) {
+        dError("failed to close file since %s", tstrerror(TAOS_SYSTEM_ERROR(terrno)));
+      }
+    }
     *pFile = NULL;
     return code;
   }

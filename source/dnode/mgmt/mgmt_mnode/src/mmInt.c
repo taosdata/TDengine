@@ -163,9 +163,13 @@ static int32_t mmStart(SMnodeMgmt *pMgmt) {
 static void mmStop(SMnodeMgmt *pMgmt) {
   dDebug("mnode-mgmt start to stop");
   mndPreClose(pMgmt->pMnode);
-  (void)taosThreadRwlockWrlock(&pMgmt->lock);
+  int32_t code = taosThreadRwlockWrlock(&pMgmt->lock);
+  if (code != 0) {
+    dError("failed to lock since %s", tstrerror(code));
+    return;
+  }
   pMgmt->stopped = 1;
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgmt->lock));
 
   mndStop(pMgmt->pMnode);
 }

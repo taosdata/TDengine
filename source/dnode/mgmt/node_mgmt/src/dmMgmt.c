@@ -210,15 +210,25 @@ int32_t dmInitVars(SDnode *pDnode) {
 
   if (pData->dropped) {
     dError("dnode will not start since its already dropped");
-    return -1;
+    return TSDB_CODE_MNODE_STOPPED;
   }
 
-  (void)taosThreadRwlockInit(&pData->lock, NULL);
-  (void)taosThreadMutexInit(&pDnode->mutex, NULL);
-  return 0;
+  code = taosThreadRwlockInit(&pData->lock, NULL);
+  if (code != 0) {
+    dError("failed to init rwlock since %s", tstrerror(code));
+    return code;
+  }
+  code = taosThreadMutexInit(&pDnode->mutex, NULL);
+  if (code != 0) {
+    dError("failed to init mutex since %s", tstrerror(code));
+    return code;
+  }
+
+  return code;
 }
 
 void dmClearVars(SDnode *pDnode) {
+  int32_t code = 0;
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
     taosMemoryFreeClear(pWrapper->path);
@@ -250,10 +260,10 @@ void dmClearVars(SDnode *pDnode) {
     taosHashCleanup(pData->dnodeHash);
     pData->dnodeHash = NULL;
   }
-  (void)taosThreadRwlockUnlock(&pData->lock);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pData->lock));
 
-  (void)taosThreadRwlockDestroy(&pData->lock);
-  (void)taosThreadMutexDestroy(&pDnode->mutex);
+  TAOS_UNUSED(taosThreadRwlockDestroy(&pData->lock));
+  TAOS_UNUSED(taosThreadMutexDestroy(&pDnode->mutex));
   memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
 }
 
@@ -352,6 +362,7 @@ void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg) {
 }
 
 void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg) {
+  int32_t code = 0;
   dDebug("msg:%p, server startup status req will be processed", pMsg);
 
   SServerStatusRsp statusRsp = {0};

@@ -59,7 +59,10 @@ int32_t tmsgSendSyncReq(const SEpSet* epSet, SRpcMsg* pMsg) {
 
 void tmsgSendRsp(SRpcMsg* pMsg) {
 #if 1
-  (void)rpcSendResponse(pMsg);
+  int32_t code = rpcSendResponse(pMsg);
+  if (code != 0) {
+    tError("failed to send response, code:%d, msg:%p", code, pMsg);
+  }
 #else
   return (*defaultMsgCb.sendRspFp)(pMsg);
 #endif

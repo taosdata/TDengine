@@ -20,13 +20,14 @@
 #define MAX_CONTENT_LEN 2 * 1024 * 1024
 
 int32_t vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes) {
-  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+  int32_t code = taosThreadRwlockRdlock(&pMgmt->lock);
+  if (code != 0) return code;
 
   int32_t     num = 0;
   int32_t     size = taosHashGetSize(pMgmt->hash);
   SVnodeObj **pVnodes = taosMemoryCalloc(size, sizeof(SVnodeObj *));
   if (pVnodes == NULL) {
-    (void)taosThreadRwlockUnlock(&pMgmt->lock);
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pMgmt->lock));
     return terrno;
   }
 
@@ -44,7 +45,7 @@ int32_t vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeOb
     }
   }
 
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgmt->lock));
   *numOfVnodes = num;
   *ppVnodes = pVnodes;
 

@@ -28,7 +28,7 @@ static inline void smSendRsp(SRpcMsg *pMsg, int32_t code) {
 
 static void smProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SSnodeMgmt *pMgmt = pInfo->ahandle;
-
+  int32_t     code = 0;
   for (int32_t i = 0; i < numOfMsgs; i++) {
     SRpcMsg        *pMsg = NULL;
     int32_t         num = taosGetQitem(qall, (void **)&pMsg);

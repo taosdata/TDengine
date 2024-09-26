@@ -102,8 +102,8 @@ static void dmStopDnode(int signum, void *sigInfo, void *context) {
   dInfo("sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
         taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
 #endif
-
   dmStop();
+  return;
 }
 
 void dmLogCrash(int signum, void *sigInfo, void *context) {
@@ -111,7 +111,7 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGHUP);
   // taosIgnSignal(SIGINT);
   // taosIgnSignal(SIGBREAK);
-
+  int32_t code = 0;
 #ifndef WINDOWS
   if (taosIgnSignal(SIGBUS) != 0) {
     dWarn("failed to ignore signal SIGBUS");
@@ -151,6 +151,9 @@ _return:
 #elif defined(WINDOWS)
   exit(signum);
 #endif
+  return;
+_exception:
+  dError("failed to log crash since %s", tstrerror(code));
 }
 
 static void dmSetSignalHandle() {
