@@ -1872,10 +1872,6 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     }
     taosMemoryFree(fields);
     taosMemoryFreeClear(pTableMeta);
-    if (pCreateReqDst) {
-      tdDestroySVCreateTbReq(pCreateReqDst);
-      taosMemoryFreeClear(pCreateReqDst);
-    }
     if (code != TSDB_CODE_SUCCESS) {
       SET_ERROR_MSG("table:%s, err:%s", tbName, err);
       goto end;
