@@ -355,7 +355,6 @@ impl TaskConfig {
         sql = sql.replace("${dm}", start_tz.format("%d%m").to_string().as_str());
         sql = sql.replace("${Yj}", start_tz.format("%Y%j").to_string().as_str());
         sql = sql.replace("${yj}", start_tz.format("%y%j").to_string().as_str());
-        dbg!(&sql);
         anyhow::Ok(sql)
     }
 }
