@@ -1645,7 +1645,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
   __taos_async_fn_t fp = pStmt->options.asyncExecFn;
 
   if (!fp) {
-    (void)launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
+    launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
 
     if (pStmt->exec.pRequest->code && NEED_CLIENT_HANDLE_ERROR(pStmt->exec.pRequest->code)) {
       code = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
