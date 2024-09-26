@@ -163,17 +163,17 @@ python3 reqid_rest.py
 
 python3 reqid_ws.py
 
-taos -s "drop database test"
+taos -s "drop database power"
 check_transactions || exit 1
 reset_cache || exit 1
 python3 schemaless_native.py
 
-taos -s "drop database test"
+taos -s "drop database power"
 check_transactions || exit 1
 reset_cache || exit 1
 python3 schemaless_ws.py
 
-taos -s "drop database test"
+taos -s "drop database power"
 check_transactions || exit 1
 reset_cache || exit 1
 python3 stmt_native.py
