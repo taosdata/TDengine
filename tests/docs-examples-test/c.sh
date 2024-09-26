@@ -25,16 +25,34 @@ declare -a TEST_EXES=(
     "docs_sml_insert_demo"
 )
 
+declare -a NEED_CLEAN=(
+    "true"
+    "false"
+    "false"
+    "false"
+    "false"
+    "false"
+    "false"
+    "true"
+)
+
 totalCases=0
 totalFailed=0
 totalSuccess=0
 
-for TEST_EXE in "${TEST_EXES[@]}"; do
+for i in "${!TEST_EXES[@]}"; do
+    TEST_EXE="${TEST_EXES[$i]}"
+    NEED_CLEAN_FLAG="${NEED_CLEAN[$i]}"
+
+    if [ "$NEED_CLEAN_FLAG" = "true" ]; then
+        echo "Cleaning database before executing $TEST_EXE..."
+        taos -s "drop database if exists power" >> $LOG_FILE 2>&1
+    fi
+
     echo "Executing $TEST_EXE..."
     $TEST_PATH/$TEST_EXE >> $LOG_FILE 2>&1
-    
     RESULT=$?
-    
+
     if [ "$RESULT" -eq 0 ]; then
         totalSuccess=$((totalSuccess + 1))
         echo "[$GREEN OK $NC] $TEST_EXE executed successfully."
