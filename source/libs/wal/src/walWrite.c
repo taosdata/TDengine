@@ -109,20 +109,20 @@ static int64_t walChangeWrite(SWal *pWal, int64_t ver) {
   char      fnameStr[WAL_FILE_LEN];
   if (pWal->pLogFile != NULL) {
     if (pWal->cfg.level != TAOS_WAL_SKIP && (code = taosFsyncFile(pWal->pLogFile)) != 0) {
-      TAOS_RETURN(terrno);
+      return -1;
     }
     code = taosCloseFile(&pWal->pLogFile);
     if (code != 0) {
-      TAOS_RETURN(terrno);
+      return -1;
     }
   }
   if (pWal->pIdxFile != NULL) {
     if (pWal->cfg.level != TAOS_WAL_SKIP && (code = taosFsyncFile(pWal->pIdxFile)) != 0) {
-      TAOS_RETURN(terrno);
+      return -1;
     }
     code = taosCloseFile(&pWal->pIdxFile);
     if (code != 0) {
-      TAOS_RETURN(terrno);
+      return -1;
     }
   }
 
@@ -139,7 +139,7 @@ static int64_t walChangeWrite(SWal *pWal, int64_t ver) {
   if (pIdxTFile == NULL) {
     pWal->pIdxFile = NULL;
 
-    TAOS_RETURN(terrno);
+    return -1;
   }
   wInfo("vgId:%d, wal open idx file %s for change write", pWal->cfg.vgId, fnameStr);
   walBuildLogName(pWal, fileFirstVer, fnameStr);
@@ -148,7 +148,7 @@ static int64_t walChangeWrite(SWal *pWal, int64_t ver) {
     TAOS_UNUSED(taosCloseFile(&pIdxTFile));
     pWal->pLogFile = NULL;
 
-    TAOS_RETURN(terrno);
+    return -1;
   }
   wInfo("vgId:%d, wal open log file %s for change write", pWal->cfg.vgId, fnameStr);
 
@@ -162,7 +162,7 @@ static int64_t walChangeWrite(SWal *pWal, int64_t ver) {
 int32_t walRollback(SWal *pWal, int64_t ver) {
   TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
   wInfo("vgId:%d, wal rollback for version %" PRId64, pWal->cfg.vgId, ver);
-  int64_t code;
+  int64_t ret;
   char    fnameStr[WAL_FILE_LEN];
   if (ver > pWal->vers.lastVer || ver <= pWal->vers.commitVer || ver <= pWal->vers.snapshotVer) {
     TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
@@ -173,11 +173,11 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   // find correct file
   if (ver < walGetLastFileFirstVer(pWal)) {
     // change current files
-    code = walChangeWrite(pWal, ver);
-    if (code < 0) {
+    ret = walChangeWrite(pWal, ver);
+    if (ret < 0) {
       TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
-      TAOS_RETURN(code);
+      TAOS_RETURN(terrno);
     }
 
     // delete files in descending order
@@ -209,8 +209,8 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
     TAOS_RETURN(terrno);
   }
   int64_t idxOff = walGetVerIdxOffset(pWal, ver);
-  code = taosLSeekFile(pIdxFile, idxOff, SEEK_SET);
-  if (code < 0) {
+  ret = taosLSeekFile(pIdxFile, idxOff, SEEK_SET);
+  if (ret < 0) {
     TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
     TAOS_RETURN(terrno);
@@ -233,8 +233,8 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
 
     TAOS_RETURN(terrno);
   }
-  code = taosLSeekFile(pLogFile, entry.offset, SEEK_SET);
-  if (code < 0) {
+  ret = taosLSeekFile(pLogFile, entry.offset, SEEK_SET);
+  if (ret < 0) {
     // TODO
     TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
@@ -248,7 +248,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
 
     TAOS_RETURN(terrno);
   }
-  code = walValidHeadCksum(&head);
+  int32_t code = walValidHeadCksum(&head);
 
   if (code != 0) {
     TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));

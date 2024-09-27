@@ -493,6 +493,12 @@ void cliHandleResp(SCliConn* conn) {
   }
 
   if (CONN_NO_PERSIST_BY_APP(conn)) {
+    SExHandle* exh = transAcquireExHandle(transGetRefMgt(), refId);
+    if (exh != NULL) {
+      exh->handle = NULL;
+    }
+    TAOS_UNUSED(transReleaseExHandle(transGetRefMgt(), refId));
+
     return addConnToPool(pThrd->pool, conn);
   }
 
@@ -667,6 +673,10 @@ static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
     plist = taosHashGet(pool, key, klen);
 
     SMsgList* nList = taosMemoryCalloc(1, sizeof(SMsgList));
+    if (nList == NULL) {
+      tError("failed to alloc memory for msg list, reason:%s", tstrerror(terrno));
+      return NULL;
+    }
     QUEUE_INIT(&nList->msgQ);
     nList->numOfConn++;
 
@@ -714,6 +724,11 @@ static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
     plist = taosHashGet(pool, key, klen);
 
     SMsgList* nList = taosMemoryCalloc(1, sizeof(SMsgList));
+    if (nList == NULL) {
+      tError("failed to alloc memory for msg list, reason:%s", tstrerror(terrno));
+      return NULL;
+    }
+
     QUEUE_INIT(&nList->msgQ);
     nList->numOfConn++;
 
@@ -1060,6 +1075,7 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   conn->list = NULL;
 
   TAOS_UNUSED(transReleaseExHandle(transGetRefMgt(), conn->refId));
+  TAOS_UNUSED(transReleaseExHandle(transGetRefMgt(), conn->refId));
   TAOS_UNUSED(transRemoveExHandle(transGetRefMgt(), conn->refId));
   conn->refId = -1;
 
@@ -1087,6 +1103,7 @@ static void cliDestroy(uv_handle_t* handle) {
   TAOS_UNUSED(atomic_sub_fetch_32(&pThrd->connCount, 1));
 
   if (conn->refId > 0) {
+    TAOS_UNUSED(transReleaseExHandle(transGetRefMgt(), conn->refId));
     TAOS_UNUSED(transReleaseExHandle(transGetRefMgt(), conn->refId));
     TAOS_UNUSED(transRemoveExHandle(transGetRefMgt(), conn->refId));
   }
@@ -1295,11 +1312,16 @@ void cliSend(SCliConn* pConn) {
     uv_timer_t* timer = taosArrayGetSize(pThrd->timerList) > 0 ? *(uv_timer_t**)taosArrayPop(pThrd->timerList) : NULL;
     if (timer == NULL) {
       timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
+      if (timer == NULL) {
+        tError("failed to alloc timer since %s", tstrerror(terrno));
+      }
       tDebug("no available timer, create a timer %p", timer);
       TAOS_UNUSED(uv_timer_init(pThrd->loop, timer));
     }
-    timer->data = pConn;
-    pConn->timer = timer;
+    if (timer != NULL) {
+      timer->data = pConn;
+      pConn->timer = timer;
+    }
 
     tGTrace("%s conn %p start timer for msg:%s", CONN_GET_INST_LABEL(pConn), pConn, TMSG_INFO(pMsg->msgType));
     TAOS_UNUSED(uv_timer_start((uv_timer_t*)pConn->timer, cliReadTimeoutCb, TRANS_READ_TIMEOUT, 0));
@@ -1319,6 +1341,11 @@ void cliSend(SCliConn* pConn) {
 
   uv_buf_t    wb = uv_buf_init((char*)pHead, msgLen);
   uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
+  if (req == NULL) {
+    tGError("%s conn %p failed to send msg:%s, errmsg:%s", CONN_GET_INST_LABEL(pConn), pConn, TMSG_INFO(pMsg->msgType),
+            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    cliHandleExcept(pConn, -1);
+  }
 
   int status = uv_write(req, (uv_stream_t*)pConn->stream, &wb, 1, cliSendCb);
   if (status != 0) {
@@ -1863,6 +1890,10 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     TAOS_UNUSED(transQueuePush(&conn->cliMsgs, pMsg));
 
     conn->dstAddr = taosStrdup(addr);
+    if (conn->dstAddr == NULL) {
+      tGError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn, tstrerror(terrno));
+      cliHandleExcept(conn, -1);
+    }
 
     uint32_t ipaddr;
     int32_t  code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, fqdn, &ipaddr);
@@ -2538,6 +2569,10 @@ static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
   cliSchedMsgToDebug(pMsg, transLabel(pThrd->pTransInst));
 
   STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
+  if (arg == NULL) {
+    tError("failed to malloc memory, reason:%s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return;
+  }
   arg->param1 = pMsg;
   arg->param2 = pThrd;
 

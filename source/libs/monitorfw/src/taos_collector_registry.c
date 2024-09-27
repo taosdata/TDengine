@@ -66,14 +66,14 @@ taos_collector_registry_t *taos_collector_registry_new(const char *name) {
   return self;
 }
 
-int taos_collector_registry_default_init(void) {
-  if (TAOS_COLLECTOR_REGISTRY_DEFAULT != NULL) return 0;
+void taos_collector_registry_default_init(void) {
+  if (TAOS_COLLECTOR_REGISTRY_DEFAULT != NULL) return;
 
   TAOS_COLLECTOR_REGISTRY_DEFAULT = taos_collector_registry_new("default");
   //if (TAOS_COLLECTOR_REGISTRY_DEFAULT) {
   //  return taos_collector_registry_enable_process_metrics(TAOS_COLLECTOR_REGISTRY_DEFAULT);
   //}
-  return 1;
+  return;
 }
 
 int taos_collector_registry_destroy(taos_collector_registry_t *self) {

@@ -76,7 +76,6 @@ typedef int (*__compar_fn_t)(const void *, const void *);
 
 char *strsep(char **stringp, const char *delim);
 char *getpass(const char *prefix);
-char *strndup(const char *s, int n);
 
 // for send function in tsocket.c
 #define MSG_NOSIGNAL 0

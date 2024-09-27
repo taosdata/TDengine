@@ -173,7 +173,7 @@ TdThread doRegisterCacheObj(SCacheObj *pCacheObj) {
   (void)taosThreadOnce(&cacheThreadInit, doInitRefreshThread);
 
   (void)taosThreadMutexLock(&guard);
-  if (taosArrayPush(pCacheArrayList, &pCacheObj) != 0) {
+  if (taosArrayPush(pCacheArrayList, &pCacheObj) == NULL) {
     uError("failed to add cache object into array, reason:%s", strerror(errno));
     (void)taosThreadMutexUnlock(&guard);
     return cacheRefreshWorker;

@@ -100,9 +100,7 @@ extern char* tsMonFwUri;
 #define VNODE_ROLE "taosd_vnodes_info:role"
 
 void monInitMonitorFW(){
-  if (taos_collector_registry_default_init() != 0) {
-    uError("failed to init default collector registry");
-  }
+  taos_collector_registry_default_init();
 
   tsMonitor.metrics = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   taos_gauge_t *gauge = NULL;

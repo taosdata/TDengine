@@ -222,10 +222,10 @@ static int32_t addTimezoneParam(SNodeList* pList) {
     return code;
   }
 
-  pVal->literal = strndup(buf, len);
+  pVal->literal = taosStrndup(buf, len);
   if (pVal->literal == NULL) {
     nodesDestroyNode((SNode*)pVal);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pVal->translate = true;
   pVal->node.resType.type = TSDB_DATA_TYPE_BINARY;
