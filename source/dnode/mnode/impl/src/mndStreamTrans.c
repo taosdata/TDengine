@@ -324,7 +324,7 @@ void killAllCheckpointTrans(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo) {
 
     size_t len = 0;
     void  *pKey = taosHashGetKey(pDb, &len);
-    int cpLen = MIN(127, len);
+    int cpLen = (127 < len) ? 127 : len;
     TAOS_STRNCPY(p, pKey, cpLen);
     p[cpLen] = '\0';
 
