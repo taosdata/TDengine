@@ -30,15 +30,6 @@ typedef struct SSlotIndex {
   SArray* pSlotIdsInfo;  // duplicate name slot
 } SSlotIndex;
 
-typedef struct SPhysiPlanContext {
-  SPlanContext* pPlanCxt;
-  int32_t       errCode;
-  int16_t       nextDataBlockId;
-  SArray*       pLocationHelper;
-  SArray*       pProjIdxLocHelper;
-  bool          hasScan;
-  bool          hasSysScan;
-} SPhysiPlanContext;
 
 static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int32_t *pLen, uint16_t extraBufLen) {
   int32_t code = 0;

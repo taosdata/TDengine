@@ -1860,6 +1860,11 @@ static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
 }
 
 static int32_t translateIrateImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams <= 0) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
   uint8_t colType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
   if (isPartial) {
     if (3 != LIST_LENGTH(pFunc->pParameterList) && 4 != LIST_LENGTH(pFunc->pParameterList)) {
@@ -1903,7 +1908,7 @@ static int32_t translateInterp(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   uint8_t dbPrec = pFunc->node.resType.precision;
 
-  if (2 < numOfParams) {
+  if (2 < numOfParams || numOfParams <= 0) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -1986,6 +1991,9 @@ static EFuncReturnRows interpEstReturnRows(SFunctionNode* pFunc) {
 static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // forbid null as first/last input, since first(c0, null, 1) may have different number of input
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams <= 0) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
 
   for (int32_t i = 0; i < numOfParams; ++i) {
     uint8_t nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, i));
@@ -2000,6 +2008,11 @@ static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t l
 }
 
 static int32_t translateFirstLastImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams <= 0) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
   // first(col_list) will be rewritten as first(col)
   SNode*  pPara = nodesListGetNode(pFunc->pParameterList, 0);
   uint8_t paraType = getSDataTypeFromNode(pPara)->type;
@@ -2035,6 +2048,11 @@ static int32_t translateFirstLastMerge(SFunctionNode* pFunc, char* pErrBuf, int3
 }
 
 static int32_t translateFirstLastState(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams <= 0) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
   SNode*  pPara = nodesListGetNode(pFunc->pParameterList, 0);
   int32_t paraBytes = getSDataTypeFromNode(pPara)->bytes;
 
@@ -2045,6 +2063,11 @@ static int32_t translateFirstLastState(SFunctionNode* pFunc, char* pErrBuf, int3
 }
 
 static int32_t translateFirstLastStateMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams <= 0) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
   SNode*  pPara = nodesListGetNode(pFunc->pParameterList, 0);
   int32_t paraBytes = getSDataTypeFromNode(pPara)->bytes;
   uint8_t paraType = getSDataTypeFromNode(pPara)->type;
@@ -2081,11 +2104,16 @@ static int32_t translateMode(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
 static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
-  if (numOfParams > 2) {
+  if (numOfParams > 2 || numOfParams <= 0) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  uint8_t colType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  SDataType* pDataType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
+  if (NULL == pDataType) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Invalid first parameter for DIFF function.");
+  }
+  
+  uint8_t colType = pDataType->type;
   if (!IS_INTEGER_TYPE(colType) && !IS_FLOAT_TYPE(colType) && TSDB_DATA_TYPE_BOOL != colType &&
       !IS_TIMESTAMP_TYPE(colType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
@@ -2432,6 +2460,11 @@ static int32_t translateRepeat(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 }
 
 static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams <= 0) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
   // The number of parameters has been limited by the syntax definition
 
   SExprNode* pPara0 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
@@ -2835,6 +2868,11 @@ static int32_t translateIn2GeomOutBool(SFunctionNode* pFunc, char* pErrBuf, int3
 }
 
 static int32_t translateSelectValue(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams <= 0) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
   pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
 }
