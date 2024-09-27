@@ -389,6 +389,9 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       break;
     case TSDB_DATA_TYPE_USMALLINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
+      if (*dst == NULL) {
+        return terrno;
+      }
       TAOS_UNUSED(idxInt2str(*(uint16_t*)src, *dst, -1));
       tlen = strlen(*dst);
       break;
