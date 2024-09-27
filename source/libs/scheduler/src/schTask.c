@@ -358,11 +358,6 @@ int32_t schRescheduleTask(SSchJob *pJob, SSchTask *pTask) {
 
 int32_t schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet, int32_t rspCode) {
   SSchRedirectCtx *pCtx = &pTask->redirectCtx;
-  if (JOB_TASK_STATUS_EXEC == pTask->status) {
-    SCH_TASK_DLOG("task not start yet, rspCode:%d", rspCode);
-    return TSDB_CODE_SUCCESS;
-  }
-
   if (!pCtx->inRedirect) {
     pCtx->inRedirect = true;
     pCtx->periodMs = tsRedirectPeriod;
@@ -371,9 +366,11 @@ int32_t schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet, 
     if (SCH_IS_DATA_BIND_TASK(pTask)) {
       if (pEpSet) {
         pCtx->roundTotal = pEpSet->numOfEps;
-      } else {
+      } else if (pTask->candidateAddrs && taosArrayGetSize(pTask->candidateAddrs) > 0) {
         SQueryNodeAddr *pAddr = taosArrayGet(pTask->candidateAddrs, 0);
         pCtx->roundTotal = pAddr->epSet.numOfEps;
+      } else {
+        pCtx->roundTotal = SCH_DEFAULT_RETRY_TOTAL_ROUND;
       }
     } else {
       pCtx->roundTotal = 1;
