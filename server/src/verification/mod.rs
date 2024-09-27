@@ -207,7 +207,7 @@ fn get_explore_version() -> String {
     //     }
     // }
     // version
-    "1.7.0".to_string()
+    "1.8.0".to_string()
 }
 
 #[derive(Serialize, Debug)]
