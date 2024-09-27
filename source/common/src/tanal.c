@@ -118,20 +118,20 @@ void taosAnalUpdate(int64_t newVer, SHashObj *pHash) {
   }
 }
 
-bool taosAnalGetParaStr(const char *option, const char *paraName, char *paraValue, int32_t paraValueMaxLen) {
+bool taosAnalGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen) {
   char    buf[TSDB_ANAL_ALGO_OPTION_LEN] = {0};
-  int32_t bufLen = snprintf(buf, sizeof(buf), "%s=", paraName);
+  int32_t bufLen = snprintf(buf, sizeof(buf), "%s=", optName);
 
   char *pos1 = strstr(option, buf);
   char *pos2 = strstr(option, ANAL_ALGO_SPLIT);
   if (pos1 != NULL) {
-    if (paraValueMaxLen > 0) {
-      int32_t copyLen = paraValueMaxLen;
+    if (optMaxLen > 0) {
+      int32_t copyLen = optMaxLen;
       if (pos2 != NULL) {
-        copyLen = (int32_t)(pos2 - pos1 - strlen(paraName) + 1);
-        copyLen = MIN(copyLen, paraValueMaxLen);
+        copyLen = (int32_t)(pos2 - pos1 - strlen(optName) + 1);
+        copyLen = MIN(copyLen, optMaxLen);
       }
-      tstrncpy(paraValue, pos1 + bufLen, copyLen);
+      tstrncpy(optValue, pos1 + bufLen, copyLen);
     }
     return true;
   } else {
@@ -139,14 +139,14 @@ bool taosAnalGetParaStr(const char *option, const char *paraName, char *paraValu
   }
 }
 
-bool taosAnalGetParaInt(const char *option, const char *paraName, int32_t *paraValue) {
+bool taosAnalGetOptInt(const char *option, const char *optName, int32_t *optValue) {
   char    buf[TSDB_ANAL_ALGO_OPTION_LEN] = {0};
-  int32_t bufLen = snprintf(buf, sizeof(buf), "%s=", paraName);
+  int32_t bufLen = snprintf(buf, sizeof(buf), "%s=", optName);
 
   char *pos1 = strstr(option, buf);
   char *pos2 = strstr(option, ANAL_ALGO_SPLIT);
   if (pos1 != NULL) {
-    *paraValue = taosStr2Int32(pos1 + bufLen + 1, NULL, 10);
+    *optValue = taosStr2Int32(pos1 + bufLen + 1, NULL, 10);
     return true;
   } else {
     return false;
@@ -162,7 +162,7 @@ int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, 
   SAnalUrl *pUrl = taosHashAcquire(tsAlgos.hash, name, nameLen);
   if (pUrl != NULL) {
     tstrncpy(url, pUrl->url, urlLen);
-    uInfo("algo:%s, type:%s, url:%s", algoName, taosAnalAlgoStr(type), url);
+    uDebug("algo:%s, type:%s, url:%s", algoName, taosAnalAlgoStr(type), url);
   } else {
     url[0] = 0;
     terrno = TSDB_CODE_ANAL_ALGO_NOT_FOUND;
@@ -192,6 +192,7 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
     (void)memcpy(pRsp->data, pCont, pRsp->dataLen);
     pRsp->data[pRsp->dataLen] = 0;
     uInfo("curl response is received, len:%" PRId64 ", content:%s", pRsp->dataLen, pRsp->data);
+    // uInfo("curl response is received, len:%" PRId64, pRsp->dataLen);
     return pRsp->dataLen;
   } else {
     pRsp->dataLen = 0;
@@ -219,6 +220,7 @@ static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp);
   curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 100);
 
+  uInfo("curl get request will sent, url:%s", url);
   code = curl_easy_perform(curl);
   if (code != CURLE_OK) {
     uError("failed to perform curl action, code:%d", code);
@@ -230,7 +232,7 @@ _OVER:
 }
 
 static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen) {
-  if (strstr(url, "forecast") != NULL) {
+  if (0 /*strstr(url, "forecast") != NULL*/) {
     return taosCurlTestStr(url, pRsp);
   }
 
@@ -254,6 +256,7 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, bufLen);
   curl_easy_setopt(curl, CURLOPT_POSTFIELDS, buf);
 
+  uInfo("curl post request will sent, url:%s len:%d", url, bufLen);
   code = curl_easy_perform(curl);
   if (code != CURLE_OK) {
     uError("failed to perform curl action, code:%d", code);
@@ -439,18 +442,27 @@ _OVER:
   return code;
 }
 
-static int32_t taosAnalJsonBufWriteParaInt32(SAnalBuf *pBuf, const char *paraName, int32_t paraVal) {
+static int32_t taosAnalJsonBufWriteOptInt(SAnalBuf *pBuf, const char *optName, int64_t optVal) {
   char    buf[64] = {0};
-  int32_t bufLen = snprintf(buf, sizeof(buf), "\"%s\": %d,\n", paraName, paraVal);
+  int32_t bufLen = snprintf(buf, sizeof(buf), "\"%s\": %" PRId64 ",\n", optName, optVal);
   if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
     return terrno;
   }
   return 0;
 }
 
-static int32_t taosAnalJsonBufWriteParaStr(SAnalBuf *pBuf, const char *paraName, const char *paraVal) {
+static int32_t taosAnalJsonBufWriteOptStr(SAnalBuf *pBuf, const char *optName, const char *optVal) {
   char    buf[128] = {0};
-  int32_t bufLen = snprintf(buf, sizeof(buf), "\"%s\": \"%s\",\n", paraName, paraVal);
+  int32_t bufLen = snprintf(buf, sizeof(buf), "\"%s\": \"%s\",\n", optName, optVal);
+  if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
+    return terrno;
+  }
+  return 0;
+}
+
+static int32_t taosAnalJsonBufWriteOptFloat(SAnalBuf *pBuf, const char *optName, float optVal) {
+  char    buf[128] = {0};
+  int32_t bufLen = snprintf(buf, sizeof(buf), "\"%s\": %f,\n", optName, optVal);
   if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
     return terrno;
   }
@@ -497,15 +509,7 @@ static int32_t tsosAnalJsonBufOpen(SAnalBuf *pBuf, int32_t numOfCols) {
 }
 
 static int32_t taosAnalJsonBufWriteAlgo(SAnalBuf *pBuf, const char *algo) {
-  return taosAnalJsonBufWriteParaStr(pBuf, "algo", algo);
-}
-
-static int32_t taosAnalJsonBufWriteOpt(SAnalBuf *pBuf, const char *opt) {
-  return taosAnalJsonBufWriteParaStr(pBuf, "opt", opt);
-}
-
-static int32_t taosAnalJsonBufWritePrec(SAnalBuf *pBuf, const char *prec) {
-  return taosAnalJsonBufWriteParaStr(pBuf, "prec", prec);
+  return taosAnalJsonBufWriteOptStr(pBuf, "algo", algo);
 }
 
 static int32_t taosAnalJsonBufWriteColMeta(SAnalBuf *pBuf, int32_t colIndex, int32_t colType, const char *colName) {
@@ -653,7 +657,7 @@ static int32_t taosAnalJsonBufWriteDataEnd(SAnalBuf *pBuf) {
 }
 
 static int32_t taosAnalJsonBufWriteEnd(SAnalBuf *pBuf) {
-  int32_t code = taosAnalJsonBufWriteParaInt32(pBuf, "rows", pBuf->pCols[0].numOfRows);
+  int32_t code = taosAnalJsonBufWriteOptInt(pBuf, "rows", pBuf->pCols[0].numOfRows);
   if (code != 0) return code;
 
   return taosAnalJsonBufWriteStr(pBuf, "\"protocol\": 0.1\n}", 0);
@@ -723,17 +727,25 @@ int32_t taosAnalBufWriteAlgo(SAnalBuf *pBuf, const char *algo) {
   }
 }
 
-int32_t taosAnalBufWriteOpt(SAnalBuf *pBuf, const char *opt) {
+int32_t taosAnalBufWriteOptStr(SAnalBuf *pBuf, const char *optName, const char *optVal) {
   if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
-    return taosAnalJsonBufWriteOpt(pBuf, opt);
+    return taosAnalJsonBufWriteOptStr(pBuf, optName, optVal);
   } else {
     return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
   }
 }
 
-int32_t taosAnalBufWritePrec(SAnalBuf *pBuf, const char *prec) {
+int32_t taosAnalBufWriteOptInt(SAnalBuf *pBuf, const char *optName, int64_t optVal) {
   if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
-    return taosAnalJsonBufWritePrec(pBuf, prec);
+    return taosAnalJsonBufWriteOptInt(pBuf, optName, optVal);
+  } else {
+    return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
+  }
+}
+
+int32_t taosAnalBufWriteOptFloat(SAnalBuf *pBuf, const char *optName, float optVal) {
+  if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
+    return taosAnalJsonBufWriteOptFloat(pBuf, optName, optVal);
   } else {
     return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
   }

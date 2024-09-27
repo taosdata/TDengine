@@ -71,13 +71,13 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
     goto _error;
   }
 
-  if (!taosAnalGetParaStr(pAnomalyNode->anomalyOpt, "algo", pInfo->algoName, sizeof(pInfo->algoName))) {
-    uError("failed to get anomaly_window algo name from %s", pAnomalyNode->anomalyOpt);
+  if (!taosAnalGetOptStr(pAnomalyNode->anomalyOpt, "algo", pInfo->algoName, sizeof(pInfo->algoName))) {
+    qError("failed to get anomaly_window algorithm name from %s", pAnomalyNode->anomalyOpt);
     code = TSDB_CODE_ANAL_ALGO_NOT_FOUND;
     goto _error;
   }
   if (taosAnalGetAlgoUrl(pInfo->algoName, ANAL_ALGO_TYPE_ANOMALY_DETECT, pInfo->algoUrl, sizeof(pInfo->algoUrl)) != 0) {
-    uError("failed to get anomaly_window algo url from %s", pInfo->algoName);
+    qError("failed to get anomaly_window algorithm url from %s", pInfo->algoName);
     code = TSDB_CODE_ANAL_ALGO_NOT_LOAD;
     goto _error;
   }
@@ -151,6 +151,8 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
   QUERY_CHECK_CODE(code, lino, _error);
 
   *pOptrInfo = pOperator;
+
+  qInfo("anomaly_window operator is created, algo:%s url:%s opt:%s", pInfo->algoName, pInfo->algoUrl, pInfo->anomalyOpt);
   return TSDB_CODE_SUCCESS;
 
 _error:
@@ -160,6 +162,7 @@ _error:
 
   destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
+  qError("failed to create anomaly_window operator, algo:%s code:0x%x", pInfo->algoName, code);
   return code;
 }
 
@@ -185,33 +188,33 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
     if (pSupp->groupId == 0 || pSupp->groupId == pBlock->info.id.groupId) {
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks++;
-      uInfo("group:%" PRId64 ", blocks:%d, cache block rows:%" PRId64, pSupp->groupId, numOfBlocks, pBlock->info.rows);
+      qDebug("group:%" PRId64 ", blocks:%d, cache block rows:%" PRId64, pSupp->groupId, numOfBlocks, pBlock->info.rows);
       code = anomalyCacheBlock(pInfo, pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
-      uInfo("group:%" PRId64 ", read finish for new group coming, blocks:%d", pSupp->groupId, numOfBlocks);
+      qInfo("group:%" PRId64 ", read finish for new group coming, blocks:%d", pSupp->groupId, numOfBlocks);
       anomalyAggregateBlocks(pOperator);
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks = 1;
-      uInfo("group:%" PRId64 ", new group, cache block rows:%" PRId64, pSupp->groupId, pBlock->info.rows);
+      qDebug("group:%" PRId64 ", new group, cache block rows:%" PRId64, pSupp->groupId, pBlock->info.rows);
       code = anomalyCacheBlock(pInfo, pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
     if (pRes->info.rows > 0) {
       (*ppRes) = pRes;
-      uInfo("group:%" PRId64 ", return to upstream, blocks:%d", pRes->info.id.groupId, numOfBlocks);
+      qInfo("group:%" PRId64 ", return to upstream, blocks:%d", pRes->info.id.groupId, numOfBlocks);
       return code;
     }
   }
 
   if (numOfBlocks > 0) {
-    uInfo("group:%" PRId64 ", read finish, blocks:%d", pInfo->anomalySup.groupId, numOfBlocks);
+    qInfo("group:%" PRId64 ", read finish, blocks:%d", pInfo->anomalySup.groupId, numOfBlocks);
     anomalyAggregateBlocks(pOperator);
   }
 
   int64_t cost = taosGetTimestampUs() - st;
-  uInfo("all groups finished, cost:%" PRId64 "us", cost);
+  qInfo("all groups finished, cost:%" PRId64 "us", cost);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -226,6 +229,8 @@ _end:
 static void anomalyDestroyOperatorInfo(void* param) {
   SAnomalyWindowOperatorInfo* pInfo = (SAnomalyWindowOperatorInfo*)param;
   if (pInfo == NULL) return;
+
+  qInfo("anomaly_window operator is destroyed, algo:%s", pInfo->algoName);
 
   cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
@@ -306,10 +311,10 @@ static int32_t anomalyParseJson(SJson* pJson, SArray* pWindows) {
   }
 
   int32_t numOfWins = taosArrayGetSize(pWindows);
-  uInfo("anomaly window recevied, total:%d", numOfWins);
+  qInfo("anomaly window recevied, total:%d", numOfWins);
   for (int32_t i = 0; i < numOfWins; ++i) {
     STimeWindow* pWindow = taosArrayGet(pWindows, i);
-    uInfo("anomaly win:%d [%" PRId64 ", %" PRId64 ")", i, pWindow->skey, pWindow->ekey);
+    qInfo("anomaly win:%d [%" PRId64 ", %" PRId64 ")", i, pWindow->skey, pWindow->ekey);
   }
 
   return 0;
@@ -335,10 +340,7 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   code = taosAnalBufWriteAlgo(&analBuf, pInfo->algoName);
   if (code != 0) goto _OVER;
 
-  code = taosAnalBufWriteOpt(&analBuf, pInfo->anomalyOpt);
-  if (code != 0) goto _OVER;
-
-  code = taosAnalBufWritePrec(&analBuf, prec);
+  code = taosAnalBufWriteOptStr(&analBuf, "prec", prec);
   if (code != 0) goto _OVER;
 
   code = taosAnalBufWriteColMeta(&analBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, "ts");
@@ -402,6 +404,9 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   if (code != 0) goto _OVER;
 
 _OVER:
+  if (code != 0) {
+    qError("failed to analysis window since %s", tstrerror(code));
+  }
   taosAnalBufDestroy(&analBuf);
   if (pJson != NULL) tjsonDelete(pJson);
   return code;
@@ -456,21 +461,21 @@ static void anomalyAggregateBlocks(SOperatorInfo* pOperator) {
   int32_t numOfBlocks = (int32_t)taosArrayGetSize(pSupp->blocks);
   if (numOfBlocks == 0) goto _OVER;
 
-  uInfo("group:%" PRId64 ", aggregate blocks, blocks:%d", pSupp->groupId, numOfBlocks);
+  qInfo("group:%" PRId64 ", aggregate blocks, blocks:%d", pSupp->groupId, numOfBlocks);
   pRes->info.id.groupId = pSupp->groupId;
 
   code = anomalyAnalysisWindow(pOperator);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
   int32_t numOfWins = taosArrayGetSize(pSupp->windows);
-  uInfo("group:%" PRId64 ", wins:%d, rows:%" PRId64, pSupp->groupId, numOfWins, pSupp->numOfRows);
+  qInfo("group:%" PRId64 ", wins:%d, rows:%" PRId64, pSupp->groupId, numOfWins, pSupp->numOfRows);
   for (int32_t w = 0; w < numOfWins; ++w) {
     STimeWindow* pWindow = taosArrayGet(pSupp->windows, w);
     if (w == 0) {
       pSupp->curWin = *pWindow;
       pRowSup->win.skey = pSupp->curWin.skey;
     }
-    uInfo("group:%" PRId64 ", win:%d [%" PRId64 ", %" PRId64 ")", pSupp->groupId, w, pWindow->skey, pWindow->ekey);
+    qInfo("group:%" PRId64 ", win:%d [%" PRId64 ", %" PRId64 ")", pSupp->groupId, w, pWindow->skey, pWindow->ekey);
   }
 
   if (numOfWins <= 0) goto _OVER;
@@ -504,7 +509,7 @@ static void anomalyAggregateBlocks(SOperatorInfo* pOperator) {
     TSKEY* tsList = (TSKEY*)pTsCol->pData;
     bool   lastBlock = (b == numOfBlocks - 1);
 
-    uInfo("group:%" PRId64 ", block:%d win:%d, riwin:%d riblock:%d, rows:%" PRId64, pSupp->groupId, b,
+    qTrace("group:%" PRId64 ", block:%d win:%d, riwin:%d riblock:%d, rows:%" PRId64, pSupp->groupId, b,
           pSupp->curWinIndex, rowsInWin, rowsInBlock, pBlock->info.rows);
 
     for (int32_t r = 0; r < pBlock->info.rows; ++r) {
@@ -514,7 +519,7 @@ static void anomalyAggregateBlocks(SOperatorInfo* pOperator) {
 
       if (keyInWin) {
         if (r < 5) {
-          uInfo("group:%" PRId64 ", block:%d win:%d, row:%d ts:%" PRId64 ", riwin:%d riblock:%d", pSupp->groupId, b,
+          qTrace("group:%" PRId64 ", block:%d win:%d, row:%d ts:%" PRId64 ", riwin:%d riblock:%d", pSupp->groupId, b,
                 pSupp->curWinIndex, r, key, rowsInWin, rowsInBlock);
         }
         if (rowsInBlock == 0) {
@@ -525,26 +530,26 @@ static void anomalyAggregateBlocks(SOperatorInfo* pOperator) {
         rowsInWin++;
       } else {
         if (rowsInBlock > 0) {
-          uInfo("group:%" PRId64 ", block:%d win:%d, row:%d ts:%" PRId64 ", riwin:%d riblock:%d, agg", pSupp->groupId,
+          qTrace("group:%" PRId64 ", block:%d win:%d, row:%d ts:%" PRId64 ", riwin:%d riblock:%d, agg", pSupp->groupId,
                 b, pSupp->curWinIndex, r, key, rowsInWin, rowsInBlock);
           anomalyAggregateRows(pOperator, pBlock);
           rowsInBlock = 0;
         }
         if (rowsInWin > 0) {
-          uInfo("group:%" PRId64 ", block:%d win:%d, row:%d ts:%" PRId64 ", riwin:%d riblock:%d, build result",
+          qTrace("group:%" PRId64 ", block:%d win:%d, row:%d ts:%" PRId64 ", riwin:%d riblock:%d, build result",
                 pSupp->groupId, b, pSupp->curWinIndex, r, key, rowsInWin, rowsInBlock);
           anomalyBuildResult(pOperator);
           rowsInWin = 0;
         }
         if (anomalyFindWindow(pSupp, tsList[r]) == 0) {
-          uInfo("group:%" PRId64 ", block:%d win:%d, row:%d ts:%" PRId64 ", riwin:%d riblock:%d, new window detect",
+          qTrace("group:%" PRId64 ", block:%d win:%d, row:%d ts:%" PRId64 ", riwin:%d riblock:%d, new window detect",
                 pSupp->groupId, b, pSupp->curWinIndex, r, key, rowsInWin, rowsInBlock);
           doKeepNewWindowStartInfo(pRowSup, tsList, r, gid);
           doKeepTuple(pRowSup, tsList[r], gid);
           rowsInBlock = 1;
           rowsInWin = 1;
         } else {
-          uInfo("group:%" PRId64 ", block:%d win:%d, row:%d ts:%" PRId64 ", riwin:%d riblock:%d, window not found",
+          qTrace("group:%" PRId64 ", block:%d win:%d, row:%d ts:%" PRId64 ", riwin:%d riblock:%d, window not found",
                 pSupp->groupId, b, pSupp->curWinIndex, r, key, rowsInWin, rowsInBlock);
           rowsInBlock = 0;
           rowsInWin = 0;
@@ -552,7 +557,7 @@ static void anomalyAggregateBlocks(SOperatorInfo* pOperator) {
       }
 
       if (lastRow && rowsInBlock > 0) {
-        uInfo("group:%" PRId64 ", block:%d win:%d, row:%d ts:%" PRId64 ", riwin:%d riblock:%d, agg since lastrow",
+        qTrace("group:%" PRId64 ", block:%d win:%d, row:%d ts:%" PRId64 ", riwin:%d riblock:%d, agg since lastrow",
               pSupp->groupId, b, pSupp->curWinIndex, r, key, rowsInWin, rowsInBlock);
         anomalyAggregateRows(pOperator, pBlock);
         rowsInBlock = 0;
@@ -560,7 +565,7 @@ static void anomalyAggregateBlocks(SOperatorInfo* pOperator) {
     }
 
     if (lastBlock && rowsInWin > 0) {
-      uInfo("group:%" PRId64 ", block:%d win:%d, riwin:%d riblock:%d, build result since lastblock", pSupp->groupId, b,
+      qTrace("group:%" PRId64 ", block:%d win:%d, riwin:%d riblock:%d, build result since lastblock", pSupp->groupId, b,
             pSupp->curWinIndex, rowsInWin, rowsInBlock);
       anomalyBuildResult(pOperator);
       rowsInWin = 0;
@@ -573,7 +578,7 @@ static void anomalyAggregateBlocks(SOperatorInfo* pOperator) {
 _OVER:
   for (int32_t i = 0; i < numOfBlocks; ++i) {
     SSDataBlock* pBlock = taosArrayGetP(pSupp->blocks, i);
-    uInfo("%s, clear block, pBlock:%p pBlock->pDataBlock:%p", __func__, pBlock, pBlock->pDataBlock);
+    qInfo("%s, clear block, pBlock:%p pBlock->pDataBlock:%p", __func__, pBlock, pBlock->pDataBlock);
     blockDataDestroy(pBlock);
   }
 

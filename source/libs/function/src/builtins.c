@@ -2102,7 +2102,7 @@ static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   }
 
   SValueNode* pValue = (SValueNode*)pOption;
-  if (!taosAnalGetParaStr(pValue->literal, "algo", NULL, 0) != 0) {
+  if (!taosAnalGetOptStr(pValue->literal, "algo", NULL, 0) != 0) {
     return invaildFuncParaValueErrMsg(pErrBuf, len, "FORECAST option should include algo field");
   }
 

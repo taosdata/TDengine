@@ -25,9 +25,10 @@
 extern "C" {
 #endif
 
-#define ANAL_FORECAST_DEFAULT_ROWS  10
-#define ANAL_FORECAST_DEFAULT_CONF  95
-#define ANAL_FORECAST_DEFAULT_EVERY 10000
+#define ANAL_FORECAST_DEFAULT_PERIOD 10
+#define ANAL_FORECAST_DEFAULT_CONF   95
+#define ANAL_FORECAST_DEFAULT_ALPHA  0.05
+#define ANAL_FORECAST_DEFAULT_PARAM  "diff"
 
 typedef struct {
   EAnalAlgoType type;
@@ -66,15 +67,16 @@ void    taosAnalCleanup();
 SJson  *taosAnalSendReqRetJson(const char *url, EAnalHttpType type, SAnalBuf *pBuf);
 
 int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen);
-bool    taosAnalGetParaStr(const char *option, const char *paraName, char *paraValue, int32_t paraValueMaxLen);
-bool    taosAnalGetParaInt(const char *option, const char *paraName, int32_t *paraValue);
+bool    taosAnalGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen);
+bool    taosAnalGetOptInt(const char *option, const char *optName, int32_t *optValue);
 int64_t taosAnalGetVersion();
 void    taosAnalUpdate(int64_t newVer, SHashObj *pHash);
 
 int32_t tsosAnalBufOpen(SAnalBuf *pBuf, int32_t numOfCols);
 int32_t taosAnalBufWriteAlgo(SAnalBuf *pBuf, const char *algo);
-int32_t taosAnalBufWriteOpt(SAnalBuf *pBuf, const char *opt);
-int32_t taosAnalBufWritePrec(SAnalBuf *pBuf, const char *prec);
+int32_t taosAnalBufWriteOptStr(SAnalBuf *pBuf, const char *optName, const char *optVal);
+int32_t taosAnalBufWriteOptInt(SAnalBuf *pBuf, const char *optName, int64_t optVal);
+int32_t taosAnalBufWriteOptFloat(SAnalBuf *pBuf, const char *optName, float optVal);
 int32_t taosAnalBufWriteColMeta(SAnalBuf *pBuf, int32_t colIndex, int32_t colType, const char *colName);
 int32_t taosAnalBufWriteDataBegin(SAnalBuf *pBuf);
 int32_t taosAnalBufWriteColBegin(SAnalBuf *pBuf, int32_t colIndex);
