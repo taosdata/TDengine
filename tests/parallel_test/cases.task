@@ -1555,9 +1555,10 @@
 
 #docs-examples test
 ,,n,docs-examples-test,bash python.sh
-#,,n,docs-examples-test,bash node.sh
+,,n,docs-examples-test,bash node.sh
 ,,n,docs-examples-test,bash csharp.sh
 ,,n,docs-examples-test,bash jdbc.sh
 ,,n,docs-examples-test,bash rust.sh
 ,,n,docs-examples-test,bash go.sh
 ,,n,docs-examples-test,bash test_R.sh
+
