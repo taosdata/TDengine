@@ -2,6 +2,8 @@
 #caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
 #NA,NA,y or n,script,./test.sh -f tsim/user/basic.sim
 
+,,n,docs-examples-test,bash c.sh
+
 #unit-test
 
 ,,n,unit-test,bash test.sh
@@ -1559,4 +1561,4 @@
 ,,n,docs-examples-test,bash jdbc.sh
 ,,n,docs-examples-test,bash go.sh
 ,,n,docs-examples-test,bash test_R.sh
-,,n,docs-examples-test,bash c.sh
+
