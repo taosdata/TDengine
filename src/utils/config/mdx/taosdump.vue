@@ -51,7 +51,7 @@
       <li>{{ $t("docs.dataout.dump.step31desc3") }}</li>
       <li>
         {{ $t("docs.dataout.dump.step31desc4")
-        }}&nbsp;&nbsp;<a :href="`${$t('urlPart')}/taos-sql/escape/`">{{
+        }}&nbsp;&nbsp;<a :href="`${$t('urlPart')}/reference/taos-sql/escape/`">{{
           $t("docs.dataout.dump.step31desc5")
         }}</a>
         {{ $t("docs.dataout.dump.step31desc6") }}
