@@ -2846,6 +2846,8 @@ static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pC
   pCond->colList = taosMemoryCalloc(1, sizeof(SColumnInfo));
   pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t));
   if (pCond->colList == NULL || pCond->pSlotList == NULL) {
+    taosMemoryFree(pCond->colList);
+    taosMemoryFree(pCond->pSlotList);
     return terrno;
   }
 
