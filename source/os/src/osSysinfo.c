@@ -1057,7 +1057,7 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
   int n = snprintf(uid, uidlen, "%.*s", (int)sizeof(buf), buf);  // though less performance, much safer
   return 0;
 #else
-  int len = 0;
+  int64_t len = 0;
 
   // fd = open("/proc/sys/kernel/random/uuid", 0);
   TdFilePtr pFile = taosOpenFile("/proc/sys/kernel/random/uuid", TD_FILE_READ);
@@ -1067,7 +1067,7 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
     len = taosReadFile(pFile, uid, uidlen);
     TAOS_SKIP_ERROR(taosCloseFile(&pFile));
     if (len < 0) {
-      return len;
+      return terrno;
     }
   }
 

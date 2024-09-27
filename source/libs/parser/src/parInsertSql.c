@@ -1079,9 +1079,9 @@ static int32_t parseTableOptions(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         return buildSyntaxErrMsg(&pCxt->msg, "comment too long", token.z);
       }
       int32_t len = trimString(token.z, token.n, pCxt->tmpTokenBuf, TSDB_TB_COMMENT_LEN);
-      pStmt->pCreateTblReq->comment = strndup(pCxt->tmpTokenBuf, len);
+      pStmt->pCreateTblReq->comment = taosStrndup(pCxt->tmpTokenBuf, len);
       if (NULL == pStmt->pCreateTblReq->comment) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       pStmt->pCreateTblReq->commentLen = len;
     } else {

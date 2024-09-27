@@ -40,16 +40,26 @@ int taos_metric_formatter_load_sample_new(taos_metric_formatter_t *self, taos_me
   int32_t len = end -start;
 
   char* keyvalues = taosMemoryMalloc(len);
+  if (keyvalues == NULL) return 1;
   memset(keyvalues, 0, len);
   memcpy(keyvalues, start + 1, len - 1);
 
   int32_t count = taos_monitor_count_occurrences(keyvalues, ",");
 
   char** keyvalue = taosMemoryMalloc(sizeof(char*) * (count + 1));
+  if (keyvalue == NULL) {
+    taosMemoryFreeClear(keyvalues);
+    return 1;
+  }
   memset(keyvalue, 0, sizeof(char*) * (count + 1));
   taos_monitor_split_str(keyvalue, keyvalues, ",");
 
   char** arr = taosMemoryMalloc(sizeof(char*) * (count + 1) * 2);
+  if (arr == NULL) {
+    taosMemoryFreeClear(keyvalue);
+    taosMemoryFreeClear(keyvalues);
+    return 1;
+  }
   memset(arr, 0, sizeof(char*) * (count + 1) * 2);
 
   bool isfound = true;
@@ -165,6 +175,7 @@ int taos_metric_formatter_load_metric_new(taos_metric_formatter_t *self, taos_me
 
   int32_t size = strlen(metric->name);
   char* name = taosMemoryMalloc(size + 1);
+  if (name == NULL) return 1;
   memset(name, 0, size + 1);
   memcpy(name, metric->name, size);
   char* arr[2] = {0}; //arr[0] is table name, arr[1] is metric name
