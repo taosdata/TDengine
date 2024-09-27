@@ -387,7 +387,19 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
     - `reconnectIntervalMs`：重连间隔毫秒时间，默认为 2000。
     </TabItem>
     <TabItem label="C" value="c">
-C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数据库的连接。其参数详细说明如下：
+**Websocket 连接**  
+C/C++ 语言连接器 Websocket 连接方式使用 `ws_connect()` 函数用于建立与 TDengine 数据库的连接。其参数为 DSN 描述字符串，其基本结构如下：
+
+```text
+<driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
+|------|------------|---|-----------|-----------|------|------|------------|-----------------------|
+|driver|   protocol |   | username  | password  | host | port |  database  |  params               |
+```
+
+DSN 的详细说明和如何使用详见 [连接功能](../../reference/connector/cpp/#dsn)
+
+**原生连接**  
+C/C++ 语言连接器原生连接方式使用 `taos_connect()` 函数用于建立与 TDengine 数据库的连接。其参数详细说明如下：
 
 - `host`：要连接的数据库服务器的主机名或IP地址。如果是本地数据库，可以使用 `"localhost"`。
 - `user`：用于登录数据库的用户名。
@@ -440,7 +452,10 @@ C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数�
 ```
     </TabItem>
 <TabItem label="C" value="c">
-不支持
+```c
+{{#include docs/examples/c-ws/connect_example.c}}
+```
+
 </TabItem>    
 <TabItem label="REST API" value="rest">
 不支持
