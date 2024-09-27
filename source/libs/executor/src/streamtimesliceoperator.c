@@ -829,7 +829,8 @@ static int32_t getPointInfoFromStateRight(SStreamAggSupporter* pAggSup, SStreamF
                                                           &curVLen, pWinCode);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  qDebug("===stream=== set stream interp next point buf.ts:%" PRId64 ", groupId:%" PRId64 ", res:%d", pNextPoint->key.ts, pNextPoint->key.groupId, pWinCode);
+  qDebug("===stream=== set stream interp next point buf.ts:%" PRId64 ", groupId:%" PRId64 ", res:%d",
+         pNextPoint->key.ts, pNextPoint->key.groupId, *pWinCode);
 
   setPointBuff(pNextPoint, pFillSup);
 
@@ -1623,8 +1624,8 @@ int32_t getSliceMaxTsWins(const SArray* pAllWins, SArray* pMaxWins) {
   for (int32_t i = size - 2; i >= 0; i--) {
     pKey = taosArrayGet(pAllWins, i);
     if (preGpId != pKey->groupId) {
-      void* tmp = taosArrayPush(pMaxWins, pKey);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+      void* p = taosArrayPush(pMaxWins, pKey);
+      QUERY_CHECK_NULL(p, code, lino, _end, terrno);
       preGpId = pKey->groupId;
     }
   }
