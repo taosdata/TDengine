@@ -404,9 +404,9 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   SValueNode* val = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&val);
   CHECK_MAKE_NODE(val);
-  val->literal = strndup(pLiteral->z, pLiteral->n);
+  val->literal = taosStrndup(pLiteral->z, pLiteral->n);
   if(!val->literal) {
-    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    pCxt->errCode = terrno;
     nodesDestroyNode((SNode*)val);
     return NULL;
   }
@@ -434,14 +434,22 @@ SNode* createRawValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToke
     goto _exit;
   }
   if (pLiteral) {
-    val->literal = strndup(pLiteral->z, pLiteral->n);
+    val->literal = taosStrndup(pLiteral->z, pLiteral->n);
+    if (!val->literal) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, terrno, "Out of memory");
+      goto _exit;
+    }
   } else if (pNode) {
     SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
     if (!nodesIsExprNode(pRawExpr->pNode)) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, pRawExpr->p);
       goto _exit;
     }
-    val->literal = strndup(pRawExpr->p, pRawExpr->n);
+    val->literal = taosStrndup(pRawExpr->p, pRawExpr->n);
+    if (!val->literal) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, terrno, "Out of memory");
+      goto _exit;
+    }
   } else {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR, "Invalid parameters");
     goto _exit;
@@ -479,8 +487,8 @@ SNode* createRawValueNodeExt(SAstCreateContext* pCxt, int32_t dataType, const ST
     goto _exit;
   }
   if (pLiteral) {
-    if (!(val->literal = strndup(pLiteral->z, pLiteral->n))) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY, "Out of memory");
+    if (!(val->literal = taosStrndup(pLiteral->z, pLiteral->n))) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, terrno, "Out of memory");
       goto _exit;
     }
   } else {
@@ -579,7 +587,7 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
     return NULL;
   }
   SNodeList*  pHintList = NULL;
-  char*       hint = strndup(pLiteral->z + 3, pLiteral->n - 5);
+  char*       hint = taosStrndup(pLiteral->z + 3, pLiteral->n - 5);
   if (!hint) return NULL;
   int32_t     i = 0;
   bool        quit = false;
@@ -749,13 +757,13 @@ SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) 
         return NULL;
       }
     }
-    val->literal = strndup(pLiteral->z + 1, pLiteral->n - 2);
+    val->literal = taosStrndup(pLiteral->z + 1, pLiteral->n - 2);
   } else {
-    val->literal = strndup(pLiteral->z, pLiteral->n);
+    val->literal = taosStrndup(pLiteral->z, pLiteral->n);
   }
   if (!val->literal) {
     nodesDestroyNode((SNode*)val);
-    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    pCxt->errCode = terrno;
     return NULL;
   }
   val->flag |= VALUE_FLAG_IS_DURATION;
@@ -801,13 +809,13 @@ SNode* createTimeOffsetValueNode(SAstCreateContext* pCxt, const SToken* pLiteral
         return NULL;
       }
     }
-    val->literal = strndup(pLiteral->z + 1, pLiteral->n - 2);
+    val->literal = taosStrndup(pLiteral->z + 1, pLiteral->n - 2);
   } else {
-    val->literal = strndup(pLiteral->z, pLiteral->n);
+    val->literal = taosStrndup(pLiteral->z, pLiteral->n);
   }
   if (!val->literal) {
     nodesDestroyNode((SNode*)val);
-    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    pCxt->errCode = terrno;
     return NULL;
   }
   val->flag |= VALUE_FLAG_IS_TIME_OFFSET;
@@ -853,9 +861,9 @@ SNode* createPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLitera
   SValueNode* val = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&val);
   CHECK_MAKE_NODE(val);
-  val->literal = strndup(pLiteral->z, pLiteral->n);
+  val->literal = taosStrndup(pLiteral->z, pLiteral->n);
   if (!val->literal) {
-    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    pCxt->errCode = terrno;
     nodesDestroyNode((SNode*)val);
     return NULL;
   }

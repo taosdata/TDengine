@@ -1006,6 +1006,11 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
 #endif
 
     uv_write_t* wr = (uv_write_t*)taosMemoryMalloc(sizeof(uv_write_t));
+    if (wr == NULL) {
+      tError("failed to accept since %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      return;
+    }
+
     wr->data = cli;
     uv_buf_t buf = uv_buf_init((char*)notify, strlen(notify));
 
@@ -1738,6 +1743,10 @@ void destroyWorkThrd(SWorkThrd* pThrd) {
 }
 void sendQuitToWorkThrd(SWorkThrd* pThrd) {
   SSvrRespMsg* msg = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
+  if (msg == NULL) {
+    tError("failed to send quit msg to work thread since %s", tstrerror(terrno));
+    return;
+  }
   msg->type = Quit;
   tDebug("server send quit msg to work thread");
   TAOS_UNUSED(transAsyncSend(pThrd->asyncPool, &msg->q));

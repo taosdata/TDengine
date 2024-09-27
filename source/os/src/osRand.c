@@ -65,7 +65,7 @@ uint32_t taosSafeRand(void) {
   if (pFile == NULL) {
     seed = (int)taosGetTimestampSec();
   } else {
-    int len = taosReadFile(pFile, &seed, sizeof(seed));
+    int64_t len = taosReadFile(pFile, &seed, sizeof(seed));
     if (len < 0) {
       seed = (int)taosGetTimestampSec();
     }

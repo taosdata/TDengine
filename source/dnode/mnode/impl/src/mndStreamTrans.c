@@ -316,6 +316,7 @@ int32_t doKillCheckpointTrans(SMnode *pMnode, const char *pDBName, size_t len) {
 // kill all trans in the dst DB
 void killAllCheckpointTrans(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo) {
   mDebug("start to clear checkpoints in all Dbs");
+  char p[128] = {0};
 
   void *pIter = NULL;
   while ((pIter = taosHashIterate(pChangeInfo->pDBMap, pIter)) != NULL) {
@@ -323,15 +324,14 @@ void killAllCheckpointTrans(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo) {
 
     size_t len = 0;
     void  *pKey = taosHashGetKey(pDb, &len);
-    char  *p = strndup(pKey, len);
+    tstrncpy(p, pKey, 128);
 
     int32_t code = doKillCheckpointTrans(pMnode, pKey, len);
     if (code) {
-      mError("failed to kill trans, transId:%p", pKey)
+      mError("failed to kill trans, transId:%p", pKey);
     } else {
       mDebug("clear checkpoint trans in Db:%s", p);
     }
-    taosMemoryFree(p);
   }
 
   mDebug("complete clear checkpoints in all Dbs");

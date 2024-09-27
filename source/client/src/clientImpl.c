@@ -2441,10 +2441,9 @@ char* getDbOfConnection(STscObj* pObj) {
   (void)taosThreadMutexLock(&pObj->mutex);
   size_t len = strlen(pObj->db);
   if (len > 0) {
-    p = strndup(pObj->db, tListLen(pObj->db));
+    p = taosStrndup(pObj->db, tListLen(pObj->db));
     if (p == NULL) {
-      tscError("failed to strndup db name");
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      tscError("failed to taosStrndup db name");
     }
   }
 

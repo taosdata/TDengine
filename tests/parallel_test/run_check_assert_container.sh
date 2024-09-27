@@ -31,7 +31,6 @@ fi
 
  # enterprise edition
 INTERNAL_REPDIR=$WORKDIR/TDinternal
-REPDIR_DEBUG=$WORKDIR/debugNoSan/
 
 REP_MOUNT_PARAM="$INTERNAL_REPDIR:/home/TDinternal"
 
@@ -46,7 +45,7 @@ docker run \
     --rm --ulimit core=-1 taos_test:v1.0 python3  $check_assert_scripts
 EOF
 docker run \
-    -v $REP_MOUNT_PARAM \
+    -v "$REP_MOUNT_PARAM" \
     --rm --ulimit core=-1 taos_test:v1.0 python3  $check_assert_scripts
 
 ret=$?
