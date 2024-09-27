@@ -75,8 +75,6 @@ def schemaless_insert():
             conn.close()
 
 if __name__ == "__main__":
-    try:
-        prepare()
-        schemaless_insert()
-    except Exception as err:
-          print(f"Failed to insert data with schemaless, err:{err}")   
+    prepare()
+    schemaless_insert()
+  

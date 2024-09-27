@@ -890,7 +890,7 @@ void markGroupProcessed(STableScanInfo* pInfo, uint64_t groupId) {
   } else {
     int32_t code = taosHashRemove(pInfo->base.pTableListInfo->remainGroups, &groupId, sizeof(groupId));
     if (code != TSDB_CODE_SUCCESS) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      qDebug("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     }
   }
 }
@@ -4294,13 +4294,13 @@ _error:
   return code;
 }
 
-static int32_t doTagScanOneTable(SOperatorInfo* pOperator, const SSDataBlock* pRes, int32_t count, SMetaReader* mr,
-                                 SStorageAPI* pAPI) {
+static int32_t doTagScanOneTable(SOperatorInfo* pOperator, SSDataBlock* pRes, SMetaReader* mr, SStorageAPI* pAPI) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   STagScanInfo*  pInfo = pOperator->info;
   SExprInfo*     pExprInfo = &pOperator->exprSupp.pExprInfo[0];
+  int32_t        count = pRes->info.rows;
 
   STableKeyInfo* item = tableListGetInfo(pInfo->pTableListInfo, pInfo->curPos);
   if (!item) {
@@ -4360,6 +4360,8 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
+  } else {
+    pRes->info.rows++;
   }
 
   return code;
@@ -4715,25 +4717,22 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
     return code;
   }
 
-  int32_t     count = 0;
   SMetaReader mr = {0};
   pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+  pRes->info.rows = 0;
 
-  while (pInfo->curPos < size && count < pOperator->resultInfo.capacity) {
-    code = doTagScanOneTable(pOperator, pRes, count, &mr, &pTaskInfo->storageAPI);
+  while (pInfo->curPos < size && pRes->info.rows < pOperator->resultInfo.capacity) {
+    code = doTagScanOneTable(pOperator, pRes, &mr, &pTaskInfo->storageAPI);
     if (code != TSDB_CODE_OUT_OF_MEMORY) {
       // ignore other error
       code = TSDB_CODE_SUCCESS;
     }
     QUERY_CHECK_CODE(code, lino, _end);
 
-    ++count;
     if (++pInfo->curPos >= size) {
       setOperatorCompleted(pOperator);
     }
   }
-
-  pRes->info.rows = count;
 
   pAPI->metaReaderFn.clearReader(&mr);
   bool bLimitReached = applyLimitOffset(&pInfo->limitInfo, pRes, pTaskInfo);

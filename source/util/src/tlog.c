@@ -541,7 +541,6 @@ static void processLogFileName(const char* logName , int32_t maxFileNum){
 }
 
 static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
-  int32_t code = 0;
 #ifdef WINDOWS_STASH
   /*
    * always set maxFileNum to 1
@@ -576,10 +575,10 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
   }
   tsLogObj.lines = (int32_t)(filesize / 60);
 
-  if ((code = taosLSeekFile(tsLogObj.logHandle->pFile, 0, SEEK_END)) < 0) {
-    TAOS_UNUSED(printf("failed to seek to the end of log file:%s, reason:%s\n", name, tstrerror(code)));
+  if (taosLSeekFile(tsLogObj.logHandle->pFile, 0, SEEK_END) < 0) {
+    TAOS_UNUSED(printf("failed to seek to the end of log file:%s, reason:%s\n", name, tstrerror(terrno)));
     taosUnLockLogFile(tsLogObj.logHandle->pFile);
-    return code;
+    return terrno;
   }
 
   (void)sprintf(name, "==================================================\n");

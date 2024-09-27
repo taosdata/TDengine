@@ -34,6 +34,7 @@ async function json_tag_example() {
 
     } catch (err) {
         console.error(`Failed to create database example_json_tag or stable stb, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
+        throw err;
     } finally {
         if (wsSql) {
             await wsSql.close();
@@ -78,9 +79,10 @@ async function all_type_example() {
             let row = wsRows.getData();
             console.log(row);
         }
-
+        
     } catch (err) {
         console.error(`Failed to create database all_type_example or stable stb, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
+        throw err;
     } finally {
         if (wsSql) {
             await wsSql.close();
@@ -91,7 +93,7 @@ async function all_type_example() {
 
 async function test() {
     await json_tag_example()
-    await all_type_example()
+    await all_type_example()        
     taos.destroy();
 }
 

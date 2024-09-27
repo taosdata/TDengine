@@ -33,7 +33,7 @@ typedef struct IFileCtx {
   int (*write)(struct IFileCtx* ctx, uint8_t* buf, int len);
   int (*read)(struct IFileCtx* ctx, uint8_t* buf, int len);
   int (*flush)(struct IFileCtx* ctx);
-  int (*readFrom)(struct IFileCtx* ctx, uint8_t* buf, int len, int32_t offset);
+  int64_t (*readFrom)(struct IFileCtx* ctx, uint8_t* buf, int len, int32_t offset);
   int (*size)(struct IFileCtx* ctx);
 
   SLRUCache* lru;
@@ -64,7 +64,7 @@ typedef struct IFileCtx {
 
 static int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len);
 static int idxFileCtxDoRead(IFileCtx* ctx, uint8_t* buf, int len);
-static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t offset);
+static int64_t idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t offset);
 static int idxFileCtxDoFlush(IFileCtx* ctx);
 
 IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int32_t capacity);
