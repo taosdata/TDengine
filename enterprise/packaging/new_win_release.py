@@ -9,7 +9,7 @@ import datetime
 import time
 import git
 import re
-from threading import Thread
+from multiprocessing import Process
 
 current_os = platform.system()
 test_process = ''
@@ -427,15 +427,19 @@ def process_build_taosws_32bit():
     print(f"x86 target bin dir:  {x86_target_bin_dir}")
     if not os.path.exists(x86_target_bin_dir):
         os.makedirs(x86_target_bin_dir) 
-        
+    
+    print("copy {}\\taosws.dll.lib to {}\\taosws.lib".format(dll_dir, x86_target_lib_dir))
     os.system("copy /Y {}\\taosws.dll.lib {}\\taosws.lib".format(dll_dir, x86_target_lib_dir))
-    os.system("xcopy /YS {}\\taosws.dll {}".format(dll_dir, x86_target_bin_dir))
+    print("copy {}\\taosws.dll to {}".format(dll_dir, x86_target_bin_dir))
+    os.system("copy /Y {}\\taosws.dll {}".format(dll_dir, x86_target_bin_dir))
     
     print("32bit taosws build done")
 
 def process_build_odbc():
     odbc_dir = os.path.join(directory, branch, "taos_odbc")
     os.chdir(odbc_dir)
+    os.system("git checkout main")
+    os.system("git pull")
     print("current path: {0}".format(os.getcwd()))
     
     #build 32 bit ODBC
@@ -888,9 +892,9 @@ if __name__ == "__main__":
 
     init_release_dir()
 
-    p1 = Thread(target=process_build_TD)
-    p2 = Thread(target=process_build_taosx)
-    p3 = Thread(target=process_build_keeper)
+    p1 = Process(target=process_build_TD)
+    p2 = Process(target=process_build_taosx)
+    p3 = Process(target=process_build_keeper)
 
     p1.start()
     p2.start()

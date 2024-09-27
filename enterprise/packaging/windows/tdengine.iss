@@ -55,14 +55,14 @@ Source: taos.bat; DestDir: "{app}\include"; Flags: igNoreversion;
 Source: favicon.ico; DestDir: "{app}\include"; Flags: igNoreversion;
 Source: start-all.bat; DestDir: "{app}"; Flags: igNoreversion;
 Source: stop-all.bat; DestDir: "{app}"; Flags: igNoreversion;
-Source: {#MyAppSourceDir}\taos.exe; DestDir: "{app}"; DestName: "{#CusPrompt}.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taos.exe')
-Source: {#MyAppSourceDir}\taosBenchmark.exe; DestDir: "{app}"; DestName: "{#CusPrompt}Benchmark.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosBenchmark.exe')
-Source: {#MyAppSourceDir}\taosdump.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosdump.exe')
-Source: {#MyAppSourceDir}\taosd.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosd.exe')
-Source: {#MyAppSourceDir}\taosadapter.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosadapter.exe')
-Source: {#MyAppSourceDir}\taoskeeper.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taoskeeper.exe')
-Source: {#MyAppSourceDir}\taosx.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosx.exe')
-Source: {#MyAppSourceDir}\taos-explorer.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taos-explorer.exe')
+Source: {#MyAppSourceDir}\taos.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taos.exe')
+Source: {#MyAppSourceDir}\taosBenchmark.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosBenchmark.exe')
+Source: {#MyAppSourceDir}\taosdump.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosdump.exe')
+Source: {#MyAppSourceDir}\taosd.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosd.exe')
+Source: {#MyAppSourceDir}\taosadapter.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosadapter.exe')
+Source: {#MyAppSourceDir}\taoskeeper.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taoskeeper.exe')
+Source: {#MyAppSourceDir}\taosx.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosx.exe')
+Source: {#MyAppSourceDir}\taos-explorer.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taos-explorer.exe')
 Source: {#MyAppSourceDir}{#MyAppDLLName}; DestDir: "{win}\System32"; Flags: igNoreversion recursesubdirs createallsubdirs 64bit;Check:IsWin64;
 Source: {#MyAppSourceDir}\append\opc_gdba_32\*; DestDir: "{#OPCGdbaInstallPath}\"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; Check: ShouldInstallOPC
 Source: {#MyAppSourceDir}{#MyAppCfgName}; DestDir: "{app}\cfg"; Flags: igNoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
