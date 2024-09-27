@@ -493,6 +493,12 @@ void cliHandleResp(SCliConn* conn) {
   }
 
   if (CONN_NO_PERSIST_BY_APP(conn)) {
+    SExHandle* exh = transAcquireExHandle(transGetRefMgt(), refId);
+    if (exh != NULL) {
+      exh->handle = NULL;
+    }
+    TAOS_UNUSED(transReleaseExHandle(transGetRefMgt(), refId));
+
     return addConnToPool(pThrd->pool, conn);
   }
 
@@ -1060,6 +1066,7 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   conn->list = NULL;
 
   TAOS_UNUSED(transReleaseExHandle(transGetRefMgt(), conn->refId));
+  TAOS_UNUSED(transReleaseExHandle(transGetRefMgt(), conn->refId));
   TAOS_UNUSED(transRemoveExHandle(transGetRefMgt(), conn->refId));
   conn->refId = -1;
 
@@ -1087,6 +1094,7 @@ static void cliDestroy(uv_handle_t* handle) {
   TAOS_UNUSED(atomic_sub_fetch_32(&pThrd->connCount, 1));
 
   if (conn->refId > 0) {
+    TAOS_UNUSED(transReleaseExHandle(transGetRefMgt(), conn->refId));
     TAOS_UNUSED(transReleaseExHandle(transGetRefMgt(), conn->refId));
     TAOS_UNUSED(transRemoveExHandle(transGetRefMgt(), conn->refId));
   }
