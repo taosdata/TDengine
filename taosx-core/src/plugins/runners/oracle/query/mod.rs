@@ -49,17 +49,35 @@ impl OracleQuery {
         Ok(pool_builder.build()?)
     }
 
+    pub fn get_conn(&self) -> anyhow::Result<oracle::Connection> {
+        for i in 1..4 {
+            match self.pool.get() {
+                Ok(conn) => {
+                    // modify session timezone
+                    let _ = conn.execute(
+                        format!("ALTER SESSION SET TIME_ZONE='{}'", self.time_zone).as_str(),
+                        &[],
+                    )?;
+                    let _ = conn.commit()?;
+                    return Ok(conn);
+                }
+                Err(err) => {
+                    tracing::warn!(
+                        "migrate oracle, failed to get connection from pool, cause: {}, retrying {i} times...",
+                        err
+                    );
+                    std::thread::sleep(Duration::from_secs(1));
+                }
+            }
+        }
+        anyhow::bail!("migrate oracle, failed to get connection from pool")
+    }
+
     pub fn select_distinct_values(
         &mut self,
         sql: &str,
     ) -> anyhow::Result<(LinkedHashMap<String, OracleType>, Vec<oracle::Row>)> {
-        let conn = self.pool.get()?;
-        // modify session timezone
-        let _ = conn.execute(
-            format!("ALTER SESSION SET TIME_ZONE='{}'", self.time_zone).as_str(),
-            &[],
-        )?;
-        let _ = conn.commit()?;
+        let conn = self.get_conn()?;
         // select data
         let result = conn.query(sql, &[]);
         let mut col_map = LinkedHashMap::new();
@@ -96,7 +114,7 @@ impl OracleQuery {
         &mut self,
         sql: &str,
     ) -> anyhow::Result<LinkedHashMap<String, OracleType>> {
-        let conn = self.pool.get()?;
+        let conn = self.get_conn()?;
         // modify session timezone
         let _ = conn.execute(
             format!("ALTER SESSION SET TIME_ZONE='{}'", self.time_zone).as_str(),
@@ -123,13 +141,7 @@ impl OracleQuery {
         &mut self,
         sql: &str,
     ) -> anyhow::Result<(LinkedHashMap<String, OracleType>, Vec<oracle::Row>)> {
-        let conn = self.pool.get()?;
-        // modify session timezone
-        let _ = conn.execute(
-            format!("ALTER SESSION SET TIME_ZONE='{}'", self.time_zone).as_str(),
-            &[],
-        )?;
-        let _ = conn.commit()?;
+        let conn = self.get_conn()?;
         // select data
         let result = conn.query(sql, &[]);
         let mut col_map = LinkedHashMap::new();
@@ -161,13 +173,7 @@ impl OracleQuery {
         sql: &str,
         batch_size: usize,
     ) -> anyhow::Result<Vec<RecordBatch>> {
-        let conn = self.pool.get()?;
-        // modify session timezone
-        let _ = conn.execute(
-            format!("ALTER SESSION SET TIME_ZONE='{}'", self.time_zone).as_str(),
-            &[],
-        )?;
-        let _ = conn.commit()?;
+        let conn = self.get_conn()?;
         // select data
         let result = conn.query(sql, &[]);
         let mut col_map = LinkedHashMap::new();
@@ -202,13 +208,7 @@ impl OracleQuery {
         sql: &str,
         top_n: u32,
     ) -> anyhow::Result<(LinkedHashMap<String, OracleType>, Vec<oracle::Row>)> {
-        let conn = self.pool.get()?;
-        // modify session timezone
-        let _ = conn.execute(
-            format!("ALTER SESSION SET TIME_ZONE='{}'", self.time_zone).as_str(),
-            &[],
-        )?;
-        let _ = conn.commit()?;
+        let conn = self.get_conn()?;
         // select data
         let result = conn.query(sql, &[]);
         let mut col_map = LinkedHashMap::new();
@@ -252,7 +252,7 @@ mod tests {
         let result = OracleQuery::try_new(config, String::from("+08:00"));
         match result {
             Ok(query) => {
-                let conn = query.pool.get().unwrap();
+                let conn = query.get_conn().unwrap();
                 let sql_create_table = "create table t_metric (id NUMBER(10, 0) PRIMARY KEY, name VARCHAR2(255), value NUMBER(10, 2), ts timestamp)";
                 let x = conn.execute(sql_create_table, &[]);
                 println!("create table: {:?}", x);
@@ -274,7 +274,7 @@ mod tests {
         let result = OracleQuery::try_new(config, String::from("+08:00"));
         match result {
             Ok(query) => {
-                let conn = query.pool.get().unwrap();
+                let conn = query.get_conn().unwrap();
                 for i in 0..len {
                     let sql_insert_data = format!("insert into t_metric (id, name, value, ts) values ({}, 'cpu', 0.8, sysdate)", i);
                     let _ = conn.execute(&sql_insert_data.as_str(), &[]);
@@ -296,7 +296,7 @@ mod tests {
         let result = OracleQuery::try_new(config, String::from("+08:00"));
         match result {
             Ok(query) => {
-                let conn = query.pool.get().unwrap();
+                let conn = query.get_conn().unwrap();
                 let sql = "delete from t_metric where 1 = 1";
                 let _ = conn.execute(sql, &[]);
                 let _ = conn.commit();
@@ -314,7 +314,7 @@ mod tests {
         dbg!(&config);
 
         let query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
-        assert!(query.pool.get().is_ok());
+        assert!(query.get_conn().is_ok());
     }
 
     #[test]

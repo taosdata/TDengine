@@ -423,7 +423,7 @@ mod tests {
         let result = OracleQuery::try_new(config, String::from("+08:00"));
         match result {
             Ok(query) => {
-                let conn = query.pool.get().unwrap();
+                let conn = query.get_conn().unwrap();
                 let sql_create_table = "create table t_metric (id NUMBER(10, 0) PRIMARY KEY, name VARCHAR2(255), value NUMBER(10, 2), ts timestamp)";
                 let x = conn.execute(sql_create_table, &[]);
                 println!("create table: {:?}", x);
@@ -445,7 +445,7 @@ mod tests {
         let result = OracleQuery::try_new(config, String::from("+08:00"));
         match result {
             Ok(query) => {
-                let conn = query.pool.get().unwrap();
+                let conn = query.get_conn().unwrap();
                 for i in 0..len {
                     let sql_insert_data = format!("insert into t_metric (id, name, value, ts) values ({}, 'cpu', 0.8, sysdate)", i);
                     let _ = conn.execute(&sql_insert_data.as_str(), &[]);
@@ -467,7 +467,7 @@ mod tests {
         let result = OracleQuery::try_new(config, String::from("+08:00"));
         match result {
             Ok(query) => {
-                let conn = query.pool.get().unwrap();
+                let conn = query.get_conn().unwrap();
                 let sql = "delete from t_metric where 1 = 1";
                 let _ = conn.execute(sql, &[]);
                 let _ = conn.commit();
