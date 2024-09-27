@@ -100,6 +100,33 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：Websocket 连接与 
 
 7. 也可以在第2步选择已经配置好的数据源名通过【配置】按钮进入配置页面，修改已有配置
 
+
+## 数据类型映射
+
+下表说明了 ODBC 连接器如何将服务器数据类型映射到默认的 SQL 和 C 数据类型。
+
+| TDengine Type      | SQL Type          | C Type            |
+|--------------------|-------------------|-------------------|
+| TIMESTAMP          | SQL_TYPE_TIMESTAMP| SQL_C_TIMESTAMP   |
+| INT                | SQL_INTEGER       | SQL_C_SLONG       |
+| INT UNSIGNED       | SQL_INTEGER       | SQL_C_ULONG       |
+| BIGINT             | SQL_BIGINT        | SQL_C_SBIGINT     |
+| BIGINT UNSIGNED    | SQL_BIGINT        | SQL_C_UBIGINT     |
+| FLOAT              | SQL_REAL          | SQL_C_FLOAT       |
+| DOUBLE             | SQL_REAL          | SQL_C_DOUBLE      |
+| BINARY             | SQL_BINARY        | SQL_C_BINARY      |
+| SMALLINT           | SQL_SMALLINT      | SQL_C_SSHORT      |
+| SMALLINT UNSIGNED  | SQL_SMALLINT      | SQL_C_USHORT      |
+| TINYINT            | SQL_TINYINT       | SQL_C_STINYINT    |
+| TINYINT UNSIGNED   | SQL_TINYINT       | SQL_C_UTINYINT    |
+| BOOL               | SQL_BIT           | SQL_C_BIT         |
+| NCHAR              | SQL_VARCHAR       | SQL_C_CHAR        |
+| JSON               | SQL_VARCHAR       | SQL_C_CHAR        |
+| VARCHAR            | SQL_VARCHAR       | SQL_C_CHAR        |
+| GEOMETRY           | SQL_VARBINARY     | SQL_C_BINARY      |
+| VARBINARY          | SQL_VARBINARY     | SQL_C_BINARY      |
+
+
 ## ODBC API 参考
 
 本节按功能分类汇总了 ODBC API。
@@ -490,32 +517,6 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：Websocket 连接与 
   - **是否支持**: 支持
   - **标准**: ODBC
   - **作用**: 关闭与当前语句句柄关联的游标，并释放游标所使用的所有资源
-
-
-## 数据类型映射
-
-下表说明了 ODBC 连接器如何将服务器数据类型映射到默认的 SQL 和 C 数据类型。
-
-| Native Value       | SQL Type          | C Type            |
-|--------------------|-------------------|-------------------|
-| TIMESTAMP          | SQL_TYPE_TIMESTAMP| SQL_C_TIMESTAMP   |
-| INT                | SQL_INTEGER       | SQL_C_SLONG       |
-| INT UNSIGNED       | SQL_INTEGER       | SQL_C_ULONG       |
-| BIGINT             | SQL_BIGINT        | SQL_C_SBIGINT     |
-| BIGINT UNSIGNED    | SQL_BIGINT        | SQL_C_UBIGINT     |
-| FLOAT              | SQL_REAL          | SQL_C_FLOAT       |
-| DOUBLE             | SQL_REAL          | SQL_C_DOUBLE      |
-| BINARY             | SQL_BINARY        | SQL_C_BINARY      |
-| SMALLINT           | SQL_SMALLINT      | SQL_C_SSHORT      |
-| SMALLINT UNSIGNED  | SQL_SMALLINT      | SQL_C_USHORT      |
-| TINYINT            | SQL_TINYINT       | SQL_C_STINYINT    |
-| TINYINT UNSIGNED   | SQL_TINYINT       | SQL_C_UTINYINT    |
-| BOOL               | SQL_BIT           | SQL_C_BIT         |
-| NCHAR              | SQL_VARCHAR       | SQL_C_CHAR        |
-| JSON               | SQL_VARCHAR       | SQL_C_CHAR        |
-| VARCHAR            | SQL_VARCHAR       | SQL_C_CHAR        |
-| GEOMETRY           | SQL_VARBINARY     | SQL_C_BINARY      |
-| VARBINARY          | SQL_VARBINARY     | SQL_C_BINARY      |
 
 
 ## 与第三方集成
