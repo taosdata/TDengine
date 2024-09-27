@@ -480,7 +480,7 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
     } break;
     case CFG_DTYPE_FLOAT:
     case CFG_DTYPE_DOUBLE: {
-      float  dval = 0;
+      float   dval = 0;
       int32_t code = parseCfgReal(pVal, &dval);
       if (code != TSDB_CODE_SUCCESS) {
         cfgUnLock(pCfg);
@@ -911,7 +911,9 @@ int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
 
     strncpy(line, *pEnv, sizeof(line) - 1);
     pEnv++;
-    (void)taosEnvToCfg(line, line);
+    if (taosEnvToCfg(line, line) < 0) {
+      uTrace("failed to convert env to cfg:%s", line);
+    }
 
     (void)paGetToken(line, &name, &olen);
     if (olen == 0) continue;
@@ -954,7 +956,9 @@ int32_t cfgLoadFromEnvCmd(SConfig *pConfig, const char **envCmd) {
   while (envCmd[index] != NULL) {
     strncpy(buf, envCmd[index], sizeof(buf) - 1);
     buf[sizeof(buf) - 1] = 0;
-    (void)taosEnvToCfg(buf, buf);
+    if (taosEnvToCfg(buf, buf) < 0) {
+      uTrace("failed to convert env to cfg:%s", buf);
+    }
     index++;
 
     name = value = value2 = value3 = value4 = NULL;
@@ -1026,7 +1030,9 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile) {
       break;
     }
     if (line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
-    (void)taosEnvToCfg(line, line);
+    if (taosEnvToCfg(line, line) < 0) {
+      uTrace("failed to convert env to cfg:%s", line);
+    }
 
     (void)paGetToken(line, &name, &olen);
     if (olen == 0) continue;
@@ -1119,7 +1125,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
 
       code = cfgSetItem(pConfig, name, newValue, CFG_STYPE_CFG_FILE, true);
       if (TSDB_CODE_SUCCESS != code && TSDB_CODE_CFG_NOT_FOUND != code) {
-        (void)printf("cfg:%s, value:%s failed since %s\n", name,newValue, tstrerror(code));
+        (void)printf("cfg:%s, value:%s failed since %s\n", name, newValue, tstrerror(code));
         break;
       }
     } else {
@@ -1260,12 +1266,12 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
       TAOS_CHECK_EXIT(terrno);
     }
     size_t fileSize = taosLSeekFile(pFile, 0, SEEK_END);
-    if(fileSize <= 0) {
+    if (fileSize <= 0) {
       (void)taosCloseFile(&pFile);
       (void)printf("load json file error: %s\n", filepath);
       TAOS_CHECK_EXIT(terrno);
     }
-    char  *buf = taosMemoryMalloc(fileSize + 1);
+    char *buf = taosMemoryMalloc(fileSize + 1);
     if (!buf) {
       (void)taosCloseFile(&pFile);
       (void)printf("load json file error: %s, failed to alloc memory\n", filepath);
@@ -1273,7 +1279,12 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
     }
 
     buf[fileSize] = 0;
-    (void)taosLSeekFile(pFile, 0, SEEK_SET);
+    if (taosLSeekFile(pFile, 0, SEEK_SET) < 0) {
+      (void)taosCloseFile(&pFile);
+      (void)printf("load json file error: %s\n", filepath);
+      taosMemoryFreeClear(buf);
+      TAOS_RETURN(terrno);
+    }
     if (taosReadFile(pFile, buf, fileSize) <= 0) {
       (void)taosCloseFile(&pFile);
       (void)printf("load json file error: %s\n", filepath);

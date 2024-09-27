@@ -120,6 +120,8 @@ FstRegistryEntry* fstRegistryGetEntry(FstRegistry* registry, FstBuilderNode* bNo
   uint64_t end = start + registry->mruSize;
 
   FstRegistryEntry* entry = taosMemoryMalloc(sizeof(FstRegistryEntry));
+  if (entry == NULL) return NULL;
+
   if (end - start == 1) {
     FstRegistryCell* cell = taosArrayGet(registry->table, start);
     // cell->isNode &&

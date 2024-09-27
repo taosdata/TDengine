@@ -1316,9 +1316,9 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d,QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
       code = refreshMeta(pRequest->pTscObj, pRequest);
-      if (code != 0){
-        tscWarn("0x%" PRIx64 " refresh meta failed, code:%d - %s,QID:0x%" PRIx64, pRequest->self, code,
-                tstrerror(code), pRequest->requestId);
+      if (code != 0) {
+        tscWarn("0x%" PRIx64 " refresh meta failed, code:%d - %s,QID:0x%" PRIx64, pRequest->self, code, tstrerror(code),
+                pRequest->requestId);
       }
       pRequest->prevCode = code;
       doAsyncQuery(pRequest, true);
@@ -1985,7 +1985,9 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
   if (pStmt->options.asyncExecFn && !pStmt->semWaited) {
-    (void)tsem_wait(&pStmt->asyncQuerySem);
+    if (tsem_wait(&pStmt->asyncQuerySem) != 0) {
+      tscError("wait async query sem failed");
+    }
     pStmt->semWaited = true;
   }
 

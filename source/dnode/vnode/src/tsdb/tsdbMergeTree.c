@@ -403,7 +403,8 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
   pBlockLoadInfo->cost.loadStatisBlocks += num;
 
   STbStatisBlock block;
-  TAOS_UNUSED(tStatisBlockInit(&block));
+  code = tStatisBlockInit(&block);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   int64_t st = taosGetTimestampUs();
 

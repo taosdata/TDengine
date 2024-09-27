@@ -315,6 +315,10 @@ SIndexMultiTermQuery* indexMultiTermQueryCreate(EIndexOperatorType opera) {
   }
   mtq->opera = opera;
   mtq->query = taosArrayInit(4, sizeof(SIndexTermQuery));
+  if (mtq->query == NULL) {
+    taosMemoryFree(mtq);
+    return NULL;
+  }
   return mtq;
 }
 void indexMultiTermQueryDestroy(SIndexMultiTermQuery* pQuery) {
@@ -359,10 +363,20 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
     len = idxConvertDataToStr((void*)colVal, IDX_TYPE_GET_TYPE(colType), (void**)&buf);
   } else if (colVal == NULL) {
     buf = taosStrndup(INDEX_DATA_NULL_STR, (int32_t)strlen(INDEX_DATA_NULL_STR));
+    if (buf == NULL) {
+      taosMemoryFree(tm->colName);
+      taosMemoryFree(tm);
+      return NULL;
+    }
     len = (int32_t)strlen(INDEX_DATA_NULL_STR);
   } else {
     static const char* emptyStr = " ";
     buf = taosStrndup(emptyStr, (int32_t)strlen(emptyStr));
+    if (buf == NULL) {
+      taosMemoryFree(tm->colName);
+      taosMemoryFree(tm);
+      return NULL;
+    }
     len = (int32_t)strlen(emptyStr);
   }
 
