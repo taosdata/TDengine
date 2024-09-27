@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 Environment=DATABASE_URL=/var/lib/taos/taosx/taosx.db
 EnvironmentFile=-/etc/default/taosx
-ExecStart=/usr/bin/taosx serve -v
+ExecStart=/usr/bin/taosx serve
 Restart=always
 LimitNOFILE=1048576
 LimitNPROC=infinity
