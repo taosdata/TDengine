@@ -60,6 +60,8 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：Websocket 连接与 
 
     4.6【密码】仅供第5步测试连接使用，选填，数据库用户密码，如果不填，TDengine 默认 taosdata
 
+    4.7【兼容软件】支持对工业软件 KingSCADA、Kepware 等的兼容性适配，通常情况下，选择默认值 General 即可
+
 5. 点【测试连接】测试连接情况，如果成功，提示"成功连接到URL"
 
 6. 点【确定】，即可保存配置并退出
@@ -90,11 +92,180 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：Websocket 连接与 
 
     4.6 【密码】仅供第5步测试连接使用，选填，数据库用户密码，如果不填，TDengine 默认 taosdata
 
+    4.7【兼容软件】支持对工业软件 KingSCADA、Kepware 等的兼容性适配，通常情况下，选择默认值 General 即可
+
 5. 点【测试连接】测试连接情况，如果成功，提示"连接成功"
 
 6. 点【确定】，即可保存配置并退出
 
 7. 也可以在第2步选择已经配置好的数据源名通过【配置】按钮进入配置页面，修改已有配置
+
+## ODBC API 参考
+
+本节按功能分类汇总了 ODBC API。
+
+- 数据源和驱动程序管理
+
+| API              | 是否支持 | 标准 | 作用                                                                                            |
+|------------------|----------|------|------------------------------------------------------------------------------------------------|
+| ConfigDSN        | 支持     | ODBC | 配置数据源                                                                                      |
+| ConfigDriver     | 支持     | ODBC | 用于执行与特定驱动程序相关的安装和配置任务                                                         |
+| ConfigTranslator | 支持     | ODBC | 用于解析DSN的配置，在DSN配置和实际数据库驱动程序配置之间进行翻译或转换                               |
+
+
+- 连接到数据源
+
+| API             | 是否支持 | 标准 | 作用                                                                                             |
+|------------------|----------|------|------------------------------------------------------------------------------------------------|
+| SQLAllocHandle  | 支持     | ISO 92 | 分配环境、连接、语句或描述符句柄                                                                 |
+| SQLConnect      | 支持     | ISO 92 | 通过数据源名称、用户 ID 和密码连接到特定驱动程序                                                  |
+| SQLDriverConnect| 支持     | ODBC  | 通过连接字符串连接到特定驱动程序，支持更多连接信息                                                  |
+| SQLBrowseConnect | 不支持  | ODBC  | 用于发现和枚举连接到数据源所需的特性和属性值。每次调用 SQLBrowseConnect 都会返回属性和属性值的连续级别 |
+| SQLAllocEnv     | 不支持   | 弃用 | 在 ODBC 3.x 中，ODBC 2.x 函数 SQLAllocEnv 已替换为 SQLAllocHandle                                 |
+| SQLAllocConnect | 不支持   | 弃用 | 在 ODBC 3.x 中，ODBC 2.x 函数 SQLAllocConnect 已替换为 SQLAllocHandle                             |
+
+
+- 获取有关驱动程序和数据源的信息
+
+| API             | 是否支持 | 标准 | 作用                                                                                             |
+|------------------|----------|------|------------------------------------------------------------------------------------------------|
+| SQLDataSources  | 不支持   | ISO 92 | 返回可用数据源的列表，由驱动程序管理器处理                                                        |
+| SQLDrivers      | 不支持   | ISO 92 | 返回由驱动程序管理器处理的已安装驱动程序及其属性的列表                                             |
+| SQLGetInfo      | 支持     | ISO 92 | 返回有关数据库环境的详细信息，如数据库产品名称、驱动程序名、数据库的SQL语法特性、连接能力等等         |
+| SQLGetFunctions | 不支持   | ISO 92 | 用于查询驱动程序支持的函数                                                                      |
+| SQLGetTypeInfo  | 支持     | ISO 92 | 返回有关支持的数据类型的信息                                                                    |
+
+
+- 设置和检索驱动程序属性
+
+| API              | 是否支持 | 标准 | 作用                                                                                            |
+|------------------|----------|------|------------------------------------------------------------------------------------------------|
+| SQLSetConnectAttr| 支持     | ISO 92 | 设置连接属性，当设置SQL_ATTR_AUTOCOMMIT属性时，用于控制自动提交模式                               |
+| SQLGetConnectAttr| 支持     | ISO 92 | 返回连接属性的值                                                                               |
+| SQLSetConnectOption| 不支持   | 弃用 | 在 ODBC 3.x 中，ODBC 2.0 函数 SQLSetConnectOption 已替换为 SQLSetConnectAttr                    |
+| SQLGetConnectOption| 不支持   | 弃用 | 在 ODBC 3.x 中，ODBC 2.0 函数 SQLSetConnectOption 已替换为 SQLGetConnectAttr                    |
+| SQLSetEnvAttr    | 支持     | ISO 92 | 设置控制环境的属性                                                                              |
+| SQLGetEnvAttr    | 支持     | ISO 92 | 返回环境属性的当前设置                                                                          |
+| SQLSetStmtAttr   | 支持     | ISO 92 | 设置与语句相关的属性                                                                            |
+| SQLGetStmtAttr   | 支持     | ISO 92 | 返回语句属性的当前设置                                                                          |
+| SQLSetStmtOption | 不支持   | 弃用 | 在 ODBC 3.x 中，ODBC 2.0 函数 SQLSetStmtOption 已替换为 SQLSetStmtAttr                            |
+| SQLGetStmtOption | 不支持   | 弃用 | 在 ODBC 3.x 中，ODBC 2.0 函数 SQLSetStmtOption 已替换为 SQLGetStmtAttr                            |
+
+
+- 准备SQL请求
+
+| API              | 是否支持 | 标准 | 作用                                                                                            |
+|------------------|----------|------|------------------------------------------------------------------------------------------------|
+| SQLAllocStmt     | 不支持   | 弃用   | 在 ODBC 3.x 中，ODBC 2.x 函数 SQLAllocStmt 已替换为 SQLAllocHandle                              |
+| SQLPrepare       | 支持     | ISO 92 | 用于预处理SQL语句，这通常是SQLExecute之前的一个步骤                                              |
+| SQLBindCol       | 支持     | ODBC   | 用于将结果集中的列绑定到应用程序缓冲区                                                           |
+| SQLBindParameter | 支持     | ODBC   | 用于将SQL语句的参数绑定到应用程序缓冲区                                                          |
+| SQLGetCursorName | 不支持   | ISO 92 | 返回与指定语句关联的游标名称                                                                    |
+| SQLSetCursorName | 不支持   | ISO 92 | 设置游标名称，允许在查询中使用命名游标                                                           |
+| SQLSetScrollOptions| 不支持 | ODBC   | 设置控制光标行为的选项                                                                         |
+
+
+- 提交请求
+
+| API              | 是否支持 | 标准 | 作用                                                                                             |
+|------------------|----------|------|------------------------------------------------------------------------------------------------|
+| SQLExecute       | 支持     | ISO 92 | 用于执行之前通过 SQLPrepare 准备好的SQL语句                                                     |
+| SQLExecDirect    | 支持     | ISO 92 | 用于执行包含SQL语句的字符串                                                                    |
+| SQLNativeSql     | 不支持   | ODBC  | 用于将应用程序提供的SQL语句转换为数据库驱动程序的本机SQL语法                                       |
+| SQLDescribeParam | 支持     | ODBC  | 返回语句中特定参数的描述                                                                        |
+| SQLNumParams     | 支持     | ISO 92 | 用于查询预编译SQL语句中的参数数量                                                               |
+| SQLParamData     | 不支持   | ISO 92 | 用于从参数数据流中获取下一个参数值                                                              |
+| SQLPutData       | 不支持   | ISO 92 | 当使用流输入方式时，可以用于向输出参数发送数据块                                                 |
+
+
+- 检索结果和关于结果的信息
+
+| API              | 是否支持 | 标准 | 作用                                                                                             |
+|------------------|----------|------|------------------------------------------------------------------------------------------------|
+| SQLRowCount      | 支持     | ISO 92 | 返回受插入或删除请求影响的行数                                                                  |
+| SQLNumResultCols | 支持     | ISO 92 | 返回结果集中的列数                                                                             |
+| SQLDescribeCol   | 支持     | ISO 92 | 用于描述结果集中列的属性。它提供了关于列的数据类型、列名、列的最大宽度、小数位数和是否可为空等信息    |
+| SQLColAttribute  | 支持     | ISO 92 | 返回结果集中列的描述符信息，如标题、排序规则等                                                   |
+| SQLColAttributes | 不支持   | 弃用   | 在 ODBC 3.x 中，ODBC 2.0 函数 SQLColAttributes 已替换为 SQLColAttribute                        |
+| SQLGetData       | 支持     | ODBC   | 用于从结果集中的当前行获取特定列的数据                                                          |
+| SQLMoreResults   | 支持     | ODBC   | 多个结果集的 SQL 语句执行后（例如：一个批处理或存储过程），移动到下一个结果集                       |
+| SQLFetch         | 支持     | ISO 92 | 用于从结果集中提取下一行数据，并返回所有绑定列的数据                                               |
+| SQLFetchScroll   | 支持     | ISO 92 | 用于从结果集中提取指定的数据行集，并返回所有绑定列的数据                                           |
+| SQLExtendedFetch | 不支持   | 弃用 | 在 ODBC 3.x 中，SQLExtendedFetch 已替换为 SQLFetchScroll                                          |
+| SQLSetPos        | 支持     | ODBC  | 设置行集中的游标位置，并允许应用程序更新数据集中的行                                                |
+| SQLBulkOperations| 不支持   | ODBC  | 执行批量插入和批量书签操作，包括更新、删除和按书签提取                                              |
+
+
+- 检索错误或诊断信息
+
+| API              | 是否支持 | 标准 | 作用                                                                                            |
+|------------------|----------|------|------------------------------------------------------------------------------------------------|
+| SQLError         | 不支持   | 弃用   | 在 ODBC 3.x 中，ODBC 2.x 函数 SQLError 已替换为 SQLGetDiagRec                                  |
+| SQLGetDiagField  | 支持     | ISO 92 | 返回附加诊断信息（单条诊断结果）                                                                |
+| SQLGetDiagRec    | 支持     | ISO 92 | 返回附加诊断信息（多条诊断结果）                                                                |
+
+
+- 获取有关数据源的系统表项的信息
+
+| API                | 是否支持 | 标准   | 作用                                                                                        |
+|--------------------|----------|-------|---------------------------------------------------------------------------------------------|
+| SQLColumnPrivileges| 不支持   | ODBC   | 用于检索指定表中列的权限信息，如哪些用户或角色拥有对特定列的读取、插入、更新或删除权限             |
+| SQLColumns         | 支持     | X/Open | 返回指定表中的列名列表                                                                       |
+| SQLForeignKeys     | 不支持   | ODBC   | 检索外键关系的详细信息                                                                       |
+| SQLPrimaryKeys     | 支持     | ODBC   | 返回构成表主键的列名列表                                                                     |
+| SQLSpecialColumns  | 不支持   | X/Open | 返回数据库中特殊列的信息，如唯一键或索引列                                                     |
+| SQLStatistics      | 不支持   | ISO 92 | 返回关于表的统计信息，如行数、列数、平均行宽等                                                 |
+| SQLTablePrivileges | 不支持   | ODBC   | 返回用户在特定表上的权限，如SELECT、INSERT、UPDATE等                                          |
+| SQLTables          | 支持     | X/Open | 返回存储在数据源的当前数据库中的表信息                                                        |
+| SQLProcedures      | 不支持   | ODBC   | 返回数据库中可用的存储过程信息，包括名称和类型                                                 |
+| SQLProcedureColumns | 不支持  | ODBC   | 返回存储过程的列信息，包括输入输出参数的详细信息                                               |
+
+
+- 执行事务
+
+| API                | 是否支持 | 标准   | 作用                                                                                        |
+|--------------------|----------|-------|---------------------------------------------------------------------------------------------|
+| SQLTransact       | 不支持    | 弃用   | 在 ODBC 3.x 中，ODBC 2.x 函数 SQLTransact 已替换为 SQLEndTran                                |
+| SQLEndTran        | 支持      | ISO 92 | 用于提交或回滚事务，TDengine 不支持事务，因此不支持回滚操作                                    |
+
+
+- 终止连接
+
+| API                | 是否支持 | 标准   | 作用                                                                                        |
+|--------------------|----------|-------|---------------------------------------------------------------------------------------------|
+| SQLDisconnect      | 支持     | ISO 92 | 断开数据库连接                                                                              |
+| SQLFreeHandle      | 支持     | ISO 92 | 释放与特定环境、连接、语句或描述符句柄关联的资源                                               |
+| SQLFreeConnect     | 不支持   | 弃用    | 在 ODBC 3.x 中，ODBC 2.0 函数 SQLFreeConnect 已替换为 SQLFreeHandle                         |
+| SQLFreeEnv         | 不支持   | 弃用    | 在 ODBC 3.x 中，ODBC 2.0 函数 SQLFreeEnv 已替换为 SQLFreeHandle                             |
+| SQLFreeStmt        | 支持     | ODBC   | 结束语句处理，丢弃挂起的结果，并且可以选择释放与语句句柄关联的所有资源                           |
+| SQLCloseCursor     | 支持     | ODBC   | 关闭与当前语句句柄关联的游标，并释放游标所使用的所有资源                                        |
+
+
+## 数据类型映射
+
+下表说明了 ODBC 连接器如何将服务器数据类型映射到默认的 SQL 和 C 数据类型。
+
+| Native Value       | SQL Type          | C Type            |
+|--------------------|-------------------|-------------------|
+| TIMESTAMP          | SQL_TYPE_TIMESTAMP| SQL_C_TIMESTAMP   |
+| INT                | SQL_INTEGER       | SQL_C_SLONG       |
+| INT UNSIGNED       | SQL_INTEGER       | SQL_C_ULONG       |
+| BIGINT             | SQL_BIGINT        | SQL_C_SBIGINT     |
+| BIGINT UNSIGNED    | SQL_BIGINT        | SQL_C_UBIGINT     |
+| FLOAT              | SQL_REAL          | SQL_C_FLOAT       |
+| DOUBLE             | SQL_REAL          | SQL_C_DOUBLE      |
+| BINARY             | SQL_BINARY        | SQL_C_BINARY      |
+| SMALLINT           | SQL_SMALLINT      | SQL_C_SSHORT      |
+| SMALLINT UNSIGNED  | SQL_SMALLINT      | SQL_C_USHORT      |
+| TINYINT            | SQL_TINYINT       | SQL_C_STINYINT    |
+| TINYINT UNSIGNED   | SQL_TINYINT       | SQL_C_UTINYINT    |
+| BOOL               | SQL_BIT           | SQL_C_BIT         |
+| NCHAR              | SQL_VARCHAR       | SQL_C_CHAR        |
+| JSON               | SQL_VARCHAR       | SQL_C_CHAR        |
+| VARCHAR            | SQL_VARCHAR       | SQL_C_CHAR        |
+| GEOMETRY           | SQL_VARBINARY     | SQL_C_BINARY      |
+| VARBINARY          | SQL_VARBINARY     | SQL_C_BINARY      |
+
 
 ## 与第三方集成
 
