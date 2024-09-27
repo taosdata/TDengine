@@ -18,16 +18,6 @@ fi
 
 echo "setting TEST_PATH: $TEST_PATH" 
 
-pwd
-ls -l ../
-ls -l ../../
-ls -l ../../../
-ls -l ../../../debug/
-ls -l ../../../debug/build/
-ls -l ../../../debug/build/bin/
-ls -l ../../../debug/build/bin/docs*
-
-
 
 LOG_FILE="docs-c-test-out.log"
 
