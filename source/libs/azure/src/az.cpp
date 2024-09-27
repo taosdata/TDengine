@@ -1,3 +1,18 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #define ALLOW_FORBID_FUNC
 
 #include "az.h"
@@ -19,91 +34,10 @@ extern char tsS3AccessKeyId[][TSDB_FQDN_LEN];
 extern char tsS3AccessKeySecret[][TSDB_FQDN_LEN];
 extern char tsS3BucketName[TSDB_FQDN_LEN];
 
-#include <iostream>
-/*
-static Azure::Response<Models::UploadBlockBlobFromResult> _azUploadFrom(const BlockBlobClient &blobClient,
-                                                                        const std::string &fileName, int64_t offset,
-                                                                        int64_t size) {
-  const UploadBlockBlobFromOptions &options = UploadBlockBlobFromOptions();
-  const Azure::Core::Context       &context = Azure::Core::Context();
+int32_t azBegin() { return TSDB_CODE_SUCCESS; }
 
-  _internal::FileReader fileReader(fileName);
+void azEnd() {}
 
-  if (size <= options.TransferOptions.SingleUploadThreshold) {
-    Azure::Core::IO::_internal::RandomAccessFileBodyStream contentStream(fileReader.GetHandle(), offset, size);
-
-    UploadBlockBlobOptions uploadBlockBlobOptions;
-    uploadBlockBlobOptions.HttpHeaders = options.HttpHeaders;
-    uploadBlockBlobOptions.Metadata = options.Metadata;
-    uploadBlockBlobOptions.Tags = options.Tags;
-    uploadBlockBlobOptions.AccessTier = options.AccessTier;
-    uploadBlockBlobOptions.ImmutabilityPolicy = options.ImmutabilityPolicy;
-    uploadBlockBlobOptions.HasLegalHold = options.HasLegalHold;
-
-    return Upload(contentStream, uploadBlockBlobOptions, context);
-  }
-
-  constexpr int64_t DefaultStageBlockSize = 4 * 1024 * 1024ULL;
-  constexpr int64_t MaxStageBlockSize = 4000 * 1024 * 1024ULL;
-  constexpr int64_t MaxBlockNumber = 50000;
-  constexpr int64_t BlockGrainSize = 1 * 1024 * 1024;
-
-  std::vector<std::string> blockIds;
-  auto                     getBlockId = [](int64_t id) {
-    constexpr size_t BlockIdLength = 64;
-    std::string      blockId = std::to_string(id);
-    blockId = std::string(BlockIdLength - blockId.length(), '0') + blockId;
-    return Azure::Core::Convert::Base64Encode(std::vector<uint8_t>(blockId.begin(), blockId.end()));
-  };
-
-  auto uploadBlockFunc = [&](int64_t offset, int64_t length, int64_t chunkId, int64_t numChunks) {
-    Azure::Core::IO::_internal::RandomAccessFileBodyStream contentStream(fileReader.GetHandle(), offset, length);
-    StageBlockOptions                                      chunkOptions;
-    auto blockInfo = StageBlock(getBlockId(chunkId), contentStream, chunkOptions, context);
-    if (chunkId == numChunks - 1) {
-      blockIds.resize(static_cast<size_t>(numChunks));
-    }
-  };
-
-  int64_t chunkSize;
-  if (options.TransferOptions.ChunkSize.HasValue()) {
-    chunkSize = options.TransferOptions.ChunkSize.Value();
-  } else {
-    int64_t minChunkSize = (fileReader.GetFileSize() + MaxBlockNumber - 1) / MaxBlockNumber;
-    minChunkSize = (minChunkSize + BlockGrainSize - 1) / BlockGrainSize * BlockGrainSize;
-    chunkSize = (std::max)(DefaultStageBlockSize, minChunkSize);
-  }
-  if (chunkSize > MaxStageBlockSize) {
-    throw Azure::Core::RequestFailedException("Block size is too big.");
-  }
-
-  _internal::ConcurrentTransfer(0, fileReader.GetFileSize(), chunkSize, options.TransferOptions.Concurrency,
-                                uploadBlockFunc);
-
-  for (size_t i = 0; i < blockIds.size(); ++i) {
-    blockIds[i] = getBlockId(static_cast<int64_t>(i));
-  }
-  CommitBlockListOptions commitBlockListOptions;
-  commitBlockListOptions.HttpHeaders = options.HttpHeaders;
-  commitBlockListOptions.Metadata = options.Metadata;
-  commitBlockListOptions.Tags = options.Tags;
-  commitBlockListOptions.AccessTier = options.AccessTier;
-  commitBlockListOptions.ImmutabilityPolicy = options.ImmutabilityPolicy;
-  commitBlockListOptions.HasLegalHold = options.HasLegalHold;
-  auto commitBlockListResponse = blobClient.CommitBlockList(blockIds, commitBlockListOptions, context);
-
-  Models::UploadBlockBlobFromResult result;
-  result.ETag = commitBlockListResponse.Value.ETag;
-  result.LastModified = commitBlockListResponse.Value.LastModified;
-  result.VersionId = commitBlockListResponse.Value.VersionId;
-  result.IsServerEncrypted = commitBlockListResponse.Value.IsServerEncrypted;
-  result.EncryptionKeySha256 = commitBlockListResponse.Value.EncryptionKeySha256;
-  result.EncryptionScope = commitBlockListResponse.Value.EncryptionScope;
-
-  return Azure::Response<Models::UploadBlockBlobFromResult>(std::move(result),
-                                                            std::move(commitBlockListResponse.RawResponse));
-}
-*/
 int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int64_t offset, int64_t size) {
   int32_t code = 0;
 
@@ -117,6 +51,7 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
     std::string                 accountURL = tsS3Hostname[0];
     StorageSharedKeyCredential *pSharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
 
+    accountURL = "https://" + accountURL;
     BlobServiceClient blobServiceClient(accountURL, sharedKeyCredential);
 
     std::string containerName = tsS3BucketName;
@@ -130,11 +65,13 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
     uint8_t     blobContent[] = "Hello Azure!";
     // Create the block blob client
     // BlockBlobClient blobClient = containerClient.GetBlockBlobClient(blobName);
-    TDBlockBlobClient blobClient(containerClient.GetBlobClient(blobName));
+    // TDBlockBlobClient blobClient(containerClient.GetBlobClient(blobName));
+    TDBlockBlobClient blobClient(containerClient.GetBlobClient(object_name));
 
     // Upload the blob
     // std::cout << "Uploading blob: " << blobName << std::endl;
-    blobClient.UploadFrom(blobContent, sizeof(blobContent));
+    // blobClient.UploadFrom(blobContent, sizeof(blobContent));
+    blobClient.UploadFrom(file, offset, size);
     //(void)_azUploadFrom(blobClient, file, offset, size);
     /*
         auto blockBlobClient = BlockBlobClient(endpointUrl, sharedKeyCredential);
@@ -155,8 +92,107 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
               << std::endl;
     std::cout << e.what() << std::endl;
     */
-    return 1;
+    code = TAOS_SYSTEM_ERROR(EIO);
+    uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    TAOS_RETURN(code);
   }
 
-  return code;
+  TAOS_RETURN(code);
+}
+
+int32_t azGetObjectBlock(const char *object_name, int64_t offset, int64_t size, bool check, uint8_t **ppBlock) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  std::string accountName = tsS3AccessKeyId[0];
+  std::string accountKey = tsS3AccessKeySecret[0];
+  std::string accountURL = tsS3Hostname[0];
+  accountURL = "https://" + accountURL;
+
+  try {
+    auto sharedKeyCredential = std::make_shared<StorageSharedKeyCredential>(accountName, accountKey);
+
+    StorageSharedKeyCredential *pSharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
+
+    BlobServiceClient blobServiceClient(accountURL, sharedKeyCredential);
+
+    std::string containerName = tsS3BucketName;
+    auto        containerClient = blobServiceClient.GetBlobContainerClient(containerName);
+
+    TDBlockBlobClient blobClient(containerClient.GetBlobClient(object_name));
+
+    uint8_t *buf = (uint8_t *)taosMemoryCalloc(1, size);
+    if (!buf) {
+      return terrno;
+    }
+
+    Blobs::DownloadBlobToOptions options;
+    // options.TransferOptions.Concurrency = concurrency;
+    // if (offset.HasValue() || length.HasValue()) {
+    options.Range = Azure::Core::Http::HttpRange();
+    options.Range.Value().Offset = offset;
+    options.Range.Value().Length = size;
+    //}
+    /*
+    if (initialChunkSize.HasValue()) {
+      options.TransferOptions.InitialChunkSize = initialChunkSize.Value();
+    }
+    if (chunkSize.HasValue()) {
+      options.TransferOptions.ChunkSize = chunkSize.Value();
+    }
+    */
+
+    auto res = blobClient.DownloadTo(buf, size, options);
+    if (check && res.Value.ContentRange.Length.Value() != size) {
+      code = TAOS_SYSTEM_ERROR(EIO);
+      uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      TAOS_RETURN(code);
+    }
+
+    *ppBlock = buf;
+  } catch (const Azure::Core::RequestFailedException &e) {
+    uError("%s failed at line %d since %d(%s)", __func__, __LINE__, static_cast<int>(e.StatusCode),
+           e.ReasonPhrase.c_str());
+    code = TAOS_SYSTEM_ERROR(EIO);
+    uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
+void azDeleteObjectsByPrefix(const char *prefix) {
+  const std::string delimiter = "/";
+  std::string       accountName = tsS3AccessKeyId[0];
+  std::string       accountKey = tsS3AccessKeySecret[0];
+  std::string       accountURL = tsS3Hostname[0];
+  accountURL = "https://" + accountURL;
+
+  try {
+    auto sharedKeyCredential = std::make_shared<StorageSharedKeyCredential>(accountName, accountKey);
+
+    StorageSharedKeyCredential *pSharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
+
+    BlobServiceClient blobServiceClient(accountURL, sharedKeyCredential);
+
+    std::string containerName = tsS3BucketName;
+    auto        containerClient = blobServiceClient.GetBlobContainerClient(containerName);
+
+    Azure::Storage::Blobs::ListBlobsOptions options;
+    options.Prefix = prefix;
+
+    std::set<std::string> listBlobs;
+    for (auto pageResult = containerClient.ListBlobs(options); pageResult.HasPage(); pageResult.MoveToNextPage()) {
+      for (const auto &blob : pageResult.Blobs) {
+        listBlobs.insert(blob.Name);
+      }
+    }
+
+    for (auto blobName : listBlobs) {
+      auto blobClient = containerClient.GetAppendBlobClient(blobName);
+      blobClient.Delete();
+    }
+  } catch (const Azure::Core::RequestFailedException &e) {
+    uError("%s failed at line %d since %d(%s)", __func__, __LINE__, static_cast<int>(e.StatusCode),
+           e.ReasonPhrase.c_str());
+    // uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TAOS_SYSTEM_ERROR(EIO)));
+  }
 }

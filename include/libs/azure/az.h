@@ -26,23 +26,12 @@
 extern "C" {
 #endif
 
+int32_t azBegin();
+void    azEnd();
 int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int64_t offset, int64_t size);
-/*
-#define WAL_PROTO_VER    0
-#define WAL_NOSUFFIX_LEN 20
+int32_t azGetObjectBlock(const char *object_name, int64_t offset, int64_t size, bool check, uint8_t **ppBlock);
+void    azDeleteObjectsByPrefix(const char *prefix);
 
-typedef enum {
-TAOS_WAL_SKIP = 0,
-TAOS_WAL_WRITE = 1,
-TAOS_WAL_FSYNC = 2,
-} EWalType;
-
-typedef struct {
-int32_t  vgId;
-EWalType level;  // wal level
-int8_t   clearFiles;
-} SWalCfg;
-*/
 #ifdef __cplusplus
 }
 #endif

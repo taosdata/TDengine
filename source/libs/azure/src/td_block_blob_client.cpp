@@ -323,7 +323,7 @@ Azure::Response<Models::UploadBlockBlobFromResult> TDBlockBlobClient::UploadFrom
     throw Azure::Core::RequestFailedException("Block size is too big.");
   }
 
-  _internal::ConcurrentTransfer(offset, length, chunkSize, options.TransferOptions.Concurrency, uploadBlockFunc);
+  _internal::ConcurrentTransfer(offset, size, chunkSize, options.TransferOptions.Concurrency, uploadBlockFunc);
 
   for (size_t i = 0; i < blockIds.size(); ++i) {
     blockIds[i] = getBlockId(static_cast<int64_t>(i));
