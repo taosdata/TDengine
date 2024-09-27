@@ -24,52 +24,45 @@
 
 static int DemoQueryData() {
   // ANCHOR: query_data
-  const char *host = "localhost";
-  const char *user = "root";
-  const char *password = "taosdata";
-  uint16_t    port = 6030;
-  int         code = 0;
+  int   code = 0;
+  char *dsn = "ws://localhost:6041";
 
   // connect
-  TAOS *taos = taos_connect(host, user, password, NULL, port);
+  WS_TAOS *taos = ws_connect(dsn);
   if (taos == NULL) {
-    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
-            taos_errstr(NULL));
-    taos_cleanup();
+    fprintf(stderr, "Failed to connect to %s, ErrCode: 0x%x, ErrMessage: %s.\n", dsn, ws_errno(NULL), ws_errstr(NULL));
     return -1;
   }
 
   // query data, please make sure the database and table are already created
   const char *sql = "SELECT ts, current, location FROM power.meters limit 100";
-  TAOS_RES   *result = taos_query(taos, sql);
-  code = taos_errno(result);
+  WS_RES     *result = ws_query(taos, sql);
+  code = ws_errno(result);
   if (code != 0) {
     fprintf(stderr, "Failed to query data from power.meters, sql: %s, ErrCode: 0x%x, ErrMessage: %s\n.", sql, code,
-            taos_errstr(result));
-    taos_close(taos);
-    taos_cleanup();
+            ws_errstr(result));
+    ws_close(taos);
     return -1;
   }
 
-  TAOS_ROW    row = NULL;
-  int         rows = 0;
-  int         num_fields = taos_field_count(result);
-  TAOS_FIELD *fields = taos_fetch_fields(result);
+  WS_ROW          row = NULL;
+  int             rows = 0;
+  int             num_fields = ws_field_count(result);
+  const WS_FIELD *fields = ws_fetch_fields(result);
 
   fprintf(stdout, "query successfully, got %d fields, the sql is: %s.\n", num_fields, sql);
 
   // fetch the records row by row
-  while ((row = taos_fetch_row(result))) {
+  while ((row = ws_fetch_row(result))) {
     // Add your data processing logic here
 
     rows++;
   }
   fprintf(stdout, "total rows: %d\n", rows);
-  taos_free_result(result);
+  ws_free_result(result);
 
   // close & clean
-  taos_close(taos);
-  taos_cleanup();
+  ws_close(taos);
   return 0;
   // ANCHOR_END: query_data
 }

@@ -24,18 +24,12 @@
 
 static int DemoInsertData() {
   // ANCHOR: insert_data
-  const char *host = "localhost";
-  const char *user = "root";
-  const char *password = "taosdata";
-  uint16_t    port = 6030;
-  int         code = 0;
-
+  int   code = 0;
+  char *dsn = "ws://localhost:6041";
   // connect
-  TAOS *taos = taos_connect(host, user, password, NULL, port);
+  WS_TAOS *taos = ws_connect(dsn);
   if (taos == NULL) {
-    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
-            taos_errstr(NULL));
-    taos_cleanup();
+    fprintf(stderr, "Failed to connect to %s, ErrCode: 0x%x, ErrMessage: %s.\n", dsn, ws_errno(NULL), ws_errstr(NULL));
     return -1;
   }
 
@@ -50,24 +44,22 @@ static int DemoInsertData() {
       "power.d1002 USING power.meters TAGS(3, 'California.SanFrancisco') "
       "VALUES "
       "(NOW + 1a, 10.30000, 218, 0.25000) ";
-  TAOS_RES *result = taos_query(taos, sql);
-  code = taos_errno(result);
+  WS_RES *result = ws_query(taos, sql);
+  code = ws_errno(result);
   if (code != 0) {
     fprintf(stderr, "Failed to insert data to power.meters, sql: %s, ErrCode: 0x%x, ErrMessage: %s\n.", sql, code,
-            taos_errstr(result));
-    taos_close(taos);
-    taos_cleanup();
+            ws_errstr(result));
+    ws_close(taos);
     return -1;
   }
-  taos_free_result(result);
+  ws_free_result(result);
 
   // you can check affectedRows here
-  int rows = taos_affected_rows(result);
+  int rows = ws_affected_rows(result);
   fprintf(stdout, "Successfully inserted %d rows into power.meters.\n", rows);
 
   // close & clean
-  taos_close(taos);
-  taos_cleanup();
+  ws_close(taos);
   return 0;
   // ANCHOR_END: insert_data
 }

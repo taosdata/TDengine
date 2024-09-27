@@ -28,16 +28,16 @@
  * @param taos
  * @param sql
  */
-void executeSQL(TAOS *taos, const char *sql) {
-  TAOS_RES *res = taos_query(taos, sql);
-  int       code = taos_errno(res);
+void executeSQL(WS_TAOS *taos, const char *sql) {
+  WS_RES *res = ws_query(taos, sql);
+  int     code = ws_errno(res);
   if (code != 0) {
-    fprintf(stderr, "%s\n", taos_errstr(res));
-    taos_free_result(res);
-    taos_close(taos);
+    fprintf(stderr, "%s\n", ws_errstr(res));
+    ws_free_result(res);
+    ws_close(taos);
     exit(EXIT_FAILURE);
   }
-  taos_free_result(res);
+  ws_free_result(res);
 }
 
 /**
@@ -47,10 +47,10 @@ void executeSQL(TAOS *taos, const char *sql) {
  * @param code
  * @param msg
  */
-void checkErrorCode(TAOS_STMT *stmt, int code, const char *msg) {
+void checkErrorCode(WS_STMT *stmt, int code, const char *msg) {
   if (code != 0) {
-    fprintf(stderr, "%s. code: %d, error: %s\n", msg,code,taos_stmt_errstr(stmt));
-    taos_stmt_close(stmt);
+    fprintf(stderr, "%s. code: %d, error: %s\n", msg, code, ws_stmt_errstr(stmt));
+    ws_stmt_close(stmt);
     exit(EXIT_FAILURE);
   }
 }
@@ -70,17 +70,17 @@ int total_affected = 0;
  *
  * @param taos
  */
-void insertData(TAOS *taos) {
+void insertData(WS_TAOS *taos) {
   // init
-  TAOS_STMT *stmt = taos_stmt_init(taos);
+  WS_STMT *stmt = ws_stmt_init(taos);
   if (stmt == NULL) {
-      fprintf(stderr, "Failed to init taos_stmt, error: %s\n", taos_stmt_errstr(NULL));
-      exit(EXIT_FAILURE);
+    fprintf(stderr, "Failed to init ws_stmt, error: %s\n", ws_stmt_errstr(NULL));
+    exit(EXIT_FAILURE);
   }
   // prepare
   const char *sql = "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)";
-  int         code = taos_stmt_prepare(stmt, sql, 0);
-  checkErrorCode(stmt, code, "Failed to execute taos_stmt_prepare");
+  int         code = ws_stmt_prepare(stmt, sql, 0);
+  checkErrorCode(stmt, code, "Failed to execute ws_stmt_prepare");
   for (int i = 1; i <= num_of_sub_table; i++) {
     char table_name[20];
     sprintf(table_name, "d_bind_%d", i);
@@ -88,7 +88,7 @@ void insertData(TAOS *taos) {
     sprintf(location, "location_%d", i);
 
     // set table name and tags
-    TAOS_MULTI_BIND tags[2];
+    WS_MULTI_BIND tags[2];
     // groupId
     tags[0].buffer_type = TSDB_DATA_TYPE_INT;
     tags[0].buffer_length = sizeof(int);
@@ -99,15 +99,15 @@ void insertData(TAOS *taos) {
     // location
     tags[1].buffer_type = TSDB_DATA_TYPE_BINARY;
     tags[1].buffer_length = strlen(location);
-    tags[1].length =(int32_t *) &tags[1].buffer_length;
+    tags[1].length = (int32_t *)&tags[1].buffer_length;
     tags[1].buffer = location;
     tags[1].is_null = NULL;
     tags[1].num = 1;
-    code = taos_stmt_set_tbname_tags(stmt, table_name, tags);
+    code = ws_stmt_set_tbname_tags(stmt, table_name, tags, 2);
     checkErrorCode(stmt, code, "Failed to set table name and tags\n");
 
     // insert rows
-    TAOS_MULTI_BIND params[4];
+    WS_MULTI_BIND params[4];
     // ts
     params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
     params[0].buffer_length = sizeof(int64_t);
@@ -146,32 +146,30 @@ void insertData(TAOS *taos) {
       params[2].buffer = &voltage;
       params[3].buffer = &phase;
       // bind param
-      code = taos_stmt_bind_param(stmt, params);
+      code = ws_stmt_bind_param_batch(stmt, params, 4);
       checkErrorCode(stmt, code, "Failed to bind param");
     }
     // add batch
-    code = taos_stmt_add_batch(stmt);
+    code = ws_stmt_add_batch(stmt);
     checkErrorCode(stmt, code, "Failed to add batch");
     // execute batch
-    code = taos_stmt_execute(stmt);
+    int affected_rows = 0;
+    code = ws_stmt_execute(stmt, &affected_rows);
     checkErrorCode(stmt, code, "Failed to exec stmt");
     // get affected rows
-    int affected = taos_stmt_affected_rows_once(stmt);
+    int affected = ws_stmt_affected_rows_once(stmt);
     total_affected += affected;
   }
   fprintf(stdout, "Successfully inserted %d rows to power.meters.\n", total_affected);
-  taos_stmt_close(stmt);
+  ws_stmt_close(stmt);
 }
 
 int main() {
-  const char *host      = "localhost";
-  const char *user      = "root";
-  const char *password  = "taosdata";
-  uint16_t    port      = 6030;
-  TAOS *taos = taos_connect(host, user, password, NULL, port);
+  int      code = 0;
+  char    *dsn = "ws://localhost:6041";
+  WS_TAOS *taos = ws_connect(dsn);
   if (taos == NULL) {
-    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
-    taos_cleanup();
+    fprintf(stderr, "Failed to connect to %s, ErrCode: 0x%x, ErrMessage: %s.\n", dsn, ws_errno(NULL), ws_errstr(NULL));
     exit(EXIT_FAILURE);
   }
   // create database and table
@@ -181,6 +179,5 @@ int main() {
              "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
              "(groupId INT, location BINARY(24))");
   insertData(taos);
-  taos_close(taos);
-  taos_cleanup();
+  ws_close(taos);
 }

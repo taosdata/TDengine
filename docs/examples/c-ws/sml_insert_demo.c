@@ -23,42 +23,35 @@
 
 static int DemoSmlInsert() {
   // ANCHOR: schemaless
-  const char *host = "localhost";
-  const char *user = "root";
-  const char *password = "taosdata";
-  uint16_t    port = 6030;
-  int         code = 0;
+  int   code = 0;
+  char *dsn = "ws://localhost:6041";
 
   // connect
-  TAOS *taos = taos_connect(host, user, password, NULL, port);
+  WS_TAOS *taos = ws_connect(dsn);
   if (taos == NULL) {
-    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
-           taos_errstr(NULL));
-    taos_cleanup();
+    fprintf(stderr, "Failed to connect to %s, ErrCode: 0x%x, ErrMessage: %s.\n", dsn, ws_errno(NULL), ws_errstr(NULL));
     return -1;
   }
 
   // create database
-  TAOS_RES *result = taos_query(taos, "CREATE DATABASE IF NOT EXISTS power");
-  code = taos_errno(result);
+  WS_RES *result = ws_query(taos, "CREATE DATABASE IF NOT EXISTS power");
+  code = ws_errno(result);
   if (code != 0) {
-    fprintf(stderr, "Failed to create database power, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(result));
-    taos_close(taos);
-    taos_cleanup();
+    fprintf(stderr, "Failed to create database power, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(result));
+    ws_close(taos);
     return -1;
   }
-  taos_free_result(result);
+  ws_free_result(result);
 
   // use database
-  result = taos_query(taos, "USE power");
-  code = taos_errno(result);
+  result = ws_query(taos, "USE power");
+  code = ws_errno(result);
   if (code != 0) {
-    fprintf(stderr, "Failed to execute use power, ErrCode: 0x%x, ErrMessage: %s\n.", code, taos_errstr(result));
-    taos_close(taos);
-    taos_cleanup();
+    fprintf(stderr, "Failed to execute use power, ErrCode: 0x%x, ErrMessage: %s\n.", code, ws_errstr(result));
+    ws_close(taos);
     return -1;
   }
-  taos_free_result(result);
+  ws_free_result(result);
 
   // schemaless demo data
   char *line_demo =
@@ -71,71 +64,58 @@ static int DemoSmlInsert() {
 
   // influxdb line protocol
   char *lines[] = {line_demo};
-  result = taos_schemaless_insert(taos, lines, 1, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
-  code = taos_errno(result);
+  int   totalLines = 0;
+  result = ws_schemaless_insert_raw(taos, line_demo, strlen(line_demo), &totalLines, WS_TSDB_SML_LINE_PROTOCOL,
+                                    WS_TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  code = ws_errno(result);
   if (code != 0) {
-    fprintf(stderr, "Failed to insert schemaless line data, data: %s, ErrCode: 0x%x, ErrMessage: %s\n.", line_demo, code,
-           taos_errstr(result));
-    taos_close(taos);
-    taos_cleanup();
+    fprintf(stderr, "Failed to insert schemaless line data, data: %s, ErrCode: 0x%x, ErrMessage: %s\n.", line_demo,
+            code, ws_errstr(result));
+    ws_close(taos);
     return -1;
   }
 
-  int rows = taos_affected_rows(result);
-  fprintf(stdout, "Insert %d rows of schemaless line data successfully.\n", rows);
-  taos_free_result(result);
+  fprintf(stdout, "Insert %d rows of schemaless line data successfully.\n", totalLines);
+  ws_free_result(result);
 
   // opentsdb telnet protocol
-  char *telnets[] = {telnet_demo};
-  result = taos_schemaless_insert(taos, telnets, 1, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
-  code = taos_errno(result);
+  totalLines = 0;
+  result = ws_schemaless_insert_raw(taos, telnet_demo, strlen(telnet_demo), &totalLines, WS_TSDB_SML_TELNET_PROTOCOL,
+                                    WS_TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  code = ws_errno(result);
   if (code != 0) {
-    fprintf(stderr, "Failed to insert schemaless telnet data, data: %s, ErrCode: 0x%x, ErrMessage: %s\n.", telnet_demo, code,
-           taos_errstr(result));
-    taos_close(taos);
-    taos_cleanup();
+    fprintf(stderr, "Failed to insert schemaless telnet data, data: %s, ErrCode: 0x%x, ErrMessage: %s\n.", telnet_demo,
+            code, ws_errstr(result));
+    ws_close(taos);
     return -1;
   }
 
-  rows = taos_affected_rows(result);
-  fprintf(stdout, "Insert %d rows of schemaless telnet data successfully.\n", rows);
-  taos_free_result(result);
+  fprintf(stdout, "Insert %d rows of schemaless telnet data successfully.\n", totalLines);
+  ws_free_result(result);
 
   // opentsdb json protocol
   char *jsons[1] = {0};
   // allocate memory for json data. can not use static memory.
-  size_t size = 1024;
-  jsons[0] = malloc(size);
-  if (jsons[0] == NULL) {
-    fprintf(stderr, "Failed to allocate memory: %zu bytes.\n", size);
-    taos_close(taos);
-    taos_cleanup();
-    return -1;
-  }
-  (void)strncpy(jsons[0], json_demo, 1023);
-  result = taos_schemaless_insert(taos, jsons, 1, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
-  code = taos_errno(result);
+  totalLines = 0;
+  result = ws_schemaless_insert_raw(taos, json_demo, strlen(json_demo), &totalLines, WS_TSDB_SML_JSON_PROTOCOL,
+                                    WS_TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  code = ws_errno(result);
   if (code != 0) {
     free(jsons[0]);
-    fprintf(stderr, "Failed to insert schemaless json data, Server: %s, ErrCode: 0x%x, ErrMessage: %s\n.", json_demo, code,
-           taos_errstr(result));
-    taos_close(taos);
-    taos_cleanup();
+    fprintf(stderr, "Failed to insert schemaless json data, Server: %s, ErrCode: 0x%x, ErrMessage: %s\n.", json_demo,
+            code, ws_errstr(result));
+    ws_close(taos);
     return -1;
   }
   free(jsons[0]);
 
-  rows = taos_affected_rows(result);
-  fprintf(stdout, "Insert %d rows of schemaless json data successfully.\n", rows);
-  taos_free_result(result);
+  fprintf(stdout, "Insert %d rows of schemaless json data successfully.\n", totalLines);
+  ws_free_result(result);
 
   // close & clean
-  taos_close(taos);
-  taos_cleanup();
+  ws_close(taos);
   return 0;
   // ANCHOR_END: schemaless
 }
 
-int main(int argc, char *argv[]) {
-  return DemoSmlInsert();
-}
+int main(int argc, char *argv[]) { return DemoSmlInsert(); }
