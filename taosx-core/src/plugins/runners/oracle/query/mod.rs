@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::runners::oracle::appender;
 use crate::runners::oracle::config::connect::ConnectConfig;
 use arrow::record_batch::RecordBatch;
@@ -38,7 +40,11 @@ impl OracleQuery {
         _time_zone: String,
     ) -> anyhow::Result<Pool> {
         let addr = format!("//{}:{}/{}", host, port, subject);
-        let pool_builder = PoolBuilder::new(username, password, addr);
+        let mut pool_builder = PoolBuilder::new(username, password, addr);
+        // connection pool settings
+        pool_builder.min_connections(5);
+        pool_builder.max_connections(20);
+        pool_builder.timeout(Duration::from_secs(20))?;
         // TODO timezone
         Ok(pool_builder.build()?)
     }
