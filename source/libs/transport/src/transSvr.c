@@ -552,14 +552,6 @@ static bool uvHandleReq(SSvrConn* pConn) {
   transMsg.msgType = pHead->msgType;
   transMsg.code = pHead->code;
 
-  if (transMsg.info.qId > 0) {
-    // int32_t code = taosHashPut(pConn->pQTable, &transMsg.info.qId, sizeof(int64_t), &transMsg, sizeof(STransMsg));
-    // if (code != 0) {
-    //   tError("%s conn %p failed to put msg to req dict, since %s", transLabel(pInst), pConn, tstrerror(code));
-    //   return false;
-    // }
-  }
-
   if (pHead->seqNum == 0) {
     STraceId* trace = &pHead->traceId;
     tGError("%s conn %p received invalid seqNum, msgType:%s", transLabel(pInst), pConn, TMSG_INFO(pHead->msgType));
