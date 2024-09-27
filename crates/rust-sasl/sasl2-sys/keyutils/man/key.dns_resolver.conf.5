@@ -1,0 +1,48 @@
+.\" -*- nroff -*-
+.\" Copyright (C) 2020 Red Hat, Inc. All Rights Reserved.
+.\" Written by David Howells (dhowells@redhat.com)
+.\"
+.\" This program is free software; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License
+.\" as published by the Free Software Foundation; either version
+.\" 2 of the License, or (at your option) any later version.
+.\"
+.TH KEY.DNS_RESOLVER.CONF 5 "18 May 2020" Linux "Linux Key Management Utilities"
+.SH NAME
+key.dns_resolver.conf \- Kernel DNS resolver config
+.SH DESCRIPTION
+This file is used by the key.dns_resolver(5) program to set parameters.
+Unless otherwise overridden with the \fB\-c\fR flag, the program reads:
+.IP
+/etc/key.dns_resolver.conf
+.P
+Configuration options are given in \fBkey[=value]\fR form, where \fBvalue\fR is
+optional.  If present, the value may be surrounded by a pair of single ('') or
+double quotes ("") which will be stripped off.  The special characters in the
+value may be escaped with a backslash to turn them into ordinary characters.
+.P
+Lines beginning with a '#' are considered comments and ignored.  A '#' symbol
+anywhere after the '=' makes the rest of the line into a comment unless the '#'
+is inside a quoted section or is escaped.
+.P
+Leading and trailing spaces and spaces around the '=' symbol will be stripped
+off.
+.P
+Available options include:
+.TP
+.B default_ttl=<number>
+The number of seconds to set as the expiration on a cached record.  This will
+be overridden if the program manages to retrieve TTL information along with
+the addresses (if, for example, it accesses the DNS directly).  The default is
+5 seconds.  The value must be in the range 1 to INT_MAX.
+.P
+The file can also include comments beginning with a '#' character unless
+otherwise suppressed by being inside a quoted value or being escaped with a
+backslash.
+
+.SH FILES
+.ul
+/etc/key.dns_resolver.conf
+.ul 0
+.SH SEE ALSO
+\fBkey.dns_resolver\fR(8)

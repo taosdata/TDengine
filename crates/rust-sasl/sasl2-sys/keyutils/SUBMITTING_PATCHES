@@ -1,0 +1,45 @@
+			      ==================
+			      SUBMITTING PATCHES
+			      ==================
+
+Patches can be sent to the keyrings@vger.kernel.org mailing list or directly to
+David Howells <dhowells@redhat.com>, the author, in a private email.
+
+When sending patches to be included in keyutils, please certify that your patch
+meets the criteria below by including include a sign-off line in your email
+which looks like this:
+
+	Signed-off-by: Random J Developer <random@developer.example.org>
+
+This confirms that you are permitted to submit the patch for inclusion in
+keyutils under the GPLv2 licence (utilities and documentation) or the LGPLv2.1
+licence (library).  The full text of the certificate is as follows:
+
+	Developer's Certificate of Origin v1.1
+	======================================
+
+	By making a contribution to this project, I certify that:
+
+	 (a) The contribution was created in whole or in part by me and I
+	     have the right to submit it under the open source licences
+	     indicated in the file; or
+
+	 (b) The contribution is based upon previous work that, to the best
+	     of my knowledge, is covered under an appropriate open source
+	     licence and I have the right under that licence to submit that
+	     work with modifications, whether created in whole or in part
+	     by me, under the same open source licence (unless I am
+	     permitted to submit under a different licence), as indicated
+	     in the file; or
+
+	 (c) The contribution was provided directly to me by some other
+	     person who certified (a), (b) or (c) and I have not modified
+	     it.
+
+	and also that:
+
+	 (d) I understand and agree that this project and the contribution are
+	     public and that a record of the contribution (including all
+	     personal information I submit with it, including my sign-off) is
+	     maintained indefinitely and may be redistributed consistent with
+	     this project or the open source licence(s) involved.

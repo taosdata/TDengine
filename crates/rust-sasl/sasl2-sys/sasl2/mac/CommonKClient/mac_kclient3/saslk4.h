@@ -1,0 +1,2 @@
+#define TARGET_API_MAC_OS8 1
+#define TARGET_API_MAC_CARBON 1

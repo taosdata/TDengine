@@ -1,0 +1,20 @@
+2001-05-05  Christoph Pfisterer  <cp@chrisp.de>
+
+	* dlfcn.h: Added wrapper for C++.
+
+2001-01-23  Christoph Pfisterer  <cp@chrisp.de>
+
+	* dlopen.c: Added optional debugging output. Modules are now
+	searched for in various directories when no absolute path is
+	specified and the module is not found in the current directory. A
+	new function, _dl_search_paths, was added to accomplish the
+	search. Added an include for <limits.h>, because PATH_MAX is
+	defined there.
+	* Makefile: Some rearragements for the optional debugging
+	output. (Use "make DEBUG=1" to enable it.)
+
+2001-01-16  Christoph Pfisterer  <cp@chrisp.de>
+
+	* dlopen.c: Removed #include for ofi.h - it doesn't seem to be
+	needed.
+

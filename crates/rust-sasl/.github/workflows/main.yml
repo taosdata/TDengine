@@ -1,0 +1,106 @@
+name: CI
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    name: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build:
+        - ubuntu
+        - ubuntu-old
+        - ubuntu-static
+        - ubuntu-pkg-config
+        - ubuntu-vendored
+        - ubuntu-gssapi-vendored
+        - macos
+        - macos-vendored
+        include:
+          - build: ubuntu
+            os: ubuntu-latest
+            rust: stable
+          - build: ubuntu-old
+            os: ubuntu-18.04
+            rust: stable
+          - build: ubuntu-static
+            os: ubuntu-latest
+            rust: stable
+            static: true
+          - build: ubuntu-pkg-config
+            os: ubuntu-latest
+            rust: stable
+            features: pkg-config
+          - build: ubuntu-vendored
+            os: ubuntu-latest
+            rust: stable
+            features: vendored
+          - build: ubuntu-gssapi-vendored
+            os: ubuntu-latest
+            rust: stable
+            features: gssapi-vendored
+          - build: ubuntu-scram
+            os: ubuntu-latest
+            rust: stable
+            features: scram
+          - build: ubuntu-scram-vendored
+            os: ubuntu-latest
+            rust: stable
+            features: scram,openssl-vendored
+          - build: macos
+            os: macos-latest
+            rust: stable
+          - build: macos-vendored
+            os: macos-latest
+            rust: stable
+            features: vendored
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        submodules: true
+    - name: Install Rust (rustup)
+      run: rustup update ${{ matrix.rust }} --no-self-update && rustup default ${{ matrix.rust }}
+    - if: contains(matrix.os, 'macos')
+      run: brew install autoconf automake
+    - if: "!contains(matrix.features, 'vendored') && contains(matrix.os, 'ubuntu')"
+      run: sudo apt-get install -qy libsasl2-dev && sudo apt-get remove autoconf automake libtool
+    - if: matrix.static == 'true'
+      run: echo "::set-env name=SASL2_STATIC::1"
+    - run: cd sasl2-sys && cargo test --no-default-features --features=${{ matrix.features }}
+    - run: cd systest && cargo run --features=${{ matrix.features }}
+
+  test-windows:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - build: windows-vendored
+            os: windows-latest
+            rust: stable
+            features: vendored,openssl-vendored
+    steps:
+    - uses: actions/checkout@v1
+    - name: Install Rust (rustup)
+      run: rustup update ${{ matrix.rust }} --no-self-update && rustup default ${{ matrix.rust }}
+    - uses: ilammy/msvc-dev-cmd@v1
+    - shell: cmd
+      run: |
+        set PATH=%PATH%;%wix%bin;"%WindowsSdkVerBinPath%"\x86
+        cd sasl2-sys
+        cargo test --no-default-features --features=${{ matrix.features }}
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        submodules: true
+    - name: Install Rust
+      run: rustup update stable && rustup default stable && rustup component add rustfmt
+    - run: cargo fmt -- --check
