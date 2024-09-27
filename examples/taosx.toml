@@ -9,7 +9,7 @@
 #otel = false
 
 # server instance id
-# 
+#
 # The instanceId of each instance is unique on the host
 instanceId = 16
 
@@ -19,6 +19,9 @@ instanceId = 16
 
 # database url
 #database_url = "sqlite:taosx.db"
+
+# default global request timeout which unit is second. This parameter takes effect for certain interfaces that require a timeout setting
+#request_timeout = 30
 
 [monitor]
 # FQDN of taosKeeper service, no default value
@@ -34,7 +37,7 @@ instanceId = 16
 # log configuration
 [log]
 # All log files are stored in this directory
-# 
+#
 #path = "/var/log/taos" # on linux/macOS
 #path = "C:\\TDengine\\log" # on windows
 
@@ -43,19 +46,19 @@ instanceId = 16
 #level = "info"
 
 # Compress archived log files or not
-# 
+#
 #compress = false
 
 # The number of log files retained by the current explorer server instance in the `path` directory
-# 
+#
 #rotationCount = 30
 
 # Rotate when the log file reaches this size
-# 
+#
 #rotationSize = "1GB"
 
 # Log downgrade when the remaining disk space reaches this size, only logging `ERROR` level logs
-# 
+#
 #reservedDiskSize = "1GB"
 
 # The number of days log files are retained
@@ -72,7 +75,7 @@ instanceId = 16
 #
 # crate = "error"
 # crate::mod1::mod2 = "info"
-# crate::span[field=value] = "warn" 
+# crate::span[field=value] = "warn"
 #
 [log.loggers]
 #"actix_server::accept" = "warn"
