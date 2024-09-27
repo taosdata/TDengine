@@ -1225,8 +1225,11 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
         if (code != TSDB_CODE_SUCCESS) {
           goto end;
         }
+        if (NULL == taosArrayPush(pTagList, &ppTag)) {
+          tTagFree(ppTag);
+          goto end;
+        }
         pCreateReq->ctb.pTag = (uint8_t*)ppTag;
-        taosArrayPush(pTagList, &ppTag);
       }
       taosArrayDestroy(pTagVals);
     }
