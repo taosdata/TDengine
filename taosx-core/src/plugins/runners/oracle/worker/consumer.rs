@@ -141,6 +141,8 @@ impl Consumer {
                         }
                         // stastics
                         batch_count += 1;
+                        // set breakpoint
+                        set_breakpoint(&config, &end).await?;
                     }
                 }
                 Err(e) => {
@@ -176,8 +178,6 @@ impl Consumer {
             //     // stastics
             //     batch_count += 1;
             // }
-            // set breakpoint
-            set_breakpoint(&config, &end).await?;
         }
         drop(tx);
         tracing::debug!(
