@@ -1649,10 +1649,10 @@ fn build_client_config(config: KafkaConnectConfig) -> anyhow::Result<ClientConfi
                 client_config.set("sasl.kerberos.kinit.cmd", sasl_kerberos_kinit_cmd);
                 client_config.set("sasl.kerberos.keytab", sasl_kerberos_keytab);
                 // each entry will be resolved and expanded into a list of canonical names
-                client_config.set(
-                    "client.dns.lookup",
-                    "resolve_canonical_bootstrap_servers_only",
-                );
+                // client_config.set(
+                //     "client.dns.lookup",
+                //     "resolve_canonical_bootstrap_servers_only",
+                // );
             } else {
                 client_config.set("sasl.mechanisms", sasl_mechanism);
                 if let Some(sasl_username) = config.sasl_username {
