@@ -597,6 +597,11 @@ static void tsdbCacheDeleter(const void *key, size_t klen, void *value, void *ud
   taosMemoryFree(value);
 }
 
+static void tsdbCacheOverWriter(const void *key, size_t klen, void *value, void *ud) {
+  SLastCol *pLastCol = (SLastCol *)value;
+  pLastCol->dirty = 0;
+}
+
 static int32_t tsdbCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_t col_type, int8_t lflag) {
   int32_t code = 0, lino = 0;
 
@@ -616,8 +621,8 @@ static int32_t tsdbCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, i
   TAOS_CHECK_EXIT(tsdbCacheReallocSLastCol(pLastCol, &charge));
 
   SLastKey *pLastKey = &(SLastKey){.lflag = lflag, .uid = uid, .cid = cid};
-  LRUStatus status = taosLRUCacheInsert(pCache, pLastKey, ROCKS_KEY_LEN, pLastCol, charge, tsdbCacheDeleter, NULL,
-                                        TAOS_LRU_PRIORITY_LOW, pTsdb);
+  LRUStatus status = taosLRUCacheInsert(pCache, pLastKey, ROCKS_KEY_LEN, pLastCol, charge, tsdbCacheDeleter,
+                                        tsdbCacheOverWriter, NULL, TAOS_LRU_PRIORITY_LOW, pTsdb);
   if (status != TAOS_LRU_STATUS_OK) {
     tsdbError("vgId:%d, %s failed at line %d status %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__, status);
     code = TSDB_CODE_FAILED;
@@ -1071,40 +1076,6 @@ typedef struct {
   SLastKey key;
 } SIdxKey;
 
-static int32_t tsdbCacheUpdateValue(SValue *pOld, SValue *pNew) {
-  uint8_t *pFree = NULL;
-  int      nData = 0;
-
-  if (IS_VAR_DATA_TYPE(pOld->type)) {
-    pFree = pOld->pData;
-    nData = pOld->nData;
-  }
-
-  *pOld = *pNew;
-  if (IS_VAR_DATA_TYPE(pNew->type)) {
-    if (nData < pNew->nData) {
-      pOld->pData = taosMemoryCalloc(1, pNew->nData);
-      if (!pOld->pData) {
-        return terrno;
-      }
-    } else {
-      pOld->pData = pFree;
-      pFree = NULL;
-    }
-
-    if (pNew->nData) {
-      memcpy(pOld->pData, pNew->pData, pNew->nData);
-    } else {
-      pFree = pOld->pData;
-      pOld->pData = NULL;
-    }
-  }
-
-  taosMemoryFreeClear(pFree);
-
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
-}
-
 static void tsdbCacheUpdateLastColToNone(SLastCol *pLastCol, ELastCacheStatus cacheStatus) {
   // update rowkey
   pLastCol->rowKey.ts = TSKEY_MIN;
@@ -1128,11 +1099,7 @@ static void tsdbCacheUpdateLastColToNone(SLastCol *pLastCol, ELastCacheStatus ca
   }
 
   pLastCol->colVal = COL_VAL_NONE(pLastCol->colVal.cid, pLastCol->colVal.value.type);
-
-  if (!pLastCol->dirty) {
-    pLastCol->dirty = 1;
-  }
-
+  pLastCol->dirty = 1;
   pLastCol->cacheStatus = cacheStatus;
 }
 
@@ -1168,7 +1135,7 @@ static int32_t tsdbCachePutToLRU(STsdb *pTsdb, SLastKey *pLastKey, SLastCol *pLa
   TAOS_CHECK_EXIT(tsdbCacheReallocSLastCol(pLRULastCol, &charge));
 
   LRUStatus status = taosLRUCacheInsert(pTsdb->lruCache, pLastKey, ROCKS_KEY_LEN, pLRULastCol, charge, tsdbCacheDeleter,
-                                        NULL, TAOS_LRU_PRIORITY_LOW, pTsdb);
+                                        tsdbCacheOverWriter, NULL, TAOS_LRU_PRIORITY_LOW, pTsdb);
   if (TAOS_LRU_STATUS_OK != status && TAOS_LRU_STATUS_OK_OVERWRITTEN != status) {
     tsdbError("vgId:%d, %s failed at line %d status %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__, status);
     code = TSDB_CODE_FAILED;
@@ -1215,7 +1182,8 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
       if (pLastCol->cacheStatus != TSDB_LAST_CACHE_NO_CACHE) {
         int32_t cmp_res = tRowKeyCompare(&pLastCol->rowKey, pRowKey);
         if (cmp_res < 0 || (cmp_res == 0 && !COL_VAL_IS_NONE(pColVal))) {
-          SLastCol newLastCol = {.rowKey = *pRowKey, .colVal = *pColVal, .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_VALID};
+          SLastCol newLastCol = {
+              .rowKey = *pRowKey, .colVal = *pColVal, .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_VALID};
           code = tsdbCachePutToLRU(pTsdb, key, &newLastCol);
         }
       }
@@ -1694,8 +1662,8 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
       TAOS_CHECK_EXIT(code);
     }
 
-    LRUStatus status = taosLRUCacheInsert(pCache, &idxKey->key, ROCKS_KEY_LEN, pLastCol, charge, tsdbCacheDeleter, NULL,
-                                          TAOS_LRU_PRIORITY_LOW, pTsdb);
+    LRUStatus status = taosLRUCacheInsert(pCache, &idxKey->key, ROCKS_KEY_LEN, pLastCol, charge, tsdbCacheDeleter,
+                                          tsdbCacheOverWriter, NULL, TAOS_LRU_PRIORITY_LOW, pTsdb);
     if (TAOS_LRU_STATUS_OK != status && TAOS_LRU_STATUS_OK_OVERWRITTEN != status) {
       tsdbError("vgId:%d, %s failed at line %d status %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__, status);
       pLastCol = NULL;
@@ -1804,7 +1772,7 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
       }
 
       LRUStatus status = taosLRUCacheInsert(pCache, &idxKey->key, ROCKS_KEY_LEN, pLastCol, charge, tsdbCacheDeleter,
-                                            NULL, TAOS_LRU_PRIORITY_LOW, pTsdb);
+                                            tsdbCacheOverWriter, NULL, TAOS_LRU_PRIORITY_LOW, pTsdb);
       if (TAOS_LRU_STATUS_OK != status && TAOS_LRU_STATUS_OK_OVERWRITTEN != status) {
         tsdbError("vgId:%d, %s failed at line %d status %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__, status);
         taosMemoryFreeClear(pToFree);
@@ -3659,7 +3627,7 @@ int32_t tsdbCacheGetBlockS3(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle)
       size_t              charge = tsS3BlockSize * pFD->szPage;
       _taos_lru_deleter_t deleter = deleteBCache;
       LRUStatus           status =
-          taosLRUCacheInsert(pCache, key, keyLen, pBlock, charge, deleter, &h, TAOS_LRU_PRIORITY_LOW, NULL);
+          taosLRUCacheInsert(pCache, key, keyLen, pBlock, charge, deleter, NULL, &h, TAOS_LRU_PRIORITY_LOW, NULL);
       if (status != TAOS_LRU_STATUS_OK) {
         // code = -1;
       }
@@ -3702,7 +3670,7 @@ void tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *
     memcpy(pPg, pPage, charge);
 
     LRUStatus status =
-        taosLRUCacheInsert(pCache, key, keyLen, pPg, charge, deleter, &handle, TAOS_LRU_PRIORITY_LOW, NULL);
+        taosLRUCacheInsert(pCache, key, keyLen, pPg, charge, deleter, NULL, &handle, TAOS_LRU_PRIORITY_LOW, NULL);
     if (status != TAOS_LRU_STATUS_OK) {
       // ignore cache updating if not ok
       // code = TSDB_CODE_OUT_OF_MEMORY;
