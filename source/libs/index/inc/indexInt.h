@@ -127,7 +127,7 @@ int32_t idxSerialCacheKey(ICacheKey* key, char* buf);
 int idxFlushCacheToTFile(SIndex* sIdx, void*, bool quit);
 
 int64_t idxAddRef(void* p);
-int32_t idxRemoveRef(int64_t ref);
+void    idxRemoveRef(int64_t ref);
 void    idxAcquireRef(int64_t ref);
 void    idxReleaseRef(int64_t ref);
 

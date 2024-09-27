@@ -54,18 +54,18 @@ typedef struct SSkipListNode {
 typedef enum { SSkipListPutSuccess = 0, SSkipListPutEarlyStop = 1, SSkipListPutSkipOne = 2 } SSkipListPutStatus;
 
 typedef struct SSkipList {
-  uint32_t           seed;
-  uint16_t           len;
-  __compar_fn_t      comparFn;
-  __sl_key_fn_t      keyFn;
-  TdThreadRwlock    *lock;
-  uint8_t            maxLevel;
-  uint8_t            flags;
-  uint8_t            type;  // static info above
-  uint8_t            level;
-  uint32_t           size;
-  SSkipListNode     *pHead;  // point to the first element
-  SSkipListNode     *pTail;  // point to the last element
+  uint32_t        seed;
+  uint16_t        len;
+  __compar_fn_t   comparFn;
+  __sl_key_fn_t   keyFn;
+  TdThreadRwlock *lock;
+  uint8_t         maxLevel;
+  uint8_t         flags;
+  uint8_t         type;  // static info above
+  uint8_t         level;
+  uint32_t        size;
+  SSkipListNode  *pHead;  // point to the first element
+  SSkipListNode  *pTail;  // point to the last element
 } SSkipList;
 
 typedef struct SSkipListIterator {
@@ -94,7 +94,7 @@ SSkipListIterator *tSkipListCreateIter(SSkipList *pSkipList);
 SSkipListIterator *tSkipListCreateIterFromVal(SSkipList *pSkipList, const char *val, int32_t type, int32_t order);
 bool               tSkipListIterNext(SSkipListIterator *iter);
 SSkipListNode     *tSkipListIterGet(SSkipListIterator *iter);
-void              *tSkipListDestroyIter(SSkipListIterator *iter);
+void               tSkipListDestroyIter(SSkipListIterator *iter);
 uint32_t           tSkipListRemove(SSkipList *pSkipList, SSkipListKey key);
 void               tSkipListRemoveNode(SSkipList *pSkipList, SSkipListNode *pNode);
 

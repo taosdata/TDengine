@@ -357,13 +357,13 @@ SSkipListNode *tSkipListIterGet(SSkipListIterator *iter) {
   }
 }
 
-void *tSkipListDestroyIter(SSkipListIterator *iter) {
+void tSkipListDestroyIter(SSkipListIterator *iter) {
   if (iter == NULL) {
-    return NULL;
+    return ;
   }
 
   taosMemoryFreeClear(iter);
-  return NULL;
+  return;
 }
 
 static void tSkipListDoInsert(SSkipList *pSkipList, SSkipListNode **direction, SSkipListNode *pNode, bool isForward) {

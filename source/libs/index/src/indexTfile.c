@@ -374,7 +374,9 @@ static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTRslt* tr,
       goto _return;
     }
     if (MATCH == cond) {
-      TAOS_UNUSED(tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total));
+      if ((code = tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total)) < 0) {
+        indexError("failed to load table id since %s", tstrerror(code));
+      }
     } else if (CONTINUE == cond) {
     } else if (BREAK == cond) {
       swsResultDestroy(rt);
@@ -528,7 +530,9 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
       }
     }
     if (MATCH == cond) {
-      TAOS_UNUSED(tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total));
+      if ((code = (tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total))) < 0) {
+        indexError("failed to load table id since %s", tstrerror(code));
+      }
     } else if (CONTINUE == cond) {
     } else if (BREAK == cond) {
       swsResultDestroy(rt);
@@ -624,6 +628,7 @@ int32_t tfileWriterCreate(IFileCtx* ctx, TFileHeader* header, TFileWriter** pWri
 }
 
 int32_t tfileWriterPut(TFileWriter* tw, void* data, bool order) {
+  int32_t code = 0;
   // sort by coltype and write to tindex
   if (order == false) {
     __compar_fn_t fn;
@@ -639,7 +644,9 @@ int32_t tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     if (fn == NULL) {
       return terrno;
     }
-    TAOS_UNUSED(taosArraySortPWithExt((SArray*)(data), tfileValueCompare, &fn));
+    if ((taosArraySortPWithExt((SArray*)(data), tfileValueCompare, &fn)) < 0) {
+      return terrno;
+    }
   }
 
   int32_t sz = taosArrayGetSize((SArray*)data);
@@ -654,7 +661,10 @@ int32_t tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     if (tbsz == 0) continue;
     fstOffset += TF_TABLE_TATOAL_SIZE(tbsz);
   }
-  TAOS_UNUSED(tfileWriteFstOffset(tw, fstOffset));
+  if ((code = tfileWriteFstOffset(tw, fstOffset)) < 0) {
+    indexDebug("failed to write tfile offset");
+    return code;
+  }
 
   int32_t cap = 4 * 1024;
   char*   buf = taosMemoryCalloc(1, cap);
@@ -682,7 +692,9 @@ int32_t tfileWriterPut(TFileWriter* tw, void* data, bool order) {
 
     char* p = buf;
     tfileSerialTableIdsToBuf(p, v->tableId);
-    TAOS_UNUSED((tw->ctx->write(tw->ctx, buf, ttsz)));
+    if ((code = (tw->ctx->write(tw->ctx, buf, ttsz))) < 0) {
+      return code;
+    }
     v->offset = tw->offset;
     tw->offset += ttsz;
     memset(buf, 0, cap);
@@ -710,7 +722,9 @@ int32_t tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     }
   }
   fstBuilderDestroy(tw->fb);
-  TAOS_UNUSED(tfileWriteFooter(tw));
+  if ((code = tfileWriteFooter(tw)) < 0) {
+    indexError("failed to write tfile since %s", tstrerror(code));
+  }
   return 0;
 }
 void tfileWriterClose(TFileWriter* tw) {
@@ -751,7 +765,9 @@ void idxTFileDestroy(IndexTFile* tfile) {
   if (tfile == NULL) {
     return;
   }
-  TAOS_UNUSED(taosThreadMutexDestroy(&tfile->mtx));
+  if (taosThreadMutexDestroy(&tfile->mtx)) {
+    indexError("failed to destroy mutex since %s", tstrerror(terrno));
+  }
   tfileCacheDestroy(tfile->cache);
   taosMemoryFree(tfile);
 }
@@ -1006,7 +1022,9 @@ static int tfileWriteData(TFileWriter* write, TFileValue* tval) {
 static int tfileWriteFooter(TFileWriter* write) {
   char  buf[sizeof(FILE_MAGIC_NUMBER) + 1] = {0};
   void* pBuf = (void*)buf;
-  TAOS_UNUSED(taosEncodeFixedU64((void**)(void*)&pBuf, FILE_MAGIC_NUMBER));
+  if (taosEncodeFixedU64((void**)(void*)&pBuf, FILE_MAGIC_NUMBER) < 0) {
+    return TSDB_CODE_INDEX_INVALID_FILE;
+  }
   int nwrite = write->ctx->write(write->ctx, (uint8_t*)buf, (int32_t)strlen(buf));
 
   indexInfo("tfile write footer size: %d", write->ctx->size(write->ctx));
@@ -1116,7 +1134,9 @@ static int tfileReaderVerify(TFileReader* reader) {
     return TSDB_CODE_INDEX_INVALID_FILE;
   }
 
-  TAOS_UNUSED(taosDecodeFixedU64(buf, &tMagicNumber));
+  if (taosDecodeFixedU64(buf, &tMagicNumber) < 0) {
+    return TSDB_CODE_INDEX_INVALID_FILE;
+  }
   return tMagicNumber == FILE_MAGIC_NUMBER ? 0 : TSDB_CODE_INDEX_INVALID_FILE;
 }
 
@@ -1174,7 +1194,9 @@ static int32_t tfileGetFileList(const char* path, SArray** ppResult) {
   TAOS_UNUSED(taosCloseDir(&pDir));
 
   taosArraySort(files, tfileCompare);
-  TAOS_UNUSED(tfileRmExpireFile(files));
+  if ((code = tfileRmExpireFile(files)) < 0) {
+    indexError("failed to rm file since %s", tstrerror(code));
+  }
   *ppResult = files;
   return 0;
 
