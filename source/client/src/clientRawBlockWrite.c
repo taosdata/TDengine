@@ -1687,6 +1687,50 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   return code;
 }
 
+static int32_t buildCreateTbMap(STaosxRsp* rsp, SHashObj* pHashObj) {
+  // find schema data info
+  int32_t             code = 0;
+  SVCreateTbReq pCreateReq = {0};
+  SDecoder      decoderTmp = {0};
+
+  for (int j = 0; j < rsp->createTableNum; j++) {
+    void** dataTmp = taosArrayGet(rsp->createTableReq, j);
+    if(dataTmp == NULL) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto end;
+    }
+    int32_t* lenTmp = taosArrayGet(rsp->createTableLen, j);
+    if(lenTmp == NULL) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto end;
+    }
+
+    tDecoderInit(&decoderTmp, *dataTmp, *lenTmp);
+    if(tDecodeSVCreateTbReq(&decoderTmp, &pCreateReq) != 0){
+      code = TSDB_CODE_INVALID_MSG;
+      goto end;}
+
+    if (pCreateReq.type != TSDB_CHILD_TABLE) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto end;
+    }
+    if (taosHashGet(pHashObj, pCreateReq.name, strlen(pCreateReq.name)) == NULL){
+      taosHashPut(pHashObj, pCreateReq.name, strlen(pCreateReq.name), &pCreateReq, sizeof(SVCreateTbReq));
+    } else{
+      tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
+      pCreateReq = (SVCreateTbReq){0};
+    }
+
+    tDecoderClear(&decoderTmp);
+  }
+  return 0;
+
+  end:
+  tDecoderClear(&decoderTmp);
+  tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
+  return code;
+}
+
 static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   if(taos == NULL || data == NULL){
     terrno = TSDB_CODE_INVALID_PARA;
@@ -1699,7 +1743,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   SMqTaosxRspObj rspObj = {0};
   SDecoder       decoder = {0};
   STableMeta*    pTableMeta = NULL;
-  SVCreateTbReq* pCreateReqDst = NULL;
+  SHashObj*      pCreateTbHash = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
   SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
@@ -1745,6 +1789,12 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     goto end;
   }
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  pCreateTbHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  code = buildCreateTbMap(&rspObj.rsp, pCreateTbHash);
+  if (code != TSDB_CODE_SUCCESS) {
+    SET_ERROR_MSG("build create table map failed");
+    goto end;
+  }
 
   uDebug(LOG_ID_TAG" write raw metadata block num:%d", LOG_ID_VALUE, rspObj.rsp.blockNum);
   while (++rspObj.resIter < rspObj.rsp.blockNum) {
@@ -1766,37 +1816,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     strcpy(pName.tname, tbName);
 
     // find schema data info
-    for (int j = 0; j < rspObj.rsp.createTableNum; j++) {
-      void**   dataTmp = taosArrayGet(rspObj.rsp.createTableReq, j);
-      int32_t* lenTmp = taosArrayGet(rspObj.rsp.createTableLen, j);
-
-      SDecoder      decoderTmp = {0};
-      SVCreateTbReq pCreateReq = {0};
-      tDecoderInit(&decoderTmp, *dataTmp, *lenTmp);
-      if (tDecodeSVCreateTbReq(&decoderTmp, &pCreateReq) < 0) {
-        tDecoderClear(&decoderTmp);
-        tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
-        code = TSDB_CODE_TMQ_INVALID_MSG;
-        goto end;
-      }
-
-      if (pCreateReq.type != TSDB_CHILD_TABLE) {
-        code = TSDB_CODE_TSC_INVALID_VALUE;
-        tDecoderClear(&decoderTmp);
-        tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
-        goto end;
-      }
-      if (strcmp(tbName, pCreateReq.name) == 0) {
-        cloneSVreateTbReq(&pCreateReq, &pCreateReqDst);
-        //        pCreateReqDst->ctb.suid = processSuid(pCreateReqDst->ctb.suid, pRequest->pDb);
-        tDecoderClear(&decoderTmp);
-        tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
-        break;
-      }
-      tDecoderClear(&decoderTmp);
-      tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
-    }
-
+    SVCreateTbReq* pCreateReqDst = (SVCreateTbReq*)taosHashGet(pCreateTbHash, tbName, strlen(tbName));
     SVgroupInfo vg;
     code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vg);
     if (code != TSDB_CODE_SUCCESS) {
@@ -1837,13 +1857,21 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     }
     void* rawData = getRawDataFromRes(pRetrieve);
     char err[ERR_MSG_LEN] = {0};
-    code = rawBlockBindData(pQuery, pTableMeta, rawData, &pCreateReqDst, fields, pSW->nCols, true, err, ERR_MSG_LEN);
+    SVCreateTbReq* pCreateReqTmp = NULL;
+    if (pCreateReqDst){
+      if(cloneSVreateTbReq(pCreateReqDst, &pCreateReqTmp) != 0){
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        SET_ERROR_MSG("clone create table req failed");
+        goto end;
+      }
+    }
+    code = rawBlockBindData(pQuery, pTableMeta, rawData, &pCreateReqTmp, fields, pSW->nCols, true, err, ERR_MSG_LEN);
+    if (pCreateReqTmp != NULL) {
+      tdDestroySVCreateTbReq(pCreateReqTmp);
+      taosMemoryFree(pCreateReqTmp);
+    }
     taosMemoryFree(fields);
     taosMemoryFreeClear(pTableMeta);
-    if (pCreateReqDst) {
-      tdDestroySVCreateTbReq(pCreateReqDst);
-      taosMemoryFreeClear(pCreateReqDst);
-    }
     if (code != TSDB_CODE_SUCCESS) {
       SET_ERROR_MSG("table:%s, err:%s", tbName, err);
       goto end;
@@ -1861,16 +1889,18 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
 
   end:
   uDebug(LOG_ID_TAG " write raw metadata return, msg:%s", LOG_ID_VALUE, tstrerror(code));
+  void* pIter = taosHashIterate(pCreateTbHash, NULL);
+  while (pIter) {
+    tDestroySVCreateTbReq(pIter, TSDB_MSG_FLG_DECODE);
+    pIter = taosHashIterate(pCreateTbHash, pIter);
+  }
+  taosHashCleanup(pCreateTbHash);
   tDeleteSTaosxRsp(&rspObj.rsp);
   tDecoderClear(&decoder);
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);
   taosHashCleanup(pVgHash);
   taosMemoryFreeClear(pTableMeta);
-  if (pCreateReqDst) {
-    tdDestroySVCreateTbReq(pCreateReqDst);
-    taosMemoryFreeClear(pCreateReqDst);
-  }
   terrno = code;
   return code;
 }
