@@ -261,3 +261,7 @@ codegen-units = 1
 debug = 2
 split-debuginfo = "packed"
 strip = "debuginfo"
+
+
+[patch.crates-io]
+sasl2-sys = { path = "./crates/rust-sasl/sasl2-sys" }

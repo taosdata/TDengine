@@ -1,0 +1,105 @@
+.\" saslpasswd.8 -- saslpasswd man page
+.\" Rob Earhart
+.\"
+
+.\" Copyright (c) 2000 Carnegie Mellon University.  All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\"
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer. 
+.\"
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in
+.\"    the documentation and/or other materials provided with the
+.\"    distribution.
+.\"
+.\" 3. The name ""Carnegie Mellon University"" must not be used to
+.\"    endorse or promote products derived from this software without
+.\"    prior written permission. For permission or any other legal
+.\"    details, please contact  
+.\"      Office of Technology Transfer
+.\"      Carnegie Mellon University
+.\"      5000 Forbes Avenue
+.\"      Pittsburgh, PA  15213-3890
+.\"      (412) 268-4387, fax: (412) 268-7395
+.\"      tech-transfer@andrew.cmu.edu
+.\"
+.\" 4. Redistributions of any form whatsoever must retain the following
+.\"    acknowledgment:
+.\"    ""This product includes software developed by Computing Services
+.\"     at Carnegie Mellon University (http://www.cmu.edu/computing/).""
+.\"
+.\" CARNEGIE MELLON UNIVERSITY DISCLAIMS ALL WARRANTIES WITH REGARD TO
+.\" THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+.\" AND FITNESS, IN NO EVENT SHALL CARNEGIE MELLON UNIVERSITY BE LIABLE
+.\" FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+.\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
+.\" AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
+.\" OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+.\"
+.TH SASLPASSWD2 8 "Mar 7, 2005" "CMU SASL"
+.SH NAME
+saslpasswd2 \- set a user's sasl password
+.SH SYNOPSIS
+.B saslpasswd2
+.RB [ -p ]
+.RB [ -d ]
+.RB [ -c ]
+.RB [ -n ]
+.RB [ -f\ file ]
+.RB [ -u\ domain ]
+.RB [ -a\ appname ]
+.RB [ -v ]
+.B userid
+.SH DESCRIPTION
+.I saslpasswd2
+is used by a server administrator to set a user's sasl password for
+server programs and SASL mechanisms which use the standard libsasl
+database of user secrets.
+.SH OPTIONS
+.TP
+.B -p
+Pipe mode \- saslpasswd2 will neither prompt for the password nor
+verify that it was entered correctly.  This is the default when
+standard input is not a terminal.
+.TP
+.B -c
+Creates an entry for the user if the user doesn't already exist.  This
+is mutually exclusive with the
+.B -d
+(delete user) flag.
+.TP
+.B -d
+Deletes the entry for the user.  This is mutually exclusive with the
+.B -c
+(create user) flag.
+.TP
+.B -n
+Don't set the plaintext \fIuserPassword\fR property for the user.  Only
+mechanism-specific secrets will be set (e.g. OTP, SCRAM, SRP)
+.TP
+.B -u domain
+use
+.B domain
+for user domain (realm).
+.TP
+.B -f file
+use
+.B file
+for sasldb
+.TP
+.B -a appname
+use
+.B appname
+as application name.
+.TP
+.B -v
+Print libsasl2 version number and exit.
+.SH SEE ALSO
+sasldblistusers2(8)
+.TP
+rfc4422 \- Simple Authentication and Security Layer (SASL)

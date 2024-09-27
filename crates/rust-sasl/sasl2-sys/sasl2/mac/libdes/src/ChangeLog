@@ -1,0 +1,1 @@
+Mon May 25 05:24:56 1998  Assar Westerlund  <assar@sics.se>	* Makefile.in (clean): try to remove shared library debrisSun Apr 19 09:50:53 1998  Assar Westerlund  <assar@sics.se>	* Makefile.in: add symlink magic for linuxSun Nov  9 07:14:45 1997  Assar Westerlund  <assar@sics.se>	* mdtest.c: print out old and new string

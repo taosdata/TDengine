@@ -1,0 +1,92 @@
+!INCLUDE ..\win32\common.mak
+
+### Also:- client.exe server.exe
+sample_apps=sample-client.exe sample-server.exe
+sample_out=sample-client.pdb sample-server.pdb client.pdb server.pdb
+
+common_objs = common.obj
+server_objs = server.obj
+client_objs = client.obj
+compat_objs = getaddrinfo.obj getnameinfo.obj
+sample_client_objs = sample-client.obj
+sample_server_objs = sample-server.obj
+
+!IF $(TARGET_WIN_SYSTEM) < 51
+common_objs = $(common_objs) $(compat_objs)
+!ENDIF
+
+all_objs = $(common_objs) $(server_objs) $(client_objs) $(sample_client_objs) $(sample_server_objs)
+all_out = $(sample_apps) $(sample_out)
+
+DB_FLAGS = /I "$(DB_INCLUDE)"
+CPPFLAGS = /I "..\win32\include" /I "." /I "..\include" $(DB_FLAGS) $(COMMON_CPPFLAGS)
+CPPFLAGS = $(CPPFLAGS) /DNEED_GETOPT
+
+!IF $(TARGET_WIN_SYSTEM) >= 51
+CPPFLAGS = /D TARGET_WIN_SYSTEM=$(TARGET_WIN_SYSTEM) $(CPPFLAGS)
+!ENDIF
+
+SASL_LIB=/libpath:"..\lib" libsasl.lib
+
+# EXTRA_LIBS is automatically included into LINK32EXE_FLAGS/LINK32DLL_FLAGS
+EXTRA_LIBS=$(SASL_LIB)
+
+# Where to install files from this directory
+bindir = $(prefix)\bin
+
+all : all-recursive
+
+#
+# /I flag to xcopy tells to treat the last parameter as directory and create all missing levels
+#
+# In order to force xcopy not to confirm if the second parameter is file or directory,
+# the first parameter has to contain a wildcard character. For example, we use libsasl.l*,
+# instead of libsasl.lib. Ugly, but works!
+#
+# Note, that we will copy all executabless here, not just $(sample_apps). This is a bug, but it allows
+# us to copy optionally built executables, which might not be in $(sample_apps). The latter is a feature.
+#
+install: $(sample_apps)
+	@xcopy *.exe "$(bindir)" /I /F /Y
+
+all-recursive : $(sample_apps)
+
+server.exe: $(server_objs) $(common_objs)
+	$(LINK32EXE) @<< $(LINK32EXE_FLAGS) /pdb:"server.pdb" /out:"server.exe" $(server_objs) $(common_objs)
+<<
+	IF EXIST $@.manifest mt -manifest $@.manifest -outputresource:$@;1
+
+client.exe: $(client_objs) $(common_objs)
+	$(LINK32EXE) @<< $(LINK32EXE_FLAGS) /pdb:"client.pdb" /out:"client.exe" $(client_objs) $(common_objs)
+<<
+	IF EXIST $@.manifest mt -manifest $@.manifest -outputresource:$@;1
+
+sample-server.exe: $(sample_server_objs)
+	$(LINK32EXE) @<< $(LINK32EXE_FLAGS) /pdb:"sample-server.pdb" /out:"sample-server.exe" $(sample_server_objs)
+<<
+	IF EXIST $@.manifest mt -manifest $@.manifest -outputresource:$@;1
+
+sample-client.exe: $(sample_client_objs)
+	$(LINK32EXE) @<< $(LINK32EXE_FLAGS) /pdb:"sample-client.pdb" /out:"sample-client.exe" $(sample_client_objs)
+<<
+	IF EXIST $@.manifest mt -manifest $@.manifest -outputresource:$@;1
+
+getaddrinfo.c: ..\lib\getaddrinfo.c
+	copy ..\lib\getaddrinfo.c .
+
+getnameinfo.c: ..\lib\getnameinfo.c
+	copy ..\lib\getnameinfo.c .
+
+CLEAN :
+	-@erase $(all_objs)
+	-@erase "*.idb"
+	-@erase "*.pch"
+	-@erase "*.pdb"
+	-@erase "*.manifest"
+	-@erase $(all_out)
+	-@erase getaddrinfo.c
+
+.c.obj::
+   $(CPP) @<<
+   $(CPP_PROJ) $<
+<<
