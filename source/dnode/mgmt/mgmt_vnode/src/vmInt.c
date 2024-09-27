@@ -346,6 +346,29 @@ static void *vmOpenVnodeInThread(void *param) {
   return NULL;
 }
 
+static void *vmCloseVnodeInThread(void *param) {
+  SVnodeThread *pThread = param;
+  SVnodeMgmt   *pMgmt = pThread->pMgmt;
+
+  dInfo("thread:%d, start to close %d vnodes", pThread->threadIndex, pThread->vnodeNum);
+  setThreadName("close-vnodes");
+
+  for (int32_t v = 0; v < pThread->vnodeNum; ++v) {
+    SVnodeObj *pVnode = pThread->ppVnodes[v];
+
+    char stepDesc[TSDB_STEP_DESC_LEN] = {0};
+    snprintf(stepDesc, TSDB_STEP_DESC_LEN, "vgId:%d, start to close, %d of %d have been closed", pVnode->vgId,
+             pMgmt->state.openVnodes, pMgmt->state.totalVnodes);
+    tmsgReportStartup("vnode-close", stepDesc);
+
+    vmCloseVnode(pMgmt, pVnode, false);
+  }
+
+  pThread->updateVnodesList = true;
+  dInfo("thread:%d, numOfVnodes:%d is closed", pThread->threadIndex, pThread->vnodeNum);
+  return NULL;
+}
+
 static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
   pMgmt->hash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (pMgmt->hash == NULL) {
@@ -391,14 +414,18 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
   for (int32_t t = 0; t < threadNum; ++t) {
     SVnodeThread *pThread = &threads[t];
     if (pThread->vnodeNum == 0) continue;
-
     TdThreadAttr thAttr;
     (void)taosThreadAttrInit(&thAttr);
     (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
-    if (taosThreadCreate(&pThread->thread, &thAttr, vmOpenVnodeInThread, pThread) != 0) {
-      dError("thread:%d, failed to create thread to open vnode, reason:%s", pThread->threadIndex, strerror(errno));
+    if (pThread->pCfgs->dropped) {
+      if (taosThreadCreate(&pThread->thread, &thAttr, vmCloseVnodeInThread, pThread) != 0) {
+        dError("thread:%d, failed to create thread to close vnode, reason:%s", pThread->threadIndex, strerror(errno));
+      }
+    } else {
+      if (taosThreadCreate(&pThread->thread, &thAttr, vmOpenVnodeInThread, pThread) != 0) {
+        dError("thread:%d, failed to create thread to open vnode, reason:%s", pThread->threadIndex, strerror(errno));
+      }
     }
-
     (void)taosThreadAttrDestroy(&thAttr);
   }
 
@@ -429,28 +456,6 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
 
   dInfo("successfully opened %d vnodes", pMgmt->state.totalVnodes);
   return 0;
-}
-
-static void *vmCloseVnodeInThread(void *param) {
-  SVnodeThread *pThread = param;
-  SVnodeMgmt   *pMgmt = pThread->pMgmt;
-
-  dInfo("thread:%d, start to close %d vnodes", pThread->threadIndex, pThread->vnodeNum);
-  setThreadName("close-vnodes");
-
-  for (int32_t v = 0; v < pThread->vnodeNum; ++v) {
-    SVnodeObj *pVnode = pThread->ppVnodes[v];
-
-    char stepDesc[TSDB_STEP_DESC_LEN] = {0};
-    snprintf(stepDesc, TSDB_STEP_DESC_LEN, "vgId:%d, start to close, %d of %d have been closed", pVnode->vgId,
-             pMgmt->state.openVnodes, pMgmt->state.totalVnodes);
-    tmsgReportStartup("vnode-close", stepDesc);
-
-    vmCloseVnode(pMgmt, pVnode, false);
-  }
-
-  dInfo("thread:%d, numOfVnodes:%d is closed", pThread->threadIndex, pThread->vnodeNum);
-  return NULL;
 }
 
 static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
