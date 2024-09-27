@@ -40,7 +40,7 @@ endif ()
 
 target_link_libraries(
     shell
-    PRIVATE os common transport geometry util
+    PRIVATE os common transport geometry util dnode taosd
 )
 
 target_include_directories(
@@ -48,4 +48,4 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
+# SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)

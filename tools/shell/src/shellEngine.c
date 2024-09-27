@@ -22,6 +22,9 @@
 #include "shellAuto.h"
 #include "shellInt.h"
 
+extern void dmCleanup();
+extern int  dmMain(int argc, char const *argv[]);
+
 typedef struct {
   const char *sql;
   bool        vertical;
@@ -1293,16 +1296,22 @@ void *shellThreadLoop(void *arg) {
   return NULL;
 }
 
-int32_t shellExecute() {
+int32_t shellExecute(int argc, char *argv[]) {
+  int32_t code = 0, lino = 0;
   printf(shell.info.clientVersion, shell.info.cusName, taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
+
+#ifndef TD_ACORE
+  if ((code = dmMain(argc, (char const **)argv)) != 0) {
+    printf("failed to start dmMain since %s\r\n", tstrerror(code));
+    TAOS_CHECK_GOTO(code, &lino, _exit_half);
+  }
+#endif
 
   SShellArgs *pArgs = &shell.args;
 #ifdef WEBSOCKET
   if (shell.args.restful || shell.args.cloud) {
-    if (shell_conn_ws_server(1)) {
-      return -1;
-    }
+    TAOS_CHECK_GOTO((shell_conn_ws_server(1)), &lino, _exit_half);
   } else {
 #endif
     if (shell.args.auth == NULL) {
@@ -1314,7 +1323,8 @@ int32_t shellExecute() {
     if (shell.conn == NULL) {
       printf("failed to connect to server, reason: %s\n", taos_errstr(NULL));
       fflush(stdout);
-      return -1;
+      code = terrno == 0 ? TSDB_CODE_INTERNAL_ERROR : terrno;
+      TAOS_CHECK_GOTO(code, &lino, _exit_half);
     }
 #ifdef WEBSOCKET
   }
@@ -1355,12 +1365,12 @@ int32_t shellExecute() {
 
     shellWriteHistory();
     shellCleanupHistory();
-    return 0;
+    TAOS_CHECK_GOTO(code, &lino, _exit_half);
   }
 
-  if (tsem_init(&shell.cancelSem, 0, 0) != 0) {
+  if ((code = tsem_init(&shell.cancelSem, 0, 0)) != 0) {
     printf("failed to create cancel semaphore\r\n");
-    return -1;
+    TAOS_CHECK_GOTO(code, &lino, _exit_half);
   }
 
   TdThread spid = {0};
@@ -1408,12 +1418,21 @@ int32_t shellExecute() {
     showAD(true);
   }
 #endif
-
   taosThreadJoin(spid, NULL);
+  goto _exit;  // normal exit
 
+_exit_half:
+#ifndef TD_ACORE
+  dmCleanup();
+#endif
+  TAOS_RETURN(code);
+_exit:
+#ifndef TD_ACORE
+  dmCleanup();
+#endif
   shellCleanupHistory();
   taos_kill_query(shell.conn);
   taos_close(shell.conn);
 
-  return 0;
+  TAOS_RETURN(code);
 }

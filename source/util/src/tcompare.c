@@ -1299,7 +1299,9 @@ void DestroyRegexCache(){
   taosWLockLatch(&sRegexCache.mutex);
   sRegexCache.exit = true;
   taosHashCleanup(sRegexCache.regexHash);
+  sRegexCache.regexHash = NULL;
   taosTmrCleanUp(sRegexCache.regexCacheTmr);
+  sRegexCache.regexCacheTmr = NULL;
   taosWUnLockLatch(&sRegexCache.mutex);
 }
 

@@ -342,7 +342,11 @@ static void taosCleanupArgs() {
   if (global.envCmd != NULL) taosMemoryFreeClear(global.envCmd);
 }
 
+#ifndef TD_ACORE
+int dmMain(int argc, char const *argv[]) {
+#else
 int main(int argc, char const *argv[]) {
+#endif
   int32_t code = 0;
 #ifdef TD_JEMALLOC_ENABLED
   bool jeBackgroundThread = true;
