@@ -4083,7 +4083,7 @@ int32_t streamStateSessionAddIfNotExist_rocksdb(SStreamState* pState, SSessionKe
 
   if (code == 0) {
     if (sessionRangeKeyCmpr(&searchKey, key) == 0) {
-      memcpy(tmp, *pVal, valSize);
+      memcpy(tmp, *pVal, *pVLen);
       taosMemoryFreeClear(*pVal);
       goto _end;
     }
@@ -4099,7 +4099,7 @@ int32_t streamStateSessionAddIfNotExist_rocksdb(SStreamState* pState, SSessionKe
   code = streamStateSessionGetKVByCur_rocksdb(pCur, key, pVal, pVLen);
   if (code == 0) {
     if (sessionRangeKeyCmpr(&searchKey, key) == 0) {
-      memcpy(tmp, *pVal, valSize);
+      memcpy(tmp, *pVal, *pVLen);
       goto _end;
     }
   }
