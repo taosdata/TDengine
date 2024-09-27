@@ -967,7 +967,9 @@ static void setForceWindowCloseFillRule(SStreamFillSupporter* pFillSup, SStreamF
       } else {
         pFillInfo->pos = FILL_POS_INVALID;
         setFillKeyInfo(ts, ts + 1, &pFillSup->interval, pFillInfo);
-        copyNonFillValueInfo(pFillSup, pFillInfo);
+        if (pFillSup->cur.pRowVal != NULL) {
+          copyNonFillValueInfo(pFillSup, pFillInfo);
+        }
       }
     } break;
     case TSDB_FILL_PREV: {
