@@ -174,33 +174,6 @@ int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t*
            taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
            return code;
          }
-//        SSDataBlock             block = {0};
-//        const SStreamDataBlock* pRetrieveBlock = (const SStreamDataBlock*)pItem;
-//
-//        int32_t num = taosArrayGetSize(pRetrieveBlock->blocks);
-//        if (num != 1) {
-//          stError("s-task:%s invalid retrieve block number:%d, ignore", pTask->id.idStr, num);
-//          continue;
-//        }
-//
-//        code = assignOneDataBlock(&block, taosArrayGet(pRetrieveBlock->blocks, 0));
-//        if (code) {
-//          stError("s-task:%s failed to copy datablock, code:%s", pTask->id.idStr, tstrerror(code));
-//          continue;
-//        }
-//
-//        block.info.type = STREAM_PULL_OVER;
-//        block.info.childId = pTask->info.selfChildId;
-//
-//        void* p = taosArrayPush(pRes, &block);
-//        if (p != NULL) {
-//          numOfBlocks += 1;
-//        } else {
-//          stError("s-task:%s failed to add retrieve block", pTask->id.idStr);
-//        }
-//
-//        stDebug("s-task:%s(child %d) retrieve process completed,QID:0x%" PRIx64 " dump results", pTask->id.idStr,
-//                pTask->info.selfChildId, pRetrieveBlock->reqId);
       }
 
       break;
