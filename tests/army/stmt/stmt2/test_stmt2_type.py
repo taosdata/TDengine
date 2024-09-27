@@ -111,10 +111,8 @@ class TDTestCase:
             [['hello']],
             # [[3.14]],
             # [[-3.14]],
-            # [[-1000000]],
-            # [[123456789]],
-            # [[2147483648000001]],
             # [[100000000000000000000000]],
+            # [[-100000000000000000000000]],
         ]
 
         self.test_stmt_data_type('test_stmt_timestamp_type', 'timestamp', tags, invalid_tags)
@@ -137,7 +135,7 @@ class TDTestCase:
         ]
 
         invalid_tags = [
-            [["hello"]],
+            [['hello']],
             [[3.14]],
             [[-3.14]],
             # [[2147483648]],
@@ -166,7 +164,7 @@ class TDTestCase:
         ]
 
         invalid_tags = [
-            [["hello"]],
+            [['hello']],
             [[3.14]],
             [[-3.14]],
             # [[-1]],
@@ -194,7 +192,7 @@ class TDTestCase:
         ]
 
         invalid_tags = [
-            [["hello"]],
+            [['hello']],
             [[3.14]],
             [[-3.14]],
             # [[9223372036854775808]],
@@ -216,19 +214,18 @@ class TDTestCase:
             # boundary
             [[None]],
             [[0]],
-            [[18446744073709551615]],
             [[1]],
             [[9223372036854775807]],
-            [[18446744073709551600]],
+            [[18446744073709551615]],
         ]
 
         invalid_tags = [
-            [["hello"]],
+            [['hello']],
             [[3.14]],
             [[-3.14]],
+            # [[-1]],
             # [[18446744073709551616]],
             # [[184467440737095516169090]],
-            # [[-1]],
         ]
 
         self.test_stmt_data_type('test_stmt_bigint_unsigned_type', 'bigint unsigned', tags, invalid_tags)
@@ -252,7 +249,7 @@ class TDTestCase:
         ]
 
         invalid_tags = [
-            [["hello"]],
+            [['hello']],
             # [[3.402823466e39]],
             # [[3.402823466e39 + 1.0]],
             # [[-3.402823466e39]],
@@ -280,7 +277,7 @@ class TDTestCase:
         ]
 
         invalid_tags = [
-            [["hello"]],
+            [['hello']],
             # [[1.7976931348623157e+309]],
             # [[1.7976931348623157e+309 + 1.0]],
             # [[-1.7976931348623157e+309]],
@@ -292,18 +289,17 @@ class TDTestCase:
     def test_stmt_binary_type(self):
         tags = [
             # normal
-            [["hello world"]],
-            [["1234567890abcdef"]],
-            [[" \x7F\x80\x81\xFE"]],
+            [['hello world']],
+            [['1234567890abcdef']],
+            [[' \x7F\x80\x81\xFE']],
             [['!@#$%^&*()_+{}|:"<>?']],
-            [["abc1234567890xyz"]],
+            [['abc1234567890xyz']],
+            [['\x00\x01\x02\x03abc']],
             # boundary
             [[None]],
-            [[""]],
-            [["@@@@@!!!!!$$$$$#####"]],
-            [["abcdefghijklmnopqrst"]],
-            [["'\x00' * 20"]],
-            [["'\xFF' * 20"]],
+            [['']],
+            [['@@@@@!!!!!$$$$$#####']],
+            [['abcdefghijklmnopqrst']],
         ]
 
         invalid_tags = [
@@ -311,9 +307,10 @@ class TDTestCase:
             [[-100]],
             [[3.14]],
             [[-3.14]],
-            [["1234567890abcdefghijkl"]],
-            [["\xe4\xb8\xad\xe6\x96\x87"]],
-            [["\x00\x01\x02\x03abc"]],
+            # [['\x00' * 20]],
+            [['\xFF' * 20]],
+            [['1234567890abcdefghijkl']],
+            [['\xe4\xb8\xad\xe6\x96\x87']],
         ]
 
         self.test_stmt_data_type('test_stmt_binary_type', 'binary(20)', tags, invalid_tags)
@@ -336,7 +333,7 @@ class TDTestCase:
         ]
 
         invalid_tags = [
-            [["hello"]],
+            [['hello']],
             [[3.14]],
             [[-3.14]],
             # [[32768]],
@@ -362,7 +359,7 @@ class TDTestCase:
         ]
 
         invalid_tags = [
-            [["hello"]],
+            [['hello']],
             [[3.14]],
             [[-3.14]],
             # [[-1]],
@@ -389,7 +386,7 @@ class TDTestCase:
         ]
 
         invalid_tags = [
-            [["hello"]],
+            [['hello']],
             [[3.14]],
             [[-3.14]],
             # [[-129]],
@@ -414,7 +411,7 @@ class TDTestCase:
         ]
 
         invalid_tags = [
-            [["hello"]],
+            [['hello']],
             [[3.14]],
             [[-3.14]],
             # [[-1]],
@@ -440,8 +437,8 @@ class TDTestCase:
         ]
 
         invalid_tags = [
-            [[""]],
-            [["hello"]],
+            [['']],
+            [['hello']],
         ]
 
         self.test_stmt_data_type('test_stmt_bool_type', 'bool', tags, invalid_tags)
@@ -449,18 +446,19 @@ class TDTestCase:
     def test_stmt_nchar_type(self):
         tags = [
             # normal
-            [["测试字符串"]],
-            [["测试abc123"]],
-            [["!@# 测试"]],
-            [["a " * 10]],
-            [["testvalue"* 2]],
+            [['测试字符串']],
+            [['测试abc123']],
+            [['!@# 测试']],
+            [['a ' * 10]],
+            [['testvalue'* 2]],
+            [['\'\'a\'\'']],
             # boundary
             [[None]],
-            [[""]],
-            [["a"]],
-            [["a" * 20]],
-            [["a" * 19]],
-            [["中" * 20]],
+            [['']],
+            [['a']],
+            [['a' * 20]],
+            [['a' * 19]],
+            [['中' * 20]],
         ]
 
         invalid_tags = [
@@ -470,7 +468,6 @@ class TDTestCase:
             [[-3.14]],
             # [['a' * 21]],
             # [['中' * 21]],
-            # [['''a''']],
         ]
 
         self.test_stmt_data_type('test_stmt_nchar_type', 'nchar(20)', tags, invalid_tags)
@@ -489,10 +486,10 @@ class TDTestCase:
             [['{"name": "test", "age": 30}']],
             [['{"is_valid": true, "count": 100, "score": 98.76}']],
             # boundary
+            [[None]],
             [['']],
             [['{}']],
             [['\t']],
-            [[None]],
             [['{"": ""}']],
             [['{"name": null}']],
             [['{"name": "test", "name": "abc"}']],
@@ -537,18 +534,17 @@ class TDTestCase:
     def test_stmt_varchar_type(self):
         tags = [
             # normal
-            [["hello world"]],
-            [["1234567890abcdef"]],
-            [[" \x7F\x80\x81\xFE"]],
+            [['hello world']],
+            [['1234567890abcdef']],
+            [[' \x7F\x80\x81\xFE']],
             [['!@#$%^&*()_+{}|:"<>?']],
-            [["abc1234567890xyz"]],
+            [['abc1234567890xyz']],
+            [['\x00\x01\x02\x03abc']],
             # boundary
             [[None]],
-            [[""]],
-            [["@@@@@!!!!!$$$$$#####"]],
-            [["abcdefghijklmnopqrst"]],
-            [["'\x00' * 20"]],
-            [["'\xFF' * 20"]],
+            [['']],
+            [['@@@@@!!!!!$$$$$#####']],
+            [['abcdefghijklmnopqrst']],
         ]
 
         invalid_tags = [
@@ -556,9 +552,10 @@ class TDTestCase:
             [[-100]],
             [[3.14]],
             [[-3.14]],
-            [["1234567890abcdefghijkl"]],
-            [["\xe4\xb8\xad\xe6\x96\x87"]],
-            [["\x00\x01\x02\x03abc"]],
+            # [['\x00' * 20]],
+            [['\xFF' * 20]],
+            [['1234567890abcdefghijkl']],
+            [['\xe4\xb8\xad\xe6\x96\x87']],
         ]
 
         self.test_stmt_data_type('test_stmt_varchar_type', 'varchar(20)', tags, invalid_tags)
@@ -570,7 +567,6 @@ class TDTestCase:
             # [['POINT(123.456 789.012)']],
             # [['LINESTRING(1.0 1.0, 2.0 2.0, 3.0 3.0)']],
             # [['POLYGON((0 0, 4 0, 4 4, 0 4, 0 0))']],
-            # [['POLYGON((0 0, 10 0, 10 10, 0 10, 0 0), (2 2, 8 2, 8 8, 2 8, 2 2))']],
             # [['LINESTRING(0 0, 100 100, 200 200, 300 300)']],
             # boundary
             [[None]],
@@ -591,6 +587,7 @@ class TDTestCase:
             # [['LINESTRING(1.0 1.0)']],
             # [['POLYGON((1.0 1.0, 2.0 2.0, 3.0 3.0))']],
             # [['POLYGON((0 0, 4 0, 4 4))']],
+            # [['POLYGON((0 0, 10 0, 10 10, 0 10, 0 0), (2 2, 8 2, 8 8, 2 8, 2 2))']],
         ]
 
         self.test_stmt_data_type('test_stmt_geometry_type', 'geometry(100)', tags, invalid_tags)
@@ -603,6 +600,7 @@ class TDTestCase:
             [[b'\xFA\xFE\xFD\xFC\xFB']],
             [[b'\x00' * 20]],
             [[b'\x0A\x0B\x0C']],
+            [[b'\x01' + b'string']],
             # boundary
             [[None]],
             [[b'']],
@@ -616,19 +614,12 @@ class TDTestCase:
             # [[0]],
             # [[1]],
             # [[-1]],
-            # [[5]],
-            # [[-5]],
-            # [[10]],
-            # [[-10]],
-            # [[100]],
-            # [[-100]],
             # [[1000]],
             # [[-1000]],
             [[3.14]],
             [[-3.14]],
             [[b'\x01' * 21]],
             [[b'\x01' * 30]],
-            [[b'\x01' + b'string']],
         ]
 
         self.test_stmt_data_type('test_stmt_varbinary_type', 'varbinary(20)', tags, invalid_tags)
