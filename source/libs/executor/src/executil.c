@@ -2211,10 +2211,8 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
     return terrno;
   }
   pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t) * pCond->numOfCols);
-  if (pCond->colList == NULL || pCond->pSlotList == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  if (pCond->pSlotList == NULL) {
     taosMemoryFreeClear(pCond->colList);
-    taosMemoryFreeClear(pCond->pSlotList);
     return terrno;
   }
 

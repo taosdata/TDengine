@@ -44,7 +44,49 @@ TDengine 可以高效地从 Kafka 读取数据并将其写入 TDengine，以实�
 
 如果服务端开启了 SASL 认证机制，此处需要启用 SASL 并配置相关内容，目前支持 PLAIN/SCRAM-SHA-256/GSSAPI 三种认证机制，请按实际情况进行选择。
 
+#### 4.1. PLAIN 认证
+
+选择 `PLAIN` 认证机制，输入用户名和密码：
+
+![kafka-04-sasl-plain.png](./kafka-04-sasl-plain.png)
+
+#### 4.1. SCRAM(SCRAM-SHA-256) 认证
+
+选择 `SCRAM-SHA-256` 认证机制，输入用户名和密码：
+
 ![kafka-04.png](./kafka-04.png)
+
+#### 4.3. GSSAPI 认证
+
+选择 `GSSAPI` ，将通过 [RDkafka 客户端](https://github.com/confluentinc/librdkafka) 调用 GSSAPI 应用 Kerberos 认证机制：
+
+![kafka-04-sasl-gssapi.png](./kafka-04-sasl-gssapi.png)
+
+需要输入的信息有：
+
+- Kerberos 服务名，一般是 `kafka`；
+- Kerberos 认证主体，即认证用户名，例如 `kafkaclient`；
+- Kerberos 初始化命令（可选，一般不用填写）；
+- Kerberos 密钥表，需提供文件并上传；
+
+以上信息均需由 Kafka 服务管理者提供。
+
+除此之外，在服务器上需要配置 [Kerberos](https://web.mit.edu/kerberos/) 认证服务。在 Ubuntu 下使用 `apt install krb5-user` ；在 CentOS 下，使用 `yum install krb5-workstation`；即可。
+
+配置完成后，可以使用 [kcat](https://github.com/edenhill/kcat) 工具进行 Kafka 主题消费验证：
+
+```bash
+kcat <topic> \
+  -b <kafka-server:port> \
+  -G kcat \
+  -X security.protocol=SASL_PLAINTEXT \
+  -X sasl.mechanism=GSSAPI \
+  -X sasl.kerberos.keytab=</path/to/kafkaclient.keytab> \
+  -X sasl.kerberos.principal=<kafkaclient> \
+  -X sasl.kerberos.service.name=kafka
+```
+
+如果出现错误：“Server xxxx not found in kerberos database”，则需要配置 Kafka 节点对应的域名并在 Kerberos 客户端配置文件 `/etc/krb5.conf` 中配置反向域名解析 `rdns = true`。
 
 ### 5. 配置 SSL 证书
 

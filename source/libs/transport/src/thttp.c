@@ -266,14 +266,21 @@ static int32_t httpCreateMsg(const char* server, const char* uri, uint16_t port,
   msg->server = taosStrdup(server);
   msg->uri = taosStrdup(uri);
   msg->cont = taosMemoryMalloc(contLen);
-  if (qid != NULL)
-    msg->qid = taosStrdup(qid);
-  else
-    msg->qid = NULL;
   if (msg->server == NULL || msg->uri == NULL || msg->cont == NULL) {
     httpDestroyMsg(msg);
     *httpMsg = NULL;
     return terrno;
+  }
+
+  if (qid != NULL) {
+    msg->qid = taosStrdup(qid);
+    if (msg->qid == NULL) {
+      httpDestroyMsg(msg);
+      *httpMsg = NULL;
+      return terrno;
+    }
+  } else {
+    msg->qid = NULL;
   }
 
   memcpy(msg->cont, pCont, contLen);
@@ -352,7 +359,9 @@ static void httpAsyncCb(uv_async_t* handle) {
   static int32_t BATCH_SIZE = 20;
   int32_t        count = 0;
 
-  TAOS_UNUSED(taosThreadMutexLock(&item->mtx));
+  if ((taosThreadMutexLock(&item->mtx)) != 0) {
+    tError("http-report failed to lock mutex");
+  }
   httpMayDiscardMsg(http, item);
 
   while (!QUEUE_IS_EMPTY(&item->qmsg) && count++ < BATCH_SIZE) {
@@ -360,7 +369,9 @@ static void httpAsyncCb(uv_async_t* handle) {
     QUEUE_REMOVE(h);
     QUEUE_PUSH(&wq, h);
   }
-  TAOS_UNUSED(taosThreadMutexUnlock(&item->mtx));
+  if (taosThreadMutexUnlock(&item->mtx) != 0) {
+    tError("http-report failed to unlock mutex");
+  }
 
   httpTrace(&wq);
 
@@ -848,7 +859,9 @@ void taosDestroyHttpChan(int64_t chanId) {
     return;
   }
 
-  TAOS_UNUSED(taosThreadJoin(load->thread, NULL));
+  if (taosThreadJoin(load->thread, NULL) != 0) {
+    tTrace("http-report failed to join thread, chanId %" PRId64 "", chanId);
+  }
 
   httpModuleDestroy(load);
 

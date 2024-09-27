@@ -513,8 +513,8 @@ static int32_t tlvDecodeValueCStr(STlvDecoder* pDecoder, char* pValue) {
 }
 
 static int32_t tlvDecodeCStrP(STlv* pTlv, char** pValue) {
-  *pValue = strndup(pTlv->value, pTlv->len);
-  return NULL == *pValue ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_SUCCESS;
+  *pValue = taosStrndup(pTlv->value, pTlv->len);
+  return NULL == *pValue ? terrno : TSDB_CODE_SUCCESS;
 }
 
 static int32_t tlvDecodeDynBinary(STlv* pTlv, void** pValue) {

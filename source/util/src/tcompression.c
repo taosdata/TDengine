@@ -324,8 +324,8 @@ bool lossyFloat = false;
 bool lossyDouble = false;
 
 // init call
-int32_t tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
-                       uint32_t intervals, int32_t ifAdtFse, const char *compressor) {
+void tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals, uint32_t intervals,
+                    int32_t ifAdtFse, const char *compressor) {
   // config
   lossyFloat = strstr(lossyColumns, "float") != NULL;
   lossyDouble = strstr(lossyColumns, "double") != NULL;
@@ -333,7 +333,7 @@ int32_t tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, 
   tdszInit(fPrecision, dPrecision, maxIntervals, intervals, ifAdtFse, compressor);
   if (lossyFloat) uTrace("lossy compression float  is opened. ");
   if (lossyDouble) uTrace("lossy compression double is opened. ");
-  return 0;
+  return;
 }
 // exit call
 void tsCompressExit() { tdszExit(); }
@@ -825,9 +825,9 @@ int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelement
     return nelements * longBytes;
   } else if (input[0] == 1) {  // Decompress
     if (tsSIMDEnable && tsAVX512Supported && tsAVX512Enable) {
-      (void)tsDecompressTimestampAvx512(input, nelements, output, false);
+      tsDecompressTimestampAvx512(input, nelements, output, false);
     } else if (tsSIMDEnable && tsAVX2Supported) {
-      (void)tsDecompressTimestampAvx2(input, nelements, output, false);
+      tsDecompressTimestampAvx2(input, nelements, output, false);
     } else {
       int64_t *ostream = (int64_t *)output;
 
@@ -1201,9 +1201,9 @@ int32_t tsDecompressFloatImp(const char *const input, const int32_t nelements, c
   }
 
   if (tsSIMDEnable && tsAVX2Supported) {
-    (void)tsDecompressFloatImplAvx2(input, nelements, output);
+    tsDecompressFloatImplAvx2(input, nelements, output);
   } else if (tsSIMDEnable && tsAVX512Supported && tsAVX512Enable) {
-    (void)tsDecompressFloatImplAvx512(input, nelements, output);
+    tsDecompressFloatImplAvx512(input, nelements, output);
   } else {  // alternative implementation without SIMD instructions.
     tsDecompressFloatHelper(input, nelements, (float *)output);
   }

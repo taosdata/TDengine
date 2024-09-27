@@ -1528,7 +1528,7 @@ bool needInsertFrom(char* sql, int len) {
 
 // p is string following select keyword
 bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* sql, int32_t len) {
-  char* p = strndup(sql, len);
+  char* p = taosStrndup(sql, len);
 
   // union all
   char* p1;
@@ -1637,7 +1637,7 @@ bool matchSelectQuery(TAOS* con, SShellCmd* cmd) {
   }
 
   // search
-  char*   sql_cp = strndup(p, len);
+  char*   sql_cp = taosStrndup(p, len);
   int32_t n = searchAfterSelect(sql_cp, len);
   taosMemoryFree(sql_cp);
   if (n == -1 || n > len) return false;
@@ -1712,7 +1712,7 @@ bool matchCreateTable(TAOS* con, SShellCmd* cmd) {
   p += 13;
   len -= 13;
 
-  char* ps = strndup(p, len);
+  char* ps = taosStrndup(p, len);
   bool  ret = false;
   char* last = lastWord(ps);
 
@@ -1765,7 +1765,7 @@ bool matchOther(TAOS* con, SShellCmd* cmd) {
   if (len < 8) return false;
 
   // like 'from ( '
-  char* sql = strndup(p, len);
+  char* sql = taosStrndup(p, len);
   char* last = lastWord(sql);
 
   if (strcmp(last, "from(") == 0) {
@@ -1828,7 +1828,7 @@ bool matchOther(TAOS* con, SShellCmd* cmd) {
 bool matchEnd(TAOS* con, SShellCmd* cmd) {
   // str dump
   bool  ret = false;
-  char* ps = strndup(cmd->command, cmd->commandSize);
+  char* ps = taosStrndup(cmd->command, cmd->commandSize);
   char* last = lastWord(ps);
   char* elast = strrchr(last, '.');  // find end last
   if (elast) {

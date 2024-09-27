@@ -8737,10 +8737,10 @@ static int32_t makeIntervalVal(SRetention* pRetension, int8_t precision, SNode**
   }
   char    buf[20] = {0};
   int32_t len = snprintf(buf, sizeof(buf), "%" PRId64 "%c", timeVal, pRetension->freqUnit);
-  pVal->literal = strndup(buf, len);
+  pVal->literal = taosStrndup(buf, len);
   if (NULL == pVal->literal) {
     nodesDestroyNode((SNode*)pVal);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pVal->flag |= VALUE_FLAG_IS_DURATION;
   pVal->node.resType.type = TSDB_DATA_TYPE_BIGINT;

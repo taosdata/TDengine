@@ -691,7 +691,7 @@ static int32_t tsdbDoS3Migrate(SRTNer *rtner) {
   if (/*lcn < 1 && */ taosCheckExistFile(fobj->fname)) {
     int32_t mtime = 0;
     int64_t size = 0;
-    (void)taosStatFile(fobj->fname, &size, &mtime, NULL);
+    int32_t r = taosStatFile(fobj->fname, &size, &mtime, NULL);
     if (size > chunksize && mtime < rtner->now - tsS3UploadDelaySec) {
       if (pCfg->s3Compact && lcn < 0) {
         extern int32_t tsdbAsyncCompact(STsdb * tsdb, const STimeWindow *tw, bool sync);

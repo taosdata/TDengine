@@ -105,7 +105,7 @@ void* intervalCreateStateKey(SRowBuffPos* pPos, int64_t num) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
     return NULL;
   }
-  SWinKey*   pWinKey = pPos->pKey;
+  SWinKey* pWinKey = pPos->pKey;
   pStateKey->key = *pWinKey;
   pStateKey->opNum = num;
   return pStateKey;
@@ -125,7 +125,7 @@ void* sessionCreateStateKey(SRowBuffPos* pPos, int64_t num) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
     return NULL;
   }
-  SSessionKey*      pWinKey = pPos->pKey;
+  SSessionKey* pWinKey = pPos->pKey;
   pStateKey->key = *pWinKey;
   pStateKey->opNum = num;
   return pStateKey;
@@ -791,7 +791,7 @@ void flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, boo
     // todo handle failure
     memset(buf, 0, len);
   }
-  taosMemoryFree(buf);
+  taosMemoryFreeClear(buf);
 
   int32_t numOfElems = streamStateGetBatchSize(batch);
   if (numOfElems > 0) {
@@ -828,6 +828,7 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
+  taosMemoryFree(buf);
   streamStateDestroyBatch(batch);
 }
 
@@ -909,7 +910,7 @@ int32_t recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
     if (winRes != TSDB_CODE_SUCCESS) {
       break;
     }
-    
+
     if (vlen != pFileState->rowSize) {
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       QUERY_CHECK_CODE(code, lino, _end);

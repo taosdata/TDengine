@@ -168,11 +168,12 @@ int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void*
   int32_t lino = 0;
   void*   pVal = NULL;
   int32_t len = getRowStateRowSize(pState->pFileState);
-  code = getFunctionRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), &pVal, &len);
+  int32_t  tmpLen = len;
+  code = getFunctionRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), &pVal, &tmpLen);
   QUERY_CHECK_CODE(code, lino, _end);
 
   char*    buf = ((SRowBuffPos*)pVal)->pRowBuff;
-  uint32_t rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
+  int32_t  rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
   memcpy(buf + len - rowSize, value, vLen);
 
 _end:
@@ -186,11 +187,12 @@ int32_t streamStateFuncGet(SStreamState* pState, const SWinKey* key, void** ppVa
   int32_t lino = 0;
   void*   pVal = NULL;
   int32_t len = getRowStateRowSize(pState->pFileState);
-  code = getFunctionRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), (void**)(&pVal), &len);
+  int32_t  tmpLen = len;
+  code = getFunctionRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), (void**)(&pVal), &tmpLen);
   QUERY_CHECK_CODE(code, lino, _end);
 
   char*    buf = ((SRowBuffPos*)pVal)->pRowBuff;
-  uint32_t rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
+  int32_t  rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
   *ppVal = buf + len - rowSize;
   streamStateReleaseBuf(pState, pVal, false);
 

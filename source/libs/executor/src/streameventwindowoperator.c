@@ -48,9 +48,11 @@ void destroyStreamEventOperatorInfo(void* param) {
   }
   SStreamEventAggOperatorInfo* pInfo = (SStreamEventAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
-  cleanupResultInfoInStream(pInfo->pOperator->pTaskInfo, pInfo->streamAggSup.pState, &pInfo->pOperator->exprSupp,
-                            &pInfo->groupResInfo);
-  pInfo->pOperator = NULL;
+  if (pInfo->pOperator) {
+    cleanupResultInfoInStream(pInfo->pOperator->pTaskInfo, pInfo->streamAggSup.pState, &pInfo->pOperator->exprSupp,
+                              &pInfo->groupResInfo);
+    pInfo->pOperator = NULL;
+  }
   destroyStreamAggSupporter(&pInfo->streamAggSup);
   clearGroupResInfo(&pInfo->groupResInfo);
   taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);

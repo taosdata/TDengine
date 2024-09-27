@@ -237,7 +237,10 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 ```
 </TabItem>
 <TabItem label="C" value="c">
-不支持
+
+```c
+{{#include docs/examples/c-ws/sml_insert_demo.c:schemaless}}
+```
 </TabItem>
 <TabItem label="REST API" value="rest">
 不支持

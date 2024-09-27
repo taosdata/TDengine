@@ -187,7 +187,9 @@ static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOf
 static void vmSendResponse(SRpcMsg *pMsg) {
   if (pMsg->info.handle) {
     SRpcMsg rsp = {.info = pMsg->info, .code = terrno};
-    (void)rpcSendResponse(&rsp);
+    if (rpcSendResponse(&rsp) != 0) {
+      dError("failed to send response since %s", terrstr());
+    }
   }
 }
 
@@ -389,10 +391,28 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   SMultiWorkerCfg scfg = {.max = 1, .name = "vnode-sync", .fp = (FItems)vmProcessSyncQueue, .param = pVnode};
   SMultiWorkerCfg sccfg = {.max = 1, .name = "vnode-sync-rd", .fp = (FItems)vmProcessSyncQueue, .param = pVnode};
   SMultiWorkerCfg acfg = {.max = 1, .name = "vnode-apply", .fp = (FItems)vnodeApplyWriteMsg, .param = pVnode->pImpl};
-  (void)tMultiWorkerInit(&pVnode->pWriteW, &wcfg);
-  (void)tMultiWorkerInit(&pVnode->pSyncW, &scfg);
-  (void)tMultiWorkerInit(&pVnode->pSyncRdW, &sccfg);
-  (void)tMultiWorkerInit(&pVnode->pApplyW, &acfg);
+  code = tMultiWorkerInit(&pVnode->pWriteW, &wcfg);
+  if (code) {
+    return code;
+  }
+  code = tMultiWorkerInit(&pVnode->pSyncW, &scfg);
+  if (code) {
+    tMultiWorkerCleanup(&pVnode->pWriteW);
+    return code;
+  }
+  code = tMultiWorkerInit(&pVnode->pSyncRdW, &sccfg);
+  if (code) {
+    tMultiWorkerCleanup(&pVnode->pWriteW);
+    tMultiWorkerCleanup(&pVnode->pSyncW);
+    return code;
+  }
+  code = tMultiWorkerInit(&pVnode->pApplyW, &acfg);
+  if (code) {
+    tMultiWorkerCleanup(&pVnode->pWriteW);
+    tMultiWorkerCleanup(&pVnode->pSyncW);
+    tMultiWorkerCleanup(&pVnode->pSyncRdW);
+    return code;
+  }
 
   pVnode->pQueryQ = tQueryAutoQWorkerAllocQueue(&pMgmt->queryPool, pVnode, (FItem)vmProcessQueryQueue);
   pVnode->pStreamQ = tAutoQWorkerAllocQueue(&pMgmt->streamPool, pVnode, (FItem)vmProcessStreamQueue);

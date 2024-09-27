@@ -28,6 +28,12 @@ FstSparseSet *sparSetCreate(int32_t sz) {
 
   ss->dense = (int32_t *)taosMemoryMalloc(sz * sizeof(int32_t));
   ss->sparse = (int32_t *)taosMemoryMalloc(sz * sizeof(int32_t));
+  if (ss->dense == NULL || ss->sparse == NULL) {
+    taosMemoryFree(ss->dense);
+    taosMemoryFree(ss->sparse);
+    taosMemoryFree(ss);
+    return NULL;
+  }
   sparSetInitBuf(ss->dense, sz);
   sparSetInitBuf(ss->sparse, sz);
 

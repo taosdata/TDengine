@@ -25,7 +25,7 @@ static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void**
       return terrno;
     }
 
-    if(taosArrayPush(pTblBuf->pBufList, &buff) == NULL){
+    if (taosArrayPush(pTblBuf->pBufList, &buff) == NULL) {
       return terrno;
     }
 
@@ -224,8 +224,8 @@ int32_t stmtUpdateBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, 
                            bool autoCreateTbl) {
   STscStmt* pStmt = (STscStmt*)stmt;
   char      tbFName[TSDB_TABLE_FNAME_LEN];
-  int32_t code = tNameExtractFullName(tbName, tbFName);
-  if (code != 0){
+  int32_t   code = tNameExtractFullName(tbName, tbFName);
+  if (code != 0) {
     return code;
   }
 
@@ -772,7 +772,7 @@ void* stmtBindThreadFunc(void* param) {
     }
 
     int ret = stmtAsyncOutput(pStmt, asyncParam);
-    if (ret != 0){
+    if (ret != 0) {
       qError("stmtAsyncOutput failed, reason:%s", tstrerror(ret));
     }
   }
@@ -821,7 +821,7 @@ int32_t stmtInitTableBuf(STableBufInfo* pTblBuf) {
     return terrno;
   }
 
-  if (taosArrayPush(pTblBuf->pBufList, &buff) == NULL){
+  if (taosArrayPush(pTblBuf->pBufList, &buff) == NULL) {
     return terrno;
   }
 
@@ -923,9 +923,9 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
     length = strlen(sql);
   }
 
-  pStmt->sql.sqlStr = strndup(sql, length);
+  pStmt->sql.sqlStr = taosStrndup(sql, length);
   if (!pStmt->sql.sqlStr) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pStmt->sql.sqlLen = length;
   pStmt->sql.stbInterlaceMode = pStmt->stbInterlaceMode;
@@ -967,7 +967,7 @@ int32_t stmtInitStbInterlaceTableInfo(STscStmt* pStmt) {
 }
 
 int stmtSetDbName(TAOS_STMT* stmt, const char* dbName) {
-  STscStmt *pStmt = (STscStmt *) stmt;
+  STscStmt* pStmt = (STscStmt*)stmt;
 
   STMT_DLOG("start to set dbName: %s", dbName);
 
@@ -1045,7 +1045,7 @@ int stmtSetTbTags(TAOS_STMT* stmt, TAOS_MULTI_BIND* tags) {
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_SETTAGS));
 
-  SBoundColInfo *tags_info = (SBoundColInfo*)pStmt->bInfo.boundTags;
+  SBoundColInfo* tags_info = (SBoundColInfo*)pStmt->bInfo.boundTags;
   if (tags_info->numOfBound <= 0 || tags_info->numOfCols <= 0) {
     tscWarn("no tags bound in sql, will not bound tags");
     return TSDB_CODE_SUCCESS;
@@ -1192,7 +1192,7 @@ static FORCE_INLINE int32_t stmtGetTableColsFromCache(STscStmt* pStmt, SArray** 
           return terrno;
         }
 
-        if (taosArrayPush(pStmt->sql.siInfo.pTableCols, &pTblCols) == NULL){
+        if (taosArrayPush(pStmt->sql.siInfo.pTableCols, &pTblCols) == NULL) {
           return terrno;
         }
       }
@@ -1215,7 +1215,6 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
   }
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_BIND));
-
 
   if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
       STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
@@ -1256,7 +1255,7 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
 
     if (pStmt->sql.pQuery->haveResultSet) {
       STMT_ERR_RET(setResSchemaInfo(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->pResSchema,
-                       pStmt->sql.pQuery->numOfResCols));
+                                    pStmt->sql.pQuery->numOfResCols));
       taosMemoryFreeClear(pStmt->sql.pQuery->pResSchema);
       setResPrecision(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->precision);
     }
@@ -1549,7 +1548,7 @@ int stmtExec(TAOS_STMT* stmt) {
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_EXECUTE));
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
-    (void)launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
+    launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
   } else {
     if (pStmt->sql.stbInterlaceMode) {
       int64_t startTs = taosGetTimestampUs();
@@ -1571,7 +1570,7 @@ int stmtExec(TAOS_STMT* stmt) {
       STMT_ERR_RET(qBuildStmtOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, pStmt->exec.pBlockHash));
     }
 
-    (void)launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
+    launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
   }
 
   if (pStmt->exec.pRequest->code && NEED_CLIENT_HANDLE_ERROR(pStmt->exec.pRequest->code)) {

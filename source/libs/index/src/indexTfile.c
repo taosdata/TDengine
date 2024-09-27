@@ -45,7 +45,7 @@ static int tfileWriteFooter(TFileWriter* write);
 
 // handle file corrupt later
 static int tfileReaderLoadHeader(TFileReader* reader);
-static int tfileReaderLoadFst(TFileReader* reader);
+static int32_t tfileReaderLoadFst(TFileReader* reader);
 static int tfileReaderVerify(TFileReader* reader);
 static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* result);
 
@@ -739,7 +739,11 @@ IndexTFile* idxTFileCreate(SIndex* idx, const char* path) {
     tfileCacheDestroy(cache);
     return NULL;
   }
-  TAOS_UNUSED(taosThreadMutexInit(&tfile->mtx, NULL));
+  if (taosThreadMutexInit(&tfile->mtx, NULL) != 0) {
+    taosMemoryFree(tfile);
+    tfileCacheDestroy(cache);
+    return NULL;
+  }
   tfile->cache = cache;
   return tfile;
 }
@@ -764,9 +768,16 @@ int idxTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTRslt* result) {
   SIndexTerm* term = query->term;
   ICacheKey key = {.suid = term->suid, .colType = term->colType, .colName = term->colName, .nColName = term->nColName};
 
-  TAOS_UNUSED(taosThreadMutexLock(&pTfile->mtx));
+  if (taosThreadMutexLock(&pTfile->mtx) != 0) {
+    indexError("failed to lock tfile mutex");
+  }
+
   TFileReader* reader = tfileCacheGet(pTfile->cache, &key);
-  TAOS_UNUSED(taosThreadMutexUnlock(&pTfile->mtx));
+
+  if (taosThreadMutexUnlock(&pTfile->mtx) != 0) {
+    indexError("failed to unlock tfile mutex");
+  }
+
   if (reader == NULL) {
     return 0;
   }
@@ -883,9 +894,13 @@ TFileReader* tfileGetReaderByCol(IndexTFile* tf, uint64_t suid, char* colName) {
   TFileReader* rd = NULL;
   ICacheKey    key = {.suid = suid, .colType = TSDB_DATA_TYPE_BINARY, .colName = colName, .nColName = strlen(colName)};
 
-  TAOS_UNUSED(taosThreadMutexLock(&tf->mtx));
+  if (taosThreadMutexLock(&tf->mtx) != 0) {
+    indexError("failed to lock tfile mutex");
+  }
   rd = tfileCacheGet(tf->cache, &key);
-  TAOS_UNUSED(taosThreadMutexUnlock(&tf->mtx));
+  if (taosThreadMutexUnlock(&tf->mtx) != 0) {
+    indexError("failed to unlock tfile mutex");
+  }
   return rd;
 }
 
@@ -1007,7 +1022,7 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
 
   int64_t nread = reader->ctx->readFrom(reader->ctx, (uint8_t*)buf, sizeof(buf), 0);
 
-  if (nread == -1) {
+  if (nread < 0) {
     indexError("actual Read: %d, to read: %d, code:0x%x, filename: %s", (int)(nread), (int)sizeof(buf), errno,
                reader->ctx->file.buf);
   } else {
@@ -1017,7 +1032,7 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
 
   return 0;
 }
-static int tfileReaderLoadFst(TFileReader* reader) {
+static int32_t tfileReaderLoadFst(TFileReader* reader) {
   IFileCtx* ctx = reader->ctx;
   int       size = ctx->size(ctx);
 
@@ -1025,7 +1040,7 @@ static int tfileReaderLoadFst(TFileReader* reader) {
   int   fstSize = size - reader->header.fstOffset - sizeof(FILE_MAGIC_NUMBER);
   char* buf = taosMemoryCalloc(1, fstSize);
   if (buf == NULL) {
-    return -1;
+    return terrno;
   }
 
   int64_t ts = taosGetTimestampUs();
@@ -1043,7 +1058,7 @@ static int tfileReaderLoadFst(TFileReader* reader) {
   taosMemoryFree(buf);
   fstSliceDestroy(&st);
 
-  return reader->fst != NULL ? 0 : -1;
+  return reader->fst != NULL ? 0 : TSDB_CODE_INDEX_INVALID_FILE;
 }
 static int32_t tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* result) {
   // TODO(yihao): opt later
@@ -1052,7 +1067,7 @@ static int32_t tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArr
   IFileCtx* ctx = reader->ctx;
   // add block cache
   char    block[4096] = {0};
-  int32_t nread = ctx->readFrom(ctx, (uint8_t*)block, sizeof(block), offset);
+  int64_t nread = ctx->readFrom(ctx, (uint8_t*)block, sizeof(block), offset);
   if (nread < sizeof(uint32_t)) {
     return TSDB_CODE_INDEX_INVALID_FILE;
   }
