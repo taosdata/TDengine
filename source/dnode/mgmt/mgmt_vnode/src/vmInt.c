@@ -297,11 +297,22 @@ static void *vmOpenVnodeInThread(void *param) {
   SVnodeMgmt   *pMgmt = pThread->pMgmt;
   char          path[TSDB_FILENAME_LEN];
 
-  dInfo("thread:%d, start to open %d vnodes", pThread->threadIndex, pThread->vnodeNum);
+  dInfo("thread:%d, start to open or destroy %d vnodes", pThread->threadIndex, pThread->vnodeNum);
   setThreadName("open-vnodes");
 
   for (int32_t v = 0; v < pThread->vnodeNum; ++v) {
     SWrapperCfg *pCfg = &pThread->pCfgs[v];
+    if (pCfg->dropped) {
+      char stepDesc[TSDB_STEP_DESC_LEN] = {0};
+      snprintf(stepDesc, TSDB_STEP_DESC_LEN, "vgId:%d, start to destroy, %d of %d have been dropped", pCfg->vgId,
+               pMgmt->state.openVnodes, pMgmt->state.totalVnodes);
+      tmsgReportStartup("vnode-destroy", stepDesc);
+
+      snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pCfg->vgId);
+      vnodeDestroy(pCfg->vgId, path, pMgmt->pTfs, 0);
+      pThread->updateVnodesList = true;
+      continue;
+    }
 
     char stepDesc[TSDB_STEP_DESC_LEN] = {0};
     snprintf(stepDesc, TSDB_STEP_DESC_LEN, "vgId:%d, start to restore, %d of %d have been opened", pCfg->vgId,
