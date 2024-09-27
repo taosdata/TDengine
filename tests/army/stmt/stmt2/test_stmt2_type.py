@@ -71,10 +71,9 @@ class TDTestCase:
             try:
                 stmt2.bind_param(tbnames, invalid_tags[i], datas)
                 stmt2.execute()
-            except Exception:
-                pass
-            else:
                 tdLog.exit(f"[{test_case_name}] No expected error occurred, invalid_tags[{i}]: {invalid_tags[i]}")
+            except Exception as err:
+                tdLog.info(f"[{test_case_name}] Expected error occurred, invalid_tags[{i}]: {invalid_tags[i]}, err: {err}")
 
         flattened_invalid_tags = list(itertools.chain.from_iterable(itertools.chain.from_iterable(invalid_tags)))
         invalid_datas = [[[[1626861392589111], [tag]]] for tag in flattened_invalid_tags]
@@ -85,10 +84,9 @@ class TDTestCase:
                 try:
                     stmt2.bind_param(tbnames, tags[0], invalid_datas[i])
                     stmt2.execute()
-                except Exception:
-                    pass
-                else:
                     tdLog.exit(f"[{test_case_name}] No expected error occurred, invalid_datas[{i}]: {invalid_datas[i]}")
+                except Exception as err:
+                    tdLog.info(f"[{test_case_name}] Expected error occurred, invalid_datas[{i}]: {invalid_datas[i]}, err: {err}")
 
     def test_stmt_timestamp_type(self):
         tags = [
