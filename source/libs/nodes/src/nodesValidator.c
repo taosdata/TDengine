@@ -29,6 +29,7 @@ typedef enum ValidationType {
 
 typedef struct ColumnValidation {
   bool ignoreSlotId;
+  bool validateFromDownstream;
 } ColumnValidation;
 
 typedef struct NodeValidationCtx {
@@ -41,8 +42,17 @@ typedef struct NodeValidationCtx {
   bool                shouldHaveChild;
 } NodeValidationCtx;
 
-void setColumnValidation(NodeValidationCtx* pCtx, bool ignoreSlotId) {
+void setColumnValidation(NodeValidationCtx* pCtx, bool ignoreSlotId, bool validateFromDownstream) {
   pCtx->validateCol.ignoreSlotId = ignoreSlotId;
+  pCtx->validateCol.validateFromDownstream = validateFromDownstream;
+}
+
+void setValidateCol_IgnoreSlotId(NodeValidationCtx* pCtx, bool ignoreSlotId) {
+  pCtx->validateCol.ignoreSlotId = ignoreSlotId;
+}
+
+void setValidateCol_ValidateFromDownstream(NodeValidationCtx* pCtx, bool validateFromDownstream) {
+  pCtx->validateCol.validateFromDownstream = validateFromDownstream;
 }
 
 static SDataBlockDescNode* getDownstreamOutputDesc(SPhysiNode* pNode) {
@@ -133,13 +143,19 @@ static int32_t validateSlotId(int32_t slotId, SDataBlockDescNode* pOutputDesc, c
 }
 
 static int32_t validateColDataBlockId(SColumnNode* pCol, NodeValidationCtx* pCtx) {
-  if (pCtx->shouldHaveChild) {
-
-  } else {
-    if (pCol->dataBlockId != pCtx->pOutputDesc->dataBlockId) {
+  int16_t dataBlockId;
+  if (pCtx->validateCol.validateFromDownstream) {
+    if (!pCtx->pDownstreamOutputDesc) {
       qLogWarn();
       return pCtx->code = TSDB_CODE_PLAN_VALIDATION_ERR;
     }
+    dataBlockId = pCtx->pDownstreamOutputDesc->dataBlockId;
+  } else {
+    dataBlockId = pCtx->pOutputDesc->dataBlockId;
+  }
+  if (pCol->dataBlockId != dataBlockId) {
+    qLogWarn();
+    return pCtx->code = TSDB_CODE_PLAN_VALIDATION_ERR;
   }
   return pCtx->code;
 }
@@ -147,7 +163,9 @@ static int32_t validateColDataBlockId(SColumnNode* pCol, NodeValidationCtx* pCtx
 static int32_t validateColumn(SColumnNode* pCol, NodeValidationCtx* pCtx) {
   if (!pCtx->validateCol.ignoreSlotId) {
     const SSlotDescNode* pSlotDescNode = NULL;
-    pCtx->code = validateSlotId(pCol->slotId, pCtx->pOutputDesc, &pSlotDescNode);
+    pCtx->code = validateSlotId(
+        pCol->slotId, pCtx->validateCol.validateFromDownstream ? pCtx->pDownstreamOutputDesc : pCtx->pOutputDesc,
+        &pSlotDescNode);
     if (TSDB_CODE_SUCCESS != pCtx->code) {
       qLogWarn();
       return pCtx->code;
@@ -349,6 +367,11 @@ static int32_t validateBasePhysiNode(SPhysiNode* pNode, NodeValidationCtx* pCtx)
     qLogWarn();
     return pCtx->code;
   }
+  pCtx->code = tryGetDownstreamOutput(pNode, pCtx);
+  if (TSDB_CODE_SUCCESS != pCtx->code) {
+    qLogWarn();
+    return pCtx->code;
+  }
   // walk conditions, check all Columns
   // TODO walk all nodes, all types
   int32_t code = walkAndValidateColumnNode(pNode->pConditions, pNode, pCtx);
@@ -368,14 +391,14 @@ static int32_t validateScanPhysiNode(SScanPhysiNode* pNode, NodeValidationCtx* p
     return code;
   }
   SNode* pTmp = NULL;
-  setColumnValidation(pCtx, true);
+  setValidateCol_IgnoreSlotId(pCtx, true);
   code = validateTargetNodes(pNode->pScanCols, pCtx);
   if (TSDB_CODE_SUCCESS != code) {
     qLogWarn();
     return code;
   }
   code = validateTargetNodes(pNode->pScanPseudoCols, pCtx);
-  setColumnValidation(pCtx, false);
+  setValidateCol_IgnoreSlotId(pCtx, false);
   if (TSDB_CODE_SUCCESS != code) {
     qLogWarn();
     return code;
@@ -402,9 +425,9 @@ int32_t doValidateTableScanPhysiNode(STableScanPhysiNode* pNode) {
   // SNodeList*     pGroupTags;
   // TODO check all types of all nodes
   // TODO why we should ignore slotId check for pGroupTags
-  setColumnValidation(&ctx, true);
+  setValidateCol_IgnoreSlotId(&ctx, true);
   ctx.code = walkAndValidateColumnNodes(pNode->pGroupTags, ctx.pNode, &ctx);
-  setColumnValidation(&ctx, false);
+  setValidateCol_IgnoreSlotId(&ctx, false);
   if (TSDB_CODE_SUCCESS != ctx.code) {
     qLogWarn();
     return ctx.code;
@@ -496,7 +519,9 @@ int32_t doValidateBlockDistScanPhysiNode(SBlockDistScanPhysiNode* pNode) {
 
 int32_t doValidateProjectPhysiNode(SProjectPhysiNode* pNode) {
   VALIDATE_BASE_PHYSI_NODE(pNode);
+  setValidateCol_ValidateFromDownstream(&ctx, true);
   ctx.code = walkAndValidateColumnNodes(pNode->pProjections, ctx.pNode, &ctx);
+  setValidateCol_ValidateFromDownstream(&ctx, false);
   if (TSDB_CODE_SUCCESS != ctx.code) {
     qLogWarn();
     return ctx.code;
