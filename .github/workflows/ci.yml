@@ -127,7 +127,6 @@ jobs:
 
   linux-x86_64:
     runs-on: ubuntu-latest
-    container: docker.io/zitsen/explorer-dev
     needs: web
     steps:
       - uses: actions/checkout@v3

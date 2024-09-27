@@ -121,7 +121,7 @@ export default {
     }
   },
   watch: {},
-  created() {},
+  created() {console.log('taskId',this.taskId);},
   mounted() {},
   methods: {
     parseMarked(desc) {

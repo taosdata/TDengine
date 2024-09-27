@@ -2667,6 +2667,28 @@ export function getDataSources(lang) {
                 "placeholder": "for example: group_id"
               },
               {
+                "name": "client_id",
+                "display": "Client id",
+                "hint": {
+                  "type": "str"
+                },
+                "required": true,
+                "short_description": "Client id used to connect to Kafka broker.",
+                "description": "Client id used to connect to Kafka broker.",
+                "placeholder": "client_id"
+              },
+              {
+                "name": "group",
+                "display": "Group ID",
+                "hint": {
+                  "type": "str"
+                },
+                "required": true,
+                "short_description": "Kafka Group ID。",
+                "description": "Kafka Group ID。",
+                "placeholder": "group_id"
+              },
+              {
                 "name": "fallback_offset",
                 "display": "Fallback Offset",
                 "hint": {
@@ -7251,6 +7273,28 @@ export function getDataSources(lang) {
                 "short_description": "Kafka 消费者组 ID。",
                 "description": "Kafka 消费者组 ID。",
                 "placeholder": "示例：group_id"
+              },
+              {
+                "name": "client_id",
+                "display": "Client ID",
+                "hint": {
+                  "type": "str"
+                },
+                "required": true,
+                "short_description": "Kafka Broker 客户端 ID。",
+                "description": "Kafka Broker 客户端 ID。",
+                "placeholder": "client_id"
+              },
+              {
+                "name": "group",
+                "display": "消费者组 ID",
+                "hint": {
+                  "type": "str"
+                },
+                "required": true,
+                "short_description": "Kafka 消费者组 ID。",
+                "description": "Kafka 消费者组 ID。",
+                "placeholder": "group_id"
               },
               {
                 "name": "fallback_offset",
