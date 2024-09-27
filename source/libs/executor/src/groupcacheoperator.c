@@ -333,14 +333,14 @@ static int32_t saveBlocksToDisk(SGroupCacheOperatorInfo* pGCache, SGcDownstreamC
       continue;
     }
     
-    int32_t ret = taosLSeekFile(pFd->fd, pHead->basic.offset, SEEK_SET);
+    int64_t ret = taosLSeekFile(pFd->fd, pHead->basic.offset, SEEK_SET);
     if (ret < 0) {
       releaseFdToFileCtx(pFd);
       code = terrno;
       goto _return;
     }
     
-    ret = (int32_t)taosWriteFile(pFd->fd, pHead->pBuf, pHead->basic.bufSize);
+    ret = taosWriteFile(pFd->fd, pHead->pBuf, pHead->basic.bufSize);
     if (ret != pHead->basic.bufSize) {
       releaseFdToFileCtx(pFd);
       code = terrno;
@@ -578,7 +578,7 @@ static int32_t readBlockFromDisk(SGroupCacheOperatorInfo* pGCache, SGroupCacheDa
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
   
-  int32_t ret = taosLSeekFile(pFileFd->fd, pBasic->offset, SEEK_SET);
+  int64_t ret = taosLSeekFile(pFileFd->fd, pBasic->offset, SEEK_SET);
   if (ret < 0) {
     code = terrno;
     goto _return;
@@ -590,7 +590,7 @@ static int32_t readBlockFromDisk(SGroupCacheOperatorInfo* pGCache, SGroupCacheDa
     goto _return;
   }
   
-  ret = (int32_t)taosReadFile(pFileFd->fd, *ppBuf, pBasic->bufSize);
+  ret = taosReadFile(pFileFd->fd, *ppBuf, pBasic->bufSize);
   if (ret != pBasic->bufSize) {
     taosMemoryFreeClear(*ppBuf);
     code = terrno;
