@@ -263,7 +263,11 @@ static FORCE_INLINE void destroyReqAndAhanlde(void* cmsg);
 static FORCE_INLINE int  cliRBChoseIdx(STrans* pInst);
 static FORCE_INLINE void destroyReqCtx(SReqCtx* ctx);
 
-int32_t cliHandleState_mayUpdateState(SCliThrd* pThrd, SCliReq* pReq, SCliConn* pConn);
+static int32_t cliHandleState_mayUpdateState(SCliConn* pConn, SCliReq* pReq);
+static int32_t cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead);
+static int32_t cliHandleState_mayCreateAhandle(SCliConn* conn, STransMsgHead* pHead, STransMsg* pResp);
+static int32_t cliHandleState_mayUpdateStateCtx(SCliConn* pConn, SCliReq* pReq);
+
 int32_t cliMayGetStateByQid(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn);
 
 static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key);
@@ -911,7 +915,7 @@ static int32_t cliCreateConn2(SCliThrd* pThrd, SCliReq* pReq, SCliConn** ppConn)
 
   TAOS_CHECK_GOTO(cliCreateConn(pThrd, &pConn, ip, port), NULL, _exception);
 
-  code = cliHandleState_mayUpdateState(pThrd, pReq, pConn);
+  code = cliHandleState_mayUpdateState(pConn, pReq);
 
   (void)addConnToHeapCache(pThrd->connHeapCache, pConn);
   (void)transQueuePush(&pConn->reqsToSend, &pReq->q);
@@ -1648,9 +1652,10 @@ int32_t cliMayGetStateByQid(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn) {
   }
 }
 
-int32_t cliHandleState_mayUpdateState(SCliThrd* pThrd, SCliReq* pReq, SCliConn* pConn) {
-  int32_t code = 0;
-  int64_t qid = pReq->msg.info.qId;
+int32_t cliHandleState_mayUpdateState(SCliConn* pConn, SCliReq* pReq) {
+  SCliThrd* pThrd = pConn->hostThrd;
+  int32_t   code = 0;
+  int64_t   qid = pReq->msg.info.qId;
   if (qid == 0) {
     return TSDB_CODE_RPC_NO_STATE;
   }
@@ -1703,7 +1708,7 @@ void cliHandleBatchReq(SCliThrd* pThrd, SCliReq* pReq) {
         return;
       }
     }
-    code = cliHandleState_mayUpdateState(pThrd, pReq, pConn);
+    code = cliHandleState_mayUpdateState(pConn, pReq);
   }
   code = cliSendReq(pConn, pReq);
 

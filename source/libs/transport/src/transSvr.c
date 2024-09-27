@@ -437,8 +437,13 @@ static int8_t uvValidConn(SSvrConn* pConn) {
 static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
   int32_t code = 0;
   STrans* pInst = pConn->pInst;
-  int64_t qId = taosHton64(pHead->qid);
-  if (pHead->msgType == TDMT_SCH_TASK_RELEASE && qId > 0) {
+  if (pHead->msgType == TDMT_SCH_TASK_RELEASE) {
+    int64_t qId = taosHton64(pHead->qid);
+    if (qId <= 0) {
+      tError("conn %p recv release, but invalid qid:%" PRId64 "", pConn, qId);
+      return TSDB_CODE_RPC_NO_STATE;
+    }
+
     void* p = taosHashGet(pConn->pQTable, &qId, sizeof(qId));
     if (p == NULL) {
       code = TSDB_CODE_RPC_NO_STATE;
@@ -1644,22 +1649,8 @@ void uvHandleQuit(SSvrRespMsg* msg, SWorkThrd* thrd) {
   }
   taosMemoryFree(msg);
 }
-void uvHandleRelease(SSvrRespMsg* msg, SWorkThrd* thrd) {
-  return;
-  // int32_t   code = 0;
-  // SSvrConn* conn = msg->pConn;
-  // if (conn->status == ConnAcquire) {
-  //   if (!transQueuePush(&conn->resps, msg)) {
-  //     return;
-  //   }
-  //   uvStartSendRespImpl(msg);
-  //   return;
-  // } else if (conn->status == ConnRelease || conn->status == ConnNormal) {
-  //   tDebug("%s conn %p already released, ignore release-msg", transLabel(thrd->pInst), conn);
-  // }
+void uvHandleRelease(SSvrRespMsg* msg, SWorkThrd* thrd) { return; }
 
-  // destroySmsg(msg);
-}
 void uvHandleResp(SSvrRespMsg* msg, SWorkThrd* thrd) {
   // send msg to client
   tDebug("%s conn %p start to send resp (2/2)", transLabel(thrd->pInst), msg->pConn);
@@ -1669,16 +1660,16 @@ void uvHandleResp(SSvrRespMsg* msg, SWorkThrd* thrd) {
 int32_t uvHandleStateReq(SSvrRespMsg* msg) {
   int32_t   code = 0;
   SSvrConn* conn = msg->pConn;
-  tDebug("%s conn %p start to register brokenlink callback, qid:%" PRId64 "", transLabel(conn->pInst), conn,
-         msg->msg.info.qId);
+  int64_t   qid = msg->msg.info.qId;
+  tDebug("%s conn %p start to register brokenlink callback, qid:%" PRId64 "", transLabel(conn->pInst), conn, qid);
 
   SSvrRegArg  arg = {.notifyCount = 0, .init = 1, .msg = msg->msg};
-  SSvrRegArg* p = taosHashGet(conn->pQTable, &msg->msg.info.qId, sizeof(msg->msg.info.qId));
+  SSvrRegArg* p = taosHashGet(conn->pQTable, &qid, sizeof(qid));
   if (p != NULL) {
     transFreeMsg(p->msg.pCont);
   }
 
-  code = taosHashPut(conn->pQTable, &msg->msg.info.qId, sizeof(msg->msg.info.qId), &arg, sizeof(arg));
+  code = taosHashPut(conn->pQTable, &qid, sizeof(qid), &arg, sizeof(arg));
   if (code == 0) tDebug("conn %p register brokenlink callback succ", conn);
   return code;
 }
