@@ -74,22 +74,39 @@ int32_t validateQueryPlanNode(SValidatePlanContext* pCxt, SQueryPlan* pPlan) {
 int32_t doValidatePhysiNode(SValidatePlanContext* pCxt, SNode* pNode) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
+      pCxt->errCode = doValidateTagScanPhysiNode((STagScanPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
-      return doValidateTableScanPhysiNode((STableScanPhysiNode*)pNode);
+      pCxt->errCode = doValidateTableScanPhysiNode((STableScanPhysiNode*)pNode);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
+      pCxt->errCode = doValidateTableSeqScanPhysiNode((STableSeqScanPhysiNode*)pNode);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
+      pCxt->errCode = doValidateTableMergeScanPhysiNode((STableMergeScanPhysiNode*)pNode);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
+      pCxt->errCode = doValidateStreamScanPhysiNode((SStreamScanPhysiNode*)pNode);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+      pCxt->errCode = doValidateSystemTableScanPhysiNode((SSystemTableScanPhysiNode*)pNode);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
+      pCxt->errCode = doValidateBlockDistScanPhysiNode((SBlockDistScanPhysiNode*)pNode);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
+      pCxt->errCode = doValidateLastRowScanPhysiNode((SLastRowScanPhysiNode*)pNode);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      pCxt->errCode = doValidateProjectPhysiNode((SProjectPhysiNode*)pNode);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE:
-      return validateMergePhysiNode(pCxt, (SMergePhysiNode*)pNode);
+      pCxt->errCode = validateMergePhysiNode(pCxt, (SMergePhysiNode*)pNode);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
     case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT:
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
@@ -130,11 +147,14 @@ int32_t doValidatePhysiNode(SValidatePlanContext* pCxt, SNode* pNode) {
       break;
   }
 
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    return pCxt->errCode;
+  }
   SNode* pChild = NULL;
   FOREACH(pChild, ((SPhysiNode*)pNode)->pChildren) {
-    int32_t code = doValidatePhysiNode(pCxt, pChild);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
+    pCxt->errCode = doValidatePhysiNode(pCxt, pChild);
+    if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+      return pCxt->errCode;
     }
   }
   return TSDB_CODE_SUCCESS;

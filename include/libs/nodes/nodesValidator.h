@@ -19,6 +19,10 @@ int32_t doValidateTableScanPhysiNode(STableScanPhysiNode* pNode);
 int32_t doValidateTagScanPhysiNode(STagScanPhysiNode* pNode);
 int32_t doValidateLastRowScanPhysiNode(SLastRowScanPhysiNode* pNode);
 int32_t doValidateSystemTableScanPhysiNode(SSystemTableScanPhysiNode* pNode);
+int32_t doValidateTableSeqScanPhysiNode(STableSeqScanPhysiNode* pNode);
+int32_t doValidateTableMergeScanPhysiNode(STableMergeScanPhysiNode* pNode);
+int32_t doValidateStreamScanPhysiNode(SStreamScanPhysiNode* pNode);
+int32_t doValidateBlockDistScanPhysiNode(SBlockDistScanPhysiNode* pNode);
 
 int32_t doValidateProjectPhysiNode(SProjectPhysiNode* pNode);
 
